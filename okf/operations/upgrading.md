@@ -101,7 +101,7 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
   the organization meets daily limits (by default 500 writes, 25 sources, 5 exports and 100 MB of
   uploads for each person; 2,000 writes and 250 MB for the whole organization; 120 calls and 30
   writes a minute; files of at most 10 MB, documents only), which only instance owners change, on
-  `/instance` or with `products(action="set_limits")`. On the maintainer's Cloud Run production, set
+  `/instance` or with `products(action="set_limits")`. A deployment open to the public sets
   `WHATBUILD_NEW_ORGANIZATION_PLAN=free` before or with this release
   ([cloud-run.md](cloud-run.md)); a self-hosted deployment leaves it out. Changing it changes only
   organizations created afterwards.
@@ -156,19 +156,17 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
   OpenTelemetry's settings: `OTEL_EXPORTER_OTLP_ENDPOINT`, and `OTEL_EXPORTER_OTLP_HEADERS` for a
   service that takes a key ([Traces](cloud-run.md#traces)). On Cloud Run, send them to a project
   of their own, never the service's: a project with trace storage also keeps Cloud Run's own
-  request spans, with every address whole. Production's traces project, its grant and its
-  BigQuery link are in place; once this release serves, set its two variables:
+  request spans, with every address whole. A deployment whose traces project, grant and BigQuery
+  link are in place sets its two variables once this release serves, `T` being the traces project:
 
   ```bash
-  set -a; . ./.env; set +a
-  gcloud run services update whatbuild --project $GCP_PROJECT --region $GCP_REGION --update-env-vars \
-    OTEL_EXPORTER_OTLP_ENDPOINT=https://telemetry.googleapis.com,OTEL_RESOURCE_ATTRIBUTES=gcp.project_id=$GCP_TRACES_PROJECT
+  gcloud run services update whatbuild --project $P --region $R --update-env-vars \
+    OTEL_EXPORTER_OTLP_ENDPOINT=https://telemetry.googleapis.com,OTEL_RESOURCE_ATTRIBUTES=gcp.project_id=$T
   ```
 
   Then check that its spans arrive: the guide's first query, a few minutes after a request.
 - **Cloud Run: alerts.** A Cloud Run deployment set up before this release has none. Make them once
-  with `PROJECT_ID=<project> node deploy/cloud-run/alerts.mjs` ([Alerts](cloud-run.md#alerts));
-  production's are made.
+  with `PROJECT_ID=<project> node deploy/cloud-run/alerts.mjs` ([Alerts](cloud-run.md#alerts)).
 
 ## v0.17.2
 
@@ -190,12 +188,12 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
 ## v0.17.1
 
 - **The Cloud Build configuration moved to `deploy/cloud-run/cloudbuild.yaml`.** It concerns a
-  Cloud Run deployment whose trigger runs the build, production's `deploy-release` among them.
-  Before publishing this release, point the trigger at the new path. A trigger still naming
+  Cloud Run deployment whose trigger runs the build (`deploy-release`, as [Cloud Run](cloud-run.md)
+  names it). Before publishing this release, point the trigger at the new path. A trigger still naming
   `cloudbuild.yaml` fails at once on this release's tag and deploys nothing, and the release
   running now keeps serving:
 
-  A trigger on a GitHub connection, as production's is, refuses
+  A trigger on a GitHub connection refuses
   `gcloud builds triggers update github … --build-config` with `INVALID_ARGUMENT`. Rewrite its
   definition instead, which keeps every other setting, and check that only `filename` changed:
 
@@ -567,8 +565,7 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
   new schema, except that one inserting feedback would leave `submitted_by` filled as before.
 - **Feedback can arrive by email.** Optional: set `WHATBUILD_FEEDBACK_EMAIL` to an address, on a
   deployment that sends mail, and it gets a digest of new feedback at most once a day
-  ([mail](mail.md#the-feedback-digest)). Production sets it to the maintainer's address from
-  `.env`. Without it nothing changes: feedback stays in the database.
+  ([mail](mail.md#the-feedback-digest)). Without it nothing changes: feedback stays in the database.
 - **People send feedback from the app.** Nothing to set. **Submit feedback** in the account menu
   says what is sent, and reports name nobody unless the sender shares an address. A person and
   their agents send at most 10 a day (`429 rate_limited`).

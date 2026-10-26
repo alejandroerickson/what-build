@@ -108,7 +108,7 @@ behalf of any third-party processor, including the ones our own users choose.
 **What not to upload.** The statement asks people not to send material whose loss or exposure
 would hurt. Planned: a more specific line in settings — no health records, no payment card data,
 no government identifiers, nothing under a regulatory regime. This is the honest consequence of
-running on free tiers without a compliance program.
+running without a compliance program.
 
 ## 9.2 Limits and quotas
 

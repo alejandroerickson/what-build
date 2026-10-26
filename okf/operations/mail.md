@@ -1,7 +1,7 @@
 ---
 type: System Concept
-title: Mail - what WhatBuild sends, how each deployment sends it, and production's Cloudflare Email Sending
-description: The messages the server sends (three while a request waits, and the daily feedback digest), the settings that choose a mailer, which deployments send mail and which never do, production's setup on Cloudflare Email Sending over SMTP, checking it, rotating its token, changing provider, and what breaks it.
+title: Mail - what WhatBuild sends, how each deployment sends it, and sending it through Cloudflare Email Sending
+description: The messages the server sends (three while a request waits, and the daily feedback digest), the settings that choose a mailer, which deployments send mail and which never do, setting up Cloudflare Email Sending over SMTP, checking it, rotating its token, changing provider, and what breaks it.
 tags: [operations, mail, smtp, cloudflare, invitations, sign-in, cloud-run, azure, runbook]
 generated: {by: agent:claude, at: 2026-10-25}
 status: stable
@@ -67,10 +67,9 @@ repository or the image. A deployment sends mail only after someone gives it the
 
 | Deployment | Mail |
 |---|---|
-| Production (Cloud Run) | Cloudflare Email Sending over SMTP, from `noreply@what-build.com` ([below](#production)) |
-| The dev deployment | **None, ever.** It holds a copy of production, so its accounts and invitations are real people's addresses ([dev deployment](dev-deployment.md)). |
+| A Cloud Run deployment | none until it is given its own: [Cloudflare Email Sending](#cloudflare-email-sending) over SMTP when Cloudflare holds its domain, or any SMTP provider; `setup.sh` takes `SMTP_URL` and `MAIL_FROM` ([Cloud Run](cloud-run.md)) |
+| A dev deployment | **None, ever.** It holds a copy of production, so its accounts and invitations are real people's addresses ([dev deployment](dev-deployment.md)). |
 | Local development, a copy of production, the end-to-end tests | printed in the terminal (`console`) |
-| Another Cloud Run deployment | none until it is given its own; `setup.sh` takes `SMTP_URL` and `MAIL_FROM` ([Cloud Run](cloud-run.md)) |
 | A self-hosted deployment on Azure | its own relay or Azure Communication Services ([Azure](azure.md#sign-in)) |
 
 Two things can carry mail where it is not meant to go:
@@ -78,8 +77,8 @@ Two things can carry mail where it is not meant to go:
 - **`setup.sh` uses any `whatbuild-smtp-url` secret in its project.** A second deployment set up
   in the same project sends through the first one's provider and account. Give every deployment a
   project of its own.
-- **A token reaches every deployment that holds it.** Production's Cloudflare token sends as
-  `what-build.com` from anywhere. Never copy it into another deployment, a self-hosted one, or the
+- **A token reaches every deployment that holds it.** A Cloudflare token sends as its domain from
+  anywhere. Never copy one deployment's into another deployment, a self-hosted one, or the
   repository; a deployment run by another organization uses its own domain and provider.
 
 ## Azure Communication Services with managed identity
@@ -100,35 +99,39 @@ inbox delivery. Check the recipient's inbox and spam folder.
 
 `WHATBUILD_MAIL_FROM` accepts a bare address or a display name followed by one address in angle
 brackets. ACS receives the bare address; its sender resource controls the display name. Setting
-an ACS endpoint alone never turns mail on. Keep the dev deployment's `WHATBUILD_MAILER=none`.
+an ACS endpoint alone never turns mail on. Keep a dev deployment's `WHATBUILD_MAILER=none`.
 Name Microsoft Azure for email in `WHATBUILD_PROVIDERS`.
 
-## Production
+## Cloudflare Email Sending
 
-Production sends through [Cloudflare Email Sending](https://developers.cloudflare.com/email-service/)
-on the Cloudflare account that holds the `what-build.com` zone
-([decision](../decisions/production-sends-mail-through-cloudflare-email-sending.md)).
+A Cloud Run deployment whose domain is on Cloudflare (the first way to [put a domain in
+front](cloud-run.md#setting-it-up)) can send through
+[Cloudflare Email Sending](https://developers.cloudflare.com/email-service/) on the Cloudflare
+account that holds the domain's zone
+([decision](../decisions/mail-is-set-up-through-cloudflare-email-sending-and-a-dev-deployment-sends-none.md)).
 
 | Thing | Where |
 |---|---|
-| The sending domain | `what-build.com`, onboarded under Email Service → Email Sending |
-| Its DNS records | MX and SPF on `cf-bounce.what-build.com`, DKIM on `cf-bounce._domainkey.what-build.com`; Cloudflare adds them when the domain is onboarded. The zone's `_dmarc` record (`p=quarantine`, relaxed alignment) passes Cloudflare's signed mail as it is; its reports (`rua`) go to an address the registrar set. |
+| The sending domain | the deployment's domain, onboarded under Email Service → Email Sending |
+| Its DNS records | MX and SPF on `cf-bounce.<domain>`, DKIM on `cf-bounce._domainkey.<domain>`; Cloudflare adds them when the domain is onboarded. A `_dmarc` record with relaxed alignment passes Cloudflare's signed mail as it is. |
 | The token | an account-owned API token with only **Email Sending: Edit**. It is the SMTP password, and also reads and changes the sending settings over the API. |
-| The secret | `whatbuild-smtp-url` in production's Secret Manager: `smtps://api_token:<token>@smtp.mx.cloudflare.net:465`, read by the runtime identity only |
-| The service | `WHATBUILD_SMTP_URL` from that secret; `WHATBUILD_MAIL_FROM=WhatBuild <noreply@what-build.com>` |
-| The plan | Workers Paid, which includes 3,000 messages a month, then US$0.35 per 1,000 |
+| The secret | `whatbuild-smtp-url` in the deployment's Secret Manager: `smtps://api_token:<token>@smtp.mx.cloudflare.net:465`, read by the runtime identity only |
+| The service | `WHATBUILD_SMTP_URL` from that secret; `WHATBUILD_MAIL_FROM=WhatBuild <noreply@<domain>>` |
+| The plan | Email Sending needs Workers Paid, which includes 3,000 messages a month, then US$0.35 per 1,000 |
 
-Nothing receives mail for `what-build.com`: replies to `noreply@` bounce. Email Sending is in beta.
+Email Sending only sends: unless something else receives mail for the domain, replies to
+`noreply@` bounce. Email Sending is in beta.
 
-Cloudflare receives each recipient's address and every message, so production's privacy page must
-name it for mail: in `WHATBUILD_PROVIDERS`, `Cloudflare: the public site, its visit counts and
-email` ([§9.1](../spec/09-data-lifecycle.md)).
+Cloudflare receives each recipient's address and every message, so the deployment's privacy page
+must name it for mail: in `WHATBUILD_PROVIDERS`, `Cloudflare: email`, or with the Worker and Web
+Analytics as well, `Cloudflare: the public site, its visit counts and email`
+([§9.1](../spec/09-data-lifecycle.md)).
 
 ### Checking it
 
 ```bash
-P=$GCP_PROJECT R=$GCP_REGION    # from .env
-curl -s https://app.what-build.com/api/v1/meta | python3 -c 'import json,sys; print(json.load(sys.stdin)["auth"])'   # email_link: True
+P=<project> R=<region>          # the maintainer's are GCP_PROJECT and GCP_REGION in .env
+curl -s https://<the app's address>/api/v1/meta | python3 -c 'import json,sys; print(json.load(sys.stdin)["auth"])'   # email_link: True
 gcloud run services describe whatbuild --project $P --region $R --format=json \
   | python3 -c 'import json,sys; [print(e["name"], e.get("value", "(secret)")) for e in json.load(sys.stdin)["spec"]["template"]["spec"]["containers"][0]["env"] if "MAIL" in e["name"] or "SMTP" in e["name"]]'
 ```
@@ -139,7 +142,7 @@ message, not that it was delivered.
 
 ### Setting it up
 
-For production from nothing, or for another domain on another Cloudflare account:
+On the Cloudflare account that holds the domain's zone:
 
 1. The account needs the Workers Paid plan. The person subscribes, since it is billing.
 2. The person creates an account API token in the Cloudflare dashboard with the one permission
@@ -167,7 +170,7 @@ For production from nothing, or for another domain on another Cloudflare account
      --update-env-vars 'WHATBUILD_MAIL_FROM=WhatBuild <noreply@<domain>>'
    ```
 
-   This makes a revision of the image already running; it moves production to no other release.
+   This makes a revision of the image already running; it moves the deployment to no other release.
    Release deploys (`deploy/cloud-run/cloudbuild.yaml`) keep both settings.
 5. Check it (above), and add Cloudflare's mail to the privacy page's providers.
 
@@ -189,8 +192,8 @@ token until its next start.
 
 Any SMTP provider works without a change to the code. Onboard the domain with it, add its DNS
 records, store its SMTP URL as a new version of `whatbuild-smtp-url`, make a revision, check, then
-remove Cloudflare's sending records and token, and change the privacy page's providers. Record the
-new choice by superseding the decision.
+remove Cloudflare's sending records and token, and change the privacy page's providers. A
+different provider for this guide to set up is recorded by superseding the decision.
 
 ## The feedback digest
 
@@ -201,8 +204,8 @@ A deployment with mail and `WHATBUILD_FEEDBACK_EMAIL` mails what is new to that 
 `WhatBuild feedback: 3 reports from <host>`, each report's kind, door, release and time over its
 words, and `Reply to:` where its sender shared an address.
 
-**Production** sends it to the maintainer, whose address is `FEEDBACK_EMAIL` in `.env` and never in
-the repository. It is an ordinary setting, which a release deploy keeps:
+On Cloud Run the address is an ordinary setting on the service, which a release deploy keeps. It
+stays out of the repository (in an ignored `.env` as `FEEDBACK_EMAIL`, say):
 
 ```bash
 gcloud run services update whatbuild --project $P --region $R --update-env-vars "WHATBUILD_FEEDBACK_EMAIL=$FEEDBACK_EMAIL"
@@ -212,11 +215,11 @@ The service sends once it wakes, when a request arrives.
 Remove the setting (`--remove-env-vars WHATBUILD_FEEDBACK_EMAIL`) to stop it; reports then stay in
 the database.
 
-**Another deployment**, self-hosted or not, chooses its own address: `FEEDBACK_EMAIL` for `setup.sh`
+Each deployment, self-hosted or not, chooses its own address: `FEEDBACK_EMAIL` for `setup.sh`
 ([Cloud Run](cloud-run.md)), or `WHATBUILD_FEEDBACK_EMAIL` in the container app's definition
 ([Azure](azure.md#sign-in)). To pass its people's feedback to WhatBuild's maintainers, it names an
 address they give it. It needs working mail first (above); without it, feedback stays in the
-deployment's own database, where `select * from feedback where sent_at is null` reads it. The dev
+deployment's own database, where `select * from feedback where sent_at is null` reads it. A dev
 deployment sends no mail, so it sends no digest.
 
 ## When mail fails
@@ -236,9 +239,9 @@ deployment sends no mail, so it sends no digest.
 gcloud run services logs read whatbuild --project $P --region $R --limit 300 | grep -iE 'EAUTH|EENVELOPE|ECONNECTION|ETIMEDOUT|smtp'
 ```
 
-**Re-running `setup.sh` on production** replaces every setting on the service with the ones it is
-given. Pass `MAIL_FROM='WhatBuild <noreply@what-build.com>'` with the rest; it finds the secret by
-itself.
+**Re-running `setup.sh` on a deployment that sends mail** replaces every setting on the service
+with the ones it is given. Pass `MAIL_FROM='WhatBuild <noreply@<domain>>'` with the rest; it finds
+the secret by itself.
 
 Cloudflare's dashboard shows each message's outcome under Email Sending. Addresses that bounce go
 on its suppression list, and later messages to them are refused.

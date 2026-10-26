@@ -48,8 +48,8 @@
 #                       costs roughly US$62 in northamerica-northeast2, so this is also the
 #                       ceiling on the service's instance time
 #   NEW_ORGANIZATION_PLAN   free or unlimited: the plan of an organization someone other than an
-#                       instance owner creates (optional; unlimited when left out). The public
-#                       deployment sets free; a deployment for one organization's own people leaves
+#                       instance owner creates (optional; unlimited when left out). A deployment
+#                       open to the public sets free; one for an organization's own people leaves
 #                       it out.
 #   EXAMPLE_TENANT      the slug of the example organization every account reads (optional, and
 #                       for the maintainer's public deployment only: a self-hosted deployment leaves

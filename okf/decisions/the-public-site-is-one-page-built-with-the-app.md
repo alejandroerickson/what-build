@@ -3,7 +3,7 @@ type: Decision
 title: The public site is one page built with the app, served from Cloudflare's edge or by host from the image
 description: what-build.com is a page in the web app's build that records requests to hear when WhatBuild opens; behind Cloudflare the Worker serves it so visitors never wake the service, and the image can serve it by Host for any other front.
 tags: [decision, deployment, web, site]
-generated: {by: agent:claude, at: 2026-10-11}
+generated: {by: agent:claude, at: 2026-10-25}
 status: stable
 ---
 
@@ -12,10 +12,9 @@ status: stable
 ## Context
 
 WhatBuild needs a public face at its own domain while the app is invite-only at a subdomain
-(`app.what-build.com`). The maintainer asked for a welcome page with a coming-soon form on
-2026-09-29, before any business mailbox exists, so requests have to be kept somewhere readable
-without email. On 2026-10-01 they chose Cloudflare's free plan in front of the service instead of a
-Google load balancer, and to serve the page from Cloudflare: the service keeps its CPU while an
+(`app.what-build.com`). The maintainer asked on 2026-09-29 for a welcome page with a coming-soon
+form whose requests are kept somewhere readable without email. On 2026-10-01 they chose Cloudflare
+in front of the service instead of a Google load balancer, and to serve the page from Cloudflare: the service keeps its CPU while an
 instance is alive, so crawlers visiting the page every few minutes would keep one running.
 
 ## Decision

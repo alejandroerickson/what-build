@@ -3,7 +3,7 @@ type: Decision
 title: Each Cloud Run deploy on Neon branches the database before migrating, as a restore point
 description: A Neon branch is made in a second at any size and restores in place, so every deploy takes one before its migrations run and fails without it.
 tags: [decision, deployment, operations, database, neon, cloud-run]
-generated: {by: agent:claude, at: 2026-10-03}
+generated: {by: agent:claude, at: 2026-10-25}
 status: stable
 ---
 
@@ -12,8 +12,8 @@ status: stable
 ## Context
 
 Migrations are forward-only and each runs in a transaction, so a failing one changes nothing; a
-wrong one that succeeds can only be undone from a copy of the database taken just before it. The
-Cloud Run deployment runs on Neon's free plan, whose own restore history is six hours, beside a
+wrong one that succeeds can only be undone from a copy of the database taken just before it. On
+Neon's free plan a project's own restore history is six hours, so a deployment on it adds a
 nightly `pg_dump`. A dump taken in the deploy would also serve and would live outside Neon, but it
 grows slower with the data and restores into a new database. The maintainer chose Neon branches on
 2026-10-03.
