@@ -30,6 +30,9 @@ file is how to conduct the work.
 A Microsoft sign-in refused with a reference is usually the app registration, not the release:
 find its log line first (the guide's step 1), and fix forward if it names a claim or a setting.
 Rolling back adds no missing claim.
+Every request refused with `403` on Cloud Run is usually the kill switch (Google's 403 page; the
+alert `whatbuild: the kill switch acted`) or the edge key ("This address does not serve WhatBuild"),
+not the release: the guide's step 1 says which, and rolling back fixes neither.
 
 1. **Establish what runs.** `GET /api/v1/meta` gives the release; the platform's revision list
    gives the one before it (step 2 of the guide). Tell the person the bad and good releases.

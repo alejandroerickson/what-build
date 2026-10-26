@@ -3,7 +3,7 @@ type: System Concept
 title: When a new version breaks a WhatBuild deployment, go back to the last good version, and restore the database first if the new one migrated it.
 description: For the operator of any WhatBuild deployment and the agent working for them; how to see what runs, tell whether the bad version changed the schema, go back on Cloud Run (Neon, Cloud SQL, another Postgres) or Azure, check it, and fix forward.
 tags: [operations, recovery, rollback, migrations, deployment, cloud-run, neon, azure, runbook]
-generated: {by: agent:claude, at: 2026-10-24}
+generated: {by: agent:claude, at: 2026-10-25}
 status: stable
 ---
 
@@ -53,6 +53,14 @@ waits for the restore.
   line with that reference first
   ([When Microsoft sign-in is refused](azure.md#when-microsoft-sign-in-is-refused)); it says which
   check failed and how to fix it.
+- **Every request refused with `403`** on Cloud Run is usually a setting, not the release, and
+  rolling back fixes neither of the two that do it on purpose. Google's own 403 page means the kill
+  switch took the public off the service at its spending cap or in a flood; the alert
+  `whatbuild: the kill switch acted` says why, and
+  [A hard limit on the bill](cloud-run.md#a-hard-limit-on-the-bill) says how to open it again. The
+  text "This address does not serve WhatBuild" means the edge key refused a request that did not
+  come through the Worker; seen through the domain, the Worker lacks the key or holds another
+  ([Cloud Run](cloud-run.md), "Behind Cloudflare, nobody goes around it").
 
 ## 2. What runs now, and what ran before
 

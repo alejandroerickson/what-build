@@ -14,6 +14,15 @@ chores. Do not act on an item unasked. An accepted vulnerability has been looked
 line gives the reason, which says what fixes it and when. Say that, and offer the fix only once it
 can be made, not a new triage.
 
+## Who does what
+
+The maintainer decides: what to build, what is good enough, what may be published, what to spend.
+Agents carry out the work and operate the deployments, and never rely on the maintainer to remember
+how something was done or what was set up. Whatever an agent sets up, changes or settles is written
+where the next agent will look before the work is reported done: in this repository when any
+deployment needs it (`okf/`, `.agents/skills/`, `deploy/`), and outside it when it is true only of
+the maintainer's own deployments, whose values are in `.env`.
+
 ## This repository is public
 
 `alejandroerickson/what-build` is public and MIT-licensed. Everything committed, every commit
@@ -32,6 +41,10 @@ message, every pull request's text and every issue and comment is published, and
   shaped a change. A change stands on its own.
 - No secrets, tokens, absolute local paths or personal details. Sample content is synthetic, with
   `example.com` addresses.
+- Nothing true only of the maintainer's own deployments: their amounts and costs, IDs, which
+  providers they use, what they have set up, their traffic. Documentation gives the step any
+  deployment takes (`CAP=<amount>`, `my-whatbuild` in examples and tests); those facts stay outside
+  the repository.
 - A copy of production (`.what-build/fixtures/`, the `fixture` database) is real people's data:
   never commit it, and never quote it in the repository, a commit, an issue or a pull request.
 - Tools that install their own instructions (memory, routing or workflow tools) keep them in your
