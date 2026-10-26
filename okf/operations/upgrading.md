@@ -3,7 +3,7 @@ type: Process
 title: What a deployment must do when it takes a release
 description: The changes a release asks of the people who run a deployment (settings, app registrations, behaviour they will notice), kept per release, with the unreleased ones on top until the next release carries them into its notes.
 tags: [operations, releases, upgrading, self-hosting, configuration]
-generated: {by: agent:claude, at: 2026-10-25}
+generated: {by: agent:claude, at: 2026-10-26}
 status: stable
 ---
 
@@ -23,7 +23,13 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
 
 ## Unreleased
 
-Nothing yet.
+- **A kind named in a search comes first everywhere.** It concerns every deployment and asks
+  nothing of one. A search such as "mockups crew" now lists the mockups first in the search palette
+  and in MCP's `search` plain mode, as the Search screen already did, rather than only nudging their
+  score; a result's `score` no longer counts the hint, so the first results may score lower than
+  the ones after them. On a phone, the palette's lines start a few words before the word they
+  matched, so it shows. The skill is now at version 0.40.0; agents fetch it again as the server's
+  instructions tell them.
 
 ## v0.23.0
 

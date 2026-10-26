@@ -236,6 +236,21 @@ describe("plain search over the sample product", () => {
     expect(m.results[0]).toMatchObject({ kind: "mockup", meta: { page_id: "jobs-board" } });
   });
 
+  it("lists a named kind first, ahead of things the words alone rank higher, and the rest as the words rank them", async () => {
+    const key = (x: { kind: string; id: string }) => `${x.kind}:${x.id}`;
+    const crew = await find("crew");
+    expect(crew.kind_hint).toBeNull();
+    // Sources say "crew" more than the mockup does: by the words alone, one leads it.
+    expect(crew.results.findIndex((x: { kind: string }) => x.kind === "mockup")).toBeGreaterThan(crew.results.findIndex((x: { kind: string }) => x.kind === "source"));
+    for (const [q, kind] of [["mockups crew", "mockup"], ["crew assumptions", "assumption"], ["outcomes crew", "outcome"]] as const) {
+      const r = await find(q);
+      expect(r.kind_hint).toBe(kind);
+      const named = crew.results.filter((x: { kind: string }) => x.kind === kind);
+      expect(named.length, q).toBeGreaterThan(0);
+      expect(r.results.map(key), q).toEqual([...named, ...crew.results.filter((x: { kind: string }) => x.kind !== kind)].map(key));
+    }
+  });
+
   it("shows what holds most of the words when nothing holds all of them, naming what is missing", async () => {
     const r = await find("zebra pricing ");
     expect(r.partial).toBe(true);

@@ -402,7 +402,8 @@ parentheses, and a number in it finds the id it ends (`20734` finds `CB26-20734`
 search box: sources with the best places they say the words, assumptions, outcomes, mockups, Story
 pages and the product concept, forgiving endings and word order, correcting a word that matches
 nothing (`corrections` says so; `strict: true` turns it off), and naming `missing` words when
-nothing holds them all. In `plain`, an id or a number (`CB26-20734`, `2026-05-01`) is one word,
+nothing holds them all. A word naming a kind beside other words (`mockups crew`) is not searched
+for: that kind comes first, ahead of results that score higher, and `kind_hint` says so. In `plain`, an id or a number (`CB26-20734`, `2026-05-01`) is one word,
 matched as written and never corrected, and one with a letter in it also as its words side by side
 (`q3-planning` finds "Q3 planning"); the last word matches as a prefix unless the query ends
 with a space; and `limit` caps the results (60 unless you say). Use `plain` to find where
