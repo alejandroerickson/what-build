@@ -116,6 +116,8 @@ export interface TenantsTable {
   tenant_id: string;
   slug: string;
   name: string;
+  /** Guards the name, which its owners and the instance's owners change. */
+  name_etag: Def<string>;
   /** `free` or `unlimited` (`limits.ts`). */
   plan: Def<string>;
   status: Def<string>;

@@ -35,6 +35,7 @@ async function etagOf(o: Organization, path: string): Promise<string> {
 
 /** Every product, team and tenant operation, with an attack on real ids. */
 const SCOPED: Record<string, Probe> = {
+  "products.rename_tenant": { input: (a) => ({ name: "Renamed by an outsider", expected_etag: a.tenant.nameEtag }) },
   "products.create_team": { input: () => ({ name: "Planted team" }) },
   "products.create": { input: () => ({ name: "Planted product" }) },
   "products.get": { input: () => ({}) },

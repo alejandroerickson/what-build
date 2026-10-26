@@ -85,6 +85,7 @@ const VERBS: Record<string, string> = {
   "membership:joined": "joined",
   "membership:invited": "invited someone to",
   "membership:invitation_cancelled": "cancelled an invitation",
+  "tenant:renamed": "renamed the organization to",
 };
 
 /** What an entity type is called when the log is filtered to it: "Showing activity on sources". */

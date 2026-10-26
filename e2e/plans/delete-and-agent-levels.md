@@ -60,7 +60,8 @@ raise its own level. It deletes only what it made itself in the run.
     dialog, the product being live, has Archive instead beside Cancel; the organization's, which
     can't be archived, has Cancel alone. Do not delete or archive.
 11. **The example organization, as Riley.** Open its Members page. *Expect:* no Delete this
-    organization, since it is the example. As a guest (`guest@example.com`) there, nothing offers
+    organization, since it is the example; Organization name offers Rename once the name is
+    changed, with its short name in links read-only. Do not rename it. As a guest (`guest@example.com`) there, nothing offers
     an archive or a permanent delete.
 12. **Web, as Riley, then MCP on the same connection.** On Connect an agent, untick Can submit
     feedback on the connection from step 6, then list the tools and call `submit_feedback` anyway.

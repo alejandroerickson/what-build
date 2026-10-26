@@ -7,7 +7,7 @@ import { useMe, useProducts } from "../lib/session.tsx";
 import { ActivityLog, type ActivityItem } from "../shell/ActivityFeed.tsx";
 import { usePageTitle } from "../shell/slots.tsx";
 import {
-  Avatar, Button, ButtonLink, Callout, CopyField, Dialog, EmptyState, ErrorCallout, Glyph, Loading, Menu, MenuGroup, MenuItem, MenuRadio, MenuSeparator,
+  Avatar, Button, ButtonLink, Callout, CopyField, Dialog, EmptyState, ErrorCallout, FormGrid, Glyph, Loading, Menu, MenuGroup, MenuItem, MenuRadio, MenuSeparator,
   SelectField, Sheet, SheetBody, SheetHeader, StatusBadge, TextArea, TextField, useToast,
 } from "../ui/index.tsx";
 import { EntryPage } from "./auth.tsx";
@@ -15,6 +15,7 @@ import { DeleteDialog, listed } from "./delete-dialog.tsx";
 import "../styles/screens/account.css";
 import "../styles/screens/activity.css";
 import "../styles/screens/org.css";
+import "../styles/screens/settings.css";
 
 
 
@@ -396,12 +397,79 @@ export function MembersPage() {
         </Sheet>
       ) : null}
       {tenantAdmin ? <AccessChanges tenant={tenant} /> : null}
+      {t && tenantAdmin ? <OrganizationNameSheet key={t.name_etag} slug={t.slug} name={t.name} etag={t.name_etag} owner={t.your_role === "owner"} /> : null}
       {t?.your_role === "owner" && !t.example ? <DeleteOrganizationSheet tenant={tenant} orgName={orgName} /> : null}
       {giving ? (
         <GiveAccessDialog tenant={tenant} orgName={orgName} initialEmail={giving.email} onClose={() => setGiving(null)} canManage={canManage} tenantAdmin={tenantAdmin} ownerHere={t?.your_role === "owner"} />
       ) : null}
       {removing ? <RemoveMemberDialog tenant={tenant} orgName={orgName} member={removing.m} lastGrant={removing.g} tenantAdmin={tenantAdmin} onClose={() => setRemoving(null)} /> : null}
     </>
+  );
+}
+
+/**
+ * The organization's name, which its owners change here, and its admins read. Its short name in
+ * links stays, so every product's address, a connected agent and a link to its Story keep working.
+ * Keyed by the name's etag, so a rename made elsewhere starts the form again from the new name.
+ */
+function OrganizationNameSheet({ slug, name, etag, owner }: { slug: string; name: string; etag: string; owner: boolean }) {
+  const qc = useQueryClient();
+  const toast = useToast();
+  const [draft, setDraft] = useState(name);
+  const dirty = draft.trim() !== name;
+  const save = useMutation({
+    mutationFn: () => api<{ name: string }>("PATCH", `/api/v1/tenants/${slug}`, { name: draft.trim(), expected_etag: etag }),
+    onSuccess: (r) => {
+      toast(`Renamed to ${r.name}.`);
+      void qc.invalidateQueries({ queryKey: ["products"] });
+      void qc.invalidateQueries({ queryKey: ["product"] });
+      void qc.invalidateQueries({ queryKey: ["members", slug] });
+      void qc.invalidateQueries({ queryKey: ["limits", slug] });
+    },
+  });
+  return (
+    <Sheet className="settings-sheet" labelledBy="org-name-title">
+      <SheetHeader id="org-name-title" title="Organization name" />
+      {owner ? null : (
+        <div className="settings-note">
+          <Callout inset tone="info">Only its owners can rename it.</Callout>
+        </div>
+      )}
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (owner && dirty && draft.trim()) save.mutate();
+        }}
+      >
+        <FormGrid className="settings-form">
+          <TextField label="Name" value={draft} onChange={(e) => setDraft(e.target.value)} readOnly={!owner} maxLength={100} required />
+          <TextField label="Short name in links" value={slug} readOnly spellCheck={false} hint="Stays the same when it’s renamed, so links and connected agents keep working." />
+        </FormGrid>
+        {save.isError ? (
+          <div className="settings-note">
+            <ErrorCallout inset error={save.error} onRetry={save.error instanceof ApiError && save.error.code === "stale_etag" ? () => void qc.invalidateQueries({ queryKey: ["products"] }) : undefined} />
+          </div>
+        ) : null}
+        {owner ? (
+          <div className="settings-actions">
+            <Button type="submit" variant="primary" busy={save.isPending} busyLabel="Renaming…" disabled={!dirty || !draft.trim()}>
+              Rename
+            </Button>
+            {dirty ? (
+              <Button
+                variant="quiet"
+                onClick={() => {
+                  setDraft(name);
+                  save.reset();
+                }}
+              >
+                Discard changes
+              </Button>
+            ) : null}
+          </div>
+        ) : null}
+      </form>
+    </Sheet>
   );
 }
 

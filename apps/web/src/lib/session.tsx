@@ -44,9 +44,9 @@ export interface ProductsResponse {
   /**
    * `example` marks the example organization, where `your_role` is "guest" for everyone it gave no
    * role. story_only: the person reads only the Story everywhere in the organization, so its members
-   * are not shown to them. `plan` is free or unlimited.
+   * are not shown to them. `plan` is free or unlimited. `name_etag` guards the name, which owners change.
    */
-  tenants: { tenant_id: string; slug: string; name: string; example?: boolean; plan: "free" | "unlimited"; story_only?: boolean; your_role: string | null; teams: { team_id: string; slug: string; name: string; your_role: string | null }[] }[];
+  tenants: { tenant_id: string; slug: string; name: string; name_etag: string; example?: boolean; plan: "free" | "unlimited"; story_only?: boolean; your_role: string | null; teams: { team_id: string; slug: string; name: string; your_role: string | null }[] }[];
 }
 
 /**

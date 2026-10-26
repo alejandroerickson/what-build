@@ -208,13 +208,25 @@ GUID and a listed domain that is not a domain; and `microsoft` reported by both 
 
 | Object | Fields |
 |---|---|
-| Tenant | `tenant_id`, `slug` (3–50, `[a-z0-9-]`, globally unique), `name`, `plan` (`free` or `unlimited`), `limits` (what an instance owner changed from the free plan's), `example`, `status` |
+| Tenant | `tenant_id`, `slug` (3–50, `[a-z0-9-]`, globally unique, fixed once created), `name` (1–100 chars), `name_etag`, `plan` (`free` or `unlimited`), `limits` (what an instance owner changed from the free plan's), `example`, `status` |
 | Team | `team_id`, `tenant_id`, `slug` (unique in the tenant), `name`, `archived_at` |
 
 Creating a tenant (`products.create_tenant`) creates its first team and makes the creator the
 tenant's **owner**. A new account lands in the example organization ([§3.10](#310-the-example-organization)),
 and creates its own when ready: name the organization, then name the first product and its product
 concept.
+
+**Renaming a tenant** (◆ [decision](../decisions/an-organizations-owners-rename-it-and-its-slug-stays.md)).
+`products.rename_tenant` (`PATCH /api/v1/tenants/:tenant`) changes the name and nothing else: the
+slug stays, so every product's path, a connector scoped to the tenant and every link to its Story
+keep working. Its owners rename it, the example organization's included; an admin or a member is
+refused `403`, and an agent needs an admin connection. An instance owner renames any tenant, as one
+of its owners, member or not: the operation sets `allowInstanceOwners`, which lets them in to that
+operation alone and gives them no grant. The name has its own etag, `name_etag`, which
+`products.list` gives every tenant the caller is in and `products.organizations` every tenant;
+a rename without the current one is refused `409 stale_etag`, and one to the name the tenant
+already has writes nothing. A rename is recorded in the tenant's access log, `members.activity`,
+with the old name in its summary.
 
 **Who may create a tenant** (◆ [decision](../decisions/only-instance-owners-decide-who-creates-organizations.md)):
 
@@ -275,7 +287,7 @@ A product is addressed as `tenant/team/product` (slugs or ids at each level) or 
 
 | Level | Roles | What the role grants |
 |---|---|---|
-| Tenant | `owner`, `admin`, `member`, `guest` | owner and admin: admin of every team and product in the tenant; owner: tenant lifecycle (deleting the organization). member: nothing by itself. guest: viewer of every product, in the example organization only, never stored and refused every write ([§3.10](#310-the-example-organization)) |
+| Tenant | `owner`, `admin`, `member`, `guest` | owner and admin: admin of every team and product in the tenant; owner: tenant lifecycle (renaming the organization, deleting it). member: nothing by itself. guest: viewer of every product, in the example organization only, never stored and refused every write ([§3.10](#310-the-example-organization)) |
 | Team | `admin`, `editor`, `viewer`, `reader` | the same role on every product in the team |
 | Product | `admin`, `editor`, `viewer`, `reader` | that product only |
 
@@ -300,7 +312,8 @@ A product is addressed as `tenant/team/product` (slugs or ids at each level) or 
   deletes permanently, anything that can be archived and the product itself (guarded,
   [§9.5](09-data-lifecycle.md)), and manages the product (rename, archive) and its people.
   Creating a product needs admin of its team (tenant owners and admins are admins of every team);
-  creating a team needs tenant admin. Deleting the organization needs its owner, in the web app.
+  creating a team needs tenant admin. Renaming the organization needs its owner, or an instance
+  owner ([§3.3](#33-tenants-and-teams)); deleting it needs its owner, in the web app.
 - **The effective role is the highest that applies.** A product grant can raise access but never
   lower an inherited one. ◆ Decision: no negative overrides — they make "who can see this?"
   unanswerable at a glance.
@@ -604,4 +617,5 @@ stranger wrote. A call that names no product never defaults to one of its produc
 connector is scoped to the example ([§3.6](#36-addressing-and-isolation)).
 
 **It cannot be deleted** while the deployment names it: `products.delete_tenant` answers
-`409 example_organization`.
+`409 example_organization`. Its owners rename it as any owners do, and so does an instance owner;
+the deployment names it by its slug, which a rename leaves alone ([§3.3](#33-tenants-and-teams)).

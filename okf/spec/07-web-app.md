@@ -861,7 +861,12 @@ never described as deleting. A list row showing an archived object says *Archive
   every role a person holds, removing one never asks as if it were the last
   ([§3.5](03-accounts-teams-and-identity.md)). Below, owners and admins of the organization see
   **Access changes**: the organization's access log (`members.activity`), drawn as the Activity
-  feed is (§7.9), newest first.
+  feed is (§7.9), newest first, with a rename as "renamed the organization to …".
+  Then **Organization name**, for its owners and admins: the name in a field, and its short name in
+  links read-only, saying it stays when the organization is renamed, so links and connected agents
+  keep working. Owners change the name and Rename it (`products.rename_tenant`, under the name's
+  etag), or Discard changes; admins read both, told only its owners rename it. A rename made
+  elsewhere starts the form again from the new name.
   Someone who reads only the Story in the organization who opens the address gets a page saying
   that members aren't shown to Story readers, with a way back to their products
   ([§3.5](03-accounts-teams-and-identity.md)). The page knows this from `products.list`'s
@@ -927,9 +932,11 @@ never described as deleting. A list row showing an archived object says *Archive
   instance (`products.organizations`), under what plan a new organization starts on here and that
   it is set where the service is deployed (`WHATBUILD_NEW_ORGANIZATION_PLAN`): each row its name,
   plan, whether it is the example, how many people are in it, who created it and when, the limits
-  changed from the free plan's, and what was added today, ending in its plan's badge and **Plan and
-  limits ›**. The whole row is a link to `/instance?org=<slug>`, which opens **Plan and limits of**
-  the organization: the plan as a choice between Free and Unlimited, every limit in a field beside
+  changed from the free plan's, and what was added today, ending in its plan's badge, **Rename** and
+  **Plan and limits ›**. Rename opens a dialog with the name, which says its short name in links
+  stays and its access log records the rename, and renames it under the name's etag
+  (`products.rename_tenant`; an instance owner renames any organization, member or not). Plan and
+  limits is a link to `/instance?org=<slug>`, which opens **Plan and limits of** the organization: the plan as a choice between Free and Unlimited, every limit in a field beside
   the free plan's value (bytes in MB), Back to the free plan's limits, and Save, under the limits'
   etag; closing it takes `org` off the address. Then **Who can start organizations**: what the rule
   is, the default for every other address and who the owners are; then each address with an

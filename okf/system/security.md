@@ -99,6 +99,11 @@ holds each one; the linked decisions say why. Observed in the code on 2026-10-10
   account cannot be removed there. Removing signs the account out everywhere (`endSignIns`), takes
   its roles with a record in each organization, cancels what let its address in, and forgets the
   address ([decision](../decisions/instance-owners-see-every-account-and-remove-any-but-their-own.md)).
+- An instance owner acts in an organization they do not belong to only through a tenant operation
+  that sets `allowInstanceOwners`, renaming it, and is then one of its owners for that call alone;
+  `resolveScope` (`policy.ts`) is the one place that lets them in, and only when `execute` found
+  their address in `WHATBUILD_INSTANCE_OWNERS`
+  ([decision](../decisions/an-organizations-owners-rename-it-and-its-slug-stays.md)).
 
 **Agents and OAuth** ([decision](../decisions/built-in-identity-and-oauth.md),
 [decision](../decisions/a-scoped-mcp-connector-is-a-fence.md)). `apps/server/src/auth/oauth.ts`.

@@ -117,7 +117,7 @@ export const listOrganizations = defineOperation({
   mutates: false,
   summary: "Every organization on this instance, with its plan, who created it and what it used today (instance owners).",
   description:
-    "For the instance's owners: new_organization_plan, the plan an organization someone else creates gets on this deployment (WHATBUILD_NEW_ORGANIZATION_PLAN), and each organization with its slug, name, plan, whether it is the example organization, who created it and when, how many people hold a role in it, the limits an instance owner changed from the free plan's (changed_limits), and what everyone in it used today. It names no product and holds none of an organization's content. Change a plan or a limit with products(action=\"set_limits\").",
+    "For the instance's owners: new_organization_plan, the plan an organization someone else creates gets on this deployment (WHATBUILD_NEW_ORGANIZATION_PLAN), and each organization with its slug, name, plan, whether it is the example organization, who created it and when, how many people hold a role in it, the limits an instance owner changed from the free plan's (changed_limits), and what everyone in it used today. It names no product and holds none of an organization's content. Change a plan or a limit with products(action=\"set_limits\"), whose expected_etag is etag; rename an organization with products(action=\"rename_tenant\"), whose expected_etag is name_etag.",
   input: z.strictObject({}),
   rest: { method: "GET", path: "/organizations" },
   mcp: { tool: "products", action: "organizations" },
@@ -126,7 +126,7 @@ export const listOrganizations = defineOperation({
     const rows = await ctx.db
       .selectFrom("tenants as t")
       .select([
-        "t.tenant_id", "t.slug", "t.name", "t.example", "t.plan", "t.limits", "t.created_at", "t.created_by", "t.limits_updated_at", "t.limits_updated_by",
+        "t.tenant_id", "t.slug", "t.name", "t.name_etag", "t.example", "t.plan", "t.limits", "t.created_at", "t.created_by", "t.limits_updated_at", "t.limits_updated_by",
         (eb) => eb.selectFrom("memberships as m").select((e) => e.fn.count<number>("m.account_id").distinct().as("n")).whereRef("m.tenant_id", "=", "t.tenant_id").as("people"),
       ])
       .orderBy("t.name")
@@ -137,6 +137,7 @@ export const listOrganizations = defineOperation({
       items.push({
         slug: r.slug,
         name: r.name,
+        name_etag: r.name_etag,
         plan: r.plan as Plan,
         ...(r.example ? { example: true } : {}),
         people: Number(r.people ?? 0),

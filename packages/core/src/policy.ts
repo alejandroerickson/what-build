@@ -157,6 +157,8 @@ export function parseProductRef(ref: string): ScopeRef {
 /**
  * Resolve and authorize the scope of a call. Returns 404 for anything the caller cannot see
  * (including everything in other tenants) and 403 only when they can see it but lack the role.
+ * With `asInstanceOwner`, which `execute` sets only for an owner of this WhatBuild calling a tenant
+ * operation that allows them, the caller acts as one of the tenant's owners, member or not.
  */
 export async function resolveScope(
   db: Db,
@@ -165,6 +167,7 @@ export async function resolveScope(
   access: OpAccess,
   ref: ScopeRef,
   opName: string,
+  asInstanceOwner = false,
 ): Promise<Scope> {
   const empty: Scope = { tenant: null, team: null, product: null, role: null, tenantRole: null };
   if (opScope === "account") return empty;
@@ -222,13 +225,16 @@ export async function resolveScope(
       .executeTakeFirst();
   }
   if (!tenant) throw hidden();
+  const tenantRef = { tenant_id: tenant.tenant_id, slug: tenant.slug, name: tenant.name, plan: tenant.plan as Plan, ...(tenant.example ? { example: true } : {}) };
+  // The instance's owners see every organization already (products.organizations).
+  if (asInstanceOwner && opScope === "tenant") return { tenant: tenantRef, team: null, product: null, role: null, tenantRole: "owner" };
 
   const memberships = await membershipsFor(db, principal.account_id, tenant.tenant_id);
   if (!memberships.length) throw hidden();
   const { role, tenantRole } = effectiveRole(memberships, { tenant_id: tenant.tenant_id, team_id: team?.team_id ?? null, product_id: product?.product_id ?? null });
 
   const scope: Scope = {
-    tenant: { tenant_id: tenant.tenant_id, slug: tenant.slug, name: tenant.name, plan: tenant.plan as Plan, ...(tenant.example ? { example: true } : {}) },
+    tenant: tenantRef,
     team: team ? { team_id: team.team_id, slug: team.slug, name: team.name } : null,
     product: product
       ? { product_id: product.product_id, slug: product.slug, name: product.name, archived_at: product.archived_at }

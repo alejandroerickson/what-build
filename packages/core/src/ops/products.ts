@@ -148,7 +148,7 @@ export const listProducts = defineOperation({
   mutates: false,
   summary: "List every product you can reach, across your tenants and teams, with your role and counts of what each holds.",
   description:
-    "Start here when you do not know which product to work in. Each item has `path` (tenant/team/product slugs) and `product_id`; pass either as `product` on product-scoped calls. Confirm the product with the person before your first write in a conversation. Archived products are left out unless include_archived is true. Each item's `counts` (one number per kind) and `stage_counts` (their totals per stage) are the ones products(action=\"get\") reports. Through an agent, your_role is the person's role capped by the connection's level, which connection_level gives (viewer reads, editor also writes and archives, admin also deletes permanently and manages products and people). Where your_role is reader you may read only the Story: such an item has no concept and counts only story_pages. A tenant marked story_only is one where you read only the Story everywhere, so its members are not listed to you. A tenant with `example: true` is the example organization: a worked example that every account reads, as its guest (your_role guest, viewer on every product), and that nobody but its authors changes, so every write there is refused with 403 example_read_only. Read it to learn how a discovery is done; do the person's own work in an organization of theirs. A tenant's plan is free or unlimited: on the free plan everyone in it meets limits on how often and how much, which products(action=\"limits\") lists with what is used today.",
+    "Start here when you do not know which product to work in. Each item has `path` (tenant/team/product slugs) and `product_id`; pass either as `product` on product-scoped calls. Confirm the product with the person before your first write in a conversation. Archived products are left out unless include_archived is true. Each item's `counts` (one number per kind) and `stage_counts` (their totals per stage) are the ones products(action=\"get\") reports. Through an agent, your_role is the person's role capped by the connection's level, which connection_level gives (viewer reads, editor also writes and archives, admin also deletes permanently and manages products and people). Where your_role is reader you may read only the Story: such an item has no concept and counts only story_pages. A tenant marked story_only is one where you read only the Story everywhere, so its members are not listed to you. A tenant with `example: true` is the example organization: a worked example that every account reads, as its guest (your_role guest, viewer on every product), and that nobody but its authors changes, so every write there is refused with 403 example_read_only. Read it to learn how a discovery is done; do the person's own work in an organization of theirs. A tenant's plan is free or unlimited: on the free plan everyone in it meets limits on how often and how much, which products(action=\"limits\") lists with what is used today. A tenant's name_etag guards its name, which its owners change with products(action=\"rename_tenant\").",
   input: z.strictObject({ include_archived: z.boolean().default(false) }),
   rest: { method: "GET", path: "/me/products" },
   mcp: { tool: "products", action: "list" },
@@ -195,7 +195,7 @@ export const listProducts = defineOperation({
       for (const [id, c] of await countProducts(ctx.db, ids)) counts.set(id, c);
     }
     await sql`select set_config('app.tenant_id', '', true)`.execute(ctx.db);
-    const tenants = await ctx.db.selectFrom("tenants").select(["tenant_id", "slug", "name", "example", "plan"]).where("tenant_id", "in", tenantIds).orderBy("name").execute();
+    const tenants = await ctx.db.selectFrom("tenants").select(["tenant_id", "slug", "name", "name_etag", "example", "plan"]).where("tenant_id", "in", tenantIds).orderBy("name").execute();
     const teams = await ctx.db.selectFrom("teams").select(["team_id", "tenant_id", "slug", "name", "archived_at"]).where("tenant_id", "in", tenantIds).orderBy("name").execute();
     return {
       ...(ctx.principal.level ? { connection_level: ctx.principal.level } : {}),
@@ -255,7 +255,8 @@ export async function createTenantWithTeam(
   const tenant_id = newId();
   const team_id = newId();
   const plan: Plan = input.plan ?? "unlimited";
-  await db.insertInto("tenants").values({ tenant_id, slug: tenantSlug, name: input.name, plan, created_by: json(actor) }).execute();
+  const name_etag = newEtag();
+  await db.insertInto("tenants").values({ tenant_id, slug: tenantSlug, name: input.name, name_etag, plan, created_by: json(actor) }).execute();
   await db
     .insertInto("teams")
     .values({ team_id, tenant_id, slug: slugify(input.team_name, 40, "team").padEnd(3, "0"), name: input.team_name, created_by: json(actor) })
@@ -276,11 +277,41 @@ export async function createTenantWithTeam(
     .execute();
   const team = await db.selectFrom("teams").selectAll().where("team_id", "=", team_id).executeTakeFirstOrThrow();
   return {
-    tenant: { tenant_id, slug: tenantSlug, name: input.name, plan },
+    tenant: { tenant_id, slug: tenantSlug, name: input.name, name_etag, plan },
     team: { team_id, slug: team.slug, name: team.name },
     your_role: "owner" as TenantRole,
   };
 }
+
+export const renameTenant = defineOperation({
+  name: "products.rename_tenant",
+  scope: "tenant",
+  access: "owner",
+  mutates: true,
+  allowInstanceOwners: true,
+  summary: "Rename an organization; its slug, in every address, stays (owners, and the instance's owners).",
+  description:
+    "Changes only the name people see. The slug stays, so every product's path, a connector scoped to the organization and every link to its Story keep working. " +
+    "Pass expected_etag, the tenant's name_etag from products(action=\"list\"); an owner of this WhatBuild instance, who may rename any organization on it, finds it in products(action=\"organizations\") too. " +
+    "The example organization's owners rename it as any owners do. The rename is in the organization's access log, members(action=\"activity\").",
+  input: z.strictObject({
+    tenant: z.string().min(1).describe("Tenant slug or id."),
+    name: z.string().trim().min(1).max(100),
+    expected_etag: expectedEtag,
+  }),
+  rest: { method: "PATCH", path: "" },
+  mcp: { tool: "products", action: "rename_tenant" },
+  async handler(ctx, input) {
+    const tid = ctx.scope.tenant!.tenant_id;
+    const row = await ctx.db.selectFrom("tenants").select(["slug", "name", "name_etag"]).where("tenant_id", "=", tid).forUpdate().executeTakeFirstOrThrow();
+    checkEtag(input.expected_etag, row.name_etag, "organization's name");
+    if (input.name === row.name) return { tenant_id: tid, slug: row.slug, name: row.name, name_etag: row.name_etag };
+    const name_etag = newEtag();
+    await ctx.db.updateTable("tenants").set({ name: input.name, name_etag }).where("tenant_id", "=", tid).execute();
+    await recordActivity(ctx, { action: "renamed", entity_type: "tenant", entity_id: tid, entity_title: input.name, summary: `Formerly ${row.name}` });
+    return { tenant_id: tid, slug: row.slug, name: input.name, name_etag, previous_name: row.name };
+  },
+});
 
 // ---- Team scope ---------------------------------------------------------------------------------
 
@@ -832,9 +863,9 @@ export const listAccessActivity = defineOperation({
   scope: "tenant",
   access: "admin",
   mutates: false,
-  summary: "Who gave, changed or removed whose access in the organization, and when: newest first (tenant admins).",
+  summary: "Who gave, changed or removed whose access in the organization, or renamed it, and when: newest first (tenant admins).",
   description:
-    "The organization's access log: roles given, changed and removed, people removed from the organization, invitations sent, accepted and cancelled. A product's activity.list leaves these out, because they belong to the organization, all but someone joining the product through an invitation. Entries name the person and the scope and never an email address. Filters: actor (account id), since (ISO 8601).",
+    "The organization's access log: roles given, changed and removed, people removed from the organization, invitations sent, accepted and cancelled, and the organization renamed. A product's activity.list leaves these out, because they belong to the organization, all but someone joining the product through an invitation. Entries name the person and the scope and never an email address. Filters: actor (account id), since (ISO 8601).",
   input: z.strictObject({
     tenant: z.string().min(1),
     actor: z.string().max(100).optional(),
@@ -849,7 +880,7 @@ export const listAccessActivity = defineOperation({
       .selectFrom("activity")
       .selectAll()
       .where("tenant_id", "=", ctx.scope.tenant!.tenant_id)
-      .where("entity_type", "=", "membership");
+      .where((eb) => eb.or([eb("entity_type", "=", "membership"), eb.and([eb("entity_type", "=", "tenant"), eb("action", "=", "renamed")])]));
     if (input.actor) q = q.where("actor_account_id", "=", input.actor);
     if (input.since) q = q.where(sql<boolean>`occurred_at >= ${input.since}::timestamptz`);
     if (input.cursor) q = q.where("activity_id", "<", input.cursor);
@@ -871,6 +902,6 @@ export const listAccessActivity = defineOperation({
 });
 
 export const productOps = [
-  listProducts, createTenant, createTeam, createProduct, getProduct, updateProduct, updateConcept, archiveProduct, restoreProduct,
+  listProducts, createTenant, renameTenant, createTeam, createProduct, getProduct, updateProduct, updateConcept, archiveProduct, restoreProduct,
   listMembers, grantMember, revokeMember, cancelInvitation, listAccessActivity,
 ];

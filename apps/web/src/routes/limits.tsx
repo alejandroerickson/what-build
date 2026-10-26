@@ -6,7 +6,7 @@ import { formatBytes, formatDate, formatDateTime, plural, untilTime } from "../l
 import { amount, PLAN_WORDS, useOrganizationLimits, type InstanceOrganization, type InstanceOrganizations, type Plan } from "../lib/limits.ts";
 import { useMe } from "../lib/session.tsx";
 import { usePageTitle } from "../shell/slots.tsx";
-import { Button, ButtonLink, Dialog, EmptyState, ErrorCallout, Glyph, ListRow, Loading, Segmented, Sheet, SheetBody, SheetHeader, StatusBadge, useToast } from "../ui/index.tsx";
+import { Button, ButtonLink, Dialog, EmptyState, ErrorCallout, Glyph, ListRow, Loading, Segmented, Sheet, SheetBody, SheetHeader, StatusBadge, TextField, useToast } from "../ui/index.tsx";
 import "../styles/screens/limits.css";
 
 const MiB = 1024 * 1024;
@@ -156,14 +156,17 @@ function DeploymentLimits({ limits }: { limits: { label: string; value: number; 
 const ORGS = "/api/v1/organizations";
 
 /**
- * On the instance page: every organization with its plan. Each row opens the organization's plan and
- * limits, and so does `?org=<slug>`, the address an organization's Plan and limits page links to.
+ * On the instance page: every organization with its plan. Each row renames the organization, and
+ * opens its plan and limits, as `?org=<slug>` does, the address an organization's Plan and limits
+ * page links to.
  */
 export function InstanceOrganizationsSheet() {
   const q = useQuery({ queryKey: ["instance-organizations"], queryFn: () => api<InstanceOrganizations>("GET", ORGS) });
   const [params, setParams] = useSearchParams();
+  const [renamingSlug, setRenamingSlug] = useState<string | null>(null);
   const items = q.data?.items ?? [];
   const editing = items.find((o) => o.slug === params.get("org")) ?? null;
+  const renaming = items.find((o) => o.slug === renamingSlug) ?? null;
   const close = () =>
     setParams(
       (p) => {
@@ -203,7 +206,6 @@ export function InstanceOrganizationsSheet() {
             return (
               <ListRow
                 key={o.slug}
-                to={`/instance?org=${encodeURIComponent(o.slug)}`}
                 className="instance-row"
                 title={
                   <>
@@ -227,9 +229,12 @@ export function InstanceOrganizationsSheet() {
                 end={
                   <span className="instance-row-end">
                     <StatusBadge tone={o.plan === "free" ? "neutral" : "positive"}>{PLAN_WORDS[o.plan]}</StatusBadge>
-                    <span className="instance-row-open">
+                    <Button size="sm" variant="quiet" onClick={() => setRenamingSlug(o.slug)} aria-label={`Rename ${o.name}`}>
+                      Rename
+                    </Button>
+                    <ButtonLink size="sm" variant="quiet" to={`/instance?org=${encodeURIComponent(o.slug)}`} aria-label={`Plan and limits of ${o.name}`}>
                       Plan and limits <Glyph name="chevron-right" size="sm" />
-                    </span>
+                    </ButtonLink>
                   </span>
                 }
               />
@@ -238,7 +243,59 @@ export function InstanceOrganizationsSheet() {
         </div>
       )}
       {editing && q.data ? <PlanDialog key={editing.slug} org={editing} all={q.data} onClose={close} /> : null}
+      {renaming ? <RenameDialog org={renaming} onClose={() => setRenamingSlug(null)} /> : null}
     </Sheet>
+  );
+}
+
+/**
+ * Rename an organization, as an owner of this WhatBuild may any of them. Its short name in links
+ * stays. `org` is the list's current row, so a stale name etag is read again by refreshing the list.
+ */
+function RenameDialog({ org, onClose }: { org: InstanceOrganization; onClose: () => void }) {
+  const qc = useQueryClient();
+  const toast = useToast();
+  const [name, setName] = useState(org.name);
+  const valid = Boolean(name.trim()) && name.trim() !== org.name;
+  const save = useMutation({
+    mutationFn: () => api<{ name: string }>("PATCH", `/api/v1/tenants/${encodeURIComponent(org.slug)}`, { name: name.trim(), expected_etag: org.name_etag }),
+    onSuccess: (r) => {
+      void qc.invalidateQueries({ queryKey: ["instance-organizations"] });
+      void qc.invalidateQueries({ queryKey: ["products"] });
+      void qc.invalidateQueries({ queryKey: ["limits", org.slug] });
+      toast(`${org.name} is now ${r.name}.`);
+      onClose();
+    },
+  });
+  return (
+    <Dialog
+      open
+      onClose={onClose}
+      dismissable={!save.isPending}
+      title={`Rename ${org.name}`}
+      description={`Its short name in links stays ${org.slug}, so links and connected agents keep working. Its access log records the rename.`}
+      footer={
+        <>
+          <Button onClick={onClose} disabled={save.isPending}>
+            Cancel
+          </Button>
+          <Button variant="primary" busy={save.isPending} busyLabel="Renaming…" disabled={!valid} onClick={() => save.mutate()}>
+            Rename
+          </Button>
+        </>
+      }
+    >
+      <form
+        className="stack"
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (valid) save.mutate();
+        }}
+      >
+        <TextField label="Name" required maxLength={100} value={name} onChange={(e) => setName(e.target.value)} />
+        {save.isError ? <ErrorCallout inset error={save.error} onRetry={save.error instanceof ApiError && save.error.code === "stale_etag" ? () => void qc.invalidateQueries({ queryKey: ["instance-organizations"] }) : undefined} /> : null}
+      </form>
+    </Dialog>
   );
 }
 
