@@ -3,7 +3,7 @@ type: Specification
 title: The web app is a person's way to run the same operations an agent runs, one screen at a time.
 description: Principles, the shell and product switching, the overview, routes, first run, and the behavior of every screen (Idea, Evidence, Exploration, Story, Activity, archive and delete, organization and account screens).
 tags: [spec, web, ui, routes, shell]
-generated: {by: agent:claude, at: 2026-10-25}
+generated: {by: agent:claude, at: 2026-10-26}
 status: stable
 ---
 
@@ -41,6 +41,10 @@ design system: tokens, type, components and the rules for using them — is docu
   for its people, an address whose id is not an id at all), it says so without asking. Where it cannot, it asks, and
   REST answers honestly: a source, assumption or other object that does not exist answers `404`,
   and its page says it was not found while the browser's console reports the `404` of the request.
+  A `404` is final, so the app never asks for it again (a request that did not reach WhatBuild,
+  or a `5xx`, is asked again twice). A product, or an organization's Members or Plan and limits,
+  that answers `404` says at once that it doesn't exist or the person can't see it, as the server
+  does of both, with a way back to their products.
   ◆ Decision: that console line is by design; the API is not bent to hide it.
 - **Times are shown in the viewer's own time zone**, though the API gives them in UTC
   ([decision](../decisions/times-are-utc-in-data-and-local-where-shown.md)).
@@ -87,13 +91,15 @@ the browser's back button and "open in new tab" both work.
   to the lifted shadow. It opens as the field alone, with up to six **recent searches** under it
   when it is empty: searches followed through in that product (a result opened, or every result),
   newest first, kept in the browser and cleared at sign-out (§9.1); picking one fills the field, and
-  Clear empties the list. Results come as you type, best match first, at most eight: each with its
+  Clear empties the list. Results come as you type, best match first (a kind named in the query
+  before the rest), at most eight: each with its
   kind's glyph, its title with the words marked, what it is (Source with its date and its number
   of matches, counted as its Find in the text counts them for the same words, so opening it in its
   text shows "… of" that number; Assumption with its status, Mockup with the page), and a source's
   best place,
   saying where it is ("In its text", "In its summary", "In its notes", "In a comment"), or another
-  result's matching text. Arrows (or Ctrl+N and Ctrl+P) move; Enter opens the selected result (a
+  result's matching text, in two lines; at phone width that text starts a few words before its
+  first marked word, so the words it matched stay in view. Arrows (or Ctrl+N and Ctrl+P) move; Enter opens the selected result (a
   source matched in what it says opens at the place its line shows, even when its title holds the
   words too: its Text, which the summary heads, with the words marked when they are in the text;
   its Notes; or its Comments). The **All N results**
@@ -284,7 +290,11 @@ inspector. A product path without the `/t/` prefix (`/<tenant>/<team>/<product>[
 or paste it) redirects to the same path under `/t/`.
 
 The document title is "<screen> · <section> · <product> · WhatBuild", with a screen named after
-its section ("Evidence") said once.
+its section ("Evidence") said once. A screen shown in place of another names itself, never the one
+it stands in for: an address the app doesn't know is "Not found · WhatBuild", a product that
+answers `404` "Product not found · WhatBuild", an organization that does "Organization not found"
+with its section (Members, Plan and limits), and an error no screen handles "Something went
+wrong · WhatBuild".
 
 The Story print view is served by the API, not the app: `GET
 /api/v1/p/<tenant>/<team>/<product>/story/print?page_ids=…` returns one HTML document, opened in a
@@ -361,9 +371,10 @@ shows.
   another card's head move it there; Enter or another press places it; Escape, wherever the
   focus is, puts it back; clicking or tabbing away from the cards places it where it is. Each step
   is announced. Nothing is saved until the card is placed. With reduced motion nothing glides.
-- **An outcome's menu:** Archive or Restore, and Delete permanently for admins. A viewer has no
-  menu. Earlier versions are kept, and agents read and restore them (`outcomes(action="revisions")`);
-  the screen does not offer them.
+- **An outcome's menu:** Archive or Restore, and Delete permanently for admins, whose dialog
+  names what goes with the outcome, its picture and its text, only those it has, and the
+  assumptions that serve it. A viewer has no menu. Earlier versions are kept, and agents read and
+  restore them (`outcomes(action="revisions")`); the screen does not offer them.
 - A card holds nothing that points away from it: no links or counts of the assumptions, mockups
   or Story pages that serve it ([§4.2](04-data-model.md)).
 
@@ -878,6 +889,9 @@ never described as deleting. A list row showing an archived object says *Archive
   that members aren't shown to Story readers, with a way back to their products
   ([§3.5](03-accounts-teams-and-identity.md)). The page knows this from `products.list`'s
   `story_only` and asks for the members only once that has loaded, so it is never refused.
+  Someone outside the organization, or at an address that names none, is told at once that it
+  doesn't exist or they can't see it (§7.1); until the members answer, the page for an
+  organization that isn't theirs shows only that it is loading, not the key to the roles.
   A guest of the example organization sees a callout that it is the example organization and that
   its people aren't shown to its readers, and no list.
   Last, an organization's owners see **Delete this organization** (never the example organization):
@@ -970,12 +984,14 @@ never described as deleting. A list row showing an archived object says *Archive
   reads or that adding a file from a link is off. The limit on calls a minute, the refusal a call
   over a limit gets, the deployment's other limits and what sets them are not shown to them: agents
   read them all from `products.limits`, and a call over one says so. An unlimited organization's
-  page says nothing there is counted, over What you can add; a guest of the example reaching the
+  page says it has no daily allowances, and that what everyone does is still counted, day by day,
+  so that a move to the free plan during a day starts from what was already done
+  ([§9.7](09-data-lifecycle.md)), over What you can add; a guest of the example reaching the
   address is told they have no allowances there. An owner of the instance sees instead the plan and
   who in the organization meets the limits (on the free plan everyone, owners included; in the
-  example, its guests only the limit on calls a minute), and when the day's allowances start over;
+  example, its guests only the limit on calls a minute), and when the day's counts start over;
   **Limits** (on an unlimited organization, **Limits on the free plan**), one row for each: what it
-  counts and over what, what it allows, what they used today where they meet it themselves, and the
+  counts and over what, what it allows, what they used today (counted on every plan), and the
   refusal a call over it gets; and **Limits of this deployment**, the ones every organization has,
   with what sets each. Nobody changes anything here; an owner of the instance has **Change plan and
   limits**, which opens the organization's dialog on the instance's page (`/instance?org=<slug>`).

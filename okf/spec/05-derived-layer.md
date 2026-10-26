@@ -3,7 +3,7 @@ type: Specification
 title: Every attachment is read into readable Markdown and kept, and each source has one derived text that people and agents read, edit and search.
 description: Reading attachments (when a reading runs, its thread and limits, what it stores, its statuses), the parsers and how they lay text out, the derived text and how it follows its attachment, and the reads and writes of the derived layer.
 tags: [spec, derived-layer, parsers, derived-text, attachments]
-generated: {by: agent:claude, at: 2026-10-25}
+generated: {by: agent:claude, at: 2026-10-26}
 status: stable
 ---
 
@@ -345,9 +345,18 @@ from before an attachment was added, say), is refused as not the text's current 
 saying the text changed, which it may not have. One sent when the source has no text is
 `409 stale_etag` with `current_etag: null`, saying to leave it out for the first write. An archived source refuses it (`409 record_archived`). It answers `{ record_id, chars, etag, updated_at, taken_from, diff? }`,
 writes the text's pieces into the search index in the same transaction, and records `text_written`
-in the activity log: "Wrote the derived text", "Rewrote the derived text", "Edited the derived
-text", "Removed the derived text" or "Took the derived text from interview.vtt". The text keeps no
-revisions; what each attachment was read as stays readable (below).
+in the activity log: "Wrote the derived text" (the first), "Edited the derived text", "Rewrote the
+derived text", "Removed the derived text" or "Took the derived text from interview.vtt". Whether a
+write over a text edited or rewrote it is decided by what its words became, not by how it was sent,
+so a correction reads the same whether the web app's editor sent the whole text or an agent sent
+exact edits (`rewrites` in `packages/core/src/text-edits.ts`). A word is a run of characters
+between spaces or line breaks, and the two texts are compared word by word, in order: a write that
+removes and adds, together, more words than half of the two texts hold between them, or more than
+2,000 words, rewrote it; any other edited it. Changing one word of ten, or two of a long
+transcript, is an edit; replacing most of it is a rewrite; spacing and line breaks alone change no
+word. Entries recorded before this rule kept the wording of their time: "Rewrote" for any whole
+text sent, "Edited" for any exact edits. The text keeps no revisions; what each attachment was read
+as stays readable (below).
 
 **Reading it.** `derived.text { record_id, offset = 0, limit ≤ 20,000, path?, derivation_id? }` reads
 one window by code-point offset:

@@ -18,7 +18,7 @@ export interface LimitValue extends Limit {
   value: number | boolean;
   /** The free plan's value. */
   free_plan: number | boolean;
-  /** What the caller, or everyone together, used today, for a daily limit they meet. */
+  /** What the caller, or everyone together, used today, for a daily limit: counted on every plan, and absent for a guest. */
   used?: number;
 }
 

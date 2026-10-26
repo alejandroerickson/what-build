@@ -5,7 +5,7 @@ import { json } from "../db.ts";
 import { AppError, conflict, invalid, notFound, rateLimited, tooLarge } from "../errors.ts";
 import { extensionForMediaType, extensionOf, mediaTypeFor, validFilePath } from "../media.ts";
 import { defineOperation, type OpContext, type Principal } from "../registry.ts";
-import { countBytes, limitsForAccount, mayFetchUrl, uploadLimit } from "../limits.ts";
+import { countBytes, mayFetchUrl, tallyOf, uploadLimit } from "../limits.ts";
 import { id } from "../schemas.ts";
 import { newEtag, newId, sha256OfStream } from "../util.ts";
 import { attachmentEntries, duplicateWarnings, insertRecord, loadRecord, recordMetadata, recordSummary } from "./sources.ts";
@@ -237,9 +237,8 @@ export async function completeGrant(ctx: OpContext, grantId: string) {
     // Adding an attachment changes the source, so its etag moves on.
     await ctx.db.updateTable("records").set({ etag: newEtag() }).where("record_id", "=", g.record_id).execute();
     await ctx.enqueue("derive", { record_id: g.record_id, file_version_id: fileVersionId });
-    // In a free organization the file counts against whoever asked for the grant, whichever way its bytes came.
-    const limits = ctx.limits === null ? null : await limitsForAccount(ctx.db, g.tenant_id);
-    if (limits) await countBytes(ctx.db, limits, g.principal.account_id, size!);
+    // On every plan the file counts against whoever asked for the grant, whichever way its bytes came.
+    await countBytes(ctx.db, ctx.limits ?? tallyOf(g.tenant_id, new Date(ctx.now)), g.principal.account_id, size!);
     await recordActivity(ctx, { action: "file_added", entity_type: "source", entity_id: g.record_id, entity_title: record.title, summary: `Added the attachment ${g.path}` });
   }
   const entries = await attachmentEntries(ctx.db, g.record_id, ctx.ports.config.parseCapBytes);

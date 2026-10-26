@@ -40,7 +40,7 @@ const VERBS: Record<string, string> = {
   "source:note_restored": "restored a comment on",
   "source:derived": "read an attachment of",
   "source:rederive_requested": "asked to read again an attachment of",
-  "source:text_written": "wrote the text of",
+  "source:text_written": "changed the text of",
   "source:archived": "archived",
   "source:restored": "restored",
   "source:deleted": "deleted",

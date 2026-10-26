@@ -57,7 +57,7 @@ const { DeleteDialog } = await import("../src/routes/delete-dialog.tsx");
 const { ProductSettingsPage } = await import("../src/routes/product-misc.tsx");
 const { entryImpactWords } = await import("../src/routes/registers.tsx");
 const { DeletePage } = await import("../src/routes/story-actions.tsx");
-const { servedBy } = await import("../src/routes/idea.tsx");
+const { outcomeGoes, servedBy } = await import("../src/routes/idea.tsx");
 const { SourceDetailPage, sourceImpactWords } = await import("../src/routes/source-detail.tsx");
 const { organizationImpactWords } = await import("../src/routes/org.tsx");
 const { mockupImpactWords } = await import("../src/routes/mockups.tsx");
@@ -271,5 +271,14 @@ describe("deleting an outcome", () => {
   it("counts the assumptions that serve it in good grammar, one or more", () => {
     expect(servedBy(1)).toBe("1 assumption serves it, and will no longer be linked to it.");
     expect(servedBy(3)).toBe("3 assumptions serve it, and will no longer be linked to it.");
+  });
+
+  it("names its picture and its text only when it has them", () => {
+    const o = { title: "Crews plan the week in minutes", card_chars: 1200, description: "What success looks like." };
+    expect(outcomeGoes(o)).toBe("This deletes “Crews plan the week in minutes” with its picture and text.");
+    expect(outcomeGoes({ ...o, card_chars: 0 })).toBe("This deletes “Crews plan the week in minutes” with its text.");
+    expect(outcomeGoes({ ...o, description: "  " })).toBe("This deletes “Crews plan the week in minutes” with its picture.");
+    expect(outcomeGoes({ ...o, card_chars: 0, description: "" })).toBe("This deletes “Crews plan the week in minutes”.");
+    expect(outcomeGoes({ ...o, title: "Do crews plan by the day?", card_chars: 0 })).toBe("This deletes “Do crews plan by the day?” with its text.");
   });
 });

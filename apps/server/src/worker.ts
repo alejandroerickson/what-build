@@ -212,7 +212,7 @@ export class Worker {
     await pruneOAuthClients(this.env.db);
     await pruneUsage(this.env.db);
     await pruneFeedbackCounts(this.env.db);
-    // The counters behind a free organization's limits: a minute's are read within that minute, a day's that day.
+    // The counters behind an organization's limits: a minute's are read within that minute, a day's that day.
     await sql`delete from limit_counters where (bucket = 'minute' and starts_at < now() - interval '1 hour') or starts_at < now() - interval '3 days'`.execute(this.env.db);
     const tenants = await sql<{ tenant_id: string }>`select distinct tenant_id from tenants`.execute(this.env.db);
     for (const { tenant_id } of tenants.rows) {

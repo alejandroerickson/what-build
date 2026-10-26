@@ -122,6 +122,22 @@ export function Marked({ text, marks }: { text: string; marks: Marks }): ReactNo
   return out;
 }
 
+/**
+ * An excerpt starting at most `before` characters ahead of its first mark, at the start of a word,
+ * with an ellipsis for what it leaves out, and its marks moved with it. An excerpt comes centred on
+ * its best place, which a short line clamped to two lines may cut off; this keeps the words it
+ * matched in view.
+ */
+export function leadTo(text: string, marks: Marks, before: number): { text: string; marks: Marks } {
+  const first = Math.min(...marks.map(([s]) => s));
+  if (!marks.length || first <= before) return { text, marks };
+  // After the first space at or past the cut, so no word is cut; else at the mark itself.
+  const space = text.slice(first - before - 1, first).search(/\s/);
+  const cut = space < 0 ? first : first - before + space;
+  const shift = 1 - cut;
+  return { text: `…${text.slice(cut)}`, marks: marks.map(([s, e]) => [s + shift, e + shift]) };
+}
+
 /** Where a result opens. */
 export function resultHref(app: string, r: FindResult): string {
   switch (r.kind) {

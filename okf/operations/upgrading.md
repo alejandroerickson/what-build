@@ -23,6 +23,28 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
 
 ## Unreleased
 
+- **A kind named in a search comes first everywhere.** It concerns every deployment and asks
+  nothing of one. A search such as "mockups crew" now lists the mockups first in the search palette
+  and in MCP's `search` plain mode, as the Search screen already did, rather than only nudging their
+  score; a result's `score` no longer counts the hint, so the first results may score lower than
+  the ones after them. On a phone, the palette's lines start a few words before the word they
+  matched, so it shows. The skill is now at version 0.40.0; agents fetch it again as the server's
+  instructions tell them.
+- **A day's use is counted on every plan.** It concerns every deployment and asks nothing of one.
+  Writes, sources added, exports and attached files are counted in an organization on the
+  unlimited plan too, though nobody there is refused, so an organization an instance owner moves
+  to the free plan during a day meets what that day already used instead of starting from zero.
+  `products.limits` gives `used` on every plan, the instance owners' list of organizations gives
+  every organization's use today, and an unlimited organization's Plan and limits page says its use
+  is counted. What was done before the upgrade was not counted: an unlimited organization moved to
+  the free plan on that day starts from what was done after it.
+- **A small correction to a source's derived text is logged as an edit, through either door.** It
+  concerns every deployment and asks nothing of one. Activity said "Rewrote the derived text" for
+  every whole text sent, as the web app's editor sends it, and "Edited the derived text" for every
+  set of exact edits an agent sent. The server now compares the words before and after: a write
+  that removes and adds more than half of the two texts' words, or more than 2,000, rewrote the
+  text, and any other edited it. Entries already in Activity keep their wording, and Activity's
+  line for any of them now reads "changed the text of" a source, where it read "wrote the text of".
 - **The unscoped agent connector offers only what the person's roles reach, too.** It concerns
   every deployment and asks nothing of one. On `/mcp`, someone who may not start an organization
   (no instance owner, no allowance with room) is offered what their highest role in any

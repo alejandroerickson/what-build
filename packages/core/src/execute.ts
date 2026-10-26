@@ -8,7 +8,7 @@ import { resolveAliases, wrongFieldHint } from "./field-aliases.ts";
 import { exampleReadOnly, isGuest, resolveScope, type ScopeRef } from "./policy.ts";
 import type { Ports } from "./ports.ts";
 import { capRole, connectionNeeds, LEVEL_NAMES, levelAllows, type OpContext, type OperationDef, type Principal, type Scope } from "./registry.ts";
-import { admitCall, checkInput, countWrite, limitsFor } from "./limits.ts";
+import { admitCall, checkInput, countWrite, limitsFor, tallyOf } from "./limits.ts";
 import { formatIssues, nullCharacterPaths, nullCharacterSentence, wordList } from "./schemas.ts";
 import { feedbackOff } from "./feedback.ts";
 import { isInstanceOwner } from "./tenant-allowance.ts";
@@ -146,8 +146,8 @@ export async function admitRead(env: Env, principal: Principal, scope: Scope, na
  * The one way an operation runs, whichever door the call came through: resolve and authorize the
  * scope, refuse a guest's write in the example organization, apply the limits of a free
  * organization, validate the input strictly, run any slow `prepare` step outside a transaction,
- * then run the handler in one transaction that is scoped to the tenant (row-level security) and
- * writes its activity event alongside the change. A call through a scoped MCP connector also stays
+ * then run the handler in one transaction that is scoped to the tenant (row-level security), counts
+ * the day's use on every plan, and writes its activity event alongside the change. A call through a scoped MCP connector also stays
  * inside it.
  */
 export async function execute(
@@ -208,6 +208,8 @@ async function run(
   if (op.mutates && isGuest(scope)) throw await exampleReadOnly(env.db, env.ports.config, principal, scope.tenant!.name, op.name);
   const limits = await limitsFor(env.db, scope);
   if (limits) await admitCall(env.db, limits, principal, op);
+  // A day's use is counted on every plan, so an organization moved to the free plan during a day meets what that day already used.
+  const tally = limits ?? (scope.tenant ? tallyOf(scope.tenant.tenant_id) : null);
   const input = parseInput(op, rawInput) as Record<string, unknown>;
   if (limits) checkInput(limits, op, input);
   if (op.mutates && scope.product?.archived_at && !op.allowArchivedProduct)
@@ -218,7 +220,7 @@ async function run(
     const tx = env.db.transaction();
     return (mode === "read" ? tx.setAccessMode("read only") : tx).execute(async (trx) => {
       if (scope.tenant) await sql`select set_config('app.tenant_id', ${scope.tenant.tenant_id}, true)`.execute(trx);
-      if (limits && mode === "call") await countWrite(trx, limits, principal, op, input);
+      if (tally && mode === "call") await countWrite(trx, tally, limits, principal, op, input);
       return fn({
         principal,
         actor: actorOf(principal),

@@ -270,7 +270,7 @@ tenant meets limits on how often and how much they work, its owners included; on
 nobody does. The limits, their defaults and their refusals are in [§9.7](09-data-lifecycle.md).
 
 - Every member reads the tenant's plan and limits, with what they and everyone together have used
-  today, with `products.limits` (scope `tenant`, access `any`).
+  today, which is counted on every plan, with `products.limits` (scope `tenant`, access `any`).
 - Only instance owners list every tenant with its plan, people, changed limits and today's use,
   with the deployment's `new_organization_plan` (`products.organizations`), and change a tenant's plan or any of its limits
   (`products.set_limits`): `limits` changes the ones named, `reset_limits` first puts every limit

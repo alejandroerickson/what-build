@@ -100,7 +100,10 @@ describe("an organization's plan", () => {
     const keys = mine.deployment_limits.map((l: { key: string }) => l.key);
     expect(new Set(keys).size).toBe(keys.length);
     expect(keys).toEqual(expect.arrayContaining(["file_max_bytes", "parse_cap_bytes", "attachments_per_source", "mockups_per_product", "story_pages_per_product"]));
-    expect(await limitsOf(root, unlimited.slug)).toMatchObject({ plan: "unlimited", you_meet_them: false });
+    // Nobody meets them on the unlimited plan, and what each person does there is counted all the same.
+    const roomy = await limitsOf(root, unlimited.slug);
+    expect(roomy).toMatchObject({ plan: "unlimited", you_meet_them: false });
+    expect(roomy.limits.find((l: { key: string }) => l.key === "writes_per_day").used).toBeGreaterThan(0);
   });
 
   it("is listed and changed by instance owners alone", async () => {
@@ -313,6 +316,47 @@ describe("the free plan's limits", () => {
     expect(none.body.error.details).toMatchObject({ quota: "bytes_per_day", limit: bytes, used: bytes, unit: "bytes" });
     // In an unlimited organization a grant may go straight to the store when it can.
     await set({}, { reset_limits: true });
+  });
+
+  it("meet, after a move to the free plan during a day, what was used that day while the organization was unlimited", async () => {
+    await set({}, { plan: "unlimited", reset_limits: true });
+    // Counted on the unlimited plan too, and said so, though nobody meets the limits there.
+    const mine = await limitsOf(ned);
+    expect(mine).toMatchObject({ plan: "unlimited", you_meet_them: false });
+    const writes = await used(ned, "writes_per_day");
+    const sources = await used(ned, "sources_per_day");
+    const bytes = await used(ned, "bytes_per_day");
+    const orgWrites = await used(ned, "org_writes_per_day");
+    const today = async () => (await root.api("GET", "/api/v1/organizations")).body.items.find((o: { slug: string }) => o.slug === free.slug).today;
+    const everyone = await today();
+    for (let i = 0; i < 3; i++) expect((await ned.api("POST", `${P}/outcomes`, { title: `Written while unlimited ${i + 1}` })).status).toBe(201);
+    expect((await ned.api("POST", `${P}/sources`, { title: "Sample source added while unlimited", tags: ["notes"] })).status).toBe(201);
+    const grant = await ned.api("POST", `${P}/sources/${seeded}/uploads`, { path: "while-unlimited.md" });
+    expect(grant.status).toBe(201);
+    // Through the relay, outside execute, the file still counts against whoever asked for the grant.
+    expect((await fetch(grant.body.url, { method: "PUT", headers: grant.body.headers, body: "z".repeat(40) })).status).toBe(201);
+    expect(await used(ned, "writes_per_day")).toBe(writes + 5);
+    expect(await used(ned, "sources_per_day")).toBe(sources + 1);
+    expect(await used(ned, "bytes_per_day")).toBe(bytes + 40);
+    expect(await used(ned, "org_writes_per_day")).toBe(orgWrites + 5);
+    expect(await today()).toMatchObject({ writes: everyone.writes + 5, sources: everyone.sources + 1, bytes: everyone.bytes + 40 });
+
+    // Moved to the free plan the same day, the day's allowances start from what it already used.
+    await set({}, { plan: "free" });
+    expect(await limitsOf(ned)).toMatchObject({ plan: "free", you_meet_them: true });
+    expect(await used(ned, "writes_per_day")).toBe(writes + 5);
+    expect(await used(ned, "bytes_per_day")).toBe(bytes + 40);
+    await set({ writes_per_day: writes + 6, sources_per_day: sources + 1 });
+    try {
+      const source = await ned.api("POST", `${P}/sources`, { title: "Sample source past the allowance", tags: ["notes"] });
+      expect(source.body.error).toMatchObject({ code: "quota_exceeded", details: { quota: "sources_per_day", limit: sources + 1, used: sources + 1 } });
+      expect((await ned.api("POST", `${P}/outcomes`, { title: "The last write today" })).status).toBe(201);
+      const over = await ned.api("POST", `${P}/outcomes`, { title: "Past the day's writes" });
+      expect(over.status).toBe(409);
+      expect(over.body.error).toMatchObject({ code: "quota_exceeded", details: { quota: "writes_per_day", limit: writes + 6, used: writes + 6 } });
+    } finally {
+      await set({}, { reset_limits: true });
+    }
   });
 
   it("stop applying once an instance owner moves the organization to the unlimited plan, from the next call", async () => {

@@ -82,3 +82,61 @@ export function textDiff(field: string, oldText: string, newText: string): TextD
     after: oldText.slice(oldText.length - end, oldText.length - end + CONTEXT),
   };
 }
+
+/**
+ * The most words a write may remove and add, together, and still be an edit rather than a rewrite,
+ * however long the text: it also bounds the comparison's work.
+ */
+export const EDIT_MAX_CHANGED_WORDS = 2_000;
+
+/**
+ * Whether a new text rewrites an old one, rather than editing it, as the activity log says. A word
+ * is a run of characters between spaces or line breaks. The texts are compared word by word, in
+ * order: a write that removes and adds, together, more words than half of the two texts hold
+ * between them, or more than `EDIT_MAX_CHANGED_WORDS`, rewrites; any other edits. A correction
+ * reads the same whether the whole text was sent or exact edits were, and line breaks or spacing
+ * alone change no word.
+ */
+export function rewrites(oldText: string, newText: string): boolean {
+  const ids = new Map<string, number>();
+  const words = (t: string) => Int32Array.from(t.match(/\S+/g) ?? [], (w) => ids.get(w) ?? (ids.set(w, ids.size), ids.size - 1));
+  const a = words(oldText);
+  const b = words(newText);
+  const most = Math.min(EDIT_MAX_CHANGED_WORDS, Math.floor((a.length + b.length) / 2));
+  return changedWords(a, b, most) > most;
+}
+
+/**
+ * The fewest words removed and added that turn `a` into `b` (Myers' difference algorithm), or
+ * `most + 1` once that is past `most`, so a rewrite costs no more to tell than `most` allows.
+ */
+function changedWords(a: Int32Array, b: Int32Array, most: number): number {
+  let start = 0;
+  while (start < a.length && start < b.length && a[start] === b[start]) start++;
+  let endA = a.length;
+  let endB = b.length;
+  while (endA > start && endB > start && a[endA - 1] === b[endB - 1]) {
+    endA--;
+    endB--;
+  }
+  const n = endA - start;
+  const m = endB - start;
+  if (n === 0 || m === 0) return n + m;
+  const max = Math.min(most, n + m);
+  // The furthest point reached in `a` on each diagonal k = x - y, offset so k = -max - 1 is index 0.
+  const reach = new Int32Array(2 * max + 3);
+  const at = (k: number) => k + max + 1;
+  for (let d = 0; d <= max; d++) {
+    for (let k = -d; k <= d; k += 2) {
+      let x = k === -d || (k !== d && reach[at(k - 1)]! < reach[at(k + 1)]!) ? reach[at(k + 1)]! : reach[at(k - 1)]! + 1;
+      let y = x - k;
+      while (x < n && y < m && a[start + x] === b[start + y]) {
+        x++;
+        y++;
+      }
+      reach[at(k)] = x;
+      if (x >= n && y >= m) return d;
+    }
+  }
+  return max + 1;
+}

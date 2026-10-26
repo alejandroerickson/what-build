@@ -17,7 +17,7 @@ export const OTHER_TENANT_TABLES: Record<string, string> = {
   tenant_slugs: "The slugs it had before, which addresses still name it by.",
   memberships: "Access, not content.",
   invitations: "Access, as memberships.",
-  limit_counters: "The counters behind a free organization's limits.",
+  limit_counters: "The counters behind an organization's limits, a day's kept on every plan.",
   jobs: "Work in progress.",
   upload_grants: "An upload in progress.",
   mockup_uploads: "An upload in progress.",

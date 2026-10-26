@@ -7,13 +7,13 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { StrictMode, useEffect, useRef } from "react";
 import { createRoot } from "react-dom/client";
 import { createBrowserRouter, Navigate, Outlet, RouterProvider, useLocation, useNavigate, useParams, useRouteError } from "react-router";
-import { ApiError, setUnauthenticatedHandler } from "./lib/api.ts";
+import { ApiError, retryRead, setUnauthenticatedHandler } from "./lib/api.ts";
 import { loadNewRelease, releasedSinceLoad } from "./lib/new-release.ts";
 import { CurrentTenantAddress, productHome, ProductProvider, RequireSession, useProduct } from "./lib/session.tsx";
 import { ConnectPage } from "./routes/connect.tsx";
 import { CookiesPage } from "./routes/cookies.tsx";
 import { PrivacyPage } from "./routes/privacy.tsx";
-import { AcceptInvite, NotFound, SignIn } from "./routes/auth.tsx";
+import { AcceptInvite, NotFound, NotVisible, SignIn } from "./routes/auth.tsx";
 import { IdeaPage } from "./routes/idea.tsx";
 import { MembersPage, Welcome } from "./routes/org.tsx";
 import { OverviewPage } from "./routes/overview.tsx";
@@ -32,11 +32,12 @@ import { ExplorationSection } from "./routes/exploration-panel.tsx";
 import { MockupPage, MockupsIndex } from "./routes/mockups.tsx";
 import { CookieNotice } from "./shell/CookieNotice.tsx";
 import { PlainShell, ProductShell } from "./shell/Shell.tsx";
+import { usePageTitle } from "./shell/slots.tsx";
 import { Button, ButtonLink, EmptyState, Sheet, SheetHeader, ToastProvider, useToast } from "./ui/index.tsx";
 
 const queryClient = new QueryClient({
   defaultOptions: {
-    queries: { retry: (n, e) => n < 2 && !(e instanceof ApiError && e.status < 500 && e.status !== 0), staleTime: 10_000, refetchOnWindowFocus: false },
+    queries: { retry: retryRead, staleTime: 10_000, refetchOnWindowFocus: false },
   },
 });
 
@@ -50,6 +51,10 @@ function RouteError() {
   const outdated = releasedSinceLoad();
   useEffect(() => {
     if (outdated) loadNewRelease();
+  }, [outdated]);
+  // Outside the shell, so it names itself rather than keep the title of the screen that failed.
+  useEffect(() => {
+    document.title = outdated ? "WhatBuild was updated" : "Something went wrong · WhatBuild";
   }, [outdated]);
   if (outdated)
     return (
@@ -76,16 +81,18 @@ const devRoutes = import.meta.env.DEV
   : [];
 
 function ProductNotFound({ error }: { error: unknown }) {
-  const status = error instanceof ApiError ? error.status : 0;
+  return <PlainShell>{error instanceof ApiError && error.status === 404 ? <NotVisible what="product" /> : <ProductNotLoaded error={error} />}</PlainShell>;
+}
+
+function ProductNotLoaded({ error }: { error: unknown }) {
+  usePageTitle("Product not loaded");
   return (
-    <PlainShell>
-      <Sheet labelledBy="product-missing-title">
-        <SheetHeader level={1} id="product-missing-title" title={status === 404 ? "This product doesn’t exist, or you can’t see it" : "This product couldn’t be loaded"} />
-        <EmptyState size="inline" action={<ButtonLink to="/">Your products</ButtonLink>}>
-          {status === 404 ? "To see it, ask one of its admins for a role." : error instanceof Error ? error.message : "Reload the page to try again."}
-        </EmptyState>
-      </Sheet>
-    </PlainShell>
+    <Sheet labelledBy="product-missing-title">
+      <SheetHeader level={1} id="product-missing-title" title="This product couldn’t be loaded" />
+      <EmptyState size="inline" action={<ButtonLink to="/">Your products</ButtonLink>}>
+        {error instanceof Error ? error.message : "Reload the page to try again."}
+      </EmptyState>
+    </Sheet>
   );
 }
 

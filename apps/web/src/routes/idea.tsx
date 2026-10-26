@@ -265,6 +265,13 @@ function IdeaPanel({ includeArchived }: { includeArchived: boolean }) {
   );
 }
 
+/** What a deleted outcome's dialog says goes with it: its picture and its text, naming only those it has. */
+export function outcomeGoes(o: Pick<Outcome, "title" | "card_chars" | "description">): string {
+  const sides = [o.card_chars > 0 ? "picture" : null, o.description.trim() ? "text" : null].filter(Boolean);
+  const title = quotedAtEnd(o.title);
+  return sides.length ? `This deletes ${title.replace(/\.$/, "")} with its ${sides.join(" and ")}.` : `This deletes ${title}`;
+}
+
 /** What a deleted outcome's dialog says of the assumptions that serve it, which stay, unlinked from it. */
 export function servedBy(n: number): string {
   return `${plural(n, "assumption")} ${n === 1 ? "serves" : "serve"} it, and will no longer be linked to it.`;
@@ -492,7 +499,7 @@ export function IdeaPage() {
           alternative={deleting.archived_at ? undefined : { label: "Archive instead", onSelect: () => setArchived.mutate({ o: deleting, archived: true, undo: true }) }}
           renderImpact={(i) => (
             <>
-              <p>This deletes {quotedAtEnd(deleting.title).replace(/\.$/, "")} with its picture and text.</p>
+              <p>{outcomeGoes(deleting)}</p>
               {i.assumptions.length ? <p>{servedBy(i.assumptions.length)}</p> : null}
             </>
           )}
