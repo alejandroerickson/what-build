@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router";
 import { api, ApiError, qs } from "../lib/api.ts";
 import { aRole, formatBytes, formatDate, formatDateTime, plural, relativeTime, scopeWords } from "../lib/format.ts";
-import { useSandboxStatus } from "../lib/public-sandbox.ts";
+import { useOrganizationLimits } from "../lib/limits.ts";
 import { useProduct, useProducts } from "../lib/session.tsx";
 import { ActivityFeed, ENTITY_LABEL, useActivity, type ActivityFilter } from "../shell/ActivityFeed.tsx";
 import { usePageTitle } from "../shell/slots.tsx";
@@ -223,7 +223,7 @@ function ProductDetails() {
 
 type Role = "admin" | "editor" | "viewer" | "reader";
 const ROLES: Role[] = ["admin", "editor", "viewer", "reader"];
-const ROLE_WORD: Record<string, string> = { admin: "Admin", editor: "Editor", viewer: "Viewer", reader: "Reader", owner: "Owner", member: "Member", visitor: "Visitor" };
+const ROLE_WORD: Record<string, string> = { admin: "Admin", editor: "Editor", viewer: "Viewer", reader: "Reader", owner: "Owner", member: "Member", guest: "Guest" };
 const ROLE_HINT: Record<Role, string> = { admin: "Also manages people and settings", editor: "Reads and writes", viewer: "Reads", reader: "Reads only the Story" };
 
 interface Grant {
@@ -255,8 +255,8 @@ interface ProductMembers {
   product: { product_id: string; name: string; team_id: string; team: string | null };
   members: ProductMember[];
   invitations: Invitation[];
-  /** In a public sandbox a visitor is shown only themselves. */
-  sandbox?: { only_you: boolean; visitors?: number };
+  /** A guest of the example organization, who sees none of its people. */
+  guest?: true;
 }
 interface OrgMembers {
   members: { account_id: string; display_name: string; email: string; grants: Grant[] }[];
@@ -316,9 +316,7 @@ function PeopleSheet() {
         end={
           isAdmin ? (
             <Button icon="user-plus" onClick={() => setAdding(true)}>Add people</Button>
-          ) : q.data?.sandbox?.only_you ? (
-            <Link className="quiet-link" to={`/t/${tenant}/sandbox`}>About this sandbox</Link>
-          ) : (
+          ) : q.data?.guest ? null : (
             <Link className="quiet-link" to={membersLink}>Organization members</Link>
           )
         }
@@ -421,12 +419,11 @@ function PeopleSheet() {
               </li>
             ))}
           </ul>
-          {q.data.sandbox?.only_you ? (
-            <p className="people-foot">Visitors to this public sandbox don&rsquo;t see each other, so only you are listed.</p>
+          {q.data.guest ? (
+            <p className="people-foot">The example organization&rsquo;s people aren&rsquo;t shown to its readers.</p>
           ) : (
             <p className="people-foot">
               Change team and organization roles in <Link to={membersLink}>{product.tenant.name} members</Link>.
-              {q.data.sandbox ? ` ${(q.data.sandbox.visitors ?? 0).toLocaleString("en-US")} sandbox ${q.data.sandbox.visitors === 1 ? "visitor" : "visitors"} can edit this product too. They’re listed in Sandbox controls.` : ""}
             </p>
           )}
         </>
@@ -554,9 +551,10 @@ interface ExportItem {
 function ExportSheet() {
   const { api: base, product } = useProduct();
   const qc = useQueryClient();
-  // In a public sandbox, exports are an allowance; at 0 they are off for everyone but staff.
-  const sandbox = useSandboxStatus(product.tenant.slug, Boolean(product.tenant.sandbox));
-  const exportsOff = sandbox.data?.you.role !== "staff" && sandbox.data?.allowances.find((a) => a.key === "exports_per_day")?.limit === 0;
+  // The example organization is read where it is; on the free plan exports are a daily allowance, off at 0.
+  const limits = useOrganizationLimits(product.tenant.slug, product.tenant.plan === "free" || Boolean(product.tenant.example));
+  const guest = limits.data?.you_meet_them === "calls_per_minute_only";
+  const exportsOff = guest || (limits.data?.you_meet_them === true && limits.data.limits.find((a) => a.key === "exports_per_day")?.value === 0);
   const list = useQuery({
     queryKey: ["exports", base],
     queryFn: () => api<{ items: ExportItem[] }>("GET", `${base}/exports`),
@@ -580,7 +578,7 @@ function ExportSheet() {
       <SheetBody>
         <p className="muted">
           Everything in this product, every version included, as one ZIP of JSON, Markdown and HTML files.
-          {exportsOff ? " Exporting is off for visitors to this public sandbox." : ""}
+          {guest ? " The example organization isn’t exported: read it here." : exportsOff ? " Exporting is off on this organization’s plan." : ""}
         </p>
         {start.isError ? <ErrorCallout inset error={start.error} /> : null}
         {list.isError ? <ErrorCallout inset title="Exports couldn’t be loaded" error={list.error} onRetry={() => list.refetch()} /> : null}

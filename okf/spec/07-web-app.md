@@ -34,11 +34,11 @@ design system: tokens, type, components and the rules for using them — is docu
   again at every screen. ◆ Decision: never sooner than the next screen or an error, so nobody
   loses what they are typing.
 - `409 quota_exceeded` is shown as a fact with a number and a next step, never as a failure of the
-  person. (Enforced today: Story pages and mockups per product, [§9.2](09-data-lifecycle.md), and a
-  public sandbox's daily allowances, [§9.7](09-data-lifecycle.md).)
+  person. (Enforced today: Story pages and mockups per product, [§9.2](09-data-lifecycle.md), and the
+  free plan's daily allowances, [§9.7](09-data-lifecycle.md).)
 - **No request the app knows will be refused.** Where the app can tell in advance that the server
-  would refuse (a Story-only reader asking for members, an organization that is not a sandbox, an
-  address whose id is not an id at all), it says so without asking. Where it cannot, it asks, and
+  would refuse (a Story-only reader asking for members, a guest of the example organization asking
+  for its people, an address whose id is not an id at all), it says so without asking. Where it cannot, it asks, and
   REST answers honestly: a source, assumption or other object that does not exist answers `404`,
   and its page says it was not found while the browser's console reports the `404` of the request.
   ◆ Decision: that console line is by design; the API is not bent to hide it.
@@ -125,10 +125,12 @@ the browser's back button and "open in new tab" both work.
   Each of its sections is a group named by its title, a heading, so a screen reader can move
   between them as it does between the inspector's groups.
 - **The footer** holds the account menu, which is about the person: their email; each
-  organization they belong to, with their role in it and a link to its **Members** (an organization
-  where they read only the Story is left out, since its members are not shown to them); the theme
-  (Light, Dark or System, which is the default; remembered per browser); **New organization**,
-  while they may still create one; **Organization creators**, for an owner of the instance;
+  organization they belong to, with their role in it, a link to its **Members** (left out where they
+  read only the Story, and for a guest of the example, since its members are not shown to them) and,
+  on the free plan or for an owner of the instance, to its **Plan and limits** (for a guest of the
+  example, **Your limit here**); the theme (Light, Dark or System, which is the default; remembered
+  per browser); **New organization**, while they may still create one; **Organizations** and
+  **People**, for an owner of the instance;
   **Settings** (their own display name, and **Sign out everywhere**, which asks first and offers
   Everywhere else to keep this browser signed in; signed out here too, the person lands on sign-in);
   **Submit feedback**; and Sign out. Last, under a hairline, is the release this
@@ -161,8 +163,10 @@ the browser's back button and "open in new tab" both work.
 - **Outside a product** (the overview, Connect an agent, the person's Settings, organization
   Members) the panel is the same on every screen, whatever the person came from: each
   organization's name, over the label "Products" and then its products (a long name ends in an
-  ellipsis), then a quiet link to Connect an agent, with the current
-  screen marked. It never offers a way "back" to a product, because it cannot know the person came
+  ellipsis); the example organization last, headed **Example organization** with the library glyph,
+  on a neutral wash, over its name and "read only" (to its authors, "you're an author"), with a ×
+  that hides it from the panel for a guest; then a quiet link to Connect an agent and, for an owner of the instance, to
+  **Organizations** and **People**, with the current screen marked. It never offers a way "back" to a product, because it cannot know the person came
   from one; the product is in the list.
 - **The panel changes only on entering or leaving a product.** Connect an agent is in both panels,
   and inside a product it opens in the product's shell (`…/connect`), so the product's navigation
@@ -219,16 +223,17 @@ person's organization role is in the account menu, and who has which role is on 
 
 ```
 /signin  /welcome  /invite/:token             sign-in, first run, accepting an invitation
-/join/:code                                   the page behind an invitation to the public sandbox
+/join/:code                                   → / (the public sandbox's retired invitation links)
 /cookies                                      Cookies: what they are for, and the analytics choice; readable signed out
 /privacy                                      Privacy: what is kept, why, for how long, who handles it, whom to ask; readable signed out
 /                   ?archived=1&create=1      the overview: what WhatBuild is, and every product; new product; first run with no organization
 /products                                     → / (with its query)
 /t/:tenant/members                            people and roles in an organization
-/t/:tenant/sandbox  ?visitor                  the public sandbox: its controls for staff, what it is for a visitor
+/t/:tenant/limits                             Plan and limits: an organization's plan, its limits and what is used today
 /connect            ?product                  Connect an agent: the MCP server URL for a product or all, and the agents connected now
 /settings                                     Settings: the person's display name, and Sign out everywhere
-/instance                                     Organization creators: who may create organizations (instance owners)
+/instance                                     Organizations: who may create organizations, and every organization's plan and limits (instance owners)
+/people                                       People: every account, and removing one (instance owners)
 
 /t/:tenant/:team/:product                     → …/idea
   /idea               ?status&outcome         the product concept, outcomes with counts (outcome: one a search opened, marked)
@@ -288,14 +293,21 @@ new tab ([§7.8](#78-story), [§6](06-operations-and-adapters.md)).
    by the server's rule (`safeNext`). Under the form, one line says WhatBuild is a free preview
    and links to Privacy, which opens with the data statement ([§9.1](09-data-lifecycle.md)), and
    to Cookies.
-2. **First run** (`/welcome`): name the organization and the first product in one form, for an
-   account that may create one ([§3.3](03-accounts-teams-and-identity.md)). The same form, titled
+2. **The example organization first.** A new account with no organization of its own lands on the
+   overview, where the example organization ([§3.10](03-accounts-teams-and-identity.md)) is listed,
+   tagged Example organization and Read only, under a sheet, **Your own organization**, that says
+   the example is there to read and to point an agent at, and offers **Start your organization**
+   where the account may create one, or says whom to ask where it may not.
+3. **First run** (`/welcome`): name the organization and the first product in one form, for an
+   account that may create one ([§3.3](03-accounts-teams-and-identity.md)); for someone who is not
+   an instance owner it adds that the organization starts on the free plan. The same form, titled
    New organization, starts another. An account that may not says so: the people who run the
-   instance decide who may, and someone can invite them instead. A person who was invited follows
+   instance decide who may, and someone can invite them instead; its link back leads to the
+   example organization for someone with none of their own. A person who was invited follows
    their invitation link (`/invite/:token`) and lands in the inviter's organization.
-3. Invite colleagues from the organization's Members or the product's Settings, by email or a
+4. Invite colleagues from the organization's Members or the product's Settings, by email or a
    single-use link.
-4. **Connect an agent** (`/connect`): paste one address into an MCP client and sign in when it asks
+5. **Connect an agent** (`/connect`): paste one address into an MCP client and sign in when it asks
    ([§6.8](06-operations-and-adapters.md)).
 
 **Planned:** a public, read-only sample product at `/sample`, readable with no account — a
@@ -792,7 +804,7 @@ a product that isn't archived (`canDelete`). One dialog serves every delete
 | Story page | its row's menu in the tree, and the inspector's About | its row's menu, and the inspector's About |
 | Mockup | in its delete dialog, as the alternative | the inspector's Version, under Download |
 | Product | Settings, Archive this product, and in its delete dialog | Settings, Delete this product |
-| Organization | — | Members, Delete this organization, for owners, never in a public sandbox |
+| Organization | — | Members, Delete this organization, for owners, never the example organization |
 
 1. The visible control is **Archive**. It is a plain, ordinary action with no confirmation beyond
    an undo toast, because it is reversible. Its tooltip says what archiving does: takes this out of
@@ -842,12 +854,14 @@ never described as deleting. A list row showing an archived object says *Archive
   every role a person holds, removing one never asks as if it were the last
   ([§3.5](03-accounts-teams-and-identity.md)). Below, owners and admins of the organization see
   **Access changes**: the organization's access log (`members.activity`), drawn as the Activity
-  feed is (§7.9), newest first; in a sandbox its entries about the sandbox lead to its controls.
+  feed is (§7.9), newest first.
   Someone who reads only the Story in the organization who opens the address gets a page saying
   that members aren't shown to Story readers, with a way back to their products
   ([§3.5](03-accounts-teams-and-identity.md)). The page knows this from `products.list`'s
   `story_only` and asks for the members only once that has loaded, so it is never refused.
-  Last, an organization's owners see **Delete this organization** (never in a public sandbox):
+  A guest of the example organization sees a callout that it is the example organization and that
+  its people aren't shown to its readers, and no list.
+  Last, an organization's owners see **Delete this organization** (never the example organization):
   the dialog lists its products and counts its sources, files and people, and needs a reason and
   the organization's name typed (§7.10, [§9.5](09-data-lifecycle.md)). It is the only place an
   organization is deleted; afterwards the overview opens.
@@ -901,62 +915,60 @@ never described as deleting. A list row showing an archived object says *Archive
   moment so that a redirect is not counted; each change the app makes is an event named by the
   operation the server ran (`X-WhatBuild-Operation`); and search is counted by what was opened and
   followed, never by its words (`apps/web/src/lib/analytics.ts`, [§9.1](09-data-lifecycle.md)).
-- **Organization creators** (`/instance`, from the account menu, for the instance's owners only;
-  `apps/web/src/routes/instance.tsx`). What the rule is, the default for every other address and
-  who the owners are; then each address with an allowance: its person or "no account yet", how
-  many it may create and has created, who gave it and when, the note, and what is left.
-  **Let someone create organizations** opens a dialog for an address, a number, a note and whether
-  to tell them by email; Change edits the number and note under the row's etag; Remove returns the
-  address to the default after a confirmation. Anyone else reaching the address is told only
-  instance owners decide this.
-- **The public sandbox** ([§3.10](03-accounts-teams-and-identity.md),
-  [§9.7](09-data-lifecycle.md)), in `apps/web/src/routes/public-sandbox.tsx` and
-  `apps/web/src/shell/PublicSandboxBanner.tsx`:
-  - **The notice.** Every screen of a product in the sandbox carries it above its content: that
-    the organization is public, the name the person writes under, and when everything added is
-    erased. It shows in full until the person presses Got it, and as one line from then on
-    (remembered per organization in the browser). It is hidden in the Story's focus mode. Staff
-    get their own words and a link to the controls. It shows nothing while it loads or if it
-    fails, so no screen waits for it.
-  - **The invitation** (`/join/:code`) is readable signed out. It says what the sandbox is, that
-    it is public and erased, what a visitor can and cannot do, and the day's main limits; while
-    visitors' agents are let in, also the address a visitor's own agent connects at once they are
-    in, and that it should be connected to nothing else in WhatBuild at the same time, since it
-    reads what strangers wrote there. Then it offers Sign in to enter, or Enter the sandbox when
-    signed in. Opening the link never enters
-    by itself. An invitation that admits nobody else says why. Sign-in reached from it is titled
-    "Sign in to enter the sandbox".
-  - **The controls** (`/t/:tenant/sandbox`, for owners and admins; Sandbox controls in the
-    account menu). The address of an organization the person is in that is not a sandbox says so
-    without asking the server, which would refuse it. State at a glance, with two switches that act at once: what visitors may do
-    (writing, reading only, closed) and whether their agents may connect. Then seats, the next
-    and last reset, and today's use. **Limits** is one table of every limit: what it counts, what
-    it is counted over, its value in a field, its default, and the error a call over it gets.
-    Below it are the reset's hour, time zone and switch. One Save changes button saves the table
-    and the schedule together. Then **Baselines** (Save baseline; Reset to this one),
-    **Invitations** (New invitation shows the link once; Withdraw), **Visitors** (found by name,
-    address or made-up name with `?visitor=`; Remove) and **Limits of this deployment**, read
-    only. Reset now and Reset to this one ask first and list what is erased.
-  - **For a visitor** the same address (About this sandbox in the account menu) shows the notice,
-    the name they write under, what they can do, **Your agent** (the sandbox's own MCP address to
-    copy, with why it should be the agent's only WhatBuild connection, while visitors' agents are
-    let in), and every allowance with what is used today. A
-    member whom staff gave a role sees the same page, with the notice and what they can do
-    written for a member. A member who reads only the Story sees **You read: The Story** and that
-    they write nothing, in place of the name they write under. A daily allowance set to 0 shows as
-    Off, and `sandbox.status` gives its refusal as `403 sandbox_restricted`. The notice above every
-    screen says who sees what the person adds: other visitors, for a visitor; everyone there, for a
-    member; visitors, under their own name, for staff. A member who reads only the Story is told
-    instead that they can only read the Story, and its one-line form says "You read the
-    Story." Where exports are set to 0, a product's Export sheet says exporting is off for visitors
-    and offers no Export button, except to staff.
-  - **Members** in the sandbox shows anyone but staff only themselves, and shows staff the
-    organization's own people with the visitors as a count and a link to the controls; no visitor
-    is listed, even one given a role on a team or product. The account
-    menu leaves Members out for a visitor. An organization that is a sandbox is tagged Public
-    sandbox on the overview.
-  - **First run** (`/welcome`) for an account made for the sandbox that is not in it says so, and,
-    unless an instance owner gave it an allowance, offers no organization to create.
+- **Organizations** (`/instance`, from the panel and the account menu, for the instance's owners
+  only; `apps/web/src/routes/instance.tsx`). First **Organizations**, every organization on the
+  instance (`products.organizations`), under what plan a new organization starts on here and that
+  it is set where the service is deployed (`WHATBUILD_NEW_ORGANIZATION_PLAN`): each row its name,
+  plan, whether it is the example, how many people are in it, who created it and when, the limits
+  changed from the free plan's, and what was added today, ending in its plan's badge and **Plan and
+  limits ›**. The whole row is a link to `/instance?org=<slug>`, which opens **Plan and limits of**
+  the organization: the plan as a choice between Free and Unlimited, every limit in a field beside
+  the free plan's value (bytes in MB), Back to the free plan's limits, and Save, under the limits'
+  etag; closing it takes `org` off the address. Then **Who can start organizations**: what the rule
+  is, the default for every other address and who the owners are; then each address with an
+  allowance: its person or "no account yet", how many it may create and has created, who gave it
+  and when, the note, and what is left. **Let someone start organizations** opens a dialog for an
+  address, a number, a note and whether to tell them by email; Change edits the number and note
+  under the row's etag; Remove returns the address to the default after a confirmation. Giving an
+  allowance is also how a waiting person is let in. Anyone else reaching the address is told only
+  instance owners see this.
+- **Plan and limits** (`/t/:tenant/limits`, in the account menu as Plan and limits for an
+  organization on the free plan, or any organization for an owner of the instance, and as Your
+  limit here for a guest of the example; `apps/web/src/routes/limits.tsx`). The organization's
+  plan, whether the person meets its limits (in the example: that its guests meet only the limit on
+  calls a minute), and when the day's allowances start over (midnight UTC); then **Limits**, one row
+  for each: what it counts and over what, what it allows, what the person used today, and the
+  refusal a call over it gets. A guest sees only the limit on calls a minute; an owner of the
+  instance sees the table on an unlimited organization too, as **Limits on the free plan**. Last,
+  **Limits of this deployment**, the ones every organization has. Nobody changes anything here; an
+  instance owner sees **Change plan and limits**, which opens the organization's dialog on the
+  instance's page (`/instance?org=<slug>`).
+- **People** (`/people`, from the panel and the account menu, for the instance's owners only;
+  `apps/web/src/routes/people.tsx`). Every account (`products.accounts`): its name and address,
+  where it stands in each organization, when it joined and was last seen, how many browsers and
+  agents it has signed in, and its address's allowance, with a badge for the person themselves and
+  for an owner of the instance; a find field once the list is long. **Remove** (on every account
+  but an instance owner's) opens a dialog that says what removing does (signed out everywhere, every
+  role taken with a record in each organization, invitations and allowance cancelled, the address
+  forgotten, the name kept on what they wrote) and asks for the address typed exactly; an account
+  that is the only owner of an organization is refused, naming it
+  ([§3.2](03-accounts-teams-and-identity.md#32-accounts-and-sign-in)). Anyone else reaching the
+  address is told only instance owners see it.
+- **The example organization** ([§3.10](03-accounts-teams-and-identity.md)), in
+  `apps/web/src/shell/ExampleBanner.tsx`. Every screen of a product in it carries a notice above
+  its content. To a guest, under "This is the example organization", it says it is a worked
+  discovery to read, search and point an agent at, and that nothing in it can be changed (and, to
+  someone with no organization who may not start one, whom to ask), with **Start your
+  organization** while they have none of their own and may create one; it shows in full until they
+  press Got it, then as one line, "Example organization · read only" (remembered per organization
+  in the browser). To the organization's own people, its authors, it says in one line that they are
+  one of its authors and that what they change there is what everyone who signs in sees. It shows nothing while it loads, so no screen waits for it. The
+  overview lists the example organization after the person's own, headed **Example organization**
+  with its name after it and Read only for a guest, over a line on what it is for (to a guest: a
+  worked discovery to read in order, Idea, Evidence, Exploration and Story); a guest's head offers **Hide from the panel** or **Show in the panel**, the
+  account's own choice (`hide_example`), and so does **Example organization** in their Settings.
+  Inside a product of the example, the product switcher's line says "Example organization · " and
+  its name. The account menu leaves its Members out for a guest.
 - **Planned:** organization settings with usage against every limit shown as fractions
   ([§9.2](09-data-lifecycle.md)), the data statement, organization export, and a danger zone
   holding only owner-gated actions (transfer ownership, close the organization), each behind a

@@ -17,7 +17,7 @@ import { Worker } from "./worker.ts";
  * on an instance of its own that starts every time from the same golden master.
  *
  *   pnpm e2e golden [pull] [--org s] build the golden master from a pulled copy of production: its
- *                                    public sandbox's organization, and a copy that is not a sandbox
+ *                                    example organization, and a copy that is not the example
  *   pnpm dev:e2e                     reset the instance's database and files to the golden master
  *                                    and serve them on :5283, beside any pnpm dev
  *   pnpm e2e plans                   list the plans
@@ -50,7 +50,8 @@ export const e2eBaseUrl = () => process.env["WHATBUILD_E2E_URL"] ?? `http://loca
 export const PLANS = resolve(root, "e2e/plans");
 
 /** What golden.json says: the pull it came from, the two organizations, and their products' paths. */
-export type GoldenRecord = { built_at: string; pull: string; migration: string; commit: string; sandbox: string; standard: string; products: string[] };
+/** `sandbox` names the example organization in a golden master built before it replaced the public sandbox. */
+export type GoldenRecord = { built_at: string; pull: string; migration: string; commit: string; example?: string; sandbox?: string; standard: string; products: string[] };
 
 export function readGolden(): GoldenRecord | null {
   return existsSync(E2E.goldenRecord) ? (JSON.parse(readFileSync(E2E.goldenRecord, "utf8")) as GoldenRecord) : null;
@@ -74,9 +75,9 @@ async function inUse(local: LocalPg, database: string) {
 
 /**
  * Build the golden master from a pulled copy of production (okf/operations/a-copy-of-production.md):
- * the database "golden" in the instance's own Postgres, and its files. Only the public sandbox's
- * organization stays; it is migrated to this code's schema, and a copy of it that is not a sandbox
- * is made beside it. Once built it never changes: migrations added later run on each fresh copy.
+ * the database "golden" in the instance's own Postgres, and its files. Only the example organization
+ * stays (in a copy taken before it replaced the public sandbox, the sandbox's); it is migrated to
+ * this code's schema, and a copy of it that is not the example is made beside it. Once built it never changes: migrations added later run on each fresh copy.
  */
 async function buildGolden(args: string[]) {
   const org = option(args, "--org");
@@ -94,15 +95,17 @@ async function buildGolden(args: string[]) {
     await c.connect();
     let record: GoldenRecord;
     try {
-      const sandbox = (
+      // A copy taken before the example organization replaced the public sandbox marks the sandbox instead.
+      const flag = (await c.query("select 1 from information_schema.columns where table_name = 'tenants' and column_name = 'example'")).rowCount ? "example" : "sandbox";
+      const example = (
         await c.query<{ tenant_id: string; slug: string; name: string }>(
-          org ? "select tenant_id, slug, name from tenants where slug = $1" : "select tenant_id, slug, name from tenants where sandbox",
+          org ? "select tenant_id, slug, name from tenants where slug = $1" : `select tenant_id, slug, name from tenants where ${flag}`,
           org ? [org] : [],
         )
       ).rows;
-      if (sandbox.length !== 1)
-        throw new Error(org ? `The copy ${s.name} has no organization ${org}.` : `The copy ${s.name} has ${sandbox.length} public sandboxes; name the organization with --org <slug>.`);
-      const keep = sandbox[0]!;
+      if (example.length !== 1)
+        throw new Error(org ? `The copy ${s.name} has no organization ${org}.` : `The copy ${s.name} has ${example.length} example organizations; name the organization with --org <slug>.`);
+      const keep = example[0]!;
       await keepOnlyTenant(c, keep.tenant_id);
       // Brought to this code's schema, with the jobs its migrations queue done, before the copy is
       // made: the copy covers every table there is now.
@@ -121,8 +124,8 @@ async function buildGolden(args: string[]) {
       const products = (
         await c.query<{ path: string }>("select t.slug || '/' || m.slug || '/' || p.slug as path from products p join teams m using (team_id) join tenants t on t.tenant_id = p.tenant_id order by 1")
       ).rows.map((r) => r.path);
-      record = { built_at: new Date().toISOString(), pull: s.name, migration, commit: gitCommit(), sandbox: keep.slug, standard: standard.slug, products };
-      console.log(`The golden master is ${keep.slug}, the public sandbox in the copy ${s.name}, and ${standard.slug}, a copy of it that is not a sandbox:
+      record = { built_at: new Date().toISOString(), pull: s.name, migration, commit: gitCommit(), example: keep.slug, standard: standard.slug, products };
+      console.log(`The golden master is ${keep.slug}, the example organization in the copy ${s.name}, and ${standard.slug}, a copy of it that is not the example:
   ${products.join("\n  ")}`);
     } finally {
       await c.end();
@@ -147,11 +150,7 @@ function option(args: string[], flag: string) {
   return i >= 0 ? args[i + 1] : undefined;
 }
 
-/**
- * Put the instance's database and files back to the golden master. Called by `pnpm dev:e2e` before
- * it serves. The sandbox's day starts now, so its scheduled reset does not put its baseline back
- * over the golden master's content as soon as it is served.
- */
+/** Put the instance's database and files back to the golden master. Called by `pnpm dev:e2e` before it serves. */
 export async function resetToGolden(local: LocalPg) {
   const golden = readGolden();
   if (!golden || !(await local.hasDatabase(E2E.golden))) throw new Error("There is no golden master yet: run pnpm e2e golden first.");
@@ -160,10 +159,6 @@ export async function resetToGolden(local: LocalPg) {
     await c.query(`drop database if exists ${E2E.database}`);
     await c.query(`create database ${E2E.database} template ${E2E.golden} owner ${APP_ROLE}`);
   });
-  const c = new pg.Client({ connectionString: local.adminUrl.replace(/\/postgres$/, `/${E2E.database}`) });
-  await c.connect();
-  await c.query("update sandbox_settings set last_reset_at = now()");
-  await c.end();
   rmSync(E2E.blobs, { recursive: true, force: true });
   if (existsSync(E2E.goldenBlobs)) cpSync(E2E.goldenBlobs, E2E.blobs, { recursive: true });
   else mkdirSync(E2E.blobs, { recursive: true });
@@ -208,8 +203,8 @@ function startRun(plan: string | undefined) {
   console.log(`Run ${name}
   Plan        ${show(file)}
   Golden      ${golden ? `from the pull ${golden.pull}, built ${golden.built_at} at ${golden.commit}` : "none yet: run pnpm e2e golden"}
-  Sandbox     ${golden?.sandbox ?? "?"}   (the public sandbox)
-  Standard    ${golden?.standard ?? "?"}   (the same products, not a sandbox)
+  Example     ${golden?.example ?? golden?.sandbox ?? "?"}   (the example organization)
+  Standard    ${golden?.standard ?? "?"}   (the same products, not the example)
   Products    ${golden?.products.join("\n              ") ?? "?"}
   Folder      ${dir}
   Recording   log.jsonl, and screenshots in shots/

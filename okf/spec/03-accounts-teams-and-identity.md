@@ -1,8 +1,8 @@
 ---
 type: Specification
 title: Accounts belong to tenants, tenants hold teams, teams run products, and one role check decides every call.
-description: The account → tenant → team → product hierarchy, sign-in, roles and what they grant, addressing and isolation, moving sources between products, caller identity, attribution, and who is who in the public sandbox.
-tags: [spec, accounts, tenancy, roles, identity, oauth, isolation, sandbox]
+description: The account → tenant → team → product hierarchy, sign-in, roles and what they grant, plans and their limits, addressing and isolation, moving sources between products, caller identity, attribution, and the example organization every account reads.
+tags: [spec, accounts, tenancy, roles, identity, oauth, isolation, example, limits]
 generated: {by: agent:claude, at: 2026-10-25}
 status: stable
 ---
@@ -47,6 +47,7 @@ tenant               an organization: the isolation boundary
 | `account_id` | ULID, immutable. |
 | `email` | Unique (case-insensitive), verified by the sign-in itself. |
 | `display_name` | 1–100 chars. Appears in attribution. |
+| `hide_example` | The person hid the example organization from the app's panel ([§3.10](#310-the-example-organization)); `PATCH /api/v1/me` sets it, with or without the display name. |
 
 Sign-in methods, each optional per deployment:
 
@@ -95,15 +96,11 @@ account. Existing accounts, invited addresses, the instance's owners and address
 allowance above 0 to create organizations ([§3.3](#33-tenants-and-teams)) always may. Staging runs invite-only until public
 sign-up opens ([§10 Phase 6](10-roadmap.md)).
 
-**An invitation to the public sandbox** ([§3.10](#310-the-public-sandbox)) also lets an address
-create an account in invite-only mode, when the sign-in is returning to the invitation's link
-(`next` is `/join/<code>`) and the invitation still has a place. The check is made when the link
-is asked for and again when it is followed, since an invitation can fill in between. An account
-created this way is marked `sandbox_only`.
-
-**A `sandbox_only` account is for the sandbox.** The mark brings the sandbox's limits to the calls
-it makes outside any organization ([§9.7](09-data-lifecycle.md)). Like every account, it creates
-organizations only as far as its allowance lets it ([§3.3](#33-tenants-and-teams)).
+**Letting someone in.** While sign-up is limited, an instance owner lets a waiting person in by
+giving their address an allowance ([§3.3](#33-tenants-and-teams)): the same act lets them sign in
+and create an organization. The check is made when a sign-in link is asked for and again when it is
+followed, since what let the address in can be taken away in between. Every account, once in,
+reads the example organization ([§3.10](#310-the-example-organization)).
 
 ### Sign-in with Microsoft work accounts
 
@@ -171,7 +168,7 @@ and the guide that explains it
 token, an address, a name or any claim's value. The diagnosis changes nothing about what is
 accepted. `/signin?error=microsoft_unverified`, which earlier releases sent for both refusals,
 still shows a message. An accepted sign-in then does exactly what the others do:
-admission (invite-only mode, invitations, a sandbox invitation), `findOrCreateAccount` with the
+admission (invite-only mode, invitations, allowances), `findOrCreateAccount` with the
 address and the `name` claim, acceptance of the invitations addressed to it, a session, and a
 redirect to `next`.
 
@@ -211,12 +208,13 @@ GUID and a listed domain that is not a domain; and `microsoft` reported by both 
 
 | Object | Fields |
 |---|---|
-| Tenant | `tenant_id`, `slug` (3–50, `[a-z0-9-]`, globally unique), `name`, `plan` (`free`), `status` |
+| Tenant | `tenant_id`, `slug` (3–50, `[a-z0-9-]`, globally unique), `name`, `plan` (`free` or `unlimited`), `limits` (what an instance owner changed from the free plan's), `example`, `status` |
 | Team | `team_id`, `tenant_id`, `slug` (unique in the tenant), `name`, `archived_at` |
 
 Creating a tenant (`products.create_tenant`) creates its first team and makes the creator the
-tenant's **owner**. A new user's first-run flow is: name the organization, name the first product
-and its product concept.
+tenant's **owner**. A new account lands in the example organization ([§3.10](#310-the-example-organization)),
+and creates its own when ready: name the organization, then name the first product and its product
+concept.
 
 **Who may create a tenant** (◆ [decision](../decisions/only-instance-owners-decide-who-creates-organizations.md)):
 
@@ -240,6 +238,26 @@ and its product concept.
   `GET /api/v1/me` returns the caller's own `tenant_allowance`.
 - Taking an allowance away or lowering it never touches the tenants already created.
 
+**Plans and limits** (◆ [decision](../decisions/free-organizations-meet-limits-that-only-instance-owners-change.md)).
+Every tenant has a plan. One created on an allowance gets the plan the deployment names in
+`WHATBUILD_NEW_ORGANIZATION_PLAN`, `unlimited` unless it names `free`; one an instance owner
+creates is always `unlimited`, and so is every tenant made before plans were read. A self-hosted
+deployment leaves the setting out; the maintainer's public deployment, and local development, name
+`free`. `GET /api/v1/me` gives the caller's `new_organization_plan`, the plan an organization they
+create would get. On the free plan everyone in the
+tenant meets limits on how often and how much they work, its owners included; on the unlimited plan
+nobody does. The limits, their defaults and their refusals are in [§9.7](09-data-lifecycle.md).
+
+- Every member reads the tenant's plan and limits, with what they and everyone together have used
+  today, with `products.limits` (scope `tenant`, access `any`).
+- Only instance owners list every tenant with its plan, people, changed limits and today's use,
+  with the deployment's `new_organization_plan` (`products.organizations`), and change a tenant's plan or any of its limits
+  (`products.set_limits`): `limits` changes the ones named, `reset_limits` first puts every limit
+  back to the free plan's, and once a tenant's limits have been changed the change is guarded by
+  their etag (`409 stale_etag` without it, and with one sent for a tenant never changed). A change
+  applies to the next call. These belong to no tenant's content, so they write no activity event;
+  the tenant keeps who changed its limits last and when.
+
 ## 3.4 Products
 
 | Field | Rule |
@@ -257,7 +275,7 @@ A product is addressed as `tenant/team/product` (slugs or ids at each level) or 
 
 | Level | Roles | What the role grants |
 |---|---|---|
-| Tenant | `owner`, `admin`, `member`, `visitor` | owner and admin: admin of every team and product in the tenant; owner: tenant lifecycle (deleting the organization). member: nothing by itself. visitor: editor of every product, in the public sandbox only ([§3.10](#310-the-public-sandbox)) |
+| Tenant | `owner`, `admin`, `member`, `guest` | owner and admin: admin of every team and product in the tenant; owner: tenant lifecycle (deleting the organization). member: nothing by itself. guest: viewer of every product, in the example organization only, never stored and refused every write ([§3.10](#310-the-example-organization)) |
 | Team | `admin`, `editor`, `viewer`, `reader` | the same role on every product in the team |
 | Product | `admin`, `editor`, `viewer`, `reader` | that product only |
 
@@ -324,8 +342,9 @@ The addressed tenant, team and product are always explicit. Nothing on the serve
 
 On MCP a product-scoped call resolves its product in this order: the `product` argument (an id or
 `tenant/team/product`); the product the endpoint is scoped to; the only unarchived product the
-caller can reach inside the endpoint's scope; otherwise `422 product_required` listing those
-products ([`apps/server/src/mcp.ts`](../../apps/server/src/mcp.ts)). An organization's or a team's
+caller can reach inside the endpoint's scope, where the unscoped endpoint leaves the example
+organization's products out, since every account reaches them; otherwise `422 product_required`
+listing the products the caller reaches ([`apps/server/src/mcp.ts`](../../apps/server/src/mcp.ts)). An organization's or a team's
 call takes `tenant` (and `team`) from its params or the endpoint, and otherwise the organization
 and team of a `product` it names that the caller can see, unless it takes a product of its own
 ([§6.5](06-operations-and-adapters.md)). Every product-scoped MCP
@@ -340,15 +359,14 @@ outside it is refused with `403 outside_connector_scope` before any handler runs
 ([`connector-scope.ts`](../../packages/core/src/connector-scope.ts)), and the message names the
 scope. A person who works in several organizations adds one connector per organization in their
 agent and turns off the ones they are not using; for everything at once there is the unscoped
-`/mcp`, which reaches every organization but a public sandbox
-(◆ [decision](../decisions/the-public-sandbox-is-reached-only-through-its-own-connector.md),
-[§3.10](#310-the-public-sandbox)).
+`/mcp`, which reaches every organization they are in and the example organization
+([§3.10](#310-the-example-organization)).
 
 | Through | Answers | Refuses |
 |---|---|---|
-| an organization's endpoint | every product, team and tenant operation in that organization; `products.list` (narrowed to it), `get_skill`, `submit_feedback` | another organization; the other account-level operations (`products.create_tenant`, `sandbox.join`, the instance's allowances) |
-| a product's endpoint | that product's operations; `products.list` (narrowed to it); `sandbox.status` for its organization; the account reads above | every other product; team and tenant operations (`members.*`, `products.create`, `products.create_team`, the sandbox's control panel); moving or copying a source to another product |
-| `/mcp`, unscoped | every operation in every organization the person reaches, except a public sandbox; every account-level operation, `sandbox.join` included; `products.list` without sandboxes, which it lists under `public_sandboxes` | every product, team and tenant operation in a public sandbox, with `403 sandbox_needs_its_own_connector`, for staff too |
+| an organization's endpoint | every product, team and tenant operation in that organization; `products.list` (narrowed to it), `get_skill`, `submit_feedback` | another organization; the other account-level operations (`products.create_tenant`, the instance's allowances, organizations and usage) |
+| a product's endpoint | that product's operations; `products.list` (narrowed to it); `products.limits` for its organization; the account reads above | every other product; team and tenant operations (`members.*`, `products.create`, `products.create_team`); moving or copying a source to another product |
+| `/mcp`, unscoped | every operation in every organization the person reaches, the example organization included; every account-level operation | nothing for being unscoped; the example organization refuses its guests' writes on every endpoint |
 
 The scope is resolved for the caller on the first tool call; an endpoint naming an organization or
 product they cannot reach answers `404` to every call, saying so.
@@ -413,14 +431,28 @@ name and clears both ([`apps/server/src/auth/identity.ts`](../../apps/server/src
 **Sign out everywhere.** Signing out ends one browser's session. To end everything at once, a
 person uses Sign out everywhere in their Settings (`POST /api/v1/me/sign-out-everywhere
 { keep_this_session? }`, the session only, from the app's own origin). In one transaction
-(`endEverything`, `identity.ts`) it deletes every session of the account, the calling one too
+(`endSignIns`, `packages/core/src/accounts.ts`) it deletes every session of the account, the calling one too
 unless `keep_this_session` is true; revokes every agent connection, whose next call answers `401`
 and whose refresh token is refused; and expires every upload grant of the account's not yet used,
 so nothing more is stored under one, while the download grants its agents held stop with their
 connections ([§6.4](06-operations-and-adapters.md#64-rest)). It answers `{ sessions, connections,
 kept_this_session }`, and writes nothing into any organization: the account is the person's own.
-No operation reaches it, so an agent cannot sign its person out. Deleting an account, when it is
-built, ends everything the same way first.
+No operation reaches it, so an agent cannot sign its person out. Removing an account
+(below) ends everything the same way first.
+
+**Removing an account.** Only an instance owner removes an account, in the web app, on **People**
+(`products.remove_account`, web only, with the account's address typed exactly and `confirm` set to
+`"delete permanently"`); `products.accounts` lists every account for them, through either door,
+with the organizations each is in and when it was last seen
+([decision](../decisions/instance-owners-see-every-account-and-remove-any-but-their-own.md)). An
+instance owner's account is refused (`409 instance_owner`), and so is the only owner of an
+organization until someone else owns it or it is deleted (`409 last_owner`, naming the
+organizations). In one transaction it ends the account's sign-ins as Sign out everywhere does;
+takes every role it holds, recording `revoked` in each organization's access log with the person's
+name; cancels the invitations still waiting at its address; removes the address's allowance and its
+unused sign-in links; and marks the account removed (`deleted_at`) with its address replaced by one
+that is no one's, so the address is forgotten. Its name stays on what it wrote, since attribution
+is copied. The address may sign up again only if something lets it in again.
 
 **OAuth for agents.** WhatBuild is its own authorization server: protected-resource metadata
 (RFC 9728) at `/.well-known/oauth-protected-resource/mcp`, authorization-server metadata (RFC 8414),
@@ -530,91 +562,46 @@ therefore carry a declared `author_type` / `reviewer_type` (`human` or `agent`),
 `human` in the web app and `agent` everywhere else, and a human confidence rating is accepted only
 from a declared human reviewer ([§4.8](04-data-model.md)).
 
-## 3.10 The public sandbox
+## 3.10 The example organization
 
-A deployment may name one organization as its **public sandbox**: a place anyone holding an
-invitation may work in, to try WhatBuild on a worked example
-(◆ [decision](../decisions/the-public-sandbox-is-one-organization-with-pseudonymous-visitors.md)).
-The limits on what is done there, the baseline and the reset are in
-[§9.7](09-data-lifecycle.md); the operations are in [§6](06-operations-and-adapters.md).
+A deployment may name one organization as its **example organization**: a worked example that
+every signed-in account reads and nobody but its own members changes. The maintainer's public
+deployment names one; a self-hosted deployment leaves the setting out and has none
+(◆ [decision](../decisions/every-account-reads-the-example-organization-which-only-its-staff-write.md)).
+It shows what a discovery in WhatBuild looks like, and a person can always go back to it.
 
-**Which organization.** `WHATBUILD_SANDBOX_TENANT` holds its slug. At start-up the server sets
-`tenants.sandbox` on that organization and clears it on every other
-(`syncSandboxTenant`, [`apps/server/src/public-sandbox.ts`](../../apps/server/src/public-sandbox.ts)). A slug
-that matches no organization makes none a sandbox, and the server says so in its log. The
-`sandbox` operations answer `404` in an organization that is not one, with a message that says
-so and names no setting of the deployment.
+**Which organization.** `WHATBUILD_EXAMPLE_TENANT` holds its slug. At start-up the server sets
+`tenants.example` on that organization and clears it on every other (`syncExampleTenant`,
+[`apps/server/src/example-organization.ts`](../../apps/server/src/example-organization.ts)). A slug
+that matches no organization makes none the example, and the server says so in its log. A
+deployment that still sets the retired `WHATBUILD_SANDBOX_TENANT` and not the new name is warned
+at start-up.
 
-**Staff and visitors.** The organization's owners and admins are its **staff**: they work under
-their own names, administer as anywhere else, and meet none of the sandbox's limits. **Everyone
-else in the organization is a visitor**, whatever role they hold. `sandbox.status` still tells
-them how they stand (`you.role`): `staff`; `visitor`, for someone who came in by an invitation
-link and holds the tenant role `visitor`; or `member`, for someone staff gave a role, who is
-treated as a visitor is (the made-up name, the limits, no administering, nobody else seen) and is
-told so, and whose refusals name the limits as everyone's but the staff's, never as visitors'
-([§9.7](09-data-lifecycle.md)). The notice each is shown says who sees what they add, and under which name. A member
-who reads only the Story there (a reader wherever they hold a role) writes nothing, so they are
-told that instead: `you.story_only` is true, `appears_as` is null, the notice says they can only
-read the Story, and `you.can` that they write nothing. Each allowance in the status names the refusal a call
-over it gets; an allowance set to 0 is switched off, so its refusal is `403 sandbox_restricted`.
+**Its staff and its guests.** The organization's members, whatever their roles, work there as in
+any organization, under their own names; its owners and admins are its staff. **Every other
+account is its guest**:
 
-| A visitor | How |
+| A guest | How |
 |---|---|
-| edits every product | The tenant role `visitor` gives editor on every team and product in the organization. |
-| administers nothing | In a sandbox a role stops at editor for anyone but staff (`effectiveRole`), so every operation that needs admin answers `403`, and so do the `members` writes. |
-| writes under a made-up name | `Visitor ` and six hexadecimal digits, from a SHA-256 of the tenant and account ids (`visitorName`). `execute` puts it in the actor snapshot and hides the account's own name and address from the handler. |
-| sees no other person | `members.list` returns the caller alone, under the made-up name, with no address and no invitations. |
-| cannot delete permanently | Deleting needs admin, so every delete answers `403`. Archive remains. |
-| meets the limits | [§9.7](09-data-lifecycle.md). |
+| reads every product | `membershipsFor` adds a tenant grant `guest` for the example to every account that holds no grant there, and `effectiveRole` makes it viewer on every team and product. The grant is never stored. |
+| changes nothing | `execute` refuses every call that writes with `403 example_read_only` before reading its input, and `resolveScope` refuses the same way an operation whose access the guest's role is below (editor, admin, owner). Exporting a product and a Story or Idea card preview are refused too. The message says to create an organization of one's own (`products.create_tenant`, or New organization in the web app). |
+| sees no person | `members.list` answers an empty list with `guest: true`. Staff's names appear on what they wrote and in the activity log, as anywhere. |
+| meets the limit on calls a minute | `requests_per_minute` of the example's limits: the free plan's unless an instance owner changed it ([§9.7](09-data-lifecycle.md)). |
 
-Because attribution is a copied snapshot ([§3.9](#39-attribution)), a visitor's name and address
-are never written into the organization's rows: not in an author, not in the activity log, not in
-a baseline. An access event about someone who is not staff (a role staff gave or removed, an
-invitation they accepted) names them by their made-up name too, and so does the log of what staff
-did (`members.activity`). The account id is kept, as everywhere; it is how staff find the person behind a
-made-up name (`sandbox.visitors`).
+`products.list` lists the example organization's products for every account, with
+`tenant.example: true`, and the organization among `tenants` with `example: true` and
+`your_role: "guest"` for a guest. A product-scoped MCP result there echoes `example: true` in its
+`scope`.
 
-**The role fails closed.** `membershipsFor` leaves out a `visitor` grant whose tenant is not a
-sandbox. Taking `WHATBUILD_SANDBOX_TENANT` away and restarting therefore takes every visitor's
-access with it, and naming the organization again gives it back.
+**The grant fails closed.** The guest grant exists only while `tenants.example` is set, so taking
+`WHATBUILD_EXAMPLE_TENANT` away and restarting takes every guest's access with it, and naming the
+organization again gives it back. Someone given a role there holds that role, not the guest grant:
+a reader on one of its products reads that product's Story and nothing else of it.
 
-**Staff see visitors as a count.** For staff, `members.list` lists the organization's own people
-and gives `sandbox.visitors` as a number. A visitor is left out of the list entirely, a role
-staff gave them on a team or product included; `sandbox.visitors` lists them a page at a time, with
-name, address and made-up name.
+**Agents.** The example is reached through the unscoped connector like any organization, and
+through one scoped to it: only its members write there, so an agent reading it reads nothing a
+stranger wrote. A call that names no product never defaults to one of its products unless the
+connector is scoped to the example ([§3.6](#36-addressing-and-isolation)).
 
-**Invitations.** A sandbox invitation (`sandbox.create_invite`) is a link, `/join/<code>`, with a
-number of **places** and an optional expiry. Whoever holds it may take a place by signing in, with
-any address: it is a bearer credential, unlike an invitation to an ordinary organization
-([§3.2](#32-accounts-and-sign-in)). Only the hash of the code is stored, so the link is shown once.
-`sandbox.join` answers:
-
-| Answer | When |
-|---|---|
-| `200`, `already: false`, `role: "visitor"` | A place was taken and a seat given. |
-| `200`, `already: true` | The caller is in the organization already. They keep their role, and no place or seat is used. |
-| `404` | No such code, or its organization is not a sandbox. |
-| `410 invite_revoked`, `invite_expired`, `invite_used_up` | The invitation admits nobody else. |
-| `409 sandbox_full` | Every seat (`max_visitors`) is taken. `details` holds `quota`, `limit`, `used`. |
-| `403 sandbox_closed` | `visitor_access` is `closed`. |
-
-Entering writes no activity event, because an event would carry a name.
-
-**An agent reaches the sandbox only through its own connector**
-(◆ [decision](../decisions/the-public-sandbox-is-reached-only-through-its-own-connector.md)). There
-an agent reads what strangers wrote, so it must hold nothing else of WhatBuild while it does. Every
-call through the unscoped `/mcp` that lands in a sandbox, staff's included, is refused with
-`403 sandbox_needs_its_own_connector` before its handler runs; the message and `details.connect_at`
-give the sandbox's address, `/mcp/t/<sandbox>`. On `/mcp`, `products.list` leaves sandboxes out
-of `items` and `tenants` and lists each under `public_sandboxes` (`organization`, `connect_at`,
-`connect_why`), and a call that names no product never defaults to a sandbox's; for someone who has
-nothing else, it is refused the same way. `sandbox.join` works through `/mcp`, and its answer,
-`sandbox.status` and the page behind an invitation link give `connect_at` and `connect_why` to
-anyone whose agent may work there: staff always, everyone else while `visitor_agents` is on. The
-consent page and the connected-agents list say that an unscoped connection reaches every product
-"except in a public sandbox" for an account in one (`reach.except_sandboxes`).
-
-**Seats.** `max_visitors` caps the visitors the sandbox holds, across every invitation. A visitor
-who has neither signed in nor used an agent for `visitor_idle_days` gives up their seat at the
-next reset (`0` keeps every seat), and staff remove one with `sandbox.remove_visitor`.
-
+**It cannot be deleted** while the deployment names it: `products.delete_tenant` answers
+`409 example_organization`.

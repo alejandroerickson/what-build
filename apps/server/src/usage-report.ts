@@ -9,7 +9,7 @@ import { createDb } from "./database.ts";
  * How a deployment is used, from every source it has, for a person or an agent to read
  * (okf/operations/analytics.md):
  *
- *   pnpm usage [--days 28] [--include-owners] [--sandbox include|exclude|only] [--json]
+ *   pnpm usage [--days 28] [--include-owners] [--example include|exclude|only] [--json]
  *
  * - The server's own counts (products.usage): every call through the web app and agents, and
  *   people coming back. From WHATBUILD_USAGE_DATABASE_URL, or with GCP_PROJECT, the Cloud Run
@@ -51,10 +51,10 @@ function args() {
     return i >= 0 ? a[i + 1] : undefined;
   };
   const days = Number(value("--days") ?? 28);
-  const sandbox = (value("--sandbox") ?? "include") as UsageOptions["sandbox"];
+  const example = (value("--example") ?? "include") as UsageOptions["example"];
   if (!Number.isInteger(days) || days < 1 || days > 400) throw new Error("--days takes a whole number from 1 to 400.");
-  if (!["include", "exclude", "only"].includes(sandbox)) throw new Error("--sandbox takes include, exclude or only.");
-  return { days, include_owners: a.includes("--include-owners"), sandbox, json: a.includes("--json") };
+  if (!["include", "exclude", "only"].includes(example)) throw new Error("--example takes include, exclude or only.");
+  return { days, include_owners: a.includes("--include-owners"), example, json: a.includes("--json") };
 }
 
 type Section<T> = { ok: true; data: T } | { ok: false; skipped: string };
@@ -200,7 +200,7 @@ function text(out: { server: Section<Awaited<ReturnType<typeof usageReport>>>; g
   if (!out.server.ok) s += `  Skipped: ${out.server.skipped}\n`;
   else {
     const r = out.server.data;
-    s += `  ${r.from} to ${r.to} (${r.days} days); owners ${r.owners}; sandbox ${r.sandbox}; counting since ${r.counting_since.calls ?? "nothing yet"}\n`;
+    s += `  ${r.from} to ${r.to} (${r.days} days); owners ${r.owners}; example organization ${r.example}; counting since ${r.counting_since.calls ?? "nothing yet"}\n`;
     s += `  People: ${r.people.active} active (${r.people.web} web, ${r.people.agents} through agents), ${r.people.new} new, ${r.people.returning} returning\n`;
     s += `  Days active: ${Object.entries(r.people.days_active).map(([k, v]) => `${k}: ${v}`).join(", ")}\n`;
     s += `  Calls: ${r.calls.total} (${r.calls.web} web, ${r.calls.agents} agents, ${r.calls.failed} failed)\n\nWeeks\n${table(r.people.weeks)}\nCohorts (people first seen that week, then back in each week after)\n`;

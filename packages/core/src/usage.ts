@@ -7,9 +7,9 @@ import { isInstanceOwner } from "./tenant-allowance.ts";
 
 /**
  * How the service is used, counted on the server for every call to an operation, whichever door it
- * came through: which operation, from the web app or which kind of agent, in a public sandbox or
- * not, and how it ended. Nothing names an organization, a product, a record, an address or anything
- * anyone wrote. People are counted under a pseudonym, a keyed hash of their account that only this
+ * came through: which operation, from the web app or which kind of agent, in the example
+ * organization or not, and how it ended. Nothing names an organization, a product, a record, an
+ * address or anything anyone wrote. People are counted under a pseudonym, a keyed hash of their account that only this
  * deployment can compute, so a report says how many came back without saying who. A person's days
  * are kept for 14 months, as long as Google Analytics keeps an event; the counts of calls, which
  * name nobody, are kept.
@@ -50,7 +50,7 @@ export interface UsageCall {
   feature: string | null;
   /** `ok`, or the error's code. */
   outcome: string;
-  sandbox: boolean;
+  example: boolean;
 }
 
 interface CallRow {
@@ -58,7 +58,7 @@ interface CallRow {
   operation: string;
   surface: string;
   client: string;
-  sandbox: boolean;
+  example: boolean;
   owner: boolean;
   outcome: string;
   calls: number;
@@ -87,14 +87,14 @@ export function countCall(env: { db: Db; ports: Ports }, principal: Principal, c
   const owner = isInstanceOwner(env.ports.config, principal.email);
   const buffer = buffers.get(env.db) ?? { calls: new Map(), people: new Map() };
   buffers.set(env.db, buffer);
-  const key = [day, call.operation, surface, client, call.sandbox, owner, call.outcome].join("\u0000");
+  const key = [day, call.operation, surface, client, call.example, owner, call.outcome].join("\u0000");
   const counted = buffer.calls.get(key);
   if (counted) counted.calls += 1;
-  else buffer.calls.set(key, { day, operation: call.operation, surface, client, sandbox: call.sandbox, owner, outcome: call.outcome, calls: 1 });
+  else buffer.calls.set(key, { day, operation: call.operation, surface, client, example: call.example, owner, outcome: call.outcome, calls: 1 });
   const usageKey = env.ports.config.usageKey;
   if (usageKey && call.feature) {
     const person = personOf(usageKey, principal.account_id);
-    buffer.people.set([day, person, call.feature, surface, client, call.sandbox].join("\u0000"), { day, person, feature: call.feature, surface, client, sandbox: call.sandbox, owner });
+    buffer.people.set([day, person, call.feature, surface, client, call.example].join("\u0000"), { day, person, feature: call.feature, surface, client, example: call.example, owner });
   }
   if (buffer.calls.size + buffer.people.size >= FLUSH_ROWS) keep(write(env.db));
   else timer ??= setTimeout(writeAll, FLUSH_MS);
@@ -120,7 +120,7 @@ async function write(db: Db): Promise<void> {
       await db
         .insertInto("usage_calls")
         .values([...buffer.calls.values()])
-        .onConflict((oc) => oc.columns(["day", "operation", "surface", "client", "sandbox", "owner", "outcome"]).doUpdateSet({ calls: sql<number>`usage_calls.calls + excluded.calls` }))
+        .onConflict((oc) => oc.columns(["day", "operation", "surface", "client", "example", "owner", "outcome"]).doUpdateSet({ calls: sql<number>`usage_calls.calls + excluded.calls` }))
         .execute();
     if (buffer.people.size) await db.insertInto("usage_people").values([...buffer.people.values()]).onConflict((oc) => oc.doNothing()).execute();
   } catch (e) {
@@ -145,7 +145,7 @@ export async function pruneUsage(db: Db): Promise<void> {
 export interface UsageOptions {
   days: number;
   include_owners: boolean;
-  sandbox: "include" | "exclude" | "only";
+  example: "include" | "exclude" | "only";
 }
 
 const isFailure = (outcome: string) => outcome !== "ok";
@@ -161,7 +161,7 @@ export async function usageReport(db: Db, operations: OperationDef[], opts: Usag
   const to = today.toISOString().slice(0, 10);
   const from = new Date(Date.parse(to) - (opts.days - 1) * 86400_000).toISOString().slice(0, 10);
   const counted: RawBuilder<unknown> = sql`(${opts.include_owners}::boolean or not owner) and ${
-    opts.sandbox === "exclude" ? sql`not sandbox` : opts.sandbox === "only" ? sql`sandbox` : sql`true`
+    opts.example === "exclude" ? sql`not example` : opts.example === "only" ? sql`example` : sql`true`
   }`;
   const inPeriod = sql`day between ${from}::date and ${to}::date`;
   const byName = new Map(operations.map((o) => [o.name, o]));
@@ -270,7 +270,7 @@ export async function usageReport(db: Db, operations: OperationDef[], opts: Usag
     to,
     days: opts.days,
     owners: opts.include_owners ? "included" : "excluded",
-    sandbox: opts.sandbox,
+    example: opts.example,
     counting_since: { calls: since.rows[0]?.calls ?? null, people: since.rows[0]?.people ?? null },
     people: {
       active: p.active,

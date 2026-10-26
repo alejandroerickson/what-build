@@ -3,7 +3,7 @@ type: Decision
 title: An invitation is accepted only by the account with the address it was sent to
 description: Invitation links are pointers to an invitation, not bearer credentials; the verified email address is what grants the role.
 tags: [decision, identity, invitations, security, roles]
-generated: {by: agent:claude, at: 2026-09-29}
+generated: {by: agent:claude, at: 2026-10-25}
 status: stable
 ---
 
@@ -26,9 +26,6 @@ place to land. The maintainer chose on 2026-09-28 to require the address to matc
   `already: true`.
 - Rejected: links as bearer credentials. They would let anyone holding a forwarded link join, and
   make "who can join this organization?" depend on where a link travelled.
-- An invitation to the [public sandbox](the-public-sandbox-is-one-organization-with-pseudonymous-visitors.md)
-  is a different thing, with its own table and its own link (`/join/<code>`): it admits whoever
-  holds it, as a visitor, and gives no role in any other organization.
 
 ## Consequences
 

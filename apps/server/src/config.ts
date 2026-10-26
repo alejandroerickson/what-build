@@ -60,8 +60,13 @@ export interface ServerConfig {
   instanceOwners: string[];
   /** How many organizations an address may create when no instance owner has given it an allowance. */
   defaultTenantAllowance: number;
-  /** The slug of the organization that is the public sandbox, if the deployment has one. */
-  sandboxTenant: string | null;
+  /**
+   * The plan of an organization someone other than an instance owner creates: unlimited unless the
+   * deployment says free, as one that offers organizations to the public on a small budget does.
+   */
+  newOrganizationPlan: "free" | "unlimited";
+  /** The slug of the example organization every account reads, if the deployment has one. A self-hosted deployment has none. */
+  exampleTenant: string | null;
   relayMaxBytes: number;
   fileMaxBytes: number;
   parseCapBytes: number;
@@ -218,7 +223,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
     signupAllowlist: env["WHATBUILD_SIGNUP_ALLOWLIST"] ? env["WHATBUILD_SIGNUP_ALLOWLIST"].split(",").map((s) => s.trim().toLowerCase()).filter(Boolean) : null,
     instanceOwners: (env["WHATBUILD_INSTANCE_OWNERS"] ?? "").split(",").map((s) => s.trim().toLowerCase()).filter((s) => s.includes("@") && !s.startsWith("@")),
     defaultTenantAllowance: Math.max(0, Math.floor(num(env["WHATBUILD_TENANT_ALLOWANCE"], 0))),
-    sandboxTenant: env["WHATBUILD_SANDBOX_TENANT"]?.trim().toLowerCase() || null,
+    newOrganizationPlan: env["WHATBUILD_NEW_ORGANIZATION_PLAN"]?.trim().toLowerCase() === "free" ? "free" : "unlimited",
+    exampleTenant: env["WHATBUILD_EXAMPLE_TENANT"]?.trim().toLowerCase() || null,
     // Cloud Run refuses request bodies over 32 MiB, so the relay stays under that.
     relayMaxBytes: num(env["WHATBUILD_RELAY_MAX_BYTES"], 25 * MiB),
     fileMaxBytes: num(env["WHATBUILD_FILE_MAX_BYTES"], 100 * MiB),

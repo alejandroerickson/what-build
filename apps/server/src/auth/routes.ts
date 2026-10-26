@@ -5,7 +5,6 @@ import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 import { sql } from "kysely";
 import { z } from "zod";
 import { microsoftSignIn, type ServerConfig } from "../config.ts";
-import { inviteCodeIn, inviteInfo } from "../public-sandbox.ts";
 import { connectorReach } from "./connector-reach.ts";
 import { acceptInvitation, acceptInvitationsForEmail, clearSessionCookies, createSession, endEverything, findOrCreateAccount, isOwnOrigin, restPrincipal, sessionTokens, setSessionCookie } from "./identity.ts";
 import { returnsTo } from "./oauth.ts";
@@ -85,18 +84,6 @@ export function authRoutes(deps: { db: Db; config: ServerConfig; mailer: Mailer 
     return Boolean(invited);
   };
 
-  /**
-   * How an address may come to have an account: "open" where sign-up allows it, or "sandbox" when
-   * all that lets it in is an invitation to the public sandbox that still has a place, which is
-   * where the sign-in is returning to.
-   */
-  const admission = async (email: string, next: string | null | undefined): Promise<"open" | "sandbox" | null> => {
-    if (await mayJoin(email)) return "open";
-    const code = inviteCodeIn(next);
-    const invite = code ? await inviteInfo(db, code) : null;
-    return invite?.status === "open" ? "sandbox" : null;
-  };
-
   const startSession = async (c: Context, accountId: string) => {
     const token = await createSession(db, accountId, config.sessionDays, c.req.header("user-agent"));
     setSessionCookie(c, token, secure, config.sessionDays * 86400);
@@ -114,7 +101,7 @@ export function authRoutes(deps: { db: Db; config: ServerConfig; mailer: Mailer 
     const body = z.strictObject({ email: z.string().trim().email().max(320), next: z.string().max(2000).optional() }).safeParse(await c.req.json().catch(() => ({})));
     if (!body.success) throw invalid("invalid_input", "Enter a valid email.");
     const email = body.data.email;
-    if (!(await admission(email, body.data.next))) throw new AppError(403, "invite_only", "WhatBuild is invite-only for now. Ask someone who uses it to invite this email.");
+    if (!(await mayJoin(email))) throw new AppError(403, "invite_only", "WhatBuild is invite-only for now. Ask someone who uses it to invite this email.");
     const recent = await db
       .selectFrom("email_tokens")
       .select((eb) => eb.fn.countAll<number>().as("n"))
@@ -163,10 +150,9 @@ export function authRoutes(deps: { db: Db; config: ServerConfig; mailer: Mailer 
       .returning(["email", "redirect"])
       .executeTakeFirst();
     if (!row) return c.redirect("/signin?error=link_expired", 303);
-    // The place the link was sent for may have gone since: an invitation can fill while the email is in transit.
-    const how = await admission(row.email, row.redirect);
-    if (!how) return c.redirect("/signin?error=invite_only", 303);
-    const { account } = await findOrCreateAccount(db, row.email, undefined, how === "sandbox");
+    // What let the address in may have gone since: an invitation can be cancelled while the email is in transit.
+    if (!(await mayJoin(row.email))) return c.redirect("/signin?error=invite_only", 303);
+    const { account } = await findOrCreateAccount(db, row.email);
     await acceptInvitationsForEmail(db, account);
     await startSession(c, account.account_id);
     return c.redirect(safeNext(row.redirect), 303);
@@ -177,9 +163,8 @@ export function authRoutes(deps: { db: Db; config: ServerConfig; mailer: Mailer 
     if (!config.devAuth) throw notFound("Not available.");
     const body = z.strictObject({ email: z.string().trim().email(), display_name: z.string().max(100).optional(), next: z.string().optional() }).safeParse(await c.req.json().catch(() => ({})));
     if (!body.success) throw invalid("invalid_input", "Enter a valid email.");
-    // Development lets any address in; it still marks the account a sandbox invitation alone would have admitted.
-    const how = await admission(body.data.email, body.data.next);
-    const { account } = await findOrCreateAccount(db, body.data.email, body.data.display_name, how === "sandbox");
+    // Development lets any address in.
+    const { account } = await findOrCreateAccount(db, body.data.email, body.data.display_name);
     await acceptInvitationsForEmail(db, account);
     await startSession(c, account.account_id);
     return c.json({ signed_in: true, account, next: safeNext(body.data.next) });
@@ -244,9 +229,8 @@ export function authRoutes(deps: { db: Db; config: ServerConfig; mailer: Mailer 
 
   /** What every method does once it has an address it trusts: admission, the account, its invitations, a session. */
   const completeSignIn = async (c: Context, email: string, name: string | undefined, next: string) => {
-    const how = await admission(email, next);
-    if (!how) return c.redirect("/signin?error=invite_only");
-    const { account } = await findOrCreateAccount(db, email, name, how === "sandbox");
+    if (!(await mayJoin(email))) return c.redirect("/signin?error=invite_only");
+    const { account } = await findOrCreateAccount(db, email, name);
     await acceptInvitationsForEmail(db, account);
     await startSession(c, account.account_id);
     return c.redirect(next);
@@ -356,7 +340,12 @@ export function authRoutes(deps: { db: Db; config: ServerConfig; mailer: Mailer 
 
   const meOf = async (p: NonNullable<Awaited<ReturnType<typeof restPrincipal>>>) => {
     const tenant_allowance = await tenantAllowanceOf(db, config, p);
-    return { account_id: p.account_id, email: p.email, display_name: p.display_name, auth_kind: p.auth_kind, ...(p.sandbox_only ? { sandbox_only: true } : {}), tenant_allowance };
+    const prefs = await db.selectFrom("accounts").select("hide_example").where("account_id", "=", p.account_id).executeTakeFirst();
+    return {
+      account_id: p.account_id, email: p.email, display_name: p.display_name, auth_kind: p.auth_kind, tenant_allowance,
+      new_organization_plan: tenant_allowance.instance_owner ? "unlimited" : config.newOrganizationPlan,
+      hide_example: Boolean(prefs?.hide_example),
+    };
   };
 
   app.get("/api/v1/me", async (c) => c.json(await meOf(await requirePrincipal(c))));
@@ -372,10 +361,17 @@ export function authRoutes(deps: { db: Db; config: ServerConfig; mailer: Mailer 
 
   app.patch("/api/v1/me", async (c) => {
     const p = await requirePrincipal(c);
-    const body = z.strictObject({ display_name: z.string().trim().min(1).max(100) }).safeParse(await c.req.json().catch(() => ({})));
-    if (!body.success) throw invalid("invalid_input", "A display name is 1 to 100 characters.");
-    await db.updateTable("accounts").set({ display_name: body.data.display_name }).where("account_id", "=", p.account_id).execute();
-    return c.json({ account_id: p.account_id, email: p.email, display_name: body.data.display_name });
+    const body = z
+      .strictObject({ display_name: z.string().trim().min(1).max(100).optional(), hide_example: z.boolean().optional() })
+      .refine((b) => b.display_name !== undefined || b.hide_example !== undefined)
+      .safeParse(await c.req.json().catch(() => ({})));
+    if (!body.success) throw invalid("invalid_input", "Send display_name (1 to 100 characters), hide_example (true or false), or both.");
+    await db
+      .updateTable("accounts")
+      .set({ ...(body.data.display_name !== undefined ? { display_name: body.data.display_name } : {}), ...(body.data.hide_example !== undefined ? { hide_example: body.data.hide_example } : {}) })
+      .where("account_id", "=", p.account_id)
+      .execute();
+    return c.json(await meOf({ ...p, display_name: body.data.display_name ?? p.display_name }));
   });
 
   /** The agents signed in as this person over OAuth: one entry per connection. */

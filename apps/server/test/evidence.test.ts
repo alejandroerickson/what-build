@@ -132,7 +132,7 @@ describe("what upload, read and search say about a source", () => {
     const rec = await upload("recording", "older-call.m4a", new Uint8Array([0, 0, 0, 24, 102, 116, 121, 112]));
     const scan = await upload("document", "older-scan.pdf", makePdf([]));
     await h.worker.drain();
-    // Readings as earlier versions recorded them, which a backup or a sandbox's baseline brings back:
+    // Readings as earlier versions recorded them, which a backup brings back:
     // a recording asked for its transcript as a new source, and a PDF of pictures was a failure.
     await inTenant((trx) => sql`update derivations set status_detail = 'a recording is stored and playable but has no text; add a transcript as a new source' where record_id = ${rec.recordId}`.execute(trx));
     await inTenant((trx) => sql`update derivations set status = 'failed', status_detail = 'the PDF has no text layer (a scan?); no OCR is performed' where record_id = ${scan.recordId}`.execute(trx));

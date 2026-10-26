@@ -306,8 +306,9 @@ export const requestMockupUpload = defineOperation({
   rest: { method: "POST", path: "/mockups/uploads" },
   mcp: { tool: "mockups", action: "request_upload" },
   async handler(ctx, input) {
-    // A visitor's text is capped field by field (checkVisitorInput); a ZIP would carry it past that.
-    if (ctx.sandbox?.visitor) throw forbidden("In a public sandbox, publish a mockup's pages in the call itself; uploading a canvas is for organizations of your own.");
+    // On the free plan text is capped field by field (checkInput); a ZIP would carry it past that.
+    if (ctx.limits && !ctx.limits.guest)
+      throw new AppError(403, "plan_restricted", "On this organization's plan, publish a mockup's pages in the call itself: uploading a canvas isn't part of it. Whoever runs this WhatBuild can change the plan.");
     const max = Math.min(MOCKUP_UPLOAD_MAX_BYTES, ctx.ports.config.relayMaxBytes);
     if (input.size !== undefined && input.size > max) throw tooLarge(`A canvas's ZIP is at most ${fmt(max)} bytes; this one is ${fmt(input.size)}.`, { limit: max });
     const upload_id = newId();
@@ -1011,8 +1012,7 @@ export const deleteMockup = defineOperation({
       await ctx.db.deleteFrom("mockup_versions").where("version_id", "in", versions).execute();
     }
     await ctx.db.deleteFrom("mockups").where("mockup_id", "=", e.mockup_id).execute();
-    // Its prototype's bytes belong to it alone (publish shares a blob only with the same mockup's
-    // base); a sandbox's baseline keeps what it holds (blobsSafeToDelete).
+    // Its prototype's bytes belong to it alone: publish shares a blob only with the same mockup's base.
     for (let i = 0; i < blobs.length; i += 500) await ctx.enqueue("delete_blobs", { keys: blobs.slice(i, i + 500), prefixes: [] });
     await recordActivity(ctx, { action: "deleted", entity_type: "mockup", entity_id: e.mockup_id, entity_title: e.title, summary: "Deleted the mockup permanently" });
     const { etag, reversible_alternative, ...rest } = impact;

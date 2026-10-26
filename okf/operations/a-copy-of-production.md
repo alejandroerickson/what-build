@@ -1,7 +1,7 @@
 ---
 type: System Concept
 title: A copy of production on your machine, for manual QA, agent-driven end-to-end tests and trying migrations on real data
-description: Pulling the public sandbox or other organizations of the deployment, with their files, loading them into the embedded Postgres, serving them with pending migrations applied, and keeping the copy private.
+description: Pulling the example organization or other organizations of the deployment, with their files, loading them into the embedded Postgres, serving them with pending migrations applied, and keeping the copy private.
 tags: [development, testing, qa, production, fixture, migrations]
 generated: {by: agent:claude, at: 2026-10-25}
 status: stable
@@ -14,7 +14,7 @@ production deployment has real volume and history: products agents built up over
 pages, revisions, attachments read more than once, and rows in the shape older releases left them. Use it
 for manual QA, for agent-driven end-to-end tests, and to watch a release's migrations run on real
 data before production does ([decision](../decisions/qa-uses-a-private-copy-of-production.md)).
-A copy holds the public sandbox, or the organizations named, and nothing of the others
+A copy holds the example organization, or the organizations named, and nothing of the others
 ([copying an organization](copying-an-organization.md)). The skill `test-on-a-copy-of-production`
 conducts it.
 
@@ -41,7 +41,7 @@ conducts it.
 ## Pull
 
 ```sh
-corepack pnpm fixture pull                     # the public sandbox
+corepack pnpm fixture pull                     # the example organization
 corepack pnpm fixture pull --org <slug> …      # the organizations named
 corepack pnpm fixture pull --all               # every organization
 corepack pnpm fixture list                     # the pulls, and what each holds
@@ -117,12 +117,12 @@ the embedded server's superuser, which sees every organization's rows.
 `scripts/e2e.mjs` and `scripts/shots.mjs` look for the sample product, Crewboard, which the copy
 does not have, so they run on the synthetic data. The agent-driven
 [end-to-end tests](end-to-end-tests.md) build their golden master from a pull with
-`pnpm e2e golden`: the public sandbox's organization and a non-sandbox copy of it.
+`pnpm e2e golden`: the example organization and a copy of it that is not the example.
 
 ## Before a release that migrates
 
-1. Pull a fresh copy and load it. The sandbox's content shows most migrations; for one that
-   rewrites content the sandbox lacks, name more organizations, or pull `--all` and delete that
+1. Pull a fresh copy and load it. The example organization's content shows most migrations; for
+   one that rewrites content it lacks, name more organizations, or pull `--all` and delete that
    pull afterwards.
 2. Serve it with the release's code.
 3. Check three things:

@@ -1,12 +1,15 @@
 import type { z } from "zod";
 import type { ActorSnapshot, Tx } from "./db.ts";
 import type { Ports } from "./ports.ts";
-import type { SandboxContext } from "./public-sandbox.ts";
+import type { LimitContext, Plan } from "./limits.ts";
 
 /** `reader` reads only the Story: its pages, their versions and their export. */
 export type ProductRole = "reader" | "viewer" | "editor" | "admin";
-/** `visitor` exists only in a public sandbox: an editor of every product there, and nothing more. */
-export type TenantRole = "visitor" | "member" | "admin" | "owner";
+/**
+ * `guest` exists only in the example organization: a viewer of every product there, which every
+ * account without a grant there holds. It is never stored, and it writes nothing.
+ */
+export type TenantRole = "guest" | "member" | "admin" | "owner";
 /**
  * What an agent's connection may do, chosen by the person when they connect it: the most it does,
  * whatever their own role. `viewer` reads, `editor` also writes and archives, `admin` also deletes
@@ -22,8 +25,6 @@ export interface Principal {
   auth_kind: "session" | "oauth" | "upload_grant" | "system" | "dev";
   surface: "web" | "rest" | "mcp" | null;
   client: string | null;
-  /** The account was created on a sandbox invitation alone, so the sandbox's limits follow it everywhere. */
-  sandbox_only?: boolean;
   /** An agent's connection level; absent for a person in the web app, who acts with their own role. */
   level?: ConnectionLevel;
   /** An agent's connection (its OAuth token family); absent for a person in the web app. */
@@ -36,8 +37,10 @@ export interface TenantRef {
   tenant_id: string;
   slug: string;
   name: string;
-  /** The organization is a public sandbox. */
-  sandbox?: boolean;
+  /** The organization is the example organization every account reads. */
+  example?: boolean;
+  /** The organization's plan, which decides whether anyone in it meets limits. */
+  plan?: Plan;
 }
 export interface TeamRef {
   team_id: string;
@@ -69,10 +72,10 @@ export interface OpContext {
   scope: Scope;
   ports: Ports;
   /**
-   * The public sandbox the call is in, with the caller's place in it; null anywhere else. Absent
-   * when the caller did not come through `execute` (the upload relay), which then looks it up.
+   * The limits the call meets; null where it meets none. Absent when the caller did not come
+   * through `execute` (the upload relay), which then looks them up.
    */
-  sandbox?: SandboxContext | null;
+  limits?: LimitContext | null;
   /** Request time, ISO 8601 UTC. */
   now: string;
   /** Queue background work in this transaction; the worker wakes after commit. */
@@ -84,7 +87,7 @@ export interface PrepareContext {
   principal: Principal;
   scope: Scope;
   ports: Ports;
-  sandbox: SandboxContext | null;
+  limits: LimitContext | null;
   now: string;
   /** Run checks in a short read-only transaction of their own, scoped to the tenant as the handler's is. */
   read<T>(fn: (ctx: OpContext) => Promise<T>): Promise<T>;
@@ -118,11 +121,6 @@ export interface OperationDef<I extends z.ZodType = z.ZodType, O = unknown, P = 
   connection?: ConnectionLevel;
   /** Offered only to a person in the web app, never to an agent: closing an organization. */
   webOnly?: boolean;
-  /**
-   * Runs alone in a public sandbox: it waits for every call in progress there, and holds new ones
-   * until it commits. For saving a baseline and resetting to one.
-   */
-  exclusive?: boolean;
   /**
    * Slow work that must hold no database connection, such as a download. It runs once the call is
    * authorized and its input valid, outside any transaction, and what it returns reaches the

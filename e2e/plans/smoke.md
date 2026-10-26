@@ -1,7 +1,7 @@
 ---
 title: Every screen opens for each role in both organizations, and an agent can connect and read
-organizations: [standard, sandbox]
-people: [riley, sam, jordan]
+organizations: [standard, example]
+people: [riley, sam, jordan, guest]
 surfaces: [web, mcp]
 ---
 
@@ -21,18 +21,17 @@ other plans will too.
    the product's settings, and Connect an agent; and search from the panel's Search field. Open one
    item in each list that has any: a source, a mockup, an assumption, a Story page. *Expect:* each
    screen loads with content or a designed empty state, and no command prints a `!` problem.
-3. **Web, as Sam, in the sandbox organization.** Open the same product and repeat a short tour:
-   Idea, Evidence, a source, Story. *Expect:* the same content as in step 2, and the sandbox's
-   notice wherever the product says it is a public sandbox.
+3. **Web, as Sam, in the example organization.** Open the same product and repeat a short tour:
+   Idea, Evidence, a source, Story. *Expect:* the same content as in step 2, and one line above
+   each screen saying that everyone who signs in reads what Sam writes there.
 4. **Web, as Sam.** On a source, open each of its sections, Text, Notes, Comments and Attachments,
    then search for a word you can see in its text, from the panel's Search field. *Expect:* the
    search finds the source as you type, saying the word is in its text, and opening the hit shows
    its Text with the word marked.
-5. **Web, as Riley (owner).** Sign in. Open each organization's members page, Organization creators
-   from the account menu (Riley owns the instance), and the sandbox organization's sandbox page.
-   *Expect:* all load; Riley can manage members, and the members page lists the organization's
-   access changes; the sandbox page shows its settings, baseline and
-   invitations, and the standard organization has no sandbox page.
+5. **Web, as Riley (owner).** Sign in. Open each organization's members page, and Organizations
+   from the account menu (Riley owns the instance). *Expect:* all load; Riley can manage members,
+   and the members page lists the organization's access changes; Organizations lists both
+   organizations with their plans, the example marked as such, and who may create organizations.
 6. **Web, as Riley.** Find the archived product among archived products, in either organization.
    *Expect:* it is listed as archived and can be opened; only its Settings offers to delete it,
    to Riley as an admin: under the heading "Delete this product", a button reads "Delete <product
@@ -42,20 +41,20 @@ other plans will too.
    takes Jordan back to the Story (`okf/decisions/a-reader-reads-only-the-story.md`), without
    errors or a broken screen on the way.
 8. **MCP, as Sam.** `info`, then `tools`. *Expect:* the server names itself `whatbuild` with a
-   skill version; there are fourteen tools, `attachments` among them and no `files` or
+   skill version; there are thirteen tools, `attachments` among them and no `files`, `sandbox` or
    `read_passage`; the instructions say to start with `products(action="list")`. Call `get_skill`
    and compare its version with the server's.
 9. **MCP, as Sam.** List products, then list sources, assumptions, mockups and Story pages
    (`story` `list_pages`) in the product from step 2, and read the first window of one source's
    text with `derived(action="text")`. *Expect:* the same items the web showed in step 2, with the
    same titles and counts, and the same words the source's Text showed.
-10. **MCP, as Sam.** Read `sandbox(action="status")` for each organization through `/mcp`, then
-    for the sandbox organization through its own endpoint (`--endpoint /mcp/t/<sandbox org>`).
-    *Expect:* through `/mcp` the standard organization's call is refused with an error that says it
-    is not a public sandbox, and the sandbox's with `403 sandbox_needs_its_own_connector`, naming
-    the sandbox's own address; `products(action="list")` through `/mcp` lists none of the sandbox's
-    products, only the sandbox under `public_sandboxes`. Through its own endpoint the sandbox
-    answers with its notice and that address as `connect_at`.
+10. **Web and MCP, as a guest.** Sign in as `guest@example.com` on the web, then connect over MCP as
+    the same address. *Expect:* the overview offers to start an organization and lists the example
+    organization, marked Example organization and Read only; its products open with a notice that
+    it is a worked example nothing in it can change; its Members shows no people.
+    `products(action="list")` lists the example's products with `your_role` guest and the tenant
+    `example: true`; reading a source works, and creating one is refused with
+    `403 example_read_only`, which says how to create an organization.
 11. **MCP, as Jordan.** List products, then try to list sources in a product, and to search it.
     *Expect:* the products are listed with the role reader; both are refused with a clear error, not
     an empty result.

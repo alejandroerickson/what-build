@@ -1,6 +1,6 @@
 /**
  * What the app keeps in this browser under `whatbuild.*`. Most of it is one person's: the product
- * they had open, where they were in each Story and mockup, the Story's focus, the sandbox notices
+ * they had open, where they were in each Story and mockup, the Story's focus, the example organization's notice
  * they have read. A browser can pass from one person to the next, so that state goes when someone
  * signs out or their session ends. The rest are choices about the device, kept for whoever uses it.
  */

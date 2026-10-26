@@ -13,7 +13,7 @@ status: stable
 
 The repository is public ([decision](public-repository-reference-docs.md)), and agents write most
 of its commits. Written rules alone let a stray note, a local path or a pasted secret through, and
-history keeps it. WhatBuild is also a multi-tenant service with a public sandbox, so its
+history keeps it. WhatBuild is also a multi-tenant service open to people it lets in, so its
 dependencies, workflows and running app need scanning. The maintainer chose on 2026-10-10 to keep
 all of this in the repository itself, so that a contributor needs no other account, service or
 install, and so that it runs well before the repository becomes public.

@@ -1,9 +1,9 @@
 ---
 type: Decision
 title: Manual QA and end-to-end tests may use a copy of production that stays on the maintainer's machine
-description: A copy of the deployment's public sandbox or other organizations named, with their files, is pulled with a read-only role into an ignored folder, loaded into its own local database, and served with pending migrations applied; it is never committed, shared or quoted.
+description: A copy of the deployment's example organization or other organizations named, with their files, is pulled with a read-only role into an ignored folder, loaded into its own local database, and served with pending migrations applied; it is never committed, shared or quoted.
 tags: [decision, development, testing, qa, production, privacy]
-generated: {by: agent:claude, at: 2026-10-16}
+generated: {by: agent:claude, at: 2026-10-25}
 status: stable
 ---
 
@@ -19,7 +19,7 @@ agents could use again and again. The repository is public, and the copy is real
 
 ## Decision
 
-- A copy is pulled when someone asks for one, of the public sandbox or the organizations named, and
+- A copy is pulled when someone asks for one, of the example organization or the organizations named, and
   of nothing else ([decision](a-copy-of-production-holds-only-the-organizations-it-is-for.md)). Their
   rows are read as the deployment's read-only backup role, and their files are copied with them,
   because a source's derived text is kept in files.

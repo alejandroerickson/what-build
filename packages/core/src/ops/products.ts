@@ -3,10 +3,10 @@ import { z } from "zod";
 import { checkEtag, keepRevision, recordActivity } from "../common.ts";
 import { json, type Db } from "../db.ts";
 import { AppError, conflict, forbidden, invalid, notFound } from "../errors.ts";
-import { effectiveRole, isSandboxStaff, membershipsFor, PRODUCT_ROLES, readsOnlyTheStory, readsOnlyTheStoryIn, roleAtLeast, tenantRoleAtLeast } from "../policy.ts";
+import { effectiveRole, membershipsFor, PRODUCT_ROLES, readsOnlyTheStory, readsOnlyTheStoryIn, roleAtLeast, tenantRoleAtLeast } from "../policy.ts";
 import { capRole, defineOperation, type OpContext, type ProductRole, type TenantRole } from "../registry.ts";
-import { visitorName } from "../public-sandbox.ts";
-import { requireTenantAllowance } from "../tenant-allowance.ts";
+import type { Plan } from "../limits.ts";
+import { isInstanceOwner, requireTenantAllowance } from "../tenant-allowance.ts";
 import { expectedEtag, slug } from "../schemas.ts";
 import { newEtag, newId, oneLine, quotedName, randomToken, sha256Hex, slugify } from "../util.ts";
 import { adviseIdeaCard, CARD_HTML_MAX, checkCardSides, checkIdeaCard } from "../idea-card.ts";
@@ -148,7 +148,7 @@ export const listProducts = defineOperation({
   mutates: false,
   summary: "List every product you can reach, across your tenants and teams, with your role and counts of what each holds.",
   description:
-    "Start here when you do not know which product to work in. Each item has `path` (tenant/team/product slugs) and `product_id`; pass either as `product` on product-scoped calls. Confirm the product with the person before your first write in a conversation. Archived products are left out unless include_archived is true. Each item's `counts` (one number per kind) and `stage_counts` (their totals per stage) are the ones products(action=\"get\") reports. Through an agent, your_role is the person's role capped by the connection's level, which connection_level gives (viewer reads, editor also writes and archives, admin also deletes permanently and manages products and people). Where your_role is reader you may read only the Story: such an item has no concept and counts only story_pages. A tenant marked story_only is one where you read only the Story everywhere, so its members are not listed to you. A tenant with `sandbox: true` is a public sandbox: what is added there is seen by other visitors and erased at its next reset, so read sandbox(action=\"status\") and tell the person before writing. Only a connector scoped to a sandbox reaches it: through the unscoped one, sandboxes are left out of items and tenants, and public_sandboxes lists each with connect_at, the address of the connector that reaches it, and connect_why to tell the person.",
+    "Start here when you do not know which product to work in. Each item has `path` (tenant/team/product slugs) and `product_id`; pass either as `product` on product-scoped calls. Confirm the product with the person before your first write in a conversation. Archived products are left out unless include_archived is true. Each item's `counts` (one number per kind) and `stage_counts` (their totals per stage) are the ones products(action=\"get\") reports. Through an agent, your_role is the person's role capped by the connection's level, which connection_level gives (viewer reads, editor also writes and archives, admin also deletes permanently and manages products and people). Where your_role is reader you may read only the Story: such an item has no concept and counts only story_pages. A tenant marked story_only is one where you read only the Story everywhere, so its members are not listed to you. A tenant with `example: true` is the example organization: a worked example that every account reads, as its guest (your_role guest, viewer on every product), and that nobody but its authors changes, so every write there is refused with 403 example_read_only. Read it to learn how a discovery is done; do the person's own work in an organization of theirs. A tenant's plan is free or unlimited: on the free plan everyone in it meets limits on how often and how much, which products(action=\"limits\") lists with what is used today.",
   input: z.strictObject({ include_archived: z.boolean().default(false) }),
   rest: { method: "GET", path: "/me/products" },
   mcp: { tool: "products", action: "list" },
@@ -163,7 +163,7 @@ export const listProducts = defineOperation({
       .select([
         "p.product_id", "p.slug", "p.name", "p.concept", "p.archived_at", "p.updated_at",
         "tm.team_id", "tm.slug as team_slug", "tm.name as team_name",
-        "tn.tenant_id", "tn.slug as tenant_slug", "tn.name as tenant_name", "tn.sandbox",
+        "tn.tenant_id", "tn.slug as tenant_slug", "tn.name as tenant_name", "tn.example",
       ])
       .where("p.tenant_id", "in", tenantIds)
       .orderBy("tn.name").orderBy("tm.name").orderBy("p.name")
@@ -180,7 +180,7 @@ export const listProducts = defineOperation({
               ...(readsOnlyTheStory(role) ? {} : { concept: r.concept.slice(0, 300) }),
               archived_at: r.archived_at,
               updated_at: r.updated_at,
-              tenant: { tenant_id: r.tenant_id, slug: r.tenant_slug, name: r.tenant_name, ...(r.sandbox ? { sandbox: true } : {}) },
+              tenant: { tenant_id: r.tenant_id, slug: r.tenant_slug, name: r.tenant_name, ...(r.example ? { example: true } : {}) },
               team: { team_id: r.team_id, slug: r.team_slug, name: r.team_name },
               your_role: role,
             }
@@ -195,17 +195,17 @@ export const listProducts = defineOperation({
       for (const [id, c] of await countProducts(ctx.db, ids)) counts.set(id, c);
     }
     await sql`select set_config('app.tenant_id', '', true)`.execute(ctx.db);
-    const tenants = await ctx.db.selectFrom("tenants").select(["tenant_id", "slug", "name", "sandbox"]).where("tenant_id", "in", tenantIds).orderBy("name").execute();
+    const tenants = await ctx.db.selectFrom("tenants").select(["tenant_id", "slug", "name", "example", "plan"]).where("tenant_id", "in", tenantIds).orderBy("name").execute();
     const teams = await ctx.db.selectFrom("teams").select(["team_id", "tenant_id", "slug", "name", "archived_at"]).where("tenant_id", "in", tenantIds).orderBy("name").execute();
     return {
       ...(ctx.principal.level ? { connection_level: ctx.principal.level } : {}),
       items: items.map((i) => ({ ...i, ...countsFor(i.your_role, counts.get(i.product_id)!) })),
-      tenants: tenants.map(({ sandbox, ...t }) => {
+      tenants: tenants.map(({ example, ...t }) => {
         const tr = memberships.find((m) => m.scope_type === "tenant" && m.scope_id === t.tenant_id)?.role ?? null;
         return {
           ...t,
-          // A public sandbox: call sandbox(action="status") for its notice and limits before writing there.
-          ...(sandbox ? { sandbox: true } : {}),
+          // The example organization: read by everyone, changed by nobody but its members.
+          ...(example ? { example: true } : {}),
           // Reads only the Story everywhere here, so sees none of the organization's people.
           ...(readsOnlyTheStoryIn(memberships, t.tenant_id) ? { story_only: true } : {}),
           your_role: tr,
@@ -227,7 +227,7 @@ export const createTenant = defineOperation({
   connection: "admin",
   summary: "Create a tenant (an organization) with its first team; you become its owner. Needs an allowance.",
   description:
-    "A tenant is the isolation boundary: nothing in it is visible to any other tenant. It starts with one team; create products in that team with products(action=\"create\"). Only an instance owner, or an account whose allowance has room, may create one; belonging to a tenant never lets anyone create one. Refused with 403 tenant_allowance otherwise: tell the person to ask whoever runs this WhatBuild.",
+    "A tenant is the isolation boundary: nothing in it is visible to any other tenant. It starts with one team; create products in that team with products(action=\"create\"). Only an instance owner, or an account whose allowance has room, may create one; belonging to a tenant never lets anyone create one. Refused with 403 tenant_allowance otherwise: tell the person to ask whoever runs this WhatBuild. An organization an instance owner creates is unlimited; one created on an allowance gets the plan this deployment gives new organizations, which may be the free plan, whose limits everyone in it meets (products(action=\"limits\")); plan in the answer says which.",
   input: z.strictObject({
     name: z.string().trim().min(1).max(100),
     slug: slug.optional(),
@@ -237,21 +237,25 @@ export const createTenant = defineOperation({
   mcp: { tool: "products", action: "create_tenant" },
   async handler(ctx, input) {
     await requireTenantAllowance(ctx.db, ctx.ports.config, ctx.principal);
-    return createTenantWithTeam(ctx.db, ctx.actor, input);
+    // Whoever runs the instance decides what organizations cost it: theirs are unlimited, everyone
+    // else's on the plan the deployment names (WHATBUILD_NEW_ORGANIZATION_PLAN), unlimited unless it says free.
+    const plan = isInstanceOwner(ctx.ports.config, ctx.principal.email) ? "unlimited" : (ctx.ports.config.newOrganizationPlan ?? "unlimited");
+    return createTenantWithTeam(ctx.db, ctx.actor, { ...input, plan });
   },
 });
 
 export async function createTenantWithTeam(
   db: Db,
   actor: OpContext["actor"],
-  input: { name: string; slug?: string | undefined; team_name: string },
+  input: { name: string; slug?: string | undefined; team_name: string; plan?: Plan },
 ) {
   const tenantSlug = input.slug ?? (await uniqueTenantSlug(db, input.name));
   if (input.slug && (await db.selectFrom("tenants").select("tenant_id").where("slug", "=", input.slug).executeTakeFirst()))
     throw conflict("slug_taken", `The tenant slug "${input.slug}" is taken; choose another.`);
   const tenant_id = newId();
   const team_id = newId();
-  await db.insertInto("tenants").values({ tenant_id, slug: tenantSlug, name: input.name, created_by: json(actor) }).execute();
+  const plan: Plan = input.plan ?? "unlimited";
+  await db.insertInto("tenants").values({ tenant_id, slug: tenantSlug, name: input.name, plan, created_by: json(actor) }).execute();
   await db
     .insertInto("teams")
     .values({ team_id, tenant_id, slug: slugify(input.team_name, 40, "team").padEnd(3, "0"), name: input.team_name, created_by: json(actor) })
@@ -272,7 +276,7 @@ export async function createTenantWithTeam(
     .execute();
   const team = await db.selectFrom("teams").selectAll().where("team_id", "=", team_id).executeTakeFirstOrThrow();
   return {
-    tenant: { tenant_id, slug: tenantSlug, name: input.name },
+    tenant: { tenant_id, slug: tenantSlug, name: input.name, plan },
     team: { team_id, slug: team.slug, name: team.name },
     your_role: "owner" as TenantRole,
   };
@@ -575,21 +579,6 @@ function directoryReach(
 
 const RANK: Record<string, number> = { reader: 0, viewer: 1, editor: 2, admin: 3 };
 
-/**
- * The name an access event gives the person it is about. In a public sandbox anyone but its staff
- * is known there only by their made-up name, so that is the one written into the log. tenantRole
- * is their organization role as it stands for the event; omitted, it is read now.
- */
-async function nameInLog(ctx: OpContext, accountId: string, displayName: string, tenantRole?: string | null): Promise<string> {
-  const tenant = ctx.scope.tenant!;
-  if (!tenant.sandbox) return displayName;
-  const role =
-    tenantRole !== undefined
-      ? tenantRole
-      : ((await ctx.db.selectFrom("memberships").select("role").where("tenant_id", "=", tenant.tenant_id).where("scope_type", "=", "tenant").where("account_id", "=", accountId).executeTakeFirst())?.role ?? null);
-  return isSandboxStaff(role as TenantRole | null) ? displayName : visitorName(tenant.tenant_id, accountId);
-}
-
 export const listMembers = defineOperation({
   name: "members.list",
   scope: "tenant",
@@ -597,7 +586,7 @@ export const listMembers = defineOperation({
   mutates: false,
   summary: "List the tenant's members with every grant they hold, and outstanding invitations; or, with product, the people who can reach one product.",
   description:
-    "Each member lists grants as {scope_type, scope, role}. Effective access is the highest role that applies. Pass product (a slug with team, or an id) to list only the people with access to that product: each then carries product_access {role, via} — via is product, team or tenant, the grant the role comes from (the broadest one when grants tie) — and grants are limited to the ones that apply to that product. Invitations are limited the same way. Owners and admins of the tenant see everyone. Anyone else sees only the people on the teams and products they read (viewer or above), with only those grants and their tenant role, and the invitations they could cancel (where they are admin); the result then says partial: true, and a product they cannot read answers 404. In a public sandbox, only its owners and admins see people: they get the organization's own members, with visitors as a count (sandbox(action=\"visitors\") lists them), and everyone else gets only themselves. Someone who reads only the Story everywhere in the tenant (a reader on its teams or products and nothing more) sees none of its people: 403.",
+    "Each member lists grants as {scope_type, scope, role}. Effective access is the highest role that applies. Pass product (a slug with team, or an id) to list only the people with access to that product: each then carries product_access {role, via} — via is product, team or tenant, the grant the role comes from (the broadest one when grants tie) — and grants are limited to the ones that apply to that product. Invitations are limited the same way. Owners and admins of the tenant see everyone. Anyone else sees only the people on the teams and products they read (viewer or above), with only those grants and their tenant role, and the invitations they could cancel (where they are admin); the result then says partial: true, and a product they cannot read answers 404. A guest of the example organization sees none of its people: the result is empty and says guest: true. Someone who reads only the Story everywhere in the tenant (a reader on its teams or products and nothing more) sees none of its people: 403.",
   input: z.strictObject({
     tenant: z.string().min(1),
     team: z.string().optional().describe("Team slug or id, to name the product by slug."),
@@ -611,13 +600,12 @@ export const listMembers = defineOperation({
     const mine = await membershipsFor(ctx.db, me, tid);
     if (readsOnlyTheStoryIn(mine, tid))
       throw forbidden(`You read only the Story in ${ctx.scope.tenant!.name}, so you can’t see its members. Viewer access to one of its teams or products shows them.`, { role: "reader", needed: "viewer" });
-    // In a public sandbox nobody but its staff sees another person, and its visitors are counted, not listed.
-    const sandbox = Boolean(ctx.scope.tenant!.sandbox);
-    const onlySelf = sandbox && !isSandboxStaff(ctx.scope.tenantRole);
+    // A guest of the example organization holds no stored grant, so is nobody there, and sees nobody.
+    if (ctx.scope.tenantRole === "guest") return { members: [], invitations: [], guest: true };
     const teams = await ctx.db.selectFrom("teams").select(["team_id", "slug", "name"]).where("tenant_id", "=", tid).execute();
     const products = await ctx.db.selectFrom("products").select(["product_id", "slug", "name", "team_id"]).where("tenant_id", "=", tid).execute();
     // Below an owner or admin of the organization, a person sees only the people on what they read.
-    const reach = onlySelf || tenantRoleAtLeast(ctx.scope.tenantRole, "admin") ? null : directoryReach(mine, tid, teams, products);
+    const reach = tenantRoleAtLeast(ctx.scope.tenantRole, "admin") ? null : directoryReach(mine, tid, teams, products);
     let target = null;
     if (input.product && reach) {
       target = await resolveGrantTarget(ctx, { team: input.team, product: input.product }).catch(() => null);
@@ -630,13 +618,7 @@ export const listMembers = defineOperation({
       .innerJoin("accounts as a", "a.account_id", "m.account_id")
       .select(["m.membership_id", "m.scope_type", "m.scope_id", "m.role", "m.created_at", "a.account_id", "a.display_name", "a.email"])
       .where("m.tenant_id", "=", tid);
-    if (onlySelf) people = people.where("m.account_id", "=", ctx.principal.account_id);
-    // A visitor is counted, never listed: not by their seat, and not by a role on a team or product either.
-    else if (sandbox)
-      people = people.where(({ not, exists, selectFrom }) =>
-        not(exists(selectFrom("memberships as v").select("v.membership_id").whereRef("v.account_id", "=", "m.account_id").where("v.tenant_id", "=", tid).where("v.scope_type", "=", "tenant").where("v.role", "=", "visitor"))),
-      );
-    const all = (await people.orderBy("a.display_name").execute()).map((r) => (onlySelf ? { ...r, display_name: ctx.principal.display_name, email: "" } : r));
+    const all = await people.orderBy("a.display_name").execute();
     // A person shows when one of their grants does (and the caller always sees themselves), with
     // those grants and their organization role; nothing else of theirs.
     const shown = reach ? new Set(all.filter((r) => r.account_id === me || reach.shows(r.scope_type, r.scope_id, r.role)).map((r) => r.account_id)) : null;
@@ -652,7 +634,7 @@ export const listMembers = defineOperation({
       !target ||
       (type === "product" && sid === target.product_id) ||
       (type === "team" && sid === target.team_id) ||
-      (type === "tenant" && (role === "owner" || role === "admin" || role === "visitor"));
+      (type === "tenant" && (role === "owner" || role === "admin"));
     type Grant = { membership_id: string; scope_type: string; scope_id: string; scope: unknown; role: string; since: string };
     const byAccount = new Map<string, { account_id: string; display_name: string; email: string; grants: Grant[] }>();
     for (const r of rows) {
@@ -661,35 +643,28 @@ export const listMembers = defineOperation({
       m.grants.push({ membership_id: r.membership_id, scope_type: r.scope_type, scope_id: r.scope_id, scope: label(r.scope_type, r.scope_id), role: r.role, since: r.created_at });
       byAccount.set(r.account_id, m);
     }
-    const invitations = onlySelf
-      ? []
-      : await ctx.db
-          .selectFrom("invitations")
-          .select(["invitation_id", "email", "scope_type", "scope_id", "role", "expires_at", "created_at"])
-          .where("tenant_id", "=", tid)
-          .where("accepted_at", "is", null)
-          .where("expires_at", ">", ctx.now)
-          .execute()
-          // Below an owner or admin of the organization, only the invitations the caller could cancel.
-          .then((all) => (reach ? all.filter((i) => reach.manages(i.scope_type, i.scope_id)) : all));
+    const invitations = await ctx.db
+      .selectFrom("invitations")
+      .select(["invitation_id", "email", "scope_type", "scope_id", "role", "expires_at", "created_at"])
+      .where("tenant_id", "=", tid)
+      .where("accepted_at", "is", null)
+      .where("expires_at", ">", ctx.now)
+      .execute()
+      // Below an owner or admin of the organization, only the invitations the caller could cancel.
+      .then((all) => (reach ? all.filter((i) => reach.manages(i.scope_type, i.scope_id)) : all));
     const partial = reach ? { partial: true } : {};
-    const visitors = sandbox && !onlySelf
-      ? await ctx.db.selectFrom("memberships").select((eb) => eb.fn.countAll<number>().as("n")).where("tenant_id", "=", tid).where("scope_type", "=", "tenant").where("role", "=", "visitor").executeTakeFirst()
-      : null;
-    const inSandbox = sandbox ? { sandbox: { only_you: onlySelf, ...(visitors ? { visitors: Number(visitors.n) } : {}) } } : {};
     if (!target) {
       return {
         members: [...byAccount.values()],
         invitations: invitations.map((i) => ({ ...i, scope: label(i.scope_type, i.scope_id) })),
         ...partial,
-        ...inSandbox,
       };
     }
     const breadth: Record<string, number> = { tenant: 3, team: 2, product: 1 };
     const members = [...byAccount.values()].map((m) => {
       let best: { role: string; via: string } | null = null;
       for (const g of m.grants) {
-        const role = g.scope_type === "tenant" ? (g.role === "visitor" ? "editor" : "admin") : g.role;
+        const role = g.scope_type === "tenant" ? "admin" : g.role;
         if (!best || RANK[role]! > RANK[best.role]! || (RANK[role] === RANK[best.role] && breadth[g.scope_type]! > breadth[best.via]!)) best = { role, via: g.scope_type };
       }
       return { ...m, product_access: best! };
@@ -701,7 +676,6 @@ export const listMembers = defineOperation({
         .filter((i) => applies(i.scope_type, i.scope_id, i.role))
         .map((i) => ({ ...i, scope: label(i.scope_type, i.scope_id) })),
       ...partial,
-      ...inSandbox,
     };
   },
 });
@@ -770,7 +744,7 @@ export const grantMember = defineOperation({
       action: existing ? "role_changed" : "granted",
       entity_type: "membership",
       entity_id: account.account_id,
-      entity_title: await nameInLog(ctx, account.account_id, account.display_name),
+      entity_title: account.display_name,
       summary: `${existing ? "Changed role to" : "Granted"} ${input.role} on ${target.scope_type === "tenant" ? "organization" : target.scope_type} ${target.name}`,
     });
     return { invited: false, account_id: account.account_id, display_name: account.display_name, scope_type: target.scope_type, scope: target.name, role: input.role as ProductRole | TenantRole };
@@ -806,8 +780,7 @@ export const revokeMember = defineOperation({
       }
       await ctx.db.deleteFrom("memberships").where("tenant_id", "=", tid).where("account_id", "=", input.account_id).execute();
       const acct = await ctx.db.selectFrom("accounts").select("display_name").where("account_id", "=", input.account_id).executeTakeFirst();
-      const tenantRole = grants.find((g) => g.scope_type === "tenant")?.role ?? null;
-      await recordActivity(ctx, { action: "revoked", entity_type: "membership", entity_id: input.account_id, entity_title: acct ? await nameInLog(ctx, input.account_id, acct.display_name, tenantRole) : null, summary: `Removed from ${ctx.scope.tenant!.name} (${grants.length} ${grants.length === 1 ? "role" : "roles"})` });
+      await recordActivity(ctx, { action: "revoked", entity_type: "membership", entity_id: input.account_id, entity_title: acct?.display_name ?? null, summary: `Removed from ${ctx.scope.tenant!.name} (${grants.length} ${grants.length === 1 ? "role" : "roles"})` });
       return { revoked: true, account_id: input.account_id, scope_type: "tenant" as const, scope: ctx.scope.tenant!.name, removed: grants.length };
     }
     const target = await resolveGrantTarget(ctx, input);
@@ -822,9 +795,7 @@ export const revokeMember = defineOperation({
     }
     await ctx.db.deleteFrom("memberships").where("membership_id", "=", m.membership_id).execute();
     const acct = await ctx.db.selectFrom("accounts").select("display_name").where("account_id", "=", input.account_id).executeTakeFirst();
-    // A role removed from the organization itself was their standing until now.
-    const title = acct ? await nameInLog(ctx, input.account_id, acct.display_name, target.scope_type === "tenant" ? m.role : undefined) : null;
-    await recordActivity(ctx, { action: "revoked", entity_type: "membership", entity_id: input.account_id, entity_title: title, summary: `Removed ${m.role} on ${target.scope_type === "tenant" ? "organization" : target.scope_type} ${target.name}` });
+    await recordActivity(ctx, { action: "revoked", entity_type: "membership", entity_id: input.account_id, entity_title: acct?.display_name ?? null, summary: `Removed ${m.role} on ${target.scope_type === "tenant" ? "organization" : target.scope_type} ${target.name}` });
     return { revoked: true, account_id: input.account_id, scope_type: target.scope_type, scope: target.name };
   },
 });
@@ -856,9 +827,6 @@ export const cancelInvitation = defineOperation({
   },
 });
 
-/** The sandbox's events that change who may come in: its invitations, a visitor's removal, and its settings. */
-const SANDBOX_ACCESS_ACTIONS = ["invited", "invitation_cancelled", "revoked", "updated"];
-
 export const listAccessActivity = defineOperation({
   name: "members.activity",
   scope: "tenant",
@@ -866,7 +834,7 @@ export const listAccessActivity = defineOperation({
   mutates: false,
   summary: "Who gave, changed or removed whose access in the organization, and when: newest first (tenant admins).",
   description:
-    "The organization's access log: roles given, changed and removed, people removed from the organization, invitations sent, accepted and cancelled, and in a public sandbox its invitation links, removed visitors and changed settings. A product's activity.list leaves these out, because they belong to the organization, all but someone joining the product through an invitation. Entries name the person and the scope and never an email address; a sandbox visitor appears under their made-up name. Filters: actor (account id), since (ISO 8601).",
+    "The organization's access log: roles given, changed and removed, people removed from the organization, invitations sent, accepted and cancelled. A product's activity.list leaves these out, because they belong to the organization, all but someone joining the product through an invitation. Entries name the person and the scope and never an email address. Filters: actor (account id), since (ISO 8601).",
   input: z.strictObject({
     tenant: z.string().min(1),
     actor: z.string().max(100).optional(),
@@ -881,7 +849,7 @@ export const listAccessActivity = defineOperation({
       .selectFrom("activity")
       .selectAll()
       .where("tenant_id", "=", ctx.scope.tenant!.tenant_id)
-      .where((eb) => eb.or([eb("entity_type", "=", "membership"), eb.and([eb("entity_type", "=", "sandbox"), eb("action", "in", SANDBOX_ACCESS_ACTIONS)])]));
+      .where("entity_type", "=", "membership");
     if (input.actor) q = q.where("actor_account_id", "=", input.actor);
     if (input.since) q = q.where(sql<boolean>`occurred_at >= ${input.since}::timestamptz`);
     if (input.cursor) q = q.where("activity_id", "<", input.cursor);

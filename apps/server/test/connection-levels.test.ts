@@ -98,7 +98,7 @@ describe("what each level may do", () => {
     const named: Record<string, Record<string, string[]>> = {};
     for (const [k, client] of clients.entries()) {
       const { tools } = await client.listTools();
-      for (const tool of ["sources", "sandbox"]) {
+      for (const tool of ["sources", "products"]) {
         const listed = (tools.find((t) => t.name === tool)!.inputSchema.properties!["action"] as { enum: string[] }).enum;
         const missing = result(await client.callTool({ name: tool, arguments: { params: {} } }));
         expect(missing.status).toBe(422);
@@ -111,15 +111,18 @@ describe("what each level may do", () => {
       }
       await client.close();
     }
-    // An Edit connection is told of no permanent delete, and of none of a sandbox's control panel.
+    // An Edit connection is told of no permanent delete, and of no change to an organization's plan.
     expect(named["editor"]!["sources"]).toContain("archive");
     for (const a of ["delete", "delete_annotation"]) {
       expect(named["editor"]!["sources"]).not.toContain(a);
       expect(named["admin"]!["sources"]).toContain(a);
     }
-    expect(named["editor"]!["sandbox"]).toEqual(["status", "join"]);
-    expect(named["viewer"]!["sandbox"]).toEqual(["status"]);
-    expect(named["admin"]!["sandbox"]).toEqual(expect.arrayContaining(["settings", "reset", "visitors"]));
+    for (const level of levels) expect(named[level]!["products"]).toEqual(expect.arrayContaining(["list", "limits", "organizations"]));
+    for (const a of ["set_limits", "create_tenant"]) {
+      expect(named["viewer"]!["products"]).not.toContain(a);
+      expect(named["editor"]!["products"]).not.toContain(a);
+      expect(named["admin"]!["products"]).toContain(a);
+    }
   });
 
   it("lets Read only read and nothing else", async () => {

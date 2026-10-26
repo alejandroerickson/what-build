@@ -3,7 +3,7 @@ type: Decision
 title: Times are UTC in data and the API, and shown in the viewer's own time zone
 description: Stored and returned times are UTC; every surface that shows a time to a person shows it where that person is.
 tags: [decision, web, agents, story, time]
-generated: {by: agent:claude, at: 2026-10-13}
+generated: {by: agent:claude, at: 2026-10-25}
 status: stable
 ---
 
@@ -25,7 +25,7 @@ maintainer chose on 2026-10-13 that a time is always shown in the time zone it i
 - The skill tells agents that times in results are UTC, and to tell the person a time in their own
   time zone.
 - Rejected: a display time zone per organization or per person.
-- A setting that names a time zone on purpose, such as a public sandbox's reset hour, keeps it.
+- A day that limits count over is a UTC day too, the free plan's daily allowances included.
 
 ## Consequences
 

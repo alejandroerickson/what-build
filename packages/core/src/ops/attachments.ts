@@ -5,7 +5,7 @@ import { json } from "../db.ts";
 import { AppError, conflict, invalid, notFound, rateLimited, tooLarge } from "../errors.ts";
 import { extensionForMediaType, extensionOf, mediaTypeFor, validFilePath } from "../media.ts";
 import { defineOperation, type OpContext, type Principal } from "../registry.ts";
-import { countVisitorBytes, sandboxForAccount, visitorMayFetchUrl, visitorUploadLimit } from "../public-sandbox.ts";
+import { countBytes, limitsForAccount, mayFetchUrl, uploadLimit } from "../limits.ts";
 import { id } from "../schemas.ts";
 import { newEtag, newId, sha256OfStream } from "../util.ts";
 import { attachmentEntries, duplicateWarnings, insertRecord, loadRecord, recordMetadata, recordSummary } from "./sources.ts";
@@ -73,9 +73,9 @@ async function issueGrant(
   input: { path: string; media_type?: string | undefined; size?: number | undefined },
 ) {
   const cfg = ctx.ports.config;
-  // A visitor to a public sandbox uploads less, through the relay only, where the size is enforced as the bytes arrive.
-  const visitor = ctx.sandbox?.visitor ? ctx.sandbox : null;
-  const maxBytes = visitor ? await visitorUploadLimit(ctx.db, visitor, ctx.principal.account_id, input, cfg.fileMaxBytes) : cfg.fileMaxBytes;
+  // In a free organization an upload meets the plan's limits, through the relay only, where the size is enforced as the bytes arrive.
+  const limited = ctx.limits && !ctx.limits.guest ? ctx.limits : null;
+  const maxBytes = limited ? await uploadLimit(ctx.db, limited, ctx.principal.account_id, input, cfg.fileMaxBytes) : cfg.fileMaxBytes;
   if (input.size !== undefined && input.size > maxBytes) throw tooLarge(`Files are limited to ${maxBytes} bytes.`, { limit: maxBytes });
   const grant_id = newId();
   const file_version_id = newId();
@@ -91,7 +91,7 @@ async function issueGrant(
     .execute();
   const token = ctx.ports.grants.sign({ v: 1, purpose: "upload", g: grant_id, t: tenantId(ctx), exp: Math.floor(expiresAt.getTime() / 1000) });
   let direct: { url: string; method: "PUT"; headers: Record<string, string>; max_bytes: number } | undefined;
-  if (ctx.ports.blobs.signedUploadUrl && !visitor) {
+  if (ctx.ports.blobs.signedUploadUrl && !limited) {
     const signed = await ctx.ports.blobs.signedUploadUrl(blob_key, mediaType, expiresAt, maxBytes);
     direct = { url: signed.url, method: "PUT", headers: signed.headers, max_bytes: maxBytes };
   }
@@ -237,9 +237,9 @@ export async function completeGrant(ctx: OpContext, grantId: string) {
     // Adding an attachment changes the source, so its etag moves on.
     await ctx.db.updateTable("records").set({ etag: newEtag() }).where("record_id", "=", g.record_id).execute();
     await ctx.enqueue("derive", { record_id: g.record_id, file_version_id: fileVersionId });
-    // In a public sandbox the file counts against whoever asked for the grant, whichever way its bytes came.
-    const sandbox = ctx.sandbox === null ? null : await sandboxForAccount(ctx.db, g.tenant_id, g.principal.account_id);
-    if (sandbox?.visitor) await countVisitorBytes(ctx.db, sandbox, g.principal.account_id, size!);
+    // In a free organization the file counts against whoever asked for the grant, whichever way its bytes came.
+    const limits = ctx.limits === null ? null : await limitsForAccount(ctx.db, g.tenant_id);
+    if (limits) await countBytes(ctx.db, limits, g.principal.account_id, size!);
     await recordActivity(ctx, { action: "file_added", entity_type: "source", entity_id: g.record_id, entity_title: record.title, summary: `Added the attachment ${g.path}` });
   }
   const entries = await attachmentEntries(ctx.db, g.record_id, ctx.ports.config.parseCapBytes);
@@ -368,7 +368,7 @@ export const fetchUrl = defineOperation({
   // The download happens here, before the transaction, so a slow server holds no database connection.
   async prepare(ctx, input) {
     await ctx.read((c) => loadRecord(c, input.record_id, { live: true }));
-    if (ctx.sandbox?.visitor) visitorMayFetchUrl(ctx.sandbox);
+    if (ctx.limits && !ctx.limits.guest) mayFetchUrl(ctx.limits);
     const fetcher = ctx.ports.fetcher;
     if (!fetcher) throw notFound("Fetching URLs isn’t available on this deployment.");
     return inFetchPlace(ctx.principal.account_id, async () => {

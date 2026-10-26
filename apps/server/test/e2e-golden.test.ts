@@ -2,7 +2,7 @@ import { sql } from "kysely";
 import pg from "pg";
 import { afterAll, beforeAll, describe, expect, it, inject } from "vitest";
 import { copyTenant } from "../src/e2e-golden.ts";
-import { syncSandboxTenant } from "../src/public-sandbox.ts";
+import { syncExampleTenant } from "../src/example-organization.ts";
 import { startHarness, type Harness } from "./harness.ts";
 
 let h: Harness;
@@ -23,26 +23,21 @@ afterAll(async () => {
 });
 
 describe("the golden master's standard organization", () => {
-  it("copies the sandbox's people but none of its visitors: no seat, and no role on a team or product", async () => {
+  it("copies the example's people and their roles, and is not the example itself", async () => {
     const owner = await h.signIn("owner@sample.example", "Sample Owner");
-    const t = await owner.api("POST", "/api/v1/tenants", { name: "Sample Sandbox" });
+    const t = await owner.api("POST", "/api/v1/tenants", { name: "Sample Example" });
     const { slug, tenant_id: tenantId } = t.body.tenant;
     const team = t.body.team.slug;
     const T = `/api/v1/tenants/${slug}`;
     expect((await owner.api("POST", `/api/v1/teams/${slug}/${team}/products`, { name: "Showcase" })).status).toBe(201);
     await h.signIn("editor@sample.example", "Sample Editor");
     expect((await owner.api("POST", `${T}/members`, { email: "editor@sample.example", role: "editor", team })).status).toBe(201);
-    expect(await syncSandboxTenant(h.db, slug, () => {})).toBe(tenantId);
+    expect(await syncExampleTenant(h.db, slug, () => {})).toBe(tenantId);
+    // A guest holds no stored grant, so there is none to copy.
+    const guest = await h.signIn("guest@sample.example", "Sample Guest");
+    expect((await guest.api("GET", "/api/v1/me/products")).body.tenants.map((x: { slug: string }) => x.slug)).toEqual([slug]);
 
-    // A visitor whose account was not made by the invitation, and who was given a role on a team too.
-    const visitor = await h.signIn("visitor@sample.example", "Sample Visitor");
-    const invite = await owner.api("POST", `${T}/sandbox/invites`, { label: "Sample", places: 5 });
-    const code = String(invite.body.invite_link).split("/join/")[1]!;
-    expect((await visitor.api("POST", "/api/v1/sandbox/join", { code })).body).toMatchObject({ already: false, role: "visitor" });
-    expect((await owner.api("POST", `${T}/members`, { email: "visitor@sample.example", role: "viewer", team })).status).toBe(201);
-    const visitorId = (await visitor.api("GET", "/api/v1/me")).body.account_id as string;
-
-    const ids = await copyTenant(admin, tenantId, `${slug}-standard`, "Sample Sandbox (standard)");
+    const ids = await copyTenant(admin, tenantId, `${slug}-standard`, "Sample Example (standard)");
     const copy = ids.get(tenantId)!;
     const held = await admin.query<{ email: string; scope_type: string; role: string }>(
       "select a.email, m.scope_type, m.role from memberships m join accounts a using (account_id) where m.tenant_id = $1 order by 1, 2",
@@ -52,11 +47,8 @@ describe("the golden master's standard organization", () => {
       { email: "editor@sample.example", scope_type: "team", role: "editor" },
       { email: "owner@sample.example", scope_type: "tenant", role: "owner" },
     ]);
-    expect(held.rows.some((r) => r.role === "visitor")).toBe(false);
-    expect((await admin.query("select 1 from memberships where tenant_id = $1 and account_id = $2", [copy, visitorId])).rowCount).toBe(0);
-    // The sandbox itself keeps its visitor.
-    expect((await admin.query("select 1 from memberships where tenant_id = $1 and account_id = $2", [tenantId, visitorId])).rowCount).toBe(2);
-    expect((await admin.query<{ sandbox: boolean }>("select sandbox from tenants where tenant_id = $1", [copy])).rows[0]!.sandbox).toBe(false);
+    expect((await admin.query<{ example: boolean }>("select example from tenants where tenant_id = $1", [copy])).rows[0]!.example).toBe(false);
+    await syncExampleTenant(h.db, null, () => {});
   });
 
   it("copies the search index with what it indexes, so plain search finds the same words in the copy", async () => {

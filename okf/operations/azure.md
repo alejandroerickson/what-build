@@ -3,7 +3,7 @@ type: System Concept
 title: WhatBuild self-hosts on Azure Container Apps with Azure Database for PostgreSQL and a mounted file share, set up by an agent with the Azure CLI.
 description: What a self-hosted deployment on Azure is made of, how each resource is configured, the commands that create it, sign-in with a Microsoft work account, the variations between organizations, deploying a new version, cost and removal.
 tags: [operations, deployment, azure, self-hosting, container-apps, entra]
-generated: {by: agent:claude, at: 2026-10-24}
+generated: {by: agent:claude, at: 2026-10-25}
 status: draft
 ---
 
@@ -110,7 +110,11 @@ Settle these with the person; each changes what is built.
    ([§2.4](../spec/02-architecture.md)).
 6. **Who may sign up** (`WB_ALLOWLIST`: addresses and `@domains`) and **who runs the instance**
    (`WB_OWNERS`: addresses; they create organizations and let others;
-   [§3.3](../spec/03-accounts-teams-and-identity.md)).
+   [§3.3](../spec/03-accounts-teams-and-identity.md)). A self-hosted deployment serves its own
+   people, so it sets neither `WHATBUILD_EXAMPLE_TENANT` nor `WHATBUILD_NEW_ORGANIZATION_PLAN`: it
+   has no example organization, which is the maintainer's public deployment's alone, and every
+   organization in it is unlimited ([§3.10](../spec/03-accounts-teams-and-identity.md#310-the-example-organization),
+   [§9.7](../spec/09-data-lifecycle.md)).
 7. **The address.** The Container Apps address (`https://whatbuild.<generated>.<region>.azurecontainerapps.io`)
    or [a domain of the organization's](#a-custom-domain).
 8. **Sign-in**, and **which directory** holds the app registration ([Sign-in](#sign-in)): Microsoft

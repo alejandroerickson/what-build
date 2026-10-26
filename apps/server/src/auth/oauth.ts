@@ -88,8 +88,7 @@ function formTarget(u: string): string {
 
 /** What the consent page says the agent may reach. */
 function reachSentence(r: ConnectorReach): string {
-  if (r.kind === "all")
-    return r.except_sandboxes ? "It reaches every product you can open, except in a public sandbox, which only a connector of its own reaches." : "It reaches every product you can open.";
+  if (r.kind === "all") return "It reaches every product you can open.";
   if (r.kind === "tenant") return `It reaches the organization <strong>${escapeHtml(r.name ?? r.path)}</strong>, and nothing outside it.`;
   const where = r.name ? `${escapeHtml(r.name)}</strong>${r.tenant_name ? ` (${escapeHtml(r.tenant_name)})` : ""}` : `${escapeHtml(r.path)}</strong>`;
   return `It reaches the product <strong>${where}, and nothing outside it.`;

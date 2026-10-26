@@ -62,7 +62,7 @@ export async function queueConnectionNotice(trx: Db, family: string, job: Connec
 
 /** What a connection reaches, in the consent page's words, as plain text. */
 function reachWords(r: ConnectorReach): string {
-  if (r.kind === "all") return `Every product you can open${r.except_sandboxes ? ", except in a public sandbox" : ""}`;
+  if (r.kind === "all") return "Every product you can open";
   if (r.kind === "tenant") return `The organization ${r.name ?? r.path}, and nothing outside it`;
   return `The product ${r.name ?? r.path}${r.name && r.tenant_name ? ` in ${r.tenant_name}` : ""}, and nothing outside it`;
 }

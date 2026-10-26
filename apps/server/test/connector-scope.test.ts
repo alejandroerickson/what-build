@@ -1,8 +1,7 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
-import { OPERATIONS } from "@whatbuild/core";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { syncSandboxTenant } from "../src/public-sandbox.ts";
+import { syncExampleTenant } from "../src/example-organization.ts";
 import { startHarness, type Browser, type Harness } from "./harness.ts";
 
 // A scoped connector is a fence: calls outside its organization or product are refused, and its
@@ -116,7 +115,7 @@ describe("a connector scoped to a product", () => {
     await c.close();
   });
 
-  it("refuses organization and team calls and moving work to another product, but answers sandbox status", async () => {
+  it("refuses organization and team calls and moving work to another product, but answers the organization's limits", async () => {
     const c = await connect(`/mcp/t/${onboarding}`);
     expect(body(await c.callTool({ name: "members", arguments: { action: "list", params: {} } })).json.error.code).toBe("outside_connector_scope");
     expect(body(await c.callTool({ name: "products", arguments: { action: "create", params: { name: "Third" } } })).json.error.code).toBe("outside_connector_scope");
@@ -124,8 +123,10 @@ describe("a connector scoped to a product", () => {
     expect(src.status).toBe(200);
     const copy = body(await c.callTool({ name: "sources", arguments: { action: "copy_to_product", params: { record_id: src.json.record_id, to_product: billing.split("/")[2] } } }));
     expect(copy.json.error.code).toBe("outside_connector_scope");
-    // Acme is no sandbox, so status answers 404: the fence let the call through.
-    expect(body(await c.callTool({ name: "sandbox", arguments: { action: "status", params: {} } })).status).toBe(404);
+    // The caller's own standing in the organization: the fence lets it through for the product's organization.
+    const limits = body(await c.callTool({ name: "products", arguments: { action: "limits", params: {} } }));
+    expect(limits.status).toBe(200);
+    expect(limits.json).toMatchObject({ organization: { slug: acme }, plan: "unlimited", you_meet_them: false });
     await c.close();
   });
 });
@@ -167,152 +168,71 @@ describe("a token approved for a scoped connector", () => {
   });
 });
 
-describe("a public sandbox", () => {
-  // Alice owns it and Acme; Vic came in by an invitation; Mel was given a role by its staff, and is treated as a visitor is.
+describe("the example organization", () => {
+  // Alice owns it and Acme; Gus holds no grant anywhere, so he is its guest; Dee has one product of her own.
   let commons: string;
   let showcase: string;
-  let team: string;
-  let vic: Browser;
-  let mel: Browser;
-  const agents: Record<"staff" | "visitor" | "member", string> = { staff: "", visitor: "", member: "" };
-
-  /** A call over MCP as the person's agent, with an operation's place filled in and no fields of its own. */
-  async function call(c: Client, op: (typeof OPERATIONS)[number]) {
-    const params: Record<string, unknown> = op.scope === "tenant" || op.scope === "team" ? { tenant: commons, ...(op.scope === "team" ? { team } : {}) } : {};
-    const where = op.scope === "product" ? { product: showcase } : {};
-    return body(await c.callTool({ name: op.mcp.tool, arguments: op.mcp.action ? { action: op.mcp.action, params, ...where } : { ...params, ...where } }));
-  }
+  let gus: Browser;
+  let dee: Browser;
+  let solo: string;
 
   beforeAll(async () => {
     const t = await alice.api("POST", "/api/v1/tenants", { name: "Commons" });
     commons = t.body.tenant.slug;
-    team = t.body.team.slug;
-    showcase = (await alice.api("POST", `/api/v1/teams/${commons}/${team}/products`, { name: "Showcase" })).body.path;
-    expect(await syncSandboxTenant(h.db, commons, () => {})).toBe(t.body.tenant.tenant_id);
-    const T = `/api/v1/tenants/${commons}`;
-    const settings = (await alice.api("GET", `${T}/sandbox/settings`)).body;
-    expect((await alice.api("PATCH", `${T}/sandbox/settings`, { expected_etag: settings.etag, visitor_access: "write" })).status).toBe(200);
-    const invite = await alice.api("POST", `${T}/sandbox/invites`, { label: "Launch", places: 5 });
-    vic = await h.signIn("vic@visitor.example", "Vic Visitor");
-    expect((await vic.api("POST", "/api/v1/sandbox/join", { code: String(invite.body.invite_link).split("/join/")[1] })).status).toBe(200);
-    expect((await alice.api("POST", `${T}/members`, { email: "mel@staff.example", role: "admin", team })).status).toBeLessThan(300);
-    mel = await h.signIn("mel@staff.example", "Mel Member");
-    agents.staff = token;
-    agents.visitor = await h.connectAgent(vic, "Visitor agent");
-    agents.member = await h.connectAgent(mel, "Member agent");
+    showcase = (await alice.api("POST", `/api/v1/teams/${commons}/${t.body.team.slug}/products`, { name: "Showcase" })).body.path;
+    expect((await alice.api("POST", `/api/v1/p/${showcase}/outcomes`, { title: "Plan the week in ten minutes" })).status).toBe(201);
+    expect(await syncExampleTenant(h.db, commons, () => {})).toBe(t.body.tenant.tenant_id);
+    gus = await h.signIn("gus@guest.example", "Gus Guest");
+    dee = await h.signIn("dee@own.example", "Dee Own");
+    const d = await dee.api("POST", "/api/v1/tenants", { name: "Solo" });
+    solo = (await dee.api("POST", `/api/v1/teams/${d.body.tenant.slug}/${d.body.team.slug}/products`, { name: "Only one" })).body.path;
+  });
+  afterAll(async () => {
+    await syncExampleTenant(h.db, null, () => {});
   });
 
-  it("is reached by no call through the unscoped connector, staff included, and the refusal names its connector", async () => {
-    const scoped = OPERATIONS.filter((o) => o.scope !== "account" && !o.webOnly);
-    const activity = async () => JSON.stringify((await alice.api("GET", `/api/v1/p/${showcase}/activity`)).body.items);
-    const before = await activity();
-    expect(before).toMatch(/^\[/);
-    const failures: string[] = [];
-    for (const [who, bearer] of Object.entries(agents)) {
-      const c = await connect("/mcp", bearer);
-      for (const op of scoped) {
-        const r = await call(c, op);
-        // Staff hold every role, so each call reaches the fence; a visitor's may be refused for their role first. Either way, nothing is read or written.
-        const ok = who === "staff" ? r.json.error?.code === "sandbox_needs_its_own_connector" : r.status === 403 && ["sandbox_needs_its_own_connector", "forbidden"].includes(r.json.error?.code);
-        if (!ok) failures.push(`${who} ${op.name} → ${r.status} ${JSON.stringify(r.json).slice(0, 160)}`);
-      }
-      for (const name of ["outcomes.list", "sources.list", "search", "outcomes.create", "story.list_pages", "sandbox.status"]) {
-        const r = await call(c, OPERATIONS.find((o) => o.name === name)!);
-        expect(r.status, `${who} ${name}`).toBe(403);
-        expect(r.json.error, `${who} ${name}`).toMatchObject({ code: "sandbox_needs_its_own_connector", details: { connect_at: `${h.baseUrl}/mcp/t/${commons}`, tenant: commons } });
-        expect(r.json.error.message).toContain("Nothing was changed");
-      }
-      await c.close();
-    }
-    expect(failures).toEqual([]);
-    expect(await activity()).toBe(before);
-  });
-
-  it("works through its own connector and its products' connectors", async () => {
-    for (const [who, browser] of [["staff", alice], ["visitor", vic], ["member", mel]] as const) {
-      for (const path of [`/mcp/t/${commons}`, `/mcp/t/${showcase}`]) {
-        const c = await connect(path, await h.connectAgent(browser, `${who} sandbox agent`, path));
-        const listed = body(await c.callTool({ name: "outcomes", arguments: { action: "list", product: showcase, params: {} } }));
-        expect(listed.status, `${who} ${path} ${JSON.stringify(listed.json)}`).toBe(200);
-        expect(listed.json.scope).toMatchObject({ public_sandbox: true });
-        const status = body(await c.callTool({ name: "sandbox", arguments: { action: "status", params: { tenant: commons } } }));
-        expect(status.status, `${who} ${path}`).toBe(200);
-        expect(status.json.connect_at).toBe(`${h.baseUrl}/mcp/t/${commons}`);
-        await c.close();
-      }
-    }
-  });
-
-  it("is left out of the unscoped connector's product list, which gives its address instead", async () => {
-    const c = await connect("/mcp", agents.staff);
+  it("is reached through the unscoped connector, listed and read there, and refuses every write", async () => {
+    const c = await connect("/mcp", await h.connectAgent(gus, "Guest agent"));
+    expect(c.getInstructions()).toContain("example organization");
     const list = body(await c.callTool({ name: "products", arguments: { action: "list" } })).json;
-    expect(list.items.map((i: { path: string }) => i.path)).not.toContain(showcase);
-    expect(list.items.map((i: { path: string }) => i.path)).toContain(onboarding);
-    expect(list.tenants.map((t: { slug: string }) => t.slug)).not.toContain(commons);
-    expect(list.public_sandboxes).toEqual([{ organization: { slug: commons, name: "Commons" }, connect_at: `${h.baseUrl}/mcp/t/${commons}`, connect_why: expect.stringContaining("strangers") }]);
-    expect(JSON.stringify(list)).not.toContain(showcase);
-    await c.close();
-    // Someone who is only in the sandbox lists nothing, and a call that names no product is told where to connect.
-    const v = await connect("/mcp", agents.visitor);
-    const theirs = body(await v.callTool({ name: "products", arguments: { action: "list" } })).json;
-    expect(theirs.items).toEqual([]);
-    expect(theirs.public_sandboxes.map((p: { organization: { slug: string } }) => p.organization.slug)).toEqual([commons]);
-    const unnamed = body(await v.callTool({ name: "outcomes", arguments: { action: "list", params: {} } }));
-    expect(unnamed.json.error.code).toBe("sandbox_needs_its_own_connector");
-    await v.close();
-    // Its own connector lists it, as the web app does.
-    const own = await connect(`/mcp/t/${commons}`, await h.connectAgent(vic, "Visitor sandbox agent", `/mcp/t/${commons}`));
-    expect(body(await own.callTool({ name: "products", arguments: { action: "list" } })).json.items.map((i: { path: string }) => i.path)).toEqual([showcase]);
-    await own.close();
-    expect((await vic.api("GET", "/api/v1/me/products")).body.items.map((i: { path: string }) => i.path)).toEqual([showcase]);
-  });
-
-  it("is still entered through the unscoped connector, whose answer gives the connector to add", async () => {
-    const invite = await alice.api("POST", `/api/v1/tenants/${commons}/sandbox/invites`, { label: "By an agent", places: 1 });
-    const newcomer = await h.signIn("nia@visitor.example", "Nia Newcomer");
-    const c = await connect("/mcp", await h.connectAgent(newcomer, "Newcomer agent"));
-    const joined = body(await c.callTool({ name: "sandbox", arguments: { action: "join", params: { code: String(invite.body.invite_link).split("/join/")[1] } } }));
-    expect(joined.status, JSON.stringify(joined.json)).toBe(200);
-    expect(joined.json).toMatchObject({ joined: true, role: "visitor", connect_at: `${h.baseUrl}/mcp/t/${commons}`, connect_why: expect.stringContaining("no other WhatBuild connector") });
-    expect(body(await c.callTool({ name: "outcomes", arguments: { action: "list", product: showcase, params: {} } })).json.error.code).toBe("sandbox_needs_its_own_connector");
+    expect(list.items.map((i: { path: string }) => i.path)).toEqual([showcase]);
+    expect(list.items[0]).toMatchObject({ tenant: { slug: commons, example: true }, your_role: "viewer" });
+    expect(list.tenants).toEqual([expect.objectContaining({ slug: commons, example: true, your_role: "guest" })]);
+    expect(list.public_sandboxes).toBeUndefined();
+    const read = body(await c.callTool({ name: "outcomes", arguments: { action: "list", product: showcase, params: {} } }));
+    expect(read.status).toBe(200);
+    expect(read.json.scope).toMatchObject({ example: true, your_role: "viewer" });
+    const write = body(await c.callTool({ name: "outcomes", arguments: { action: "create", product: showcase, params: { title: "Not here" } } }));
+    expect(write.status).toBe(403);
+    expect(write.json.error.code).toBe("example_read_only");
+    expect(write.json.error.message).toMatch(/create an organization of your own/);
+    // Someone with no product of their own is asked which product: the example's are never picked by themselves.
+    expect(body(await c.callTool({ name: "outcomes", arguments: { action: "list", params: {} } })).json.error.code).toBe("product_required");
     await c.close();
   });
 
-  it("gives no connector to add while visitors' agents are off, except to its staff", async () => {
-    const T = `/api/v1/tenants/${commons}`;
-    const etag = (await alice.api("GET", `${T}/sandbox/settings`)).body.etag;
-    expect((await alice.api("PATCH", `${T}/sandbox/settings`, { expected_etag: etag, visitor_agents: false })).status).toBe(200);
-    try {
-      expect((await vic.api("GET", `${T}/sandbox`)).body.connect_at).toBeUndefined();
-      expect((await alice.api("GET", `${T}/sandbox`)).body.connect_at).toBe(`${h.baseUrl}/mcp/t/${commons}`);
-    } finally {
-      const now = (await alice.api("GET", `${T}/sandbox/settings`)).body.etag;
-      await alice.api("PATCH", `${T}/sandbox/settings`, { expected_etag: now, visitor_agents: true });
-    }
-  });
-
-  it("is refused to a connector scoped to another organization", async () => {
-    const c = await connect(`/mcp/t/${acme}`);
-    expect(body(await c.callTool({ name: "outcomes", arguments: { action: "list", product: showcase, params: {} } })).json.error.code).toBe("outside_connector_scope");
-    expect(body(await c.callTool({ name: "sandbox", arguments: { action: "status", params: { tenant: commons } } })).json.error.code).toBe("outside_connector_scope");
+  it("is never picked as the product a call means when the person has one of their own", async () => {
+    const c = await connect("/mcp", await h.connectAgent(dee, "Own agent"));
+    const list = body(await c.callTool({ name: "products", arguments: { action: "list" } })).json;
+    expect(list.items.map((i: { path: string }) => i.path).sort()).toEqual([showcase, solo].sort());
+    const unnamed = body(await c.callTool({ name: "outcomes", arguments: { action: "list", params: {} } }));
+    expect(unnamed.status).toBe(200);
+    expect(unnamed.json.scope.product.path).toBe(solo);
     await c.close();
   });
 
-  it("is named on the consent page and in the connected agents as outside the unscoped connector's reach", async () => {
-    const agents = (await vic.api("GET", "/api/v1/me/agents")).body.items as { client_name: string; reach: Record<string, unknown> }[];
-    expect(agents.find((a) => a.client_name === "Visitor agent")!.reach).toEqual({ kind: "all", except_sandboxes: true });
-    const reg = await fetch(`${h.baseUrl}/oauth/register`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ client_name: "Consent check", redirect_uris: ["http://127.0.0.1:9999/callback"] }) });
-    const clientId = ((await reg.json()) as { client_id: string }).client_id;
-    const page = await fetch(
-      `${h.baseUrl}/oauth/authorize?response_type=code&client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent("http://127.0.0.1:9999/callback")}&code_challenge=x&code_challenge_method=S256&resource=${encodeURIComponent(`${h.baseUrl}/mcp`)}`,
-      { headers: { cookie: vic.cookie } },
-    );
-    expect(await page.text()).toContain("except in a public sandbox, which only a connector of its own reaches");
+  it("works through its own connector, which picks its product by itself", async () => {
+    const c = await connect(`/mcp/t/${commons}`, await h.connectAgent(gus, "Guest example agent", `/mcp/t/${commons}`));
+    const read = body(await c.callTool({ name: "outcomes", arguments: { action: "list", params: {} } }));
+    expect(read.status).toBe(200);
+    expect(read.json.scope.product.path).toBe(showcase);
+    const limits = body(await c.callTool({ name: "products", arguments: { action: "limits", params: {} } }));
+    expect(limits.json).toMatchObject({ organization: { slug: commons }, you_meet_them: "calls_per_minute_only" });
+    await c.close();
   });
 
-  it("gives its address on the page behind an invitation link", async () => {
-    const invite = await alice.api("POST", `/api/v1/tenants/${commons}/sandbox/invites`, { label: "For the page", places: 1 });
-    const info = (await (await fetch(`${h.baseUrl}/api/v1/sandbox/invite?code=${String(invite.body.invite_link).split("/join/")[1]}`)).json()) as Record<string, unknown>;
-    expect(info["connect_at"]).toBe(`${h.baseUrl}/mcp/t/${commons}`);
+  it("is named on the consent page and in the connected agents as reached like every other product", async () => {
+    const agents = (await gus.api("GET", "/api/v1/me/agents")).body.items as { client_name: string; reach: unknown }[];
+    expect(agents.find((a) => a.client_name === "Guest agent")!.reach).toEqual({ kind: "all" });
   });
 });

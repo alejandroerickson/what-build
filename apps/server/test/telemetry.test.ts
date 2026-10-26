@@ -72,7 +72,7 @@ describe("a request's trace", () => {
     expect(childrenOf(request).map((s) => s.name)).toContain("SELECT sessions");
     const operation = childrenOf(request).find((s) => s.kind === SpanKind.INTERNAL);
     expect(operation!.name).toBe(created.headers.get("x-whatbuild-operation"));
-    expect(operation!.attributes).toMatchObject({ "whatbuild.door": "web", "whatbuild.outcome": "ok", "whatbuild.sandbox": false });
+    expect(operation!.attributes).toMatchObject({ "whatbuild.door": "web", "whatbuild.outcome": "ok", "whatbuild.example": false });
     expect(operation!.attributes).not.toHaveProperty("whatbuild.client");
 
     const statements = childrenOf(operation!);
@@ -194,7 +194,7 @@ describe("a statement's summary", () => {
     expect(querySummary(`select "title", "tags" from "records" where "tenant_id" = $1 and "title" ilike $2`).summary).toBe("SELECT records");
     expect(querySummary(`insert into "jobs" ("tenant_id", "kind") values ($1, $2)`).summary).toBe("INSERT jobs");
     expect(querySummary("update jobs set attempts = attempts + 1 where job_id = (select job_id from jobs limit 1)").summary).toBe("UPDATE jobs");
-    expect(querySummary("delete from sandbox_usage where starts_at < now()").summary).toBe("DELETE sandbox_usage");
+    expect(querySummary("delete from limit_counters where starts_at < now()").summary).toBe("DELETE limit_counters");
     expect(querySummary("select set_config('app.tenant_id', $1, true)").summary).toBe("SELECT");
     expect(querySummary(`select u.id from unnest($1::text[]) as u join "records" r on r.record_id = u.id`).summary).toBe("SELECT records");
     expect(querySummary("  /* a note */ with recent as (select 1) select * from recent").summary).toBe("WITH recent");

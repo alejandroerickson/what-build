@@ -96,7 +96,7 @@ export function attribution(actor: { display_name?: string; surface?: string | n
   return name;
 }
 
-export const ROLE_WORD: Record<string, string> = { owner: "Owner", admin: "Admin", member: "Member", visitor: "Visitor", editor: "Editor", viewer: "Viewer", reader: "Reader" };
+export const ROLE_WORD: Record<string, string> = { owner: "Owner", admin: "Admin", member: "Member", guest: "Guest", editor: "Editor", viewer: "Viewer", reader: "Reader" };
 
 /** A role with its article, for sentences: "an editor", "a viewer". */
 export function aRole(role: string): string {

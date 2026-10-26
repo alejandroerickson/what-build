@@ -53,7 +53,7 @@ describe("counting calls", () => {
     const calls = await h.db.selectFrom("usage_calls").selectAll().execute();
     expect(calls).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ operation: "products.list", surface: "web", client: "", outcome: "ok", owner: false, sandbox: false }),
+        expect.objectContaining({ operation: "products.list", surface: "web", client: "", outcome: "ok", owner: false, example: false }),
         expect.objectContaining({ operation: "products.list", surface: "mcp", client: "Claude Code", outcome: "ok" }),
         expect.objectContaining({ operation: "products.update", surface: "web", outcome: "invalid_input" }),
         expect.objectContaining({ operation: "products.(unknown)", surface: "mcp", outcome: "unknown_action" }),
@@ -100,7 +100,8 @@ describe("counting calls", () => {
     expect(loggedPath("/.well-known/openid-configuration/mcp/t/acme")).toBe("/.well-known/openid-configuration/mcp/t/:org");
     expect(loggedPath("/acme/core/planner/story")).toBe("/:org/:team/:product/story");
     expect(loggedPath("/assets/index-abc/x.js")).toBe("/assets/index-abc/x.js");
-    expect(loggedPath("/api/v1/sandbox/reset-if-due")).toBe("/api/v1/sandbox/reset-if-due");
+    expect(loggedPath("/api/v1/organizations/limits")).toBe("/api/v1/organizations/limits");
+    expect(loggedPath("/t/acme/limits")).toBe("/t/:org/limits");
   });
 });
 
@@ -109,7 +110,7 @@ describe("a deployment without the key people are counted under", () => {
     const { countCall } = await import("@whatbuild/core");
     const before = (await h.db.selectFrom("usage_people").select("person").execute()).length;
     const principal = { account_id: "acct-without-key", email: "nokey@example.com", display_name: "No Key", auth_kind: "session" as const, surface: "web" as const, client: null };
-    countCall({ db: h.db, ports: { config: { instanceOwners: [] } } as never }, principal, { operation: "outcomes.list", feature: "outcomes", outcome: "ok", sandbox: false });
+    countCall({ db: h.db, ports: { config: { instanceOwners: [] } } as never }, principal, { operation: "outcomes.list", feature: "outcomes", outcome: "ok", example: false });
     await usageSettled();
     expect((await h.db.selectFrom("usage_people").select("person").execute()).length).toBe(before);
     expect(await h.db.selectFrom("usage_calls").select("calls").where("operation", "=", "outcomes.list").where("surface", "=", "web").execute()).not.toEqual([]);
@@ -153,7 +154,7 @@ describe("the usage report", () => {
   it("says how many came back, and when, without saying who", async () => {
     const day = (n: number) => sql<string>`((now() at time zone 'utc')::date - ${n}::int)`;
     const row = (person: string, n: number) =>
-      sql`insert into usage_people (day, person, feature, surface, client, sandbox, owner) values (${day(n)}, ${person}, 'sources', 'mcp', 'Claude', false, false)`.execute(h.db);
+      sql`insert into usage_people (day, person, feature, surface, client, example, owner) values (${day(n)}, ${person}, 'sources', 'mcp', 'Claude', false, false)`.execute(h.db);
     // One person first seen three weeks ago and back today; one first seen yesterday and back today;
     // one first seen two weeks ago who never came back.
     for (const [person, n] of [["back-later", 21], ["back-later", 0], ["new-twice", 1], ["new-twice", 0], ["gone-quiet", 14]] as const) await row(person, n);
@@ -172,16 +173,16 @@ describe("the usage report", () => {
     expect(month.cohorts.find((c: { weeks_after: number[] }) => c.weeks_after.length === 2)).toMatchObject({ people: 1, weeks_after: [0, 0] });
   });
 
-  it("can leave the public sandbox out, or count only it", async () => {
-    await sql`insert into usage_people (day, person, feature, surface, client, sandbox, owner) values ((now() at time zone 'utc')::date, 'sandbox-visitor', 'story', 'web', '', true, false)`.execute(h.db);
+  it("can leave the example organization out, or count only it", async () => {
+    await sql`insert into usage_people (day, person, feature, surface, client, example, owner) values ((now() at time zone 'utc')::date, 'example-guest', 'story', 'web', '', true, false)`.execute(h.db);
     const all = (await report(owner, "?days=1")).body.people.active;
-    expect((await report(owner, "?days=1&sandbox=exclude")).body.people.active).toBe(all - 1);
-    expect((await report(owner, "?days=1&sandbox=only")).body.people.active).toBe(1);
+    expect((await report(owner, "?days=1&example=exclude")).body.people.active).toBe(all - 1);
+    expect((await report(owner, "?days=1&example=only")).body.people.active).toBe(1);
   });
 
   it("keeps a person's days for 14 months, and the counts of calls", async () => {
-    await sql`insert into usage_people (day, person, feature, surface, client, sandbox, owner) values ((now() at time zone 'utc')::date - interval '15 months', 'long-gone', 'sources', 'web', '', false, false)`.execute(h.db);
-    await sql`insert into usage_calls (day, operation, surface, client, sandbox, owner, outcome) values ((now() at time zone 'utc')::date - interval '15 months', 'sources.list', 'web', '', false, false, 'ok')`.execute(h.db);
+    await sql`insert into usage_people (day, person, feature, surface, client, example, owner) values ((now() at time zone 'utc')::date - interval '15 months', 'long-gone', 'sources', 'web', '', false, false)`.execute(h.db);
+    await sql`insert into usage_calls (day, operation, surface, client, example, owner, outcome) values ((now() at time zone 'utc')::date - interval '15 months', 'sources.list', 'web', '', false, false, 'ok')`.execute(h.db);
     await pruneUsage(h.db);
     expect(await h.db.selectFrom("usage_people").select("person").where("person", "=", "long-gone").execute()).toEqual([]);
     expect(await h.db.selectFrom("usage_people").select("person").where("person", "=", "back-later").execute()).toHaveLength(2);
