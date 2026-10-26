@@ -398,6 +398,14 @@ agent and turns off the ones they are not using; for everything at once there is
 | a product's endpoint | that product's operations; `products.list` (narrowed to it); `products.limits` for its organization; the account reads above | every other product; team and tenant operations (`members.*`, `products.create`, `products.create_team`); moving or copying a source to another product |
 | `/mcp`, unscoped | every operation in every organization the person reaches, the example organization included; every account-level operation | nothing for being unscoped; the example organization refuses its guests' writes on every endpoint |
 
+What a connector offers is narrower than what it answers: an agent is listed only what the
+connection's level allows and what the person's roles reach
+([decision](../decisions/an-agent-is-offered-only-what-its-person-could-do.md),
+[§6.5](06-operations-and-adapters.md#65-mcp)). Through a scoped endpoint, their roles inside it;
+through `/mcp`, their highest roles in any one organization they are in (in the example, a
+guest's, which writes nothing), and not starting an organization, unless they may start one (an
+instance owner, or an allowance with room), when nothing is cut for their roles.
+
 The scope is resolved for the caller on the first tool call; an endpoint naming an organization or
 product they cannot reach answers `404` to every call, saying so. An endpoint whose address names
 the organization by a former slug keeps working, and every answer through it carries
@@ -619,14 +627,16 @@ account is its guest**:
 | A guest | How |
 |---|---|
 | reads every product | `membershipsFor` adds a tenant grant `guest` for the example to every account that holds no grant there, and `effectiveRole` makes it viewer on every team and product. The grant is never stored. |
-| changes nothing | `execute` refuses every call that writes with `403 example_read_only` before reading its input, and `resolveScope` refuses the same way an operation whose access the guest's role is below (editor, admin, owner). Exporting a product and a Story or Idea card preview are refused too. The message says to create an organization of one's own (`products.create_tenant`, or New organization in the web app). |
+| changes nothing | `execute` refuses every call that writes with `403 example_read_only` before reading its input, and `resolveScope` refuses the same way an operation whose access the guest's role is below (editor, admin, owner). Exporting a product and a Story or Idea card preview are refused too. The message says where the person's own work goes, as the web app's notice does: in an organization they are in, if they are in one; else in one they create (`products.create_tenant`, or New organization in the web app), if they may start one (an instance owner, or an allowance with room); else to ask whoever runs this WhatBuild, or to be invited to an organization, and not to call `products.create_tenant` (`exampleReadOnly` in `policy.ts`). |
 | sees no person | `members.list` answers an empty list with `guest: true`. Staff's names appear on what they wrote and in the activity log, as anywhere. |
 | meets the limit on calls a minute | `requests_per_minute` of the example's limits: the free plan's unless an instance owner changed it ([§9.7](09-data-lifecycle.md)). |
 
 `products.list` lists the example organization's products for every account, with
-`tenant.example: true`, and the organization among `tenants` with `example: true` and
-`your_role: "guest"` for a guest. A product-scoped MCP result there echoes `example: true` in its
-`scope`.
+`tenant.example: true`, and the organization among `tenants` with `example: true`. To a guest,
+`your_role` is `guest` wherever it is reported: on the organization, on each of its teams and
+products in `products.list`, in `products.get`, and in a product-scoped MCP result's `scope`,
+which echoes `example: true` there too (`reportedRole` in `policy.ts`). Everything a guest may do
+is still decided as a viewer's.
 
 **The grant fails closed.** The guest grant exists only while `tenants.example` is set, so taking
 `WHATBUILD_EXAMPLE_TENANT` away and restarting takes every guest's access with it, and naming the

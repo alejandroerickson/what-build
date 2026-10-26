@@ -73,8 +73,14 @@ describe("the example organization, for a guest", () => {
   it("lists its products for every account, marked as the example, with the guest's role", async () => {
     const list = (await gus.api("GET", "/api/v1/me/products")).body;
     expect(list.items.map((i: { path: string }) => i.path).sort()).toEqual([ex.product.path, ex.annex.path].sort());
-    for (const item of list.items) expect(item).toMatchObject({ tenant: { slug: ex.tenant.slug, example: true }, your_role: "viewer" });
+    for (const item of list.items) expect(item).toMatchObject({ tenant: { slug: ex.tenant.slug, example: true }, your_role: "guest" });
     expect(list.tenants).toEqual([expect.objectContaining({ slug: ex.tenant.slug, example: true, your_role: "guest" })]);
+    expect(list.tenants[0].teams.length).toBeGreaterThan(0);
+    for (const team of list.tenants[0].teams) expect(team.your_role).toBe("guest");
+    // A product's own answer says the same; the guest reads it as a viewer, with its concept and every count.
+    const product = await gus.api("GET", P);
+    expect(product.body).toMatchObject({ your_role: "guest", counts: { sources: expect.any(Number) } });
+    expect(product.body.concept).toEqual(expect.any(String));
   });
 
   it("reads everything a viewer reads: sources, search, the Story and an attachment's bytes", async () => {
@@ -116,6 +122,36 @@ describe("the example organization, for a guest", () => {
       expect(r.body.error.message).toMatch(/create an organization of your own/);
     }
     expect(await holdings()).toBe(before);
+  });
+
+  it("tells a guest who may start no organization to ask whoever runs this WhatBuild, and one with an organization to work there", async () => {
+    // Refused as a product's write, an organization's admin action and an export: each place a guest's write is refused.
+    const writes: [string, string, unknown][] = [
+      ["POST", `${P}/sources`, { title: "A guest's source", tags: ["notes"] }],
+      ["POST", `${T}/teams`, { name: "A guest's team" }],
+      ["POST", `${P}/exports`, {}],
+    ];
+    const refusals = async (who: Browser) =>
+      Promise.all(writes.map(async ([method, path, body]) => {
+        const r = await who.api(method, path, body);
+        expect(r.status, `${path} ${JSON.stringify(r.body)}`).toBe(403);
+        expect(r.body.error.code, path).toBe("example_read_only");
+        return r.body.error.message as string;
+      }));
+    const olive = await h.signIn("olive@example.com", "Olive Owner");
+    expect((await olive.api("PUT", "/api/v1/tenant-allowances", { email: "nell@guest.example", allowed: 0, notify: false })).status).toBe(200);
+    const nell = await h.signIn("nell@guest.example", "Nell Guest");
+    for (const message of await refusals(nell)) {
+      expect(message).toMatch(/is the example organization/);
+      expect(message).toMatch(/may not start an organization: for one of your own, ask whoever runs this WhatBuild/);
+      expect(message).not.toMatch(/create an organization of your own/);
+    }
+    const ivy = await h.signIn("ivy@own.example", "Ivy Own");
+    expect((await ivy.api("POST", "/api/v1/tenants", { name: "Ivy's own" })).status).toBe(201);
+    for (const message of await refusals(ivy)) {
+      expect(message).toMatch(/Do your own work in an organization you are in/);
+      expect(message).not.toMatch(/create_tenant|ask whoever runs/);
+    }
   });
 
   it("shows a guest none of its people, and lists no guest to its members", async () => {

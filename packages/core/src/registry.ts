@@ -11,6 +11,11 @@ export type ProductRole = "reader" | "viewer" | "editor" | "admin";
  */
 export type TenantRole = "guest" | "member" | "admin" | "owner";
 /**
+ * A role on a product or a team as answers report it (`your_role`): a guest of the example
+ * organization is `guest` there, though everything it may do is decided as a viewer's.
+ */
+export type ReportedRole = ProductRole | "guest";
+/**
  * What an agent's connection may do, chosen by the person when they connect it: the most it does,
  * whatever their own role. `viewer` reads, `editor` also writes and archives, `admin` also deletes
  * permanently and manages products and people. It never adds to the person's own role.
@@ -139,6 +144,12 @@ export interface OperationDef<I extends z.ZodType = z.ZodType, O = unknown, P = 
    * the organization lists it only to someone who holds that role there.
    */
   needsSomewhere?: ProductRole;
+  /**
+   * Starting an organization: only an instance owner, or an account whose allowance has room, may
+   * call it, which its handler checks. The unscoped connector's tool list leaves it out for anyone
+   * else, whose call its handler refuses.
+   */
+  needsTenantAllowance?: boolean;
   /**
    * Slow work that must hold no database connection, such as a download. It runs once the call is
    * authorized and its input valid, outside any transaction, and what it returns reaches the

@@ -33,7 +33,7 @@ it exists. The example organization is the exception everyone reads.
    see in one of the standard organization's sources (take it as Sam first). *Expect:* search finds
    nothing from another organization; search for a word from a Crewboard source finds it.
 5. **MCP, as Casey.** `products(action="list")`. *Expect:* Crewboard with `your_role` editor, and the
-   example organization's products as a guest; nothing from the standard organization. Then call
+   example organization's products with `your_role` guest; nothing from the standard organization. Then call
    `sources` `get`, `derived` `text` and `search` with the standard organization's product path and
    with a source id from it. *Expect:* each answers `404 not_found`, with none of its data.
 6. **MCP, as Casey, at the standard organization's endpoint** (`--endpoint /mcp/t/<standard slug>`).
@@ -46,7 +46,8 @@ it exists. The example organization is the exception everyone reads.
 8. **Web and MCP, as Casey.** Write in Crewboard: add a source over MCP (synthetic text from the
    run's folder), and comment on it on the web. *Expect:* both work and are attributed to Casey.
    Then try the same writes in the example organization. *Expect:* refused with
-   `403 example_read_only`.
+   `403 example_read_only`, which over MCP tells Casey to do their own work in an organization they
+   are in, not to create one.
 9. **Web and MCP, as Avery (reader).** Sign in, and open Crewboard's Evidence by its address; over
    MCP, list Crewboard's sources. *Expect:* the web takes Avery to the Story, which reads; MCP
    refuses the sources clearly (not an empty list). Avery sees nothing of the standard organization.

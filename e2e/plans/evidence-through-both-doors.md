@@ -94,8 +94,9 @@ tried.
     product in the example organization, read a source and search it; then try steps 2 and 3 there
     (create a source, request an upload) and an export. Check that nothing from steps 2 to 13
     appears in the example organization. *Expect:* reads and search work; every write and the
-    export are refused with `403 example_read_only`, naming how to create an organization of one's
-    own, and nothing changed; the two organizations stay separate.
+    export are refused with `403 example_read_only`, saying that, since the guest may not start an
+    organization, they ask whoever runs this WhatBuild for one (never to call `create_tenant`), and
+    nothing changed; the two organizations stay separate.
 15. **The free plan, as Riley and then Sam.** As Riley, on Organizations, put the standard
     organization on the free plan with Exports set to 0, and save. As Sam, read
     `products(action="limits")` for it over MCP, then export the product, then open Plan and limits

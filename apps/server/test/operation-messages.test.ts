@@ -136,7 +136,7 @@ describe("descriptions that say only what is true", () => {
 
   it("says what the products tool is for, export and usage included", () => {
     const products = toolDefinitions().tools.find((t) => t.name === "products")!;
-    expect(products.description).toMatch(/export a whole product as a ZIP/);
+    expect(products.description).toMatch(/Export a whole product as a ZIP/);
     expect(products.description).toMatch(/how it is used/);
   });
 });

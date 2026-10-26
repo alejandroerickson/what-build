@@ -45,6 +45,24 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
   that removes and adds more than half of the two texts' words, or more than 2,000, rewrote the
   text, and any other edited it. Entries already in Activity keep their wording, and Activity's
   line for any of them now reads "changed the text of" a source, where it read "wrote the text of".
+- **The unscoped agent connector offers only what the person's roles reach, too.** It concerns
+  every deployment and asks nothing of one. On `/mcp`, someone who may not start an organization
+  (no instance owner, no allowance with room) is offered what their highest role in any
+  organization they are in reaches: a guest of the example organization no write, someone who
+  reads only the Story the Story alone, and nobody `create_tenant`. Someone who may start an
+  organization is offered everything their connection's level allows, as before. A call to
+  anything else is refused as before, with what it needs. A connected client sees the shorter
+  list in a new session.
+- **A guest of the example organization reads `your_role: "guest"`** there, in `products.list`
+  (its products and teams), `products.get` and an MCP answer's `scope`, over REST and MCP, where
+  it read `viewer`. What a guest may do is unchanged. A script that read `viewer` there to tell a
+  guest's read access reads `guest` too.
+- **Refusing a guest's write in the example organization says where their own work goes**: an
+  organization they are in, one they may create, or, when they may create none, to ask whoever
+  runs this WhatBuild. It no longer tells everyone to create an organization.
+- **A tool's description speaks only of the actions the connection is offered**: an Edit
+  connection's `members` no longer mentions granting, revoking or inviting. The skill is now at
+  version 0.40.0; agents fetch it again as the server's instructions tell them.
 
 ## v0.23.0
 

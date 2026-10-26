@@ -1,13 +1,17 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
+import { connectorOffers, levelAllows, OPERATIONS, reachesAnywhere, roleReaches, type ConnectionLevel, type ConnectorScope, type OperationDef, type Standing } from "@whatbuild/core";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { syncExampleTenant } from "../src/example-organization.ts";
+import { toolDefinitions } from "../src/mcp.ts";
 import { startHarness, type Browser, type Harness } from "./harness.ts";
 
 // An agent is offered what the person could do, as the web app shows them only that. The instance
 // owners' actions are listed to them alone. A connector scoped to an organization or a product
-// lists only what its fence answers and what the person's roles inside it reach. A call to what a
-// connection is not offered is still answered with what it needs, never as unknown.
+// lists only what its fence answers and what the person's roles inside it reach; the unscoped one,
+// what their roles in any organization they are in reach, unless they may start an organization.
+// A call to what a connection is not offered is still answered with what it needs, never as
+// unknown, and no tool's description speaks of what it does not offer.
 
 let h: Harness;
 let root: Browser; // owns this WhatBuild
@@ -44,10 +48,41 @@ async function offered(client: Client): Promise<{ actions: string[]; description
 }
 
 async function offeredAt(browser: Browser, at: string, level: "viewer" | "editor" | "admin" = "admin") {
+  return (await offeredWith(browser, at, level)).actions;
+}
+
+async function offeredWith(browser: Browser, at: string, level: "viewer" | "editor" | "admin" = "admin") {
   const client = await connect(await h.connectAgent(browser, `Agent at ${at} (${level})`, at, level), at);
   const list = await offered(client);
   await client.close();
-  return list.actions;
+  return list;
+}
+
+/** The operation an offered `tool.action`, or a standalone tool, is. */
+function operationOf(action: string): OperationDef {
+  const [tool, name] = action.split(".");
+  return OPERATIONS.find((o) => o.mcp.tool === tool && o.mcp.action === name)!;
+}
+
+/** Every action a connection at this level is offered when nothing but its level and the instance owners' own actions narrow it. */
+const everythingAt = (level: ConnectionLevel) =>
+  OPERATIONS.filter((o) => !o.webOnly && !o.instanceOwnersOnly && levelAllows(level, o)).map((o) => (o.mcp.action ? `${o.mcp.tool}.${o.mcp.action}` : o.mcp.tool)).sort();
+
+/** Let the person start no organization, whatever the default. */
+async function noAllowance(email: string) {
+  expect((await root.api("PUT", "/api/v1/tenant-allowances", { email, allowed: 0, notify: false })).status).toBe(200);
+}
+
+/** What a grouped tool's description says it does: before the pointer to describe and the list of actions. */
+const said = (description: string) => description.slice(0, description.indexOf("\nActions:")).split(" Pick an action;")[0]!;
+
+/** Each of a tool's actions its description speaks of by name (`set_style`, or `set style`), though the connection is not offered it. */
+function unofferedNamed(tool: string, description: string, offeredActions: string[]): string[] {
+  const prose = said(description);
+  const all = toolDefinitions().groups.get(tool)!.map((o) => o.mcp.action!);
+  return all
+    .filter((a) => !offeredActions.includes(a))
+    .filter((a) => new RegExp(`\\b(${a}|${a.replace(/_/g, " ")})\\b`, "i").test(prose));
 }
 
 beforeAll(async () => {
@@ -170,6 +205,49 @@ describe("a connector scoped to an organization", () => {
   });
 });
 
+describe("the unscoped connector, for someone who may start no organization", () => {
+  beforeAll(async () => {
+    for (const email of ["rita@example.com", "eddie@example.com"]) await noAllowance(email);
+  });
+
+  it("lists a reader everywhere the Story and the account's own reads", async () => {
+    const actions = await offeredAt(rita, "/mcp");
+    expect(actions).toEqual(expect.arrayContaining(["story.list_pages", "story.get_page", "story.get_hierarchy", "products.list", "products.get", "products.limits", "get_skill"]));
+    for (const a of ["sources.list", "search", "outcomes.list", "mockups.list", "members.list", "story.guidance", "products.update_concept", "products.create_tenant", "products.create", "sources.create"])
+      expect(actions, a).not.toContain(a);
+    // Only the Story's reads, the account's own reads (and its feedback), and the organization's limits.
+    for (const a of actions) {
+      const op = operationOf(a);
+      expect(op.access === "story" || (op.scope === "account" && (!op.mutates || op.name === "submit_feedback")) || op.name === "products.limits", a).toBe(true);
+    }
+  });
+
+  it("lists an editor somewhere their writes, and no one to manage, no product to make and no organization to start", async () => {
+    const actions = await offeredAt(eddie, "/mcp");
+    expect(actions).toEqual(expect.arrayContaining(["sources.create", "outcomes.create", "products.update_concept", "story.publish", "members.list"]));
+    for (const a of ["members.grant", "members.revoke", "members.activity", "sources.delete", "products.create", "products.create_team", "products.create_tenant"]) expect(actions, a).not.toContain(a);
+  });
+
+  it("still tells a call beyond the person's role what it needs, never that it is unknown", async () => {
+    const client = await connect(await h.connectAgent(rita, "Rita's agent"));
+    const list = result(await client.callTool({ name: "sources", arguments: { action: "list", product: path, params: {} } }));
+    expect(list.status).toBe(403);
+    expect(list.json.error.message).toContain("needs viewer");
+    const start = result(await client.callTool({ name: "products", arguments: { action: "create_tenant", params: { name: "Not Rita's" } } }));
+    expect(start.status).toBe(403);
+    expect(start.json.error.code).toBe("tenant_allowance");
+    await client.close();
+  });
+});
+
+describe("the unscoped connector, for someone who may start an organization", () => {
+  it("lists everything the connection's level allows, whatever their role", async () => {
+    // Vic views one product, and may start an organization and work in it in the same session.
+    expect((await offeredAt(vic, "/mcp")).sort()).toEqual(everythingAt("admin"));
+    expect((await offeredAt(vic, "/mcp", "editor")).sort()).toEqual(everythingAt("editor"));
+  });
+});
+
 describe("a connector scoped to a product of the example organization", () => {
   let example: string;
   let gus: Browser; // holds no grant there: its guest
@@ -186,5 +264,92 @@ describe("a connector scoped to a product of the example organization", () => {
     for (const a of ["sources.create", "sources.annotate", "outcomes.create", "story.publish"]) expect(actions, a).not.toContain(a);
     // Feedback is the person's own, whatever their role.
     expect(actions).toContain("submit_feedback");
+  });
+
+  it("lists its guest no write on the unscoped connector when they may start no organization", async () => {
+    const gail = await h.signIn("gail@guest.example", "Gail Guest");
+    await noAllowance("gail@guest.example");
+    const actions = await offeredAt(gail, "/mcp");
+    expect(actions).toEqual(expect.arrayContaining(["products.list", "sources.list", "search", "story.list_pages", "outcomes.list", "submit_feedback"]));
+    for (const a of actions) expect(!operationOf(a).mutates || a === "submit_feedback", a).toBe(true);
+    // A guest who may start one is offered it all, to work in the organization they create.
+    expect(await offeredAt(gus, "/mcp")).toEqual(expect.arrayContaining(["products.create_tenant", "sources.create"]));
+  });
+
+  it("tells its guest their role, and where their own work goes when a write is refused", async () => {
+    const gail = await h.signIn("gail@guest.example", "Gail Guest");
+    const client = await connect(await h.connectAgent(gail, "Gail's agent"));
+    const list = result(await client.callTool({ name: "products", arguments: { action: "list" } })).json;
+    expect(list.items.find((i: { path: string }) => i.path === example)).toMatchObject({ your_role: "guest", tenant: { example: true } });
+    const read = result(await client.callTool({ name: "outcomes", arguments: { action: "list", product: example, params: {} } }));
+    expect(read.json.scope).toMatchObject({ your_role: "guest", example: true });
+    const write = result(await client.callTool({ name: "sources", arguments: { action: "create", product: example, params: { title: "Not here" } } }));
+    expect(write.status).toBe(403);
+    expect(write.json.error.code).toBe("example_read_only");
+    expect(write.json.error.message).toMatch(/may not start an organization: for one of your own, ask whoever runs this WhatBuild/);
+    expect(write.json.error.message).not.toMatch(/create an organization of your own/);
+    await client.close();
+    const able = await connect(await h.connectAgent(gus, "Gus's agent"));
+    const refused = result(await able.callTool({ name: "sources", arguments: { action: "create", product: example, params: { title: "Not here" } } }));
+    expect(refused.json.error.message).toMatch(/create an organization of your own: products\(action="create_tenant"\)/);
+    await able.close();
+  });
+});
+
+describe("each tool's description", () => {
+  const levels: ConnectionLevel[] = ["viewer", "editor", "admin"];
+  const standings: Record<string, Standing> = {
+    "a product's reader": { role: "reader", teamRole: null, tenantRole: null },
+    "a product's viewer": { role: "viewer", teamRole: null, tenantRole: null },
+    "a product's editor": { role: "editor", teamRole: null, tenantRole: null },
+    "a product's admin": { role: "admin", teamRole: null, tenantRole: null },
+    "a team's editor": { role: "editor", teamRole: "editor", tenantRole: null },
+    "a team's admin": { role: "admin", teamRole: "admin", tenantRole: null },
+    "an organization's admin": { role: "admin", teamRole: "admin", tenantRole: "admin" },
+    "an organization's owner": { role: "admin", teamRole: "admin", tenantRole: "owner" },
+    "a guest of the example": { role: "viewer", teamRole: "viewer", tenantRole: "guest" },
+  };
+  const fence = (product: boolean, standing: Standing): ConnectorScope => ({
+    tenant: { tenant_id: "t", slug: "acme", name: "Acme" },
+    product: product ? { product_id: "p", path: "acme/core/crewboard", name: "Crewboard" } : null,
+    standing,
+  });
+
+  it("names no action the connection is not offered, for every level and role", () => {
+    const lists: [string, (op: OperationDef) => boolean][] = [];
+    for (const level of levels) {
+      const allowed = (op: OperationDef) => levelAllows(level, op) && !op.instanceOwnersOnly;
+      lists.push([`${level}, unnarrowed`, allowed], [`${level}, an instance owner`, (op) => levelAllows(level, op)]);
+      for (const [who, standing] of Object.entries(standings)) {
+        lists.push([`${level}, ${who}, unscoped`, (op) => allowed(op) && reachesAnywhere(op, [standing])]);
+        for (const product of [true, false]) {
+          const f = fence(product, standing);
+          lists.push([`${level}, ${who}, scoped to ${product ? "a product" : "an organization"}`, (op) => allowed(op) && connectorOffers(f, op) && roleReaches(op, standing)]);
+        }
+      }
+    }
+    for (const [what, keep] of lists) {
+      for (const [tool, ops] of toolDefinitions(keep).groups) {
+        const description = toolDefinitions(keep).tools.find((t) => t.name === tool)!.description;
+        expect(unofferedNamed(tool, description, ops.map((o) => o.mcp.action!)), `${tool}, ${what}`).toEqual([]);
+      }
+    }
+  });
+
+  it("says nothing of granting or inviting to an Edit connection, which may only list the people", async () => {
+    const { actions, descriptions } = await offeredWith(olive, "/mcp", "editor");
+    expect(actions.filter((a) => a.startsWith("members."))).toEqual(["members.list"]);
+    expect(said(descriptions["members"]!)).not.toMatch(/grant|revoke|invit/i);
+    expect((await offeredWith(olive, "/mcp", "admin")).descriptions["members"]).toMatch(/Grant or revoke roles/);
+  });
+
+  it("says nothing of publishing or the style's guidance to a reader, nor of writing to a viewer", async () => {
+    const reader = (await offeredWith(rita, `/mcp/t/${path}`)).descriptions;
+    expect(said(reader["story"]!)).not.toMatch(/publish|set_style|guidance|notes for agents/i);
+    const viewer = (await offeredWith(vic, `/mcp/t/${path}`)).descriptions;
+    expect(said(viewer["sources"]!)).not.toMatch(/create|comment/i);
+    expect(said(viewer["attachments"]!)).not.toMatch(/add files/i);
+    expect(said(viewer["story"]!)).toMatch(/get_style/);
+    expect(said(viewer["story"]!)).not.toMatch(/set_style|To publish/);
   });
 });

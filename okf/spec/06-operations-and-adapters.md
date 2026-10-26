@@ -780,8 +780,9 @@ organization and its preview, and removing an account): ten grouped by noun, thr
 ([decision](../decisions/mcp-tools-grouped-by-noun.md)). A connection is listed
 only the actions its level allows and its person could do (below): the instance owners' actions
 (`tenant_allowances`, `set_tenant_allowance`, `remove_tenant_allowance`, `usage`,
-`organizations`, `set_limits`, `accounts`) to an owner of the instance alone, and on a scoped
-connector only what its fence answers and the person's roles inside it reach
+`organizations`, `set_limits`, `accounts`) to an owner of the instance alone, on a scoped
+connector only what its fence answers and the person's roles inside it reach, and on the unscoped
+connector what their roles in some organization they are in reach, unless they may start one
 ([decision](../decisions/an-agent-is-offered-only-what-its-person-could-do.md)). The table names
 every action any connection may be offered.
 
@@ -808,8 +809,11 @@ fields directly, plus `product` when product-scoped.
 Rules:
 
 - **Few tools, grouped actions.** New capability arrives as actions, rarely as tools.
-- **Self-describing.** A grouped tool's description is one sentence about the noun, a pointer to
-  `describe`, and one line per action. Called with `action` and `describe: true` (and no
+- **Self-describing.** A grouped tool's description is a few sentences about the noun, a pointer
+  to `describe`, and one line per action. Its sentences speak only of the actions the connection
+  is offered (`GROUP_PARTS` in `mcp.ts`), as its lines do: an Edit connection's `members`, which
+  lists people only, says nothing of granting, revoking or inviting, and a reader's `story`
+  nothing of publishing. Called with `action` and `describe: true` (and no
   `params`), it returns that action's scope, access, whether it mutates, its guidance and its
   exact JSON Schema — without executing.
 - **Strict.** Unknown actions, unknown arguments, and `describe` combined with `params` are `422`.
@@ -842,16 +846,22 @@ Rules:
 - **Listed by level and by the person.** `tools/list` answers each connection with only the
   actions its level allows ([§3.8](03-accounts-teams-and-identity.md)): Read only is offered
   reads, Edit also writes and archives, Admin also permanent deletes and managing products and
-  people. Of those, it offers the instance owners' actions only to an owner of the instance. A
-  scoped connector offers besides only what its fence answers and the person's roles inside it
-  reach: their role on the product, or in an organization the highest they hold anywhere in it
-  (on its teams, for a team's actions), so a reader is offered the Story alone, a guest of the
-  example organization no write, and an editor no one to manage. A scoped list costs one lookup
-  of those roles. A call to anything not listed, from a client that knows it anyway, reaches
-  `execute` and is refused with what it needs (`403 connection_level`, `403 forbidden`); it is
-  never `unknown_action`.
+  people. Of those, it offers the instance owners' actions only to an owner of the instance, and
+  only what the person's roles reach. A scoped connector offers only what its fence answers and
+  their roles inside it reach: their role on the product, or in an organization the highest they
+  hold anywhere in it (on its teams, for a team's actions). The unscoped connector offers what the
+  highest roles they hold in any one organization they are in reach, the example organization's
+  guest grant among them, and not `products.create_tenant` (`needsTenantAllowance`); someone who
+  may start an organization (an instance owner, or an allowance with room) is offered everything
+  their level allows, since they may create one and work in it in the same session. So a reader
+  is offered the Story alone, a guest of the example organization no write, and an editor no one
+  to manage. A list costs one lookup of those roles, and on the unscoped connector of the
+  allowance. A call to anything not listed, from a client that knows it anyway, reaches `execute`
+  and is refused with what it needs (`403 connection_level`, `403 forbidden`,
+  `403 example_read_only`, `403 tenant_allowance`); it is never `unknown_action`.
 - **Results** are JSON in one text content block. Product-scoped results add `scope`
-  (tenant, team, product with its path, `your_role` capped by the connection's level,
+  (tenant, team, product with its path, `your_role` capped by the connection's level and `guest`
+  for a guest of the example organization,
   `connection_level`, `example: true` in the example organization, and `skill_version`, the
   server's skill version now). Every result through a scoped endpoint whose address names its
   organization by a former slug adds `connector_address`, the current address, for the agent to

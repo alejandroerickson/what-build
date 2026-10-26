@@ -199,13 +199,13 @@ async function run(
   // Scope first: a caller who cannot see the product learns nothing, not even whether their input was valid.
   const raw = (rawInput && typeof rawInput === "object" ? rawInput : {}) as Record<string, unknown>;
   const asInstanceOwner = Boolean(op.allowInstanceOwners) && isInstanceOwner(env.ports.config, principal.email);
-  const resolved = await resolveScope(env.db, principal, op.scope, op.access, refFromInput(op, raw, ref), op.name, asInstanceOwner);
+  const resolved = await resolveScope(env.db, principal, op.scope, op.access, refFromInput(op, raw, ref), op.name, { asInstanceOwner, allowances: env.ports.config });
   // An agent acts with the lower of the person's role and its connection's level.
   const scope: Scope = principal.level ? { ...resolved, role: capRole(resolved.role, principal.level) } : resolved;
   reached.scope = scope;
   if (connector) checkConnectorScope(connector, op, scope);
   // The example organization is read by everyone and changed by nobody but its members.
-  if (op.mutates && isGuest(scope)) throw exampleReadOnly(scope.tenant!.name, op.name);
+  if (op.mutates && isGuest(scope)) throw await exampleReadOnly(env.db, env.ports.config, principal, scope.tenant!.name, op.name);
   const limits = await limitsFor(env.db, scope);
   if (limits) await admitCall(env.db, limits, principal, op);
   // A day's use is counted on every plan, so an organization moved to the free plan during a day meets what that day already used.
