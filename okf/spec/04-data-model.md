@@ -575,12 +575,18 @@ and a link written with a name this deployment answered on before (its default h
 domain) opens here even once that name is gone. A link with an old name to anywhere else in the
 deployment is left as written; while the name still reaches the deployment, the page it opens
 moves to the public URL ([§2.3](02-architecture.md#23-the-shape-of-the-deployment)).
-The stored HTML is never changed. The app resets a frame that loads a second document (a
+A root-relative link (`/t/…`) is pointed at the app's origin too, so it opens the app wherever the
+page is served from. The stored HTML is never changed. The app resets a frame that loads a second document (a
 page navigating itself by script) and says so, and the app's own pages send
 `Cross-Origin-Opener-Policy: same-origin`, so a Story page cannot keep a handle to an app tab it
 opened and redirect it later. The print view drops scripts, event handlers and every element a
 Story page may not hold, forms included, whatever a stored page holds (a mockup page it shows
 too).
+On a deployment with a content site (`WHATBUILD_CONTENT_URL`), the route keeps its address and
+its checks, and hands the frame to the content site, which serves the version under the same
+headers, framed by the app's origin alone; the print view and a style's specimen move the same
+way ([§6.4](06-operations-and-adapters.md),
+[decision](../decisions/with-a-content-site-every-page-and-inline-file-is-served-from-it.md)).
 
 **Preview.** `story.preview` takes exactly what `story.publish` takes and runs the same code up to
 the point of writing ([`ops/story.ts`](../../packages/core/src/ops/story.ts), `draftVersion`):
@@ -886,7 +892,7 @@ scripts (`'unsafe-inline' 'unsafe-eval'`), styles, images, fonts, media, `connec
 An unknown type is served as an attachment. An HTML document gets the frame script after its
 stored bytes, with the prototype's address, so its links within the prototype stay in its frame.
 With `WHATBUILD_CONTENT_URL` set, the route answers on that host only, the content site answers
-nothing else, and the app's `frame-src` names it.
+nothing of the app's, and the app's `frame-src` names its `/prototypes/`.
 
 **Rendering.** A page's HTML is served by `GET …/mockups/{mockup_id}/versions/{n}/pages/{page_id}/html`
 with the Story's sandbox and one addition, `allow-forms`, in the Content-Security-Policy and in
@@ -895,7 +901,8 @@ HTML route serves a page that shows a mockup page in the same mockup sandbox. It
 a reader may read it. A page's frame is its `width` × `height`; content taller than `height`
 scrolls inside the frame, on the canvas in interact mode and on the Story ([§7.7](07-web-app.md),
 [§7.8](07-web-app.md)). A long document can be one page that scrolls or several pages side by
-side; the choice is how people will read it.
+side; the choice is how people will read it. With a content site, the route hands the frame to
+the content site as a Story page's does (§4.11), under a grant naming the version and the page.
 
 **Download.** `mockups.get_download { mockup_id, version? }` returns a short-lived grant for
 `GET /api/v1/downloads/mockup/{version_id}` with the `X-WhatBuild-Download-Grant` header. The ZIP

@@ -487,13 +487,14 @@ export function ideaCardDocument(
 
 /**
  * The headers on every response that serves a card: its sandbox (scripts only, in an opaque origin),
- * no network, and no script but WhatBuild's own, by its nonce.
+ * no network, and no script but WhatBuild's own, by its nonce. `ancestor` is who may frame it: the
+ * app's own origin, or, for a card served from the content site, the app's origin by name.
  */
-export function ideaCardResponseHeaders(nonce: string): Record<string, string> {
+export function ideaCardResponseHeaders(nonce: string, ancestor = "'self'"): Record<string, string> {
   return {
     "Content-Security-Policy":
       `sandbox allow-scripts; default-src 'none'; script-src 'nonce-${nonce}'; style-src 'unsafe-inline'; img-src data:; font-src data:; ` +
-      "media-src 'none'; connect-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'self'",
+      `media-src 'none'; connect-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors ${ancestor}`,
     "Cache-Control": "no-store",
     "X-Content-Type-Options": "nosniff",
     "Referrer-Policy": "no-referrer",

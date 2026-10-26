@@ -632,7 +632,8 @@ export const preview = defineOperation({
       preview: {
         preview_id,
         method: "GET",
-        url: `${ctx.ports.config.publicBaseUrl}/api/v1/downloads/story-preview/${preview_id}`,
+        // On the content site when the deployment has one, as every document of people's HTML is.
+        url: `${ctx.ports.config.contentBaseUrl ?? ctx.ports.config.publicBaseUrl}/api/v1/downloads/story-preview/${preview_id}`,
         headers: { [DOWNLOAD_GRANT_HEADER]: token },
         expires_at: expiresAt.toISOString(),
       },
@@ -991,20 +992,39 @@ const printInput = z.strictObject({
     .describe(`The pages to include, 1 to ${PRINT_MAX_PAGES}; exactly these, never their sub-pages. In REST, a comma-separated list.`),
 });
 
-/** The chosen pages with their current versions, in tree order with outline levels. */
-async function printPages(ctx: OpContext, ids: string[]) {
+/** The versions a print view of the chosen pages shows: each one's current version. */
+async function printVersions(ctx: OpContext, ids: string[]): Promise<string[]> {
   const wanted = uniq(ids);
   const rows = await ctx.db
-    .selectFrom("story_pages as p")
-    .innerJoin("story_versions as v", "v.version_id", "p.current_version_id")
-    .select(["p.page_id", "p.title", "p.archived_at", "v.n", "v.created_at", "v.html", "v.mockup"])
-    .where("p.product_id", "=", productId(ctx))
-    .where("p.page_id", "in", wanted)
+    .selectFrom("story_pages")
+    .select(["page_id", "current_version_id", "archived_at"])
+    .where("product_id", "=", productId(ctx))
+    .where("page_id", "in", wanted)
     .execute()
     // A reader is given only live pages, so an archived one is missing for them.
     .then((rs) => (readsOnlyTheStory(ctx.scope.role) ? rs.filter((r) => !r.archived_at) : rs));
   const missing = wanted.filter((w) => !rows.some((r) => r.page_id === w));
   if (missing.length) throw notFound(`These Story pages have never been published in this product: ${missing.join(", ")}.`, { missing });
+  return wanted.map((w) => rows.find((r) => r.page_id === w)!.current_version_id);
+}
+
+/**
+ * The pages at these versions, in tree order with outline levels. The print view's own address
+ * names the versions it was issued for (content-address.ts): a page deleted since, or archived
+ * since for a reader, is missing.
+ */
+async function printPages(ctx: OpContext, versionIds: string[]) {
+  const wanted = uniq(versionIds);
+  const rows = await ctx.db
+    .selectFrom("story_pages as p")
+    .innerJoin("story_versions as v", "v.page_id", "p.page_id")
+    .select(["p.page_id", "p.title", "p.archived_at", "v.n", "v.created_at", "v.html", "v.mockup"])
+    .where("p.product_id", "=", productId(ctx))
+    .where("v.product_id", "=", productId(ctx))
+    .where("v.version_id", "in", wanted)
+    .execute()
+    .then((rs) => (readsOnlyTheStory(ctx.scope.role) ? rs.filter((r) => !r.archived_at) : rs));
+  if (rows.length !== wanted.length) throw notFound("A page of this print view was deleted or archived since it was opened. Open the print view again.");
   const h = await resolvedHierarchy(ctx);
   const story = [...h.items, ...[...h.unplaced, ...h.mockups].map((m) => ({ page_id: m.page_id, children: [] }))];
   const order = printOrder(story, rows.map((r) => ({ page_id: r.page_id, title: r.title })));
@@ -1032,7 +1052,7 @@ export const printView = defineOperation({
   rest: { method: "GET", path: "/story/print-view" },
   mcp: { tool: "story", action: "print_view" },
   async handler(ctx, input) {
-    const pages = await printPages(ctx, input.page_ids);
+    const pages = await printPages(ctx, await printVersions(ctx, input.page_ids));
     const path = printPath(ctx, pages.map((p) => p.page_id));
     return {
       product: { name: ctx.scope.product!.name, path: productPath(ctx) },
@@ -1058,10 +1078,26 @@ export const printDocument = defineOperation({
   rest: { method: "GET", path: "/story/print" },
   mcp: { tool: "story", action: "print_view" },
   async handler(ctx, input) {
-    const pages = await printPages(ctx, input.page_ids);
-    const nonce = randomToken(18);
-    const html = composePrintDocument({ productName: ctx.scope.product!.name, exportedAt: ctx.now, pages, nonce });
-    return { html, nonce };
+    return printDocumentAt(ctx, await printVersions(ctx, input.page_ids));
+  },
+});
+
+/** The print view of these Story page versions: the document, and the nonce its one script runs by. */
+export async function printDocumentAt(ctx: OpContext, versionIds: string[]): Promise<{ html: string; nonce: string }> {
+  const pages = await printPages(ctx, versionIds);
+  const nonce = randomToken(18);
+  return { html: composePrintDocument({ productName: ctx.scope.product!.name, exportedAt: ctx.now, pages, nonce }), nonce };
+}
+
+/**
+ * The versions the print view of the chosen pages shows, with the print view's own checks. With a
+ * content site, the REST adapter's GET /story/print runs this rather than printDocument, and hands
+ * the browser to the content site under a grant naming these versions.
+ */
+export const printSelection = defineOperation({
+  ...printDocument,
+  async handler(ctx, input) {
+    return { versions: await printVersions(ctx, input.page_ids) };
   },
 });
 

@@ -202,19 +202,40 @@ holds each one; the linked decisions say why. Observed in the code on 2026-10-10
   `allow-same-origin` (an opaque origin), `default-src 'none'`, `connect-src 'none'`,
   `form-action 'none'`, `frame-ancestors 'self'`, `no-store`, `nosniff`, `no-referrer`: a Story
   page and a style's specimen; a mockup page, on its canvas and on the Story, carries
-  `MOCKUP_RESPONSE_HEADERS`, the same with `allow-forms` (`pageResponseHeaders`). The print view
+  `MOCKUP_RESPONSE_HEADERS`, the same with `allow-forms` (`pageResponseHeaders`). Served from a
+  content site, the same headers name the app's origin in `frame-ancestors`. The print view
   has a policy of its own, without `allow-forms`, and drops forms and scripts. A
   version's ZIP and a product export are attachments, never rendered.
+- With a content site (`WHATBUILD_CONTENT_URL`, an origin on another registrable domain), no
+  route on the app's origin answers with a document of people's or agents' HTML (a Story page, a
+  mockup page, an Idea card's front, a specimen, the print view, a preview, an uploaded HTML page)
+  or a PDF to show inline, so a browser bug that escapes a document's sandbox lands on another
+  site than the person's session and the app's API
+  ([decision](../decisions/with-a-content-site-every-page-and-inline-file-is-served-from-it.md)).
+  The app's own route for each makes every check it makes, then answers `302` to
+  `<content>/documents/<grant>/<name>` with `no-store` and `no-referrer`, and never the document
+  (`handOff` in `apps/server/src/content-documents.ts`). The grant is HMAC-signed for one purpose
+  per kind, the tenant, the product, one immutable version or the digest of a front or a style
+  that changes in place, and the requester, for the grant lifetime (30 minutes); every load of
+  the app's address mints a new one. The content route reads no cookie or `Authorization` header,
+  sets no cookie, never redirects and answers on the content host alone. It checks the requester
+  again before the first byte (`requesterMayRead`), so someone removed or lowered to reader stops
+  loading at once, finds the document with the same function as the app's route
+  (`apps/server/src/documents.ts`), and serves it with the same headers, framed by the app's
+  origin alone, with CORP `cross-origin` and `private, no-store`. A document's load counts once
+  against a free organization's limits, at the app's route, not again at the content site's.
 - A Story preview (`story.preview`) is checked by the same code as a publish and served by the
-  same function as a version's HTML (`storyHtml` in `apps/server/src/rest.ts`), in the same
+  same function as a version's HTML (`storyHtml` in `apps/server/src/documents.ts`), in the same
   sandbox, so nothing reaches a browser through a preview that publishing would refuse. Its
   document opens only under a download grant of its own purpose (`story_preview`), never with a
-  session, and lives no longer than the grant
+  session, lives no longer than the grant, and is served from the content site when there is one
   ([decision](../decisions/a-story-preview-is-the-document-publish-would-store.md)).
 - The app frames pages with `<iframe sandbox>` and takes only a key name or a page slug from the
-  frame it made (`apps/web/src/routes/story.tsx`). App pages send `Cross-Origin-Opener-Policy:
-  same-origin`, `X-Frame-Options: DENY`, `frame-ancestors 'none'` and `script-src 'self'`
-  (`apps/server/src/public-routes.ts`).
+  frame it made (`apps/web/src/routes/story.tsx`), by `e.source`, never by `e.origin`, which is
+  `null` for a sandboxed document wherever it is served. App pages send `Cross-Origin-Opener-Policy:
+  same-origin`, `X-Frame-Options: DENY`, `frame-ancestors 'none'`, `script-src 'self'` and a
+  `style-src` without `'unsafe-inline'`, and frame only their own origin and the content site's
+  `/prototypes/` and `/documents/` (`apps/server/src/public-routes.ts`).
   The print view is sandboxed and runs one nonce'd script (`packages/core/src/story-print.ts`).
 - A mockup's **prototype**, a team's multi-file prototype, is served by one route,
   `/prototypes/<grant>/<path>` (`apps/server/src/prototype.ts`,
@@ -233,7 +254,7 @@ holds each one; the linked decisions say why. Observed in the code on 2026-10-10
   none cross-origin. On the app's origin a prototype's document is never served at the top level
   (`Sec-Fetch-Dest: document`), where it would stand under WhatBuild's own address, and it gets
   no `allow-modals`; `WHATBUILD_CONTENT_URL` moves the route to a site of its own, which answers
-  nothing else. The app frames a prototype in the sandbox the server names and puts back a load
+  nothing of the app's. The app frames a prototype in the sandbox the server names and puts back a load
   that is not one of its documents (each says so through the frame script).
 - Markdown becomes React elements from a lexer: no HTML from the text reaches the DOM, and only
   web, mail, fragment and same-origin links are live (`apps/web/src/lib/markdown.tsx`). A link into
@@ -288,8 +309,12 @@ holds each one; the linked decisions say why. Observed in the code on 2026-10-10
   expands no DTD entities, internal or external. A parser's error becomes a status.
 - Files are served back with `nosniff`, `private, no-store` and a CSP `sandbox` with
   `default-src 'none'`, except PDFs, which browsers will not render sandboxed; only the app may
-  frame them (`frame-ancestors 'self'`); HTML, XHTML and SVG only as an
-  `application/octet-stream` attachment (`streamFile` in `apps/server/src/rest.ts`). Agents send
+  frame them (`frame-ancestors 'self'`, or the app's origin from a content site, which serves a
+  PDF shown inline); HTML, XHTML and SVG only as an `application/octet-stream` attachment
+  (`streamFile` in `apps/server/src/documents.ts`). An uploaded HTML page is previewed from a route
+  of its own, `…/attachment/view`, as `text/html` in a CSP `sandbox` without `allow-scripts`,
+  loading nothing it does not carry (`htmlView`), from the content site when there is one; the
+  app's page never makes it a `srcdoc`, which would inherit the app's own policy. Agents send
   download grants in a header, never a URL. REST and MCP bodies are limited to 5 MB; `/mcp`
   reads one only once the caller's token is checked (`MCP_BODY_MAX_BYTES` in `apps/server/src/mcp.ts`).
 - Source text is quoted material: the MCP server's instructions and the skill tell agents never to
@@ -300,7 +325,8 @@ holds each one; the linked decisions say why. Observed in the code on 2026-10-10
 [security checks](../operations/security-checks.md)).
 
 - Every response says `Cross-Origin-Resource-Policy: same-origin`, so no other site can load it
-  into its pages, and its process; `Cross-Origin-Embedder-Policy: credentialless`, so a page loads
+  into its pages, and its process, except what a content site serves for the app to frame, which
+  says `cross-origin`; `Cross-Origin-Embedder-Policy: credentialless`, so a page loads
   from other sites only what it can fetch without credentials and frames only documents that say
   the same; `nosniff`; and a `Permissions-Policy` that turns off the browser features WhatBuild
   never uses (camera, microphone, location, payment, devices and sensors; `PERMISSIONS_POLICY` in
@@ -346,8 +372,9 @@ and the runtime identity reaches only the files bucket, its secrets and its data
 provider, email links are off rather than logged, and production refuses to start with a mailer
 that would print them or deliver nothing (`WHATBUILD_MAILER` other than `smtp` or `none`), or with
 one it does not know (`config.ts`). Log lines hold method, masked path, status and time, never
-bodies, query strings or headers: the path's ids are masked, and so are the two links that are
-credentials themselves, `/invite/:token` and the retired `/join/:code`. Spans, when a deployment sends traces,
+bodies, query strings or headers: the path's ids are masked, and so are the links that are
+credentials themselves, `/invite/:token`, the retired `/join/:code`, `/prototypes/:grant/…` and
+`/documents/:grant/…`. Spans, when a deployment sends traces,
 hold less: a route's pattern or the masked path, names of operations, kinds and codes, never a
 statement's text or an error's message (`telemetry.ts`); and they go to a project that runs nothing,
 since Google keeps Cloud Run's own request spans, whole addresses and all, in any project with
@@ -374,16 +401,22 @@ example organization's staff on what they wrote and in its activity log. These t
   the service has no client address it can trust; per-client limits wait for one
   ([roadmap](../spec/10-roadmap.md)).
 - The limit on concurrent URL fetches is counted per instance; a deployment runs one.
-- PDFs open inline on the app's origin, since browsers will not render a sandboxed PDF; serving
-  page HTML and uploaded files from a separate origin is planned ([roadmap](../spec/10-roadmap.md)).
+- Without a content site, PDFs open inline on the app's origin, since browsers will not render a
+  sandboxed PDF. With one, a PDF is the one document on the content site with a real origin, and
+  every PDF shares it; the content site sets no cookie and stores nothing, so there is nothing
+  there for one to reach.
 - A prototype's address is a grant in a URL, unlike every other grant, because a frame sends no
   header and relative addresses must carry it. It reads one immutable version, names nobody and
   lasts 8 hours, so it keeps working for those hours after its requester loses access; a prototype can send its own address away (a popup may open any URL), and with it
   only what it already holds, and the platform's request logs keep it as they keep invitation
   links. A prototype's scripts may use `eval`, which reaches nothing their own code cannot.
-- Prototypes are served from the app's origin until a content site is set, as every Story and
-  mockup page is: a browser bug that escapes the sandbox would land on the app's origin
-  ([decision](../decisions/mockups-carry-prototypes-served-from-a-capability-path.md),
-  [roadmap](../spec/10-roadmap.md#planned--mockups-prototypes-next)).
+- A document's address on the content site is a grant in a URL, as a prototype's is, because a
+  frame sends no header. It names one version, or the digest of what it shows, so one that leaks
+  gives only what the document already holds; a page's script can read its own address and send it
+  away through a popup. It lasts the grant lifetime and is checked again when it is used, and the
+  platform's request logs keep it as they keep prototype addresses.
+- On a deployment without a content site, prototypes, Story and mockup pages, cards and uploaded
+  files are served from the app's origin: a browser bug that escapes the sandbox would land there
+  ([decision](../decisions/with-a-content-site-every-page-and-inline-file-is-served-from-it.md)).
 - Files are parsed one at a time, each for at most the parse time limit, so one person's uploads
   can delay another's parsing; a budget per organization is planned ([roadmap](../spec/10-roadmap.md)).

@@ -5,9 +5,10 @@ import type { ServerConfig } from "./config.ts";
  * Paths that answer machines on whatever host they are reached by: probes, the REST API with its
  * upload and download grants, the MCP endpoints, the OAuth endpoints and the metadata clients read
  * beside them. Never redirected, so no probe, agent or client is turned away by a host name. A
- * prototype's documents (prototype.ts) are a frame's navigations, answered where the grant points.
+ * prototype's documents (prototype.ts) and the content site's (content-documents.ts) are a frame's
+ * or a tab's navigations, answered where the grant points.
  */
-const MACHINE_PATHS = /^\/(health|api|mcp|oauth|\.well-known|prototypes)(\/|$)/;
+const MACHINE_PATHS = /^\/(health|api|mcp|oauth|\.well-known|prototypes|documents)(\/|$)/;
 
 /** Hosts on this machine: a local server, a local copy of a deployment, the development server. */
 const LOOPBACK = /^(localhost|[^:]+\.localhost|127(\.\d{1,3}){3}|\[::1\])(:\d+)?$/;

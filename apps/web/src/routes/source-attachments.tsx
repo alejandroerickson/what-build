@@ -16,6 +16,15 @@ export function attachmentUrl(base: string, recordId: string, path: string, down
   return `${base}/sources/${recordId}/attachment${qs({ path, download: download ? "1" : "" })}`;
 }
 
+/**
+ * An uploaded HTML page as its preview frames it: served as a page, in a sandbox that runs no
+ * script and loads nothing it does not carry, by the app's own route or, with a content site, from
+ * there.
+ */
+export function attachmentViewUrl(base: string, recordId: string, path: string) {
+  return `${base}/sources/${recordId}/attachment/view${qs({ path })}`;
+}
+
 type PreviewKind = "html" | "markdown" | "pdf" | "audio" | "video" | "image" | "text" | "download";
 
 export function previewKind(a: Attachment): PreviewKind {
@@ -214,7 +223,7 @@ function AttachmentPreview({ record, path, onSelect, onClose }: { record: Record
       if (!res.ok) throw new Error("The attachment couldn’t be read.");
       return res.text();
     },
-    enabled: !tooBig && ["html", "markdown", "text"].includes(kind),
+    enabled: !tooBig && ["markdown", "text"].includes(kind),
   });
   const url = attachmentUrl(base, record.record_id, a.path);
   const length = (kind === "audio" || kind === "video") && a.text.duration_ms ? a.text.duration_ms : null;
@@ -246,6 +255,8 @@ function AttachmentPreview({ record, path, onSelect, onClose }: { record: Record
           <audio controls preload="metadata" src={url} className="source-preview-media" />
         ) : kind === "video" ? (
           <video controls preload="metadata" src={url} className="source-preview-media" />
+        ) : kind === "html" ? (
+          <iframe title={a.path} sandbox="" referrerPolicy="no-referrer" src={attachmentViewUrl(base, record.record_id, a.path)} className="source-preview-frame" />
         ) : kind === "image" ? (
           <ImageViewer
             images={record.attachments.filter((x) => previewKind(x) === "image").map((x) => ({ path: x.path, url: attachmentUrl(base, record.record_id, x.path) }))}
@@ -259,8 +270,6 @@ function AttachmentPreview({ record, path, onSelect, onClose }: { record: Record
           <ErrorCallout inset title="The attachment couldn’t be read" error={text.error} onRetry={() => text.refetch()} />
         ) : kind === "markdown" ? (
           <Markdown source={text.data ?? ""} className="prose source-preview-prose" />
-        ) : kind === "html" ? (
-          <iframe title={a.path} sandbox="" referrerPolicy="no-referrer" srcDoc={text.data} className="source-preview-frame" />
         ) : (
           <pre className="source-preview-text">{text.data}</pre>
         )}

@@ -323,8 +323,11 @@ describe("the email sign-in link", () => {
       expect(page.headers.get("cache-control")).toBe("no-store");
       expect(page.headers.get("referrer-policy")).toBe("same-origin");
       expect(page.headers.get("x-frame-options")).toBe("DENY");
-      expect(page.headers.get("content-security-policy")).toBe("frame-ancestors 'none'; default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; base-uri 'none'");
+      // Its one style element by its hash, and nothing else inline.
+      expect(page.headers.get("content-security-policy")).toMatch(/^frame-ancestors 'none'; default-src 'none'; style-src 'sha256-[A-Za-z0-9+/]{43}='; form-action 'self'; base-uri 'none'$/);
       const html = await page.text();
+      const style = /<style>([\s\S]*?)<\/style>/.exec(html)![1]!;
+      expect(page.headers.get("content-security-policy")).toContain(`'sha256-${createHash("sha256").update(style).digest("base64")}'`);
       expect(html).toContain('<form method="post" action="/auth/verify">');
       expect(html).toContain(`<input type="hidden" name="token" value="${tokenOf(link)}">`);
       expect(html).toContain("<strong>lena@example.com</strong>");

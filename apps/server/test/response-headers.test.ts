@@ -158,6 +158,15 @@ describe("every HTML response", () => {
     }
   });
 
+  it("allows no inline style or script on the app's pages, the public site's and sign-in's", async () => {
+    for (const [what, headers] of await htmlResponses()) {
+      if (!["the app's shell", "an app page", "the public site", "the OAuth consent page"].includes(what)) continue;
+      const csp = headers.get("content-security-policy") ?? "";
+      expect(csp, what).not.toContain("'unsafe-inline'");
+      expect(csp, what).toMatch(/(^|; )style-src /);
+    }
+  });
+
   it("keeps app pages out of other sites' frames, and cuts the handle a page it opens would keep", async () => {
     const shell = (await fetch(`${h.baseUrl}/`)).headers;
     expect(shell.get("content-security-policy")).toContain("frame-ancestors 'none'");

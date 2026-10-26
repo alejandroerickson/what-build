@@ -3,7 +3,7 @@ type: Decision
 title: The product concept and each outcome is a card with a front for people and a back for agents, and agents write both
 description: Idea shows each idea as a card, an agent-drawn picture in WhatBuild's card kit on the front and the deep text agents read on the back, which More info opens above the picture; the two sides change together and the web app edits neither.
 tags: [decision, product, idea, outcomes, agents, design-system]
-generated: {by: agent:claude, at: 2026-10-24}
+generated: {by: agent:claude, at: 2026-10-25}
 status: stable
 ---
 
@@ -85,7 +85,9 @@ person's edit skips. The maintainer chose this model on 2026-10-24.
 - `outcomes.create`, `outcomes.update`, `products.create` and `products.update_concept` check a front
   against `IDEA_CARD_RULES` (`packages/core/src/html-rules.ts`) and the two-sides rule
   (`checkCardSides` in `packages/core/src/idea-card.ts`); the card kit, its guidance and the
-  document a front is served in live together in `idea-card.ts`, so they never drift apart.
+  document a front is served in live together in `idea-card.ts`, so they never drift apart. A
+  front is served from the content site when the deployment has one, under an address naming the
+  digest of the front it was issued for ([decision](with-a-content-site-every-page-and-inline-file-is-served-from-it.md)).
 - The web app's Idea screen (`apps/web/src/routes/idea.tsx`) offers no editor for the concept or an
   outcome.
 - The skill teaches both sides and the kit (`packages/core/src/skill/SKILL.md`), and the sample

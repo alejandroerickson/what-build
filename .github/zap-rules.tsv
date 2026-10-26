@@ -9,7 +9,7 @@
 10116	FAIL	(The pinned ZAP image is the current release. When this fails, pin the new one in security.yml, by tag and digest.)
 90004	FAIL	(Every response says Cross-Origin-Resource-Policy: same-origin and Cross-Origin-Embedder-Policy: credentialless; app pages also say Cross-Origin-Opener-Policy: same-origin.)
 90022	FAIL	(Errors never show stack traces or internals.)
-10055	WARN	(Every page's policy defines frame-ancestors, form-action and base-uri, and server tests hold it. The rule also reports the app's style-src 'unsafe-inline', which previews of uploaded HTML pages use, so it warns rather than fails.)
+10055	FAIL	(Every page's policy defines frame-ancestors, form-action and base-uri, and allows no inline style or script: the app's, the public site's and sign-in's pages alike. Server tests hold it.)
 10049	INFO	(Hashed assets are cached for a year by design, and the shell and the site's files hold nothing personal; responses that carry people's material, identity or credentials say no-store, and server tests hold it.)
 10027	IGNORE	(Words such as "admin" and "select" in the minified bundle's strings and code, which the rule takes for comments; the source, comments and all, is public.)
 10109	IGNORE	(Informational: the app is a single-page application, which the baseline's spider does not crawl.)

@@ -8,6 +8,8 @@ import { routePath } from "hono/route";
 import { FsBlobStore, MemoryBlobStore } from "./adapters/blobs.ts";
 import { AcsMailer } from "./adapters/mail-acs.ts";
 import { ConsoleMailer, HmacGrantSigner, MemoryMailer, SafeUrlFetcher, SmtpMailer } from "./adapters/misc.ts";
+import { contentDocumentRoutes } from "./content-documents.ts";
+import { FALLBACK_HTML_POLICY } from "./documents.ts";
 import { carriesOurCookie, isOwnOrigin, wasSignedIn } from "./auth/identity.ts";
 import { canonicalHost, requestedHost } from "./canonical-host.ts";
 import { oauthRoutes } from "./auth/oauth.ts";
@@ -42,8 +44,10 @@ export const RESPONSE_HEADERS: Record<string, string> = {
   "Permissions-Policy": PERMISSIONS_POLICY,
 };
 
-/** The policy of an HTML response whose route set none: it loads nothing, and cannot be framed, rebased or posted from. */
-export const FALLBACK_HTML_POLICY = "default-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'";
+export { FALLBACK_HTML_POLICY };
+
+/** What a content site answers: prototypes, documents, agents' previews, and the health check. */
+const CONTENT_SITE_PATHS = /^\/(prototypes\/|documents\/|api\/v1\/downloads\/(story|card)-preview\/|health$)/;
 
 /** The paths whose responses carry people's material, their identity or credentials, which no cache, the browser's included, may keep. */
 const PRIVATE_PATHS = /^\/(api|mcp|auth|oauth)(\/|$)/;
@@ -54,7 +58,7 @@ const SCOPED_PATH = /^(\/api\/v1\/p|\/api\/v1\/teams|\/api\/v1\/tenants|(?:\/\.w
  * The first words of the server's and the app's own paths. Any other path of three or more parts is
  * a product's path typed without /t/ (the app sends it on), so its first three are names.
  */
-const OWN_FIRST = new Set(["api", "mcp", "auth", "oauth", "t", ".well-known", "assets", "invite", "join", "signin", "cookies", "privacy", "settings", "connect", "instance", "people", "welcome", "products", "health", "_system", "prototypes"]);
+const OWN_FIRST = new Set(["api", "mcp", "auth", "oauth", "t", ".well-known", "assets", "invite", "join", "signin", "cookies", "privacy", "settings", "connect", "instance", "people", "welcome", "products", "health", "_system", "prototypes", "documents"]);
 const BY_KIND = ["", ":org", ":team", ":product"];
 /** The app's screens directly under an organization: /t/<org>/members and /t/<org>/limits. */
 const ORG_SCREENS = new Set(["members", "limits"]);
@@ -62,11 +66,13 @@ const ORG_SCREENS = new Set(["members", "limits"]);
 /**
  * A request's path as its log line holds it: ids masked; organizations, teams and products named
  * only by kind; and the links that are credentials themselves, an invitation's (/invite/<token>), a
- * retired sandbox invitation's (/join/<code>) and a prototype's (/prototypes/<grant>/…, whose file names
- * are a team's too).
+ * retired sandbox invitation's (/join/<code>), a prototype's (/prototypes/<grant>/…, whose file
+ * names are a team's too) and a document's on the content site (/documents/<grant>/…, which names a
+ * file too).
  */
 export function loggedPath(path: string): string {
   if (/^\/prototypes(\/|$)/.test(path)) return "/prototypes/:grant/…";
+  if (/^\/documents(\/|$)/.test(path)) return "/documents/:grant/…";
   return path
     .replace(/^\/invite\/[^/]+/, "/invite/:token")
     .replace(/^\/join\/[^/]+/, "/join/:code")
@@ -176,9 +182,10 @@ export function createApp(deps: { db: Db; ports: Ports; config: ServerConfig; re
     const started = Date.now();
     const path = loggedPath(c.req.path);
     // Operational telemetry only: never content, email addresses or tokens (telemetry.ts). A
-    // prototype's files, like the app's assets, are logged only when one fails, and never traced;
-    // nor is the health check.
-    const quiet = c.req.path.startsWith("/assets/") || c.req.path.startsWith("/prototypes/") || c.req.path === "/health";
+    // prototype's files and the content site's documents, like the app's assets, are logged only
+    // when one fails, and never traced; nor is the health check.
+    const capability = c.req.path.startsWith("/prototypes/") || c.req.path.startsWith("/documents/");
+    const quiet = c.req.path.startsWith("/assets/") || capability || c.req.path === "/health";
     const respond = async (span?: Span) => {
       const id = requestIdOf(span);
       await withRequestId(id, () => next());
@@ -191,7 +198,7 @@ export function createApp(deps: { db: Db; ports: Ports; config: ServerConfig; re
         span.setAttributes({ "url.path": path, "http.response.status_code": c.res.status, ...(route.includes("*") ? {} : { "http.route": route }), ...(operation ? { "whatbuild.operation": operation } : {}) });
         if (c.res.status >= 500) span.setStatus({ code: SpanStatusCode.ERROR });
       }
-      if (deps.config.env !== "test" && !c.req.path.startsWith("/assets/") && !(c.req.path.startsWith("/prototypes/") && c.res.status < 400))
+      if (deps.config.env !== "test" && !c.req.path.startsWith("/assets/") && !(capability && c.res.status < 400))
         console.log(JSON.stringify({ at: new Date().toISOString(), method: c.req.method, path, status: c.res.status, ms: Date.now() - started, ...requestFields(span, id) }));
     };
     if (quiet) return respond();
@@ -247,12 +254,14 @@ export function createApp(deps: { db: Db; ports: Ports; config: ServerConfig; re
     if (wasSignedIn(c)) deps.onRequest?.();
   });
 
-  // A content site serves prototypes and nothing else: no page, API or sign-in of the app's.
+  // A content site serves prototypes, the documents of people's HTML and the files the app shows
+  // inline (content-documents.ts), and agents' previews of a page or a card. Nothing else: no page,
+  // API or sign-in of the app's.
   const contentHost = deps.config.contentUrl ? new URL(deps.config.contentUrl).host.toLowerCase() : null;
   if (contentHost)
     app.use("*", async (c, next) => {
-      if (requestedHost((name) => c.req.header(name)) !== contentHost || c.req.path.startsWith("/prototypes/") || c.req.path === "/health") return next();
-      return c.text("This host serves mockups' prototypes only.", 404);
+      if (requestedHost((name) => c.req.header(name)) !== contentHost || CONTENT_SITE_PATHS.test(c.req.path)) return next();
+      return c.text("This host serves only what WhatBuild shows from it, at the addresses WhatBuild gives.", 404);
     });
 
   // A page opened on another name for this deployment moves to the public URL; the site's host and the content site keep their own.
@@ -261,6 +270,7 @@ export function createApp(deps: { db: Db; ports: Ports; config: ServerConfig; re
   // First, so the public site's host never reaches the app's routes.
   app.route("/", siteRoutes({ db: deps.db, config: deps.config }));
   app.route("/", prototypeRoutes(env));
+  app.route("/", contentDocumentRoutes(env));
   app.route("/", publicRoutes({ db: deps.db, config: deps.config, release }));
   app.route("/", oauthRoutes({ db: deps.db, config: deps.config, notifyJobs: () => deps.ports.notifyJobs?.() }));
   app.route("/", authRoutes({ db: deps.db, config: deps.config, mailer: deps.ports.mailer ?? new ConsoleMailer() }));

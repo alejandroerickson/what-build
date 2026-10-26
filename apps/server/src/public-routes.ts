@@ -1,6 +1,6 @@
 import { closeSync, existsSync, fstatSync, openSync, readFileSync } from "node:fs";
 import { extname, isAbsolute, join, normalize, relative, resolve, sep } from "node:path";
-import { SKILL_NAME, SKILL_VERSION, skillMarkdown, unauthenticated, USAGE_PEOPLE_MONTHS, type Db } from "@whatbuild/core";
+import { DOCUMENT_ROUTE, SKILL_NAME, SKILL_VERSION, skillMarkdown, unauthenticated, USAGE_PEOPLE_MONTHS, type Db } from "@whatbuild/core";
 import { strToU8, zipSync } from "fflate";
 import { Hono } from "hono";
 import type { Release } from "./app.ts";
@@ -81,7 +81,7 @@ export const PAGE_SECURITY_HEADERS = {
   // handle it would keep to them, so it can never later send such a tab somewhere else.
   "Cross-Origin-Opener-Policy": "same-origin",
   "Content-Security-Policy":
-    "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob:; media-src 'self' blob:; frame-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'",
+    "default-src 'self'; script-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob:; media-src 'self' blob:; frame-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'",
 };
 
 /** Google Analytics' hosts, by directive. The app loads it only for a person who accepted it. */
@@ -93,7 +93,9 @@ const ANALYTICS_SOURCES = {
 
 /**
  * PAGE_SECURITY_HEADERS, letting Google Analytics in when the deployment uses it, and letting the
- * app frame prototypes from the content site when it has one (and nothing else from there).
+ * app frame what the content site serves when it has one: prototypes, and the documents the app's
+ * own routes hand off to it (content-documents.ts). After a redirect a browser matches a source by
+ * its host alone, and the content site serves nothing else.
  */
 export function pageHeaders(analytics: boolean, contentUrl: string | null = null) {
   if (!analytics && !contentUrl) return PAGE_SECURITY_HEADERS;
@@ -101,7 +103,7 @@ export function pageHeaders(analytics: boolean, contentUrl: string | null = null
     const directive = d.split(" ")[0]!;
     const name = directive as keyof typeof ANALYTICS_SOURCES;
     const withAnalytics = analytics && ANALYTICS_SOURCES[name] ? `${d} ${ANALYTICS_SOURCES[name]}` : d;
-    return contentUrl && directive === "frame-src" ? `${withAnalytics} ${contentUrl}/prototypes/` : withAnalytics;
+    return contentUrl && directive === "frame-src" ? `${withAnalytics} ${contentUrl}/prototypes/ ${contentUrl}${DOCUMENT_ROUTE}/` : withAnalytics;
   });
   return { ...PAGE_SECURITY_HEADERS, "Content-Security-Policy": csp.join("; ") };
 }

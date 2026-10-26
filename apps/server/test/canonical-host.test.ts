@@ -64,7 +64,14 @@ describe("one address for the app", () => {
       expect((await open(app, "/prototypes/eyJ2IjoxfQ.abc/checkout.html?plan=pro", { host, ...frame })).status, host).toBe(200);
   });
 
-  it("leaves the content site alone: every navigation there is a prototype's, served where its address points", async () => {
+  it("never moves a navigation to a document's address, a frame's or a tab's, on whatever host it is served", async () => {
+    const withContent = appWith({ siteUrl: "https://example.com", contentUrl: "https://usercontent.example.net" });
+    for (const host of ["usercontent.example.net", "app.example.com", "whatbuild-abc123-uc.a.run.app"])
+      for (const dest of ["iframe", "document"])
+        expect((await open(withContent, "/documents/eyJ2IjoxfQ.abc/page.html?theme=dark", { host, ...NAVIGATE, "sec-fetch-dest": dest })).status, `${host} ${dest}`).toBe(200);
+  });
+
+  it("leaves the content site alone: every navigation there is a prototype's or a document's, served where its address points", async () => {
     const withContent = appWith({ siteUrl: "https://example.com", contentUrl: "https://usercontent.example.net" });
     expect((await open(withContent, "/prototypes/eyJ2IjoxfQ.abc/index.html", { host: "usercontent.example.net", ...NAVIGATE })).status).toBe(200);
     expect((await open(withContent, "/anything", { host: "usercontent.example.net", ...NAVIGATE })).status).toBe(200);

@@ -3,7 +3,7 @@ import { DOWNLOAD_GRANT_HEADER, MOCKUP_RESPONSE_HEADERS, PREVIEWS_KEPT, STORY_RE
 import { sql } from "kysely";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { syncExampleTenant } from "../src/example-organization.ts";
-import { startHarness, type Browser, type Harness } from "./harness.ts";
+import { asServed, startHarness, type Browser, type Harness } from "./harness.ts";
 
 // story.preview: the same call as story.publish, checked as publish checks it, with nothing
 // published, and a grant to GET the document publish would then store.
@@ -58,7 +58,8 @@ describe("previewing a page's first version", () => {
     expect(r.status, JSON.stringify(r.body)).toBe(200);
     previewed = r.body;
     expect(r.body).toMatchObject({ page_id: "friday", new_page: true, based_on_version: null, carried_forward: [], title: "Friday planning", published: false });
-    expect(r.body.preview).toMatchObject({ method: "GET", url: `${h.baseUrl}/api/v1/downloads/story-preview/${r.body.preview.preview_id}` });
+    // On the content site when there is one, as every page is.
+    expect(r.body.preview).toMatchObject({ method: "GET", url: `${h.config.contentUrl ?? h.baseUrl}/api/v1/downloads/story-preview/${r.body.preview.preview_id}` });
     expect(Object.keys(r.body.preview.headers)).toEqual([DOWNLOAD_GRANT_HEADER]);
     expect(Date.parse(r.body.preview.expires_at)).toBeGreaterThan(Date.now());
     expect(r.headers.get("etag")).toBeNull();
@@ -71,7 +72,7 @@ describe("previewing a page's first version", () => {
   it("serves the document under its grant exactly as a published page is served", async () => {
     const doc = await open(previewed.preview);
     expect(doc.status).toBe(200);
-    for (const [k, v] of Object.entries(STORY_RESPONSE_HEADERS)) expect(doc.headers.get(k), k).toBe(v);
+    for (const [k, v] of Object.entries(asServed(h, STORY_RESPONSE_HEADERS))) expect(doc.headers.get(k), k).toBe(v);
     expect(doc.text).toContain(`<body>\n${body}\n</body>`);
     expect(doc.text).toContain("<title>Friday planning</title>");
     // The carried typeface is embedded as it is when a published page is shown.
@@ -173,7 +174,7 @@ describe("a write sent again after its answer was lost", () => {
     const shown = await open(kept.body.preview);
     expect(shown.text).toBe(page);
     // In a mockup page's own sandbox, as the Story's route shows it.
-    expect(shown.headers.get("content-security-policy")).toBe(MOCKUP_RESPONSE_HEADERS["Content-Security-Policy"]);
+    expect(shown.headers.get("content-security-policy")).toBe(asServed(h, MOCKUP_RESPONSE_HEADERS)["Content-Security-Policy"]);
   });
 });
 

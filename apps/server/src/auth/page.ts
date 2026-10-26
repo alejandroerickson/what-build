@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { escapeHtml } from "@whatbuild/core";
 import type { Context } from "hono";
 
@@ -25,20 +26,22 @@ fieldset{border:0;margin:16px 0 0;padding:0;min-width:0}legend{font-weight:600;m
 .choice input{margin:3px 0 0;accent-color:var(--accent)}input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .choice b{display:block;font-weight:500;font-size:13px;color:var(--text)}.choice span{color:var(--muted);font-size:12px}`;
 
+/** The page's one style element, which its policy allows by its hash and nothing else inline. */
+const STYLE_ELEMENT = `\n${STYLE}\n`;
+const STYLE_SOURCE = `'sha256-${createHash("sha256").update(STYLE_ELEMENT).digest("base64")}'`;
+
 /** A page: `title` for the tab, `body` the panel's HTML, already escaped. */
 export function authPage(title: string, body: string): string {
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${escapeHtml(title)} · WhatBuild</title>
-<style>
-${STYLE}
-</style></head><body><main>
+<style>${STYLE_ELEMENT}</style></head><body><main>
 ${body}
 </main></body></html>`;
 }
 
 /**
  * The headers every such page is sent with: never framed, never cached, and nothing but its own
- * style; its form posts to WhatBuild, and to `formTargets` as well. No referrer leaves the origin
+ * style, by its hash; its form posts to WhatBuild, and to `formTargets` as well. No referrer leaves the origin
  * (an address here can carry a credential); `same-origin` rather than `no-referrer`, under which
  * browsers send `Origin: null` with the form's own POST, which the origin check then refuses.
  */
@@ -46,5 +49,5 @@ export function authPageHeaders(c: Context, formTargets = "") {
   c.header("X-Frame-Options", "DENY");
   c.header("Cache-Control", "no-store");
   c.header("Referrer-Policy", "same-origin");
-  c.header("Content-Security-Policy", `frame-ancestors 'none'; default-src 'none'; style-src 'unsafe-inline'; form-action 'self'${formTargets ? ` ${formTargets}` : ""}; base-uri 'none'`);
+  c.header("Content-Security-Policy", `frame-ancestors 'none'; default-src 'none'; style-src ${STYLE_SOURCE}; form-action 'self'${formTargets ? ` ${formTargets}` : ""}; base-uri 'none'`);
 }

@@ -527,10 +527,11 @@ describe("prototype paths and warnings", () => {
     ]);
   });
 
-  it("masks a prototype's address in the server's log, and the app frames a content site's prototypes only", () => {
+  it("masks a prototype's and a document's address in the server's log, and the app frames a content site's prototypes and documents only", () => {
     expect(loggedPath("/prototypes/eyJ2IjoxfQ.abc/secret-plans.html")).toBe("/prototypes/:grant/…");
+    expect(loggedPath("/documents/eyJ2IjoxfQ.abc/board-minutes.pdf")).toBe("/documents/:grant/…");
     const csp = pageHeaders(false, "https://usercontent.example.net")["Content-Security-Policy"];
-    expect(csp).toContain("frame-src 'self' https://usercontent.example.net/prototypes/;");
+    expect(csp).toContain("frame-src 'self' https://usercontent.example.net/prototypes/ https://usercontent.example.net/documents/;");
   });
 });
 
