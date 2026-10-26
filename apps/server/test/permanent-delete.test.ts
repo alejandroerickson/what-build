@@ -1,9 +1,9 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
-import { BASELINE_TABLES, NOT_IN_BASELINE } from "@whatbuild/core";
+import { CONTENT_TABLES, OTHER_TENANT_TABLES } from "@whatbuild/core";
 import { sql } from "kysely";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { syncSandboxTenant } from "../src/public-sandbox.ts";
+import { syncExampleTenant } from "../src/example-organization.ts";
 import { startHarness, type Browser, type Harness } from "./harness.ts";
 import { buildOrganization, type Organization } from "./organization-fixture.ts";
 
@@ -209,13 +209,13 @@ describe("deleting an organization", () => {
     expect((await owner.api("GET", "/api/v1/me/products")).body.tenants.map((t: { slug: string }) => t.slug)).toContain(org.tenant.slug);
   });
 
-  it("refuses a public sandbox", async () => {
-    const t = await owner.api("POST", "/api/v1/tenants", { name: "Delta Sandbox" });
-    expect(await syncSandboxTenant(h.db, t.body.tenant.slug, () => {})).toBe(t.body.tenant.tenant_id);
-    const r = await owner.api("DELETE", `/api/v1/tenants/${t.body.tenant.slug}`, { name: "Delta Sandbox", reason: "x", confirm: "delete permanently" });
+  it("refuses the example organization", async () => {
+    const t = await owner.api("POST", "/api/v1/tenants", { name: "Delta Example" });
+    expect(await syncExampleTenant(h.db, t.body.tenant.slug, () => {})).toBe(t.body.tenant.tenant_id);
+    const r = await owner.api("DELETE", `/api/v1/tenants/${t.body.tenant.slug}`, { name: "Delta Example", reason: "x", confirm: "delete permanently" });
     expect(r.status).toBe(409);
-    expect(r.body.error.code).toBe("sandbox_organization");
-    await syncSandboxTenant(h.db, null, () => {});
+    expect(r.body.error.code).toBe("example_organization");
+    await syncExampleTenant(h.db, null, () => {});
   });
 
   it("needs its name typed, and then erases every row and file it holds, and every role in it", async () => {
@@ -235,7 +235,7 @@ describe("deleting an organization", () => {
     expect((await editor.api("GET", "/api/v1/me/products")).body.tenants).toEqual([]);
     // Every table that holds an organization's rows is empty of this one's, but for the feedback sent to
     // the maintainers and the jobs that delete its files.
-    for (const table of [...BASELINE_TABLES, ...Object.keys(NOT_IN_BASELINE).filter((t) => t !== "feedback" && t !== "jobs")])
+    for (const table of [...CONTENT_TABLES, ...Object.keys(OTHER_TENANT_TABLES).filter((t) => t !== "feedback" && t !== "jobs")])
       expect(await rowsIn(org.tenant.id, table), table).toBe(0);
     expect(await rowsIn(org.tenant.id, "jobs", sql`kind != 'delete_blobs'`)).toBe(0);
     expect(await h.db.selectFrom("tenants").select("tenant_id").where("tenant_id", "=", org.tenant.id).executeTakeFirst()).toBeUndefined();

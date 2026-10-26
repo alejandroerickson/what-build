@@ -41,20 +41,17 @@ export function Welcome() {
   });
   const first = me.data?.display_name.split(" ")[0];
   const allowance = me.data?.tenant_allowance;
-  const hasOrgs = Boolean(products.data?.tenants.length);
+  // The example organization is everyone's to read, not one of theirs.
+  const hasOrgs = Boolean(products.data?.tenants.some((t) => !t.example));
+  const example = products.data?.tenants.find((t) => t.example);
   // Nothing here for them to set up: only the people who run this WhatBuild let anyone start an organization.
   if (me.data && allowance?.remaining === 0) {
-    const sandboxOnly = me.data.sandbox_only && !hasOrgs;
     return (
       <EntryPage title="Welcome · WhatBuild" wide>
         <Sheet labelledBy="welcome-title">
-          <SheetHeader level={1} id="welcome-title" title={sandboxOnly ? "You’re not in the sandbox right now" : hasOrgs ? "You can’t start another organization" : first ? `Welcome, ${first}` : "Welcome"} />
+          <SheetHeader level={1} id="welcome-title" title={hasOrgs ? "You can’t start another organization" : first ? `Welcome, ${first}` : "Welcome"} />
           <SheetBody className="entry-form">
-            {sandboxOnly ? (
-              <p>
-                Your account works only in the public sandbox. To enter, open your invitation link.
-              </p>
-            ) : !hasOrgs ? (
+            {!hasOrgs ? (
               <>
                 <p>You&rsquo;re not in an organization yet. Ask someone who uses WhatBuild to invite you.</p>
                 <p className="muted">To start an organization of your own, ask this WhatBuild&rsquo;s owners.</p>
@@ -68,7 +65,7 @@ export function Welcome() {
           </SheetBody>
         </Sheet>
         <p className="entry-foot">
-          Signed in as {me.data.email}. {hasOrgs ? <Link to="/">See your products</Link> : <Link to="/settings">Your settings</Link>}.
+          Signed in as {me.data.email}. {hasOrgs || example ? <Link to="/">See {hasOrgs ? "your products" : "the example organization"}</Link> : <Link to="/settings">Your settings</Link>}.
         </p>
       </EntryPage>
     );
@@ -89,6 +86,7 @@ export function Welcome() {
             {allowance?.remaining
               ? ` This account can start ${allowance.remaining}${allowance.created ? " more" : ""} organization${allowance.remaining === 1 ? "" : "s"}.`
               : ""}
+            {me.data?.new_organization_plan === "free" ? " It starts on the free plan, which limits how much is added each day." : ""}
           </p>
           <TextField label="Organization" hint="Your company or group." required maxLength={100} value={org} onChange={(e) => setOrg(e.target.value)} />
           <TextField label="Product" hint="What this discovery is about." required maxLength={100} value={product} onChange={(e) => setProduct(e.target.value)} />
@@ -100,7 +98,7 @@ export function Welcome() {
         </form>
       </Sheet>
       <p className="entry-foot">
-        Have an invitation? Open its link instead.{hasOrgs ? <> <Link to="/">Back to your products</Link></> : null}
+        Have an invitation? Open its link instead.{hasOrgs || example ? <> <Link to="/">Back to {hasOrgs ? "your products" : "the example organization"}</Link></> : null}
       </p>
     </EntryPage>
   );
@@ -119,8 +117,8 @@ interface MemberGrant {
 interface MembersResponse {
   members: { account_id: string; display_name: string; email: string; grants: MemberGrant[] }[];
   invitations: { invitation_id: string; email: string; scope_type: "tenant" | "team" | "product"; scope_id: string; scope: { name: string }; role: string; expires_at: string }[];
-  /** In a public sandbox: a visitor is shown only themselves, and its staff get its visitors as a count. */
-  sandbox?: { only_you: boolean; visitors?: number };
+  /** A guest of the example organization, who sees none of its people. */
+  guest?: true;
   /** Below an owner or admin of the organization: only the people, roles and invitations on what this person reads. */
   partial?: boolean;
 }
@@ -141,7 +139,6 @@ const ORG_ROLE_HINT: Record<string, string> = {
   owner: "Admin of everything, and can make other owners",
   admin: "Admin of every team and product",
   member: "Opens only what they have a role on",
-  visitor: "Edits every product, sees no people",
 };
 
 export function MembersPage() {
@@ -164,7 +161,7 @@ export function MembersPage() {
   // Someone who reads only the Story here sees none of the organization's people.
   const storyOnly = Boolean(t?.story_only) || (q.error instanceof ApiError && q.error.status === 403);
   const orgName = t?.name ?? tenant;
-  const sandbox = q.data?.sandbox;
+  const guest = Boolean(q.data?.guest);
   usePageTitle("Members");
   const tenantAdmin = t?.your_role === "owner" || t?.your_role === "admin";
   const inOrg = (products.data?.items ?? []).filter((p) => p.tenant.slug === tenant);
@@ -237,23 +234,19 @@ export function MembersPage() {
           end={canGive ? <Button variant="primary" icon="user-plus" onClick={() => setGiving({})}>Give access</Button> : null}
         />
         <SheetBody className="members-intro">
-          {sandbox?.only_you ? (
-            <Callout inset tone="info" title={`${orgName} is a public sandbox`}>
-              Only you are listed, under your made-up name. <Link to={`/t/${tenant}/sandbox`}>About this sandbox</Link>
-            </Callout>
-          ) : sandbox ? (
-            <Callout inset tone="info" title={`${orgName} is a public sandbox`} action={<ButtonLink size="sm" to={`/t/${tenant}/sandbox`}>Sandbox controls</ButtonLink>}>
-              {!sandbox.visitors ? "No visitors yet" : sandbox.visitors === 1 ? "1 visitor has a seat" : `${sandbox.visitors.toLocaleString("en-US")} visitors have seats`}. Visitors aren&rsquo;t listed here.
+          {guest ? (
+            <Callout inset tone="info" title={`${orgName} is the example organization`}>
+              Its people aren&rsquo;t shown to its readers.
             </Callout>
           ) : null}
-          {sandbox?.only_you ? null : (
+          {guest ? null : (
           <>
           {q.data?.partial ? <p className="muted">You see the people on the teams and products you can open, and the organization&rsquo;s owners and admins.</p> : null}
           <div className="members-legend">
             <div className="members-legend-group">
               <p id="legend-org" className="members-legend-head">Roles in the organization</p>
               <dl aria-labelledby="legend-org">
-                {["owner", "admin", "member", ...(sandbox ? ["visitor"] : [])].map((r) => (
+                {["owner", "admin", "member"].map((r) => (
                   <div key={r}>
                     <dt>{ROLE_WORD[r]}</dt>
                     <dd>{ORG_ROLE_HINT[r]}</dd>
@@ -312,7 +305,6 @@ export function MembersPage() {
                       <dt>Access</dt>
                       <dd>
                         {orgAdmin ? <span className="members-grant muted">Admin of every team and product, as an organization {orgRole}</span> : null}
-                        {orgRole === "visitor" ? <span className="members-grant muted">Editor of every product, as a visitor to the sandbox</span> : null}
                         {access.length ? (
                           <ul className="members-grants" aria-label={`${m.display_name}’s team and product roles`}>
                             {access.map((g) => (
@@ -334,7 +326,7 @@ export function MembersPage() {
                               </li>
                             ))}
                           </ul>
-                        ) : orgAdmin || orgRole === "visitor" ? null : (
+                        ) : orgAdmin ? null : (
                           <span className="members-grant members-none">
                             <span>No team or product yet, so {self ? "you can’t" : "they can’t"} open anything.</span>
                             {canGive ? (
@@ -403,8 +395,8 @@ export function MembersPage() {
           </ul>
         </Sheet>
       ) : null}
-      {tenantAdmin && !sandbox?.only_you ? <AccessChanges tenant={tenant} /> : null}
-      {t?.your_role === "owner" && !t.sandbox ? <DeleteOrganizationSheet tenant={tenant} orgName={orgName} /> : null}
+      {tenantAdmin ? <AccessChanges tenant={tenant} /> : null}
+      {t?.your_role === "owner" && !t.example ? <DeleteOrganizationSheet tenant={tenant} orgName={orgName} /> : null}
       {giving ? (
         <GiveAccessDialog tenant={tenant} orgName={orgName} initialEmail={giving.email} onClose={() => setGiving(null)} canManage={canManage} tenantAdmin={tenantAdmin} ownerHere={t?.your_role === "owner"} />
       ) : null}
@@ -501,8 +493,7 @@ function DeleteOrganizationSheet({ tenant, orgName }: { tenant: string; orgName:
 
 /**
  * The organization's access log, for its owners and admins: who gave, changed or removed whose
- * access, and in a sandbox its invitation links and visitors' seats. A product's own Activity
- * leaves these out.
+ * access. A product's own Activity leaves these out.
  */
 function AccessChanges({ tenant }: { tenant: string }) {
   const q = useInfiniteQuery({
@@ -517,7 +508,7 @@ function AccessChanges({ tenant }: { tenant: string }) {
       <SheetHeader id="access-changes-title" title="Access changes" />
       <ActivityLog
         query={q}
-        linkOf={(i) => (i.entity_type === "sandbox" ? `/t/${tenant}/sandbox` : null)}
+        linkOf={() => null}
         empty={<EmptyState size="inline" title="No access changes yet" />}
       />
     </Sheet>

@@ -22,7 +22,7 @@ describe("the service's requests and its worker", () => {
   const watch = () => {
     const seen: string[] = [];
     let label = "";
-    const app = createApp({ db: h.db, ports: createPorts(h.config, h.blobs, h.mailer), config: h.config, clock: h.clock, onRequest: () => seen.push(label) });
+    const app = createApp({ db: h.db, ports: createPorts(h.config, h.blobs, h.mailer), config: h.config, onRequest: () => seen.push(label) });
     const send = async (name: string, path: string, init?: RequestInit) => {
       label = name;
       await (await app.fetch(new Request(`${h.baseUrl}${path}`, init))).arrayBuffer();

@@ -1,7 +1,7 @@
 ---
 title: An open-ended look for anything wrong, on every screen, as each role
-organizations: [standard, sandbox]
-people: [riley, sam, jordan]
+organizations: [standard, example]
+people: [riley, sam, jordan, guest]
 surfaces: [web, mcp]
 ---
 
@@ -26,10 +26,10 @@ long on it as the person asked for; by default, cover every screen once.
    errors say what to do next.
 4. **Web, as Riley and as Jordan.** Repeat a short tour as each, checking that what each sees
    matches their role.
-5. **The sandbox organization.** Do the same as a visitor would: Riley creates an invitation on the
-   sandbox page; sign out, open it, and sign in with "As the email above" and an address that is
-   not one of the sample people. Look at what a visitor sees, the made-up name their work is shown
-   under, and the limits they meet.
+5. **The example organization, as a guest.** Sign in with "As the email above" and an address that
+   is not one of the sample people, such as `guest@example.com`. Look at what a guest sees first,
+   whether it is clear the example is read-only and where their own work goes, what every write
+   control does there, and the way to start an organization of their own.
 6. **Everywhere.** At phone width and in the dark theme, revisit the screens you used.
 
 ## Look out for
@@ -39,5 +39,5 @@ long on it as the person asked for; by default, cover every screen once.
 - Copy that is unclear, or an error that does not say what to do.
 - Differences between what the web and MCP say about the same thing.
 - Anything slower than a second without a visible sign that it is working.
-- Behavior that differs between the two organizations where the sandbox's settings do not explain
-  it.
+- Behavior that differs between the two organizations where the example's being read-only to
+  guests does not explain it.

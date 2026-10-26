@@ -4,7 +4,7 @@ import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/
 import { OPERATIONS, REST_BODY_MAX_BYTES, SKILL_VERSION } from "@whatbuild/core";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { MCP_BODY_MAX_BYTES, toolDefinitions } from "../src/mcp.ts";
-import { syncSandboxTenant } from "../src/public-sandbox.ts";
+import { syncExampleTenant } from "../src/example-organization.ts";
 import { startHarness, type Browser, type Harness } from "./harness.ts";
 
 let h: Harness;
@@ -42,7 +42,7 @@ describe("adapter parity", () => {
     for (const [, o] of standalone) viaMcp.add(o.name);
     expect([...viaMcp].sort()).toEqual(OPERATIONS.filter((o) => !o.webOnly).map((o) => o.name).sort());
     // Closing an organization is the only thing an agent is never offered.
-    expect(OPERATIONS.filter((o) => o.webOnly).map((o) => o.name).sort()).toEqual(["products.delete_tenant", "products.delete_tenant_impact"]);
+    expect(OPERATIONS.filter((o) => o.webOnly).map((o) => o.name).sort()).toEqual(["products.delete_tenant", "products.delete_tenant_impact", "products.remove_account"]);
     const restKeys = OPERATIONS.map((o) => `${o.rest.method} ${o.scope} ${o.rest.path}`);
     expect(new Set(restKeys).size).toBe(restKeys.length);
     expect(tools.length).toBeLessThanOrEqual(15);
@@ -69,7 +69,8 @@ describe("MCP", () => {
     // Files are attachments, and there are no passages to read.
     expect(tools.map((t) => t.name)).not.toContain("files");
     expect(tools.map((t) => t.name)).not.toContain("read_passage");
-    expect(tools).toHaveLength(14);
+    expect(tools).toHaveLength(13);
+    expect(tools.map((t) => t.name)).not.toContain("sandbox");
     // The client keeps the list it connected with, so the instructions say what a missing tool means.
     expect(client.getInstructions()).toMatch(/start a new session/);
     // With several copies of the skill installed, the one at the server's version is the one to follow.
@@ -308,7 +309,7 @@ describe("OAuth for MCP clients", () => {
 });
 
 describe("an organization's or a team's action named with a product", () => {
-  let sandboxPath: string;
+  let examplePath: string;
   let tenantSlug: string;
   let plainPath: string;
   let plainSlug: string;
@@ -318,8 +319,8 @@ describe("an organization's or a team's action named with a product", () => {
     const t = await alice.api("POST", "/api/v1/tenants", { name: "Try Co" });
     tenantSlug = t.body.tenant.slug;
     const p = await alice.api("POST", `/api/v1/teams/${tenantSlug}/${t.body.team.slug}/products`, { name: "Showcase" });
-    sandboxPath = p.body.path;
-    expect(await syncSandboxTenant(h.db, tenantSlug, () => {})).toBe(t.body.tenant.tenant_id);
+    examplePath = p.body.path;
+    expect(await syncExampleTenant(h.db, tenantSlug, () => {})).toBe(t.body.tenant.tenant_id);
     const o = await alice.api("POST", "/api/v1/tenants", { name: "Plain Co" });
     plainSlug = o.body.tenant.slug;
     plainPath = (await alice.api("POST", `/api/v1/teams/${plainSlug}/${o.body.team.slug}/products`, { name: "Workbench" })).body.path;
@@ -329,26 +330,26 @@ describe("an organization's or a team's action named with a product", () => {
 
   it("acts on the organization the product is in, as the other tools take a product", async () => {
     const client = await connect(token);
-    // Plain Co is no sandbox, so status answers that it isn't one: the product named the organization.
-    const status = await client.callTool({ name: "sandbox", arguments: { action: "status", product: plainPath } });
-    expect((status.content as { text: string }[])[0]!.text).toMatch(/^404: Plain Co isn’t a public sandbox\./);
+    // The product named the organization.
+    const limits = await client.callTool({ name: "products", arguments: { action: "limits", product: plainPath } });
+    expect(text(limits)).toMatchObject({ organization: { slug: plainSlug }, plan: "unlimited" });
     // So does any organization's action without a product of its own.
     const log = await client.callTool({ name: "members", arguments: { action: "activity", product: plainPath } });
     expect(log.isError, JSON.stringify(log.content)).toBeFalsy();
-    // A sandbox's product names its organization too, which the unscoped connector does not reach.
-    const sandbox = await client.callTool({ name: "sandbox", arguments: { action: "status", product: sandboxPath } });
-    expect(text(sandbox).error).toMatchObject({ code: "sandbox_needs_its_own_connector", details: { connect_at: `${h.baseUrl}/mcp/t/${tenantSlug}` } });
+    // The example organization's product names its organization too, which the unscoped connector reaches.
+    const example = await client.callTool({ name: "products", arguments: { action: "limits", product: examplePath } });
+    expect(text(example)).toMatchObject({ organization: { slug: tenantSlug } });
     // A product the caller cannot see names nothing.
-    const other = await client.callTool({ name: "sandbox", arguments: { action: "status", product: "nowhere/team/product" } });
+    const other = await client.callTool({ name: "products", arguments: { action: "limits", product: "nowhere/team/product" } });
     expect((other.content as { text: string }[])[0]!.text).toMatch(/^404: /);
     await client.close();
   });
 
   it("says what to pass when the call names neither the organization nor a product, or when product means something else there", async () => {
     const client = await connect(token);
-    const none = await client.callTool({ name: "sandbox", arguments: { action: "status" } });
+    const none = await client.callTool({ name: "products", arguments: { action: "limits" } });
     expect((none.content as { text: string }[])[0]!.text).toMatch(
-      /^422: `tenant` is missing: sandbox\(action="status"\) acts on an organization\. Pass params\.tenant, the organization's slug or id: the first part of a product's path .*, or name any product in it with product\. Nothing was changed\./,
+      /^422: `tenant` is missing: products\(action="limits"\) acts on an organization\. Pass params\.tenant, the organization's slug or id: the first part of a product's path .*, or name any product in it with product\. Nothing was changed\./,
     );
     const members = await client.callTool({ name: "members", arguments: { action: "list", product: plainPath } });
     expect(text(members).error.code).toBe("invalid_input");
@@ -360,10 +361,10 @@ describe("an organization's or a team's action named with a product", () => {
   });
 
   it("on a connector scoped to the product, takes the organization from the connector", async () => {
-    const [tn, tm, pr] = sandboxPath.split("/");
-    const scoped = await h.connectAgent(alice, "Scoped sandbox agent", `/mcp/t/${tn}/${tm}/${pr}`);
+    const [tn, tm, pr] = examplePath.split("/");
+    const scoped = await h.connectAgent(alice, "Scoped product agent", `/mcp/t/${tn}/${tm}/${pr}`);
     const client = await connect(scoped, `${h.baseUrl}/mcp/t/${tn}/${tm}/${pr}`);
-    const status = await client.callTool({ name: "sandbox", arguments: { action: "status" } });
+    const status = await client.callTool({ name: "products", arguments: { action: "limits" } });
     expect(status.isError, JSON.stringify(status.content)).toBeFalsy();
     expect(text(status)).toMatchObject({ organization: { slug: tenantSlug } });
     await client.close();

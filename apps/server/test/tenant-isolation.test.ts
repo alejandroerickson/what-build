@@ -1,9 +1,8 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
-import { OPERATIONS, RESET_CONFIRMATION, type OperationDef } from "@whatbuild/core";
+import { OPERATIONS, type OperationDef } from "@whatbuild/core";
 import { sql } from "kysely";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { syncSandboxTenant } from "../src/public-sandbox.ts";
 import { restPath } from "../src/rest.ts";
 import { startHarness, type Browser, type Harness } from "./harness.ts";
 import { buildOrganization, type Organization } from "./organization-fixture.ts";
@@ -63,17 +62,7 @@ const SCOPED: Record<string, Probe> = {
   },
   "members.cancel_invitation": { input: (a) => ({ invitation_id: a.invitationId }) },
   "members.activity": { input: () => ({}) },
-  "sandbox.status": { input: () => ({}) },
-  "sandbox.settings": { input: () => ({}) },
-  "sandbox.update_settings": { input: (a) => ({ expected_etag: sandbox(a).settingsEtag, visitor_access: "closed" }) },
-  "sandbox.save_baseline": { input: () => ({ note: "Planted baseline" }) },
-  "sandbox.baselines": { input: () => ({}) },
-  "sandbox.reset": { input: (a) => ({ baseline_id: sandbox(a).baselineId, confirm: RESET_CONFIRMATION }) },
-  "sandbox.invites": { input: () => ({}) },
-  "sandbox.create_invite": { input: () => ({ label: "Planted invitation", places: 5 }) },
-  "sandbox.revoke_invite": { input: (a) => ({ invite_id: sandbox(a).inviteId }) },
-  "sandbox.visitors": { input: () => ({}) },
-  "sandbox.remove_visitor": { input: (a) => ({ account_id: sandbox(a).visitorId }) },
+  "products.limits": { input: () => ({}) },
   "outcomes.list": { input: () => ({}) },
   "outcomes.get": { input: (a) => ({ outcome_id: a.outcome.id }) },
   "outcomes.create": { input: () => ({ title: "Planted outcome" }) },
@@ -239,22 +228,16 @@ const ACCOUNT: Record<string, string> = {
   "products.set_tenant_allowance": "the instance owners' alone: 403 to anyone else",
   "products.remove_tenant_allowance": "the instance owners' alone: 403 to anyone else",
   "products.usage": "the instance owners' alone: 403 to anyone else, and names no organization",
-  "sandbox.join": "admits only the holder of a real invitation code",
+  "products.organizations": "the instance owners' alone: 403 to anyone else",
+  "products.set_limits": "the instance owners' alone: 403 to anyone else",
+  "products.accounts": "the instance owners' alone: 403 to anyone else",
+  "products.remove_account": "the instance owners' alone, in the web app: 403 to anyone else",
   get_skill: "the same document for everyone",
   submit_feedback: "write-only: says nothing back about anyone",
 };
 
-interface SandboxIds {
-  settingsEtag: string;
-  baselineId: string;
-  inviteId: string;
-  visitorId: string;
-}
-const sandboxIds = new Map<string, SandboxIds>();
-const sandbox = (o: Organization) => sandboxIds.get(o.tenant.id) ?? { settingsEtag: "none", baselineId: "none", inviteId: "none", visitorId: "none" };
-
 let h: Harness;
-let a: Organization; // the victim: a public sandbox, so its control panel has real ids too
+let a: Organization; // the victim, on the free plan, so its limits are its own
 let b: Organization; // the attacker's own organization
 let mallory: Browser;
 let token: string;
@@ -329,28 +312,10 @@ beforeAll(async () => {
   mallory = await h.signIn("mallory@quillon.example", "Mallory Quillon");
   b = await buildOrganization(h, mallory, "Quillon Works", "QUILLON5");
 
-  // The victim's organization is the deployment's public sandbox, with an invitation, a baseline and a visitor.
-  expect(await syncSandboxTenant(h.db, a.tenant.slug, () => {})).toBe(a.tenant.id);
-  const T = `/api/v1/tenants/${a.tenant.slug}`;
-  const settings = (await alice.api("GET", `${T}/sandbox/settings`)).body;
-  // No scheduled reset during the test: one would change what the victim holds.
-  const opened = await alice.api("PATCH", `${T}/sandbox/settings`, { expected_etag: settings.etag, visitor_access: "write", reset_enabled: false });
-  expect(opened.status, JSON.stringify(opened.body)).toBe(200);
-  const invite = await alice.api("POST", `${T}/sandbox/invites`, { label: "NORTHWIND7 launch", places: 5 });
-  expect(invite.status, JSON.stringify(invite.body)).toBe(201);
-  const visitor = await h.signIn("visitor@northwind.example", "NORTHWIND7 Visitor");
-  const joined = await visitor.api("POST", "/api/v1/sandbox/join", { code: String(invite.body.invite_link).split("/join/")[1] });
-  expect(joined.status, JSON.stringify(joined.body)).toBe(200);
-  const baseline = await alice.api("POST", `${T}/sandbox/baselines`, { note: "NORTHWIND7 baseline" });
-  expect(baseline.status, JSON.stringify(baseline.body)).toBe(200);
-  const visitorId = (await visitor.api("GET", "/api/v1/me")).body.account_id as string;
-  sandboxIds.set(a.tenant.id, {
-    settingsEtag: (await alice.api("GET", `${T}/sandbox/settings`)).body.etag,
-    baselineId: baseline.body.baseline_id,
-    inviteId: invite.body.invite_id,
-    visitorId,
-  });
-  a.secrets.push(invite.body.invite_id, baseline.body.baseline_id, visitorId, "visitor@northwind.example", String(invite.body.invite_link).split("/join/")[1]!);
+  // The victim's organization is on the free plan, with limits an instance owner changed and a day's counts.
+  await h.db.updateTable("tenants").set({ plan: "free", limits: JSON.stringify({ writes_per_day: 777 }), limits_etag: "NORTHWIND7-limits" }).where("tenant_id", "=", a.tenant.id).execute();
+  expect((await alice.api("POST", `/api/v1/p/${a.product.path}/outcomes`, { title: "Counted against NORTHWIND7's day" })).status).toBe(201);
+  a.secrets.push("NORTHWIND7-limits");
 
   token = await h.connectAgent(mallory, "Quillon agent");
   client = new Client({ name: "quillon-agent", version: "1.0.0" });
@@ -456,28 +421,33 @@ describe("operations that belong to no organization", () => {
     }
   });
 
-  it("refuses the instance's allowances and its usage to anyone but its owners, and changes none", async () => {
+  it("refuses the instance's allowances, its organizations' plans and its usage to anyone but its owners, and changes none", async () => {
     const before = (await h.db.selectFrom("tenant_allowances").selectAll().execute()).length;
+    const plans = async () => JSON.stringify(await h.db.selectFrom("tenants").select(["tenant_id", "plan", "limits", "limits_etag"]).orderBy("tenant_id").execute());
+    const plansBefore = await plans();
     for (const [name, input] of [
       ["products.tenant_allowances", {}],
       ["products.set_tenant_allowance", { email: a.owner.email, allowed: 0 }],
       ["products.remove_tenant_allowance", { email: a.owner.email, expected_etag: "x" }],
       ["products.usage", {}],
+      ["products.organizations", {}],
+      ["products.set_limits", { tenant: a.tenant.slug, plan: "unlimited", limits: { writes_per_day: 1 }, expected_etag: "NORTHWIND7-limits" }],
+      ["products.set_limits", { tenant: b.tenant.slug, plan: "unlimited" }],
+      ["products.accounts", {}],
     ] as const) {
       for (const r of await both(name, input)) {
         expect(r.status, `${name} ${JSON.stringify(r.body)}`).toBe(403);
         expect(leaked(a, r.body, r.sent)).toEqual([]);
       }
     }
+    // Removing an account is a person's act in the web app, and an instance owner's.
+    const victimId = (await h.db.selectFrom("accounts").select("account_id").where("email", "=", a.owner.email).executeTakeFirstOrThrow()).account_id;
+    const removal = await b.owner.api("POST", "/api/v1/accounts/remove", { account_id: victimId, email: a.owner.email, confirm: "delete permanently" });
+    expect(removal.status, JSON.stringify(removal.body)).toBe(403);
+    expect(leaked(a, removal.body, JSON.stringify({ account_id: victimId, email: a.owner.email }))).toEqual([]);
+    expect((await h.db.selectFrom("accounts").select("deleted_at").where("account_id", "=", victimId).executeTakeFirstOrThrow()).deleted_at).toBeNull();
     expect((await h.db.selectFrom("tenant_allowances").selectAll().execute()).length).toBe(before);
-  });
-
-  it("admits no one to a sandbox without a real invitation code", async () => {
-    for (const r of await both("sandbox.join", { code: "not-a-real-invitation-code-at-all" })) {
-      expect(r.status).toBe(404);
-      expect(leaked(a, r.body, r.sent)).toEqual([]);
-    }
-    expect((await mallory.api("GET", "/api/v1/me/products")).body.items.some((i: { path: string }) => i.path === a.product.path)).toBe(false);
+    expect(await plans()).toBe(plansBefore);
   });
 
   it("answers the skill and feedback with nothing of any organization", async () => {

@@ -3,7 +3,7 @@ type: Decision
 title: A Story preview is the document publish would store, made by publish's own code, held for its grant's life and served in the page sandbox
 description: story.preview takes publish's input, runs publish's checks without writing, keeps the document in a short-lived row and serves it under a download grant exactly as a published page is served.
 tags: [decision, story, mcp, security, sandbox]
-generated: {by: agent:claude, at: 2026-10-14}
+generated: {by: agent:claude, at: 2026-10-25}
 status: stable
 ---
 
@@ -25,16 +25,16 @@ result.
   writes, preview does not. A refusal is publish's own error.
 - The document is held in `story_previews`, a row with row-level security, for as long as its
   grant lasts (`WHATBUILD_GRANT_TTL_SECONDS`, 30 minutes by default). A product keeps its 20
-  newest; the worker removes expired rows, and a sandbox reset removes them all. Rejected: the
+  newest, and the worker removes expired rows. Rejected: the
   object store (a row is simpler for at most 1 MB of text) and holding nothing (the grant cannot
   carry the document).
 - `GET /api/v1/downloads/story-preview/{id}` serves it under a download grant in a header, never
   a session, with the same function as a version's HTML: the Story's sandbox from
   `packages/core/src/page-sandbox.ts` (a mockup page's when the version keeps showing one), the
   carried typefaces and `?theme`. A grant in the URL was rejected: agents send download grants in a header.
-- Preview needs what publish needs (editor, an Edit connection, a product not archived, a sandbox
-  taking visitors' writes), but it is not a write: it records no activity and takes nothing from a
-  sandbox visitor's allowances.
+- Preview needs what publish needs (editor, an Edit connection, a product not archived, a plan
+  that has not switched writing off), but it is not a write: it records no activity and takes
+  nothing from a free organization's daily allowances.
 - `get_style` gets no download grant: a preview's document carries the stylesheet as publish
   would place it, so an agent never needs the stylesheet on its own to see a page in the style.
 

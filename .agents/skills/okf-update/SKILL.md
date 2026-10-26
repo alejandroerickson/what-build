@@ -53,6 +53,7 @@ adding a near-duplicate.
 | `packages/core/src/ops/**`, `registry.ts`, `schemas.ts`, `errors.ts` | `spec/06` (the operation table and error codes); the operation and tool counts in `AGENTS.md`, `system/overview.md`, `system/repository-map.md`, `spec/10`; the decisions `one-registry-two-front-doors` and `mcp-tools-grouped-by-noun`; the product `SKILL.md` |
 | `apps/server/src/mcp.ts`, `rest.ts`, `public-routes.ts` | `spec/06`, `spec/02`, `system/overview.md` |
 | `packages/core/src/policy.ts`, roles, membership | `spec/03`, decisions `access-is-per-product-roles` and `a-reader-reads-only-the-story`, `system/overview.md` |
+| `packages/core/src/limits.ts`, `ops/limits.ts`, the example organization (`apps/server/src/example-organization.ts`, the guest grant in `policy.ts`), `WHATBUILD_EXAMPLE_TENANT`, `WHATBUILD_NEW_ORGANIZATION_PLAN` | `spec/03` §3.3 and §3.10, `spec/09` §9.7, decisions `every-account-reads-the-example-organization-which-only-its-staff-write` and `free-organizations-meet-limits-that-only-instance-owners-change`, `system/security.md`, the product `SKILL.md`, `operations/upgrading.md` |
 | `packages/core/src/connector-scope.ts`, `apps/server/src/auth/connector-reach.ts`, MCP endpoint paths | `spec/03` §3.6 and §3.8, `spec/06` §6.5 and §6.8, decision `a-scoped-mcp-connector-is-a-fence`, the product `SKILL.md` |
 | `apps/server/src/auth/**`, sessions, tokens | `spec/03`, decision `built-in-identity-and-oauth`; a sign-in method also the Sign-in sections of `operations/cloud-run.md` and `operations/azure.md` |
 | `apps/server/src/migrations/*.sql`, `packages/core/src/db.ts` | `spec/04`; tenancy or row-level security changes: decision `shared-schema-tenancy-with-row-level-security`; retention: `spec/09` |
@@ -89,7 +90,7 @@ adding a near-duplicate.
 | `config.ts` (a new or changed `WHATBUILD_*` variable), `apps/server/src/auth/**`, `deploy/**`, `.nvmrc` or `engines`, or anything else a deployment must act on to take the next release | a line under Unreleased in `operations/upgrading.md` |
 | How work is done, the checks, the public-repository rules | `process/working-in-this-repository.md`, `AGENTS.md` |
 | `scripts/check-publishable.mjs`, `scripts/security.mjs`, `scripts/tools.mjs`, `scripts/githooks/**`, `.github/workflows/security.yml`, `codeql.yml`, `dependabot.yml`, `.github/*.toml`, `zap-rules.tsv`, `.github/SECURITY.md`, `.agents/skills/audit-for-leaks/**`, `.agents/skills/triage-security-findings/**` | `operations/security-checks.md`, decision `privacy-and-security-checks-live-in-the-repository`, `system/repository-map.md` |
-| Authentication, tenancy, agent HTML, uploads, the URL fetcher, the sandbox's limits, headers | `system/security.md` (the threat model): keep each control it names true |
+| Authentication, tenancy, agent HTML, uploads, the URL fetcher, the example organization, the free plan's limits, headers | `system/security.md` (the threat model): keep each control it names true |
 
 Nothing in the map fits? Grep `okf/` for the file, function and feature names you touched, and
 extend this map in the same change.

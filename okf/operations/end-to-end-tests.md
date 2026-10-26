@@ -1,7 +1,7 @@
 ---
 type: System Concept
 title: Agent-driven end-to-end tests on a golden master
-description: An agent follows a written test plan through the real web app and the real MCP server, on a local instance reset each time to a golden master made from production's public sandbox, and reports failures and anomalies.
+description: An agent follows a written test plan through the real web app and the real MCP server, on a local instance reset each time to a golden master made from production's example organization, and reports failures and anomalies.
 tags: [development, testing, qa, e2e, agents, mcp, browser]
 generated: {by: agent:claude, at: 2026-10-25}
 status: draft
@@ -39,29 +39,27 @@ All of it is under `.what-build/`, which git ignores.
 ```sh
 corepack pnpm e2e golden                  # from the newest pull
 corepack pnpm e2e golden 2026-10-10T1621Z # from a named pull
-corepack pnpm e2e golden --org <slug>     # keep another organization than the public sandbox
+corepack pnpm e2e golden --org <slug>     # keep another organization than the example
 ```
 
 It is made from a pull of production ([a copy of production](a-copy-of-production.md)): a pull of
-the public sandbox, `pnpm fixture pull`'s default, is all it needs. It is restored as the
+the example organization, `pnpm fixture pull`'s default, is all it needs (a pull taken before the
+example replaced the public sandbox gives the sandbox). It is restored as the
 application's role, and shaped into two organizations
 ([decision](../decisions/end-to-end-tests-are-plans-an-agent-runs-on-a-golden-master.md)):
 
-- **The sandbox organization:** the organization production names as its public sandbox, as it was
-  when pulled, with its settings, baseline and invitations. Every other organization is removed, with
+- **The example organization:** the organization production names as its example, as it was
+  when pulled. Every other organization is removed, with
   the accounts that belonged only to them, and so are sessions, OAuth clients and tokens, sign-in
   links and the public site's interest list.
 - **The standard organization** (`<slug>-standard`, named "<name> (standard)"): a copy of the
-  sandbox organization's teams, products, content, activity and the memberships of everyone but
-  its visitors, under new ids, with every reference to an old id rewritten, in columns and in
+  example organization's teams, products, content, activity and memberships, under new ids, with every reference to an old id rewritten, in columns and in
   JSON. Its sources' search index is copied with them, so search finds in it what it finds in the
-  sandbox organization. A new id keeps the time of the one it replaces, so lists ordered by id, such as activity,
-  keep their order in the copy. It is not a sandbox. The files are shared, since blobs never change. After the copy, every
+  example organization. A new id keeps the time of the one it replaces, so lists ordered by id, such as activity,
+  keep their order in the copy. It is not the example. The files are shared, since blobs never change. After the copy, every
   foreign key is checked.
 
-So every plan can run the same products both ways. No sandbox visitor is copied into the
-standard organization: not an account an invitation made, and not anyone holding a visitor's seat,
-whose seat and every role on a team or product stay in the sandbox alone. Each time it is served,
+So every plan can run the same products both ways. Each time it is served,
 the development sign-in's people are given their roles in both: Riley owns each organization, Sam edits every team, Jordan reads every Story.
 
 The golden master is real people's data, with every rule of that guide: it stays in `.what-build/`,
@@ -93,10 +91,10 @@ An agent runs it in the background with its output in `.what-build/e2e/server.lo
 `pnpm e2e stop` stops it and the browser: this checkout's, which its process id in
 `.what-build/e2e/dev.pid` names, never another checkout's instance. It refuses to start while this
 checkout's instance runs. It drops `e2e`, creates it again from `golden` (a Postgres template copy, which takes a moment
-even for a large copy), copies the files, applies any migration newer than the golden master, names the sandbox organization the public
-sandbox, and serves. It also marks the sandbox as reset just now, so that its daily reset does not
-put the baseline back over the golden master's content when the instance starts; a run that lasts
-past the reset hour in the sandbox's settings would see it happen. Stopping it and starting it again
+even for a large copy), copies the files, applies any migration newer than the golden master, names the example
+organization the example, and serves. The sample people hold their roles in both organizations,
+so a guest of the example is anyone else: sign in with any other address, such as
+`guest@example.com`. Stopping it and starting it again
 is how a test goes back to the golden master; it also ends every session and MCP token, which the
 tools notice and renew. Jobs a newer migration queues run in the instance's worker once it serves:
 after `0030_one_derived_text_per_source`, which reads every attachment again and builds the
@@ -125,14 +123,14 @@ The plans:
 - `smoke`: every screen opens for each role in both organizations, and an agent connects and reads.
 - `evidence-through-both-doors`: a source added over MCP is read, searched, corrected and
   commented on in the web app, and the reverse; a second attachment kept but not searched;
-  activity attribution; a stale etag; then the same in the sandbox, its limits, and the two
-  organizations kept apart.
+  activity attribution; a stale etag; a guest of the example organization reading and refused
+  every write; and the two organizations kept apart.
 - `assumptions-and-the-story`: an agent's assumption is reviewed by a person; a Story page
   is published and read by a reader, who is refused everything else.
 - `search`: the palette and the Search screen find every kind of thing by plain words, read as the
   specification says; the web and MCP's plain mode agree; what one door writes the other finds; a
   reader has no search.
-- `exploratory`: open-ended, every screen as each role and as a sandbox visitor, at phone width and
+- `exploratory`: open-ended, every screen as each role and as a guest of the example, at phone width and
   in the dark theme.
 
 ## The browser driver

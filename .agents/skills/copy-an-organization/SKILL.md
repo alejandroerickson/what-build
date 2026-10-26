@@ -1,6 +1,6 @@
 ---
 name: copy-an-organization
-description: Copy one or more organizations of a WhatBuild deployment (the public sandbox unless others are named) with only their rows and files, and put the copy where it is wanted: a local copy to test on, the end-to-end golden master, the dev deployment, or another deployment's new database. Use when asked to dump, export, extract, copy, clone or move an organization or the sandbox; to take only some organizations from production; to keep an organization out of dev, the test database or a pull; to give an organization a deployment of its own; or to move an organization to another database or deployment.
+description: Copy one or more organizations of a WhatBuild deployment (the example organization unless others are named) with only their rows and files, and put the copy where it is wanted: a local copy to test on, the end-to-end golden master, the dev deployment, or another deployment's new database. Use when asked to dump, export, extract, copy, clone or move an organization or the example organization; to take only some organizations from production; to keep an organization out of dev, the test database or a pull; to give an organization a deployment of its own; or to move an organization to another database or deployment.
 ---
 
 # Copy an organization
@@ -11,7 +11,7 @@ command. This file says how to conduct the work.
 
 ## What must stay true
 
-- **Only the organizations asked for.** With none named, a pull takes the public sandbox. Name
+- **Only the organizations asked for.** With none named, a pull takes the example organization. Name
   others with `--org <slug>[,<slug>…]` only when the person names them. Use `--all` only when they
   ask for every organization, and say first that it brings every organization to this machine.
 - **The source is only read**, through a role that changes nothing (production's backup role).
@@ -29,7 +29,7 @@ command. This file says how to conduct the work.
 ## Procedure
 
 1. **Settle three things** with the person, from what they said or by asking: which
-   organizations (slugs; the public sandbox by default), from which deployment (production unless
+   organizations (slugs; the example organization by default), from which deployment (production unless
    told), and where the copy goes.
 2. **Follow the destination's procedure:**
    - this machine, to test on: the `test-on-a-copy-of-production` skill;
@@ -46,7 +46,7 @@ command. This file says how to conduct the work.
 
 ## When it refuses
 
-- **No organization, or several public sandboxes:** ask which organizations are meant.
+- **No example organization, or several:** ask which organizations are meant.
 - **"no rule for <table>":** a migration added a table without `tenant_id`. Decide with the person
   whether it belongs to the deployment or should be copied whole, then change
   `apps/server/src/organization-copy.ts` and its test (`apps/server/test/organization-copy.test.ts`).

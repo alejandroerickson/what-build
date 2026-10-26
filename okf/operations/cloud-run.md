@@ -168,33 +168,31 @@ gcloud run services update whatbuild --region $R --update-env-vars \
   '^|^WHATBUILD_OPERATOR=Example Labs|WHATBUILD_PRIVACY_CONTACT=privacy@example.com|WHATBUILD_PROVIDERS=Google Cloud: hosting, files and logs; Neon: the database; Cloudflare: the public site, its visit counts and email; Google Analytics: analytics, for those who accept'
 ```
 
-**A public sandbox.** `SANDBOX_TENANT=<slug>` names one organization as the public sandbox
-([§9.7](../spec/09-data-lifecycle.md)); the organization must exist, and the service reads the
-name when it starts. On a service that is already deployed:
+**The plan of a new organization.** `NEW_ORGANIZATION_PLAN=free` (`WHATBUILD_NEW_ORGANIZATION_PLAN`)
+puts every organization someone other than an instance owner creates on the free plan, whose
+limits everyone in it meets ([§9.7](../spec/09-data-lifecycle.md)); left out, they are unlimited.
+The public deployment sets `free`; a deployment for one organization's own people leaves it out.
+Instance owners' organizations are always unlimited, and they change any organization's plan on
+`/instance`:
 
 ```bash
-gcloud run services update whatbuild --region $R --update-env-vars WHATBUILD_SANDBOX_TENANT=<slug>
+gcloud run services update whatbuild --region $R --update-env-vars WHATBUILD_NEW_ORGANIZATION_PLAN=free
 ```
 
-Then, signed in as an owner or admin of that organization, open `/t/<slug>/sandbox`: get the
-content as visitors should find it, **Save baseline**, check the limits, and make an invitation.
-Removing the variable closes the sandbox to every visitor at the next start, and leaves the
-organization and its staff as they were.
-
-The reset needs nothing more: the first request after its hour runs it. To have it run at the
-hour even when nobody visits, let Cloud Scheduler wake the service. `setup.sh` creates the job
-when `SANDBOX_TENANT` is set, and this creates it by hand:
+**The example organization** is for the maintainer's public deployment only: any other deployment
+leaves it out and has none. `EXAMPLE_TENANT=<slug>` (`WHATBUILD_EXAMPLE_TENANT`) names one
+organization that every signed-in account reads and only its members change
+([§3.10](../spec/03-accounts-teams-and-identity.md#310-the-example-organization)); the
+organization must exist, and the service reads the name when it starts. On a service that is
+already deployed:
 
 ```bash
-gcloud scheduler jobs create http whatbuild-sandbox-reset --location $R \
-  --schedule "1 2 * * *" --time-zone "America/Los_Angeles" \
-  --http-method POST --uri "https://<your-url>/api/v1/sandbox/reset-if-due"
+gcloud run services update whatbuild --region $R --update-env-vars WHATBUILD_EXAMPLE_TENANT=<slug>
 ```
 
-Keep the schedule a minute after the hour in the sandbox's settings, in the same time zone; if
-you change one, change the other. The address needs no credential: it does nothing unless a reset
-is due. Cloud Scheduler is not offered in every region, so `SCHEDULER_LOCATION` may need to name
-a region near the service's.
+Its owners and admins then write the worked example there as in any organization. Removing the
+variable takes every guest's access away at the next start, and leaves the organization and its
+members as they were.
 
 **Deploying releases.** A deployment that follows releases has a Cloud Build trigger, which
 `setup.sh` does not create; until one exists, **nothing deploys on its own**, and a merge to `main`
@@ -357,7 +355,7 @@ account running it); `setup.sh` runs it. They read only what Cloud Run measures 
 | Policy | Mails when | Look first at |
 |---|---|---|
 | `whatbuild: server errors` | a 5xx response in five minutes | the service's error lines, below; a 503 or 504 with none means no instance could serve, or a request ran past the 300-second timeout |
-| `whatbuild: errors in the log` | a line of severity ERROR from the service (Cloud Run's request log aside), at most one mail an hour | the line itself: an unexpected error names its request, `request_id`; a sandbox reset; `Memory limit … exceeded` |
+| `whatbuild: errors in the log` | a line of severity ERROR from the service (Cloud Run's request log aside), at most one mail an hour | the line itself: an unexpected error names its request, `request_id`; `Memory limit … exceeded` |
 | `whatbuild: memory` | an instance above 85% of its memory for five minutes | the worker's log lines for the file being read; [Parsing](#setting-it-up) for the limits and the service's memory |
 | `whatbuild: a job failed` | a failed run of `whatbuild-backup` or `whatbuild-migrate` | `gcloud run jobs executions list --job <job>`; [Backups](backups.md) or [Recovering](recovering-from-a-bad-release.md) |
 
@@ -452,9 +450,10 @@ smallest size, and its compute is suspended until the month ends once they are u
 deployment people use through much of the day needs the Launch plan. One
 instance runs at most (`MAX_INSTANCES`, default 1), which is ample for a few teams and makes that
 the ceiling. Builds deploy a new image and keep the setting. The smallest Cloud SQL instance is roughly
-US$10 a month; a free-tier Postgres elsewhere costs nothing, but holds little (1 GB a project on Neon's), so lower a
-public sandbox's upload allowances to match (`bytes_per_day`, `org_bytes_per_day`;
-[§9.7](../spec/09-data-lifecycle.md)): visitors' text and its search index land in Postgres. Storage is cents; data the service
+US$10 a month; a free-tier Postgres elsewhere costs nothing, but holds little (1 GB a project on Neon's), so keep
+the free plan's upload allowances to match (`bytes_per_day`, `org_bytes_per_day`, changed per
+organization on `/instance`; [§9.7](../spec/09-data-lifecycle.md)): the text of what free
+organizations upload, and its search index, land in Postgres. Storage is cents; data the service
 sends out costs about US$0.12 a GB, and is the one cost that grows with downloads. Mail through
 Cloudflare Email Sending needs the Workers Paid plan, which includes 3,000 messages a month
 ([Mail](mail.md)). The four alert policies cost about US$0.10 each a month; their mail costs
@@ -473,7 +472,6 @@ day make well under a million a month.
 | Bucket | `<project>-whatbuild-files` | private, uniform access, public access prevented; versioned, noncurrent versions deleted after 30 days |
 | Secrets | `whatbuild-database-url`, `whatbuild-grant-key`, optional `whatbuild-smtp-url` ([Mail](mail.md)), `whatbuild-google-client-secret` | read by the runtime identity only |
 | Images | Artifact Registry `whatbuild` | the ten most recent always kept; others deleted after 30 days |
-| Scheduler job | `whatbuild-sandbox-reset` (with `SANDBOX_TENANT`) | wakes the service a minute after the sandbox's reset hour |
 | Log exclusion | `whatbuild-request-addresses` on the `_Default` sink | Cloud Run logs every request itself, with its whole address, the client's IP and its browser, for 30 days. This drops its line for an address with a query (a search's words, a sign-in link's token) or an invitation link; the service's own line for it, masked, stays |
 | Restore points (Neon, optional) | branches `pre-migrate-<time>-<commit>`, secret `whatbuild-neon-api-key` | one per deploy before migrating, the newest three kept; the key reaches only the Neon project and is read by the build identity |
 | Alerts | four policies named `whatbuild: …`, one email channel | made by `deploy/cloud-run/alerts.mjs` ([Alerts](#alerts)) |

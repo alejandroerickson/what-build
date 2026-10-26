@@ -16,7 +16,6 @@ export type EntityType =
   | "story_hierarchy"
   | "story_style"
   | "annotation"
-  | "sandbox"
   | "feedback";
 
 /**

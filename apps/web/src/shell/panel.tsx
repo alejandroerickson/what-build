@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link, NavLink, useLocation, useNavigate } from "react-router";
 import { ROLE_WORD } from "../lib/format.ts";
-import { lastProduct, productHome, useMe, useProducts, useSignOut, type Product } from "../lib/session.tsx";
+import { lastProduct, ownFirst, productHome, useHideExample, useMe, useProducts, useSignOut, type Product } from "../lib/session.tsx";
 import { Avatar, Glyph, IconButton, Menu, MenuGroup, MenuItem, MenuLabel, MenuRadio, MenuSeparator, type GlyphName } from "../ui/index.tsx";
 import { shortcutLabel } from "../ui/media.ts";
 import { CreateProductDialog } from "../routes/new-product.tsx";
@@ -61,10 +61,11 @@ export function ProductSwitcher({ current }: { current: Product }) {
   const [creating, setCreating] = useState(false);
   const segment = loc.pathname.split("/")[5] ?? "idea";
   const keep = KEEP_ON_SWITCH.has(segment) ? segment : "idea";
-  const items = products.data?.items ?? [];
+  // The person's own products first, the example organization's last, as everywhere.
+  const items = [...(products.data?.items ?? [])].sort((a, b) => Number(Boolean(a.tenant.example)) - Number(Boolean(b.tenant.example)));
   const groups = new Map<string, typeof items>();
   for (const p of items) {
-    const key = `${p.tenant.name} · ${p.team.name}`;
+    const key = p.tenant.example ? `Example organization · ${p.tenant.name}` : `${p.tenant.name} · ${p.team.name}`;
     groups.set(key, [...(groups.get(key) ?? []), p]);
   }
   return (
@@ -81,7 +82,7 @@ export function ProductSwitcher({ current }: { current: Product }) {
               <Glyph name="chevron-down" size="sm" />
             </span>
             <span className="product-context ellipsis">
-              {current.tenant.name} · {current.team.name}
+              {current.tenant.example ? `Example organization · ${current.tenant.name}` : `${current.tenant.name} · ${current.team.name}`}
             </span>
           </>
         }
@@ -143,26 +144,42 @@ export function ProductNav({ product, app, section }: { product: Product; app: s
 /**
  * The panel outside a product (the overview, Connect an agent, members, settings). It is the same on
  * every one of these screens, so it never depends on where the person came from: each organization's
- * name, headed "Products" over its products, then Connect an agent.
+ * name, headed "Products" over its products, then Connect an agent, and for an owner of the instance
+ * its Organizations and People. The example organization comes last, headed as the example, and a
+ * guest may hide it here; the overview still shows it.
  */
 export function PlainNav({ section }: { section: string }) {
   const products = useProducts();
+  const me = useMe();
+  const hide = useHideExample();
+  const instanceOwner = Boolean(me.data?.tenant_allowance.instance_owner);
   const items = products.data?.items ?? [];
-  const tenants = products.data?.tenants ?? [];
+  const tenants = ownFirst(products.data?.tenants ?? []).filter((t) => !(t.example && t.your_role === "guest" && me.data?.hide_example));
   return (
     <>
       {tenants.map((t) => {
         const orgId = `nav-org-${t.tenant_id}`;
         const labelId = `nav-org-products-${t.tenant_id}`;
+        const guest = t.your_role === "guest";
         return (
-          <div key={t.tenant_id} className="nav-l1 nav-products" role="group" aria-labelledby={`${orgId} ${labelId}`}>
+          <div key={t.tenant_id} className={`nav-l1 nav-products${t.example ? " nav-example" : ""}`} role="group" aria-labelledby={`${orgId} ${labelId}`}>
             <div className="nav-org">
               <div id={orgId} className="nav-org-name ellipsis">
-                {t.name}
+                {t.example ? (
+                  <>
+                    <Glyph name="library" size="sm" />
+                    Example organization
+                  </>
+                ) : (
+                  t.name
+                )}
               </div>
-              <div id={labelId} className="nav-org-label">
-                Products
+              <div id={labelId} className="nav-org-label ellipsis">
+                {t.example ? `${t.name} · ${guest ? "read only" : "you’re an author"}` : "Products"}
               </div>
+              {t.example && guest ? (
+                <IconButton className="nav-org-hide" size="sm" icon="x" label="Hide the example organization from the panel" title="Hide from the panel" disabled={hide.isPending} onClick={() => hide.mutate(true)} />
+              ) : null}
             </div>
             {items
               .filter((p) => p.tenant.tenant_id === t.tenant_id)
@@ -174,6 +191,12 @@ export function PlainNav({ section }: { section: string }) {
       })}
       <div className="nav-quiet">
         <NavNode to="/connect" icon="bot" label="Connect an agent" quiet current={section === "connect"} />
+        {instanceOwner ? (
+          <>
+            <NavNode to="/instance" icon="building" label="Organizations" quiet current={section === "instance"} />
+            <NavNode to="/people" icon="users" label="People" quiet current={section === "people"} />
+          </>
+        ) : null}
       </div>
     </>
   );
@@ -215,19 +238,20 @@ export function AccountMenu() {
           </>
         ) : null}
         {tenants.map((t) => {
-          // In a public sandbox only its owners and admins see people; everyone else is a visitor there.
-          const staff = t.your_role === "owner" || t.your_role === "admin";
-          const role = t.sandbox && !staff ? "visitor" : t.your_role;
+          // A guest of the example organization is nobody there, so has no members to see.
+          const guest = t.your_role === "guest";
+          // An owner of the instance sets every organization's plan and limits, so sees them for each.
+          const showLimits = t.plan === "free" || guest || Boolean(me.data?.tenant_allowance.instance_owner);
           return (
-            <MenuGroup key={t.tenant_id} label={role ? `${t.name} · ${ROLE_WORD[role] ?? role}` : t.name}>
-              {!t.sandbox || staff ? (
+            <MenuGroup key={t.tenant_id} label={t.your_role ? `${t.name} · ${ROLE_WORD[t.your_role] ?? t.your_role}` : t.name}>
+              {!guest ? (
                 <MenuItem icon="users" to={`/t/${t.slug}/members`}>
                   Members
                 </MenuItem>
               ) : null}
-              {t.sandbox ? (
-                <MenuItem icon="flask" to={`/t/${t.slug}/sandbox`}>
-                  {staff ? "Sandbox controls" : "About this sandbox"}
+              {showLimits ? (
+                <MenuItem icon="scale" to={`/t/${t.slug}/limits`}>
+                  {guest ? "Your limit here" : "Plan and limits"}
                 </MenuItem>
               ) : null}
             </MenuGroup>
@@ -252,9 +276,14 @@ export function AccountMenu() {
           </MenuItem>
         ) : null}
         {me.data?.tenant_allowance.instance_owner ? (
-          <MenuItem icon="users" to="/instance">
-            Organization creators
-          </MenuItem>
+          <>
+            <MenuItem icon="building" to="/instance">
+              Organizations
+            </MenuItem>
+            <MenuItem icon="users" to="/people">
+              People
+            </MenuItem>
+          </>
         ) : null}
         <MenuItem icon="settings" to="/settings">
           Settings

@@ -11,8 +11,8 @@ status: stable
 
 ## Context
 
-The job worker runs in the server's process ([decision](one-stateless-image.md)), and anyone a
-public sandbox admits can upload a file. A parse that exhausts the process's memory, or keeps its
+The job worker runs in the server's process ([decision](one-stateless-image.md)), and anyone let
+into an organization can upload a file. A parse that exhausts the process's memory, or keeps its
 event loop busy, stops the web app, the API and MCP together. Parsers bound what they can (the
 parse cap, unpacked bytes, nesting, pages, paragraphs, patterns that run in one pass), but no list of
 bounds covers every input: pdf.js, for one, decodes a compressed stream to whatever size it holds.

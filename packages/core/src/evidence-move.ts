@@ -13,7 +13,7 @@ import { collapse, newEtag, newId, slugify, uniq } from "./util.ts";
  * line in the decision's document. Its history in the activity log becomes the source's history.
  * Then the original is deleted.
  *
- * The text goes to object storage, which only the worker reaches, so a migration or a sandbox reset
+ * The text goes to object storage, which only the worker reaches, so a migration or a restored copy
  * queues a move_to_evidence job per product and the worker runs this, one product per transaction.
  * Running it again finds nothing left to move.
  */

@@ -1,0 +1,136 @@
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
+import { sql } from "kysely";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { startHarness, type Browser, type Harness } from "./harness.ts";
+
+// The instance's owners see every account and may remove any but an instance owner's. Removing one
+// signs it out everywhere, takes its roles (each organization's access log records it), cancels its
+// invitations and allowance, and forgets its address; its name stays on what it wrote.
+
+let h: Harness;
+let root: Browser; // an instance owner
+let olive: Browser; // owns Olive Co alone
+let pete: Browser; // an editor in Olive Co, with an allowance, and an agent
+let peteId: string;
+let oliveId: string;
+let org: string;
+let P: string;
+let source: string;
+
+const remove = (who: Browser, account_id: string, email: string, confirm = "delete permanently") => who.api("POST", "/api/v1/accounts/remove", { account_id, email, confirm });
+
+beforeAll(async () => {
+  h = await startHarness({ signupAllowlist: ["root@example.com"], instanceOwners: ["root@example.com"], defaultTenantAllowance: 0 });
+  root = await h.signIn("root@example.com", "Root Owner");
+  for (const email of ["olive@example.com", "pete@example.com"]) expect((await root.api("PUT", "/api/v1/tenant-allowances", { email, allowed: 1, notify: false })).status).toBeLessThan(300);
+  olive = await h.signIn("olive@example.com", "Olive Owner");
+  const t = await olive.api("POST", "/api/v1/tenants", { name: "Olive Co" });
+  org = t.body.tenant.slug;
+  P = `/api/v1/p/${(await olive.api("POST", `/api/v1/teams/${org}/${t.body.team.slug}/products`, { name: "Grove" })).body.path}`;
+  expect((await olive.api("POST", `/api/v1/tenants/${org}/members`, { email: "pete@example.com", role: "editor", team: t.body.team.slug })).status).toBe(201);
+  pete = await h.signIn("pete@example.com", "Pete Editor");
+  source = (await pete.api("POST", `${P}/sources`, { title: "Pete's notes", tags: ["notes"] })).body.record_id;
+  // Someone not yet signed up is invited to Olive Co at an address that is never Pete's, and Pete is invited elsewhere too.
+  const ids = await h.db.selectFrom("accounts").select(["account_id", "email"]).execute();
+  peteId = ids.find((a) => a.email === "pete@example.com")!.account_id;
+  oliveId = ids.find((a) => a.email === "olive@example.com")!.account_id;
+}, 120_000);
+afterAll(async () => h?.close());
+
+describe("listing accounts", () => {
+  it("is for the instance's owners alone", async () => {
+    expect((await olive.api("GET", "/api/v1/accounts")).status).toBe(403);
+    const r = await root.api("GET", "/api/v1/accounts");
+    expect(r.status).toBe(200);
+    const byEmail = (e: string) => r.body.items.find((a: { email: string }) => a.email === e);
+    expect(byEmail("root@example.com")).toMatchObject({ instance_owner: true, you: true });
+    expect(byEmail("olive@example.com")).toMatchObject({ instance_owner: false, organizations: [{ slug: org, role: "owner", roles: 0 }], allowance: { allowed: 1, created: 1 } });
+    expect(byEmail("pete@example.com")).toMatchObject({ organizations: [{ slug: org, role: null, roles: 1 }], allowance: { allowed: 1, created: 0 } });
+    expect(byEmail("pete@example.com").sessions).toBeGreaterThan(0);
+    expect(byEmail("pete@example.com").last_seen_at).toBeTruthy();
+  });
+
+  it("finds people by name or address", async () => {
+    const r = await root.api("GET", "/api/v1/accounts?query=PETE");
+    expect(r.body.items.map((a: { email: string }) => a.email)).toEqual(["pete@example.com"]);
+  });
+});
+
+describe("removing an account", () => {
+  it("is refused to anyone but an instance owner, and to an agent", async () => {
+    expect((await olive.api("POST", "/api/v1/accounts/remove", { account_id: peteId, email: "pete@example.com", confirm: "delete permanently" })).status).toBe(403);
+    const client = new Client({ name: "accounts-agent", version: "1.0.0" });
+    await client.connect(new StreamableHTTPClientTransport(new URL(`${h.baseUrl}/mcp`), { requestInit: { headers: { authorization: `Bearer ${await h.connectAgent(root, "Root's agent")}` } } }));
+    const r = (await client.callTool({ name: "products", arguments: { action: "remove_account", params: { account_id: peteId, email: "pete@example.com", confirm: "delete permanently" } } })) as { isError?: boolean; content: { text: string }[] };
+    expect(r.isError).toBe(true);
+    // A person's act in the web app: an agent is not even offered it.
+    expect(r.content[0]!.text).toMatch(/Unknown products action: remove_account/);
+    const listed = (await client.callTool({ name: "products", arguments: { action: "accounts" } })) as { isError?: boolean; content: { text: string }[] };
+    expect(listed.isError).toBeFalsy();
+    await client.close();
+  });
+
+  it("needs the confirmation and the address typed exactly", async () => {
+    expect((await remove(root, peteId, "pete@example.com", "yes")).body.error.code).toBe("confirmation_required");
+    expect((await remove(root, peteId, "pete@example.org")).body.error.code).toBe("typed_email");
+  });
+
+  it("refuses an instance owner's account, and the only owner of an organization", async () => {
+    const rootId = (await h.db.selectFrom("accounts").select("account_id").where("email", "=", "root@example.com").executeTakeFirstOrThrow()).account_id;
+    const own = await remove(root, rootId, "root@example.com");
+    expect(own.status).toBe(409);
+    expect(own.body.error.code).toBe("instance_owner");
+    const alone = await remove(root, oliveId, "olive@example.com");
+    expect(alone.status).toBe(409);
+    expect(alone.body.error.code).toBe("last_owner");
+    expect(alone.body.error.details.organizations).toEqual([{ slug: org, name: "Olive Co" }]);
+  });
+
+  it("signs the account out, takes its roles with a record, cancels what let it in, and forgets its address", async () => {
+    const token = await h.connectAgent(pete, "Pete's agent");
+    // An invitation still waiting at Pete's address, sent before his account existed.
+    const tenantId = (await h.db.selectFrom("tenants").select("tenant_id").where("slug", "=", org).executeTakeFirstOrThrow()).tenant_id;
+    await h.db
+      .insertInto("invitations")
+      .values({ invitation_id: "01M5TINV1TAT10N000000000PE", tenant_id: tenantId, scope_type: "tenant", scope_id: tenantId, email: "Pete@example.com", role: "member", token_hash: "pete-invitation", expires_at: new Date(Date.now() + 86400_000).toISOString(), created_by: JSON.stringify({ account_id: oliveId, display_name: "Olive Owner", surface: "web", client: null }) })
+      .execute();
+    const r = await remove(root, peteId, "PETE@example.com");
+    expect(r.status, JSON.stringify(r.body)).toBe(200);
+    expect(r.body).toMatchObject({ removed: true, display_name: "Pete Editor", organizations_left: 1, allowance_removed: true, invitations_cancelled: 1 });
+    expect(r.body.sessions_ended).toBeGreaterThan(0);
+    expect(r.body.agents_disconnected).toBe(1);
+
+    // Signed out everywhere: the browser and the agent are refused.
+    expect((await pete.api("GET", "/api/v1/me/products")).status).toBe(401);
+    const mcp = await fetch(`${h.baseUrl}/mcp`, { method: "POST", headers: { authorization: `Bearer ${token}`, "content-type": "application/json", accept: "application/json, text/event-stream" }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list" }) });
+    expect(mcp.status).toBe(401);
+
+    // No role anywhere, recorded in the organization's access log.
+    expect(await h.db.selectFrom("memberships").select("membership_id").where("account_id", "=", peteId).execute()).toEqual([]);
+    const log = (await olive.api("GET", `/api/v1/tenants/${org}/members/activity`)).body.items;
+    expect(log[0]).toMatchObject({ action: "revoked", entity_id: peteId, entity_title: "Pete Editor" });
+    expect(log[0].summary).toMatch(/by an owner of this instance/);
+
+    // Nothing left that lets the address in, and the address itself is forgotten.
+    expect(await h.db.selectFrom("tenant_allowances").select("email").where("email", "=", "pete@example.com").execute()).toEqual([]);
+    expect(await h.db.selectFrom("invitations").select("invitation_id").where(sql<boolean>`lower(email) = 'pete@example.com'`).where("accepted_at", "is", null).execute()).toEqual([]);
+    const row = await h.db.selectFrom("accounts").select(["email", "display_name", "deleted_at"]).where("account_id", "=", peteId).executeTakeFirstOrThrow();
+    expect(row.deleted_at).toBeTruthy();
+    expect(row.email).not.toContain("pete@example.com");
+    expect(row.display_name).toBe("Pete Editor");
+    expect((await root.api("GET", "/api/v1/accounts")).body.items.map((a: { email: string }) => a.email)).not.toContain("pete@example.com");
+
+    // What he wrote keeps his name.
+    const src = (await olive.api("GET", `${P}/sources/${source}`)).body;
+    expect(JSON.stringify(src)).toContain("Pete Editor");
+
+    // Signing up again is refused while sign-up is limited and nothing lets the address in.
+    const again = await fetch(`${h.baseUrl}/auth/email`, { method: "POST", headers: { "content-type": "application/json", origin: h.baseUrl }, body: JSON.stringify({ email: "pete@example.com" }) });
+    expect(again.status).toBe(403);
+  });
+
+  it("answers 404 for an account already removed", async () => {
+    expect((await remove(root, peteId, "pete@example.com")).status).toBe(404);
+  });
+});

@@ -3,7 +3,7 @@ type: Decision
 title: Only the instance's owners decide who may create organizations, and how many
 description: Creating a tenant needs an allowance an instance owner gave the address, counted against the tenants it created; belonging to a tenant never grants one.
 tags: [decision, identity, tenancy, roles, limits, sign-up]
-generated: {by: agent:claude, at: 2026-10-01}
+generated: {by: agent:claude, at: 2026-10-25}
 status: stable
 ---
 
@@ -39,11 +39,14 @@ and that being in an organization never lets anyone create one.
   carry on. The deployment guide says to set it.
 - Instance-level changes belong to no tenant, so they have no activity log; each allowance row
   keeps who gave it and who changed it last.
+- An organization created on an allowance gets the plan the deployment names, unlimited unless it
+  names free; one an instance owner creates is unlimited
+  ([decision](free-organizations-meet-limits-that-only-instance-owners-change.md)).
+- Giving an address an allowance is also how a waiting person is let in while sign-up is limited.
 
 ## Constrains
 
 - `products.create_tenant` checks `requireTenantAllowance` (`packages/core/src/tenant-allowance.ts`)
   under a lock on the account; nothing else creates a tenant except the development seed.
-- `accounts.sandbox_only` no longer bears on creating organizations.
 
 Specified in: [§3.3](../spec/03-accounts-teams-and-identity.md#33-tenants-and-teams).

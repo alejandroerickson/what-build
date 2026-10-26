@@ -2,13 +2,13 @@ import { SpanStatusCode, trace } from "@opentelemetry/api";
 import { sql } from "kysely";
 import type { z } from "zod";
 import { json, type ActorSnapshot, type Db } from "./db.ts";
-import { checkConnectorScope, sandboxNeedsItsOwnConnector, type ConnectorScope } from "./connector-scope.ts";
+import { checkConnectorScope, type ConnectorScope } from "./connector-scope.ts";
 import { AppError, conflict, invalid } from "./errors.ts";
 import { resolveAliases, wrongFieldHint } from "./field-aliases.ts";
-import { resolveScope, type ScopeRef } from "./policy.ts";
+import { exampleReadOnly, isGuest, resolveScope, type ScopeRef } from "./policy.ts";
 import type { Ports } from "./ports.ts";
 import { capRole, connectionNeeds, LEVEL_NAMES, levelAllows, type OpContext, type OperationDef, type Principal, type Scope } from "./registry.ts";
-import { admitVisitor, checkVisitorInput, countVisitorWrite, isVisitor, loadSandbox, lockSandbox, visitorActor, visitorName, type SandboxContext } from "./public-sandbox.ts";
+import { admitCall, checkInput, countWrite, limitsFor } from "./limits.ts";
 import { formatIssues, nullCharacterPaths, nullCharacterSentence, wordList } from "./schemas.ts";
 import { feedbackOff } from "./feedback.ts";
 import { clientFamily, countCall } from "./usage.ts";
@@ -133,46 +133,21 @@ export function parseInput<I extends z.ZodType>(op: OperationDef<I>, raw: unknow
 }
 
 /**
- * The public sandbox a call is in, if any. A call addressed to a sandbox is in it. So is any call
- * outside a tenant from an account that a sandbox invitation created, which is how the sandbox's
- * limits cover the calls that name no organization.
- */
-async function sandboxOf(env: Env, principal: Principal, scope: Scope): Promise<SandboxContext | null> {
-  if (scope.tenant) {
-    if (!scope.tenant.sandbox) return null;
-    const visitor = isVisitor(scope);
-    // Anyone but its staff meets its limits; only someone who came in by an invitation link is a visitor.
-    return { ...(await loadSandbox(env.db, scope.tenant.tenant_id)), visitor, member: visitor && scope.tenantRole !== "visitor", appears_as: visitor ? visitorName(scope.tenant.tenant_id, principal.account_id) : null };
-  }
-  if (!principal.sandbox_only) return null;
-  const held = await env.db
-    .selectFrom("memberships as m")
-    .innerJoin("tenants as t", "t.tenant_id", "m.tenant_id")
-    .select("m.tenant_id")
-    .where("m.account_id", "=", principal.account_id)
-    .where("m.role", "=", "visitor")
-    .where("t.sandbox", "=", true)
-    .executeTakeFirst();
-  if (!held) return null;
-  return { ...(await loadSandbox(env.db, held.tenant_id)), visitor: true, member: false, appears_as: visitorName(held.tenant_id, principal.account_id) };
-}
-
-/**
- * For the routes that serve bytes outside the registry (a file, a Story page's HTML): what a
- * visitor's read meets in `execute`, so a closed sandbox serves them nothing and a download is a call.
+ * For the routes that serve bytes outside the registry (a file, a Story page's HTML): what a read
+ * meets in `execute`, so a download is a call against the limit on calls a minute.
  */
 export async function admitRead(env: Env, principal: Principal, scope: Scope, name: string): Promise<void> {
-  const sandbox = await sandboxOf(env, principal, scope);
-  if (sandbox?.visitor) await admitVisitor(env.db, sandbox, principal, { name, mutates: false }, Boolean(scope.tenant));
+  const limits = await limitsFor(env.db, scope);
+  if (limits) await admitCall(env.db, limits, principal, { name, mutates: false });
 }
 
 /**
  * The one way an operation runs, whichever door the call came through: resolve and authorize the
- * scope, apply a public sandbox's limits to a visitor, validate the input strictly, run any slow
- * `prepare` step outside a transaction, then run the handler in one transaction that is scoped to
- * the tenant (row-level security) and writes its activity event alongside the change. A call
- * through a scoped MCP connector also stays inside it, and one through the unscoped connector stays
- * out of every public sandbox.
+ * scope, refuse a guest's write in the example organization, apply the limits of a free
+ * organization, validate the input strictly, run any slow `prepare` step outside a transaction,
+ * then run the handler in one transaction that is scoped to the tenant (row-level security) and
+ * writes its activity event alongside the change. A call through a scoped MCP connector also stays
+ * inside it.
  */
 export async function execute(
   env: Env,
@@ -185,18 +160,18 @@ export async function execute(
   // Every call is counted, however it ends (`usage.ts`), and is a span of the request's trace,
   // which names the operation, the door, the agent client's family and the outcome, and nobody.
   const reached: { scope?: Scope } = {};
-  const sandbox = () => (reached.scope?.tenant ? Boolean(reached.scope.tenant.sandbox) : Boolean(principal.sandbox_only));
-  const count = (outcome: string) => countCall(env, principal, { operation: op.name, feature: op.mcp.tool, outcome, sandbox: sandbox() });
+  const example = () => Boolean(reached.scope?.tenant?.example);
+  const count = (outcome: string) => countCall(env, principal, { operation: op.name, feature: op.mcp.tool, outcome, example: example() });
   return tracer.startActiveSpan(op.name, { attributes: { "whatbuild.operation": op.name, ...(principal.surface ? { "whatbuild.door": principal.surface } : {}), ...(principal.surface === "mcp" ? { "whatbuild.client": clientFamily(principal) } : {}) } }, async (span) => {
     try {
       const ran = await run(env, principal, op, rawInput, ref, connector, reached);
       count("ok");
-      span.setAttributes({ "whatbuild.outcome": "ok", "whatbuild.sandbox": sandbox() });
+      span.setAttributes({ "whatbuild.outcome": "ok", "whatbuild.example": example() });
       return ran;
     } catch (e) {
       const err = toAppError(e);
       count(err.code);
-      span.setAttributes({ "whatbuild.outcome": err.code, "whatbuild.sandbox": sandbox() });
+      span.setAttributes({ "whatbuild.outcome": err.code, "whatbuild.example": example() });
       if (err.status >= 500) span.setStatus({ code: SpanStatusCode.ERROR });
       throw e;
     } finally {
@@ -227,32 +202,27 @@ async function run(
   const scope: Scope = principal.level ? { ...resolved, role: capRole(resolved.role, principal.level) } : resolved;
   reached.scope = scope;
   if (connector) checkConnectorScope(connector, op, scope);
-  // A public sandbox is reached only through a connector scoped to it, staff included: an agent
-  // there reads what strangers wrote, and on the unscoped one it would hold everything else too.
-  else if (principal.surface === "mcp" && scope.tenant?.sandbox) throw sandboxNeedsItsOwnConnector(env.ports.config.publicBaseUrl, scope.tenant);
-  const sandbox = await sandboxOf(env, principal, scope);
-  const visitor = sandbox?.visitor ? sandbox : null;
-  if (visitor) await admitVisitor(env.db, visitor, principal, op, Boolean(scope.tenant));
+  // The example organization is read by everyone and changed by nobody but its members.
+  if (op.mutates && isGuest(scope)) throw exampleReadOnly(scope.tenant!.name, op.name);
+  const limits = await limitsFor(env.db, scope);
+  if (limits) await admitCall(env.db, limits, principal, op);
   const input = parseInput(op, rawInput) as Record<string, unknown>;
-  if (visitor) checkVisitorInput(visitor, op, input);
+  if (limits) checkInput(limits, op, input);
   if (op.mutates && scope.product?.archived_at && !op.allowArchivedProduct)
     throw conflict("product_archived", `Product ${scope.product.name} is archived and read-only. Restore it first.`);
   let enqueued = false;
   const now = new Date().toISOString();
-  // In a sandbox a visitor writes under a made-up name, and their own never reaches a handler.
-  const masked = visitor && scope.tenant ? { principal: { ...principal, display_name: visitor.appears_as ?? "Visitor", email: "" }, actor: visitorActor(principal, scope.tenant.tenant_id) } : null;
   const inTransaction = <T>(fn: (ctx: OpContext) => Promise<T>, mode: "read" | "call") => {
     const tx = env.db.transaction();
     return (mode === "read" ? tx.setAccessMode("read only") : tx).execute(async (trx) => {
       if (scope.tenant) await sql`select set_config('app.tenant_id', ${scope.tenant.tenant_id}, true)`.execute(trx);
-      if (sandbox && scope.tenant) await lockSandbox(trx, sandbox.tenant_id, op.exclusive ? "exclusive" : "shared");
-      if (visitor && mode === "call") await countVisitorWrite(trx, visitor, principal, op, input);
+      if (limits && mode === "call") await countWrite(trx, limits, principal, op, input);
       return fn({
-        principal: masked?.principal ?? principal,
-        actor: masked?.actor ?? actorOf(principal),
+        principal,
+        actor: actorOf(principal),
         db: trx,
         scope,
-        sandbox,
+        limits,
         ports: env.ports,
         now,
         async enqueue(kind, payload) {
@@ -264,7 +234,7 @@ async function run(
   };
   // Slow work, such as a download, runs before the transaction, so it never holds a database connection.
   const prepared = op.prepare
-    ? await op.prepare({ principal: masked?.principal ?? principal, scope, ports: env.ports, sandbox, now, read: (fn) => inTransaction(fn, "read") }, input as never)
+    ? await op.prepare({ principal, scope, ports: env.ports, limits, now, read: (fn) => inTransaction(fn, "read") }, input as never)
     : undefined;
   const result = await inTransaction((ctx) => op.handler(ctx, input as never, prepared), "call");
   if (enqueued) env.ports.notifyJobs?.();

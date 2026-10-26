@@ -44,9 +44,9 @@ message, every pull request's text and every issue and comment is published, and
 ## What this is
 
 WhatBuild turns a product team's discovery material into outcomes, mockups, reviewed assumptions
-and a Story for stakeholders. People use a React web app; agents use an MCP server exposing 119 of
-the same 121 operations (all but deleting an organization and its preview, which only its owner
-does, in the web app). There is no AI inside. One stateless image on Cloud Run,
+and a Story for stakeholders. People use a React web app; agents use an MCP server exposing 111 of
+the same 114 operations (all but deleting an organization and its preview, which only its owner
+does, and removing an account, which only an instance owner does, in the web app). There is no AI inside. One stateless image on Cloud Run,
 Postgres, and object storage.
 
 The domain is **what-build.com**, with a hyphen: the public site at `what-build.com`, the app at
@@ -75,8 +75,8 @@ that folder. If your tool does not load skills, read the `SKILL.md` files direct
 | `make-a-release` | When asked to release a version or move production: publish the release, approve the deploy. |
 | `rehearse-on-the-dev-deployment` | Before production runs a release that migrates, or when asked to deploy to dev, refresh or reset dev's copy of production, change which organizations dev holds, set dev up, or rehearse a restore. |
 | `recover-a-deployment` | When a new version broke a deployment (Cloud Run or Azure): roll back, restore the database. |
-| `test-on-a-copy-of-production` | When asked to pull the sandbox (or an organization) and run the app locally on it, to QA or test end to end on real data, or to try migrations on a copy of production. |
-| `copy-an-organization` | When asked to dump, export, extract or move an organization or the sandbox, to keep an organization out of a copy, or to give an organization a deployment of its own. |
+| `test-on-a-copy-of-production` | When asked to pull the example organization (or another organization) and run the app locally on it, to QA or test end to end on real data, or to try migrations on a copy of production. |
+| `copy-an-organization` | When asked to dump, export, extract or move an organization or the example organization, to keep an organization out of a copy, or to give an organization a deployment of its own. |
 | `audit-for-leaks` | When asked to check the repository or its history for secrets or private material, when something may have leaked, or to make the repository public. |
 | `triage-security-findings` | When `pnpm security`, the Security or CodeQL workflow, or Dependabot reports something; when adding or upgrading a dependency; before a release. |
 | `run-end-to-end-tests` | When asked to run the end-to-end, smoke or acceptance tests or a test plan, to QA the app through the browser and MCP, or to build the golden master. |
@@ -110,7 +110,7 @@ conducts each one that changes something:
 | know what is backed up, check that backups run, restore a dump, perform the restore drill | `backups.md` | `rehearse-on-the-dev-deployment` (the drill) |
 | go back after a release broke a deployment | `recovering-from-a-bad-release.md` | `recover-a-deployment` |
 | test on a copy of production on this machine | `a-copy-of-production.md` | `test-on-a-copy-of-production` |
-| copy some organizations out of a deployment (the sandbox by default): to test on, to dev, or into another deployment's new database | `copying-an-organization.md` | `copy-an-organization` |
+| copy some organizations out of a deployment (the example organization by default): to test on, to dev, or into another deployment's new database | `copying-an-organization.md` | `copy-an-organization` |
 | find out how a deployment is used (features, agents, people coming back, the site); connect its analytics | `analytics.md` | `read-usage` |
 | know what mail a deployment sends and through what; set it up, check it, rotate its token, change provider | `mail.md` | `set-up-mail` |
 

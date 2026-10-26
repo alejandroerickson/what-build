@@ -1,4 +1,4 @@
-import { isSandboxStaff, json, newId, randomToken, sha256Hex, visitorName, type ConnectionLevel, type Db, type Principal, type TenantRole } from "@whatbuild/core";
+import { endSignIns, json, newId, randomToken, sha256Hex, type ConnectionLevel, type Db, type Principal } from "@whatbuild/core";
 import { sql } from "kysely";
 import type { Context } from "hono";
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
@@ -71,12 +71,10 @@ export interface AccountRow {
   account_id: string;
   email: string;
   display_name: string;
-  /** Created on a sandbox invitation alone. */
-  sandbox_only?: boolean;
 }
 
 function principalFor(a: AccountRow, auth_kind: Principal["auth_kind"], surface: Principal["surface"], client: string | null): Principal {
-  return { account_id: a.account_id, email: a.email, display_name: a.display_name, auth_kind, surface, client, ...(a.sandbox_only ? { sandbox_only: true } : {}) };
+  return { account_id: a.account_id, email: a.email, display_name: a.display_name, auth_kind, surface, client };
 }
 
 /** The account behind a session token; with `legacyCookie`, only for a session issued under the cookie's old name. */
@@ -85,7 +83,7 @@ async function accountBySession(db: Db, token: string, opts: { legacyCookie?: bo
   const row = await db
     .selectFrom("sessions as s")
     .innerJoin("accounts as a", "a.account_id", "s.account_id")
-    .select(["a.account_id", "a.email", "a.display_name", "a.sandbox_only", "s.last_seen_at", "s.expires_at"])
+    .select(["a.account_id", "a.email", "a.display_name", "s.last_seen_at", "s.expires_at"])
     .where("s.session_hash", "=", hash)
     .where("s.expires_at", ">", new Date().toISOString())
     .where("a.deleted_at", "is", null)
@@ -103,7 +101,7 @@ export async function accountByAccessToken(db: Db, token: string, endpoint: stri
     .selectFrom("oauth_tokens as t")
     .innerJoin("accounts as a", "a.account_id", "t.account_id")
     .innerJoin("oauth_clients as c", "c.client_id", "t.client_id")
-    .select(["a.account_id", "a.email", "a.display_name", "a.sandbox_only", "t.resource", "t.token_hash", "t.last_used_at", "t.level", "t.feedback", "t.family_id", "c.client_name"])
+    .select(["a.account_id", "a.email", "a.display_name", "t.resource", "t.token_hash", "t.last_used_at", "t.level", "t.feedback", "t.family_id", "c.client_name"])
     .where("t.token_hash", "=", sha256Hex(token))
     .where("t.kind", "=", "access")
     .where("t.revoked_at", "is", null)
@@ -145,32 +143,9 @@ export async function mcpPrincipal(c: Context, db: Db, endpoint: string): Promis
   return { ...principalFor(a, "oauth", "mcp", a.client_name.slice(0, 64)), level: a.level, connection: a.family_id, ...(a.feedback ? {} : { feedback: false }) };
 }
 
-/**
- * End everything an account is signed in with, in one transaction: every browser session but the
- * ones kept, every agent connection, and every upload grant not yet used, so nothing more is stored
- * under one. Download grants die with the connection that asked for them. "Sign out everywhere"
- * calls it, and deleting an account will. It writes nothing into any organization: the account is
- * the person's own.
- */
+/** End everything an account is signed in with, in a transaction of its own (`endSignIns`). */
 export async function endEverything(db: Db, accountId: string, keepSessionHashes: string[] = []): Promise<{ sessions: number; connections: number }> {
-  const now = new Date().toISOString();
-  return db.transaction().execute(async (trx) => {
-    let ending = trx.deleteFrom("sessions").where("account_id", "=", accountId);
-    if (keepSessionHashes.length) ending = ending.where("session_hash", "not in", keepSessionHashes);
-    const sessions = Number((await ending.executeTakeFirst()).numDeletedRows);
-    const revoked = await trx.updateTable("oauth_tokens").set({ revoked_at: now }).where("account_id", "=", accountId).where("revoked_at", "is", null).returning(["family_id", "expires_at"]).execute();
-    // A connection counts while one of its tokens was still good; its expired ones are revoked too.
-    const connections = new Set(revoked.filter((t) => Date.parse(t.expires_at) > Date.parse(now)).map((t) => t.family_id)).size;
-    // Upload grants are tenant rows, so each of the account's organizations is visited in turn. A
-    // grant in one it has left stores nothing already: the relay checks its requester's role.
-    const tenants = await trx.selectFrom("memberships").select("tenant_id").distinct().where("account_id", "=", accountId).execute();
-    for (const { tenant_id } of tenants) {
-      await sql`select set_config('app.tenant_id', ${tenant_id}, true)`.execute(trx);
-      for (const table of ["upload_grants", "mockup_uploads"] as const)
-        await trx.updateTable(table).set({ expires_at: now }).where(sql<string>`principal->>'account_id'`, "=", accountId).where("uploaded_at", "is", null).where("expires_at", ">", now).execute();
-    }
-    return { sessions, connections };
-  });
+  return db.transaction().execute((trx) => endSignIns(trx, accountId, keepSessionHashes));
 }
 
 export async function createSession(db: Db, accountId: string, days: number, userAgent: string | undefined): Promise<string> {
@@ -182,11 +157,10 @@ export async function createSession(db: Db, accountId: string, days: number, use
   return token;
 }
 
-/** `sandboxOnly` marks an account that is created here as let in by a sandbox invitation alone; an existing account is left as it is. */
-export async function findOrCreateAccount(db: Db, email: string, displayName?: string, sandboxOnly = false): Promise<{ account: AccountRow; created: boolean }> {
+export async function findOrCreateAccount(db: Db, email: string, displayName?: string): Promise<{ account: AccountRow; created: boolean }> {
   const existing = await db
     .selectFrom("accounts")
-    .select(["account_id", "email", "display_name", "sandbox_only"])
+    .select(["account_id", "email", "display_name"])
     .where(sql<boolean>`lower(email) = lower(${email})`)
     .where("deleted_at", "is", null)
     .executeTakeFirst();
@@ -196,7 +170,7 @@ export async function findOrCreateAccount(db: Db, email: string, displayName?: s
   }
   const local = email.split("@")[0] ?? "Someone";
   const name = (displayName?.trim() || local.replace(/[._-]+/g, " ").replace(/\b\w/g, (m) => m.toUpperCase())).slice(0, 100);
-  const account = { account_id: newId(), email, display_name: name, sandbox_only: sandboxOnly };
+  const account = { account_id: newId(), email, display_name: name };
   await db.insertInto("accounts").values({ ...account, email_verified_at: new Date().toISOString() }).execute();
   return { account, created: true };
 }
@@ -226,12 +200,7 @@ export async function acceptInvitation(db: Db, invitationId: string, account: Ac
   await db.updateTable("invitations").set({ accepted_at: new Date().toISOString(), accepted_by: account.account_id }).where("invitation_id", "=", inv.invitation_id).execute();
   await db.transaction().execute(async (trx) => {
     await sql`select set_config('app.tenant_id', ${inv.tenant_id}, true)`.execute(trx);
-    // In a public sandbox anyone but its staff is known only by their made-up name, in the log too.
-    const tenant = await trx.selectFrom("tenants").select("sandbox").where("tenant_id", "=", inv.tenant_id).executeTakeFirst();
-    const standing = tenant?.sandbox
-      ? await trx.selectFrom("memberships").select("role").where("tenant_id", "=", inv.tenant_id).where("scope_type", "=", "tenant").where("account_id", "=", account.account_id).executeTakeFirst()
-      : undefined;
-    const name = tenant?.sandbox && !isSandboxStaff((standing?.role ?? null) as TenantRole | null) ? visitorName(inv.tenant_id, account.account_id) : account.display_name;
+    const name = account.display_name;
     await trx
       .insertInto("activity")
       .values({

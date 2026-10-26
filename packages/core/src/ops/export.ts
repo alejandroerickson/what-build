@@ -62,12 +62,12 @@ export const exportProduct = defineOperation({
   scope: "product",
   access: "read",
   mutates: true,
-  // No quota and no archiving stops an export; only a public sandbox limits its visitors'.
+  // No archiving stops an export; only the free plan's daily allowance limits it.
   allowArchivedProduct: true,
   summary:
     "Export the whole product to one ZIP: every source with its attachments, texts, summary, notes and comments, and the outcomes, assumptions with their reviews, earlier texts, Story versions, mockup versions, tombstones and activity.",
   description:
-    "A viewer, editor or admin may export, at any time: no quota stops it, and an archived product exports too. A reader, who reads only the Story, is refused (403). In a public sandbox a visitor's exports are limited by exports_per_day, which is 0 unless its staff raise it, so a visitor's export is usually refused (403 sandbox_restricted). One export of a product is built at a time (409 export_in_progress). The bundle is built in the background; call products(action=\"exports\") to see when it is ready and get a download grant. Readable with a ZIP tool and nothing else: JSON, Markdown, HTML and the original files, each kind listed in the bundle's README.txt.",
+    "A viewer, editor or admin may export, at any time, and an archived product exports too. A reader, who reads only the Story, is refused (403). On the free plan each person's exports are limited by exports_per_day (409 quota_exceeded, or 403 plan_restricted when it is 0); writing's own allowance never stops an export. A guest of the example organization exports nothing (403 example_read_only). One export of a product is built at a time (409 export_in_progress). The bundle is built in the background; call products(action=\"exports\") to see when it is ready and get a download grant. Readable with a ZIP tool and nothing else: JSON, Markdown, HTML and the original files, each kind listed in the bundle's README.txt.",
   input: z.strictObject({}),
   rest: { method: "POST", path: "/exports" },
   mcp: { tool: "products", action: "export" },
@@ -91,11 +91,13 @@ export const listExports = defineOperation({
   access: "read",
   mutates: false,
   summary: "Recent exports of this product, with a download grant for each ready one.",
-  description: "Exports are kept for seven days. GET the grant's url with its headers to download the ZIP.",
+  description: "Exports are kept for seven days. GET the grant's url with its headers to download the ZIP. A guest of the example organization gets none: the example is read where it is.",
   input: z.strictObject({}),
   rest: { method: "GET", path: "/exports" },
   mcp: { tool: "products", action: "exports" },
   async handler(ctx) {
+    // Its members may export it; its guests neither export it nor take away what they exported.
+    if (ctx.scope.tenantRole === "guest") return { items: [] };
     const rows = await ctx.db.selectFrom("exports").selectAll().where("product_id", "=", productId(ctx)).where("expires_at", ">", ctx.now).orderBy("export_id", "desc").limit(20).execute();
     return {
       items: rows.map((r) => {

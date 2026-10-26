@@ -3,7 +3,7 @@ type: Decision
 title: A release that migrates is rehearsed on a dev deployment that holds a copy of production, before production's deploy is approved
 description: A second Cloud Run deployment, sharing nothing with production, holds a copy of its database and files, so that a release's migrations run on real data through the real deploy before production runs them.
 tags: [decision, deployment, releases, migrations, dev, production, privacy, operations]
-generated: {by: agent:claude, at: 2026-10-11}
+generated: {by: agent:claude, at: 2026-10-25}
 status: stable
 ---
 
@@ -27,7 +27,7 @@ narrows that decision's rejection of "a shared copy in the cloud".
   `cloudbuild.yaml` as production is. It has no trigger, analytics, public site or nightly backup.
 - **It holds a copy of production**, taken by hand through production's read-only backup role
   and its bucket, and kept as loaded in its own Neon branch so it can be put back. The copy holds
-  the public sandbox, or the organizations `.env` names, and nothing of the others
+  the example organization, or the organizations `.env` names, and nothing of the others
   ([decision](a-copy-of-production-holds-only-the-organizations-it-is-for.md)).
 - **Before production's build of a release that adds a migration is approved**, that release (or
   its commit, before tagging) is deployed to dev, and its migrations and the jobs they queue are

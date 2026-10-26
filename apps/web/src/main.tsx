@@ -19,7 +19,8 @@ import { MembersPage, Welcome } from "./routes/org.tsx";
 import { OverviewPage } from "./routes/overview.tsx";
 import { ActivityPage, ProductSettingsPage } from "./routes/product-misc.tsx";
 import { EntryEditPage, RegisterEntryPage, RegisterListPage } from "./routes/registers.tsx";
-import { JoinSandbox, SandboxPage } from "./routes/public-sandbox.tsx";
+import { LimitsPage } from "./routes/limits.tsx";
+import { PeoplePage } from "./routes/people.tsx";
 import { SearchPage } from "./routes/search.tsx";
 import { InstancePage } from "./routes/instance.tsx";
 import { SettingsPage } from "./routes/settings.tsx";
@@ -40,8 +41,7 @@ const queryClient = new QueryClient({
 });
 
 setUnauthenticatedHandler(() => {
-  // The page behind a sandbox invitation says what it is before it asks anyone to sign in.
-  if (!location.pathname.startsWith("/signin") && !location.pathname.startsWith("/join/")) location.assign(`/signin?next=${encodeURIComponent(location.pathname + location.search)}`);
+  if (!location.pathname.startsWith("/signin")) location.assign(`/signin?next=${encodeURIComponent(location.pathname + location.search)}`);
 });
 
 function RouteError() {
@@ -167,7 +167,8 @@ const router = createBrowserRouter([{ element: <Root />, errorElement: <RouteErr
   { path: "/signin", element: <SignIn />, errorElement: <RouteError /> },
   { path: "/cookies", element: <CookiesPage />, errorElement: <RouteError /> },
   { path: "/privacy", element: <PrivacyPage />, errorElement: <RouteError /> },
-  { path: "/join/:code", element: <JoinSandbox />, errorElement: <RouteError /> },
+  // The public sandbox's invitation links are retired: one opens the app, where the example organization is.
+  { path: "/join/:code", element: <Navigate to="/" replace />, errorElement: <RouteError /> },
   {
     element: (
       <RequireSession>
@@ -184,8 +185,9 @@ const router = createBrowserRouter([{ element: <Root />, errorElement: <RouteErr
         { path: "/connect", element: <ConnectPage /> },
         { path: "/settings", element: <SettingsPage /> },
         { path: "/instance", element: <InstancePage /> },
+        { path: "/people", element: <PeoplePage /> },
         { path: "/t/:tenant/members", element: <MembersPage /> },
-        { path: "/t/:tenant/sandbox", element: <SandboxPage /> },
+        { path: "/t/:tenant/limits", element: <LimitsPage /> },
       ] },
       ...devRoutes,
       {

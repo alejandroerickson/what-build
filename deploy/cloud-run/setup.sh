@@ -45,12 +45,13 @@
 #   SIGNED_URLS=1       also hand agents direct-to-bucket upload URLs for files over 25 MB
 #   MAX_INSTANCES       the most instances that run at once, default 1; each one kept busy all month
 #                       costs roughly US$45, so this is also the ceiling on the service's bill
-#   SANDBOX_TENANT      the slug of the organization that is the public sandbox (optional). The
-#                       organization must exist: create it in the app, then re-run with this.
-#                       Also creates a Cloud Scheduler job that wakes the service for the reset.
-#   SANDBOX_RESET_CRON, SANDBOX_RESET_TZ   when that job runs; default "1 2 * * *" in
-#                       America/Los_Angeles, a minute after the sandbox's default reset hour
-#   SCHEDULER_LOCATION  the job's region, where Cloud Scheduler is not offered in REGION
+#   NEW_ORGANIZATION_PLAN   free or unlimited: the plan of an organization someone other than an
+#                       instance owner creates (optional; unlimited when left out). The public
+#                       deployment sets free; a deployment for one organization's own people leaves
+#                       it out.
+#   EXAMPLE_TENANT      the slug of the example organization every account reads (optional, and
+#                       for the maintainer's public deployment only: a self-hosted deployment leaves
+#                       it out). The organization must exist: create it in the app, then re-run.
 #   ALERT_EMAIL         where alerts go; default: the gcloud account running this script
 #   TRACES_PROJECT      a project of its own for the service's traces, made and billed beforehand
 #                       (optional; okf/operations/cloud-run.md, Traces). Never PROJECT_ID: a project
@@ -190,7 +191,8 @@ ENV_VARS="WHATBUILD_GCS_BUCKET=$BUCKET,WHATBUILD_SIGNUP_ALLOWLIST=${ALLOW//,/;},
 [ -n "${FEEDBACK_EMAIL:-}" ] && ENV_VARS="$ENV_VARS,WHATBUILD_FEEDBACK_EMAIL=$FEEDBACK_EMAIL"
 [ -n "${GOOGLE_CLIENT_ID:-}" ] && ENV_VARS="$ENV_VARS,WHATBUILD_GOOGLE_CLIENT_ID=$GOOGLE_CLIENT_ID"
 [ -n "${SIGNED_URLS:-}" ] && ENV_VARS="$ENV_VARS,WHATBUILD_GCS_SIGNED_URLS=1"
-[ -n "${SANDBOX_TENANT:-}" ] && ENV_VARS="$ENV_VARS,WHATBUILD_SANDBOX_TENANT=$SANDBOX_TENANT"
+[ -n "${NEW_ORGANIZATION_PLAN:-}" ] && ENV_VARS="$ENV_VARS,WHATBUILD_NEW_ORGANIZATION_PLAN=$NEW_ORGANIZATION_PLAN"
+[ -n "${EXAMPLE_TENANT:-}" ] && ENV_VARS="$ENV_VARS,WHATBUILD_EXAMPLE_TENANT=$EXAMPLE_TENANT"
 [ -n "${SITE_URL:-}" ] && ENV_VARS="$ENV_VARS,WHATBUILD_SITE_URL=$SITE_URL"
 if [ -n "${TRACES_PROJECT:-}" ]; then
   step "Traces, in $TRACES_PROJECT"
@@ -237,18 +239,6 @@ LOG_FILTER="log_id(\"run.googleapis.com/requests\") AND resource.labels.service_
 if $G logging sinks describe _Default --format='value(exclusions[].name)' | tr ';' '\n' | grep -qx "$SERVICE-request-addresses"; then verb=--update-exclusion; else verb=--add-exclusion; fi
 $G logging sinks update _Default "$verb=name=$SERVICE-request-addresses,filter=$LOG_FILTER" >/dev/null
 
-if [ -n "${SANDBOX_TENANT:-}" ]; then
-  step "Scheduler job for the public sandbox's reset"
-  # The reset runs before the first request after its hour in any case; this makes it run at the
-  # hour when nobody visits. The address needs no credential: it does nothing unless a reset is due.
-  $G services enable cloudscheduler.googleapis.com
-  SCHEDULER_LOCATION="${SCHEDULER_LOCATION:-$REGION}"
-  if $G scheduler jobs describe whatbuild-sandbox-reset --location "$SCHEDULER_LOCATION" >/dev/null 2>&1; then verb=update; else verb=create; fi
-  $G scheduler jobs "$verb" http whatbuild-sandbox-reset --location "$SCHEDULER_LOCATION" \
-    --schedule "${SANDBOX_RESET_CRON:-1 2 * * *}" --time-zone "${SANDBOX_RESET_TZ:-America/Los_Angeles}" \
-    --http-method POST --uri "$URL/api/v1/sandbox/reset-if-due"
-fi
-
 step "Alerts"
 if command -v node >/dev/null 2>&1; then
   PROJECT_ID="$PROJECT_ID" SERVICE="$SERVICE" ALERT_EMAIL="${ALERT_EMAIL:-}" node deploy/cloud-run/alerts.mjs
@@ -273,6 +263,4 @@ Next:
   3. Only $ALLOW (and anyone invited) can create an account. Change SIGNUP_ALLOWLIST to widen it.
      Only $OWNERS can create organizations, and lets others at $URL/instance.
   4. Connect an agent: $URL/connect
-  5. A public sandbox: create the organization in the app, re-run with SANDBOX_TENANT=<its slug>,
-     then open $URL/t/<its slug>/sandbox to save a baseline and make an invitation.
 EOF

@@ -4,10 +4,12 @@ title: The public sandbox is one organization the deployment names, where invite
 description: One shared organization instead of a copy per visitor; admission by invitation links with places and a cap on seats; visitors never see each other; limits are settings enforced in one layer.
 tags: [decision, sandbox, tenancy, roles, privacy, limits, invitations]
 generated: {by: agent:claude, at: 2026-10-25}
-status: stable
+status: deprecated
 ---
 
 # The public sandbox is one organization the deployment names, where invited visitors edit under made-up names and a daily reset puts a saved baseline back
+
+Superseded on 2026-10-25 by [Every account reads the example organization, which only its staff write](every-account-reads-the-example-organization-which-only-its-staff-write.md).
 
 ## Context
 

@@ -4,9 +4,9 @@ import { Link } from "react-router";
 import { api } from "../lib/api.ts";
 import { plural } from "../lib/format.ts";
 import { forgetPersonalState } from "../lib/local-state.ts";
-import { useMe } from "../lib/session.tsx";
+import { useHideExample, useMe, useProducts } from "../lib/session.tsx";
 import { usePageTitle } from "../shell/slots.tsx";
-import { Button, Dialog, ErrorCallout, FormGrid, Sheet, SheetBody, SheetHeader, TextField, useToast } from "../ui/index.tsx";
+import { Button, ChoiceRow, Dialog, ErrorCallout, FormGrid, Sheet, SheetBody, SheetHeader, TextField, useToast } from "../ui/index.tsx";
 import "../styles/screens/account.css";
 
 /** `/settings`: the person's own settings, reached from the account menu. */
@@ -62,11 +62,35 @@ export function SettingsPage() {
           </div>
         </form>
       </Sheet>
+      <ExampleInPanel />
       <SignOutEverywhere />
       <p className="agents-foot">
         <Link to="/cookies">Cookies and analytics</Link> · <Link to="/privacy">Privacy</Link>
       </p>
     </>
+  );
+}
+
+/** For a guest of the example organization: whether the panel shows it. The overview always does. */
+function ExampleInPanel() {
+  const me = useMe();
+  const example = useProducts().data?.tenants.find((t) => t.example && t.your_role === "guest");
+  const hide = useHideExample();
+  if (!example || !me.data) return null;
+  return (
+    <Sheet className="account-sheet" labelledBy="example-title">
+      <SheetHeader id="example-title" title="Example organization" />
+      <SheetBody>
+        <ChoiceRow
+          label="Show the example organization in the panel"
+          hint="It stays on the overview either way."
+          checked={!me.data.hide_example}
+          disabled={hide.isPending}
+          onChange={(e) => hide.mutate(!e.target.checked)}
+        />
+        {hide.isError ? <ErrorCallout inset error={hide.error} /> : null}
+      </SheetBody>
+    </Sheet>
   );
 }
 

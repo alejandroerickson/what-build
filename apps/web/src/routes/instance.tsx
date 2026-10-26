@@ -7,6 +7,7 @@ import { usePageTitle } from "../shell/slots.tsx";
 import {
   Button, ButtonLink, ChoiceRow, Dialog, EmptyState, ErrorCallout, ListRow, Loading, Sheet, SheetBody, SheetHeader, StatusBadge, TextField, useToast,
 } from "../ui/index.tsx";
+import { InstanceOrganizationsSheet } from "./limits.tsx";
 import "../styles/screens/instance.css";
 
 interface Allowance {
@@ -33,14 +34,15 @@ function organizations(n: number) {
 }
 
 /**
- * `/instance`: for the owners of this WhatBuild, who decides who may create organizations and how
- * many. Being in an organization never lets anyone create one, so this is the only way in.
+ * `/instance`: for the owners of this WhatBuild, who decide who may create organizations and how
+ * many (being in an organization never lets anyone create one, so this is the only way in), and
+ * each organization's plan and limits.
  */
 export function InstancePage() {
   const me = useMe();
   const qc = useQueryClient();
   const toast = useToast();
-  usePageTitle("Organization creators");
+  usePageTitle("Organizations");
   const owner = me.data?.tenant_allowance.instance_owner ?? false;
   const q = useQuery({ queryKey: ["tenant-allowances"], queryFn: () => api<Allowances>("GET", A), enabled: owner });
   const [editing, setEditing] = useState<Allowance | "new" | null>(null);
@@ -63,20 +65,22 @@ export function InstancePage() {
   if (!owner)
     return (
       <Sheet labelledBy="instance-title">
-        <SheetHeader level={1} id="instance-title" title="Organization creators" />
+        <SheetHeader level={1} id="instance-title" title="Organizations" />
         <EmptyState size="inline" action={<ButtonLink to="/">Your products</ButtonLink>}>
-          Only this WhatBuild&rsquo;s owners decide who can start organizations.
+          Only this WhatBuild&rsquo;s owners see every organization and decide who can start one.
         </EmptyState>
       </Sheet>
     );
 
   const items = q.data?.items ?? [];
   return (
+    <>
+    <InstanceOrganizationsSheet />
     <Sheet labelledBy="instance-title">
       <SheetHeader
-        level={1}
+        level={2}
         id="instance-title"
-        title="Organization creators"
+        title="Who can start organizations"
         count={q.data ? items.length : undefined}
         end={
           <Button size="sm" variant="primary" icon="plus" onClick={() => setEditing("new")}>
@@ -158,6 +162,7 @@ export function InstancePage() {
         </Dialog>
       ) : null}
     </Sheet>
+    </>
   );
 }
 

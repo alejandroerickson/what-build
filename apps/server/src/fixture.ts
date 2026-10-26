@@ -24,7 +24,7 @@ import { APP_ROLE, connectOrStartLocalPg, type LocalPg } from "./testing/pg.ts";
  *                             they would after a release; the development sign-in's sample people
  *                             are given a place in every organization
  *
- * A pull holds the deployment's public sandbox, or the organizations named with --org, and only
+ * A pull holds the deployment's example organization, or the organizations named with --org, and only
  * their rows and files ever leave the deployment (organization-copy.ts); --all takes everything.
  *
  *   pnpm fixture pull [--org <slug>]… [--all] [--no-files | --files-into gs://<bucket>]
@@ -111,7 +111,7 @@ export function nodePgUrl(url: string) {
 /** What pulled.json says: when, which organizations (or all of them), and where the files went. */
 export type PullRecord = {
   pulled_at: string;
-  organizations?: Omit<Organization, "sandbox">[] | "all";
+  organizations?: Omit<Organization, "example">[] | "all";
   /** The rows of each table in the dump, to check a restore of it against. */
   rows?: Record<string, number>;
   files: boolean;
@@ -181,7 +181,7 @@ async function dumpOrganizations(url: string, slugs: string[], file: string) {
   const tmp = mkdtempSync(join(tmpdir(), "whatbuild-pull-"));
   try {
     const organizations = await chooseOrganizations(source, slugs);
-    console.log(`Copying ${organizations.map((o) => `${o.slug}${o.sandbox ? " (the public sandbox)" : ""}`).join(", ")} into ${show(file)}…`);
+    console.log(`Copying ${organizations.map((o) => `${o.slug}${o.example ? " (the example organization)" : ""}`).join(", ")} into ${show(file)}…`);
     const schema = pgDumpCommand(url, join(tmp, "schema.dump"), ["--schema-only"]);
     execFileSync("pg_dump", schema.args, { stdio: "inherit", env: schema.env });
     await createDatabase(local, scratch);
@@ -395,7 +395,7 @@ async function main() {
   if (command === "load") return load(args[0]);
   if (command === "list") return list();
   console.log(`Usage:
-  pnpm fixture pull                   the deployment's public sandbox
+  pnpm fixture pull                   the deployment's example organization
   pnpm fixture pull --org <slug>[,<slug>…]  the organizations named
   pnpm fixture pull --all             every organization
     --no-files                        without the files

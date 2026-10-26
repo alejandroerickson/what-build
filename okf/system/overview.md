@@ -3,7 +3,7 @@ type: System Concept
 title: WhatBuild at three altitudes
 description: The whole system from the top down, the major parts, and the mechanics underneath, with links to the detail.
 tags: [overview, architecture, tenancy, access, mcp]
-generated: {by: agent:claude, at: 2026-10-18}
+generated: {by: agent:claude, at: 2026-10-25}
 status: stable
 ---
 
@@ -62,9 +62,10 @@ Google Cloud Storage behind a storage port; the official MCP SDK (stateless Stre
 React 19, React Router 7, TanStack Query 5, Vite 8; Vitest. Details in
 [architecture](../spec/02-architecture.md).
 
-**Operations.** 121 operations, each defined once and exposed through both REST and MCP, but for
-two: deleting an organization and previewing that delete, which only its owner does, in the web
-app. Agents are offered the other 116, as 14 tools
+**Operations.** 114 operations, each defined once and exposed through both REST and MCP, but for
+three: deleting an organization and previewing that delete, which only its owner does, and removing
+an account, which only an instance owner does, all in the web app. Agents are offered the other
+111, as 13 tools
 ([decision](../decisions/one-registry-two-front-doors.md)).
 
 **Tenancy.** Organization (tenant) → team → product. One shared database and schema; every content
@@ -84,17 +85,21 @@ is offered
 [decision](../decisions/built-in-identity-and-oauth.md),
 [decision](../decisions/an-agent-connection-has-a-level-the-person-chooses.md)).
 
-**The public sandbox.** A deployment may name one organization as its public sandbox
-(`WHATBUILD_SANDBOX_TENANT`). Anyone holding an invitation link enters it as a visitor: an editor
-of every product there, who writes under a made-up name, sees no other person, administers
-nothing, and meets limits on how often and how much. Its owners and admins save its content as a
-baseline, and a reset every day puts the baseline back
-([decision](../decisions/the-public-sandbox-is-one-organization-with-pseudonymous-visitors.md)).
+**The example organization and plans.** The maintainer's public deployment names one organization
+as its example (`WHATBUILD_EXAMPLE_TENANT`; a self-hosted deployment has none). Every signed-in
+account reads it as its guest, a viewer of every product there, and nobody but its own members
+changes it
+([decision](../decisions/every-account-reads-the-example-organization-which-only-its-staff-write.md)).
+Every organization has a plan: one someone other than an instance owner creates gets the
+deployment's (`WHATBUILD_NEW_ORGANIZATION_PLAN`, free on the public deployment, unlimited unless
+named), and on the free plan everyone in it meets limits on how often and how much, which only
+instance owners change
+([decision](../decisions/free-organizations-meet-limits-that-only-instance-owners-change.md)).
 
 **MCP.** `/mcp` for every product the account can reach, `/mcp/t/<tenant>` for one organization,
 or `/mcp/t/<tenant>/<team>/<product>` for one product. A scoped endpoint is a fence: it refuses
 every call outside its scope, and its token works nowhere wider
-([decision](../decisions/a-scoped-mcp-connector-is-a-fence.md)). 14 tools: 11 grouped by noun with `action`, `params`, `describe` and `product`, plus
+([decision](../decisions/a-scoped-mcp-connector-is-a-fence.md)). 13 tools: 10 grouped by noun with `action`, `params`, `describe` and `product`, plus
 `search`, `get_skill` and `submit_feedback`
 ([decision](../decisions/mcp-tools-grouped-by-noun.md)). The server's instructions tell agents to
 check the skill version, start with `products list`, confirm the product before writing, and
@@ -110,8 +115,9 @@ in-app tabs; rows are real links; works in a phone browser, light and dark
 
 **One request.** Identify the caller (cookie on REST, OAuth token on MCP → account,
 surface, client, and for an agent its connection's level) → refuse an operation above that level
-(`403`) → resolve tenant, team and product → authorize (`404`/`403`) → in a public
-sandbox, admit the visitor and count the call (`403`/`429`) → validate with the
+(`403`) → resolve tenant, team and product → authorize (`404`/`403`) → refuse a guest's
+write in the example organization, and on the free plan admit the call to its limits
+(`403`/`429`) → validate with the
 operation's schema (`422` lists every problem) → open a transaction with `app.tenant_id` set → run
 the handler (etag check, `409 stale_etag`; actor snapshot; activity event) → answer as JSON or MCP
 text with the scope echoed.
