@@ -115,6 +115,7 @@ export const listOrganizations = defineOperation({
   name: "products.organizations",
   scope: "account",
   access: "any",
+  instanceOwnersOnly: true,
   mutates: false,
   summary: "Every organization on this instance, with its plan, who created it and what it used today (instance owners).",
   description:
@@ -162,6 +163,7 @@ export const setOrganizationLimits = defineOperation({
   name: "products.set_limits",
   scope: "account",
   access: "any",
+  instanceOwnersOnly: true,
   mutates: true,
   connection: "admin",
   summary: "Change an organization's plan, or any of its limits (instance owners).",

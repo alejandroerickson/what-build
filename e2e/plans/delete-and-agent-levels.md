@@ -1,7 +1,7 @@
 ---
-title: Admins delete permanently, editors archive, and an agent does only what its connection's level allows
+title: Admins delete permanently, editors archive, and an agent is offered only what its connection's level and its person allow
 organizations: [standard, example]
-people: [riley, sam]
+people: [riley, sam, jordan]
 surfaces: [web, mcp]
 ---
 
@@ -9,8 +9,10 @@ surfaces: [web, mcp]
 
 Archive is the reversible default and editors' alone; permanent delete is admins', behind a
 preview, a reason and the words "delete permanently", and an agent deletes only on a connection
-its person set to Admin. This plan checks both doors against each other, and that an agent cannot
-raise its own level. It deletes only what it made itself in the run.
+its person set to Admin. An agent is offered only what its person could do: the instance owners'
+actions only to them, and on a scoped connector only what the person's role there reaches. This
+plan checks both doors against each other, and that an agent cannot raise its own level. It
+deletes only what it made itself in the run.
 
 ## Steps
 
@@ -67,10 +69,23 @@ raise its own level. It deletes only what it made itself in the run.
     feedback on the connection from step 6, then list the tools and call `submit_feedback` anyway.
     *Expect:* the change is confirmed with Undo; `submit_feedback` is not listed, the call answers
     `403 feedback_off`, and the server's instructions say the person turned it off. Tick it again.
+13. **MCP, as Sam, then as Riley on the connection from step 6.** List the tools. *Expect:* Sam's
+    `products` offers no `usage`, `organizations`, `accounts` or allowances, and its description
+    names none of them; `products(action="usage")` called anyway answers `403 forbidden`, saying
+    only an owner of this WhatBuild can, never `unknown_action`. Riley, who owns this WhatBuild,
+    is offered all of them, `set_limits` included, and the description says so.
+14. **MCP, as Jordan, on a connector scoped to a product of the standard organization**
+    (`--endpoint /mcp/t/<org>/<team>/<product>`). List the tools. *Expect:* `story` and
+    `products` (with `get_skill` and `submit_feedback`), and no `sources`, `search`, `outcomes`
+    or `members`; `sources(action="list")` called anyway answers `403`, naming reader and viewer.
+    Then as Sam on the organization's connector (`--endpoint /mcp/t/<org>`): writes and archives,
+    `members` `list`, and no delete, no `members` `grant` or `revoke`, no `create_team`.
 
 ## Look out for
 
 - Any screen or message that calls archiving deleting, or deleting removing.
 - A delete that succeeds without a reason, the exact words, or the latest etag.
-- An agent offered an action its level does not allow, or a level the agent could change itself.
+- An agent offered an action its level does not allow or its person could not do, or a level the
+  agent could change itself.
+- An agent told its tool list is old when an action is missing on purpose.
 - Anything deleted that was not made in this run.

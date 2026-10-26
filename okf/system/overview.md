@@ -80,10 +80,11 @@ only the Story ([decision](../decisions/a-reader-reads-only-the-story.md)); edit
 admins delete ([decision](../decisions/archive-by-default-delete-guarded.md)). The database
 enforces only the tenant boundary. A token is the person, at most: each agent connection has the
 level its person chose (Read only, Edit or Admin), which caps their role and the actions the agent
-is offered
+is offered, and an agent is offered only what its person could do
 ([decision](../decisions/access-is-per-product-roles.md),
 [decision](../decisions/built-in-identity-and-oauth.md),
-[decision](../decisions/an-agent-connection-has-a-level-the-person-chooses.md)).
+[decision](../decisions/an-agent-connection-has-a-level-the-person-chooses.md),
+[decision](../decisions/an-agent-is-offered-only-what-its-person-could-do.md)).
 
 **The example organization and plans.** The maintainer's public deployment names one organization
 as its example (`WHATBUILD_EXAMPLE_TENANT`; a self-hosted deployment has none). Every signed-in

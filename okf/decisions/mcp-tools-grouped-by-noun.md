@@ -19,7 +19,7 @@ More than a hundred separate tools would crowd an agent's context and bury the w
 - Standalone tools: `search`, `get_skill`, `submit_feedback`.
 - A tool is named for what people and agents call the object: `attachments`, not the `files` table that holds them ([decision](a-sources-words-are-one-derived-text-and-attachments-are-never-searched.md)).
 - Tools whose actions are all reads carry read-only annotations.
-- A connection is listed only the actions its level allows ([decision](an-agent-connection-has-a-level-the-person-chooses.md)).
+- A connection is listed only the actions its level allows ([decision](an-agent-connection-has-a-level-the-person-chooses.md)) and its person could do ([decision](an-agent-is-offered-only-what-its-person-could-do.md)).
 - Every product-scoped result echoes the tenant, team, product and the caller's role.
 
 ## Consequences

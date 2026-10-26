@@ -27,6 +27,7 @@ export const listAccounts = defineOperation({
   name: "products.accounts",
   scope: "account",
   access: "any",
+  instanceOwnersOnly: true,
   mutates: false,
   summary: "Every account on this instance, with the organizations each is in and when it was last seen (instance owners).",
   description:
@@ -107,6 +108,7 @@ export const removeAccount = defineOperation({
   name: "products.remove_account",
   scope: "account",
   access: "any",
+  instanceOwnersOnly: true,
   mutates: true,
   connection: "admin",
   webOnly: true,
