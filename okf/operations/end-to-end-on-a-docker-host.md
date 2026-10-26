@@ -138,6 +138,13 @@ main checkout's, from a worktree): `E2E_HOST`, the SSH host; `E2E_HOST_DIR`, the
 there; `E2E_HOST_PORT`, the app's port on the host; and `E2E_TUNNEL_PORT`, the tunnel's local end,
 which the host's `.env` names in `WHATBUILD_E2E_PUBLIC_URL`.
 
+To try sign-up, admission and the instance owner's screens at size here, add the
+[synthetic people](local-development.md#many-people) through the tunnel:
+`corepack pnpm people --url http://localhost:<tunnel port>`. Riley Chen is the instance's owner, as
+`compose.yaml` sets. They stay until the next `reset`, `update` or nightly update, and adding them
+again after one makes the same people. The host has no allowlist (`compose.yaml` sets none), so it lets
+anyone sign up; admission as a stranger meets it is tried with `pnpm dev:people`.
+
 A release brings a new image, which the updater takes; a change to `deploy/docker/` itself
 (`compose.yaml`, `whatbuild-e2e.sh`) is copied to the host's folder by whoever has root there.
 
