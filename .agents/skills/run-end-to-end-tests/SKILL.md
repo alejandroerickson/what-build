@@ -19,8 +19,8 @@ what the plan expects, and report. The system, with every command, is described 
   browser or the MCP client at `pnpm dev`, the dev deployment or production.
 - **Report; do not fix.** Note every finding with its evidence and carry on with the plan. Change
   code only if the person asked you to fix what you find, and then after the report.
-- **The golden master is real people's data**, from a pull of production. The rules of the
-  `test-on-a-copy-of-production` skill apply: nothing from it leaves `.what-build/`; your report
+- **Nothing from the golden master is published.** It comes from a pull of production, and the
+  rules of the `test-on-a-copy-of-production` skill apply: nothing from it leaves `.what-build/`; your report
   stays in the run's folder and your answer to the person; a plan, commit, issue or pull request
   names and quotes none of it.
 - **Everything you create is synthetic.** Write files you upload into the run's folder.
@@ -31,8 +31,8 @@ what the plan expects, and report. The system, with every command, is described 
    plan named, run `smoke`.
 2. **Check the golden master.** `cat .what-build/e2e/golden.json`. If there is none, or the person
    asked for a fresh one or for newer data, build it with `pnpm e2e golden` from the newest pull
-   (`ls .what-build/fixtures`, or the main checkout's in a worktree). To take a new pull, use
-   `pnpm fixture pull` only when the person asks for one, following the
+   (`ls .what-build/fixtures`, or the main checkout's in a worktree). With no pull to build
+   it from, take one with `pnpm fixture pull`, without asking, following the
    `test-on-a-copy-of-production` skill; it takes the example organization, which is all the golden
    master keeps. Stop the instance (`pnpm e2e stop`) before building.
 3. **Serve.** Run `pnpm dev:e2e > .what-build/e2e/server.log 2>&1` in the background with a long

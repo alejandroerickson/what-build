@@ -16,7 +16,7 @@ command. This file says how to conduct the work.
   ask for every organization, and say first that it brings every organization to this machine.
 - **The source is only read**, through a role that changes nothing (production's backup role).
   Production is never a target.
-- **The copy is real people's data.** It stays in `.what-build/fixtures/` or a directory only you
+- **Nothing from the copy is published.** It is real people's data, and stays in `.what-build/fixtures/` or a directory only you
   can read (`umask 077; D=$(mktemp -d)`), and is deleted once loaded elsewhere. Never commit,
   upload, attach or quote it in the repository, a commit message, an issue or a pull request. In
   your report to the person you may name the organizations.
@@ -28,9 +28,10 @@ command. This file says how to conduct the work.
 
 ## Procedure
 
-1. **Settle three things** with the person, from what they said or by asking: which
-   organizations (slugs; the example organization by default), from which deployment (production unless
-   told), and where the copy goes.
+1. **Settle three things** from what the person said: which organizations (slugs; the example
+   organization by default), from which deployment (production unless told), and where the copy
+   goes (this machine unless they name another place). Ask only about what they left unclear; the
+   example organization to this machine needs no go-ahead.
 2. **Follow the destination's procedure:**
    - this machine, to test on: the `test-on-a-copy-of-production` skill;
    - the end-to-end golden master: the `run-end-to-end-tests` skill;

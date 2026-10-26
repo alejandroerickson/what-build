@@ -13,9 +13,11 @@ Read it before the first command. This file says how to conduct the work.
 
 - **Only the organizations needed.** `pnpm fixture pull` takes the example organization and nothing of
   the others (`okf/operations/copying-an-organization.md`). Name others with `--org` only when the
-  person names them. Pull `--all` only for a migration that needs every organization's content,
-  say so first, and delete that pull once it has served.
-- **The copy is real people's data.** It stays in `.what-build/`, on this machine. Never commit
+  person names them. Pulling the example organization is routine and needs no go-ahead. Pull `--all` only
+  for a migration that needs every organization's content, with the person's go-ahead, and delete
+  that pull once it has served.
+- **Nothing from the copy is published.** It is real people's data, and stays in `.what-build/`,
+  on this machine. Never commit
   it, upload it, or paste or quote it into the repository, a commit message, an issue or a pull
   request. That includes names, addresses, organizations, titles and text. In your report to the
   person you may say what you saw. In anything published, describe it in general terms
