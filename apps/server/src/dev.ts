@@ -47,6 +47,7 @@ async function main() {
   let pg: LocalPg | null = null;
   let databaseUrl = END_TO_END ? undefined : process.env["DATABASE_URL"];
   let exampleTenant: string | undefined;
+  let ownPeople: string[] = [];
   if (END_TO_END) {
     const running = instancePid();
     if (running !== null) throw new Error(`This checkout's end-to-end instance is already running (process ${running}). Stop it with pnpm e2e stop first.`);
@@ -64,6 +65,7 @@ async function main() {
     });
     databaseUrl = reset.url;
     exampleTenant = reset.golden.example ?? reset.golden.sandbox;
+    ownPeople = reset.golden.synthetic ? [reset.golden.synthetic] : [];
     console.log(`Reset to the golden master (from the pull ${reset.golden.pull}, built ${reset.golden.built_at}).`);
   } else if (!databaseUrl) {
     console.log("Starting Postgres (embedded, in .what-build/pg)…");
@@ -99,7 +101,7 @@ async function main() {
   const { db, pool } = createDb(databaseUrl, 3);
   await migrate(db);
   const ports = createPorts(config, await createBlobStore(config), createMailer(config));
-  if (FIXTURE || END_TO_END) await addSamplePeople(db);
+  if (FIXTURE || END_TO_END) await addSamplePeople(db, ownPeople);
   else if (!END_TO_END) {
     const worker = new Worker({ db, ports }, 60_000, () => {});
     await seed({ db, ports }, worker);
@@ -129,9 +131,10 @@ async function main() {
   WhatBuild's end-to-end instance is starting, reset to the golden master.
 
     App            http://localhost:${WEB_PORT}
-    Sign in as     riley@example.com (owns both organizations), sam@example.com (edits every
-                   team) or jordan@example.com (reads every Story); pnpm e2e browser signin <name>
-                   does it in the test browser
+    Sign in as     riley@example.com (owns the example and its copy), sam@example.com (edits
+                   their teams, reads the synthetic organization's Story) or jordan@example.com
+                   (reads their Stories); the synthetic organization's own morgan@, casey@ and
+                   avery@example.com; pnpm e2e browser signin <name> does it in the test browser
     MCP endpoint   http://localhost:${WEB_PORT}/mcp   (pnpm e2e mcp connects to it as an agent)
     Database       embedded Postgres in .what-build/e2e/pg, database "${E2E.database}"
     Files          .what-build/e2e/blobs

@@ -118,6 +118,7 @@ conducts each one that changes something:
 | publish a release, move production | `releasing.md` | `make-a-release` |
 | know what a deployment must do when it takes a release; add a line for a change that asks something of one | `upgrading.md` | `make-a-release` |
 | run the end-to-end tests on the golden master | `end-to-end-tests.md` | `run-end-to-end-tests` |
+| serve the golden master on a Docker host (a NAS) with each release, and test there | `end-to-end-on-a-docker-host.md` | `run-end-to-end-tests` |
 | check for known vulnerabilities and private material | `security-checks.md` | `triage-security-findings`, `audit-for-leaks` |
 | rehearse a release on the dev deployment; refresh or reset its copy of production; set it up | `dev-deployment.md` | `rehearse-on-the-dev-deployment` |
 | know what is backed up, check that backups run, restore a dump, perform the restore drill | `backups.md` | `rehearse-on-the-dev-deployment` (the drill) |

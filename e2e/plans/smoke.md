@@ -14,8 +14,9 @@ other plans will too.
 
 ## Steps
 
-1. **Web, as Sam (editor).** Sign in. *Expect:* the overview lists both organizations, each with
-   the same live products; the archived product is not among them.
+1. **Web, as Sam (editor).** Sign in. *Expect:* the overview lists the example and the standard
+   organization, each with the same live products, and the synthetic organization, where Sam reads
+   one product's Story; no archived product is among them.
 2. **Web, as Sam, in the standard organization.** Open a product that has sources and visit each
    section from the panel: Idea, Evidence, Exploration (mockups and assumptions), Story, Activity,
    the product's settings, and Connect an agent; and search from the panel's Search field. Open one
@@ -32,7 +33,8 @@ other plans will too.
    from the account menu (Riley owns the instance). *Expect:* all load; Riley can manage members,
    and the members page lists the organization's access changes; Organizations lists both
    organizations with their plans, the example marked as such, and who may create organizations.
-6. **Web, as Riley.** Find the archived product among archived products, in either organization.
+6. **Web, as Riley.** Find an archived product among archived products, in either organization. If
+   neither has one, archive a product in the standard organization first, from its Settings.
    *Expect:* it is listed as archived and can be opened; only its Settings offers to delete it,
    to Riley as an admin: under the heading "Delete this product", a button reads "Delete <product
    name> permanently…", and its dialog asks for the product's name to be typed.
@@ -49,8 +51,9 @@ other plans will too.
    text with `derived(action="text")`. *Expect:* the same items the web showed in step 2, with the
    same titles and counts, and the same words the source's Text showed.
 10. **Web and MCP, as a guest.** Sign in as `guest@example.com` on the web, then connect over MCP as
-    the same address. *Expect:* the overview offers to start an organization and lists the example
-    organization, marked Example organization and Read only; its products open with a notice that
+    the same address. *Expect:* the overview lists the example organization, marked Example
+    organization and Read only, and, since the guest may not start one, says that for an
+    organization of their own they ask whoever runs this WhatBuild; its products open with a notice that
     it is a worked example nothing in it can change; its Members shows no people.
     `products(action="list")` lists the example's products with `your_role` guest and the tenant
     `example: true`; reading a source works, and creating one is refused with

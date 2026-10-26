@@ -13,10 +13,18 @@ import { E2E_DIR, e2eBaseUrl, record } from "./e2e.ts";
  * forgets it.
  */
 const TOKENS = join(E2E_DIR, "mcp");
-const PEOPLE: Record<string, string> = { riley: "riley@example.com", sam: "sam@example.com", jordan: "jordan@example.com" };
+const PEOPLE: Record<string, string> = {
+  riley: "riley@example.com",
+  sam: "sam@example.com",
+  jordan: "jordan@example.com",
+  // The synthetic organization's own people (e2e.ts).
+  morgan: "morgan@example.com",
+  casey: "casey@example.com",
+  avery: "avery@example.com",
+};
 const REDIRECT = "http://127.0.0.1:9/callback";
 
-const HELP = `pnpm e2e mcp <command> [--as riley|sam|jordan|<email>] [--endpoint /mcp/t/<org>[/<team>/<product>]] [--level viewer|editor|admin]
+const HELP = `pnpm e2e mcp <command> [--as <person>|<email>] [--endpoint /mcp/t/<org>[/<team>/<product>]] [--level viewer|editor|admin]
 
   connect                 connect as that person (sam by default) through OAuth, as an agent would,
                           at the level chosen on the consent page (editor, Edit, unless --level says)

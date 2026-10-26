@@ -3,7 +3,7 @@ type: System Concept
 title: Agent-driven end-to-end tests on a golden master
 description: An agent follows a written test plan through the real web app and the real MCP server, on a local instance reset each time to a golden master made from production's example organization, and reports failures and anomalies.
 tags: [development, testing, qa, e2e, agents, mcp, browser]
-generated: {by: agent:claude, at: 2026-10-25}
+generated: {by: agent:claude, at: 2026-10-26}
 status: draft
 ---
 
@@ -25,7 +25,7 @@ with Google Chrome installed. Building the golden master needs a pull of product
 
 | Piece | What it is |
 |---|---|
-| The golden master | The database `golden` in the instance's own embedded Postgres (`.what-build/e2e/pg`, port `54339`) and its files (`.what-build/e2e/golden-blobs`). It is built once and stays as it is until it is built again. `.what-build/e2e/golden.json` says which pull it was built from, when, at which commit and schema, the two organizations' slugs and every product's path. |
+| The golden master | The database `golden` in the instance's own embedded Postgres (`.what-build/e2e/pg`, port `54339`) and its files (`.what-build/e2e/golden-blobs`). It is built once and stays as it is until it is built again. `.what-build/e2e/golden.json` says which pull it was built from, when, at which commit and schema, the three organizations' slugs and every product's path. |
 | The instance | `pnpm dev:e2e`: the database `e2e`, made fresh from the golden master each time it starts, with its own files (`.what-build/e2e/blobs`), on `http://localhost:5283` (API `:8797`). It runs beside `pnpm dev`. Mail only prints. |
 | Plans | `e2e/plans/*.md`, Markdown steps in the product's vocabulary, each saying who acts, through which door, and what to expect. `e2e/plans/README.md` is the format. |
 | The browser driver | `pnpm e2e browser <command>`: a real Chrome kept open by a small daemon between commands, addressed by role, accessible name and label. The daemon listens on 127.0.0.1 and takes a command only with the token it writes to `.what-build/e2e/browser.json`, which only its owner can read, so a web page cannot drive it. |
@@ -45,7 +45,7 @@ corepack pnpm e2e golden --org <slug>     # keep another organization than the e
 It is made from a pull of production ([a copy of production](a-copy-of-production.md)): a pull of
 the example organization, `pnpm fixture pull`'s default, is all it needs (a pull taken before the
 example replaced the public sandbox gives the sandbox). It is restored as the
-application's role, and shaped into two organizations
+application's role, and shaped into three organizations
 ([decision](../decisions/end-to-end-tests-are-plans-an-agent-runs-on-a-golden-master.md)):
 
 - **The example organization:** the organization production names as its example, as it was
@@ -58,9 +58,18 @@ application's role, and shaped into two organizations
   example organization. A new id keeps the time of the one it replaces, so lists ordered by id, such as activity,
   keep their order in the copy. It is not the example. The files are shared, since blobs never change. After the copy, every
   foreign key is checked.
+- **The synthetic organization** (`harbor-labs`, "Harbor Labs", with the product Crewboard): the
+  development sample (`seed.ts`), made through the operations as its people would make it, by people
+  who belong to it alone: Morgan Reyes owns it, Casey Lindqvist edits its team, Avery Nakamura reads
+  Crewboard's Story (`morgan@`, `casey@` and `avery@example.com`). Sam is given a reader's place on
+  Crewboard, and nothing more there.
 
-So every plan can run the same products both ways. Each time it is served,
-the development sign-in's people are given their roles in both: Riley owns each organization, Sam edits every team, Jordan reads every Story.
+So every plan can run the same products both ways, and a plan can check that one organization's
+people see nothing of another's, and that a person's role follows the organization. Each time it is
+served, the development sign-in's people are given their roles in the example and the standard
+organization: Riley owns each, Sam edits every team, Jordan reads every Story. The synthetic
+organization is left as it was built. Its people are guests of the example, as any account that
+belongs to no part of it.
 
 The golden master is real people's data, with every rule of that guide: it stays in `.what-build/`,
 and plans, reports that leave the machine, commits and issues never name or quote it.
@@ -92,7 +101,7 @@ An agent runs it in the background with its output in `.what-build/e2e/server.lo
 `.what-build/e2e/dev.pid` names, never another checkout's instance. It refuses to start while this
 checkout's instance runs. It drops `e2e`, creates it again from `golden` (a Postgres template copy, which takes a moment
 even for a large copy), copies the files, applies any migration newer than the golden master, names the example
-organization the example, and serves. The sample people hold their roles in both organizations,
+organization the example, and serves. The sample people hold their roles in the example and the standard organization,
 so a guest of the example is anyone else: sign in with any other address, such as
 `guest@example.com`. Stopping it and starting it again
 is how a test goes back to the golden master; it also ends every session and MCP token, which the
@@ -108,6 +117,10 @@ it: give this checkout's another port with `WHATBUILD_E2E_PG_PORT`. `WHATBUILD_E
 browser and MCP tools elsewhere. `GET /mcp 405` lines in its log are expected: MCP clients probe for a
 server-initiated stream, which WhatBuild does not offer.
 
+The same golden master can be served by the release image on a Docker host that stays on, such as
+a NAS: `pnpm e2e export` packs it, with the sample people's roles given, for
+[the end-to-end instance on a Docker host](end-to-end-on-a-docker-host.md).
+
 ## Running a plan
 
 ```sh
@@ -120,11 +133,16 @@ corepack pnpm e2e mcp call products '{"action":"list"}'
 
 The plans:
 
-- `smoke`: every screen opens for each role in both organizations, and an agent connects and reads.
+- `smoke`: every screen opens for each role in the example and the standard organization, and an agent connects and reads.
+- `organizations-kept-apart`: the synthetic organization's people see nothing of the standard
+  organization through either door, its addresses and ids answering as absent; a scoped endpoint
+  stays inside its scope; Sam edits in one organization and only reads the Story in another.
 - `evidence-through-both-doors`: a source added over MCP is read, searched, corrected and
   commented on in the web app, and the reverse; a second attachment kept but not searched;
   activity attribution; a stale etag; a guest of the example organization reading and refused
   every write; and the two organizations kept apart.
+- `delete-and-agent-levels`: admins delete permanently, editors archive, and an agent is offered
+  only what its connection's level and its person allow.
 - `assumptions-and-the-story`: an agent's assumption is reviewed by a person; a Story page
   is published and read by a reader, who is refused everything else.
 - `search`: the palette and the Search screen find every kind of thing by plain words, read as the
@@ -139,7 +157,7 @@ The plans:
 installed Google Chrome, or `$CHROME`); `pnpm e2e browser start --headed` shows it instead.
 `signin` and `signout` clear the browser's storage, so nothing the app remembers per browser
 carries from one person to the next. `snapshot` prints the page's accessibility tree, the same names `click <role> <name>`,
-`fill <label> <value>` and the rest use. `signin <riley|sam|jordan|email>` uses the development
+`fill <label> <value>` and the rest use. `signin <riley|sam|jordan|morgan|casey|avery|email>` uses the development
 sign-in. Every command prints the page's address and, on lines starting with `!`, anything that
 went wrong in the page since the last command: console errors, uncaught exceptions, failed
 requests and 5xx responses. `wait <text>` and `wait-url <part>` wait for the app after a redirect

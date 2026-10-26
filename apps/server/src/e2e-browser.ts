@@ -15,13 +15,21 @@ import { currentRunDir, E2E_DIR, e2eBaseUrl, record } from "./e2e.ts";
  */
 const STATE = join(E2E_DIR, "browser.json");
 const LOG = join(E2E_DIR, "browser.log");
-const PEOPLE: Record<string, string> = { riley: "riley@example.com", sam: "sam@example.com", jordan: "jordan@example.com" };
+const PEOPLE: Record<string, string> = {
+  riley: "riley@example.com",
+  sam: "sam@example.com",
+  jordan: "jordan@example.com",
+  // The synthetic organization's own people (e2e.ts).
+  morgan: "morgan@example.com",
+  casey: "casey@example.com",
+  avery: "avery@example.com",
+};
 
 const HELP = `pnpm e2e browser <command>   (the browser starts with the first command, headless; start --headed to watch)
 
   open <path|url>                 go to a page of the app (/t/harbor-labs/…) or any URL; each
     [--header "Name: value"]      --header is sent with that request only (a Story preview's grant)
-  signin <riley|sam|jordan|email> sign in through the development sign-in, with the browser's
+  signin <person|email>           sign in through the development sign-in, with the browser's
                                   storage cleared first, and open the overview
   signout                         forget the session and the browser's storage
   snapshot [<role> [name]]        the page's accessibility tree, or one region's (snapshot main): what to
@@ -111,6 +119,16 @@ async function daemon(headed: boolean) {
     const flags = { nth: valueOf(args, "--nth"), exact: args.includes("--exact"), full: args.includes("--full") };
     const [cmd, a, b] = positional(args);
     const pick = (l: Locator) => (flags.nth !== undefined ? l.nth(Number(flags.nth)) : l);
+    // The one element a command acts on, or a plain refusal saying how many matched, so a command
+    // never fails quietly on a name that matches nothing or several things.
+    const one = async (l: Locator, what: string) => {
+      if (flags.nth !== undefined) return l.nth(Number(flags.nth));
+      await l.first().waitFor({ state: "attached" }).catch(() => {});
+      const n = await l.count();
+      if (n === 0) throw new Error(`Nothing on the page matches ${what}. snapshot lists the roles, names and labels there are.`);
+      if (n > 1) throw new Error(`${n} elements match ${what}. Add --exact for an exact name, or --nth <i> (from 0) to choose one.`);
+      return l;
+    };
     switch (cmd) {
       case "open": {
         const url = need(a, "a path or URL");
@@ -123,7 +141,7 @@ async function daemon(headed: boolean) {
         return `opened ${page.url()}`;
       }
       case "signin": {
-        const email = PEOPLE[need(a, "riley, sam, jordan or an email").toLowerCase()] ?? a!;
+        const email = PEOPLE[need(a, "a person (riley, sam, jordan, morgan, casey, avery) or an email").toLowerCase()] ?? a!;
         // A new person starts clean: the app keeps some state per browser (the last Story page, the
         // panel), which must not carry from one person to the next.
         await page.goto("/signin");
@@ -148,20 +166,20 @@ async function daemon(headed: boolean) {
       case "snapshot":
         return a ? pick(page.getByRole(a as never, b ? { name: b, exact: flags.exact } : {})).first().ariaSnapshot() : page.locator("body").ariaSnapshot();
       case "click":
-        await pick(page.getByRole(need(a, "a role") as never, { name: need(b, "a name"), exact: flags.exact })).click();
+        await (await one(page.getByRole(need(a, "a role") as never, { name: need(b, "a name"), exact: flags.exact }), `${a} "${b}"`)).click();
         return `clicked ${a} "${b}"`;
       case "click-text":
-        await pick(page.getByText(need(a, "the text"), { exact: flags.exact })).click();
+        await (await one(page.getByText(need(a, "the text"), { exact: flags.exact }), `the text "${a}"`)).click();
         return `clicked "${a}"`;
       case "fill":
-        await pick(page.getByLabel(need(a, "a label"), { exact: flags.exact })).fill(b ?? "");
+        await (await one(page.getByLabel(need(a, "a label"), { exact: flags.exact }), `the label "${a}"`)).fill(b ?? "");
         return `filled "${a}"`;
       case "select":
-        await pick(page.getByLabel(need(a, "a label"), { exact: flags.exact })).selectOption({ label: need(b, "an option") });
+        await (await one(page.getByLabel(need(a, "a label"), { exact: flags.exact }), `the label "${a}"`)).selectOption({ label: need(b, "an option") });
         return `selected "${b}" in "${a}"`;
       case "check":
       case "uncheck":
-        await pick(page.getByLabel(need(a, "a label"), { exact: flags.exact })).setChecked(cmd === "check");
+        await (await one(page.getByLabel(need(a, "a label"), { exact: flags.exact }), `the label "${a}"`)).setChecked(cmd === "check");
         return `${cmd}ed "${a}"`;
       case "press":
         await page.keyboard.press(need(a, "a key"));
