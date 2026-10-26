@@ -129,9 +129,16 @@ export interface OperationDef<I extends z.ZodType = z.ZodType, O = unknown, P = 
   /**
    * Only an owner of this WhatBuild instance may call it, which its handler checks: the
    * allowances to start organizations, every organization's plan, every account, the usage. An
-   * agent tool list leaves it out for anyone else, and a call to it is then an unknown action.
+   * agent's tool list leaves it out for anyone else, whose call its handler refuses.
    */
   instanceOwnersOnly?: boolean;
+  /**
+   * For an organization's operation anyone in it may call (`access: "any"`) whose handler checks a
+   * role where the call points: the least role it needs, which the caller must hold somewhere in
+   * the organization. Seeing its people needs viewer, managing them admin. A connector scoped to
+   * the organization lists it only to someone who holds that role there.
+   */
+  needsSomewhere?: ProductRole;
   /**
    * Slow work that must hold no database connection, such as a download. It runs once the call is
    * authorized and its input valid, outside any transaction, and what it returns reaches the

@@ -147,9 +147,9 @@ holds each one; the linked decisions say why. Observed in the code on 2026-10-10
   `submit_feedback` is neither listed nor answered (`403 feedback_off`). Deleting an organization is refused to anything but a person in the
   web app (`403 web_only`) and never listed to an agent.
 - An agent is offered only what its person could do. The instance owners' actions are listed to
-  them alone, and to anyone else are an unknown action; a scoped connector lists only what its
-  fence answers and the person's role inside it reaches. The list is a courtesy, not the check:
-  every call is still authorized by `execute`
+  them alone; a scoped connector lists only what its fence answers and the person's roles inside
+  it reach. The list is a courtesy, not the check: every call, listed or not, is still authorized
+  by `execute` and refused there with what it needs
   ([decision](../decisions/an-agent-is-offered-only-what-its-person-could-do.md)).
 - Feedback names nobody: a report keeps no account, only an address its sender chose to share,
   and a person with their agents sends at most 10 a day, a deployment taking at most 200

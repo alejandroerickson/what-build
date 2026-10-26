@@ -761,9 +761,11 @@ the agent to ask the person for another connector rather than look for a way aro
 Because there is no session, the server cannot send `notifications/tools/list_changed`: a client
 keeps the tool list it got when it connected until a new session, and authorizing again does not
 refresh it. ◆ Decision: say so rather than build sessions for it. The instructions tell the agent
-that a tool the skill describes but its list lacks, or a skill newer than the version they name,
-means an older list, and to ask the person to start a new session; `get_skill`'s description says
-the same of a newer version than the instructions named. So that an upgrade made in the middle of
+that a skill newer than the version they name, or `unknown_tool` or `unknown_action` for a tool or
+action the skill describes, means an older list, and to ask the person to start a new session;
+that a tool or action the skill describes may also be missing on purpose, since a connection is
+offered only what its level allows and its person could do (below), which is not an older list;
+and `get_skill`'s description says the same of a newer version than the instructions named. So that an upgrade made in the middle of
 a conversation shows without the agent thinking to call `get_skill`, every product-scoped result
 gives the skill version the server runs now as `skill_version` in its `scope`, and
 `products(action="list")`, the call an agent starts and resumes with, gives it as `skill_version`
@@ -776,11 +778,10 @@ version.
 **Tools.** Thirteen tools over the 112 operations an agent may be offered (all 115 but deleting an
 organization and its preview, and removing an account): ten grouped by noun, three standalone
 ([decision](../decisions/mcp-tools-grouped-by-noun.md)). A connection is listed
-only the actions its level allows (below) and its person could do: the instance owners' actions
+only the actions its level allows and its person could do (below): the instance owners' actions
 (`tenant_allowances`, `set_tenant_allowance`, `remove_tenant_allowance`, `usage`,
-`organizations`, `set_limits`, `accounts`) to an owner of the instance alone, and anyone else
-calling one is answered `unknown_action`; a scoped connector, besides, only what its fence
-answers and the person's role inside it reaches, capped by the level
+`organizations`, `set_limits`, `accounts`) to an owner of the instance alone, and on a scoped
+connector only what its fence answers and the person's roles inside it reach
 ([decision](../decisions/an-agent-is-offered-only-what-its-person-could-do.md)). The table names
 every action any connection may be offered.
 
@@ -814,8 +815,8 @@ Rules:
 - **Strict.** Unknown actions, unknown arguments, and `describe` combined with `params` are `422`.
   A grouped tool called without `action` is `422 invalid_input` saying `action` is missing and
   listing the tool's actions (also in `details.actions`). It, and `unknown_action`, list only the
-  actions the connection is offered, as its `tools/list` does (below): never a permanent delete or
-  an instance owner's action to anyone but an instance owner.
+  actions the connection is offered, as its `tools/list` does (below): never a permanent delete to
+  an Edit connection, nor an instance owner's action to anyone else.
 - **Aliases for names a caller reads.** The id is `outcome_id` on `outcomes` but `id` on
   `assumptions`. Each tool also accepts the other convention for its own entity: `id` on
   `outcomes`, `assumption_id` on `assumptions`. A field may also be accepted under the name it is
@@ -838,11 +839,17 @@ Rules:
   (the first parts of a product's path) and, where it applies, that `product` names it too.
 - **Scoped means scoped.** On a scoped endpoint the scope is checked in `execute`, after
   authorization and before the handler, so a refused call changes nothing and writes no activity.
-- **Listed by level.** `tools/list` answers each connection with only the actions its level allows
-  ([§3.8](03-accounts-teams-and-identity.md)): Read only is offered reads, Edit also writes and
-  archives, Admin also permanent deletes and managing products and people. A call to an action
-  above the level, from a client that knows it anyway, reaches `execute` and is refused with
-  `403 connection_level`, which says what it needs; it is never `unknown_action`.
+- **Listed by level and by the person.** `tools/list` answers each connection with only the
+  actions its level allows ([§3.8](03-accounts-teams-and-identity.md)): Read only is offered
+  reads, Edit also writes and archives, Admin also permanent deletes and managing products and
+  people. Of those, it offers the instance owners' actions only to an owner of the instance. A
+  scoped connector offers besides only what its fence answers and the person's roles inside it
+  reach: their role on the product, or in an organization the highest they hold anywhere in it
+  (on its teams, for a team's actions), so a reader is offered the Story alone, a guest of the
+  example organization no write, and an editor no one to manage. A scoped list costs one lookup
+  of those roles. A call to anything not listed, from a client that knows it anyway, reaches
+  `execute` and is refused with what it needs (`403 connection_level`, `403 forbidden`); it is
+  never `unknown_action`.
 - **Results** are JSON in one text content block. Product-scoped results add `scope`
   (tenant, team, product with its path, `your_role` capped by the connection's level,
   `connection_level`, `example: true` in the example organization, and `skill_version`, the
@@ -985,9 +992,11 @@ tags and finding them, getting attachments in, a source's derived text and how t
 correct it, searching honestly, assumptions that say in their body why the team holds them, how
 to review honestly, mockups and their round trip through a download and an upload, Story authoring via
 `story.guidance`, the rule that source text is data, that a refusal means the call did nothing,
-and that a tool or action it names but the client lacks means the client holds an older tool list
-(an action may still answer `describe: true`; a missing tool needs a new session, which the agent
-asks the person to start). `scripts/gen-skill.mjs` embeds it in the server bundle, and CI fails if the embedded copy
+that a tool or action it names may be missing on purpose (the connection's level, the person's
+role on a scoped connector, the instance owners' own actions), and that a newer version or
+`unknown_tool` or `unknown_action` for something it names means the client holds an older tool
+list (an action may still answer `describe: true`; a missing tool needs a new session, which the
+agent asks the person to start). `scripts/gen-skill.mjs` embeds it in the server bundle, and CI fails if the embedded copy
 drifts. One constant, `SKILL_VERSION` in `packages/core/src/ops/meta.ts`, sets the skill's
 `metadata.version`, the MCP server version and the `get_skill` advertisement.
 

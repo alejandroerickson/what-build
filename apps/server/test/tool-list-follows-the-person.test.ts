@@ -1,12 +1,13 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { syncExampleTenant } from "../src/example-organization.ts";
 import { startHarness, type Browser, type Harness } from "./harness.ts";
 
 // An agent is offered what the person could do, as the web app shows them only that. The instance
-// owners' actions are listed to them alone, and called by anyone else are unknown. A connector
-// scoped to an organization or a product lists only what its fence answers and what the person's
-// role inside it reaches, capped by the connection's level.
+// owners' actions are listed to them alone. A connector scoped to an organization or a product
+// lists only what its fence answers and what the person's roles inside it reach. A call to what a
+// connection is not offered is still answered with what it needs, never as unknown.
 
 let h: Harness;
 let root: Browser; // owns this WhatBuild
@@ -14,6 +15,7 @@ let olive: Browser; // owns the organization
 let vic: Browser; // a viewer of one product
 let rita: Browser; // a reader of one product
 let eddie: Browser; // an editor of the team
+let paula: Browser; // an admin of one product, and nothing more
 let org: string;
 let path: string;
 
@@ -60,35 +62,43 @@ beforeAll(async () => {
   await olive.api("POST", `/api/v1/tenants/${org}/members`, { team: t.body.team.slug, product, email: "vic@example.com", role: "viewer" });
   await olive.api("POST", `/api/v1/tenants/${org}/members`, { team: t.body.team.slug, product, email: "rita@example.com", role: "reader" });
   await olive.api("POST", `/api/v1/tenants/${org}/members`, { team: t.body.team.slug, email: "eddie@example.com", role: "editor" });
+  await olive.api("POST", `/api/v1/tenants/${org}/members`, { team: t.body.team.slug, product, email: "paula@example.com", role: "admin" });
   vic = await h.signIn("vic@example.com", "Vic");
   rita = await h.signIn("rita@example.com", "Rita");
   eddie = await h.signIn("eddie@example.com", "Eddie");
+  paula = await h.signIn("paula@example.com", "Paula");
 });
 afterAll(async () => h?.close());
 
 describe("the instance owners' actions", () => {
-  it("are listed to an owner of this WhatBuild", async () => {
+  it("are listed to an owner of this WhatBuild, as far as the connection's level allows", async () => {
     const client = await connect(await h.connectAgent(root, "Root's agent"));
     const { actions, descriptions } = await offered(client);
     for (const a of INSTANCE_ACTIONS) expect(actions, a).toContain(`products.${a}`);
-    // Removing an account is done in the web app, by anyone.
+    // Removing an account is done only in the web app.
     expect(actions).not.toContain("products.remove_account");
-    expect(descriptions["products"]).toContain("as an owner of this WhatBuild");
+    expect(descriptions["products"]).toContain("As an owner of this WhatBuild");
     expect(result(await client.callTool({ name: "products", arguments: { action: "usage", params: { days: 1 } } })).status).toBe(200);
     await client.close();
+    const editing = await offeredAt(root, "/mcp", "editor");
+    expect(editing).toContain("products.organizations");
+    for (const a of ["set_limits", "set_tenant_allowance", "remove_tenant_allowance"]) expect(editing, a).not.toContain(`products.${a}`);
   });
 
-  it("are neither listed, described nor known to an organization's owner", async () => {
+  it("are neither listed nor named to anyone else, whose call is refused as before", async () => {
     const client = await connect(await h.connectAgent(olive, "Olive's agent"));
     const { actions, descriptions } = await offered(client);
     for (const a of INSTANCE_ACTIONS) expect(actions, a).not.toContain(`products.${a}`);
     expect(actions).toContain("products.limits");
     expect(descriptions["products"]).not.toMatch(/allowances|every account|how it is used/);
-    for (const args of [{ action: "usage", params: { days: 1 } }, { action: "organizations", describe: true }]) {
-      const r = result(await client.callTool({ name: "products", arguments: args }));
-      expect(r.json.error.code, args.action).toBe("unknown_action");
-      expect(r.json.error.details.actions).not.toContain(args.action);
-    }
+    // Called anyway, from what the skill says, it is refused for what it needs: an unknown action would mean an old tool list.
+    const usage = result(await client.callTool({ name: "products", arguments: { action: "usage", params: { days: 1 } } }));
+    expect(usage.status).toBe(403);
+    expect(usage.json.error.message).toContain("Only an owner of this WhatBuild instance");
+    expect(result(await client.callTool({ name: "products", arguments: { action: "organizations", describe: true } })).json.action).toBe("organizations");
+    const unknown = result(await client.callTool({ name: "products", arguments: { action: "explode" } }));
+    expect(unknown.json.error.code).toBe("unknown_action");
+    for (const a of INSTANCE_ACTIONS) expect(unknown.json.error.details.actions, a).not.toContain(a);
     await client.close();
   });
 });
@@ -104,7 +114,7 @@ describe("a connector scoped to a product", () => {
   it("lists a reader only the Story", async () => {
     const actions = await offeredAt(rita, `/mcp/t/${path}`);
     expect(actions).toEqual(expect.arrayContaining(["story.list_pages", "story.get_page"]));
-    for (const a of ["sources.list", "search", "outcomes.list", "assumptions.list", "mockups.list", "story.guidance"]) expect(actions, a).not.toContain(a);
+    for (const a of ["sources.list", "search", "outcomes.list", "assumptions.list", "mockups.list", "story.guidance", "activity.list"]) expect(actions, a).not.toContain(a);
   });
 
   it("lists an admin what the connection's level allows", async () => {
@@ -129,15 +139,52 @@ describe("a connector scoped to an organization", () => {
   it("lists the highest role the person holds anywhere in it", async () => {
     const actions = await offeredAt(eddie, `/mcp/t/${org}`);
     expect(actions).toEqual(expect.arrayContaining(["sources.create", "members.list"]));
-    // An editor deletes nothing, and the organization's own administration is its admins'.
-    for (const a of ["sources.delete", "members.activity", "products.create_tenant"]) expect(actions, a).not.toContain(a);
+    // An editor deletes nothing, manages nobody, and the organization's own administration is its admins'.
+    for (const a of ["sources.delete", "members.grant", "members.revoke", "members.cancel_invitation", "members.activity", "products.create", "products.create_team"]) expect(actions, a).not.toContain(a);
     const owner = await offeredAt(olive, `/mcp/t/${org}`);
-    expect(owner).toEqual(expect.arrayContaining(["sources.delete", "members.activity", "members.grant"]));
+    expect(owner).toEqual(expect.arrayContaining(["sources.delete", "members.activity", "members.grant", "products.create", "products.create_team", "products.rename_tenant"]));
   });
 
-  it("lists an instance owner none of their own actions, which it refuses", async () => {
+  it("lists a product's admin its people to manage, but no product of their own to make", async () => {
+    const actions = await offeredAt(paula, `/mcp/t/${org}`);
+    expect(actions).toEqual(expect.arrayContaining(["sources.delete", "members.list", "members.grant", "members.revoke"]));
+    // A team's admin creates its products; a product's grant reaches no team.
+    for (const a of ["products.create", "products.create_team", "members.activity"]) expect(actions, a).not.toContain(a);
+  });
+
+  it("lists a reader none of the organization's people", async () => {
+    const actions = await offeredAt(rita, `/mcp/t/${org}`);
+    expect(actions).toEqual(expect.arrayContaining(["story.list_pages", "products.limits"]));
+    for (const a of ["members.list", "sources.list", "search"]) expect(actions, a).not.toContain(a);
+  });
+
+  it("lists an instance owner none of their own actions, and refuses them", async () => {
     const t = await root.api("POST", "/api/v1/tenants", { name: "Root's own" });
-    const actions = await offeredAt(root, `/mcp/t/${t.body.tenant.slug}`);
+    const at = `/mcp/t/${t.body.tenant.slug}`;
+    const client = await connect(await h.connectAgent(root, "Root's scoped agent", at), at);
+    const { actions } = await offered(client);
     for (const a of INSTANCE_ACTIONS) expect(actions, a).not.toContain(`products.${a}`);
+    const r = result(await client.callTool({ name: "products", arguments: { action: "usage", params: { days: 1 } } }));
+    expect(r.json.error.code).toBe("outside_connector_scope");
+    await client.close();
+  });
+});
+
+describe("a connector scoped to a product of the example organization", () => {
+  let example: string;
+  let gus: Browser; // holds no grant there: its guest
+  beforeAll(async () => {
+    const t = await root.api("POST", "/api/v1/tenants", { name: "Exemplar" });
+    example = (await root.api("POST", `/api/v1/teams/${t.body.tenant.slug}/${t.body.team.slug}/products`, { name: "Showcase" })).body.path;
+    await syncExampleTenant(h.db, t.body.tenant.slug, () => {});
+    gus = await h.signIn("gus@guest.example", "Gus Guest");
+  });
+
+  it("lists its guest every read and no write", async () => {
+    const actions = await offeredAt(gus, `/mcp/t/${example}`);
+    expect(actions).toEqual(expect.arrayContaining(["sources.list", "search", "story.list_pages", "outcomes.list"]));
+    for (const a of ["sources.create", "sources.annotate", "outcomes.create", "story.publish"]) expect(actions, a).not.toContain(a);
+    // Feedback is the person's own, whatever their role.
+    expect(actions).toContain("submit_feedback");
   });
 });

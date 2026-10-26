@@ -122,11 +122,9 @@ describe("what each level may do", () => {
       expect(named[level]!["products"]).toEqual(expect.arrayContaining(["list", "limits"]));
       expect(named[level]!["products"]).not.toContain("organizations");
     }
-    for (const a of ["create_tenant"]) {
-      expect(named["viewer"]!["products"]).not.toContain(a);
-      expect(named["editor"]!["products"]).not.toContain(a);
-      expect(named["admin"]!["products"]).toContain(a);
-    }
+    expect(named["viewer"]!["products"]).not.toContain("create_tenant");
+    expect(named["editor"]!["products"]).not.toContain("create_tenant");
+    expect(named["admin"]!["products"]).toContain("create_tenant");
   });
 
   it("lets Read only read and nothing else", async () => {

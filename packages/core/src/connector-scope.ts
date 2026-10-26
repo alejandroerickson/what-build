@@ -1,7 +1,7 @@
 import { AppError } from "./errors.ts";
-import { highestRoleIn, membershipsFor, resolveScope, type ScopeRef } from "./policy.ts";
+import { highestRolesIn, membershipsFor, resolveScope, type ScopeRef, type Standing } from "./policy.ts";
 import type { Db } from "./db.ts";
-import type { OperationDef, Principal, ProductRole, Scope, TenantRole } from "./registry.ts";
+import type { OperationDef, Principal, Scope } from "./registry.ts";
 
 /**
  * What a scoped MCP connector may reach: one organization, or one product in it. A scoped connector
@@ -11,12 +11,8 @@ import type { OperationDef, Principal, ProductRole, Scope, TenantRole } from "./
 export interface ConnectorScope {
   tenant: { tenant_id: string; slug: string; name: string };
   product: { product_id: string; path: string; name: string } | null;
-  /**
-   * The person's standing inside it, uncapped by the connection's level: their role on the product,
-   * or the highest they hold anywhere in the organization. What its tool list offers.
-   */
-  role: ProductRole | null;
-  tenantRole: TenantRole | null;
+  /** The person's roles inside it, which decide what its tool list offers. */
+  standing: Standing;
 }
 
 /** Account-level operations a scoped connector still answers: they reach no organization's content. */
@@ -54,15 +50,18 @@ export async function resolveConnectorScope(db: Db, principal: Principal, bound:
     }
     throw e;
   });
-  const standing = product ? { role: scope.role, tenantRole: scope.tenantRole } : highestRoleIn(await membershipsFor(db, principal.account_id, scope.tenant!.tenant_id), scope.tenant!.tenant_id);
+  // A product connector offers no team's operation, so only the product's role and the organization's count.
+  const standing = product
+    ? { role: scope.role, teamRole: null, tenantRole: scope.tenantRole }
+    : highestRolesIn(await membershipsFor(db, principal.account_id, scope.tenant!.tenant_id), scope.tenant!.tenant_id);
   return {
     tenant: { tenant_id: scope.tenant!.tenant_id, slug: scope.tenant!.slug, name: scope.tenant!.name },
     product: scope.product ? { product_id: scope.product.product_id, path: `${scope.tenant!.slug}/${scope.team!.slug}/${scope.product.slug}`, name: scope.product.name } : null,
-    ...standing,
+    standing,
   };
 }
 
-/** Whether the connector answers the operation at all, wherever inside it lands: what `checkConnectorScope` never lets through is not offered. */
+/** Whether the connector answers the operation anywhere inside it: what `checkConnectorScope` always refuses is never offered. */
 export function connectorOffers(c: ConnectorScope, op: Pick<OperationDef, "name" | "scope">): boolean {
   if (op.scope === "account") return ACCOUNT_OPS_ALLOWED.has(op.name);
   if (!c.product) return true;

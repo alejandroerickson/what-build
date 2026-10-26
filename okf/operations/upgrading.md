@@ -23,7 +23,13 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
 
 ## Unreleased
 
-Nothing yet.
+- **An agent is offered only what its person could do.** It concerns every deployment and asks
+  nothing of one. The MCP tool list offers the instance owners' actions (`usage`, `organizations`,
+  `set_limits`, `accounts` and the allowances to start organizations) only to an owner named in
+  `WHATBUILD_INSTANCE_OWNERS`, and a connector scoped to an organization or a product offers only
+  what the person's roles inside it reach: a reader there sees the Story alone. A call to anything
+  else is refused as before. A connected client sees the change in a new session. The skill is now
+  at version 0.39.0; agents fetch it again as the server's instructions tell them.
 
 ## v0.22.0
 

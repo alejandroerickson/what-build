@@ -73,6 +73,12 @@ function guestGrant(tenantId: string): MembershipRow {
   return { tenant_id: tenantId, scope_type: "tenant", scope_id: tenantId, role: "guest" };
 }
 
+/** The content role a grant gives where it applies: an organization's owner or admin is an admin there, a guest a viewer, a member nothing. */
+function grantedRole(m: MembershipRow): ProductRole | null {
+  if (m.scope_type !== "tenant") return m.role as ProductRole;
+  return m.role === "owner" || m.role === "admin" ? "admin" : m.role === "guest" ? "viewer" : null;
+}
+
 export function effectiveRole(
   memberships: MembershipRow[],
   ids: { tenant_id: string; team_id?: string | null; product_id?: string | null },
@@ -82,8 +88,7 @@ export function effectiveRole(
   for (const m of memberships) {
     if (m.scope_type === "tenant" && m.scope_id === ids.tenant_id) {
       tenantRole = m.role as TenantRole;
-      if (m.role === "owner" || m.role === "admin") role = maxRole(role, "admin");
-      else if (m.role === "guest") role = maxRole(role, "viewer");
+      role = maxRole(role, grantedRole(m));
     } else if (m.scope_type === "team" && ids.team_id && m.scope_id === ids.team_id) {
       role = maxRole(role, m.role as ProductRole);
     } else if (m.scope_type === "product" && ids.product_id && m.scope_id === ids.product_id) {
@@ -94,35 +99,47 @@ export function effectiveRole(
 }
 
 /**
- * The highest role someone holds anywhere in an organization, from its grants there: what a
- * connector scoped to it offers. A tenant owner or admin is an admin and a guest a viewer, as
- * `effectiveRole` reads them, and a team or product grant counts wherever it is.
+ * Someone's roles inside a connector's scope, which decide what its tool list offers: `role` where
+ * a product's operation lands, `teamRole` where a team's does, and `tenantRole` on the organization.
+ * Scoped to a product, they are the roles there; scoped to an organization, the highest anywhere
+ * in it (`highestRolesIn`). Uncapped by the connection's level, which its own filter applies.
  */
-export function highestRoleIn(memberships: MembershipRow[], tenantId: string): { role: ProductRole | null; tenantRole: TenantRole | null } {
-  let role: ProductRole | null = null;
-  let tenantRole: TenantRole | null = null;
-  for (const m of memberships) {
-    if (m.tenant_id !== tenantId) continue;
-    if (m.scope_type === "tenant") {
-      tenantRole = m.role as TenantRole;
-      if (m.role === "owner" || m.role === "admin") role = maxRole(role, "admin");
-      else if (m.role === "guest") role = maxRole(role, "viewer");
-    } else role = maxRole(role, m.role as ProductRole);
-  }
-  return { role, tenantRole };
+export interface Standing {
+  role: ProductRole | null;
+  teamRole: ProductRole | null;
+  tenantRole: TenantRole | null;
 }
 
 /**
- * Whether someone holding `role` and `tenantRole` where an operation lands may call it, as
- * `resolveScope` and `execute` decide: a guest writes nothing, a reader reads only the Story, and
- * an organization's owner and admin actions need that role there. What an operation's handler
- * checks besides is not read here.
+ * The highest roles someone holds in an organization, from its grants there: on any of its
+ * products, and on any of its teams, which a product's grant does not reach. The organization's
+ * own grant counts for both, as `effectiveRole` reads it.
  */
-export function roleReaches(op: Pick<OperationDef, "scope" | "access" | "mutates">, role: ProductRole | null, tenantRole: TenantRole | null): boolean {
+export function highestRolesIn(memberships: MembershipRow[], tenantId: string): Standing {
+  const standing: Standing = { role: null, teamRole: null, tenantRole: null };
+  for (const m of memberships) {
+    if (m.tenant_id !== tenantId) continue;
+    if (m.scope_type === "tenant") standing.tenantRole = m.role as TenantRole;
+    standing.role = maxRole(standing.role, grantedRole(m));
+    if (m.scope_type !== "product") standing.teamRole = maxRole(standing.teamRole, grantedRole(m));
+  }
+  return standing;
+}
+
+/**
+ * Whether someone of this standing may call an operation, as `resolveScope` and `execute` decide
+ * and as an organization's operation declares in `needsSomewhere`: a guest writes nothing, a
+ * reader reads only the Story, and an organization's owner and admin actions need that role on
+ * it. Anything else a handler checks is not read, so such a call may be offered and then refused.
+ */
+export function roleReaches(op: Pick<OperationDef, "scope" | "access" | "mutates" | "needsSomewhere">, standing: Standing): boolean {
+  const { tenantRole } = standing;
   if (op.scope === "account") return true;
   if (op.mutates && tenantRole === "guest") return false;
   if (op.access === "owner") return tenantRoleAtLeast(tenantRole, "owner");
-  if (op.scope === "tenant") return op.access === "admin" ? tenantRoleAtLeast(tenantRole, "admin") : true;
+  if (op.scope === "tenant") return op.access === "admin" ? tenantRoleAtLeast(tenantRole, "admin") : !op.needsSomewhere || roleAtLeast(standing.role, op.needsSomewhere);
+  // A product's grant reaches its team only to list the team's products.
+  const role = op.scope === "team" && op.access !== "read" ? standing.teamRole : standing.role;
   if (!role) return false;
   return op.access === "any" || roleAtLeast(role, ACCESS_ROLE[op.access]);
 }

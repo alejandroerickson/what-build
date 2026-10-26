@@ -1,7 +1,7 @@
 ---
 type: Decision
 title: An agent is offered only what its person could do
-description: An MCP connection lists the instance owners' actions to them alone, and a scoped connector lists only what its fence answers and the person's role inside it reaches, as the web app shows people only what they may do.
+description: An MCP connection lists the instance owners' actions to them alone, and a scoped connector lists only what its fence answers and the person's roles inside it reach, as the web app shows people only what they may do; a call to anything else is still refused with what it needs.
 tags: [decision, mcp, agents, security]
 generated: {by: agent:claude, at: 2026-10-25}
 status: stable
@@ -20,12 +20,17 @@ agent's menu follows the person, as the web app's does.
 ## Decision
 
 - An operation marked `instanceOwnersOnly` is listed only to an owner of the instance
-  (`WHATBUILD_INSTANCE_OWNERS`). Called by anyone else, it is `422 unknown_action`, and
-  `describe` says the same, so its existence is not confirmed.
+  (`WHATBUILD_INSTANCE_OWNERS`), as far as the connection's level allows.
 - A connector scoped to a product or an organization lists only what its fence answers
-  ([decision](a-scoped-mcp-connector-is-a-fence.md)) and what the person's role reaches there,
-  capped by the connection's level: their role on the product, or the highest they hold anywhere
-  in the organization. A call beyond that role still reaches `execute` and is told what it needs.
+  ([decision](a-scoped-mcp-connector-is-a-fence.md)) and what the person's roles reach there:
+  their role on the product, or the highest they hold in the organization, on its teams for a
+  team's operations. An organization's operation whose handler checks a role where the call
+  points declares it (`needsSomewhere`), so managing people is listed only to an admin of
+  something there.
+- A call to anything not listed is answered as before, with what it needs (`403`), never as
+  `unknown_action`: that answer, and a newer skill version, are how an agent knows its tool list
+  is from another version. Rejected: answering an instance owner's action as unknown, which the
+  skill documents for every agent, and which would send the person to restart for nothing.
 - The unscoped connector is not cut to a role: one connection spans organizations where the
   person holds different roles, and a person may start an organization and work in it at once.
 - The list is computed when the client connects. Someone whose role or ownership changes starts
@@ -34,14 +39,14 @@ agent's menu follows the person, as the web app's does.
 ## Consequences
 
 - A guest's or reader's agent sees a short menu of what they can use.
-- Roles a handler checks beyond an operation's declared access (granting a role on a product one
-  administers) are not modelled in the list; such an action may be listed and then refused.
+- The server's instructions and the skill say a tool or action may be missing on purpose, so an
+  agent no longer reads a missing tool as an older list.
 
 ## Constrains
 
-- The flag is on the operation (`packages/core/src/registry.ts`); its handler still refuses
-  anyone else.
-- Role filtering mirrors `resolveScope` through `roleReaches` and `highestRoleIn` in
+- The flags are on the operation (`packages/core/src/registry.ts`); handlers still refuse anyone
+  else, and `execute` still authorizes every call.
+- Role filtering mirrors `resolveScope` through `roleReaches` and `highestRolesIn` in
   `packages/core/src/policy.ts`; the fence's static part is `connectorOffers` in
   `packages/core/src/connector-scope.ts`. Change them with the checks they mirror.
 

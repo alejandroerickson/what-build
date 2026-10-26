@@ -565,7 +565,8 @@ an editor, and an admin's Edit connection as one too.
   organization and the instance's allowances need Admin, and `submit_feedback` Read only.
 - `execute` refuses an operation above the connection's level with `403 connection_level`, before
   it resolves any scope, naming the level it has and the one needed. MCP lists only the actions
-  the level allows, so an Edit connection is never offered a permanent delete.
+  the level allows, so an Edit connection is never offered a permanent delete, and of those only
+  what the person could do ([§6.5](06-operations-and-adapters.md#65-mcp)).
 - `products.list` gives `connection_level` and caps each `your_role` by it.
 - Only the person changes it, under Connect an agent (`PATCH /api/v1/me/agents/<connection>`,
   which takes the web app's session alone), and the change holds from the agent's next call. No
