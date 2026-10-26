@@ -69,8 +69,8 @@ directory. So two checkouts side by side each need ports of their own: `WHATBUIL
 
 The server behaves as a development server only when `NODE_ENV` is exactly `development` or
 `test`: the development sign-in (anyone signs in as anyone), the fixed development grant key, the
-console mailer, and writes from any `http://localhost` port. `pnpm dev`, `pnpm dev:fixture` and
-`pnpm dev:e2e` set `development`, and so do `pnpm db:migrate`, `pnpm db:seed`, the end-to-end
+console mailer, and writes from any `http://localhost` port. `pnpm dev`, `pnpm dev:fixture`,
+`pnpm dev:e2e` and `pnpm dev:people` set `development`, and so do `pnpm db:migrate`, `pnpm db:seed`, the end-to-end
 tools and the server package's `serve` script; the tests set `test`. Anything else, including no
 `NODE_ENV` at all, a misspelling or `staging`, is production ([`config.ts`](../../apps/server/src/config.ts)):
 `pnpm start` or `node main.js serve` on the built server needs `WHATBUILD_GRANT_KEY` (32
@@ -92,6 +92,47 @@ organization, which starts on the free plan; Riley Chen, the instance's owner, c
 limits on `/instance`. `WHATBUILD_EXAMPLE_TENANT=<slug>` names another organization, and an empty
 `WHATBUILD_EXAMPLE_TENANT=` turns the example off; `WHATBUILD_NEW_ORGANIZATION_PLAN=unlimited`
 starts new organizations unlimited, as a self-hosted deployment does.
+
+## Many people
+
+`pnpm dev:people` serves the sample and a hundred synthetic people, to try sign-up, admission,
+invitations and the instance owner's screens at the size a deployment reaches. It keeps them in a
+database of their own, `people`, in the same embedded Postgres, with its files in
+`.what-build/people-blobs`, so `pnpm dev`'s database is left as it is; `--count <n>` (up to 1,000)
+makes another number. The people stay for the next start; to begin again, stop it and drop the
+database, or delete `.what-build/pg` (which holds `pnpm dev`'s work too).
+
+The people ([`people.ts`](../../apps/server/src/people.ts)) are the same for the same count every
+time, all at `example.com` or a `.example` domain:
+
+| Who | Of 100 |
+|---|---|
+| Owners of the organizations they started on an allowance, one each; the organizations are on the free plan, one big, a few middling, the rest small, each with a domain of its own | 8 |
+| Members of one organization or, at `example.com`, two or three; admins among them, and a second owner of the biggest | 46 |
+| Signed in, in no organization, a third of them with an allowance unused | 10 |
+| Invited, not signed in yet: the invitations are waiting | 12 |
+| Given an allowance, not signed in yet | 6 |
+| On the waitlist, asked through the public site's form, with an organization and a note | 18 |
+
+They are made through the running instance, as its people would make them: each signs in through
+the development sign-in, Riley Chen (the instance's owner) gives the allowances without their
+notices, owners start their organizations and grant roles and invite, and their writes meet the
+free plan's limits, whose waits it sits out. So attribution, activity and limits are as in real use.
+At the end it prints everyone by what they are. Sign in as any of them with the development
+sign-in's "As the email above".
+
+The instance is invite-only, as a deployment taking sign-ups is: `WHATBUILD_SIGNUP_ALLOWLIST`
+lets in the biggest organization's domain (`@northwind.example`). The development sign-in lets
+anyone in, so to try admission as a stranger would, sign out and ask for a sign-in link instead,
+which is printed in the terminal with every invitation: an address at that domain, an invited
+address or one with an allowance gets one, and any other (someone on the waitlist, say) is refused
+with `invite_only`.
+
+`pnpm people [--count <n>] [--url <address>] [--owner <instance owner>]` adds the same people to
+an instance already running: `pnpm dev` (`http://localhost:5273`, the default), the end-to-end
+instance (`http://localhost:5283`), or a [Docker host](end-to-end-on-a-docker-host.md) through its
+tunnel. Running it again adds only what is missing. It refuses an address that is not on this
+machine and a server without the development sign-in, so it never touches a deployment.
 
 ## A copy of production
 
