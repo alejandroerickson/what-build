@@ -618,7 +618,7 @@ the download then counts as a call against the limit on calls a minute that the 
 there, if any ([§9.7](09-data-lifecycle.md)). Otherwise it answers `403`, "Whoever requested this grant
 can no longer read this product", or that the connection is disconnected, and sends nothing; a
 grant that names nobody is `401 invalid_grant`. A document's address on the content site is
-checked the same way (below). A prototype's address is the exception: it names nobody, by
+checked the same way, but counted only once, at the app's route that handed it off (below). A prototype's address is the exception: it names nobody, by
 decision, and keeps working for its hours ([§4.12](04-data-model.md)).
 
 **Bytes are served by the service itself**, streamed from the object store with
@@ -653,8 +653,9 @@ cookie or `Authorization` header, sets no cookie and never redirects
 (`apps/server/src/content-documents.ts`). It checks the grant's signature, expiry and purpose
 (`401` "This address has expired. Open it again in WhatBuild."), then that its requester may
 still read the product as the app's route needed (story access for a Story page and the print
-view, viewer for the rest; `403`, sending nothing), without counting the load against a free
-organization's limits again, and finds the document with the same function
+view, viewer for the rest, which a guest of the example organization is; `403`, sending nothing),
+without counting the load against the requester's limit on calls a minute again, since the app's
+route counted it, and finds the document with the same function
 as the app's route, within the grant's product (`404` for one deleted, archived since for a
 reader, or changed since for a front or a style). It serves the document with the same function
 and headers as the app's route, except that `frame-ancestors` names the app's origin (the print

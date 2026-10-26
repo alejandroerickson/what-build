@@ -223,7 +223,8 @@ holds each one; the linked decisions say why. Observed in the code on 2026-10-10
   loading at once, finds the document with the same function as the app's route
   (`apps/server/src/documents.ts`), and serves it with the same headers, framed by the app's
   origin alone, with CORP `cross-origin` and `private, no-store`. A document's load counts once
-  against a free organization's limits, at the app's route, not again at the content site's.
+  against the limit on calls a minute its requester meets (in a free organization, or as a guest
+  of the example organization), at the app's route, not again at the content site's.
 - A Story preview (`story.preview`) is checked by the same code as a publish and served by the
   same function as a version's HTML (`storyHtml` in `apps/server/src/documents.ts`), in the same
   sandbox, so nothing reaches a browser through a preview that publishing would refuse. Its

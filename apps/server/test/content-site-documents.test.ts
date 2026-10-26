@@ -379,7 +379,7 @@ describe("the app's pages", () => {
 });
 
 describe("a document in the example organization", () => {
-  it("reaches a guest through the hand-off, and stops once the organization is no longer the example", async () => {
+  it("reaches a guest through the hand-off, counted once, and stops once the organization is no longer the example", async () => {
     const owner = await h.signIn("owen@example.com", "Owen Owner");
     const t = await owner.api("POST", "/api/v1/tenants", { name: "Example Co" });
     const p = await owner.api("POST", `/api/v1/teams/${t.body.tenant.slug}/${t.body.team.slug}/products`, { name: "Open" });
@@ -392,6 +392,12 @@ describe("a document in the example organization", () => {
       const r = await open(address);
       expect(r.status).toBe(200);
       expect(await r.text()).toContain("<h1>Welcome</h1>");
+      // A guest meets the limit on calls a minute at the app's address; the content site counts nothing more.
+      await h.db.updateTable("tenants").set({ limits: JSON.stringify({ requests_per_minute: 0 }) }).where("tenant_id", "=", t.body.tenant.tenant_id).execute();
+      expect((await atApp(guest, `${Q}/story/pages/welcome/versions/1/html`)).status).toBe(429);
+      expect((await open(address)).status).toBe(200);
+      // The example's own people are on its plan, which is unlimited.
+      expect((await atApp(owner, `${Q}/story/pages/welcome/versions/1/html`)).status).toBe(302);
       await syncExampleTenant(h.db, null, () => {});
       expect((await open(address)).status).toBe(403);
     } finally {
