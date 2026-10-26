@@ -15,6 +15,7 @@ import { buildOrganization, type Organization } from "./organization-fixture.ts"
  */
 const DIRECTORY_WITH_TENANT_ID: Record<string, string> = {
   tenants: "directory: the organization itself, resolved before a transaction is scoped to it",
+  tenant_slugs: "directory: the slugs an organization had before, resolved with it",
   teams: "directory: resolved by the policy module before a transaction is scoped",
   products: "directory: resolved by the policy module before a transaction is scoped",
   memberships: "directory: the grants authorization reads",

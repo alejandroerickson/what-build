@@ -23,6 +23,13 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
 
 ## Unreleased
 
+- **An organization's owners, and the instance's owners, rename it and change its slug.** It
+  concerns every deployment, and asks nothing of one but this: if you change the slug of the
+  organization `WHATBUILD_EXAMPLE_TENANT` names, set the variable to the new slug. Until then the
+  server still finds the example by the old one, so no guest loses it, and warns at start-up.
+  Addresses with an old slug keep working everywhere: links and bookmarks in the app, REST, and
+  connected agents and their tokens. Migration `0036` adds a column and a table, and changes no row.
+
 - **With a content site, every page and inline file is served from it.** It concerns deployments
   that set `WHATBUILD_CONTENT_URL`. From this release the content site serves, besides prototypes,
   every Story page, mockup page, Idea card, style specimen and print view, agents' previews, and a

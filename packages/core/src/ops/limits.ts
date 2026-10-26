@@ -9,6 +9,7 @@ import {
   type LimitKey, type LimitState, type Limits, type Plan,
 } from "../limits.ts";
 import { REST_BODY_MAX_BYTES, SIGN_IN_LINKS_PER_HOUR, type CoreConfig } from "../ports.ts";
+import { tenantNamed } from "../policy.ts";
 import { defineOperation, type OpContext } from "../registry.ts";
 import { expectedEtag } from "../schemas.ts";
 import { isInstanceOwner } from "../tenant-allowance.ts";
@@ -104,7 +105,7 @@ async function organizationRow(db: Db, ref: string) {
   const t = await db
     .selectFrom("tenants")
     .select(["tenant_id", "slug", "name", "example", "created_at", "created_by"])
-    .where(sql<boolean>`(slug = ${ref} or tenant_id = ${ref})`)
+    .where("tenant_id", "=", tenantNamed(ref))
     .executeTakeFirst();
   if (!t) throw notFound(`No organization ${ref} on this instance.`);
   return t;
@@ -117,7 +118,7 @@ export const listOrganizations = defineOperation({
   mutates: false,
   summary: "Every organization on this instance, with its plan, who created it and what it used today (instance owners).",
   description:
-    "For the instance's owners: new_organization_plan, the plan an organization someone else creates gets on this deployment (WHATBUILD_NEW_ORGANIZATION_PLAN), and each organization with its slug, name, plan, whether it is the example organization, who created it and when, how many people hold a role in it, the limits an instance owner changed from the free plan's (changed_limits), and what everyone in it used today. It names no product and holds none of an organization's content. Change a plan or a limit with products(action=\"set_limits\"), whose expected_etag is etag; rename an organization with products(action=\"rename_tenant\"), whose expected_etag is name_etag.",
+    "For the instance's owners: new_organization_plan, the plan an organization someone else creates gets on this deployment (WHATBUILD_NEW_ORGANIZATION_PLAN), and each organization with its slug (and former_slugs, the ones it had before), name, plan, whether it is the example organization, who created it and when, how many people hold a role in it, the limits an instance owner changed from the free plan's (changed_limits), and what everyone in it used today. It names no product and holds none of an organization's content. Change a plan or a limit with products(action=\"set_limits\"), whose expected_etag is etag; rename an organization with products(action=\"rename_tenant\"), whose expected_etag is name_etag.",
   input: z.strictObject({}),
   rest: { method: "GET", path: "/organizations" },
   mcp: { tool: "products", action: "organizations" },
@@ -131,13 +132,16 @@ export const listOrganizations = defineOperation({
       ])
       .orderBy("t.name")
       .execute();
+    const former = await ctx.db.selectFrom("tenant_slugs").select(["tenant_id", "slug"]).orderBy("retired_at").execute();
     const items = [];
     for (const r of rows) {
+      const slugs = former.filter((f) => f.tenant_id === r.tenant_id).map((f) => f.slug);
       const state = await loadLimits(ctx.db, r.tenant_id, new Date(ctx.now));
       items.push({
         slug: r.slug,
         name: r.name,
         name_etag: r.name_etag,
+        ...(slugs.length ? { former_slugs: slugs } : {}),
         plan: r.plan as Plan,
         ...(r.example ? { example: true } : {}),
         people: Number(r.people ?? 0),

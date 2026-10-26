@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState, type ReactNode } from "react";
 import { useParams, useSearchParams } from "react-router";
 import { api, ApiError } from "../lib/api.ts";
-import { formatBytes, formatDate, formatDateTime, plural, untilTime } from "../lib/format.ts";
+import { formatBytes, formatDate, formatDateTime, plural, slugProblem, untilTime } from "../lib/format.ts";
 import { amount, PLAN_WORDS, useOrganizationLimits, type InstanceOrganization, type InstanceOrganizations, type Plan } from "../lib/limits.ts";
 import { useMe } from "../lib/session.tsx";
 import { usePageTitle } from "../shell/slots.tsx";
@@ -217,6 +217,7 @@ export function InstanceOrganizationsSheet() {
                   <>
                     {[
                       o.example ? "Example organization" : null,
+                      o.former_slugs?.length ? `formerly ${o.former_slugs.join(", ")}` : null,
                       plural(o.people, "person", "people"),
                       `started by ${o.created_by.display_name}, ${formatDate(o.created_at)}`,
                       o.today.writes ? `${plural(o.today.writes, "write")} today, ${formatBytes(o.today.bytes)} uploaded` : null,
@@ -249,21 +250,31 @@ export function InstanceOrganizationsSheet() {
 }
 
 /**
- * Rename an organization, as an owner of this WhatBuild may any of them. Its short name in links
- * stays. `org` is the list's current row, so a stale name etag is read again by refreshing the list.
+ * Rename an organization or change its short name in links, as an owner of this WhatBuild may for
+ * any of them. Links with a short name it had before still lead to it. `org` is the list's current
+ * row, so a stale name etag is read again by refreshing the list.
  */
 function RenameDialog({ org, onClose }: { org: InstanceOrganization; onClose: () => void }) {
   const qc = useQueryClient();
   const toast = useToast();
   const [name, setName] = useState(org.name);
-  const valid = Boolean(name.trim()) && name.trim() !== org.name;
+  const [slug, setSlug] = useState(org.slug);
+  const renamed = name.trim() !== org.name;
+  const moved = slug !== org.slug;
+  const slugError = moved ? slugProblem(slug) : null;
+  const valid = (renamed || moved) && Boolean(name.trim()) && !slugError;
   const save = useMutation({
-    mutationFn: () => api<{ name: string }>("PATCH", `/api/v1/tenants/${encodeURIComponent(org.slug)}`, { name: name.trim(), expected_etag: org.name_etag }),
+    mutationFn: () =>
+      api<{ name: string; slug: string }>("PATCH", `/api/v1/tenants/${encodeURIComponent(org.slug)}`, {
+        ...(renamed ? { name: name.trim() } : {}),
+        ...(moved ? { slug } : {}),
+        expected_etag: org.name_etag,
+      }),
     onSuccess: (r) => {
       void qc.invalidateQueries({ queryKey: ["instance-organizations"] });
       void qc.invalidateQueries({ queryKey: ["products"] });
-      void qc.invalidateQueries({ queryKey: ["limits", org.slug] });
-      toast(`${org.name} is now ${r.name}.`);
+      void qc.invalidateQueries({ queryKey: ["limits"] });
+      toast(moved ? `${r.name}’s links now begin /t/${r.slug}/, and links with ${org.slug} still lead there.` : `${org.name} is now ${r.name}.`);
       onClose();
     },
   });
@@ -273,14 +284,14 @@ function RenameDialog({ org, onClose }: { org: InstanceOrganization; onClose: ()
       onClose={onClose}
       dismissable={!save.isPending}
       title={`Rename ${org.name}`}
-      description={`Its short name in links stays ${org.slug}, so links and connected agents keep working. Its access log records the rename.`}
+      description="Links with its current short name keep leading to it after a change, and connected agents keep working. Its access log records the change."
       footer={
         <>
           <Button onClick={onClose} disabled={save.isPending}>
             Cancel
           </Button>
-          <Button variant="primary" busy={save.isPending} busyLabel="Renaming…" disabled={!valid} onClick={() => save.mutate()}>
-            Rename
+          <Button variant="primary" busy={save.isPending} busyLabel="Saving…" disabled={!valid} onClick={() => save.mutate()}>
+            Save
           </Button>
         </>
       }
@@ -293,6 +304,17 @@ function RenameDialog({ org, onClose }: { org: InstanceOrganization; onClose: ()
         }}
       >
         <TextField label="Name" required maxLength={100} value={name} onChange={(e) => setName(e.target.value)} />
+        <TextField
+          label="Short name in links"
+          required
+          maxLength={50}
+          spellCheck={false}
+          autoComplete="off"
+          value={slug}
+          onChange={(e) => setSlug(e.target.value.toLowerCase())}
+          error={slugError}
+          hint={org.former_slugs?.length ? `Before: ${org.former_slugs.join(", ")}. Links with those lead here too.` : "Every product’s address begins with it."}
+        />
         {save.isError ? <ErrorCallout inset error={save.error} onRetry={save.error instanceof ApiError && save.error.code === "stale_etag" ? () => void qc.invalidateQueries({ queryKey: ["instance-organizations"] }) : undefined} /> : null}
       </form>
     </Dialog>

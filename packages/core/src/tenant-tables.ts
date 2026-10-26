@@ -14,6 +14,7 @@ export const CONTENT_TABLES = [
 
 /** Every other table that carries `tenant_id`, and what it holds. A test holds the two lists complete. */
 export const OTHER_TENANT_TABLES: Record<string, string> = {
+  tenant_slugs: "The slugs it had before, which addresses still name it by.",
   memberships: "Access, not content.",
   invitations: "Access, as memberships.",
   limit_counters: "The counters behind a free organization's limits.",

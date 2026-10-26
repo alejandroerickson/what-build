@@ -55,7 +55,8 @@ call came through:
    `submit_feedback` when the person turned it off for the connection (`403 feedback_off`, §6.9),
    whatever was sent with it. None says anything about any product.
 2. **Resolve and authorize the scope** ([§3.6](03-accounts-teams-and-identity.md)): a caller
-   who cannot see the product gets `404` before their input is even validated. An instance owner
+   who cannot see the product gets `404` before their input is even validated. A tenant is named
+   by its id, its slug or a slug it had before (`tenantNamed`). An instance owner
    calling a tenant operation that sets `allowInstanceOwners` (renaming an organization) acts in
    any organization as one of its owners, member or not. For an agent the
    role in the scope is then capped by its connection's level. A tenant, team or product named
@@ -546,6 +547,9 @@ Notes on recent actions:
   front.
 - The concept's card is written with `products.update_concept`, for editors as well as admins, as
   an outcome's card is; `products.update` renames a product and changes its slug, for admins only.
+- `products.rename_tenant` renames an organization and changes its slug, for its owners and for an
+  instance owner in any organization; a slug it had before still names it everywhere, and no other
+  organization may take one (`409 slug_taken`) ([§3.3](03-accounts-teams-and-identity.md#33-tenants-and-teams)).
 - `outcomes.card_preview` takes a front (`card_html`, `kind` outcome or concept, and optionally the
   `title` and `back` it goes with) and makes every check a write of it makes, refusing with the
   same errors; it writes nothing anyone sees. It returns `card_advice`, the `frame` the front shows
@@ -835,7 +839,9 @@ Rules:
 - **Results** are JSON in one text content block. Product-scoped results add `scope`
   (tenant, team, product with its path, `your_role` capped by the connection's level,
   `connection_level`, `example: true` in the example organization, and `skill_version`, the
-  server's skill version now). Tools whose actions are all reads carry read-only annotations.
+  server's skill version now). Every result through a scoped endpoint whose address names its
+  organization by a former slug adds `connector_address`, the current address, for the agent to
+  tell the person once. Tools whose actions are all reads carry read-only annotations.
 - **Source text is data.** The server instructions, tool descriptions and the skill state that
   text returned from sources is quoted material, never instructions to the agent.
 - **Delete is on the MCP surface for an Admin connection, and guarded there.** An agent whose

@@ -2,7 +2,7 @@ import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tansta
 import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 import { api, ApiError, qs } from "../lib/api.ts";
-import { aRole, formatBytes, formatDate, plural, ROLE_WORD, scopeWords } from "../lib/format.ts";
+import { aRole, formatBytes, formatDate, plural, ROLE_WORD, scopeWords, slugProblem } from "../lib/format.ts";
 import { useMe, useProducts } from "../lib/session.tsx";
 import { ActivityLog, type ActivityItem } from "../shell/ActivityFeed.tsx";
 import { usePageTitle } from "../shell/slots.tsx";
@@ -408,42 +408,63 @@ export function MembersPage() {
 }
 
 /**
- * The organization's name, which its owners change here, and its admins read. Its short name in
- * links stays, so every product's address, a connected agent and a link to its Story keep working.
- * Keyed by the name's etag, so a rename made elsewhere starts the form again from the new name.
+ * The organization's name and its short name in links, which its owners change here and its admins
+ * read. Links with a short name it had before still lead to it: once the person's organizations
+ * reload, this page's own address moves to the new one (`CurrentTenantAddress`). Keyed by the
+ * name's etag, so a change made elsewhere starts the form again from what it is now.
  */
 function OrganizationNameSheet({ slug, name, etag, owner }: { slug: string; name: string; etag: string; owner: boolean }) {
   const qc = useQueryClient();
   const toast = useToast();
   const [draft, setDraft] = useState(name);
-  const dirty = draft.trim() !== name;
+  const [draftSlug, setDraftSlug] = useState(slug);
+  const renamed = draft.trim() !== name;
+  const moved = draftSlug !== slug;
+  const slugError = moved ? slugProblem(draftSlug) : null;
+  const valid = (renamed || moved) && Boolean(draft.trim()) && !slugError;
   const save = useMutation({
-    mutationFn: () => api<{ name: string }>("PATCH", `/api/v1/tenants/${slug}`, { name: draft.trim(), expected_etag: etag }),
+    mutationFn: () =>
+      api<{ name: string; slug: string }>("PATCH", `/api/v1/tenants/${slug}`, { ...(renamed ? { name: draft.trim() } : {}), ...(moved ? { slug: draftSlug } : {}), expected_etag: etag }),
     onSuccess: (r) => {
-      toast(`Renamed to ${r.name}.`);
+      toast(moved ? `Saved. Links now begin /t/${r.slug}/, and links with ${slug} still lead here.` : `Renamed to ${r.name}.`);
       void qc.invalidateQueries({ queryKey: ["products"] });
       void qc.invalidateQueries({ queryKey: ["product"] });
-      void qc.invalidateQueries({ queryKey: ["members", slug] });
-      void qc.invalidateQueries({ queryKey: ["limits", slug] });
+      void qc.invalidateQueries({ queryKey: ["members"] });
+      void qc.invalidateQueries({ queryKey: ["limits"] });
     },
   });
+  const reset = () => {
+    setDraft(name);
+    setDraftSlug(slug);
+    save.reset();
+  };
   return (
     <Sheet className="settings-sheet" labelledBy="org-name-title">
       <SheetHeader id="org-name-title" title="Organization name" />
       {owner ? null : (
         <div className="settings-note">
-          <Callout inset tone="info">Only its owners can rename it.</Callout>
+          <Callout inset tone="info">Only its owners can change these.</Callout>
         </div>
       )}
       <form
         onSubmit={(e) => {
           e.preventDefault();
-          if (owner && dirty && draft.trim()) save.mutate();
+          if (owner && valid) save.mutate();
         }}
       >
         <FormGrid className="settings-form">
           <TextField label="Name" value={draft} onChange={(e) => setDraft(e.target.value)} readOnly={!owner} maxLength={100} required />
-          <TextField label="Short name in links" value={slug} readOnly spellCheck={false} hint="Stays the same when it’s renamed, so links and connected agents keep working." />
+          <TextField
+            label="Short name in links"
+            value={draftSlug}
+            onChange={(e) => setDraftSlug(e.target.value.toLowerCase())}
+            readOnly={!owner}
+            maxLength={50}
+            spellCheck={false}
+            autoComplete="off"
+            error={slugError}
+            hint={owner ? "Every product’s address begins with it. Links with the old one still lead here, and connected agents keep working." : undefined}
+          />
         </FormGrid>
         {save.isError ? (
           <div className="settings-note">
@@ -452,17 +473,11 @@ function OrganizationNameSheet({ slug, name, etag, owner }: { slug: string; name
         ) : null}
         {owner ? (
           <div className="settings-actions">
-            <Button type="submit" variant="primary" busy={save.isPending} busyLabel="Renaming…" disabled={!dirty || !draft.trim()}>
-              Rename
+            <Button type="submit" variant="primary" busy={save.isPending} busyLabel="Saving…" disabled={!valid}>
+              Save changes
             </Button>
-            {dirty ? (
-              <Button
-                variant="quiet"
-                onClick={() => {
-                  setDraft(name);
-                  save.reset();
-                }}
-              >
+            {renamed || moved ? (
+              <Button variant="quiet" onClick={reset}>
                 Discard changes
               </Button>
             ) : null}

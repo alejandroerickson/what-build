@@ -54,8 +54,10 @@ export function useOrganizationLimits(tenant: string, on = true) {
 export interface InstanceOrganization {
   slug: string;
   name: string;
-  /** Guards the name: `products.rename_tenant`. */
+  /** Guards the name and slug: `products.rename_tenant`. */
   name_etag: string;
+  /** Slugs it had before, which addresses may still name it by. */
+  former_slugs?: string[];
   plan: Plan;
   example?: true;
   people: number;

@@ -109,7 +109,8 @@ before the service moves to it, Cloud Storage for blobs, Secret Manager for secr
   The defaults suit a 1 GiB instance. The bundle carries the thread's entry as
   `dist/parse-worker.js` beside `dist/main.js` ([`build.mjs`](../../apps/server/build.mjs)).
 - **The example organization is named by configuration.** `WHATBUILD_EXAMPLE_TENANT` names the
-  organization every account reads, and is copied to `tenants.example` at start-up
+  organization every account reads, by its slug or one it had before, and is copied to
+  `tenants.example` at start-up
   ([§3.10](03-accounts-teams-and-identity.md#310-the-example-organization)). Nothing about it runs
   on a schedule. The free plan's limits are counted in Postgres (`limit_counters`), so every
   instance counts against the same totals ([§9.7](09-data-lifecycle.md)).

@@ -44,9 +44,10 @@ export interface ProductsResponse {
   /**
    * `example` marks the example organization, where `your_role` is "guest" for everyone it gave no
    * role. story_only: the person reads only the Story everywhere in the organization, so its members
-   * are not shown to them. `plan` is free or unlimited. `name_etag` guards the name, which owners change.
+   * are not shown to them. `plan` is free or unlimited. `name_etag` guards the name and slug, which
+   * owners change; `former_slugs` are slugs it had before, which addresses may still name it by.
    */
-  tenants: { tenant_id: string; slug: string; name: string; name_etag: string; example?: boolean; plan: "free" | "unlimited"; story_only?: boolean; your_role: string | null; teams: { team_id: string; slug: string; name: string; your_role: string | null }[] }[];
+  tenants: { tenant_id: string; slug: string; name: string; name_etag: string; former_slugs?: string[]; example?: boolean; plan: "free" | "unlimited"; story_only?: boolean; your_role: string | null; teams: { team_id: string; slug: string; name: string; your_role: string | null }[] }[];
 }
 
 /**
@@ -74,6 +75,22 @@ export function useMe() {
 
 export function useProducts(includeArchived = false) {
   return useQuery({ queryKey: ["products", includeArchived], queryFn: () => api<ProductsResponse>("GET", `/api/v1/me/products${includeArchived ? "?include_archived=true" : ""}`) });
+}
+
+/**
+ * An address that names an organization by a slug it had before leads to its current one, the rest
+ * of the address kept, as soon as the person's organizations are known. The server answers the old
+ * slug too, so the screen works meanwhile, and someone who cannot see the organization learns nothing.
+ */
+export function CurrentTenantAddress({ children }: { children: ReactNode }) {
+  const { tenant = "" } = useParams();
+  const products = useProducts();
+  const location = useLocation();
+  const prefix = `/t/${tenant}`;
+  const moved = products.data?.tenants.find((t) => t.slug !== tenant && t.former_slugs?.includes(tenant));
+  if (moved && location.pathname.startsWith(prefix))
+    return <Navigate replace to={`/t/${moved.slug}${location.pathname.slice(prefix.length)}${location.search}${location.hash}`} />;
+  return <>{children}</>;
 }
 
 /** Hide the example organization from the panel, or show it again: the account's own choice. */

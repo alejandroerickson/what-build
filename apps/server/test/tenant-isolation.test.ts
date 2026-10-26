@@ -35,7 +35,14 @@ async function etagOf(o: Organization, path: string): Promise<string> {
 
 /** Every product, team and tenant operation, with an attack on real ids. */
 const SCOPED: Record<string, Probe> = {
-  "products.rename_tenant": { input: (a) => ({ name: "Renamed by an outsider", expected_etag: a.tenant.nameEtag }) },
+  "products.rename_tenant": {
+    input: (a) => ({ name: "Renamed by an outsider", slug: "planted-slug", expected_etag: a.tenant.nameEtag }),
+    // Their own organization, with the victim's etag, and given the victim's slug.
+    inside: async (a, b) => [
+      { name: "Renamed by an outsider", expected_etag: a.tenant.nameEtag },
+      { slug: a.tenant.slug, expected_etag: (await b.owner.api("GET", "/api/v1/me/products")).body.tenants.find((t: { slug: string }) => t.slug === b.tenant.slug).name_etag },
+    ],
+  },
   "products.create_team": { input: () => ({ name: "Planted team" }) },
   "products.create": { input: () => ({ name: "Planted product" }) },
   "products.get": { input: () => ({}) },

@@ -116,7 +116,7 @@ export interface TenantsTable {
   tenant_id: string;
   slug: string;
   name: string;
-  /** Guards the name, which its owners and the instance's owners change. */
+  /** Guards the name and the slug, which its owners and the instance's owners change. */
   name_etag: Def<string>;
   /** `free` or `unlimited` (`limits.ts`). */
   plan: Def<string>;
@@ -130,6 +130,14 @@ export interface TenantsTable {
   limits_updated_by: JsonNull<ActorSnapshot>;
   created_at: Ts;
   created_by: Json<ActorSnapshot>;
+}
+
+/** A slug an organization had before its current one, which an address may still name it by. */
+export interface TenantSlugsTable {
+  slug: string;
+  tenant_id: string;
+  retired_at: Ts;
+  retired_by: Json<ActorSnapshot>;
 }
 
 export interface TeamsTable {
@@ -770,6 +778,7 @@ export interface DB {
   oauth_codes: OauthCodesTable;
   oauth_tokens: OauthTokensTable;
   tenants: TenantsTable;
+  tenant_slugs: TenantSlugsTable;
   teams: TeamsTable;
   products: ProductsTable;
   memberships: MembershipsTable;

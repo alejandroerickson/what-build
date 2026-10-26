@@ -21,8 +21,36 @@ async function uniqueSlug(exists: (s: string) => Promise<boolean>, base: string)
   return `${root}-${randomToken(3).toLowerCase().replace(/[^a-z0-9]/g, "")}`;
 }
 
+/**
+ * A tenant's slug is unique across every slug any tenant holds or held, so an address written with
+ * one never leads into another organization. What changes them takes this lock first, for the
+ * transaction, so two changes at once cannot take the same slug.
+ */
+async function lockTenantSlugs(db: Db): Promise<void> {
+  await sql`select pg_advisory_xact_lock(hashtext('whatbuild.tenant_slugs'))`.execute(db);
+}
+
+/** The tenant that holds the slug, or held it before, if any. */
+async function slugHolder(db: Db, s: string): Promise<string | null> {
+  const r = await db
+    .selectFrom("tenants")
+    .select("tenant_id")
+    .where("slug", "=", s)
+    .union(db.selectFrom("tenant_slugs").select("tenant_id").where("slug", "=", s))
+    .executeTakeFirst();
+  return r?.tenant_id ?? null;
+}
+
 export async function uniqueTenantSlug(db: Db, name: string): Promise<string> {
-  return uniqueSlug(async (s) => Boolean(await db.selectFrom("tenants").select("tenant_id").where("slug", "=", s).executeTakeFirst()), name);
+  return uniqueSlug(async (s) => Boolean(await slugHolder(db, s)), name);
+}
+
+/** Each tenant's former slugs, oldest first. */
+async function formerSlugs(db: Db, tenantIds: string[]): Promise<Map<string, string[]>> {
+  const rows = tenantIds.length ? await db.selectFrom("tenant_slugs").select(["tenant_id", "slug"]).where("tenant_id", "in", tenantIds).orderBy("retired_at").execute() : [];
+  const out = new Map<string, string[]>();
+  for (const r of rows) out.set(r.tenant_id, [...(out.get(r.tenant_id) ?? []), r.slug]);
+  return out;
 }
 
 /** The most characters the product concept's back holds. */
@@ -148,7 +176,7 @@ export const listProducts = defineOperation({
   mutates: false,
   summary: "List every product you can reach, across your tenants and teams, with your role and counts of what each holds.",
   description:
-    "Start here when you do not know which product to work in. Each item has `path` (tenant/team/product slugs) and `product_id`; pass either as `product` on product-scoped calls. Confirm the product with the person before your first write in a conversation. Archived products are left out unless include_archived is true. Each item's `counts` (one number per kind) and `stage_counts` (their totals per stage) are the ones products(action=\"get\") reports. Through an agent, your_role is the person's role capped by the connection's level, which connection_level gives (viewer reads, editor also writes and archives, admin also deletes permanently and manages products and people). Where your_role is reader you may read only the Story: such an item has no concept and counts only story_pages. A tenant marked story_only is one where you read only the Story everywhere, so its members are not listed to you. A tenant with `example: true` is the example organization: a worked example that every account reads, as its guest (your_role guest, viewer on every product), and that nobody but its authors changes, so every write there is refused with 403 example_read_only. Read it to learn how a discovery is done; do the person's own work in an organization of theirs. A tenant's plan is free or unlimited: on the free plan everyone in it meets limits on how often and how much, which products(action=\"limits\") lists with what is used today. A tenant's name_etag guards its name, which its owners change with products(action=\"rename_tenant\").",
+    "Start here when you do not know which product to work in. Each item has `path` (tenant/team/product slugs) and `product_id`; pass either as `product` on product-scoped calls. Confirm the product with the person before your first write in a conversation. Archived products are left out unless include_archived is true. Each item's `counts` (one number per kind) and `stage_counts` (their totals per stage) are the ones products(action=\"get\") reports. Through an agent, your_role is the person's role capped by the connection's level, which connection_level gives (viewer reads, editor also writes and archives, admin also deletes permanently and manages products and people). Where your_role is reader you may read only the Story: such an item has no concept and counts only story_pages. A tenant marked story_only is one where you read only the Story everywhere, so its members are not listed to you. A tenant with `example: true` is the example organization: a worked example that every account reads, as its guest (your_role guest, viewer on every product), and that nobody but its authors changes, so every write there is refused with 403 example_read_only. Read it to learn how a discovery is done; do the person's own work in an organization of theirs. A tenant's plan is free or unlimited: on the free plan everyone in it meets limits on how often and how much, which products(action=\"limits\") lists with what is used today. A tenant's name_etag guards its name and slug, which its owners change with products(action=\"rename_tenant\"); former_slugs, when present, are slugs it had before, which still reach it.",
   input: z.strictObject({ include_archived: z.boolean().default(false) }),
   rest: { method: "GET", path: "/me/products" },
   mcp: { tool: "products", action: "list" },
@@ -197,6 +225,7 @@ export const listProducts = defineOperation({
     await sql`select set_config('app.tenant_id', '', true)`.execute(ctx.db);
     const tenants = await ctx.db.selectFrom("tenants").select(["tenant_id", "slug", "name", "name_etag", "example", "plan"]).where("tenant_id", "in", tenantIds).orderBy("name").execute();
     const teams = await ctx.db.selectFrom("teams").select(["team_id", "tenant_id", "slug", "name", "archived_at"]).where("tenant_id", "in", tenantIds).orderBy("name").execute();
+    const former = await formerSlugs(ctx.db, tenantIds);
     return {
       ...(ctx.principal.level ? { connection_level: ctx.principal.level } : {}),
       items: items.map((i) => ({ ...i, ...countsFor(i.your_role, counts.get(i.product_id)!) })),
@@ -206,6 +235,8 @@ export const listProducts = defineOperation({
           ...t,
           // The example organization: read by everyone, changed by nobody but its members.
           ...(example ? { example: true } : {}),
+          // Addresses written before its slug changed still name it.
+          ...(former.has(t.tenant_id) ? { former_slugs: former.get(t.tenant_id)! } : {}),
           // Reads only the Story everywhere here, so sees none of the organization's people.
           ...(readsOnlyTheStoryIn(memberships, t.tenant_id) ? { story_only: true } : {}),
           your_role: tr,
@@ -249,9 +280,10 @@ export async function createTenantWithTeam(
   actor: OpContext["actor"],
   input: { name: string; slug?: string | undefined; team_name: string; plan?: Plan },
 ) {
+  await lockTenantSlugs(db);
   const tenantSlug = input.slug ?? (await uniqueTenantSlug(db, input.name));
-  if (input.slug && (await db.selectFrom("tenants").select("tenant_id").where("slug", "=", input.slug).executeTakeFirst()))
-    throw conflict("slug_taken", `The tenant slug "${input.slug}" is taken; choose another.`);
+  if (input.slug && (await slugHolder(db, input.slug)))
+    throw conflict("slug_taken", `The tenant slug "${input.slug}" is taken, by an organization that has it or had it before; choose another.`);
   const tenant_id = newId();
   const team_id = newId();
   const plan: Plan = input.plan ?? "unlimited";
@@ -289,27 +321,51 @@ export const renameTenant = defineOperation({
   access: "owner",
   mutates: true,
   allowInstanceOwners: true,
-  summary: "Rename an organization; its slug, in every address, stays (owners, and the instance's owners).",
+  summary: "Rename an organization, change its slug, or both (owners, and the instance's owners).",
   description:
-    "Changes only the name people see. The slug stays, so every product's path, a connector scoped to the organization and every link to its Story keep working. " +
-    "Pass expected_etag, the tenant's name_etag from products(action=\"list\"); an owner of this WhatBuild instance, who may rename any organization on it, finds it in products(action=\"organizations\") too. " +
-    "The example organization's owners rename it as any owners do. The rename is in the organization's access log, members(action=\"activity\").",
+    "Pass only what changes, name or slug, with expected_etag: the tenant's name_etag from products(action=\"list\"); an owner of this WhatBuild instance, who may rename any organization on it, finds it in products(action=\"organizations\") too. " +
+    "A new slug changes the first part of every product's path (acme/core/onboarding becomes acme-labs/core/onboarding): use the new paths from then on. The old slug keeps working everywhere: products.list lists it in the tenant's former_slugs, calls that name it reach the organization, a connector scoped to it keeps working, and the web app takes an address with it to the new one. " +
+    "A slug another organization has, or had before, is refused with 409 slug_taken. Taking back one of its own former slugs is allowed. " +
+    "The example organization's owners rename it as any owners do. The change is in the organization's access log, members(action=\"activity\").",
   input: z.strictObject({
     tenant: z.string().min(1).describe("Tenant slug or id."),
-    name: z.string().trim().min(1).max(100),
+    name: z.string().trim().min(1).max(100).optional(),
+    slug: slug.optional().describe("The new slug: 3 to 50 lower-case letters, digits and hyphens."),
     expected_etag: expectedEtag,
   }),
   rest: { method: "PATCH", path: "" },
   mcp: { tool: "products", action: "rename_tenant" },
   async handler(ctx, input) {
+    if (input.name === undefined && input.slug === undefined) throw invalid("invalid_input", "Pass name, slug or both: what the organization is to be called. Nothing was changed.");
     const tid = ctx.scope.tenant!.tenant_id;
+    if (input.slug !== undefined) await lockTenantSlugs(ctx.db);
     const row = await ctx.db.selectFrom("tenants").select(["slug", "name", "name_etag"]).where("tenant_id", "=", tid).forUpdate().executeTakeFirstOrThrow();
     checkEtag(input.expected_etag, row.name_etag, "organization's name");
-    if (input.name === row.name) return { tenant_id: tid, slug: row.slug, name: row.name, name_etag: row.name_etag };
+    const name = input.name ?? row.name;
+    const to = input.slug ?? row.slug;
+    const renamed = name !== row.name;
+    const moved = to !== row.slug;
+    const view = async (etag: string) => ({ tenant_id: tid, slug: to, name, name_etag: etag, former_slugs: (await formerSlugs(ctx.db, [tid])).get(tid) ?? [] });
+    if (!renamed && !moved) return view(row.name_etag);
+    if (moved) {
+      const holder = await slugHolder(ctx.db, to);
+      if (holder && holder !== tid)
+        throw conflict("slug_taken", `The slug "${to}" is taken, by an organization that has it or had it before, where its old links still lead. Choose another. Nothing was changed.`);
+      // Taking back a slug it had before: it is its current one again.
+      await ctx.db.deleteFrom("tenant_slugs").where("slug", "=", to).execute();
+      await ctx.db.insertInto("tenant_slugs").values({ slug: row.slug, tenant_id: tid, retired_by: json(ctx.actor) }).execute();
+    }
     const name_etag = newEtag();
-    await ctx.db.updateTable("tenants").set({ name: input.name, name_etag }).where("tenant_id", "=", tid).execute();
-    await recordActivity(ctx, { action: "renamed", entity_type: "tenant", entity_id: tid, entity_title: input.name, summary: `Formerly ${row.name}` });
-    return { tenant_id: tid, slug: row.slug, name: input.name, name_etag, previous_name: row.name };
+    await ctx.db.updateTable("tenants").set({ name, slug: to, name_etag }).where("tenant_id", "=", tid).execute();
+    const said = [renamed ? `Formerly ${row.name}` : "", moved ? `short name in links was ${row.slug}, now ${to}` : ""].filter(Boolean).join("; ");
+    await recordActivity(ctx, {
+      action: renamed ? "renamed" : "slug_changed",
+      entity_type: "tenant",
+      entity_id: tid,
+      entity_title: name,
+      summary: said.charAt(0).toUpperCase() + said.slice(1),
+    });
+    return { ...(await view(name_etag)), ...(renamed ? { previous_name: row.name } : {}), ...(moved ? { previous_slug: row.slug } : {}) };
   },
 });
 
@@ -865,7 +921,7 @@ export const listAccessActivity = defineOperation({
   mutates: false,
   summary: "Who gave, changed or removed whose access in the organization, or renamed it, and when: newest first (tenant admins).",
   description:
-    "The organization's access log: roles given, changed and removed, people removed from the organization, invitations sent, accepted and cancelled, and the organization renamed. A product's activity.list leaves these out, because they belong to the organization, all but someone joining the product through an invitation. Entries name the person and the scope and never an email address. Filters: actor (account id), since (ISO 8601).",
+    "The organization's access log: roles given, changed and removed, people removed from the organization, invitations sent, accepted and cancelled, and the organization renamed or given a new slug. A product's activity.list leaves these out, because they belong to the organization, all but someone joining the product through an invitation. Entries name the person and the scope and never an email address. Filters: actor (account id), since (ISO 8601).",
   input: z.strictObject({
     tenant: z.string().min(1),
     actor: z.string().max(100).optional(),
@@ -880,7 +936,7 @@ export const listAccessActivity = defineOperation({
       .selectFrom("activity")
       .selectAll()
       .where("tenant_id", "=", ctx.scope.tenant!.tenant_id)
-      .where((eb) => eb.or([eb("entity_type", "=", "membership"), eb.and([eb("entity_type", "=", "tenant"), eb("action", "=", "renamed")])]));
+      .where((eb) => eb.or([eb("entity_type", "=", "membership"), eb.and([eb("entity_type", "=", "tenant"), eb("action", "in", ["renamed", "slug_changed"])])]));
     if (input.actor) q = q.where("actor_account_id", "=", input.actor);
     if (input.since) q = q.where(sql<boolean>`occurred_at >= ${input.since}::timestamptz`);
     if (input.cursor) q = q.where("activity_id", "<", input.cursor);

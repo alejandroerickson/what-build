@@ -124,6 +124,15 @@ export function exampleReadOnly(tenantName: string, what: string): AppError {
   );
 }
 
+/**
+ * The id of the tenant a caller names: by its id, its slug, or a slug it had before
+ * (`tenant_slugs`), so an address written before its slug changed still reaches it. Nobody else
+ * holds a slug it had, and its current slug outranks one another tenant held before.
+ */
+export function tenantNamed(ref: string) {
+  return sql<string>`(select n.tenant_id from (select tenant_id, 0 as rank from tenants where slug = ${ref} or tenant_id = ${ref} union all select tenant_id, 1 from tenant_slugs where slug = ${ref}) n order by n.rank limit 1)`;
+}
+
 /** How a caller names a product: its id, or `tenant/team/product` slugs. */
 export interface ScopeRef {
   tenant?: string;
@@ -197,7 +206,7 @@ export async function resolveScope(
         .innerJoin("teams as tm", "tm.team_id", "p.team_id")
         .innerJoin("tenants as tn", "tn.tenant_id", "p.tenant_id")
         .select(["p.product_id", "p.slug", "p.name", "p.archived_at", "p.team_id", "p.tenant_id"])
-        .where(sql<boolean>`(tn.slug = ${ref.tenant} or tn.tenant_id = ${ref.tenant})`)
+        .where("tn.tenant_id", "=", tenantNamed(ref.tenant))
         .where(sql<boolean>`(tm.slug = ${ref.team} or tm.team_id = ${ref.team})`)
         .where(sql<boolean>`(p.slug = ${ref.product} or p.product_id = ${ref.product})`)
         .executeTakeFirst();
@@ -211,7 +220,7 @@ export async function resolveScope(
       .selectFrom("teams as tm")
       .innerJoin("tenants as tn", "tn.tenant_id", "tm.tenant_id")
       .select(["tm.team_id", "tm.slug", "tm.name", "tm.tenant_id"])
-      .where(sql<boolean>`(tn.slug = ${ref.tenant} or tn.tenant_id = ${ref.tenant})`)
+      .where("tn.tenant_id", "=", tenantNamed(ref.tenant))
       .where(sql<boolean>`(tm.slug = ${ref.team} or tm.team_id = ${ref.team})`)
       .executeTakeFirst();
     if (!team) throw hidden();
@@ -221,7 +230,7 @@ export async function resolveScope(
     tenant = await db
       .selectFrom("tenants")
       .select(["tenant_id", "slug", "name", "status", "example", "plan"])
-      .where(sql<boolean>`(slug = ${ref.tenant} or tenant_id = ${ref.tenant})`)
+      .where("tenant_id", "=", tenantNamed(ref.tenant))
       .executeTakeFirst();
   }
   if (!tenant) throw hidden();

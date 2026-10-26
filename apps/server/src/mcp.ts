@@ -154,6 +154,19 @@ function scopeInstruction(bound: ScopeRef): string {
   return ` This connector is scoped to ${named}: every call outside it is refused with 403 outside_connector_scope. To work elsewhere, ask the person to use a connector scoped there, or the unscoped one; never look for a way around the scope.`;
 }
 
+/**
+ * What a scoped connector's answers add when its address names the organization by a slug it had
+ * before: the address still works, and the person may copy the current one. Undefined otherwise.
+ */
+function connectorMoved(base: string, bound: ScopeRef, fence: ConnectorScope): string | undefined {
+  if (bound.tenant === fence.tenant.slug || bound.tenant === fence.tenant.tenant_id) return undefined;
+  const path = fence.product ? fence.product.path : fence.tenant.slug;
+  return (
+    `This connector's address names ${fence.tenant.name} by a slug it had before (${bound.tenant}). It still works; its address is now ${base}/mcp/t/${path}. ` +
+    "Tell the person once, and suggest they update the connector when convenient (Connect an agent in WhatBuild gives the address)."
+  );
+}
+
 async function resolveProduct(env: Env, principal: Principal, given: string | undefined, connector: ConnectorScope | null): Promise<ScopeRef> {
   if (given) return parseProductRef(given);
   if (connector?.product) return { product: connector.product.product_id };
@@ -340,11 +353,12 @@ function buildServer(env: Env, principal: Principal, bound: ScopeRef | null) {
       }
       const { result, scope } = ran;
       const echo = scopeEcho(scope, principal.level);
+      const moved = fence && bound ? connectorMoved(env.ports.config.publicBaseUrl, bound, fence) : undefined;
       // A scoped connector lists only what is inside it.
       const shown = op.name === "products.list" && fence ? narrowProductList(fence, result as Parameters<typeof narrowProductList>[1]) : result;
       // The call an agent starts and resumes with names no product, so it gives the skill version itself.
       const listed = op.name === "products.list" ? { ...(shown as object), skill_version: SKILL_VERSION } : shown;
-      return textResult(echo ? { ...(listed as object), scope: echo } : listed);
+      return textResult(echo || moved ? { ...(listed as object), ...(echo ? { scope: echo } : {}), ...(moved ? { connector_address: moved } : {}) } : listed);
     } catch (e) {
       // A call that never reached execute is counted here: a tool, an action or a product that is not there.
       if (!reached) {
