@@ -7,7 +7,7 @@ import type pg from "pg";
  * organization is read. The accounts that come along are the ones the copied rows refer to.
  */
 
-export type Organization = { tenant_id: string; slug: string; name: string; sandbox: boolean };
+export type Organization = { tenant_id: string; slug: string; name: string; example: boolean };
 
 /**
  * What belongs to the deployment rather than to an organization, and stays behind: sign-in and
@@ -19,18 +19,20 @@ export const DEPLOYMENT_TABLES = [
   "tenant_allowances", "interest", "usage_calls", "usage_people", "feedback_counts",
 ];
 
-/** The organizations named by slug, or, with none named, the deployment's public sandbox. Reads no other organization. */
+/** The organizations named by slug, or, with none named, the deployment's example organization. Reads no other organization. */
 export async function chooseOrganizations(c: pg.Client, slugs: string[]): Promise<Organization[]> {
+  // A deployment that has not yet taken the release that replaced the public sandbox marks the sandbox instead.
+  const flag = (await c.query("select 1 from information_schema.columns where table_schema = 'public' and table_name = 'tenants' and column_name = 'example'")).rowCount ? "example" : "sandbox";
   if (!slugs.length) {
-    const sandbox = (await c.query<Organization>("select tenant_id, slug, name, sandbox from tenants where sandbox order by slug")).rows;
-    if (sandbox.length === 1) return sandbox;
+    const example = (await c.query<Organization>(`select tenant_id, slug, name, ${flag} as example from tenants where ${flag} order by slug`)).rows;
+    if (example.length === 1) return example;
     throw new Error(
-      sandbox.length
-        ? `The deployment has ${sandbox.length} public sandboxes: name the organizations with --org <slug>.`
-        : "The deployment has no public sandbox: name the organizations with --org <slug>, or take everything with --all.",
+      example.length
+        ? `The deployment has ${example.length} example organizations: name the organizations with --org <slug>.`
+        : "The deployment has no example organization: name the organizations with --org <slug>, or take everything with --all.",
     );
   }
-  const found = (await c.query<Organization>("select tenant_id, slug, name, sandbox from tenants where slug = any($1) order by slug", [slugs])).rows;
+  const found = (await c.query<Organization>(`select tenant_id, slug, name, ${flag} as example from tenants where slug = any($1) order by slug`, [slugs])).rows;
   const missing = slugs.filter((s) => !found.some((t) => t.slug === s));
   if (missing.length) throw new Error(`The deployment has no organization ${missing.join(", ")}.`);
   return found;

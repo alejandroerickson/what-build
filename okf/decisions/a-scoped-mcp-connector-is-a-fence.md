@@ -36,8 +36,9 @@ nothing else, and reaching everything takes the unscoped connector.
 - A product connector cannot manage people, create products or move a source to another product;
   that needs an organization connector or the web app.
 - A token cannot be reused on a wider endpoint, so the scope survives a misconfigured client.
-- The unscoped connector reaches everything except a public sandbox, which only a connector scoped
-  to it reaches ([decision](the-public-sandbox-is-reached-only-through-its-own-connector.md)).
+- The unscoped connector reaches everything the account can, the example organization included:
+  only its staff write there, so it carries nothing a stranger wrote
+  ([decision](every-account-reads-the-example-organization-which-only-its-staff-write.md)).
 
 ## Constrains
 

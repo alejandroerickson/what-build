@@ -12,7 +12,7 @@ describe("the service's requests and its worker", () => {
   it("wake the worker for the API, MCP and sign-in, and not for the app's pages and files", async () => {
     const seen: string[] = [];
     let path = "";
-    const app = createApp({ db: h.db, ports: createPorts(h.config, h.blobs, h.mailer), config: h.config, clock: h.clock, onRequest: () => seen.push(path) });
+    const app = createApp({ db: h.db, ports: createPorts(h.config, h.blobs, h.mailer), config: h.config, onRequest: () => seen.push(path) });
     const get = async (p: string, init?: RequestInit) => {
       path = p;
       await (await app.fetch(new Request(`${h.baseUrl}${p}`, init))).arrayBuffer();

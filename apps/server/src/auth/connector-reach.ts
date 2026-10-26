@@ -42,8 +42,7 @@ export function resourceCovers(resource: string, endpoint: string): boolean {
 }
 
 export type ConnectorReach =
-  /** `except_sandboxes`: the account is in a public sandbox, which only a connector scoped to it reaches. */
-  | { kind: "all"; except_sandboxes?: true }
+  | { kind: "all" }
   | { kind: "tenant"; path: string; name: string | null }
   | { kind: "product"; path: string; name: string | null; tenant_name: string | null };
 
@@ -53,16 +52,7 @@ export type ConnectorReach =
  */
 export async function connectorReach(db: Db, accountId: string, resource: string): Promise<ConnectorReach> {
   const bound = connectorBound(split(resource)?.path ?? "");
-  if (!bound) {
-    const sandbox = await db
-      .selectFrom("memberships as m")
-      .innerJoin("tenants as t", "t.tenant_id", "m.tenant_id")
-      .select("m.tenant_id")
-      .where("m.account_id", "=", accountId)
-      .where("t.sandbox", "=", true)
-      .executeTakeFirst();
-    return sandbox ? { kind: "all", except_sandboxes: true } : { kind: "all" };
-  }
+  if (!bound) return { kind: "all" };
   const path = [bound.tenant, bound.team, bound.product].filter(Boolean).join("/");
   const tenant = await db
     .selectFrom("tenants")

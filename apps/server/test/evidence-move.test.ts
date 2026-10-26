@@ -2,7 +2,6 @@ import { readFileSync } from "node:fs";
 import { newId } from "@whatbuild/core";
 import { sql, type Transaction } from "kysely";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { syncSandboxTenant } from "../src/public-sandbox.ts";
 import { startHarness, type Browser, type Harness } from "./harness.ts";
 
 /**
@@ -136,18 +135,5 @@ describe("moving insights and decisions into Evidence", () => {
   it("has nothing left to queue once they have moved", async () => {
     await sql.raw(MIGRATION).execute(h.db);
     expect((await sql<{ n: number }>`select count(*)::int as n from jobs where kind = 'move_to_evidence' and done_at is null`.execute(h.db)).rows[0]!.n).toBe(0);
-  });
-
-  it("moves them again after a sandbox reset puts back a baseline that still holds them", async () => {
-    await syncSandboxTenant(h.db, org, () => {});
-    const again = newId();
-    await inTenant((trx) => storeInsight(trx, again, { title: "Saved before the move", status: "published", refs: { outcomes: [], sources: [source], insights: [], assumptions: [], decisions: [] } }));
-    const T = `/api/v1/tenants/${org}`;
-    expect((await olive.api("POST", `${T}/sandbox/baselines`, { note: "Holds an insight" })).status).toBe(200);
-    const reset = await olive.api("POST", `${T}/sandbox/reset`, { confirm: "reset the sandbox" });
-    expect(reset.status, JSON.stringify(reset.body)).toBe(200);
-    expect((await olive.api("GET", `${P}/sources/${again}`)).status).toBe(404);
-    await h.worker.drain();
-    expect((await olive.api("GET", `${P}/sources/${again}`)).body).toMatchObject({ title: "Saved before the move", tags: ["analysis", "insight"], derived_status: "ready" });
   });
 });

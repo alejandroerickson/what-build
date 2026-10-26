@@ -111,7 +111,7 @@ describe("the build that answers", () => {
   it("is named on every response by the commit its image was built from, which the app compares with its own", async () => {
     const commit = "fced2c9a1b2c3d4e5f60718293a4b5c6d7e8f901";
     const config = { ...h.config, webDist: null, siteUrl: null };
-    const built = createApp({ db: h.db, ports: createPorts(config, h.blobs, h.mailer), config, clock: h.clock, release: { version: "v0.15.0", commit, built_at: null } });
+    const built = createApp({ db: h.db, ports: createPorts(config, h.blobs, h.mailer), config, release: { version: "v0.15.0", commit, built_at: null } });
     for (const path of ["/health", "/api/v1/meta", "/api/v1/nothing-here", "/api/v1/me"]) expect((await built.request(path)).headers.get("x-whatbuild-commit"), path).toBe(commit);
     expect(await (await built.request("/api/v1/meta")).json()).toMatchObject({ server_version: "v0.15.0", release: { commit } });
     // A development server records no commit, and names none.
@@ -170,7 +170,7 @@ describe("every HTML response", () => {
 
   it("gets the strictest policy when its route set none", async () => {
     const config = { ...h.config, webDist: null, siteUrl: null };
-    const app = createApp({ db: h.db, ports: createPorts(config, h.blobs, h.mailer), config, clock: h.clock });
+    const app = createApp({ db: h.db, ports: createPorts(config, h.blobs, h.mailer), config });
     app.get("/an-unguarded-page", (c) => c.html("<p>No policy of its own.</p>"));
     const r = await app.request("/an-unguarded-page");
     expect(r.headers.get("content-security-policy")).toBe(FALLBACK_HTML_POLICY);

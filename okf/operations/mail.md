@@ -208,7 +208,7 @@ the repository. It is an ordinary setting, which a release deploy keeps:
 gcloud run services update whatbuild --project $P --region $R --update-env-vars "WHATBUILD_FEEDBACK_EMAIL=$FEEDBACK_EMAIL"
 ```
 
-The service sends once it wakes: when a request arrives, or at the sandbox reset's scheduled wake.
+The service sends once it wakes, when a request arrives.
 Remove the setting (`--remove-env-vars WHATBUILD_FEEDBACK_EMAIL`) to stop it; reports then stay in
 the database.
 

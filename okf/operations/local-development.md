@@ -80,32 +80,30 @@ refuses to start as a database role that bypasses row-level security.
 Over plain HTTP the session cookie is `wb_session`; a deployment served over HTTPS uses
 `__Host-wb_session` ([§3.8](../spec/03-accounts-teams-and-identity.md#38-identity-of-the-caller)).
 
-## The public sandbox, locally
+## The example organization and the free plan, locally
 
-```sh
-WHATBUILD_SANDBOX_TENANT=harbor-labs WHATBUILD_SIGNUP_ALLOWLIST=@example.com corepack pnpm dev
-```
-
-makes the sample organization the public sandbox ([§9.7](../spec/09-data-lifecycle.md)), saves
-its content as the first baseline, and prints one invitation link, once. Riley Chen owns the
-organization, so the development sign-in as Riley opens its controls at
-`/t/harbor-labs/sandbox`. Sam Okafor is an editor there and so is treated as a visitor. To enter
-as a stranger, open the invitation link signed out and use the development sign-in's "As the email
-above" with any address outside the allowlist; the account is then one made for the sandbox.
-Leave the variable out again and restart, and the organization is an ordinary one.
+`pnpm dev` makes the sample organization, `harbor-labs`, the example organization every account
+reads ([§3.10](../spec/03-accounts-teams-and-identity.md#310-the-example-organization)), and puts
+every organization someone other than an instance owner creates on the free plan
+([§9.7](../spec/09-data-lifecycle.md)), as the public deployment does. The sample people are members
+of `harbor-labs` and work there as anywhere; to see it as a guest, use the development sign-in's "As
+the email above" with any other address, such as `guest@example.com`. Sam Okafor may start one
+organization, which starts on the free plan; Riley Chen, the instance's owner, changes its plan and
+limits on `/instance`. `WHATBUILD_EXAMPLE_TENANT=<slug>` names another organization, and an empty
+`WHATBUILD_EXAMPLE_TENANT=` turns the example off; `WHATBUILD_NEW_ORGANIZATION_PLAN=unlimited`
+starts new organizations unlimited, as a self-hosted deployment does.
 
 ## A copy of production
 
 `pnpm fixture pull`, `pnpm fixture load` and `pnpm dev:fixture` put a private copy of the
-production deployment's public sandbox, or of the organizations named, with their files, into the
+production deployment's example organization, or of the organizations named, with their files, into the
 database `fixture` and serve it, with the migrations it lacks applied
 ([a copy of production](a-copy-of-production.md), [copying an organization](copying-an-organization.md)).
 The pull needs access to the deployment; nothing else does.
 
 ## End-to-end tests
 
-`pnpm e2e golden` builds a golden master from a pull of production (its public sandbox's
-organization and a non-sandbox copy of it), and `pnpm dev:e2e` serves a fresh copy of it on
+`pnpm e2e golden` builds a golden master from a pull of production (its example organization and a copy of it that is not the example), and `pnpm dev:e2e` serves a fresh copy of it on
 `http://localhost:5283`, with its own Postgres and files, beside `pnpm dev`. An agent runs the
 plans in `e2e/plans/` there through the browser and MCP and reports what it finds
 ([end-to-end tests](end-to-end-tests.md)).

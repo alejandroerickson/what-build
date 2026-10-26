@@ -5,7 +5,7 @@ import { json, type OutcomesTable } from "../db.ts";
 import { checkConfirmation, DELETE_GUIDANCE, deleteGuards, dropRevisions, leaveTombstone, refuseIfDeleted } from "../deletion.ts";
 import { conflict, invalid, notFound } from "../errors.ts";
 import { roleAtLeast } from "../policy.ts";
-import { refuseVisitorWrite } from "../public-sandbox.ts";
+import { refuseSwitchedOff } from "../limits.ts";
 import { defineOperation, type OpContext } from "../registry.ts";
 import { expectedEtag, id } from "../schemas.ts";
 import { likeContaining, newEtag, newId } from "../util.ts";
@@ -399,7 +399,7 @@ export const outcomeCardPreview = defineOperation({
   async handler(ctx, input) {
     // A preview answers whether the write would land, so it is refused wherever the write would be.
     if (ctx.scope.product!.archived_at) throw conflict("product_archived", `Product ${ctx.scope.product!.name} is archived and read-only. Restore it first.`);
-    if (ctx.sandbox?.visitor) refuseVisitorWrite(ctx.sandbox, { name: "outcomes.card_preview", mutates: true });
+    if (ctx.limits) refuseSwitchedOff(ctx.limits, { name: "outcomes.card_preview", mutates: true });
     const what = input.kind === "concept" ? "The product concept" : "The outcome";
     if (input.kind === "outcome") refuseReferences({ card_html: input.card_html });
     checkIdeaCard(input.card_html, what);

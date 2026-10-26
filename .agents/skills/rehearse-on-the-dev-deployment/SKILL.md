@@ -1,6 +1,6 @@
 ---
 name: rehearse-on-the-dev-deployment
-description: Work on WhatBuild's dev deployment, a second Cloud Run deployment that holds a copy of production's public sandbox or other organizations named; rehearse a release or a commit of main (its migrations above all) before production moves, refresh its copy of those organizations and their files, change which organizations it holds, put it back to the copy, set one up from nothing, or perform the restore drill there. Use when asked to deploy to dev or staging, to rehearse, try or test a release or migration on a deployment, to copy production's data, the sandbox or an organization to dev, to keep an organization out of dev, to reset or refresh dev, to set up a dev deployment, or to rehearse a restore from backup.
+description: Work on WhatBuild's dev deployment, a second Cloud Run deployment that holds a copy of production's example organization or other organizations named; rehearse a release or a commit of main (its migrations above all) before production moves, refresh its copy of those organizations and their files, change which organizations it holds, put it back to the copy, set one up from nothing, or perform the restore drill there. Use when asked to deploy to dev or staging, to rehearse, try or test a release or migration on a deployment, to copy production's data, the example organization or another organization to dev, to keep an organization out of dev, to reset or refresh dev, to set up a dev deployment, or to rehearse a restore from backup.
 ---
 
 # Rehearse on the dev deployment
@@ -22,7 +22,7 @@ command. This file is how to conduct the work.
 - **Dev shares nothing with production**: no secret, OAuth client, database or bucket. It sends no
   mail, and never gets mail settings: its addresses are real people's (`okf/operations/mail.md`).
 - **Dev holds only the organizations named.** `NEON_DEV_COPY_ORGANIZATIONS` in `.env` names them:
-  production's public sandbox unless the maintainer names others. Never copy another organization
+  production's example organization unless the maintainer names others. Never copy another organization
   to dev unless the maintainer names it, and record the list after every refresh. If the line is
   missing, dev still holds every organization from before copies were limited: tell the
   maintainer and offer a refresh.

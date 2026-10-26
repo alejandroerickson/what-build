@@ -1,8 +1,8 @@
 ---
 type: Specification
 title: Nothing is ever trapped - say what we promise, keep export open, and never let a limit block a read.
-description: What we tell people, limits and quotas (enforced and planned), backups and in-product versioning, export, archive and permanent delete of everything archivable and of an organization, the operator runbooks, the public sandbox with its limits, baseline and reset, and how retired insights and decisions became sources.
-tags: [spec, lifecycle, quotas, backups, export, archive, delete, sandbox]
+description: What we tell people, limits and quotas (enforced and planned), backups and in-product versioning, export, archive and permanent delete of everything archivable and of an organization, the operator runbooks, plans and the free plan's limits, and how retired insights and decisions became sources.
+tags: [spec, lifecycle, quotas, backups, export, archive, delete, limits, plans]
 generated: {by: agent:claude, at: 2026-10-25}
 status: stable
 ---
@@ -52,7 +52,7 @@ that protect a sign-in with Google or Microsoft and an agent's connection while 
 ([§3.8](03-accounts-teams-and-identity.md)), display choices kept in the browser under
 `whatbuild.*`, and `wb_cookies`, which remembers the person's answer below. A browser can pass
 from one person to the next, so the display state that is one person's (the product they had open,
-their place in each Story and mockup, the Story's focus, the sandbox notices they have read, their
+their place in each Story and mockup, the Story's focus, the example organization's notice they have read, their
 recent searches in each product) is
 cleared when they sign out or the app finds their session ended; only the device's own choices
 (theme, hidden panels, the canvas's pan or interact mode) stay (`apps/web/src/lib/local-state.ts`).
@@ -77,16 +77,14 @@ that agents and people who decline are counted too
 ([decision](../decisions/the-server-counts-how-whatbuild-is-used-naming-nobody.md)). It reads and
 stores nothing in the browser. Each call to an operation adds one to a count for its day, its
 operation, its door (the web app or an agent), the agent client's family, whether it was in the
-public sandbox, whether an instance owner made it, and how it ended. Each day a person uses a part of
+example organization, whether an instance owner made it, and how it ended. Each day a person uses a part of
 WhatBuild is kept under a pseudonym, a keyed hash of their account that only the deployment can
 compute, for 14 months. Nothing kept names an organization, a product, a record, an address or
 content. Only the instance's owners read the totals (`products.usage`), which leave the owners out
 unless asked. `/cookies` says so under Counting without cookies.
 
-**In the public sandbox** the statement above is not the whole truth, so every screen there says
-the rest ([§9.7](#97-the-public-sandbox)): what is added is seen by other visitors and erased at
-the next reset. The words come from the server (`sandboxNotice`), so the web app, the invitation
-page and an agent say the same thing.
+**In the example organization** nobody but its own members writes, and every account reads what
+they write; every screen there says so ([§3.10](03-accounts-teams-and-identity.md#310-the-example-organization)).
 
 **The privacy page** (`/privacy`, readable signed out; `apps/web/src/routes/privacy.tsx`), linked
 from the sign-in page, Settings, `/cookies` and the public site's footer. It opens with the
@@ -141,8 +139,7 @@ running on free tiers without a compliance program.
 | Active products | 3 per organization | Planned |
 | Sources | 300 per organization | Planned |
 | Stored bytes (attachments and what was read from them) | 1 GB per organization | Planned |
-| Writes | 60 / minute / member | Planned — `429 rate_limited`. Built for visitors to the public sandbox (§9.7) |
-| Requests | 600 / minute / member | Planned — `429 rate_limited`. Built for visitors to the public sandbox (§9.7) |
+| Writes and calls a minute, writes, sources, exports and uploaded bytes a day | The free plan's (§9.7) | Yes, on the free plan — `429 rate_limited`, `409 quota_exceeded`, `413 too_large`, `403 plan_restricted` |
 | Organization exports | 2 / day | Planned |
 
 Rules:
@@ -159,14 +156,14 @@ Rules:
 4. **Planned:** counters maintained transactionally with the mutations that change them
    ([§6.1](06-operations-and-adapters.md)), a nightly job reconciling stored bytes against the
    object store, and quota and rate limiting in one layer shared by both adapters, so REST and MCP
-   cannot drift. The layer exists, in `execute`, and today it serves the public sandbox only
-   (§9.7).
+   cannot drift. The layer exists, in `execute`, and serves the free plan's limits (§9.7).
 5. Archiving does not free storage; deleting does. The UI says so where it matters.
 
 **Abuse limits**, which are not quotas but belong beside them. Built: the sign-in link limit,
 the limits on OAuth client registration and on sign-in and OAuth request bodies
-([§3.8](03-accounts-teams-and-identity.md)), invite-only mode (`WHATBUILD_SIGNUP_ALLOWLIST`, [§3.2](03-accounts-teams-and-identity.md)), and
-in the public sandbox a cap on seats and on each invitation's places (§9.7).
+([§3.8](03-accounts-teams-and-identity.md)), invite-only mode (`WHATBUILD_SIGNUP_ALLOWLIST`, [§3.2](03-accounts-teams-and-identity.md)), in
+which an instance owner lets people in one at a time with an allowance, and a guest's limit on calls
+a minute in the example organization (§9.7).
 Planned: per-IP sign-up limits, a cap on outstanding invitations, and an operator view of usage by
 organization before public sign-up opens.
 
@@ -215,8 +212,8 @@ once that version is published; the row that recorded the upload goes 7 days lat
 published goes, with its bytes, a day after its grant expired. The worker's hourly housekeeping
 does both (`apps/server/src/worker.ts`), as it removes the bytes of a file upload nobody
 completed. **Nor are Story previews:** the document `story.preview` made is kept as long as its
-grant, a product keeps only its 20 newest, the same housekeeping removes expired ones, and a public
-sandbox's reset removes them all ([§4.11](04-data-model.md)).
+grant, a product keeps only its 20 newest, and the same housekeeping removes expired ones
+([§4.11](04-data-model.md)).
 
 Not versioned, deliberately: source metadata edits (the activity log names the operation and the
 actor, which is enough to understand and redo), and any future embeddings (rebuildable, so
@@ -231,8 +228,9 @@ whose earlier wording a write replaces; what an attachment was read as stays rea
 download grant for each ready one. A viewer, editor or admin may export, through **both
 adapters**, and export is **never blocked** for them — not by a quota, and not by archiving the
 product. A reader, who reads only the Story, may not (`403`); the Story's own export is its print
-view ([§6.4](06-operations-and-adapters.md)). A visitor to a public sandbox exports only as far as
-its `exports_per_day` allows, which is 0, off, unless its staff raise it (§9.7). A ready export is
+view ([§6.4](06-operations-and-adapters.md)). On the free plan each person exports as many times a
+day as `exports_per_day` allows (§9.7), and a guest of the example organization exports nothing:
+the example is read where it is. A ready export is
 listed for seven days. The bundle holds a manifest with its format name and version, every
 source's metadata, its derived text, every attachment version's original bytes, what each was
 read as, comments, summaries and notes,
@@ -356,8 +354,8 @@ Everything that can be archived can also be deleted, and so can an organization:
     uses. Allowed while it is archived.
   - An organization: every team and product with all they hold, its activity, every role and
     invitation in it, its jobs, its uploads in progress, and its bytes. Its people keep their accounts and their roles
-    elsewhere; feedback sent to the maintainers is kept. A public sandbox can't be deleted
-    (`409 sandbox_organization`): its staff close it to visitors instead.
+    elsewhere; feedback sent to the maintainers is kept. The example organization can't be deleted
+    while the deployment names it (`409 example_organization`).
 - A Story page, a mockup or an assumption that mentions a deleted object keeps its text, as every
   version does; a link to the object stops opening.
 - **Leaves a tombstone:** `{ object_type, object_id, product_id, title, reason, deleted_at,
@@ -422,64 +420,48 @@ Planned, each a deliverable of [Phase 6](10-roadmap.md):
 - **erasure** — the support path for what the product deliberately does not automate: content
   that must also be removed from backups and noncurrent bucket versions before they age out.
 
-## 9.7 The public sandbox
+## 9.7 Plans and limits
 
-One organization, open to anyone holding an invitation, put back to a saved state every day
-([§3.10](03-accounts-teams-and-identity.md) says who is who;
-◆ [decision](../decisions/the-public-sandbox-is-one-organization-with-pseudonymous-visitors.md)).
-The code is [`packages/core/src/public-sandbox.ts`](../../packages/core/src/public-sandbox.ts) (settings, limits,
-the schedule), [`public-sandbox-baseline.ts`](../../packages/core/src/public-sandbox-baseline.ts) (baseline and
-reset) and [`apps/server/src/public-sandbox.ts`](../../apps/server/src/public-sandbox.ts) (running a reset that is
-due).
+Every organization has a plan, `free` or `unlimited` ([§3.3](03-accounts-teams-and-identity.md)
+says which an organization gets: the deployment's `WHATBUILD_NEW_ORGANIZATION_PLAN`, unlimited unless
+it names free, for one made on an allowance; and who changes it;
+◆ [decision](../decisions/free-organizations-meet-limits-that-only-instance-owners-change.md)). On
+the free plan everyone in the organization, its owners included, meets the limits below, beside
+the ones every organization has (§9.2), whichever is lower; on the unlimited plan nobody does. A
+guest of the example organization meets only `requests_per_minute`, from the example's limits
+([§3.10](03-accounts-teams-and-identity.md#310-the-example-organization)). The code is
+[`packages/core/src/limits.ts`](../../packages/core/src/limits.ts) (every limit, its default, its
+refusal and its enforcement) and [`ops/limits.ts`](../../packages/core/src/ops/limits.ts) (reading
+and changing them).
 
-### Settings
+An organization's limits are the free plan's (`FREE_LIMITS`) except those an instance owner changed
+for it, which `tenants.limits` holds. Stored limits are read through their schema, so a missing or
+unreadable value is the free plan's. `products.limits` gives every member each limit with its
+value, the free plan's, what it is counted over, its refusal and, for the daily ones, what the
+caller and everyone together used today; `products.organizations` gives instance owners every
+organization's changed limits and today's totals.
 
-Every setting is a field of `sandbox.update_settings`, guarded by the settings' `etag`. A change
-applies to the next call a visitor makes. Stored settings are read through their schema, so a
-missing or unreadable value is its default.
-
-| Setting | Default | What it does |
-|---|---|---|
-| `visitor_access` | `write` | `read`: a visitor's writes are refused with `403 sandbox_read_only`, except export. `closed`: every call a visitor makes in the organization is refused with `403 sandbox_closed`, except `sandbox.status`. Neither takes a seat away. |
-| `visitor_agents` | `true` | `false` refuses a visitor's calls over MCP with `403 sandbox_restricted`. Either way an agent works here only through a connector scoped to the sandbox ([§3.10](03-accounts-teams-and-identity.md#310-the-public-sandbox)). |
-| `reset_enabled` | `true` | Whether the sandbox resets by itself. |
-| `reset_time`, `reset_timezone` | `02:00`, `America/Los_Angeles` | The local hour of the daily reset, and the IANA zone it is in. |
-| `max_visitors` | 200 | Seats. |
-| `visitor_idle_days` | 30 | Days without a sign-in or an agent's call before a visitor gives up their seat at a reset; `0` keeps every seat. |
-
-### Limits on what a visitor does
-
-They apply to visitors only. Staff meet the limits every organization has (§9.2), and so does a
-visitor, who meets whichever is lower. `sandbox.settings` returns all of them as `limits`, with
-each one's value, default, what it is counted over and the error it answers with; `sandbox.status`
-returns them to a visitor with what is used today. A refusal says whom a limit is for as its
-caller stands (`you.role` in `sandbox.status`, [§3.10](03-accounts-teams-and-identity.md)): to a
-visitor who came in by an invitation link, visitors ("Writing is off for visitors in this public
-sandbox", "each visitor"); to a member, whom staff gave a role and who is no visitor, everyone but
-its owners and admins ("Writing is off in this public sandbox, except for its owners and admins",
-"each person but its owners and admins").
-
-| Limit | Setting | Default | Counted over | Refusal |
+| Limit | Setting | Free plan | Counted over | Refusal |
 |---|---|---|---|---|
-| Calls, reads included | `requests_per_minute` | 120 | each visitor, each minute | `429 rate_limited` |
-| Writes | `writes_per_minute` | 30 | each visitor, each minute | `429 rate_limited` |
-| Writes | `writes_per_day` | 300 | each visitor, each day | `409 quota_exceeded` |
-| Sources created or copied in, each source of a batch (`attachments.create_uploads`) counted | `sources_per_day` | 10 | each visitor, each day | `409 quota_exceeded` |
-| Exports | `exports_per_day` | 0 (off) | each visitor, each day | `409 quota_exceeded` |
-| Writes | `org_writes_per_day` | 20,000 | all visitors together, each day | `409 quota_exceeded` |
-| File size | `file_max_bytes` | 5 MB | each file | `413 too_large` |
-| Uploads | `bytes_per_day` | 50 MB | each visitor, each day | `409 quota_exceeded` |
-| Uploads | `org_bytes_per_day` | 2 GB | all visitors together, each day | `409 quota_exceeded` |
+| Calls, reads included | `requests_per_minute` | 120 | each person, each minute | `429 rate_limited` |
+| Writes | `writes_per_minute` | 30 | each person, each minute | `429 rate_limited` |
+| Writes | `writes_per_day` | 500 | each person, each day | `409 quota_exceeded` |
+| Sources created or copied in, each source of a batch (`attachments.create_uploads`) counted | `sources_per_day` | 25 | each person, each day | `409 quota_exceeded` |
+| Exports | `exports_per_day` | 5 | each person, each day | `409 quota_exceeded` |
+| Writes | `org_writes_per_day` | 2,000 | everyone together, each day | `409 quota_exceeded` |
+| File size | `file_max_bytes` | 10 MB | each file | `413 too_large` |
+| Uploads | `bytes_per_day` | 100 MB | each person, each day | `409 quota_exceeded` |
+| Uploads | `org_bytes_per_day` | 250 MB | everyone together, each day | `409 quota_exceeded` |
 | Text in one field | `text_max_chars` | 200,000 | each text field | `413 too_large` |
 | Sources in one archive or restore call | `batch_max` | 25 | each call | `413 too_large` |
-| Fetching a file from a URL | `fetch_url` | off | each visitor | `403 sandbox_restricted` |
-| Uploads limited to formats the parsers read | `documents_only` | on | each visitor | `403 sandbox_restricted` |
+| Fetching a file from a URL | `fetch_url` | on | each person | `403 plan_restricted` |
+| Uploads limited to formats the parsers read | `documents_only` | on | each person | `403 plan_restricted` |
 
 Rules:
 
 1. **A write is an operation that mutates.** A call is any operation, a read included.
-2. **A minute is a clock minute. A day runs from one scheduled reset to the next**, whether or not
-   resets are turned on, and a reset by hand starts the day's counts again.
+2. **A minute is a clock minute. A day is a UTC day**, from midnight UTC to the next; a refusal
+   gives the moment the day's allowances start again (`resets_at`).
 3. **A refused call counts as a call, and takes nothing from a day's allowance.** The minute's
    counters are written before the input is read. The day's are written inside the operation's
    transaction, so they go back if the call fails. A batch (`attachments.create_uploads`) is one
@@ -487,129 +469,32 @@ Rules:
    allowance is refused whole, with the day's count before the call as `used` and a message
    saying how many it would add and how many are left.
 4. **A day's allowance never stops a read or a search** (§9.2 rule 1). Export is counted by
-   `exports_per_day` alone: neither the day's writes nor `visitor_access: "read"` stops it. Its
-   default is 0, so visitors export nothing: the sandbox's content is a demonstration that belongs
-   to its staff, not work a visitor could lose, so the promise that nothing is trapped (§9.1) does
-   not reach it. Staff may raise it.
-5. **A visitor uploads through the relay only**, where the size is enforced as the bytes arrive; no
-   direct-to-store URL is issued. A grant's `max_bytes` is the lowest of the file limit and what
-   is left of the day's bytes. Bytes are counted when the file is attached, against whoever asked
-   for the grant.
-6. **A call that names no organization** (`products.list`, `get_skill`, `submit_feedback`) is
-   counted too, for a `sandbox_only` account that is a visitor. It meets only the limits on how
-   often.
-7. **The routes that serve bytes are calls too.** A file, an export, and a Story or mockup page's HTML are
-   served outside the registry ([§6.4](06-operations-and-adapters.md)); for a visitor each counts
-   as a call and is refused while the sandbox is closed. The upload relay takes no bytes from a
-   visitor while `visitor_access` is not `write`, whenever the grant was given.
-8. **Setting a limit to 0 refuses everything it counts.** A daily allowance set to 0 (`writes_per_day`,
-   `org_writes_per_day`, `sources_per_day`, `exports_per_day`, `bytes_per_day`, `org_bytes_per_day`)
-   is switched off rather than used up: the call is refused, before its allowance is counted, with
-   `403 sandbox_restricted`, like a switch that is off, with `{ setting, limit: 0 }` in `details` and
-   a message that says it is off (for visitors, or except for its owners and admins, as above),
-   never that it starts again at the next reset.
-   `sandbox.status` still lists it, and the app shows it to a visitor as Off.
-9. **A Story preview is a call, not a write.** `story.preview` changes nothing anyone sees, so it
-   takes nothing from the writes a visitor or the organization has left; its text meets
-   `text_max_chars` as a publish's does. It is refused wherever publishing would be: while
-   `visitor_access` is `read` (`403 sandbox_read_only`) and while writing is switched off
-   (`403 sandbox_restricted`). Its document is served under its grant, and a reset drops it.
+   `exports_per_day` alone: the day's writes never stop it.
+5. **On the free plan an upload goes through the relay only**, where the size is enforced as the
+   bytes arrive; no direct-to-store URL is issued. A grant's `max_bytes` is the lowest of the file
+   limits and what is left of the day's bytes. Bytes are counted when the file is attached, against
+   whoever asked for the grant. A mockup canvas is not uploaded as a ZIP (`403 plan_restricted`): its
+   text is capped field by field, so its pages go in the call.
+6. **The routes that serve bytes are calls too.** A file, an export, and a Story or mockup page's
+   HTML are served outside the registry ([§6.4](06-operations-and-adapters.md)); each counts as a
+   call against `requests_per_minute` for whoever requested its grant.
+7. **Setting a limit to 0 refuses everything it counts.** A daily allowance set to 0
+   (`writes_per_day`, `org_writes_per_day`, `sources_per_day`, `exports_per_day`, `bytes_per_day`,
+   `org_bytes_per_day`) is switched off rather than used up: the call is refused, before its
+   allowance is counted, with `403 plan_restricted`, like a switch that is off, with
+   `{ setting, limit: 0 }` in `details` and a message that says it is off on the organization's
+   plan, never that it starts again tomorrow. `products.limits` gives its refusal as
+   `403 plan_restricted`.
+8. **A Story or Idea card preview is a call, not a write.** It changes nothing anyone sees, so it
+   takes nothing from the day's writes; its text meets `text_max_chars` as a publish's does. It is
+   refused wherever writing is switched off (`403 plan_restricted`).
+9. **The counters** live in `limit_counters`, per organization and person, and under the account
+   `''` for the whole organization. The worker drops a minute's counters after an hour and a day's
+   after three days.
 
-### The baseline
-
-`sandbox.save_baseline` saves the organization's content as it is: every row carrying its
-`tenant_id` in `teams`, `products`, `records`, `files`, `file_versions`, `derivations`,
-`source_texts`, `annotations`, `agent_notes`, `outcomes`, `insights`, `revisions`,
-`register_entries`, `reviews`, `story_pages`, `story_versions`, `story_hierarchies`,
-`story_styles`, `mockups`, `mockup_versions`, `mockup_pages`, `mockup_files`,
-`mockup_prototype_files`, `tombstones`, and
-the activity events that belong to a product
-([`public-sandbox-baseline.ts`](../../packages/core/src/public-sandbox-baseline.ts)). Each row is held
-as JSON, without its generated columns, with its ids. `sandbox.baselines` says what each holds,
-counting its products, sources, derived texts (`texts`), outcomes, assumptions, Story pages and
-mockups.
-
-- **Not in a baseline:** memberships and invitations of either kind, because access is not
-  content; the sandbox's own settings, counters and baselines; jobs, uploads in progress (a
-  source's attachment or a mockup canvas), Story previews and exports; the search index
-  (`text_chunks`), which a reset builds again; and the organization's own activity events. A test
-  requires every table with a `tenant_id` to be on one list or the other.
-- **Blobs are referred to, never copied.** They are immutable and keyed by file version.
-- **It holds what is there**, what visitors added included. Staff who want it clean reset first,
-  or set `visitor_access` to `read` while they work.
-- **The newest three are kept.** `sandbox.baselines` lists them, and the one in use is the newest
-  unless staff reset to an earlier one.
-- Saving the first baseline of a sandbox that has never been reset counts as its reset, so the
-  next one comes at the next scheduled hour.
-- A baseline saved before insights and decisions were retired still holds them (§9.8), so
-  `insights` stays on the list while that table exists.
-- A baseline saved while sources had kinds was rewritten by migration `0017_sources_are_tagged.sql`
-  as the sources were: each kind and organization became tags, and the dropped columns left its
-  rows ([§4.4](04-data-model.md)), so a reset puts back tagged sources.
-- A baseline saved while there were citations was rewritten by migration
-  `0028_citations_refs_and_lineage_retired.sql` as the live rows were: an assumption's citations
-  went to the end of its body ([§4.8](04-data-model.md)), the `citations`, `refs` and
-  `related_records` it held left its rows, and its `lineage` rows went, with their count.
-- A baseline saved while sources had passages was rewritten by migration
-  `0030_one_derived_text_per_source.sql` as the live rows were: each source's current passages
-  became its saved derived text, its `segments` rows went, and its files lost their role and
-  provenance ([§5](05-derived-layer.md)), so a reset puts back sources with their text.
-
-### The reset
-
-`sandbox.reset` (staff, with `confirm: "reset the sandbox"`, and optionally a `baseline_id`) and
-the scheduled reset do the same thing, in one transaction that runs alone in the organization:
-
-1. Delete every row of content the organization holds, the uploads in progress, the exports, the
-   jobs that have not run, and the day's counters.
-2. Insert the baseline's rows. Only the columns the baseline holds are written, so a column added
-   since keeps its default.
-3. Remove a grant on a team or product the baseline does not hold, and the seat of a visitor idle
-   past `visitor_idle_days`. Nothing else about people changes: a reset never gives back access
-   that was taken away.
-4. Build the search index of every source it put back ([§8.3](08-search.md)), and queue a reading,
-   which records nothing in the activity log, of each attachment version the baseline holds no
-   reading of, and of each one whose latest reading this version's parsers would make afresh: made
-   by another parser or an earlier version of the one that reads it now, or found unsupported
-   because no parser read its format, where one does now ([§5.1](05-derived-layer.md)). A reading
-   that failed, found the file too large or found a recording stays as it is, as do one in which
-   this version's parser found only pictures (a PDF with no text layer) and a PDF of pictures an
-   earlier version recorded as failed, which is said as `unsupported`
-   ([§5.5](05-derived-layer.md#55-statuses)): read again, each would most likely end the same way,
-   and `derived.rederive` reads one whenever someone asks. So a baseline saved before an upgrade has
-   its attachments read by the new parsers after every reset; saving the baseline again once a
-   reset's readings are done, with `visitor_access` at `read` from before that reset so that it
-   holds nothing a visitor added, keeps them, and the resets after it read nothing again.
-5. Queue a move into Evidence for each product that the baseline gave back an insight or a decision
-   (§9.8).
-6. Queue the deletion of every blob that no row and no kept baseline refers to.
-7. Record when, which baseline, who or the schedule, and the counts, as `last_reset`.
-
-Afterwards the organization's content equals the baseline row for row, links to what the baseline
-holds still work, and no other organization's rows or blobs have changed
-(`apps/server/test/public-sandbox.test.ts`).
-
-**When the scheduled reset runs.** It is due when `reset_enabled` is true, a baseline exists, and
-the last reset is earlier than the most recent `reset_time` in `reset_timezone`. The hour is local,
-so it holds through the clock changes; a time the clocks skip lands just after the skip. The
-service scales to nothing, so no timer can promise the hour. Instead:
-
-- every request to the API, MCP or sign-in first runs a reset that is due, so nobody is served what
-  the hour should have erased;
-- a scheduler may call `POST /api/v1/sandbox/reset-if-due` at the hour, so that what visitors
-  added does not sit until the next visit ([Cloud Run](../operations/cloud-run.md)).
-
-Nothing looks between requests, so the database can sleep while an instance is up. An instance
-trusts what it last read about the schedule for at most 30 seconds. A reset that fails
-is logged and tried again at the next request; it never stops the request.
-
-**Deleting in a sandbox.** A visitor cannot delete permanently: deleting needs admin, which a
-visitor never is. When staff delete a source or a product that a baseline holds, its rows go and
-its blobs stay, because a reset would bring it back; the blobs go once no kept baseline refers to
-them. The sandbox organization itself can't be deleted.
-
-**Not built:** a baseline that can be taken out of the database and put into another deployment.
-A baseline lives in the database it was saved in, beside blobs in that deployment's store.
+**The example organization** keeps no baseline and is never reset: its content changes only when
+its own members change it ([§3.10](03-accounts-teams-and-identity.md#310-the-example-organization)).
+Its plan is whatever an instance owner set; its members meet its limits only on the free plan.
 
 ## 9.8 Retired insights and decisions
 

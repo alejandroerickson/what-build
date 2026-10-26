@@ -3,7 +3,7 @@ type: Decision
 title: Insights and decisions are retired, and what a product held of them becomes sources in Evidence
 description: Exploration holds mockups and assumptions only; existing insights and decisions are moved into Evidence as Markdown sources with the same ids, by a worker job a migration queues.
 tags: [decision, exploration, evidence, migration, mcp, product]
-generated: {by: agent:claude, at: 2026-10-16}
+generated: {by: agent:claude, at: 2026-10-25}
 status: stable
 ---
 
@@ -43,15 +43,13 @@ sources, without changing what a source is. This replaces the
 ## Consequences
 
 - MCP has 16 tools and the registry 108 operations. Agents that call the old tools get `422`.
-- A sandbox baseline saved before the move still holds insights and decisions; a reset puts them
-  back and queues the move again, until staff save a new baseline.
 - The empty `insights` table and the register's `kind` column remain until a later migration drops
   them ([roadmap](../spec/10-roadmap.md)).
 
 ## Constrains
 
 - The move is `packages/core/src/evidence-move.ts`, run by the worker's `move_to_evidence` job,
-  queued by `apps/server/src/migrations/0015_insights_and_decisions_to_evidence.sql` and by
-  `resetToBaseline` in `packages/core/src/public-sandbox-baseline.ts`. It must stay idempotent.
+  queued by `apps/server/src/migrations/0015_insights_and_decisions_to_evidence.sql`. It must stay
+  idempotent.
 
 Specified in: [04-data-model §4.7](../spec/04-data-model.md), [09-data-lifecycle §9.8](../spec/09-data-lifecycle.md).

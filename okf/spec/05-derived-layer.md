@@ -3,7 +3,7 @@ type: Specification
 title: Every attachment is read into readable Markdown and kept, and each source has one derived text that people and agents read, edit and search.
 description: Reading attachments (when a reading runs, its thread and limits, what it stores, its statuses), the parsers and how they lay text out, the derived text and how it follows its attachment, and the reads and writes of the derived layer.
 tags: [spec, derived-layer, parsers, derived-text, attachments]
-generated: {by: agent:claude, at: 2026-10-18}
+generated: {by: agent:claude, at: 2026-10-25}
 status: stable
 ---
 
@@ -23,9 +23,8 @@ attachment, the derived text and their operations are in
 A **reading** (a `derivation` on the wire, identified by a `derivation_id`) is one immutable read of
 one version of one attachment. Every version of every attachment is read: when the attachment is
 added, when a new version arrives at its path, when a source is copied to another product (its
-attachments are read afresh there), when `derived.rederive` asks for it (for example after a parser
-upgrade), and when a public sandbox's reset puts back a reading that this version's parsers would
-make afresh, such as one an older parser made ([§9.7](09-data-lifecycle.md#the-reset)). Earlier
+attachments are read afresh there), and when `derived.rederive` asks for it (for example after a
+parser upgrade). Earlier
 readings are retained and readable by id. `rederive` returns `previous_derivation_id`; the
 attachment's latest reading stays in place until the new one finishes, so a caller knows it is done
 when `derived.manifest` for that attachment reports a different `derivation_id`.
@@ -44,8 +43,7 @@ name, type and size already settle how it will be read (§5.5).
 The activity log records each outcome under the system actor (WhatBuild, client `parser`):
 `derived`, "Read the text of interview.vtt", with "; it is the source’s derived text" when its text
 became the source's; or `derivation_<status>`, "Could not read the text of deck.key: unsupported".
-A reading the system asks for itself (after a migration, or after a public sandbox's reset) records
-nothing.
+A reading the system asks for itself (after a migration) records nothing.
 
 **Each reading has a thread and limits of its own**
 ([decision](../decisions/each-file-is-parsed-in-a-thread-of-its-own-with-memory-and-time-limits.md)).
@@ -398,13 +396,10 @@ them. Anything else is `pending` until it is read.
 
 A reading is never rewritten, but one an earlier version made is said as this version would say it,
 wherever it is read (`currentReading` in [`statuses.ts`](../../packages/parsers/src/statuses.ts)),
-so a backup or a public sandbox's baseline brings no retired words back: a recording that asked for
-"a transcript as a new source" asks for one as another attachment, a PDF of pictures once recorded
-as `failed` reads `unsupported`, and an image once said to be "a format no parser reads" says how an
-agent gives it its words. None of them needs reading again, and a public sandbox's reset leaves them
-as they are: it reads again only what this version's parsers would read differently (§5.1), never a
-reading that failed or found a recording, nor one in which this version's parser found only
-pictures. A recording's detail beside the source's derived text says where that text comes from
+so a backup brings no retired words back: a recording that asked for "a transcript as a new
+source" asks for one as another attachment, a PDF of pictures once recorded as `failed` reads
+`unsupported`, and an image once said to be "a format no parser reads" says how an agent gives it
+its words. None of them needs reading again. A recording's detail beside the source's derived text says where that text comes from
 instead of asking for a transcript.
 
 A source's `derived_status` says where its derived text stands (`derivedStatuses` in

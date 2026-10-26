@@ -413,7 +413,7 @@ function appWith(config: Partial<ServerConfig>) {
 }
 
 describe("request logs", () => {
-  it("mask invitation links, sandbox invitation codes, ids, and the names of organizations, teams and products", async () => {
+  it("mask invitation links, retired sandbox invitation codes, ids, and the names of organizations, teams and products", async () => {
     const lines: string[] = [];
     const spy = vi.spyOn(console, "log").mockImplementation((line: unknown) => void lines.push(String(line)));
     try {

@@ -1,4 +1,4 @@
-/* Organization creators: the instance owner's list of who may create organizations. */
+/* The instance owner's pages: Organizations (every organization's plan, and who may start one) and People. */
 
 .instance-intro {
   display: grid;
@@ -12,5 +12,22 @@
 .instance-row-end {
   display: inline-flex;
   align-items: center;
-  gap: var(--s-1);
+  gap: var(--s-3);
+}
+
+/* What removing an account does, before it is done. */
+.instance-consequences {
+  display: grid;
+  gap: var(--s-1h);
+  margin: 0;
+  padding-left: 1.2em;
+  line-height: var(--lh-body);
+}
+.instance-row-open {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-0);
+  color: var(--muted);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-medium);
 }

@@ -21,9 +21,7 @@ const DIRECTORY_WITH_TENANT_ID: Record<string, string> = {
   invitations: "directory: looked up by token before the invitee belongs to the organization",
   jobs: "the job queue: claimed across tenants by the worker, which then scopes each job's transaction",
   feedback: "write-only from both front doors; it names no organization, and its digest goes to the deployment's own address",
-  sandbox_settings: "operational: a public sandbox's switches and limits, read before a visitor is admitted",
-  sandbox_invites: "operational: looked up by code before the caller belongs to the sandbox",
-  sandbox_usage: "operational: the counters behind a sandbox's limits",
+  limit_counters: "operational: the counters behind a free organization's limits",
 };
 
 /** Tables with no tenant_id at all: they belong to no organization. */
@@ -45,8 +43,6 @@ const NOT_TENANT_DATA: Record<string, string> = {
 /** Guarded tables the organization below leaves empty, and why. */
 const EMPTY_HERE: Record<string, string> = {
   insights: "retired: what it held moved into sources, and nothing writes it",
-  sandbox_baselines: "only a public sandbox saves baselines",
-  sandbox_baseline_rows: "only a public sandbox saves baselines",
 };
 
 interface TableRow {

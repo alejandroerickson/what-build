@@ -1,13 +1,13 @@
 ---
 type: Decision
-title: MCP exposes 14 tools, grouped by the kind of object, with an action parameter
-description: Eleven tools group each noun's operations behind `action` and `params`; three stand alone.
+title: MCP exposes 13 tools, grouped by the kind of object, with an action parameter
+description: Ten tools group each noun's operations behind `action` and `params`; three stand alone.
 tags: [decision, mcp, agents]
-generated: {by: agent:claude, at: 2026-10-17}
+generated: {by: agent:claude, at: 2026-10-25}
 status: stable
 ---
 
-# MCP exposes 14 tools, grouped by the kind of object, with an action parameter
+# MCP exposes 13 tools, grouped by the kind of object, with an action parameter
 
 ## Context
 
@@ -15,7 +15,7 @@ More than a hundred separate tools would crowd an agent's context and bury the w
 
 ## Decision
 
-- Grouped tools: products, members, sandbox, sources, attachments, derived, outcomes, assumptions, mockups, story, activity. Each takes `action`, `params`, `product`, and `describe` (returns the action's schema and guidance instead of running it).
+- Grouped tools: products, members, sources, attachments, derived, outcomes, assumptions, mockups, story, activity. Each takes `action`, `params`, `product`, and `describe` (returns the action's schema and guidance instead of running it).
 - Standalone tools: `search`, `get_skill`, `submit_feedback`.
 - A tool is named for what people and agents call the object: `attachments`, not the `files` table that holds them ([decision](a-sources-words-are-one-derived-text-and-attachments-are-never-searched.md)).
 - Tools whose actions are all reads carry read-only annotations.

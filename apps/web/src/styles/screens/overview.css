@@ -347,3 +347,19 @@
     animation: none;
   }
 }
+
+/* The example organization: headed as the example, its own name after, and what it is for. */
+.overview-example-name {
+  color: var(--muted);
+  font-weight: var(--fw-regular);
+}
+.overview-example-intro {
+  padding: var(--s-2h) var(--sheet-px);
+  border-bottom: 1px solid var(--line);
+}
+.overview-example-intro p {
+  margin: 0;
+  max-width: var(--measure);
+  color: var(--muted);
+  line-height: var(--lh-body);
+}

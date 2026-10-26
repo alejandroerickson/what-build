@@ -108,13 +108,11 @@ before the service moves to it, Cloud Storage for blobs, Secret Manager for secr
   [decision](../decisions/each-file-is-parsed-in-a-thread-of-its-own-with-memory-and-time-limits.md)).
   The defaults suit a 1 GiB instance. The bundle carries the thread's entry as
   `dist/parse-worker.js` beside `dist/main.js` ([`build.mjs`](../../apps/server/build.mjs)).
-- **A public sandbox's reset needs no timer.** A service that scales to nothing cannot promise
-  an hour, so every request first runs a reset that is due, an instance that is awake looks every
-  minute, and a scheduler may call `POST /api/v1/sandbox/reset-if-due`
-  ([§9.7](09-data-lifecycle.md)). What an instance remembers is only when to look next, for at
-  most 30 seconds; whether a reset is due is read from Postgres, under a lock, so two instances
-  never run one twice. `WHATBUILD_SANDBOX_TENANT` names the organization, and is copied to
-  `tenants.sandbox` at start-up.
+- **The example organization is named by configuration.** `WHATBUILD_EXAMPLE_TENANT` names the
+  organization every account reads, and is copied to `tenants.example` at start-up
+  ([§3.10](03-accounts-teams-and-identity.md#310-the-example-organization)). Nothing about it runs
+  on a schedule. The free plan's limits are counted in Postgres (`limit_counters`), so every
+  instance counts against the same totals ([§9.7](09-data-lifecycle.md)).
 - **The public site rides along.** Behind Cloudflare the Worker serves its page from the edge and
   passes on only its form. Otherwise, with `WHATBUILD_SITE_URL` set (for example
   `https://what-build.com`), requests whose Host is that site get its one page and its interest
@@ -335,8 +333,8 @@ deployment is involved
 - **Migrations** are forward-only SQL, applied by `whatbuild migrate` as a separate step before a
   new image serves traffic. An export bundle records its format version.
 - **Observability:** one structured log line per request with method, path (ids masked,
-  organizations, teams and products named only by kind, and the invitation and sandbox invitation
-  links, `/invite/:token` and `/join/:code`), status, duration and the request's ID, which the
+  organizations, teams and products named only by kind, and the invitation links,
+  `/invite/:token`, and the retired sandbox invitation links, `/join/:code`), status, duration and the request's ID, which the
   response carries in `X-Request-Id`. **Never** log source content, Markdown bodies, a source's
   text, email addresses, or tokens. An unexpected error is one line with severity ERROR that names
   its request (`logError` in `apps/server/src/telemetry.ts`). When a deployment sets

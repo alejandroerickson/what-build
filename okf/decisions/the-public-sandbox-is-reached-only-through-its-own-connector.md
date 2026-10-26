@@ -4,10 +4,12 @@ title: The public sandbox is reached only through a connector scoped to it
 description: The unscoped MCP connector refuses every call that lands in a public sandbox, so an agent that reads strangers' writing holds nothing else of WhatBuild while it does.
 tags: [decision, mcp, sandbox, security, tenancy]
 generated: {by: agent:claude, at: 2026-10-25}
-status: stable
+status: deprecated
 ---
 
 # The public sandbox is reached only through a connector scoped to it
+
+Superseded on 2026-10-25 by [Every account reads the example organization, which only its staff write](every-account-reads-the-example-organization-which-only-its-staff-write.md).
 
 ## Context
 

@@ -3,7 +3,7 @@ import { usageSettled } from "@whatbuild/core";
 import { createApp, createBlobStore, createMailer, createPorts, SERVER_VERSION } from "./app.ts";
 import { loadConfig } from "./config.ts";
 import { checkRowSecurity, createDb, migrate } from "./database.ts";
-import { SandboxClock, syncSandboxTenant } from "./public-sandbox.ts";
+import { syncExampleTenant } from "./example-organization.ts";
 import { seed } from "./seed.ts";
 import { startTracing } from "./telemetry.ts";
 import { Worker } from "./worker.ts";
@@ -65,13 +65,12 @@ async function main() {
   }
   if (command !== "serve") throw new Error(`Unknown command ${command}. Use serve, worker, migrate or seed.`);
 
-  await syncSandboxTenant(db, config.sandboxTenant);
-  // A reset that is due runs before the request that finds it, and a scheduler may wake the service
-  // at the hour; no timer looks between requests, so the database can sleep while the instance is up.
-  const clock = new SandboxClock({ db, ports });
+  await syncExampleTenant(db, config.exampleTenant);
+  if (process.env["WHATBUILD_SANDBOX_TENANT"] && !config.exampleTenant)
+    console.log("warning: WHATBUILD_SANDBOX_TENANT is no longer read. The public sandbox became the example organization: name it with WHATBUILD_EXAMPLE_TENANT.");
 
   if (config.runWorker) worker.start({ idleMs: WORKER_IDLE_MS });
-  const app = createApp({ db, ports, config, clock, onRequest: config.runWorker ? () => worker?.nudge() : undefined });
+  const app = createApp({ db, ports, config, onRequest: config.runWorker ? () => worker?.nudge() : undefined });
   const server = serve({ fetch: app.fetch, port: config.port, hostname: "0.0.0.0" }, (info) => {
     console.log(`WhatBuild listening on :${info.port} (public URL ${config.publicBaseUrl})`);
   });

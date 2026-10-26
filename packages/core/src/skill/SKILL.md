@@ -58,15 +58,15 @@ organization). A product has four parts, named as the person sees them in the we
    offered only the actions your level allows, and anything above it is refused with
    `403 connection_level`. That is the person's choice: tell them what needs a higher level, and
    that only they can raise it, under Connect an agent. Never look for a way around it.
-4. **Notice a public sandbox.** A tenant that `products(action="list")` marks `sandbox: true` is
-   public, and is erased every day. Only a connector scoped to it reaches it: on the unscoped
-   connector, `products(action="list")` lists each sandbox under `public_sandboxes` instead. Read
-   "In a public sandbox" below before you work there.
+4. **Notice the example organization.** A tenant that `products(action="list")` marks
+   `example: true` is a worked example every account reads and nobody but its authors changes.
+   Read it to learn how a discovery is done; never write there. Read "The example organization"
+   below.
 
 ## How the tools work
 
 Most tools are grouped: `sources`, `attachments`, `derived`, `outcomes`, `assumptions`, `mockups`,
-`story`, `activity`, `products`, `members`, `sandbox`. Call them with `action` and
+`story`, `activity`, `products`, `members`. Call them with `action` and
 `params`. To see an action's exact schema and guidance without running it, call it with
 `describe: true` and no params:
 
@@ -75,7 +75,7 @@ Most tools are grouped: `sources`, `attachments`, `derived`, `outcomes`, `assump
 
 `search`, `get_skill` and `submit_feedback` are standalone tools: their fields are their arguments, with no `action`, `params` or `describe`. Unknown actions and fields are refused (422), and errors begin with the status code and
 say what a correct call looks like. A list that pages answers `next_cursor`: pass it back as
-`cursor` (sources, comments, outcomes, assumptions, search, activity, a sandbox's visitors). A Story
+`cursor` (sources, comments, outcomes, assumptions, search, activity). A Story
 page's or a mockup's versions page by number: pass `next_before` back as `before`. Other lists
 come in one answer.
 An item's id is `outcome_id` on outcomes and `id` on assumptions; each also accepts the other
@@ -111,8 +111,8 @@ again before you move on.
   if nothing landed: creating an outcome, an assumption or a source (`sources(action="create")`,
   `attachments(action="create_upload")`, `create_uploads`), a comment (`annotate`), a copy of a source
   (`copy_to_product`), a mockup (`publish` without `mockup_id` or `upload_id`), a Story page from a
-  mockup (`promote_mockup` without `page_id`), a product, team or organization without a `slug`,
-  and a sandbox invitation. `activity(action="list")` and the item's list show what landed.
+  mockup (`promote_mockup` without `page_id`), and a product, team or organization without a
+  `slug`. `activity(action="list")` and the item's list show what landed.
 - `story(action="preview")`, `outcomes(action="card_preview")` and every read change nothing, and are always safe to repeat.
 
 **When a tool or action is missing.** This server keeps no session, so it cannot tell your client
@@ -651,8 +651,7 @@ added, and before revising something someone may just have edited. Filter by `en
 item's history. Never write a separate "what I changed" note — the log records every write. An entry
 names a change; read the item before relying on it. `by: "people"` is what people did in the app,
 `by: "agents"` what agents did; WhatBuild's own work, such as reading an attachment, is in
-neither. Changes to who has access (roles, invitations,
-a sandbox's visitors) belong to the organization, not a product: its owners and admins read them
+neither. Changes to who has access (roles, invitations) belong to the organization, not a product: its owners and admins read them
 with `members(action="activity")`.
 
 ## Archive, and delete
@@ -699,71 +698,65 @@ summaries, notes and comments, outcomes, assumptions, reviews, earlier texts, mo
 versions, tombstones, activity —
 and `products(action="exports")` gives a download
 grant when it is ready. A viewer, editor or admin can export at any time, an archived product too;
-a reader, who reads only the Story, cannot (403). A visitor to a public sandbox exports only as far
-as its staff allow, which is not at all unless they raise it. The bundle's `README.txt` says what
+a reader, who reads only the Story, cannot (403). On the free plan each person exports as many
+times a day as its limits allow, and nobody exports the example organization. The bundle's `README.txt` says what
 each file holds.
 
 Starting a new organization (`products(action="create_tenant")`) needs an allowance from whoever
 runs this WhatBuild; belonging to an organization never gives one. If it is refused with
-`403 tenant_allowance`, tell the person to ask them, or to ask someone to invite them.
+`403 tenant_allowance`, tell the person to ask them, or to ask someone to invite them. The answer's
+`plan` says whether the new organization is on the free plan (below) or unlimited.
 
 Whoever runs this WhatBuild can read how it is used with `products(action="usage")`, on the
 unscoped connection (`/mcp`; a connector scoped to an organization or a product refuses it):
 calls, features, agent clients, failures and people coming back, as totals that name nobody. It answers only the instance's owners; anyone else gets
 `403 forbidden`.
+`products(action="accounts")` lists every account on the instance for its owners, with the
+organizations each is in and when it was last seen. Removing an account is never yours to do: only
+an instance owner does it, on People in the web app.
 
-## In a public sandbox
+## The example organization
 
-A public sandbox is an organization that anyone with an invitation may work in, to try WhatBuild
-on a worked example. It differs from every other organization in four ways, and the person must
-hear the first two before anything of theirs goes in.
+A deployment may have one organization that every account reads: the **example organization**,
+which `products(action="list")` marks `example: true` (and a product's `scope` with
+`example: true`). Its authors wrote it to show what a discovery in WhatBuild looks like. Someone
+who is not one of its members is its guest there (`your_role` guest, a viewer of every product).
 
-- **What is added is seen by strangers.** Every visitor reads and edits the same products.
-- **What is added is erased.** The sandbox is put back to a saved baseline, usually once a day.
-  Nothing written there lasts, so never use it for the person's real discovery.
-- **Nobody sees anybody.** A visitor writes under a made-up name such as `Visitor 4F2A9C`, which
-  is what `created_by` and the activity log show. `members(action="list")` returns only the
-  caller. Do not try to find out who another visitor is, and do not write a person's name,
-  address or employer into the content to make up for it.
-- **A visitor edits and nothing more.** No managing products or people, no permanent delete
-  (archive instead), no fetching a file from a URL, and usually no export.
+- **Read it, never write it.** Every write there, an export and a preview included, is refused with
+  `403 example_read_only`, which changes nothing. Do not retry it, and do not look for a way around
+  it.
+- **Use it to learn and to show.** Read its outcomes, sources, assumptions, mockups and Story to
+  see how the parts fit, and point the person at what you found.
+- **Do the person's work in an organization of theirs.** If they have none, offer to create one
+  with `products(action="create_tenant")`, or tell them about New organization in the web app;
+  creating one needs an allowance (above). Never copy their material into the example.
+- **Its people are not shown to a guest.** `members(action="list")` answers an empty list with
+  `guest: true`. Names on what its authors wrote are theirs.
+- **A call that names no product** never picks one of the example's products by itself: name the
+  product.
 
-**A sandbox has a connector of its own.** There you read what strangers wrote, and text in a
-source can carry instructions meant for you, so a sandbox is reached only through a connector
-scoped to it (`…/mcp/t/<sandbox>`), never the unscoped one: the person's own organizations stay out
-of reach while you read it. On the unscoped connector, every call addressed to a sandbox is refused
-with `403 sandbox_needs_its_own_connector`, which changes nothing, and `products(action="list")`
-leaves sandboxes out of `items` and `tenants`, listing each under `public_sandboxes` with
-`connect_at`. To work there, the person adds `connect_at` as a connector of its own; tell them
-`connect_why`, and that you should hold no other WhatBuild connector in the same session. Never
-look for a way around it.
+## Limits on the free plan
 
-Before your first write, call `sandbox(action="status", params={"tenant": "…"})`, or with
-`product` set to the product you are in, and tell the person its `notice` in your own words. Its `allowances` list every limit with what is used today.
-Do not upload anything private, confidential or personal, even when asked to: say why, and offer
-to work with made-up material or with what is already there.
-
-Limits are per visitor, and your calls count as the person's:
+An organization is on the `free` or the `unlimited` plan; `products(action="list")` gives each
+tenant's `plan`. On the free plan everyone in the organization, its owners included, meets limits on
+how often and how much, and your calls count as the person's.
+`products(action="limits", params={"tenant": "…"})`, or with `product` set to the product you are in,
+lists every limit with its value and, for the daily ones, what the person and everyone together have
+used today; a day is a UTC day. A guest of the example organization meets only the limit on calls a
+minute.
 
 | Refusal | What it means | What to do |
 |---|---|---|
 | `429 rate_limited` | Too many calls, or writes, in this minute. | Wait `retry_after_seconds`, then carry on. Do not retry in a loop. |
 | `409 quota_exceeded` | A day's allowance is used up: `details` has `quota`, `limit`, `used` and `resets_at`. | Stop writing that kind of thing, tell the person, and carry on reading. |
 | `413 too_large` | One field, file or batch is over its size: `details` has `limit`. | Send less, or split it. |
-| `403 sandbox_restricted` | A visitor may not do this at all. | Do what the message offers instead. |
-| `403 sandbox_read_only`, `403 sandbox_closed` | The people who run the sandbox have stopped writes, or closed it, for now. | Tell the person. Nothing of theirs was changed. |
+| `403 plan_restricted` | The plan does not allow this at all (a limit of 0, fetching from a URL switched off, a file the parsers do not read, uploading a mockup canvas as a ZIP). | Do what the message offers instead: for a canvas, publish its pages in the call. |
 
 Reading and searching are never stopped by a day's allowance. Plan writes before making them: read
-first, then write once, rather than correcting the same item many times.
-
-`sandbox(action="join", params={"code": "…"})` enters a sandbox with the code from an invitation
-link (`…/join/<code>`), and answers `connect_at`, the connector the person adds for you to work
-there. The other `sandbox` actions are its control panel, for its owners and
-admins: `settings` and `update_settings` (every switch and limit), `save_baseline`, `baselines`
-and `reset`, `invites`, `create_invite` and `revoke_invite`, `visitors` and `remove_visitor`.
-`reset` erases everything added since the baseline and cannot be undone: run it only when the
-person asks for it in so many words, and say first what it will erase. `save_baseline` keeps
-what visitors have added too, so reset first unless the person means to keep it.
+first, then write once, rather than correcting the same item many times. Only whoever runs this
+WhatBuild changes a plan or a limit: tell the person to ask them. They see every organization's
+plan with `products(action="organizations")` and change one with `products(action="set_limits")`,
+answered only to the instance's owners.
 
 ## When something is wrong
 

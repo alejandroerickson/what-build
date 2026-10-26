@@ -1,11 +1,11 @@
 import { Link, Navigate, useSearchParams } from "react-router";
 import { plural, relativeTime } from "../lib/format.ts";
 import { markdownText } from "../lib/markdown.tsx";
-import { productHome, useProducts, type ProductsResponse, type ProductSummary } from "../lib/session.tsx";
+import { ownFirst, productHome, useHideExample, useMe, useProducts, type ProductsResponse, type ProductSummary } from "../lib/session.tsx";
 import { BrandMark } from "../shell/brand.tsx";
 import { Journey } from "../shell/journey.tsx";
 import { L1 } from "../shell/panel.tsx";
-import { Button, EmptyState, ErrorCallout, Glyph, Loading, Sheet, SheetHeader, StatusBadge, Tag } from "../ui/index.tsx";
+import { Button, ButtonLink, EmptyState, ErrorCallout, Glyph, Loading, Sheet, SheetBody, SheetHeader, StatusBadge, Tag } from "../ui/index.tsx";
 import { CreateProductDialog } from "./new-product.tsx";
 import "../styles/screens/overview.css";
 
@@ -14,11 +14,13 @@ const UNIT: Record<string, [string, string]> = { idea: ["outcome", "outcomes"], 
 /**
  * The overview at `/`: what WhatBuild is for, the loop a discovery moves through, and every product with a direct link to each of its four sections. It is the one list of products: New
  * product (`?create=1`) and an organization's archived products (`?archived=<organization slug>`, one
- * parameter per organization shown) open here.
+ * parameter per organization shown) open here. The person's own organizations come first and the
+ * example organization last; someone with none of their own is offered to start one.
  */
 export function OverviewPage() {
   const [params, setParams] = useSearchParams();
   const products = useProducts(true);
+  const me = useMe();
   const setParam = (key: string, on: boolean) =>
     setParams(
       (p) => {
@@ -30,6 +32,8 @@ export function OverviewPage() {
       { replace: !on },
     );
   if (products.data && !products.data.tenants.length) return <Navigate to="/welcome" replace />;
+  const tenants = ownFirst(products.data?.tenants ?? []);
+  const ownOrgs = tenants.filter((t) => !t.example).length;
   const all = products.data?.items ?? [];
   const items = all.filter((p) => !p.archived_at);
   // Each organization shows its own archived products: the parameter names the ones that do.
@@ -80,7 +84,9 @@ export function OverviewPage() {
           </div>
         </Sheet>
       ) : (
-        products.data.tenants.map((t) => (
+        <>
+          {!ownOrgs ? <StartYourOwn mayStart={me.data?.tenant_allowance.remaining !== 0} /> : null}
+          {tenants.map((t) => (
           <Organization
             key={t.tenant_id}
             tenant={t}
@@ -89,7 +95,8 @@ export function OverviewPage() {
             onShowArchived={(on) => setArchived(t.slug, on)}
             onCreate={() => setParam("create", true)}
           />
-        ))
+          ))}
+        </>
       )}
       {params.get("create") === "1" && products.data ? <CreateProductDialog tenants={products.data.tenants} onClose={() => setParam("create", false)} /> : null}
     </div>
@@ -111,25 +118,50 @@ function Organization({ tenant, products, showArchived, onShowArchived, onCreate
   // With one team the team's name says nothing the organization's doesn't.
   const showTeam = tenant.teams.length > 1;
   const headId = `overview-org-${tenant.tenant_id}`;
+  const me = useMe();
+  const hide = useHideExample();
+  const guest = tenant.your_role === "guest";
+  const hidden = guest && Boolean(me.data?.hide_example);
   return (
-    <Sheet className="overview-org" labelledBy={headId}>
+    <Sheet className={`overview-org${tenant.example ? " overview-example" : ""}`} labelledBy={headId}>
       <SheetHeader
         id={headId}
         title={
-          <>
-            <Glyph name="building" size="sm" />
-            {tenant.name}
-            {tenant.sandbox ? <Tag>Public sandbox</Tag> : null}
-          </>
+          tenant.example ? (
+            <>
+              <Glyph name="library" size="sm" />
+              Example organization
+              <span className="overview-example-name">{tenant.name}</span>
+              {guest ? <Tag>Read only</Tag> : null}
+            </>
+          ) : (
+            <>
+              <Glyph name="building" size="sm" />
+              {tenant.name}
+            </>
+          )
         }
         end={
           canCreate ? (
             <Button icon="plus" onClick={onCreate}>
               New product
             </Button>
+          ) : guest ? (
+            <Button size="sm" variant="quiet" disabled={hide.isPending} onClick={() => hide.mutate(!hidden)}>
+              {hidden ? "Show in the panel" : "Hide from the panel"}
+            </Button>
           ) : null
         }
       />
+      {tenant.example ? (
+        <div className="overview-example-intro">
+          <p>
+          {guest
+            ? "A worked discovery to learn from. Open its product and read Idea, Evidence, Exploration and Story in order."
+            : "Everyone who signs in can read this organization. You’re one of its authors."}
+          </p>
+        </div>
+      ) : null}
       {shown.length ? (
         <ul className="overview-products">
           {shown.map((p) => (
@@ -152,6 +184,32 @@ function Organization({ tenant, products, showArchived, onShowArchived, onCreate
           </button>
         </div>
       ) : null}
+    </Sheet>
+  );
+}
+
+/** For someone with no organization of their own: where their work goes. */
+function StartYourOwn({ mayStart }: { mayStart: boolean }) {
+  return (
+    <Sheet className="overview-start" labelledBy="overview-start-title">
+      <SheetHeader
+        id="overview-start-title"
+        title="Your own organization"
+        end={
+          mayStart ? (
+            <ButtonLink to="/welcome" variant="primary" icon="plus">
+              Start your organization
+            </ButtonLink>
+          ) : null
+        }
+      />
+      <SheetBody>
+        <p className="muted">
+          {mayStart
+            ? "Your team’s work goes in an organization of your own. Start one when you’re ready."
+            : "Your team’s work goes in an organization of your own. Ask whoever runs this WhatBuild for one, or someone who uses it to invite you."}
+        </p>
+      </SheetBody>
     </Sheet>
   );
 }
