@@ -22,6 +22,10 @@ and comment, is published ([decision](../decisions/public-repository-reference-d
   [roadmap](../spec/10-roadmap.md), never in an issue ([below](#issues)).
 - No secrets, tokens, absolute local paths, or personal details. No names of private projects,
   clients or employers, even when they shaped a change.
+- Nothing true only of the maintainer's own deployments: their amounts and costs, IDs, which
+  providers they use, what they have set up, their traffic. A guide gives the step any deployment
+  takes, with placeholders (`CAP=<amount>`, `my-whatbuild` in examples and tests); those facts stay
+  outside the repository, and the deployments' values in `.env`.
 - Commit messages and pull request descriptions describe the change, never the conversation that
   produced it ([below](#commit-messages-and-pull-request-descriptions)).
 - `pnpm install` turns on git hooks that refuse a commit or push carrying any of this, and CI
@@ -121,3 +125,7 @@ Triaging a report, when asked:
   `python3 okf/tools/validate_okf.py` (CI runs it too). The `okf-update` skill maps changed code
   to the concepts to check.
 - A skill under `.agents/skills/` changes when the bundle's layout or rules change.
+- Whatever the work set up, changed or settled on a deployment is written down before the work is
+  reported done: here when any deployment needs it, outside the repository when it is true only of
+  the maintainer's own. The maintainer decides; agents operate, and never rely on the maintainer to
+  remember how something was done.
