@@ -49,6 +49,18 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
   A scanner's or a stranger's requests no longer start the worker's minute of polling the job
   queue, so they cannot keep a database that suspends when idle awake. Uploads and other commits
   that queue work wake it as before.
+- **Behind Cloudflare, the service can refuse whoever goes around the Worker.** It concerns Cloud
+  Run deployments behind the Cloudflare Worker, and asks nothing until they choose it. With `WHATBUILD_EDGE_KEY` set, the service refuses (`403`) every request but
+  `/health` that does not carry that key in `X-WhatBuild-Edge-Key`, and the Worker adds it, from
+  its secret `EDGE_KEY`, to every request it passes on. To turn it on: make the secret
+  `whatbuild-edge-key` and put it on the Worker, deploy the Worker from this release, and only then
+  give it to the service (`--update-secrets WHATBUILD_EDGE_KEY=whatbuild-edge-key:latest`), as
+  [Cloud Run](cloud-run.md) shows under "Behind Cloudflare, nobody goes around it". In the other order,
+  every request is refused until the Worker has it. After that, the `run.app` address answers
+  only `/health`. Without the setting, nothing changes. The same section describes the zone's
+  rate-limiting rule. Re-running `setup.sh` also adds the log exclusion `whatbuild-refused-requests`,
+  which drops Cloud Run's own log line for a `403` or `429`, so a flood of refused requests writes
+  no logs to pay for.
 
 ## v0.20.0
 

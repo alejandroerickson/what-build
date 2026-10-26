@@ -12,6 +12,7 @@ import { contentDocumentRoutes } from "./content-documents.ts";
 import { FALLBACK_HTML_POLICY } from "./documents.ts";
 import { carriesOurCookie, isOwnOrigin, wasSignedIn } from "./auth/identity.ts";
 import { canonicalHost, requestedHost } from "./canonical-host.ts";
+import { requireEdgeKey } from "./edge-key.ts";
 import { oauthRoutes } from "./auth/oauth.ts";
 import { authRoutes } from "./auth/routes.ts";
 import type { ServerConfig } from "./config.ts";
@@ -177,6 +178,9 @@ export function createApp(deps: { db: Db; ports: Ports; config: ServerConfig; re
   const env: Env & { config: ServerConfig } = { db: deps.db, ports: deps.ports, config: deps.config };
   const release = deps.release ?? RELEASE;
   const app = new Hono();
+
+  // First of all: a request that went around the proxy holding the edge key is refused unread.
+  app.use("*", requireEdgeKey(deps.config.edgeKey, deps.config.publicBaseUrl));
 
   app.use("*", async (c, next) => {
     const started = Date.now();

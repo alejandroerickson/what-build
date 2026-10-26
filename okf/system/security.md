@@ -264,6 +264,11 @@ holds each one; the linked decisions say why. Observed in the code on 2026-10-10
 - A page opened on another name for the deployment (`run.app`, Container Apps' default host) is
   redirected to `WHATBUILD_PUBLIC_URL`, where the session cookie and the own-origin check for
   writes live; machines' paths are answered on any host (`apps/server/src/canonical-host.ts`).
+- Behind the Cloudflare Worker, the service answers only requests that carry its edge key
+  (`WHATBUILD_EDGE_KEY`, which the Worker adds), so nobody goes around the zone's rate limit and the
+  Worker to the `run.app` address; the health check answers without it
+  (`apps/server/src/edge-key.ts`,
+  [decision](../decisions/behind-cloudflare-the-service-answers-only-requests-that-carry-the-workers-key.md)).
 
 **Uploads, parsing and files served back** ([derived layer](../spec/05-derived-layer.md)).
 

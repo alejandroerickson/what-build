@@ -13,8 +13,8 @@
 #     (any Postgres 15+, e.g. a Neon free-tier database);
 #   - the first image (built by Cloud Build — no local Docker needed), the migration job, and the
 #     service itself, public on the internet with WhatBuild's own sign-in in front of everything;
-#   - a log exclusion, so Cloud Run's own request log keeps no address with a query or an
-#     invitation in it (the service logs those masked);
+#   - log exclusions, so Cloud Run's own request log keeps no address with a query or an
+#     invitation in it (the service logs those masked), and no line for a request refused unread;
 #   - alerts on server errors, error lines, memory and failed jobs, mailed to one address
 #     (deploy/cloud-run/alerts.mjs);
 #   - with TRACES_PROJECT, the service's traces, sent to that project and no other.
@@ -172,8 +172,10 @@ $G secrets add-iam-policy-binding whatbuild-grant-key --member "serviceAccount:$
 SECRETS="DATABASE_URL=whatbuild-database-url:latest,WHATBUILD_GRANT_KEY=whatbuild-grant-key:latest"
 if [ -n "${SMTP_URL:-}" ]; then secret whatbuild-smtp-url "$SMTP_URL"; fi
 if [ -n "${GOOGLE_CLIENT_SECRET:-}" ]; then secret whatbuild-google-client-secret "$GOOGLE_CLIENT_SECRET"; fi
-# Either secret may also be created by hand in Secret Manager; the service uses it whenever it exists.
-for pair in WHATBUILD_SMTP_URL=whatbuild-smtp-url WHATBUILD_GOOGLE_CLIENT_SECRET=whatbuild-google-client-secret; do
+# Each of these may also be created by hand in Secret Manager, and the service uses it whenever it
+# exists. The edge key always is, once the Cloudflare Worker is in front and has it
+# (okf/operations/cloud-run.md, A custom domain).
+for pair in WHATBUILD_SMTP_URL=whatbuild-smtp-url WHATBUILD_GOOGLE_CLIENT_SECRET=whatbuild-google-client-secret WHATBUILD_EDGE_KEY=whatbuild-edge-key; do
   if $G secrets describe "${pair#*=}" >/dev/null 2>&1; then
     $G secrets add-iam-policy-binding "${pair#*=}" --member "serviceAccount:$RUNTIME_SA" --role roles/secretmanager.secretAccessor >/dev/null
     SECRETS="$SECRETS,$pair:latest"
@@ -238,6 +240,16 @@ step "Request logs without addresses that carry words or credentials"
 LOG_FILTER="log_id(\"run.googleapis.com/requests\") AND resource.labels.service_name=\"$SERVICE\" AND (httpRequest.requestUrl:\"?\" OR httpRequest.requestUrl:\"/invite/\" OR httpRequest.requestUrl:\"/join/\")"
 if $G logging sinks describe _Default --format='value(exclusions[].name)' | tr ';' '\n' | grep -qx "$SERVICE-request-addresses"; then verb=--update-exclusion; else verb=--add-exclusion; fi
 $G logging sinks update _Default "$verb=name=$SERVICE-request-addresses,filter=$LOG_FILTER" >/dev/null
+
+step "Request logs without the requests refused unread"
+# A request without the edge key is refused (403) before the service runs anything, its log line
+# included, and Cloud Run itself refuses (429) what the instances cannot take. The platform's line
+# for each is dropped too, so a flood sent straight to the run.app address writes no logs to pay
+# for. The request metrics still count every one, and the service keeps its own line for each 403
+# it gives someone it served.
+REFUSED_FILTER="log_id(\"run.googleapis.com/requests\") AND resource.labels.service_name=\"$SERVICE\" AND (httpRequest.status=403 OR httpRequest.status=429)"
+if $G logging sinks describe _Default --format='value(exclusions[].name)' | tr ';' '\n' | grep -qx "$SERVICE-refused-requests"; then verb=--update-exclusion; else verb=--add-exclusion; fi
+$G logging sinks update _Default "$verb=name=$SERVICE-refused-requests,filter=$REFUSED_FILTER" >/dev/null
 
 step "Alerts"
 if command -v node >/dev/null 2>&1; then

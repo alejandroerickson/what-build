@@ -12,7 +12,10 @@
 // (e.g. example.com); APP_URL, the app's origin (e.g. https://app.example.com); and, optionally,
 // ANALYTICS_ID, a Google Analytics measurement ID the site's page loads once a visitor accepts, and
 // CF_ANALYTICS_TOKEN, a Cloudflare Web Analytics site token: its beacon sets no cookie, so it
-// counts every visit to the site's page, those who decline included.
+// counts every visit to the site's page, those who decline included. One secret (wrangler secret
+// put): EDGE_KEY, the service's WHATBUILD_EDGE_KEY, sent with every request passed on, so the
+// service refuses whoever goes around this Worker to its run.app address
+// (apps/server/src/edge-key.ts).
 
 /** The site's own paths. Every other path on its domain belongs to the app. */
 const SITE_FILES = /^\/(assets\/.+|favicon\.svg|theme-boot\.js)$/;
@@ -45,6 +48,8 @@ const PAGE_HEADERS = {
 function forward(request, url, env) {
   const forwarded = new Request(new URL(url.pathname + url.search, env.ORIGIN), request);
   forwarded.headers.set("X-Forwarded-Host", url.host);
+  if (env.EDGE_KEY) forwarded.headers.set("X-WhatBuild-Edge-Key", env.EDGE_KEY);
+  else forwarded.headers.delete("X-WhatBuild-Edge-Key");
   return fetch(forwarded, { redirect: "manual" });
 }
 
