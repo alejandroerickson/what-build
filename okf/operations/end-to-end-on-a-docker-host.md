@@ -95,7 +95,8 @@ example and the standard organization; the synthetic organization's own people i
 `pnpm dev:e2e` gives each time it serves. The example organization is the one `golden.json` names.
 
 `update [tag]` takes a release (the newest by default), records it in `.env` as `WHATBUILD_TAG`,
-pulls the image and resets. `status` says which release is served and which golden master.
+pulls the image and resets. `status` says which release is served and which golden master, with
+its organizations and every product's path.
 `logs [lines]` prints the app's log and the updater's, which the sudo rule lets an agent read.
 
 ## Running the plans against it
@@ -130,8 +131,15 @@ A NAS may write its `sshd_config` and `/etc/sudoers.d/` again when its system is
 settings change; after either, check that the tunnel and `sudo -n <folder>/whatbuild-e2e.sh
 status` still work.
 
-Reset between plans as `pnpm e2e stop` and `pnpm dev:e2e` do locally. The run's folder, log and report stay in the checkout, as for a local run. The
-`run-end-to-end-tests` skill runs a plan here when asked to test on the Docker host.
+Reset between plans as `pnpm e2e stop` and `pnpm dev:e2e` do locally. The run's folder, log and
+report stay in the checkout, as for a local run. The `run-end-to-end-tests` skill runs a plan here
+when asked to test a release or on the Docker host. It finds the host in the checkout's `.env` (the
+main checkout's, from a worktree): `E2E_HOST`, the SSH host; `E2E_HOST_DIR`, the script's folder
+there; `E2E_HOST_PORT`, the app's port on the host; and `E2E_TUNNEL_PORT`, the tunnel's local end,
+which the host's `.env` names in `WHATBUILD_E2E_PUBLIC_URL`.
+
+A release brings a new image, which the updater takes; a change to `deploy/docker/` itself
+(`compose.yaml`, `whatbuild-e2e.sh`) is copied to the host's folder by whoever has root there.
 
 ## What differs from a local run
 

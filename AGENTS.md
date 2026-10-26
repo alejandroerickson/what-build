@@ -92,7 +92,7 @@ that folder. If your tool does not load skills, read the `SKILL.md` files direct
 | `copy-an-organization` | When asked to dump, export, extract or move an organization or the example organization, to keep an organization out of a copy, or to give an organization a deployment of its own. |
 | `audit-for-leaks` | When asked to check the repository or its history for secrets or private material, when something may have leaked, or to make the repository public. |
 | `triage-security-findings` | When `pnpm security`, the Security or CodeQL workflow, or Dependabot reports something; when adding or upgrading a dependency; before a release. |
-| `run-end-to-end-tests` | When asked to run the end-to-end, smoke or acceptance tests or a test plan, to QA the app through the browser and MCP, or to build the golden master. |
+| `run-end-to-end-tests` | When asked to run the end-to-end, smoke or acceptance tests or a test plan, to test a release (on the Docker host), to QA the app through the browser and MCP, or to build the golden master. |
 | `read-usage` | When asked how a deployment is used: which features, through the app and agents, whether people come back, what fails; for analytics or insights; or to connect a deployment to its analytics. |
 | `set-up-mail` | When asked to set up, check or repair a deployment's email; when invitations or sign-in links do not arrive or fail; to rotate the mail token or change provider. |
 

@@ -130,7 +130,11 @@ case "${1:-}" in
   status)
     echo "release   ${WHATBUILD_TAG:-none}"
     echo "golden    built $(field built_at) from the pull $(field pull), schema at $(field migration), commit $(field commit)"
-    echo "example   ${WHATBUILD_EXAMPLE_TENANT:-?}; synthetic $(field synthetic)"
+    echo "example   ${WHATBUILD_EXAMPLE_TENANT:-?}; standard $(field standard); synthetic $(field synthetic)"
+    # Every product's path, as pnpm e2e run prints them from a checkout's own golden master.
+    if [ -f "$golden_json" ]; then
+      sed -n '/"products"/,/]/s/^ *"\([^"]*\)",\{0,1\}$/product   \1/p' "$golden_json"
+    fi
     compose ps
     ;;
   logs)
