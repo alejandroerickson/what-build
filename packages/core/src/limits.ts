@@ -14,6 +14,8 @@ import type { OperationDef, Principal, Scope } from "./registry.ts";
  * - The free plan's values are `FREE_LIMITS`. An instance owner may change any of them for one
  *   organization; the change is stored on the tenant, and an organization's owners cannot make it.
  * - A guest of the example organization meets only the limit on calls a minute.
+ * - A day's use is counted on every plan, so an organization moved to the free plan during a day
+ *   meets what that day already used. The minute's counters are kept only where someone meets them.
  * - Limits are read here and enforced in `execute`, so REST and MCP cannot differ.
  */
 
@@ -163,10 +165,11 @@ export async function limitsFor(db: Db, scope: Pick<Scope, "tenant" | "tenantRol
   return { ...(await loadLimits(db, scope.tenant.tenant_id)), guest };
 }
 
-/** The limits an account meets in an organization: for work done outside `execute`, on a grant's authority. */
-export async function limitsForAccount(db: Db, tenantId: string): Promise<LimitContext | null> {
-  const state = await loadLimits(db, tenantId);
-  return state.plan === "free" ? { ...state, guest: false } : null;
+/** Where a day's use is counted: an organization's day, whatever its plan. */
+export type Tally = Pick<LimitState, "tenant_id" | "day_start">;
+
+export function tallyOf(tenantId: string, now = new Date()): Tally {
+  return { tenant_id: tenantId, day_start: dayOf(now).day_start };
 }
 
 // ---- Counters -----------------------------------------------------------------------------------
@@ -333,20 +336,22 @@ export function checkInput(lc: LimitContext, op: Pick<OperationDef, "name">, inp
 
 /**
  * The daily allowances, counted inside the operation's own transaction: a call that is refused, or
- * that fails, takes nothing from them. `input` is the call's validated input, for an operation that
+ * that fails, takes nothing from them. They are counted at `at` on every plan, and refused only
+ * where the call meets limits (`lc`). `input` is the call's validated input, for an operation that
  * adds several of what an allowance counts.
  */
-export async function countWrite(trx: Db, lc: LimitContext, principal: Principal, op: Pick<OperationDef, "name" | "mutates">, input?: unknown): Promise<void> {
-  if (lc.guest || !op.mutates) return;
-  const s = lc.limits;
+export async function countWrite(trx: Db, at: Tally, lc: LimitContext | null, principal: Principal, op: Pick<OperationDef, "name" | "mutates">, input?: unknown): Promise<void> {
+  if (lc?.guest || !op.mutates) return;
   const me = principal.account_id;
   const daily = DAILY[op.name];
   const takes = daily?.takes ? daily.takes(input) : 1;
-  const n = await bump(trx, lc.tenant_id, "day", lc.day_start, [
+  const n = await bump(trx, at.tenant_id, "day", at.day_start, [
     { account_id: me, counter: "writes", by: 1 },
     { account_id: ORG, counter: "writes", by: 1 },
     ...(daily ? [{ account_id: me, counter: daily.counter, by: takes }] : []),
   ]);
+  if (!lc) return;
+  const s = lc.limits;
   // An export is counted, and never stopped by the allowance of writes: it is how someone leaves with their work.
   if (op.name !== "products.export") {
     const mine = n.get(`${me}:writes`) ?? 0;
@@ -385,9 +390,9 @@ export async function uploadLimit(trx: Db, lc: LimitContext, accountId: string, 
   return limit;
 }
 
-/** Count an attached file against today's upload allowances. */
-export async function countBytes(trx: Db, lc: LimitContext, accountId: string, size: number): Promise<void> {
-  await bump(trx, lc.tenant_id, "day", lc.day_start, [
+/** Count an attached file against today's upload allowances, on every plan. */
+export async function countBytes(trx: Db, at: Tally, accountId: string, size: number): Promise<void> {
+  await bump(trx, at.tenant_id, "day", at.day_start, [
     { account_id: accountId, counter: "bytes", by: size },
     { account_id: ORG, counter: "bytes", by: size },
   ]);

@@ -3,7 +3,7 @@ type: Process
 title: What a deployment must do when it takes a release
 description: The changes a release asks of the people who run a deployment (settings, app registrations, behaviour they will notice), kept per release, with the unreleased ones on top until the next release carries them into its notes.
 tags: [operations, releases, upgrading, self-hosting, configuration]
-generated: {by: agent:claude, at: 2026-10-25}
+generated: {by: agent:claude, at: 2026-10-26}
 status: stable
 ---
 
@@ -23,7 +23,14 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
 
 ## Unreleased
 
-Nothing yet.
+- **A day's use is counted on every plan.** It concerns every deployment and asks nothing of one.
+  Writes, sources added, exports and attached files are counted in an organization on the
+  unlimited plan too, though nobody there is refused, so an organization an instance owner moves
+  to the free plan during a day meets what that day already used instead of starting from zero.
+  `products.limits` gives `used` on every plan, the instance owners' list of organizations gives
+  every organization's use today, and an unlimited organization's Plan and limits page says its use
+  is counted. What was done before the upgrade was not counted: an unlimited organization moved to
+  the free plan on that day starts from what was done after it.
 
 ## v0.23.0
 

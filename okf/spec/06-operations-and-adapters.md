@@ -3,7 +3,7 @@ type: Specification
 title: Every capability is one registered operation, reached identically over REST and MCP.
 description: The operation registry, the error model and bounds, the full catalogue of 115 operations with their REST routes and MCP tools, authorization and agent connection levels, upload flows, the skill and the Connect page.
 tags: [spec, operations, rest, mcp, registry, uploads, skill]
-generated: {by: agent:claude, at: 2026-10-25}
+generated: {by: agent:claude, at: 2026-10-26}
 status: stable
 ---
 
@@ -80,10 +80,10 @@ call came through:
    in its `prepare` step, holding no database connection; its checks read through a short
    read-only transaction of their own, and what it fetched is handed to the handler.
 6. **Run the handler in one transaction** scoped to the tenant (`app.tenant_id` set for row-level
-   security). On the free plan the daily allowances are counted inside it, so a call that fails
-   takes nothing from them. Mutating handlers record their activity event
-   ([§4.10](04-data-model.md)) and enqueue background jobs in that same transaction; the worker is
-   woken after commit.
+   security). The daily allowances are counted inside it, on every plan and refused only on the
+   free plan ([§9.7](09-data-lifecycle.md)), so a call that fails takes nothing from them.
+   Mutating handlers record their activity event ([§4.10](04-data-model.md)) and enqueue
+   background jobs in that same transaction; the worker is woken after commit.
 7. **Count the call,** however it ended, without delaying it: its operation, door, agent client,
    in the example organization or not, and outcome, and the caller under a pseudonym ([§9.1](09-data-lifecycle.md)).
    The MCP adapter counts the calls it refuses before `execute`: under the operation when it

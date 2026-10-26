@@ -3,7 +3,7 @@ type: Specification
 title: Nothing is ever trapped - say what we promise, keep export open, and never let a limit block a read.
 description: What we tell people, limits and quotas (enforced and planned), backups and in-product versioning, export, archive and permanent delete of everything archivable and of an organization, the operator runbooks, plans and the free plan's limits, and how retired insights and decisions became sources.
 tags: [spec, lifecycle, quotas, backups, export, archive, delete, limits, plans]
-generated: {by: agent:claude, at: 2026-10-25}
+generated: {by: agent:claude, at: 2026-10-26}
 status: stable
 ---
 
@@ -436,13 +436,13 @@ and changing them).
 
 An organization's limits are the free plan's (`FREE_LIMITS`) except those an instance owner changed
 for it, which `tenants.limits` holds. Stored limits are read through their schema, so a missing or
-unreadable value is the free plan's. `products.limits` gives every member each limit with its
-value, the free plan's, what it is counted over, its refusal and, for the daily ones, what the
-caller and everyone together used today, and the deployment's own limits, each with a key that
-stays the same (`file_max_bytes`, `relay_max_bytes`, `attachments_per_source`, …) and, where one
-does, the setting that changes it; the web app shows a person only the few they can run into, and
-an instance owner all of them. `products.organizations` gives instance owners every organization's
-changed limits and today's totals.
+unreadable value is the free plan's. `products.limits` gives every member each limit with its value,
+the free plan's, what it is counted over, its refusal and, for the daily ones, what the caller and
+everyone together used today (on every plan, rule 10), and the deployment's own limits, each with a
+key that stays the same (`file_max_bytes`, `relay_max_bytes`, `attachments_per_source`, …) and,
+where one does, the setting that changes it; the web app shows a person only the few they can run
+into, and an instance owner all of them. `products.organizations` gives instance owners every
+organization's changed limits and today's totals.
 
 | Limit | Setting | Free plan | Counted over | Refusal |
 |---|---|---|---|---|
@@ -496,6 +496,19 @@ Rules:
 9. **The counters** live in `limit_counters`, per organization and person, and under the account
    `''` for the whole organization. The worker drops a minute's counters after an hour and a day's
    after three days.
+10. **A day's use is counted on every plan.** On the unlimited plan nobody is refused, but each
+    write, source, export and attached file is counted as on the free plan, in the operation's
+    transaction (rule 3), and `products.limits` and the instance owners' list of organizations
+    give it as on the free plan. So an organization moved to the free plan during a day meets what
+    that day already used: fifteen writes made while it was unlimited leave 485 of a person's 500.
+    One moved the other way stops meeting the limits from its next call (`products.set_limits`),
+    and its day goes on being counted. A minute's counters are kept only where someone meets the
+    limits: counting every read of every organization would cost a write a call, and a plan
+    changed in the middle of a minute leaves at most that minute uncounted.
+    ◆ Decision: counting a day on every plan costs one more statement in a write's transaction and
+    a few rows a person a day, kept three days, and spares the free plan's allowances from
+    starting at zero partway through a day, which would let an organization moved to it that day
+    write a second day's worth.
 
 **The example organization** keeps no baseline and is never reset: its content changes only when
 its own members change it ([§3.10](03-accounts-teams-and-identity.md#310-the-example-organization)).

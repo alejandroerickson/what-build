@@ -73,7 +73,7 @@ export interface OpContext {
   ports: Ports;
   /**
    * The limits the call meets; null where it meets none. Absent when the caller did not come
-   * through `execute` (the upload relay), which then looks them up.
+   * through `execute` (the upload relay).
    */
   limits?: LimitContext | null;
   /** Request time, ISO 8601 UTC. */
