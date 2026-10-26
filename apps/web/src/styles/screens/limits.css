@@ -237,10 +237,21 @@
   }
 }
 
-/* A person's daily allowances: what each is, whose it is, and how much of it is used. */
+/* A person's daily allowances, theirs and then everyone's: what each is and how much of it is used. */
+.limits-group + .limits-group {
+  border-top: 1px solid var(--line);
+}
+.limits-group-label {
+  margin: 0;
+  padding: var(--s-3) var(--sheet-px) 0;
+  color: var(--faint);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-medium);
+  letter-spacing: 0;
+}
 .limits-allowances {
   margin: 0;
-  padding: 0;
+  padding: 0 0 var(--s-1);
   list-style: none;
 }
 .limits-allowance {
@@ -249,17 +260,13 @@
   gap: var(--s-1) var(--s-4);
   align-items: center;
   padding: var(--s-2h) var(--sheet-px);
-  border-top: 1px solid var(--line);
   line-height: var(--lh-ui);
 }
-.limits-allowance-name {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0 var(--s-2);
-  font-weight: var(--fw-medium);
+.limits-allowance + .limits-allowance {
+  border-top: 1px solid var(--line);
 }
-.limits-allowance-name .faint {
-  font-weight: var(--fw-regular);
+.limits-allowance-name {
+  font-weight: var(--fw-medium);
 }
 .limits-allowance-used {
   display: grid;
@@ -289,8 +296,15 @@
   max-width: var(--measure);
   line-height: var(--lh-body);
 }
+/* On a phone, the name and the count share a line and the bar runs under both. */
 @media (max-width: 760px) {
   .limits-allowance {
-    grid-template-columns: minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .limits-allowance-used {
+    display: contents;
+  }
+  .limits-bar {
+    grid-column: 1 / -1;
   }
 }

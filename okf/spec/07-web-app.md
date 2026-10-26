@@ -127,8 +127,9 @@ the browser's back button and "open in new tab" both work.
 - **The footer** holds the account menu, which is about the person: their email; each
   organization they belong to, with their role in it, a link to its **Members** (left out where they
   read only the Story) and, on the free plan or for an owner of the instance, to its **Plan and
-  limits**; the example organization is left out for its guests, who see neither its members nor any
-  allowance there, except for an owner of the instance, who sees its Plan and limits; the theme (Light, Dark or System, which is the default; remembered
+  limits**; the example organization is left out for its guests, who see neither its members nor
+  any allowance there, unless the guest is an owner of the instance, who sees its Plan and limits;
+  the theme (Light, Dark or System, which is the default; remembered
   per browser); **New organization**, while they may still create one; **Organizations** and
   **People**, for an owner of the instance;
   **Settings** (their own display name, and **Sign out everywhere**, which asks first and offers
@@ -958,23 +959,26 @@ never described as deleting. A list row showing an archived object says *Archive
   person sees is said in words, for someone using WhatBuild rather than running it: a line that the
   organization is on the free plan, that everyone in it has the same daily allowances, owners
   included, when they start over (midnight UTC), and that only whoever runs this WhatBuild changes
-  the plan; then **Today**, each daily allowance (changes, sources added, files uploaded and exports,
-  theirs and then everyone's together) as "12 of 200" over a thin bar, which turns the warning colour
-  when it is used up, or "Off on this plan"; then **What you can add**, a few sentences on the limits
-  they can run into: the size of a file (the plan's or the deployment's, whichever is lower), the size
-  above which a file is kept but not read, attachments on a source, mockups and Story pages in a
-  product, and, where the plan says so, that uploads must be formats the parsers read or that adding a
-  file from a link is off. The limit on calls a minute, the refusal a call over a limit gets, the
-  deployment's other limits and what sets them are not shown to them: agents read them all from
-  `products.limits`, and a call over one says so. An unlimited organization's page says nothing
-  there is counted, over What you can add; a guest of the example reaching the address is told they
-  have no allowances there. An owner of the instance sees instead the plan, whether its people meet
-  the limits and when the day's allowances start over; **Limits** (on an unlimited organization,
-  **Limits on the free plan**), one row for each: what it counts and over what, what it allows, what
-  is used today, and the refusal a call over it gets; and **Limits of this deployment**, the ones
-  every organization has, with what sets each. Nobody changes anything here; an owner of the
-  instance has **Change plan and limits**, which opens the organization's dialog on the instance's
-  page (`/instance?org=<slug>`).
+  the plan; then **Today**, the daily allowances in two groups, **You** (changes, sources added,
+  files uploaded, exports) and **Everyone in** the organization (changes, files uploaded), each as
+  "12 of 500" over a thin bar, which turns the warning colour and adds "used up" when it is, or as
+  "Off on this plan"; then **What you can add**, a few sentences on the limits they can run into: the
+  largest file the web app takes (the lowest of the plan's, the deployment's and the upload relay's,
+  since the web app uploads through the relay), or that uploading is off on the plan; the size above
+  which a file is kept but not read, when that is smaller; attachments on a source; mockups and
+  Story pages in a product; and, where the plan says so, that files must be in a format WhatBuild
+  reads or that adding a file from a link is off. The limit on calls a minute, the refusal a call
+  over a limit gets, the deployment's other limits and what sets them are not shown to them: agents
+  read them all from `products.limits`, and a call over one says so. An unlimited organization's
+  page says nothing there is counted, over What you can add; a guest of the example reaching the
+  address is told they have no allowances there. An owner of the instance sees instead the plan and
+  who in the organization meets the limits (on the free plan everyone, owners included; in the
+  example, its guests only the limit on calls a minute), and when the day's allowances start over;
+  **Limits** (on an unlimited organization, **Limits on the free plan**), one row for each: what it
+  counts and over what, what it allows, what they used today where they meet it themselves, and the
+  refusal a call over it gets; and **Limits of this deployment**, the ones every organization has,
+  with what sets each. Nobody changes anything here; an owner of the instance has **Change plan and
+  limits**, which opens the organization's dialog on the instance's page (`/instance?org=<slug>`).
 - **People** (`/people`, from the panel and the account menu, for the instance's owners only;
   `apps/web/src/routes/people.tsx`). Every account (`products.accounts`): its name and address,
   where it stands in each organization, when it joined and was last seen, how many browsers and

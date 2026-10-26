@@ -439,10 +439,10 @@ for it, which `tenants.limits` holds. Stored limits are read through their schem
 unreadable value is the free plan's. `products.limits` gives every member each limit with its
 value, the free plan's, what it is counted over, its refusal and, for the daily ones, what the
 caller and everyone together used today, and the deployment's own limits, each with a key that
-stays the same (`file_max_bytes`, `attachments_per_source`, …) and the setting that changes it; the
-web app shows a person only the few they can run into, and an instance owner all of them.
-`products.organizations` gives instance owners every
-organization's changed limits and today's totals.
+stays the same (`file_max_bytes`, `relay_max_bytes`, `attachments_per_source`, …) and, where one
+does, the setting that changes it; the web app shows a person only the few they can run into, and
+an instance owner all of them. `products.organizations` gives instance owners every organization's
+changed limits and today's totals.
 
 | Limit | Setting | Free plan | Counted over | Refusal |
 |---|---|---|---|---|

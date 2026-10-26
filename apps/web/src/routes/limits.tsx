@@ -43,21 +43,31 @@ export function LimitsPage() {
   return me.data?.tenant_allowance.instance_owner ? <InstanceOwnerLimits l={q.data} /> : <PersonLimits l={q.data} />;
 }
 
-/** The daily allowances, in the order a person meets them, named as what they do. */
-const ALLOWANCES: { key: string; label: string; whose: string }[] = [
-  { key: "writes_per_day", label: "Changes", whose: "You" },
-  { key: "sources_per_day", label: "Sources added", whose: "You" },
-  { key: "bytes_per_day", label: "Files uploaded", whose: "You" },
-  { key: "exports_per_day", label: "Exports", whose: "You" },
-  { key: "org_writes_per_day", label: "Changes", whose: "Everyone here" },
-  { key: "org_bytes_per_day", label: "Files uploaded", whose: "Everyone here" },
+/** The daily allowances, in the order a person meets them and named as what they do: theirs, then everyone's together. */
+const YOURS = [
+  { key: "writes_per_day", label: "Changes" },
+  { key: "sources_per_day", label: "Sources added" },
+  { key: "bytes_per_day", label: "Files uploaded" },
+  { key: "exports_per_day", label: "Exports" },
 ];
+const EVERYONES = [
+  { key: "org_writes_per_day", label: "Changes" },
+  { key: "org_bytes_per_day", label: "Files uploaded" },
+];
+
+/** A size as a person reads it: 10 MB, not 10.0 MB. */
+const size = (n: number) => formatBytes(n).replace(/\.0+ /, " ");
 
 function PersonLimits({ l }: { l: OrganizationLimits }) {
   const guest = l.you_meet_them === "calls_per_minute_only";
   const meets = l.you_meet_them === true;
-  const limit = (k: string) => l.limits.find((x) => x.key === k);
-  const allowances = meets ? ALLOWANCES.flatMap((a) => (limit(a.key) ? [{ ...a, limit: limit(a.key)! }] : [])) : [];
+  const pick = (list: { key: string; label: string }[]) => list.flatMap((a) => l.limits.filter((x) => x.key === a.key).map((limit) => ({ ...a, limit })));
+  const groups = meets
+    ? [
+        { id: "today-yours", title: "You", items: pick(YOURS) },
+        { id: "today-everyone", title: `Everyone in ${l.organization.name}`, items: pick(EVERYONES) },
+      ].filter((g) => g.items.length)
+    : [];
   return (
     <>
       <Sheet labelledBy="limits-title">
@@ -78,14 +88,21 @@ function PersonLimits({ l }: { l: OrganizationLimits }) {
           )}
         </SheetBody>
       </Sheet>
-      {allowances.length ? (
+      {groups.length ? (
         <Sheet labelledBy="today-title">
           <SheetHeader id="today-title" title="Today" />
-          <ul className="limits-allowances">
-            {allowances.map((a) => (
-              <Allowance key={a.key} label={a.label} whose={a.whose} limit={a.limit} />
-            ))}
-          </ul>
+          {groups.map((g) => (
+            <section key={g.id} className="limits-group" aria-labelledby={g.id}>
+              <h3 id={g.id} className="limits-group-label">
+                {g.title}
+              </h3>
+              <ul className="limits-allowances">
+                {g.items.map((a) => (
+                  <Allowance key={a.key} label={a.label} limit={a.limit} />
+                ))}
+              </ul>
+            </section>
+          ))}
         </Sheet>
       ) : null}
       {guest ? null : <WhatYouAdd l={l} />}
@@ -93,27 +110,25 @@ function PersonLimits({ l }: { l: OrganizationLimits }) {
   );
 }
 
-function Allowance({ label, whose, limit }: { label: string; whose: string; limit: LimitValue }) {
+/** One daily allowance: what is used of it today, as words and a bar, or that the plan switches it off. */
+function Allowance({ label, limit }: { label: string; limit: LimitValue }) {
   const allowed = typeof limit.value === "number" ? limit.value : 0;
   const used = limit.used ?? 0;
-  const off = allowed === 0;
-  const show = (n: number) => (limit.unit === "bytes" ? formatBytes(n) : n.toLocaleString("en-US"));
-  const share = off ? 0 : Math.min(1, used / allowed);
+  const full = allowed > 0 && used >= allowed;
+  const show = (n: number) => (limit.unit === "bytes" && n > 0 ? size(n) : n.toLocaleString("en-US"));
   return (
     <li className="limits-allowance">
-      <span className="limits-allowance-name">
-        {label}
-        <span className="faint">{whose}</span>
-      </span>
-      {off ? (
+      <span className="limits-allowance-name">{label}</span>
+      {allowed === 0 ? (
         <span className="muted">Off on this plan</span>
       ) : (
         <span className="limits-allowance-used">
           <span className="num">
             {show(used)} of {show(allowed)}
+            {full ? ", used up" : ""}
           </span>
-          <span className="limits-bar" data-full={share >= 1 || undefined} aria-hidden="true">
-            <span style={{ width: `${share * 100}%` }} />
+          <span className="limits-bar" data-full={full || undefined} aria-hidden="true">
+            <span style={{ width: `${Math.min(1, used / allowed) * 100}%` }} />
           </span>
         </span>
       )}
@@ -121,23 +136,28 @@ function Allowance({ label, whose, limit }: { label: string; whose: string; limi
   );
 }
 
-/** The limits on what someone adds that they can run into, said as sentences. */
+/**
+ * The limits on what someone adds that they can run into, said as sentences. A file's size is the
+ * most the web app takes: it uploads through the relay, so the relay's limit applies too.
+ */
 function WhatYouAdd({ l }: { l: OrganizationLimits }) {
   const meets = l.you_meet_them === true;
   const deployment = (k: string) => l.deployment_limits.find((x) => x.key === k)?.value;
   const planned = (k: string) => (meets ? l.limits.find((x) => x.key === k)?.value : undefined);
-  const fileMax = Math.min(...[deployment("file_max_bytes"), planned("file_max_bytes")].filter((v): v is number => typeof v === "number" && v > 0));
+  // A file size or a daily upload allowance of 0 switches uploads off.
+  const uploadsOff = ["file_max_bytes", "bytes_per_day", "org_bytes_per_day"].some((k) => planned(k) === 0);
+  const fileMax = Math.min(...[deployment("file_max_bytes"), deployment("relay_max_bytes"), planned("file_max_bytes")].filter((v): v is number => typeof v === "number"));
   const readCap = deployment("parse_cap_bytes");
   const attachments = deployment("attachments_per_source");
   const mockups = deployment("mockups_per_product");
   const pages = deployment("story_pages_per_product");
   const lines = [
-    Number.isFinite(fileMax) ? `Files up to ${formatBytes(fileMax)} each.` : null,
-    readCap !== undefined && Number.isFinite(fileMax) && readCap < fileMax ? `Text is read from files up to ${formatBytes(readCap)}; a larger file is kept but not read.` : null,
-    attachments !== undefined ? `Up to ${attachments.toLocaleString("en-US")} attachments on a source.` : null,
+    uploadsOff ? "Uploading files is off on this plan." : Number.isFinite(fileMax) ? `Files up to ${size(fileMax)} each.` : null,
+    !uploadsOff && readCap !== undefined && readCap < fileMax ? `Text is read from files up to ${size(readCap)}; a larger file is kept but not read.` : null,
+    !uploadsOff && attachments !== undefined ? `Up to ${attachments.toLocaleString("en-US")} attachments on a source.` : null,
     mockups !== undefined && pages !== undefined ? `Up to ${mockups.toLocaleString("en-US")} mockups and ${pages.toLocaleString("en-US")} Story pages in a product.` : null,
-    planned("documents_only") === true ? "Uploads must be text, Markdown, transcripts, HTML, Word, PDF, spreadsheets or XML." : null,
-    planned("fetch_url") === false ? "Adding a file from a link is off on this plan." : null,
+    !uploadsOff && planned("documents_only") === true ? "Files must be ones WhatBuild reads: text, Markdown, transcripts, HTML, Word, PDF, spreadsheets or XML." : null,
+    !uploadsOff && planned("fetch_url") === false ? "Adding a file from a link is off on this plan." : null,
   ].filter((x): x is string => Boolean(x));
   if (!lines.length) return null;
   return (
@@ -154,11 +174,14 @@ function WhatYouAdd({ l }: { l: OrganizationLimits }) {
   );
 }
 
-/** For an owner of this WhatBuild: every limit, the refusal a call over it gets, and what sets each of the deployment's. */
+/**
+ * For an owner of this WhatBuild: who in the organization meets its limits, every limit with the
+ * refusal a call over it gets, and what sets each of the deployment's. What they used today shows only
+ * where they meet the limits themselves, the only place it is counted.
+ */
 function InstanceOwnerLimits({ l }: { l: OrganizationLimits }) {
-  const meets = l.you_meet_them === true;
-  const counted = l.limits.filter((x) => x.group !== "switch");
-  const switches = l.limits.filter((x) => x.group === "switch");
+  const free = l.plan === "free";
+  const counted = l.limits.some((x) => x.used !== undefined);
   return (
     <>
       <Sheet labelledBy="limits-title">
@@ -174,20 +197,17 @@ function InstanceOwnerLimits({ l }: { l: OrganizationLimits }) {
             <div>
               <dt>Plan</dt>
               <dd>
-                <StatusBadge tone={l.plan === "free" ? "neutral" : "positive"}>{l.plan_name}</StatusBadge>
+                <StatusBadge tone={free ? "neutral" : "positive"}>{l.plan_name}</StatusBadge>
               </dd>
             </div>
             <div>
               <dt>What it means</dt>
               <dd>
-                {meets
-                  ? "Everyone here meets these limits, owners included."
-                  : l.organization.example
-                    ? "Nobody in it meets these limits. Its readers meet only the limit on calls."
-                    : "Nobody here meets these limits."}
+                {free ? "Everyone in it meets these limits, owners included." : "Nobody in it meets these limits."}
+                {l.organization.example ? " Its guests meet only the limit on calls a minute." : ""}
               </dd>
             </div>
-            {meets ? (
+            {free ? (
               <div>
                 <dt>Daily counts</dt>
                 <dd>
@@ -199,24 +219,18 @@ function InstanceOwnerLimits({ l }: { l: OrganizationLimits }) {
         </SheetBody>
       </Sheet>
       <Sheet labelledBy="your-limits-title">
-        <SheetHeader id="your-limits-title" title={meets ? "Limits" : "Limits on the free plan"} count={l.limits.length} />
+        <SheetHeader id="your-limits-title" title={free ? "Limits" : "Limits on the free plan"} count={l.limits.length} />
         <div className="limits-scroll">
-          <Table head={["Limit", "Counted over", { label: "Allowed", num: true }, { label: "Used today", num: true }, "Over the limit"]}>
-            {counted.map((a) => (
+          <Table head={["Limit", "Counted over", { label: "Allowed", num: true }, ...(counted ? [{ label: "Used today", num: true }] : []), "Over the limit"]}>
+            {l.limits.map((a) => (
               <Row key={a.key} label={a.label} help={a.help}>
                 <Cell className="muted">{a.per}</Cell>
                 <Cell label="Allowed" num>{amount(a.value, a.unit)}</Cell>
-                <Cell label="Used today" num>
-                  {a.used === undefined ? <NotDaily /> : a.unit === "bytes" ? formatBytes(a.used) : a.used.toLocaleString("en-US")}
-                </Cell>
-                <Cell label="Over the limit" className="limits-refusal"><code>{a.refusal}</code></Cell>
-              </Row>
-            ))}
-            {switches.map((a) => (
-              <Row key={a.key} label={a.label} help={a.help}>
-                <Cell className="muted">{a.per}</Cell>
-                <Cell label="Allowed" num>{amount(a.value, a.unit)}</Cell>
-                <Cell label="Used today" num><NotDaily /></Cell>
+                {counted ? (
+                  <Cell label="Used today" num>
+                    {a.used === undefined ? <NotDaily /> : a.unit === "bytes" ? formatBytes(a.used) : a.used.toLocaleString("en-US")}
+                  </Cell>
+                ) : null}
                 <Cell label="Over the limit" className="limits-refusal"><code>{a.refusal}</code></Cell>
               </Row>
             ))}
@@ -251,7 +265,7 @@ function DeploymentLimits({ limits }: { limits: DeploymentLimit[] }) {
           ))}
         </Table>
       </div>
-      <p className="limits-foot">Every organization has these, whatever its plan. Where a plan&rsquo;s limit is lower, that one applies. Its people see only the few they can run into.</p>
+      <p className="limits-foot">Every organization has these, whatever its plan. Where a plan&rsquo;s limit is lower, that one applies. An organization&rsquo;s people see only the few they can run into.</p>
     </Sheet>
   );
 }
