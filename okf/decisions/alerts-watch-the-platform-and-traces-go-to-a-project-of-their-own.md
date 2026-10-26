@@ -23,8 +23,9 @@ provider holding data about the service.
 ## Decision
 
 - **Alerts** come from what Cloud Run already measures and logs, never from requests made to the
-  service: 5xx responses, a line of severity ERROR, memory above 85% for five minutes, and a failed
-  job run. `deploy/cloud-run/alerts.mjs` makes them, and they are mailed to one address.
+  service: 5xx responses, a line of severity ERROR, memory above 85% for five minutes, a failed
+  job run, and a flood (requests, data sent to the internet, or logs written far past what a few
+  teams and their agents send). `deploy/cloud-run/alerts.mjs` makes them, and they are mailed to one address.
 - **Traces** are OpenTelemetry, sent over OTLP when a deployment sets OpenTelemetry's standard
   settings, and the service runs the same without them. Production sends them to Google's Telemetry
   API with `gcp.project_id` naming a project that runs nothing (`GCP_TRACES_PROJECT` in `.env`).
