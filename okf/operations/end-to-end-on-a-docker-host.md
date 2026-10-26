@@ -48,21 +48,32 @@ on a deployment.
 2. Where Docker needs root, as on a NAS whose socket only root may open, give the SSH user a sudo
    rule for this script alone, without a password, so an agent can reset over SSH and nothing
    else: `<user> ALL=(root) NOPASSWD: <folder>/whatbuild-e2e.sh` in a file under `/etc/sudoers.d/`
-   (checked with `visudo -c`), and run it as `sudo <folder>/whatbuild-e2e.sh …`. Make the script
-   and its folder writable by root alone, or the rule gives root to whoever can edit it.
-3. If the image is private, sign the host in to the registry with a token that only reads
-   packages: `docker login ghcr.io -u <user>`. Keep that token out of `.env`.
-4. In the checkout, export the golden master and copy it over:
+   (mode `440`), and run it as `sudo <folder>/whatbuild-e2e.sh …`. Check the file with
+   `visudo -c -f <file>` before it goes there, on another machine if the host has no `visudo`: a
+   rule sudo cannot parse turns sudo off. Make the folder and the script root's, writable by root
+   alone (the folder `700`, since `.env` and `data/` are in it), or the rule gives root to whoever
+   can edit them. The script finds `docker` in `/usr/local/bin`, which sudo's PATH leaves out.
+3. If the image is private, sign root in to the registry with a token that only reads packages:
+   `sudo docker login ghcr.io -u <user>`. The login is kept in `/root/.docker`, which the updater
+   mounts. Keep that token out of `.env`.
+4. In the checkout, export the golden master and copy it into a folder of the SSH user's own on the
+   host, which only that user reads (the script's folder is root's):
 
    ```sh
    corepack pnpm e2e export                                  # .what-build/e2e/export/<built>/
-   rsync -a .what-build/e2e/export/<built>/ <host>:<folder>/incoming/
+   ssh <host> 'mkdir -m 700 incoming'
+   COPYFILE_DISABLE=1 tar -C .what-build/e2e/export/<built> -cf - . | ssh <host> 'tar -C incoming -xf -'
    ```
 
-5. On the host: `./whatbuild-e2e.sh load incoming`. It takes the export into `data/golden`, makes
-   the role and the `golden` database, restores the dump as the role, takes the newest release if
-   `.env` names none, and resets. Then delete `incoming/`.
-6. To follow releases, start the updater: `docker compose --profile updater up -d`. Each night it
+   `rsync -a` does as well where the host allows it; a NAS may refuse rsync over SSH. On macOS,
+   `COPYFILE_DISABLE=1` keeps tar from adding `._` files, which would land among the files.
+5. On the host: `sudo <folder>/whatbuild-e2e.sh load ~/incoming`, with the export's absolute path,
+   since the script works in its own folder. It takes the export into `data/golden`, makes the role
+   and the `golden` database, restores the dump as the role, takes the newest release if `.env`
+   names none, and resets. Then delete `~/incoming`: it is real people's data.
+6. To follow releases, start the updater from the folder, as root where Docker needs it:
+   `docker compose --profile updater up -d updater`. Name the service, or compose recreates the app
+   without the example organization, which only the script reads from `golden.json`. Each night it
    runs `whatbuild-e2e.sh nightly`, which takes a newer release if there is one, on a fresh copy,
    and logs to `update.log`.
 
@@ -85,6 +96,7 @@ example and the standard organization; the synthetic organization's own people i
 
 `update [tag]` takes a release (the newest by default), records it in `.env` as `WHATBUILD_TAG`,
 pulls the image and resets. `status` says which release is served and which golden master.
+`logs [lines]` prints the app's log and the updater's, which the sudo rule lets an agent read.
 
 ## Running the plans against it
 
@@ -98,13 +110,32 @@ WHATBUILD_E2E_URL=http://localhost:5293 corepack pnpm e2e browser signin sam
 ```
 
 `WHATBUILD_E2E_PUBLIC_URL` in `.env` must be the tunnel's local end, since the app writes its own
-address into sign-in redirects and links. Reset between plans as `pnpm e2e stop` and `pnpm dev:e2e`
-do locally. The run's folder, log and report stay in the checkout, as for a local run. The
+address into sign-in redirects and links. Choose a local port that nothing listens on, on IPv6 as
+on IPv4 (`lsof -nP -iTCP:<port> -sTCP:LISTEN`): ssh forwards from whichever of `::1` and
+`127.0.0.1` it can take, and `localhost` may reach another server on the other. Forward to
+`127.0.0.1` on the host, where the app is published, not to `localhost`, which may try `::1`.
+
+The SSH user must be allowed to forward. A NAS may forbid it to everyone but its administrator
+(`AllowTcpForwarding no`); the tunnel then connects and each request through it is reset. Allow
+this user to forward to the app's port and nowhere else, at the end of `sshd_config`, checked with
+`sshd -t` before sshd reloads:
+
+```
+Match User <user>
+	AllowTcpForwarding local
+	PermitOpen 127.0.0.1:<port>
+```
+
+A NAS may write its `sshd_config` and `/etc/sudoers.d/` again when its system is updated or its SSH
+settings change; after either, check that the tunnel and `sudo -n <folder>/whatbuild-e2e.sh
+status` still work.
+
+Reset between plans as `pnpm e2e stop` and `pnpm dev:e2e` do locally. The run's folder, log and report stay in the checkout, as for a local run. The
 `run-end-to-end-tests` skill runs a plan here when asked to test on the Docker host.
 
 ## What differs from a local run
 
 - The code is a release's, not the checkout's: a change not yet released is tested locally.
-- The server log is `docker compose logs whatbuild` on the host.
+- The server log is `whatbuild-e2e.sh logs` on the host (under sudo where Docker needs root).
 - The image serves the built web app itself, on one port, where `pnpm dev:e2e` has Vite in front of
   the API; the development sign-in is offered the same way, since the server says whether it is.
