@@ -3,7 +3,7 @@ import { useState, type ReactNode } from "react";
 import { useParams, useSearchParams } from "react-router";
 import { api, ApiError } from "../lib/api.ts";
 import { formatBytes, formatDate, formatDateTime, plural, slugProblem, untilTime } from "../lib/format.ts";
-import { amount, PLAN_WORDS, useOrganizationLimits, type InstanceOrganization, type InstanceOrganizations, type Plan } from "../lib/limits.ts";
+import { amount, PLAN_WORDS, useOrganizationLimits, type DeploymentLimit, type InstanceOrganization, type InstanceOrganizations, type LimitValue, type OrganizationLimits, type Plan } from "../lib/limits.ts";
 import { useMe } from "../lib/session.tsx";
 import { usePageTitle } from "../shell/slots.tsx";
 import { Button, ButtonLink, Dialog, EmptyState, ErrorCallout, Glyph, ListRow, Loading, Segmented, Sheet, SheetBody, SheetHeader, StatusBadge, TextField, useToast } from "../ui/index.tsx";
@@ -15,16 +15,17 @@ const BYTES = new Set(["file_max_bytes", "bytes_per_day", "org_bytes_per_day"]);
 // ---- /t/:tenant/limits ----------------------------------------------------------------------------
 
 /**
- * An organization's plan and its limits, for anyone in it: what each limit allows, what they used of
- * it today, and the limits every organization on this deployment has. Nobody changes them here: an
- * instance owner does, on the instance's page.
+ * An organization's plan and limits. Its people see their daily allowances, with what they used of
+ * each today, and the few limits on what they add that they can run into. An owner of this WhatBuild,
+ * who sets them, sees every limit with the refusal a call over it gets, and the deployment's own with
+ * what sets each. Nobody changes them here: an instance owner does, on the instance's page.
  */
 export function LimitsPage() {
   const { tenant = "" } = useParams();
   const me = useMe();
   const q = useOrganizationLimits(tenant);
   usePageTitle("Plan and limits");
-  if (q.isPending)
+  if (q.isPending || me.isPending)
     return (
       <Sheet label="Loading the plan and limits">
         <Loading label="Loading the plan and limits…" lines={4} />
@@ -39,13 +40,125 @@ export function LimitsPage() {
         </SheetBody>
       </Sheet>
     );
-  const l = q.data;
+  return me.data?.tenant_allowance.instance_owner ? <InstanceOwnerLimits l={q.data} /> : <PersonLimits l={q.data} />;
+}
+
+/** The daily allowances, in the order a person meets them, named as what they do. */
+const ALLOWANCES: { key: string; label: string; whose: string }[] = [
+  { key: "writes_per_day", label: "Changes", whose: "You" },
+  { key: "sources_per_day", label: "Sources added", whose: "You" },
+  { key: "bytes_per_day", label: "Files uploaded", whose: "You" },
+  { key: "exports_per_day", label: "Exports", whose: "You" },
+  { key: "org_writes_per_day", label: "Changes", whose: "Everyone here" },
+  { key: "org_bytes_per_day", label: "Files uploaded", whose: "Everyone here" },
+];
+
+function PersonLimits({ l }: { l: OrganizationLimits }) {
   const guest = l.you_meet_them === "calls_per_minute_only";
   const meets = l.you_meet_them === true;
-  const instanceOwner = Boolean(me.data?.tenant_allowance.instance_owner);
-  const shown = guest ? l.limits.filter((x) => x.key === "requests_per_minute") : l.limits;
-  const counted = shown.filter((x) => x.group !== "switch");
-  const switches = shown.filter((x) => x.group === "switch");
+  const limit = (k: string) => l.limits.find((x) => x.key === k);
+  const allowances = meets ? ALLOWANCES.flatMap((a) => (limit(a.key) ? [{ ...a, limit: limit(a.key)! }] : [])) : [];
+  return (
+    <>
+      <Sheet labelledBy="limits-title">
+        <SheetHeader level={1} id="limits-title" title="Plan and limits" count={l.organization.name} />
+        <SheetBody className="limits-about">
+          {guest ? (
+            <p>This is the example organization. You can read it but not change it, so you have no allowances here.</p>
+          ) : meets ? (
+            <>
+              <p>
+                {l.organization.name} is on the free plan. Everyone here has the same daily allowances, owners included. They start over at midnight UTC,{" "}
+                <span title={formatDateTime(l.allowances_restart_at)}>{untilTime(l.allowances_restart_at)}</span>.
+              </p>
+              <p className="muted">Only whoever runs this WhatBuild can change the plan.</p>
+            </>
+          ) : (
+            <p>{l.organization.name} has no daily allowances: nothing anyone does here is counted.</p>
+          )}
+        </SheetBody>
+      </Sheet>
+      {allowances.length ? (
+        <Sheet labelledBy="today-title">
+          <SheetHeader id="today-title" title="Today" />
+          <ul className="limits-allowances">
+            {allowances.map((a) => (
+              <Allowance key={a.key} label={a.label} whose={a.whose} limit={a.limit} />
+            ))}
+          </ul>
+        </Sheet>
+      ) : null}
+      {guest ? null : <WhatYouAdd l={l} />}
+    </>
+  );
+}
+
+function Allowance({ label, whose, limit }: { label: string; whose: string; limit: LimitValue }) {
+  const allowed = typeof limit.value === "number" ? limit.value : 0;
+  const used = limit.used ?? 0;
+  const off = allowed === 0;
+  const show = (n: number) => (limit.unit === "bytes" ? formatBytes(n) : n.toLocaleString("en-US"));
+  const share = off ? 0 : Math.min(1, used / allowed);
+  return (
+    <li className="limits-allowance">
+      <span className="limits-allowance-name">
+        {label}
+        <span className="faint">{whose}</span>
+      </span>
+      {off ? (
+        <span className="muted">Off on this plan</span>
+      ) : (
+        <span className="limits-allowance-used">
+          <span className="num">
+            {show(used)} of {show(allowed)}
+          </span>
+          <span className="limits-bar" data-full={share >= 1 || undefined} aria-hidden="true">
+            <span style={{ width: `${share * 100}%` }} />
+          </span>
+        </span>
+      )}
+    </li>
+  );
+}
+
+/** The limits on what someone adds that they can run into, said as sentences. */
+function WhatYouAdd({ l }: { l: OrganizationLimits }) {
+  const meets = l.you_meet_them === true;
+  const deployment = (k: string) => l.deployment_limits.find((x) => x.key === k)?.value;
+  const planned = (k: string) => (meets ? l.limits.find((x) => x.key === k)?.value : undefined);
+  const fileMax = Math.min(...[deployment("file_max_bytes"), planned("file_max_bytes")].filter((v): v is number => typeof v === "number" && v > 0));
+  const readCap = deployment("parse_cap_bytes");
+  const attachments = deployment("attachments_per_source");
+  const mockups = deployment("mockups_per_product");
+  const pages = deployment("story_pages_per_product");
+  const lines = [
+    Number.isFinite(fileMax) ? `Files up to ${formatBytes(fileMax)} each.` : null,
+    readCap !== undefined && Number.isFinite(fileMax) && readCap < fileMax ? `Text is read from files up to ${formatBytes(readCap)}; a larger file is kept but not read.` : null,
+    attachments !== undefined ? `Up to ${attachments.toLocaleString("en-US")} attachments on a source.` : null,
+    mockups !== undefined && pages !== undefined ? `Up to ${mockups.toLocaleString("en-US")} mockups and ${pages.toLocaleString("en-US")} Story pages in a product.` : null,
+    planned("documents_only") === true ? "Uploads must be text, Markdown, transcripts, HTML, Word, PDF, spreadsheets or XML." : null,
+    planned("fetch_url") === false ? "Adding a file from a link is off on this plan." : null,
+  ].filter((x): x is string => Boolean(x));
+  if (!lines.length) return null;
+  return (
+    <Sheet labelledBy="adding-title">
+      <SheetHeader id="adding-title" title="What you can add" />
+      <SheetBody>
+        <ul className="limits-lines">
+          {lines.map((x) => (
+            <li key={x}>{x}</li>
+          ))}
+        </ul>
+      </SheetBody>
+    </Sheet>
+  );
+}
+
+/** For an owner of this WhatBuild: every limit, the refusal a call over it gets, and what sets each of the deployment's. */
+function InstanceOwnerLimits({ l }: { l: OrganizationLimits }) {
+  const meets = l.you_meet_them === true;
+  const counted = l.limits.filter((x) => x.group !== "switch");
+  const switches = l.limits.filter((x) => x.group === "switch");
   return (
     <>
       <Sheet labelledBy="limits-title">
@@ -54,26 +167,24 @@ export function LimitsPage() {
           id="limits-title"
           title="Plan and limits"
           count={l.organization.name}
-          end={me.data?.tenant_allowance.instance_owner ? <ButtonLink to={`/instance?org=${encodeURIComponent(l.organization.slug)}`} size="sm" icon="pencil">Change plan and limits</ButtonLink> : undefined}
+          end={<ButtonLink to={`/instance?org=${encodeURIComponent(l.organization.slug)}`} size="sm" icon="pencil">Change plan and limits</ButtonLink>}
         />
         <SheetBody className="limits-about">
           <dl className="limits-facts">
             <div>
               <dt>Plan</dt>
               <dd>
-                <StatusBadge tone={l.plan === "free" || guest ? "neutral" : "positive"}>{guest ? "Example organization" : l.plan_name}</StatusBadge>
+                <StatusBadge tone={l.plan === "free" ? "neutral" : "positive"}>{l.plan_name}</StatusBadge>
               </dd>
             </div>
             <div>
               <dt>What it means</dt>
               <dd>
-                {guest
-                  ? "You can read this organization but not change it, so only the limit on calls applies to you."
-                  : meets
-                    ? "Everyone here meets these limits, owners included."
-                    : l.organization.example
-                      ? "Nobody in it meets these limits. Its readers meet only the limit on calls."
-                      : "Nobody here meets these limits."}
+                {meets
+                  ? "Everyone here meets these limits, owners included."
+                  : l.organization.example
+                    ? "Nobody in it meets these limits. Its readers meet only the limit on calls."
+                    : "Nobody here meets these limits."}
               </dd>
             </div>
             {meets ? (
@@ -84,40 +195,34 @@ export function LimitsPage() {
                 </dd>
               </div>
             ) : null}
-            <div>
-              <dt>Changing them</dt>
-              <dd className="muted">Only whoever runs this WhatBuild can change them.</dd>
-            </div>
           </dl>
         </SheetBody>
       </Sheet>
-      {meets || guest || instanceOwner ? (
-        <Sheet labelledBy="your-limits-title">
-          <SheetHeader id="your-limits-title" title={guest ? "Your limit here" : meets ? "Limits" : "Limits on the free plan"} count={shown.length} />
-          <div className="limits-scroll">
-            <Table head={["Limit", "Counted over", { label: "Allowed", num: true }, { label: "Used today", num: true }, "Over the limit"]}>
-              {counted.map((a) => (
-                <Row key={a.key} label={a.label} help={a.help}>
-                  <Cell className="muted">{a.per}</Cell>
-                  <Cell label="Allowed" num>{amount(a.value, a.unit)}</Cell>
-                  <Cell label="Used today" num>
-                    {a.used === undefined ? <NotDaily /> : a.unit === "bytes" ? formatBytes(a.used) : a.used.toLocaleString("en-US")}
-                  </Cell>
-                  <Cell label="Over the limit" className="limits-refusal"><code>{a.refusal}</code></Cell>
-                </Row>
-              ))}
-              {switches.map((a) => (
-                <Row key={a.key} label={a.label} help={a.help}>
-                  <Cell className="muted">{a.per}</Cell>
-                  <Cell label="Allowed" num>{amount(a.value, a.unit)}</Cell>
-                  <Cell label="Used today" num><NotDaily /></Cell>
-                  <Cell label="Over the limit" className="limits-refusal"><code>{a.refusal}</code></Cell>
-                </Row>
-              ))}
-            </Table>
-          </div>
-        </Sheet>
-      ) : null}
+      <Sheet labelledBy="your-limits-title">
+        <SheetHeader id="your-limits-title" title={meets ? "Limits" : "Limits on the free plan"} count={l.limits.length} />
+        <div className="limits-scroll">
+          <Table head={["Limit", "Counted over", { label: "Allowed", num: true }, { label: "Used today", num: true }, "Over the limit"]}>
+            {counted.map((a) => (
+              <Row key={a.key} label={a.label} help={a.help}>
+                <Cell className="muted">{a.per}</Cell>
+                <Cell label="Allowed" num>{amount(a.value, a.unit)}</Cell>
+                <Cell label="Used today" num>
+                  {a.used === undefined ? <NotDaily /> : a.unit === "bytes" ? formatBytes(a.used) : a.used.toLocaleString("en-US")}
+                </Cell>
+                <Cell label="Over the limit" className="limits-refusal"><code>{a.refusal}</code></Cell>
+              </Row>
+            ))}
+            {switches.map((a) => (
+              <Row key={a.key} label={a.label} help={a.help}>
+                <Cell className="muted">{a.per}</Cell>
+                <Cell label="Allowed" num>{amount(a.value, a.unit)}</Cell>
+                <Cell label="Used today" num><NotDaily /></Cell>
+                <Cell label="Over the limit" className="limits-refusal"><code>{a.refusal}</code></Cell>
+              </Row>
+            ))}
+          </Table>
+        </div>
+      </Sheet>
       <DeploymentLimits limits={l.deployment_limits} />
     </>
   );
@@ -132,21 +237,21 @@ function NotDaily() {
   );
 }
 
-function DeploymentLimits({ limits }: { limits: { label: string; value: number; unit: string; set_by: string | null }[] }) {
+function DeploymentLimits({ limits }: { limits: DeploymentLimit[] }) {
   return (
     <Sheet labelledBy="deployment-title">
       <SheetHeader id="deployment-title" title="Limits of this deployment" count={limits.length} />
       <div className="limits-scroll">
         <Table head={["Limit", { label: "Value", num: true }, "Set by"]}>
           {limits.map((l) => (
-            <Row key={l.label} label={l.label}>
+            <Row key={l.key} label={l.label}>
               <Cell num>{l.unit === "bytes" ? formatBytes(l.value) : `${l.value.toLocaleString("en-US")} ${l.unit}`}</Cell>
               <Cell label="Set by">{l.set_by ? <code>{l.set_by}</code> : <span className="faint">The application</span>}</Cell>
             </Row>
           ))}
         </Table>
       </div>
-      <p className="limits-foot">Every organization has these, whatever its plan. Where a plan&rsquo;s limit is lower, that one applies.</p>
+      <p className="limits-foot">Every organization has these, whatever its plan. Where a plan&rsquo;s limit is lower, that one applies. Its people see only the few they can run into.</p>
     </Sheet>
   );
 }

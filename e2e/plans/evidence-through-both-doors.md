@@ -98,9 +98,13 @@ tried.
     own, and nothing changed; the two organizations stay separate.
 15. **The free plan, as Riley and then Sam.** As Riley, on Organizations, put the standard
     organization on the free plan with Exports set to 0, and save. As Sam, read
-    `products(action="limits")` for it over MCP, then export the product. *Expect:* the limits say
-    the plan is free and that Sam meets them, with what Sam used today; the export is refused with
-    `403 plan_restricted`, saying exporting is off on the plan; reading and search still work. As
+    `products(action="limits")` for it over MCP, then export the product, then open Plan and limits
+    from the account menu in the web app. *Expect:* the limits say the plan is free and that Sam
+    meets them, with what Sam used today; the export is refused with `403 plan_restricted`, saying
+    exporting is off on the plan; reading and search still work. The page says in words what Sam
+    used of each allowance today ("3 of 200"), Exports as off on this plan, and what Sam can add, with no refusal
+    codes, no limit on calls a minute and no settings; the account menu of the guest in step 14 has
+    no Plan and limits for the example organization. As
     Riley, put the organization back on the unlimited plan with the free plan's limits.
 
 ## Look out for

@@ -23,6 +23,7 @@ export interface LimitValue extends Limit {
 }
 
 export interface DeploymentLimit {
+  key: string;
   label: string;
   value: number;
   unit: string;

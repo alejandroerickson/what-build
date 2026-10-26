@@ -236,3 +236,61 @@
     margin-left: 0;
   }
 }
+
+/* A person's daily allowances: what each is, whose it is, and how much of it is used. */
+.limits-allowances {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.limits-allowance {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(160px, 240px);
+  gap: var(--s-1) var(--s-4);
+  align-items: center;
+  padding: var(--s-2h) var(--sheet-px);
+  border-top: 1px solid var(--line);
+  line-height: var(--lh-ui);
+}
+.limits-allowance-name {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 var(--s-2);
+  font-weight: var(--fw-medium);
+}
+.limits-allowance-name .faint {
+  font-weight: var(--fw-regular);
+}
+.limits-allowance-used {
+  display: grid;
+  gap: var(--s-1);
+}
+.limits-bar {
+  display: block;
+  height: 4px;
+  border-radius: var(--r-full);
+  background: var(--line);
+  overflow: hidden;
+}
+.limits-bar > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--muted);
+}
+.limits-bar[data-full] > span {
+  background: var(--warn);
+}
+.limits-lines {
+  display: grid;
+  gap: var(--s-1h);
+  margin: 0;
+  padding-left: var(--s-4);
+  max-width: var(--measure);
+  line-height: var(--lh-body);
+}
+@media (max-width: 760px) {
+  .limits-allowance {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

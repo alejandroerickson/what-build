@@ -204,14 +204,18 @@ export function PlainNav({ section }: { section: string }) {
 
 /**
  * The panel footer: the signed-in person, and the account menu: their email, their role in each
- * organization with its members, the theme, their settings, feedback, and sign out. An organization
- * where the person reads only the Story is left out: its members are not shown to them.
+ * organization with its members and, on the free plan, its plan and limits, the theme, their settings,
+ * feedback, and sign out. An organization where the person reads only the Story is left out: its
+ * members are not shown to them.
  */
 export function AccountMenu() {
   const me = useMe();
   const signOut = useSignOut();
   const [theme, setTheme] = useTheme();
-  const tenants = (useProducts().data?.tenants ?? []).filter((t) => !t.story_only);
+  const instanceOwner = Boolean(me.data?.tenant_allowance.instance_owner);
+  // A guest of the example organization has nothing here: its members are not shown to them, and they
+  // change nothing there, so have no allowances to see. An instance owner sees every plan.
+  const tenants = (useProducts().data?.tenants ?? []).filter((t) => !t.story_only && (t.your_role !== "guest" || instanceOwner));
   const release = useRelease();
   const name = me.data?.display_name ?? "Signed in";
   // Mounted on first use and kept, so a draft survives closing the dialog.
@@ -238,10 +242,9 @@ export function AccountMenu() {
           </>
         ) : null}
         {tenants.map((t) => {
-          // A guest of the example organization is nobody there, so has no members to see.
           const guest = t.your_role === "guest";
           // An owner of the instance sets every organization's plan and limits, so sees them for each.
-          const showLimits = t.plan === "free" || guest || Boolean(me.data?.tenant_allowance.instance_owner);
+          const showLimits = t.plan === "free" || instanceOwner;
           return (
             <MenuGroup key={t.tenant_id} label={t.your_role ? `${t.name} · ${ROLE_WORD[t.your_role] ?? t.your_role}` : t.name}>
               {!guest ? (
@@ -251,7 +254,7 @@ export function AccountMenu() {
               ) : null}
               {showLimits ? (
                 <MenuItem icon="scale" to={`/t/${t.slug}/limits`}>
-                  {guest ? "Your limit here" : "Plan and limits"}
+                  Plan and limits
                 </MenuItem>
               ) : null}
             </MenuGroup>
