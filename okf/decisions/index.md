@@ -44,6 +44,7 @@ name what replaced it, and date the change. Smaller decisions are marked
 - [Free organizations meet limits on how often and how much, and only instance owners change an organization's plan or limits](free-organizations-meet-limits-that-only-instance-owners-change.md) (superseded)
 - [An instance's owners see every account and may remove any but an instance owner's, which forgets the address and keeps the name on what it wrote](instance-owners-see-every-account-and-remove-any-but-their-own.md)
 - [A person deletes their own account in the web app after a recent sign-in, and ending an account either way deletes what is kept about them and forgets their address](a-person-deletes-their-own-account-after-a-recent-sign-in.md)
+- [The privacy page is a short notice written to stay true, in categories rather than mechanics](the-privacy-page-is-a-short-notice-written-to-stay-true.md)
 - [WhatBuild asks once whether a person accepts cookies, and runs Google Analytics only for those who do](analytics-only-for-people-who-accept-cookies.md)
 - [The server counts how WhatBuild is used, for everyone and through both doors, naming nobody](the-server-counts-how-whatbuild-is-used-naming-nobody.md)
 - [Alerts watch Cloud Run's own signals, and the service's traces go over OpenTelemetry to a Google Cloud project that runs nothing](alerts-watch-the-platform-and-traces-go-to-a-project-of-their-own.md)

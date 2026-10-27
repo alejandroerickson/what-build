@@ -103,7 +103,7 @@ inbox delivery. Check the recipient's inbox and spam folder.
 `WHATBUILD_MAIL_FROM` accepts a bare address or a display name followed by one address in angle
 brackets. ACS receives the bare address; its sender resource controls the display name. Setting
 an ACS endpoint alone never turns mail on. Keep a dev deployment's `WHATBUILD_MAILER=none`.
-Name Microsoft Azure for email in `WHATBUILD_PROVIDERS`.
+Say in `WHATBUILD_PROVIDERS` that Microsoft Azure sends the email.
 
 ## Cloudflare Email Sending
 
@@ -126,8 +126,8 @@ Email Sending only sends: unless something else receives mail for the domain, re
 `noreply@` bounce. Email Sending is in beta.
 
 Cloudflare receives each recipient's address and every message, so the deployment's privacy page
-must name it for mail: in `WHATBUILD_PROVIDERS`, `Cloudflare: email`, or with the Worker and Web
-Analytics as well, `Cloudflare: the public site, its visit counts and email`
+must say so: in `WHATBUILD_PROVIDERS`, `Cloudflare sends the email.`, or with the Worker and Web
+Analytics as well, `Cloudflare serves the public site, counts its visits and sends the email.`
 ([§9.1](../spec/09-data-lifecycle.md)).
 
 ### Checking it

@@ -328,7 +328,7 @@ new tab ([§7.8](#78-story), [§6](06-operations-and-adapters.md)).
    email link opens a page the server renders, naming the address, whose one button, Sign in,
    signs in and returns to `next`. Wherever sign-in returns to is a path on this origin or `/`,
    by the server's rule (`safeNext`). Under the form, one line says WhatBuild is a free preview
-   and links to Privacy, which opens with the data statement ([§9.1](09-data-lifecycle.md)), and
+   and links to Privacy, the notice of what is kept and why ([§9.1](09-data-lifecycle.md)), and
    to Cookies.
 2. **The example organization first.** A new account with no organization of its own lands on the
    overview, where the example organization ([§3.10](03-accounts-teams-and-identity.md)) is listed,
@@ -975,13 +975,11 @@ never described as deleting. A list row showing an archived object says *Archive
   analytics, Google Analytics with the person's choice, which they change here at any time. Then
   how the server counts use without cookies, and how to clear them ([§9.1](09-data-lifecycle.md)).
   It lists no individual cookies.
-- **Privacy** (`/privacy`, readable signed out; `apps/web/src/routes/privacy.tsx`). The data
-  statement ([§9.1](09-data-lifecycle.md)), then what is kept,
-  why and for how long, who else handles it, and what a person can do, with who runs the
-  deployment, its contact and its providers from `/api/v1/meta` ([§9.1](09-data-lifecycle.md)).
-  What it says of organizations names their plans and the read-only year only where the
-  deployment offers plans (`GET /api/v1/plans`), and billing only where a plan has a price.
-  Linked from the sign-in page, Settings, Cookies and the public site's footer.
+- **Privacy** (`/privacy`, readable signed out; `apps/web/src/routes/privacy.tsx`). The privacy
+  notice ([§9.1](09-data-lifecycle.md)): what is kept, why, who else handles it, how long it stays
+  and what a person can do, in prose, with who runs the deployment, its contact and who else handles
+  the data from `/api/v1/meta`, and the month it last changed. It names billing only where a plan
+  has a price (`GET /api/v1/plans`). Linked from the sign-in page, Settings, Cookies and the public site's footer.
 - **The cookie notice** (`apps/web/src/shell/CookieNotice.tsx`). When the deployment sets an
   analytics ID (`analytics_id` from `GET /auth/methods`), every screen, signed in or not, carries a
   small note at the bottom-right inset (flush along the bottom on phones) until the person presses
@@ -1134,6 +1132,6 @@ never described as deleting. A list row showing an archived object says *Archive
   Inside a product of the example, the product switcher's line says "Example organization · " and
   its name. The account menu leaves its Members out for a guest.
 - **Planned:** organization settings with usage against every limit shown as fractions
-  ([§9.2](09-data-lifecycle.md)), the data statement, organization export, and a danger zone
+  ([§9.2](09-data-lifecycle.md)), organization export, and a danger zone
   holding only owner-gated actions (transfer ownership, close the organization), each behind a
   typed confirmation; active sessions and delete account in the person's Settings.

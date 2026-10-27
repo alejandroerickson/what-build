@@ -157,15 +157,15 @@ gcloud run services update whatbuild --region $R --update-env-vars WHATBUILD_ANA
 
 **The privacy page.** `/privacy` names who runs the deployment (`WHATBUILD_OPERATOR`), where to
 write about one's data (`WHATBUILD_PRIVACY_CONTACT`, an email address or a web page) and the
-providers that handle it (`WHATBUILD_PROVIDERS`, `Name: what it does; …`)
+who else handles the data (`WHATBUILD_PROVIDERS`, a paragraph shown as written: the providers by
+name, or by kind where the deployment would rather not name them)
 ([§9.1](../spec/09-data-lifecycle.md)). Without them it says they have not been named. A
 deployment's mail provider is one of them: it receives every recipient's address and message
-([Mail](mail.md)). The list
-holds commas, so pass it with gcloud's alternate delimiter:
+([Mail](mail.md)). The paragraph holds commas, so pass it with gcloud's alternate delimiter:
 
 ```bash
 gcloud run services update whatbuild --region $R --update-env-vars \
-  '^|^WHATBUILD_OPERATOR=Example Labs|WHATBUILD_PRIVACY_CONTACT=privacy@example.com|WHATBUILD_PROVIDERS=Google Cloud: hosting, files and logs; Neon: the database; Cloudflare: the public site, its visit counts and email; Google Analytics: analytics, for those who accept'
+  '^|^WHATBUILD_OPERATOR=Example Labs|WHATBUILD_PRIVACY_CONTACT=privacy@example.com|WHATBUILD_PROVIDERS=Google Cloud runs the service and keeps its files and logs. Neon holds the database. Cloudflare serves the public site, counts its visits and sends the email. Google Analytics measures use, for those who accept it.'
 ```
 
 **Plans, and the plan of a new organization.** The deployment's plans are its own

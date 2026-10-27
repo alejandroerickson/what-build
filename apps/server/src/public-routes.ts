@@ -1,6 +1,6 @@
 import { closeSync, existsSync, fstatSync, openSync, readFileSync } from "node:fs";
 import { extname, isAbsolute, join, normalize, relative, resolve, sep } from "node:path";
-import { DOCUMENT_ROUTE, LIMITS, MCP_SERVER_NAME, planCatalogue, readGuests, readPlans, TOOLS_VERSION, unauthenticated, USAGE_PEOPLE_MONTHS, type Db } from "@whatbuild/core";
+import { DOCUMENT_ROUTE, LIMITS, MCP_SERVER_NAME, planCatalogue, readGuests, readPlans, TOOLS_VERSION, unauthenticated, type Db } from "@whatbuild/core";
 import { Hono } from "hono";
 import type { Release } from "./app.ts";
 import { restPrincipal } from "./auth/identity.ts";
@@ -47,9 +47,6 @@ export function publicRoutes(deps: { db: Db; config: ServerConfig; release: Rele
         contact: config.privacyContact,
         providers: config.providers,
         analytics: Boolean(config.analyticsId),
-        session_days: config.sessionDays,
-        agent_access_days: config.refreshTokenDays,
-        usage_people_months: USAGE_PEOPLE_MONTHS,
       },
     }),
   );
