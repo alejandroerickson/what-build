@@ -6,29 +6,6 @@
 # ignoreUntil = 2026-12-31
 # reason = "Only reachable through …, which WhatBuild never calls."
 
-# fast-uri comes with ajv, under @modelcontextprotocol/sdk. Ajv resolves the $id and $ref of the
-# schemas it compiles with it; those come from WhatBuild and the SDK, never from a request. Fixed in
-# 3.1.9: upgrade once it is a week old (2026-10-26).
-[[IgnoredVulns]]
-id = "GHSA-333x-w4r6-6crp"
-ignoreUntil = 2026-11-01
-reason = "fast-uri under ajv, which resolves only the URIs of schemas WhatBuild and the MCP SDK define. Upgrade to 3.1.9 once it is a week old, on 2026-10-26."
-
-[[IgnoredVulns]]
-id = "GHSA-w74x-v6f9-j3xg"
-ignoreUntil = 2026-11-01
-reason = "fast-uri under ajv, which resolves only the URIs of schemas WhatBuild and the MCP SDK define. Upgrade to 3.1.9 once it is a week old, on 2026-10-26."
-
-[[IgnoredVulns]]
-id = "GHSA-wjr9-j795-jxcr"
-ignoreUntil = 2026-11-01
-reason = "fast-uri under ajv, which resolves only the URIs of schemas WhatBuild and the MCP SDK define. Upgrade to 3.1.9 once it is a week old, on 2026-10-26."
-
-[[IgnoredVulns]]
-id = "GHSA-xhq7-xmqj-769h"
-ignoreUntil = 2026-11-01
-reason = "fast-uri under ajv, which resolves only the URIs of schemas WhatBuild and the MCP SDK define. Upgrade to 3.1.9 once it is a week old, on 2026-10-26."
-
 # body-parser comes with express, which @modelcontextprotocol/sdk depends on. WhatBuild serves MCP
 # through the SDK's web-standard transport on Hono and never loads express. Fixed in 2.4.0: upgrade
 # once it is a week old (2026-10-29).
