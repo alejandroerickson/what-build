@@ -23,6 +23,10 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
 
 ## Unreleased
 
+Nothing yet.
+
+## v0.25.0
+
 - **The deployment defines its plans, and limits belong to them.** It concerns every deployment,
   and asks one thing of a deployment that offers plans: **give it `WHATBUILD_PLANS` before it takes
   this release.** The plans, their names, every limit and each one's price come from the
