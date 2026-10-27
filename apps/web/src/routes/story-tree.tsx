@@ -4,7 +4,7 @@ import { Link } from "react-router";
 import { api, ApiError } from "../lib/api.ts";
 import { useProduct } from "../lib/session.tsx";
 import { PanelContext, PanelSection } from "../shell/slots.tsx";
-import { Button, Callout, FindField, Glyph, Menu, MenuItem, MenuSeparator, useToast, type GlyphName } from "../ui/index.tsx";
+import { Button, Callout, FindField, Glyph, Menu, MenuItem, MenuSeparator, OneLine, useToast, type GlyphName } from "../ui/index.tsx";
 import type { PageActions, PageRef } from "./story-actions.tsx";
 import {
   applyMove, count, describePosition, filterTree, flatten, keyboardMove, locate, positionOf, refusal, split, toServer, trail,
@@ -385,7 +385,7 @@ export function StoryTree({ arrange, archived, refOf, current, onExport, actions
                   <li key={p.page_id} className="story-row story-row-plain" data-current={p.page_id === current || undefined} data-row={p.page_id}>
                     <Link className="story-link" to={`${app}/story/${p.page_id}`} aria-current={p.page_id === current ? "page" : undefined}>
                       <Glyph name="archive" />
-                      <span className="ellipsis">{p.title}</span>
+                      <OneLine text={p.title} />
                     </Link>
                     <PageMenu page={p} archived onExport={onExport} actions={actions} />
                   </li>
@@ -399,8 +399,8 @@ export function StoryTree({ arrange, archived, refOf, current, onExport, actions
             <button type="button" className="story-style-row" onClick={onStyle}>
               <Glyph name="palette" />
               <span className="story-style-text">
-                <span className="ellipsis">{style ? style.name : "None yet"}</span>
-                <span className="story-style-sub ellipsis">{style ? style.line : "Preview house styles"}</span>
+                <OneLine text={style ? style.name : "None yet"} />
+                <OneLine className="story-style-sub" text={style ? style.line : "Preview house styles"} />
               </span>
               <Glyph name="chevron-right" size="sm" />
             </button>
@@ -641,9 +641,7 @@ function Row(props: RowsProps & { node: StoryNode; level: number; pos: number; s
           onKeyDown={(e) => props.onKeyDown(e, node.page_id)}
         >
           <Glyph name={props.icon ?? "file-text"} />
-          <span className="ellipsis">
-            <Highlight text={node.title} query={query} />
-          </span>
+          <OneLine text={node.title} render={query.trim() ? (shown) => <Highlight text={shown} query={query} /> : undefined} />
         </Link>
         <PageMenu page={props.refOf(node.page_id) ?? node} subpages={props.pagesUnder(node.page_id)} onExport={props.onExport} actions={props.actions} />
       </div>

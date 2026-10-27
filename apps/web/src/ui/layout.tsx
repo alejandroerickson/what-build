@@ -1,8 +1,9 @@
-import { useEffect, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import { Link } from "react-router";
 import { Button } from "./button.tsx";
 import { Glyph } from "./glyph.tsx";
 import { Menu, MenuItem } from "./menu.tsx";
+import { OneLine, useMeasure } from "./one-line.tsx";
 import { useToast } from "./toast.tsx";
 
 // ---- Sheets: the surface every non-Story screen is built from ----------------------------------
@@ -102,12 +103,19 @@ export function ListRow({ to, lead, title, sub, children, end, className = "" }:
  */
 export function FiltersInUse({ chips, clearTo }: { chips: { label: string; to: string }[]; clearTo: string }) {
   if (!chips.length) return null;
+  return <FilterChips chips={chips} clearTo={clearTo} />;
+}
+
+function FilterChips({ chips, clearTo }: { chips: { label: string; to: string }[]; clearTo: string }) {
+  // A chip is as wide as its label, so a label is cut against the room the group has.
+  const group = useRef<HTMLDivElement>(null);
+  const measure = useMeasure(group);
   return (
     // A group, so its name is announced: a plain div's label is not.
-    <div className="filters-in-use" role="group" aria-label="Filters in use">
+    <div ref={group} className="filters-in-use" role="group" aria-label="Filters in use">
       {chips.map((c) => (
         <Link key={c.label} to={c.to} className="chip filters-in-use-chip" replace aria-label={`Remove filter: ${c.label}`}>
-          <span className="ellipsis">{c.label}</span>
+          <OneLine text={c.label} measure={measure} />
           <Glyph name="x" size="sm" />
         </Link>
       ))}
@@ -140,7 +148,7 @@ export function Crumbs({ items, currentAsHeading, label = "Breadcrumbs" }: { ite
         {items.map((c, i) => {
           const last = i === items.length - 1;
           const mid = i > 0 && !last;
-          const text = <CrumbLabel label={c.label} measure={measure} />;
+          const text = <OneLine text={c.label} measure={measure} />;
           return (
             <li key={`${i}:${c.label}`} className={mid ? "crumb-mid" : undefined}>
               {last ? (
@@ -173,81 +181,6 @@ export function Crumbs({ items, currentAsHeading, label = "Breadcrumbs" }: { ite
       </ol>
     </nav>
   );
-}
-
-/** What text inside an element is measured against: its width, and the fonts loaded so far. Changes with either. */
-function useMeasure(ref: RefObject<HTMLElement | null>): string {
-  const [width, setWidth] = useState(0);
-  const [fonts, setFonts] = useState(0);
-  useEffect(() => {
-    const el = ref.current;
-    if (!el || typeof ResizeObserver === "undefined") return;
-    const observer = new ResizeObserver(([entry]) => setWidth(Math.round(entry!.contentRect.width)));
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, [ref]);
-  useEffect(() => {
-    // Missing where nothing draws text (the tests' DOM).
-    const set: FontFaceSet | undefined = document.fonts;
-    if (!set) return;
-    const loaded = () => setFonts((n) => n + 1);
-    set.addEventListener("loadingdone", loaded);
-    return () => set.removeEventListener("loadingdone", loaded);
-  }, []);
-  return `${width}:${fonts}`;
-}
-
-/**
- * A crumb's label on one line, in its own direction (a title in Arabic reads right to left). The
- * CSS clamp cuts it where its line breaks, so it keeps the words it starts with; but where the
- * ellipsis has no room it clips at the line's edge, which in a title that mixes directions (English,
- * then Arabic) is where the other direction's words start. So a label that doesn't fit is cut here
- * after the last word that leaves room for the ellipsis, measured again whenever the crumbs' width
- * changes or a font loads. The rest stays in the text, hidden, so assistive technology reads it all.
- */
-function CrumbLabel({ label, measure }: { label: string; measure: string }) {
-  const ref = useRef<HTMLSpanElement>(null);
-  const key = `${measure}:${label}`;
-  const [fit, setFit] = useState<{ key: string; at: number } | null>(null);
-  const at = fit?.key === key ? fit.at : -1;
-  useLayoutEffect(() => {
-    const el = ref.current;
-    const text = el?.firstChild;
-    if (fit?.key === key || !el || !(text instanceof Text)) return;
-    const fits = () => el.scrollHeight <= el.clientHeight;
-    let best = -1;
-    if (!fits()) {
-      // Each try is drawn and measured before the browser paints, then the whole label put back.
-      const ends = wordEnds(label);
-      for (let lo = 0, hi = ends.length - 1; lo <= hi; ) {
-        const mid = (lo + hi) >> 1;
-        text.data = `${label.slice(0, ends[mid])}…`;
-        if (fits()) {
-          best = ends[mid]!;
-          lo = mid + 1;
-        } else hi = mid - 1;
-      }
-      text.data = label;
-    }
-    setFit({ key, at: best });
-  }, [fit, key, label]);
-  return (
-    <span ref={ref} className="crumb-label" dir="auto" title={at < 0 ? undefined : label} data-cut={at < 0 ? undefined : ""}>
-      {at < 0 ? (
-        label
-      ) : (
-        <>
-          {label.slice(0, at)}
-          <span className="visually-hidden">{label.slice(at)}</span>
-        </>
-      )}
-    </span>
-  );
-}
-
-/** Where a label may be cut: at the end of each word, before the spaces and the dash or comma that join it to the next. */
-export function wordEnds(label: string): number[] {
-  return [...label.matchAll(/[\s,;:—–-]*\s[\s,;:—–-]*/gu)].map((m) => m.index).filter((i) => i > 0);
 }
 
 /**

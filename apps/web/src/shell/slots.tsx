@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useId, useLayoutEffect, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { Link } from "react-router";
-import { Glyph, IconButton } from "../ui/index.tsx";
+import { Glyph, IconButton, OneLine } from "../ui/index.tsx";
 import { shortcutLabel } from "../ui/media.ts";
 
 /**
@@ -59,7 +59,7 @@ export function PanelContext({ label, children }: { label: string; children: Rea
  * owns showing and hiding it: the hide button in its head, the show button at the top right, and
  * ⇧⌘\ / Ctrl+Shift+\. It docks beside the content, and on a phone it is a drawer.
  */
-export function Inspector({ title, actions, children }: { title: ReactNode; actions?: ReactNode; children: ReactNode }) {
+export function Inspector({ title, actions, children }: { title: string; actions?: ReactNode; children: ReactNode }) {
   const slots = useSlots();
   const register = slots?.registerInspector;
   useLayoutEffect(() => register?.(), [register]);
@@ -68,7 +68,7 @@ export function Inspector({ title, actions, children }: { title: ReactNode; acti
     <>
       <header className="inspector-head">
         <h2 className="inspector-title" id={`${slots.inspectorId}-title`}>
-          {title}
+          <OneLine text={title} />
         </h2>
         {actions}
         <IconButton
@@ -129,11 +129,11 @@ export function PanelFilter({ to, current, count, sub, replace = true, children 
   sub?: boolean;
   /** Filters that narrow the same list replace the history entry; ones that open another list add one. */
   replace?: boolean;
-  children: ReactNode;
+  children: string;
 }) {
   return (
     <Link to={to} className={`panel-filter${sub ? " panel-filter-sub" : ""}`} aria-current={current ? "true" : undefined} replace={replace}>
-      <span className="panel-filter-label">{children}</span>
+      <OneLine text={children} className="panel-filter-label" />
       {count !== undefined ? <span className="panel-filter-count num">{count}</span> : current ? <Glyph name="check" size="sm" /> : null}
     </Link>
   );

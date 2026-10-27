@@ -3,7 +3,7 @@ import { useState } from "react";
 import { Link, NavLink, useLocation, useNavigate } from "react-router";
 import { ROLE_WORD } from "../lib/format.ts";
 import { lastProduct, ownFirst, productHome, useHideExample, useMe, useProducts, useSignOut, type Product } from "../lib/session.tsx";
-import { Avatar, Glyph, IconButton, Menu, MenuGroup, MenuItem, MenuLabel, MenuRadio, MenuSeparator, type GlyphName } from "../ui/index.tsx";
+import { Avatar, Glyph, IconButton, Menu, MenuGroup, MenuItem, MenuLabel, MenuRadio, MenuSeparator, OneLine, type GlyphName } from "../ui/index.tsx";
 import { shortcutLabel } from "../ui/media.ts";
 import { CreateProductDialog } from "../routes/new-product.tsx";
 import { BrandMark } from "./brand.tsx";
@@ -79,12 +79,13 @@ export function ProductSwitcher({ current }: { current: Product }) {
         trigger={
           <>
             <span className="product-name">
-              <span className="ellipsis">{current.name}</span>
+              <OneLine text={current.name} />
               <Glyph name="chevron-down" size="sm" />
             </span>
-            <span className="product-context ellipsis">
-              {current.tenant.example ? `Example organization · ${current.tenant.name}` : `${current.tenant.name} · ${current.team.name}`}
-            </span>
+            <OneLine
+              className="product-context"
+              text={current.tenant.example ? `Example organization · ${current.tenant.name}` : `${current.tenant.name} · ${current.team.name}`}
+            />
           </>
         }
       >
@@ -112,7 +113,7 @@ function NavNode({ to, icon, label, count, quiet, current }: { to: string; icon:
   return (
     <NavLink to={to} className={`nav-node${quiet ? " nav-node-quiet" : ""}`} aria-current={current ? "page" : undefined} end={false}>
       <Glyph name={icon} />
-      <span className="nav-label">{label}</span>
+      <OneLine text={label} />
       {count !== undefined ? <span className="nav-count num">{count}</span> : null}
     </NavLink>
   );
@@ -165,18 +166,18 @@ export function PlainNav({ section }: { section: string }) {
         return (
           <div key={t.tenant_id} className={`nav-l1 nav-products${t.example ? " nav-example" : ""}`} role="group" aria-labelledby={`${orgId} ${labelId}`}>
             <div className="nav-org">
-              <div id={orgId} className="nav-org-name ellipsis">
-                {t.example ? (
-                  <>
-                    <Glyph name="library" size="sm" />
-                    Example organization
-                  </>
-                ) : (
-                  t.name
-                )}
-              </div>
-              <div id={labelId} className="nav-org-label ellipsis">
-                {t.example ? `${t.name} · ${guest ? "read only" : "you’re an author"}` : "Products"}
+              {t.example ? (
+                <div id={orgId} className="nav-org-name ellipsis">
+                  <Glyph name="library" size="sm" />
+                  Example organization
+                </div>
+              ) : (
+                <div id={orgId} className="nav-org-name">
+                  <OneLine text={t.name} />
+                </div>
+              )}
+              <div id={labelId} className="nav-org-label">
+                <OneLine text={t.example ? `${t.name} · ${guest ? "read only" : "you’re an author"}` : "Products"} />
               </div>
               {t.example && guest ? (
                 <IconButton className="nav-org-hide" size="sm" icon="x" label="Hide the example organization from the panel" title="Hide from the panel" disabled={hide.isPending} onClick={() => hide.mutate(true)} />
@@ -233,7 +234,7 @@ export function AccountMenu() {
         trigger={
           <>
             <Avatar name={name} />
-            <span className="ellipsis">{name}</span>
+            <OneLine text={name} />
           </>
         }
       >
