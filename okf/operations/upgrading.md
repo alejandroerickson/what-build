@@ -23,6 +23,10 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
 
 ## Unreleased
 
+Nothing yet.
+
+## v0.24.0
+
 - **People can delete their own account.** It concerns every deployment and asks one thing of it.
   Settings has a Delete account section, which needs a sign-in from the last 15 minutes and the
   address typed. It and an instance owner's removal on People now also delete what was kept about
