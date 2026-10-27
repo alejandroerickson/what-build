@@ -23,6 +23,10 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
 
 ## Unreleased
 
+Nothing yet.
+
+## v0.28.0
+
 - **The privacy page moves to the public site.** It concerns every deployment. The notice is now a
   page of the public site, at `/privacy` on the site's domain, or at `/site/privacy/` on the app's
   origin for a deployment without a site. The app has no privacy screen and nothing at `/privacy`
