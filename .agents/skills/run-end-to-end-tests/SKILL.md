@@ -61,8 +61,11 @@ what the plan expects, and report. The system, with every command, is described 
    - Check each expectation exactly. Find your way through the interface yourself: the plan names
      things in the product's words, not as selectors. Trouble finding the way is a finding.
    - After each step, look at what the commands printed: lines starting with `!` are problems the
-     page reported (console errors, exceptions, failed requests, 5xx responses). Every one of them
-     is a finding, even if the step passed.
+     page reported (console errors, exceptions, failed requests, 5xx responses, a 4xx for a script,
+     style, image or font). Every one of them is a finding, even if the step passed. Lines starting
+     with `·` are refusals the app was answered with (a 403, 404, 409 or 410 it shows as a
+     message): not findings in themselves, but one the step did not expect, or one the page shows
+     no message for, is.
 6. **Between plans,** stop the instance (`pnpm e2e stop`) and serve again, so that each plan
    starts from the golden master, then start the next run.
 7. **Write the report** to `report.md` in the run's folder (format below). If your harness does

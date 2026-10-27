@@ -50,14 +50,26 @@ const HELP = `pnpm e2e browser <command>   (the browser starts with the first co
   theme <light|dark>              switch the color scheme
   eval <javascript>               evaluate an expression in the page and print the result
   back | reload                   history back, or reload
-  problems                        everything that went wrong since the last time you asked:
-                                  console errors, uncaught exceptions, failed requests, 5xx responses
+  problems                        everything that went wrong since the last time you asked (! lines):
+                                  console errors, uncaught exceptions, failed requests, 5xx responses,
+                                  and a 4xx for a script, style, image or font; and, as · lines, the
+                                  4xx the app's own requests and pages were answered with (a refusal
+                                  the app shows as a message: 403, 404, 409, 410, …), which are not problems
   stop                            close the browser
 
 Options: --nth <n> picks the nth match (from 0) when a name matches several; --exact matches the
-name exactly. Every command prints where the page is and any new problems.`;
+name exactly. Every command prints where the page is, any new problems (!), and the refusals the
+app was answered with (·).`;
 
-type Problem = { kind: string; text: string; url: string };
+/** What went wrong, or with `answered`, a refusal the app was answered with and shows itself: noted, not a problem. */
+type Problem = { kind: string; text: string; url: string; answered?: true };
+
+/** Chrome's own line for any response of 400 or more; the response itself says more, and whether it is a problem. */
+const FAILED_TO_LOAD = /^Failed to load resource: the server responded with a status of \d{3}/;
+/** Requests whose 4xx the app answers itself, with a message on the page: its calls, and pages the server writes. */
+const APP_ANSWERS = new Set(["fetch", "xhr", "document"]);
+
+const line = (p: Problem) => `${p.answered ? "·" : "!"} ${p.kind}: ${p.text}`;
 
 async function daemon(headed: boolean) {
   const executablePath = process.env["CHROME"];
@@ -69,7 +81,7 @@ async function daemon(headed: boolean) {
   page.setDefaultNavigationTimeout(15000);
   const problems: Problem[] = [];
   page.on("console", (m) => {
-    if (m.type() === "error") problems.push({ kind: "console error", text: m.text(), url: page.url() });
+    if (m.type() === "error" && !FAILED_TO_LOAD.test(m.text())) problems.push({ kind: "console error", text: m.text(), url: page.url() });
   });
   page.on("pageerror", (e) => problems.push({ kind: "uncaught exception", text: e.message, url: page.url() }));
   page.on("requestfailed", (r) => {
@@ -77,7 +89,11 @@ async function daemon(headed: boolean) {
     if (!/ERR_ABORTED/.test(failure)) problems.push({ kind: "request failed", text: `${r.method()} ${r.url()} ${failure}`, url: page.url() });
   });
   page.on("response", (r) => {
-    if (r.status() >= 500) problems.push({ kind: `HTTP ${r.status()}`, text: `${r.request().method()} ${r.url()}`, url: page.url() });
+    const status = r.status();
+    const text = `${r.request().method()} ${r.url()}`;
+    if (status >= 500) problems.push({ kind: `HTTP ${status}`, text, url: page.url() });
+    else if (status >= 400 && APP_ANSWERS.has(r.request().resourceType())) problems.push({ kind: `HTTP ${status} (answered)`, text, url: page.url(), answered: true });
+    else if (status >= 400) problems.push({ kind: `HTTP ${status}`, text, url: page.url() });
   });
   let reported = 0;
   const fresh = () => {
@@ -144,23 +160,14 @@ async function daemon(headed: boolean) {
         const email = PEOPLE[need(a, "a person (riley, sam, jordan, morgan, casey, avery) or an email").toLowerCase()] ?? a!;
         // A new person starts clean: the app keeps some state per browser (the last Story page, the
         // panel), which must not carry from one person to the next.
-        await page.goto("/signin");
-        await page.evaluate(() => {
-          localStorage.clear();
-          sessionStorage.clear();
-        });
-        await page.context().clearCookies();
+        await signedOut(page);
         const r = await page.context().request.post(`${base}/auth/dev-sign-in`, { data: { email }, headers: { Origin: base } });
         if (!r.ok()) throw new Error(`The development sign-in refused ${email}: ${r.status()} ${await r.text()}`);
         await page.goto("/");
         return `signed in as ${email}`;
       }
       case "signout":
-        await page.evaluate(() => {
-          localStorage.clear();
-          sessionStorage.clear();
-        });
-        await page.context().clearCookies();
+        await signedOut(page);
         await page.goto("/");
         return "signed out";
       case "snapshot":
@@ -221,7 +228,7 @@ async function daemon(headed: boolean) {
         return "reloaded";
       case "problems": {
         const all = fresh();
-        return all.length ? all.map((p) => `${p.kind}: ${p.text}  (on ${p.url})`).join("\n") : "no problems";
+        return all.length ? all.map((p) => `${line(p)}  (on ${p.url})`).join("\n") : "no problems";
       }
       case "stop":
         return "browser closed";
@@ -233,6 +240,22 @@ async function daemon(headed: boolean) {
   server.listen(0, "127.0.0.1", () => {
     const address = server.address();
     writeFileSync(STATE, JSON.stringify({ port: typeof address === "object" && address ? address.port : 0, token, pid: process.pid, base }), { mode: 0o600 });
+  });
+}
+
+/**
+ * The browser with nobody signed in and none of the app's storage. The app is left first: a page
+ * still open when the cookies go would have its next request refused (401) and send itself to
+ * sign-in, racing whatever the driver opens next. The storage is cleared on the signed-out sign-in
+ * page, whose session check is answered without a refusal.
+ */
+async function signedOut(page: Page) {
+  await page.goto("about:blank");
+  await page.context().clearCookies();
+  await page.goto("/signin");
+  await page.evaluate(() => {
+    localStorage.clear();
+    sessionStorage.clear();
   });
 }
 
@@ -295,7 +318,7 @@ export async function browserCommand(args: string[]) {
   record({ surface: "web", command: args, ok: out.ok, url: out.url, result: out.ok ? out.text.slice(0, 400) : out.text, problems: out.problems });
   console.log(out.text);
   if (out.url && args[0] !== "eval" && args[0] !== "snapshot") console.log(`— at ${out.url}`);
-  for (const p of out.problems ?? []) console.log(`! ${p.kind}: ${p.text}`);
+  for (const p of out.problems ?? []) console.log(line(p));
   if (!out.ok) process.exitCode = 1;
 }
 

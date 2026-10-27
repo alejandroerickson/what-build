@@ -180,6 +180,18 @@ describe("identity", () => {
     expect(maxAge).toBe(methods.session_days * 86400);
   });
 
+  it("makes no account through the development sign-in when told not to, and says when it made one", async () => {
+    const devSignIn = (body: Record<string, unknown>) =>
+      fetch(`${h.baseUrl}/auth/dev-sign-in`, { method: "POST", headers: { "content-type": "application/json", origin: h.baseUrl }, body: JSON.stringify(body) });
+    const refused = await devSignIn({ email: "nobody-yet@example.com", create: false });
+    expect(refused.status).toBe(404);
+    expect(((await refused.json()) as { error: { code: string } }).error.code).toBe("no_account");
+    expect(refused.headers.get("set-cookie")).toBeNull();
+    expect(await h.db.selectFrom("accounts").select("account_id").where("email", "=", "nobody-yet@example.com").executeTakeFirst()).toBeUndefined();
+    expect(await (await devSignIn({ email: "nobody-yet@example.com" })).json()).toMatchObject({ signed_in: true, created: true });
+    expect(await (await devSignIn({ email: "nobody-yet@example.com", create: false })).json()).toMatchObject({ signed_in: true, created: false });
+  });
+
   it("refuses cross-origin cookie writes", async () => {
     const r = await alice.api("POST", `/api/v1/p/${path}/outcomes`, { title: "x" }, { origin: "https://evil.example" });
     expect(r.status).toBe(403);
