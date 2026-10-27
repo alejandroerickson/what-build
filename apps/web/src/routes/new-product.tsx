@@ -2,12 +2,14 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link, useNavigate } from "react-router";
 import { api } from "../lib/api.ts";
+import { useOrganizationLimits } from "../lib/limits.ts";
 import { useMe, type ProductsResponse } from "../lib/session.tsx";
 import { Button, Callout, Dialog, ErrorCallout, SelectField, TextArea, TextField } from "../ui/index.tsx";
 
 /**
  * New product, opened in place from the overview or the product switch, so cancelling leaves the
- * person where they were. The team is asked only when they can create in more than one.
+ * person where they were. The team is asked only when they can create in more than one. When the
+ * organization already holds all the products its plan allows, it says so before anything is typed.
  */
 export function CreateProductDialog({ onClose, tenants }: { onClose: () => void; tenants: ProductsResponse["tenants"] }) {
   const qc = useQueryClient();
@@ -20,6 +22,10 @@ export function CreateProductDialog({ onClose, tenants }: { onClose: () => void;
   const [team, setTeam] = useState(teams[0]?.key ?? "");
   const [name, setName] = useState("");
   const [concept, setConcept] = useState("");
+  const limits = useOrganizationLimits(team.split("/")[0] ?? "", Boolean(team));
+  const cap = limits.data?.limits.find((l) => l.key === "products_max")?.value;
+  const held = limits.data?.holds?.products ?? 0;
+  const full = typeof cap === "number" && held >= cap;
   const create = useMutation({
     mutationFn: () => api<{ path: string }>("POST", `/api/v1/teams/${team}/products`, { name: name.trim(), concept }),
     onSuccess: async (p) => {
@@ -39,7 +45,7 @@ export function CreateProductDialog({ onClose, tenants }: { onClose: () => void;
             <Button onClick={onClose} disabled={create.isPending}>
               Cancel
             </Button>
-            <Button variant="primary" busy={create.isPending} busyLabel="Creating…" disabled={!team || !name.trim()} onClick={() => create.mutate()}>
+            <Button variant="primary" busy={create.isPending} busyLabel="Creating…" disabled={!team || !name.trim() || full} onClick={() => create.mutate()}>
               Create product
             </Button>
           </>
@@ -53,7 +59,7 @@ export function CreateProductDialog({ onClose, tenants }: { onClose: () => void;
           className="stack"
           onSubmit={(e) => {
             e.preventDefault();
-            if (team && name.trim()) create.mutate();
+            if (team && name.trim() && !full) create.mutate();
           }}
         >
           {teams.length > 1 ? (
@@ -64,6 +70,12 @@ export function CreateProductDialog({ onClose, tenants }: { onClose: () => void;
                 </option>
               ))}
             </SelectField>
+          ) : null}
+          {full && limits.data ? (
+            <Callout inset tone="attention" title={`${limits.data.organization.name} holds all the products its plan allows`}>
+              Its {limits.data.plan_name} plan allows {cap === 1 ? "1 product that isn’t archived" : `${cap} products that aren’t archived`}, and it has {held}. Archive a product to
+              make room, or ask whoever runs this WhatBuild to move the organization to a larger plan.
+            </Callout>
           ) : null}
           <TextField label="Name" required maxLength={100} value={name} onChange={(e) => setName(e.target.value)} />
           <TextArea label="Product concept" optional rows={3} maxLength={2000} value={concept} onChange={(e) => setConcept(e.target.value)} hint="Who it’s for, their problem, and how the product solves it." />

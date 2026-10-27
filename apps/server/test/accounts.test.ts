@@ -19,7 +19,8 @@ let org: string;
 let P: string;
 let source: string;
 
-const remove = (who: Browser, account_id: string, email: string, confirm = "delete permanently") => who.api("POST", "/api/v1/accounts/remove", { account_id, email, confirm });
+const remove = (who: Browser, account_id: string, email: string, confirm = "delete permanently", delete_organizations?: string[]) =>
+  who.api("POST", "/api/v1/accounts/remove", { account_id, email, confirm, ...(delete_organizations ? { delete_organizations } : {}) });
 
 beforeAll(async () => {
   h = await startHarness({ signupAllowlist: ["root@example.com"], instanceOwners: ["root@example.com"], defaultTenantAllowance: 0 });
@@ -46,7 +47,8 @@ describe("listing accounts", () => {
     expect(r.status).toBe(200);
     const byEmail = (e: string) => r.body.items.find((a: { email: string }) => a.email === e);
     expect(byEmail("root@example.com")).toMatchObject({ instance_owner: true, you: true });
-    expect(byEmail("olive@example.com")).toMatchObject({ instance_owner: false, organizations: [{ slug: org, role: "owner", roles: 0 }], allowance: { allowed: 1, created: 1 } });
+    expect(byEmail("olive@example.com")).toMatchObject({ instance_owner: false, organizations: [{ slug: org, role: "owner", roles: 0, only_owner: true }], allowance: { allowed: 1, created: 1 } });
+    expect(byEmail("pete@example.com").organizations[0].only_owner).toBeUndefined();
     expect(byEmail("pete@example.com")).toMatchObject({ organizations: [{ slug: org, role: null, roles: 1 }], allowance: { allowed: 1, created: 0 } });
     expect(byEmail("pete@example.com").sessions).toBeGreaterThan(0);
     expect(byEmail("pete@example.com").last_seen_at).toBeTruthy();
@@ -77,7 +79,7 @@ describe("removing an account", () => {
     expect((await remove(root, peteId, "pete@example.org")).body.error.code).toBe("typed_email");
   });
 
-  it("refuses an instance owner's account, and the only owner of an organization", async () => {
+  it("refuses an instance owner's account, and the only owner of an organization unless it is named to go too", async () => {
     const rootId = (await h.db.selectFrom("accounts").select("account_id").where("email", "=", "root@example.com").executeTakeFirstOrThrow()).account_id;
     const own = await remove(root, rootId, "root@example.com");
     expect(own.status).toBe(409);
@@ -86,6 +88,10 @@ describe("removing an account", () => {
     expect(alone.status).toBe(409);
     expect(alone.body.error.code).toBe("last_owner");
     expect(alone.body.error.details.organizations).toEqual([{ slug: org, name: "Olive Co" }]);
+    expect(alone.body.error.message).toMatch(/^Olive Owner is the only owner of Olive Co\. Removing the account deletes it too/);
+    // Naming another organization, or none, is no agreement.
+    expect((await remove(root, oliveId, "olive@example.com", "delete permanently", ["somewhere-else"])).body.error.code).toBe("last_owner");
+    expect((await olive.api("GET", `/api/v1/tenants/${org}/limits`)).status).toBe(200);
   });
 
   it("signs the account out, takes its roles with a record, cancels what let it in, and forgets its address", async () => {
@@ -139,5 +145,55 @@ describe("removing an account", () => {
 
   it("answers 404 for an account already removed", async () => {
     expect((await remove(root, peteId, "pete@example.com")).status).toBe(404);
+  });
+});
+
+describe("removing the only owner of an organization", () => {
+  it("deletes the organizations they alone own, with everything in them, once each is named", async () => {
+    const tenantId = (await h.db.selectFrom("tenants").select("tenant_id").where("slug", "=", org).executeTakeFirstOrThrow()).tenant_id;
+    const r = await remove(root, oliveId, "olive@example.com", "delete permanently", [org.toUpperCase()]);
+    expect(r.status, JSON.stringify(r.body)).toBe(200);
+    expect(r.body).toMatchObject({ removed: true, display_name: "Olive Owner", organizations_deleted: [{ slug: org, name: "Olive Co" }], organizations_left: 0 });
+    expect(await h.db.selectFrom("tenants").select("tenant_id").where("tenant_id", "=", tenantId).execute()).toEqual([]);
+    expect(await h.db.selectFrom("memberships").select("membership_id").where("tenant_id", "=", tenantId).execute()).toEqual([]);
+    await sql`select set_config('app.tenant_id', ${tenantId}, false)`.execute(h.db);
+    expect(await h.db.selectFrom("products").select("product_id").where("tenant_id", "=", tenantId).execute()).toEqual([]);
+    await sql`select set_config('app.tenant_id', '', false)`.execute(h.db);
+    expect((await olive.api("GET", "/api/v1/me/products")).status).toBe(401);
+    // The record names what went with the account, and says what stays only of the others.
+    const record = h.mailer.sent.at(-1)!;
+    expect(record.to).toBe("olive@example.com");
+    expect(record.text).toContain("- Olive Co was deleted too, with everything in it: you were its only owner.");
+    expect(record.text).toContain("Anything you added to any other organization stays there");
+  });
+
+  it("refuses a list of organizations for someone who is the only owner of none", async () => {
+    await root.api("PUT", "/api/v1/tenant-allowances", { email: "rae@example.com", allowed: 1, notify: false });
+    await h.signIn("rae@example.com", "Rae Reader");
+    const raeId = (await h.db.selectFrom("accounts").select("account_id").where("email", "=", "rae@example.com").executeTakeFirstOrThrow()).account_id;
+    expect((await remove(root, raeId, "rae@example.com", "delete permanently", ["anything"])).body.error.code).toBe("invalid_input");
+  });
+});
+
+describe("an instance owner deleting an organization", () => {
+  it("may delete any organization, member or not, with its name typed", async () => {
+    await root.api("PUT", "/api/v1/tenant-allowances", { email: "quinn@example.com", allowed: 1, notify: false });
+    const quinn = await h.signIn("quinn@example.com", "Quinn Owner");
+    const t = await quinn.api("POST", "/api/v1/tenants", { name: "Quinn Co" });
+    const slug = t.body.tenant.slug as string;
+    await quinn.api("POST", `/api/v1/teams/${slug}/${t.body.team.slug}/products`, { name: "Quay" });
+    // Someone else in no role there is refused, as before.
+    const rae = await h.signIn("rae@example.com");
+    expect((await rae.api("GET", `/api/v1/tenants/${slug}/delete-impact`)).status).toBe(404);
+    const impact = await root.api("GET", `/api/v1/tenants/${slug}/delete-impact`);
+    expect(impact.status, JSON.stringify(impact.body)).toBe(200);
+    expect(impact.body.contents).toMatchObject({ products: [expect.objectContaining({ name: "Quay" })], people: 1 });
+    expect((await root.api("DELETE", `/api/v1/tenants/${slug}`, { name: "Quinn", reason: "A test organization", confirm: "delete permanently" })).body.error.code).toBe("name_mismatch");
+    const del = await root.api("DELETE", `/api/v1/tenants/${slug}`, { name: "Quinn Co", reason: "A test organization", confirm: "delete permanently" });
+    expect(del.status, JSON.stringify(del.body)).toBe(200);
+    expect(del.body).toMatchObject({ deleted: true, name: "Quinn Co" });
+    expect((await quinn.api("GET", "/api/v1/me/products")).body.tenants).toEqual([]);
+    // Its place is free again: Quinn may start another.
+    expect((await quinn.api("GET", "/api/v1/me")).body.tenant_allowance).toMatchObject({ created: 0, remaining: 1 });
   });
 });

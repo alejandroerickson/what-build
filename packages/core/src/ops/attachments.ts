@@ -73,7 +73,7 @@ async function issueGrant(
   input: { path: string; media_type?: string | undefined; size?: number | undefined },
 ) {
   const cfg = ctx.ports.config;
-  // In a free organization an upload meets the plan's limits, through the relay only, where the size is enforced as the bytes arrive.
+  // In an organization whose plan sets limits, an upload meets them, through the relay only, where the size is enforced as the bytes arrive.
   const limited = ctx.limits && !ctx.limits.guest ? ctx.limits : null;
   const maxBytes = limited ? await uploadLimit(ctx.db, limited, ctx.principal.account_id, input, cfg.fileMaxBytes) : cfg.fileMaxBytes;
   if (input.size !== undefined && input.size > maxBytes) throw tooLarge(`Files are limited to ${maxBytes} bytes.`, { limit: maxBytes });

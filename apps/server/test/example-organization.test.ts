@@ -2,7 +2,7 @@ import { CONTENT_TABLES } from "@whatbuild/core";
 import { sql } from "kysely";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { syncExampleTenant } from "../src/example-organization.ts";
-import { startHarness, type Browser, type Harness } from "./harness.ts";
+import { startHarness, withGuestSettings, type Browser, type Harness } from "./harness.ts";
 import { buildOrganization, type Organization } from "./organization-fixture.ts";
 
 // The example organization: one organization the deployment names, which every signed-in account
@@ -191,21 +191,19 @@ describe("the example organization, for a guest", () => {
     expect((await gus.api("GET", `${P}/outcomes`)).body.items.map((o: { title: string }) => o.title)).toContain("Written by the example's owner");
   });
 
-  it("holds a guest to the limit on calls a minute, and to no daily allowance", async () => {
+  it("holds a guest to the guests' calls a minute, and to no daily allowance but downloads", async () => {
     const limits = await gus.api("GET", `${T}/limits`);
     expect(limits.body).toMatchObject({ plan: "unlimited", you_meet_them: "calls_per_minute_only" });
     expect(limits.body.limits.some((l: { used?: number }) => l.used !== undefined)).toBe(false);
-    await h.db.updateTable("tenants").set({ limits: JSON.stringify({ requests_per_minute: 0 }) }).where("tenant_id", "=", ex.tenant.id).execute();
-    try {
+    // A guest meets the guests' calls a minute, whatever the example organization's plan.
+    await withGuestSettings(h, { requests_per_minute: 0 }, async () => {
       const r = await gus.api("GET", `${P}/outcomes`);
       expect(r.status).toBe(429);
       expect(r.body.error.message).toMatch(/^The example organization allows each person 0 calls a minute/);
       // Its members are on its plan, which is unlimited.
       expect((await ex.owner.api("GET", `${P}/outcomes`)).status).toBe(200);
-    } finally {
-      await h.db.updateTable("tenants").set({ limits: "{}" }).where("tenant_id", "=", ex.tenant.id).execute();
-    }
-    const days = await h.db.selectFrom("limit_counters").select("n").where("account_id", "=", gusId).where("bucket", "=", "day").execute();
+    });
+    const days = await h.db.selectFrom("limit_counters").select("n").where("account_id", "=", gusId).where("bucket", "=", "day").where("counter", "!=", "sent").execute();
     expect(days).toEqual([]);
   });
 

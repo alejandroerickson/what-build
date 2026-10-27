@@ -118,16 +118,18 @@ export interface TenantsTable {
   name: string;
   /** Guards the name and the slug, which its owners and the instance's owners change. */
   name_etag: Def<string>;
-  /** `free` or `unlimited` (`limits.ts`). */
+  /** `free`, `pro` or `unlimited`; each plan's limits are in `limits.ts`. */
   plan: Def<string>;
   status: Def<string>;
   /** The example organization, as the deployment's configuration says. Set by the server at start-up. */
   example: Def<boolean>;
-  /** The limits an instance owner changed from the free plan's; read through `readLimits`, which supplies the rest. */
-  limits: ColumnType<Record<string, unknown>, string | undefined, string>;
-  limits_etag: string | null;
-  limits_updated_at: TsNull;
-  limits_updated_by: JsonNull<ActorSnapshot>;
+  /** Guards a change of plan (`products.set_plan`); null until an instance owner first changes it. */
+  plan_etag: string | null;
+  /** Set while the organization is read-only, back on the starting plan while its creator has another there; kept_until is when its year runs out. */
+  read_only_since: TsNull;
+  kept_until: TsNull;
+  plan_changed_at: TsNull;
+  plan_changed_by: JsonNull<ActorSnapshot>;
   created_at: Ts;
   created_by: Json<ActorSnapshot>;
 }
@@ -236,6 +238,27 @@ export interface FeedbackCountsTable {
   account_id: string;
   day: string;
   sent: number;
+}
+
+/** What an instance owner sets for the whole deployment (`settings.ts`): the guests' settings and each plan's limits and price. */
+export interface InstanceSettingsTable {
+  key: string;
+  value: ColumnType<Record<string, unknown>, string, string>;
+  etag: string;
+  updated_at: Ts;
+  updated_by: JsonNull<ActorSnapshot>;
+}
+
+/** A guest's place (`guests.ts`): in while waiting_since is null and last_active_at is recent, else waiting. */
+export interface GuestPassesTable {
+  account_id: string;
+  first_in_at: TsNull;
+  /** The UTC day seconds_today counts, YYYY-MM-DD. */
+  day: string;
+  seconds_today: Def<number>;
+  last_active_at: TsNull;
+  waiting_since: TsNull;
+  waiting_seen_at: TsNull;
 }
 
 /** A request, from the public site, to hear when WhatBuild opens. Write-only; operators read it directly. */
@@ -759,7 +782,7 @@ export interface TenantAllowancesTable {
   updated_by: Json<ActorSnapshot>;
 }
 
-/** Counters behind the limits of a free organization (`limits.ts`). */
+/** Counters behind the limits of an organization's plan (`limits.ts`). */
 export interface LimitCountersTable {
   tenant_id: string;
   /** The person, or "" for the whole organization. */
@@ -787,6 +810,8 @@ export interface DB {
   feedback: FeedbackTable;
   feedback_counts: FeedbackCountsTable;
   interest: InterestTable;
+  instance_settings: InstanceSettingsTable;
+  guest_passes: GuestPassesTable;
   records: RecordsTable;
   files: FilesTable;
   file_versions: FileVersionsTable;

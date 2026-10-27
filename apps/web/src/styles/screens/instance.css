@@ -23,3 +23,20 @@
   padding-left: 1.2em;
   line-height: var(--lh-body);
 }
+
+/* What someone on the waitlist wrote when they asked. */
+.instance-note {
+  display: block;
+  margin-top: var(--s-1);
+  max-width: var(--measure);
+  color: var(--text);
+  white-space: pre-line;
+}
+
+/* The organizations that go with an account's only owner, one line each. */
+.remove-orgs {
+  margin: var(--s-1h) 0 0;
+  padding-left: var(--s-4);
+  display: grid;
+  gap: var(--s-1);
+}

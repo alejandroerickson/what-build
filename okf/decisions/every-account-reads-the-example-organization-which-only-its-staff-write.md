@@ -48,12 +48,13 @@ and [its connector rule](the-public-sandbox-is-reached-only-through-its-own-conn
 
 - No person reads what a stranger wrote, so planted instructions cannot travel between people.
 - Nobody writes before they have an organization. A new account lands in the example and creates
-  its own when ready, within its allowance and, on a deployment that names the free plan, the
-  [free plan's limits](free-organizations-meet-limits-that-only-instance-owners-change.md).
+  its own when ready, within its allowance and, on a deployment that offers plans, the
+  [limits of the plan new organizations start on](limits-belong-to-plans-and-each-organization-is-on-a-plan-of-its-own.md).
 - Visitors, made-up names, invitation links with places, seats, baselines and the daily reset are
   gone. The example changes only when its staff change it.
-- Each guest meets the example's limit on calls a minute: the free plan's, unless an instance owner
-  changed it.
+- Each guest meets the guests' calls a minute and downloads a day, which an instance owner sets; a
+  guest in no organization at all also needs a place to come in
+  ([decision](guests-come-into-the-example-organization-while-there-is-room.md)).
 - The example organization cannot be deleted while the deployment names it.
 
 ## Constrains

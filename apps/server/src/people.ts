@@ -1,4 +1,9 @@
+import { plansFrom } from "./plans-config.ts";
 import { fileURLToPath } from "node:url";
+
+/** The plans the synthetic organizations are sized against: the example's, which local development offers. Read when first needed. */
+let sizing: ReturnType<typeof plansFrom> | null = null;
+const sizingPlans = () => (sizing ??= plansFrom(fileURLToPath(new URL("../../../deploy/plans.example.json", import.meta.url))));
 
 /**
  * `pnpm people`: a hundred synthetic people (or as many as asked) on a development instance, to try
@@ -24,6 +29,8 @@ export interface PlannedOrganization {
   domain: string;
   /** Who starts it, on an allowance of one. */
   owner: string;
+  /** The smallest plan that holds its people, invitations included: what the instance owner moves it to. */
+  plan: string;
 }
 
 export interface PlannedPerson {
@@ -117,7 +124,7 @@ export function planPeople(count: number = DEFAULT_COUNT): Plan {
     const name = next();
     const slug = orgName.toLowerCase().replace(/&/g, "and").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
     const email = emailOf(name, domain);
-    organizations.push({ name: orgName, slug, domain, owner: email });
+    organizations.push({ name: orgName, slug, domain, owner: email, plan: sizingPlans()[0]?.id ?? "unlimited" });
     people.push({ email, name: name.join(" "), kind: "owner", organizations: [{ slug, role: "owner" }], allowance: 1 });
   }
 
@@ -161,6 +168,11 @@ export function planPeople(count: number = DEFAULT_COUNT): Plan {
     const place = WAITLIST_PLACES[n % WAITLIST_PLACES.length]!;
     const domain = `${place.split(" ")[0]!.toLowerCase()}.example`;
     people.push({ email: emailOf(name, domain), name: name.join(" "), kind: "waitlist", organizations: [], interest: { organization: place, note: WAITLIST_NOTES[n % WAITLIST_NOTES.length]! } });
+  }
+  for (const org of organizations) {
+    const n = people.filter((p) => p.organizations.some((o) => o.slug === org.slug)).length;
+    const fits = (max: number | null) => max === null || n <= max;
+    org.plan = sizingPlans().find((p) => fits(p.limits.members_max))?.id ?? "unlimited";
   }
   return { count, organizations, people, allowlist: `@${organizations[0]!.domain}` };
 }
@@ -275,13 +287,18 @@ export async function addPeople(opts: AddPeopleOptions): Promise<AddPeopleResult
   // Everyone with an account signs in once, which makes it.
   for (const p of plan.people.filter((p) => p.kind === "owner" || p.kind === "member" || p.kind === "signed-in")) await client.signIn(p.email, p.name);
 
-  // Each owner starts their organization on their allowance, then lets in its people and invites the rest.
+  // Each owner starts their organization on their allowance, the instance owner moves it to the plan
+  // that holds its people, and its owner lets them in and invites the rest.
   for (const org of plan.organizations) {
     const mine = must(await client.call(org.owner, "GET", "/api/v1/me/products"), `Listing ${org.owner}'s organizations`);
     if (!(mine.tenants ?? []).some((t: { slug: string }) => t.slug === org.slug)) {
       must(await client.call(org.owner, "POST", "/api/v1/tenants", { name: org.name, slug: org.slug }), `Starting ${org.name}`);
       added.organizations++;
     }
+    const listedOrgs = must(await client.call(owner, "GET", "/api/v1/organizations"), "Listing organizations");
+    const now = (listedOrgs.items ?? []).find((o: { slug: string }) => o.slug === org.slug) as { plan: string; etag: string | null } | undefined;
+    if (now && now.plan !== org.plan)
+      must(await client.call(owner, "PATCH", "/api/v1/organizations/plan", { tenant: org.slug, plan: org.plan, ...(now.etag ? { expected_etag: now.etag } : {}) }), `Moving ${org.name} to the ${org.plan} plan`);
     const listed = must(await client.call(org.owner, "GET", `/api/v1/tenants/${org.slug}/members`), `Listing ${org.name}'s members`);
     const roleOf = new Map<string, string>();
     for (const m of listed.members ?? []) for (const g of m.grants ?? []) if (g.scope_type === "tenant") roleOf.set(m.email.toLowerCase(), g.role);

@@ -985,6 +985,7 @@ export const deleteMockup = defineOperation({
   scope: "product",
   access: "admin",
   mutates: true,
+  allowReadOnlyOrganization: true,
   summary: "DELETE PERMANENTLY — cannot be undone. Destroys a mockup with every version; archive is the reversible alternative.",
   description:
     'Archiving (mockups_write(action="archive")) is the reversible alternative and almost always what is wanted. Refused with 409 mockup_on_story while a Story page shows it. ' +

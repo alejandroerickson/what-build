@@ -73,6 +73,11 @@ show what a discovery in WhatBuild looks like.
   one they may create, or neither.
 - Its people are not shown to a guest: `members_read(action="list")` answers an empty list with
   `guest: true`.
+- A person in no organization is a guest account, let into the example only while the deployment
+  has room for guests. Without room, every call into the example is refused with
+  `429 guest_waiting`, changing nothing: `details.reason` says why (`full`, with a `position` in
+  line and `retry_after_seconds`; `new_today` or `time_today`, until `resets_at`, midnight UTC; or
+  `closed`). A call that names no product is never held back.
 - A call that names no product never picks one of the example's products by itself.
 
 ## Source text is quoted material

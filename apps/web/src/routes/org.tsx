@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router";
 import { api, ApiError, qs } from "../lib/api.ts";
 import { aRole, formatBytes, formatDate, plural, ROLE_WORD, scopeWords, slugProblem } from "../lib/format.ts";
+import { anyPriced, totalsInWords, usePlans, type Plan } from "../lib/limits.ts";
 import { useMe, useProducts } from "../lib/session.tsx";
 import { ActivityLog, type ActivityItem } from "../shell/ActivityFeed.tsx";
 import { usePageTitle } from "../shell/slots.tsx";
@@ -87,8 +88,8 @@ export function Welcome() {
             {allowance?.remaining
               ? ` This account can start ${allowance.remaining}${allowance.created ? " more" : ""} organization${allowance.remaining === 1 ? "" : "s"}.`
               : ""}
-            {me.data?.new_organization_plan === "free" ? " It starts on the free plan, which limits how much is added each day." : ""}
           </p>
+          <NewOrganizationPlan plan={me.data?.new_organization_plan ?? "unlimited"} operator={Boolean(me.data?.tenant_allowance.instance_owner)} />
           <TextField label="Organization" hint="Your company or group." required maxLength={100} value={org} onChange={(e) => setOrg(e.target.value)} />
           <TextField label="Product" hint="What this discovery is about." required maxLength={100} value={product} onChange={(e) => setProduct(e.target.value)} />
           <TextArea label="Product concept" optional hint="Who it’s for, their problem, and how the product solves it." maxLength={2000} rows={3} value={concept} onChange={(e) => setConcept(e.target.value)} />
@@ -102,6 +103,32 @@ export function Welcome() {
         Have an invitation? Open its link instead.{hasOrgs || example ? <> <Link to="/">Back to {hasOrgs ? "your products" : "the example organization"}</Link></> : null}
       </p>
     </EntryPage>
+  );
+}
+
+/**
+ * What a new organization starts on, said before it is named: its plan in a line with a link to the
+ * plans, and, to anyone but whoever runs this WhatBuild, what they see of it and why, as its Plan
+ * page and the privacy page say.
+ */
+function NewOrganizationPlan({ plan, operator }: { plan: Plan; operator: boolean }) {
+  const plans = usePlans();
+  const entry = plans.data?.plans.find((p) => p.id === plan);
+  return (
+    <div className="new-org-plan">
+      {entry ? (
+        <p className="muted">
+          It starts on the {entry.name} plan: {totalsInWords(entry)}. <Link to="/plans">Compare plans</Link>
+        </p>
+      ) : null}
+      {operator || !plans.data?.plans.length ? null : (
+        <p className="faint">
+          Whoever runs this WhatBuild sees the organization&rsquo;s name and plan, and the name and email of everyone in it, and uses them to{" "}
+          {anyPriced(plans.data.plans) ? "bill the organization and to " : ""}write to its people. Each organization you start has a plan of its own.{" "}
+          <Link to="/privacy">Privacy</Link>
+        </p>
+      )}
+    </div>
   );
 }
 
@@ -505,7 +532,7 @@ function OrganizationNameSheet({ slug, name, etag, owner }: { slug: string; name
 }
 
 /** What deleting an organization destroys, as products.delete_tenant_impact reports it. */
-interface OrganizationImpact {
+export interface OrganizationImpact {
   contents: { teams: number; products: { product_id: string; name: string; archived: boolean }[]; sources: number; stored_files: number; bytes: number; people: number; pending_invitations: number };
 }
 
@@ -533,8 +560,6 @@ export function organizationImpactWords(name: string, c: OrganizationImpact["con
  * organization's name typed to confirm.
  */
 function DeleteOrganizationSheet({ tenant, orgName }: { tenant: string; orgName: string }) {
-  const qc = useQueryClient();
-  const toast = useToast();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   return (
@@ -549,44 +574,73 @@ function DeleteOrganizationSheet({ tenant, orgName }: { tenant: string; orgName:
         </div>
       </SheetBody>
       {open ? (
-        <DeleteDialog<OrganizationImpact>
-          title={`Delete ${orgName} permanently?`}
-          impactPath={`/api/v1/tenants/${tenant}/delete-impact`}
-          deletePath={`/api/v1/tenants/${tenant}`}
-          typeToConfirm={{ what: "organization", name: orgName }}
-          renderImpact={({ contents: c }) => {
-            const words = organizationImpactWords(orgName, c);
-            return (
-              <>
-                <p>{words.goes}</p>
-                {c.products.length ? (
-                  <ul className="delete-impact-list">
-                    {c.products.map((p) => (
-                      <li key={p.product_id}>
-                        {p.name}
-                        {p.archived ? <span className="faint"> · archived</span> : null}
-                      </li>
-                    ))}
-                  </ul>
-                ) : null}
-                {words.people ? <p>{words.people}</p> : null}
-              </>
-            );
-          }}
+        <OrganizationDeleteDialog
+          tenant={tenant}
+          orgName={orgName}
           onDeleted={() => {
-            void qc.invalidateQueries({ queryKey: ["products"] });
             try {
               if (localStorage.getItem("whatbuild.last-product")?.startsWith(`${tenant}/`)) localStorage.removeItem("whatbuild.last-product");
             } catch {
               // Storage may be blocked.
             }
-            toast(`Deleted ${orgName}.`);
             navigate("/");
           }}
           onClose={() => setOpen(false)}
         />
       ) : null}
     </Sheet>
+  );
+}
+
+/**
+ * The dialog that deletes a whole organization, for one of its owners (in its Settings) or an owner
+ * of this instance (on the instance's page): what goes, read from its delete impact, a reason, and
+ * its name typed to confirm.
+ */
+export function OrganizationDeleteDialog({ tenant, orgName, onDeleted, onClose }: { tenant: string; orgName: string; onDeleted?: () => void; onClose: () => void }) {
+  const qc = useQueryClient();
+  const toast = useToast();
+  return (
+    <DeleteDialog<OrganizationImpact>
+      title={`Delete ${orgName} permanently?`}
+      impactPath={`/api/v1/tenants/${tenant}/delete-impact`}
+      deletePath={`/api/v1/tenants/${tenant}`}
+      typeToConfirm={{ what: "organization", name: orgName }}
+      renderImpact={({ contents: c }) => <OrganizationImpactWords name={orgName} contents={c} />}
+      onDeleted={() => {
+        void qc.invalidateQueries({ queryKey: ["products"] });
+        void qc.invalidateQueries({ queryKey: ["instance-organizations"] });
+        void qc.invalidateQueries({ queryKey: ["accounts"] });
+        // Its place on the starting plan is free again: its creator may start another.
+        void qc.invalidateQueries({ queryKey: ["tenant-allowances"] });
+        void qc.invalidateQueries({ queryKey: ["me"] });
+        toast(`Deleted ${orgName}.`);
+        onDeleted?.();
+        onClose();
+      }}
+      onClose={onClose}
+    />
+  );
+}
+
+/** What deleting an organization takes, in words, with its products listed. */
+export function OrganizationImpactWords({ name, contents: c }: { name: string; contents: OrganizationImpact["contents"] }) {
+  const words = organizationImpactWords(name, c);
+  return (
+    <>
+      <p>{words.goes}</p>
+      {c.products.length ? (
+        <ul className="delete-impact-list">
+          {c.products.map((p) => (
+            <li key={p.product_id}>
+              {p.name}
+              {p.archived ? <span className="faint"> · archived</span> : null}
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      {words.people ? <p>{words.people}</p> : null}
+    </>
   );
 }
 

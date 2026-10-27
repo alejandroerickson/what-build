@@ -285,7 +285,7 @@
   border-radius: inherit;
   background: var(--muted);
 }
-.limits-bar[data-full] > span {
+.limits-bar[data-state="full"] > span {
   background: var(--warn);
 }
 .limits-lines {
@@ -307,4 +307,129 @@
   .limits-bar {
     grid-column: 1 / -1;
   }
+}
+
+/* An organization's plan in a line: its name, its price, then what it means. */
+.plan-summary {
+  display: grid;
+  gap: var(--s-2h);
+}
+.plan-summary > p {
+  margin: 0;
+  max-width: var(--measure);
+  line-height: var(--lh-body);
+}
+.plan-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--s-1) var(--s-3);
+}
+.plan-word {
+  font-size: var(--fs-h1);
+  font-weight: var(--fw-semibold);
+  letter-spacing: -0.01em;
+  line-height: var(--lh-tight);
+}
+.plan-price {
+  color: var(--muted);
+  font-size: var(--fs-title);
+  font-weight: var(--fw-medium);
+}
+.plan-visibility {
+  display: flex;
+  gap: var(--s-1h);
+  align-items: flex-start;
+  font-size: var(--fs-sm);
+}
+.plan-visibility > .glyph {
+  flex: none;
+  margin-top: 2px;
+}
+
+/* A total or an allowance: its name and what it counts, then how much is used. */
+.limits-allowance-what {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+}
+.limits-allowance-what .limits-help {
+  margin-top: 0;
+}
+.limits-allowance-count {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-1) var(--s-2);
+}
+.limits-restart {
+  font-size: var(--fs-sm);
+}
+
+/* Choosing an organization's plan. */
+.plan-choices {
+  display: grid;
+  gap: var(--s-2);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.instance-row-link {
+  color: inherit;
+  text-decoration: none;
+}
+.instance-row-link:hover {
+  text-decoration: underline;
+  text-decoration-color: var(--line-strong);
+  text-underline-offset: 2px;
+}
+
+/* A total that may have no limit: its field, then the choice of none. */
+.limits-nolimit {
+  margin-left: var(--s-2);
+  color: var(--muted);
+  white-space: nowrap;
+}
+.limits-number .input:disabled {
+  color: var(--faint);
+}
+
+/* The guests in at a glance, then their settings and Save. */
+.guests-now {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2) var(--s-7);
+  margin: var(--s-1) 0 0;
+}
+.guests-now > div {
+  display: grid;
+  gap: 1px;
+}
+.guests-now dt {
+  color: var(--faint);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-medium);
+}
+.guests-now dd {
+  margin: 0;
+  font-size: var(--fs-title);
+  font-weight: var(--fw-semibold);
+}
+.guests-now dd .faint {
+  font-size: var(--fs-base);
+  font-weight: var(--fw-regular);
+}
+.guests-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--s-2) var(--s-3);
+  padding: var(--s-3) var(--sheet-px);
+  border-top: 1px solid var(--line);
+}
+.guests-actions > .faint {
+  margin-right: auto;
+  font-size: var(--fs-sm);
 }

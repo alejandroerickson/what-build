@@ -47,10 +47,14 @@
 #   MAX_INSTANCES       the most instances that run at once, default 1; each one kept busy all month
 #                       costs roughly US$62 in northamerica-northeast2, so this is also the
 #                       ceiling on the service's instance time
-#   NEW_ORGANIZATION_PLAN   free or unlimited: the plan of an organization someone other than an
-#                       instance owner creates (optional; unlimited when left out). A deployment
-#                       open to the public sets free; one for an organization's own people leaves
-#                       it out.
+#   PLANS_FILE          the path of the deployment's plans, as JSON (deploy/plans.example.json is
+#                       the form; optional). Kept outside this repository, with the deployment's
+#                       own settings, and stored as the secret whatbuild-plans. Left out, the
+#                       deployment offers no plans and every organization is unlimited.
+#   NEW_ORGANIZATION_PLAN   the plan of an organization someone other than an instance owner
+#                       creates: one PLANS_FILE defines (optional; unlimited when left out). A
+#                       deployment open to the public names its free plan; one for an
+#                       organization's own people leaves both out.
 #   EXAMPLE_TENANT      the slug of the example organization every account reads (optional, and
 #                       for the maintainer's public deployment only: a self-hosted deployment leaves
 #                       it out). The organization must exist: create it in the app, then re-run.
@@ -174,10 +178,11 @@ $G secrets add-iam-policy-binding whatbuild-grant-key --member "serviceAccount:$
 SECRETS="DATABASE_URL=whatbuild-database-url:latest,WHATBUILD_GRANT_KEY=whatbuild-grant-key:latest"
 if [ -n "${SMTP_URL:-}" ]; then secret whatbuild-smtp-url "$SMTP_URL"; fi
 if [ -n "${GOOGLE_CLIENT_SECRET:-}" ]; then secret whatbuild-google-client-secret "$GOOGLE_CLIENT_SECRET"; fi
+if [ -n "${PLANS_FILE:-}" ]; then secret whatbuild-plans "$(cat "$PLANS_FILE")"; fi
 # Each of these may also be created by hand in Secret Manager, and the service uses it whenever it
 # exists. The edge key always is, once the Cloudflare Worker is in front and has it
 # (okf/operations/cloud-run.md, A custom domain).
-for pair in WHATBUILD_SMTP_URL=whatbuild-smtp-url WHATBUILD_GOOGLE_CLIENT_SECRET=whatbuild-google-client-secret WHATBUILD_EDGE_KEY=whatbuild-edge-key; do
+for pair in WHATBUILD_SMTP_URL=whatbuild-smtp-url WHATBUILD_GOOGLE_CLIENT_SECRET=whatbuild-google-client-secret WHATBUILD_EDGE_KEY=whatbuild-edge-key WHATBUILD_PLANS=whatbuild-plans; do
   if $G secrets describe "${pair#*=}" >/dev/null 2>&1; then
     $G secrets add-iam-policy-binding "${pair#*=}" --member "serviceAccount:$RUNTIME_SA" --role roles/secretmanager.secretAccessor >/dev/null
     SECRETS="$SECRETS,$pair:latest"

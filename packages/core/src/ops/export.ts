@@ -62,6 +62,7 @@ export const exportProduct = defineOperation({
   scope: "product",
   access: "read",
   mutates: true,
+  allowReadOnlyOrganization: true,
   // No archiving stops an export; only the free plan's daily allowance limits it.
   allowArchivedProduct: true,
   summary:

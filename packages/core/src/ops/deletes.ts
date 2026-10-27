@@ -96,6 +96,7 @@ export const deleteProduct = defineOperation({
   scope: "product",
   access: "admin",
   mutates: true,
+  allowReadOnlyOrganization: true,
   allowArchivedProduct: true,
   summary: "DELETE PERMANENTLY — cannot be undone. Destroys a whole product and everything in it; archive is the reversible alternative (product admins).",
   description:
@@ -164,8 +165,8 @@ export const deleteProduct = defineOperation({
 /** Every table that holds an organization's rows and is not its content, children first. */
 const ORGANIZATION_TABLES = ["jobs", "limit_counters", "exports", "upload_grants", "mockup_uploads", "story_previews", "card_previews", "tenant_slugs"] as const;
 
-async function organizationDeletion(ctx: OpContext) {
-  const tid = tenantId(ctx);
+/** What deleting an organization destroys, read inside its scope (`app.tenant_id` set to it). */
+export async function organizationDeletion(ctx: OpContext, tid: string = tenantId(ctx)) {
   const db = ctx.db;
   const t = await db.selectFrom("tenants").select(["tenant_id", "slug", "name", "example"]).where("tenant_id", "=", tid).executeTakeFirstOrThrow();
   const products = await db.selectFrom("products").select(["product_id", "name", "archived_at"]).where("tenant_id", "=", tid).orderBy("name").execute();
@@ -196,7 +197,7 @@ async function organizationDeletion(ctx: OpContext) {
   };
 }
 
-function refuseExample(d: { example: boolean; name: string }): void {
+export function refuseExample(d: { example: boolean; name: string }): void {
   if (d.example) throw conflict("example_organization", `${d.name} is this deployment's example organization, which every account reads, so it can't be deleted. Name another one where the service is deployed (WHATBUILD_EXAMPLE_TENANT) first. Nothing was changed.`);
 }
 
@@ -206,8 +207,9 @@ export const organizationDeleteImpact = defineOperation({
   access: "owner",
   mutates: false,
   webOnly: true,
-  summary: "Preview exactly what deleting an organization would destroy (owners, in the web app).",
-  description: "Read-only. What the web app shows an owner before they delete the organization: its teams, products, sources, files and people.",
+  allowInstanceOwners: true,
+  summary: "Preview exactly what deleting an organization would destroy (its owners and the instance's, in the web app).",
+  description: "Read-only. What the web app shows before an organization is deleted, to one of its owners or an owner of this instance: its teams, products, sources, files and people.",
   input: z.strictObject({ tenant: z.string().min(1) }),
   rest: { method: "GET", path: "/delete-impact" },
   mcp: { tool: "products", action: "delete_tenant_impact" },
@@ -221,10 +223,12 @@ export const deleteOrganization = defineOperation({
   scope: "tenant",
   access: "owner",
   mutates: true,
+  allowReadOnlyOrganization: true,
   webOnly: true,
-  summary: "DELETE PERMANENTLY — cannot be undone. Destroys an organization and everything in it (owners, in the web app).",
+  allowInstanceOwners: true,
+  summary: "DELETE PERMANENTLY — cannot be undone. Destroys an organization and everything in it (its owners and the instance's, in the web app).",
   description:
-    `An owner's act in the web app, never an agent's. Needs the organization's name typed exactly, a reason, and confirm set to exactly "${DELETE_CONFIRMATION}". ` +
+    `An act in the web app, never an agent's, of one of the organization's owners or an owner of this instance, who may delete any organization. Needs the organization's name typed exactly, a reason, and confirm set to exactly "${DELETE_CONFIRMATION}". ` +
     "Everything goes at once, from the product and from the file store shortly after; the example organization can't be deleted.",
   input: z.strictObject({ tenant: z.string().min(1), reason: deleteGuards.reason, confirm: deleteGuards.confirm, name: typedName("organization") }),
   rest: { method: "DELETE", path: "" },
@@ -237,26 +241,35 @@ export const deleteOrganization = defineOperation({
     checkTypedName(input.name, t.name, "organization");
     refuseExample(t);
     const impact = await organizationDeletion(ctx);
-
-    const versions = await db.selectFrom("file_versions").select("blob_key").where("tenant_id", "=", tid).execute();
-    const grants = await db.selectFrom("upload_grants").select("blob_key").where("tenant_id", "=", tid).where("uploaded_at", "is not", null).execute();
-    const exports = await db.selectFrom("exports").select("blob_key").where("tenant_id", "=", tid).execute();
-    const canvases = await db.selectFrom("mockup_uploads").select("blob_key").where("tenant_id", "=", tid).where("uploaded_at", "is not", null).where("used_at", "is", null).execute();
-    const prototypes = await db.selectFrom("mockup_prototype_files").select("blob_key").distinct().where("tenant_id", "=", tid).execute();
-    const derivations = await db.selectFrom("derivations").select("blob_prefix").where("tenant_id", "=", tid).execute();
-    const keys = [...new Set([...versions, ...grants, ...exports, ...canvases, ...prototypes].map((r) => r.blob_key).filter((k): k is string => Boolean(k)))];
-
-    for (const table of ORGANIZATION_TABLES) await sql`delete from ${sql.table(table)} where tenant_id = ${tid}`.execute(db);
-    // Content, children before what they refer to.
-    for (const table of [...CONTENT_TABLES].reverse()) await sql`delete from ${sql.table(table)} where tenant_id = ${tid}`.execute(db);
-    await db.deleteFrom("invitations").where("tenant_id", "=", tid).execute();
-    await db.deleteFrom("memberships").where("tenant_id", "=", tid).execute();
-    await db.deleteFrom("tenants").where("tenant_id", "=", tid).execute();
-
-    // The bytes go after the rows, on jobs that outlive the organization.
-    await dropBlobs(ctx, keys, derivations.map((d) => d.blob_prefix));
+    await destroyOrganization(ctx, tid);
     return { deleted: true, ...impact, reason: input.reason };
   },
 });
+
+/**
+ * Delete an organization and everything in it, inside its scope (`app.tenant_id` set to it): its
+ * rows now, children first, and its bytes on jobs that outlive it. Deleting it, and removing the
+ * account of its only owner, both come here.
+ */
+export async function destroyOrganization(ctx: OpContext, tid: string): Promise<void> {
+  const db = ctx.db;
+  const versions = await db.selectFrom("file_versions").select("blob_key").where("tenant_id", "=", tid).execute();
+  const grants = await db.selectFrom("upload_grants").select("blob_key").where("tenant_id", "=", tid).where("uploaded_at", "is not", null).execute();
+  const exports = await db.selectFrom("exports").select("blob_key").where("tenant_id", "=", tid).execute();
+  const canvases = await db.selectFrom("mockup_uploads").select("blob_key").where("tenant_id", "=", tid).where("uploaded_at", "is not", null).where("used_at", "is", null).execute();
+  const prototypes = await db.selectFrom("mockup_prototype_files").select("blob_key").distinct().where("tenant_id", "=", tid).execute();
+  const derivations = await db.selectFrom("derivations").select("blob_prefix").where("tenant_id", "=", tid).execute();
+  const keys = [...new Set([...versions, ...grants, ...exports, ...canvases, ...prototypes].map((r) => r.blob_key).filter((k): k is string => Boolean(k)))];
+
+  for (const table of ORGANIZATION_TABLES) await sql`delete from ${sql.table(table)} where tenant_id = ${tid}`.execute(db);
+  // Content, children before what they refer to.
+  for (const table of [...CONTENT_TABLES].reverse()) await sql`delete from ${sql.table(table)} where tenant_id = ${tid}`.execute(db);
+  await db.deleteFrom("invitations").where("tenant_id", "=", tid).execute();
+  await db.deleteFrom("memberships").where("tenant_id", "=", tid).execute();
+  await db.deleteFrom("tenants").where("tenant_id", "=", tid).execute();
+
+  // The bytes go after the rows, on jobs that outlive the organization.
+  await dropBlobs(ctx, keys, derivations.map((d) => d.blob_prefix));
+}
 
 export const deleteOps = [productDeleteImpact, deleteProduct, organizationDeleteImpact, deleteOrganization];

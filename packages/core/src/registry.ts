@@ -48,6 +48,8 @@ export interface TenantRef {
   example?: boolean;
   /** The organization's plan, which decides whether anyone in it meets limits. */
   plan?: Plan;
+  /** Read-only: back on the starting plan while its creator has another there. People read and export it until kept_until. */
+  read_only?: { since: string; kept_until: string | null };
 }
 export interface TeamRef {
   team_id: string;
@@ -124,6 +126,8 @@ export interface OperationDef<I extends z.ZodType = z.ZodType, O = unknown, P = 
   mcp: { tool: string; action?: string };
   /** Writes allowed while the product is archived (restore, and deleting the product). */
   allowArchivedProduct?: boolean;
+  /** Writes allowed while the organization is read-only, its Pro plan no longer paid for: an export, a permanent delete, taking someone out. */
+  allowReadOnlyOrganization?: boolean;
   /**
    * The connection level an agent needs to call it, when its access alone does not say: by default
    * `admin` and `owner` need admin, `write` and any other write need editor, and reads need viewer.

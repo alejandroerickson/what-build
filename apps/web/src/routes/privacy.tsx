@@ -3,6 +3,7 @@ import { ACCOUNT_DELETION } from "@whatbuild/core/account-deletion";
 import type { ReactNode } from "react";
 import { Link } from "react-router";
 import { api } from "../lib/api.ts";
+import { anyPriced, usePlans } from "../lib/limits.ts";
 import { ButtonLink, ErrorCallout, Loading, Sheet, SheetBody, SheetHeader } from "../ui/index.tsx";
 import { EntryPage } from "./auth.tsx";
 import "../styles/screens/cookies.css";
@@ -48,6 +49,10 @@ function Kept({ lead, children }: { lead: string; children: ReactNode }) {
 export function PrivacyPage() {
   const q = useQuery({ queryKey: ["meta"], queryFn: () => api<{ privacy: Privacy }>("GET", "/api/v1/meta"), staleTime: Infinity });
   const p = q.data?.privacy;
+  // What this deployment offers decides what it says of plans: a self-hosted one offers none.
+  const plans = usePlans();
+  const offered = Boolean(plans.data?.plans.length);
+  const lapses = offered && plans.data?.starting_plan !== "unlimited";
   const ask = p?.contact ? <Contact to={p.contact} /> : "whoever runs this WhatBuild";
   return (
     <EntryPage title="Privacy · WhatBuild" wide>
@@ -89,6 +94,12 @@ export function PrivacyPage() {
                   Your email address, your name, and how you sign in (an email link, Google or Microsoft). To sign you in and show your name on what you add. Kept while you have
                   the account.
                 </Kept>
+                <Kept lead="Your organizations.">
+                  The name of each organization you start or join, {offered ? "its plan, " : ""}who is in it with their names and emails, and how much it holds. The people who run
+                  this WhatBuild see these, {anyPriced(plans.data?.plans) ? "to bill each organization for its plan and " : ""}to write to its people about their accounts and their organizations. Kept
+                  while the organization exists
+                  {lapses ? "; one that goes back to the plan new organizations start on while whoever started it has another there stays, read-only, for a year" : ""}.
+                </Kept>
                 <Kept lead="What you add.">
                   Sources and their attachments, texts, summaries, notes and comments, assumptions and reviews, outcomes, mockups, the Story, and a log of who changed what. To run WhatBuild for
                   your organization, which decides who may see it. Kept until it is deleted.
@@ -97,9 +108,13 @@ export function PrivacyPage() {
                   Your sessions, with the browser each began in, and the agents you connect, by the name each gives itself. To keep you signed in and let your agents work. A session
                   lasts {p.session_days} days; an agent stays connected while it is used at least every {p.agent_access_days} days, or until you disconnect it.
                 </Kept>
+                <Kept lead="Your place as a guest.">
+                  If you are in no organization and read the example organization as a guest: when you first came in, how long you were in today, and when you last
+                  called or are waiting in line. To share the places guests have fairly. Kept while you have the account.
+                </Kept>
                 <Kept lead="Counts against limits.">
-                  How many changes you make, sources you add, exports you take and bytes you upload in each organization each day and, where its plan limits them, how many
-                  calls you make each minute. To hold the organization to its plan’s limits. A day’s counts are deleted after three days, a minute’s after an hour.
+                  How many changes you make, sources you add, exports you take, and bytes you upload and are sent in each organization each day and, where its plan limits
+                  them, how many calls you make each minute. To hold the organization to its plan’s limits. A day’s counts are deleted after three days, a minute’s after an hour.
                 </Kept>
                 <Kept lead="Request logs.">
                   For each request: what was asked, its address with names and ids taken out, the answer and how long it took. The host may also record the internet address the
@@ -117,14 +132,14 @@ export function PrivacyPage() {
                   </Kept>
                 ) : null}
                 <Kept lead="What you send.">
-                  Feedback from you or your agent, without your name or your address unless you share it to be answered, and a request on the public site to hear when
-                  WhatBuild opens. To answer it and improve WhatBuild; feedback may go once a day by email to the people who run this WhatBuild. Kept until it is no longer
-                  needed, or until you ask for it to be removed.
+                  Feedback from you or your agent, without your name or your address unless you share it to be answered, and a request for an organization of your own, from the
+                  app or the public site, with your name and email. To answer them, let you start an organization and improve WhatBuild; feedback may go once a day by email to
+                  the people who run this WhatBuild. Kept until no longer needed, or until you ask for it to be removed.
                 </Kept>
                 <Kept lead="Backups.">Copies of the database, to recover from a failure. Kept for a limited time, then deleted.</Kept>
               </ul>
               <p className="cookie-kind privacy-grounds">
-                Your account, what you add, your sessions, your agents and the counts against limits are kept because you use WhatBuild. Request logs and the counts of use are kept because running WhatBuild
+                Your account, your organizations, what you add, your sessions, your agents and the counts against limits are kept because you use WhatBuild. Request logs and the counts of use are kept because running WhatBuild
                 safely and making it better needs them; you may object to them. Analytics runs only if you accept it.
               </p>
             </SheetBody>

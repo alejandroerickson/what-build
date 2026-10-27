@@ -25,8 +25,8 @@ let an organization's owner delete the organization.
   pages, mockups and whole products. Editors no longer delete sources.
 - Every delete needs an explicit call after its preview, the object's etag, a reason and the exact
   words `delete permanently`, and leaves a tombstone. A product or organization is also named.
-- Deleting an organization is its owner's, in the web app only, never through an agent; the
-  example organization can't be deleted while the deployment names it.
+- Deleting an organization is its owners' or an instance owner's, in the web app only, never
+  through an agent; the example organization can't be deleted while the deployment names it.
 - Rejected: a grace period for an organization, until undelete exists; a separate delete
   permission beside the roles.
 - The interface never calls archiving deleting.

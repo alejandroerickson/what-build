@@ -92,7 +92,7 @@ export interface CoreConfig {
   /** Organizations an address may create when no instance owner has given it an allowance. 0 when absent. */
   defaultTenantAllowance?: number;
   /** The plan of an organization someone other than an instance owner creates (`limits.ts`). Unlimited when absent. */
-  newOrganizationPlan?: "free" | "unlimited";
+  newOrganizationPlan?: string;
   /** The key people's use is counted under (`usage.ts`); without it calls are counted and people are not. */
   usageKey?: string;
   /** Where the daily feedback digest goes (`feedback.ts`); null or absent, feedback stays in the database. */

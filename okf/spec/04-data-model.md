@@ -602,7 +602,7 @@ and `?theme=light|dark`. Publishing the same call then stores a version whose `h
 preview's, unless the page or the Story style changed in between. A preview lasts as long as its
 grant (30 minutes by default) and a product keeps its 20 newest; it is refused where publish would
 be (a viewer, a guest of the example organization, an archived product, a plan that switched
-writing off) and takes nothing from a free organization's daily allowances ([§9.7](09-data-lifecycle.md),
+writing off) and takes nothing from a plan's daily allowances ([§9.7](09-data-lifecycle.md),
 [decision](../decisions/a-story-preview-is-the-document-publish-would-store.md)).
 
 **Notes for agents.** Each page has one Markdown note, `agent_notes` (≤ 20,000 chars), that agents
@@ -794,7 +794,7 @@ working prototypes needs and a Story page does not have (§4.11):
 - No `<iframe>`, `<frame>`, `<frameset>`, `<object>`, `<embed>`, `<portal>`, `<link>`, `<base>`,
   or `<meta http-equiv>`.
 
-An organization on the free plan has the same rules, and its plan's cap on what one field holds
+An organization on a plan with limits has the same rules, and its plan's cap on what one field holds
 ([§9.7](09-data-lifecycle.md)). Every refusal names the mockup page, never the Story.
 ◆ Decision: a version is the whole canvas, not one page. The pages of a canvas are read and
 compared together, so they are published, numbered and downloaded together.
@@ -803,8 +803,8 @@ compared together, so they are published, numbered and downloaded together.
 the call. `mockups.request_upload { size? }` returns a grant, `{ upload_id, method: "PUT", url,
 headers, max_bytes, expires_at, next }`, for one PUT of the ZIP to the upload relay (§6.7); a
 `size` over `max_bytes` is refused at once (`413 too_large`). `max_bytes` is 25 MB, or the relay's
-limit when that is lower. An organization on the free plan is refused (`403 plan_restricted`): its
-text is capped field by field, so it publishes pages in the call. `mockups.publish { upload_id }`
+limit when that is lower. An organization on a plan with limits is refused (`403 plan_restricted`):
+its text is capped field by field, so it publishes pages in the call. `mockups.publish { upload_id }`
 then reads the ZIP, in `get_download`'s layout, so a downloaded version round-trips:
 
 - `manifest.json` lists the canvas's pages in order, `[{ page_id, title?, width?, height?,
@@ -959,19 +959,22 @@ transaction, so a send that fails leaves them for the next try ([mail](../operat
 Otherwise reports stay in the database for whoever runs the deployment
 (◆ [decision](../decisions/feedback-names-nobody-and-reaches-the-maintainers-in-a-daily-digest.md)).
 
-**Interest.** The public site's form (`POST /api/v1/interest { email, name?, organization?,
-note? }`, no sign-in) records someone asking to hear when WhatBuild opens: `email` ≤ 320 chars,
+**Interest: the waitlist.** The public site's form (`POST /api/v1/interest { email, name?,
+organization?, note? }`, no sign-in) records someone asking for an organization of their own, and so
+does a signed-in person who may not start one (`POST /api/v1/me/ask-for-organization`,
+[§3.2](03-accounts-teams-and-identity.md#32-accounts-and-sign-in)), under their account's address
+and name: `email` ≤ 320 chars,
 `name` and `organization` ≤ 200, `note` ≤ 2,000. One row per address, compared without case; a
 repeat updates the fields it sends. The answer is the same `{ received: true }` for a new address,
 a repeat and a bot (a hidden `website` field), so it never reveals who asked. New rows are limited
-to 200 an hour across the site (`429 rate_limited`). Not tenant content and not an operation;
-write-only like feedback
-([decision](../decisions/the-public-site-is-one-page-built-with-the-app.md)).
+to 200 an hour across the site (`429 rate_limited`). Not tenant content. Instance owners read it as
+the waitlist in `products.tenant_allowances`, which leaves out anyone given an allowance
+([decision](../decisions/the-public-site-is-pages-built-with-the-app.md)).
 
 ## 4.14 The product bundle
 
 A product exports to a single ZIP (`products.export`, open to every role on the product but a
-reader, who reads only the Story; the free plan limits how many exports each person makes a day,
+reader, who reads only the Story; a plan may limit how many exports each person makes a day,
 and a guest of the example organization exports nothing, [§9.7](09-data-lifecycle.md)).
 A worker job builds it; it can be downloaded for seven days ([`export.ts`](../../packages/core/src/ops/export.ts)).
 Its README.txt names every kind of file below and what each holds, and `bundle.json`'s `layout`
@@ -1031,13 +1034,31 @@ activity.jsonl
 - **The example organization, plans and limits** ([§3.3](03-accounts-teams-and-identity.md),
   [§3.10](03-accounts-teams-and-identity.md), [§9.7](09-data-lifecycle.md),
   [`0034_example_organization.sql`](../../apps/server/src/migrations/0034_example_organization.sql)):
-  `tenants.example` (set by the server at start-up), `tenants.plan` (`free` or `unlimited`,
-  checked; every tenant that existed when it was first read became `unlimited`), `tenants.limits`
-  (JSONB, only the limits an instance owner changed from the free plan's), `limits_etag`,
-  `limits_updated_at` and `limits_updated_by`. `limit_counters` sits beside the directory tables,
-  without row-level security: the counters behind the limits, keyed by tenant, account (`''` for
-  the whole organization), `minute` or `day` bucket, its start (a minute, or midnight UTC), and
-  counter. The public sandbox's own tables (`sandbox_settings`, `sandbox_invites`,
+  `tenants.example` (set by the server at start-up), `tenants.plan` (the id of a plan the
+  deployment defines, or `unlimited`: any lowercase id, checked against its form and never against
+  a list, since the plans are the deployment's ([§9.7](09-data-lifecycle.md#97-plans-and-limits));
+  every tenant that existed when it was first read became `unlimited`), `plan_etag`,
+  `plan_changed_at` and `plan_changed_by`, which guard and record a move to another plan
+  ([`0037_plans_set_the_limits.sql`](../../apps/server/src/migrations/0037_plans_set_the_limits.sql)
+  replaced the fixed list of plans with that check, dropped `tenants.limits`, the limits an instance owner had changed for one tenant,
+  and renamed `limits_etag`, `limits_updated_at` and `limits_updated_by` to these), and
+  `read_only_since` and `kept_until`, set while a tenant moved back to the starting plan, while its
+  creator has another there, is read-only and until when it is kept
+  ([`0039_read_only_organizations.sql`](../../apps/server/src/migrations/0039_read_only_organizations.sql)).
+  Each plan's
+  limits and price start in the deployment's configuration (`WHATBUILD_PLANS`); what an instance owner changed of a plan's limits and price,
+  and the guests' settings, are rows of `instance_settings` (key `plan:<plan>` or `guests`, a JSONB
+  value of only what differs from the configuration or the defaults, an etag, who changed it and when;
+  [`0038_guests_and_instance_settings.sql`](../../apps/server/src/migrations/0038_guests_and_instance_settings.sql)),
+  a directory table without row-level security. So is `guest_passes`, a guest account's place
+  ([§3.10](03-accounts-teams-and-identity.md#310-the-example-organization)): its first time in,
+  the UTC day and seconds in that day, its last call, and while waiting, since when and when it last
+  asked; it goes with the account. `limit_counters` sits beside the directory
+  tables, without row-level security: the counters behind the limits, keyed by tenant, account
+  (`''` for the whole organization), `minute` or `day` bucket, its start (a minute, or midnight
+  UTC), and counter (`requests`, `writes`, `sources`, `exports`, `bytes` uploaded, `sent`). What a
+  tenant holds against its plan's totals is not counted here: it is measured when asked, from its
+  memberships, invitations, products, sources and the stored sizes of its files and text. The public sandbox's own tables (`sandbox_settings`, `sandbox_invites`,
   `sandbox_baselines`, `sandbox_baseline_rows`) and `accounts.sandbox_only` were dropped, and
   every `visitor` grant deleted, by the same migration; `sandbox_usage` became `limit_counters`.
   `accounts.hide_example`
@@ -1054,7 +1075,8 @@ activity.jsonl
   [`0010_tenant_allowances.sql`](../../apps/server/src/migrations/0010_tenant_allowances.sql)):
   `tenant_allowances`, a directory table without row-level security keyed by the lower-cased
   address (`allowed`, `note`, `etag`, who gave it and who last changed it), and an index on
-  `tenants.created_by->>'account_id'`, which is what an allowance is counted against.
+  `tenants.created_by->>'account_id'`, which is what an allowance is counted against: the tenants
+  an account created that are on the plan new organizations start on and not read-only.
 - **Prototypes** ([`0025_mockup_prototypes.sql`](../../apps/server/src/migrations/0025_mockup_prototypes.sql)):
   `mockup_prototype_files`, keyed by version and path, with the policy and an index on product and
   blob key; `mockup_pages.entry` and `poster`, and `mockup_pages.html` nullable, a check holding

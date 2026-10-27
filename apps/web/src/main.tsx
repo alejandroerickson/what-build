@@ -19,7 +19,9 @@ import { MembersPage, Welcome } from "./routes/org.tsx";
 import { OverviewPage } from "./routes/overview.tsx";
 import { ActivityPage, ProductSettingsPage } from "./routes/product-misc.tsx";
 import { EntryEditPage, RegisterEntryPage, RegisterListPage } from "./routes/registers.tsx";
-import { LimitsPage } from "./routes/limits.tsx";
+import { PlanPage } from "./routes/limits.tsx";
+import { PlansPage } from "./routes/plans.tsx";
+import { GuestGate } from "./shell/guest-gate.tsx";
 import { PeoplePage } from "./routes/people.tsx";
 import { SearchPage } from "./routes/search.tsx";
 import { InstancePage } from "./routes/instance.tsx";
@@ -176,12 +178,15 @@ const router = createBrowserRouter([{ element: <Root />, errorElement: <RouteErr
   { path: "/cookies", element: <CookiesPage />, errorElement: <RouteError /> },
   { path: "/privacy", element: <PrivacyPage />, errorElement: <RouteError /> },
   { path: "/account-deleted", element: <AccountDeletedPage />, errorElement: <RouteError /> },
+  { path: "/plans", element: <PlansPage />, errorElement: <RouteError /> },
   // The public sandbox's invitation links are retired: one opens the app, where the example organization is.
   { path: "/join/:code", element: <Navigate to="/" replace />, errorElement: <RouteError /> },
   {
     element: (
       <RequireSession>
-        <Outlet />
+        <GuestGate>
+          <Outlet />
+        </GuestGate>
       </RequireSession>
     ),
     errorElement: <RouteError />,
@@ -196,7 +201,8 @@ const router = createBrowserRouter([{ element: <Root />, errorElement: <RouteErr
         { path: "/instance", element: <InstancePage /> },
         { path: "/people", element: <PeoplePage /> },
         { path: "/t/:tenant/members", element: <CurrentTenantAddress><MembersPage /></CurrentTenantAddress> },
-        { path: "/t/:tenant/limits", element: <CurrentTenantAddress><LimitsPage /></CurrentTenantAddress> },
+        { path: "/t/:tenant/plan", element: <CurrentTenantAddress><PlanPage /></CurrentTenantAddress> },
+        { path: "/t/:tenant/limits", element: <CurrentTenantAddress><PlanPage /></CurrentTenantAddress> },
       ] },
       ...devRoutes,
       {

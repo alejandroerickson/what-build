@@ -237,7 +237,10 @@ const ACCOUNT: Record<string, string> = {
   "products.remove_tenant_allowance": "the instance owners' alone: 403 to anyone else",
   "products.usage": "the instance owners' alone: 403 to anyone else, and names no organization",
   "products.organizations": "the instance owners' alone: 403 to anyone else",
-  "products.set_limits": "the instance owners' alone: 403 to anyone else",
+  "products.set_plan": "the instance owners' alone: 403 to anyone else",
+  "products.set_plan_limits": "the instance owners' alone: 403 to anyone else",
+  "products.guests": "the instance owners' alone: 403 to anyone else",
+  "products.set_guests": "the instance owners' alone: 403 to anyone else",
   "products.accounts": "the instance owners' alone: 403 to anyone else",
   "products.remove_account": "the instance owners' alone, in the web app: 403 to anyone else",
   "products.delete_account_impact": "the caller's own account, in the web app: names no one else and no organization they are not in",
@@ -322,10 +325,10 @@ beforeAll(async () => {
   mallory = await h.signIn("mallory@quillon.example", "Mallory Quillon");
   b = await buildOrganization(h, mallory, "Quillon Works", "QUILLON5");
 
-  // The victim's organization is on the free plan, with limits an instance owner changed and a day's counts.
-  await h.db.updateTable("tenants").set({ plan: "free", limits: JSON.stringify({ writes_per_day: 777 }), limits_etag: "NORTHWIND7-limits" }).where("tenant_id", "=", a.tenant.id).execute();
+  // The victim's organization is on the free plan, moved there by an instance owner, with a day's counts.
+  await h.db.updateTable("tenants").set({ plan: "free", plan_etag: "NORTHWIND7-plan" }).where("tenant_id", "=", a.tenant.id).execute();
   expect((await alice.api("POST", `/api/v1/p/${a.product.path}/outcomes`, { title: "Counted against NORTHWIND7's day" })).status).toBe(201);
-  a.secrets.push("NORTHWIND7-limits");
+  a.secrets.push("NORTHWIND7-plan");
 
   token = await h.connectAgent(mallory, "Quillon agent");
   client = new Client({ name: "quillon-agent", version: "1.0.0" });
@@ -433,7 +436,7 @@ describe("operations that belong to no organization", () => {
 
   it("refuses the instance's allowances, its organizations' plans and its usage to anyone but its owners, and changes none", async () => {
     const before = (await h.db.selectFrom("tenant_allowances").selectAll().execute()).length;
-    const plans = async () => JSON.stringify(await h.db.selectFrom("tenants").select(["tenant_id", "plan", "limits", "limits_etag"]).orderBy("tenant_id").execute());
+    const plans = async () => JSON.stringify(await h.db.selectFrom("tenants").select(["tenant_id", "plan", "plan_etag"]).orderBy("tenant_id").execute());
     const plansBefore = await plans();
     for (const [name, input] of [
       ["products.tenant_allowances", {}],
@@ -441,8 +444,11 @@ describe("operations that belong to no organization", () => {
       ["products.remove_tenant_allowance", { email: a.owner.email, expected_etag: "x" }],
       ["products.usage", {}],
       ["products.organizations", {}],
-      ["products.set_limits", { tenant: a.tenant.slug, plan: "unlimited", limits: { writes_per_day: 1 }, expected_etag: "NORTHWIND7-limits" }],
-      ["products.set_limits", { tenant: b.tenant.slug, plan: "unlimited" }],
+      ["products.set_plan", { tenant: a.tenant.slug, plan: "unlimited", expected_etag: "NORTHWIND7-plan" }],
+      ["products.set_plan", { tenant: b.tenant.slug, plan: "unlimited" }],
+      ["products.set_plan_limits", { plan: "free", limits: { sources_max: 1 } }],
+      ["products.guests", {}],
+      ["products.set_guests", { at_once: 0 }],
       ["products.accounts", {}],
     ] as const) {
       for (const r of await both(name, input)) {

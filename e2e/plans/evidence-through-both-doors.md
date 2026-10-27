@@ -11,8 +11,8 @@ An agent and a person share one product. What the agent adds over MCP must appea
 on the web, its attachment read into the source's text and that text searchable; what the person
 writes on the web, the text included, must be what the agent reads; an attachment beside the text
 is kept and never searched; and the activity log must say who did what, through which door. Then
-a guest of the example organization reads it and changes nothing, and the free plan's limits are
-tried.
+a guest of the example organization reads it and changes nothing, and the limits of the example
+plans file's Free plan, which the end-to-end instance offers, are tried.
 
 ## Steps
 
@@ -97,18 +97,21 @@ tried.
     export are refused with `403 example_read_only`, saying that, since the guest may not start an
     organization, they ask whoever runs this WhatBuild for one (never to call `create_tenant`), and
     nothing changed; the two organizations stay separate.
-15. **The free plan, as Riley and then Sam.** As Riley, on Organizations, put the standard
-    organization on the free plan with Exports set to 0, and save. As Sam, read
-    `products_read(action="limits")` for it over MCP, then export the product, then open Plan and limits
-    from the account menu in the web app. Then sign in to the web app as `guest@example.com`, open
-    the account menu, and go to the example organization's `/t/<slug>/limits`. *Expect:* the limits
-    say the plan is free and that Sam meets them, with what Sam used today; the export is refused
-    with `403 plan_restricted`, saying exporting is off on the plan; reading and search still work.
-    Sam's page says in words what Sam used of each allowance today, under You and under Everyone in
-    the organization (changes as "N of 500"), Exports as off on this plan, and what Sam can add, with
-    no refusal codes, no limit on calls a minute and no settings. The guest's account menu lists
-    nothing for the example organization, and its page says they have no allowances there. As
-    Riley, put the organization back on the unlimited plan with the free plan's limits.
+15. **The Free plan (the example file's), as Riley and then Sam.** As Riley, on Organizations, choose Change plan on the
+    standard organization and move it to Free; the dialog says by how much it already holds more
+    than Free allows, if it does. As Sam, read `products_read(action="limits")` for it over MCP, then
+    try to add a person as an editor (`members_write(action="grant")`) and a second product, then open
+    Plan from the account menu in the web app. Then sign in to the web app as `guest@example.com`,
+    open the account menu, and go to the example organization's `/t/<slug>/plan`. *Expect:* the
+    limits say the plan is free and that Sam meets them, with what Sam used today and what the
+    organization holds (`holds`); adding a third person or a second product is refused with
+    `409 quota_exceeded`, naming the total and what makes room; reading, search and export still
+    work. Sam's page says the plan is Free, what the organization holds against each total ("N of
+    50" sources, people Full or not), what Sam used of each allowance today under You and under
+    Everyone in the organization (changes as "N of 150"), what Sam can add, and the plans side by
+    side with Free marked as Sam's, with no refusal codes and no settings. The guest's account menu
+    lists nothing for the example organization, and its page says its plan sets nothing for them but
+    how often they can call. As Riley, move the organization back to Unlimited.
 
 ## Look out for
 

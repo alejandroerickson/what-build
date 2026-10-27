@@ -168,15 +168,38 @@ gcloud run services update whatbuild --region $R --update-env-vars \
   '^|^WHATBUILD_OPERATOR=Example Labs|WHATBUILD_PRIVACY_CONTACT=privacy@example.com|WHATBUILD_PROVIDERS=Google Cloud: hosting, files and logs; Neon: the database; Cloudflare: the public site, its visit counts and email; Google Analytics: analytics, for those who accept'
 ```
 
-**The plan of a new organization.** `NEW_ORGANIZATION_PLAN=free` (`WHATBUILD_NEW_ORGANIZATION_PLAN`)
-puts every organization someone other than an instance owner creates on the free plan, whose
-limits everyone in it meets ([§9.7](../spec/09-data-lifecycle.md)); left out, they are unlimited.
-A deployment open to the public sets `free`; a deployment for one organization's own people leaves it out.
-Instance owners' organizations are always unlimited, and they change any organization's plan on
-`/instance`:
+**Plans, and the plan of a new organization.** The deployment's plans are its own
+([decision](../decisions/the-deployment-defines-its-plans-and-billing-stays-outside-the-repository.md)): their ids, names, limits and prices live in a JSON file kept outside this
+repository, with the deployment's other settings, in the form
+[`deploy/plans.example.json`](../../deploy/plans.example.json) shows
+([§9.7](../spec/09-data-lifecycle.md#97-plans-and-limits)). `PLANS_FILE=<path>` gives `setup.sh`
+that file: it stores it as the secret `whatbuild-plans`, which the service reads as
+`WHATBUILD_PLANS`, and uses whenever the secret exists. Left out, the deployment offers no plans,
+every organization is unlimited and nothing in the app speaks of plans: a deployment for one
+organization's own people leaves it out. `NEW_ORGANIZATION_PLAN=<id>`
+(`WHATBUILD_NEW_ORGANIZATION_PLAN`) puts every organization someone other than an instance owner
+creates on one of those plans, whose limits everyone in it meets; it must name a plan the file
+defines, or the service does not start. Left out, they are unlimited. Instance owners'
+organizations are always unlimited, and they move any organization to another plan on `/instance`.
+There too they change a plan's limits and price over what the file sets, for every organization on
+it, and set the guests' settings: whether anyone may sign up as a guest, and how many come in
+([§3.10](../spec/03-accounts-teams-and-identity.md#310-the-example-organization)). The guests'
+settings start closed to self-serve sign-up, with the defaults in the code; raise them as the
+deployment grows. Nothing in WhatBuild takes payment: an instance owner moves an organization to a
+paid plan by hand, and a billing service would be the deployment's own, kept outside this
+repository.
+
+Check a plans file before it reaches the service: `corepack pnpm plans <file> <starting plan id>`
+prints each plan as the service will read it, or what is wrong. To change the plans later, edit the
+file, check it, add it as a new version of the secret, and deploy a new revision so the service
+reads it (or run `setup.sh` again with `PLANS_FILE`). The `run-the-instance` skill conducts this. A plan the file no
+longer defines leaves its organizations meeting no limit until an instance owner moves them; the
+instance's page marks them.
 
 ```bash
-gcloud run services update whatbuild --region $R --update-env-vars WHATBUILD_NEW_ORGANIZATION_PLAN=free
+gcloud secrets versions add whatbuild-plans --data-file=<the deployment's plans file>
+gcloud run services update whatbuild --region $R --update-secrets WHATBUILD_PLANS=whatbuild-plans:latest \
+  --update-env-vars WHATBUILD_NEW_ORGANIZATION_PLAN=<the starting plan's id>
 ```
 
 **The example organization** is for the maintainer's public deployment only: any other deployment
@@ -390,9 +413,9 @@ request still runs the instance (one at most, [What it costs](#what-it-costs)) a
 answer. Cloud Run's own request log line for it is dropped (`whatbuild-refused-requests`, made by
 `setup.sh`; [What is where](#what-is-where)).
 
-**Who asked to hear from us.** The site's form writes to the `interest` table
-([§4.13](../spec/04-data-model.md)); nothing sends mail yet. Read it with Cloud SQL Studio or
-`psql`: `SELECT email, name, organization, note, created_at FROM interest ORDER BY created_at DESC;`
+**Who asked for an organization.** The site's form, and guests who ask in the app, write to the
+`interest` table ([§4.13](../spec/04-data-model.md)); nothing sends mail about a new request.
+Instance owners read it on `/instance`, under **Waitlist**, and let someone in from there.
 
 ## Alerts
 
@@ -510,9 +533,9 @@ instance runs at most (`MAX_INSTANCES`, default 1), which is ample for a few tea
 the ceiling, give or take: Google may run a second for a few minutes in a sudden spike, or while a
 deploy replaces a revision. Builds deploy a new image and keep the setting. The smallest Cloud SQL instance is roughly
 US$10 a month; a free-tier Postgres elsewhere costs nothing, but holds little (1 GB a project on Neon's), so keep
-the free plan's upload allowances to match (`bytes_per_day`, `org_bytes_per_day`, changed per
-organization on `/instance`; [§9.7](../spec/09-data-lifecycle.md)): the text of what free
-organizations upload, and its search index, land in Postgres. Storage is cents. Data the service
+the plans' totals to match ([§9.7](../spec/09-data-lifecycle.md)): the text of what organizations
+upload and write, and its search index, land in Postgres, at several bytes of database for each
+character of a source's text, and a nightly backup reads the whole database again. Storage is cents. Data the service
 sends to the internet costs US$0.105 a GB within North America after a free first GB a month (more
 to other continents). It, the logs (US$0.50 a GB past 50 GB a project each month) and traces are
 the costs with no ceiling: each grows with requests, whoever sends them, so only a flood could make

@@ -840,6 +840,7 @@ export const deleteAnnotation = defineOperation({
   scope: "product",
   access: "admin",
   mutates: true,
+  allowReadOnlyOrganization: true,
   summary: "DELETE PERMANENTLY — cannot be undone. Delete one comment on a source; archiving it is the reversible alternative.",
   description:
     "Destroys the comment, its tags and its earlier text, and leaves a tombstone: reads of it return 410 with who, when and why. Nothing points at a comment, so there is no delete_impact: show the person the comment itself (from list_annotations) and delete only once they approve. While the source is archived, it is refused with 409 record_archived until the source is restored. " +
@@ -1004,6 +1005,7 @@ export const deleteSource = defineOperation({
   scope: "product",
   access: "admin",
   mutates: true,
+  allowReadOnlyOrganization: true,
   summary: "DELETE PERMANENTLY — cannot be undone. Destroys a source's attachments, derived text, notes and comments; archive is the reversible alternative.",
   description:
     "Archive (sources_write(action=\"archive\")) is the reversible alternative and almost always what is wanted. " +

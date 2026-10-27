@@ -324,8 +324,8 @@ describe("changing an organization's slug", () => {
     const r = await root.api("PATCH", "/api/v1/tenants/initech", { slug: "initrode-corp", expected_etag: item.name_etag });
     expect(r.status, JSON.stringify(r.body)).toBe(200);
     expect(r.body.former_slugs).toEqual(["initech-labs", "initech", "initrode"]);
-    // Set limits, an instance owner's own call, names the organization by a former slug too.
-    expect((await root.api("PATCH", "/api/v1/organizations/limits", { tenant: "initech", plan: "free" })).status).toBe(200);
+    // Moving it to another plan, an instance owner's own call, names the organization by a former slug too.
+    expect((await root.api("PATCH", "/api/v1/organizations/plan", { tenant: "initech", plan: "free" })).status).toBe(200);
   });
 
   it("frees every slug the organization had when it is deleted", async () => {

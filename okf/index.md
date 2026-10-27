@@ -46,8 +46,9 @@ server with the same operations. There is no AI inside.
   release broke (`recover-a-deployment`), testing on a local copy of production
   (`test-on-a-copy-of-production`), moving an organization into another deployment
   (`copy-an-organization`), running the end-to-end test plans
-  (`run-end-to-end-tests`), reading how a deployment is used (`read-usage`), and setting up and
-  repairing a deployment's mail (`set-up-mail`).
+  (`run-end-to-end-tests`), reading how a deployment is used (`read-usage`), setting up and
+  repairing a deployment's mail (`set-up-mail`), and an instance owner's work: a deployment's plans
+  and prices, moving organizations between plans, the waitlist and guests (`run-the-instance`).
 - `apps/web/PRODUCT.md`: users, purpose and principles. `apps/web/DESIGN.md` and
   `apps/web/.impeccable/design.json`: the Studio design system. They sit beside the web app, where
   design tooling looks for them.

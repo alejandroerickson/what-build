@@ -6,10 +6,11 @@ import { json } from "../db.ts";
 import { checkConfirmation, DELETE_CONFIRMATION } from "../deletion.ts";
 import { AppError, conflict, forbidden, invalid, notFound } from "../errors.ts";
 import { defineOperation, type OpContext } from "../registry.ts";
-import { id } from "../schemas.ts";
+import { id, wordList } from "../schemas.ts";
 import { isInstanceOwner } from "../tenant-allowance.ts";
 import { forgetPerson } from "../usage.ts";
-import { newId } from "../util.ts";
+import { newId, utcDay } from "../util.ts";
+import { destroyOrganization, refuseExample } from "./deletes.ts";
 
 /**
  * Every account on the instance, for its owners, and removing one; and a person deleting their own.
@@ -34,7 +35,7 @@ export const listAccounts = defineOperation({
   mutates: false,
   summary: "Every account on this instance, with the organizations each is in and when it was last seen (instance owners).",
   description:
-    "For the instance's owners: each account's name, address, when it was made and last seen (its newest browser session or agent connection), how many browser sessions and agent connections it holds now, whether it owns the instance, the allowance its address has to start organizations, and every organization it holds a role in, with its role on the organization (null when its roles are on teams or products only) and how many team and product roles it holds there. query keeps the accounts whose name or address contains it. Names no product and holds none of an organization's content. Remove an account in the web app, on People.",
+    "For the instance's owners: each account's name, address, when it was made and last seen (its newest browser session or agent connection), how many browser sessions and agent connections it holds now, whether it owns the instance, the allowance its address has to start organizations, and every organization it holds a role in, with its role on the organization (null when its roles are on teams or products only), how many team and product roles it holds there, and only_owner when nobody else owns it, so removing the account would delete it. query keeps the accounts whose name or address contains it. Names no product and holds none of an organization's content. Remove an account in the web app, on People.",
   input: z.strictObject({ query: z.string().trim().max(200).optional() }),
   rest: { method: "GET", path: "/accounts" },
   mcp: { tool: "products", action: "accounts" },
@@ -70,22 +71,38 @@ export const listAccounts = defineOperation({
       .select(["m.account_id", "m.scope_type", "m.role", "t.tenant_id", "t.slug", "t.name", "t.example"])
       .where("m.account_id", "in", ids)
       .execute();
+    // How many owners each organization has, so an account that is the only one is marked.
+    const tenantIds = [...new Set(grants.map((g) => g.tenant_id))];
+    const owners = tenantIds.length
+      ? await ctx.db
+          .selectFrom("memberships")
+          .select(["tenant_id", (eb) => eb.fn.countAll<string>().as("n")])
+          .where("tenant_id", "in", tenantIds)
+          .where("scope_type", "=", "tenant")
+          .where("role", "=", "owner")
+          .groupBy("tenant_id")
+          .execute()
+      : [];
     const allowances = await ctx.db.selectFrom("tenant_allowances").select(["email", "allowed"]).where(sql<string>`email`, "in", accounts.map((a) => a.email.toLowerCase())).execute();
+    // An allowance counts the organizations started that are on the plan new ones start on and not read-only (tenant-allowance.ts).
     const created = await ctx.db
       .selectFrom("tenants")
       .select([sql<string>`created_by->>'account_id'`.as("account_id"), (eb) => eb.fn.countAll<string>().as("n")])
       .where(sql<string>`created_by->>'account_id'`, "in", ids)
+      .where("plan", "=", ctx.ports.config.newOrganizationPlan ?? "unlimited")
+      .where("read_only_since", "is", null)
       .groupBy(sql`created_by->>'account_id'`)
       .execute();
     const latest = (...xs: (string | null | undefined)[]) => xs.filter((x): x is string => Boolean(x)).sort().at(-1) ?? null;
     const items = accounts.map((a) => {
       const s = sessions.find((x) => x.account_id === a.account_id);
       const g = agents.find((x) => x.account_id === a.account_id);
-      const orgs = new Map<string, { slug: string; name: string; role: string | null; roles: number; example?: true }>();
+      const orgs = new Map<string, { slug: string; name: string; role: string | null; roles: number; example?: true; only_owner?: true }>();
       for (const m of grants.filter((x) => x.account_id === a.account_id)) {
         const o = orgs.get(m.tenant_id) ?? { slug: m.slug, name: m.name, role: null, roles: 0, ...(m.example ? { example: true as const } : {}) };
         if (m.scope_type === "tenant") o.role = m.role;
         else o.roles += 1;
+        if (m.scope_type === "tenant" && m.role === "owner" && Number(owners.find((x) => x.tenant_id === m.tenant_id)?.n ?? 0) === 1) o.only_owner = true;
         orgs.set(m.tenant_id, o);
       }
       const allowance = allowances.find((x) => x.email === a.email.toLowerCase());
@@ -146,7 +163,12 @@ async function lockAccount(ctx: OpContext, accountId: string): Promise<Ending | 
 }
 
 /** The two refusals both ways share, in the words of whoever is asking. */
-async function refuseBlocked(ctx: OpContext, account: Ending, self: boolean): Promise<void> {
+/**
+ * Refuse ending an account that owns this WhatBuild, or that is the only owner of an organization.
+ * An instance owner removing someone may take those organizations with the account instead, once
+ * `named` lists each of them by slug; they are returned, to be deleted.
+ */
+async function refuseBlocked(ctx: OpContext, account: Ending, self: boolean, named: string[] = []): Promise<{ tenant_id: string; slug: string; name: string }[]> {
   if (isInstanceOwner(ctx.ports.config, account.email))
     throw conflict(
       "instance_owner",
@@ -155,12 +177,20 @@ async function refuseBlocked(ctx: OpContext, account: Ending, self: boolean): Pr
         : `${account.display_name} owns this WhatBuild (WHATBUILD_INSTANCE_OWNERS), so their account can’t be removed. Nothing was changed.`,
     );
   const alone = await ownedAlone(ctx, account.account_id);
-  if (alone.length)
+  const listed = new Set(named.map((s) => s.toLowerCase()));
+  const agreed = !self && alone.length === listed.size && alone.every((o) => listed.has(o.slug.toLowerCase()));
+  const them = alone.length === 1 ? "it" : "them";
+  if (alone.length && !agreed)
     throw conflict(
       "last_owner",
-      `${self ? "You’re" : `${account.display_name} is`} the only owner of ${alone.map((o) => o.name).join(", ")}. Make someone else owner, or delete ${alone.length === 1 ? "it" : "them"}, then try again. Nothing was changed.`,
+      self
+        ? `You’re the only owner of ${alone.map((o) => o.name).join(", ")}. Make someone else owner, or delete ${them}, then try again. Nothing was changed.`
+        : `${account.display_name} is the only owner of ${alone.map((o) => o.name).join(", ")}. Removing the account deletes ${them} too, with everything in ${them}: name ${alone.length === 1 ? "its slug" : "their slugs"} in delete_organizations to go ahead, or make someone else an owner there first. Nothing was changed.`,
       { organizations: alone.map((o) => ({ slug: o.slug, name: o.name })) },
     );
+  if (!alone.length && listed.size)
+    throw invalid("invalid_input", `${account.display_name} is the only owner of no organization, so delete_organizations must be left out. Nothing was changed.`);
+  return alone;
 }
 
 /**
@@ -227,7 +257,7 @@ async function endAccount(ctx: OpContext, account: Ending, self: boolean) {
  * who didn't do it. A deployment that sends no mail sends none, and a mail that fails never
  * keeps the account: the result says whether it went.
  */
-async function sendRecord(ctx: OpContext, account: Ending, self: boolean): Promise<boolean> {
+async function sendRecord(ctx: OpContext, account: Ending, self: boolean, organizationsDeleted: { name: string }[] = []): Promise<boolean> {
   const mailer = ctx.ports.mailer;
   if (!mailer || ctx.ports.config.sendsMail === false) return false;
   const contact = ctx.ports.config.privacyContact;
@@ -238,9 +268,12 @@ async function sendRecord(ctx: OpContext, account: Ending, self: boolean): Promi
       to: account.email,
       subject: "Your WhatBuild account has been deleted",
       text:
-        `Your WhatBuild account ${account.email} on ${ctx.ports.config.publicBaseUrl} was deleted on ${ctx.now.slice(0, 10)}${self ? "." : " by an owner of this WhatBuild."}\n\n` +
-        `${t.did.map((g) => `- ${g}`).join("\n")}\n\n` +
-        `${t.stays} To remove it, ask the organization’s admins.\n\n` +
+        `Your WhatBuild account ${account.email} on ${ctx.ports.config.publicBaseUrl} was deleted on ${utcDay(ctx.now)}${self ? "." : " by an owner of this WhatBuild."}\n\n` +
+        `${t.did.map((g) => `- ${g}`).join("\n")}\n` +
+        (organizationsDeleted.length
+          ? `- ${wordList(organizationsDeleted.map((o) => o.name))} ${organizationsDeleted.length === 1 ? "was" : "were"} deleted too, with everything in ${organizationsDeleted.length === 1 ? "it" : "them"}: you were ${organizationsDeleted.length === 1 ? "its" : "their"} only owner.\n\n` +
+            `Anything you added to any other organization stays there, with your name on it. To remove it, ask that organization’s admins.\n\n`
+          : `\n${t.stays} To remove it, ask the organization’s admins.\n\n`) +
         `${t.again}\n\n` +
         (self ? `If this wasn’t you, someone used a browser signed in to your account. Contact ${runner} right away.\n` : `If you didn’t expect this, contact ${runner}.\n`),
     });
@@ -262,11 +295,17 @@ export const removeAccount = defineOperation({
   summary: "REMOVE PERMANENTLY — cannot be undone. Remove an account from this instance (instance owners, in the web app).",
   description:
     `An instance owner's act in the web app, never an agent's. Needs the account's address typed exactly as email, and confirm set to exactly "${DELETE_CONFIRMATION}". ` +
-    "Does what a person deleting their own account does: ends every browser session and agent connection the account holds, takes every role it holds in every organization (each organization's access log records it), cancels the invitations sent to its address, removes the address's allowance to start organizations, deletes what is kept about the person (their counted days of use, the counts held against limits, their name on the account), forgets the address, and emails it a confirmation. Its name stays on what it wrote. An instance owner's account cannot be removed (409 instance_owner), nor one that is the only owner of an organization until someone else owns it or it is deleted (409 last_owner). The address may sign up again only if it is let in again.",
+    "Does what a person deleting their own account does: ends every browser session and agent connection the account holds, takes every role it holds in every organization (each organization's access log records it), cancels the invitations sent to its address, removes the address's allowance to start organizations, deletes what is kept about the person (their counted days of use, the counts held against limits, their name on the account), forgets the address, and emails it a confirmation. Its name stays on what it wrote. An instance owner's account cannot be removed (409 instance_owner). " +
+    "The organizations the account is the only owner of are deleted with it, everything in them and everyone's roles there, once delete_organizations names exactly those organizations by slug: products_read(action=\"accounts\") marks them only_owner, and the web app shows what each holds before asking. Without that, removing it is refused (409 last_owner, listing them in details.organizations). The example organization is never deleted this way (409 example_organization): make someone else an owner of it first. The address may sign up again only if it is let in again.",
   input: z.strictObject({
     account_id: id("account"),
     email: z.string().trim().max(320).describe("The account's address, typed by the person to confirm."),
     confirm: z.string().describe(`Must be exactly "${DELETE_CONFIRMATION}".`),
+    delete_organizations: z
+      .array(z.string().trim().min(1).max(200))
+      .max(200)
+      .optional()
+      .describe("The slugs of every organization the account is the only owner of, which are deleted with it. Required, and exact, when there are any."),
   }),
   rest: { method: "POST", path: "/accounts/remove" },
   mcp: { tool: "products", action: "remove_account" },
@@ -277,9 +316,19 @@ export const removeAccount = defineOperation({
     if (!account) throw notFound("No such account on this instance. It may have been removed already.");
     if (input.email.toLowerCase() !== account.email.toLowerCase())
       throw invalid("typed_email", `Type the account's address exactly to remove it. Nothing was changed.`);
-    await refuseBlocked(ctx, account, false);
+    const going = await refuseBlocked(ctx, account, false, input.delete_organizations);
+    // The organizations only this account owns go first, with everything in them.
+    const organizationsDeleted: { slug: string; name: string }[] = [];
+    for (const o of going) {
+      const t = await ctx.db.selectFrom("tenants").select(["tenant_id", "name", "example"]).where("tenant_id", "=", o.tenant_id).forUpdate().executeTakeFirstOrThrow();
+      refuseExample(t);
+      await sql`select set_config('app.tenant_id', ${o.tenant_id}, true)`.execute(ctx.db);
+      await destroyOrganization(ctx, o.tenant_id);
+      organizationsDeleted.push({ slug: o.slug, name: o.name });
+    }
+    if (going.length) await sql`select set_config('app.tenant_id', '', true)`.execute(ctx.db);
     const ended = await endAccount(ctx, account, false);
-    return { removed: true, ...ended, notice_sent: await sendRecord(ctx, account, false) };
+    return { removed: true, ...ended, organizations_deleted: organizationsDeleted, notice_sent: await sendRecord(ctx, account, false, organizationsDeleted) };
   },
 });
 

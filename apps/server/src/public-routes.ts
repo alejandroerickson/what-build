@@ -1,10 +1,30 @@
 import { closeSync, existsSync, fstatSync, openSync, readFileSync } from "node:fs";
 import { extname, isAbsolute, join, normalize, relative, resolve, sep } from "node:path";
-import { DOCUMENT_ROUTE, MCP_SERVER_NAME, TOOLS_VERSION, unauthenticated, USAGE_PEOPLE_MONTHS, type Db } from "@whatbuild/core";
+import { DOCUMENT_ROUTE, LIMITS, MCP_SERVER_NAME, planCatalogue, readGuests, readPlans, TOOLS_VERSION, unauthenticated, USAGE_PEOPLE_MONTHS, type Db } from "@whatbuild/core";
 import { Hono } from "hono";
 import type { Release } from "./app.ts";
 import { restPrincipal } from "./auth/identity.ts";
 import { microsoftSignIn, type ServerConfig } from "./config.ts";
+
+/**
+ * What the public site and the plans pages show that only the deployment knows: the plans as an
+ * instance owner set them, the largest file it takes, whom to write to, and whether anyone may come
+ * in as a guest.
+ */
+export async function siteCatalogue(db: Db, config: ServerConfig) {
+  const guests = await readGuests(db);
+  return {
+    plans: planCatalogue(await readPlans(db)),
+    // The plan organizations start on here: one of plans, or unlimited on a deployment that offers none.
+    starting_plan: config.newOrganizationPlan,
+    // Whether the deployment has an example organization, so whether guests can come in at all.
+    example: Boolean(config.exampleTenant),
+    limits: LIMITS,
+    file_max_bytes: config.fileMaxBytes,
+    contact: config.privacyContact,
+    guests: { self_serve: guests.self_serve, open: guests.at_once > 0 },
+  };
+}
 
 export function publicRoutes(deps: { db: Db; config: ServerConfig; release: Release }) {
   const { config } = deps;
@@ -33,6 +53,10 @@ export function publicRoutes(deps: { db: Db; config: ServerConfig; release: Rele
       },
     }),
   );
+  // The plans this WhatBuild offers, for its plans pages and anyone deciding: every limit, and each
+  // one's price as an instance owner set it; and whether anyone may come in as a guest.
+  app.get("/api/v1/plans", async (c) => c.json(await siteCatalogue(deps.db, config), 200, { "Cache-Control": "public, max-age=300" }));
+
   app.get("/api/v1/connect", async (c) => {
     const p = await restPrincipal(c, deps.db, config);
     if (!p) throw unauthenticated();

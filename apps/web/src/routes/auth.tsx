@@ -31,11 +31,22 @@ export function EntryPage({ title, wide, children }: { title: string; wide?: boo
   );
 }
 
+/** The sample's people, offered until the server's list of its accounts arrives, or if it doesn't. */
 const DEV_PEOPLE = [
-  { email: "riley@example.com", name: "Riley Chen", role: "Owner of the sample organization" },
-  { email: "sam@example.com", name: "Sam Okafor", role: "Editor on the sample products" },
-  { email: "jordan@example.com", name: "Jordan Ellis", role: "Reads only the Crewboard Story" },
+  { email: "riley@example.com", display_name: "Riley Chen", about: "Owner of the sample organization" },
+  { email: "sam@example.com", display_name: "Sam Okafor", about: "Editor on the sample products" },
+  { email: "jordan@example.com", display_name: "Jordan Ellis", about: "Reads only the Crewboard Story" },
 ];
+
+/** Every account on a development server, the sample's people first, each with what it is there. */
+function useDevAccounts(on: boolean) {
+  return useQuery({
+    queryKey: ["dev-accounts"],
+    queryFn: () => api<{ items: { email: string; display_name: string; about: string }[]; more: number }>("GET", "/auth/dev-accounts"),
+    enabled: on,
+    staleTime: 0,
+  });
+}
 
 /** The form of the reference the server gives a refused sign-in (`signInReference` in apps/server/src/auth/routes.ts). */
 const SIGN_IN_REFERENCE = /^[0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{4}$/;
@@ -49,6 +60,8 @@ export function SignIn() {
   const me = useMe();
   const qc = useQueryClient();
   const navigate = useNavigate();
+  const accounts = useDevAccounts(Boolean(methods.data?.dev));
+  const people = accounts.data?.items.length ? accounts.data.items : DEV_PEOPLE;
   const send = useMutation({ mutationFn: () => api<{ sent: boolean; dev_note?: string }>("POST", "/auth/email", { email: email.trim(), next }) });
   const dev = useMutation({
     mutationFn: (e: string) => api("POST", "/auth/dev-sign-in", { email: e, next }),
@@ -151,19 +164,24 @@ export function SignIn() {
         <Sheet labelledBy="dev-signin">
           <SheetHeader id="dev-signin" title="Development sign-in" end={<span className="entry-caption">Only on a development server</span>} />
           <ul className="entry-people">
-            {DEV_PEOPLE.map((p) => (
+            {people.map((p) => (
               <li key={p.email} className="entry-person">
                 <Button size="sm" busy={dev.isPending && dev.variables === p.email} onClick={() => dev.mutate(p.email)}>
-                  {p.name}
+                  {p.display_name}
                 </Button>
-                <span className="entry-person-role">{p.role}</span>
+                <span className="entry-person-role">
+                  {p.about ? <span>{p.about}</span> : null}
+                  <span className="entry-person-email">{p.email}</span>
+                </span>
               </li>
             ))}
             <li className="entry-person">
               <Button size="sm" onClick={() => email.trim() && dev.mutate(email.trim())} disabled={!email.trim()}>
                 As the email above
               </Button>
-              <span className="entry-person-role">Any account: type its email above</span>
+              <span className="entry-person-role">
+                {accounts.data?.more ? `${accounts.data.more} more accounts, or a new one: type its email above` : "Any account, or a new one: type its email above"}
+              </span>
             </li>
           </ul>
           {dev.isError ? (

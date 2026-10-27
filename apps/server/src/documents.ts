@@ -176,6 +176,15 @@ export async function htmlView(c: Context, env: Env, v: FileVersion, site: strin
   });
 }
 
+/** How many of a file's bytes a request asks for: the range it names, or the whole file. */
+export function bytesAsked(c: Context, size: number): number {
+  const m = /^bytes=(\d+)-(\d*)$/.exec(c.req.header("range") ?? "");
+  if (!m) return size;
+  const start = Number(m[1]);
+  const end = m[2] ? Math.min(Number(m[2]), size - 1) : size - 1;
+  return start >= size || start > end ? 0 : end - start + 1;
+}
+
 /**
  * An attachment's bytes, in ranges when asked (as media players and PDF viewers ask). Uploaded HTML
  * and SVG are only ever an attachment to save; a PDF to show inline is the one document among them.

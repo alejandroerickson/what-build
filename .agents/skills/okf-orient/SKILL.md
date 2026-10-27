@@ -45,6 +45,7 @@ Run `corepack pnpm attention` once per session and tell the person what it print
 | Agent-driven end-to-end tests, the golden master, writing a test plan | `okf/operations/end-to-end-tests.md`, then `e2e/plans/README.md` |
 | Running, testing and deploying | `okf/operations/`; the table in `AGENTS.md` names the guide and the skill for each task |
 | Mail: what the server sends, which deployment sends it and through what, setting it up or repairing it | `okf/operations/mail.md` |
+| Plans, prices and limits; the plan new organizations start on; a read-only organization; guests and the waitlist; deleting organizations and removing people as an instance owner | `okf/spec/09-data-lifecycle.md` §9.7, `okf/spec/03-accounts-teams-and-identity.md` §3.3, the decision `the-deployment-defines-its-plans-and-billing-stays-outside-the-repository`, and the `run-the-instance` skill |
 | Releasing, rehearsing on the dev deployment, backups, restoring, recovering | `okf/operations/releasing.md`, `dev-deployment.md`, `backups.md`, `recovering-from-a-bad-release.md` |
 | Rules for a change, and what may never be committed | `okf/process/working-in-this-repository.md` |
 | The concept types and the editing rules | `okf/ontology.md` |

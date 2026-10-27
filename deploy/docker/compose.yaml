@@ -46,6 +46,8 @@ services:
       WHATBUILD_MAILER: console
       WHATBUILD_EXAMPLE_TENANT: ${WHATBUILD_EXAMPLE_TENANT:-}
       WHATBUILD_INSTANCE_OWNERS: riley@example.com
+      # The example plans the image carries, as local development offers them.
+      WHATBUILD_PLANS: /app/plans.example.json
       WHATBUILD_NEW_ORGANIZATION_PLAN: free
 
   # Each night, whatbuild-e2e.sh nightly: the newest release, if it is newer, on a fresh copy.

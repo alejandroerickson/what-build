@@ -2,6 +2,7 @@ import { Link, Navigate, useSearchParams } from "react-router";
 import { plural, relativeTime } from "../lib/format.ts";
 import { markdownText } from "../lib/markdown.tsx";
 import { ownFirst, productHome, useHideExample, useMe, useProducts, type ProductsResponse, type ProductSummary } from "../lib/session.tsx";
+import { AskForOrganization } from "../shell/ask-for-organization.tsx";
 import { BrandMark } from "../shell/brand.tsx";
 import { Journey } from "../shell/journey.tsx";
 import { L1 } from "../shell/panel.tsx";
@@ -203,12 +204,13 @@ function StartYourOwn({ mayStart }: { mayStart: boolean }) {
           ) : null
         }
       />
-      <SheetBody>
+      <SheetBody className="overview-start-body">
         <p className="muted">
           {mayStart
             ? "Your team’s work goes in an organization of your own. Start one when you’re ready."
-            : "Your team’s work goes in an organization of your own. Ask whoever runs this WhatBuild for one, or someone who uses it to invite you."}
+            : "Your team’s work goes in an organization of your own. Organizations open a few at a time: ask for yours, or have someone who uses WhatBuild invite you to theirs."}
         </p>
+        {mayStart ? null : <AskForOrganization />}
       </SheetBody>
     </Sheet>
   );

@@ -30,7 +30,7 @@ export function screenOf(pathname: string): string | null {
   const parts = pathname.split("/").filter(Boolean);
   if (!parts.length) return "Overview";
   if (parts[0] === "t" && parts.length === 3 && parts[2] === "members") return "Members";
-  if (parts[0] === "t" && parts.length === 3 && parts[2] === "limits") return "Plan and limits";
+  if (parts[0] === "t" && parts.length === 3 && (parts[2] === "plan" || parts[2] === "limits")) return "Plan";
   if (parts[0] === "t" && parts.length >= 4) {
     const [segment, sub, item] = parts.slice(4);
     if (segment === "search") return "Search";

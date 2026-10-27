@@ -42,15 +42,19 @@ approved):
 1. Compare what production and dev run (`/api/v1/meta` on both) and when dev's copy was taken.
    If dev is ahead of production, put it back. If production migrated after the copy, or the
    maintainer wants recent data, refresh it.
-2. Deploy the tag, or a commit of `main`, with the command in the guide's "Rehearsing a release".
-3. Check, from the guide: every build step, a `migrated …` line per new migration, every queued
+2. Do on dev what the release asks of a deployment, as production will before taking it: the
+   lines for it under Unreleased (or its version) in `okf/operations/upgrading.md`. A release that
+   needs plans, for one, needs dev to hold production's plans file and starting plan first (the
+   guide's step 7, and the `run-the-instance` skill).
+3. Deploy the tag, or a commit of `main`, with the command in the guide's "Rehearsing a release".
+4. Check, from the guide: every build step, a `migrated …` line per new migration, every queued
    job done without an error, `/api/v1/meta`, the changed screens on the copied data, and logs
    without 500s.
-4. If the release changes parsing, the parse limits or the service's memory, upload the hostile
+5. If the release changes parsing, the parse limits or the service's memory, upload the hostile
    files (`scripts/hostile-files.mjs`, the guide's step 4): each must end in the status the script
    prints, the service must keep answering, and the revision's memory must stay clear of its
    limit. Delete the hostile sources afterwards.
-5. Report what ran, what migrated, what each job did, what each hostile file ended as and the
+6. Report what ran, what migrated, what each job did, what each hostile file ended as and the
    memory it took, and what failed or could not be checked.
    Say plainly whether production's build should be approved.
 

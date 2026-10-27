@@ -5,7 +5,7 @@ import { json, type Db } from "../db.ts";
 import { AppError, conflict, forbidden, invalid, notFound } from "../errors.ts";
 import { effectiveRole, membershipsFor, PRODUCT_ROLES, readsOnlyTheStory, readsOnlyTheStoryIn, reportedRole, roleAtLeast, tenantRoleAtLeast } from "../policy.ts";
 import { capRole, defineOperation, type OpContext, type ProductRole, type ReportedRole, type TenantRole } from "../registry.ts";
-import type { Plan } from "../limits.ts";
+import { checkMembers, type Plan } from "../limits.ts";
 import { isInstanceOwner, requireTenantAllowance } from "../tenant-allowance.ts";
 import { expectedEtag, slug } from "../schemas.ts";
 import { newEtag, newId, oneLine, quotedName, randomToken, sha256Hex, slugify } from "../util.ts";
@@ -176,7 +176,7 @@ export const listProducts = defineOperation({
   mutates: false,
   summary: "List every product you can reach, across your tenants and teams, with your role and counts of what each holds.",
   description:
-    "Start here when you do not know which product to work in. Each item has `path` (tenant/team/product slugs) and `product_id`; pass either as `product` on product-scoped calls. Confirm the product with the person before your first write in a conversation. Archived products are left out unless include_archived is true. Each item's `counts` (one number per kind) and `stage_counts` (their totals per stage) are the ones products_read(action=\"get\") reports. Through an agent, your_role is the person's role capped by the connection's level, which connection_level gives (viewer reads, editor also writes and archives, admin also deletes permanently and manages products and people). Where your_role is reader you may read only the Story: such an item has no concept and counts only story_pages. A tenant marked story_only is one where you read only the Story everywhere, so its members are not listed to you. A tenant with `example: true` is the example organization: a worked example that every account reads, as its guest (your_role guest, viewer on every product), and that nobody but its authors changes, so every write there is refused with 403 example_read_only. Read it to learn how a discovery is done; do the person's own work in an organization of theirs. A tenant's plan is free or unlimited: on the free plan everyone in it meets limits on how often and how much, which products_read(action=\"limits\") lists with what is used today. A tenant's name_etag guards its name and slug, which its owners change with products_write(action=\"rename_tenant\"); former_slugs, when present, are slugs it had before, which still reach it.",
+    "Start here when you do not know which product to work in. Each item has `path` (tenant/team/product slugs) and `product_id`; pass either as `product` on product-scoped calls. Confirm the product with the person before your first write in a conversation. Archived products are left out unless include_archived is true. Each item's `counts` (one number per kind) and `stage_counts` (their totals per stage) are the ones products_read(action=\"get\") reports. Through an agent, your_role is the person's role capped by the connection's level, which connection_level gives (viewer reads, editor also writes and archives, admin also deletes permanently and manages products and people). Where your_role is reader you may read only the Story: such an item has no concept and counts only story_pages. A tenant marked story_only is one where you read only the Story everywhere, so its members are not listed to you. A tenant with `example: true` is the example organization: a worked example that every account reads, as its guest (your_role guest, viewer on every product), and that nobody but its authors changes, so every write there is refused with 403 example_read_only. Read it to learn how a discovery is done; do the person's own work in an organization of theirs. A tenant's plan is one this WhatBuild defines, whose limits everyone in it meets (products_read(action=\"limits\") lists them with what is used today), or unlimited, which sets none. A tenant with read_only is one that went back to the plan new organizations start on while whoever started it already had one there: read and export it, but every other write is refused (409 organization_read_only) until it moves to another plan; it is kept until kept_until. A tenant's name_etag guards its name and slug, which its owners change with products_write(action=\"rename_tenant\"); former_slugs, when present, are slugs it had before, which still reach it.",
   input: z.strictObject({ include_archived: z.boolean().default(false) }),
   rest: { method: "GET", path: "/me/products" },
   mcp: { tool: "products", action: "list" },
@@ -224,16 +224,23 @@ export const listProducts = defineOperation({
       for (const [id, c] of await countProducts(ctx.db, ids)) counts.set(id, c);
     }
     await sql`select set_config('app.tenant_id', '', true)`.execute(ctx.db);
-    const tenants = await ctx.db.selectFrom("tenants").select(["tenant_id", "slug", "name", "name_etag", "example", "plan"]).where("tenant_id", "in", tenantIds).orderBy("name").execute();
+    const tenants = await ctx.db
+      .selectFrom("tenants")
+      .select(["tenant_id", "slug", "name", "name_etag", "example", "plan", "read_only_since", "kept_until"])
+      .where("tenant_id", "in", tenantIds)
+      .orderBy("name")
+      .execute();
     const teams = await ctx.db.selectFrom("teams").select(["team_id", "tenant_id", "slug", "name", "archived_at"]).where("tenant_id", "in", tenantIds).orderBy("name").execute();
     const former = await formerSlugs(ctx.db, tenantIds);
     return {
       ...(ctx.principal.level ? { connection_level: ctx.principal.level } : {}),
       items: items.map((i) => ({ ...i, ...countsFor(i.your_role, counts.get(i.product_id)!) })),
-      tenants: tenants.map(({ example, ...t }) => {
+      tenants: tenants.map(({ example, read_only_since, kept_until, ...t }) => {
         const tr = memberships.find((m) => m.scope_type === "tenant" && m.scope_id === t.tenant_id)?.role ?? null;
         return {
           ...t,
+          // Back on the starting plan while its creator has another there: read and exported, kept until kept_until, added to by nobody.
+          ...(read_only_since ? { read_only: { since: read_only_since, kept_until } } : {}),
           // The example organization: read by everyone, changed by nobody but its members.
           ...(example ? { example: true } : {}),
           // Addresses written before its slug changed still name it.
@@ -795,6 +802,7 @@ export const grantMember = defineOperation({
     const allowed = target.scope_type === "tenant" ? ["owner", "admin", "member"] : PRODUCT_ROLES;
     if (!allowed.includes(input.role)) throw invalid("invalid_role", `Role ${input.role} doesn’t apply to ${target.scope_type === "tenant" ? "an organization" : `a ${target.scope_type}`}; use ${allowed.join(", ")}.`);
     const tid = ctx.scope.tenant!.tenant_id;
+    await checkMembers(ctx.db, ctx.limits ?? null, input.email, input.role);
     const account = await ctx.db.selectFrom("accounts").select(["account_id", "display_name"]).where(sql<boolean>`lower(email) = lower(${input.email})`).where("deleted_at", "is", null).executeTakeFirst();
     if (!account) {
       const token = randomToken();
@@ -851,6 +859,7 @@ export const revokeMember = defineOperation({
   access: "any",
   needsSomewhere: "admin",
   mutates: true,
+  allowReadOnlyOrganization: true,
   connection: "admin",
   summary: "Remove someone's role at one scope, or remove them from the tenant entirely. Their past writes and attribution stay.",
   description:
@@ -901,6 +910,7 @@ export const cancelInvitation = defineOperation({
   access: "any",
   needsSomewhere: "admin",
   mutates: true,
+  allowReadOnlyOrganization: true,
   connection: "admin",
   summary: "Cancel an outstanding invitation.",
   description: "The invitation link stops working at once.",

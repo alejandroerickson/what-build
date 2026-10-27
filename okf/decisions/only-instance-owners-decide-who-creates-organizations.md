@@ -41,7 +41,7 @@ and that being in an organization never lets anyone create one.
   keeps who gave it and who changed it last.
 - An organization created on an allowance gets the plan the deployment names, unlimited unless it
   names free; one an instance owner creates is unlimited
-  ([decision](free-organizations-meet-limits-that-only-instance-owners-change.md)).
+  ([decision](limits-belong-to-plans-and-each-organization-is-on-a-plan-of-its-own.md)).
 - Giving an address an allowance is also how a waiting person is let in while sign-up is limited.
 
 ## Constrains
