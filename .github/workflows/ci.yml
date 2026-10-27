@@ -2,9 +2,11 @@ name: CI
 
 # The same path a contributor runs: install, typecheck, test against a real Postgres (the
 # embedded-postgres package, nothing to provision), and build the production bundle. Beside it, the
-# check that nothing private is published in the new commits and their messages; the pull request's
-# text has a workflow of its own, pull-request-text.yml (okf/operations/security-checks.md). Actions
-# are pinned to commits; Dependabot updates them.
+# image built from deploy/Dockerfile as the Release workflow builds it, but kept on the runner, so a
+# change that breaks the image fails here rather than at its tag; and the check that nothing private
+# is published in the new commits and their messages; the pull request's text has a workflow of its
+# own, pull-request-text.yml (okf/operations/security-checks.md). Actions are pinned to commits;
+# Dependabot updates them.
 on:
   push:
     branches: [main]
@@ -33,6 +35,31 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm test
       - run: pnpm build
+
+  image:
+    name: The image builds
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        # Built as release.yml builds it, and pushed nowhere. The cache is a scope of its own, written
+        # only by pushes to main, so a pull request reads main's layers and never evicts the release's.
+        env:
+          BUILDX_METADATA_PROVENANCE: disabled
+          DOCKER_BUILD_SUMMARY: "false"
+          DOCKER_BUILD_RECORD_UPLOAD: "false"
+        with:
+          context: .
+          file: deploy/Dockerfile
+          platforms: linux/amd64
+          push: false
+          provenance: false
+          build-args: WHATBUILD_COMMIT=${{ github.sha }}
+          cache-from: type=gha,scope=ci-image
+          cache-to: ${{ github.event_name == 'push' && 'type=gha,mode=max,scope=ci-image' || '' }}
 
   publishable:
     name: Nothing private

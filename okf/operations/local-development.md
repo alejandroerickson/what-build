@@ -173,7 +173,9 @@ plans in `e2e/plans/` there through the browser and MCP and reports what it find
 | `pnpm check:publishable --all` | Nothing private in the tree or the history. The git hooks `pnpm install` turns on run it on every commit and push. |
 
 CI (`.github/workflows/ci.yml`) runs the documentation check, the guide check, typecheck, test and build on every push to
-`main` and every pull request, and beside them the check that nothing private is published; a
+`main` and every pull request, and beside them a build of the image from `deploy/Dockerfile`,
+pushed nowhere, so a change that breaks the image fails before a tag does, and the check that
+nothing private is published; a
 pull request's title and description are checked when it is opened and whenever they are edited
 (`pull-request-text.yml`). The Security workflow runs `pnpm security` on the same events and
 weekly, with a weekly OWASP ZAP scan of the app, a weekly check of the whole history, and a weekly
@@ -181,7 +183,7 @@ check of what GitHub holds beside the code; CodeQL runs once the repository is p
 Dependabot opens updates ([security checks](security-checks.md)). A tag `v*` runs the Release workflow (`.github/workflows/release.yml`),
 which publishes the image as `ghcr.io/<owner>/what-build:<tag>` and makes a GitHub release
 ([decision](../decisions/releases-are-tags-with-a-published-image.md)) whose notes list the
-migrations it adds since the previous tag, the fact an operator needs to
+migrations it adds since the last earlier release that has an image, the fact an operator needs to
 [recover from a bad release](recovering-from-a-bad-release.md). A release published on GitHub makes
 its tag and so starts the same workflow; [releasing](releasing.md) is how to make one.
 

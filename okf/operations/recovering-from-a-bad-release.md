@@ -85,8 +85,9 @@ az containerapp revision list -g "$AZ_RG" -n "$AZ_APP" --query '[].{name:name,cr
 
 Any one of these answers it:
 
-- **The release notes.** Each GitHub release lists the migrations it adds since the previous tag,
-  or says it adds none.
+- **The release notes.** Each GitHub release lists the migrations it adds since the last earlier
+  release that has an image, the one a deployment can go back to, or says it adds none. A tag
+  between them whose workflow failed published no image, and the notes name it.
 - **The code.** Migrations are the numbered files in `apps/server/src/migrations/`:
   `git diff --name-only --diff-filter=A <good> <bad> -- apps/server/src/migrations/`
 - **The migration job's log** for the deploy: `migrated 0012_….sql` for each file it applied, or
