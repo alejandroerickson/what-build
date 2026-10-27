@@ -91,7 +91,8 @@ describe("refusals", () => {
       for (const name of ["products_read", "products_write", "products_delete"]) {
         const r = (await client.callTool({ name, arguments: { action, params: { email: "owen@example.com", confirm: "delete permanently" } } })) as { isError?: boolean; content: { text: string }[] };
         expect(r.isError).toBe(true);
-        expect(r.content[0]!.text).toMatch(new RegExp(`Unknown (tool ${name}|${name} action: ${action})`));
+        // Whichever of its noun's tools is called, the agent is told where the person does it.
+        expect(r.content[0]!.text).toMatch(new RegExp(`^403: No agent is offered products_${action === "delete_account" ? "write" : "read"}\\(action="${action}"\\): a person does it in the web app, in their own Settings \\(\`/settings\`\\), Delete account\\.`));
       }
     }
     await client.close();

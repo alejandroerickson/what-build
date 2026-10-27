@@ -67,10 +67,13 @@ describe("removing an account", () => {
     await client.connect(new StreamableHTTPClientTransport(new URL(`${h.baseUrl}/mcp`), { requestInit: { headers: { authorization: `Bearer ${await h.connectAgent(root, "Root's agent")}` } } }));
     const r = (await client.callTool({ name: "products_write", arguments: { action: "remove_account", params: { account_id: peteId, email: "pete@example.com", confirm: "delete permanently" } } })) as { isError?: boolean; content: { text: string }[] };
     expect(r.isError).toBe(true);
-    // A person's act in the web app: an agent is not even offered it.
-    expect(r.content[0]!.text).toMatch(/Unknown products_write action: remove_account/);
+    // A person's act in the web app: an agent is not even offered it, and is told where it is.
+    expect(r.content[0]!.text).toMatch(/^403: No agent is offered products_write\(action="remove_account"\): a person does it in the web app, on People \(`\/people`\), Remove on the account\./);
+    expect(JSON.parse(r.content[0]!.text.slice(r.content[0]!.text.indexOf("\n") + 1)).error.code).toBe("web_only");
+    // Nor the list of accounts, which is on People too.
     const listed = (await client.callTool({ name: "products_read", arguments: { action: "accounts" } })) as { isError?: boolean; content: { text: string }[] };
-    expect(listed.isError).toBeFalsy();
+    expect(listed.isError).toBe(true);
+    expect(listed.content[0]!.text).toMatch(/^403: No agent is offered products_read\(action="accounts"\): a person does it in the web app, on People/);
     await client.close();
   });
 

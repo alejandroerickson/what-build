@@ -6,12 +6,13 @@ import { syncExampleTenant } from "../src/example-organization.ts";
 import { toolDefinitions } from "../src/mcp.ts";
 import { startHarness, type Browser, type Harness } from "./harness.ts";
 
-// An agent is offered what the person could do, as the web app shows them only that. The instance
-// owners' actions are listed to them alone. A connector scoped to an organization or a product
-// lists only what its fence answers and what the person's roles inside it reach; the unscoped one,
-// what their roles in any organization they are in reach, unless they may start an organization.
-// A call to what a connection is not offered is still answered with what it needs, never as
-// unknown, and no tool's description speaks of what it does not offer.
+// An agent is offered what the person could do, as the web app shows them only that. Running the
+// instance is the web app's alone, so no connection lists the instance owners' actions, theirs
+// included. A connector scoped to an organization or a product lists only what its fence answers
+// and what the person's roles inside it reach; the unscoped one, what their roles in any
+// organization they are in reach, unless they may start an organization. A call to what a
+// connection is not offered is still answered with what it needs, or where a person does it, never
+// as unknown, and no tool's description speaks of what it does not offer.
 
 let h: Harness;
 let root: Browser; // owns this WhatBuild
@@ -64,9 +65,9 @@ function operationOf(action: string): OperationDef {
   return OPERATIONS.find((o) => o.mcp.tool === tool && o.mcp.action === name)!;
 }
 
-/** Every action a connection at this level is offered when nothing but its level and the instance owners' own actions narrow it. */
+/** Every action a connection at this level is offered when nothing but its level narrows it. */
 const everythingAt = (level: ConnectionLevel) =>
-  OPERATIONS.filter((o) => !o.webOnly && !o.instanceOwnersOnly && levelAllows(level, o)).map((o) => (o.mcp.action ? `${o.mcp.tool}.${o.mcp.action}` : o.mcp.tool)).sort();
+  OPERATIONS.filter((o) => !o.webOnly && levelAllows(level, o)).map((o) => (o.mcp.action ? `${o.mcp.tool}.${o.mcp.action}` : o.mcp.tool)).sort();
 
 /** Let the person start no organization, whatever the default. */
 async function noAllowance(email: string) {
@@ -106,36 +107,38 @@ beforeAll(async () => {
 afterAll(async () => h?.close());
 
 describe("the instance owners' actions", () => {
-  it("are listed to an owner of this WhatBuild, as far as the connection's level allows", async () => {
-    const client = await connect(await h.connectAgent(root, "Root's agent"));
-    const { actions, descriptions } = await offered(client);
-    for (const a of INSTANCE_ACTIONS) expect(actions, a).toContain(`products.${a}`);
-    // Removing an account is done only in the web app.
-    expect(actions).not.toContain("products.remove_account");
-    expect(descriptions["products_read"]).toContain("As an owner of this WhatBuild");
-    expect(descriptions["products_write"]).toContain("As an owner of this WhatBuild");
-    expect(result(await client.callTool({ name: "products_read", arguments: { action: "usage", params: { days: 1 } } })).status).toBe(200);
-    await client.close();
-    const editing = await offeredAt(root, "/mcp", "editor");
-    expect(editing).toContain("products.organizations");
-    for (const a of ["set_plan", "set_tenant_allowance", "remove_tenant_allowance"]) expect(editing, a).not.toContain(`products.${a}`);
+  it("are listed to no connection, an owner of this WhatBuild's included, at any level", async () => {
+    for (const level of ["viewer", "editor", "admin"] as const) {
+      const { actions, descriptions } = await offeredWith(root, "/mcp", level);
+      for (const a of [...INSTANCE_ACTIONS, "remove_account"]) expect(actions, `${level} ${a}`).not.toContain(`products.${a}`);
+      expect(said(descriptions["products_read"]!) + said(descriptions["products_write"] ?? ""), level).not.toMatch(/owner of this WhatBuild|allowances|every account|how it is used/);
+    }
+    // What the person's roles reach is not narrowed: an instance owner may start an organization.
+    expect((await offeredAt(root, "/mcp")).sort()).toEqual(everythingAt("admin"));
   });
 
-  it("are neither listed nor named to anyone else, whose call is refused as before", async () => {
-    const client = await connect(await h.connectAgent(olive, "Olive's agent"));
-    const { actions, descriptions } = await offered(client);
-    for (const a of INSTANCE_ACTIONS) expect(actions, a).not.toContain(`products.${a}`);
-    expect(actions).toContain("products.limits");
-    expect(said(descriptions["products_read"]!) + said(descriptions["products_write"]!)).not.toMatch(/allowances|every account|how it is used/);
-    // Called anyway, from what the guide says, it is refused for what it needs: an unknown action would mean an old tool list.
-    const usage = result(await client.callTool({ name: "products_read", arguments: { action: "usage", params: { days: 1 } } }));
-    expect(usage.status).toBe(403);
-    expect(usage.json.error.message).toContain("Only an owner of this WhatBuild instance");
-    expect(result(await client.callTool({ name: "products_read", arguments: { action: "organizations", describe: true } })).json.action).toBe("organizations");
-    const unknown = result(await client.callTool({ name: "products_read", arguments: { action: "explode" } }));
-    expect(unknown.json.error.code).toBe("unknown_action");
-    for (const a of INSTANCE_ACTIONS) expect(unknown.json.error.details.actions, a).not.toContain(a);
-    await client.close();
+  it("are refused, called anyway, with where a person does them, never as unknown", async () => {
+    for (const who of [root, olive]) {
+      const client = await connect(await h.connectAgent(who, "An agent told of the instance's actions"));
+      const usage = result(await client.callTool({ name: "products_read", arguments: { action: "usage", params: { days: 1 } } }));
+      expect(usage.status).toBe(403);
+      expect(usage.json.error).toMatchObject({ code: "web_only", details: { operation: "products.usage" } });
+      expect(usage.json.error.message).toContain("usage report, `pnpm usage`");
+      const move = result(await client.callTool({ name: "products_write", arguments: { action: "set_plan", params: { tenant: org, plan: "unlimited" } } }));
+      expect(move.json.error.code).toBe("web_only");
+      expect(move.json.error.message).toMatch(/^No agent is offered products_write\(action="set_plan"\): a person does it in the web app, on Organizations \(`\/instance`\), Change plan on the organization's row\. .*Nothing was changed\.$/);
+      // Not a sign of an older tool list, so nothing sends the person to start a new session.
+      expect(move.json.error.message).not.toMatch(/new session|restart/);
+      // Nor described, nor told to move to another tool.
+      expect(result(await client.callTool({ name: "products_read", arguments: { action: "organizations", describe: true } })).json.error.code).toBe("web_only");
+      expect(result(await client.callTool({ name: "products_read", arguments: { action: "set_guests", params: {} } })).json.error.code).toBe("web_only");
+      const unknown = result(await client.callTool({ name: "products_read", arguments: { action: "explode" } }));
+      expect(unknown.json.error.code).toBe("unknown_action");
+      for (const a of INSTANCE_ACTIONS) expect(unknown.json.error.details.actions, a).not.toContain(a);
+      await client.close();
+    }
+    // The web app still does all of it.
+    expect((await root.api("GET", "/api/v1/organizations")).status).toBe(200);
   });
 });
 
@@ -194,14 +197,14 @@ describe("a connector scoped to an organization", () => {
     for (const a of ["members.list", "sources.list", "search"]) expect(actions, a).not.toContain(a);
   });
 
-  it("lists an instance owner none of their own actions, and refuses them", async () => {
+  it("lists an instance owner none of their own actions, and refuses them with where they are", async () => {
     const t = await root.api("POST", "/api/v1/tenants", { name: "Root's own" });
     const at = `/mcp/t/${t.body.tenant.slug}`;
     const client = await connect(await h.connectAgent(root, "Root's scoped agent", at), at);
     const { actions } = await offered(client);
     for (const a of INSTANCE_ACTIONS) expect(actions, a).not.toContain(`products.${a}`);
     const r = result(await client.callTool({ name: "products_read", arguments: { action: "usage", params: { days: 1 } } }));
-    expect(r.json.error.code).toBe("outside_connector_scope");
+    expect(r.json.error.code).toBe("web_only");
     await client.close();
   });
 });
@@ -319,8 +322,8 @@ describe("each tool's description", () => {
   it("names no action the connection is not offered, for every level and role", () => {
     const lists: [string, (op: OperationDef) => boolean][] = [];
     for (const level of levels) {
-      const allowed = (op: OperationDef) => levelAllows(level, op) && !op.instanceOwnersOnly;
-      lists.push([`${level}, unnarrowed`, allowed], [`${level}, an instance owner`, (op) => levelAllows(level, op)]);
+      const allowed = (op: OperationDef) => levelAllows(level, op);
+      lists.push([`${level}, unnarrowed`, allowed]);
       for (const [who, standing] of Object.entries(standings)) {
         lists.push([`${level}, ${who}, unscoped`, (op) => allowed(op) && reachesAnywhere(op, [standing])]);
         for (const product of [true, false]) {

@@ -269,7 +269,9 @@ one to what the tenant already has writes nothing. A change is recorded in the t
 - Over it, `products.create_tenant` answers `403 tenant_allowance` with `allowed` and `created`.
   The check holds a lock on the account for the transaction, so two creations at once cannot both
   take the last place.
-- Only instance owners read and change allowances: `products.tenant_allowances`,
+- Only instance owners read and change allowances, in the web app only (Who can start
+  organizations and Waitlist on `/instance`; no agent is offered them, ◆
+  [decision](../decisions/running-the-instance-is-done-in-the-web-app-never-by-an-agent.md)): `products.tenant_allowances`,
   `products.set_tenant_allowance` (guarded by the row's etag once it exists, and refusing one sent
   for an address that has none with `409 stale_etag` and `current_etag: null`; with `notify`, an
   address whose allowance grows is emailed a link to `/welcome`) and
@@ -304,12 +306,13 @@ it moves. The limits and their refusals are in [§9.7](09-data-lifecycle.md).
   the deployment has an example organization (`example`) and whether guests may sign up; `plans`
   is empty on a deployment that offers none. There is no billing in WhatBuild: an instance owner
   moves an organization when it pays, and a billing service kept outside the repository would do
-  the same through `products.set_plan`.
-- Only instance owners change a plan's limits and its price, for every organization on it
-  (`products.set_plan_limits`, `PATCH /api/v1/plans`, [§9.7](09-data-lifecycle.md)), over what the
+  the same through `products.set_plan` over REST.
+- Only instance owners change a plan's limits and its price, in the web app only, for every
+  organization on it (`products.set_plan_limits`, `PATCH /api/v1/plans`, [§9.7](09-data-lifecycle.md)), over what the
   deployment's configuration defines; a plan it does not define is refused (`422 unknown_plan`).
-- Only instance owners list every tenant with its plan, what it holds and today's use, with the
-  deployment's `new_organization_plan` and the plans offered (`products.organizations`), and move
+- Only instance owners, in the web app only (`/instance`), list every tenant with its plan, what
+  it holds and today's use, with the deployment's `new_organization_plan` and the plans offered
+  (`products.organizations`), and move
   a tenant to another plan (`products.set_plan`, `PATCH /api/v1/organizations/plan`): one the
   deployment defines, or `unlimited`; any other is refused (`422 unknown_plan`, with the plans
   there are in `details.plans`). Once a
@@ -542,8 +545,8 @@ No operation reaches it, so an agent cannot sign its person out. Ending an accou
 **Ending an account.** An account ends one of two ways, which do the same thing (`endAccount`,
 `packages/core/src/ops/accounts.ts`). An instance owner removes someone's on **People**
 (`products.remove_account`, with the account's address typed exactly and `confirm` set to
-`"delete permanently"`); `products.accounts` lists every account for them, through either door,
-with the organizations each is in and when it was last seen
+`"delete permanently"`); `products.accounts` lists every account for them there, in the web app
+only, with the organizations each is in and when it was last seen
 ([decision](../decisions/instance-owners-see-every-account-and-remove-any-but-their-own.md)). A
 person deletes their own in the Delete account section of Settings, which opens in place
 (`/settings?delete=account`) (`products.delete_account`, with their
@@ -738,7 +741,8 @@ letting it in when there is room, and `{ guest: false, status: "in" }` to anyone
 a row of `guest_passes`; admissions are taken one at a time under one advisory lock, so two
 guests cannot both take the last place. Only instance owners read and change the settings, with how
 many guests are in, waiting, new today and ever (`products.guests`, `products.set_guests`,
-under their etag); a change applies from the next call.
+under their etag), in the web app only, under Guests on `/instance`; a change applies from the
+next call.
 
 `products.list` lists the example organization's products for every account, with
 `tenant.example: true`, and the organization among `tenants` with `example: true`. To a guest,

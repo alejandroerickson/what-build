@@ -189,10 +189,11 @@ export const listOrganizations = defineOperation({
   scope: "account",
   access: "any",
   instanceOwnersOnly: true,
+  webOnly: "a person does it in the web app, on Organizations (`/instance`)",
   mutates: false,
   summary: "Every organization on this instance, with its plan, what it holds, who created it and what it used today (instance owners).",
   description:
-    "For the instance's owners: new_organization_plan, the plan an organization someone else creates gets on this deployment (WHATBUILD_NEW_ORGANIZATION_PLAN), plans, the plans this deployment defines (WHATBUILD_PLANS) with each one's limits and price, empty when it offers none, and each organization with its slug (and former_slugs, the ones it had before), name, plan, read_only when it is read-only (since, and kept_until), starting_plan_is_read_only when moving it to the starting plan would make it read-only, undefined_plan when it is on a plan the deployment no longer defines (it meets no limit until moved), whether it is the example organization, who created it and when, what it holds (people, products and sources not archived, storage in bytes) and what everyone in it used today, whatever its plan. It names no product and holds none of an organization's content. Move an organization to another plan with products_write(action=\"set_plan\"), whose expected_etag is etag; rename one with products_write(action=\"rename_tenant\"), whose expected_etag is name_etag.",
+    "For the instance's owners: new_organization_plan, the plan an organization someone else creates gets on this deployment (WHATBUILD_NEW_ORGANIZATION_PLAN), plans, the plans this deployment defines (WHATBUILD_PLANS) with each one's limits and price, empty when it offers none, and each organization with its slug (and former_slugs, the ones it had before), name, plan, read_only when it is read-only (since, and kept_until), starting_plan_is_read_only when moving it to the starting plan would make it read-only, undefined_plan when it is on a plan the deployment no longer defines (it meets no limit until moved), whether it is the example organization, who created it and when, what it holds (people, products and sources not archived, storage in bytes) and what everyone in it used today, whatever its plan. It names no product and holds none of an organization's content. Move an organization to another plan with products.set_plan, whose expected_etag is etag; rename one with products.rename_tenant, whose expected_etag is name_etag.",
   input: z.strictObject({}),
   rest: { method: "GET", path: "/organizations" },
   mcp: { tool: "products", action: "organizations" },
@@ -254,11 +255,12 @@ export const setOrganizationPlan = defineOperation({
   scope: "account",
   access: "any",
   instanceOwnersOnly: true,
+  webOnly: "a person does it in the web app, on Organizations (`/instance`), Change plan on the organization's row",
   mutates: true,
   connection: "admin",
   summary: "Move an organization to another plan (instance owners).",
   description:
-    "Name the organization with tenant, its slug or id, and its new plan: one this WhatBuild defines (products_read(action=\"organizations\") lists them in plans), whose limits everyone in it meets, or unlimited, which has none and is for this WhatBuild's own organizations; any other is refused (422 unknown_plan). Limits belong to plans: an organization's own can't be changed. A move applies to the next call anyone makes there, and what the organization already holds stays, even past the new plan's totals, until people archive or delete enough. Each person has one organization on the plan new organizations start on: moving one there whose creator already has theirs (or all an instance owner let them have) makes it read-only instead, kept for a year (read_only, with kept_until), and products_read(action=\"organizations\") marks it starting_plan_is_read_only beforehand; its owners, but you, are mailed that it is (owners_notified says how many). Everyone in a read-only organization may read, export, delete and take people out, as their roles allow; every other write is refused (409 organization_read_only). Moving it to another plan, or to the starting plan once its creator has no other there, makes it writable again. Pass expected_etag from products_read(action=\"organizations\") once the organization's plan has been changed before; for one never changed, leave it out. Returns the organization's plan and limits as products_read(action=\"limits\") gives them.",
+    "Name the organization with tenant, its slug or id, and its new plan: one this WhatBuild defines (products.organizations lists them in plans), whose limits everyone in it meets, or unlimited, which has none and is for this WhatBuild's own organizations; any other is refused (422 unknown_plan). Limits belong to plans: an organization's own can't be changed. A move applies to the next call anyone makes there, and what the organization already holds stays, even past the new plan's totals, until people archive or delete enough. Each person has one organization on the plan new organizations start on: moving one there whose creator already has theirs (or all an instance owner let them have) makes it read-only instead, kept for a year (read_only, with kept_until), and products.organizations marks it starting_plan_is_read_only beforehand; its owners, but you, are mailed that it is (owners_notified says how many). Everyone in a read-only organization may read, export, delete and take people out, as their roles allow; every other write is refused (409 organization_read_only). Moving it to another plan, or to the starting plan once its creator has no other there, makes it writable again. Pass expected_etag from products.organizations once the organization's plan has been changed before; for one never changed, leave it out. Returns the organization's plan and limits as products.limits gives them.",
   input: z.strictObject({
     tenant,
     plan: z.string().trim().regex(PLAN_ID, "A plan's id: lowercase letters, digits, - and _."),
@@ -272,7 +274,7 @@ export const setOrganizationPlan = defineOperation({
     const row = await ctx.db.selectFrom("tenants").select(["plan", "plan_etag", "read_only_since", "kept_until"]).where("tenant_id", "=", t.tenant_id).forUpdate().executeTakeFirstOrThrow();
     if (row.plan_etag) {
       if (!input.expected_etag)
-        throw conflict("stale_etag", `${t.name}'s plan has been changed before; read it with products_read(action="organizations") and pass its etag as expected_etag.`, { current_etag: row.plan_etag });
+        throw conflict("stale_etag", `${t.name}'s plan has been changed before; read it with products.organizations and pass its etag as expected_etag.`, { current_etag: row.plan_etag });
       checkEtag(input.expected_etag, row.plan_etag, "organization's plan");
     } else if (input.expected_etag !== undefined)
       throw conflict("stale_etag", `${t.name}'s plan has never been changed, so there is no etag to match. Leave expected_etag out.`, { current_etag: null });
@@ -339,11 +341,12 @@ export const setPlanLimits = defineOperation({
   scope: "account",
   access: "any",
   instanceOwnersOnly: true,
+  webOnly: "a person does it in the web app, on Organizations (`/instance`), under Plans, the plan's button",
   mutates: true,
   connection: "admin",
   summary: "Change a plan's limits or its price, for every organization on it (instance owners).",
   description:
-    "Name the plan by its id, one this WhatBuild defines (products_read(action=\"organizations\") lists them). limits changes only the limits it names (a total, or the bytes sent a day, may be null: no limit); price is what the plan costs as people read it, such as \"$20 a month\", or null for none, and left out keeps the one it has; reset puts every limit back to what the deployment's configuration defines first. A change applies from the next call to every organization on the plan; never to one organization alone, which moves to another plan instead (products_write(action=\"set_plan\")). Pass expected_etag from products_read(action=\"organizations\") (plan_records) once the plan has been changed before. Returns the plans offered.",
+    "Name the plan by its id, one this WhatBuild defines (products.organizations lists them). limits changes only the limits it names (a total, or the bytes sent a day, may be null: no limit); price is what the plan costs as people read it, such as \"$20 a month\", or null for none, and left out keeps the one it has; reset puts every limit back to what the deployment's configuration defines first. A change applies from the next call to every organization on the plan; never to one organization alone, which moves to another plan instead (products.set_plan). Pass expected_etag from products.organizations (plan_records) once the plan has been changed before. Returns the plans offered.",
   input: z.strictObject({
     plan: z.string().trim().regex(PLAN_ID, "A plan's id: lowercase letters, digits, - and _."),
     limits: planLimitsPatch.optional(),
@@ -384,10 +387,11 @@ export const guestSettings = defineOperation({
   scope: "account",
   access: "any",
   instanceOwnersOnly: true,
+  webOnly: "a person does it in the web app, on Organizations (`/instance`), under Guests",
   mutates: false,
   summary: "How guests come in and what they may do, with how many are in and waiting now (instance owners).",
   description:
-    "Guests are accounts in no organization, with no allowance to start one: they read the example organization and nothing else, and wait in line when every place is taken. settings are what this deployment has (each field in fields, with its default in defaults); now gives how many guests are in, waiting, came in for the first time today, and have ever come in. Change them with products_write(action=\"set_guests\"), whose expected_etag is etag.",
+    "Guests are accounts in no organization, with no allowance to start one: they read the example organization and nothing else, and wait in line when every place is taken. settings are what this deployment has (each field in fields, with its default in defaults); now gives how many guests are in, waiting, came in for the first time today, and have ever come in. Change them with products.set_guests, whose expected_etag is etag.",
   input: z.strictObject({}),
   rest: { method: "GET", path: "/guests" },
   mcp: { tool: "products", action: "guests" },
@@ -404,11 +408,12 @@ export const setGuestSettings = defineOperation({
   scope: "account",
   access: "any",
   instanceOwnersOnly: true,
+  webOnly: "a person does it in the web app, on Organizations (`/instance`), under Guests",
   mutates: true,
   connection: "admin",
   summary: "Change how guests come in and what they may do (instance owners).",
   description:
-    "Changes only the settings it names: self_serve (anyone may sign up as a guest), at_once (guests in at once; 0 lets none in), new_per_day, idle_minutes, minutes_per_day, requests_per_minute and sent_bytes_per_day. A change applies from the next call; guests already in keep their place until it frees. Pass expected_etag from products_read(action=\"guests\") once they have been changed before.",
+    "Changes only the settings it names: self_serve (anyone may sign up as a guest), at_once (guests in at once; 0 lets none in), new_per_day, idle_minutes, minutes_per_day, requests_per_minute and sent_bytes_per_day. A change applies from the next call; guests already in keep their place until it frees. Pass expected_etag from products.guests once they have been changed before.",
   input: guestPatch.extend({ expected_etag: expectedEtag.optional() }),
   rest: { method: "PATCH", path: "/guests" },
   mcp: { tool: "products", action: "set_guests" },

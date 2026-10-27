@@ -219,8 +219,7 @@ async function run(
   // A refusal names the operation as the caller calls it: an agent by its tool and action.
   const called = callName(op, principal.surface);
   // What the operation is comes before where it lands: refusing a call for its kind tells nothing about any product.
-  if (op.webOnly && principal.surface !== "web")
-    throw new AppError(403, "web_only", `Only a person can do ${called}, in the WhatBuild web app. Nothing was changed.`);
+  if (op.webOnly && principal.surface !== "web") throw webOnlyRefusal(op, principal.surface);
   if (!levelAllows(principal.level, op)) throw connectionLevelTooLow(op, principal);
   // Nor one the person turned off for this connection, whatever was sent with it.
   if (op.name === "submit_feedback" && principal.feedback === false) throw feedbackOff();
@@ -286,6 +285,21 @@ export function organizationReadOnly(name: string, readOnly: { since: string; ke
     "organization_read_only",
     `${name} is read-only: it went back to the ${startName} plan while whoever started it already has a ${startName} organization. ${READ_ONLY_ALLOWS}${kept} Nothing was changed. To work in it again, ask the people who run this WhatBuild to move it to another plan.`,
     { read_only_since: readOnly.since, kept_until: readOnly.kept_until },
+  );
+}
+
+/**
+ * The refusal of a call, through any door but the web app, to what a person does only there. It
+ * says where, for the agent to tell the person, and that no tool list holds it, so the agent does
+ * not take it for a list from another version.
+ */
+export function webOnlyRefusal(op: Pick<OperationDef, "name" | "mutates" | "rest" | "mcp" | "webOnly">, surface: Principal["surface"]): AppError {
+  return new AppError(
+    403,
+    "web_only",
+    `No agent is offered ${callName(op, surface)}: ${op.webOnly}. Tell the person where it is. ` +
+      `It is in no agent's tool list, so this is not a list from another version.${op.mutates ? " Nothing was changed." : ""}`,
+    { operation: op.name },
   );
 }
 

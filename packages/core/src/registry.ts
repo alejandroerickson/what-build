@@ -133,8 +133,12 @@ export interface OperationDef<I extends z.ZodType = z.ZodType, O = unknown, P = 
    * `admin` and `owner` need admin, `write` and any other write need editor, and reads need viewer.
    */
   connection?: ConnectionLevel;
-  /** Offered only to a person in the web app, never to an agent: closing an organization. */
-  webOnly?: boolean;
+  /**
+   * Never offered to an agent, and done by a person in the web app: closing an organization or an
+   * account, and running the instance. Says where, as an agent's call to it is told: "a person
+   * does it in the web app, on People (`/people`), Remove on the account".
+   */
+  webOnly?: string;
   /**
    * A tenant operation an owner of this WhatBuild instance may call in any organization, as one of
    * its owners, whether or not they belong to it: renaming an organization.
@@ -142,8 +146,8 @@ export interface OperationDef<I extends z.ZodType = z.ZodType, O = unknown, P = 
   allowInstanceOwners?: boolean;
   /**
    * Only an owner of this WhatBuild instance may call it, which its handler checks: the
-   * allowances to start organizations, every organization's plan, every account, the usage. An
-   * agent's tool list leaves it out for anyone else, whose call its handler refuses.
+   * allowances to start organizations, every organization's plan, every account, the usage. It is
+   * web-only too: an agent never runs the instance.
    */
   instanceOwnersOnly?: boolean;
   /**
@@ -217,7 +221,7 @@ export function mcpTool(op: Pick<OperationDef, "mutates" | "rest" | "mcp">): str
 
 /**
  * An operation as the caller names it in a refusal: an agent by the call it makes,
- * `products_write(action="set_plan")`, and anyone else by the operation's name.
+ * `sources_delete(action="delete")`, and anyone else by the operation's name.
  */
 export function callName(op: Pick<OperationDef, "name" | "mutates" | "rest" | "mcp">, surface: Principal["surface"]): string {
   if (surface !== "mcp") return op.name;

@@ -42,10 +42,11 @@ skipped one:
 | `GA_PROPERTY` with `GA_SERVICE_ACCOUNT` or `GA_ACCESS_TOKEN` | Google Analytics' Data API | skipped |
 | `CF_ANALYTICS_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`; `CF_ANALYTICS_SITE_TAG` when the account has more than one site with visits | Cloudflare's GraphQL API, up to 31 days; it samples page loads, so small counts come in steps | skipped |
 
-An agent connected to WhatBuild as an instance owner reads the server's counts with
-`products_read(action="usage")`, on the unscoped connection (`/mcp`; a connector scoped to an
-organization or a product refuses it), and a person with
-`GET /api/v1/usage`. Each takes `days` (1–400), `include_owners` and `example`.
+No agent reads them over MCP: running the instance is done outside the tools agents are offered
+([decision](../decisions/running-the-instance-is-done-in-the-web-app-never-by-an-agent.md)), and a
+call to `products_read(action="usage")` is refused `403 web_only`, pointing at this report. An
+instance owner signed in to the web app may also read them with `GET /api/v1/usage`, which takes
+`days` (1–400), `include_owners` and `example`.
 
 ## The server's counts
 

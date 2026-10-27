@@ -32,6 +32,7 @@ export const listAccounts = defineOperation({
   scope: "account",
   access: "any",
   instanceOwnersOnly: true,
+  webOnly: "a person does it in the web app, on People (`/people`)",
   mutates: false,
   summary: "Every account on this instance, with the organizations each is in and when it was last seen (instance owners).",
   description:
@@ -291,12 +292,12 @@ export const removeAccount = defineOperation({
   instanceOwnersOnly: true,
   mutates: true,
   connection: "admin",
-  webOnly: true,
+  webOnly: "a person does it in the web app, on People (`/people`), Remove on the account",
   summary: "REMOVE PERMANENTLY — cannot be undone. Remove an account from this instance (instance owners, in the web app).",
   description:
     `An instance owner's act in the web app, never an agent's. Needs the account's address typed exactly as email, and confirm set to exactly "${DELETE_CONFIRMATION}". ` +
     "Does what a person deleting their own account does: ends every browser session and agent connection the account holds, takes every role it holds in every organization (each organization's access log records it), cancels the invitations sent to its address, removes the address's allowance to start organizations, deletes what is kept about the person (their counted days of use, the counts held against limits, their name on the account), forgets the address, and emails it a confirmation. Its name stays on what it wrote. An instance owner's account cannot be removed (409 instance_owner). " +
-    "The organizations the account is the only owner of are deleted with it, everything in them and everyone's roles there, once delete_organizations names exactly those organizations by slug: products_read(action=\"accounts\") marks them only_owner, and the web app shows what each holds before asking. Without that, removing it is refused (409 last_owner, listing them in details.organizations). The example organization is never deleted this way (409 example_organization): make someone else an owner of it first. The address may sign up again only if it is let in again.",
+    "The organizations the account is the only owner of are deleted with it, everything in them and everyone's roles there, once delete_organizations names exactly those organizations by slug: products.accounts marks them only_owner, and the web app shows what each holds before asking. Without that, removing it is refused (409 last_owner, listing them in details.organizations). The example organization is never deleted this way (409 example_organization): make someone else an owner of it first. The address may sign up again only if it is let in again.",
   input: z.strictObject({
     account_id: id("account"),
     email: z.string().trim().max(320).describe("The account's address, typed by the person to confirm."),
@@ -344,7 +345,7 @@ export const accountDeleteImpact = defineOperation({
   scope: "account",
   access: "any",
   mutates: false,
-  webOnly: true,
+  webOnly: "a person does it in the web app, in their own Settings (`/settings`), Delete account",
   summary: "Preview what deleting your own account would do, and what stops it (in the web app).",
   description:
     "Read-only. What the web app shows a person before they delete their own account: their address, the organizations they hold roles in and the ones they are the only owner of (each blocks it until someone else owns it or it is deleted), whether they own the instance (which blocks it), how many browser sessions and agent connections end, the invitations and allowance their address loses, and until when this browser's sign-in is recent enough to delete (null: sign in again first).",
@@ -411,7 +412,7 @@ export const deleteAccount = defineOperation({
   access: "any",
   mutates: true,
   connection: "admin",
-  webOnly: true,
+  webOnly: "a person does it in the web app, in their own Settings (`/settings`), Delete account",
   summary: "DELETE PERMANENTLY — cannot be undone. Delete your own account (in the web app).",
   description:
     `A person's own act in the web app, never an agent's. Needs a browser that signed in within the last ${RECENT_SIGN_IN_MINUTES} minutes (403 sign_in_again otherwise), the account's address typed exactly as email, and confirm set to exactly "${DELETE_CONFIRMATION}". ` +

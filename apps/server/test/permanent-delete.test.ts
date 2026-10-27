@@ -203,7 +203,8 @@ describe("deleting an organization", () => {
     const actions = (tools.find((t) => t.name === "products_delete")!.inputSchema.properties!["action"] as { enum: string[] }).enum;
     expect(actions).toEqual(["delete"]);
     const r = (await client.callTool({ name: "products_delete", arguments: { action: "delete_tenant", params: { tenant: org.tenant.slug, name: "Delta Works", reason: "x", confirm: "delete permanently" } } })) as { content: { text: string }[] };
-    expect(r.content[0]!.text).toContain("unknown_action");
+    expect(r.content[0]!.text).toContain('"code":"web_only"');
+    expect(r.content[0]!.text).toContain("Delete this organization");
     await client.close();
     expect((await owner.api("GET", "/api/v1/me/products")).body.tenants.map((t: { slug: string }) => t.slug)).toContain(org.tenant.slug);
   });

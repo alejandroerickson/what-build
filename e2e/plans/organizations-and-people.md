@@ -11,7 +11,8 @@ Riley owns this WhatBuild. This plan follows everything an instance owner does t
 and people, from someone asking for an organization to their account being removed: the waitlist,
 allowances, one Free organization each, moving an organization to Pro and back (read-only when its
 owner already has a Free one), deleting any organization, and removing any account, the only owner
-of an organization included. It makes its own people and organizations, and deletes only those.
+of an organization included. All of it is done in the web app: an agent, Riley's included, is
+offered none of it. It makes its own people and organizations, and deletes only those.
 Free and Pro are the plans in `deploy/plans.example.json`, which the end-to-end instance offers,
 starting new organizations on Free; the rules are the same for any deployment's plans.
 
@@ -75,8 +76,7 @@ and **Cleo** are three such addresses, signed in with `pnpm e2e browser signin <
    `read_only` with `since` and `kept_until`. Create a source in its product. *Expect:*
    `409 organization_read_only`, with `read_only_since` and `kept_until` in its details, the
    same date in its message as the web gave, and the same sentence of what still works, changing
-   nothing. Reading its sources works. **MCP, as
-   Riley:** `products_read(action="organizations")` gives the organization `read_only` too.
+   nothing. Reading its sources works.
 10. **Web, as Riley.** Move it back to Pro. *Expect:* Read-only is gone from its row; as Ana, the
     notice is gone after a reload and adding a source works.
 11. **Web, as Riley.** Find Ana's second organization (Free, not read-only) on Organizations and
@@ -113,17 +113,21 @@ and **Cleo** are three such addresses, signed in with `pnpm e2e browser signin <
     from People. The email the server's log prints for her names the organization as deleted with
     her account. Signing in again as Cleo's address finds no
     organization of hers: she is a guest of the example.
-18. **MCP, as Riley.** List the tools, then call `products_read(action="organizations")`,
-    `products_read(action="tenant_allowances")` and `products_read(action="accounts")`. *Expect:* they answer as
-    the web showed, with `only_owner` on Morgan for the synthetic organization, an empty
-    `waitlist`, and no `starting_plan_is_read_only` on the synthetic organization. `remove_account`, `delete_tenant` and `delete_tenant_impact` are not
-    offered: an agent never removes an account or deletes an organization.
+18. **MCP, as Riley.** List the tools. *Expect:* none of the instance owners' actions
+    (`organizations`, `set_plan`, `set_plan_limits`, `guests`, `set_guests`, `tenant_allowances`,
+    `set_tenant_allowance`, `remove_tenant_allowance`, `accounts`, `usage`), nor `remove_account`,
+    `delete_tenant` or `delete_tenant_impact`, and no tool's description speaks of running this
+    WhatBuild. Call `products_read(action="organizations")` and
+    `products_write(action="set_plan")` (the synthetic organization, `pro`) anyway. *Expect:* each
+    answers `403 web_only`, saying a person does it in the web app and where (Organizations,
+    `/instance`; Change plan on the organization's row), and that it is not a tool list from
+    another version; nothing asks for a new session, and the organization's plan is unchanged on
+    the web.
 19. **MCP and web, as Morgan.** Morgan owns the synthetic organization and runs nothing else. List
-    the tools. *Expect:* none of the instance owners' actions (`organizations`, `set_plan`,
-    `set_plan_limits`, `guests`, `set_guests`, `tenant_allowances`, `accounts`). On the web,
-    Organizations and People say only this WhatBuild's owners see them; the synthetic
-    organization's Members page (account menu) offers Morgan, as its owner, to delete it, and
-    Riley's Organizations page offers it too.
+    the tools. *Expect:* none of the actions in step 18; `products_read(action="accounts")` called
+    anyway answers `403 web_only` too, naming People. On the web, Organizations and People say only
+    this WhatBuild's owners see them; the synthetic organization's Members page (account menu)
+    offers Morgan, as its owner, to delete it, and Riley's Organizations page offers it too.
 
 ## Look out for
 

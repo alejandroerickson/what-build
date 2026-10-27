@@ -41,8 +41,13 @@ describe("adapter parity", () => {
     for (const [, ops] of groups) for (const o of ops) viaMcp.add(o.name);
     for (const [, o] of standalone) viaMcp.add(o.name);
     expect([...viaMcp].sort()).toEqual(OPERATIONS.filter((o) => !o.webOnly).map((o) => o.name).sort());
-    // Closing an organization is the only thing an agent is never offered.
-    expect(OPERATIONS.filter((o) => o.webOnly).map((o) => o.name).sort()).toEqual(["products.delete_account", "products.delete_account_impact", "products.delete_tenant", "products.delete_tenant_impact", "products.remove_account"]);
+    // Closing an organization or an account, and running the instance, are what an agent is never offered.
+    expect(OPERATIONS.filter((o) => o.webOnly).map((o) => o.name).sort()).toEqual([
+      "products.accounts", "products.delete_account", "products.delete_account_impact", "products.delete_tenant", "products.delete_tenant_impact", "products.guests", "products.organizations",
+      "products.remove_account", "products.remove_tenant_allowance", "products.set_guests", "products.set_plan", "products.set_plan_limits", "products.set_tenant_allowance", "products.tenant_allowances", "products.usage",
+    ]);
+    // An agent never runs the instance: every operation only its owners have is web-only.
+    for (const o of OPERATIONS.filter((o) => o.instanceOwnersOnly)) expect(o.webOnly, o.name).toBeTruthy();
     const restKeys = OPERATIONS.map((o) => `${o.rest.method} ${o.scope} ${o.rest.path}`);
     expect(new Set(restKeys).size).toBe(restKeys.length);
     expect(tools.length).toBeLessThanOrEqual(30);

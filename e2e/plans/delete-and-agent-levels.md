@@ -9,9 +9,10 @@ surfaces: [web, mcp]
 
 Archive is the reversible default and editors' alone; permanent delete is admins', behind a
 preview, a reason and the words "delete permanently", and an agent deletes only on a connection
-its person set to Admin. An agent is offered only what its person could do: the instance owners'
-actions only to them, on a scoped connector only what the person's role there reaches, and on the
-unscoped one what their role in some organization reaches, unless they may start one. This
+its person set to Admin. An agent is offered only what its person could do, and never what a
+person does only in the web app (running this WhatBuild among it): on a scoped connector only what
+the person's role there reaches, and on the unscoped one what their role in some organization
+reaches, unless they may start one. This
 plan checks both doors against each other, and that an agent cannot raise its own level. It
 deletes only what it made itself in the run.
 
@@ -73,11 +74,11 @@ deletes only what it made itself in the run.
     feedback on the connection from step 6, then list the tools and call `submit_feedback` anyway.
     *Expect:* the change is confirmed with Undo; `submit_feedback` is not listed, the call answers
     `403 feedback_off`, and the server's instructions say the person turned it off. Tick it again.
-13. **MCP, as Sam, then as Riley on the connection from step 6.** List the tools. *Expect:* Sam's
-    `products_read` and `products_write` offer no `usage`, `organizations`, `accounts` or
-    allowances, and their descriptions name none of them; `products_read(action="usage")` called anyway answers `403 forbidden`, saying
-    only an owner of this WhatBuild can, never `unknown_action`. Riley, who owns this WhatBuild,
-    is offered all of them, `set_plan` included, and the description says so.
+13. **MCP, as Sam, then as Riley on the connection from step 6.** List the tools. *Expect:*
+    neither's `products_read` or `products_write` offers `usage`, `organizations`, `accounts`,
+    `set_plan` or the allowances, and their descriptions name none of them, though Riley owns this
+    WhatBuild. `products_read(action="usage")` called anyway answers each `403 web_only`, saying
+    whoever runs this WhatBuild reads it with its usage report, never `unknown_action`.
 14. **MCP, as Jordan, on a connector scoped to a product of the standard organization**
     (`--endpoint /mcp/t/<org>/<team>/<product>`). List the tools. *Expect:* `story_read` and
     `products_read` (with `guide` and `submit_feedback`), and no `story_write`, no `sources_`,

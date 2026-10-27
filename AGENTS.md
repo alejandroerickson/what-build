@@ -60,11 +60,12 @@ message, every pull request's text and every issue and comment is published, and
 ## What this is
 
 WhatBuild turns a product team's discovery material into outcomes, mockups, reviewed assumptions
-and a Story for stakeholders. People use a React web app; agents use an MCP server exposing 112 of
-the same 117 operations (all but deleting an organization and its preview, which only its owners
-or an instance owner do, removing an account, which only an instance owner does, and deleting one's
-own account and its preview, which only its person does, in the web app). There is no AI inside. One stateless image on Cloud Run,
-Postgres, and object storage.
+and a Story for stakeholders. People use a React web app; agents use an MCP server exposing 102 of
+the same 117 operations: all but running the instance (plans, organizations, guests, allowances,
+accounts and usage, which only an instance owner does), deleting an organization and its preview,
+which only its owners or an instance owner do, and deleting one's own account and its preview,
+which only its person does, all in the web app. There is no AI inside. One stateless image on Cloud
+Run, Postgres, and object storage.
 
 The domain is **what-build.com**, with a hyphen: the public site at `what-build.com`, the app at
 `app.what-build.com`. Never write `whatbuild.com`. The product name, WhatBuild, has no hyphen.

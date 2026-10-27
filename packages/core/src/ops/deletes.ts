@@ -208,7 +208,7 @@ export const organizationDeleteImpact = defineOperation({
   scope: "tenant",
   access: "owner",
   mutates: false,
-  webOnly: true,
+  webOnly: "a person does it in the web app: one of its owners on the organization's Members page (`/t/<organization>/members`), Delete this organization, or an owner of this WhatBuild on Organizations (`/instance`), Delete on its row",
   allowInstanceOwners: true,
   summary: "Preview exactly what deleting an organization would destroy (its owners and the instance's, in the web app).",
   description: "Read-only. What the web app shows before an organization is deleted, to one of its owners or an owner of this instance: its teams, products, sources, files and people.",
@@ -226,7 +226,7 @@ export const deleteOrganization = defineOperation({
   access: "owner",
   mutates: true,
   allowReadOnlyOrganization: true,
-  webOnly: true,
+  webOnly: "a person does it in the web app: one of its owners on the organization's Members page (`/t/<organization>/members`), Delete this organization, or an owner of this WhatBuild on Organizations (`/instance`), Delete on its row",
   allowInstanceOwners: true,
   summary: "DELETE PERMANENTLY — cannot be undone. Destroys an organization and everything in it (its owners and the instance's, in the web app).",
   description:

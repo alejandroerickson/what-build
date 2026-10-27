@@ -1,6 +1,6 @@
 # Organizations, plans and export
 
-Exporting a product, starting an organization, plans with their limits and totals, read-only organizations, and the actions only an instance's owners have.
+Exporting a product, starting an organization, plans with their limits and totals, read-only organizations, and running this WhatBuild, which is done in the web app.
 
 ## Export
 
@@ -68,27 +68,19 @@ instance owner moves it to another plan. Its owners are mailed when it becomes r
 
 Only whoever runs this WhatBuild moves an organization to another plan or changes a plan's limits.
 
-## Instance owners' actions
+## Running this WhatBuild
 
-An owner of this WhatBuild instance is offered actions nobody else is (anyone else who calls one gets
-`403 forbidden`):
+Whoever runs this WhatBuild (an owner of the instance) does it in the web app, never through an
+agent. No connection is offered these actions, an instance owner's included, and a call to one is
+refused with `403 web_only`, saying where a person does it, not as an action from an older tool
+list. Tell the person where to go:
 
-- `products_read(action="usage")`: how the instance is used (calls, features, agent clients,
-  failures, people coming back), as totals that name nobody. Only on the unscoped connection (`/mcp`);
-  a scoped connector refuses it.
-- `products_read(action="accounts")`: every account, with the organizations each is in, when it was
-  last seen, and the organizations it is the only owner of.
-- `products_read(action="organizations")`: every organization's plan, what it holds and whether it is
-  read-only, with the plans the deployment defines and `starting_plan_is_read_only` where moving it
-  to the starting plan would make it read-only.
-- `products_write(action="set_plan")` moves an organization to a plan the deployment defines, or
-  `unlimited` (any other is refused with `422 unknown_plan`); `products_write(action="set_plan_limits")`
-  changes a plan's limits and price, for every organization on it.
-- `products_read(action="guests")` and `products_write(action="set_guests")`: how guests come into
-  the example organization.
-- `products_read(action="tenant_allowances")`, `products_write(action="set_tenant_allowance")` and
-  `remove_tenant_allowance`: the allowances to start organizations, and the waitlist.
+- On Organizations (`/instance`): every organization, its plan and what it holds; moving one to
+  another plan (Change plan); a plan's limits and price (Plans); how guests come into the example
+  organization (Guests); who may start organizations, and the waitlist.
+- On People (`/people`): every account, and removing one.
+- How the instance is used is read with the usage report whoever runs it keeps (`pnpm usage`).
 
-Ending an account and deleting an organization are never tools: an instance owner removes an account
-on People in the web app, and deletes an organization on Organizations; a person deletes their own
-account in its Settings, and an organization's owners delete it on its Members page.
+Deleting is also done only in the web app: a person deletes their own account in their Settings, an
+organization's owners delete it on its Members page, and an instance owner deletes any organization
+on Organizations.

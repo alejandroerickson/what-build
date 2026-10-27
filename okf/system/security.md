@@ -149,10 +149,12 @@ holds each one; the linked decisions say why. Observed in the code on 2026-10-10
   what it allows, so an agent on an Edit connection is never offered a permanent delete. Only a
   web session changes a level (`PATCH /api/v1/me/agents/…`); REST refuses bearer tokens, so an
   agent cannot raise its own. The person's feedback switch on a connection works the same way: off,
-  `submit_feedback` is neither listed nor answered (`403 feedback_off`). Deleting an organization is refused to anything but a person in the
-  web app (`403 web_only`), one of its owners or an instance owner, and never listed to an agent.
-- An agent is offered only what its person could do. The instance owners' actions are listed to
-  them alone; a scoped connector lists only what its fence answers and the person's roles inside
+  `submit_feedback` is neither listed nor answered (`403 feedback_off`). Deleting an organization or
+  an account, and running the instance (plans, organizations, guests, allowances, accounts, usage),
+  are refused to anything but a person in the web app (`403 web_only`, saying where) and never
+  listed to an agent, an instance owner's included
+  ([decision](../decisions/running-the-instance-is-done-in-the-web-app-never-by-an-agent.md)).
+- An agent is offered only what its person could do. A scoped connector lists only what its fence answers and the person's roles inside
   it reach, and the unscoped one what their roles in some organization they are in reach, unless
   they may start an organization. The list is a courtesy, not the check: every call, listed or not, is still authorized
   by `execute` and refused there with what it needs

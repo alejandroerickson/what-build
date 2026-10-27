@@ -232,16 +232,16 @@ const BATCH = new Set(["sources.archive", "sources.restore"]);
 const ACCOUNT: Record<string, string> = {
   "products.list": "lists only what the caller can reach",
   "products.create_tenant": "creates an organization of the caller's own",
-  "products.tenant_allowances": "the instance owners' alone: 403 to anyone else",
-  "products.set_tenant_allowance": "the instance owners' alone: 403 to anyone else",
-  "products.remove_tenant_allowance": "the instance owners' alone: 403 to anyone else",
-  "products.usage": "the instance owners' alone: 403 to anyone else, and names no organization",
-  "products.organizations": "the instance owners' alone: 403 to anyone else",
-  "products.set_plan": "the instance owners' alone: 403 to anyone else",
-  "products.set_plan_limits": "the instance owners' alone: 403 to anyone else",
-  "products.guests": "the instance owners' alone: 403 to anyone else",
-  "products.set_guests": "the instance owners' alone: 403 to anyone else",
-  "products.accounts": "the instance owners' alone: 403 to anyone else",
+  "products.tenant_allowances": "the instance owners' alone, in the web app: 403 to anyone else",
+  "products.set_tenant_allowance": "the instance owners' alone, in the web app: 403 to anyone else",
+  "products.remove_tenant_allowance": "the instance owners' alone, in the web app: 403 to anyone else",
+  "products.usage": "the instance owners' alone, never an agent's: 403 to anyone else, and names no organization",
+  "products.organizations": "the instance owners' alone, in the web app: 403 to anyone else",
+  "products.set_plan": "the instance owners' alone, in the web app: 403 to anyone else",
+  "products.set_plan_limits": "the instance owners' alone, in the web app: 403 to anyone else",
+  "products.guests": "the instance owners' alone, in the web app: 403 to anyone else",
+  "products.set_guests": "the instance owners' alone, in the web app: 403 to anyone else",
+  "products.accounts": "the instance owners' alone, in the web app: 403 to anyone else",
   "products.remove_account": "the instance owners' alone, in the web app: 403 to anyone else",
   "products.delete_account_impact": "the caller's own account, in the web app: names no one else and no organization they are not in",
   "products.delete_account": "the caller's own account, in the web app: takes no input that names another",
@@ -356,8 +356,8 @@ describe("another organization's product, team or tenant, with its real ids", ()
       for (const [door, call] of [["REST", rest], ["MCP", mcp]] as const) {
         const r = await call(op, a, input);
         const leaks = leaked(a, r.body, r.sent);
-        // What only a person does in the web app is not there at all for an agent.
-        const expected = door === "MCP" && op.webOnly ? "unknown_action" : "not_found";
+        // What only a person does in the web app is not there at all for an agent, who is told where it is.
+        const expected = door === "MCP" && op.webOnly ? "web_only" : "not_found";
         if ((expected === "not_found" && r.status !== 404) || r.body?.error?.code !== expected || leaks.length)
           failures.push(`${door} ${op.name} → ${r.status} ${JSON.stringify(r.body).slice(0, 200)}${leaks.length ? ` LEAKED ${leaks.join(", ")}` : ""}`);
       }
