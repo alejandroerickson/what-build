@@ -3,7 +3,7 @@ type: Specification
 title: WhatBuild is one TypeScript application image over Postgres and an object store, and the same code runs on a laptop with only Node.
 description: The requirements behind the stack, the stack itself, the deployment shape, ports and adapters, the operation protocol, the local development contract, cross-cutting rules, and the repository layout.
 tags: [spec, architecture, stack, development, deployment]
-generated: {by: agent:claude, at: 2026-10-26}
+generated: {by: agent:claude, at: 2026-10-27}
 status: stable
 ---
 
@@ -265,7 +265,8 @@ pnpm dev
 | `pnpm test` | Vitest over three projects: parsers; the server, against a real embedded Postgres with a database per test file; and the web app under jsdom. |
 | `pnpm typecheck`, `pnpm build` | `tsc` over every package; the production web bundle and server bundle. |
 | `node scripts/e2e.mjs` | Drives the real UI through the loop against a running `pnpm dev`, with a locally installed Chrome. |
-| `pnpm e2e golden`, `pnpm dev:e2e` | Build a golden master from a pull of production, then serve a fresh copy of it on its own embedded Postgres (port 54339), API (8797) and Vite (5283), where an agent runs the [end-to-end test plans](../operations/end-to-end-tests.md) through the browser and MCP. |
+| `pnpm dataset` | Build [the non-production dataset](../operations/the-non-production-dataset.md): a pull of the instance owners' organizations beside synthetic organizations made through the operations, written as a pull. |
+| `pnpm e2e golden`, `pnpm dev:e2e` | Build a golden master from a pull of production or a dataset, then serve a fresh copy of it on its own embedded Postgres (port 54339), API (8797) and Vite (5283), where an agent runs the [end-to-end test plans](../operations/end-to-end-tests.md) through the browser and MCP. |
 
 Requirements this places on the design:
 

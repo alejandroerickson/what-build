@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 import { createBlobStore, createMailer, createPorts } from "./app.ts";
 import { loadConfig } from "./config.ts";
 import { createDb, migrate } from "./database.ts";
-import { E2E, goldenRefusal, holdInstancePid, instancePid, resetToGolden } from "./e2e.ts";
+import { E2E, goldenRefusal, holdInstancePid, instancePid, ownPeopleOf, resetToGolden } from "./e2e.ts";
 import { addSamplePeople, FIXTURE_BLOBS, FIXTURE_DATABASE } from "./fixture.ts";
 import { addPeople, DEFAULT_COUNT, describePlan, planPeople } from "./people.ts";
 import { SEED_ACCOUNTS, seed } from "./seed.ts";
@@ -72,7 +72,7 @@ async function main() {
     });
     databaseUrl = reset.url;
     exampleTenant = reset.golden.example ?? reset.golden.sandbox;
-    ownPeople = reset.golden.synthetic ? [reset.golden.synthetic] : [];
+    ownPeople = ownPeopleOf(reset.golden);
     console.log(`Reset to the golden master (from the pull ${reset.golden.pull}, built ${reset.golden.built_at}).`);
     const refused = goldenRefusal(reset.golden);
     if (refused) console.log(`  ${refused}`);

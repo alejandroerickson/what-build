@@ -36,6 +36,11 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
   ([copying an organization](copying-an-organization.md#which-organizations-may-leave-production)).
   The restore drill now uses a scratch database and bucket in production's own accounts, never the
   dev deployment ([backups](backups.md#the-restore-drill)).
+- **`pnpm dataset` builds the non-production dataset**: a pull beside synthetic organizations with
+  many members, pending invitations, products and sources, which the local copy, the golden master
+  and the dev deployment load as a pull. It asks nothing of a deployment. The dev deployment's
+  refresh now loads one, with its files copied into dev's bucket
+  ([the non-production dataset](the-non-production-dataset.md)).
 
 ## v0.27.0
 

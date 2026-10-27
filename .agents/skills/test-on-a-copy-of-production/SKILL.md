@@ -36,7 +36,10 @@ Read it before the first command. This file says how to conduct the work.
 
 1. **Choose the copy.** Pull a fresh one with `pnpm fixture pull` (the example organization), or
    `pnpm fixture pull --org <slug>[,<slug>…]` for the organizations the person names, unless they
-   name an existing pull. `pnpm fixture list` lists the pulls and what each holds; one it marks
+   name an existing pull. When the test needs more than the example's shape (many members,
+   pending invitations, a waitlist, many products and sources), build the non-production dataset
+   instead: `pnpm dataset`, or `pnpm dataset --from <pull>` from a pull already taken
+   (`okf/operations/the-non-production-dataset.md`). It loads as a pull does. `pnpm fixture list` lists the pulls and what each holds; one it marks
    "from before pulls checked owners" is not loaded: delete it and pull again.
 2. **Load it.** Stop any running `pnpm dev` or `pnpm dev:fixture`, then run `pnpm fixture load`.
    It prints the organizations, products and accounts in the copy, and the last migration it has.

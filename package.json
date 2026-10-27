@@ -12,6 +12,7 @@
     "dev:e2e": "tsx apps/server/src/dev.ts --e2e",
     "dev:people": "tsx apps/server/src/dev.ts --people",
     "fixture": "tsx apps/server/src/fixture.ts",
+    "dataset": "tsx apps/server/src/dataset.ts",
     "usage": "tsx apps/server/src/usage-report.ts",
     "people": "tsx apps/server/src/people.ts",
     "plans": "tsx apps/server/src/plans-check.ts",

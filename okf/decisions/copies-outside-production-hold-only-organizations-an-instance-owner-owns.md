@@ -35,6 +35,9 @@ replaces [the copy that held whichever organizations it was for](a-copy-of-produ
   that fails and says why, and records that it checked. `--all` takes every organization the
   instance owners own. Loading a pull, building or exporting the golden master and loading an export
   on a Docker host refuse a copy without that record.
+- **Every copy outside production can start from one dataset**, `pnpm dataset`: a pull beside
+  synthetic organizations of a size and shape chosen for testing, made through the operations,
+  written as a pull ([the non-production dataset](../operations/the-non-production-dataset.md)).
 - **Not a copy outside production:** moving an organization into another production deployment of
   its own (`--for-another-deployment`, through a directory only its operator reads), a restore into
   production after a bad release, a deployment's own backups, and the restore drill, which uses a
@@ -60,7 +63,8 @@ replaces [the copy that held whichever organizations it was for](a-copy-of-produ
   production. A table without `tenant_id` is copied whole (`tenants`, `accounts`, `schema_migrations`)
   or listed in `DEPLOYMENT_TABLES`, so a new table gets a decision; a file key outside `t/<tenant_id>/`
   stops the copy.
-- `apps/server/src/fixture.ts` (pull, load), `apps/server/src/e2e.ts` (golden master, export),
-  `deploy/docker/whatbuild-e2e.sh load` and `scripts/attention.mjs` keep the record's rule.
+- `apps/server/src/fixture.ts` (pull, load), `apps/server/src/dataset.ts` (the dataset, whose
+  synthetic part is made through the operations), `apps/server/src/e2e.ts` (golden master,
+  export), `deploy/docker/whatbuild-e2e.sh load` and `scripts/attention.mjs` keep the record's rule.
 
 Specified in: [copying an organization](../operations/copying-an-organization.md).

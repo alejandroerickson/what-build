@@ -80,8 +80,8 @@ on a deployment.
    runs `whatbuild-e2e.sh nightly`, which takes a newer release if there is one, on a fresh copy,
    and logs to `update.log`.
 
-A new golden master (after `pnpm e2e golden` from a newer pull) goes the same way: export, copy,
-`load`.
+A new golden master (after `pnpm e2e golden` from a newer pull or
+[dataset](the-non-production-dataset.md)) goes the same way: export, copy, `load`.
 
 ## What `reset` does
 

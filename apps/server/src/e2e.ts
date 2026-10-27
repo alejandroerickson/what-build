@@ -2,15 +2,13 @@ import { execFileSync } from "node:child_process";
 import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { actorOf, execute, OPERATIONS_BY_NAME } from "@whatbuild/core";
 import pg from "pg";
 import { createBlobStore, createMailer, createPorts } from "./app.ts";
-import { findOrCreateAccount } from "./auth/identity.ts";
 import { loadConfig } from "./config.ts";
 import { createDb, migrate } from "./database.ts";
-import { copyTenant, keepOnlyTenant } from "./e2e-golden.ts";
-import { addSamplePeople, restorePull } from "./fixture.ts";
-import { SEED_ACCOUNTS, seed, type SeedPeople } from "./seed.ts";
+import { addHarborLabs, SYNTHETIC } from "./dataset.ts";
+import { copyTenant, keepOnlyTenants } from "./e2e-golden.ts";
+import { addSamplePeople, readPull, restorePull } from "./fixture.ts";
 import { APP_ROLE, connectOrStartLocalPg, type LocalPg } from "./testing/pg.ts";
 import { Worker } from "./worker.ts";
 
@@ -61,9 +59,27 @@ export const PLANS = resolve(root, "e2e/plans");
  * `sandbox` names the example organization in a golden master built before it replaced the public
  * sandbox; `synthetic` is absent from one built before it had a synthetic organization;
  * `owned_by_instance_owners` from one built before pulls checked who owns each organization, which no
- * copy outside production may hold.
+ * copy outside production may hold. `synthetic_organizations` names every synthetic organization,
+ * `synthetic` among them, when it was built from a dataset that has more.
  */
-export type GoldenRecord = { built_at: string; pull: string; migration: string; commit: string; example?: string; sandbox?: string; standard: string; synthetic?: string; products: string[]; owned_by_instance_owners?: true };
+export type GoldenRecord = {
+  built_at: string;
+  pull: string;
+  migration: string;
+  commit: string;
+  example?: string;
+  sandbox?: string;
+  standard: string;
+  synthetic?: string;
+  synthetic_organizations?: string[];
+  products: string[];
+  owned_by_instance_owners?: true;
+};
+
+/** The golden master's organizations whose people are their own, whom the development sign-in's people are not added to. */
+export function ownPeopleOf(golden: GoldenRecord): string[] {
+  return golden.synthetic_organizations ?? (golden.synthetic ? [golden.synthetic] : []);
+}
 
 /** Why a golden master may not be exported, or nothing: one built before pulls checked who owns each organization. */
 export function goldenRefusal(golden: GoldenRecord): string | undefined {
@@ -72,17 +88,8 @@ export function goldenRefusal(golden: GoldenRecord): string | undefined {
     : `The golden master was built from the pull ${golden.pull}, taken before pulls checked who owns each organization, so it may hold one no instance owner owns. Build it again from a new pull: pnpm fixture pull, then pnpm e2e golden.`;
 }
 
-/**
- * The synthetic organization: the development sample (`seed.ts`), made by people who belong to it
- * alone, so plans can check that one organization's people see nothing of another's. Sam, who
- * edits the other two, only reads its Story: one person with a different role in each.
- */
-export const SYNTHETIC = "harbor-labs";
-export const SYNTHETIC_PEOPLE: SeedPeople = [
-  { email: "morgan@example.com", display_name: "Morgan Reyes" },
-  { email: "casey@example.com", display_name: "Casey Lindqvist" },
-  { email: "avery@example.com", display_name: "Avery Nakamura" },
-];
+/** The synthetic organization every golden master has (dataset.ts), whose people are its own. */
+export { SYNTHETIC, SYNTHETIC_PEOPLE } from "./dataset.ts";
 
 export function readGolden(): GoldenRecord | null {
   return existsSync(E2E.goldenRecord) ? (JSON.parse(readFileSync(E2E.goldenRecord, "utf8")) as GoldenRecord) : null;
@@ -105,10 +112,12 @@ async function inUse(local: LocalPg, database: string) {
 }
 
 /**
- * Build the golden master from a pulled copy of production (okf/operations/a-copy-of-production.md):
- * the database "golden" in the instance's own Postgres, and its files. Only the example organization
- * stays (in a copy taken before it replaced the public sandbox, the sandbox's); it is migrated to
- * this code's schema, and a copy of it that is not the example is made beside it. Once built it never changes: migrations added later run on each fresh copy.
+ * Build the golden master from a pulled copy of production (okf/operations/a-copy-of-production.md),
+ * or from a dataset (okf/operations/the-non-production-dataset.md): the database "golden" in the
+ * instance's own Postgres, and its files. Only the example organization stays, with a dataset's
+ * synthetic organizations; it is migrated to this code's schema, a copy of it that is not the
+ * example is made beside it, and the synthetic organization is made if the dataset did not bring it.
+ * Once built it never changes: migrations added later run on each fresh copy.
  */
 async function buildGolden(args: string[]) {
   const org = option(args, "--org");
@@ -122,6 +131,7 @@ async function buildGolden(args: string[]) {
     if ((await inUse(local, E2E.golden)) || (await inUse(local, E2E.database))) throw new Error("The end-to-end instance is being served: stop it with pnpm e2e stop, then build again.");
     await admin(local, (c) => c.query(`drop database if exists ${E2E.golden}`));
     const s = await restorePull(local, E2E.golden, E2E.goldenBlobs, pull);
+    const brought = readPull(s.name).dataset?.synthetic.map((o) => o.slug) ?? [];
     const c = new pg.Client({ connectionString: local.adminUrl.replace(/\/postgres$/, `/${E2E.golden}`) });
     await c.connect();
     let record: GoldenRecord;
@@ -137,7 +147,8 @@ async function buildGolden(args: string[]) {
       if (example.length !== 1)
         throw new Error(org ? `The copy ${s.name} has no organization ${org}.` : `The copy ${s.name} has ${example.length} example organizations; name the organization with --org <slug>.`);
       const keep = example[0]!;
-      await keepOnlyTenant(c, keep.tenant_id);
+      const synthetic = (await c.query<{ tenant_id: string }>("select tenant_id from tenants where slug = any($1)", [brought])).rows.map((r) => r.tenant_id);
+      await keepOnlyTenants(c, [keep.tenant_id, ...synthetic]);
       // Brought to this code's schema, with the jobs its migrations queue done, before the copy is
       // made: the copy covers every table there is now.
       const config = loadConfig({ ...process.env, NODE_ENV: "development", DATABASE_URL: local.appUrl(E2E.golden), WHATBUILD_PUBLIC_URL: e2eBaseUrl(), WHATBUILD_BLOB_STORE: "fs", WHATBUILD_BLOB_DIR: E2E.goldenBlobs, WHATBUILD_MAILER: "console" });
@@ -151,25 +162,11 @@ async function buildGolden(args: string[]) {
       }
       const standard = { slug: `${keep.slug}-standard`, name: `${keep.name} (standard)` };
       await copyTenant(c, keep.tenant_id, standard.slug, standard.name);
-      // Made through the operations, as an organization's people would: the sample, then Sam made a
-      // reader of its Story by its owner, so the grant is in its access changes as any other.
+      // Made through the operations, as an organization's people would, unless a dataset brought it.
       const made = createDb(local.appUrl(E2E.golden), 3);
       try {
         const ports = createPorts(config, await createBlobStore(config), createMailer(config));
-        const worker = new Worker({ db: made.db, ports }, 60_000, console.log);
-        await seed({ db: made.db, ports }, worker, console.log, SYNTHETIC_PEOPLE);
-        while ((await worker.drain()) > 0);
-        const [riley, sam] = SEED_ACCOUNTS;
-        const owner = (await findOrCreateAccount(made.db, SYNTHETIC_PEOPLE[0].email, SYNTHETIC_PEOPLE[0].display_name)).account;
-        await findOrCreateAccount(made.db, sam.email, sam.display_name);
-        const team = (await c.query<{ slug: string }>("select m.slug from teams m join tenants t using (tenant_id) where t.slug = $1", [SYNTHETIC])).rows[0]!.slug;
-        const grant = OPERATIONS_BY_NAME.get("members.grant")!;
-        await execute({ db: made.db, ports }, { ...owner, auth_kind: "dev", surface: "web", client: null }, grant, { tenant: SYNTHETIC, team, product: "crewboard", email: sam.email, role: "reader" }, {});
-        // The editor's allowance to start an organization comes from the instance's owner, Riley, as
-        // in development, not from the organization's owner.
-        const instanceOwner = (await findOrCreateAccount(made.db, riley.email, riley.display_name)).account;
-        const by = JSON.stringify(actorOf({ ...instanceOwner, auth_kind: "dev", surface: "web", client: null }));
-        await c.query("update tenant_allowances set created_by = $1, updated_by = $1 where lower(email) = $2", [by, SYNTHETIC_PEOPLE[1].email]);
+        await addHarborLabs({ db: made.db, ports }, new Worker({ db: made.db, ports }, 60_000, console.log), c, console.log);
       } finally {
         await made.pool.end();
       }
@@ -178,8 +175,20 @@ async function buildGolden(args: string[]) {
         await c.query<{ path: string }>("select t.slug || '/' || m.slug || '/' || p.slug as path from products p join teams m using (team_id) join tenants t on t.tenant_id = p.tenant_id order by 1")
       ).rows.map((r) => r.path);
       // restorePull loads only a pull that checked an instance owner owns every organization in it.
-      record = { built_at: new Date().toISOString(), pull: s.name, migration, commit: gitCommit(), example: keep.slug, standard: standard.slug, synthetic: SYNTHETIC, products, owned_by_instance_owners: true };
-      console.log(`The golden master is ${keep.slug}, the example organization in the copy ${s.name}, ${standard.slug}, a copy of it that is not the example, and ${SYNTHETIC}, a synthetic organization with people of its own:
+      const synthetics = [SYNTHETIC, ...brought.filter((slug) => slug !== SYNTHETIC)];
+      record = {
+        built_at: new Date().toISOString(),
+        pull: s.name,
+        migration,
+        commit: gitCommit(),
+        example: keep.slug,
+        standard: standard.slug,
+        synthetic: SYNTHETIC,
+        ...(synthetics.length > 1 ? { synthetic_organizations: synthetics } : {}),
+        products,
+        owned_by_instance_owners: true,
+      };
+      console.log(`The golden master is ${keep.slug}, the example organization in the copy ${s.name}, ${standard.slug}, a copy of it that is not the example, and ${synthetics.length > 1 ? `${synthetics.length} synthetic organizations with people of their own, ${SYNTHETIC} among them` : `${SYNTHETIC}, a synthetic organization with people of its own`}:
   ${products.join("\n  ")}`);
     } finally {
       await c.end();
@@ -226,7 +235,7 @@ async function exportGolden(args: string[]) {
     try {
       const made = createDb(local.appUrl(scratch), 2);
       try {
-        await addSamplePeople(made.db, golden.synthetic ? [golden.synthetic] : []);
+        await addSamplePeople(made.db, ownPeopleOf(golden));
       } finally {
         await made.pool.end();
       }

@@ -135,6 +135,7 @@ conducts each one that changes something:
 | know what is backed up, check that backups run, restore a dump, perform the restore drill | `backups.md` | `perform-the-restore-drill` (the drill) |
 | go back after a release broke a deployment | `recovering-from-a-bad-release.md` | `recover-a-deployment` |
 | test on a copy of production on this machine | `a-copy-of-production.md` | `test-on-a-copy-of-production` |
+| build the non-production dataset (the instance owners' organizations beside synthetic ones) that the local copy, the golden master and dev load | `the-non-production-dataset.md` | `test-on-a-copy-of-production` |
 | copy some organizations out of a deployment (the example organization by default): to test on or to dev (only the instance owners' organizations), or into another production deployment's new database | `copying-an-organization.md` | `copy-an-organization` |
 | find out how a deployment is used (features, agents, people coming back, the site); connect its analytics | `analytics.md` | `read-usage` |
 | know what mail a deployment sends and through what; set it up, check it, rotate its token, change provider | `mail.md` | `set-up-mail` |

@@ -15,13 +15,15 @@ export const SEED_ACCOUNTS = [
 /** The three people the sample is made with: its owner, the editor whose agent does most of the work, and the Story's reader. */
 export type SeedPeople = readonly [{ email: string; display_name: string }, { email: string; display_name: string }, { email: string; display_name: string }];
 
-async function call(env: Env, who: Principal, name: string, input: Record<string, unknown>, ref: ScopeRef = {}) {
+/** Run an operation as `who`, as the adapters do, and return its result. */
+export async function call(env: Env, who: Principal, name: string, input: Record<string, unknown>, ref: ScopeRef = {}) {
   const op = OPERATIONS_BY_NAME.get(name);
   if (!op) throw new Error(`no operation ${name}`);
   return (await execute(env, who, op, input, ref)).result as Record<string, unknown>;
 }
 
-async function upload(env: Env, who: Principal, ref: ScopeRef, tenantId: string, recordId: string, path: string, text: string) {
+/** Upload `text` as the attachment `path` of a source, through the grant an agent would use. */
+export async function upload(env: Env, who: Principal, ref: ScopeRef, tenantId: string, recordId: string, path: string, text: string) {
   const grant = (await call(env, who, "attachments.request_upload", { record_id: recordId, path }, ref)) as { grant_id: string };
   const g = await env.db.transaction().execute(async (trx) => {
     await sql`select set_config('app.tenant_id', ${tenantId}, true)`.execute(trx);

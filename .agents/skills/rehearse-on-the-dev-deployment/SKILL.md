@@ -61,7 +61,11 @@ approved):
    Say plainly whether production's build should be approved.
 
 **Putting it back, refreshing the copy, setting one up:** the guide's sections of those names, in
-order. After a refresh, update `NEON_DEV_COPY_TAKEN` and `NEON_DEV_COPY_ORGANIZATIONS` in `.env`.
+order. A refresh loads the non-production dataset (`pnpm dataset --production-schema`,
+`okf/operations/the-non-production-dataset.md`); if it refuses because `main` has migrations
+production lacks, build it from a checkout of the release production runs. After a refresh,
+update `NEON_DEV_COPY_TAKEN` and `NEON_DEV_COPY_ORGANIZATIONS` in `.env`, with the organizations
+pulled, never the synthetic ones.
 
 **The restore drill** is not done here: it restores every organization, so it stays in
 production's own accounts. Use the `perform-the-restore-drill` skill.
