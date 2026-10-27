@@ -7,13 +7,14 @@ import { AppError, conflict, invalid } from "./errors.ts";
 import { resolveAliases, wrongFieldHint } from "./field-aliases.ts";
 import { exampleReadOnly, isGuest, resolveScope, type ScopeRef } from "./policy.ts";
 import type { Ports } from "./ports.ts";
-import { capRole, connectionNeeds, LEVEL_NAMES, levelAllows, type OpContext, type OperationDef, type Principal, type Scope } from "./registry.ts";
+import { callName, capRole, connectionNeeds, LEVEL_NAMES, levelAllows, type OpContext, type OperationDef, type Principal, type Scope } from "./registry.ts";
 import { enterAsGuest, guestWaiting, isGuestAccount } from "./guests.ts";
 import { admitCall, checkInput, checkTotals, countSent, countWrite, limitsFor, planName, tallyOf, UNLIMITED } from "./limits.ts";
 import { formatIssues, nullCharacterPaths, nullCharacterSentence, wordList } from "./schemas.ts";
 import { feedbackOff } from "./feedback.ts";
 import { isInstanceOwner } from "./tenant-allowance.ts";
 import { clientFamily, countCall } from "./usage.ts";
+import { READ_ONLY_ALLOWS } from "./read-only.ts";
 import { utcDay } from "./util.ts";
 
 const tracer = trace.getTracer("whatbuild");
@@ -215,23 +216,25 @@ async function run(
   connector: ConnectorScope | null,
   reached: { scope?: Scope },
 ): Promise<{ result: unknown; scope: Scope }> {
+  // A refusal names the operation as the caller calls it: an agent by its tool and action.
+  const called = callName(op, principal.surface);
   // What the operation is comes before where it lands: refusing a call for its kind tells nothing about any product.
   if (op.webOnly && principal.surface !== "web")
-    throw new AppError(403, "web_only", `Only a person can do ${op.name}, in the WhatBuild web app. Nothing was changed.`);
+    throw new AppError(403, "web_only", `Only a person can do ${called}, in the WhatBuild web app. Nothing was changed.`);
   if (!levelAllows(principal.level, op)) throw connectionLevelTooLow(op, principal);
   // Nor one the person turned off for this connection, whatever was sent with it.
   if (op.name === "submit_feedback" && principal.feedback === false) throw feedbackOff();
   // Scope first: a caller who cannot see the product learns nothing, not even whether their input was valid.
   const raw = (rawInput && typeof rawInput === "object" ? rawInput : {}) as Record<string, unknown>;
   const asInstanceOwner = Boolean(op.allowInstanceOwners) && isInstanceOwner(env.ports.config, principal.email);
-  const resolved = await resolveScope(env.db, principal, op.scope, op.access, refFromInput(op, raw, ref), op.name, { asInstanceOwner, allowances: env.ports.config });
+  const resolved = await resolveScope(env.db, principal, op.scope, op.access, refFromInput(op, raw, ref), called, { asInstanceOwner, allowances: env.ports.config });
   // An agent acts with the lower of the person's role and its connection's level.
   const scope: Scope = principal.level ? { ...resolved, role: capRole(resolved.role, principal.level) } : resolved;
   reached.scope = scope;
   if (connector) checkConnectorScope(connector, op, scope);
   // The example organization is read by everyone and changed by nobody but its members.
-  if (op.mutates && isGuest(scope)) throw await exampleReadOnly(env.db, env.ports.config, principal, scope.tenant!.name, op.name);
-  // An organization back on the starting plan while its creator has another there keeps what it holds, to read and export, and takes nothing new.
+  if (op.mutates && isGuest(scope)) throw await exampleReadOnly(env.db, env.ports.config, principal, scope.tenant!.name, called);
+  // An organization back on the starting plan while its creator has another there keeps what it holds, to read, export, delete and take people out of, and takes nothing new.
   if (op.mutates && scope.tenant?.read_only && !op.allowReadOnlyOrganization)
     throw organizationReadOnly(scope.tenant.name, scope.tenant.read_only, planName(env.ports.config.newOrganizationPlan ?? UNLIMITED));
   // A guest account comes into the example organization only while there is room for it.
@@ -281,7 +284,7 @@ export function organizationReadOnly(name: string, readOnly: { since: string; ke
   const kept = readOnly.kept_until ? ` It is kept until ${utcDay(readOnly.kept_until)}.` : "";
   return conflict(
     "organization_read_only",
-    `${name} is read-only: it went back to the ${startName} plan while whoever started it already has a ${startName} organization. Everyone in it can still read and export it.${kept} Nothing was changed. To work in it again, ask the people who run this WhatBuild to move it to another plan.`,
+    `${name} is read-only: it went back to the ${startName} plan while whoever started it already has a ${startName} organization. ${READ_ONLY_ALLOWS}${kept} Nothing was changed. To work in it again, ask the people who run this WhatBuild to move it to another plan.`,
     { read_only_since: readOnly.since, kept_until: readOnly.kept_until },
   );
 }
@@ -293,7 +296,7 @@ function connectionLevelTooLow(op: OperationDef, principal: Principal): AppError
   return new AppError(
     403,
     "connection_level",
-    `This connection is set to ${LEVEL_NAMES[level]}, and ${op.name} needs ${LEVEL_NAMES[needed]}. Nothing was changed. ` +
+    `This connection is set to ${LEVEL_NAMES[level]}, and ${callName(op, principal.surface)} needs ${LEVEL_NAMES[needed]}. Nothing was changed. ` +
       `Only the person can raise it, under Connect an agent in WhatBuild.`,
     { level, needed },
   );

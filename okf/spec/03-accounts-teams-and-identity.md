@@ -321,8 +321,11 @@ it moves. The limits and their refusals are in [§9.7](09-data-lifecycle.md).
   when an instance owner moves it, unless whoever created it already has another there, or as many
   as an instance owner let them have (everyone has a place for one, even with no allowance to start
   one): then it is **read-only** instead (`tenants.read_only_since`, and `kept_until`, a year on), and
-  not counted against their allowance. Everyone in it reads, searches, exports, deletes permanently and takes people out;
-  every other write is refused with `409 organization_read_only`, before its input is checked.
+  not counted against their allowance. Everyone in it reads, searches, exports, deletes permanently and takes people out,
+  as their roles allow; every other write is refused with `409 organization_read_only`, before its input is checked.
+  Its owners, but the instance owner who moved it, are mailed that it is read-only, with the day it
+  is kept until, and so are they when an instance owner deletes it (`owners_notified` in either
+  answer; [Mail](../operations/mail.md)).
   `products.list`, `products.get` (its `tenant`), `products.limits` and `products.organizations`
   give `read_only: { since, kept_until }`, and `products.organizations` marks with
   `starting_plan_is_read_only` a tenant that moving to the starting plan would make read-only.
@@ -398,9 +401,10 @@ A product is addressed as `tenant/team/product` (slugs or ids at each level) or 
   team or product they have no role on stays hidden there too: the `members` operations answer it
   with the same `404` as one that does not exist.
 - **Being in a tenant** means holding at least one grant in it: a tenant role, or a role on one of
-  its teams or products. A tenant `member` grant adds nothing to that by itself. Revoking a person's
-  last grant takes them out of the tenant; `members.revoke` with `whole_tenant` removes every grant
-  at once.
+  its teams or products. A tenant `member` grant adds nothing to that by itself, and `products.list`
+  gives such a person `member` as the tenant's `your_role`. Revoking a person's last grant takes
+  them out of the tenant, which the answer (`left_organization`) and the access log say;
+  `members.revoke` with `whole_tenant` removes every grant at once.
 - ◆ Decision: reviewing (confirm, refute) is an editor right; there is no separate reviewer role.
 - ◆ Decision: permanent delete is an admin right; there is no separate delete permission. An
   editor archives ([decision](../decisions/archive-by-default-delete-guarded.md)).

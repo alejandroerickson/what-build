@@ -268,7 +268,7 @@ async function sendRecord(ctx: OpContext, account: Ending, self: boolean, organi
       to: account.email,
       subject: "Your WhatBuild account has been deleted",
       text:
-        `Your WhatBuild account ${account.email} on ${ctx.ports.config.publicBaseUrl} was deleted on ${utcDay(ctx.now)}${self ? "." : " by an owner of this WhatBuild."}\n\n` +
+        `Your WhatBuild account ${account.email} on ${ctx.ports.config.publicBaseUrl} was deleted on ${utcDay(ctx.now)} (UTC)${self ? "." : " by an owner of this WhatBuild."}\n\n` +
         `${t.did.map((g) => `- ${g}`).join("\n")}\n` +
         (organizationsDeleted.length
           ? `- ${wordList(organizationsDeleted.map((o) => o.name))} ${organizationsDeleted.length === 1 ? "was" : "were"} deleted too, with everything in ${organizationsDeleted.length === 1 ? "it" : "them"}: you were ${organizationsDeleted.length === 1 ? "its" : "their"} only owner.\n\n` +

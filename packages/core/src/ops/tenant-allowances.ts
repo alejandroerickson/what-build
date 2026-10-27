@@ -178,7 +178,8 @@ export const setTenantAllowance = defineOperation({
         subject: `${who} let you start ${n === 1 ? "an organization" : "organizations"} on WhatBuild`,
         text:
           `${who} let you start ${n === 1 ? "one organization" : `up to ${n} organizations`} on WhatBuild.\n\n` +
-          `Sign in with this email to start one:\n${ctx.ports.config.publicBaseUrl}/welcome\n`,
+          `Sign in with this email to start one:\n${ctx.ports.config.publicBaseUrl}/welcome\n\n` +
+          `The name in quotation marks is the one they gave WhatBuild.\n`,
       });
       notified = true;
     }

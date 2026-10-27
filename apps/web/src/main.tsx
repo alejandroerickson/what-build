@@ -3,7 +3,7 @@ import "./styles/tokens.css";
 import "./styles/base.css";
 import "./styles/ui.css";
 import "./styles/shell.css";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { MutationCache, QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { StrictMode, useEffect, useRef } from "react";
 import { createRoot } from "react-dom/client";
 import { createBrowserRouter, Navigate, Outlet, RouterProvider, useLocation, useNavigate, useParams, useRouteError } from "react-router";
@@ -38,10 +38,12 @@ import { PlainShell, ProductShell } from "./shell/Shell.tsx";
 import { usePageTitle } from "./shell/slots.tsx";
 import { Button, ButtonLink, EmptyState, Sheet, SheetHeader, ToastProvider, useToast } from "./ui/index.tsx";
 
-const queryClient = new QueryClient({
+const queryClient: QueryClient = new QueryClient({
   defaultOptions: {
     queries: { retry: retryRead, staleTime: 10_000, refetchOnWindowFocus: false },
   },
+  // Every write counts toward the day's allowances, so what the organization's limits say used is read again after one.
+  mutationCache: new MutationCache({ onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["limits"] }) }),
 });
 
 setUnauthenticatedHandler(() => {

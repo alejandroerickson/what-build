@@ -147,7 +147,7 @@ describe("Plan", () => {
       "PeopleReaders of the Story don’t count.2 of 2Full",
       "ProductsArchived ones don’t count.1 of 1Full",
       "SourcesArchived ones don’t count.41 of 50Nearly full",
-      "Storage30 MB of files, 4 MB of text. Archiving keeps it; deleting frees it.34 MB of 200 MB",
+      "Storage30 MB of files (attachments, the text read from each, kept as a file of its own, and prototypes), 4 MB of text. Archiving keeps it; deleting frees it.34 MB of 200 MB",
     ]);
     const groups = [...host.querySelectorAll(".limits-group")].map((g) => ({ title: g.querySelector("h3")?.textContent, rows: [...g.querySelectorAll("li")].map((li) => li.querySelector(".limits-allowance-name")?.textContent + "|" + li.querySelector(".limits-allowance-count")?.textContent) }));
     expect(groups).toEqual([

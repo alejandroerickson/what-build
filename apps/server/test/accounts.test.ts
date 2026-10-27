@@ -191,7 +191,12 @@ describe("an instance owner deleting an organization", () => {
     expect((await root.api("DELETE", `/api/v1/tenants/${slug}`, { name: "Quinn", reason: "A test organization", confirm: "delete permanently" })).body.error.code).toBe("name_mismatch");
     const del = await root.api("DELETE", `/api/v1/tenants/${slug}`, { name: "Quinn Co", reason: "A test organization", confirm: "delete permanently" });
     expect(del.status, JSON.stringify(del.body)).toBe(200);
-    expect(del.body).toMatchObject({ deleted: true, name: "Quinn Co" });
+    expect(del.body).toMatchObject({ deleted: true, name: "Quinn Co", owners_notified: 1 });
+    // Its owner hears of it, since it was deleted from outside: when, by whom, and whom to ask.
+    const mail = h.mailer.sent.at(-1)!;
+    expect(mail).toMatchObject({ to: "quinn@example.com", subject: "Quinn Co was deleted from WhatBuild" });
+    expect(mail.text).toMatch(/^Quinn Co, an organization you owned on [^ ]+, was deleted on \d{1,2} [A-Z][a-z]{2} \d{4} \(UTC\) by an owner of this WhatBuild, with everything in it/);
+    expect(mail.text).toContain("Your account stays");
     expect((await quinn.api("GET", "/api/v1/me/products")).body.tenants).toEqual([]);
     // Its place is free again: Quinn may start another.
     expect((await quinn.api("GET", "/api/v1/me")).body.tenant_allowance).toMatchObject({ created: 0, remaining: 1 });

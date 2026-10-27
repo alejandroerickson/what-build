@@ -593,7 +593,8 @@ function ExportSheet() {
               </span>
               <span className="export-state">
                 {e.status === "ready" ? (
-                  <a href={`${base}/exports/${e.export_id}/file`}>
+                  // A download counts toward what each person is sent a day.
+                  <a href={`${base}/exports/${e.export_id}/file`} onClick={() => void qc.invalidateQueries({ queryKey: ["limits"], refetchType: "none" })}>
                     Download ({formatBytes(e.size)}, {e.file_count} files)
                   </a>
                 ) : e.status === "pending" ? (

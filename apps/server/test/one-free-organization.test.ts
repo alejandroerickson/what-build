@@ -78,7 +78,14 @@ describe("a Pro organization no longer paid for", () => {
   it("goes read-only rather than Free, kept for a year, and still frees its creator's place", async () => {
     const before = Date.now();
     const moved = await move(first.slug, "free");
-    expect(moved).toMatchObject({ plan: "free", read_only: { since: expect.any(String), kept_until: expect.any(String) } });
+    expect(moved).toMatchObject({ plan: "free", read_only: { since: expect.any(String), kept_until: expect.any(String) }, owners_notified: 1 });
+    // Its owner hears of it by mail, with what still works and the day it is kept until, in UTC; its editor does not.
+    const mail = h.mailer.sent.at(-1)!;
+    expect(mail).toMatchObject({ to: "ana@example.com", subject: "Ana Works is read-only on WhatBuild" });
+    expect(mail.text).toContain("Everyone in it can still read, export and delete what it holds, and take people out, as their roles allow.");
+    expect(mail.text).toMatch(/is read-only since \d{1,2} [A-Z][a-z]{2} \d{4} \(UTC\)\. .* It is kept until \d{1,2} [A-Z][a-z]{2} \d{4} \(UTC\)\./s);
+    expect(mail.text).toContain(`/t/${first.slug}/plan`);
+    expect(h.mailer.sent.some((m) => m.to === "ned@example.com" && m.subject.includes("read-only"))).toBe(false);
     const kept = Date.parse(moved.read_only.kept_until) - Date.parse(moved.read_only.since);
     expect(kept).toBe(365 * 86_400_000);
     expect(Date.parse(moved.read_only.since)).toBeGreaterThanOrEqual(before - 1000);
@@ -97,7 +104,7 @@ describe("a Pro organization no longer paid for", () => {
     const write = await ned.api("POST", `${first.P}/sources`, { title: "Another interview", tags: ["notes"] });
     expect(write.status).toBe(409);
     expect(write.body.error.code).toBe("organization_read_only");
-    expect(write.body.error.message).toMatch(/^Ana Works is read-only: it went back to the Free plan while whoever started it already has a Free organization\. Everyone in it can still read and export it\. It is kept until \d{1,2} [A-Z][a-z]{2} \d{4}\. Nothing was changed\./);
+    expect(write.body.error.message).toMatch(/^Ana Works is read-only: it went back to the Free plan while whoever started it already has a Free organization\. Everyone in it can still read, export and delete what it holds, and take people out, as their roles allow\. It is kept until \d{1,2} [A-Z][a-z]{2} \d{4}\. Nothing was changed\./);
     expect(write.body.error.details).toMatchObject({ read_only_since: expect.any(String), kept_until: expect.any(String) });
     // An owner meets it too: nobody adds to it.
     expect((await ana.api("PATCH", `${first.P}/sources/${first.source}`, { title: "Renamed" })).body.error?.code).toBe("organization_read_only");
@@ -116,8 +123,11 @@ describe("a Pro organization no longer paid for", () => {
   });
 
   it("is writable again on Pro", async () => {
+    const sent = h.mailer.sent.length;
     const back = await move(first.slug, "pro");
     expect(back.plan).toBe("pro");
+    expect(back.owners_notified).toBe(0);
+    expect(h.mailer.sent).toHaveLength(sent);
     expect(back.read_only).toBeUndefined();
     expect((await orgOf(first.slug)).read_only).toBeUndefined();
     expect((await ana.api("POST", `${first.P}/sources`, { title: "A new interview", tags: ["notes"] })).status).toBe(201);

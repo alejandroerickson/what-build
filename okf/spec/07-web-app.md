@@ -46,7 +46,9 @@ design system: tokens, type, components and the rules for using them — is docu
   that answers `404` says at once that it doesn't exist or the person can't see it, as the server
   does of both, with a way back to their products.
   ◆ Decision: that console line is by design; the API is not bent to hide it.
-- **Times are shown in the viewer's own time zone**, though the API gives them in UTC
+- **Times are shown in the viewer's own time zone**, though the API gives them in UTC, except the
+  days the server states too (a read-only organization's since and kept until, the allowances'
+  midnight UTC), which are UTC days here as in a refusal
   ([decision](../decisions/times-are-utc-in-data-and-local-where-shown.md)).
 - Works on narrow screens. Meets WCAG 2.2 AA. Fully keyboard-operable.
 - **Interface text says one thing once.** A heading states the fact, the body adds only what the
@@ -209,9 +211,14 @@ place.
    People on this product for admins and say so above the list.
    A read-only organization, one moved back to the plan new organizations start on while whoever
    started it has another there ([§3.3](03-accounts-teams-and-identity.md#33-tenants-and-teams)),
-   says so above every screen of its products: that everyone can still read and export everything,
-   how long it is kept, and **See plan**. Its screens still offer writing, which the server refuses with
-   `409 organization_read_only` and a message saying why.
+   says so above every screen of its products: that nothing new can be added, what everyone can
+   still do there (one sentence the server's refusal shares, `packages/core/src/read-only.ts`:
+   read, export and delete what it holds, and take people out, as their roles allow), how long it
+   is kept, and **See plan**. Inside one, as on an archived product, no control offers a change the
+   server would refuse (`409 organization_read_only`), and a screen that would invite one (Add a
+   source, a new entry) says why in its place; deleting and export stay. Its Members page says so
+   too, and offers only what still works there: removing a role, taking someone out and cancelling
+   an invitation, with no Give access, no change of role and no change of its name.
 7. On the overview, an organization where the person has no team or product role says so, and that
    there is nothing to open until an admin gives them one.
 8. Organization-level screens (the overview, Connect an agent, Settings, Members) use a different
@@ -892,9 +899,12 @@ never described as deleting. A list row showing an archived object says *Archive
   team or product: admin, editor, viewer, reader), then everyone in the organization in two layers: their
   **organization** role (member when they have none of their own) and their **access**, the team
   and product roles that decide which products they can open. A member with no access says so and
-  offers Give access. Removing a team or product role takes effect at once with Undo, except a
+  offers Give access. Each team or product role someone may manage has **Change**, a menu of the
+  roles there, each described in words (granting again at that scope replaces the role, with
+  Undo), and **Remove role**. Removing one takes effect at once with Undo, except a
   person's only role: that asks first, because it also takes them out of the organization, and a
-  tenant admin may instead keep them as a member. Tenant admins get a menu per person: give access,
+  tenant admin may instead keep them as a member; the dialog then asks to remove the role, and
+  offers both. Tenant admins get a menu per person: give access,
   change the organization role, and **Remove from the organization**, which asks first and lists
   every role they lose (`members.revoke` with `whole_tenant`). Outstanding invitations ("Waiting
   to join") show their expiry and a cancel control. **Give access** takes an email, a team,
@@ -906,7 +916,8 @@ never described as deleting. A list row showing an archived object says *Archive
   every role a person holds, removing one never asks as if it were the last
   ([§3.5](03-accounts-teams-and-identity.md)). Below, owners and admins of the organization see
   **Access changes**: the organization's access log (`members.activity`), drawn as the Activity
-  feed is (§7.9), newest first, with a rename as "renamed the organization to …".
+  feed is (§7.9), newest first, with a rename as "renamed the organization to …", and someone
+  whose last role was removed as removed from the organization.
   Then **Organization name**, for its owners and admins: the name and its short name in links (the
   slug), each in a field, the short name checked as typed against the server's rule and saying that
   every product's address begins with it and that links with the old one still lead here. Owners
@@ -1054,15 +1065,15 @@ never described as deleting. A list row showing an archived object says *Archive
   meets none until it is moved); for a read-only organization, a Read-only mark and a note headed
   with how long it is kept ("Kept until 26 Oct 2027 · 365 days left", the day in UTC, as every
   refusal and the Organizations page give it) that says it went back to the
-  starting plan while whoever started it already has an organization there, that everyone can still
-  read, export and delete, and how to move it to another plan, in place of **What you can add**; on
+  starting plan while whoever started it already has an organization there, what everyone can still
+  do there (the sentence every read-only notice gives), and how to move it to another plan, in place of **What you can add**; on
   the starting plan, where there is another, how to move to another plan (write to the deployment's
   contact, or ask whoever runs this WhatBuild) and that each organization has a plan of its own; and,
   where the deployment offers plans, that the organization's name and plan, and the name and email
   of everyone in it, are visible to whoever runs this WhatBuild, who uses them to write to its
   people, and to bill the organization where a plan has a price, with a link to Privacy. **What** the organization **holds**: people (counting
   invitations not yet accepted; readers of the Story don't count), products and sources (archived
-  ones don't), and storage (split into files and text; archiving keeps it, deleting frees it), each
+  ones don't), and storage (split into files, which are attachments, the text read from each, kept as a file of its own, and prototypes, and text; archiving keeps it, deleting frees it), each
   as "6 of 50" over a thin bar, with "Nearly full" from 80% and "Full", with its mark, when it is
   reached, or "no limit". **Today**, with when it starts over (midnight UTC): **You** (changes,
   sources added, files uploaded, data sent to you, exports) and **Everyone in** the organization

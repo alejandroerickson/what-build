@@ -84,6 +84,12 @@ describe("who sees the organization's people", () => {
     expect(JSON.stringify(halSees.body)).not.toMatch(/Planner|pat@|pam@/);
   });
 
+  it("gives someone whose roles are on products only the organization role member, as the Members page does", async () => {
+    const tenant = (await pat.api("GET", "/api/v1/me/products")).body.tenants.find((t: { slug: string }) => t.slug === T);
+    expect(tenant.your_role).toBe("member");
+    expect((await adam.api("GET", "/api/v1/me/products")).body.tenants.find((t: { slug: string }) => t.slug === T).your_role).not.toBe("member");
+  });
+
   it("shows an admin of a product the invitations they can cancel, and no others", async () => {
     const r = await list(pam);
     expect(r.body.invitations.map((i: { email: string }) => i.email)).toEqual(["planner-invitee@example.com"]);
@@ -135,13 +141,16 @@ describe("the organization's access log", () => {
     await grant(alice, { team: planning, product: "planner", email: "pat@example.com", role: "editor" });
     const pending = (await list(alice)).body.invitations.find((i: { email: string }) => i.email === "org-invitee@example.com");
     expect((await alice.api("POST", `/api/v1/tenants/${T}/invitations/cancel`, { invitation_id: pending.invitation_id })).status).toBe(200);
-    expect((await alice.api("POST", `/api/v1/tenants/${T}/members/revoke`, { account_id: ids["hal@example.com"], team: "research", product: "secret-bets" })).status).toBe(200);
+    // Hal's only role: taking it takes them out of the organization, which the answer and the log say.
+    const revoked = await alice.api("POST", `/api/v1/tenants/${T}/members/revoke`, { account_id: ids["hal@example.com"], team: "research", product: "secret-bets" });
+    expect(revoked.status).toBe(200);
+    expect(revoked.body.left_organization).toBe(true);
 
     const r = await log(adam, "?limit=200");
     expect(r.status, JSON.stringify(r.body)).toBe(200);
     const items: { action: string; entity_type: string; entity_title: string | null; summary: string; actor: { display_name: string } }[] = r.body.items;
     expect(items.slice(0, 3).map((i) => i.action)).toEqual(["revoked", "invitation_cancelled", "role_changed"]);
-    expect(items[0]).toMatchObject({ entity_title: "Hal Hidden", summary: "Removed editor on product Secret Bets", actor: { display_name: "Alice Owner" } });
+    expect(items[0]).toMatchObject({ entity_title: "Hal Hidden", summary: "Removed from Acme Labs: editor on product Secret Bets was their only role", actor: { display_name: "Alice Owner" } });
     expect(items[2]).toMatchObject({ entity_title: "Pat Viewer", summary: "Changed role to editor on product Planner" });
     expect(items.filter((i) => i.action === "invited")).toHaveLength(4);
     expect(items.every((i) => i.entity_type === "membership")).toBe(true);

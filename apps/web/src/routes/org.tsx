@@ -1,9 +1,10 @@
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { READ_ONLY_ALLOWS } from "@whatbuild/core/read-only";
 import { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router";
 import { api, ApiError, qs } from "../lib/api.ts";
 import { aRole, formatBytes, formatDate, plural, ROLE_WORD, scopeWords, slugProblem } from "../lib/format.ts";
-import { anyPriced, totalsInWords, usePlans, type Plan } from "../lib/limits.ts";
+import { anyPriced, keptLine, totalsInWords, usePlans, type Plan } from "../lib/limits.ts";
 import { useMe, useProducts } from "../lib/session.tsx";
 import { ActivityLog, type ActivityItem } from "../shell/ActivityFeed.tsx";
 import { usePageTitle } from "../shell/slots.tsx";
@@ -168,6 +169,13 @@ const ORG_ROLE_HINT: Record<string, string> = {
   admin: "Admin of every team and product",
   member: "Opens only what they have a role on",
 };
+/** A team or product role in a few words, as the key to the roles and the role menus give it. */
+const SCOPE_ROLE_HINT: Record<string, string> = {
+  admin: "Also manages its settings and people",
+  editor: "Reads and writes",
+  viewer: "Reads",
+  reader: "Reads only the Story",
+};
 
 export function MembersPage() {
   const { tenant = "" } = useParams();
@@ -206,7 +214,9 @@ export function MembersPage() {
     if (g.scope_type === "team") return tenantAdmin || t?.teams.find((tm) => tm.team_id === g.scope_id)?.your_role === "admin";
     return tenantAdmin || inOrg.find((p) => p.product_id === g.scope_id)?.your_role === "admin";
   };
-  const canGive = tenantAdmin || Boolean(t?.teams.some((tm) => tm.your_role === "admin")) || inOrg.some((p) => p.your_role === "admin");
+  // A read-only organization takes nobody new and no new role, but its people can still be taken out.
+  const readOnly = Boolean(t?.read_only);
+  const canGive = !readOnly && (tenantAdmin || Boolean(t?.teams.some((tm) => tm.your_role === "admin")) || inOrg.some((p) => p.your_role === "admin"));
   const refresh = () => void qc.invalidateQueries({ queryKey: ["members", tenant] });
   const grant = useMutation({
     mutationFn: (v: { email: string; role: string; scope_type: string; scope_id: string }) =>
@@ -218,9 +228,10 @@ export function MembersPage() {
     mutationFn: (v: { m: Member; g: MemberGrant }) => api("POST", `/api/v1/tenants/${tenant}/members/revoke`, { account_id: v.m.account_id, ...scopeBody(v.g) }),
     onSuccess: (_r, { m, g }) => {
       refresh();
-      toast(`Removed ${m.display_name}’s ${g.role} role on ${scopeWords(g.scope_type, g.scope.name)}.`, {
-        action: { label: "Undo", onClick: () => grant.mutate({ email: m.email, role: g.role, scope_type: g.scope_type, scope_id: g.scope_id }) },
-      });
+      toast(
+        `Removed ${m.display_name}’s ${g.role} role on ${scopeWords(g.scope_type, g.scope.name)}.`,
+        readOnly ? {} : { action: { label: "Undo", onClick: () => grant.mutate({ email: m.email, role: g.role, scope_type: g.scope_type, scope_id: g.scope_id }) } },
+      );
     },
     onError: (e) => toast(`Couldn’t remove that role. ${(e as Error).message}`, { tone: "negative" }),
   });
@@ -236,6 +247,20 @@ export function MembersPage() {
         onSuccess: () =>
           toast(`${m.display_name} is now ${aRole(role)} of ${orgName}.`, {
             action: { label: "Undo", onClick: () => grant.mutate({ email: m.email, role: was, scope_type: "tenant", scope_id: "" }) },
+          }),
+      },
+    );
+  };
+  // Granting again at the same team or product replaces the role there.
+  const setScopeRole = (m: Member, g: MemberGrant, role: string) => {
+    if (role === g.role) return;
+    const where = scopeWords(g.scope_type, g.scope.name);
+    grant.mutate(
+      { email: m.email, role, scope_type: g.scope_type, scope_id: g.scope_id },
+      {
+        onSuccess: () =>
+          toast(`${m.display_name} is now ${aRole(role)} on ${where}.`, {
+            action: { label: "Undo", onClick: () => grant.mutate({ email: m.email, role: g.role, scope_type: g.scope_type, scope_id: g.scope_id }) },
           }),
       },
     );
@@ -283,6 +308,11 @@ export function MembersPage() {
               Its people aren&rsquo;t shown to its readers.
             </Callout>
           ) : null}
+          {t?.read_only ? (
+            <Callout inset tone="attention" title={`${orgName} is read-only`}>
+              Nobody can be given access or a new role while it is. {READ_ONLY_ALLOWS} {keptLine(t.read_only)}.
+            </Callout>
+          ) : null}
           {guest ? null : (
           <>
           {q.data?.partial ? <p className="muted">You see the people on the teams and products you can open, and the organization&rsquo;s owners and admins.</p> : null}
@@ -301,10 +331,12 @@ export function MembersPage() {
             <div className="members-legend-group">
               <p id="legend-scope" className="members-legend-head">Roles on a team or product</p>
               <dl aria-labelledby="legend-scope">
-                <div><dt>Admin</dt><dd>Also manages its settings and people</dd></div>
-                <div><dt>Editor</dt><dd>Reads and writes</dd></div>
-                <div><dt>Viewer</dt><dd>Reads</dd></div>
-                <div><dt>Reader</dt><dd>Reads only the Story</dd></div>
+                {SCOPE_ROLES.map((r) => (
+                  <div key={r}>
+                    <dt>{ROLE_WORD[r]}</dt>
+                    <dd>{SCOPE_ROLE_HINT[r]}</dd>
+                  </div>
+                ))}
               </dl>
             </div>
           </div>
@@ -356,7 +388,33 @@ export function MembersPage() {
                                 <span>
                                   <b>{ROLE_WORD[g.role] ?? g.role}</b> <span className="muted">on {scopeWords(g.scope_type, g.scope.name)}</span>
                                 </span>
-                                {canManage(g) ? (
+                                {canManage(g) && !readOnly ? (
+                                  <Menu
+                                    label={`Change or remove ${m.display_name}’s ${g.role} role on ${scopeWords(g.scope_type, g.scope.name)}`}
+                                    triggerClassName="btn btn-quiet btn-sm"
+                                    trigger={
+                                      <>
+                                        {grant.isPending && grant.variables?.scope_id === g.scope_id && grant.variables.email === m.email ? <Glyph name="loader" className="spin" /> : null}
+                                        Change
+                                        <Glyph name="chevron-down" size="sm" />
+                                      </>
+                                    }
+                                    align="end"
+                                    minWidth={260}
+                                  >
+                                    <MenuGroup label={`Role on ${scopeWords(g.scope_type, g.scope.name)}`}>
+                                      {SCOPE_ROLES.map((r) => (
+                                        <MenuRadio key={r} checked={g.role === r} meta={SCOPE_ROLE_HINT[r]} onSelect={() => setScopeRole(m, g, r)}>
+                                          {ROLE_WORD[r]}
+                                        </MenuRadio>
+                                      ))}
+                                    </MenuGroup>
+                                    <MenuSeparator />
+                                    <MenuItem icon="x" tone="danger" onSelect={() => removeGrant(m, g)}>
+                                      Remove role
+                                    </MenuItem>
+                                  </Menu>
+                                ) : canManage(g) ? (
                                   <Button
                                     size="sm"
                                     variant="quiet"
@@ -386,18 +444,22 @@ export function MembersPage() {
                   <div className="members-actions">
                     {manageOrg ? (
                       <Menu label={`Actions for ${m.display_name}`} triggerClassName="icon-btn icon-btn-sm" trigger={<Glyph name="ellipsis" />} align="end" minWidth={260}>
-                        <MenuItem icon="user-plus" onSelect={() => setGiving({ email: m.email })}>
-                          Give access to a team or product…
-                        </MenuItem>
-                        <MenuSeparator />
-                        <MenuGroup label={`Role in ${orgName}`}>
-                          {(t?.your_role === "owner" ? ["member", "admin", "owner"] : ["member", "admin"]).map((r) => (
-                            <MenuRadio key={r} checked={orgRole === r} meta={ORG_ROLE_HINT[r]} onSelect={() => setOrgRole(m, r)}>
-                              {ROLE_WORD[r]}
-                            </MenuRadio>
-                          ))}
-                        </MenuGroup>
-                        <MenuSeparator />
+                        {readOnly ? null : (
+                          <>
+                            <MenuItem icon="user-plus" onSelect={() => setGiving({ email: m.email })}>
+                              Give access to a team or product…
+                            </MenuItem>
+                            <MenuSeparator />
+                            <MenuGroup label={`Role in ${orgName}`}>
+                              {(t?.your_role === "owner" ? ["member", "admin", "owner"] : ["member", "admin"]).map((r) => (
+                                <MenuRadio key={r} checked={orgRole === r} meta={ORG_ROLE_HINT[r]} onSelect={() => setOrgRole(m, r)}>
+                                  {ROLE_WORD[r]}
+                                </MenuRadio>
+                              ))}
+                            </MenuGroup>
+                            <MenuSeparator />
+                          </>
+                        )}
                         <MenuItem icon="x" tone="danger" onSelect={() => setRemoving({ m })}>
                           Remove from {orgName}…
                         </MenuItem>
@@ -440,12 +502,12 @@ export function MembersPage() {
         </Sheet>
       ) : null}
       {tenantAdmin ? <AccessChanges tenant={tenant} /> : null}
-      {t && tenantAdmin ? <OrganizationNameSheet key={t.name_etag} slug={t.slug} name={t.name} etag={t.name_etag} owner={t.your_role === "owner"} /> : null}
+      {t && tenantAdmin ? <OrganizationNameSheet key={t.name_etag} slug={t.slug} name={t.name} etag={t.name_etag} owner={t.your_role === "owner"} readOnly={readOnly} /> : null}
       {t?.your_role === "owner" && !t.example ? <DeleteOrganizationSheet tenant={tenant} orgName={orgName} /> : null}
       {giving ? (
         <GiveAccessDialog tenant={tenant} orgName={orgName} initialEmail={giving.email} onClose={() => setGiving(null)} canManage={canManage} tenantAdmin={tenantAdmin} ownerHere={t?.your_role === "owner"} />
       ) : null}
-      {removing ? <RemoveMemberDialog tenant={tenant} orgName={orgName} member={removing.m} lastGrant={removing.g} tenantAdmin={tenantAdmin} onClose={() => setRemoving(null)} /> : null}
+      {removing ? <RemoveMemberDialog tenant={tenant} orgName={orgName} member={removing.m} lastGrant={removing.g} keepAsMember={tenantAdmin && !readOnly} onClose={() => setRemoving(null)} /> : null}
     </>
   );
 }
@@ -456,7 +518,9 @@ export function MembersPage() {
  * reload, this page's own address moves to the new one (`CurrentTenantAddress`). Keyed by the
  * name's etag, so a change made elsewhere starts the form again from what it is now.
  */
-function OrganizationNameSheet({ slug, name, etag, owner }: { slug: string; name: string; etag: string; owner: boolean }) {
+function OrganizationNameSheet({ slug, name, etag, owner: isOwner, readOnly }: { slug: string; name: string; etag: string; owner: boolean; readOnly: boolean }) {
+  // A read-only organization keeps its name until it moves to another plan.
+  const owner = isOwner && !readOnly;
   const qc = useQueryClient();
   const toast = useToast();
   const [draft, setDraft] = useState(name);
@@ -486,7 +550,7 @@ function OrganizationNameSheet({ slug, name, etag, owner }: { slug: string; name
       <SheetHeader id="org-name-title" title="Organization name" />
       {owner ? null : (
         <div className="settings-note">
-          <Callout inset tone="info">Only its owners can change these.</Callout>
+          <Callout inset tone="info">{isOwner ? "It’s read-only, so these can’t be changed until it moves to another plan." : "Only its owners can change these."}</Callout>
         </div>
       )}
       <form
@@ -597,7 +661,14 @@ function DeleteOrganizationSheet({ tenant, orgName }: { tenant: string; orgName:
  * of this instance (on the instance's page): what goes, read from its delete impact, a reason, and
  * its name typed to confirm.
  */
-export function OrganizationDeleteDialog({ tenant, orgName, onDeleted, onClose }: { tenant: string; orgName: string; onDeleted?: () => void; onClose: () => void }) {
+export function OrganizationDeleteDialog({ tenant, orgName, tellsOwners, onDeleted, onClose }: {
+  tenant: string;
+  orgName: string;
+  /** An owner of this instance deletes it from outside: the server mails its owners. */
+  tellsOwners?: boolean;
+  onDeleted?: () => void;
+  onClose: () => void;
+}) {
   const qc = useQueryClient();
   const toast = useToast();
   return (
@@ -606,7 +677,12 @@ export function OrganizationDeleteDialog({ tenant, orgName, onDeleted, onClose }
       impactPath={`/api/v1/tenants/${tenant}/delete-impact`}
       deletePath={`/api/v1/tenants/${tenant}`}
       typeToConfirm={{ what: "organization", name: orgName }}
-      renderImpact={({ contents: c }) => <OrganizationImpactWords name={orgName} contents={c} />}
+      renderImpact={({ contents: c }) => (
+        <>
+          <OrganizationImpactWords name={orgName} contents={c} />
+          {tellsOwners ? <p>Its owners are told by email that it was deleted.</p> : null}
+        </>
+      )}
       onDeleted={() => {
         void qc.invalidateQueries({ queryKey: ["products"] });
         void qc.invalidateQueries({ queryKey: ["instance-organizations"] });
@@ -670,14 +746,15 @@ function AccessChanges({ tenant }: { tenant: string }) {
 
 /**
  * Taking someone out of the organization asks first and says what they lose. It comes from "Remove
- * from the organization", or from removing a person's only role, which has the same effect.
+ * from the organization", or from removing a person's only role, which takes them out too unless
+ * an organization admin keeps them in it as a member (`keepAsMember`).
  */
-function RemoveMemberDialog({ tenant, orgName, member: m, lastGrant, tenantAdmin, onClose }: {
+function RemoveMemberDialog({ tenant, orgName, member: m, lastGrant, keepAsMember: canKeep, onClose }: {
   tenant: string;
   orgName: string;
   member: Member;
   lastGrant?: MemberGrant;
-  tenantAdmin: boolean;
+  keepAsMember: boolean;
   onClose: () => void;
 }) {
   const qc = useQueryClient();
@@ -700,10 +777,12 @@ function RemoveMemberDialog({ tenant, orgName, member: m, lastGrant, tenantAdmin
       open
       onClose={onClose}
       dismissable={!remove.isPending}
-      title={`Remove ${m.display_name} from ${orgName}?`}
+      title={lastGrant && canKeep ? `Remove ${m.display_name}’s only role?` : `Remove ${m.display_name} from ${orgName}?`}
       description={
         lastGrant
-          ? `${grantWords(lastGrant)} is ${m.display_name}’s only role here, so removing it removes them from the organization.`
+          ? canKeep
+            ? `${grantWords(lastGrant)} is ${m.display_name}’s only role here. Keep them in ${orgName} as a member, who opens nothing until given a team or product, or remove them from it.`
+            : `${grantWords(lastGrant)} is ${m.display_name}’s only role here, so removing it removes them from the organization.`
           : `${m.display_name} loses every role here.`
       }
       footer={
@@ -711,7 +790,7 @@ function RemoveMemberDialog({ tenant, orgName, member: m, lastGrant, tenantAdmin
           <Button onClick={onClose} disabled={remove.isPending}>
             Cancel
           </Button>
-          {lastGrant && tenantAdmin ? (
+          {lastGrant && canKeep ? (
             <Button disabled={remove.isPending} busy={remove.isPending && remove.variables} busyLabel="Removing…" onClick={() => remove.mutate(true)}>
               Remove role, keep as member
             </Button>
@@ -745,6 +824,8 @@ const ROLE_MEANING: Record<string, string> = {
   admin: "Admin of every team and product in the organization.",
   member: "Can’t open any product until they also have a team or product role.",
 };
+/** The roles on a team or product, highest first, as the role menus offer them. */
+const SCOPE_ROLES = ["admin", "editor", "viewer", "reader"];
 const SCOPE_ROLE_MEANING: Record<string, string> = {
   viewer: "Reads everything, changes nothing.",
   reader: "Reads only the Story.",
@@ -836,13 +917,24 @@ function GiveAccessDialog({ tenant, orgName, initialEmail, onClose, canManage, t
             if (valid) grant.mutate();
           }}
         >
-          <TextField label="Email" type="email" required autoComplete="off" value={email} onChange={(e) => setEmail(e.target.value)} />
+          <TextField
+            label="Email"
+            type="email"
+            required
+            autoComplete="off"
+            value={email}
+            onChange={(e) => {
+              setEmail(e.target.value);
+              grant.reset();
+            }}
+          />
           <SelectField
             label="Give access to"
             value={target}
             onChange={(e) => {
               setTarget(e.target.value);
               setRole(e.target.value ? "editor" : "member");
+              grant.reset();
             }}
           >
             {targets.map((x) => (
@@ -851,7 +943,16 @@ function GiveAccessDialog({ tenant, orgName, initialEmail, onClose, canManage, t
               </option>
             ))}
           </SelectField>
-          <SelectField label="Role" value={role} onChange={(e) => setRole(e.target.value)} hint={target || role !== "member" ? meaning : undefined}>
+          <SelectField
+            label="Role"
+            value={role}
+            onChange={(e) => {
+              setRole(e.target.value);
+              // A refusal was for the choice before: a new one may well succeed.
+              grant.reset();
+            }}
+            hint={target || role !== "member" ? meaning : undefined}
+          >
             {roles.map((r) => (
               <option key={r} value={r}>
                 {ROLE_WORD[r]}

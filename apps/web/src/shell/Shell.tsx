@@ -1,3 +1,4 @@
+import { READ_ONLY_ALLOWS } from "@whatbuild/core/read-only";
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import { useLocation } from "react-router";
 import { keptLine } from "../lib/limits.ts";
@@ -343,7 +344,7 @@ export function ProductShell({ product, app, children }: { product: Product; app
                   </ButtonLink>
                 }
               >
-                It went back to the plan new organizations start on while whoever started it already has one there. You can still read and export everything here.{" "}
+                It went back to the plan new organizations start on while whoever started it already has one there, so nothing new can be added. {READ_ONLY_ALLOWS}{" "}
                 {keptLine(product.tenant.read_only)}.
               </Callout>
             </div>

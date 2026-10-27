@@ -52,22 +52,30 @@ and **Cleo** are three such addresses, signed in with `pnpm e2e browser signin <
    first one's Plan page says Pro.
 7. **Web, as Riley.** Open Change plan for Ana's first organization (now Pro) and choose Free.
    *Expect:* before moving it, a note says it will be read-only: Ana already has a Free
-   organization, with no room for another, its people can still read, export and delete for a
-   year, and another plan makes it writable again. Press **Move to Free**. *Expect:* the toast says it is read-only and gives the date it is kept
-   until, a year from today; the row shows Read-only beside Free and "Kept until <date> · 365 days
-   left".
+   organization, with no room for another, everyone in it can still read, export and delete what it
+   holds, and take people out, it is kept for a year and its owners are told by email, and another
+   plan makes it writable again. Press **Move to Free**. *Expect:* the toast says it is read-only,
+   gives the date it is kept until, a year from today, and that its owner was told by email; the
+   row shows Read-only beside Free and "Kept until <date> · 365 days left". Ana's mail (the
+   terminal, locally) says it is read-only, what can still be done, and the day it is kept until,
+   marked UTC.
 8. **Web, as Ana, in the read-only organization.** Open its product. *Expect:* a notice above every
    screen says the organization is read-only, that it went back to the plan new organizations
-   start on while whoever started it already has one there, that everything can still be read and
-   exported, and until when it is kept, with **See plan**. Its
+   start on while whoever started it already has one there, so nothing new can be added, that
+   everyone can still read, export and delete what it holds, and take people out, as their roles
+   allow (the same sentence on its Plan page), and until when it is kept, with **See plan**. Its
    Plan page shows Free with Read-only, and a note headed "Kept until <date> · 365 days left".
-   Try to add a source. *Expect:* refused with a message saying why, until when it is kept (the
-   same date as the notice), and that nothing was changed; nothing is added. Start an export from the product's Settings. *Expect:* it
-   is made and downloads.
+   Look for a way to add a source, an outcome or a note. *Expect:* none is offered, and the empty
+   states ask nobody to add one; opening `…/evidence/new` directly says the organization is
+   read-only instead of showing the form. Its Members page says it is read-only, with no Give
+   access and no change of role, while removing a role and cancelling an invitation are still
+   offered. Start an export from the product's Settings. *Expect:* it is made and downloads, and
+   its Plan page's Today counts the export without a reload.
 9. **MCP, as Ana.** `products_read(action="list")`. *Expect:* the read-only organization's tenant has
    `read_only` with `since` and `kept_until`. Create a source in its product. *Expect:*
-   `409 organization_read_only`, with `read_only_since` and `kept_until` in its details, and the
-   same date in its message as the web gave, changing nothing. Reading its sources works. **MCP, as
+   `409 organization_read_only`, with `read_only_since` and `kept_until` in its details, the
+   same date in its message as the web gave, and the same sentence of what still works, changing
+   nothing. Reading its sources works. **MCP, as
    Riley:** `products_read(action="organizations")` gives the organization `read_only` too.
 10. **Web, as Riley.** Move it back to Pro. *Expect:* Read-only is gone from its row; as Ana, the
     notice is gone after a reload and adding a source works.
