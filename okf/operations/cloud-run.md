@@ -128,6 +128,11 @@ its memory read there, before production moves.
   how to fix it ([When Microsoft sign-in is refused](azure.md#when-microsoft-sign-in-is-refused);
   on Cloud Run, `gcloud logging read 'jsonPayload.reference="<reference>"'`).
 
+The script stores a list's commas as semicolons, since `gcloud` separates the variables themselves
+with commas; the server reads either as a separator. Setting a list of several by hand with
+`gcloud run services update --update-env-vars`, separate them with semicolons
+(`WHATBUILD_INSTANCE_OWNERS='riley@example.com;sam@example.com'`).
+
 **Who can join.** `SIGNUP_ALLOWLIST` (emails and `@domains`, comma-separated) limits who may create
 an account; by default it is only the `gcloud` account that ran the script. Anyone who is invited
 can always join. Widen it when public sign-up opens.

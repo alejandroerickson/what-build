@@ -113,9 +113,9 @@ export function providersText(v: string | undefined): string | null {
   return v?.replace(/\s+/g, " ").trim().slice(0, 1200) || null;
 }
 
-/** WHATBUILD_INSTANCE_OWNERS: addresses separated by commas, in lower case; a domain is not an address. A copy of the deployment reads it the same way. */
+/** WHATBUILD_INSTANCE_OWNERS: addresses separated by commas or semicolons, in lower case; a domain is not an address. A copy of the deployment reads it the same way. */
 export function instanceOwnersFrom(v: string | undefined): string[] {
-  return (v ?? "").split(",").map((s) => s.trim().toLowerCase()).filter((s) => s.includes("@") && !s.startsWith("@"));
+  return listOf(v).filter((s) => s.includes("@") && !s.startsWith("@"));
 }
 
 const MiB = 1024 * 1024;
@@ -128,9 +128,18 @@ export function microsoftSignIn(config: ServerConfig): boolean {
 const GUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const DOMAIN = /^(?=.{1,253}$)([a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z0-9-]{2,63}$/;
 
-/** WHATBUILD_MICROSOFT_DOMAINS: domains separated by commas, each with or without a leading "@". */
+/**
+ * A setting that lists addresses or domains, separated by commas or semicolons, lowercased. `gcloud
+ * --set-env-vars` separates the variables themselves with commas, so `deploy/cloud-run/setup.sh`
+ * writes a list's commas as semicolons, and both must read as separators.
+ */
+export function listOf(v: string | undefined): string[] {
+  return (v ?? "").split(/[,;]/).map((s) => s.trim().toLowerCase()).filter(Boolean);
+}
+
+/** WHATBUILD_MICROSOFT_DOMAINS: domains separated by commas or semicolons, each with or without a leading "@". */
 function domainList(v: string | undefined): string[] {
-  const domains = (v ?? "").split(",").map((d) => d.trim().toLowerCase().replace(/^@/, "")).filter(Boolean);
+  const domains = listOf(v).map((d) => d.replace(/^@/, ""));
   const bad = domains.find((d) => !DOMAIN.test(d));
   if (bad !== undefined) throw new Error(`WHATBUILD_MICROSOFT_DOMAINS lists "${bad}", which is not a domain. List domains such as example.com, separated by commas.`);
   return domains;
@@ -229,7 +238,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
     microsoftDomains: domainList(env["WHATBUILD_MICROSOFT_DOMAINS"]),
     webDist: env["WHATBUILD_WEB_DIST"] ?? null,
     runWorker: env["WHATBUILD_WORKER"] !== "0",
-    signupAllowlist: env["WHATBUILD_SIGNUP_ALLOWLIST"] ? env["WHATBUILD_SIGNUP_ALLOWLIST"].split(",").map((s) => s.trim().toLowerCase()).filter(Boolean) : null,
+    signupAllowlist: env["WHATBUILD_SIGNUP_ALLOWLIST"] ? listOf(env["WHATBUILD_SIGNUP_ALLOWLIST"]) : null,
     instanceOwners: instanceOwnersFrom(env["WHATBUILD_INSTANCE_OWNERS"]),
     defaultTenantAllowance: Math.max(0, Math.floor(num(env["WHATBUILD_TENANT_ALLOWANCE"], 0))),
     plans,

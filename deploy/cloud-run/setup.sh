@@ -34,7 +34,8 @@
 #                       gcloud account running this script. Invited people can always join.
 #   INSTANCE_OWNERS     comma-separated emails of the people who run this instance: they create any
 #                       number of organizations and decide who else may; default: the gcloud
-#                       account running this script
+#                       account running this script. Both lists are stored with semicolons for
+#                       commas, since gcloud separates variables with commas; the server reads either.
 #   TENANT_ALLOWANCE    how many organizations any other address may create (optional; default 0)
 #   SMTP_URL            smtp(s)://user:pass@host:port for sign-in links and invitations (optional)
 #   MAIL_FROM           e.g. "WhatBuild <hello@what-build.com>"
