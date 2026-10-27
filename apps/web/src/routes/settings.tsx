@@ -8,6 +8,7 @@ import { useHideExample, useMe, useProducts } from "../lib/session.tsx";
 import { usePageTitle } from "../shell/slots.tsx";
 import { DeleteAccount } from "./delete-account.tsx";
 import { Button, ChoiceRow, Dialog, ErrorCallout, FormGrid, Sheet, SheetBody, SheetHeader, TextField, useToast } from "../ui/index.tsx";
+import { PrivacyLink } from "../shell/privacy-link.tsx";
 import "../styles/screens/account.css";
 
 /** `/settings`: the person's own settings, reached from the account menu. */
@@ -67,7 +68,7 @@ export function SettingsPage() {
       <SignOutEverywhere />
       <DeleteAccount />
       <p className="agents-foot">
-        <Link to="/cookies">Cookies and analytics</Link> · <Link to="/privacy">Privacy</Link>
+        <Link to="/cookies">Cookies and analytics</Link> · <PrivacyLink />
       </p>
     </>
   );

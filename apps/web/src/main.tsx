@@ -12,7 +12,6 @@ import { loadNewRelease, releasedSinceLoad } from "./lib/new-release.ts";
 import { CurrentTenantAddress, productHome, ProductProvider, RequireSession, useProduct } from "./lib/session.tsx";
 import { ConnectPage } from "./routes/connect.tsx";
 import { CookiesPage } from "./routes/cookies.tsx";
-import { PrivacyPage } from "./routes/privacy.tsx";
 import { AcceptInvite, NotFound, NotVisible, SignIn } from "./routes/auth.tsx";
 import { IdeaPage } from "./routes/idea.tsx";
 import { MembersPage, Welcome } from "./routes/org.tsx";
@@ -178,7 +177,6 @@ function Root() {
 const router = createBrowserRouter([{ element: <Root />, errorElement: <RouteError />, children: [
   { path: "/signin", element: <SignIn />, errorElement: <RouteError /> },
   { path: "/cookies", element: <CookiesPage />, errorElement: <RouteError /> },
-  { path: "/privacy", element: <PrivacyPage />, errorElement: <RouteError /> },
   { path: "/account-deleted", element: <AccountDeletedPage />, errorElement: <RouteError /> },
   { path: "/plans", element: <PlansPage />, errorElement: <RouteError /> },
   // The public sandbox's invitation links are retired: one opens the app, where the example organization is.

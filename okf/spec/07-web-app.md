@@ -248,7 +248,6 @@ person's organization role is in the account menu, and who has which role is on 
 /signin  /welcome  /invite/:token             sign-in, first run, accepting an invitation
 /join/:code                                   → / (the public sandbox's retired invitation links)
 /cookies                                      Cookies: what they are for, and the analytics choice; readable signed out
-/privacy                                      Privacy: what is kept, why, for how long, who handles it, whom to ask; readable signed out
 /plans                                        Plans: the plans offered side by side, with their prices; readable signed out
 /                   ?archived=1&create=1      the overview: what WhatBuild is, and every product; new product; first run with no organization
 /products                                     → / (with its query)
@@ -289,14 +288,19 @@ person's organization role is in the account menu, and who has which role is on 
 **The public site** is not part of the app: on the site's domain (served by the Cloudflare Worker,
 or by the image on the host named by `WHATBUILD_SITE_URL`), `/` is a
 page with the overview's intro and a form to hear when a team can start, `/plans` the plans side by
-side, and every other path redirects to the app. Whoever serves a page writes into it what only the
+side, `/privacy` the privacy notice ([§9.1](09-data-lifecycle.md),
+[decision](../decisions/the-privacy-page-is-a-page-of-the-public-site.md)), and every other path
+redirects to the app. Whoever serves a page writes into it what only the
 service knows (`whatbuild-site`, the answer of `GET /api/v1/plans`): the plans as an instance owner
-set them, and whether anyone may sign up as a guest. The Worker asks the service for it through
-Cloudflare's cache, an hour at a time; without it, a page shows the plans as the build has them.
+set them, whether anyone may sign up as a guest, and who runs the deployment, where to write and who
+else handles the data, for the privacy page. The Worker asks the service for it through
+Cloudflare's cache, an hour at a time; without it, a page shows the plans as the build has them,
+and the privacy page says it did not load.
 While guests may sign up, the front page leads with **Explore a real discovery** (sign-in, then the
 example organization as a guest), with **Start your team's own** beside it pointing at the form, and
-the plans page says the same. Without a site host they are at `/site/` and `/site/plans/` (in
-development, `http://localhost:5273/site/`, where the pages ask the local server)
+the plans page says the same. On the app's origin, which is where a deployment without a site
+host has them, they are at `/site/`, `/site/plans/` and `/site/privacy/` (in development,
+`http://localhost:5273/site/`, where the pages ask the local server)
 ([decision](../decisions/the-public-site-is-pages-built-with-the-app.md)). When the deployment
 uses Google Analytics, whoever serves the page writes the measurement ID into it (a
 `whatbuild-analytics` meta tag), and the page shows the same cookie choice as the app, with Cookies
@@ -986,11 +990,11 @@ never described as deleting. A list row showing an archived object says *Archive
   analytics, Google Analytics with the person's choice, which they change here at any time. Then
   how the server counts use without cookies, and how to clear them ([§9.1](09-data-lifecycle.md)).
   It lists no individual cookies.
-- **Privacy** (`/privacy`, readable signed out; `apps/web/src/routes/privacy.tsx`). The privacy
-  notice ([§9.1](09-data-lifecycle.md)): what is kept, why, who else handles it, how long it stays
-  and what a person can do, in prose, with who runs the deployment, its contact and who else handles
-  the data from `/api/v1/meta`, and the month it last changed. It names billing only where a plan
-  has a price (`GET /api/v1/plans`). Linked from the sign-in page, Settings, Cookies and the public site's footer.
+- **Privacy** is not a screen of the app: it is a page of the public site
+  ([§7.3](#73-routes), [§9.1](09-data-lifecycle.md)), at the address `privacy_url` in
+  `GET /api/v1/meta` gives (`apps/web/src/shell/privacy-link.tsx`). The sign-in page, Settings,
+  Cookies, an organization's Plan page, the new-organization form and the account-deletion page
+  link to it, opening it in a new tab.
 - **The cookie notice** (`apps/web/src/shell/CookieNotice.tsx`). When the deployment sets an
   analytics ID (`analytics_id` from `GET /auth/methods`), every screen, signed in or not, carries a
   small note at the bottom-right inset (flush along the bottom on phones) until the person presses
