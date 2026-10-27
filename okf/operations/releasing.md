@@ -122,8 +122,8 @@ command in [analytics](analytics.md), which passes all its settings from `.env`:
 git worktree add ../what-build-<version> <version> && cd ../what-build-<version>
 corepack pnpm install --frozen-lockfile
 # then the build and `npx wrangler deploy …` from analytics.md, with .env loaded
-grep -o 'assets/site-[^"]*' apps/web/dist/site/index.html        # the page this build serves
-curl -s https://what-build.com/ | grep -o 'assets/site-[^"]*'     # the same name, once deployed
+grep -o 'assets/main-[^"]*' apps/web/dist/site/index.html        # the page this build serves
+curl -s https://what-build.com/ | grep -o 'assets/main-[^"]*'     # the same name, once deployed
 ```
 
 `gcloud builds` has no `approve` outside the beta component (`gcloud beta builds approve`), so
