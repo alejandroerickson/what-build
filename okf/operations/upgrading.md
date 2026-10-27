@@ -23,7 +23,11 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
 
 ## Unreleased
 
-Nothing yet.
+- **Several instance owners, or several sign-up addresses, set by `setup.sh` now count.** It
+  concerns a Cloud Run deployment whose `INSTANCE_OWNERS` or `SIGNUP_ALLOWLIST` listed more than
+  one entry, and asks nothing of it. The script stores a list's commas as semicolons, which the
+  server read as part of one address, so such a list matched nobody; the server now reads commas
+  and semicolons alike ([Cloud Run](cloud-run.md)). No migration.
 
 ## v0.27.0
 
