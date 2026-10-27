@@ -36,10 +36,10 @@ write an editor is, planned work around them, and were refused.
   person may start an organization (an instance owner, or an allowance with room): they may create
   one and work in it in the same session, and a list made when they connected could not show what they may do there.
 - A call to anything not listed is answered as before, with what it needs (`403`), never as
-  `unknown_action`: that answer, and a newer skill version, are how an agent knows its tool list
+  `unknown_action`: that answer, and a newer `tools_version`, are how an agent knows its tool list
   is from another version. Rejected: answering an instance owner's action as unknown, which the
-  skill documents for every agent, and which would send the person to restart for nothing.
-- A grouped tool's description speaks only of the actions the connection is offered.
+  guide describes for every agent, and which would send the person to restart for nothing.
+- A tool's description speaks only of the actions the connection is offered.
 - The list is computed when the client connects. Someone whose role, allowance or ownership
   changes starts a new session to see the new list.
 
@@ -47,7 +47,7 @@ write an editor is, planned work around them, and were refused.
 
 - A guest's or reader's agent sees a short menu of what they can use, on every connector.
 - Listing the unscoped connector's tools costs a lookup of the person's allowance and grants.
-- The server's instructions and the skill say a tool or action may be missing on purpose, so an
+- The server's instructions and the guide say a tool or action may be missing on purpose, so an
   agent no longer reads a missing tool as an older list.
 
 ## Constrains

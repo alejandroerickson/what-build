@@ -22,7 +22,7 @@ long on it as the person asked for; by default, cover every screen once.
    right-to-left script, a file no parser reads, the back button after a save, two tabs editing
    the same thing.
 3. **MCP, as Sam.** Do the same tasks over MCP, following only the tool descriptions, `describe`,
-   and the skill from `get_skill`. *Expect:* the guidance is enough to succeed without guessing;
+   and the `guide` tool. *Expect:* the guidance is enough to succeed without guessing;
    errors say what to do next.
 4. **Web, as Riley and as Jordan.** Repeat a short tour as each, checking that what each sees
    matches their role.

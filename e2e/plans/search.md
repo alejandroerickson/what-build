@@ -19,7 +19,7 @@ that what one door writes the other finds at once, and that a reader has no sear
 
 1. **MCP, as Sam, in the standard organization.** In a product that has sources, mockups,
    assumptions and Story pages, list each kind and note, for later steps: a word you can see in a
-   source's text (`derived(action="text")`) that it says in several places, far apart (more than
+   source's text (`derived_read(action="text")`) that it says in several places, far apart (more than
    three if there is one), a word from an assumption's statement, a word from a mockup's page text,
    an outcome's title, a Story page's title, and a word from the product concept. If the product
    has no mockup, create one over MCP with two pages of synthetic text, one holding a made-up word.
@@ -105,7 +105,7 @@ that what one door writes the other finds at once, and that a reader has no sear
     `partial`, `missing`, `ignored` and `kind_hint` saying what the web's notes said; a source's
     `hits` name their `field` and where their piece starts. Then call `search` in the default
     mode with the text word, and read the text around its first hit in `text` with
-    `derived(action="text")`, from a little before its `char_start`. *Expect:* each hit names its
+    `derived_read(action="text")`, from a little before its `char_start`. *Expect:* each hit names its
     `field`, `char_start` and `char_end`; the window holds the word; `coverage` lists what was
     searched and ends "Attachments are never searched." Then plain mode with `kind: "mockup"`,
     with `record_id` of the source from step 8, and with `strict: true` and the typo. *Expect:* one
@@ -113,7 +113,7 @@ that what one door writes the other finds at once, and that a reader has no sear
     `tags`, `kind` with `mode: "substring"`, and `scope: "passages"`. *Expect:* each refused with
     `invalid_filter` or `invalid_input` and a message that says why.
 11. **MCP, then web, as Sam.** Over MCP, create an assumption whose statement holds a made-up word
-    (synthetic, such as "zorbleflux"), with a body saying why, as the skill describes. On the web, search
+    (synthetic, such as "zorbleflux"), with a body saying why. On the web, search
     the made-up word straight away. *Expect:* the assumption is found, under Exploration on the
     Search screen. Archive it on the web, then search the word over MCP. *Expect:* nothing is found.
 12. **Web and MCP, as Sam, in the example organization.** In the same product, repeat the palette

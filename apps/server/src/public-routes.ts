@@ -1,7 +1,6 @@
 import { closeSync, existsSync, fstatSync, openSync, readFileSync } from "node:fs";
 import { extname, isAbsolute, join, normalize, relative, resolve, sep } from "node:path";
-import { DOCUMENT_ROUTE, SKILL_NAME, SKILL_VERSION, skillMarkdown, unauthenticated, USAGE_PEOPLE_MONTHS, type Db } from "@whatbuild/core";
-import { strToU8, zipSync } from "fflate";
+import { DOCUMENT_ROUTE, MCP_SERVER_NAME, TOOLS_VERSION, unauthenticated, USAGE_PEOPLE_MONTHS, type Db } from "@whatbuild/core";
 import { Hono } from "hono";
 import type { Release } from "./app.ts";
 import { restPrincipal } from "./auth/identity.ts";
@@ -11,7 +10,6 @@ export function publicRoutes(deps: { db: Db; config: ServerConfig; release: Rele
   const { config } = deps;
   const base = config.publicBaseUrl;
   const app = new Hono();
-  const noStore = { "Cache-Control": "no-store" };
 
   // Not /healthz: Cloud Run reserves paths ending in "z" and never forwards them.
   app.get("/health", (c) => c.json({ status: "ok" }));
@@ -20,7 +18,7 @@ export function publicRoutes(deps: { db: Db; config: ServerConfig; release: Rele
       product: "WhatBuild",
       server_version: deps.release.version,
       release: deps.release,
-      skill: { name: SKILL_NAME, version: SKILL_VERSION },
+      mcp: { name: MCP_SERVER_NAME, tools_version: TOOLS_VERSION },
       auth: { email_link: config.mailer !== "none", google: Boolean(config.googleClientId && config.googleClientSecret), microsoft: microsoftSignIn(config), dev: config.devAuth },
       inference: "none: WhatBuild runs no language model; intelligence comes from the agent you connect",
       // What the privacy page says that only the deployment knows.
@@ -35,12 +33,6 @@ export function publicRoutes(deps: { db: Db; config: ServerConfig; release: Rele
       },
     }),
   );
-  app.get(`/${SKILL_NAME}-skill.md`, (c) => c.text(skillMarkdown(), 200, { ...noStore, "Content-Type": "text/markdown; charset=utf-8" }));
-  app.get(`/${SKILL_NAME}-skill.zip`, (c) => {
-    const zip = zipSync({ [`${SKILL_NAME}/SKILL.md`]: strToU8(skillMarkdown()) });
-    return c.body(zip, 200, { ...noStore, "Content-Type": "application/zip", "Content-Disposition": `attachment; filename="${SKILL_NAME}-skill.zip"` });
-  });
-
   app.get("/api/v1/connect", async (c) => {
     const p = await restPrincipal(c, deps.db, config);
     if (!p) throw unauthenticated();
@@ -49,7 +41,6 @@ export function publicRoutes(deps: { db: Db; config: ServerConfig; release: Rele
       tenant_url_template: `${base}/mcp/t/{tenant}`,
       bound_url_template: `${base}/mcp/t/{tenant}/{team}/{product}`,
       oauth: { authorization_server: base, protected_resource_metadata: `${base}/.well-known/oauth-protected-resource/mcp`, dynamic_client_registration: true },
-      skill: { name: SKILL_NAME, version: SKILL_VERSION, markdown_url: `${base}/${SKILL_NAME}-skill.md`, zip_url: `${base}/${SKILL_NAME}-skill.zip` },
       agent_data_statement: "What your agent reads goes to whoever runs it, under their terms.",
     });
   });

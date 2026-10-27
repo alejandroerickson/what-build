@@ -15,7 +15,6 @@ interface ConnectInfo {
   tenant_url_template: string;
   /** The address scoped to one product, with `{tenant}/{team}/{product}` to fill in. */
   bound_url_template: string;
-  skill: { name: string; version: string; zip_url: string };
 }
 
 /** What a connection may reach: names where the person can see them, else the address's path. */
@@ -30,7 +29,7 @@ type Level = "viewer" | "editor" | "admin";
 const LEVELS: { level: Level; name: string; does: string }[] = [
   { level: "viewer", name: "Read only", does: "Reads what you can. Changes nothing." },
   { level: "editor", name: "Edit", does: "Reads, writes and archives. Never deletes." },
-  { level: "admin", name: "Admin", does: "Also deletes, and manages products and people." },
+  { level: "admin", name: "Admin", does: "Also deletes permanently, and manages products, organizations and people." },
 ];
 
 interface ConnectedAgent {
@@ -81,11 +80,12 @@ function Step({ n, title, children }: { n: number; title: string; children?: Rea
 
 /**
  * `/connect`, and `…/connect` inside a product: the one address an MCP client needs, and the agents
- * connected now. The person chooses what the agent can reach (one product, one organization, or
- * everything) and gets the address for it. A scoped address is a fence: the server refuses every
- * call outside it. Inside a product that product is chosen first; elsewhere, the organization of the
- * last product opened. The client finds sign-in on its own (OAuth discovery), and the server tells
- * the agent which skill version to use.
+ * connected now. It leads with `/mcp`, every product the person can open, which is the address a
+ * connectors directory lists. Limiting the agent to one organization or one product is behind a
+ * quiet button: it gives a scoped address, a fence the server refuses every call outside of. Opened
+ * there, inside a product that product is chosen first; elsewhere, the organization of the last
+ * product opened. The client finds sign-in on its own (OAuth discovery), and the server describes
+ * itself to the agent: its tools and its guide.
  */
 export function ConnectPage() {
   const info = useQuery({ queryKey: ["connect"], queryFn: () => api<ConnectInfo>("GET", "/api/v1/connect") });
@@ -104,17 +104,17 @@ export function ConnectPage() {
   const productParam = params.get("product");
   const orgParam = params.get("org");
   const reachParam = params.get("reach");
-  const asked: ReachKind =
+  const reach: ReachKind =
     reachParam === "product" || reachParam === "organization" || reachParam === "all"
       ? reachParam
-      : productParam === "all"
-        ? "all"
-        : productParam || herePath
-          ? "product"
-          : orgParam || last || items.length
-            ? "organization"
-            : "all";
-  const reach: ReachKind = asked;
+      : productParam && productParam !== "all"
+        ? "product"
+        : orgParam
+          ? "organization"
+          : "all";
+  // The choices stay open once shown, whatever is chosen in them, until the person closes them.
+  const [limiting, setLimiting] = useState(reach !== "all");
+  const limitId = "agents-limit-choices";
   const product = items.find((p) => p.path === (productParam && productParam !== "all" ? productParam : herePath)) ?? (herePath ? undefined : last) ?? items[0];
   const org = tenants.find((t) => t.slug === orgParam) ?? tenants.find((t) => t.tenant_id === (product ?? last)?.tenant.tenant_id) ?? tenants[0];
   const url = !c
@@ -137,9 +137,15 @@ export function ConnectPage() {
     );
   const scopedName = reach === "product" && product ? product.name : reach === "organization" && org ? org.name : null;
   const exampleChosen = (reach === "product" && product?.tenant.example) || (reach === "organization" && org?.example);
+  const hasExample = tenants.some((t) => t.example);
+  const address = (
+    <div className="agents-address">
+      <CopyField label="MCP server URL" value={url} />
+    </div>
+  );
   const named =
     reach === "all"
-      ? (items.find((p) => !p.tenant.example) ?? items[0])
+      ? ((herePath ? product : undefined) ?? (last && !last.tenant.example ? last : undefined) ?? items.find((p) => !p.tenant.example) ?? items[0])
       : ((reach === "product" ? product : undefined) ?? (reach === "organization" ? items.find((p) => p.tenant.tenant_id === org?.tenant_id) : undefined) ?? product ?? last);
   return (
     <>
@@ -156,90 +162,122 @@ export function ConnectPage() {
           </SheetBody>
         ) : c ? (
           <ol className="agents-steps">
-            <Step n={1} title="Choose what it can reach">
-              <fieldset className="agents-reach">
-                <legend className="visually-hidden">What your agent can reach</legend>
-                <ChoiceRow
-                  type="radio"
-                  variant="boxed"
-                  name="reach"
-                  checked={reach === "product"}
-                  disabled={!items.length}
-                  onChange={() => pick({ reach: "product", ...(product ? { product: product.path } : {}) })}
-                  label="One product"
-                  hint={items.length ? undefined : "You have no product yet."}
-                />
-                <ChoiceRow
-                  type="radio"
-                  variant="boxed"
-                  name="reach"
-                  checked={reach === "organization"}
-                  disabled={!tenants.length}
-                  onChange={() => pick({ reach: "organization", ...(org ? { org: org.slug } : {}) })}
-                  label="One organization"
-                  hint="Every product in the organization you choose."
-                />
-                <ChoiceRow
-                  type="radio"
-                  variant="boxed"
-                  name="reach"
-                  checked={reach === "all"}
-                  onChange={() => pick({ reach: "all" })}
-                  label="Everything you can reach"
-                  hint="Every product you can open, including in organizations you join or start later."
-                />
-              </fieldset>
-              {reach === "product" && product ? (
-                <div className="agents-address">
-                  <SelectField label="Product" value={product.path} onChange={(e) => pick({ reach: "product", product: e.target.value })}>
-                    {orgs > 1
-                      ? tenants.map((t) => (
-                          <optgroup key={t.tenant_id} label={t.name}>
-                            {items
-                              .filter((p) => p.tenant.tenant_id === t.tenant_id)
-                              .map((p) => (
-                                <option key={p.product_id} value={p.path}>
-                                  {p.name}
-                                </option>
-                              ))}
-                          </optgroup>
-                        ))
-                      : items.map((p) => (
-                          <option key={p.product_id} value={p.path}>
-                            {p.name}
+            <Step n={1} title="Add WhatBuild to your agent">
+              {limiting ? null : (
+                <>
+                  {address}
+                  <p className="agents-fence">
+                    Your agent can open every product you can{hasExample ? ", and reads the example organization without changing it" : ""}.
+                  </p>
+                </>
+              )}
+              <button
+                type="button"
+                className="btn btn-quiet btn-sm agents-limit"
+                aria-expanded={limiting}
+                aria-controls={limitId}
+                onClick={() => {
+                  if (limiting) pick({ reach: "all" });
+                  setLimiting(!limiting);
+                }}
+              >
+                <span>Limit this agent to one organization or product</span>
+                <Glyph name="chevron-down" size="sm" />
+              </button>
+              {limiting ? (
+                <div id={limitId}>
+                  <fieldset className="agents-reach">
+                    <legend className="visually-hidden">What your agent can reach</legend>
+                    <ChoiceRow
+                      type="radio"
+                      variant="boxed"
+                      name="reach"
+                      checked={reach === "all"}
+                      onChange={() => pick({ reach: "all" })}
+                      label="Everything you can reach"
+                      hint="Every product you can open, including in organizations you join or start later."
+                    />
+                    <ChoiceRow
+                      type="radio"
+                      variant="boxed"
+                      name="reach"
+                      checked={reach === "organization"}
+                      disabled={!tenants.length}
+                      onChange={() => pick({ reach: "organization", ...(org ? { org: org.slug } : {}) })}
+                      label="One organization"
+                      hint="It refuses anything outside the organization you choose."
+                    />
+                    <ChoiceRow
+                      type="radio"
+                      variant="boxed"
+                      name="reach"
+                      checked={reach === "product"}
+                      disabled={!items.length}
+                      onChange={() => pick({ reach: "product", ...(product ? { product: product.path } : {}) })}
+                      label="One product"
+                      hint={items.length ? "It refuses anything outside the product you choose." : "You have no product yet."}
+                    />
+                  </fieldset>
+                  {reach === "product" && product ? (
+                    <div className="agents-address">
+                      <SelectField label="Product" value={product.path} onChange={(e) => pick({ reach: "product", product: e.target.value })}>
+                        {orgs > 1
+                          ? tenants.map((t) => (
+                              <optgroup key={t.tenant_id} label={t.name}>
+                                {items
+                                  .filter((p) => p.tenant.tenant_id === t.tenant_id)
+                                  .map((p) => (
+                                    <option key={p.product_id} value={p.path}>
+                                      {p.name}
+                                    </option>
+                                  ))}
+                              </optgroup>
+                            ))
+                          : items.map((p) => (
+                              <option key={p.product_id} value={p.path}>
+                                {p.name}
+                              </option>
+                            ))}
+                      </SelectField>
+                    </div>
+                  ) : reach === "organization" && org ? (
+                    <div className="agents-address">
+                      <SelectField label="Organization" value={org.slug} onChange={(e) => pick({ reach: "organization", org: e.target.value })}>
+                        {tenants.map((t) => (
+                          <option key={t.tenant_id} value={t.slug}>
+                            {t.name}
                           </option>
                         ))}
-                  </SelectField>
-                </div>
-              ) : reach === "organization" && org ? (
-                <div className="agents-address">
-                  <SelectField label="Organization" value={org.slug} onChange={(e) => pick({ reach: "organization", org: e.target.value })}>
-                    {tenants.map((t) => (
-                      <option key={t.tenant_id} value={t.slug}>
-                        {t.name}
-                      </option>
-                    ))}
-                  </SelectField>
+                      </SelectField>
+                    </div>
+                  ) : null}
+                  {address}
+                  <p className="agents-fence" aria-live="polite">
+                    {scopedName ? (
+                      <>
+                        Name the connector after <strong>{scopedName}</strong>, so you can tell your connectors apart and turn one off.
+                      </>
+                    ) : null}
+                    {exampleChosen ? " Your agent can read the example organization but not change it." : null}
+                  </p>
                 </div>
               ) : null}
             </Step>
-            <Step n={2} title="Add this MCP server to your agent">
-              <div className="agents-address">
-                <CopyField label="MCP server URL" value={url} />
-              </div>
-              <p className="agents-fence" aria-live="polite">
-                {scopedName ? (
-                  <>
-                    Name the connector after <strong>{scopedName}</strong>.
-                  </>
-                ) : null}
-                {exampleChosen ? " Your agent can read the example organization but not change it." : null}
-              </p>
+            <Step n={2} title="Sign in when it asks, and choose what it may do">
+              <dl className="agents-levels">
+                {LEVELS.map((l) => (
+                  <div key={l.level} className="agents-level">
+                    <dt>
+                      {l.name}
+                      {l.level === "editor" ? <span className="agents-level-default"> (default)</span> : null}
+                    </dt>
+                    <dd>{l.does}</dd>
+                  </div>
+                ))}
+              </dl>
+              <p>Your agent never does more than you can yourself. You can change its level here later.</p>
             </Step>
-            <Step n={3} title="Sign in when it asks, and choose what it may do">
-              <p>Edit is the default. Choose Admin only for an agent that should delete permanently or manage products and people.</p>
-            </Step>
-            <Step n={4} title="Ask it to start">
+            <Step n={3} title="Ask it to start">
               <p>
                 For example: &ldquo;Add the interview notes in my downloads to {named?.name ?? "my product"} as a source.&rdquo;
               </p>
@@ -250,8 +288,7 @@ export function ConnectPage() {
       <ConnectedSheet />
       {c ? (
         <p className="agents-foot">
-          To install the {c.skill.name} skill (version {c.skill.version}) yourself, <a href={c.skill.zip_url}>download it</a>. To disconnect every agent at once, and sign out of every
-          browser, use <Link to="/settings">Sign out everywhere</Link> in Settings.
+          To disconnect every agent at once, and sign out of every browser, use <Link to="/settings">Sign out everywhere</Link> in Settings.
         </p>
       ) : null}
     </>

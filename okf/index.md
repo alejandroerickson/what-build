@@ -3,7 +3,7 @@ type: Index
 title: WhatBuild knowledge bundle
 description: The map of the documentation; start here.
 tags: [index, okf]
-generated: {by: agent:claude, at: 2026-10-24}
+generated: {by: agent:claude, at: 2026-10-26}
 status: stable
 okf_version: "0.2"
 ---
@@ -51,6 +51,6 @@ server with the same operations. There is no AI inside.
 - `apps/web/PRODUCT.md`: users, purpose and principles. `apps/web/DESIGN.md` and
   `apps/web/.impeccable/design.json`: the Studio design system. They sit beside the web app, where
   design tooling looks for them.
-- `packages/core/src/skill/SKILL.md`: the agent skill the product serves to connected agents.
+- `packages/core/src/guide/`: the guide the product serves to connected agents through its `guide` tool.
 - `deploy/cloud-run/README.md`: a pointer next to `setup.sh`. `deploy/azure/README.md`: a pointer
   next to the container app's definition.

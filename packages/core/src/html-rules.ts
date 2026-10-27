@@ -198,7 +198,7 @@ export function inspectCardHtml(html: string, icons: ReadonlySet<string>): strin
   if (whole) problems.push(`A card front is only the markup inside the card (this one holds ${clip(whole[0])}…>): WhatBuild wraps it in a document with the card kit.`);
   const unknown = [...new Set([...html.matchAll(/data-icon\s*=\s*["']?([^"'\s>]*)/gi)].map((m) => m[1]!).filter((n) => !icons.has(n)))];
   if (unknown.length)
-    problems.push(`The card kit carries no pictogram named ${unknown.slice(0, 5).map((n) => `"${clip(n)}"`).join(", ")}${unknown.length > 5 ? ` and ${unknown.length - 5} more` : ""}: outcomes(action="card_guidance") lists the names.`);
+    problems.push(`The card kit carries no pictogram named ${unknown.slice(0, 5).map((n) => `"${clip(n)}"`).join(", ")}${unknown.length > 5 ? ` and ${unknown.length - 5} more` : ""}: outcomes_read(action="card_guidance") lists the names.`);
   return [...problems, ...inspectPageHtml(html, IDEA_CARD_RULES)];
 }
 

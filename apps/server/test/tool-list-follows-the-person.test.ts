@@ -37,12 +37,12 @@ async function connect(token: string, at = "/mcp") {
   return client;
 }
 
-/** Every action the connection is offered, as tool.action, and each tool's description. */
+/** Every action the connection is offered, as noun.action (`sources.list`, in sources_read), and each tool's description. */
 async function offered(client: Client): Promise<{ actions: string[]; descriptions: Record<string, string> }> {
   const { tools } = await client.listTools();
   const actions = tools.flatMap((t) => {
     const action = t.inputSchema.properties?.["action"] as { enum?: string[] } | undefined;
-    return action?.enum ? action.enum.map((a) => `${t.name}.${a}`) : [t.name];
+    return action?.enum ? action.enum.map((a) => `${t.name.replace(/_(read|write|delete)$/, "")}.${a}`) : [t.name];
   });
   return { actions, descriptions: Object.fromEntries(tools.map((t) => [t.name, t.description ?? ""])) };
 }
@@ -73,7 +73,7 @@ async function noAllowance(email: string) {
   expect((await root.api("PUT", "/api/v1/tenant-allowances", { email, allowed: 0, notify: false })).status).toBe(200);
 }
 
-/** What a grouped tool's description says it does: before the pointer to describe and the list of actions. */
+/** What a tool's description says it does: before the pointer to describe and the list of actions. */
 const said = (description: string) => description.slice(0, description.indexOf("\nActions:")).split(" Pick an action;")[0]!;
 
 /** Each of a tool's actions its description speaks of by name (`set_style`, or `set style`), though the connection is not offered it. */
@@ -112,8 +112,9 @@ describe("the instance owners' actions", () => {
     for (const a of INSTANCE_ACTIONS) expect(actions, a).toContain(`products.${a}`);
     // Removing an account is done only in the web app.
     expect(actions).not.toContain("products.remove_account");
-    expect(descriptions["products"]).toContain("As an owner of this WhatBuild");
-    expect(result(await client.callTool({ name: "products", arguments: { action: "usage", params: { days: 1 } } })).status).toBe(200);
+    expect(descriptions["products_read"]).toContain("As an owner of this WhatBuild");
+    expect(descriptions["products_write"]).toContain("As an owner of this WhatBuild");
+    expect(result(await client.callTool({ name: "products_read", arguments: { action: "usage", params: { days: 1 } } })).status).toBe(200);
     await client.close();
     const editing = await offeredAt(root, "/mcp", "editor");
     expect(editing).toContain("products.organizations");
@@ -125,13 +126,13 @@ describe("the instance owners' actions", () => {
     const { actions, descriptions } = await offered(client);
     for (const a of INSTANCE_ACTIONS) expect(actions, a).not.toContain(`products.${a}`);
     expect(actions).toContain("products.limits");
-    expect(descriptions["products"]).not.toMatch(/allowances|every account|how it is used/);
-    // Called anyway, from what the skill says, it is refused for what it needs: an unknown action would mean an old tool list.
-    const usage = result(await client.callTool({ name: "products", arguments: { action: "usage", params: { days: 1 } } }));
+    expect(said(descriptions["products_read"]!) + said(descriptions["products_write"]!)).not.toMatch(/allowances|every account|how it is used/);
+    // Called anyway, from what the guide says, it is refused for what it needs: an unknown action would mean an old tool list.
+    const usage = result(await client.callTool({ name: "products_read", arguments: { action: "usage", params: { days: 1 } } }));
     expect(usage.status).toBe(403);
     expect(usage.json.error.message).toContain("Only an owner of this WhatBuild instance");
-    expect(result(await client.callTool({ name: "products", arguments: { action: "organizations", describe: true } })).json.action).toBe("organizations");
-    const unknown = result(await client.callTool({ name: "products", arguments: { action: "explode" } }));
+    expect(result(await client.callTool({ name: "products_read", arguments: { action: "organizations", describe: true } })).json.action).toBe("organizations");
+    const unknown = result(await client.callTool({ name: "products_read", arguments: { action: "explode" } }));
     expect(unknown.json.error.code).toBe("unknown_action");
     for (const a of INSTANCE_ACTIONS) expect(unknown.json.error.details.actions, a).not.toContain(a);
     await client.close();
@@ -141,7 +142,7 @@ describe("the instance owners' actions", () => {
 describe("a connector scoped to a product", () => {
   it("lists a viewer's reads, and what the fence answers, but no write", async () => {
     const actions = await offeredAt(vic, `/mcp/t/${path}`);
-    expect(actions).toEqual(expect.arrayContaining(["sources.list", "search", "story.list_pages", "products.list", "products.limits", "get_skill"]));
+    expect(actions).toEqual(expect.arrayContaining(["sources.list", "search", "story.list_pages", "products.list", "products.limits", "guide"]));
     for (const a of ["sources.create", "outcomes.create", "story.publish", "sources.delete", "products.create_tenant", "members.list", "members.grant", "sources.move_to_product"])
       expect(actions, a).not.toContain(a);
   });
@@ -163,7 +164,7 @@ describe("a connector scoped to a product", () => {
   it("still tells a call beyond the person's role what it needs", async () => {
     const at = `/mcp/t/${path}`;
     const client = await connect(await h.connectAgent(vic, "Vic's agent", at, "editor"), at);
-    const r = result(await client.callTool({ name: "sources", arguments: { action: "create", params: { title: "Not Vic's to add" } } }));
+    const r = result(await client.callTool({ name: "sources_write", arguments: { action: "create", params: { title: "Not Vic's to add" } } }));
     expect(r.status).toBe(403);
     expect(r.json.error.message).toContain("needs editor");
     await client.close();
@@ -199,7 +200,7 @@ describe("a connector scoped to an organization", () => {
     const client = await connect(await h.connectAgent(root, "Root's scoped agent", at), at);
     const { actions } = await offered(client);
     for (const a of INSTANCE_ACTIONS) expect(actions, a).not.toContain(`products.${a}`);
-    const r = result(await client.callTool({ name: "products", arguments: { action: "usage", params: { days: 1 } } }));
+    const r = result(await client.callTool({ name: "products_read", arguments: { action: "usage", params: { days: 1 } } }));
     expect(r.json.error.code).toBe("outside_connector_scope");
     await client.close();
   });
@@ -212,7 +213,7 @@ describe("the unscoped connector, for someone who may start no organization", ()
 
   it("lists a reader everywhere the Story and the account's own reads", async () => {
     const actions = await offeredAt(rita, "/mcp");
-    expect(actions).toEqual(expect.arrayContaining(["story.list_pages", "story.get_page", "story.get_hierarchy", "products.list", "products.get", "products.limits", "get_skill"]));
+    expect(actions).toEqual(expect.arrayContaining(["story.list_pages", "story.get_page", "story.get_hierarchy", "products.list", "products.get", "products.limits", "guide"]));
     for (const a of ["sources.list", "search", "outcomes.list", "mockups.list", "members.list", "story.guidance", "products.update_concept", "products.create_tenant", "products.create", "sources.create"])
       expect(actions, a).not.toContain(a);
     // Only the Story's reads, the account's own reads (and its feedback), and the organization's limits.
@@ -230,10 +231,10 @@ describe("the unscoped connector, for someone who may start no organization", ()
 
   it("still tells a call beyond the person's role what it needs, never that it is unknown", async () => {
     const client = await connect(await h.connectAgent(rita, "Rita's agent"));
-    const list = result(await client.callTool({ name: "sources", arguments: { action: "list", product: path, params: {} } }));
+    const list = result(await client.callTool({ name: "sources_read", arguments: { action: "list", product: path, params: {} } }));
     expect(list.status).toBe(403);
     expect(list.json.error.message).toContain("needs viewer");
-    const start = result(await client.callTool({ name: "products", arguments: { action: "create_tenant", params: { name: "Not Rita's" } } }));
+    const start = result(await client.callTool({ name: "products_write", arguments: { action: "create_tenant", params: { name: "Not Rita's" } } }));
     expect(start.status).toBe(403);
     expect(start.json.error.code).toBe("tenant_allowance");
     await client.close();
@@ -279,19 +280,19 @@ describe("a connector scoped to a product of the example organization", () => {
   it("tells its guest their role, and where their own work goes when a write is refused", async () => {
     const gail = await h.signIn("gail@guest.example", "Gail Guest");
     const client = await connect(await h.connectAgent(gail, "Gail's agent"));
-    const list = result(await client.callTool({ name: "products", arguments: { action: "list" } })).json;
+    const list = result(await client.callTool({ name: "products_read", arguments: { action: "list" } })).json;
     expect(list.items.find((i: { path: string }) => i.path === example)).toMatchObject({ your_role: "guest", tenant: { example: true } });
-    const read = result(await client.callTool({ name: "outcomes", arguments: { action: "list", product: example, params: {} } }));
+    const read = result(await client.callTool({ name: "outcomes_read", arguments: { action: "list", product: example, params: {} } }));
     expect(read.json.scope).toMatchObject({ your_role: "guest", example: true });
-    const write = result(await client.callTool({ name: "sources", arguments: { action: "create", product: example, params: { title: "Not here" } } }));
+    const write = result(await client.callTool({ name: "sources_write", arguments: { action: "create", product: example, params: { title: "Not here" } } }));
     expect(write.status).toBe(403);
     expect(write.json.error.code).toBe("example_read_only");
     expect(write.json.error.message).toMatch(/may not start an organization: for one of your own, ask whoever runs this WhatBuild/);
     expect(write.json.error.message).not.toMatch(/create an organization of your own/);
     await client.close();
     const able = await connect(await h.connectAgent(gus, "Gus's agent"));
-    const refused = result(await able.callTool({ name: "sources", arguments: { action: "create", product: example, params: { title: "Not here" } } }));
-    expect(refused.json.error.message).toMatch(/create an organization of your own: products\(action="create_tenant"\)/);
+    const refused = result(await able.callTool({ name: "sources_write", arguments: { action: "create", product: example, params: { title: "Not here" } } }));
+    expect(refused.json.error.message).toMatch(/create an organization of your own: products_write\(action="create_tenant"\)/);
     await able.close();
   });
 });
@@ -339,17 +340,19 @@ describe("each tool's description", () => {
   it("says nothing of granting or inviting to an Edit connection, which may only list the people", async () => {
     const { actions, descriptions } = await offeredWith(olive, "/mcp", "editor");
     expect(actions.filter((a) => a.startsWith("members."))).toEqual(["members.list"]);
-    expect(said(descriptions["members"]!)).not.toMatch(/grant|revoke|invit/i);
-    expect((await offeredWith(olive, "/mcp", "admin")).descriptions["members"]).toMatch(/Grant or revoke roles/);
+    expect(said(descriptions["members_read"]!)).not.toMatch(/grant|revoke|invit/i);
+    expect(descriptions["members_write"]).toBeUndefined();
+    expect((await offeredWith(olive, "/mcp", "admin")).descriptions["members_write"]).toMatch(/Grant or revoke roles/);
   });
 
   it("says nothing of publishing or the style's guidance to a reader, nor of writing to a viewer", async () => {
     const reader = (await offeredWith(rita, `/mcp/t/${path}`)).descriptions;
-    expect(said(reader["story"]!)).not.toMatch(/publish|set_style|guidance|notes for agents/i);
+    expect(said(reader["story_read"]!)).not.toMatch(/publish|set_style|guidance|notes for agents/i);
+    expect(reader["story_write"]).toBeUndefined();
     const viewer = (await offeredWith(vic, `/mcp/t/${path}`)).descriptions;
-    expect(said(viewer["sources"]!)).not.toMatch(/create|comment/i);
-    expect(said(viewer["attachments"]!)).not.toMatch(/add files/i);
-    expect(said(viewer["story"]!)).toMatch(/get_style/);
-    expect(said(viewer["story"]!)).not.toMatch(/set_style|To publish/);
+    for (const tool of ["sources_write", "attachments_write", "story_write"]) expect(viewer[tool], tool).toBeUndefined();
+    expect(said(viewer["sources_read"]!)).not.toMatch(/create/i);
+    expect(said(viewer["story_read"]!)).toMatch(/get_style/);
+    expect(said(viewer["story_read"]!)).not.toMatch(/set_style|publish/);
   });
 });

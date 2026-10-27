@@ -2,35 +2,55 @@ import { z } from "zod";
 import { invalid } from "../errors.ts";
 import { countFeedback, FEEDBACK_PER_DAY } from "../feedback.ts";
 import { defineOperation } from "../registry.ts";
-import { SKILL_TEMPLATE } from "../skill/skill-text.ts";
+import { GUIDE_TOPICS } from "../guide/guide-text.ts";
 import { clientFamily } from "../usage.ts";
 import { newId } from "../util.ts";
 
-/**
- * One knob: the MCP server version, the skill's metadata.version and the get_skill advertisement.
- * Bump it only when the tool contract or the skill's guidance changes, so installed skills are
- * never asked to reinstall the same content.
- */
-export const SKILL_NAME = "whatbuild";
-export const SKILL_VERSION = "0.41.0";
+/** The MCP server's name, as `initialize` gives it. */
+export const MCP_SERVER_NAME = "whatbuild";
 
-export function skillMarkdown(): string {
-  return SKILL_TEMPLATE.replace("__SKILL_VERSION__", SKILL_VERSION);
+/**
+ * One knob: the MCP server's version, which every product's answer gives as `tools_version`. Bump
+ * it when the tools, their actions or the guide change: a client keeps the tool list it got when it
+ * connected, and a newer version in an answer tells its agent that list is older.
+ */
+export const TOOLS_VERSION = "0.42.0";
+
+export type GuideTopic = (typeof GUIDE_TOPICS)[number]["topic"];
+const TOPIC_NAMES = GUIDE_TOPICS.map((t) => t.topic) as [GuideTopic, ...GuideTopic[]];
+
+/** The guide's topics, each with its title and a sentence saying what it covers. */
+export function guideIndex() {
+  return GUIDE_TOPICS.map(({ topic, title, summary }) => ({ topic, title, summary }));
 }
 
-export const getSkill = defineOperation({
-  name: "get_skill",
+/** One topic of the guide as Markdown, or undefined for a topic it does not have. */
+export function guideTopic(topic: string): string | undefined {
+  return GUIDE_TOPICS.find((t) => t.topic === topic)?.text;
+}
+
+export const guide = defineOperation({
+  name: "guide",
   scope: "account",
   access: "any",
   mutates: false,
-  summary: `Get the complete ${SKILL_NAME} skill, version ${SKILL_VERSION}.`,
+  summary: "Read WhatBuild's guide: how its objects, tools and rules work, one topic at a time.",
   description:
-    `Call this if your installed ${SKILL_NAME} skill is absent, unversioned, or not version ${SKILL_VERSION}. Fetching the skill does not install it and changes nothing; propose installing it through your harness. The version it returns is the server's as it runs now: if it is newer than the version the server's instructions named when your client connected, the server was upgraded since and your client's tool list is older; ask the person to start a new session.`,
-  input: z.strictObject({}),
-  rest: { method: "GET", path: "/skill" },
-  mcp: { tool: "get_skill" },
-  async handler() {
-    return { name: SKILL_NAME, version: SKILL_VERSION, filename: "SKILL.md", content: skillMarkdown() };
+    `Without a topic it returns the index of topics and the first one, which says what WhatBuild holds and how it is organized. With a topic it returns that topic as Markdown. The guide describes this server as it runs now (version ${TOOLS_VERSION}); it changes nothing.`,
+  input: z.strictObject({
+    topic: z.enum(TOPIC_NAMES).optional().describe(`One of: ${TOPIC_NAMES.join(", ")}.`),
+  }),
+  rest: { method: "GET", path: "/guide" },
+  mcp: { tool: "guide" },
+  async handler(_ctx, input) {
+    const topic = GUIDE_TOPICS.find((t) => t.topic === (input.topic ?? TOPIC_NAMES[0]))!;
+    return {
+      tools_version: TOOLS_VERSION,
+      topic: topic.topic,
+      title: topic.title,
+      text: topic.text,
+      ...(input.topic ? {} : { topics: guideIndex() }),
+    };
   },
 });
 
@@ -73,4 +93,4 @@ export const submitFeedback = defineOperation({
   },
 });
 
-export const metaOps = [getSkill, submitFeedback];
+export const metaOps = [guide, submitFeedback];

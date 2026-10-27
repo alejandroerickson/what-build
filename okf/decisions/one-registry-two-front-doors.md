@@ -3,7 +3,7 @@ type: Decision
 title: Every capability is one registered operation, exposed through both REST and MCP
 description: Operations are defined once with a Zod schema, access level, REST route and MCP action; both transports are generated from the registry.
 tags: [decision, architecture, operations, rest, mcp]
-generated: {by: agent:claude, at: 2026-10-16}
+generated: {by: agent:claude, at: 2026-10-26}
 status: stable
 ---
 
@@ -28,6 +28,6 @@ The web app, scripts and agents must be able to do the same things with the same
 ## Constrains
 
 - New features start as an operation with tests, then UI.
-- MCP tool grouping follows [its own record](mcp-tools-grouped-by-noun.md).
+- Which MCP tool an operation is in follows [its own record](mcp-tools-are-split-into-read-write-and-delete.md).
 
 Specified in: [06-operations-and-adapters](../spec/06-operations-and-adapters.md).

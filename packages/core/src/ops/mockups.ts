@@ -204,7 +204,7 @@ export const listMockups = defineOperation({
   access: "read",
   mutates: false,
   summary: "The product's mockups, most recently changed first: title, summary, current version and etag, without pages.",
-  description: `Archived mockups are left out unless include_archived; archived_hidden says how many were left out. page_count is the current version's. quota is how many mockups the product holds, {used, limit}: archived ones count, and publishing a new mockup at the limit (${MAX_MOCKUPS}) is refused with 409 quota_exceeded, so when used nears the limit, ask the person whether to publish a new version of a mockup instead, or delete one they no longer need.`,
+  description: `Archived mockups are left out unless include_archived; archived_hidden says how many were left out. page_count is the current version's. quota is how many mockups the product holds, {used, limit}: archived ones count, and publishing a new mockup at the limit (${MAX_MOCKUPS}) is refused with 409 quota_exceeded; a new version of a mockup the product has counts nothing.`,
   input: z.strictObject({ include_archived: z.boolean().default(false) }),
   rest: { method: "GET", path: "/mockups" },
   mcp: { tool: "mockups", action: "list" },
@@ -241,7 +241,7 @@ export const getMockup = defineOperation({
   mutates: false,
   summary: "Read a mockup's current version: its brief, its pages with their notes, the Story pages that show its pages, and the etag to publish again.",
   description:
-    `Read this before publishing a new version, and read the brief first: it says what the canvas explores. Pages come without HTML unless include_html; each has html_path (a GET in the web app's session), html_sha256 and, without include_html, html_chars, except a page that enters the version's prototype, which has entry, poster and prototype_url (its frame's address) instead. files lists what the version carries for collaborators (path, chars, sha256), with each file's content when include_files. prototype, when the version carries one, gives file_count, bytes, base_url (the prototype's address, a capability that expires at expires_at), the sandbox its frames use, and with include_files each file's path, size, sha256 and media_type. ${HASHES_TEXT} To work on the canvas outside WhatBuild, get_download gives the whole version as a ZIP. story_pages lists the Story pages whose current version shows one of its pages (story promote_mockup), with the mockup version each shows.`,
+    `The brief says what the canvas explores. Pages come without HTML unless include_html; each has html_path (a GET in the web app's session), html_sha256 and, without include_html, html_chars, except a page that enters the version's prototype, which has entry, poster and prototype_url (its frame's address) instead. files lists what the version carries for collaborators (path, chars, sha256), with each file's content when include_files. prototype, when the version carries one, gives file_count, bytes, base_url (the prototype's address, a capability that expires at expires_at), the sandbox its frames use, and with include_files each file's path, size, sha256 and media_type. ${HASHES_TEXT} To work on the canvas outside WhatBuild, get_download gives the whole version as a ZIP. story_pages lists the Story pages whose current version shows one of its pages (story promote_mockup), with the mockup version each shows.`,
   input: z.strictObject({ mockup_id: id("mockup"), include_html: z.boolean().default(false), include_files: z.boolean().default(false).describe("Include each file's content, and the prototype's files.") }),
   rest: { method: "GET", path: "/mockups/:mockup_id" },
   mcp: { tool: "mockups", action: "get" },
@@ -328,7 +328,7 @@ export const requestMockupUpload = defineOperation({
       headers: { [UPLOAD_GRANT_HEADER]: token, "Content-Type": "application/zip" },
       max_bytes: max,
       expires_at: expiresAt.toISOString(),
-      next: 'PUT the ZIP\'s raw bytes to url with exactly these headers (one request, no multipart), then call mockups(action="publish") with upload_id. Keep the grant header out of reports and logs.',
+      next: 'PUT the ZIP\'s raw bytes to url with exactly these headers (one request, no multipart), then call mockups_write(action="publish") with upload_id. Keep the grant header out of reports and logs.',
     };
   },
 });
@@ -522,7 +522,7 @@ async function usableUpload(ctx: OpContext, uploadId: string, lock = false) {
   let q = ctx.db.selectFrom("mockup_uploads").selectAll().where("product_id", "=", productId(ctx)).where("upload_id", "=", uploadId);
   if (lock) q = q.forUpdate();
   const u = await q.executeTakeFirst();
-  if (!u) throw notFound(`There is no mockup upload ${uploadId} in this product. Request one with mockups(action="request_upload").`);
+  if (!u) throw notFound(`There is no mockup upload ${uploadId} in this product. Request one with mockups_write(action="request_upload").`);
   if (u.used_at) throw conflict("upload_used", `Upload ${uploadId} was already published. Request a new upload for another version.`);
   if (!u.uploaded_at) throw notFound(`No bytes have arrived for upload ${uploadId} yet. PUT the ZIP to the grant's url first.`);
   return u;
@@ -617,7 +617,7 @@ export const publishMockup = defineOperation({
   mutates: true,
   summary: "Publish the next version of a mockup's canvas, or create a mockup with its first version. A later version keeps whatever you omit.",
   description:
-    `Without mockup_id, creates a mockup: give a title, a brief and at least one page with a title and html, and no expected_etag (one sent is refused with 409 stale_etag and current_etag null, as there is nothing to match). With mockup_id, publishes the next version: pass the mockup's etag, and send only what changes. pages, when given, is the whole canvas in order: a page you leave out is dropped from this version, and a page whose page_id was on the base version keeps its title, notes, size and html unless you send them, so a version that changes one page sends that page's html alone. The brief is Markdown: what the canvas explores, for whom, the questions it is meant to answer, and what each page tries; write it for the next agent as much as for people. Each page is one self-contained HTML document shown in a sandboxed frame of width × height CSS pixels (default ${DEFAULT_WIDTH} × ${DEFAULT_HEIGHT}; 390 wide for a phone; height at most 4000), with no network. ${PAGE_RULES_TEXT} ${SAFE_CHECK_TEXT} ${TALL_PAGES_TEXT} columns sets how many pages sit side by side before the canvas wraps; null keeps one row. files carries text files for collaborators to pull into their own projects (DESIGN.md, components, tokens), at most ${MAX_MOCKUP_FILES} and ${(MOCKUP_FILES_TOTAL / 1_000_000).toFixed(0)} million characters a version; WhatBuild never uses them to draw a page, so inline what a page needs. Like pages, files when given is the whole set: a path that was on the base keeps its content unless you send it, a path you leave out is dropped, a new path needs content, and [] drops them all; omit files to keep them. ${PROTOTYPE_TEXT} A version published without an upload keeps its base's prototype, and its pages may enter it. from_version: N starts from that earlier version instead of the current one. To keep page HTML out of the call, upload the canvas as a ZIP (request_upload) and pass upload_id: the ZIP gives pages, files and the brief, and the call gives the rest, and the result names from_upload with upload {upload_id, size, sha256}, the ZIP's own bytes as its PUT answered. At most ${MAX_MOCKUP_PAGES} pages, ${(MOCKUP_HTML_TOTAL / 1_000_000).toFixed(0)} million characters of HTML in all, and ${MAX_MOCKUPS} mockups in a product, archived ones included (list gives quota, used and limit). It answers with what you need next, not the canvas you sent: mockup_id, title, current_version and current_version_id, the etag to publish the next version with, based_on_version, page_ids in the canvas's order, url (the canvas in the web app, to give the person), and prototype_warnings when an upload brings a prototype; mockups(action="get") reads the version back.`,
+    `Without mockup_id, creates a mockup: give a title, a brief and at least one page with a title and html, and no expected_etag (one sent is refused with 409 stale_etag and current_etag null, as there is nothing to match). With mockup_id, publishes the next version: pass the mockup's etag, and send only what changes. pages, when given, is the whole canvas in order: a page you leave out is dropped from this version, and a page whose page_id was on the base version keeps its title, notes, size and html unless you send them, so a version that changes one page sends that page's html alone. The brief is Markdown: what the canvas explores, for whom, the questions it is meant to answer, and what each page tries; write it for the next agent as much as for people. Each page is one self-contained HTML document shown in a sandboxed frame of width × height CSS pixels (default ${DEFAULT_WIDTH} × ${DEFAULT_HEIGHT}; 390 wide for a phone; height at most 4000), with no network. ${PAGE_RULES_TEXT} ${SAFE_CHECK_TEXT} ${TALL_PAGES_TEXT} columns sets how many pages sit side by side before the canvas wraps; null keeps one row. files carries text files for collaborators to pull into their own projects (DESIGN.md, components, tokens), at most ${MAX_MOCKUP_FILES} and ${(MOCKUP_FILES_TOTAL / 1_000_000).toFixed(0)} million characters a version; WhatBuild never uses them to draw a page, so inline what a page needs. Like pages, files when given is the whole set: a path that was on the base keeps its content unless you send it, a path you leave out is dropped, a new path needs content, and [] drops them all; omit files to keep them. ${PROTOTYPE_TEXT} A version published without an upload keeps its base's prototype, and its pages may enter it. from_version: N starts from that earlier version instead of the current one. To keep page HTML out of the call, upload the canvas as a ZIP (request_upload) and pass upload_id: the ZIP gives pages, files and the brief, and the call gives the rest, and the result names from_upload with upload {upload_id, size, sha256}, the ZIP's own bytes as its PUT answered. At most ${MAX_MOCKUP_PAGES} pages, ${(MOCKUP_HTML_TOTAL / 1_000_000).toFixed(0)} million characters of HTML in all, and ${MAX_MOCKUPS} mockups in a product, archived ones included (list gives quota, used and limit). It answers with what you need next, not the canvas you sent: mockup_id, title, current_version and current_version_id, the etag to publish the next version with, based_on_version, page_ids in the canvas's order, url (the canvas in the web app, to give the person), and prototype_warnings when an upload brings a prototype; mockups_read(action="get") reads the version back.`,
   input: z.strictObject({
     mockup_id: id("mockup").optional().describe("Omit to create a mockup."),
     title: z.string().trim().min(1).max(200).optional(),
@@ -627,7 +627,7 @@ export const publishMockup = defineOperation({
     pages: z.array(pageInput).min(1).max(MAX_MOCKUP_PAGES).optional(),
     files: z.array(fileInput).max(MAX_MOCKUP_FILES).optional().describe("The files the version carries, in full: a path on the base keeps its content unless sent; a path left out is dropped. Omit to keep them."),
     from_version: z.number().int().min(1).optional(),
-    upload_id: id("mockup upload").optional().describe('A canvas uploaded as a ZIP (mockups(action="request_upload")): its pages, files, brief, title, summary and columns, in place of sending them here.'),
+    upload_id: id("mockup upload").optional().describe('A canvas uploaded as a ZIP (mockups_write(action="request_upload")): its pages, files, brief, title, summary and columns, in place of sending them here.'),
     expected_etag: expectedEtag.optional(),
   }),
   rest: { method: "POST", path: "/mockups" },
@@ -681,7 +681,7 @@ export const publishMockup = defineOperation({
         const archived = Number(count?.archived ?? 0);
         throw conflict(
           "quota_exceeded",
-          `Nothing was published: a product holds at most ${MAX_MOCKUPS} mockups, archived ones included, and this one holds ${used}${archived ? ` (${archived} archived)` : ""}. Publish a new version of one of them instead, or ask the person whether to delete one they no longer need (mockups list with include_archived shows them all).`,
+          `Nothing was published: a product holds at most ${MAX_MOCKUPS} mockups, archived ones included, and this one holds ${used}${archived ? ` (${archived} archived)` : ""}. A new version of one of them counts nothing, and deleting one makes room (mockups list with include_archived shows them all).`,
           { quota: "mockups", ...mockupQuota(used), archived },
         );
       }
@@ -849,7 +849,7 @@ export const publishMockup = defineOperation({
       url: linkTemplates(ctx.ports.config.publicBaseUrl, productPathOf(ctx)).mockup.replace("{mockup_id}", e.mockup_id),
       ...(upload ? { from_upload: upload.upload_id, upload } : {}),
       ...(canvas?.prototype ? { prototype_warnings: canvas.prototype.warnings } : {}),
-      next: 'Show the person url. mockups(action="get") reads the version back: the brief, each page\'s notes, size and hash, the files and the prototype. Publish the next version with this etag.',
+      next: 'Show the person url. mockups_read(action="get") reads the version back: the brief, each page\'s notes, size and hash, the files and the prototype. Publish the next version with this etag.',
     };
   },
 });
@@ -960,7 +960,7 @@ async function mockupDeletion(ctx: OpContext, e: Awaited<ReturnType<typeof loadM
         : `${showing.length} Story pages show it. Delete those pages, or publish them with HTML of their own, first.`
       : `Every version (${e.version_count}) goes, with its pages, notes, files, prototype and brief.` +
         (earlier.length ? ` ${earlier.length === 1 ? "An earlier Story page version shows it and will show" : `${earlier.length} earlier Story page versions show it and will show`} an empty page.` : ""),
-    reversible_alternative: 'mockups(action="archive") takes it out of the list and keeps every version.',
+    reversible_alternative: 'mockups_write(action="archive") takes it out of the list and keeps every version.',
   };
 }
 
@@ -987,14 +987,14 @@ export const deleteMockup = defineOperation({
   mutates: true,
   summary: "DELETE PERMANENTLY — cannot be undone. Destroys a mockup with every version; archive is the reversible alternative.",
   description:
-    'Archiving (mockups(action="archive")) is the reversible alternative and almost always what is wanted. Refused with 409 mockup_on_story while a Story page shows it. ' +
+    'Archiving (mockups_write(action="archive")) is the reversible alternative and almost always what is wanted. Refused with 409 mockup_on_story while a Story page shows it. ' +
     DELETE_GUIDANCE +
     " Leaves a tombstone: reads return 410 with who, when and why.",
   input: z.strictObject({ mockup_id: id("mockup"), ...deleteGuards }),
   rest: { method: "DELETE", path: "/mockups/:mockup_id" },
   mcp: { tool: "mockups", action: "delete" },
   async handler(ctx, input) {
-    checkConfirmation(input.confirm, 'archive it with mockups(action="archive")');
+    checkConfirmation(input.confirm, 'archive it with mockups_write(action="archive")');
     const e = await loadMockup(ctx, input.mockup_id, true);
     checkEtag(input.expected_etag, e.etag, "mockup");
     const impact = await mockupDeletion(ctx, e);

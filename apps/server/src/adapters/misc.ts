@@ -153,7 +153,7 @@ export interface SafeUrlFetcherOptions {
 const unreachable = () =>
   invalid(
     "fetch_failed",
-    'Couldn’t fetch that URL: no public HTTPS server answered in time with a valid certificate. Check the address, or download the file and upload it with attachments(action="request_upload").',
+    'Couldn’t fetch that URL: no public HTTPS server answered in time with a valid certificate. Check the address, or download the file and upload it with attachments_write(action="request_upload").',
   );
 
 type Hop = { redirect?: string; headers: Record<string, string | string[] | undefined>; body?: Uint8Array };

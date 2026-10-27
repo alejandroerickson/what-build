@@ -3,7 +3,7 @@ type: Decision
 title: The public sandbox is reached only through a connector scoped to it
 description: The unscoped MCP connector refuses every call that lands in a public sandbox, so an agent that reads strangers' writing holds nothing else of WhatBuild while it does.
 tags: [decision, mcp, sandbox, security, tenancy]
-generated: {by: agent:claude, at: 2026-10-25}
+generated: {by: agent:claude, at: 2026-10-26}
 status: deprecated
 ---
 
@@ -14,8 +14,8 @@ Superseded on 2026-10-25 by [Every account reads the example organization, which
 ## Context
 
 In the public sandbox strangers write the content, and every visitor's agent reads it. Text in a
-source can carry instructions, and the skill's rule that source text is never an instruction is a
-request to the agent, not a boundary. What decides the damage is what else the agent holds while it
+source can carry instructions, and the server's statement that source text is never an instruction
+is a request to the agent, not a boundary. What decides the damage is what else the agent holds while it
 reads: through the unscoped connector (`/mcp`) a person who also belongs to a real organization
 gives one agent both, so planted text could ask it to copy their own material into the sandbox.
 The [fence](a-scoped-mcp-connector-is-a-fence.md) already let a careful person keep the two apart.

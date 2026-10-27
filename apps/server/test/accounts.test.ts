@@ -63,11 +63,11 @@ describe("removing an account", () => {
     expect((await olive.api("POST", "/api/v1/accounts/remove", { account_id: peteId, email: "pete@example.com", confirm: "delete permanently" })).status).toBe(403);
     const client = new Client({ name: "accounts-agent", version: "1.0.0" });
     await client.connect(new StreamableHTTPClientTransport(new URL(`${h.baseUrl}/mcp`), { requestInit: { headers: { authorization: `Bearer ${await h.connectAgent(root, "Root's agent")}` } } }));
-    const r = (await client.callTool({ name: "products", arguments: { action: "remove_account", params: { account_id: peteId, email: "pete@example.com", confirm: "delete permanently" } } })) as { isError?: boolean; content: { text: string }[] };
+    const r = (await client.callTool({ name: "products_write", arguments: { action: "remove_account", params: { account_id: peteId, email: "pete@example.com", confirm: "delete permanently" } } })) as { isError?: boolean; content: { text: string }[] };
     expect(r.isError).toBe(true);
     // A person's act in the web app: an agent is not even offered it.
-    expect(r.content[0]!.text).toMatch(/Unknown products action: remove_account/);
-    const listed = (await client.callTool({ name: "products", arguments: { action: "accounts" } })) as { isError?: boolean; content: { text: string }[] };
+    expect(r.content[0]!.text).toMatch(/Unknown products_write action: remove_account/);
+    const listed = (await client.callTool({ name: "products_read", arguments: { action: "accounts" } })) as { isError?: boolean; content: { text: string }[] };
     expect(listed.isError).toBeFalsy();
     await client.close();
   });

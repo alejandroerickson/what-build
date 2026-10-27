@@ -376,7 +376,7 @@ shows.
 - **An outcome's menu:** Archive or Restore, and Delete permanently for admins, whose dialog
   names what goes with the outcome, its picture and its text, only those it has, and the
   assumptions that serve it. A viewer has no menu. Earlier versions are kept, and agents read and
-  restore them (`outcomes(action="revisions")`); the screen does not offer them.
+  restore them (`outcomes_read(action="revisions")`); the screen does not offer them.
 - A card holds nothing that points away from it: no links or counts of the assumptions, mockups
   or Story pages that serve it ([§4.2](04-data-model.md)).
 
@@ -913,7 +913,7 @@ never described as deleting. A list row showing an archived object says *Archive
   agents, each with what it can reach, who holds the connection, its level with a menu to change
   it, a **Can submit feedback** checkbox under its details (when a tool fails or confuses it, it may
   tell the developer of WhatBuild), and disconnect; the plain statement about
-  where an agent sends what it reads, and an optional skill download. Connected agents appear here
+  where an agent sends what it reads. Connected agents appear here
   and nowhere else.
 - **Product settings** (`…/settings`, in the product's shell): name, slug and product concept; **People**;
   export; the organization; and, for admins, archive or restore and **Delete this product**,

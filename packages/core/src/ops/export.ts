@@ -67,13 +67,13 @@ export const exportProduct = defineOperation({
   summary:
     "Export the whole product to one ZIP: every source with its attachments, texts, summary, notes and comments, and the outcomes, assumptions with their reviews, earlier texts, Story versions, mockup versions, tombstones and activity.",
   description:
-    "A viewer, editor or admin may export, at any time, and an archived product exports too. A reader, who reads only the Story, is refused (403). On the free plan each person's exports are limited by exports_per_day (409 quota_exceeded, or 403 plan_restricted when it is 0); writing's own allowance never stops an export. A guest of the example organization exports nothing (403 example_read_only). One export of a product is built at a time (409 export_in_progress). The bundle is built in the background; call products(action=\"exports\") to see when it is ready and get a download grant. Readable with a ZIP tool and nothing else: JSON, Markdown, HTML and the original files, each kind listed in the bundle's README.txt.",
+    "A viewer, editor or admin may export, at any time, and an archived product exports too. A reader, who reads only the Story, is refused (403). On the free plan each person's exports are limited by exports_per_day (409 quota_exceeded, or 403 plan_restricted when it is 0); writing's own allowance never stops an export. A guest of the example organization exports nothing (403 example_read_only). One export of a product is built at a time (409 export_in_progress). The bundle is built in the background; call products_read(action=\"exports\") to see when it is ready and get a download grant. Readable with a ZIP tool and nothing else: JSON, Markdown, HTML and the original files, each kind listed in the bundle's README.txt.",
   input: z.strictObject({}),
   rest: { method: "POST", path: "/exports" },
   mcp: { tool: "products", action: "export" },
   async handler(ctx) {
     const pending = await ctx.db.selectFrom("exports").select("export_id").where("product_id", "=", productId(ctx)).where("status", "=", "pending").executeTakeFirst();
-    if (pending) throw conflict("export_in_progress", "An export of this product is already being built; check products(action=\"exports\").", { export_id: pending.export_id });
+    if (pending) throw conflict("export_in_progress", "An export of this product is already being built; check products_read(action=\"exports\").", { export_id: pending.export_id });
     const export_id = newId();
     await ctx.db
       .insertInto("exports")

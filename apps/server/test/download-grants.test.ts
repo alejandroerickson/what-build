@@ -41,11 +41,11 @@ async function grant(c: Client, kind: Kind, product = org.product.path): Promise
     expect(r.error, `${kind}: ${JSON.stringify(r.error)}`).toBeUndefined();
     return r;
   };
-  if (kind === "download") return call("attachments", "get_download", { record_id: org.source.id, path: org.source.path });
-  if (kind === "mockup") return call("mockups", "get_download", { mockup_id: org.mockup.id });
-  if (kind === "story_preview") return (await call("story", "preview", { page_id: "grant-check", title: "Grant check", body: "<main class=\"page\"><p>Checked.</p></main>" })).preview;
-  if (kind === "card_preview") return (await call("outcomes", "card_preview", { card_html: '<p class="wb-pitch">A front to check.</p>' })).preview;
-  const items = (await call("products", "exports", {})).items as { status: string; download: Grant | null }[];
+  if (kind === "download") return call("attachments_read", "get_download", { record_id: org.source.id, path: org.source.path });
+  if (kind === "mockup") return call("mockups_read", "get_download", { mockup_id: org.mockup.id });
+  if (kind === "story_preview") return (await call("story_read", "preview", { page_id: "grant-check", title: "Grant check", body: "<main class=\"page\"><p>Checked.</p></main>" })).preview;
+  if (kind === "card_preview") return (await call("outcomes_read", "card_preview", { card_html: '<p class="wb-pitch">A front to check.</p>' })).preview;
+  const items = (await call("products_read", "exports", {})).items as { status: string; download: Grant | null }[];
   return items.find((i) => i.status === "ready")!.download!;
 }
 
@@ -158,7 +158,7 @@ describe("a download grant in the example organization", () => {
       const { c } = await agent(gus, `/mcp/t/${org.tenant.slug}`);
       const g = await grant(c, "download");
       // A guest reads, and writes nothing: a preview asks as a write would.
-      const preview = body(await c.callTool({ name: "story", arguments: { action: "preview", product: org.product.path, params: { page_id: "guest-check", title: "Guest check", body: "<main class=\"page\"><p>No.</p></main>" } } }));
+      const preview = body(await c.callTool({ name: "story_read", arguments: { action: "preview", product: org.product.path, params: { page_id: "guest-check", title: "Guest check", body: "<main class=\"page\"><p>No.</p></main>" } } }));
       expect(preview.error.code).toBe("example_read_only");
       await c.close();
       expect((await use(g)).status).toBe(200);

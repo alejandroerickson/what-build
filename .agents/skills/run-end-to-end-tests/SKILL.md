@@ -53,8 +53,8 @@ what the plan expects, and report. The system, with every command, is described 
      redirects or loads.
    - In zsh a variable holding a command (`B="corepack pnpm e2e browser"; $B …`) does not split;
      use a shell function or write the command out.
-   - MCP: `pnpm e2e mcp call <tool> '<json>' --as sam` (`pnpm e2e mcp help`). A grouped tool's
-     fields go in `params`. Learn the tools the way any agent does: `tools`, `describe: true`, and `get_skill`. Use `curl` to PUT upload
+   - MCP: `pnpm e2e mcp call <tool> '<json>' --as sam` (`pnpm e2e mcp help`). A tool with
+     actions takes its fields in `params`. Learn the tools the way any agent does: `tools`, `describe: true`, and `guide`. Use `curl` to PUT upload
      bytes to a grant's URL with its headers.
    - Where a plan says "a product with sources" or "words you can see in a source's text", pick one in the run and
      say in the report which (by its path), so the run can be repeated.
@@ -122,7 +122,7 @@ The procedure above changes only here. On the host, run the script as
   something it should allow.
 - **Anomaly:** anything else wrong or doubtful: confusing copy, a wrong word for the product's
   vocabulary, a layout that breaks at phone width or in the dark theme, something slow without a
-  sign of progress, guidance in a tool or the skill that led you astray.
+  sign of progress, guidance in a tool or the guide that led you astray.
 
 Rate each one: **blocker** (the task cannot be done), **major** (done wrongly, or data or
 permissions wrong), **minor** (works, but wrong or confusing), **note** (worth a look).

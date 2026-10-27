@@ -27,7 +27,7 @@ work.
 
 1. **Gather.** From the root of the checkout, run `corepack pnpm usage` (28 days; `--days N`,
    `--example exclude|only`, `--json` for the full data). It reads the settings from `.env`. An
-   agent connected to WhatBuild as an instance owner can call `products(action="usage")` instead,
+   agent connected to WhatBuild as an instance owner can call `products_read(action="usage")` instead,
    on the unscoped connection (`/mcp`; a scoped connector refuses it), for the server's counts alone.
 2. **Note what is missing.** A source without its settings is skipped and says what it needs. Tell
    the person, and offer to set it up with the guide's steps. Do not set anything up unasked.
@@ -42,7 +42,7 @@ work.
      search box searches as a person types.
    - **Agents:** which clients, and which operations agents use that the web app does not.
    - **Failures:** the operations and error codes at the top. Many `invalid_input` errors on one
-     operation from agents point at its description or the skill. `unknown_action` errors point at
+     operation from agents point at its description or the guide. `unknown_action` errors point at
      a client holding an old tool list, or an action agents expect that does not exist.
    - **Not called:** the operations nobody used in the period.
    - **Google Analytics** (only people who accepted analytics): screens, actions (named by

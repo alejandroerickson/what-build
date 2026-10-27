@@ -58,7 +58,7 @@ const CONCEPT_MAX = 8000;
 
 /** What a product concept is, said once for every operation that writes one. */
 const WHAT_A_CONCEPT_IS =
-  "The product concept is a card at the head of the Idea screen, with two sides you write together. card_html is the front, which people see first: a picture of the product's promise, to whom, and what changes for them, that someone new to the team takes in at a glance, drawn with the card kit; call outcomes(action=\"card_guidance\") before drawing one, and outcomes(action=\"card_preview\", kind=\"concept\") to look at it before writing it. " +
+  "The product concept is a card at the head of the Idea screen, with two sides you write together. card_html is the front, which people see first: a picture of the product's promise, to whom, and what changes for them, that someone new to the team takes in at a glance, drawn with the card kit; call outcomes_read(action=\"card_guidance\") before drawing one, and outcomes_read(action=\"card_preview\", kind=\"concept\") to look at it before writing it. " +
   "concept is the back: who the product is for, the problem they have, and how the product solves it, in depth (Markdown, up to 8,000 characters), which agents read first and people open with More info. " +
   "A call that changes one side sends the other too, unchanged if it still agrees; one that sends only one side is refused with card_sides_together.";
 
@@ -176,7 +176,7 @@ export const listProducts = defineOperation({
   mutates: false,
   summary: "List every product you can reach, across your tenants and teams, with your role and counts of what each holds.",
   description:
-    "Start here when you do not know which product to work in. Each item has `path` (tenant/team/product slugs) and `product_id`; pass either as `product` on product-scoped calls. Confirm the product with the person before your first write in a conversation. Archived products are left out unless include_archived is true. Each item's `counts` (one number per kind) and `stage_counts` (their totals per stage) are the ones products(action=\"get\") reports. Through an agent, your_role is the person's role capped by the connection's level, which connection_level gives (viewer reads, editor also writes and archives, admin also deletes permanently and manages products and people). Where your_role is reader you may read only the Story: such an item has no concept and counts only story_pages. A tenant marked story_only is one where you read only the Story everywhere, so its members are not listed to you. A tenant with `example: true` is the example organization: a worked example that every account reads, as its guest (your_role guest, viewer on every product), and that nobody but its authors changes, so every write there is refused with 403 example_read_only. Read it to learn how a discovery is done; do the person's own work in an organization of theirs. A tenant's plan is free or unlimited: on the free plan everyone in it meets limits on how often and how much, which products(action=\"limits\") lists with what is used today. A tenant's name_etag guards its name and slug, which its owners change with products(action=\"rename_tenant\"); former_slugs, when present, are slugs it had before, which still reach it.",
+    "Start here when you do not know which product to work in. Each item has `path` (tenant/team/product slugs) and `product_id`; pass either as `product` on product-scoped calls. Confirm the product with the person before your first write in a conversation. Archived products are left out unless include_archived is true. Each item's `counts` (one number per kind) and `stage_counts` (their totals per stage) are the ones products_read(action=\"get\") reports. Through an agent, your_role is the person's role capped by the connection's level, which connection_level gives (viewer reads, editor also writes and archives, admin also deletes permanently and manages products and people). Where your_role is reader you may read only the Story: such an item has no concept and counts only story_pages. A tenant marked story_only is one where you read only the Story everywhere, so its members are not listed to you. A tenant with `example: true` is the example organization: a worked example that every account reads, as its guest (your_role guest, viewer on every product), and that nobody but its authors changes, so every write there is refused with 403 example_read_only. Read it to learn how a discovery is done; do the person's own work in an organization of theirs. A tenant's plan is free or unlimited: on the free plan everyone in it meets limits on how often and how much, which products_read(action=\"limits\") lists with what is used today. A tenant's name_etag guards its name and slug, which its owners change with products_write(action=\"rename_tenant\"); former_slugs, when present, are slugs it had before, which still reach it.",
   input: z.strictObject({ include_archived: z.boolean().default(false) }),
   rest: { method: "GET", path: "/me/products" },
   mcp: { tool: "products", action: "list" },
@@ -263,7 +263,7 @@ export const createTenant = defineOperation({
   needsTenantAllowance: true,
   summary: "Create a tenant (an organization) with its first team; you become its owner. Needs an allowance.",
   description:
-    "A tenant is the isolation boundary: nothing in it is visible to any other tenant. It starts with one team; create products in that team with products(action=\"create\"). Only an instance owner, or an account whose allowance has room, may create one; belonging to a tenant never lets anyone create one. Refused with 403 tenant_allowance otherwise: tell the person to ask whoever runs this WhatBuild. An organization an instance owner creates is unlimited; one created on an allowance gets the plan this deployment gives new organizations, which may be the free plan, whose limits everyone in it meets (products(action=\"limits\")); plan in the answer says which.",
+    "A tenant is the isolation boundary: nothing in it is visible to any other tenant. It starts with one team; create products in that team with products_write(action=\"create\"). Only an instance owner, or an account whose allowance has room, may create one; belonging to a tenant never lets anyone create one. Refused with 403 tenant_allowance otherwise; whoever runs this WhatBuild grants allowances. An organization an instance owner creates is unlimited; one created on an allowance gets the plan this deployment gives new organizations, which may be the free plan, whose limits everyone in it meets (products_read(action=\"limits\")); plan in the answer says which.",
   input: z.strictObject({
     name: z.string().trim().min(1).max(100),
     slug: slug.optional(),
@@ -328,10 +328,10 @@ export const renameTenant = defineOperation({
   allowInstanceOwners: true,
   summary: "Rename an organization, change its slug, or both (owners, and the instance's owners).",
   description:
-    "Pass only what changes, name or slug, with expected_etag: the tenant's name_etag from products(action=\"list\"); an owner of this WhatBuild instance, who may rename any organization on it, finds it in products(action=\"organizations\") too. " +
+    "Pass only what changes, name or slug, with expected_etag: the tenant's name_etag from products_read(action=\"list\"); an owner of this WhatBuild instance, who may rename any organization on it, finds it in products_read(action=\"organizations\") too. " +
     "A new slug changes the first part of every product's path (acme/core/onboarding becomes acme-labs/core/onboarding): use the new paths from then on. The old slug keeps working everywhere: products.list lists it in the tenant's former_slugs, calls that name it reach the organization, a connector scoped to it keeps working, and the web app takes an address with it to the new one. " +
     "A slug another organization has, or had before, is refused with 409 slug_taken. Taking back one of its own former slugs is allowed. " +
-    "The example organization's owners rename it as any owners do. The change is in the organization's access log, members(action=\"activity\").",
+    "The example organization's owners rename it as any owners do. The change is in the organization's access log, members_read(action=\"activity\").",
   input: z.strictObject({
     tenant: z.string().min(1).describe("Tenant slug or id."),
     name: z.string().trim().min(1).max(100).optional(),
@@ -414,7 +414,7 @@ export const createProduct = defineOperation({
     name: z.string().trim().min(1).max(100),
     slug: slug.optional(),
     concept: z.string().max(CONCEPT_MAX).default("").describe("The back of the concept's card, which agents read first: Markdown."),
-    card_html: z.string().max(CARD_HTML_MAX).default("").describe("The front of the concept's card, the picture people see first: HTML in the card kit (outcomes(action=\"card_guidance\"))."),
+    card_html: z.string().max(CARD_HTML_MAX).default("").describe("The front of the concept's card, the picture people see first: HTML in the card kit (outcomes_read(action=\"card_guidance\"))."),
   }),
   rest: { method: "POST", path: "/products" },
   mcp: { tool: "products", action: "create" },
@@ -448,7 +448,7 @@ export const getProduct = defineOperation({
   access: "story",
   mutates: false,
   summary: "Read a product: its concept, etag, your role, and counts of what it holds.",
-  description: "concept is the back of the product concept's card, the text agents read; include_card adds card_html, its front, the picture people see first (card_chars says how long it is, 0 when there is none). Read both before changing either. Use the counts to decide where to look first. They leave out archived items, and assumptions count only current (unconfirmed or confirmed) ones, the ones assumptions(action=\"list\") returns by default. counts has one number per kind; stage_counts totals them per stage, as the web app shows them: idea (outcomes), evidence (sources), exploration (mockups and current assumptions) and story (Story pages, those in its tree and its Published mockups). The etag guards products(action=\"update\") and (action=\"update_concept\"). A reader (the Story-only role) gets no concept, and counts of Story pages only.",
+  description: "concept is the back of the product concept's card, the text agents read; include_card adds card_html, its front, the picture people see first (card_chars says how long it is, 0 when there is none). Read both before changing either. Use the counts to decide where to look first. They leave out archived items, and assumptions count only current (unconfirmed or confirmed) ones, the ones assumptions_read(action=\"list\") returns by default. counts has one number per kind; stage_counts totals them per stage, as the web app shows them: idea (outcomes), evidence (sources), exploration (mockups and current assumptions) and story (Story pages, those in its tree and its Published mockups). The etag guards products_write(action=\"update\") and (action=\"update_concept\"). A reader (the Story-only role) gets no concept, and counts of Story pages only.",
   input: z.strictObject({
     include_card: z.boolean().default(false).describe("Include card_html, the front of the concept's card."),
   }),
@@ -463,7 +463,7 @@ export const getProduct = defineOperation({
     return {
       ...productView(row, ctx, input.include_card),
       ...countsFor(ctx.scope.role, counts),
-      ...(bare ? { note: 'The product concept has no front yet, so people see its text and a request for a picture: offer the person to draw it (outcomes(action="card_guidance"), then products(action="update_concept") with concept and card_html).' } : {}),
+      ...(bare ? { note: 'The product concept has no front yet, so people see its text and a request for a picture (to draw it: outcomes_read(action="card_guidance"), then products_write(action="update_concept") with concept and card_html).' } : {}),
     };
   },
 });
@@ -475,7 +475,7 @@ export const updateProduct = defineOperation({
   mutates: true,
   summary: "Rename a product or change its slug (product admins).",
   description:
-    'Pass only the fields that change, plus expected_etag. The product concept is a card on the Idea screen, written with products(action="update_concept"), which editors may call too.',
+    'Pass only the fields that change, plus expected_etag. The product concept is a card on the Idea screen, written with products_write(action="update_concept"), which editors may call too.',
   input: z.strictObject({
     expected_etag: expectedEtag,
     name: z.string().trim().min(1).max(100).optional(),
@@ -511,8 +511,8 @@ export const updateConcept = defineOperation({
   mutates: true,
   summary: "Write the product concept's card: its front and its back, together (editors and admins).",
   description:
-    `Requires expected_etag from your latest products(action="get", include_card=true), which returns both sides; read both before changing either. ${WHAT_A_CONCEPT_IS} ` +
-    'Look at a new front first with outcomes(action="card_preview", kind="concept"). The previous concept and front are kept, and a product export includes them, but no action reads them back yet. A write that touches the card returns card_advice when it misses something the guidance asks.',
+    `Requires expected_etag from your latest products_read(action="get", include_card=true), which returns both sides; read both before changing either. ${WHAT_A_CONCEPT_IS} ` +
+    'Look at a new front first with outcomes_read(action="card_preview", kind="concept"). The previous concept and front are kept, and a product export includes them, but no action reads them back yet. A write that touches the card returns card_advice when it misses something the guidance asks.',
   input: z.strictObject({
     expected_etag: expectedEtag,
     concept: z.string().max(CONCEPT_MAX).optional().describe("The back of the concept's card, which agents read first: Markdown. Send card_html with it."),
@@ -524,7 +524,7 @@ export const updateConcept = defineOperation({
     const pid = ctx.scope.product!.product_id;
     const row = await ctx.db.selectFrom("products").selectAll().where("product_id", "=", pid).forUpdate().executeTakeFirstOrThrow();
     checkEtag(input.expected_etag, row.etag, "product");
-    checkCardSides({ back: row.concept, front: row.card_html }, { back: input.concept, front: input.card_html }, { what: "The product concept", back: "concept", read: 'products(action="get", include_card=true)' });
+    checkCardSides({ back: row.concept, front: row.card_html }, { back: input.concept, front: input.card_html }, { what: "The product concept", back: "concept", read: 'products_read(action="get", include_card=true)' });
     checkIdeaCard(input.card_html, "The product concept");
     const changed = (["concept", "card_html"] as const).filter((k) => input[k] !== undefined && input[k] !== row[k]);
     if (!changed.length) return productView(row, ctx);

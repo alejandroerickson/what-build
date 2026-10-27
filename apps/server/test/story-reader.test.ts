@@ -167,11 +167,11 @@ describe("a Story reader", () => {
     const token = await h.connectAgent(rita);
     const client = new Client({ name: "test-agent", version: "1.0.0" });
     await client.connect(new StreamableHTTPClientTransport(new URL(`${h.baseUrl}/mcp`), { requestInit: { headers: { authorization: `Bearer ${token}` } } }));
-    const page = (await client.callTool({ name: "story", arguments: { action: "get_page", product: productPath, params: { page_id: "overview", include_html: false } } })) as { isError?: boolean; content: { text: string }[] };
+    const page = (await client.callTool({ name: "story_read", arguments: { action: "get_page", product: productPath, params: { page_id: "overview", include_html: false } } })) as { isError?: boolean; content: { text: string }[] };
     expect(page.isError).toBeFalsy();
     expect(page.content[0]!.text).toContain("Overview");
     expect(page.content[0]!.text).not.toContain("agent_notes");
-    const sources = (await client.callTool({ name: "sources", arguments: { action: "list", product: productPath } })) as { isError?: boolean; content: { text: string }[] };
+    const sources = (await client.callTool({ name: "sources_read", arguments: { action: "list", product: productPath } })) as { isError?: boolean; content: { text: string }[] };
     expect(sources.isError).toBe(true);
     expect(sources.content[0]!.text).toMatch(/reader.*needs viewer/);
     await client.close();

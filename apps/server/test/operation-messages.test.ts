@@ -88,17 +88,17 @@ describe("refusals that name what exists", () => {
     const { error } = (await again.json()) as { error: { code: string; message: string } };
     expect(error.code).toBe("already_uploaded");
     expect(error.message).toBe(
-      `Bytes for notes.md already arrived under this grant and are attached to source ${created.body.record.record_id}; nothing more is needed. For a new version of notes.md, request another grant with attachments(action="request_upload").`,
+      `Bytes for notes.md already arrived under this grant and are attached to source ${created.body.record.record_id}; nothing more is needed. For a new version of notes.md, request another grant with attachments_write(action="request_upload").`,
     );
   });
 
   it("points a download without its grant at the operation that gives one", async () => {
     const file = await fetch(`${h.baseUrl}/api/v1/downloads/01J00000000000000000000000`);
     expect(file.status).toBe(401);
-    expect(((await file.json()) as { error: { message: string } }).error.message).toMatch(/attachments\(action="get_download"\)\.$/);
+    expect(((await file.json()) as { error: { message: string } }).error.message).toMatch(/attachments_read\(action="get_download"\)\.$/);
     const bundle = await fetch(`${h.baseUrl}/api/v1/downloads/export/01J00000000000000000000000`);
     expect(bundle.status).toBe(401);
-    expect(((await bundle.json()) as { error: { message: string } }).error.message).toMatch(/products\(action="exports"\) again for a fresh one\.$/);
+    expect(((await bundle.json()) as { error: { message: string } }).error.message).toMatch(/products_read\(action="exports"\) again for a fresh one\.$/);
   });
 });
 
@@ -125,7 +125,7 @@ describe("descriptions that say only what is true", () => {
     const list = op("assumptions.list");
     expect(list.summary).not.toMatch(/quotes/);
     expect(list.description).not.toMatch(/and outcomes count/);
-    expect(list.description).toContain('the ones products(action="list") and products(action="get") count');
+    expect(list.description).toContain('the ones products_read(action="list") and products_read(action="get") count');
     expect(fieldTexts(op("assumptions.create"))).toMatch(/why the team holds it, in a sentence or two of your own: what it rests on, and what would change it/);
   });
 
@@ -134,10 +134,10 @@ describe("descriptions that say only what is true", () => {
     expect(op("sources.move_to_product").description).toMatch(/^The source keeps its record_id/);
   });
 
-  it("says what the products tool is for, export and usage included", () => {
-    const products = toolDefinitions().tools.find((t) => t.name === "products")!;
-    expect(products.description).toMatch(/Export a whole product as a ZIP/);
-    expect(products.description).toMatch(/how it is used/);
+  it("says what the products tools are for, export and usage included", () => {
+    const tool = (name: string) => toolDefinitions().tools.find((t) => t.name === name)!;
+    expect(tool("products_write").description).toMatch(/Export a whole product as a ZIP/);
+    expect(tool("products_read").description).toMatch(/how it is used/);
   });
 });
 
@@ -153,10 +153,10 @@ describe("refusals each door words for its caller", () => {
       const web = await alice.api("GET", `${P}/outcomes`);
       expect(web.status).toBe(500);
       expect(web.body.error).toMatchObject({ code: "internal", message: "WhatBuild hit an unexpected error. It has been logged; try again, and report it with Submit feedback, in the account menu, if it repeats." });
-      const mcp = result(await client.callTool({ name: "outcomes", arguments: { action: "list", product: P.slice("/api/v1/p/".length) } }));
+      const mcp = result(await client.callTool({ name: "outcomes_read", arguments: { action: "list", product: P.slice("/api/v1/p/".length) } }));
       expect(mcp.status).toBe(500);
       expect(mcp.json.error.message).toBe("WhatBuild hit an unexpected error. It has been logged; try again, and report it with submit_feedback if it repeats.");
-      const off = result(await quiet.callTool({ name: "outcomes", arguments: { action: "list", product: P.slice("/api/v1/p/".length) } }));
+      const off = result(await quiet.callTool({ name: "outcomes_read", arguments: { action: "list", product: P.slice("/api/v1/p/".length) } }));
       expect(off.status).toBe(500);
       expect(off.json.error.message).toBe("WhatBuild hit an unexpected error. It has been logged; try again, and tell the person if it repeats.");
     } finally {
@@ -169,7 +169,7 @@ describe("refusals each door words for its caller", () => {
   it("says once, in a sentence, what a list takes when it is sent something else", async () => {
     const client = await agent(await h.connectAgent(alice, "Listing agent"));
     const product = P.slice("/api/v1/p/".length);
-    const status = result(await client.callTool({ name: "assumptions", arguments: { action: "list", product, params: { status: "confirmed" } } }));
+    const status = result(await client.callTool({ name: "assumptions_read", arguments: { action: "list", product, params: { status: "confirmed" } } }));
     expect(status.status).toBe(422);
     expect(status.json.error.message).toBe(
       '`status` takes a list of any of unconfirmed, confirmed, refuted and superseded, such as ["confirmed"], not a string. Nothing was changed; correct the call and send it again.',
@@ -182,7 +182,7 @@ describe("refusals each door words for its caller", () => {
     expect(long.body.error.message).not.toMatch(/Too big|characters/);
     const links = await alice.api("POST", `${P}/assumptions`, { statement: "Crews plan on Mondays.", links: 3 });
     expect(links.body.error.message).toMatch(/^`links` takes a list of objects, not a number\./);
-    const wrong = result(await client.callTool({ name: "assumptions", arguments: { action: "list", product, params: { status: ["maybe"] } } }));
+    const wrong = result(await client.callTool({ name: "assumptions_read", arguments: { action: "list", product, params: { status: ["maybe"] } } }));
     expect(wrong.status).toBe(422);
     expect(wrong.json.error.message).toMatch(/^`status\.0`: Invalid option/);
     await client.close();

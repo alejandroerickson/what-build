@@ -3,7 +3,7 @@ type: Decision
 title: Agents write and arrange the Story; the web app reads it
 description: Every change to a Story page or its tree goes through an agent over MCP, except promoting a mockup page from the mockup; the web app shows pages, versions and their evidence, and exports them.
 tags: [decision, story, agents, web]
-generated: {by: agent:claude, at: 2026-10-13}
+generated: {by: agent:claude, at: 2026-10-26}
 status: deprecated
 ---
 
@@ -51,9 +51,9 @@ promote a mockup page to the Story from the mockup, since that adds a page witho
 
 ## Constrains
 
-- Story write controls stay out of `apps/web/src/routes/story*.tsx`; the skill tells agents they
-  maintain the Story for people.
-- The skill version (`SKILL_VERSION`) moves whenever an operation's input changes shape, as it did
+- Story write controls stay out of `apps/web/src/routes/story*.tsx`; the guide says agents write the
+  Story and people read and arrange it.
+- The tools version (`TOOLS_VERSION`) moves whenever an operation's input changes shape, as it did
   when `note` left `story.publish` and when `body` and `restyle` joined it.
 
 Specified in: [07-web-app §7.8](../spec/07-web-app.md), [04-data-model §4.11](../spec/04-data-model.md).

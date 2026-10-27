@@ -4,10 +4,12 @@ title: MCP exposes 13 tools, grouped by the kind of object, with an action param
 description: Ten tools group each noun's operations behind `action` and `params`; three stand alone.
 tags: [decision, mcp, agents]
 generated: {by: agent:claude, at: 2026-10-26}
-status: stable
+status: deprecated
 ---
 
 # MCP exposes 13 tools, grouped by the kind of object, with an action parameter
+
+Superseded on 2026-10-26 by [Each kind of object has a read, a write and a delete tool, so no MCP tool both reads and changes data](mcp-tools-are-split-into-read-write-and-delete.md).
 
 ## Context
 

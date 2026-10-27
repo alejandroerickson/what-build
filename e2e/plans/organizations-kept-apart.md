@@ -32,15 +32,15 @@ it exists. The example organization is the exception everyone reads.
 4. **Web, as Casey (editor).** Sign in, open Crewboard, and search from the panel for a word you can
    see in one of the standard organization's sources (take it as Sam first). *Expect:* search finds
    nothing from another organization; search for a word from a Crewboard source finds it.
-5. **MCP, as Casey.** `products(action="list")`. *Expect:* Crewboard with `your_role` editor, and the
+5. **MCP, as Casey.** `products_read(action="list")`. *Expect:* Crewboard with `your_role` editor, and the
    example organization's products with `your_role` guest; nothing from the standard organization. Then call
-   `sources` `get`, `derived` `text` and `search` with the standard organization's product path and
+   `sources_read` `get`, `derived_read` `text` and `search` with the standard organization's product path and
    with a source id from it. *Expect:* each answers `404 not_found`, with none of its data.
 6. **MCP, as Casey, at the standard organization's endpoint** (`--endpoint /mcp/t/<standard slug>`).
    *Expect:* the connection is refused, or every call answers as for something absent; never a list
    of its products.
 7. **MCP, as Casey, with a scoped endpoint** (`--endpoint /mcp/t/harbor-labs/<team>/crewboard`).
-   Call `products(action="list")`, then `sources` `list` for a product in the example organization.
+   Call `products_read(action="list")`, then `sources_read` `list` for a product in the example organization.
    *Expect:* the list holds Crewboard alone; the example's product is refused with
    `403 outside_connector_scope`, even though Casey may read it elsewhere.
 8. **Web and MCP, as Casey.** Write in Crewboard: add a source over MCP (synthetic text from the
@@ -55,7 +55,7 @@ it exists. The example organization is the exception everyone reads.
     with every product, and the synthetic organization with Crewboard, where Sam reaches only the
     Story; opening Crewboard's Evidence by its address takes Sam to its Story. In the standard
     organization, Sam still edits: add a comment to a source, then archive it.
-11. **MCP, as Sam.** `products(action="list")`. *Expect:* `your_role` editor in the example and the
+11. **MCP, as Sam.** `products_read(action="list")`. *Expect:* `your_role` editor in the example and the
     standard organization, reader for Crewboard. Over the same connection, list sources in a
     standard product (works) and in Crewboard (refused, as a reader's).
 12. **Web, as Morgan.** Open the synthetic organization's activity, then Crewboard's. *Expect:* Casey's

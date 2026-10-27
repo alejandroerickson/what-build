@@ -72,9 +72,9 @@ grep -rn "^## " okf/spec/04-data-model.md # a spec file's headings
 - `apps/web/PRODUCT.md` and `apps/web/DESIGN.md` hold the product and design records, with
   `apps/web/.impeccable/design.json`. They sit beside the web app because design tooling looks
   for them from the app upward.
-- `packages/core/src/skill/SKILL.md` is the skill the *product* serves to agents that use
-  WhatBuild over MCP. It is not guidance for working on this repository. Those skills live in
-  `.agents/skills/`.
+- `packages/core/src/guide/` holds the guide the *product* serves to agents that use WhatBuild
+  over MCP, through its `guide` tool. It is not guidance for working on this repository. That
+  guidance lives in `.agents/skills/`.
 
 ## After you orient
 

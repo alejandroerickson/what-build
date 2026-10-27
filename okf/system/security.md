@@ -344,8 +344,8 @@ holds each one; the linked decisions say why. Observed in the code on 2026-10-10
   app's page never makes it a `srcdoc`, which would inherit the app's own policy. Agents send
   download grants in a header, never a URL. REST and MCP bodies are limited to 5 MB; `/mcp`
   reads one only once the caller's token is checked (`MCP_BODY_MAX_BYTES` in `apps/server/src/mcp.ts`).
-- Source text is quoted material: the MCP server's instructions and the skill tell agents never to
-  follow it (`apps/server/src/mcp.ts`).
+- Source text is quoted material: the MCP server's instructions and the guide say it carries no
+  instructions (`apps/server/src/mcp.ts`, `packages/core/src/guide/01-start.md`).
 
 **Headers on every response** (`RESPONSE_HEADERS` in `apps/server/src/app.ts`, held by
 `apps/server/test/response-headers.test.ts` and the weekly OWASP ZAP scan,

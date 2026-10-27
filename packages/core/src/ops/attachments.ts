@@ -27,7 +27,7 @@ export const MAX_ATTACHMENTS = 50;
 
 /** Said where an attachment is added or listed: what WhatBuild does with it. */
 export const ATTACHMENT_RULE =
-  "Each attachment's text is read and kept, never searched. A source's derived text, which search reads, is the text of the first of its attachments whose reading finds some text: attachments are read in the order they arrive, so usually the first to arrive in a format WhatBuild reads. It follows that attachment's new versions until someone writes or edits it; derived(action=\"write_text\", from_attachment) takes another's.";
+  "Each attachment's text is read and kept, never searched. A source's derived text, which search reads, is the text of the first of its attachments whose reading finds some text: attachments are read in the order they arrive, so usually the first to arrive in a format WhatBuild reads. It follows that attachment's new versions until someone writes or edits it; derived_write(action=\"write_text\", from_attachment) takes another's.";
 
 function checkPath(path: string) {
   const problem = validFilePath(path);
@@ -46,7 +46,7 @@ export function unreadableWarnings(path: string, declaredType?: string | null): 
   if (isImage(path, mediaType))
     return [
       `${path} is an image: it will be kept and shown, but WhatBuild reads no words from an image (it performs no OCR), so it cannot become the source's derived text. ` +
-        `If you can see it, describe it in the source's summary, and write any words it shows as the source's text with derived(action="write_text") if search should find them.`,
+        `If you can see it, describe it in the source's summary, and write any words it shows as the source's text with derived_write(action="write_text") if search should find them.`,
     ];
   const ext = extensionOf(path) || "(no extension)";
   return [
@@ -107,7 +107,7 @@ async function issueGrant(
     ...(direct ? { direct } : {}),
     next:
       "PUT the file's raw bytes to url with exactly these headers (one request, no multipart). A 201 means the attachment is added, and its response says what becomes of its text; no complete_upload is needed. " +
-      (direct ? "For a file over max_bytes use `direct` instead: PUT to direct.url with direct.headers, then call attachments(action=\"complete_upload\") with record_id and path to add it. " : "") +
+      (direct ? "For a file over max_bytes use `direct` instead: PUT to direct.url with direct.headers, then call attachments_write(action=\"complete_upload\") with record_id and path to add it. " : "") +
       "Keep the grant header out of reports and logs.",
   };
 }
@@ -127,7 +127,7 @@ export const requestUpload = defineOperation({
   mutates: true,
   summary: "Get a short-lived grant to PUT one file's bytes to a source, as an attachment. Never pass file bytes through a tool call.",
   description:
-    `Returns {url, method: "PUT", headers, max_bytes, expires_at, warnings}; warnings flag a format no parser reads, and an image, before any bytes move. Send the local file's bytes with your own shell or HTTP tool (curl -T file -H …); a 201 from url means the attachment is added. Only a PUT to a \`direct\` url needs complete_upload afterwards. A grant takes one file, once, and expires: it adds an attachment, or, at a path the source already has, a new version of it, the earlier versions kept. ${ATTACHMENT_RULE} Never encode file content as base64 in a tool argument; if you cannot reach the URL, ask the person to use the web upload instead.`,
+    `Returns {url, method: "PUT", headers, max_bytes, expires_at, warnings}; warnings flag a format no parser reads, and an image, before any bytes move. The file's bytes go to url in one PUT with exactly these headers (curl -T file -H …, for example); a 201 from url means the attachment is added. Only a PUT to a \`direct\` url needs complete_upload afterwards. A grant takes one file, once, and expires: it adds an attachment, or, at a path the source already has, a new version of it, the earlier versions kept. ${ATTACHMENT_RULE} File content never goes in a tool argument, base64 included; a person can also upload in the web app.`,
   input: z.strictObject({ record_id: id("source"), ...requestUploadInput }),
   rest: { method: "POST", path: "/sources/:record_id/uploads" },
   mcp: { tool: "attachments", action: "request_upload" },
@@ -176,7 +176,7 @@ export const createUploads = defineOperation({
   mutates: true,
   summary: `Create up to ${CREATE_UPLOADS_MAX} sources, each with an upload grant for its first attachment, in one call.`,
   description:
-    "Each entry of sources takes what create_upload takes. Returns {items: [{record, upload, warnings}]} in the order given; PUT each file's bytes to its own upload.url with its upload.headers, one request per file, and a 201 means that attachment is added. Every source is created or none is: a refusal names the entry. Check sources(action=\"list\", query=…) for each first, as for create_upload.",
+    "Each entry of sources takes what create_upload takes. Returns {items: [{record, upload, warnings}]} in the order given; PUT each file's bytes to its own upload.url with its upload.headers, one request per file, and a 201 means that attachment is added. Every source is created or none is: a refusal names the entry. Check sources_read(action=\"list\", query=…) for each first, as for create_upload.",
   input: z.strictObject({ sources: z.array(createUploadInput).min(1).max(CREATE_UPLOADS_MAX) }),
   rest: { method: "POST", path: "/sources/with-uploads" },
   mcp: { tool: "attachments", action: "create_uploads" },
@@ -265,7 +265,7 @@ export function attachmentNote(
     case "pending":
       return `${path} is being read. ${
         source.hasText
-          ? "The source already has a derived text, so this one is kept beside it; if it should replace it, take it with derived(action=\"write_text\", from_attachment), passing the derived text's etag as expected_etag."
+          ? "The source already has a derived text, so this one is kept beside it; if it should replace it, take it with derived_write(action=\"write_text\", from_attachment), passing the derived text's etag as expected_etag."
           : "Once it is read, its text becomes the source's derived text, which search reads."
       } ${kept}`;
     case "ready":
@@ -306,7 +306,7 @@ export const completeUpload = defineOperation({
       .where("path", "=", input.path)
       .orderBy("created_at", "desc")
       .executeTakeFirst();
-    if (!g) throw notFound(`There is no upload grant for ${input.path} on this source. Call attachments(action="request_upload") first.`);
+    if (!g) throw notFound(`There is no upload grant for ${input.path} on this source. Call attachments_write(action="request_upload") first.`);
     return completeGrant(ctx, g.grant_id);
   },
 });
@@ -376,7 +376,7 @@ export const fetchUrl = defineOperation({
       } catch (e) {
         if (e instanceof AppError) throw e;
         // What the network said can name hosts behind the server: the caller gets a plain refusal.
-        throw invalid("fetch_failed", "Couldn’t fetch that URL. Check the address, or download the file and upload it with attachments(action=\"request_upload\").");
+        throw invalid("fetch_failed", "Couldn’t fetch that URL. Check the address, or download the file and upload it with attachments_write(action=\"request_upload\").");
       }
     });
   },

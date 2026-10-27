@@ -66,7 +66,7 @@ describe("intake warnings", () => {
     const photo = await alice.api("POST", `${P}/sources/with-upload`, { tags: ["photo"], title: "Whiteboard photo — Example Co, Sep 2026", path: "board.png" });
     expect(photo.body.warnings).toEqual([
       "board.png is an image: it will be kept and shown, but WhatBuild reads no words from an image (it performs no OCR), so it cannot become the source's derived text. " +
-        'If you can see it, describe it in the source\'s summary, and write any words it shows as the source\'s text with derived(action="write_text") if search should find them.',
+        'If you can see it, describe it in the source\'s summary, and write any words it shows as the source\'s text with derived_write(action="write_text") if search should find them.',
     ]);
     const untyped = await alice.api("POST", `${P}/sources/${pdf.body.record.record_id}/uploads`, { record_id: pdf.body.record.record_id, path: "scan-page", media_type: "image/jpeg" });
     expect(untyped.body.warnings[0]).toMatch(/^scan-page is an image/);

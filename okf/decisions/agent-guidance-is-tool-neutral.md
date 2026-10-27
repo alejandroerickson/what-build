@@ -3,7 +3,7 @@ type: Decision
 title: "Agent guidance is tool-neutral: AGENTS.md and .agents/skills"
 description: Orientation and the documentation procedures live in files any agent can read, with links for tools that look elsewhere.
 tags: [decision, agents, skills, okf, process]
-generated: {by: agent:claude, at: 2026-10-24}
+generated: {by: agent:claude, at: 2026-10-26}
 status: stable
 ---
 
@@ -44,7 +44,8 @@ after, whichever tool it runs in.
 - Do not add guidance under a tool-specific folder. Add it to `.agents/skills/` and link to it if a
   tool needs the file elsewhere.
 - When the bundle's layout, types or rules change, update the skills in the same change.
-- The product's own agent skill (`packages/core/src/skill/SKILL.md`) is separate. It teaches agents
-  to *use* WhatBuild, not to work on this repository.
+- The product's own guide for agents (`packages/core/src/guide/`, served by its `guide` tool) is
+  separate. It describes WhatBuild to agents that *use* it, not to agents working on this
+  repository ([decision](agents-learn-whatbuild-from-the-servers-guide.md)).
 
 Specified in: [working in this repository](../process/working-in-this-repository.md).

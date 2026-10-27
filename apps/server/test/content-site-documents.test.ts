@@ -362,8 +362,8 @@ describe("the content site", () => {
 describe("agents", () => {
   it("are told to fetch the content site's addresses as given, and to write links with the app's", () => {
     const told = addressInstruction(h.baseUrl, content);
-    expect(told).toContain(`This deployment's address is ${h.baseUrl}. Write every link to WhatBuild with it`);
-    expect(told).toContain(`Its content site, ${content}, serves previews and prototypes: fetch an address the server gives there (a preview's url, a prototype_url) exactly as given, and never write a link with it.`);
+    expect(told).toContain(`This deployment's address is ${h.baseUrl}. Links to WhatBuild use it`);
+    expect(told).toContain(`Its content site, ${content}, serves previews and prototypes: an address the server gives there (a preview's url, a prototype_url) is fetched exactly as given, and is never a link for people.`);
     expect(addressInstruction(h.baseUrl)).not.toContain("content site");
   });
 });

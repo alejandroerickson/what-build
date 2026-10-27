@@ -149,7 +149,7 @@ export function uploadRoutes(env: Env & { config: ServerConfig }) {
     try {
       const token = c.req.header(UPLOAD_GRANT_HEADER) ?? "";
       const claims = env.ports.grants.verify(token);
-      if (!claims || claims["purpose"] !== "upload" || claims["g"] !== c.req.param("grant_id")) throw new AppError(401, "invalid_grant", "The upload grant is missing, invalid or expired. Request a new one with attachments(action=\"request_upload\").");
+      if (!claims || claims["purpose"] !== "upload" || claims["g"] !== c.req.param("grant_id")) throw new AppError(401, "invalid_grant", "The upload grant is missing, invalid or expired. Request a new one with attachments_write(action=\"request_upload\").");
       const tenantId = String(claims["t"]);
       const grant = await inTenant(env, tenantId, (trx) => trx.selectFrom("upload_grants").selectAll().where("grant_id", "=", c.req.param("grant_id")).executeTakeFirst());
       if (!grant) throw notFound("No such upload grant.");
@@ -158,8 +158,8 @@ export function uploadRoutes(env: Env & { config: ServerConfig }) {
         throw conflict(
           "already_uploaded",
           grant.completed_at
-            ? `Bytes for ${grant.path} already arrived under this grant and are attached to source ${grant.record_id}; nothing more is needed. For a new version of ${grant.path}, request another grant with attachments(action="request_upload").`
-            : `Bytes for ${grant.path} already arrived under this grant. Call attachments(action="complete_upload") with record_id ${grant.record_id} and path ${grant.path} to attach them.`,
+            ? `Bytes for ${grant.path} already arrived under this grant and are attached to source ${grant.record_id}; nothing more is needed. For a new version of ${grant.path}, request another grant with attachments_write(action="request_upload").`
+            : `Bytes for ${grant.path} already arrived under this grant. Call attachments_write(action="complete_upload") with record_id ${grant.record_id} and path ${grant.path} to attach them.`,
         );
       if (Date.parse(grant.expires_at) < Date.now()) throw new AppError(401, "invalid_grant", "The upload grant has expired. Request a new one.");
       // A grant carries its requester's authority only while they may still write here: someone made a reader or viewer, or removed, since it was given stores nothing.
@@ -194,7 +194,7 @@ export function uploadRoutes(env: Env & { config: ServerConfig }) {
     try {
       const claims = env.ports.grants.verify(c.req.header(UPLOAD_GRANT_HEADER) ?? "");
       if (!claims || claims["purpose"] !== MOCKUP_UPLOAD_PURPOSE || claims["u"] !== c.req.param("upload_id"))
-        throw new AppError(401, "invalid_grant", "The upload grant is missing, invalid or expired. Request a new one with mockups(action=\"request_upload\").");
+        throw new AppError(401, "invalid_grant", "The upload grant is missing, invalid or expired. Request a new one with mockups_write(action=\"request_upload\").");
       const tenantId = String(claims["t"]);
       const upload = await inTenant(env, tenantId, (trx) => trx.selectFrom("mockup_uploads").selectAll().where("upload_id", "=", c.req.param("upload_id")).executeTakeFirst());
       if (!upload) throw notFound("No such upload grant.");
@@ -213,7 +213,7 @@ export function uploadRoutes(env: Env & { config: ServerConfig }) {
       if (!body) throw new AppError(400, "empty_body", "Send the ZIP's bytes as the request body.");
       const stored = await env.ports.blobs.putStream(upload.blob_key, relayed(body), { contentType: "application/zip", maxBytes: max });
       await inTenant(env, tenantId, (trx) => trx.updateTable("mockup_uploads").set({ uploaded_at: new Date().toISOString(), size: stored.size, sha256: stored.sha256 }).where("upload_id", "=", upload.upload_id).execute());
-      return c.json({ uploaded: true, upload_id: upload.upload_id, size: stored.size, sha256: stored.sha256, next: 'Received. Now call mockups(action="publish") with upload_id, and mockup_id with expected_etag for a later version. The ZIP is checked then; nothing is published until that call succeeds.' }, 201);
+      return c.json({ uploaded: true, upload_id: upload.upload_id, size: stored.size, sha256: stored.sha256, next: 'Received. Now call mockups_write(action="publish") with upload_id, and mockup_id with expected_etag for a later version. The ZIP is checked then; nothing is published until that call succeeds.' }, 201);
     } catch (e) {
       return fail(c, e);
     }
@@ -222,7 +222,7 @@ export function uploadRoutes(env: Env & { config: ServerConfig }) {
   app.get("/api/v1/downloads/:file_version_id", async (c) => {
     try {
       const claims = env.ports.grants.verify(c.req.header(DOWNLOAD_GRANT_HEADER) ?? "");
-      if (!claims || claims["purpose"] !== "download" || claims["fv"] !== c.req.param("file_version_id")) throw new AppError(401, "invalid_grant", "The download grant is missing, invalid or expired. Request a new one with attachments(action=\"get_download\").");
+      if (!claims || claims["purpose"] !== "download" || claims["fv"] !== c.req.param("file_version_id")) throw new AppError(401, "invalid_grant", "The download grant is missing, invalid or expired. Request a new one with attachments_read(action=\"get_download\").");
       const found = await inTenant(env, String(claims["t"]), async (trx) => {
         const v = await trx.selectFrom("file_versions").selectAll().where("file_version_id", "=", c.req.param("file_version_id")).executeTakeFirst();
         if (!v) return null;
@@ -242,7 +242,7 @@ export function uploadRoutes(env: Env & { config: ServerConfig }) {
     try {
       const claims = env.ports.grants.verify(c.req.header(DOWNLOAD_GRANT_HEADER) ?? "");
       if (!claims || claims["purpose"] !== "mockup" || claims["xv"] !== c.req.param("version_id"))
-        throw new AppError(401, "invalid_grant", "The download grant is missing, invalid or expired. Request a new one with mockups(action=\"get_download\").");
+        throw new AppError(401, "invalid_grant", "The download grant is missing, invalid or expired. Request a new one with mockups_read(action=\"get_download\").");
       const version = await inTenant(env, String(claims["t"]), (trx) => trx.selectFrom("mockup_versions").select("product_id").where("version_id", "=", c.req.param("version_id")).executeTakeFirst());
       if (!version) throw notFound("That mockup version no longer exists.");
       await requesterMayRead(env, claims, version.product_id);
@@ -267,12 +267,12 @@ export function uploadRoutes(env: Env & { config: ServerConfig }) {
       if (previewsElsewhere(c)) throw notFound(`This deployment serves previews from its content site, ${env.config.contentUrl}: GET the url the preview gave.`);
       const claims = env.ports.grants.verify(c.req.header(DOWNLOAD_GRANT_HEADER) ?? "");
       if (!claims || claims["purpose"] !== STORY_PREVIEW_PURPOSE || claims["sp"] !== c.req.param("preview_id"))
-        throw new AppError(401, "invalid_grant", "The preview grant is missing, invalid or expired. Preview again with story(action=\"preview\").");
+        throw new AppError(401, "invalid_grant", "The preview grant is missing, invalid or expired. Preview again with story_read(action=\"preview\").");
       const theme = storyTheme(c.req.query("theme"));
       const p = await inTenant(env, String(claims["t"]), (trx) =>
         trx.selectFrom("story_previews").select(["product_id", "html", "shows_mockup", "expires_at"]).where("preview_id", "=", c.req.param("preview_id")).executeTakeFirst(),
       );
-      if (!p || Date.parse(p.expires_at) < Date.now()) throw notFound("That preview has expired or was replaced by newer ones. Preview again with story(action=\"preview\").");
+      if (!p || Date.parse(p.expires_at) < Date.now()) throw notFound("That preview has expired or was replaced by newer ones. Preview again with story_read(action=\"preview\").");
       await requesterMayRead(env, claims, p.product_id);
       // A Story page in the Story's sandbox (page-sandbox.ts). A mockup page carries its own look, so
       // it takes neither the theme nor the carried typefaces, and keeps a mockup page's sandbox.
@@ -290,12 +290,12 @@ export function uploadRoutes(env: Env & { config: ServerConfig }) {
       if (previewsElsewhere(c)) throw notFound(`This deployment serves previews from its content site, ${env.config.contentUrl}: GET the url the preview gave.`);
       const claims = env.ports.grants.verify(c.req.header(DOWNLOAD_GRANT_HEADER) ?? "");
       if (!claims || claims["purpose"] !== CARD_PREVIEW_PURPOSE || claims["cp"] !== c.req.param("preview_id"))
-        throw new AppError(401, "invalid_grant", "The preview grant is missing, invalid or expired. Preview again with outcomes(action=\"card_preview\").");
+        throw new AppError(401, "invalid_grant", "The preview grant is missing, invalid or expired. Preview again with outcomes_read(action=\"card_preview\").");
       const theme = storyTheme(c.req.query("theme"));
       const p = await inTenant(env, String(claims["t"]), (trx) =>
         trx.selectFrom("card_previews").select(["product_id", "kind", "title", "card_html", "expires_at"]).where("preview_id", "=", c.req.param("preview_id")).executeTakeFirst(),
       );
-      if (!p || Date.parse(p.expires_at) < Date.now()) throw notFound("That preview has expired or was replaced by newer ones. Preview again with outcomes(action=\"card_preview\").");
+      if (!p || Date.parse(p.expires_at) < Date.now()) throw notFound("That preview has expired or was replaced by newer ones. Preview again with outcomes_read(action=\"card_preview\").");
       await requesterMayRead(env, claims, p.product_id);
       return cardFront(c, p.card_html, p.title, theme, site, CARD_FRAMES[p.kind].max_height);
     } catch (e) {
@@ -306,7 +306,7 @@ export function uploadRoutes(env: Env & { config: ServerConfig }) {
   app.get("/api/v1/downloads/export/:export_id", async (c) => {
     try {
       const claims = env.ports.grants.verify(c.req.header(DOWNLOAD_GRANT_HEADER) ?? "");
-      if (!claims || claims["purpose"] !== "export" || claims["e"] !== c.req.param("export_id")) throw new AppError(401, "invalid_grant", "The download grant is missing, invalid or expired. Call products(action=\"exports\") again for a fresh one.");
+      if (!claims || claims["purpose"] !== "export" || claims["e"] !== c.req.param("export_id")) throw new AppError(401, "invalid_grant", "The download grant is missing, invalid or expired. Call products_read(action=\"exports\") again for a fresh one.");
       const ex = await inTenant(env, String(claims["t"]), (trx) => trx.selectFrom("exports").select("product_id").where("export_id", "=", c.req.param("export_id")).executeTakeFirst());
       if (!ex) throw notFound("That export is not ready or no longer exists.");
       await requesterMayRead(env, claims, ex.product_id);

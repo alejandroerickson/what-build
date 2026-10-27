@@ -56,9 +56,10 @@ const readNote = (id: string, kind: string, who = alice) => who.api("GET", `${P}
 const text = (id: string, body: Record<string, unknown>, who = alice) => who.api("PUT", `${P}/sources/${id}/derived/text`, body);
 const full = async (id: string) => (await alice.api("GET", `${P}/sources/${id}?detail=full`)).body;
 
-/** One call to the derived tool, answered as REST answers it: its status and its body. */
+/** One call to a derived tool (derived_read for a read), answered as REST answers it: its status and its body. */
 async function mcp(client: Client, action: string, params: Record<string, unknown>) {
-  const r = (await client.callTool({ name: "derived", arguments: { action, params, product: path } })) as { content: { text: string }[]; isError?: boolean };
+  const name = ["read_note", "text", "manifest", "list"].includes(action) ? "derived_read" : "derived_write";
+  const r = (await client.callTool({ name, arguments: { action, params, product: path } })) as { content: { text: string }[]; isError?: boolean };
   const out = r.content[0]!.text;
   return r.isError ? { status: Number(out.slice(0, 3)), body: JSON.parse(out.slice(out.indexOf("\n") + 1)) } : { status: 200, body: JSON.parse(out) };
 }
@@ -101,12 +102,12 @@ describe("a source's summary and notes", () => {
     const s = await source("Owner call — Example Co");
     const first = await note(s.record_id, "summary", { content: "The first summary." });
     const again = await note(s.record_id, "summary", { content: "A summary written without reading the first." });
-    refused(again, /^This source already has a summary; read it with derived\(action="read_note", note_kind="summary"\) and pass its etag as expected_etag\.$/, first.body.etag);
+    refused(again, /^This source already has a summary; read it with derived_read\(action="read_note", note_kind="summary"\) and pass its etag as expected_etag\.$/, first.body.etag);
     refused(await note(s.record_id, "summary", { content: "" }), /already has a summary/, first.body.etag);
     expect((await readNote(s.record_id, "summary")).body).toMatchObject({ content: "The first summary.", etag: first.body.etag });
 
     const notes = await note(s.record_id, "notes", { content: "First notes." });
-    refused(await note(s.record_id, "notes", { content: "Other notes." }), /^This source already has notes; read them with derived\(action="read_note", note_kind="notes"\) and pass their etag as expected_etag\.$/, notes.body.etag);
+    refused(await note(s.record_id, "notes", { content: "Other notes." }), /^This source already has notes; read them with derived_read\(action="read_note", note_kind="notes"\) and pass their etag as expected_etag\.$/, notes.body.etag);
     expect((await readNote(s.record_id, "notes")).body.content).toBe("First notes.");
   });
 
@@ -119,11 +120,11 @@ describe("a source's summary and notes", () => {
 
     refused(
       await note(s.record_id, "summary", { content: "x", expected_etag: "an-old-etag" }),
-      /^That is not the current etag of this source's summary\. Read it again with derived\(action="read_note", note_kind="summary"\), see what it says now, and pass its etag\.$/,
+      /^That is not the current etag of this source's summary\. Read it again with derived_read\(action="read_note", note_kind="summary"\), see what it says now, and pass its etag\.$/,
       summary.body.etag,
     );
     refused(await note(s.record_id, "notes", { content: "x", expected_etag: "an-old-etag" }), /^That is not the current etag of this source's notes\. Read them again/, notes.body.etag);
-    const pass = /Pass the summary's etag: derived\(action="read_note", note_kind="summary"\) returns it, as does sources\(action="get", detail="full"\) in agent_notes\.$/;
+    const pass = /Pass the summary's etag: derived_read\(action="read_note", note_kind="summary"\) returns it, as does sources_read\(action="get", detail="full"\) in agent_notes\.$/;
     const withSource = await note(s.record_id, "summary", { content: "x", expected_etag: s.etag });
     refused(withSource, /^That is the source's etag; its summary has its own\. /, summary.body.etag);
     expect(withSource.body.error.message).toMatch(pass);
@@ -158,12 +159,12 @@ describe("a source's summary and notes", () => {
     expect(cleared.body).toMatchObject({ chars: 0, etag: null });
     const gone = await readNote(s.record_id, "summary");
     expect(gone.status).toBe(404);
-    expect(gone.body.error.message).toBe('No summary has been written for this source. To write one, send derived(action="write_note") without expected_etag.');
+    expect(gone.body.error.message).toBe('No summary has been written for this source. To write one, send derived_write(action="write_note") without expected_etag.');
     expect((await full(s.record_id)).agent_notes).toEqual([]);
     // With nothing to match, an etag is refused, and the refusal says to leave it out.
     refused(
       await note(s.record_id, "summary", { content: "Back again.", expected_etag: third.body.etag }),
-      /^This source has no summary now, so there is no etag to match: derived\(action="read_note", note_kind="summary"\) answers 404\. Leave expected_etag out for the first write\.$/,
+      /^This source has no summary now, so there is no etag to match: derived_read\(action="read_note", note_kind="summary"\) answers 404\. Leave expected_etag out for the first write\.$/,
       null,
     );
     expect((await note(s.record_id, "summary", { content: "Back again." })).status).toBe(200);
@@ -210,7 +211,7 @@ describe("a source's summary and notes", () => {
     expect(second.status, JSON.stringify(second.body)).toBe(200);
     expect((await readNote(s.record_id, "notes")).body).toMatchObject({ content: "Read them twice.", etag: second.body.etag, updated_by: { surface: "mcp" } });
     // An agent learns the etags from the source's full read too.
-    const got = (await agent.callTool({ name: "sources", arguments: { action: "get", params: { record_id: s.record_id, detail: "full" }, product: path } })) as { content: { text: string }[] };
+    const got = (await agent.callTool({ name: "sources_read", arguments: { action: "get", params: { record_id: s.record_id, detail: "full" }, product: path } })) as { content: { text: string }[] };
     expect(JSON.parse(got.content[0]!.text).agent_notes).toEqual([expect.objectContaining({ kind: "notes", etag: second.body.etag })]);
   });
 });
@@ -220,18 +221,18 @@ describe("a source's derived text", () => {
     const s = await source("Board photo notes — Example Co");
     const first = await text(s.record_id, { content: "Monday column is full.\n" });
     expect(first.status, JSON.stringify(first.body)).toBe(200);
-    const missing = /^This source already has a derived text; read it with derived\(action="text"\) and pass its etag as expected_etag\.$/;
+    const missing = /^This source already has a derived text; read it with derived_read\(action="text"\) and pass its etag as expected_etag\.$/;
     // Every way to write it: whole, removed, by edits, or from an attachment.
     for (const body of [{ content: "Rewritten unread.\n" }, { content: "" }, { edits: [{ old_text: "Monday", new_text: "Tuesday" }] }, { from_attachment: "board.txt" }])
       refused(await text(s.record_id, body), missing, first.body.etag);
-    const pass = /Pass the derived text's etag: derived\(action="text"\) returns it, as does sources\(action="get", detail="full"\) as text\.etag\.$/;
+    const pass = /Pass the derived text's etag: derived_read\(action="text"\) returns it, as does sources_read\(action="get", detail="full"\) as text\.etag\.$/;
     const withSource = await text(s.record_id, { content: "x\n", expected_etag: s.etag });
     refused(withSource, /^That is the source's etag; its derived text has its own\. /, first.body.etag);
     expect(withSource.body.error.message).toMatch(pass);
     const summary = await note(s.record_id, "summary", { content: "A full Monday." });
     refused(await text(s.record_id, { content: "x\n", expected_etag: summary.body.etag }), /^That is the etag of the source's summary; its derived text has its own\. /, first.body.etag);
     const stale = await text(s.record_id, { content: "x\n", expected_etag: "an-old-etag" });
-    refused(stale, /^That is not the current etag of this source's derived text\. Read it again with derived\(action="text"\), see what it says now, and pass its etag\.$/, first.body.etag);
+    refused(stale, /^That is not the current etag of this source's derived text\. Read it again with derived_read\(action="text"\), see what it says now, and pass its etag\.$/, first.body.etag);
     expect((await alice.api("GET", `${P}/sources/${s.record_id}/derived/text`)).body).toMatchObject({ text: "Monday column is full.\n", etag: first.body.etag });
 
     const edited = await text(s.record_id, { edits: [{ old_text: "Monday", new_text: "Tuesday" }], expected_etag: first.body.etag });
@@ -246,7 +247,7 @@ describe("a source's derived text", () => {
     expect(removed.body).toMatchObject({ chars: 0, etag: null });
     refused(
       await text(s.record_id, { content: "Typed again.\n", expected_etag: first.body.etag }),
-      /^This source has no derived text now, so there is no etag to match: derived\(action="text"\) answers 404\. Leave expected_etag out for the first write\.$/,
+      /^This source has no derived text now, so there is no etag to match: derived_read\(action="text"\) answers 404\. Leave expected_etag out for the first write\.$/,
       null,
     );
     const bare = await source("Nothing written yet — Example Co");
@@ -278,7 +279,7 @@ describe("refusals of retired inputs", () => {
     const s = await source("Retired fields — Example Co");
     for (const r of [await note(s.record_id, "outline", { content: "- One" }), await readNote(s.record_id, "outline"), await mcp(agent, "write_note", { record_id: s.record_id, note_kind: "outline", content: "- One" })]) {
       expect(r.status).toBe(422);
-      expect(r.body.error.message).toMatch(/A source has no outline any more: note_kind is summary .* or notes .*\. Find your way through a long source with search and derived\(action="text"\) windows\./);
+      expect(r.body.error.message).toMatch(/A source has no outline any more: note_kind is summary .* or notes .*\. Find your way through a long source with search and derived_read\(action="text"\) windows\./);
     }
     // Another value of the field gets no word about outlines.
     expect((await note(s.record_id, "draft", { content: "x" })).body.error.message).not.toMatch(/outline/);

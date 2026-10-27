@@ -88,9 +88,11 @@ describe("refusals", () => {
     const client = new Client({ name: "delete-agent", version: "1.0.0" });
     await client.connect(new StreamableHTTPClientTransport(new URL(`${h.baseUrl}/mcp`), { requestInit: { headers: { authorization: `Bearer ${await h.connectAgent(owen, "Owen's agent")}` } } }));
     for (const action of ["delete_account", "delete_account_impact"]) {
-      const r = (await client.callTool({ name: "products", arguments: { action, params: { email: "owen@example.com", confirm: "delete permanently" } } })) as { isError?: boolean; content: { text: string }[] };
-      expect(r.isError).toBe(true);
-      expect(r.content[0]!.text).toMatch(new RegExp(`Unknown products action: ${action}`));
+      for (const name of ["products_read", "products_write", "products_delete"]) {
+        const r = (await client.callTool({ name, arguments: { action, params: { email: "owen@example.com", confirm: "delete permanently" } } })) as { isError?: boolean; content: { text: string }[] };
+        expect(r.isError).toBe(true);
+        expect(r.content[0]!.text).toMatch(new RegExp(`Unknown (tool ${name}|${name} action: ${action})`));
+      }
     }
     await client.close();
     expect(await h.db.selectFrom("accounts").select("deleted_at").where("email", "=", "owen@example.com").executeTakeFirstOrThrow()).toEqual({ deleted_at: null });

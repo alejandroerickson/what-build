@@ -61,7 +61,7 @@ beforeAll(async () => {
   // An agent's change, over MCP.
   const client = new Client({ name: "log-agent", version: "1.0.0" });
   await client.connect(new StreamableHTTPClientTransport(new URL(`${h.baseUrl}/mcp`), { requestInit: { headers: { authorization: `Bearer ${await h.connectAgent(alice, "Log agent")}` } } }));
-  const viaMcp = await client.callTool({ name: "assumptions", arguments: { action: "create", product: productPath, params: { statement: "Written by an agent" } } });
+  const viaMcp = await client.callTool({ name: "assumptions_write", arguments: { action: "create", product: productPath, params: { statement: "Written by an agent" } } });
   expect(viaMcp.isError).toBeFalsy();
   await client.close();
 });

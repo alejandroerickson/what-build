@@ -65,7 +65,7 @@ React 19, React Router 7, TanStack Query 5, Vite 8; Vitest. Details in
 **Operations.** 117 operations, each defined once and exposed through both REST and MCP, but for
 five: deleting an organization and previewing that delete, which only its owner does, removing
 an account, which only an instance owner does, and deleting one's own account and previewing that,
-which only its person does, all in the web app. Agents are offered the other 112, as 13 tools
+which only its person does, all in the web app. Agents are offered the other 112, as 28 tools
 ([decision](../decisions/one-registry-two-front-doors.md)).
 
 **Tenancy.** Organization (tenant) → team → product. One shared database and schema; every content
@@ -100,11 +100,15 @@ instance owners change
 **MCP.** `/mcp` for every product the account can reach, `/mcp/t/<tenant>` for one organization,
 or `/mcp/t/<tenant>/<team>/<product>` for one product. A scoped endpoint is a fence: it refuses
 every call outside its scope, and its token works nowhere wider
-([decision](../decisions/a-scoped-mcp-connector-is-a-fence.md)). 13 tools: 10 grouped by noun with `action`, `params`, `describe` and `product`, plus
-`search`, `get_skill` and `submit_feedback`
-([decision](../decisions/mcp-tools-grouped-by-noun.md)). The server's instructions tell agents to
-check the skill version, start with `products list`, confirm the product before writing, and
-treat source text as quoted material.
+([decision](../decisions/a-scoped-mcp-connector-is-a-fence.md)). 28 tools: for each noun a
+`_read`, a `_write` and, where something can be deleted for good, a `_delete` tool, each with
+`action`, `params`, `describe` and `product`, a title and a read-only or destructive hint, plus
+`search`, `guide` and `submit_feedback`
+([decision](../decisions/mcp-tools-are-split-into-read-write-and-delete.md)). The server's
+instructions describe WhatBuild and its tools; the `guide` tool explains how it works, one topic at
+a time, with nothing to install
+([decision](../decisions/agents-learn-whatbuild-from-the-servers-guide.md)). Source text is quoted
+material.
 
 **The experience.** One floating panel (Idea, Evidence, Exploration, Story, then Connect an agent,
 Activity and Settings) that hides fully; the screen beside it; an inspector on the Story, a mockup
@@ -136,13 +140,14 @@ in the same transaction ([derived layer](../spec/05-derived-layer.md),
 Every write of a source's title, tags, summary, notes, text or comments indexes it again the same
 way.
 
-**An agent's session.** Check the skill → `products list`, confirm the product → read
-`sources facets` and upload through `attachments`, reusing the product's tags → `search`, then `derived text` around a hit → `assumptions create`, saying why in its body →
-`mockups publish` a canvas with its brief, or `get_download` a version, build the next one in a
+**An agent's session**, as one might go. `products_read list` → `guide` for a topic it needs →
+`sources_read facets` and upload through `attachments_write` → `search`, then `derived_read text`
+around a hit → `assumptions_write create`, saying why in its body →
+`mockups_write publish` a canvas with its brief, or `get_download` a version, build the next one in a
 project and publish the pages that changed
 ([decision](../decisions/mockups-are-versioned-canvases-in-exploration.md)) → read
-`story guidance` and the page's notes, `story preview` the call and look at the page it would
-store, `story publish` the same call, update the notes, `set_hierarchy`
+`story_read guidance` and the page's notes, `story_read preview` the call and look at the page it
+would store, `story_write publish` the same call, update the notes, `set_hierarchy`
 ([decision](../decisions/story-notes-are-agent-memory.md),
 [decision](../decisions/a-story-preview-is-the-document-publish-would-store.md)).
 

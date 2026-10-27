@@ -3,7 +3,7 @@ type: System Concept
 title: Running WhatBuild locally, testing it, and checking the interface
 description: The one-command development setup, the test and build commands, and the browser scripts.
 tags: [development, testing, local]
-generated: {by: agent:claude, at: 2026-10-25}
+generated: {by: agent:claude, at: 2026-10-26}
 status: stable
 ---
 
@@ -156,14 +156,14 @@ plans in `e2e/plans/` there through the browser and MCP and reports what it find
 | `pnpm typecheck` | `tsc` over parsers, core, server and web. |
 | `pnpm test` | Vitest: parsers, server (against an embedded Postgres 17) and web projects. `pnpm vitest run --project web` runs one. To run the server tests on another Postgres, such as the version a host offers, set `TEST_DATABASE_ADMIN_URL` (a superuser, which creates a database per test file, on a server in UTF-8, as the suite checks) and `TEST_DATABASE_APP_URL_TEMPLATE` (the same server as a role named `whatbuild` without `SUPERUSER` or `BYPASSRLS`, with `{db}` for the database). The embedded server listens on `:54331`; `WHATBUILD_TEST_PG_PORT` moves it, so two checkouts can run the suite at once. |
 | `pnpm build` | The web bundle and the server bundle. |
-| `pnpm gen:skill` | Re-embeds `packages/core/src/skill/SKILL.md`; CI fails if it is stale. |
+| `pnpm gen:guide` | Re-embeds the guide agents read (`packages/core/src/guide/*.md`) as `guide-text.ts`; CI fails if it is stale. |
 | `pnpm db:migrate`, `pnpm db:seed` | Run migrations or the seed against `DATABASE_URL`, as a development server. |
 | `python3 okf/tools/validate_okf.py` | Checks the documentation bundle: frontmatter, types, links, indexes. |
 | `pnpm security` | Known vulnerabilities in the dependencies (osv-scanner) and weaknesses in the workflows (zizmor), with pinned scanners downloaded on first use ([security checks](security-checks.md)). |
 | `pnpm attention` | What is waiting in the repository: Dependabot's pull requests and the alerts nobody has accepted, failed runs on `main`, accepted vulnerabilities near expiry, changes production lacks, hooks that are off, copies of production that hold every organization. Agents run it at the start of every session ([security checks](security-checks.md)). |
 | `pnpm check:publishable --all` | Nothing private in the tree or the history. The git hooks `pnpm install` turns on run it on every commit and push. |
 
-CI (`.github/workflows/ci.yml`) runs the documentation check, the skill check, typecheck, test and build on every push to
+CI (`.github/workflows/ci.yml`) runs the documentation check, the guide check, typecheck, test and build on every push to
 `main` and every pull request, and beside them the check that nothing private is published; a
 pull request's title and description are checked when it is opened and whenever they are edited
 (`pull-request-text.yml`). The Security workflow runs `pnpm security` on the same events and

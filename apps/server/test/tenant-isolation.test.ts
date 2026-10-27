@@ -1,6 +1,6 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
-import { OPERATIONS, type OperationDef } from "@whatbuild/core";
+import { mcpTool, OPERATIONS, type OperationDef } from "@whatbuild/core";
 import { sql } from "kysely";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { restPath } from "../src/rest.ts";
@@ -242,7 +242,7 @@ const ACCOUNT: Record<string, string> = {
   "products.remove_account": "the instance owners' alone, in the web app: 403 to anyone else",
   "products.delete_account_impact": "the caller's own account, in the web app: names no one else and no organization they are not in",
   "products.delete_account": "the caller's own account, in the web app: takes no input that names another",
-  get_skill: "the same document for everyone",
+  guide: "the same document for everyone",
   submit_feedback: "write-only: says nothing back about anyone",
 };
 
@@ -308,7 +308,7 @@ async function mcp(op: OperationDef, o: Organization, input: Input) {
   }
   if (op.mcp.action) args = { action: op.mcp.action, params, ...(op.scope === "product" ? { product: at.path } : {}) };
   else args = { ...params, ...(op.scope === "product" ? { product: at.path } : {}) };
-  const r = (await client.callTool({ name: op.mcp.tool, arguments: args })) as { content: { text: string }[]; isError?: boolean };
+  const r = (await client.callTool({ name: mcpTool(op), arguments: args })) as { content: { text: string }[]; isError?: boolean };
   const text = r.content[0]!.text;
   const status = r.isError ? Number(text.slice(0, 3)) : 200;
   const body = r.isError ? JSON.parse(text.slice(text.indexOf("\n") + 1)) : JSON.parse(text);
@@ -460,8 +460,8 @@ describe("operations that belong to no organization", () => {
     expect(await plans()).toBe(plansBefore);
   });
 
-  it("answers the skill and feedback with nothing of any organization", async () => {
-    for (const [name, input] of [["get_skill", {}], ["submit_feedback", { category: "other", message: "A probe from another organization." }]] as const) {
+  it("answers the guide and feedback with nothing of any organization", async () => {
+    for (const [name, input] of [["guide", {}], ["submit_feedback", { category: "other", message: "A probe from another organization." }]] as const) {
       for (const r of await both(name, input)) {
         expect([200, 201], `${name} ${JSON.stringify(r.body).slice(0, 200)}`).toContain(r.status);
         expect(leaked(a, r.body, r.sent)).toEqual([]);

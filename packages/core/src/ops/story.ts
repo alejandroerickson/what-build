@@ -104,7 +104,7 @@ export const guidance = defineOperation({
   mutates: false,
   summary: "How to write and design Story pages: choosing the product's Story style, taste, anti-patterns, design passes, recipes, compositions, writing rules and a checklist.",
   description:
-    "Read this before publishing. The Story follows the product's Story style (get_style), never WhatBuild's app look: the team's own design system, or a house style adopted for the product. house_style returns that style's full stylesheet, rules and a starter page, so you can show it or adopt it. section narrows the response: all, style, design, components, writing, checklist. Every section keeps the rendering rules, link templates and limits.",
+    "The Story follows the product's Story style (get_style), never WhatBuild's app look: the team's own design system, or a house style adopted for the product. house_style returns that style's full stylesheet, rules and a starter page, so you can show it or adopt it. section narrows the response: all, style, design, components, writing, checklist. Every section keeps the rendering rules, link templates and limits.",
   input: z.strictObject({
     section: z.enum(GUIDANCE_SECTIONS).default("all"),
     house_style: z.enum(HOUSE_STYLE_IDS).optional().describe(`A house style to return in full: ${HOUSE_STYLE_IDS.join(", ")}.`),
@@ -124,7 +124,7 @@ export const guidance = defineOperation({
       rendering:
         "HTML is untrusted and shown in a sandboxed frame. Bounded inline scripts run; forms, frames, remote resources, same-origin access and navigating the parent are blocked. Use target=\"_blank\" rel=\"noopener noreferrer\" on every link; a link to another page of this Story (links.story_page) is shown in place by the app. Replace every REPLACE placeholder and adapt recipes to the content.",
       product_style: current
-        ? { name: current.name, based_on: current.based_on, summary: current.summary, etag: current.etag, read_with: 'story(action="get_style")', ...(retired ? { note: retired } : {}) }
+        ? { name: current.name, based_on: current.based_on, summary: current.summary, etag: current.etag, read_with: 'story_read(action="get_style")', ...(retired ? { note: retired } : {}) }
         : { none: true, next: "Settle the Story style with the person before the first page: see style_workflow." },
       links,
       links_note: LINKS_NOTE,
@@ -159,7 +159,7 @@ export const getStyle = defineOperation({
   mutates: false,
   summary: "The product's Story style: the design system every Story page follows, with its rules and stylesheet. Also lists the house styles.",
   description:
-    "Read this before writing or restyling any page, and follow its rules. A page published with body gets this stylesheet from WhatBuild, so you never send it; paste it into <style> yourself only for a page you send whole as html. style is null until someone sets one: then ask the person whether their company has a design system to follow, or offer a house style (guidance with house_style shows one in full), and save the choice with set_style. kind is house (adopted from a house style, possibly adapted) or team (the team's own design system). note appears when the style is based on a house style no longer in the catalogue, and says how to move to a current one. include_stylesheet false leaves the CSS out. To see a page in the style, preview it: the page a preview serves carries the stylesheet where publish puts it.",
+    "The design system every page follows: a page published with body gets this stylesheet from WhatBuild, so you never send it; paste it into <style> yourself only for a page you send whole as html. style is null until someone sets one with set_style: the team's own design system, or a house style (guidance with house_style shows one in full). kind is house (adopted from a house style, possibly adapted) or team (the team's own design system). note appears when the style is based on a house style no longer in the catalogue, and says how to move to a current one. include_stylesheet false leaves the CSS out. To see a page in the style, preview it: the page a preview serves carries the stylesheet where publish puts it.",
   input: z.strictObject({ include_stylesheet: z.boolean().default(true) }),
   rest: { method: "GET", path: "/story/style" },
   mcp: { tool: "story", action: "get_style" },
@@ -595,7 +595,7 @@ export const preview = defineOperation({
   mutates: false,
   summary: "Check a publish without publishing: the same call, every check publish makes, and a short-lived grant to GET the exact page it would store.",
   description:
-    `Send exactly what you would send to publish. preview makes every check publish makes, and refuses with the same error where publish would (422 invalid_html listing every problem, 409 stale_etag, 404 for an unknown from_version…); it creates no version, records no activity and changes nothing anyone sees. Otherwise it returns what publish would make (new_page, based_on_version, carried_forward, title, summary, html_chars, html_sha256) and a grant: GET url with exactly the headers given to receive the document publish would store, served as a published page is, in the same sandbox and with the carried typefaces embedded. Add ?theme=light or ?theme=dark for the app's light and dark schemes; without one the page follows the browser's. Open it in a browser at desktop width (1280) and phone width (390), in light and dark, and look at it; a headless browser takes the headers as extra HTTP headers (Playwright: new_context(extra_http_headers=headers, viewport=…)). When it looks right, send the same params to publish: its html_sha256 matches the preview's unless the page or the Story style changed in between. The grant expires (expires_at) and a product keeps its ${PREVIEWS_KEPT} newest previews; preview again for a new one. Keep the grant header out of reports and logs.`,
+    `Send exactly what you would send to publish. preview makes every check publish makes, and refuses with the same error where publish would (422 invalid_html listing every problem, 409 stale_etag, 404 for an unknown from_version…); it creates no version, records no activity and changes nothing anyone sees. Otherwise it returns what publish would make (new_page, based_on_version, carried_forward, title, summary, html_chars, html_sha256) and a grant: GET url with exactly the headers given to receive the document publish would store, served as a published page is, in the same sandbox and with the carried typefaces embedded. Add ?theme=light or ?theme=dark for the app's light and dark schemes; without one the page follows the browser's. The page can be opened in a browser at desktop width (1280) and phone width (390), in light and dark; a headless browser takes the headers as extra HTTP headers (Playwright: new_context(extra_http_headers=headers, viewport=…)). When it looks right, send the same params to publish: its html_sha256 matches the preview's unless the page or the Story style changed in between. The grant expires (expires_at) and a product keeps its ${PREVIEWS_KEPT} newest previews; preview again for a new one. Keep the grant header out of reports and logs.`,
   input: publishInput,
   rest: { method: "POST", path: "/story/pages/:page_id/preview" },
   mcp: { tool: "story", action: "preview" },
@@ -1118,7 +1118,7 @@ async function pageDeletion(ctx: OpContext, p: Awaited<ReturnType<typeof loadPag
       `Every version of the page (${p.version_count}) goes, with its HTML and notes. ` +
       (promoted.length ? `Its ${promoted.length} sub-page${promoted.length === 1 ? "" : "s"} move up into its place in the navigation. ` : "") +
       "Links to it from other pages stop opening. A mockup it shows is not touched.",
-    reversible_alternative: 'story(action="archive_page") takes it out of the navigation and erases nothing.',
+    reversible_alternative: 'story_write(action="archive_page") takes it out of the navigation and erases nothing.',
   };
 }
 
@@ -1144,14 +1144,14 @@ export const deletePage = defineOperation({
   mutates: true,
   summary: "DELETE PERMANENTLY — cannot be undone. Destroys a Story page with every version; archive_page is the reversible alternative.",
   description:
-    'Archiving (story(action="archive_page")) is the reversible alternative and almost always what is wanted. ' +
+    'Archiving (story_write(action="archive_page")) is the reversible alternative and almost always what is wanted. ' +
     DELETE_GUIDANCE.replace("the matching delete_impact", "delete_page_impact").replace("read delete_impact first", "read delete_page_impact first") +
     " Leaves a tombstone: reads return 410 with who, when and why, except to a reader, who is told only that there is no such page.",
   input: z.strictObject({ page_id: pageId, ...deleteGuards }),
   rest: { method: "DELETE", path: "/story/pages/:page_id" },
   mcp: { tool: "story", action: "delete_page" },
   async handler(ctx, input) {
-    checkConfirmation(input.confirm, 'archive it with story(action="archive_page")');
+    checkConfirmation(input.confirm, 'archive it with story_write(action="archive_page")');
     const p = await loadPage(ctx, input.page_id, true);
     checkEtag(input.expected_etag, p.etag, "story page");
     const impact = await pageDeletion(ctx, p);

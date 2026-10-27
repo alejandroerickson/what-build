@@ -28,8 +28,8 @@ jobs:
           node-version-file: .nvmrc
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - name: The embedded skill matches SKILL.md
-        run: node scripts/gen-skill.mjs && git diff --exit-code packages/core/src/skill/skill-text.ts
+      - name: The embedded guide matches its Markdown
+        run: node scripts/gen-guide.mjs && git diff --exit-code packages/core/src/guide/guide-text.ts
       - run: pnpm typecheck
       - run: pnpm test
       - run: pnpm build

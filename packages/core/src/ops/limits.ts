@@ -81,7 +81,7 @@ export const organizationLimits = defineOperation({
   mutates: false,
   summary: "An organization's plan, the limits on how often and how much people work in it, and what you have used of each today.",
   description:
-    "plan is free or unlimited. On the free plan everyone in the organization meets every limit, its owners included: limits lists each with its value, the free plan's, what it is counted over, the error a call over it receives and, for the daily ones, what you and everyone together have used today (used); a day is a UTC day and the allowances start again at allowances_restart_at. On the unlimited plan nobody meets them, and you_meet_them is false, but a day's use is counted all the same and given as used: an organization moved to the free plan during a day starts from what that day already used. In the example organization a guest meets only the limit on calls a minute. deployment_limits are the ones every organization has, whatever its plan, each with a key that stays the same. Only an instance owner changes a plan or a limit; tell the person to ask whoever runs this WhatBuild.",
+    "plan is free or unlimited. On the free plan everyone in the organization meets every limit, its owners included: limits lists each with its value, the free plan's, what it is counted over, the error a call over it receives and, for the daily ones, what you and everyone together have used today (used); a day is a UTC day and the allowances start again at allowances_restart_at. On the unlimited plan nobody meets them, and you_meet_them is false, but a day's use is counted all the same and given as used: an organization moved to the free plan during a day starts from what that day already used. In the example organization a guest meets only the limit on calls a minute. deployment_limits are the ones every organization has, whatever its plan, each with a key that stays the same. Only an instance owner, whoever runs this WhatBuild, changes a plan or a limit.",
   input: z.strictObject({ tenant }),
   rest: { method: "GET", path: "/limits" },
   mcp: { tool: "products", action: "limits" },
@@ -119,7 +119,7 @@ export const listOrganizations = defineOperation({
   mutates: false,
   summary: "Every organization on this instance, with its plan, who created it and what it used today (instance owners).",
   description:
-    "For the instance's owners: new_organization_plan, the plan an organization someone else creates gets on this deployment (WHATBUILD_NEW_ORGANIZATION_PLAN), and each organization with its slug (and former_slugs, the ones it had before), name, plan, whether it is the example organization, who created it and when, how many people hold a role in it, the limits an instance owner changed from the free plan's (changed_limits), and what everyone in it used today, whatever its plan. It names no product and holds none of an organization's content. Change a plan or a limit with products(action=\"set_limits\"), whose expected_etag is etag; rename an organization with products(action=\"rename_tenant\"), whose expected_etag is name_etag.",
+    "For the instance's owners: new_organization_plan, the plan an organization someone else creates gets on this deployment (WHATBUILD_NEW_ORGANIZATION_PLAN), and each organization with its slug (and former_slugs, the ones it had before), name, plan, whether it is the example organization, who created it and when, how many people hold a role in it, the limits an instance owner changed from the free plan's (changed_limits), and what everyone in it used today, whatever its plan. It names no product and holds none of an organization's content. Change a plan or a limit with products_write(action=\"set_limits\"), whose expected_etag is etag; rename an organization with products_write(action=\"rename_tenant\"), whose expected_etag is name_etag.",
   input: z.strictObject({}),
   rest: { method: "GET", path: "/organizations" },
   mcp: { tool: "products", action: "organizations" },
@@ -168,7 +168,7 @@ export const setOrganizationLimits = defineOperation({
   connection: "admin",
   summary: "Change an organization's plan, or any of its limits (instance owners).",
   description:
-    "Name the organization with tenant, its slug or id. plan is free (everyone in it meets the limits) or unlimited (nobody does). limits changes only the limits it names, from what they are now; reset_limits true first puts every limit back to the free plan's. A change applies to the next call anyone makes there. Pass expected_etag from products(action=\"organizations\") or products(action=\"limits\") once the organization's limits have been changed before; for one never changed, leave it out. Returns the organization's plan and limits as products(action=\"limits\") gives them.",
+    "Name the organization with tenant, its slug or id. plan is free (everyone in it meets the limits) or unlimited (nobody does). limits changes only the limits it names, from what they are now; reset_limits true first puts every limit back to the free plan's. A change applies to the next call anyone makes there. Pass expected_etag from products_read(action=\"organizations\") or products_read(action=\"limits\") once the organization's limits have been changed before; for one never changed, leave it out. Returns the organization's plan and limits as products_read(action=\"limits\") gives them.",
   input: z.strictObject({
     tenant,
     plan: z.enum(["free", "unlimited"]).optional(),
@@ -184,7 +184,7 @@ export const setOrganizationLimits = defineOperation({
     const row = await ctx.db.selectFrom("tenants").select(["limits_etag"]).where("tenant_id", "=", t.tenant_id).forUpdate().executeTakeFirstOrThrow();
     if (row.limits_etag) {
       if (!input.expected_etag)
-        throw conflict("stale_etag", `${t.name}'s limits have been changed before; read them with products(action="organizations") and pass their etag as expected_etag.`, { current_etag: row.limits_etag });
+        throw conflict("stale_etag", `${t.name}'s limits have been changed before; read them with products_read(action="organizations") and pass their etag as expected_etag.`, { current_etag: row.limits_etag });
       checkEtag(input.expected_etag, row.limits_etag, "organization's limits");
     } else if (input.expected_etag !== undefined)
       throw conflict("stale_etag", `${t.name}'s limits have never been changed, so there is no etag to match. Leave expected_etag out.`, { current_etag: null });

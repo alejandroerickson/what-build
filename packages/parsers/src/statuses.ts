@@ -32,11 +32,11 @@ export const RECORDING_DETAIL = "a recording is stored and playable but has no t
 
 /** An image's detail: WhatBuild reads no words from a picture, and says how an agent gives it its words. */
 export const IMAGE_DETAIL =
-  'WhatBuild reads no words from an image, as it performs no OCR; an agent that can see it should describe it in the source\'s summary, and write any words it shows as the source\'s text with derived(action="write_text") if search should find them';
+  'WhatBuild reads no words from an image, as it performs no OCR; an agent that can see it should describe it in the source\'s summary, and write any words it shows as the source\'s text with derived_write(action="write_text") if search should find them';
 
 /** A PDF with no text layer: its pages are pictures, and it is read as an image is. */
 export const SCAN_DETAIL =
-  'the PDF has no text layer: its pages are pictures, as a scan\'s are, and WhatBuild performs no OCR; an agent that can see its pages should read them and write the source\'s summary, and its text with derived(action="write_text") if search should find its words';
+  'the PDF has no text layer: its pages are pictures, as a scan\'s are, and WhatBuild performs no OCR; an agent that can see its pages should read them and write the source\'s summary, and its text with derived_write(action="write_text") if search should find its words';
 
 /** Why no parser reads a file. */
 export function unsupportedDetail(fileName: string, mediaType?: string | null): string {

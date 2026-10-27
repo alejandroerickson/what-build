@@ -51,7 +51,7 @@ export { isInstanceOwner, tenantAllowanceOf, type TenantAllowance } from "./tena
 export { PREVIEWS_KEPT, printDocument, printDocumentAt, printSelection, shownHtml, STORY_PREVIEW_PURPOSE } from "./ops/story.ts";
 export { CARD_PREVIEW_PURPOSE } from "./ops/outcomes.ts";
 export { MAX_MOCKUP_PAGES, MOCKUP_UPLOAD_PURPOSE, mockupBundle, readCanvasZip, stagedPrototypeKey, stagedPrototypeKeys } from "./ops/mockups.ts";
-export { SKILL_NAME, SKILL_VERSION, skillMarkdown } from "./ops/meta.ts";
+export { guideIndex, guideTopic, MCP_SERVER_NAME, TOOLS_VERSION, type GuideTopic } from "./ops/meta.ts";
 export { GUIDANCE_VERSION } from "./story-guidance.ts";
 export { HOUSE_STYLE_IDS, HOUSE_STYLES, houseSpecimen, houseStyle, pageDocument, specimenBody, styleSpecimen, type HouseStyle } from "./story-styles.ts";
 export { FRAME_SCRIPT, frameScript, THEME_ATTRIBUTE, withPrototypeFrame, withStoryFrame, withStoryTheme } from "./story-theme.ts";

@@ -22,7 +22,7 @@
     "typecheck": "tsc -p packages/parsers && tsc -p packages/core && tsc -p apps/server && tsc -p apps/web",
     "db:migrate": "NODE_ENV=development tsx apps/server/src/main.ts migrate",
     "db:seed": "NODE_ENV=development tsx apps/server/src/main.ts seed",
-    "gen:skill": "node scripts/gen-skill.mjs",
+    "gen:guide": "node scripts/gen-guide.mjs",
     "security": "node scripts/security.mjs",
     "check:publishable": "node scripts/check-publishable.mjs",
     "attention": "node scripts/attention.mjs",

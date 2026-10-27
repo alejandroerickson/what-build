@@ -195,14 +195,14 @@ describe("an agent connected at Edit", () => {
     await client.connect(new StreamableHTTPClientTransport(new URL(`${h.baseUrl}/mcp`), { requestInit: { headers: { authorization: `Bearer ${token}` } } }));
     const { tools } = await client.listTools();
     const actions = (name: string) => (tools.find((t) => t.name === name)?.inputSchema.properties?.["action"] as { enum: string[] }).enum;
-    expect(actions("products")).toContain("update_concept");
-    expect(actions("products")).not.toContain("update");
-    expect(actions("outcomes")).toContain("card_preview");
+    expect(actions("products_write")).toContain("update_concept");
+    expect(actions("products_write")).not.toContain("update");
+    expect(actions("outcomes_read")).toContain("card_preview");
     const product = P.replace("/api/v1/p/", "");
     const call = async (name: string, action: string, params: Record<string, unknown>) =>
       JSON.parse(((await client.callTool({ name, arguments: { action, product, params } })).content as { text: string }[])[0]!.text);
-    const read = await call("products", "get", { include_card: true });
-    const written = await call("products", "update_concept", { expected_etag: read.etag, concept: "Written by an agent at Edit.", card_html: FRONT });
+    const read = await call("products_read", "get", { include_card: true });
+    const written = await call("products_write", "update_concept", { expected_etag: read.etag, concept: "Written by an agent at Edit.", card_html: FRONT });
     expect(written.card_chars).toBe(FRONT.length);
     expect((await alice.api("GET", P)).body.concept).toBe("Written by an agent at Edit.");
     await client.close();

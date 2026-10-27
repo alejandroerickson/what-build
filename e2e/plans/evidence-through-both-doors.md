@@ -22,10 +22,10 @@ tried.
    holds a made-up word (synthetic, such as "quorvel") and does not mention the van checklist.
    Search the product first to make sure neither phrase appears anywhere yet.
 2. **MCP, as Sam, in the standard organization.** In a product that has sources, read the
-   product's tags (`sources` `facets`), then create a source for the transcript, tagged as an
+   product's tags (`sources_read` `facets`), then create a source for the transcript, tagged as an
    interview with the tag the product already uses for interviews, with an upload
-   (`attachments` `create_upload`), and PUT the file's bytes to the grant's URL with its headers.
-   *Expect:* each step answers as the skill describes; the PUT answers `201` with the
+   (`attachments_write` `create_upload`), and PUT the file's bytes to the grant's URL with its headers.
+   *Expect:* each step answers as its description and the guide (`guide(topic="evidence")`) say; the PUT answers `201` with the
    `attachment`, whose `note` says it is being read and will become the source's text, and that
    it is kept and never searched; no `complete_upload` is needed.
 3. **Web, as Sam.** Open Evidence. *Expect:* the new source is listed with its title and tags;
@@ -45,9 +45,9 @@ tried.
    from its menu, saying why, and restore it. *Expect:* archived, it leaves Comments, which offer
    "Show 1 archived comment"; that lists it muted, marked Archived, with when and why; Restore in
    its menu puts it back among the comments.
-6. **MCP, as Sam.** Read the source (`sources` `get` with `detail: "full"`), its comments, its
-   summary (`derived` `read_note`) and its text (`derived` `text`). Then `search` for the
-   corrected word, and read the text around the hit with `derived(action="text")` from a little
+6. **MCP, as Sam.** Read the source (`sources_read` `get` with `detail: "full"`), its comments, its
+   summary (`derived_read` `read_note`) and its text (`derived_read` `text`). Then `search` for the
+   corrected word, and read the text around the hit with `derived_read(action="text")` from a little
    before its `char_start`. *Expect:* `derived_status` is `ready` and `text.taken_from` is null,
    and `warnings` says the text was written or edited, so it follows no attachment and the
    transcript's own reading is kept but never searched;
@@ -55,21 +55,21 @@ tried.
    with Sam's correction and its speakers in bold; the hit names `field: "text"`, and the window
    around it holds the corrected word.
 7. **MCP, as Sam.** Upload the notes file as a second attachment of the same source
-   (`attachments` `request_upload`, then the PUT). Once it is read, `search` for the made-up word,
-   then read what was read from it with `derived(action="text", path=…)`. *Expect:* the upload's
+   (`attachments_write` `request_upload`, then the PUT). Once it is read, `search` for the made-up word,
+   then read what was read from it with `derived_read(action="text", path=…)`. *Expect:* the upload's
    note says the source already has a text, so this one is kept beside it and never searched;
    search finds nothing, and its `coverage` says "Attachments are never searched."; the
-   attachment's own text holds the made-up word, and `sources(action="get")`'s `warnings` names
+   attachment's own text holds the made-up word, and `sources_read(action="get")`'s `warnings` names
    both files as text the source's text does not use. On the web, Attachments lists both files,
    neither marked as the source's text, since Sam edited it in step 5, under a line saying the
    source's text was written here and follows no attachment.
 8. **MCP, as Sam.** Write the made-up word into the source's text with
-   `derived(action="write_text")` and `edits`, passing the etag from step 6 as `expected_etag`;
+   `derived_write(action="write_text")` and `edits`, passing the etag from step 6 as `expected_etag`;
    then again with the same old etag. *Expect:* the first answers with a new etag and a short
    `diff`; the second is refused with `409 stale_etag`, and nothing changed. `search` for the
    made-up word now finds the source, in `text`. Then rewrite the summary with
-   `derived(action="write_note", note_kind="summary")`, first without `expected_etag`, then with
-   the source's own etag as `sources(action="get")` gives it now (step 7's upload moved it on from
+   `derived_write(action="write_note", note_kind="summary")`, first without `expected_etag`, then with
+   the source's own etag as `sources_read(action="get")` gives it now (step 7's upload moved it on from
    step 6's), then with the etag `read_note` gave in step 6. *Expect:* the first two are refused
    with `409 stale_etag` and `current_etag`, the first saying to read the summary and pass its
    etag, the second that it is the source's etag; the third answers with a new etag, and the web
@@ -99,7 +99,7 @@ tried.
     nothing changed; the two organizations stay separate.
 15. **The free plan, as Riley and then Sam.** As Riley, on Organizations, put the standard
     organization on the free plan with Exports set to 0, and save. As Sam, read
-    `products(action="limits")` for it over MCP, then export the product, then open Plan and limits
+    `products_read(action="limits")` for it over MCP, then export the product, then open Plan and limits
     from the account menu in the web app. Then sign in to the web app as `guest@example.com`, open
     the account menu, and go to the example organization's `/t/<slug>/limits`. *Expect:* the limits
     say the plan is free and that Sam meets them, with what Sam used today; the export is refused

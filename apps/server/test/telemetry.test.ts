@@ -98,8 +98,8 @@ describe("a request's trace", () => {
 
   it("names an agent's client by its family and a refusal by its code, which is not an error", async () => {
     spans.reset();
-    expect((await agent.callTool({ name: "sources", arguments: { action: "list", product: slugs.join("/") } })).isError).toBeFalsy();
-    expect((await agent.callTool({ name: "sources", arguments: { action: "list", product: "no-such/team/product" } })).isError).toBe(true);
+    expect((await agent.callTool({ name: "sources_read", arguments: { action: "list", product: slugs.join("/") } })).isError).toBeFalsy();
+    expect((await agent.callTool({ name: "sources_read", arguments: { action: "list", product: "no-such/team/product" } })).isError).toBe(true);
     const operations = finished().filter((s) => s.name === "sources.list");
     expect(operations.map((s) => s.attributes["whatbuild.outcome"])).toEqual(["ok", expect.not.stringMatching(/^ok$/)]);
     for (const s of operations) {

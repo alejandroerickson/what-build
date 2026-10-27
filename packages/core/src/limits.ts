@@ -400,5 +400,5 @@ export async function countBytes(trx: Db, at: Tally, accountId: string, size: nu
 
 export function mayFetchUrl(lc: LimitContext): void {
   if (!lc.limits.fetch_url)
-    throw restricted(`Fetching a file from a URL is off on this organization's plan. Download the file yourself and upload it with attachments(action="request_upload").`);
+    throw restricted(`Fetching a file from a URL is off on this organization's plan. Download the file yourself and upload it with attachments_write(action="request_upload").`);
 }

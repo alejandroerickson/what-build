@@ -25,7 +25,7 @@ const archivedRefusal = (r: { status: number; body: { error: { code: string; mes
   expect(r.status, JSON.stringify(r.body)).toBe(409);
   expect(r.body.error.code).toBe("record_archived");
   expect(r.body.error.message).toContain(`Source ${recordId} is archived, and an archived source is read-only. Nothing was changed.`);
-  expect(r.body.error.message).toContain(`sources(action="restore", params={"record_ids": ["${recordId}"]}) or Restore on the source in the web app`);
+  expect(r.body.error.message).toContain(`sources_write(action="restore", params={"record_ids": ["${recordId}"]}) or Restore on the source in the web app`);
 };
 
 describe("a comment on an archived source", () => {

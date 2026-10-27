@@ -3,7 +3,7 @@ type: Decision
 title: WhatBuild contains no AI; agents bring the intelligence over MCP
 description: The product parses, stores, searches and checks deterministically; synthesis comes from the team's own agents.
 tags: [decision, architecture, mcp, agents]
-generated: {by: agent:claude, at: 2026-10-16}
+generated: {by: agent:claude, at: 2026-10-26}
 status: stable
 ---
 
@@ -28,6 +28,6 @@ Discovery synthesis needs a capable model, but a model inside the product means 
 ## Constrains
 
 - Any feature that would call a model from the server.
-- The agent skill, which teaches agents the workflow instead.
+- The agent guide (`packages/core/src/guide/`), which describes how WhatBuild works to the agent that does the thinking.
 
 Specified in: [01-product](../spec/01-product.md), [02-architecture](../spec/02-architecture.md).

@@ -17,7 +17,7 @@ const MAX_ATTEMPTS = 5;
  * What the reading of a file whose every attempt failed with an error says, recorded when the worker
  * gives the read up, so its attachment says it could not be read instead of "Reading" for good.
  */
-const READ_GIVEN_UP = `this file could not be read: reading it failed ${MAX_ATTEMPTS} times, so it was given up; the file is stored, and reading it again may help (Read it again in the web app, or derived(action="rederive"))`;
+const READ_GIVEN_UP = `this file could not be read: reading it failed ${MAX_ATTEMPTS} times, so it was given up; the file is stored, and reading it again may help (Read it again in the web app, or derived_write(action="rederive"))`;
 /** How often an instance looks whether the feedback digest is due. */
 const DIGEST_CHECK_MS = 10 * 60_000;
 /** How long a lock outlives the worker that took it before another worker may take the job. */

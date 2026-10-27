@@ -22,6 +22,9 @@ other plans will too.
    the product's settings, and Connect an agent; and search from the panel's Search field. Open one
    item in each list that has any: a source, a mockup, an assumption, a Story page. *Expect:* each
    screen loads with content or a designed empty state, and no command prints a `!` problem.
+   Connect an agent gives `/mcp` first, with **Limit this agent to one organization or product**
+   closed; opening it and choosing **One product** gives this product's address, and closing it
+   gives `/mcp` again.
 3. **Web, as Sam, in the example organization.** Open the same product and repeat a short tour:
    Idea, Evidence, a source, Story. *Expect:* the same content as in step 2, and one line above
    each screen saying that everyone who signs in reads what Sam writes there.
@@ -42,27 +45,30 @@ other plans will too.
    by their addresses. *Expect:* Jordan reaches the Story and reads its pages; every other address
    takes Jordan back to the Story (`okf/decisions/a-reader-reads-only-the-story.md`), without
    errors or a broken screen on the way.
-8. **MCP, as Sam.** `info`, then `tools`. *Expect:* the server names itself `whatbuild` with a
-   skill version; there are thirteen tools, `attachments` among them and no `files`, `sandbox` or
-   `read_passage`; the instructions say to start with `products(action="list")`. Call `get_skill`
-   and compare its version with the server's.
+8. **MCP, as Sam.** `info`, then `tools`. *Expect:* the server names itself `whatbuild` with its
+   tools version; each kind of object has a `_read` and a `_write` tool, and no `_delete` tool at
+   the default level; `attachments_write` is among them and there is no `files`, `sandbox`,
+   `read_passage`, `sources` or `get_skill`; every tool has a title, and each `_read` tool is marked
+   read-only and each `_write` tool destructive. The instructions name `products_read(action="list")`
+   and the `guide` tool, and ask nothing to be installed. Call `guide` and compare its
+   `tools_version` with the server's.
 9. **MCP, as Sam.** List products, then list sources, assumptions, mockups and Story pages
-   (`story` `list_pages`) in the product from step 2, and read the first window of one source's
-   text with `derived(action="text")`. *Expect:* the same items the web showed in step 2, with the
+   (`story_read` `list_pages`) in the product from step 2, and read the first window of one source's
+   text with `derived_read(action="text")`. *Expect:* the same items the web showed in step 2, with the
    same titles and counts, and the same words the source's Text showed.
 10. **Web and MCP, as a guest.** Sign in as `guest@example.com` on the web, then connect over MCP as
     the same address. *Expect:* the overview lists the example organization, marked Example
     organization and Read only, and, since the guest may not start one, says that for an
     organization of their own they ask whoever runs this WhatBuild; its products open with a notice that
     it is a worked example nothing in it can change; its Members shows no people.
-    `products(action="list")` lists the example's products with `your_role` guest and the tenant
+    `products_read(action="list")` lists the example's products with `your_role` guest and the tenant
     `example: true`; the tool list offers no write but `submit_feedback`, and no `create_tenant`;
     reading a source works, and its `scope` says `your_role` guest; creating one anyway is refused
     with `403 example_read_only`, which says that, since the guest may not start an organization,
     they ask whoever runs this WhatBuild for one, and not to call `create_tenant`.
 11. **MCP, as Jordan.** List the tools and the products, then try to list sources in a product, and
-    to search it. *Expect:* the tools are `story` and `products` (with `get_skill` and
-    `submit_feedback`), and no `sources`, `search`, `outcomes` or `members`; the products are listed
+    to search it. *Expect:* the tools are `story_read` and `products_read` (with `guide` and
+    `submit_feedback`), and no `sources_`, `outcomes_` or `members_` tool and no `search`; the products are listed
     with the role reader; both calls are refused with a clear error naming reader and viewer, not
     an empty result and never `unknown_action` or `unknown_tool`.
 12. **Web, any person.** At phone width (390 × 844) and in the dark theme, revisit the overview, a
