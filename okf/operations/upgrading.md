@@ -23,6 +23,10 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
 
 ## Unreleased
 
+Nothing yet.
+
+## v0.27.0
+
 - **An organization's owners are told when an instance owner makes it read-only or deletes it.**
   It concerns a deployment that sends mail, and asks nothing of it: moving an organization to the
   starting plan, where that makes it read-only, now mails each of its owners (but the instance
