@@ -4,10 +4,12 @@ title: Free organizations meet limits on how often and how much, and only instan
 description: An organization someone other than an instance owner creates gets the plan the deployment names, unlimited unless it names free; the free plan's limits are enforced in one layer for everyone in it.
 tags: [decision, limits, tenancy, sign-up, cost]
 generated: {by: agent:claude, at: 2026-10-26}
-status: stable
+status: deprecated
 ---
 
 # Free organizations meet limits on how often and how much, and only instance owners change an organization's plan or limits
+
+Superseded on 2026-10-26 by [Limits belong to plans, never to one organization, and each organization is on a plan of its own](limits-belong-to-plans-and-each-organization-is-on-a-plan-of-its-own.md).
 
 ## Context
 

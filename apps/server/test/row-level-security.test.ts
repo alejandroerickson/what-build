@@ -36,6 +36,8 @@ const NOT_TENANT_DATA: Record<string, string> = {
   oauth_tokens: "directory: OAuth tokens, which are a person's",
   tenant_allowances: "directory: how many organizations an address may create",
   interest: "the public site's interest form; nobody there belongs to an organization yet",
+  instance_settings: "what an instance owner sets for the whole deployment: the guests' settings and each plan's limits and price",
+  guest_passes: "a guest's place: accounts in no organization, reading the example as guests",
   feedback_counts: "how many reports a person sent today, for the daily limit; no organization, and never which reports",
   usage_calls: "how the service is used: counts of calls, naming no organization, product or person",
   usage_people: "who came back, under a pseudonym: no organization, product or account",

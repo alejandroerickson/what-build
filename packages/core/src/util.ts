@@ -10,6 +10,18 @@ export function newId(): string {
 
 export const ULID_PATTERN = /^[0-9A-HJKMNP-TV-Z]{26}$/;
 
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+/**
+ * A time's day in UTC, as people read it: "27 Oct 2027". What the server writes into a message
+ * (a refusal, a mail) is the same day the web app shows for the same time, which writes these
+ * days in UTC too rather than in each reader's zone.
+ */
+export function utcDay(iso: string): string {
+  const [y, m, d] = iso.slice(0, 10).split("-").map(Number);
+  return y && m && d ? `${d} ${MONTHS[m - 1]} ${y}` : iso;
+}
+
 /** A fresh opaque concurrency token. */
 export function newEtag(): string {
   return randomBytes(9).toString("base64url");

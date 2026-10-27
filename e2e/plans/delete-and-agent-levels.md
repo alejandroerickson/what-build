@@ -77,7 +77,7 @@ deletes only what it made itself in the run.
     `products_read` and `products_write` offer no `usage`, `organizations`, `accounts` or
     allowances, and their descriptions name none of them; `products_read(action="usage")` called anyway answers `403 forbidden`, saying
     only an owner of this WhatBuild can, never `unknown_action`. Riley, who owns this WhatBuild,
-    is offered all of them, `set_limits` included, and the descriptions say so.
+    is offered all of them, `set_plan` included, and the description says so.
 14. **MCP, as Jordan, on a connector scoped to a product of the standard organization**
     (`--endpoint /mcp/t/<org>/<team>/<product>`). List the tools. *Expect:* `story_read` and
     `products_read` (with `guide` and `submit_feedback`), and no `story_write`, no `sources_`,

@@ -122,7 +122,7 @@ H=$(mktemp -d); node scripts/hostile-files.mjs "$H"
 The script prints what each file is and what WhatBuild should record for it at the default
 limits: too large, failed for memory, or ready. Signed in to dev, upload each through the app as
 the one attachment of a source of its own, in a product of an organization on the unlimited plan
-made for the rehearsal; the free plan refuses files over 10 MB. Then check:
+made for the rehearsal; a plan with limits refuses files over its `file_max_bytes`. Then check:
 
 - Each source ends in the status the script printed (its Text and Attachments say it), within a
   couple of minutes, and no job is left waiting.
@@ -319,11 +319,16 @@ rm "$F"
 **6. Production's organizations**, by [refreshing the copy](#refreshing-the-copy). Its last step deploys
 the release, which names the service by it and makes the first restore point.
 
-**7. Production's example organization and plan**, as production names them (its
-`WHATBUILD_EXAMPLE_TENANT` and `WHATBUILD_NEW_ORGANIZATION_PLAN`; leave out one it does not set):
+**7. Production's example organization and plans**, as production names them (its
+`WHATBUILD_EXAMPLE_TENANT`, its plans file and `WHATBUILD_NEW_ORGANIZATION_PLAN`; leave out what it
+does not set). The plans file is the one production's `whatbuild-plans` secret holds, kept with the
+deployment's own settings ([Cloud Run](cloud-run.md)):
 
 ```bash
-gcloud run services update whatbuild --project $P --region $R --update-env-vars WHATBUILD_EXAMPLE_TENANT=<the same slug>,WHATBUILD_NEW_ORGANIZATION_PLAN=<the same plan>
+gcloud secrets create whatbuild-plans --project $P --data-file=<production's plans file>
+gcloud secrets add-iam-policy-binding whatbuild-plans --project $P --member "serviceAccount:whatbuild-runtime@$P.iam.gserviceaccount.com" --role roles/secretmanager.secretAccessor
+gcloud run services update whatbuild --project $P --region $R --update-secrets WHATBUILD_PLANS=whatbuild-plans:latest \
+  --update-env-vars WHATBUILD_EXAMPLE_TENANT=<the same slug>,WHATBUILD_NEW_ORGANIZATION_PLAN=<the same plan>
 ```
 
 **8. Record** the values in `.env` ([above](#its-values)). `$DEV_URL/api/v1/meta` names the

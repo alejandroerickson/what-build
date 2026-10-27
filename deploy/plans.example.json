@@ -1,0 +1,56 @@
+{
+  "plans": [
+    {
+      "id": "free",
+      "name": "Free",
+      "about": "For trying WhatBuild on one discovery.",
+      "price": null,
+      "limits": {
+        "requests_per_minute": 50,
+        "writes_per_minute": 30,
+        "writes_per_day": 150,
+        "sources_per_day": 10,
+        "exports_per_day": 3,
+        "org_writes_per_day": 300,
+        "file_max_bytes": "10 MB",
+        "bytes_per_day": "25 MB",
+        "org_bytes_per_day": "50 MB",
+        "text_max_chars": 200000,
+        "batch_max": 25,
+        "members_max": 2,
+        "products_max": 1,
+        "sources_max": 50,
+        "storage_max_bytes": "200 MB",
+        "sent_bytes_per_day": "300 MB",
+        "fetch_url": true,
+        "documents_only": true
+      }
+    },
+    {
+      "id": "pro",
+      "name": "Pro",
+      "about": "For a product team and its discoveries.",
+      "price": null,
+      "limits": {
+        "requests_per_minute": 300,
+        "writes_per_minute": 120,
+        "writes_per_day": 3000,
+        "sources_per_day": 200,
+        "exports_per_day": 20,
+        "org_writes_per_day": 20000,
+        "file_max_bytes": "100 MB",
+        "bytes_per_day": "1 GB",
+        "org_bytes_per_day": "2 GB",
+        "text_max_chars": 1000000,
+        "batch_max": 200,
+        "members_max": 10,
+        "products_max": null,
+        "sources_max": 2000,
+        "storage_max_bytes": "10 GB",
+        "sent_bytes_per_day": "1 GB",
+        "fetch_url": true,
+        "documents_only": false
+      }
+    }
+  ]
+}

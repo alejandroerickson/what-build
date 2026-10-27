@@ -8,11 +8,13 @@ import { resolveAliases, wrongFieldHint } from "./field-aliases.ts";
 import { exampleReadOnly, isGuest, resolveScope, type ScopeRef } from "./policy.ts";
 import type { Ports } from "./ports.ts";
 import { capRole, connectionNeeds, LEVEL_NAMES, levelAllows, type OpContext, type OperationDef, type Principal, type Scope } from "./registry.ts";
-import { admitCall, checkInput, countWrite, limitsFor, tallyOf } from "./limits.ts";
+import { enterAsGuest, guestWaiting, isGuestAccount } from "./guests.ts";
+import { admitCall, checkInput, checkTotals, countSent, countWrite, limitsFor, planName, tallyOf, UNLIMITED } from "./limits.ts";
 import { formatIssues, nullCharacterPaths, nullCharacterSentence, wordList } from "./schemas.ts";
 import { feedbackOff } from "./feedback.ts";
 import { isInstanceOwner } from "./tenant-allowance.ts";
 import { clientFamily, countCall } from "./usage.ts";
+import { utcDay } from "./util.ts";
 
 const tracer = trace.getTracer("whatbuild");
 
@@ -138,8 +140,31 @@ export function parseInput<I extends z.ZodType>(op: OperationDef<I>, raw: unknow
  * meets in `execute`, so a download is a call against the limit on calls a minute.
  */
 export async function admitRead(env: Env, principal: Principal, scope: Scope, name: string): Promise<void> {
+  if (isGuest(scope)) await admitGuestAccount(env, principal);
   const limits = await limitsFor(env.db, scope);
   if (limits) await admitCall(env.db, limits, principal, { name, mutates: false });
+}
+
+/**
+ * Let a guest account into the example organization, or refuse the call with how long to wait
+ * (`guests.ts`). Someone in an organization, allowed to start one or running the instance is not a
+ * guest account, and never waits.
+ */
+async function admitGuestAccount(env: Env, principal: Principal): Promise<void> {
+  if (!(await isGuestAccount(env.db, env.ports.config, principal))) return;
+  const pass = await enterAsGuest(env.db, principal.account_id);
+  if (pass.status !== "in") throw guestWaiting(pass);
+}
+
+/**
+ * For the routes that send a person bytes (an attachment, an export, a mockup's download): count
+ * them against the person's day, and refuse them where their organization's plan has sent its share,
+ * except an export, which is counted and always sent.
+ */
+export async function admitSend(env: Env, principal: Principal, scope: Scope, bytes: number, opts: { refuse?: boolean } = {}): Promise<void> {
+  if (!scope.tenant || bytes <= 0) return;
+  const limits = await limitsFor(env.db, scope);
+  await countSent(env.db, limits ?? tallyOf(scope.tenant.tenant_id), limits, principal.account_id, bytes, opts.refuse ?? true);
 }
 
 /**
@@ -206,6 +231,11 @@ async function run(
   if (connector) checkConnectorScope(connector, op, scope);
   // The example organization is read by everyone and changed by nobody but its members.
   if (op.mutates && isGuest(scope)) throw await exampleReadOnly(env.db, env.ports.config, principal, scope.tenant!.name, op.name);
+  // An organization back on the starting plan while its creator has another there keeps what it holds, to read and export, and takes nothing new.
+  if (op.mutates && scope.tenant?.read_only && !op.allowReadOnlyOrganization)
+    throw organizationReadOnly(scope.tenant.name, scope.tenant.read_only, planName(env.ports.config.newOrganizationPlan ?? UNLIMITED));
+  // A guest account comes into the example organization only while there is room for it.
+  if (isGuest(scope)) await admitGuestAccount(env, principal);
   const limits = await limitsFor(env.db, scope);
   if (limits) await admitCall(env.db, limits, principal, op);
   // A day's use is counted on every plan, so an organization moved to the free plan during a day meets what that day already used.
@@ -221,6 +251,7 @@ async function run(
     return (mode === "read" ? tx.setAccessMode("read only") : tx).execute(async (trx) => {
       if (scope.tenant) await sql`select set_config('app.tenant_id', ${scope.tenant.tenant_id}, true)`.execute(trx);
       if (tally && mode === "call") await countWrite(trx, tally, limits, principal, op, input);
+      if (limits && mode === "call") await checkTotals(trx, limits, op, input);
       return fn({
         principal,
         actor: actorOf(principal),
@@ -243,6 +274,16 @@ async function run(
   const result = await inTransaction((ctx) => op.handler(ctx, input as never, prepared), "call");
   if (enqueued) env.ports.notifyJobs?.();
   return { result, scope };
+}
+
+/** The refusal for a write in an organization that is read-only until it moves to another plan. */
+export function organizationReadOnly(name: string, readOnly: { since: string; kept_until: string | null }, startName: string): AppError {
+  const kept = readOnly.kept_until ? ` It is kept until ${utcDay(readOnly.kept_until)}.` : "";
+  return conflict(
+    "organization_read_only",
+    `${name} is read-only: it went back to the ${startName} plan while whoever started it already has a ${startName} organization. Everyone in it can still read and export it.${kept} Nothing was changed. To work in it again, ask the people who run this WhatBuild to move it to another plan.`,
+    { read_only_since: readOnly.since, kept_until: readOnly.kept_until },
+  );
 }
 
 /** The refusal for an agent whose connection is below what the operation needs. */

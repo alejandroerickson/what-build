@@ -1,0 +1,62 @@
+/* A guest's waiting page: where they stand, what it means, and the way out. */
+.waiting {
+  display: grid;
+  gap: var(--s-3);
+}
+.waiting > p {
+  margin: 0;
+  max-width: var(--measure);
+  line-height: var(--lh-body);
+}
+.waiting-status {
+  display: flex;
+  min-height: var(--h-sm);
+  align-items: center;
+}
+.waiting-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2) var(--s-4);
+  padding-top: var(--s-1);
+}
+.waiting-link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-1h);
+  color: var(--muted);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-medium);
+  text-decoration: none;
+}
+.waiting-link:hover {
+  color: var(--text);
+}
+.waiting > .btn {
+  justify-self: start;
+}
+
+/* Asking for an organization of one's own, and the line that says one is on the waitlist. */
+.ask-org-waiting {
+  display: inline-flex;
+  align-items: flex-start;
+  gap: var(--s-1h);
+  margin: 0;
+  max-width: var(--measure);
+  color: var(--muted);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-body);
+}
+.ask-org-waiting > .glyph {
+  flex: none;
+  margin-top: 0.2em;
+  color: var(--ok);
+}
+.overview-start-body {
+  display: grid;
+  justify-items: start;
+  gap: var(--s-3);
+}
+.overview-start-body > p {
+  margin: 0;
+}

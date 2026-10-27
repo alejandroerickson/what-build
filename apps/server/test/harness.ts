@@ -1,8 +1,9 @@
+import { fileURLToPath } from "node:url";
 import { createHash, randomBytes } from "node:crypto";
 import type { AddressInfo } from "node:net";
 import { serve, type ServerType } from "@hono/node-server";
 import pg from "pg";
-import { usageSettled, type UrlFetcher } from "@whatbuild/core";
+import { definedPlans, forgetSettings, json, usageSettled, type GuestSettings, type Limits, type UrlFetcher } from "@whatbuild/core";
 import { inject } from "vitest";
 import { MemoryBlobStore } from "../src/adapters/blobs.ts";
 import { MemoryMailer } from "../src/adapters/misc.ts";
@@ -10,6 +11,9 @@ import { createApp, createPorts } from "../src/app.ts";
 import { loadConfig, type ServerConfig } from "../src/config.ts";
 import { createDb, migrate } from "../src/database.ts";
 import { Worker } from "../src/worker.ts";
+
+/** The example plans file, which every harness offers unless a test says otherwise, as local development does. */
+export const EXAMPLE_PLANS = fileURLToPath(new URL("../../../deploy/plans.example.json", import.meta.url));
 
 export interface Harness {
   baseUrl: string;
@@ -76,7 +80,7 @@ export async function startHarness(overrides: Partial<ServerConfig> | ((baseUrl:
   // The server's tests for the documents the app shows run again with a content site
   // (vitest.config.ts, project server-content-site), which names the server by another host.
   const site = process.env["WHATBUILD_TEST_CONTENT_SITE"] === "1" ? { contentUrl: baseUrl.replace("localhost", "127.0.0.1") } : {};
-  const config: ServerConfig = { ...loadConfig({ NODE_ENV: "test", WHATBUILD_PUBLIC_URL: baseUrl, DATABASE_URL: url }), mailer: "memory", blobStore: "memory", defaultTenantAllowance: 100, ...site, ...(typeof overrides === "function" ? overrides(baseUrl) : overrides) };
+  const config: ServerConfig = { ...loadConfig({ NODE_ENV: "test", WHATBUILD_PUBLIC_URL: baseUrl, DATABASE_URL: url, WHATBUILD_PLANS: EXAMPLE_PLANS }), mailer: "memory", blobStore: "memory", defaultTenantAllowance: 100, ...site, ...(typeof overrides === "function" ? overrides(baseUrl) : overrides) };
   const blobs = new MemoryBlobStore();
   const mailer = new MemoryMailer();
   let worker: Worker | null = null;
@@ -175,4 +179,41 @@ export async function startHarness(overrides: Partial<ServerConfig> | ((baseUrl:
       await pool.end();
     },
   };
+}
+
+/**
+ * Run `fn` with a plan's limits changed, as a change to the code would change them for every
+ * organization on the plan, and put them back after. The server runs in the test's process.
+ */
+export async function withPlanLimits<T>(plan: string, patch: Partial<Limits>, fn: () => Promise<T>): Promise<T> {
+  const limits = definedPlans().find((p) => p.id === plan)!.limits;
+  const before = { ...limits };
+  Object.assign(limits, patch);
+  try {
+    return await fn();
+  } finally {
+    Object.assign(limits, before);
+  }
+}
+
+/**
+ * Run `fn` with the guests' settings changed, as an instance owner would change them on the
+ * instance's page, and put them back after.
+ */
+export async function withGuestSettings<T>(h: Pick<Harness, "db">, patch: Partial<GuestSettings>, fn: () => Promise<T>): Promise<T> {
+  const before = await h.db.selectFrom("instance_settings").selectAll().where("key", "=", "guests").executeTakeFirst();
+  const value = { ...((before?.value as Record<string, unknown>) ?? {}), ...patch };
+  await h.db
+    .insertInto("instance_settings")
+    .values({ key: "guests", value: json(value), etag: "test" })
+    .onConflict((oc) => oc.column("key").doUpdateSet({ value: json(value) }))
+    .execute();
+  forgetSettings();
+  try {
+    return await fn();
+  } finally {
+    if (before) await h.db.updateTable("instance_settings").set({ value: json(before.value), etag: before.etag }).where("key", "=", "guests").execute();
+    else await h.db.deleteFrom("instance_settings").where("key", "=", "guests").execute();
+    forgetSettings();
+  }
 }

@@ -1142,6 +1142,7 @@ export const deletePage = defineOperation({
   scope: "product",
   access: "admin",
   mutates: true,
+  allowReadOnlyOrganization: true,
   summary: "DELETE PERMANENTLY — cannot be undone. Destroys a Story page with every version; archive_page is the reversible alternative.",
   description:
     'Archiving (story_write(action="archive_page")) is the reversible alternative and almost always what is wanted. ' +

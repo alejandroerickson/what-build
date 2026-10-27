@@ -2,12 +2,13 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { api, ApiError } from "../lib/api.ts";
 import { formatDate } from "../lib/format.ts";
+import { planWord, usePlans } from "../lib/limits.ts";
 import { useMe } from "../lib/session.tsx";
 import { usePageTitle } from "../shell/slots.tsx";
 import {
   Button, ButtonLink, ChoiceRow, Dialog, EmptyState, ErrorCallout, ListRow, Loading, Sheet, SheetBody, SheetHeader, StatusBadge, TextField, useToast,
 } from "../ui/index.tsx";
-import { InstanceOrganizationsSheet } from "./limits.tsx";
+import { InstanceGuestsSheet, InstanceOrganizationsSheet, InstancePlansSheet } from "./limits.tsx";
 import "../styles/screens/instance.css";
 
 interface Allowance {
@@ -21,22 +22,36 @@ interface Allowance {
   updated_at: string;
   updated_by: { display_name: string };
 }
+/** Someone who asked for an organization of their own, from the app or the public site, and has no allowance yet. */
+interface Asking {
+  email: string;
+  name: string | null;
+  organization: string | null;
+  note: string | null;
+  asked_at: string;
+  account: { account_id: string; display_name: string } | null;
+}
 interface Allowances {
   instance_owners: string[];
   default_allowed: number;
+  /** The plan whose organizations an allowance counts: the one new organizations start on. */
+  new_organization_plan: string;
   items: Allowance[];
+  waitlist: Asking[];
 }
 
 const A = "/api/v1/tenant-allowances";
 
-function organizations(n: number) {
-  return n === 1 ? "1 organization" : `${n.toLocaleString("en-US")} organizations`;
+/** "1 Free organization", "3 organizations": what an allowance counts, named by the plan it counts on, if any. */
+function organizations(n: number, kindName?: string | null) {
+  const kind = kindName ? `${kindName} ` : "";
+  return n === 1 ? `1 ${kind}organization` : `${n.toLocaleString("en-US")} ${kind}organizations`;
 }
 
 /**
  * `/instance`: for the owners of this WhatBuild, who decide who may create organizations and how
- * many (being in an organization never lets anyone create one, so this is the only way in), and
- * each organization's plan and limits.
+ * many (being in an organization never lets anyone create one, so this is the only way in), each
+ * organization's plan, the plans offered and their limits, and how guests come in.
  */
 export function InstancePage() {
   const me = useMe();
@@ -44,6 +59,8 @@ export function InstancePage() {
   const toast = useToast();
   usePageTitle("Organizations");
   const owner = me.data?.tenant_allowance.instance_owner ?? false;
+  const plans = usePlans();
+  const offered = Boolean(plans.data?.plans.length);
   const q = useQuery({ queryKey: ["tenant-allowances"], queryFn: () => api<Allowances>("GET", A), enabled: owner });
   const [editing, setEditing] = useState<Allowance | "new" | null>(null);
   const [removing, setRemoving] = useState<Allowance | null>(null);
@@ -73,9 +90,15 @@ export function InstancePage() {
     );
 
   const items = q.data?.items ?? [];
+  // What an allowance counts: organizations on the plan new ones start on, named, where that is one the deployment defines.
+  const start = q.data?.new_organization_plan;
+  const kindName = start && start !== "unlimited" && plans.data ? planWord(start, plans.data.plans) : null;
   return (
     <>
     <InstanceOrganizationsSheet />
+    {offered ? <InstancePlansSheet /> : null}
+    {/* Guests read the example organization, so there are none without one. */}
+    {plans.data?.example ? <InstanceGuestsSheet /> : null}
     <Sheet labelledBy="instance-title">
       <SheetHeader
         level={2}
@@ -90,11 +113,13 @@ export function InstancePage() {
       />
       <SheetBody className="instance-intro">
         <p className="muted">
-          Each person listed can start organizations up to the number they&rsquo;re given. Owners can start any number.
+          {kindName
+            ? `Each person listed can have as many ${kindName} organizations as they’re given; moving one to another plan frees its place. Owners can start any number.`
+            : "Each person listed can start organizations up to the number they’re given. Owners can start any number."}
         </p>
         {q.data ? (
           <p className="muted">
-            Everyone else can start {q.data.default_allowed ? organizations(q.data.default_allowed) : "none"}. Owners: {q.data.instance_owners.join(", ")}. Both are set where the service is deployed.
+            Everyone else can start {q.data.default_allowed ? organizations(q.data.default_allowed, kindName) : "none"}. Owners: {q.data.instance_owners.join(", ")}. Both are set where the service is deployed.
           </p>
         ) : null}
       </SheetBody>
@@ -120,7 +145,7 @@ export function InstancePage() {
               }
               sub={
                 <>
-                  Can start {a.allowed ? organizations(a.allowed) : "none"}; has started {a.created}. Set by {a.updated_by.display_name}, {formatDate(a.updated_at)}.
+                  Can have {a.allowed ? organizations(a.allowed, kindName) : "none"}; has {a.created}. Set by {a.updated_by.display_name}, {formatDate(a.updated_at)}.
                   {a.note ? ` ${a.note}` : ""}
                 </>
               }
@@ -146,7 +171,7 @@ export function InstancePage() {
           onClose={() => setRemoving(null)}
           dismissable={!remove.isPending}
           title={`Return ${removing.email} to the default?`}
-          description={`They can then start ${q.data?.default_allowed ? organizations(q.data.default_allowed) : "no organizations"}, counting the ${removing.created} they’ve started. Those stay as they are.`}
+          description={`They can then have ${q.data?.default_allowed ? organizations(q.data.default_allowed, kindName) : "no organizations"}, counting the ${removing.created} they have. Those stay as they are.`}
           footer={
             <>
               <Button onClick={() => setRemoving(null)} disabled={remove.isPending}>
@@ -162,7 +187,77 @@ export function InstancePage() {
         </Dialog>
       ) : null}
     </Sheet>
+    {plans.data?.example || q.data?.waitlist.length ? <Waitlist q={q} /> : null}
     </>
+  );
+}
+
+/**
+ * The people who asked for an organization of their own and have no allowance yet, earliest first.
+ * Letting one start one gives them an allowance of 1 and emails them where to start.
+ */
+function Waitlist({ q }: { q: ReturnType<typeof useQuery<Allowances>> }) {
+  const qc = useQueryClient();
+  const toast = useToast();
+  const letIn = useMutation({
+    mutationFn: (a: Asking) => api<{ notified: boolean }>("PUT", A, { email: a.email, allowed: 1, notify: true }),
+    onSuccess: (r, a) => {
+      void qc.invalidateQueries({ queryKey: ["tenant-allowances"] });
+      toast(`${a.account?.display_name ?? a.name ?? a.email} can start an organization.${r.notified ? " They’ll get an email." : ""}`);
+    },
+  });
+  const items = q.data?.waitlist ?? [];
+  return (
+    <Sheet labelledBy="waitlist-title">
+      <SheetHeader level={2} id="waitlist-title" title="Waitlist" count={q.data ? items.length : undefined} />
+      <SheetBody className="instance-intro">
+        <p className="muted">People who asked for an organization of their own, as guests in the app or on the public site, earliest first.</p>
+      </SheetBody>
+      {q.isPending ? (
+        <Loading label="Loading the waitlist…" lines={2} />
+      ) : q.isError ? null : !items.length ? (
+        <EmptyState size="inline" title="Nobody is waiting" />
+      ) : (
+        <div className="instance-rows">
+          {items.map((a) => (
+            <ListRow
+              key={a.email}
+              className="instance-row"
+              title={
+                <>
+                  {a.account?.display_name ?? a.name ?? a.email}
+                  {a.account?.display_name ?? a.name ? <span className="muted"> · {a.email}</span> : null}
+                </>
+              }
+              sub={
+                <>
+                  {[a.organization, `asked ${formatDate(a.asked_at)}`, a.account ? "signed up" : "no account yet"].filter(Boolean).join(" · ")}
+                  {a.note ? <span className="instance-note">{a.note}</span> : null}
+                </>
+              }
+              end={
+                <span className="instance-row-end">
+                  <Button
+                    size="sm"
+                    busy={letIn.isPending && letIn.variables?.email === a.email}
+                    disabled={letIn.isPending}
+                    onClick={() => letIn.mutate(a)}
+                    aria-label={`Let ${a.account?.display_name ?? a.name ?? a.email} start an organization`}
+                  >
+                    Let them start one
+                  </Button>
+                </span>
+              }
+            />
+          ))}
+        </div>
+      )}
+      {letIn.isError ? (
+        <SheetBody>
+          <ErrorCallout inset error={letIn.error} />
+        </SheetBody>
+      ) : null}
+    </Sheet>
   );
 }
 

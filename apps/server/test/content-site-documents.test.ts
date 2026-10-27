@@ -4,7 +4,7 @@ import { HmacGrantSigner } from "../src/adapters/misc.ts";
 import { createApp, createPorts } from "../src/app.ts";
 import { addressInstruction } from "../src/mcp.ts";
 import { syncExampleTenant } from "../src/example-organization.ts";
-import { startHarness, type Browser, type Harness } from "./harness.ts";
+import { startHarness, withGuestSettings, withPlanLimits, type Browser, type Harness } from "./harness.ts";
 
 // With a content site (WHATBUILD_CONTENT_URL), no route on the app's origin answers with a document
 // of people's or agents' HTML, or with a PDF to show inline: the app's route makes its checks, then
@@ -392,10 +392,11 @@ describe("a document in the example organization", () => {
       const r = await open(address);
       expect(r.status).toBe(200);
       expect(await r.text()).toContain("<h1>Welcome</h1>");
-      // A guest meets the limit on calls a minute at the app's address; the content site counts nothing more.
-      await h.db.updateTable("tenants").set({ limits: JSON.stringify({ requests_per_minute: 0 }) }).where("tenant_id", "=", t.body.tenant.tenant_id).execute();
-      expect((await atApp(guest, `${Q}/story/pages/welcome/versions/1/html`)).status).toBe(429);
-      expect((await open(address)).status).toBe(200);
+      // A guest meets the guests' calls a minute at the app's address; the content site counts nothing more.
+      await withGuestSettings(h, { requests_per_minute: 0 }, async () => {
+        expect((await atApp(guest, `${Q}/story/pages/welcome/versions/1/html`)).status).toBe(429);
+        expect((await open(address)).status).toBe(200);
+      });
       // The example's own people are on its plan, which is unlimited.
       expect((await atApp(owner, `${Q}/story/pages/welcome/versions/1/html`)).status).toBe(302);
       await syncExampleTenant(h.db, null, () => {});
@@ -410,12 +411,14 @@ describe("a document in a free organization", () => {
   it("counts against its limits once, at the app's address, and not again on the content site", async () => {
     const tenantId = claimsOf(await addressFor(alice, `${P}/story/pages/overview/versions/1/html`))["t"] as string;
     const address = await addressFor(alice, `${P}/story/pages/overview/versions/1/html`);
-    await h.db.updateTable("tenants").set({ plan: "free", limits: JSON.stringify({ requests_per_minute: 0 }) }).where("tenant_id", "=", tenantId).execute();
+    await h.db.updateTable("tenants").set({ plan: "free" }).where("tenant_id", "=", tenantId).execute();
     try {
-      expect((await atApp(alice, `${P}/story/pages/overview/versions/1/html`)).status).toBe(429);
-      expect((await open(address)).status).toBe(200);
+      await withPlanLimits("free", { requests_per_minute: 0 }, async () => {
+        expect((await atApp(alice, `${P}/story/pages/overview/versions/1/html`)).status).toBe(429);
+        expect((await open(address)).status).toBe(200);
+      });
     } finally {
-      await h.db.updateTable("tenants").set({ plan: "unlimited", limits: "{}" }).where("tenant_id", "=", tenantId).execute();
+      await h.db.updateTable("tenants").set({ plan: "unlimited" }).where("tenant_id", "=", tenantId).execute();
     }
   });
 });

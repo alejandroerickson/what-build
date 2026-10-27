@@ -20,8 +20,9 @@ corepack pnpm dev
 `pnpm dev` (`apps/server/src/dev.ts`) starts an embedded Postgres on `:54329` (data in
 `.what-build/pg`), runs migrations and seeds the synthetic Crewboard product, then runs the API on
 `:8787`, the job worker in-process, and Vite on `:5273`. Open http://localhost:5273 and use the
-development sign-in (Riley Chen, Sam Okafor, or Jordan Ellis, a reader who sees only Crewboard's
-Story). Riley is the instance's owner
+development sign-in, which offers every account on the server with what it is there: the sample's
+people first (Riley Chen, Sam Okafor, or Jordan Ellis, a reader who sees only Crewboard's Story),
+then anyone you have signed in as since, newest first. Riley is the instance's owner
 (`WHATBUILD_INSTANCE_OWNERS` defaults to Riley's address here), so Riley sees **Organization
 creators**, where the seed lets Sam create one organization. Files go to `.what-build/blobs`; sign-in links are
 printed to the terminal.
@@ -80,18 +81,26 @@ refuses to start as a database role that bypasses row-level security.
 Over plain HTTP the session cookie is `wb_session`; a deployment served over HTTPS uses
 `__Host-wb_session` ([§3.8](../spec/03-accounts-teams-and-identity.md#38-identity-of-the-caller)).
 
-## The example organization and the free plan, locally
+## The example organization and the plans, locally
 
 `pnpm dev` makes the sample organization, `harbor-labs`, the example organization every account
-reads ([§3.10](../spec/03-accounts-teams-and-identity.md#310-the-example-organization)), and puts
-every organization someone other than an instance owner creates on the free plan
-([§9.7](../spec/09-data-lifecycle.md)), as a deployment open to the public does. The sample people are members
+reads ([§3.10](../spec/03-accounts-teams-and-identity.md#310-the-example-organization)), offers
+the plans in [`deploy/plans.example.json`](../../deploy/plans.example.json), Free and Pro
+(`WHATBUILD_PLANS`), and puts every organization someone other than an instance owner creates on
+its `free` plan ([§9.7](../spec/09-data-lifecycle.md#97-plans-and-limits)), as a deployment open to
+the public does. The sample people are members
 of `harbor-labs` and work there as anywhere; to see it as a guest, use the development sign-in's "As
 the email above" with any other address, such as `guest@example.com`. Sam Okafor may start one
-organization, which starts on the free plan; Riley Chen, the instance's owner, changes its plan and
-limits on `/instance`. `WHATBUILD_EXAMPLE_TENANT=<slug>` names another organization, and an empty
-`WHATBUILD_EXAMPLE_TENANT=` turns the example off; `WHATBUILD_NEW_ORGANIZATION_PLAN=unlimited`
-starts new organizations unlimited, as a self-hosted deployment does.
+organization, which starts on the example file's Free plan (two people, one product, 50 sources, 200 MB); Riley
+Chen, the instance's owner, moves it to another plan on `/instance`, where the plans are compared too.
+`WHATBUILD_EXAMPLE_TENANT=<slug>` names another organization, and an empty
+`WHATBUILD_EXAMPLE_TENANT=` turns the example off; `WHATBUILD_PLANS=<path>` offers other plans,
+and an empty `WHATBUILD_PLANS=` with `WHATBUILD_NEW_ORGANIZATION_PLAN=unlimited` offers none, as a
+self-hosted deployment does, so every organization is unlimited and the app says nothing of plans. Riley sets a plan's price and
+limits, and the guests' settings, on `/instance`. The plans page is at `/plans`, and the public
+site's at `/site/plans/`. Guests: with **Anyone can sign up as a guest** on, the development
+sign-in's "As the email above" with a new address is a guest account; with **Guests in at once** at
+1, a second guest in another browser sees the waiting page.
 
 ## Many people
 
@@ -107,7 +116,7 @@ time, all at `example.com` or a `.example` domain:
 
 | Who | Of 100 |
 |---|---|
-| Owners of the organizations they started on an allowance, one each; the organizations are on the free plan, one big, a few middling, the rest small, each with a domain of its own | 8 |
+| Owners of the organizations they started on an allowance, one each; one organization big, a few middling, the rest small, each with a domain of its own and on the smallest of the example file's plans that holds its people, invitations included (Free, Pro, or unlimited past Pro) | 8 |
 | Members of one organization or, at `example.com`, two or three; admins among them, and a second owner of the biggest | 46 |
 | Signed in, in no organization, a third of them with an allowance unused | 10 |
 | Invited, not signed in yet: the invitations are waiting | 12 |
@@ -116,8 +125,8 @@ time, all at `example.com` or a `.example` domain:
 
 They are made through the running instance, as its people would make them: each signs in through
 the development sign-in, Riley Chen (the instance's owner) gives the allowances without their
-notices, owners start their organizations and grant roles and invite, and their writes meet the
-free plan's limits, whose waits it sits out. So attribution, activity and limits are as in real use.
+notices, owners start their organizations, Riley moves each to the plan that holds its people, and
+owners grant roles and invite; their writes meet their plan's limits, whose waits it sits out. So attribution, activity and limits are as in real use.
 At the end it prints everyone by what they are. Sign in as any of them with the development
 sign-in's "As the email above".
 

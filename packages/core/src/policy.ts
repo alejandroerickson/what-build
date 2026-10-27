@@ -281,7 +281,7 @@ export async function resolveScope(
   // A tenant is an organization wherever a person may read the answer, as in the web app.
   const hidden = () => notFound(`No such ${opScope === "tenant" ? "organization" : opScope} is visible to you. It may not exist, or you may not be a member.`);
 
-  let tenant: { tenant_id: string; slug: string; name: string; status: string; example: boolean; plan: string } | undefined;
+  let tenant: { tenant_id: string; slug: string; name: string; status: string; example: boolean; plan: string; read_only_since: string | null; kept_until: string | null } | undefined;
   let team: { team_id: string; slug: string; name: string; tenant_id: string } | undefined;
   let product:
     | { product_id: string; slug: string; name: string; archived_at: string | null; team_id: string; tenant_id: string }
@@ -309,7 +309,7 @@ export async function resolveScope(
     }
     if (!product) throw hidden();
     team = await db.selectFrom("teams").select(["team_id", "slug", "name", "tenant_id"]).where("team_id", "=", product.team_id).executeTakeFirst();
-    tenant = await db.selectFrom("tenants").select(["tenant_id", "slug", "name", "status", "example", "plan"]).where("tenant_id", "=", product.tenant_id).executeTakeFirst();
+    tenant = await db.selectFrom("tenants").select(["tenant_id", "slug", "name", "status", "example", "plan", "read_only_since", "kept_until"]).where("tenant_id", "=", product.tenant_id).executeTakeFirst();
   } else if (opScope === "team") {
     if (!ref.tenant || !ref.team) throw invalid("team_required", "This call needs a team, as tenant/team.");
     team = await db
@@ -320,17 +320,21 @@ export async function resolveScope(
       .where(sql<boolean>`(tm.slug = ${ref.team} or tm.team_id = ${ref.team})`)
       .executeTakeFirst();
     if (!team) throw hidden();
-    tenant = await db.selectFrom("tenants").select(["tenant_id", "slug", "name", "status", "example", "plan"]).where("tenant_id", "=", team.tenant_id).executeTakeFirst();
+    tenant = await db.selectFrom("tenants").select(["tenant_id", "slug", "name", "status", "example", "plan", "read_only_since", "kept_until"]).where("tenant_id", "=", team.tenant_id).executeTakeFirst();
   } else {
     if (!ref.tenant) throw invalid("tenant_required", "This call needs a tenant.");
     tenant = await db
       .selectFrom("tenants")
-      .select(["tenant_id", "slug", "name", "status", "example", "plan"])
+      .select(["tenant_id", "slug", "name", "status", "example", "plan", "read_only_since", "kept_until"])
       .where("tenant_id", "=", tenantNamed(ref.tenant))
       .executeTakeFirst();
   }
   if (!tenant) throw hidden();
-  const tenantRef = { tenant_id: tenant.tenant_id, slug: tenant.slug, name: tenant.name, plan: tenant.plan as Plan, ...(tenant.example ? { example: true } : {}) };
+  const tenantRef = {
+    tenant_id: tenant.tenant_id, slug: tenant.slug, name: tenant.name, plan: tenant.plan as Plan,
+    ...(tenant.example ? { example: true } : {}),
+    ...(tenant.read_only_since ? { read_only: { since: tenant.read_only_since, kept_until: tenant.kept_until } } : {}),
+  };
   // The instance's owners see every organization already (products.organizations).
   if (asInstanceOwner && opScope === "tenant") return { tenant: tenantRef, team: null, product: null, role: null, tenantRole: "owner" };
 

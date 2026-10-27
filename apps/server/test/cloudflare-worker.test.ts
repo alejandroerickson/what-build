@@ -14,6 +14,30 @@ const env = {
 afterEach(() => vi.unstubAllGlobals());
 
 describe("the Cloudflare Worker", () => {
+  it("serves the site's plans page from the build, with the plans the service gives through the cache", async () => {
+    const asked: { path: string; cf?: unknown; key: string | null }[] = [];
+    vi.stubGlobal("fetch", vi.fn(async (r: Request, init?: { cf?: unknown }) => (asked.push({ path: new URL(r.url).pathname, cf: init?.cf, key: r.headers.get("x-whatbuild-edge-key") }), new Response('{"plans":[{"id":"pro","price":"$10 a \\"month\\""}]}'))));
+    const built: string[] = [];
+    const ASSETS = { fetch: async (r: Request) => (built.push(new URL(r.url).pathname), new Response("<html><head></head><body>plans</body></html>", { headers: { "Content-Type": "text/html" } })) };
+    for (const path of ["/plans", "/plans/"]) {
+      const res = await worker.fetch(new Request(`https://example.com${path}`), { ...env, ASSETS, EDGE_KEY: "the deployment's edge key" });
+      expect(res.status).toBe(200);
+      expect(await res.text()).toContain('<meta name="whatbuild-site" content="{&quot;plans&quot;:[{&quot;id&quot;:&quot;pro&quot;,&quot;price&quot;:&quot;$10 a \\&quot;month\\&quot;&quot;}]}" />');
+    }
+    expect(built).toEqual(["/site/plans/", "/site/plans/"]);
+    // Only the plans are asked of the service, through Cloudflare's cache, with the edge key.
+    expect(asked.map((a) => a.path)).toEqual(["/api/v1/plans", "/api/v1/plans"]);
+    expect(asked[0]).toMatchObject({ cf: { cacheTtl: 3600, cacheEverything: true }, key: "the deployment's edge key" });
+  });
+
+  it("serves the site's pages as the build has them when the service does not answer", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("down", { status: 503 })));
+    const ASSETS = { fetch: async () => new Response("<html><head></head><body>front</body></html>", { headers: { "Content-Type": "text/html" } }) };
+    const res = await worker.fetch(new Request("https://example.com/"), { ...env, ASSETS });
+    expect(res.status).toBe(200);
+    expect(await res.text()).not.toContain("whatbuild-site");
+  });
+
   it("answers paths the app never serves itself, so scanners never wake the service", async () => {
     const forwarded = vi.fn(async () => new Response("from the service"));
     vi.stubGlobal("fetch", forwarded);

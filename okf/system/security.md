@@ -29,7 +29,7 @@ holds each one; the linked decisions say why. Observed in the code on 2026-10-10
 | Anyone on the internet | The public endpoints: sign-in, OAuth discovery and registration, the site | An account, a foothold, the service down |
 | A member of another organization | An account, a session or an agent's token | Another organization's material |
 | A member with a lower role | A reader, viewer or product-only grant | More than the role allows; another product |
-| Any signed-in account | A session or an agent's token, and with it a guest's read of the example organization | To change the example, see who is in it, or spend more than its share of a free plan |
+| Any signed-in account | A session or an agent's token, and with it a guest's read of the example organization; anyone, while guests may sign up themselves | To change the example, see who is in it, or spend more than its share of a free plan or of the guests' places |
 | A misled or malicious agent | Its person's token; instructions possibly planted in a source by someone in an organization its person belongs to | What its person can reach, used against them |
 | An author of hostile content | A Story or mockup page, an uploaded or fetched file | Script in the app's origin; the parsers; the network behind the server |
 | An MCP client passing as another | A registration of its own | A person's consent |
@@ -150,7 +150,7 @@ holds each one; the linked decisions say why. Observed in the code on 2026-10-10
   web session changes a level (`PATCH /api/v1/me/agents/…`); REST refuses bearer tokens, so an
   agent cannot raise its own. The person's feedback switch on a connection works the same way: off,
   `submit_feedback` is neither listed nor answered (`403 feedback_off`). Deleting an organization is refused to anything but a person in the
-  web app (`403 web_only`) and never listed to an agent.
+  web app (`403 web_only`), one of its owners or an instance owner, and never listed to an agent.
 - An agent is offered only what its person could do. The instance owners' actions are listed to
   them alone; a scoped connector lists only what its fence answers and the person's roles inside
   it reach, and the unscoped one what their roles in some organization they are in reach, unless
@@ -180,7 +180,7 @@ holds each one; the linked decisions say why. Observed in the code on 2026-10-10
 
 - Every operation, REST or MCP, goes through `execute` (`packages/core/src/execute.ts`): authorize
   the scope (`404` without a role, before validation, on both doors, so a non-member's malformed
-  MCP call gets `404` as over REST), apply a connector's fence, refuse a guest's write and apply a free plan's limits, validate
+  MCP call gets `404` as over REST), apply a connector's fence, refuse a guest's write and apply a plan's limits, validate
   strictly, then run in a transaction with `app.tenant_id` set. Roles are in
   `packages/core/src/policy.ts`; a reader's Story reads are trimmed by `readsOnlyTheStory`.
   `apps/server/test/access.test.ts` requires `404` from every operation for a non-member, and
@@ -306,7 +306,7 @@ holds each one; the linked decisions say why. Observed in the code on 2026-10-10
   `attachments.complete_upload` reads the object's size before its bytes, discards one over the grant
   with `413`, and hashes the bytes as it streams them.
 - A mockup canvas uploaded as a ZIP comes through the relay only, under a grant of its own purpose
-  (`mockup_upload`), and is refused on the free plan, whose text is capped field by field. Publish unpacks it with the parsers' `zipEntries`, which stops at 96 MB unpacked
+  (`mockup_upload`), and is refused on a plan with limits, whose text is capped field by field. Publish unpacks it with the parsers' `zipEntries`, which stops at 96 MB unpacked
   however the archive claims its sizes and refuses more than 2,148 entries before inflating any;
   publish takes only the canvas's own entries, refuses a name used twice and a symbolic link, and
   checks every page by a mockup page's rules as if it had been sent in the call
@@ -374,21 +374,33 @@ address; both again on every redirect. Public means outside every special-purpos
 for IPv6, inside global unicast outside its special parts (`isPublicAddress`). It verifies
 certificates, caps size, waits at most 30 seconds between bytes and 60 for the whole fetch, runs
 three at once per person, downloads before the operation's transaction (the registry's `prepare`
-step), and answers every network failure with one plain `fetch_failed`. An instance owner can switch it off
-for an organization on the free plan (`fetch_url`).
+step), and answers every network failure with one plain `fetch_failed`. A plan can switch it off for every
+organization on it (`fetch_url`).
 
-**The example organization and the free plan**
+**The example organization and the plans**
 ([decision](../decisions/every-account-reads-the-example-organization-which-only-its-staff-write.md),
-[decision](../decisions/free-organizations-meet-limits-that-only-instance-owners-change.md),
+[decision](../decisions/limits-belong-to-plans-and-each-organization-is-on-a-plan-of-its-own.md),
+[decision](../decisions/the-deployment-defines-its-plans-and-billing-stays-outside-the-repository.md),
 [§3.10](../spec/03-accounts-teams-and-identity.md), [§9.7](../spec/09-data-lifecycle.md)).
 A guest's grant is made in `membershipsFor` alone, never stored, and only while the deployment
 names the example; it gives viewer, and `execute` refuses a guest every write before reading the
 input, as `resolveScope` refuses one an operation above viewer (`403 example_read_only`). A guest
-sees no member of the example. Limits on calls, writes, sources, bytes, sizes, formats and exports
-are enforced in `execute` and the upload path (`packages/core/src/limits.ts`) for everyone in an
-organization on the free plan, its owners included. A new organization's plan comes from the
-deployment (`WHATBUILD_NEW_ORGANIZATION_PLAN`) and only an instance owner changes a plan or a
-limit, so nobody raises their own; a guest meets the limit on calls a minute. A mockup page on the free plan has a mockup
+sees no member of the example. Limits on calls, writes, sources, bytes, sizes, formats and exports,
+and the totals an organization holds (people, products, sources, storage) and the bytes sent to
+each person a day, are enforced in `execute`, `members.grant`, the upload path and the routes that
+send files (`packages/core/src/limits.ts`) for everyone in an organization on a plan the deployment
+defines, its owners included. The plans and their limits come from the deployment's configuration
+(`WHATBUILD_PLANS`, read once at start-up), never from a request; a new organization's plan comes
+from the deployment (`WHATBUILD_NEW_ORGANIZATION_PLAN`); limits belong to plans, and only an
+instance owner moves an organization to another plan or changes a plan's limits, so nobody raises
+their own. An organization left on a plan the deployment no longer defines meets no limit until it
+is moved, and the instance's page marks it. A guest meets the guests' calls a minute and downloads
+a day. A guest account, in no organization, comes into the example only while there is
+room (`enterAsGuest`), under the guests' settings an instance owner sets: places at once, new
+guests a day, time each a day, calls a minute and downloads a day; past them it waits, and every
+call into the example from it is refused `429 guest_waiting`, changing nothing. Self-serve sign-up
+is off until an instance owner turns it on, and then an account costs a row but no place. A mockup
+page on a plan with limits has a mockup
 page's rules, with no script budget: the budget is no control (above), and the cap on what one
 field holds (200,000 characters by default) already bounds a page, and the daily writes bound how
 many.

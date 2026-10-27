@@ -96,11 +96,27 @@ account. Existing accounts, invited addresses, the instance's owners and address
 allowance above 0 to create organizations ([§3.3](#33-tenants-and-teams)) always may. Staging runs invite-only until public
 sign-up opens ([§10 Phase 6](10-roadmap.md)).
 
+**Signing up as a guest** (◆ [decision](../decisions/guests-come-into-the-example-organization-while-there-is-room.md)).
+While an instance owner lets guests sign up themselves (the guests' `self_serve`, on `/instance`),
+anyone may create an account, whatever the allowlist says. An account in no organization, with no
+allowance and not an instance owner's is a **guest account**: it reads the example organization,
+and comes into it only while there is room ([§3.10](#310-the-example-organization)).
+`GET /api/v1/me` gives `guest: true` for one.
+
 **Letting someone in.** While sign-up is limited, an instance owner lets a waiting person in by
 giving their address an allowance ([§3.3](#33-tenants-and-teams)): the same act lets them sign in
 and create an organization. The check is made when a sign-in link is asked for and again when it is
 followed, since what let the address in can be taken away in between. Every account, once in,
 reads the example organization ([§3.10](#310-the-example-organization)).
+
+**The waitlist.** Someone who may not start an organization asks for one with one click: as a
+guest on the waiting page, in the example organization's banner or on the overview
+(`POST /api/v1/me/ask-for-organization { organization?, note? }`; `422 may_start_one` for someone
+who already may), or with the public site's form. Both write the `interest` row for their address,
+and asking again keeps their place. `GET /api/v1/me` gives `asked_for_organization_at`. Instance
+owners read the waitlist with `products.tenant_allowances` (`waitlist`: those who asked and have no
+allowance, earliest first) and let someone in by giving their address an allowance of 1, which
+emails them where to start.
 
 ### Sign-in with Microsoft work accounts
 
@@ -208,7 +224,7 @@ GUID and a listed domain that is not a domain; and `microsoft` reported by both 
 
 | Object | Fields |
 |---|---|
-| Tenant | `tenant_id`, `slug` (3–50, `[a-z0-9-]`, starting and ending with a letter or digit, unique across every slug any tenant has or had), its former slugs, `name` (1–100 chars), `name_etag`, `plan` (`free` or `unlimited`), `limits` (what an instance owner changed from the free plan's), `example`, `status` |
+| Tenant | `tenant_id`, `slug` (3–50, `[a-z0-9-]`, starting and ending with a letter or digit, unique across every slug any tenant has or had), its former slugs, `name` (1–100 chars), `name_etag`, `plan` (one the deployment defines, or `unlimited`), `plan_etag` with who changed the plan last and when, `example`, `status` |
 | Team | `team_id`, `tenant_id`, `slug` (unique in the tenant), `name`, `archived_at` |
 
 Creating a tenant (`products.create_tenant`) creates its first team and makes the creator the
@@ -241,9 +257,12 @@ one to what the tenant already has writes nothing. A change is recorded in the t
 
 - **The instance's owners**, the addresses in `WHATBUILD_INSTANCE_OWNERS`, create any number.
   Nothing else makes someone an instance owner: a tenant owner is not one.
-- **Everyone else creates as many as their allowance**, counted against the tenants their account
-  created (`tenants.created_by`). The tenants they belong to, however they came to belong, never
-  count and never give an allowance. An allowance belongs to an address
+- **Everyone else has as many as their allowance**, counted against the tenants their account
+  created (`tenants.created_by`) that are still on the plan new organizations start on
+  (`WHATBUILD_NEW_ORGANIZATION_PLAN`) and not read-only. Where that plan is one the deployment
+  defines, this is **one organization each on the starting plan**: an allowance of 1 lets someone
+  start one, and once it moves to another plan its place is free, so they may start another. The tenants they belong to, however they came to
+  belong, never count and never give an allowance. An allowance belongs to an address
   (`tenant_allowances`), like an invitation, so it can be given before the account exists, and an
   allowance above 0 lets that address sign up while sign-up is limited ([§3.2](#32-accounts-and-sign-in)).
 - **An address without one has the deployment's default**, `WHATBUILD_TENANT_ALLOWANCE`, which is 0.
@@ -259,25 +278,61 @@ one to what the tenant already has writes nothing. A change is recorded in the t
   `GET /api/v1/me` returns the caller's own `tenant_allowance`.
 - Taking an allowance away or lowering it never touches the tenants already created.
 
-**Plans and limits** (◆ [decision](../decisions/free-organizations-meet-limits-that-only-instance-owners-change.md)).
-Every tenant has a plan. One created on an allowance gets the plan the deployment names in
-`WHATBUILD_NEW_ORGANIZATION_PLAN`, `unlimited` unless it names `free`; one an instance owner
-creates is always `unlimited`, and so is every tenant made before plans were read. A self-hosted
-deployment leaves the setting out; a deployment open to the public, and local development, name
+**Plans and limits** (◆ [decision](../decisions/limits-belong-to-plans-and-each-organization-is-on-a-plan-of-its-own.md),
+◆ [decision](../decisions/the-deployment-defines-its-plans-and-billing-stays-outside-the-repository.md)).
+Every tenant is on a plan of its own, and a plan covers exactly one tenant: a second organization is
+a second plan, billed on its own. **The plans are the deployment's.** It defines them in
+`WHATBUILD_PLANS` ([§9.7](09-data-lifecycle.md#97-plans-and-limits)): each one's id, name, what it is
+for, every limit it sets and its price, if any. The code knows only `unlimited`, which sets no
+limit and is never offered: it is for the deployment's own organizations, and for every
+organization of a deployment that defines no plans, as a self-hosted one does. One created on an
+allowance gets the plan the deployment names in `WHATBUILD_NEW_ORGANIZATION_PLAN`, which must be
+one it defines, or `unlimited` when it names none; one an instance owner creates is always
+`unlimited`, and so is every tenant made before plans were read. Local development and the
+end-to-end instance use `deploy/plans.example.json`, whose plans are Free and Pro, and name its
 `free`. `GET /api/v1/me` gives the caller's `new_organization_plan`, the plan an organization they
-create would get. On the free plan everyone in the
-tenant meets limits on how often and how much they work, its owners included; on the unlimited plan
-nobody does. The limits, their defaults and their refusals are in [§9.7](09-data-lifecycle.md).
+create would get. Limits belong to plans, never to one tenant: on a plan the deployment defines
+everyone in the tenant meets its limits, its owners included; on unlimited nobody does, and nor
+does anyone in a tenant left on a plan the deployment no longer defines (`undefined_plan`), until
+it moves. The limits and their refusals are in [§9.7](09-data-lifecycle.md).
 
-- Every member reads the tenant's plan and limits, with what they and everyone together have used
-  today, which is counted on every plan, with `products.limits` (scope `tenant`, access `any`).
-- Only instance owners list every tenant with its plan, people, changed limits and today's use,
-  with the deployment's `new_organization_plan` (`products.organizations`), and change a tenant's plan or any of its limits
-  (`products.set_limits`): `limits` changes the ones named, `reset_limits` first puts every limit
-  back to the free plan's, and once a tenant's limits have been changed the change is guarded by
-  their etag (`409 stale_etag` without it, and with one sent for a tenant never changed). A change
-  applies to the next call. These belong to no tenant's content, so they write no activity event;
-  the tenant keeps who changed its limits last and when.
+- Every member reads the tenant's plan and limits with `products.limits` (scope `tenant`, access
+  `any`): each limit with what is used of it (today's for a daily one, counted on every plan; what
+  the tenant holds for a total, also given as `holds`), and the plans offered side by side
+  (`plans`). Anyone, signed in or not, reads the plans offered at `GET /api/v1/plans`, with each
+  one's price as the deployment set it (a plan without one shows none), `starting_plan`, whether
+  the deployment has an example organization (`example`) and whether guests may sign up; `plans`
+  is empty on a deployment that offers none. There is no billing in WhatBuild: an instance owner
+  moves an organization when it pays, and a billing service kept outside the repository would do
+  the same through `products.set_plan`.
+- Only instance owners change a plan's limits and its price, for every organization on it
+  (`products.set_plan_limits`, `PATCH /api/v1/plans`, [§9.7](09-data-lifecycle.md)), over what the
+  deployment's configuration defines; a plan it does not define is refused (`422 unknown_plan`).
+- Only instance owners list every tenant with its plan, what it holds and today's use, with the
+  deployment's `new_organization_plan` and the plans offered (`products.organizations`), and move
+  a tenant to another plan (`products.set_plan`, `PATCH /api/v1/organizations/plan`): one the
+  deployment defines, or `unlimited`; any other is refused (`422 unknown_plan`, with the plans
+  there are in `details.plans`). Once a
+  tenant's plan has been changed the change is guarded by its etag (`409 stale_etag` without it,
+  and with one sent for a tenant never changed). A move applies to the next call and removes
+  nothing the tenant holds past the new plan's totals. These belong to no tenant's content, so they
+  write no activity event; the tenant keeps who changed its plan last and when.
+- **A tenant moved back to the starting plan**, as one no longer paid for is, is writable there
+  when an instance owner moves it, unless whoever created it already has another there, or as many
+  as an instance owner let them have (everyone has a place for one, even with no allowance to start
+  one): then it is **read-only** instead (`tenants.read_only_since`, and `kept_until`, a year on), and
+  not counted against their allowance. Everyone in it reads, searches, exports, deletes permanently and takes people out;
+  every other write is refused with `409 organization_read_only`, before its input is checked.
+  `products.list`, `products.get` (its `tenant`), `products.limits` and `products.organizations`
+  give `read_only: { since, kept_until }`, and `products.organizations` marks with
+  `starting_plan_is_read_only` a tenant that moving to the starting plan would make read-only.
+  Moving it to another plan, or to the starting plan once its creator has a place for it, makes it writable. Nothing erases it when its
+  year is up yet ([§10](10-roadmap.md#the-example-organization-and-the-plans)).
+- **Whoever runs the deployment sees** each tenant's name and plan, and the name and email of
+  everyone in it, to write to its people and, where a plan has a price, to bill the organization
+  for it. Where the deployment offers plans, the new-organization form, a tenant's Plan page and the
+  privacy page say so, speaking of billing only where a plan has a price; a deployment that offers
+  none says nothing of plans or billing.
 
 ## 3.4 Products
 
@@ -494,8 +549,13 @@ address typed and the same `confirm`), after reading what it does and what stand
 method the deployment offers, an email link included, brings them back to the open section
 ([decision](../decisions/a-person-deletes-their-own-account-after-a-recent-sign-in.md)). All three
 operations are web only, and an agent is offered none. An instance owner's account is refused
-(`409 instance_owner`), and so is the only owner of an organization until someone else owns it or
-it is deleted (`409 last_owner`, naming the organizations). In one transaction it ends the
+(`409 instance_owner`). The only owner of an organization is refused too when deleting their own
+account (`409 last_owner`, naming the organizations). An instance owner removing such an account
+may take those organizations with it instead: everything in them, and everyone's roles there, are
+deleted as `products.delete_tenant` deletes, once `delete_organizations` names exactly those
+organizations by slug; without that it is refused (`409 last_owner`), and the example organization
+is never deleted this way (`409 example_organization`). `products.accounts` marks each such
+organization `only_owner`. In one transaction it ends the
 account's sign-ins as Sign out everywhere does; takes every role it holds, recording `revoked` in
 each organization's access log with the person's name and who ended it; cancels the invitations
 still waiting at its address; removes the address's allowance and its unused sign-in links; deletes
@@ -504,8 +564,9 @@ feedback, and their counted days of use (`forgetPerson`, `packages/core/src/usag
 days not yet written); clears the address from interest requests and from feedback it was shared
 with; and marks the account removed (`deleted_at`), with no name and an address that is no
 one's, so the id is never taken again and the address is forgotten. What it wrote keeps the name
-copied onto it (§3.9). Last, a confirmation goes to the address it had, saying who ended it, the terms,
-and whom to tell if it was not them (`WHATBUILD_PRIVACY_CONTACT`); a mail that fails never
+copied onto it (§3.9). Last, a confirmation goes to the address it had, saying who ended it and on
+which day (in UTC), the terms, the organizations deleted with it when an instance owner removed the
+only owner of some, and whom to tell if it was not them (`WHATBUILD_PRIVACY_CONTACT`); a mail that fails never
 keeps the account, and the answer says whether it went (`notice_sent`). The address may come back
 only as a new, empty account, if something lets it in again. The words, said before deleting in
 Settings and after in the mail and on the signed-out page, are in
@@ -647,7 +708,33 @@ account is its guest**:
 | reads every product | `membershipsFor` adds a tenant grant `guest` for the example to every account that holds no grant there, and `effectiveRole` makes it viewer on every team and product. The grant is never stored. |
 | changes nothing | `execute` refuses every call that writes with `403 example_read_only` before reading its input, and `resolveScope` refuses the same way an operation whose access the guest's role is below (editor, admin, owner). Exporting a product and a Story or Idea card preview are refused too. The message says where the person's own work goes, as the web app's notice does: in an organization they are in, if they are in one; else in one they create (`products.create_tenant`, or New organization in the web app), if they may start one (an instance owner, or an allowance with room); else to ask whoever runs this WhatBuild, or to be invited to an organization, and not to call `products.create_tenant` (`exampleReadOnly` in `policy.ts`). |
 | sees no person | `members.list` answers an empty list with `guest: true`. Staff's names appear on what they wrote and in the activity log, as anywhere. |
-| meets the limit on calls a minute | `requests_per_minute` of the example's limits: the free plan's unless an instance owner changed it ([§9.7](09-data-lifecycle.md)). |
+| meets the guests' limits | calls a minute and bytes downloaded a day, the guests' settings an instance owner sets ([§9.7](09-data-lifecycle.md)). |
+
+**Guest accounts wait for room** (◆ [decision](../decisions/guests-come-into-the-example-organization-while-there-is-room.md)).
+A guest of the example who is in no organization at all, holds no allowance and is not an instance
+owner (`isGuestAccount`) comes in only while there is room, on every call into the example, by the
+web app or an agent (`enterAsGuest`, [`packages/core/src/guests.ts`](../../packages/core/src/guests.ts),
+from `execute` and the routes that send bytes). Someone in another organization reads the example
+as a guest too, and never waits.
+
+| Setting (the guests', on `/instance`) | Starts at | What it does |
+|---|---|---|
+| `self_serve` | off | Anyone may sign up as a guest ([§3.2](#32-accounts-and-sign-in)). |
+| `at_once` | 25 | Places: guest accounts in at once. Past it, a guest waits in line and comes in on its own as a place frees, in the order they started waiting while they keep asking (every few seconds, as the web app's waiting page does). 0 lets no guest in. |
+| `new_per_day` | 50 | Guest accounts coming in for the first time, each UTC day; past it, they come back the next day. |
+| `idle_minutes` | 30 | A place frees after this long without a call. |
+| `minutes_per_day` | 120 | Time in, each guest account a day; past it, back after midnight UTC. |
+| `requests_per_minute` | 50 | Calls a minute, every guest of the example. |
+| `sent_bytes_per_day` | 10 MB | Attachments and mockup downloads, every guest of the example, a day. |
+
+A call while not in is refused `429 guest_waiting` with `details` saying why (`full`, with
+`position` and `in_now`; `new_today`; `time_today`; `closed`), `retry_after_seconds` and
+`resets_at`; it changes nothing. `GET /api/v1/me/guest-pass` gives a guest account its place,
+letting it in when there is room, and `{ guest: false, status: "in" }` to anyone else. Each place is
+a row of `guest_passes`; admissions are taken one at a time under one advisory lock, so two
+guests cannot both take the last place. Only instance owners read and change the settings, with how
+many guests are in, waiting, new today and ever (`products.guests`, `products.set_guests`,
+under their etag); a change applies from the next call.
 
 `products.list` lists the example organization's products for every account, with
 `tenant.example: true`, and the organization among `tenants` with `example: true`. To a guest,

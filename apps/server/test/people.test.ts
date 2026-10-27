@@ -54,10 +54,10 @@ describe("pnpm people on an instance", () => {
     expect(accounts.sort()).toEqual(signedIn.sort());
   });
 
-  it("starts each organization on its owner's allowance, on the free plan, with its people", async () => {
+  it("starts each organization on its owner's allowance, on the smallest plan that holds its people, with its people", async () => {
     for (const org of first.plan.organizations) {
       const tenant = await h.db.selectFrom("tenants").select(["tenant_id", "plan", "name"]).where("slug", "=", org.slug).executeTakeFirstOrThrow();
-      expect([tenant.name, tenant.plan]).toEqual([org.name, "free"]);
+      expect([tenant.name, tenant.plan]).toEqual([org.name, org.plan]);
       const members = await h.db
         .selectFrom("memberships as m")
         .innerJoin("accounts as a", "a.account_id", "m.account_id")
@@ -105,6 +105,7 @@ describe("pnpm people on an instance", () => {
     const prod = await startHarness({ devAuth: false });
     try {
       await expect(addPeople({ url: prod.baseUrl, count: 5 })).rejects.toThrow(/no development sign-in/);
+      expect((await fetch(`${prod.baseUrl}/auth/dev-accounts`)).status).toBe(404);
     } finally {
       await prod.close();
     }

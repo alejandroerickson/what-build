@@ -29,7 +29,7 @@ Everything is in [`deploy/docker/`](../../deploy/docker/):
 
 | File | What it is |
 |---|---|
-| `compose.yaml` | Postgres 17, the app (`<image>:<tag>`, on `127.0.0.1:<port>`), and an optional updater. |
+| `compose.yaml` | Postgres 17, the app (`<image>:<tag>`, on `127.0.0.1:<port>`, offering the plans in the example file the image carries, `/app/plans.example.json`, as local development does), and an optional updater. |
 | `whatbuild-e2e.sh` | `load`, `reset`, `update`, `nightly`, `status`, run on the host. |
 | `env.example` | The settings, copied to `.env` beside them on the host, where it stays. |
 

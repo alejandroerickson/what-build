@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from "node:crypto";
-import { AppError, escapeHtml, gone, invalid, isInstanceOwner, tenantAllowanceOf, newId, notFound, randomToken, safeNext, sha256Hex, SIGN_IN_LINKS_PER_HOUR, unauthenticated, type Db, type Mailer } from "@whatbuild/core";
+import { AppError, enterAsGuest, planName, escapeHtml, gone, invalid, isGuestAccount, isInstanceOwner, readGuests, tenantAllowanceOf, newId, notFound, randomToken, safeNext, sha256Hex, SIGN_IN_LINKS_PER_HOUR, unauthenticated, type Db, type Mailer } from "@whatbuild/core";
 import { Hono, type Context } from "hono";
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 import { sql } from "kysely";
@@ -9,6 +9,21 @@ import { connectorReach } from "./connector-reach.ts";
 import { acceptInvitation, acceptInvitationsForEmail, clearSessionCookies, createSession, endEverything, findOrCreateAccount, isOwnOrigin, restPrincipal, sessionTokens, setSessionCookie } from "./identity.ts";
 import { returnsTo } from "./oauth.ts";
 import { authPage, authPageHeaders } from "./page.ts";
+
+/** The sample's people, whom the development sign-in page offers first (`seed.ts`). */
+const DEV_SAMPLE_PEOPLE = ["riley@example.com", "sam@example.com", "jordan@example.com"];
+/** How many accounts the development sign-in page offers; the rest are signed in by typing their email. */
+const DEV_ACCOUNTS_SHOWN = 40;
+/** A person's highest role in an organization, as the development sign-in page says it. */
+const DEV_ROLE_ORDER = ["owner", "admin", "editor", "viewer", "member", "reader"] as const;
+const DEV_ROLE_WORDS: Record<(typeof DEV_ROLE_ORDER)[number], string> = {
+  owner: "Owns",
+  admin: "Admin in",
+  editor: "Editor in",
+  viewer: "Viewer in",
+  member: "Member of",
+  reader: "Reads the Story in",
+};
 
 /**
  * What opening a sign-in link shows: who it signs in, and one button. Mail scanners fetch every
@@ -69,10 +84,12 @@ export function authRoutes(deps: { db: Db; config: ServerConfig; mailer: Mailer 
 
   /**
    * Invite-only mode: new accounts only for listed emails or domains, the instance's owners,
-   * someone with an invitation, or an address an instance owner has let create an organization.
+   * someone with an invitation, or an address an instance owner has let create an organization;
+   * and anyone, as a guest, while an instance owner lets guests sign up themselves.
    */
   const mayJoin = async (email: string) => {
     if (!config.signupAllowlist) return true;
+    if ((await readGuests(db)).self_serve) return true;
     const e = email.toLowerCase();
     if (config.signupAllowlist.some((a) => (a.startsWith("@") ? e.endsWith(a) : e === a))) return true;
     if (config.instanceOwners.includes(e)) return true;
@@ -168,6 +185,50 @@ export function authRoutes(deps: { db: Db; config: ServerConfig; mailer: Mailer 
     await acceptInvitationsForEmail(db, account);
     await startSession(c, account.account_id);
     return c.json({ signed_in: true, account, next: safeNext(body.data.next) });
+  });
+
+  /**
+   * Development only: the accounts on this server, for the sign-in page to offer one click each:
+   * the sample's people first, then the newest, each with what it is here in a few words.
+   */
+  app.get("/auth/dev-accounts", async (c) => {
+    if (!config.devAuth) throw notFound("Not available.");
+    const accounts = await db.selectFrom("accounts").select(["account_id", "email", "display_name"]).where("deleted_at", "is", null).orderBy("created_at", "desc").execute();
+    const ordered = [...DEV_SAMPLE_PEOPLE.flatMap((e) => accounts.filter((a) => a.email.toLowerCase() === e)), ...accounts.filter((a) => !DEV_SAMPLE_PEOPLE.includes(a.email.toLowerCase()))];
+    const shown = ordered.slice(0, DEV_ACCOUNTS_SHOWN);
+    const ids = shown.map((a) => a.account_id);
+    const emails = shown.map((a) => a.email.toLowerCase());
+    const roles = ids.length
+      ? await db
+          .selectFrom("memberships as m")
+          .innerJoin("tenants as t", "t.tenant_id", "m.tenant_id")
+          .select(["m.account_id", "m.scope_type", "m.role", "t.tenant_id", "t.name", "t.plan", "t.example", "t.read_only_since"])
+          .where("m.account_id", "in", ids)
+          .execute()
+      : [];
+    const allowed = emails.length ? await db.selectFrom("tenant_allowances").select(["email", "allowed"]).where("email", "in", emails).execute() : [];
+    const asked = emails.length ? await db.selectFrom("interest").select(sql<string>`lower(email)`.as("email")).where(sql<string>`lower(email)`, "in", emails).execute() : [];
+    const items = shown.map((a) => {
+      const email = a.email.toLowerCase();
+      const mine = roles.filter((r) => r.account_id === a.account_id);
+      const tenants = [...new Map(mine.map((r) => [r.tenant_id, r])).values()];
+      // Each organization under the person's highest role in it: "Owns Studio, Northwind (Pro)".
+      const byRole = new Map<(typeof DEV_ROLE_ORDER)[number], string[]>();
+      for (const t of tenants) {
+        const here = mine.filter((r) => r.tenant_id === t.tenant_id).map((r) => r.role);
+        const best = DEV_ROLE_ORDER.find((r) => here.includes(r)) ?? "member";
+        const kind = t.example ? " (example)" : t.read_only_since ? " (read-only)" : t.plan === config.newOrganizationPlan ? "" : ` (${planName(t.plan)})`;
+        byRole.set(best, [...(byRole.get(best) ?? []), `${t.name}${kind}`]);
+      }
+      const about = DEV_ROLE_ORDER.filter((r) => byRole.has(r)).map((r) => `${DEV_ROLE_WORDS[r]} ${byRole.get(r)!.join(", ")}`);
+      if (isInstanceOwner(config, email)) about.unshift("Runs this instance");
+      else if (!tenants.length) {
+        const may = (allowed.find((x) => x.email === email)?.allowed ?? config.defaultTenantAllowance ?? 0) > 0;
+        about.push(may ? "May start an organization" : asked.some((x) => x.email === email) ? "Guest, on the waitlist" : "Guest");
+      }
+      return { email: a.email, display_name: a.display_name, about: about.join(" · ") };
+    });
+    return c.json({ items, more: Math.max(0, ordered.length - shown.length) }, 200, { "Cache-Control": "no-store" });
   });
 
   app.get("/auth/methods", async (c) =>
@@ -341,14 +402,59 @@ export function authRoutes(deps: { db: Db; config: ServerConfig; mailer: Mailer 
   const meOf = async (p: NonNullable<Awaited<ReturnType<typeof restPrincipal>>>) => {
     const tenant_allowance = await tenantAllowanceOf(db, config, p);
     const prefs = await db.selectFrom("accounts").select("hide_example").where("account_id", "=", p.account_id).executeTakeFirst();
+    const asked = await db.selectFrom("interest").select("created_at").where(sql<string>`lower(email)`, "=", p.email.toLowerCase()).executeTakeFirst();
     return {
       account_id: p.account_id, email: p.email, display_name: p.display_name, auth_kind: p.auth_kind, tenant_allowance,
       new_organization_plan: tenant_allowance.instance_owner ? "unlimited" : config.newOrganizationPlan,
       hide_example: Boolean(prefs?.hide_example),
+      // In no organization, with no allowance: they come into the example organization as a guest, while there is room.
+      guest: await isGuestAccount(db, config, p),
+      // When they asked for an organization of their own (on the waitlist), from here or the public site.
+      asked_for_organization_at: asked?.created_at ?? null,
     };
   };
 
   app.get("/api/v1/me", async (c) => c.json(await meOf(await requirePrincipal(c))));
+
+  /**
+   * A guest account's place: let them in if there is room, or say why not and how long to wait.
+   * The web app's waiting page asks again every few seconds, which keeps their place in line. Anyone
+   * else is no guest, and always in.
+   */
+  app.get("/api/v1/me/guest-pass", async (c) => {
+    const p = await requirePrincipal(c);
+    if (!(await isGuestAccount(db, config, p))) return c.json({ guest: false, status: "in" }, 200, { "Cache-Control": "no-store" });
+    return c.json({ guest: true, ...(await enterAsGuest(db, p.account_id)) }, 200, { "Cache-Control": "no-store" });
+  });
+
+  /**
+   * Ask for an organization of one's own: join the waitlist the instance's owners read
+   * (`products.tenant_allowances`), as the public site's form does. Asking again keeps one's place
+   * and adds what was sent. Someone who may already start one has no need to ask.
+   */
+  app.post("/api/v1/me/ask-for-organization", async (c) => {
+    const p = await requirePrincipal(c);
+    const body = z
+      .strictObject({ organization: z.string().trim().max(200).optional(), note: z.string().trim().max(2000).optional() })
+      .safeParse(await c.req.json().catch(() => ({})));
+    if (!body.success) throw invalid("invalid_input", "Send organization (up to 200 characters) and note (up to 2,000), or neither.");
+    const allowance = await tenantAllowanceOf(db, config, p);
+    if (allowance.remaining === null || allowance.remaining > 0)
+      throw invalid("may_start_one", "You may already start an organization; there is no need to ask.");
+    await db
+      .insertInto("interest")
+      .values({ interest_id: newId(), email: p.email.toLowerCase(), name: p.display_name, organization: body.data.organization || null, note: body.data.note || null })
+      .onConflict((oc) =>
+        oc.expression(sql`lower(email)`).doUpdateSet({
+          name: sql`coalesce(excluded.name, interest.name)`,
+          organization: sql`coalesce(excluded.organization, interest.organization)`,
+          note: sql`coalesce(excluded.note, interest.note)`,
+          updated_at: sql`now()`,
+        }),
+      )
+      .execute();
+    return c.json(await meOf(p));
+  });
 
   /**
    * Who is signed in, for the web app's own check. Being signed out is an answer here, not an

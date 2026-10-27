@@ -1,7 +1,7 @@
 ---
 type: Specification
 title: Nothing is ever trapped - say what we promise, keep export open, and never let a limit block a read.
-description: What we tell people, limits and quotas (enforced and planned), backups and in-product versioning, export, archive and permanent delete of everything archivable and of an organization, the operator runbooks, plans and the free plan's limits, and how retired insights and decisions became sources.
+description: What we tell people, limits and quotas (enforced and planned), backups and in-product versioning, export, archive and permanent delete of everything archivable and of an organization, the operator runbooks, plans and their limits, and how retired insights and decisions became sources.
 tags: [spec, lifecycle, quotas, backups, export, archive, delete, limits, plans]
 generated: {by: agent:claude, at: 2026-10-26}
 status: stable
@@ -137,37 +137,39 @@ running without a compliance program.
 | Sign-in links | 5 per address per hour | Yes — `429 rate_limited` |
 | OAuth client registrations | 50 an hour waiting for their first connection; one that never connects is removed after 7 days | Yes — `429 rate_limited` |
 | Exports in progress | one per product at a time | Yes — `409 export_in_progress` |
-| Members | 5 per organization | Planned |
-| Active products | 3 per organization | Planned |
-| Sources | 300 per organization | Planned |
-| Stored bytes (attachments and what was read from them) | 1 GB per organization | Planned |
-| Writes and calls a minute, writes, sources, exports and uploaded bytes a day | The free plan's (§9.7) | Yes, on the free plan — `429 rate_limited`, `409 quota_exceeded`, `413 too_large`, `403 plan_restricted` |
+| People, products and sources not archived, and storage, per organization | The plan's (§9.7) | Yes, on a plan the deployment defines — `409 quota_exceeded` |
+| Writes and calls a minute, writes, sources, exports, uploaded bytes and bytes sent a day | The plan's (§9.7) | Yes, on a plan the deployment defines — `429 rate_limited`, `409 quota_exceeded`, `413 too_large`, `403 plan_restricted` |
 | Organization exports | 2 / day | Planned |
 
 Rules:
 
-1. **A quota blocks writes. It never blocks a read, a search, or an export.** Someone over their
-   limit can still work with, and leave with, everything they have. This is what makes §9.1
-   honest.
+1. **A quota blocks writes. It never blocks a search, an archive, a delete or an export.** Someone
+   over their limit can still work with, and leave with, everything they have. This is what makes
+   §9.1 honest. The one limit that stops a read is the plan's cap on bytes sent to a person a day,
+   on attachments and mockup downloads, and it never stops an export, which is counted and always
+   sent.
 2. Over a limit, a write returns `409 quota_exceeded` with `{ quota, limit, used, unit }` in
    `details` — an error an agent can explain and a person can act on
    ([§6.2](06-operations-and-adapters.md)).
-3. **Planned — usage is visible before it bites:** a usage operation returning every counter and its
-   limit, shown as fractions in organization settings ([§7.11](07-web-app.md)); an upload flow that
-   shows remaining storage before it starts, not after it fails.
-4. **Planned:** counters maintained transactionally with the mutations that change them
-   ([§6.1](06-operations-and-adapters.md)), a nightly job reconciling stored bytes against the
-   object store, and quota and rate limiting in one layer shared by both adapters, so REST and MCP
-   cannot drift. The layer exists, in `execute`, and serves the free plan's limits (§9.7).
-5. Archiving does not free storage; deleting does. The UI says so where it matters.
+3. **Usage is visible before it bites:** `products.limits` gives every limit with what is used of
+   it, and an organization's Plan page shows each total as a fraction with a word as it fills
+   (nearly full from 80%, then full) ([§7.11](07-web-app.md)). An upload grant's `max_bytes` is
+   what the storage left allows. **Planned:** an upload flow that shows remaining storage before it
+   starts.
+4. Quota and rate limiting are one layer shared by both adapters, in `execute`, so REST and MCP
+   cannot drift (§9.7). What an organization holds is measured when a write could take it past a
+   total, from its rows and stored sizes, inside the write's transaction with the tenant locked.
+   **Planned:** a nightly job reconciling stored bytes against the object store.
+5. Archiving does not free storage; deleting does. Archiving does make room under people (removing
+   someone, or cancelling an invitation), products and sources. The UI says so where it matters.
 
 **Abuse limits**, which are not quotas but belong beside them. Built: the sign-in link limit,
 the limits on OAuth client registration and on sign-in and OAuth request bodies
 ([§3.8](03-accounts-teams-and-identity.md)), invite-only mode (`WHATBUILD_SIGNUP_ALLOWLIST`, [§3.2](03-accounts-teams-and-identity.md)), in
 which an instance owner lets people in one at a time with an allowance, and a guest's limit on calls
 a minute in the example organization (§9.7).
-Planned: per-IP sign-up limits, a cap on outstanding invitations, and an operator view of usage by
-organization before public sign-up opens.
+The operator's view of usage by organization is built: `products.organizations` and `/instance`
+give each organization's plan, what it holds and today's use. Planned: per-IP sign-up limits.
 
 ## 9.3 Durability: backups and what is versioned
 
@@ -230,8 +232,8 @@ whose earlier wording a write replaces; what an attachment was read as stays rea
 download grant for each ready one. A viewer, editor or admin may export, through **both
 adapters**, and export is **never blocked** for them — not by a quota, and not by archiving the
 product. A reader, who reads only the Story, may not (`403`); the Story's own export is its print
-view ([§6.4](06-operations-and-adapters.md)). On the free plan each person exports as many times a
-day as `exports_per_day` allows (§9.7), and a guest of the example organization exports nothing:
+view ([§6.4](06-operations-and-adapters.md)). On a plan that limits it each person exports as many
+times a day as `exports_per_day` allows (§9.7), and a guest of the example organization exports nothing:
 the example is read where it is. A ready export is
 listed for seven days. The bundle holds a manifest with its format name and version, every
 source's metadata, its derived text, every attachment version's original bytes, what each was
@@ -299,7 +301,7 @@ Everything that can be archived can also be deleted, and so can an organization:
 | Story page | `story.delete_page_impact` | `story.delete_page` |
 | Mockup | `mockups.delete_impact` | `mockups.delete` |
 | Product | `products.delete_impact` | `products.delete` |
-| Organization | `products.delete_tenant_impact` | `products.delete_tenant` (owners, web app only) |
+| Organization | `products.delete_tenant_impact` | `products.delete_tenant` (its owners and the instance's, web app only) |
 
 - **Admins delete** ([§3.5](03-accounts-teams-and-identity.md)): product admins, and so team admins
   and organization owners and admins for what they administer. Editors archive and never delete.
@@ -436,43 +438,87 @@ Planned, a deliverable of [Phase 6](10-roadmap.md):
 
 ## 9.7 Plans and limits
 
-Every organization has a plan, `free` or `unlimited` ([§3.3](03-accounts-teams-and-identity.md)
-says which an organization gets: the deployment's `WHATBUILD_NEW_ORGANIZATION_PLAN`, unlimited unless
-it names free, for one made on an allowance; and who changes it;
-◆ [decision](../decisions/free-organizations-meet-limits-that-only-instance-owners-change.md)). On
-the free plan everyone in the organization, its owners included, meets the limits below, beside
-the ones every organization has (§9.2), whichever is lower; on the unlimited plan nobody does. A
-guest of the example organization meets only `requests_per_minute`, from the example's limits
+Every organization is on a plan of its own: one the deployment defines, or `unlimited`, which sets
+no limit and is never offered ([§3.3](03-accounts-teams-and-identity.md) says which an
+organization gets: the deployment's `WHATBUILD_NEW_ORGANIZATION_PLAN`, unlimited unless it names
+one of its plans, for one made on an allowance; and who moves it;
+◆ [decision](../decisions/limits-belong-to-plans-and-each-organization-is-on-a-plan-of-its-own.md),
+◆ [decision](../decisions/the-deployment-defines-its-plans-and-billing-stays-outside-the-repository.md)).
+Limits belong to plans, never to one organization. On a plan the deployment defines everyone in the
+organization, its owners included, meets the plan's limits below, beside the ones every
+organization has (§9.2), whichever is lower; on the unlimited plan nobody does. A guest of the
+example organization meets only the guests' calls a minute and bytes downloaded a day
 ([§3.10](03-accounts-teams-and-identity.md#310-the-example-organization)). The code is
-[`packages/core/src/limits.ts`](../../packages/core/src/limits.ts) (every limit, its default, its
-refusal and its enforcement) and [`ops/limits.ts`](../../packages/core/src/ops/limits.ts) (reading
-and changing them).
+[`packages/core/src/plans.ts`](../../packages/core/src/plans.ts) (what a plan is, and the plans
+this process serves), [`apps/server/src/plans-config.ts`](../../apps/server/src/plans-config.ts)
+(reading them from the deployment's configuration),
+[`packages/core/src/limits.ts`](../../packages/core/src/limits.ts) (each limit's refusal, and their
+enforcement) and [`ops/limits.ts`](../../packages/core/src/ops/limits.ts) (reading them, and moving
+an organization to another plan).
 
-An organization's limits are the free plan's (`FREE_LIMITS`) except those an instance owner changed
-for it, which `tenants.limits` holds. Stored limits are read through their schema, so a missing or
-unreadable value is the free plan's. `products.limits` gives every member each limit with its value,
-the free plan's, what it is counted over, its refusal and, for the daily ones, what the caller and
-everyone together used today (on every plan, rule 10), and the deployment's own limits, each with a
-key that stays the same (`file_max_bytes`, `relay_max_bytes`, `attachments_per_source`, …) and,
-where one does, the setting that changes it; the web app shows a person only the few they can run
-into, and an instance owner all of them. `products.organizations` gives instance owners every
-organization's changed limits and today's totals.
+**The deployment defines its plans** in `WHATBUILD_PLANS`: JSON, or the path of a JSON file,
+`{ "plans": [{ id, name, about, price, limits }] }`, in the order they are compared.
+`id` is lowercase letters, digits, `-` and `_`, starting with a letter, and never `unlimited`;
+`name` is what people read (1 to 40 characters); `about` says what the plan is for; `price` is what
+it costs as people read it, such as "$20 a month", or null; `limits` gives every limit below, none
+left out, a size as bytes or as text such as "10 MB" (1 MB is 1,048,576 bytes). A plan that cannot
+be read stops the server from starting, saying what is wrong, and so does a
+`WHATBUILD_NEW_ORGANIZATION_PLAN` that names a plan the deployment does not define. A deployment
+that sets nothing offers no plans: every organization is unlimited and nothing in the app speaks of
+plans ([§7](07-web-app.md)). [`deploy/plans.example.json`](../../deploy/plans.example.json) is the
+example, with two plans, Free and Pro; local development, the end-to-end instance and the tests use
+it, and the image carries it at `/app/plans.example.json`. A deployment's own file, with its own
+plans and prices, is kept with its other settings, outside this repository. The database holds only
+which plan an organization is on (`tenants.plan`, any such id), so an organization can be left on a
+plan the deployment no longer defines: it meets no limit until an instance owner moves it, and
+`products.limits` and `products.organizations` mark it `undefined_plan`.
 
-| Limit | Setting | Free plan | Counted over | Refusal |
-|---|---|---|---|---|
-| Calls, reads included | `requests_per_minute` | 120 | each person, each minute | `429 rate_limited` |
-| Writes | `writes_per_minute` | 30 | each person, each minute | `429 rate_limited` |
-| Writes | `writes_per_day` | 500 | each person, each day | `409 quota_exceeded` |
-| Sources created or copied in, each source of a batch (`attachments.create_uploads`) counted | `sources_per_day` | 25 | each person, each day | `409 quota_exceeded` |
-| Exports | `exports_per_day` | 5 | each person, each day | `409 quota_exceeded` |
-| Writes | `org_writes_per_day` | 2,000 | everyone together, each day | `409 quota_exceeded` |
-| File size | `file_max_bytes` | 10 MB | each file | `413 too_large` |
-| Uploads | `bytes_per_day` | 100 MB | each person, each day | `409 quota_exceeded` |
-| Uploads | `org_bytes_per_day` | 250 MB | everyone together, each day | `409 quota_exceeded` |
-| Text in one field | `text_max_chars` | 200,000 | each text field | `413 too_large` |
-| Sources in one archive or restore call | `batch_max` | 25 | each call | `413 too_large` |
-| Fetching a file from a URL | `fetch_url` | on | each person | `403 plan_restricted` |
-| Uploads limited to formats the parsers read | `documents_only` | on | each person | `403 plan_restricted` |
+`products.limits` gives every member each limit of the organization's plan with its value (null
+for none), what it is counted over, its refusal and what is used of it: for a daily one what the
+caller and everyone together used today (on every plan, rule 10), for a total what the organization
+holds; the plans offered side by side; and the deployment's own limits, each with a key that stays
+the same (`file_max_bytes`, `relay_max_bytes`, `attachments_per_source`, …) and, where one does, the
+setting that changes it. The web app shows a person what they can run into, and an instance owner
+all of it. `GET /api/v1/plans`, public, gives the plans offered with every limit and each one's
+price (none on a deployment that offers no plans), `starting_plan`, whether the deployment has an
+example organization (`example`), and whether guests may sign up. `products.organizations` gives
+instance owners every organization's plan, what it holds and today's totals, and each plan's
+configured limits (`plan_defaults`) and who changed it.
+
+An instance owner changes a plan's limits and its price, as people read it, on `/instance`
+(`products.set_plan_limits`, guarded by the plan's etag once changed): for every organization on
+the plan, from the next call, and never for one organization alone. Only what differs from the
+configured limits is stored (`instance_settings`, key `plan:<plan>`), so the limits are read
+through `readPlans`; reset goes back to the configured limits. A price set or cleared there
+replaces the configured one. A plan the deployment does not define is refused (`422
+unknown_plan`). A guest of the example meets the guests' calls a minute and bytes downloaded a day
+instead, set on the same page ([§3.10](03-accounts-teams-and-identity.md#310-the-example-organization)).
+
+| Limit | Setting | Counted over | Refusal |
+|---|---|---|---|
+| People with a role above reading the Story, invitations included | `members_max` | the organization | `409 quota_exceeded` |
+| Products not archived | `products_max` | the organization | `409 quota_exceeded` |
+| Sources not archived | `sources_max` | the organization | `409 quota_exceeded` |
+| Storage: files and text, every version | `storage_max_bytes` | the organization | `409 quota_exceeded`; an upload grant's `max_bytes` is what is left |
+| Calls, reads included | `requests_per_minute` | each person, each minute | `429 rate_limited` |
+| Writes | `writes_per_minute` | each person, each minute | `429 rate_limited` |
+| Writes | `writes_per_day` | each person, each day | `409 quota_exceeded` |
+| Sources created or copied in, each source of a batch (`attachments.create_uploads`) counted | `sources_per_day` | each person, each day | `409 quota_exceeded` |
+| Exports | `exports_per_day` | each person, each day | `409 quota_exceeded` |
+| Bytes sent: attachments and mockup downloads, and exports, which are never refused | `sent_bytes_per_day` | each person, each day | `409 quota_exceeded` |
+| Writes | `org_writes_per_day` | everyone together, each day | `409 quota_exceeded` |
+| File size | `file_max_bytes` | each file | `413 too_large` |
+| Uploads | `bytes_per_day` | each person, each day | `409 quota_exceeded` |
+| Uploads | `org_bytes_per_day` | everyone together, each day | `409 quota_exceeded` |
+| Text in one field | `text_max_chars` | each text field | `413 too_large` |
+| Sources in one archive or restore call | `batch_max` | each call | `413 too_large` |
+| Fetching a file from a URL | `fetch_url` | each person | `403 plan_restricted` |
+| Uploads limited to formats the parsers read | `documents_only` | each person | `403 plan_restricted` |
+
+The totals and `sent_bytes_per_day` may be null, no limit; every other limit is a number, or for
+the last two a switch. The example file's values are a starting point, set by what an organization
+may cost at most and what a real discovery uses: one product with a few dozen sources holds tens of
+megabytes.
 
 Rules:
 
@@ -487,17 +533,18 @@ Rules:
    saying how many it would add and how many are left.
 4. **A day's allowance never stops a read or a search** (§9.2 rule 1). Export is counted by
    `exports_per_day` alone: the day's writes never stop it.
-5. **On the free plan an upload goes through the relay only**, where the size is enforced as the
-   bytes arrive; no direct-to-store URL is issued. A grant's `max_bytes` is the lowest of the file
-   limits and what is left of the day's bytes. Bytes are counted when the file is attached, against
-   whoever asked for the grant. A mockup canvas is not uploaded as a ZIP (`403 plan_restricted`): its
-   text is capped field by field, so its pages go in the call.
+5. **On a plan with limits an upload goes through the relay only**, where the size is enforced as
+   the bytes arrive; no direct-to-store URL is issued. A grant's `max_bytes` is the lowest of the
+   file limits, what is left of the day's bytes and what is left of the storage. Bytes are counted
+   when the file is attached, against whoever asked for the grant. A mockup canvas is not uploaded
+   as a ZIP (`403 plan_restricted`): its text is capped field by field, so its pages go in the
+   call, and a prototype, which comes only in a canvas's ZIP, never reaches such an organization.
 6. **The routes that serve bytes are calls too.** A file, an export, and a Story or mockup page's
    HTML are served outside the registry ([§6.4](06-operations-and-adapters.md)); each counts as a
    call against `requests_per_minute` for whoever requested its grant. On a deployment with a
    content site, a document the app's route hands off there counts once, at the app's route; its
    address on the content site counts nothing more.
-7. **Setting a limit to 0 refuses everything it counts.** A daily allowance set to 0
+7. **A limit of 0 refuses everything it counts.** A daily allowance a plan sets to 0
    (`writes_per_day`, `org_writes_per_day`, `sources_per_day`, `exports_per_day`, `bytes_per_day`,
    `org_bytes_per_day`) is switched off rather than used up: the call is refused, before its
    allowance is counted, with `403 plan_restricted`, like a switch that is off, with
@@ -511,22 +558,48 @@ Rules:
    `''` for the whole organization. The worker drops a minute's counters after an hour and a day's
    after three days.
 10. **A day's use is counted on every plan.** On the unlimited plan nobody is refused, but each
-    write, source, export and attached file is counted as on the free plan, in the operation's
-    transaction (rule 3), and `products.limits` and the instance owners' list of organizations
-    give it as on the free plan. So an organization moved to the free plan during a day meets what
-    that day already used: fifteen writes made while it was unlimited leave 485 of a person's 500.
-    One moved the other way stops meeting the limits from its next call (`products.set_limits`),
-    and its day goes on being counted. A minute's counters are kept only where someone meets the
+    write, source, export, attached file and byte sent is counted as on any other plan, in the
+    operation's transaction (rule 3), and `products.limits` and the instance owners' list of
+    organizations give it as on any other. So an organization moved to a plan with limits during a
+    day meets what that day already used: fifteen writes made while it was unlimited leave 135 of a
+    person's 150 on a plan that allows 150. One moved to unlimited stops meeting the limits from its next call
+    (`products.set_plan`), and its day goes on being counted. A minute's counters are kept only where someone meets the
     limits: counting every read of every organization would cost a write a call, and a plan
     changed in the middle of a minute leaves at most that minute uncounted.
     ◆ Decision: counting a day on every plan costs one more statement in a write's transaction and
-    a few rows a person a day, kept three days, and spares the free plan's allowances from
-    starting at zero partway through a day, which would let an organization moved to it that day
-    write a second day's worth.
+    a few rows a person a day, kept three days, and spares a plan's allowances from starting at
+    zero partway through a day, which would let an organization moved to it that day write a
+    second day's worth.
+
+11. **What an organization holds** is measured when a write could take it past a total
+    (`holdingsOf`): people with any role but reader, and pending invitations to anyone not already
+    counted, each holding a place; products and sources not archived; and storage, the distinct
+    files of its attachments' every version, the text read from each, the distinct files of its
+    mockups' prototypes, and the text it has written as the database stores it (sources' texts,
+    notes, comments, Story and mockup pages, assumptions, outcomes and earlier versions), every
+    version kept. A write is checked with the organization locked, so two at once cannot both take
+    the last place: creating or restoring a product, adding, copying in or restoring sources, and
+    any write whose input carries more than 4 KB of text, which meets the storage total; a smaller
+    one (a title, a review, a tag) never does. Giving someone a role, or inviting them, is checked
+    against the people total (`members.grant`); a reader is never refused.
+12. **Leaving, tidying and taking out are never refused by a total**: archiving, restoring a page,
+    deleting, cancelling an invitation, removing someone, reviewing and linking, and exporting. A
+    refusal says what makes room: removing someone or cancelling an invitation, archiving, or for
+    storage deleting.
+13. **Moving to another plan removes nothing.** An organization that holds more than its new plan's
+    totals keeps it all, and can add nothing more of that kind until enough is archived or deleted.
+    An organization moved back to the starting plan while its creator already has one there is
+    read-only instead, kept a year ([§3.3](03-accounts-teams-and-identity.md#33-tenants-and-teams)): it keeps
+    everything, its people read, export, delete and take people out, and every other write is
+    refused with `409 organization_read_only`, whatever its totals.
+14. **Bytes sent** are counted for the person who opens or downloads them, on every plan, on the
+    routes that send an attachment, a mockup's download and an export; past the plan's
+    `sent_bytes_per_day` an attachment or a mockup's download is refused until the next UTC day,
+    and an export is sent all the same.
 
 **The example organization** keeps no baseline and is never reset: its content changes only when
 its own members change it ([§3.10](03-accounts-teams-and-identity.md#310-the-example-organization)).
-Its plan is whatever an instance owner set; its members meet its limits only on the free plan.
+Its plan is whatever an instance owner set; its members meet its plan's limits, unless it is unlimited.
 
 ## 9.8 Retired insights and decisions
 

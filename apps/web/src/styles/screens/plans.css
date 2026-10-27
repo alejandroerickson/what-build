@@ -1,0 +1,181 @@
+/* The plans side by side: a few numbers per plan, then every limit behind a disclosure. */
+
+.plans-scroll {
+  overflow-x: auto;
+}
+.plans-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+.plans-table th,
+.plans-table td {
+  padding: var(--s-2h) var(--s-4);
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+  vertical-align: top;
+  line-height: var(--lh-ui);
+}
+.plans-table th:first-child {
+  padding-left: var(--sheet-px);
+}
+.plans-table th:last-child,
+.plans-table td:last-child {
+  padding-right: var(--sheet-px);
+}
+.plans-table tbody th {
+  min-width: 220px;
+  font-weight: var(--fw-medium);
+}
+.plans-table td.num,
+.plans-table th.num {
+  text-align: right;
+  white-space: nowrap;
+}
+.plans-table td.num {
+  font-weight: var(--fw-medium);
+}
+.plans-note {
+  display: block;
+  margin-top: 1px;
+  max-width: 44ch;
+  color: var(--faint);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-regular);
+}
+
+/* Each plan heads its column: its name, its price, what it is for. */
+.plans-head {
+  width: 26%;
+  min-width: 170px;
+  padding-top: var(--s-4) !important;
+  padding-bottom: var(--s-3h) !important;
+  text-align: right !important;
+}
+.plans-name {
+  display: inline-flex;
+  flex-wrap: wrap-reverse;
+  justify-content: flex-end;
+  align-items: center;
+  gap: var(--s-1) var(--s-2);
+  font-size: var(--fs-title);
+  font-weight: var(--fw-semibold);
+  letter-spacing: var(--tracking-title);
+}
+.plans-price {
+  display: block;
+  margin-top: var(--s-1h);
+  font-size: var(--fs-h1);
+  font-weight: var(--fw-semibold);
+  letter-spacing: -0.01em;
+  line-height: var(--lh-tight);
+}
+.plans-about {
+  display: block;
+  margin-top: var(--s-1);
+  margin-left: auto;
+  max-width: 26ch;
+  color: var(--muted);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-regular);
+  line-height: var(--lh-ui);
+}
+.plans-head[aria-current="true"] .plans-price {
+  color: var(--text);
+}
+.plans-corner {
+  border-bottom-color: var(--line) !important;
+}
+
+/* Included, or not: a mark the row's number column lines up with. */
+.plans-has {
+  display: inline-flex;
+  justify-content: flex-end;
+  color: var(--faint);
+}
+.plans-has.plans-yes {
+  color: var(--ok);
+}
+
+.plans-foot {
+  margin: 0;
+  padding: var(--s-3) var(--sheet-px);
+  max-width: calc(var(--measure) + 2 * var(--sheet-px));
+  color: var(--muted);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-body);
+}
+
+/* Every limit, for whoever wants the detail. */
+.plans-every {
+  border-top: 1px solid var(--line);
+}
+.plans-every > summary {
+  display: flex;
+  align-items: center;
+  gap: var(--s-1h);
+  min-height: 40px;
+  padding: 0 var(--sheet-px);
+  color: var(--muted);
+  font-weight: var(--fw-medium);
+  cursor: pointer;
+  list-style: none;
+  transition: color var(--dur-1) var(--ease);
+}
+.plans-every > summary::-webkit-details-marker {
+  display: none;
+}
+.plans-every > summary:hover {
+  color: var(--text);
+}
+.plans-every > summary:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+.plans-every-chevron {
+  transition: transform var(--dur-2) var(--ease);
+}
+.plans-every[open] .plans-every-chevron {
+  transform: rotate(90deg);
+}
+.plans-table-every thead th {
+  color: var(--faint);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-medium);
+  white-space: nowrap;
+}
+.plans-table-every tr:last-child th,
+.plans-table-every tr:last-child td {
+  border-bottom: 0;
+}
+.plans-per {
+  color: var(--muted);
+  white-space: nowrap;
+}
+@media (prefers-reduced-motion: reduce) {
+  .plans-every-chevron {
+    transition: none;
+  }
+}
+
+@media (max-width: 760px) {
+  .plans-table tbody th {
+    min-width: 150px;
+  }
+  .plans-head {
+    min-width: 120px;
+  }
+  .plans-table th,
+  .plans-table td {
+    padding-left: var(--s-2h);
+    padding-right: var(--s-2h);
+  }
+  .plans-per {
+    white-space: normal;
+  }
+}
+@media (max-width: 480px) {
+  .plans-price {
+    font-size: var(--fs-lead);
+  }
+}

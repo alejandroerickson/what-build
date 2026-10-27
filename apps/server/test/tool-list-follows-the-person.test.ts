@@ -23,7 +23,7 @@ let paula: Browser; // an admin of one product, and nothing more
 let org: string;
 let path: string;
 
-const INSTANCE_ACTIONS = ["usage", "organizations", "set_limits", "accounts", "tenant_allowances", "set_tenant_allowance", "remove_tenant_allowance"];
+const INSTANCE_ACTIONS = ["usage", "organizations", "set_plan", "set_plan_limits", "guests", "set_guests", "accounts", "tenant_allowances", "set_tenant_allowance", "remove_tenant_allowance"];
 
 function result(r: unknown): { status: number; json: any } {
   const t = (r as { content: { text: string }[] }).content[0]!.text;
@@ -118,7 +118,7 @@ describe("the instance owners' actions", () => {
     await client.close();
     const editing = await offeredAt(root, "/mcp", "editor");
     expect(editing).toContain("products.organizations");
-    for (const a of ["set_limits", "set_tenant_allowance", "remove_tenant_allowance"]) expect(editing, a).not.toContain(`products.${a}`);
+    for (const a of ["set_plan", "set_tenant_allowance", "remove_tenant_allowance"]) expect(editing, a).not.toContain(`products.${a}`);
   });
 
   it("are neither listed nor named to anyone else, whose call is refused as before", async () => {

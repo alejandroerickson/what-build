@@ -512,6 +512,7 @@ function registerOps(): OperationDef[] {
     scope: "product",
     access: "admin",
     mutates: true,
+    allowReadOnlyOrganization: true,
     summary: "DELETE PERMANENTLY — cannot be undone. Destroys an assumption with its reviews and history; archive is the reversible alternative.",
     description:
       `Archive (${tool}(action="archive")) is the reversible alternative, and review or supersede corrects the claim itself; one of those is almost always what is wanted. ` +

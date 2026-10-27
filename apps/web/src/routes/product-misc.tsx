@@ -552,7 +552,7 @@ function ExportSheet() {
   const { api: base, product } = useProduct();
   const qc = useQueryClient();
   // The example organization is read where it is; on the free plan exports are a daily allowance, off at 0.
-  const limits = useOrganizationLimits(product.tenant.slug, product.tenant.plan === "free" || Boolean(product.tenant.example));
+  const limits = useOrganizationLimits(product.tenant.slug, product.tenant.plan !== "unlimited" || Boolean(product.tenant.example));
   const guest = limits.data?.you_meet_them === "calls_per_minute_only";
   const exportsOff = guest || (limits.data?.you_meet_them === true && limits.data.limits.find((a) => a.key === "exports_per_day")?.value === 0);
   const list = useQuery({

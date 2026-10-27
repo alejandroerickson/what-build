@@ -1,12 +1,12 @@
 import {
-  admitRead, AppError, capRole, CARD_FRAMES, CARD_PREVIEW_PURPOSE, completeGrant, conflict, DOWNLOAD_GRANT_HEADER, effectiveRole, forbidden, isDocumentPurpose, levelAllows, membershipsFor, mockupBundle, json, MOCKUP_UPLOAD_PURPOSE, notFound,
+  admitRead, admitSend, AppError, capRole, CARD_FRAMES, CARD_PREVIEW_PURPOSE, completeGrant, conflict, DOWNLOAD_GRANT_HEADER, effectiveRole, forbidden, isDocumentPurpose, levelAllows, membershipsFor, mockupBundle, json, MOCKUP_UPLOAD_PURPOSE, notFound,
   OPERATIONS, resolveScope, roleAtLeast, STORY_PREVIEW_PURPOSE, toAppError, tooLarge, UPLOAD_GRANT_HEADER, type ActorSnapshot, type ConnectionLevel, type Env, type OpContext, type Principal, type Scope, type Tx,
 } from "@whatbuild/core";
 import { Hono, type Context } from "hono";
 import { sql } from "kysely";
 import type { ServerConfig } from "./config.ts";
 import { requestedHost } from "./canonical-host.ts";
-import { cardFront, storyHtml, storyTheme, streamFile } from "./documents.ts";
+import { bytesAsked, cardFront, storyHtml, storyTheme, streamFile } from "./documents.ts";
 
 /** A count of bytes as people read it: 10,485,760. */
 const bytes = (n: number) => n.toLocaleString("en-US");
@@ -231,7 +231,8 @@ export function uploadRoutes(env: Env & { config: ServerConfig }) {
         return r ? { v, path: f?.path ?? "file", product_id: r.product_id } : null;
       });
       if (!found) throw notFound("That file no longer exists.");
-      await requesterMayRead(env, claims, found.product_id);
+      const { principal, scope } = await requesterMayRead(env, claims, found.product_id);
+      await admitSend(env, principal, scope, bytesAsked(c, found.v.size));
       return streamFile(c, env, found.v, found.path, true);
     } catch (e) {
       return fail(c, e);
@@ -245,9 +246,10 @@ export function uploadRoutes(env: Env & { config: ServerConfig }) {
         throw new AppError(401, "invalid_grant", "The download grant is missing, invalid or expired. Request a new one with mockups_read(action=\"get_download\").");
       const version = await inTenant(env, String(claims["t"]), (trx) => trx.selectFrom("mockup_versions").select("product_id").where("version_id", "=", c.req.param("version_id")).executeTakeFirst());
       if (!version) throw notFound("That mockup version no longer exists.");
-      await requesterMayRead(env, claims, version.product_id);
+      const { principal, scope } = await requesterMayRead(env, claims, version.product_id);
       const bundle = await inTenant(env, String(claims["t"]), (trx) => mockupBundle(trx, c.req.param("version_id"), env.ports.blobs));
       if (!bundle) throw notFound("That mockup version no longer exists.");
+      await admitSend(env, principal, scope, bundle.bytes.byteLength);
       return c.body(bundle.bytes as unknown as ArrayBuffer, 200, {
         "Content-Type": "application/zip",
         "Content-Disposition": `attachment; filename="${bundle.name}"`,
@@ -309,8 +311,8 @@ export function uploadRoutes(env: Env & { config: ServerConfig }) {
       if (!claims || claims["purpose"] !== "export" || claims["e"] !== c.req.param("export_id")) throw new AppError(401, "invalid_grant", "The download grant is missing, invalid or expired. Call products_read(action=\"exports\") again for a fresh one.");
       const ex = await inTenant(env, String(claims["t"]), (trx) => trx.selectFrom("exports").select("product_id").where("export_id", "=", c.req.param("export_id")).executeTakeFirst());
       if (!ex) throw notFound("That export is not ready or no longer exists.");
-      await requesterMayRead(env, claims, ex.product_id);
-      return await sendExport(c, env, String(claims["t"]), c.req.param("export_id"));
+      const { principal, scope } = await requesterMayRead(env, claims, ex.product_id);
+      return await sendExport(c, env, String(claims["t"]), c.req.param("export_id"), undefined, (bytes) => admitSend(env, principal, scope, bytes, { refuse: false }));
     } catch (e) {
       return fail(c, e);
     }
@@ -319,13 +321,15 @@ export function uploadRoutes(env: Env & { config: ServerConfig }) {
   return app;
 }
 
-export async function sendExport(c: Context, env: Env, tenantId: string, exportId: string, productId?: string) {
+/** An export's ZIP; `admit` counts its bytes against whoever takes it, before any is sent. */
+export async function sendExport(c: Context, env: Env, tenantId: string, exportId: string, productId?: string, admit?: (bytes: number) => Promise<void>) {
   const ex = await inTenant(env, tenantId, async (trx) => {
     let q = trx.selectFrom("exports as e").innerJoin("products as p", "p.product_id", "e.product_id").select(["e.blob_key", "e.size", "e.status", "e.created_at", "p.slug"]).where("e.export_id", "=", exportId);
     if (productId) q = q.where("e.product_id", "=", productId);
     return q.executeTakeFirst();
   });
   if (!ex || ex.status !== "ready" || !ex.blob_key) throw notFound("That export is not ready or no longer exists.");
+  await admit?.(Number(ex.size ?? 0));
   const name = `${ex.slug}-export-${ex.created_at.slice(0, 10)}.zip`;
   const body = await env.ports.blobs.getStream(ex.blob_key);
   return c.body(body, 200, {

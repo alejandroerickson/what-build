@@ -102,7 +102,8 @@ An agent runs it in the background with its output in `.what-build/e2e/server.lo
 `.what-build/e2e/dev.pid` names, never another checkout's instance. It refuses to start while this
 checkout's instance runs. It drops `e2e`, creates it again from `golden` (a Postgres template copy, which takes a moment
 even for a large copy), copies the files, applies any migration newer than the golden master, names the example
-organization the example, and serves. The sample people hold their roles in the example and the standard organization,
+organization the example, and serves. It offers the plans in `deploy/plans.example.json`, Free
+and Pro, and starts new organizations on Free, as local development does. The sample people hold their roles in the example and the standard organization,
 so a guest of the example is anyone else: sign in with any other address, such as
 `guest@example.com`. Stopping it and starting it again
 is how a test goes back to the golden master; it also ends every session and MCP token, which the
@@ -153,6 +154,14 @@ The plans:
 - `search`: the palette and the Search screen find every kind of thing by plain words, read as the
   specification says; the web and MCP's plain mode agree; what one door writes the other finds; a
   reader has no search.
+- `organizations-and-people`: an owner of this WhatBuild lets someone in from the waitlist, moves
+  their organization to Pro and back (read-only when they already have a Free one; the instance
+  offers the example file's plans, Free and Pro), deletes an
+  organization they are not in, and removes accounts, the only owner of an organization included,
+  through the web, with the instance owners' MCP actions checked against it.
+- `running-an-organization`: an organization's owner starts it on an allowance, fills it to Free's
+  people total (an invitation holds a place, a reader of the Story is free), changes and takes
+  roles, renames and deletes it; someone it no longer holds asks for, and starts, their own.
 - `exploratory`: open-ended, every screen as each role and as a guest of the example, at phone width and
   in the dark theme.
 

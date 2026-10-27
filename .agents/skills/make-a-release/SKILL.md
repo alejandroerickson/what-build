@@ -37,7 +37,10 @@ command. This file is how to conduct the work.
    shows. Watch the Release workflow to the end.
 5. **Production, if asked:** if the release adds migrations, or changes parsing
    (`packages/parsers/`, `apps/server/src/parse-thread.ts`, the `WHATBUILD_PARSE_*` limits) or the
-   service's memory, rehearse it on the dev deployment first and report the result. Then approve the pending Cloud Build, follow its log, and check
+   service's memory, rehearse it on the dev deployment first and report the result. Before
+   approving, do on production what the release's lines in `upgrading.md` ask of a deployment, with
+   the person's yes: plans, for one, through the `run-the-instance` skill, since a starting plan the
+   service cannot find stops it from starting. Then approve the pending Cloud Build, follow its log, and check
    that `/api/v1/meta` reports the new version. Then deploy the Cloudflare Worker from the release's
    tag, as the guide shows: the public site is served from the Worker's own build, so without this
    it keeps the page of an older release.

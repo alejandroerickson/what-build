@@ -99,7 +99,8 @@ async function main() {
     ...(FIXTURE || END_TO_END ? { WHATBUILD_MAILER: "console", WHATBUILD_BLOB_STORE: "fs" } : {}),
     // The sample owner runs this instance, so the instance owner's page has someone to show it to.
     WHATBUILD_INSTANCE_OWNERS: process.env["WHATBUILD_INSTANCE_OWNERS"] ?? SEED_ACCOUNTS[0].email,
-    // As on the deployment that offers organizations to the public: someone else's new organization is free.
+    // As on a deployment that offers plans: the example plans file's, and someone else's new organization is on its free plan.
+    WHATBUILD_PLANS: process.env["WHATBUILD_PLANS"] ?? resolve(root, "deploy/plans.example.json"),
     WHATBUILD_NEW_ORGANIZATION_PLAN: process.env["WHATBUILD_NEW_ORGANIZATION_PLAN"] ?? "free",
     // Many people try to get in as on a deployment taking sign-ups: let in by the allowlist (one of
     // the synthetic organizations' domain), an invitation or an allowance, and otherwise refused.

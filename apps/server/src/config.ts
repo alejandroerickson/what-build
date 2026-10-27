@@ -1,3 +1,6 @@
+import type { PlanDefinition } from "@whatbuild/core";
+import { plansFrom, startingPlanFrom } from "./plans-config.ts";
+
 /**
  * All configuration comes from the environment, read once at start-up. Names use one prefix,
  * WHATBUILD_, except the conventional DATABASE_URL, PORT and NODE_ENV.
@@ -67,11 +70,13 @@ export interface ServerConfig {
   instanceOwners: string[];
   /** How many organizations an address may create when no instance owner has given it an allowance. */
   defaultTenantAllowance: number;
+  /** The plans the deployment offers (WHATBUILD_PLANS), in the order they are compared; none on a deployment that offers no plans. */
+  plans: PlanDefinition[];
   /**
-   * The plan of an organization someone other than an instance owner creates: unlimited unless the
-   * deployment says free, as one that offers organizations to the public on a small budget does.
+   * The plan of an organization someone other than an instance owner creates: one of `plans`, as a
+   * deployment that offers organizations to the public names, or unlimited, as every other does.
    */
-  newOrganizationPlan: "free" | "unlimited";
+  newOrganizationPlan: string;
   /** The slug of the example organization every account reads, if the deployment has one. A self-hosted deployment has none. */
   exampleTenant: string | null;
   relayMaxBytes: number;
@@ -200,6 +205,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
     if (!env["WHATBUILD_MAIL_FROM"]?.trim()) throw new Error("WHATBUILD_MAIL_FROM is required for the acs mailer; use a sender from its verified domain.");
     if (azureClientId && !GUID.test(azureClientId)) throw new Error("WHATBUILD_AZURE_CLIENT_ID must be a managed identity's client ID, a GUID.");
   }
+  const plans = plansFrom(env["WHATBUILD_PLANS"]);
   return {
     env: mode,
     port,
@@ -233,7 +239,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
     signupAllowlist: env["WHATBUILD_SIGNUP_ALLOWLIST"] ? env["WHATBUILD_SIGNUP_ALLOWLIST"].split(",").map((s) => s.trim().toLowerCase()).filter(Boolean) : null,
     instanceOwners: (env["WHATBUILD_INSTANCE_OWNERS"] ?? "").split(",").map((s) => s.trim().toLowerCase()).filter((s) => s.includes("@") && !s.startsWith("@")),
     defaultTenantAllowance: Math.max(0, Math.floor(num(env["WHATBUILD_TENANT_ALLOWANCE"], 0))),
-    newOrganizationPlan: env["WHATBUILD_NEW_ORGANIZATION_PLAN"]?.trim().toLowerCase() === "free" ? "free" : "unlimited",
+    plans,
+    newOrganizationPlan: startingPlanFrom(env["WHATBUILD_NEW_ORGANIZATION_PLAN"], plans),
     exampleTenant: env["WHATBUILD_EXAMPLE_TENANT"]?.trim().toLowerCase() || null,
     // Cloud Run refuses request bodies over 32 MiB, so the relay stays under that.
     relayMaxBytes: num(env["WHATBUILD_RELAY_MAX_BYTES"], 25 * MiB),
@@ -253,3 +260,5 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
     providers: providerList(env["WHATBUILD_PROVIDERS"]),
   };
 }
+
+

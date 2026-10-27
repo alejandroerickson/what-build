@@ -96,10 +96,71 @@
   .site {
     padding: var(--s-4) 0 var(--s-10);
   }
-  .site-main .sheet {
+  .site-main .sheet,
+  .site-main > .callout {
     border-radius: 0;
   }
   .site-foot {
     padding: 0 var(--sheet-px);
   }
+}
+
+/* The plans page: a short head, the plans side by side, then how to hear when it opens. */
+.site-main > .sheet + .sheet,
+.site-main > .sheet + .callout {
+  margin-top: var(--s-4);
+}
+.site-plans-intro {
+  padding: var(--s-5) var(--sheet-px) var(--s-6);
+}
+.site-lockup {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  color: var(--text);
+  font-size: var(--fs-title);
+  font-weight: var(--fw-semibold);
+  text-decoration: none;
+}
+.site-lockup:hover {
+  color: var(--text);
+}
+.site-plans-title {
+  margin: var(--s-6) 0 var(--s-2);
+  font-size: var(--fs-h1);
+  font-weight: var(--fw-semibold);
+  letter-spacing: -0.01em;
+  line-height: var(--lh-tight);
+}
+.site-plans-lede {
+  margin: 0;
+  max-width: 60ch;
+  color: var(--muted);
+  font-size: var(--fs-lead);
+  line-height: var(--lh-body);
+}
+
+/* While guests may sign up: exploring first, a team's own organization beside it. */
+.site-ways-in {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2) var(--s-5);
+  margin-top: var(--s-5);
+}
+.site-ways-in > .overview-agent-link {
+  margin-top: 0;
+}
+.site-quiet-link {
+  display: inline-flex;
+  align-items: center;
+  color: var(--muted);
+  font-weight: var(--fw-medium);
+  text-decoration: underline;
+  text-decoration-color: var(--line-strong);
+  text-underline-offset: 3px;
+}
+.site-quiet-link:hover {
+  color: var(--text);
+  text-decoration-color: currentColor;
 }

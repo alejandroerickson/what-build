@@ -1,3 +1,4 @@
+import { usePlansOffered } from "../lib/limits.ts";
 import { useState } from "react";
 import { Link, NavLink, useLocation, useNavigate } from "react-router";
 import { ROLE_WORD } from "../lib/format.ts";
@@ -204,11 +205,12 @@ export function PlainNav({ section }: { section: string }) {
 
 /**
  * The panel footer: the signed-in person, and the account menu: their email, their role in each
- * organization with its members and, on the free plan, its plan and limits, the theme, their settings,
+ * organization with its members and its plan, the theme, their settings,
  * feedback, and sign out. An organization where the person reads only the Story is left out: its
  * members are not shown to them.
  */
 export function AccountMenu() {
+  const offered = usePlansOffered();
   const me = useMe();
   const signOut = useSignOut();
   const [theme, setTheme] = useTheme();
@@ -243,8 +245,8 @@ export function AccountMenu() {
         ) : null}
         {tenants.map((t) => {
           const guest = t.your_role === "guest";
-          // An owner of the instance sets every organization's plan and limits, so sees them for each.
-          const showLimits = t.plan === "free" || instanceOwner;
+          // Everyone in an organization reads its plan, where the deployment offers plans; an owner of the instance moves any of them to another.
+          const showPlan = offered === true && (!guest || instanceOwner);
           return (
             <MenuGroup key={t.tenant_id} label={t.your_role ? `${t.name} · ${ROLE_WORD[t.your_role] ?? t.your_role}` : t.name}>
               {!guest ? (
@@ -252,9 +254,9 @@ export function AccountMenu() {
                   Members
                 </MenuItem>
               ) : null}
-              {showLimits ? (
-                <MenuItem icon="scale" to={`/t/${t.slug}/limits`}>
-                  Plan and limits
+              {showPlan ? (
+                <MenuItem icon="scale" to={`/t/${t.slug}/plan`}>
+                  Plan
                 </MenuItem>
               ) : null}
             </MenuGroup>

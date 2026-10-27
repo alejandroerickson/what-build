@@ -3,7 +3,7 @@ import { DOWNLOAD_GRANT_HEADER, MOCKUP_RESPONSE_HEADERS, PREVIEWS_KEPT, STORY_RE
 import { sql } from "kysely";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { syncExampleTenant } from "../src/example-organization.ts";
-import { asServed, startHarness, type Browser, type Harness } from "./harness.ts";
+import { asServed, startHarness, withPlanLimits, type Browser, type Harness } from "./harness.ts";
 
 // story.preview: the same call as story.publish, checked as publish checks it, with nothing
 // published, and a grant to GET the document publish would then store.
@@ -241,15 +241,12 @@ describe("on the free plan, and in the example organization", () => {
     expect(await writesToday(me)).toBe(before);
 
     // With writing switched off on the plan, a preview is refused where publish is.
-    await h.db.updateTable("tenants").set({ limits: JSON.stringify({ writes_per_day: 0 }) }).where("tenant_id", "=", freeId).execute();
-    try {
+    await withPlanLimits("free", { writes_per_day: 0 }, async () => {
       const paused = await olive.api("POST", `${S}/story/pages/visit/preview`, { title: "A visit", body });
       expect(paused.status).toBe(403);
       expect(paused.body.error).toMatchObject({ code: "plan_restricted", details: { setting: "writes_per_day" } });
       expect((await olive.api("POST", `${S}/story/pages/visit/versions`, { title: "A visit", body })).body.error.code).toBe("plan_restricted");
-    } finally {
-      await h.db.updateTable("tenants").set({ limits: "{}" }).where("tenant_id", "=", freeId).execute();
-    }
+    });
   });
 
   it("refuses a guest's preview in the example organization, as it refuses their publish", async () => {
