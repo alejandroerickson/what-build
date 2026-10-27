@@ -84,7 +84,7 @@ synthetic sample product.
 ## Phase 3 — Accounts, organizations, invitations
 
 Sign-in by email link, Google and Microsoft work accounts; organization creation; invitations by email and link; members
-and roles; sessions; the `owner` role; rate limits; quota enforcement; the data statement at
+and roles; sessions; the `owner` role; rate limits; quota enforcement; the free-preview line at
 sign-in.
 
 *Accept:*

@@ -96,28 +96,16 @@ export interface ServerConfig {
   operator: string | null;
   /** Where people write about their data: an email address or a web address (WHATBUILD_PRIVACY_CONTACT). */
   privacyContact: string | null;
-  /** The providers that handle people's data for this deployment, and for what (WHATBUILD_PROVIDERS). */
-  providers: Provider[];
+  /**
+   * Who else handles people's data for this deployment, and for what, as a paragraph its privacy
+   * page shows as written (WHATBUILD_PROVIDERS); null when it says nothing.
+   */
+  providers: string | null;
 }
 
-export interface Provider {
-  name: string;
-  purpose: string;
-}
-
-/** WHATBUILD_PROVIDERS: "Name: what it does; Name: what it does". An entry without a colon is a name alone. */
-export function providerList(v: string | undefined): Provider[] {
-  return (v ?? "")
-    .split(";")
-    .map((entry) => entry.trim())
-    .filter(Boolean)
-    .slice(0, 20)
-    .map((entry) => {
-      const colon = entry.indexOf(":");
-      const name = (colon < 0 ? entry : entry.slice(0, colon)).trim().slice(0, 80);
-      return { name, purpose: colon < 0 ? "" : entry.slice(colon + 1).trim().slice(0, 200) };
-    })
-    .filter((p) => p.name);
+/** WHATBUILD_PROVIDERS, as one paragraph: its line breaks and runs of spaces become one space. */
+export function providersText(v: string | undefined): string | null {
+  return v?.replace(/\s+/g, " ").trim().slice(0, 1200) || null;
 }
 
 const MiB = 1024 * 1024;
@@ -250,6 +238,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
     refreshTokenDays: num(env["WHATBUILD_REFRESH_TOKEN_DAYS"], 30),
     operator: env["WHATBUILD_OPERATOR"]?.trim().slice(0, 120) || null,
     privacyContact: env["WHATBUILD_PRIVACY_CONTACT"]?.trim().slice(0, 200) || null,
-    providers: providerList(env["WHATBUILD_PROVIDERS"]),
+    providers: providersText(env["WHATBUILD_PROVIDERS"]),
   };
 }

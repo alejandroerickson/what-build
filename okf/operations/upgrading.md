@@ -23,7 +23,16 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
 
 ## Unreleased
 
-Nothing yet.
+- **The privacy page is written again, as a short notice.** It concerns every deployment, and
+  asks one thing of a deployment that set `WHATBUILD_PROVIDERS`. The page now says what is kept, why,
+  who else handles it, how long it stays and what a person can do, in categories and prose, with
+  no durations ([decision](../decisions/the-privacy-page-is-a-short-notice-written-to-stay-true.md));
+  `privacy` in `GET /api/v1/meta` loses `session_days`, `agent_access_days` and
+  `usage_people_months`. `WHATBUILD_PROVIDERS` is now a paragraph the page shows as written, in
+  place of the `Name: what it does; …` list, so a deployment can name its providers or describe
+  them by kind. A value in the old form still shows, as one line of names and colons: rewrite it as
+  sentences ([Cloud Run](cloud-run.md), the Azure template). The page's "Last changed" reads October
+  2026. No migration.
 
 ## v0.24.0
 

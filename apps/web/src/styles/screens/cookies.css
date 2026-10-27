@@ -101,7 +101,17 @@
   margin-top: var(--s-5);
 }
 
-/* The /privacy page: what is kept, each under its lead, then the grounds for it. */
+/* The /privacy page: prose, with one list of what is kept under plain leads. */
+.privacy-text {
+  max-width: 68ch;
+  margin: 0;
+  color: var(--text);
+  line-height: 1.5;
+}
+.privacy-text + .privacy-text,
+.privacy-after {
+  margin-top: var(--s-2h);
+}
 .privacy-list {
   display: grid;
   gap: var(--s-2h);
@@ -109,13 +119,9 @@
   margin: 0;
   padding: 0;
   list-style: none;
-  color: var(--muted);
+  color: var(--text);
   line-height: 1.5;
 }
 .privacy-list b {
-  color: var(--text);
   font-weight: var(--fw-semibold);
-}
-.privacy-grounds {
-  margin-top: var(--s-3h);
 }

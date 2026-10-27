@@ -16,23 +16,30 @@ of it is not built yet, it says so.
 
 ## 9.1 What we tell people
 
-This text — not a paraphrase of it — opens the privacy page, and is kept in the repository
-(`apps/web/src/routes/privacy.tsx`) so a change to it is a reviewable commit. It is four short
-statements, each under a lead-in. The sign-in page carries only the first, as one line under the
-form ("WhatBuild is a free preview: don’t keep anything here you can’t afford to lose."), with
-links to Privacy and Cookies.
+The privacy page (`/privacy`, readable signed out; `apps/web/src/routes/privacy.tsx`) is a short
+notice written to stay true as the product changes
+([decision](../decisions/the-privacy-page-is-a-short-notice-written-to-stay-true.md)). It says, in
+categories rather than mechanics, what WhatBuild keeps about a person (their account: the address
+they sign in with, their name, the addresses they invite; what they and their agents add, with their
+name on it; the records of running the service: sessions, connected agents, a log of requests that
+holds no content, and counts of use that name nobody; analytics, when the deployment has it and the
+person accepted; what they send: feedback and a request to hear from us), why (because they use
+WhatBuild; to run it safely and improve it, which they may object to; by consent, for analytics),
+who else handles it (the deployment's providers, in the deployment's own words; the people in the
+organization; the agent the person connects, whose doings are not ours; nothing sold, no advertising,
+no model trained), how long it stays (as criteria: while the account exists; while the content is
+in its organization, which it outlasts the account; a limited time for the log, the counts and
+backups) and what the person can do (export, delete their account in Settings or by asking,
+ask to see, correct, delete or object, complain to their authority). It carries the month it last
+changed in a way that matters, and no number that a setting or a release could change. The sign-in
+page carries one line under its form ("WhatBuild is a free preview: don’t keep anything here you
+can’t afford to lose."), with links to Privacy and Cookies.
 
-> **A free preview.** We don’t promise uptime or durability, so don’t keep anything here whose
-> loss or exposure would hurt.
->
-> **Kept apart.** Your content is isolated per organization, encrypted in transit, and encrypted
-> at rest as far as our providers do it. We rent the database and the file store, and can’t
-> promise anything on their behalf.
->
-> **Never sold or trained on.** No ads, nothing sold, and no model trained on your content. There
-> is no AI in WhatBuild.
->
-> **Yours to take.** Export is always available and always complete.
+What only the deployment knows comes from its settings, in `privacy` from `GET /api/v1/meta`: who
+runs it (`WHATBUILD_OPERATOR`), where to write (`WHATBUILD_PRIVACY_CONTACT`, an address or a page),
+who else handles the data (`WHATBUILD_PROVIDERS`, a paragraph the page shows as written, which
+names its providers or describes them by kind) and whether it has analytics. Without them the page
+says the deployment has not named them yet.
 
 Supporting commitments, each of which is a rule elsewhere in this spec:
 
@@ -44,7 +51,8 @@ Supporting commitments, each of which is a rule elsewhere in this spec:
 | Isolation per organization | [§3.6](03-accounts-teams-and-identity.md) — three layers, tested on every operation |
 | Export is complete and always available | [§9.4](#94-taking-it-with-you) and [§1.5](01-product.md) |
 | Analytics only for people who accept | The notice and `/cookies` ([§7.11](07-web-app.md)); Google's script loads only after Accept (`apps/web/src/lib/analytics.ts`) |
-| We name our sub-processors | `/privacy` lists the providers the deployment names (`WHATBUILD_PROVIDERS`), below; the sign-in page links to it. Keeping the list current before a provider changes is the operator's. |
+| We say who else handles it | `/privacy` says so in the deployment's own words (`WHATBUILD_PROVIDERS`), above; the sign-in page links to it. Keeping it true before a provider changes is the operator's. |
+| Every claim on the privacy page has a rule here | This table, and the [decision](../decisions/the-privacy-page-is-a-short-notice-written-to-stay-true.md): a change that makes a claim untrue changes the page in the same change, and a claim no rule enforces is not made. |
 
 **Cookies and browser storage.** WhatBuild uses cookies and browser storage of two kinds. The
 needed kind is always on: the session cookie that keeps a person signed in, two short-lived ones
@@ -85,23 +93,6 @@ unless asked. `/cookies` says so under Counting without cookies.
 
 **In the example organization** nobody but its own members writes, and every account reads what
 they write; every screen there says so ([§3.10](03-accounts-teams-and-identity.md#310-the-example-organization)).
-
-**The privacy page** (`/privacy`, readable signed out; `apps/web/src/routes/privacy.tsx`), linked
-from the sign-in page, Settings, `/cookies` and the public site's footer. It opens with the
-statement above. What it says of every deployment is fixed text: what is kept, why and for how long (the account; what people add; sessions
-and connected agents, with the deployment's session and agent lifetimes; the counts held against
-an organization's limits (§9.7 rules 9 and 10), for three days; request logs; the counts of use,
-for 14 months; Google Analytics, when the deployment has it; feedback, without the sender's
-name or address unless they share it, and mailed once a day to the people who run the deployment,
-and interest; backups),
-on what grounds (because a person uses WhatBuild; to run it safely and improve it, which a person
-may object to; or their consent), that providers may handle it abroad, that nothing is sold, and
-what a person can do (export, ask to see, correct, delete or object, delete their own account,
-in the words the deletion page and its confirmation mail use, complain to their authority).
-What only the deployment knows comes from its settings, in `privacy` from `GET /api/v1/meta`: who
-runs it (`WHATBUILD_OPERATOR`), where to write (`WHATBUILD_PRIVACY_CONTACT`, an address or a page),
-and its providers (`WHATBUILD_PROVIDERS`, `Name: what it does; …`). Without them the page says the
-deployment has not named them yet.
 
 **About agents.** What a connected agent reads goes to whoever runs it, under their terms, not
 ours. The Connect page says so above the address a person is about to paste ([§6.8](06-operations-and-adapters.md)). We make no claims on

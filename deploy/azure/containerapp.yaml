@@ -81,13 +81,13 @@ properties:
           - name: WHATBUILD_INSTANCE_OWNERS
             value: "${WB_OWNERS}"
           # Who runs this deployment, where to write about one's data, and the providers that handle
-          # it ("Name: what it does; …"), for the privacy page.
+          # it, as a paragraph the privacy page shows as written.
           # - name: WHATBUILD_OPERATOR
           #   value: "Example Labs"
           # - name: WHATBUILD_PRIVACY_CONTACT
           #   value: "privacy@example.com"
           # - name: WHATBUILD_PROVIDERS
-          #   value: "Microsoft Azure: hosting, the database, files and logs"
+          #   value: "Microsoft Azure runs the service and holds the database, its files and its logs."
           # ACS Email API with this app's managed identity (okf/operations/azure.md, "Mail with
           # Azure Communication Services"). Select acs after granting access to the linked mail
           # resource; these are public settings and need no mail secret. Use ACS or SMTP.

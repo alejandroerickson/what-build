@@ -520,7 +520,7 @@ identity directly, so this setup needs no app registration or mail secret
 
    The template has the same optional environment entries. A system-assigned identity uses no
    `WHATBUILD_AZURE_CLIENT_ID`; this template uses a user-assigned one, so select it explicitly.
-4. Name Microsoft Azure for mail in `WHATBUILD_PROVIDERS`, preserving its other entries. Request
+4. Say in `WHATBUILD_PROVIDERS` that Microsoft Azure sends the mail, keeping the rest of it. Request
    a sign-in link to the operator's own address and confirm it arrives outside spam. The API's
    completed send means the provider accepted it; it is not proof of inbox delivery.
 

@@ -173,7 +173,7 @@ export function SignIn() {
           ) : null}
         </Sheet>
       ) : null}
-      {/* The data statement (okf/spec/09-data-lifecycle.md §9.1): its first line here, all of it on Privacy. */}
+      {/* The one line every sign-in page carries (okf/spec/09-data-lifecycle.md §9.1), with the way to Privacy and Cookies. */}
       <p className="entry-fine">
         WhatBuild is a free preview: don’t keep anything here you can’t afford to lose. <Link to="/privacy">Privacy</Link> · <Link to="/cookies">Cookies</Link>
       </p>
