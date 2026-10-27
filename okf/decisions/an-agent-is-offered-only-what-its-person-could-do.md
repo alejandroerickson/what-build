@@ -24,8 +24,9 @@ actions left MCP altogether
 
 ## Decision
 
-- What a person does only in the web app (`webOnly`) is listed to nobody: deleting an organization
-  or an account, and running the instance, the instance owners' own actions included
+- What a person does only in the web app (`webOnly`) is listed to nobody: renaming an organization
+  or a product, deleting an organization or an account, and running the instance, the instance
+  owners' own actions included
   ([decision](running-the-instance-is-done-in-the-web-app-never-by-an-agent.md)).
 - A connector scoped to a product or an organization lists only what its fence answers
   ([decision](a-scoped-mcp-connector-is-a-fence.md)) and what the person's roles reach there:

@@ -43,9 +43,9 @@ OpenAPI document.
 
 A **parity test** (`apps/server/test/mcp.test.ts`, "adapter parity") fails if any operation is
 unreachable from either adapter, or if any tool action exists that is not in the registry. The one
-exception is what only a person does in the web app (`webOnly`): deleting an organization or one's
-own account and their previews, and running the instance (its owners' actions and removing an
-account), which MCP never lists and `execute` refuses to anything but the web app.
+exception is what only a person does in the web app (`webOnly`): renaming an organization or a
+product, deleting an organization or one's own account and their previews, and running the instance
+(its owners' actions and removing an account), which MCP never lists and `execute` refuses to anything but the web app.
 
 `execute` (`packages/core/src/execute.ts`) is the one way an operation runs, whichever door the
 call came through:
@@ -265,11 +265,11 @@ being changed inside the handler.
 | `products` | `remove_account` | `POST /api/v1/accounts/remove` | instance owner, in the web app only |
 | `products` | `delete_account_impact` | `GET /api/v1/me/delete-impact` | signed in, of their own account, in the web app only |
 | `products` | `delete_account` | `POST /api/v1/me/delete` | signed in within the last 15 minutes, of their own account, in the web app only |
-| `products` | `rename_tenant` | `PATCH /api/v1/tenants/:tenant` | tenant owner, or an instance owner in the web app only ([§3.3](03-accounts-teams-and-identity.md#33-tenants-and-teams)) |
+| `products` | `rename_tenant` | `PATCH /api/v1/tenants/:tenant` | tenant owner, or an instance owner, in the web app only ([§3.3](03-accounts-teams-and-identity.md#33-tenants-and-teams)) |
 | `products` | `create_team` | `POST /api/v1/tenants/:tenant/teams` | tenant admin |
 | `products` | `create` | `POST /api/v1/teams/:tenant/:team/products` | team admin |
 | `products` | `get` | `GET P` | reader |
-| `products` | `update` | `PATCH P` | admin |
+| `products` | `update` | `PATCH P` | admin, in the web app only |
 | `products` | `update_concept` | `PATCH P/idea/concept` | editor |
 | `products` | `archive` | `POST P/archive` | admin |
 | `products` | `restore` | `POST P/restore` | admin |
@@ -557,9 +557,10 @@ Notes on recent actions:
   both sides; a revision kept before cards had fronts brings back its title and back and keeps the
   front.
 - The concept's card is written with `products.update_concept`, for editors as well as admins, as
-  an outcome's card is; `products.update` renames a product and changes its slug, for admins only.
+  an outcome's card is; `products.update` renames a product and changes its slug, for admins only,
+  in the web app.
 - `products.rename_tenant` renames an organization and changes its slug, for its owners and for an
-  instance owner in any organization; a slug it had before still names it everywhere, and no other
+  instance owner in any organization, in the web app; a slug it had before still names it everywhere, and no other
   organization may take one (`409 slug_taken`) ([§3.3](03-accounts-teams-and-identity.md#33-tenants-and-teams)).
 - `outcomes.card_preview` takes a front (`card_html`, `kind` outcome or concept, and optionally the
   `title` and `back` it goes with) and makes every check a write of it makes, refusing with the
@@ -786,9 +787,10 @@ name the server's version and the tools, or the tool's actions, the connection i
 version. A call to a tool name from before the split (`sources`) says which tools its actions are
 in now, and one to `get_skill` that the skill is retired and `guide` replaces it.
 
-**Tools.** Twenty-eight tools over the 102 operations an agent may be offered (all 117 but the 15 a
-person does only in the web app: deleting an organization and its preview, deleting one's own
-account and its preview, and running the instance, its owners' ten actions and removing an account,
+**Tools.** Twenty-eight tools over the 100 operations an agent may be offered (all 117 but the 17 a
+person does only in the web app: renaming an organization or a product, deleting an organization
+and its preview, deleting one's own account and its preview, and running the instance, its owners'
+ten actions and removing an account,
 [decision](../decisions/running-the-instance-is-done-in-the-web-app-never-by-an-agent.md)): for each noun a `_read` tool, a `_write` tool and, where something can be deleted for
 good, a `_delete` tool, and three standalone
 ([decision](../decisions/mcp-tools-are-split-into-read-write-and-delete.md)). An action is in its
@@ -806,7 +808,7 @@ owner's included: running the instance is done in the web app.
 | Tool | Actions |
 |---|---|
 | `products_read` | `list`, `get`, `delete_impact`, `exports`, `limits` |
-| `products_write` | `create_tenant`, `rename_tenant`, `create_team`, `create`, `update`, `update_concept`, `archive`, `restore`, `export` |
+| `products_write` | `create_tenant`, `create_team`, `create`, `update_concept`, `archive`, `restore`, `export` |
 | `products_delete` | `delete` |
 | `members_read` | `list`, `activity` |
 | `members_write` | `grant`, `revoke`, `cancel_invitation` |

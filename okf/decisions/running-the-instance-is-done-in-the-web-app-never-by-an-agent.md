@@ -1,7 +1,7 @@
 ---
 type: Decision
 title: Running the instance is done in the web app, never by an agent; the MCP server is for discovery work
-description: The instance owners' actions (organizations and their plans, plans' limits, guests, allowances and the waitlist, accounts, usage) are web-only, so no MCP connection lists them, an agent's call to one is told where a person does it, and an instance owner reaches an organization they are not in only in the web app.
+description: The instance owners' actions (organizations and their plans, plans' limits, guests, allowances and the waitlist, accounts, usage) and renaming an organization or a product are web-only, so no MCP connection lists them, and an agent's call to one is told where a person does it.
 tags: [decision, mcp, agents, instance, security]
 generated: {by: agent:claude, at: 2026-10-26}
 status: stable
@@ -33,22 +33,26 @@ an agent its tool list is from another version. The maintainer set the rule belo
   noun's tools and with `describe` too, is refused `403 web_only` with that place, saying it is no
   sign of an older tool list. `unknown_action` keeps meaning a list from another version.
 - How the instance is used is read with its usage report (`pnpm usage`), never over MCP.
-- **An instance owner reaches an organization they are not in only in the web app**: renaming
-  it (`allowInstanceOwners`) works there, and their agent, like anyone's, acts only where their
-  own roles reach, so it finds such an organization missing (`404`).
+- **Nor does an agent rename an organization or a product** (`rename_tenant`, `update`), which
+  the maintainer added the same day: its owners rename an organization on its Members page, a
+  product's admins rename it in its Settings, and an instance owner renames any organization on
+  Organizations. Both are web-only, and refused as above.
+- **An instance owner reaches an organization they are not in only in the web app**
+  (`allowInstanceOwners`, `asInstanceOwner`), so no agent of theirs reaches one.
 - Rejected: keeping them on an Admin connection. A write would still reach every organization on a
   plan without the dialogs that show what it does first.
 
 ## Consequences
 
-- An agent can no longer be asked to move an organization to another plan, or to let someone in
-  from the waitlist. It tells the person where that is done instead.
+- An agent can no longer be asked to move an organization to another plan, to let someone in
+  from the waitlist, or to rename an organization or a product. It tells the person where that is
+  done instead.
 - An instance owner's tool list is the one anyone who may start an organization gets.
 
 ## Constrains
 
-- An operation marked `instanceOwnersOnly` is `webOnly` too, which `apps/server/test/mcp.test.ts`
-  checks. `webOnly` holds the place a person does it (`packages/core/src/registry.ts`).
+- An operation marked `instanceOwnersOnly` or `allowInstanceOwners` is `webOnly` too, which
+  `apps/server/test/mcp.test.ts` checks. `webOnly` holds the place a person does it (`packages/core/src/registry.ts`).
 - The refusal is `webOnlyRefusal` (`packages/core/src/execute.ts`): `execute` gives it to any door
   but the web app, and `apps/server/src/mcp.ts` to a call to a web-only action before any lookup.
 - `execute` lets an instance owner in as an organization's owner (`asInstanceOwner`) only on the
@@ -57,6 +61,6 @@ an agent its tool list is from another version. The maintainer set the rule belo
 Revises [An agent is offered only what its person could do](an-agent-is-offered-only-what-its-person-could-do.md),
 which listed the instance owners' actions to them alone, and
 [An organization's owners, and the instance's owners, rename it](an-organizations-owners-rename-it-and-its-former-slugs-still-reach-it.md),
-whose instance owners renamed any organization through either door.
+whose owners renamed it through either door.
 
 Specified in: [§6.5](../spec/06-operations-and-adapters.md#65-mcp), [§3.3](../spec/03-accounts-teams-and-identity.md#33-tenants-and-teams).

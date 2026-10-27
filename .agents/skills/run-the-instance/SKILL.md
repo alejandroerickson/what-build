@@ -36,11 +36,10 @@ command. This file says how to do the work.
   revision change what every organization meets from its next call; say so before you do it.
 - **Running the instance is a person's work in the web app.** No MCP connection is offered any of
   it, the instance owner's own included, and a call to one is refused `403 web_only` with where it
-  is, and your connection renames only the organizations the person owns. Moving organizations,
-  renaming one they are not in, plans' limits, guests, allowances, accounts, deleting an
-  organization and removing an account are all done there: tell the person where each is and what its dialog
-  will show. What is yours is the deployment's configuration (its plans file and settings), with
-  the person's go-ahead.
+  is; nor does any connection rename an organization. Moving organizations, renaming one, plans'
+  limits, guests, allowances, accounts, deleting an organization and removing an account are all
+  done there: tell the person where each is and what its dialog will show. What is yours is the
+  deployment's configuration (its plans file and settings), with the person's go-ahead.
 
 ## Where each is done
 

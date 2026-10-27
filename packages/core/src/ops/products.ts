@@ -176,7 +176,7 @@ export const listProducts = defineOperation({
   mutates: false,
   summary: "List every product you can reach, across your tenants and teams, with your role and counts of what each holds.",
   description:
-    "Start here when you do not know which product to work in. Each item has `path` (tenant/team/product slugs) and `product_id`; pass either as `product` on product-scoped calls. Confirm the product with the person before your first write in a conversation. Archived products are left out unless include_archived is true. Each item's `counts` (one number per kind) and `stage_counts` (their totals per stage) are the ones products_read(action=\"get\") reports. Through an agent, your_role is the person's role capped by the connection's level, which connection_level gives (viewer reads, editor also writes and archives, admin also deletes permanently and manages products and people). Where your_role is reader you may read only the Story: such an item has no concept and counts only story_pages. A tenant's your_role is your role in the organization itself: owner, admin, or member for someone whose roles are on its teams and products only (guest in the example organization). A tenant marked story_only is one where you read only the Story everywhere, so its members are not listed to you. A tenant with `example: true` is the example organization: a worked example that every account reads, as its guest (your_role guest, viewer on every product), and that nobody but its authors changes, so every write there is refused with 403 example_read_only. Read it to learn how a discovery is done; do the person's own work in an organization of theirs. A tenant's plan is one this WhatBuild defines, whose limits everyone in it meets (products_read(action=\"limits\") lists them with what is used today), or unlimited, which sets none. A tenant with read_only is one that went back to the plan new organizations start on while whoever started it already had one there: everyone in it may read, export, delete and take people out, as their roles allow, and every other write is refused (409 organization_read_only) until it moves to another plan; it is kept until kept_until. A tenant's name_etag guards its name and slug, which its owners change with products_write(action=\"rename_tenant\"); former_slugs, when present, are slugs it had before, which still reach it.",
+    "Start here when you do not know which product to work in. Each item has `path` (tenant/team/product slugs) and `product_id`; pass either as `product` on product-scoped calls. Confirm the product with the person before your first write in a conversation. Archived products are left out unless include_archived is true. Each item's `counts` (one number per kind) and `stage_counts` (their totals per stage) are the ones products_read(action=\"get\") reports. Through an agent, your_role is the person's role capped by the connection's level, which connection_level gives (viewer reads, editor also writes and archives, admin also deletes permanently and manages products and people). Where your_role is reader you may read only the Story: such an item has no concept and counts only story_pages. A tenant's your_role is your role in the organization itself: owner, admin, or member for someone whose roles are on its teams and products only (guest in the example organization). A tenant marked story_only is one where you read only the Story everywhere, so its members are not listed to you. A tenant with `example: true` is the example organization: a worked example that every account reads, as its guest (your_role guest, viewer on every product), and that nobody but its authors changes, so every write there is refused with 403 example_read_only. Read it to learn how a discovery is done; do the person's own work in an organization of theirs. A tenant's plan is one this WhatBuild defines, whose limits everyone in it meets (products_read(action=\"limits\") lists them with what is used today), or unlimited, which sets none. A tenant with read_only is one that went back to the plan new organizations start on while whoever started it already had one there: everyone in it may read, export, delete and take people out, as their roles allow, and every other write is refused (409 organization_read_only) until it moves to another plan; it is kept until kept_until. A tenant's name_etag guards its name and slug, which its owners change in the web app; former_slugs, when present, are slugs it had before, which still reach it.",
   input: z.strictObject({ include_archived: z.boolean().default(false) }),
   rest: { method: "GET", path: "/me/products" },
   mcp: { tool: "products", action: "list" },
@@ -334,12 +334,13 @@ export const renameTenant = defineOperation({
   access: "owner",
   mutates: true,
   allowInstanceOwners: true,
-  summary: "Rename an organization, change its slug, or both (its owners; the instance's owners rename any, in the web app).",
+  webOnly: "a person does it in the web app: one of its owners under Organization name on its Members page (`/t/<organization>/members`), or an owner of this WhatBuild with Rename on Organizations (`/instance`)",
+  summary: "Rename an organization, change its slug, or both (its owners, and the instance's owners, in the web app).",
   description:
-    "Pass only what changes, name or slug, with expected_etag: the tenant's name_etag from products_read(action=\"list\"). " +
-    "A new slug changes the first part of every product's path (acme/core/onboarding becomes acme-labs/core/onboarding): use the new paths from then on. The old slug keeps working everywhere: products_read(action=\"list\") lists it in the tenant's former_slugs, calls that name it reach the organization, a connector scoped to it keeps working, and the web app takes an address with it to the new one. " +
+    "A person's act in the web app, never an agent's. Pass only what changes, name or slug, with expected_etag: the tenant's name_etag. " +
+    "A new slug changes the first part of every product's path (acme/core/onboarding becomes acme-labs/core/onboarding). The old slug keeps working everywhere: products.list lists it in the tenant's former_slugs, calls that name it reach the organization, a connector scoped to it keeps working, and the web app takes an address with it to the new one. " +
     "A slug another organization has, or had before, is refused with 409 slug_taken. Taking back one of its own former slugs is allowed. " +
-    "The example organization's owners rename it as any owners do. The change is in the organization's access log, members_read(action=\"activity\").",
+    "The example organization's owners rename it as any owners do. The change is in the organization's access log, members.activity.",
   input: z.strictObject({
     tenant: z.string().min(1).describe("Tenant slug or id."),
     name: z.string().trim().min(1).max(100).optional(),
@@ -481,9 +482,10 @@ export const updateProduct = defineOperation({
   scope: "product",
   access: "admin",
   mutates: true,
-  summary: "Rename a product or change its slug (product admins).",
+  webOnly: "a person does it in the web app, in the product's Settings (`…/settings`), its name and short name in links",
+  summary: "Rename a product or change its slug (product admins, in the web app).",
   description:
-    'Pass only the fields that change, plus expected_etag. The product concept is a card on the Idea screen, written with products_write(action="update_concept"), which editors may call too.',
+    'A person\'s act in the web app, never an agent\'s. Pass only the fields that change, plus expected_etag. The product concept is a card on the Idea screen, written with products.update_concept, which editors may call too, agents among them.',
   input: z.strictObject({
     expected_etag: expectedEtag,
     name: z.string().trim().min(1).max(100).optional(),

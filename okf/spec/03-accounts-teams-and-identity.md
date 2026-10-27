@@ -234,12 +234,12 @@ concept.
 
 **Renaming a tenant** (◆ [decision](../decisions/an-organizations-owners-rename-it-and-its-former-slugs-still-reach-it.md)).
 `products.rename_tenant` (`PATCH /api/v1/tenants/:tenant`) changes the name, the slug, or both.
-Its owners change them, the example organization's included; an admin or a member is refused
-`403`, and an agent needs an admin connection. An instance owner changes them in any tenant, as one
-of its owners, member or not, in the web app only (Rename on `/instance`): the operation sets
-`allowInstanceOwners`, which lets them in to that operation alone and gives them no grant. Their
-agent renames only the tenants they own, as anyone's does, and finds any other missing (`404`;
-◆ [decision](../decisions/running-the-instance-is-done-in-the-web-app-never-by-an-agent.md)). Name and slug share one etag, `name_etag`, which
+Its owners change them, the example organization's included, under Organization name on its
+Members page; an admin or a member is refused `403`. An instance owner changes them in any tenant,
+as one of its owners, member or not, with Rename on `/instance`: the operation sets
+`allowInstanceOwners`, which lets them in to that operation alone and gives them no grant. Only a
+person renames a tenant, in the web app: no agent is offered it, and a call to it is refused
+`403 web_only` (◆ [decision](../decisions/running-the-instance-is-done-in-the-web-app-never-by-an-agent.md)). Name and slug share one etag, `name_etag`, which
 `products.list` gives every tenant the caller is in and `products.organizations` every tenant; a
 change without the current one is refused `409 stale_etag`, a call that names neither `422`, and
 one to what the tenant already has writes nothing. A change is recorded in the tenant's access log,
@@ -382,10 +382,11 @@ A product is addressed as `tenant/team/product` (slugs or ids at each level) or 
 - **Viewer** reads everything in the product. **Editor** also writes: sources, their attachments
   and text, comments, outcomes, assumptions and reviews, mockups, the Story, and archives any of them. **Admin** also
   deletes permanently, anything that can be archived and the product itself (guarded,
-  [§9.5](09-data-lifecycle.md)), and manages the product (rename, archive) and its people.
+  [§9.5](09-data-lifecycle.md)), and manages the product (rename, in the web app only, and archive) and its people.
   Creating a product needs admin of its team (tenant owners and admins are admins of every team);
   creating a team needs tenant admin. Renaming the organization needs its owner, or an instance
-  owner ([§3.3](#33-tenants-and-teams)); deleting it needs its owner, in the web app.
+  owner ([§3.3](#33-tenants-and-teams)); deleting it needs its owner. Both are done in the web
+  app, never by an agent.
 - **The effective role is the highest that applies.** A product grant can raise access but never
   lower an inherited one. ◆ Decision: no negative overrides — they make "who can see this?"
   unanswerable at a glance.

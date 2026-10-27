@@ -181,7 +181,9 @@ describe("a connector scoped to an organization", () => {
     // An editor deletes nothing, manages nobody, and the organization's own administration is its admins'.
     for (const a of ["sources.delete", "members.grant", "members.revoke", "members.cancel_invitation", "members.activity", "products.create", "products.create_team"]) expect(actions, a).not.toContain(a);
     const owner = await offeredAt(olive, `/mcp/t/${org}`);
-    expect(owner).toEqual(expect.arrayContaining(["sources.delete", "members.activity", "members.grant", "products.create", "products.create_team", "products.rename_tenant"]));
+    expect(owner).toEqual(expect.arrayContaining(["sources.delete", "members.activity", "members.grant", "products.create", "products.create_team"]));
+    // Renaming the organization is its owners', in the web app.
+    for (const a of ["products.rename_tenant", "products.update"]) expect(owner, a).not.toContain(a);
   });
 
   it("lists a product's admin its people to manage, but no product of their own to make", async () => {

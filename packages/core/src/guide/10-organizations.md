@@ -81,6 +81,8 @@ list. Tell the person where to go:
 - On People (`/people`): every account, and removing one.
 - How the instance is used is read with the usage report whoever runs it keeps (`pnpm usage`).
 
-Deleting is also done only in the web app: a person deletes their own account in their Settings, an
-organization's owners delete it on its Members page, and an instance owner deletes any organization
-on Organizations.
+Renaming and deleting are also done only in the web app. An organization's owners rename it under
+Organization name on its Members page, and a product's admins rename it in its Settings; an instance
+owner renames any organization on Organizations. A person deletes their own account in their
+Settings, an organization's owners delete it on its Members page, and an instance owner deletes any
+organization on Organizations. A renamed organization keeps answering to the slugs it had before.
