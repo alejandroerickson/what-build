@@ -115,11 +115,14 @@ before the service moves to it, Cloud Storage for blobs, Secret Manager for secr
   ([§3.10](03-accounts-teams-and-identity.md#310-the-example-organization)). Nothing about it runs
   on a schedule. A plan's limits are counted in Postgres (`limit_counters`), so every
   instance counts against the same totals ([§9.7](09-data-lifecycle.md)).
-- **The public site rides along.** Behind Cloudflare the Worker serves its page from the edge and
-  passes on only its form. Otherwise, with `WHATBUILD_SITE_URL` set (for example
-  `https://what-build.com`), requests whose Host is that site get its one page and its interest
-  form; `www.` redirects to it and every other path redirects to the app at `WHATBUILD_PUBLIC_URL`
-  ([decision](../decisions/the-public-site-is-pages-built-with-the-app.md)).
+- **The public site rides along.** Behind Cloudflare the Worker serves its pages (the front page,
+  the plans and the privacy page) from the edge and passes on only its form. Otherwise, with
+  `WHATBUILD_SITE_URL` set (for example `https://what-build.com`), requests whose Host is that site
+  get its pages and its interest form; `www.` redirects to it and every other path redirects to the
+  app at `WHATBUILD_PUBLIC_URL`. On the app's origin the pages are under `/site/`; the app links
+  to the privacy page wherever it is
+  ([decision](../decisions/the-public-site-is-pages-built-with-the-app.md),
+  [decision](../decisions/the-privacy-page-is-a-page-of-the-public-site.md)).
 - **One address for the app.** `WHATBUILD_PUBLIC_URL` is the address the server writes into
   everything (OAuth metadata and callbacks, sign-in and invitation links, upload and download
   grants, the Story's link templates), and the MCP server's instructions tell agents to write links

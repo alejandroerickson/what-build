@@ -8,15 +8,19 @@ import type { ServerConfig } from "./config.ts";
 import { pageHeaders, siteCatalogue } from "./public-routes.ts";
 
 /** What the site's own origin serves; any other path there belongs to the app and is sent to it. */
-const SITE_PATHS = new Set(["/", "/plans", "/plans/", "/api/v1/interest", "/api/v1/plans", "/favicon.svg", "/theme-boot.js", "/health"]);
+const SITE_PATHS = new Set(["/", "/plans", "/plans/", "/privacy", "/privacy/", "/api/v1/interest", "/api/v1/plans", "/favicon.svg", "/theme-boot.js", "/health"]);
+
+/** The site's pages, by their path on its own domain, and where each is in the build. */
+const SITE_PAGES: Record<string, string> = { "/": "index.html", "/plans": "plans/index.html", "/plans/": "plans/index.html", "/privacy": "privacy/index.html", "/privacy/": "privacy/index.html" };
 
 /** An attribute's value, written into HTML. */
 const attr = (v: string) => v.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
 /**
  * A page of the site, carrying the deployment's Google Analytics ID for the page to load once a
- * visitor accepts, and what only the deployment knows of its plans and guests (`whatbuild-site`,
- * from `/api/v1/plans`): written in by whoever serves the page, so the page asks the service nothing.
+ * visitor accepts, and what only the deployment knows of its plans, its guests and who runs it
+ * (`whatbuild-site`, from `/api/v1/plans`): written in by whoever serves the page, so the page asks
+ * the service nothing.
  */
 function sitePage(path: string, analyticsId: string | null, site: unknown): string {
   const page = readFileSync(path, "utf8");
@@ -40,35 +44,49 @@ const Interest = z.object({
 });
 
 /**
- * The public site: a page that says what WhatBuild is and takes requests to hear when it opens, and
- * a page of the plans it offers.
+ * The public site: a page that says what WhatBuild is and takes requests to hear when it opens, a
+ * page of the plans it offers, and the privacy page.
  * The same image serves it, chosen by the Host (or X-Forwarded-Host) header: requests for WHATBUILD_SITE_URL's host get
  * the site, `www.` redirects to it, and every other path on it goes to the app at
- * WHATBUILD_PUBLIC_URL. Without WHATBUILD_SITE_URL the page is still at /site/ on the app's origin.
+ * WHATBUILD_PUBLIC_URL. On the app's origin the pages are at /site/, /site/plans/ and
+ * /site/privacy/, which is where a deployment without WHATBUILD_SITE_URL has them.
  */
 export function siteRoutes(deps: { db: Db; config: ServerConfig }) {
   const { db, config } = deps;
   const app = new Hono();
   const site = config.siteUrl ? new URL(config.siteUrl) : null;
   const appHost = new URL(config.publicBaseUrl).host;
-  const pagePath = config.webDist ? join(resolve(config.webDist), "site", "index.html") : null;
-  const plansPath = config.webDist ? join(resolve(config.webDist), "site", "plans", "index.html") : null;
+  const ownSite = site && site.host !== appHost ? site : null;
+  const dist = config.webDist ? join(resolve(config.webDist), "site") : null;
 
-  if (site && site.host !== appHost)
+  /** The site's page at `path` on its own domain, with what only the deployment knows written in; null when the build has no such page. */
+  const page = async (path: string) => {
+    const file = dist && SITE_PAGES[path] ? join(dist, SITE_PAGES[path]) : null;
+    if (!file || !existsSync(file)) return null;
+    return sitePage(file, config.analyticsId, await siteCatalogue(db, config).catch(() => null));
+  };
+  const pageResponse = (html: string) => new Response(html, { status: 200, headers: { ...pageHeaders(Boolean(config.analyticsId)), "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-cache" } });
+
+  if (ownSite)
     app.use("*", async (c, next) => {
       // A proxy that must send Cloud Run its run.app name (deploy/cloudflare/worker.js) passes the
       // domain the browser asked for here. Trusting it is safe: it only chooses which public page to show.
       const host = (c.req.header("x-forwarded-host") ?? c.req.header("host") ?? "").toLowerCase();
       const url = new URL(c.req.url);
-      if (host === `www.${site.host}`) return c.redirect(`${site.origin}${url.pathname}${url.search}`, 301);
-      if (host !== site.host) return next();
-      const page = c.req.path === "/" ? pagePath : c.req.path === "/plans" || c.req.path === "/plans/" ? plansPath : null;
-      if (page && existsSync(page) && (c.req.method === "GET" || c.req.method === "HEAD"))
-        return c.body(sitePage(page, config.analyticsId, await siteCatalogue(db, config).catch(() => null)), 200, { ...pageHeaders(Boolean(config.analyticsId)), "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-cache" });
+      if (host === `www.${ownSite.host}`) return c.redirect(`${ownSite.origin}${url.pathname}${url.search}`, 301);
+      if (host !== ownSite.host) return next();
+      const html = c.req.method === "GET" || c.req.method === "HEAD" ? await page(c.req.path) : null;
+      if (html) return pageResponse(html);
       if (SITE_PATHS.has(c.req.path) || c.req.path.startsWith("/assets/")) return next();
       // Temporary, not permanent: the site may grow pages of its own at these paths.
       return c.redirect(`${config.publicBaseUrl}${url.pathname}${url.search}`, 302);
     });
+
+  // The site's pages on the app's origin: /site/ is the site's /, /site/privacy/ its /privacy/.
+  app.get("/site/*", async (c, next) => {
+    const html = await page(c.req.path.slice("/site".length));
+    return html ? pageResponse(html) : next();
+  });
 
   /** Ask to hear when WhatBuild opens. The same answer for a new address, a repeat and a bot. */
   app.post("/api/v1/interest", async (c) => {

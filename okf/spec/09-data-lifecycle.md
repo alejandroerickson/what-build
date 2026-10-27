@@ -16,9 +16,12 @@ of it is not built yet, it says so.
 
 ## 9.1 What we tell people
 
-The privacy page (`/privacy`, readable signed out; `apps/web/src/routes/privacy.tsx`) is a short
-notice written to stay true as the product changes
-([decision](../decisions/the-privacy-page-is-a-short-notice-written-to-stay-true.md)). It says, in
+The privacy page is a short notice written to stay true as the product changes
+([decision](../decisions/the-privacy-page-is-a-short-notice-written-to-stay-true.md)), and a page
+of the public site, not of the app: `/privacy` on the site's domain, or `/site/privacy/` on the
+app's origin for a deployment without one (`apps/web/src/site/SitePrivacyPage.tsx`,
+[decision](../decisions/the-privacy-page-is-a-page-of-the-public-site.md)). The app's links to it
+use the address `privacy_url` in `GET /api/v1/meta` gives, and open it in a new tab. It says, in
 categories rather than mechanics, what WhatBuild keeps about a person (their account: the address
 they sign in with, their name, the addresses they invite; their organizations: each one's name and the
 names and emails of its people, which whoever runs the deployment sees, to write to them and,
@@ -38,11 +41,13 @@ changed in a way that matters, and no number that a setting or a release could c
 page carries one line under its form ("WhatBuild is a free preview: don’t keep anything here you
 can’t afford to lose."), with links to Privacy and Cookies.
 
-What only the deployment knows comes from its settings, in `privacy` from `GET /api/v1/meta`: who
+What only the deployment knows comes from its settings, as `privacy` in `GET /api/v1/plans`, which
+whoever serves the page writes into it ([§7.3](07-web-app.md#73-routes)): who
 runs it (`WHATBUILD_OPERATOR`), where to write (`WHATBUILD_PRIVACY_CONTACT`, an address or a page),
 who else handles the data (`WHATBUILD_PROVIDERS`, a paragraph the page shows as written, which
-names its providers or describes them by kind) and whether it has analytics. Without them the page
-says the deployment has not named them yet.
+names its providers or describes them by kind) and whether it has analytics. Without the first
+three the page says the deployment has not named them yet; when nothing was written in at all, it
+says it did not load.
 
 Supporting commitments, each of which is a rule elsewhere in this spec:
 
@@ -54,7 +59,7 @@ Supporting commitments, each of which is a rule elsewhere in this spec:
 | Isolation per organization | [§3.6](03-accounts-teams-and-identity.md) — three layers, tested on every operation |
 | Export is complete and always available | [§9.4](#94-taking-it-with-you) and [§1.5](01-product.md) |
 | Analytics only for people who accept | The notice and `/cookies` ([§7.11](07-web-app.md)); Google's script loads only after Accept (`apps/web/src/lib/analytics.ts`) |
-| We say who else handles it | `/privacy` says so in the deployment's own words (`WHATBUILD_PROVIDERS`), above; the sign-in page links to it. Keeping it true before a provider changes is the operator's. |
+| We say who else handles it | The privacy page says so in the deployment's own words (`WHATBUILD_PROVIDERS`), above; the sign-in page links to it. Keeping it true before a provider changes is the operator's. |
 | Every claim on the privacy page has a rule here | This table, and the [decision](../decisions/the-privacy-page-is-a-short-notice-written-to-stay-true.md): a change that makes a claim untrue changes the page in the same change, and a claim no rule enforces is not made. |
 
 **Cookies and browser storage.** WhatBuild uses cookies and browser storage of two kinds. The
