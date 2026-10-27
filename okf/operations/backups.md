@@ -205,8 +205,9 @@ lives on, so it spends as little of them as it can:
   the branch is deleted. Check first that the database's size (`select
   pg_size_pretty(pg_database_size('whatbuild'))`) fits twice within the plan's storage, with room.
 - **Compute.** The branch's compute runs while the dump is restored and checked, and counts against
-  the project's compute for the month. Create it at the smallest size with scale to zero, run the
-  steps back to back, and delete the branch as soon as the check is done. Run the drill early in a
+  the project's compute for the month. Step 1 creates it at the smallest size (`--cu 0.25`), and the
+  branch expires on its own six hours later should step 5 never run; run the steps back to back,
+  and delete the branch as soon as the check is done. Run the drill early in a
   month, when most of the month's compute is left, never near its end.
 - **Transfer.** The dump is downloaded once, and the check reads counts and file keys, never
   content. The bucket is copied within the same region, which Google Cloud does not charge as
