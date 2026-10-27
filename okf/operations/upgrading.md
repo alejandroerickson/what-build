@@ -23,6 +23,10 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
 
 ## Unreleased
 
+Nothing yet.
+
+## v0.26.0
+
 - **The privacy page is written again, as a short notice.** It concerns every deployment, and
   asks one thing of a deployment that set `WHATBUILD_PROVIDERS`. The page now says what is kept, why,
   who else handles it, how long it stays and what a person can do, in categories and prose, with
