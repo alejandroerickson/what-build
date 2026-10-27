@@ -7,7 +7,7 @@ import { attribution, formatBytes, formatDate, formatDateTime, plural, quotedAtE
 import { Markdown } from "../lib/markdown.tsx";
 import { useProduct } from "../lib/session.tsx";
 import { Inspector, usePageTitle } from "../shell/slots.tsx";
-import { Button, ButtonLink, Callout, Crumbs, Dialog, EmptyState, ErrorCallout, Glyph, Group, KeyValue, Loading, Menu, MenuItem, MenuNote, MenuRadio, MenuSeparator, TextField, useToast } from "../ui/index.tsx";
+import { Button, ButtonLink, Callout, Crumbs, Dialog, EmptyState, ErrorCallout, Glyph, Group, KeyValue, Loading, Menu, MenuItem, MenuNote, MenuRadio, MenuSeparator, OneLine, TextField, useToast } from "../ui/index.tsx";
 import { COARSE_POINTER_QUERY, isTypingTarget, useMediaQuery } from "../ui/media.ts";
 import { DeleteDialog } from "./delete-dialog.tsx";
 import { FirstUse } from "./first-use.tsx";
@@ -1007,7 +1007,16 @@ function MockupInspector({ e, shown, versions, onVersion, selected, onSelect, pa
             minWidth={240}
             trigger={
               <>
-                <span className="ellipsis grow">{page ? <><span className="num faint">{index + 1}</span> {page.title}</> : <span className="faint">Choose a page</span>}</span>
+                {page ? (
+                  <span className="xc-page-name grow">
+                    <span className="num faint">{index + 1}{"\u00a0"}</span>
+                    <OneLine text={page.title} />
+                  </span>
+                ) : (
+                  <span className="ellipsis grow">
+                    <span className="faint">Choose a page</span>
+                  </span>
+                )}
                 <Glyph name="chevron-down" size="sm" />
               </>
             }

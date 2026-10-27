@@ -12,6 +12,30 @@
   }
 }
 
+/* ---- One line --------------------------------------------------------------------------------- */
+
+/* A title on one line (OneLine), cut where its line breaks rather than where its box ends: a title
+   that mixes directions (English, then Arabic) keeps the words it starts with, as a heading's first
+   line does, where text-overflow would clip by position and keep the end of the Arabic. A title too
+   long for its line is cut after a word by the component (data-cut), and the ellipsis is drawn, not
+   read. It reads in its own direction but starts at the left, where the app's own text does, so a
+   title in Arabic sits where it always has. */
+.one-line {
+  display: -webkit-box;
+  min-width: 0;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  text-align: left;
+  white-space: normal;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 1;
+  line-clamp: 1;
+}
+.one-line[data-cut]::after {
+  content: "…";
+  content: "…" / "";
+}
+
 /* ---- Buttons ---------------------------------------------------------------------------------- */
 
 .btn {
@@ -1148,23 +1172,6 @@ a.list-row:focus-visible {
   letter-spacing: 0;
   line-height: var(--h-sm);
   text-decoration: none;
-}
-/* One line, cut where the line breaks rather than where the box ends: a title that mixes directions
-   (English, then Arabic) keeps the words it starts with, as the heading's first line does, where
-   text-overflow would clip by position and keep the end of the Arabic. A label too long for its
-   line is cut after a word by the crumb itself (data-cut), and the ellipsis is drawn, not read. */
-.crumb-label {
-  display: -webkit-box;
-  min-width: 0;
-  overflow: hidden;
-  overflow-wrap: anywhere;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 1;
-  line-clamp: 1;
-}
-.crumb-label[data-cut]::after {
-  content: "…";
-  content: "…" / "";
 }
 a.crumb:hover,
 button.crumb:hover,

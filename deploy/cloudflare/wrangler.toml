@@ -9,8 +9,9 @@
 #
 # The last two are optional. ANALYTICS_ID is Google Analytics, loaded on the site's pages once a
 # visitor accepts; CF_ANALYTICS_TOKEN is a Cloudflare Web Analytics site token, whose beacon sets
-# no cookie and so counts every visit. The plans' limits and prices, and whether guests may sign up,
-# come from the service (GET /api/v1/plans), kept in Cloudflare's cache for an hour.
+# no cookie and so counts every visit. The plans' limits and prices, whether guests may sign up, and
+# who runs the deployment and who else handles its data, which the privacy page says, come from the
+# service (GET /api/v1/plans), kept in Cloudflare's cache for an hour.
 #
 # The edge key, the service's WHATBUILD_EDGE_KEY, is a secret: put it once, and deploys keep it.
 #

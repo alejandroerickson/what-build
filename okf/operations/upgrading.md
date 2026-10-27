@@ -23,6 +23,16 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
 
 ## Unreleased
 
+- **The privacy page moves to the public site.** It concerns every deployment. The notice is now a
+  page of the public site, at `/privacy` on the site's domain, or at `/site/privacy/` on the app's
+  origin for a deployment without a site. The app has no privacy screen and nothing at `/privacy`
+  any more; it links to the page, in a new tab, at `privacy_url` from `GET /api/v1/meta`. Its text
+  is unchanged. `privacy` leaves `GET /api/v1/meta` and is in `GET /api/v1/plans`, which the site's
+  pages are written from ([decision](../decisions/the-privacy-page-is-a-page-of-the-public-site.md)).
+  Behind Cloudflare, deploy the Worker from this release right after the image: until it is, the
+  site's `/privacy` goes to the app, which has nothing there. `/site/` and `/site/plans/` on the
+  app's origin now show the site's pages with the deployment's plans written in, where they showed
+  the app. No migration.
 - **Copies outside production hold only organizations an instance owner owns.** It concerns
   whoever copies a deployment's organizations to test on or to a dev deployment, and asks nothing
   of a running deployment; no migration. `pnpm fixture pull` refuses an organization that has an

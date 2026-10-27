@@ -1,21 +1,10 @@
-import { useQuery } from "@tanstack/react-query";
 import { ACCOUNT_DELETION } from "@whatbuild/core/account-deletion";
-import type { ReactNode } from "react";
-import { Link } from "react-router";
-import { api } from "../lib/api.ts";
-import { anyPriced, usePlans } from "../lib/limits.ts";
-import { ButtonLink, ErrorCallout, Loading, Sheet, SheetBody, SheetHeader } from "../ui/index.tsx";
-import { EntryPage } from "./auth.tsx";
-import "../styles/screens/cookies.css";
-
-/** What the privacy page says that only the deployment knows (`privacy` in `/api/v1/meta`). */
-interface Privacy {
-  operator: string | null;
-  contact: string | null;
-  /** Who else handles it, as a paragraph the deployment wrote; null when it has said nothing. */
-  providers: string | null;
-  analytics: boolean;
-}
+import { useEffect, type ReactNode } from "react";
+import { anyPriced } from "../lib/limits.ts";
+import { BrandMark } from "../shell/brand.tsx";
+import { Callout } from "../ui/feedback.tsx";
+import { Sheet, SheetBody, SheetHeader } from "../ui/layout.tsx";
+import { ANALYTICS_ID, SiteFrame, sitePath, useSite } from "./SitePage.tsx";
 
 /**
  * When the page's own text last changed in a way that matters to a person: what is kept, why, who
@@ -39,37 +28,41 @@ function Kept({ lead, children }: { lead: string; children: ReactNode }) {
 }
 
 /**
- * `/privacy`, public: the privacy notice. It says what WhatBuild keeps about a person, why, who
- * else handles it, for how long, and what they can ask, in categories rather than mechanics, so it
- * stays true as the product changes ([decision](okf/decisions/the-privacy-page-is-a-short-notice-written-to-stay-true.md)).
- * Who runs the deployment, how to reach them and who else handles the data come from the
- * deployment; everything else is true of every WhatBuild (okf/spec/09-data-lifecycle.md §9.1).
+ * The site's privacy page, at `/privacy` on its domain, or `/site/privacy/` on the app's origin for a
+ * deployment without one (the app links to it by `privacy_url` from `/api/v1/meta`). It says what WhatBuild keeps about a person, why, who else
+ * handles it, for how long, and what they can ask, in categories rather than mechanics, so it stays
+ * true as the product changes ([decision](okf/decisions/the-privacy-page-is-a-short-notice-written-to-stay-true.md)).
+ * Who runs the deployment, how to reach them and who else handles the data are written into the
+ * page by whoever serves it; everything else is true of every WhatBuild (okf/spec/09-data-lifecycle.md §9.1).
+ * Its links into the app (Settings, Cookies) are plain addresses the site's domain sends on to the app.
  */
-export function PrivacyPage() {
-  const q = useQuery({ queryKey: ["meta"], queryFn: () => api<{ privacy: Privacy }>("GET", "/api/v1/meta"), staleTime: Infinity });
-  const p = q.data?.privacy;
-  // Billing is named only where a plan has a price; a self-hosted deployment offers none.
-  const plans = usePlans();
+export function SitePrivacyPage() {
+  const site = useSite();
+  useEffect(() => {
+    document.title = "Privacy · WhatBuild";
+  }, []);
+  const p = site?.privacy;
   const operator = p?.operator ?? "Whoever runs this WhatBuild";
   const ask = p?.contact ? <Contact to={p.contact} /> : "whoever runs this WhatBuild";
+  // Analytics is named where the app or the site loads it for those who accept it.
+  const analytics = Boolean(p?.analytics || ANALYTICS_ID);
   return (
-    <EntryPage title="Privacy · WhatBuild" wide>
-      <Sheet labelledBy="privacy-title">
-        <SheetHeader level={1} id="privacy-title" title="Privacy" end={<span className="entry-caption">Last changed {LAST_CHANGED}</span>} />
-        <SheetBody className="entry-form">
-          {q.isPending ? (
-            <Loading label="Loading…" lines={2} />
-          ) : q.isError || !p ? (
-            <ErrorCallout title="This page didn’t load" error={q.error} onRetry={() => q.refetch()} />
-          ) : (
-            <>
-              <p className="privacy-text">
-                This page says what WhatBuild keeps about you, why, who else handles it, how long it stays, and what you can ask. {operator} is responsible for what this
-                WhatBuild keeps{p.operator ? "" : ", and has not named themselves here yet"}. Questions and requests go to {ask}.
-              </p>
-            </>
-          )}
-        </SheetBody>
+    <SiteFrame>
+      <Sheet className="site-plans-intro" labelledBy="privacy-title">
+        <a href={sitePath("")} className="site-lockup" aria-label="WhatBuild, home">
+          <BrandMark size={22} />
+          <span>WhatBuild</span>
+        </a>
+        <h1 id="privacy-title" className="site-plans-title">
+          Privacy
+        </h1>
+        <p className="site-privacy-changed">Last changed {LAST_CHANGED}</p>
+        {p ? (
+          <p className="privacy-text">
+            This page says what WhatBuild keeps about you, why, who else handles it, how long it stays, and what you can ask. {operator} is responsible for what this
+            WhatBuild keeps{p.operator ? "" : ", and has not named themselves here yet"}. Questions and requests go to {ask}.
+          </p>
+        ) : null}
       </Sheet>
       {p ? (
         <>
@@ -80,7 +73,7 @@ export function PrivacyPage() {
                 <Kept lead="Your account.">The email address you sign in with and your name, and the addresses of the people you invite.</Kept>
                 <Kept lead="Your organizations.">
                   The name of each organization you start or join, and the names and emails of the people in it. {operator} sees these, to write to its people
-                  {anyPriced(plans.data?.plans) ? " and to bill the organization" : ""}.
+                  {anyPriced(site?.plans) ? " and to bill the organization" : ""}.
                 </Kept>
                 <Kept lead="What you add.">
                   Everything you, and the agents you connect, put into an organization. It is kept with your name on it, so the people you work with know who added what.
@@ -89,9 +82,9 @@ export function PrivacyPage() {
                   Your sessions, the agents you have connected, a log of requests, and how much you use WhatBuild, to keep it within its limits and fair to everyone. WhatBuild
                   also counts how it is used, under a code in place of your name. None of it holds your content.
                 </Kept>
-                {p.analytics ? (
+                {analytics ? (
                   <Kept lead="Analytics, if you accept it.">
-                    Google Analytics sees which screens you open and what you do there, never names or content. <Link to="/cookies">Cookies</Link> holds your choice.
+                    Google Analytics sees which screens you open and what you do there, never names or content. <a href="/cookies">Cookies</a> holds your choice.
                   </Kept>
                 ) : null}
                 <Kept lead="What you send.">Feedback, and a request for an organization of your own, with your name and email.</Kept>
@@ -127,19 +120,20 @@ export function PrivacyPage() {
             <SheetHeader id="privacy-rights" title="What you can do" />
             <SheetBody>
               <p className="privacy-text">
-                Take what you added: export is always available and always complete. Delete your account in <Link to="/settings?delete=account">Settings</Link>, or by asking{" "}
+                Take what you added: export is always available and always complete. Delete your account in <a href="/settings?delete=account">Settings</a>, or by asking{" "}
                 {ask}. Ask to see what is kept about you, to have it corrected or deleted, or to stop the counting of your use. You may also complain to the data-protection
                 authority where you live.
               </p>
             </SheetBody>
           </Sheet>
         </>
-      ) : null}
-      <div className="cookie-back">
-        <ButtonLink to="/" size="sm" icon="arrow-left">
-          Go to WhatBuild
-        </ButtonLink>
-      </div>
-    </EntryPage>
+      ) : (
+        // The deployment's part was not written in (its service did not answer whoever serves the
+        // page): the page says so rather than name nobody.
+        <Callout tone="attention" title="This page didn’t load">
+          It couldn&rsquo;t be told who runs this WhatBuild. Try again in a minute.
+        </Callout>
+      )}
+    </SiteFrame>
   );
 }

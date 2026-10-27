@@ -14,6 +14,7 @@ import {
 } from "../ui/index.tsx";
 import { EntryPage, NotVisible } from "./auth.tsx";
 import { DeleteDialog, listed } from "./delete-dialog.tsx";
+import { PrivacyLink } from "../shell/privacy-link.tsx";
 import "../styles/screens/account.css";
 import "../styles/screens/activity.css";
 import "../styles/screens/org.css";
@@ -126,7 +127,7 @@ function NewOrganizationPlan({ plan, operator }: { plan: Plan; operator: boolean
         <p className="faint">
           Whoever runs this WhatBuild sees the organization&rsquo;s name and plan, and the name and email of everyone in it, and uses them to{" "}
           {anyPriced(plans.data.plans) ? "bill the organization and to " : ""}write to its people. Each organization you start has a plan of its own.{" "}
-          <Link to="/privacy">Privacy</Link>
+          <PrivacyLink />
         </p>
       )}
     </div>

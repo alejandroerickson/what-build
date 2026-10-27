@@ -2077,6 +2077,11 @@
         "section": "typography"
       },
       {
+        "name": "The Whole Word Rule",
+        "body": "A title kept to one line takes its own direction and, when it is too long, ends in an ellipsis after its last whole word that leaves room for it, in reading order, so a title that mixes English and Arabic keeps the words it begins with. It still starts at the left. The whole title is read by assistive technology and shown on hover. Cut with OneLine, never with text-overflow.",
+        "section": "typography"
+      },
+      {
         "name": "The One Scroller Rule",
         "body": "The canvas scrolls the page. Only the panel's context slot, the inspector body, menus, dialogs and an Idea card's back (and a front taller than its frame) scroll on their own.",
         "section": "layout"

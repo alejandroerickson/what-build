@@ -59,7 +59,7 @@ const SCOPED_PATH = /^(\/api\/v1\/p|\/api\/v1\/teams|\/api\/v1\/tenants|(?:\/\.w
  * The first words of the server's and the app's own paths. Any other path of three or more parts is
  * a product's path typed without /t/ (the app sends it on), so its first three are names.
  */
-const OWN_FIRST = new Set(["api", "mcp", "auth", "oauth", "t", ".well-known", "assets", "invite", "join", "signin", "cookies", "privacy", "settings", "connect", "instance", "people", "welcome", "products", "health", "_system", "prototypes", "documents"]);
+const OWN_FIRST = new Set(["api", "mcp", "auth", "oauth", "t", ".well-known", "assets", "invite", "join", "signin", "cookies", "site", "settings", "connect", "instance", "people", "welcome", "products", "health", "_system", "prototypes", "documents"]);
 const BY_KIND = ["", ":org", ":team", ":product"];
 /** The app's screens directly under an organization: /t/<org>/members and /t/<org>/limits. */
 const ORG_SCREENS = new Set(["members", "limits"]);

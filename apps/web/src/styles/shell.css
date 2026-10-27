@@ -150,7 +150,6 @@ h1[tabindex="-1"]:focus {
   color: var(--faint);
 }
 .product-context {
-  display: block;
   color: var(--faint);
   font-size: var(--fs-xs);
 }
@@ -257,11 +256,6 @@ h1[tabindex="-1"]:focus {
 .nav-node[aria-current="page"] .nav-count {
   color: var(--select-text);
 }
-.nav-label {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
 .nav-count {
   margin-left: auto;
   color: var(--faint);
@@ -348,10 +342,6 @@ h1[tabindex="-1"]:focus {
 }
 .panel-filter-label {
   flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 .panel-filter-count {
   color: var(--faint);
@@ -533,11 +523,8 @@ h1[tabindex="-1"]:focus {
 .inspector-title {
   flex: 1;
   min-width: 0;
-  overflow: hidden;
   font-size: var(--fs-md);
   letter-spacing: 0;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 .inspector-body {
   flex: 1;

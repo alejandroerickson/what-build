@@ -8,6 +8,7 @@ import { useMe, useSignOut } from "../lib/session.tsx";
 import { BrandMark } from "../shell/brand.tsx";
 import { usePageTitle } from "../shell/slots.tsx";
 import { Button, ButtonLink, Callout, EmptyState, ErrorCallout, Loading, Sheet, SheetBody, SheetHeader, TextField, useToast } from "../ui/index.tsx";
+import { PrivacyLink } from "../shell/privacy-link.tsx";
 import "../styles/screens/account.css";
 
 /**
@@ -193,7 +194,7 @@ export function SignIn() {
       ) : null}
       {/* The one line every sign-in page carries (okf/spec/09-data-lifecycle.md §9.1), with the way to Privacy and Cookies. */}
       <p className="entry-fine">
-        WhatBuild is a free preview: don’t keep anything here you can’t afford to lose. <Link to="/privacy">Privacy</Link> · <Link to="/cookies">Cookies</Link>
+        WhatBuild is a free preview: don’t keep anything here you can’t afford to lose. <PrivacyLink /> · <Link to="/cookies">Cookies</Link>
       </p>
     </EntryPage>
   );
