@@ -198,6 +198,20 @@ step 2 of [Restoring a dump](#restoring-a-dump) makes one, and deleted with it; 
 keeps its own backups and no nightly dump, the newest backup is restored into a new instance in
 production's project, checked the same way, and the instance deleted.
 
+**What the drill costs.** On a free plan the drill spends the same month's allowances production
+lives on, so it spends as little of them as it can:
+
+- **Storage.** The restored copy is a second copy of the database in the same Neon project, until
+  the branch is deleted. Check first that the database's size (`select
+  pg_size_pretty(pg_database_size('whatbuild'))`) fits twice within the plan's storage, with room.
+- **Compute.** The branch's compute runs while the dump is restored and checked, and counts against
+  the project's compute for the month. Create it at the smallest size with scale to zero, run the
+  steps back to back, and delete the branch as soon as the check is done. Run the drill early in a
+  month, when most of the month's compute is left, never near its end.
+- **Transfer.** The dump is downloaded once, and the check reads counts and file keys, never
+  content. The bucket is copied within the same region, which Google Cloud does not charge as
+  transfer; the scratch bucket's storage is charged for the hours it exists.
+
 **1. The scratch target.** Note the time. Branch production's database in its own Neon project and
 make an empty database, `drill`, beside the branch's copy of `whatbuild`, which the drill never
 touches; make an empty bucket in production's project. A branch counts against the project's
@@ -205,7 +219,8 @@ branches (ten on a free plan) until it is deleted.
 
 ```bash
 T0=$(date -u +%s); S=restore-drill-$(date -u +%Y%m%dt%H%M)
-neon branches create --project-id $N --name $S --parent production
+EXPIRES=$(python3 -c 'import datetime as d; print((d.datetime.now(d.timezone.utc) + d.timedelta(hours=6)).strftime("%Y-%m-%dT%H:%M:%SZ"))')
+neon branches create --project-id $N --name $S --parent production --cu 0.25 --expires-at $EXPIRES
 ADMIN=$(neon connection-string $S --project-id $N --role-name neondb_owner --database-name neondb)
 psql "$ADMIN" -v ON_ERROR_STOP=1 -c 'GRANT whatbuild TO neondb_owner WITH SET TRUE, INHERIT TRUE' \
   -c 'CREATE DATABASE drill OWNER whatbuild' -c 'REVOKE whatbuild FROM neondb_owner'

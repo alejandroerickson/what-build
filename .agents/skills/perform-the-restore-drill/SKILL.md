@@ -28,6 +28,11 @@ command. This file is how to conduct the work.
   part-way, and say in your report that you did, or what is left.
 - **Nothing from the restore is published.** In your report to the person you may say counts; in
   anything published, only the date and the elapsed time.
+- **Spend as little of a free plan as the drill needs** (the guide's "What the drill costs"). Check
+  the database's size and the project's storage, compute and transfer left this month before
+  starting; if the restored copy would not fit or the month's compute is nearly used, stop and say
+  when it could run. Keep the branch's compute at the smallest size, run the steps back to back,
+  and delete the branch the moment the check is done.
 
 ## Procedure
 
