@@ -3,7 +3,7 @@ type: System Concept
 title: A release is a version tag on main, published as a GitHub release with its image; a deployment that follows releases moves when one is published.
 description: For the agent asked to release a version or move production; what a release is, how versions are numbered, publishing one with gh, what the Release workflow adds, and approving the Cloud Run deploy it starts.
 tags: [operations, releases, versions, tags, deployment, cloud-run]
-generated: {by: agent:claude, at: 2026-10-12}
+generated: {by: agent:claude, at: 2026-10-26}
 status: stable
 ---
 
@@ -70,8 +70,12 @@ gh release create v0.2.0 --target $SHA --title v0.2.0 --generate-notes \
 
 Publishing makes the tag, and the tag starts the Release workflow
 (`.github/workflows/release.yml`), which builds and publishes the image, then puts the image and
-the migrations at the top of the notes. A tag pushed without a release gets a release made by the
-workflow. Follow it to the end:
+the migrations at the top of the notes. The migrations are the ones added since the last earlier
+release that has an image, since a deployment can go back only to a release it can pull; a tag
+between them whose workflow failed published none, and the notes name it. A tag pushed without a
+release gets a release made by the workflow. CI builds the image the same way on every pull
+request and push to `main`, without publishing it, so the tag is not the image's first build.
+Follow the workflow to the end:
 
 ```bash
 gh run list --workflow release.yml -L 1

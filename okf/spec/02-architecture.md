@@ -283,7 +283,8 @@ Requirements this places on the design:
   NOT read an attachment inline in the request; that is an observable behavior difference.
 - **CI uses this path.** The GitHub Actions workflow ([`.github/workflows/ci.yml`](../../.github/workflows/ci.yml))
   installs, checks that the embedded guide matches its Markdown topics, type-checks, runs `pnpm test`
-  against embedded Postgres, and builds.
+  against embedded Postgres, and builds; beside it, it builds the image from `deploy/Dockerfile`
+  without publishing it.
 - ◆ Decision: **development may substitute an adapter, never a behavior.** A difference a caller
   can observe is a bug.
 
