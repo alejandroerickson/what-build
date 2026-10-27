@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { listOf, loadConfig } from "../src/config.ts";
+import { instanceOwnersFrom, listOf, loadConfig } from "../src/config.ts";
 
 // Lists of addresses are written with commas, or with semicolons where `gcloud --set-env-vars`
 // keeps commas for itself, as deploy/cloud-run/setup.sh writes them. Both read the same.
@@ -21,6 +21,10 @@ describe("settings that list addresses", () => {
     expect(config({ WHATBUILD_SIGNUP_ALLOWLIST: "riley@example.com;@listed.example" }).signupAllowlist).toEqual(["riley@example.com", "@listed.example"]);
     expect(config({ WHATBUILD_SIGNUP_ALLOWLIST: "riley@example.com, @listed.example" }).signupAllowlist).toEqual(["riley@example.com", "@listed.example"]);
     expect(config({}).signupAllowlist).toBeNull();
+  });
+
+  it("read the instance owners a copy of the deployment takes from its service the same way", () => {
+    expect(instanceOwnersFrom("riley@example.com;Sam@example.com")).toEqual(["riley@example.com", "sam@example.com"]);
   });
 
   it("leave a domain out of the instance owners", () => {
