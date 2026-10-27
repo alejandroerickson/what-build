@@ -176,6 +176,22 @@ describe("an instance owner", () => {
     expect((await root.api("GET", `${T()}/members`)).status).toBe(404);
   });
 
+  it("renames one they are not in only in the web app: their agent finds it missing, as anyone's does", async () => {
+    const item = (await root.api("GET", "/api/v1/organizations")).body.items.find((o: { slug: string }) => o.slug === acme);
+    const c = await connect(root);
+    const r = body(await c.callTool({ name: "products_write", arguments: { action: "rename_tenant", params: { tenant: acme, name: "Acme by an agent", expected_etag: item.name_etag } } }));
+    expect(r.status, JSON.stringify(r.json)).toBe(404);
+    expect(r.json.error.code).toBe("not_found");
+    await c.close();
+    expect(await acmeOf(olga)).toMatchObject({ name: item.name, name_etag: item.name_etag });
+    // In an organization of their own, their agent renames it as any owner's does.
+    const own = await root.api("POST", "/api/v1/tenants", { name: "Root's Lab" });
+    const mine = await connect(root);
+    const ok = body(await mine.callTool({ name: "products_write", arguments: { action: "rename_tenant", params: { tenant: own.body.tenant.slug, name: "Root's Workshop", expected_etag: own.body.tenant.name_etag } } }));
+    await mine.close();
+    expect(ok.status, JSON.stringify(ok.json)).toBe(200);
+  });
+
   it("still meets the stale etag, and names an organization that does not exist as missing", async () => {
     const r = await root.api("PATCH", T(), { name: "Acme Stale", expected_etag: "not-the-etag" });
     expect(r.status).toBe(409);

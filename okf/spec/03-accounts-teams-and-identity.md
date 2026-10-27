@@ -236,8 +236,10 @@ concept.
 `products.rename_tenant` (`PATCH /api/v1/tenants/:tenant`) changes the name, the slug, or both.
 Its owners change them, the example organization's included; an admin or a member is refused
 `403`, and an agent needs an admin connection. An instance owner changes them in any tenant, as one
-of its owners, member or not: the operation sets `allowInstanceOwners`, which lets them in to that
-operation alone and gives them no grant. Name and slug share one etag, `name_etag`, which
+of its owners, member or not, in the web app only (Rename on `/instance`): the operation sets
+`allowInstanceOwners`, which lets them in to that operation alone and gives them no grant. Their
+agent renames only the tenants they own, as anyone's does, and finds any other missing (`404`;
+◆ [decision](../decisions/running-the-instance-is-done-in-the-web-app-never-by-an-agent.md)). Name and slug share one etag, `name_etag`, which
 `products.list` gives every tenant the caller is in and `products.organizations` every tenant; a
 change without the current one is refused `409 stale_etag`, a call that names neither `422`, and
 one to what the tenant already has writes nothing. A change is recorded in the tenant's access log,

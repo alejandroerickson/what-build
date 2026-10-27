@@ -334,7 +334,7 @@ export const renameTenant = defineOperation({
   access: "owner",
   mutates: true,
   allowInstanceOwners: true,
-  summary: "Rename an organization, change its slug, or both (owners, and the instance's owners).",
+  summary: "Rename an organization, change its slug, or both (its owners; the instance's owners rename any, in the web app).",
   description:
     "Pass only what changes, name or slug, with expected_etag: the tenant's name_etag from products_read(action=\"list\"). " +
     "A new slug changes the first part of every product's path (acme/core/onboarding becomes acme-labs/core/onboarding): use the new paths from then on. The old slug keeps working everywhere: products_read(action=\"list\") lists it in the tenant's former_slugs, calls that name it reach the organization, a connector scoped to it keeps working, and the web app takes an address with it to the new one. " +

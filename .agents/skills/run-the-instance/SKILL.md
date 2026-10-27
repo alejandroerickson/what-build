@@ -36,8 +36,9 @@ command. This file says how to do the work.
   revision change what every organization meets from its next call; say so before you do it.
 - **Running the instance is a person's work in the web app.** No MCP connection is offered any of
   it, the instance owner's own included, and a call to one is refused `403 web_only` with where it
-  is. Moving organizations, plans' limits, guests, allowances, accounts, deleting an organization
-  and removing an account are all done there: tell the person where each is and what its dialog
+  is, and your connection renames only the organizations the person owns. Moving organizations,
+  renaming one they are not in, plans' limits, guests, allowances, accounts, deleting an
+  organization and removing an account are all done there: tell the person where each is and what its dialog
   will show. What is yours is the deployment's configuration (its plans file and settings), with
   the person's go-ahead.
 
@@ -50,6 +51,7 @@ In the web app, by the instance owner, signed in. Organizations is `/instance` a
 |---|---|
 | see every organization, its plan, what it holds, and the plans | Organizations |
 | move an organization to another plan | Organizations, Change plan on its row |
+| rename an organization, or change its short name in links | Organizations, Rename on its row |
 | change a plan's limits or price, for every organization on it | Organizations, Plans, the plan's button |
 | see who may start organizations, and the waitlist | Organizations, Who can start organizations, Waitlist |
 | let someone start an organization | Organizations, Let them start one on the Waitlist, or Let someone start organizations |

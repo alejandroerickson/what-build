@@ -265,7 +265,7 @@ being changed inside the handler.
 | `products` | `remove_account` | `POST /api/v1/accounts/remove` | instance owner, in the web app only |
 | `products` | `delete_account_impact` | `GET /api/v1/me/delete-impact` | signed in, of their own account, in the web app only |
 | `products` | `delete_account` | `POST /api/v1/me/delete` | signed in within the last 15 minutes, of their own account, in the web app only |
-| `products` | `rename_tenant` | `PATCH /api/v1/tenants/:tenant` | tenant owner, or an instance owner ([§3.3](03-accounts-teams-and-identity.md#33-tenants-and-teams)) |
+| `products` | `rename_tenant` | `PATCH /api/v1/tenants/:tenant` | tenant owner, or an instance owner in the web app only ([§3.3](03-accounts-teams-and-identity.md#33-tenants-and-teams)) |
 | `products` | `create_team` | `POST /api/v1/tenants/:tenant/teams` | tenant admin |
 | `products` | `create` | `POST /api/v1/teams/:tenant/:team/products` | team admin |
 | `products` | `get` | `GET P` | reader |

@@ -225,7 +225,8 @@ async function run(
   if (op.name === "submit_feedback" && principal.feedback === false) throw feedbackOff();
   // Scope first: a caller who cannot see the product learns nothing, not even whether their input was valid.
   const raw = (rawInput && typeof rawInput === "object" ? rawInput : {}) as Record<string, unknown>;
-  const asInstanceOwner = Boolean(op.allowInstanceOwners) && isInstanceOwner(env.ports.config, principal.email);
+  // An instance owner reaches an organization they are not in only in the web app: an agent never runs the instance.
+  const asInstanceOwner = Boolean(op.allowInstanceOwners) && principal.surface === "web" && isInstanceOwner(env.ports.config, principal.email);
   const resolved = await resolveScope(env.db, principal, op.scope, op.access, refFromInput(op, raw, ref), called, { asInstanceOwner, allowances: env.ports.config });
   // An agent acts with the lower of the person's role and its connection's level.
   const scope: Scope = principal.level ? { ...resolved, role: capRole(resolved.role, principal.level) } : resolved;

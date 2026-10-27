@@ -141,7 +141,8 @@ export interface OperationDef<I extends z.ZodType = z.ZodType, O = unknown, P = 
   webOnly?: string;
   /**
    * A tenant operation an owner of this WhatBuild instance may call in any organization, as one of
-   * its owners, whether or not they belong to it: renaming an organization.
+   * its owners, whether or not they belong to it: renaming an organization. In the web app only:
+   * their agent acts only where their own roles reach, as anyone's does.
    */
   allowInstanceOwners?: boolean;
   /**

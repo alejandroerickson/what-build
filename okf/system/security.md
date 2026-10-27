@@ -112,8 +112,10 @@ holds each one; the linked decisions say why. Observed in the code on 2026-10-10
 - An instance owner acts in an organization they do not belong to only through a tenant operation
   that sets `allowInstanceOwners`, renaming it, and is then one of its owners for that call alone;
   `resolveScope` (`policy.ts`) is the one place that lets them in, and only when `execute` found
-  their address in `WHATBUILD_INSTANCE_OWNERS`
-  ([decision](../decisions/an-organizations-owners-rename-it-and-its-former-slugs-still-reach-it.md)).
+  their address in `WHATBUILD_INSTANCE_OWNERS` and the call came from the web app. Their agent
+  reaches only what their own roles do
+  ([decision](../decisions/an-organizations-owners-rename-it-and-its-former-slugs-still-reach-it.md),
+  [decision](../decisions/running-the-instance-is-done-in-the-web-app-never-by-an-agent.md)).
 
 **Agents and OAuth** ([decision](../decisions/built-in-identity-and-oauth.md),
 [decision](../decisions/a-scoped-mcp-connector-is-a-fence.md)). `apps/server/src/auth/oauth.ts`.

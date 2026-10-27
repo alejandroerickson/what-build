@@ -49,6 +49,8 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
   one, or to any web-only action (deleting an organization or an account), is refused
   `403 web_only`, saying where a person does it, where it used to be `422 unknown_action`. A
   billing service that moves organizations with `PATCH /api/v1/organizations/plan` is unaffected.
+  An instance owner's agent also no longer renames an organization they are not in: it renames
+  only those they own, and finds the others missing (`404`); Rename on Organizations does it.
   The usage report (`pnpm usage`) is how the server's counts are read. No migration.
 
 ## v0.26.0

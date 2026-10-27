@@ -122,7 +122,9 @@ and **Cleo** are three such addresses, signed in with `pnpm e2e browser signin <
     answers `403 web_only`, saying a person does it in the web app and where (Organizations,
     `/instance`; Change plan on the organization's row), and that it is not a tool list from
     another version; nothing asks for a new session, and the organization's plan is unchanged on
-    the web.
+    the web. `products_write(action="rename_tenant")` on the synthetic organization, which Riley is
+    not in, with its `name_etag` from Organizations, answers `404`, and its name is unchanged:
+    Riley renames it only on the web.
 19. **MCP and web, as Morgan.** Morgan owns the synthetic organization and runs nothing else. List
     the tools. *Expect:* none of the actions in step 18; `products_read(action="accounts")` called
     anyway answers `403 web_only` too, naming People. On the web, Organizations and People say only
