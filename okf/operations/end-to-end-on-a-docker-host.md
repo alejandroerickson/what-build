@@ -3,7 +3,7 @@ type: System Concept
 title: The end-to-end instance on a Docker host, serving each release's image on a fresh copy of the golden master
 description: An always-on end-to-end instance on any machine that runs Docker, such as a home server or a NAS; the release image as a development server, its Postgres, loading a golden master exported from a checkout, resetting before each run, following releases, and running the plans against it through an SSH tunnel.
 tags: [operations, testing, e2e, docker, golden-master, releases]
-generated: {by: agent:claude, at: 2026-10-26}
+generated: {by: agent:claude, at: 2026-10-27}
 status: draft
 ---
 
@@ -20,8 +20,9 @@ It is not a deployment for people. It runs the image as a **development server**
 (`NODE_ENV=development`), because the test tools sign in through the development sign-in, where
 anyone signs in as anyone; mail only prints. So it answers on the host's loopback only and is
 reached through an SSH tunnel. It holds real people's data, as the golden master does
-([a copy of production](a-copy-of-production.md)): the host must be the maintainer's own, and its
-folder is never shared or backed up anywhere public.
+([a copy of production](a-copy-of-production.md)), and like every copy outside production only
+organizations an instance owner owns ([decision](../decisions/copies-outside-production-hold-only-organizations-an-instance-owner-owns.md)): the host must be the maintainer's own, and
+its folder is never shared or backed up anywhere public.
 
 ## The pieces
 
@@ -70,7 +71,9 @@ on a deployment.
 5. On the host: `sudo <folder>/whatbuild-e2e.sh load ~/incoming`, with the export's absolute path,
    since the script works in its own folder. It takes the export into `data/golden`, makes the role
    and the `golden` database, restores the dump as the role, takes the newest release if `.env`
-   names none, and resets. Then delete `~/incoming`: it is real people's data.
+   names none, and resets. It refuses an export whose `golden.json` does not say
+   `"owned_by_instance_owners": true`: one of a golden master built before pulls checked who owns
+   each organization. Then delete `~/incoming`: it is real people's data.
 6. To follow releases, start the updater from the folder, as root where Docker needs it:
    `docker compose --profile updater up -d updater`. Name the service, or compose recreates the app
    without the example organization, which only the script reads from `golden.json`. Each night it
@@ -96,7 +99,8 @@ example and the standard organization; the synthetic organization's own people i
 
 `update [tag]` takes a release (the newest by default), records it in `.env` as `WHATBUILD_TAG`,
 pulls the image and resets. `status` says which release is served and which golden master, with
-its organizations and every product's path.
+its organizations and every product's path, and warns when that golden master was built before
+pulls checked who owns each organization: load a new export.
 `logs [lines]` prints the app's log and the updater's, which the sudo rule lets an agent read.
 
 ## Running the plans against it

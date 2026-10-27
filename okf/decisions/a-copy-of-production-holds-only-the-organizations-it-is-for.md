@@ -3,11 +3,13 @@ type: Decision
 title: A copy of production holds only the organizations it is for, by default the example organization, and nothing of any other leaves production
 description: Pulls, the golden master and the dev deployment take the organizations named (the example organization unless others are), read from production in one snapshot, so that an organization kept private never reaches a copy.
 tags: [decision, development, testing, dev, production, privacy, operations, tenancy]
-generated: {by: agent:claude, at: 2026-10-25}
-status: stable
+generated: {by: agent:claude, at: 2026-10-27}
+status: deprecated
 ---
 
 # A copy of production holds only the organizations it is for, by default the example organization, and nothing of any other leaves production
+
+Superseded on 2026-10-27 by [Copies outside production hold only organizations an instance owner owns, and synthetic ones; customers' organizations never leave production](copies-outside-production-hold-only-organizations-an-instance-owner-owns.md).
 
 ## Context
 

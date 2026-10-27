@@ -3,7 +3,7 @@ type: Process
 title: What a deployment must do when it takes a release
 description: The changes a release asks of the people who run a deployment (settings, app registrations, behaviour they will notice), kept per release, with the unreleased ones on top until the next release carries them into its notes.
 tags: [operations, releases, upgrading, self-hosting, configuration]
-generated: {by: agent:claude, at: 2026-10-26}
+generated: {by: agent:claude, at: 2026-10-27}
 status: stable
 ---
 
@@ -33,6 +33,19 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
   site's `/privacy` goes to the app, which has nothing there. `/site/` and `/site/plans/` on the
   app's origin now show the site's pages with the deployment's plans written in, where they showed
   the app. No migration.
+- **Copies outside production hold only organizations an instance owner owns.** It concerns
+  whoever copies a deployment's organizations to test on or to a dev deployment, and asks nothing
+  of a running deployment; no migration. `pnpm fixture pull` refuses an organization that has an
+  owner who is not among the deployment's instance owners, and `--all` takes only those every
+  owner of which is one. To read who they are it needs the Cloud Run service's region
+  (`GCP_REGION`) or, for another deployment, `WHATBUILD_FIXTURE_INSTANCE_OWNERS`. Pulls, golden
+  masters and their exports made before are refused (`pnpm fixture load`, `pnpm e2e golden`,
+  `pnpm e2e export`, the Docker host's `load`): delete them and pull again; a Docker host needs
+  the new `whatbuild-e2e.sh` before it loads a new export. Moving an organization into another
+  production deployment of its own takes `--for-another-deployment`
+  ([copying an organization](copying-an-organization.md#which-organizations-may-leave-production)).
+  The restore drill now uses a scratch database and bucket in production's own accounts, never the
+  dev deployment ([backups](backups.md#the-restore-drill)).
 
 ## v0.27.0
 

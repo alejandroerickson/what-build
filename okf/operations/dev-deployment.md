@@ -1,9 +1,9 @@
 ---
 type: System Concept
-title: The dev deployment is a second Cloud Run deployment, laid out like production and holding a copy of its example organization or other organizations named, where a release is rehearsed before production moves.
-description: For the maintainer and the agent working for them; what the dev deployment is and how it differs from production, where its values are, rehearsing a release on it, putting it back, refreshing its copy of production's organizations, setting one up from nothing, and keeping its data private.
+title: The dev deployment is a second Cloud Run deployment, laid out like production and holding a copy of its example organization or other organizations its instance owners own, where a release is rehearsed before production moves.
+description: For the maintainer and the agent working for them; what the dev deployment is and how it differs from production, where its values are, rehearsing a release on it, putting it back, refreshing its copy of the instance owners' organizations, setting one up from nothing, and keeping its data private.
 tags: [operations, deployment, dev, rehearsal, migrations, cloud-run, neon, production]
-generated: {by: agent:claude, at: 2026-10-25}
+generated: {by: agent:claude, at: 2026-10-27}
 status: stable
 ---
 
@@ -13,13 +13,13 @@ Production moves only when a release's build is approved ([releasing](releasing.
 release that migrates can be undone only by restoring the database
 ([recovering from a bad release](recovering-from-a-bad-release.md)). So before production's build
 of a release that adds a migration is approved, the release is deployed to the **dev deployment**,
-which holds a recent copy of production's example organization, or of the organizations named, and its
-migrations and the jobs they queue are watched there ([decision](../decisions/releases-are-rehearsed-on-a-dev-deployment-holding-a-copy-of-production.md)).
+which holds a recent copy of production's example organization, or of other organizations its
+instance owners own, and its migrations and the jobs they queue are watched there ([decision](../decisions/releases-are-rehearsed-on-a-dev-deployment-holding-a-copy-of-production.md)).
 The skill `rehearse-on-the-dev-deployment` conducts the work in this guide.
 
 [A copy of production](a-copy-of-production.md) on your own machine tries the code. The dev
 deployment also tries the deploy: the same image build, restore point, migration job and Cloud Run
-service that production's build runs, on production's data.
+service that production's build runs, on the instance owners' organizations as production holds them.
 
 ## What it is
 
@@ -27,7 +27,7 @@ service that production's build runs, on production's data.
 |---|---|---|
 | Google Cloud project | its own | its own, with the same names inside ([Cloud Run](cloud-run.md#what-is-where)) |
 | Postgres | a Neon project, branch `production` | its own Neon project: branch `main`, whose parent `prod-copy` holds the copy as it was loaded |
-| Organizations | all of them | the ones `NEON_DEV_COPY_ORGANIZATIONS` names, copied from production; nothing of the others ([decision](../decisions/a-copy-of-production-holds-only-the-organizations-it-is-for.md)) |
+| Organizations | all of them | the ones `NEON_DEV_COPY_ORGANIZATIONS` names, each one an instance owner owns, copied from production; nothing of the others, and never a customer's ([decision](../decisions/copies-outside-production-hold-only-organizations-an-instance-owner-owns.md)) |
 | Files | its bucket | its own bucket, with the copied organizations' files |
 | Deploys | a trigger on release tags, after approval | by hand, any tag or commit of `main`; no trigger |
 | Sign-in | its own identity providers and clients | Google, with an OAuth client of its own in the same Google Auth Platform project as production's |
@@ -52,12 +52,13 @@ In `.env` in the maintainer's clone, beside production's:
 | `NEON_DEV_BRANCH` | `main`, the branch the service uses |
 | `NEON_DEV_COPY_BRANCH` | `prod-copy`, the copy as it was loaded |
 | `NEON_DEV_COPY_TAKEN` | when the copy was taken from production, in UTC |
-| `NEON_DEV_COPY_ORGANIZATIONS` | the organizations the copy holds, by slug, comma-separated: production's example organization unless the maintainer names others, or `all`. `pnpm attention` reports a dev deployment whose `.env` has no such line. |
+| `NEON_DEV_COPY_ORGANIZATIONS` | the organizations the copy holds, by slug, comma-separated: production's example organization unless the maintainer names others an instance owner owns. `pnpm attention` reports a dev deployment whose `.env` has no such line or says `all`, or whose copy was taken before pulls checked who owns each organization. |
 
 The secrets are in the dev project's Secret Manager: `whatbuild-database-url`,
 `whatbuild-grant-key`, `whatbuild-google-client-secret` and `whatbuild-neon-api-key`, a Neon key
 that reaches only the dev Neon project. The commands below use `P=$GCP_DEV_PROJECT`,
-`R=$GCP_DEV_REGION`, `N=$NEON_DEV_PROJECT` and, for production, `PP=$GCP_PROJECT`.
+`R=$GCP_DEV_REGION`, `N=$NEON_DEV_PROJECT` and, for production, `PP=$GCP_PROJECT` and
+`PR=$GCP_REGION`.
 
 ## Rehearsing a release
 
@@ -184,18 +185,18 @@ reset: files a rehearsal wrote stay, unreferenced and harmless.
 
 Load a new copy of production's organizations into `prod-copy`, then put dev back. The service
 keeps running on `main` while the copy loads. The copy holds the organizations
-`NEON_DEV_COPY_ORGANIZATIONS` names and nothing of the others
-([copying an organization](copying-an-organization.md)); to change which, say so to the
-maintainer, and record the new list in step 5.
+`NEON_DEV_COPY_ORGANIZATIONS` names and nothing of the others, and each is one an instance owner
+owns ([copying an organization](copying-an-organization.md#which-organizations-may-leave-production));
+to change which, say so to the maintainer, and record the new list in step 5.
 
 **1. The copy.** Pull the organizations from production into a directory only you can read, with
 their files sent straight into dev's bucket, which is left holding theirs alone. It reads
-production and changes nothing there. Pass `--org` with `NEON_DEV_COPY_ORGANIZATIONS`, nothing for
-production's example organization, or `--all` if it says `all`:
+production and changes nothing there, and refuses an organization no instance owner owns. Pass
+`--org` with `NEON_DEV_COPY_ORGANIZATIONS`, or nothing for production's example organization:
 
 ```bash
 umask 077; D=$(mktemp -d)
-WHATBUILD_FIXTURE_DIR=$D GCP_PROJECT=$PP corepack pnpm fixture pull --org <slug>[,<slug>…] \
+WHATBUILD_FIXTURE_DIR=$D GCP_PROJECT=$PP GCP_REGION=$PR corepack pnpm fixture pull --org <slug>[,<slug>…] \
   --files-into gs://$P-whatbuild-files
 F=$(ls -d $D/*/)                                 # the pull; its pulled.json names what it holds
 ```
@@ -227,15 +228,13 @@ python3 -c 'import json, sys; [print(t, n) for t, n in json.load(open(sys.argv[1
   $F/pulled.json | LC_ALL=C sort > from.txt
 ```
 
-A copy of `--all` records no rows: compare it with production's backup role as `FROM`, as that
-section does. Then keep `pulled_at` and the slugs from `$F/pulled.json` for step 5, and
-`rm -r $D`.
+Then keep `pulled_at` and the slugs from `$F/pulled.json` for step 5, and `rm -r $D`.
 
 **4. Put dev back** ([above](#putting-it-back)), so that `main` is the new copy, and deploy the
 release production runs.
 
 **5. Record** in `.env` the copy's time (`pulled_at`) as `NEON_DEV_COPY_TAKEN`, and the slugs it
-holds as `NEON_DEV_COPY_ORGANIZATIONS` (or `all`).
+holds as `NEON_DEV_COPY_ORGANIZATIONS`.
 
 The copy's accounts sign in with Google, the one way dev offers. Browser sessions and agents'
 tokens from production do not work on dev: sessions belong to production's domain, and access
@@ -316,7 +315,7 @@ gcloud run services update whatbuild --project $P --region $R --update-env-vars 
 rm "$F"
 ```
 
-**6. Production's organizations**, by [refreshing the copy](#refreshing-the-copy). Its last step deploys
+**6. The instance owners' organizations**, by [refreshing the copy](#refreshing-the-copy). Its last step deploys
 the release, which names the service by it and makes the first restore point.
 
 **7. Production's example organization and plans**, as production names them (its
@@ -338,10 +337,13 @@ release and reports `"google": true`.
 
 The copy is real people's data. Dev holds it by the maintainer's choice
 ([decision](../decisions/releases-are-rehearsed-on-a-dev-deployment-holding-a-copy-of-production.md)),
-and that is decided again before public sign-up opens ([roadmap](../spec/10-roadmap.md)).
+and holds only organizations an instance owner owns: customers' organizations never leave
+production ([decision](../decisions/copies-outside-production-hold-only-organizations-an-instance-owner-owns.md)).
 
-- Dev holds only the organizations named; nothing of another leaves production for it
-  ([decision](../decisions/a-copy-of-production-holds-only-the-organizations-it-is-for.md)).
+- Dev holds only the organizations named, each one an instance owner owns; nothing of another
+  leaves production for it. The pull checks the owners and refuses any other.
+- Dev is not where the [restore drill](backups.md#the-restore-drill) goes: it restores every
+  organization, and stays in production's own accounts.
 - A copy goes from production to dev through a directory only you can read, deleted once loaded,
   never through a pull kept in `.what-build/fixtures`. Nothing from the copy goes into the
   repository, a commit, an issue or a pull request.
