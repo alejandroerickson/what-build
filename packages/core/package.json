@@ -8,6 +8,7 @@
     "./account-deletion": "./src/account-deletion.ts",
     "./find-in-text": "./src/find-in-text.ts",
     "./page-sandbox": "./src/page-sandbox.ts",
+    "./plans": "./src/plans.ts",
     "./safe-next": "./src/safe-next.ts"
   },
   "scripts": {

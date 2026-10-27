@@ -3,18 +3,27 @@ import { createContext, useContext, type ReactNode } from "react";
 import { Navigate, useLocation, useParams } from "react-router";
 import { Loading } from "../ui/index.tsx";
 import { api, ApiError } from "./api.ts";
+import type { ReadOnly } from "./limits.ts";
 import { forgetPersonalState } from "./local-state.ts";
 
 export interface Me {
   account_id: string;
   email: string;
   display_name: string;
-  /** How many organizations this account may still create; null means no limit (an owner of this instance). */
+  /**
+   * How many organizations this account may still start; null means no limit (an owner of this
+   * instance). `created` counts the ones it started that are on the plan new organizations start on
+   * and not read-only.
+   */
   tenant_allowance: { instance_owner: boolean; allowed: number | null; created: number; remaining: number | null; source: "instance_owner" | "given" | "default" };
   /** The plan an organization this account starts gets. */
-  new_organization_plan: "free" | "unlimited";
+  new_organization_plan: string;
+  /** In no organization, with no allowance: they come into the example organization as a guest, while there is room. */
+  guest?: boolean;
   /** The person hid the example organization from the panel; the overview still shows it. */
   hide_example: boolean;
+  /** When they asked for an organization of their own: they are on the waitlist. */
+  asked_for_organization_at?: string | null;
 }
 
 /**
@@ -47,10 +56,10 @@ export interface ProductsResponse {
   /**
    * `example` marks the example organization, where `your_role` is "guest" for everyone it gave no
    * role. story_only: the person reads only the Story everywhere in the organization, so its members
-   * are not shown to them. `plan` is free or unlimited. `name_etag` guards the name and slug, which
+   * are not shown to them. `plan` is free, pro or unlimited. `name_etag` guards the name and slug, which
    * owners change; `former_slugs` are slugs it had before, which addresses may still name it by.
    */
-  tenants: { tenant_id: string; slug: string; name: string; name_etag: string; former_slugs?: string[]; example?: boolean; plan: "free" | "unlimited"; story_only?: boolean; your_role: string | null; teams: { team_id: string; slug: string; name: string; your_role: string | null }[] }[];
+  tenants: { tenant_id: string; slug: string; name: string; name_etag: string; former_slugs?: string[]; example?: boolean; plan: string; read_only?: ReadOnly; story_only?: boolean; your_role: string | null; teams: { team_id: string; slug: string; name: string; your_role: string | null }[] }[];
 }
 
 /**
@@ -105,6 +114,15 @@ export function useHideExample() {
   });
 }
 
+/** Ask for an organization of one's own: join the waitlist the instance's owners read. */
+export function useAskForOrganization() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => api<Me>("POST", "/api/v1/me/ask-for-organization", {}),
+    onSuccess: (me) => qc.setQueryData(["me"], (old: Me | undefined) => (old ? { ...old, asked_for_organization_at: me.asked_for_organization_at } : old)),
+  });
+}
+
 /** The organizations in the order the app lists them: the person's own first, the example organization last. */
 export function ownFirst<T extends { example?: boolean }>(tenants: T[]): T[] {
   return [...tenants].sort((a, b) => Number(Boolean(a.example)) - Number(Boolean(b.example)));
@@ -143,7 +161,7 @@ export interface Product {
   archived_at: string | null;
   etag: string;
   path: string;
-  tenant: { tenant_id: string; slug: string; name: string; example?: boolean; plan?: "free" | "unlimited" };
+  tenant: { tenant_id: string; slug: string; name: string; example?: boolean; plan?: string; read_only?: ReadOnly };
   team: { team_id: string; slug: string; name: string };
   your_role: ProductRole;
   /** A reader gets story_pages only. */

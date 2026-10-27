@@ -10,9 +10,9 @@
 //
 // Settings (wrangler --var): ORIGIN, the service's run.app URL; SITE_HOST, the site's domain
 // (e.g. example.com); APP_URL, the app's origin (e.g. https://app.example.com); and, optionally,
-// ANALYTICS_ID, a Google Analytics measurement ID the site's page loads once a visitor accepts, and
+// ANALYTICS_ID, a Google Analytics measurement ID the site's pages load once a visitor accepts, and
 // CF_ANALYTICS_TOKEN, a Cloudflare Web Analytics site token: its beacon sets no cookie, so it
-// counts every visit to the site's page, those who decline included. One secret (wrangler secret
+// counts every visit to the site's pages, those who decline included. One secret (wrangler secret
 // put): EDGE_KEY, the service's WHATBUILD_EDGE_KEY, sent with every request passed on, so the
 // service refuses whoever goes around this Worker to its run.app address
 // (apps/server/src/edge-key.ts).
@@ -45,12 +45,12 @@ const PAGE_HEADERS = {
     "default-src 'self'; script-src 'self'; style-src 'self'; font-src 'self' data:; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'",
 };
 
-function forward(request, url, env) {
+function forward(request, url, env, init = {}) {
   const forwarded = new Request(new URL(url.pathname + url.search, env.ORIGIN), request);
   forwarded.headers.set("X-Forwarded-Host", url.host);
   if (env.EDGE_KEY) forwarded.headers.set("X-WhatBuild-Edge-Key", env.EDGE_KEY);
   else forwarded.headers.delete("X-WhatBuild-Edge-Key");
-  return fetch(forwarded, { redirect: "manual" });
+  return fetch(forwarded, { redirect: "manual", ...init });
 }
 
 /** Google Analytics' hosts, by directive (ANALYTICS_SOURCES in apps/server/src/public-routes.ts). */
@@ -75,12 +75,38 @@ function pageHeaders(analytics, beacon) {
   return { ...PAGE_HEADERS, "Content-Security-Policy": csp.join("; ") };
 }
 
+/** An attribute's value, written into HTML. */
+const attr = (v) => v.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+/** The site's pages, by path, and where each is in the build. */
+const SITE_PAGES = { "/": "/site/", "/plans": "/site/plans/", "/plans/": "/site/plans/" };
+
+/** How long Cloudflare keeps the service's answer about plans and guests: it wakes the service at most this often. */
+const CATALOGUE_SECONDS = 3600;
+
+/**
+ * What only the service knows of its plans (their limits and prices, as an instance owner set them)
+ * and of its guests (whether anyone may come in): asked of the service through Cloudflare's cache,
+ * so a visit wakes it at most once an hour. Null when the service does not answer; the pages then
+ * show the plans as the build has them.
+ */
+async function catalogue(url, env) {
+  try {
+    const res = await forward(new Request(new URL("/api/v1/plans", url)), new URL("/api/v1/plans", url), env, { cf: { cacheTtl: CATALOGUE_SECONDS, cacheEverything: true } });
+    return res.ok ? await res.text() : null;
+  } catch {
+    return null;
+  }
+}
+
 async function sitePage(request, url, env) {
-  const page = await env.ASSETS.fetch(new Request(new URL("/site/", url), request));
+  const page = await env.ASSETS.fetch(new Request(new URL(SITE_PAGES[url.pathname], url), request));
   const id = /^G-[A-Z0-9]+$/.test(env.ANALYTICS_ID ?? "") ? env.ANALYTICS_ID : null;
   const beacon = /^[0-9a-f]{32}$/.test(env.CF_ANALYTICS_TOKEN ?? "") ? env.CF_ANALYTICS_TOKEN : null;
+  const site = await catalogue(url, env);
   const head = [
     id ? `<meta name="whatbuild-analytics" content="${id}" />` : "",
+    site ? `<meta name="whatbuild-site" content="${attr(site)}" />` : "",
     beacon ? `<script defer src="https://static.cloudflareinsights.com/beacon.min.js" data-cf-beacon='{"token": "${beacon}"}'></script>` : "",
   ].join("");
   const body = head ? (await page.text()).replace("</head>", `${head}\n</head>`) : page.body;
@@ -99,7 +125,7 @@ export default {
 
     if (site && url.host === `www.${site}`) return Response.redirect(`https://${site}${url.pathname}${url.search}`, 301);
     if (site && url.host === site) {
-      if (url.pathname === "/" && read) return sitePage(request, url, env);
+      if (Object.hasOwn(SITE_PAGES, url.pathname) && read) return sitePage(request, url, env);
       if (SITE_FILES.test(url.pathname) && read) return env.ASSETS.fetch(request);
       if (url.pathname === "/api/v1/interest") return forward(request, url, env);
       // Temporary, not permanent: the site may grow pages of its own at these paths.

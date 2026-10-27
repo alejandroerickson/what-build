@@ -43,7 +43,12 @@ The privacy page is a notice, not a specification. It is written to these object
    ("What is kept", "Who else handles it", "How long it stays", "What you can do"), one list where
    the content is a list, and no slogans. It carries the month it last changed in a way that
    matters to a person; wording alone does not move it.
-5. **It discloses what is true of every WhatBuild, and the deployment adds what only it knows**:
+5. **It says who sees what, not how the product works.** That whoever runs the deployment sees each
+   organization's name and the names and emails of its people, to write to them and, where a plan
+   has a price, to bill it, is said, because a person cannot guess it. A plan's name, what an
+   organization holds, a guest's waiting line or a read-only year are product mechanics, covered
+   by the categories ("how much you use WhatBuild", "while it exists") and left out.
+6. **It discloses what is true of every WhatBuild, and the deployment adds what only it knows**:
    who runs it, where to write, and who else handles the data, the last as a paragraph it writes
    itself (`WHATBUILD_PROVIDERS`), naming its providers or describing them by kind, as it chooses.
 
@@ -61,9 +66,10 @@ to the app, and the text now changes rarely enough that a release is an acceptab
   whether analytics is set, and no durations.
 - An operator who wants a longer policy, or one under a specific regime, writes it elsewhere and
   points `WHATBUILD_PRIVACY_CONTACT` at it, or at an address; the page links to it as a contact.
-- Rejected: moving the page to the public site. The site is one page by
-  [decision](the-public-site-is-one-page-built-with-the-app.md), the app would still need a page
-  for deployments without a site, and the text would still live in this repository.
+- Rejected: moving the page to the public site
+  ([decision](the-public-site-is-pages-built-with-the-app.md)). The app would still need a page for
+  deployments without a site, every link to it is in the app or its mail, and the text would still
+  live in this repository.
 
 ## Constrains
 

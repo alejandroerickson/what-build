@@ -63,9 +63,9 @@ React 19, React Router 7, TanStack Query 5, Vite 8; Vitest. Details in
 [architecture](../spec/02-architecture.md).
 
 **Operations.** 117 operations, each defined once and exposed through both REST and MCP, but for
-five: deleting an organization and previewing that delete, which only its owner does, removing
-an account, which only an instance owner does, and deleting one's own account and previewing that,
-which only its person does, all in the web app. Agents are offered the other 112, as 28 tools
+five: deleting an organization and previewing that delete, which only its owners or an instance
+owner do, removing an account, which only an instance owner does, and deleting one's own account
+and previewing that, which only its person does, all in the web app. Agents are offered the other 112, as 28 tools
 ([decision](../decisions/one-registry-two-front-doors.md)).
 
 **Tenancy.** Organization (tenant) → team → product. One shared database and schema; every content
@@ -91,11 +91,20 @@ as its example (`WHATBUILD_EXAMPLE_TENANT`; a self-hosted deployment has none). 
 account reads it as its guest, a viewer of every product there, and nobody but its own members
 changes it
 ([decision](../decisions/every-account-reads-the-example-organization-which-only-its-staff-write.md)).
-Every organization has a plan: one someone other than an instance owner creates gets the
-deployment's (`WHATBUILD_NEW_ORGANIZATION_PLAN`, free on a deployment open to the public,
-unlimited unless named), and on the free plan everyone in it meets limits on how often and how much, which only
-instance owners change
-([decision](../decisions/free-organizations-meet-limits-that-only-instance-owners-change.md)).
+Every organization is on a plan of its own: one the deployment defines (`WHATBUILD_PLANS`), or
+unlimited. The plans, their limits and prices are the deployment's, never the code's, and a
+deployment that defines none, as a self-hosted one, has every organization unlimited and shows
+nothing of plans; billing is kept outside this repository
+([decision](../decisions/the-deployment-defines-its-plans-and-billing-stays-outside-the-repository.md)). One someone other than an instance owner creates gets the deployment's starting
+plan (`WHATBUILD_NEW_ORGANIZATION_PLAN`, unlimited unless named). Limits belong to plans, never to
+one organization: on a plan the deployment defines everyone in it meets limits on how often and
+how much each day and on what the organization holds, and only instance owners move an
+organization to another plan, or change a plan's limits and price
+([decision](../decisions/limits-belong-to-plans-and-each-organization-is-on-a-plan-of-its-own.md)).
+An account in no organization is a **guest**: it reads the example organization while there is
+room among a few places, and otherwise waits in line; an instance owner sets how many, and may let
+anyone sign up as one
+([decision](../decisions/guests-come-into-the-example-organization-while-there-is-room.md)).
 
 **MCP.** `/mcp` for every product the account can reach, `/mcp/t/<tenant>` for one organization,
 or `/mcp/t/<tenant>/<team>/<product>` for one product. A scoped endpoint is a fence: it refuses
@@ -121,7 +130,7 @@ in-app tabs; rows are real links; works in a phone browser, light and dark
 **One request.** Identify the caller (cookie on REST, OAuth token on MCP → account,
 surface, client, and for an agent its connection's level) → refuse an operation above that level
 (`403`) → resolve tenant, team and product → authorize (`404`/`403`) → refuse a guest's
-write in the example organization, and on the free plan admit the call to its limits
+write in the example organization, and on a plan with limits admit the call to them
 (`403`/`429`) → validate with the
 operation's schema (`422` lists every problem) → open a transaction with `app.tenant_id` set → run
 the handler (etag check, `409 stale_etag`; actor snapshot; activity event) → answer as JSON or MCP

@@ -1,10 +1,13 @@
-import { CONTENT_TABLES, dayOf, FREE_LIMITS, LIMITS, OTHER_TENANT_TABLES } from "@whatbuild/core";
+import { CONTENT_TABLES, dayOf, definedPlans, LIMITS, OTHER_TENANT_TABLES, type Limits } from "@whatbuild/core";
+import { plansFrom } from "../src/plans-config.ts";
 import { sql } from "kysely";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { startHarness, type Browser, type Harness } from "./harness.ts";
+import { EXAMPLE_PLANS, startHarness, type Browser, type Harness } from "./harness.ts";
 
 // An organization created on an allowance is on the free plan, whose limits everyone in it meets,
-// its owners included. Only an instance owner changes an organization's plan or limits.
+// its owners included. Limits belong to plans: only an instance owner moves an organization to another
+// plan, and nobody changes one organization's limits. A test changes a plan's limits as the code would,
+// and puts them back.
 
 let h: Harness;
 let root: Browser; // an instance owner
@@ -15,15 +18,31 @@ let unlimited: { slug: string };
 let P: string; // the free organization's product
 let U: string; // the unlimited organization's product
 let seeded: string; // a source in the free organization
-let etag: string | undefined; // the free organization's limits etag, once they have been changed
+let team: string; // the free organization's team
+let etag: string | undefined; // the free organization's plan etag, once it has been changed
 
-const L = "/api/v1/organizations/limits";
+const L = "/api/v1/organizations/plan";
+// The example plans file's Free and Pro, which every harness offers.
+const [FREE_AS_SHIPPED, PRO_AS_SHIPPED] = plansFrom(EXAMPLE_PLANS).map((p) => p.limits) as [Limits, Limits];
+/** The free plan as the running server has it, which a test changes as the deployment's configuration would. */
+const freePlan = () => definedPlans().find((p) => p.id === "free")!.limits;
+/** The free plan as these tests run on it: as it ships, but with calls and writes a minute to spare for a test's many. */
+const BASE: Limits = { ...FREE_AS_SHIPPED, requests_per_minute: 10_000, writes_per_minute: 10_000 };
 
-/** Change the free organization's limits as the instance owner, from the etag of the moment. */
-async function set(patch: Record<string, unknown>, extra: Record<string, unknown> = {}) {
-  const r = await root.api("PATCH", L, { tenant: free.slug, limits: patch, ...extra, ...(etag ? { expected_etag: etag } : {}) });
+/** Change the free plan's limits, as a change to the deployment's configuration would, for every organization on it. */
+function tweak(patch: Partial<Limits>) {
+  Object.assign(freePlan(), patch);
+}
+/** Put the free plan's limits back as these tests run on it. */
+function reset() {
+  Object.assign(freePlan(), BASE);
+}
+
+/** Move the free organization to a plan as the instance owner, from the etag of the moment. */
+async function move(plan: "free" | "pro" | "unlimited") {
+  const r = await root.api("PATCH", L, { tenant: free.slug, plan, ...(etag ? { expected_etag: etag } : {}) });
   expect(r.status, JSON.stringify(r.body)).toBe(200);
-  etag = r.body.etag;
+  etag = r.body.etag ?? etag;
   return r.body;
 }
 
@@ -36,6 +55,7 @@ const used = async (who: Browser, key: string) => (await limitsOf(who)).limits.f
 beforeAll(async () => {
   // Sign-up is limited, and nobody but the instance's owner creates organizations unless given an allowance.
   h = await startHarness({ signupAllowlist: ["@example.com"], instanceOwners: ["root@example.com"], defaultTenantAllowance: 0, newOrganizationPlan: "free" });
+  reset();
   root = await h.signIn("root@example.com", "Root Owner");
   const u = await root.api("POST", "/api/v1/tenants", { name: "Unlimited Co" });
   expect(u.body.tenant.plan).toBe("unlimited");
@@ -47,13 +67,16 @@ beforeAll(async () => {
   const f = await fay.api("POST", "/api/v1/tenants", { name: "Free Co" });
   expect(f.status, JSON.stringify(f.body)).toBe(201);
   free = { slug: f.body.tenant.slug, id: f.body.tenant.tenant_id };
-  const team = f.body.team.slug;
+  team = f.body.team.slug;
   P = `/api/v1/p/${(await fay.api("POST", `/api/v1/teams/${free.slug}/${team}/products`, { name: "Snug" })).body.path}`;
   expect((await fay.api("POST", `/api/v1/tenants/${free.slug}/members`, { email: "ned@example.com", role: "editor", team })).status).toBe(201);
   ned = await h.signIn("ned@example.com", "Ned Editor");
   seeded = (await fay.api("POST", `${P}/sources`, { title: "Sample visit notes", tags: ["notes"] })).body.record_id;
 }, 120_000);
-afterAll(async () => h?.close());
+afterAll(async () => {
+  if (definedPlans().length) Object.assign(freePlan(), FREE_AS_SHIPPED);
+  await h?.close();
+});
 
 describe("every table that carries a tenant", () => {
   it("is content, or another table with a reason", async () => {
@@ -83,15 +106,19 @@ describe("an organization's plan", () => {
     const orgs = (await root.api("GET", "/api/v1/organizations")).body;
     expect(orgs.new_organization_plan).toBe("free");
     expect(orgs.items.map((o: { slug: string; plan: string }) => [o.slug, o.plan]).sort()).toEqual([[free.slug, "free"], [unlimited.slug, "unlimited"]].sort());
-    expect(orgs.free_limits).toEqual(FREE_LIMITS);
-    expect(orgs.items.find((o: { slug: string }) => o.slug === free.slug)).toMatchObject({ people: 2, changed_limits: {}, etag: null });
+    expect(orgs.plans.map((p: { id: string }) => p.id)).toEqual(["free", "pro"]);
+    expect(orgs.plans[0].limits).toEqual(freePlan());
+    expect(orgs.items.find((o: { slug: string }) => o.slug === free.slug)).toMatchObject({ holds: { members: 2, products: 1, sources: 1 }, etag: null });
   });
 
   it("tells every member the limits, what they used today, and whether they meet them", async () => {
     const mine = await limitsOf(ned);
     expect(mine).toMatchObject({ plan: "free", plan_name: "Free", you_meet_them: true });
     expect(mine.limits.map((l: { key: string }) => l.key)).toEqual(LIMITS.map((l) => l.key));
-    for (const l of mine.limits) expect(l.value, l.key).toBe(FREE_LIMITS[l.key as keyof typeof FREE_LIMITS]);
+    for (const l of mine.limits) expect(l.value, l.key).toBe(freePlan()[l.key as keyof Limits]);
+    expect(mine.holds).toMatchObject({ members: 2, products: 1, sources: 1 });
+    expect(mine.limits.find((l: { key: string }) => l.key === "members_max").used).toBe(2);
+    expect(mine.plans.map((p: { id: string }) => p.id)).toEqual(["free", "pro"]);
     expect(mine.limits.find((l: { key: string }) => l.key === "writes_per_day").used).toBeGreaterThanOrEqual(0);
     expect(mine.limits.find((l: { key: string }) => l.key === "file_max_bytes").used).toBeUndefined();
     expect(Date.parse(mine.allowances_restart_at)).toBe(Date.parse(dayOf(new Date()).day_end));
@@ -103,6 +130,7 @@ describe("an organization's plan", () => {
     // Nobody meets them on the unlimited plan, and what each person does there is counted all the same.
     const roomy = await limitsOf(root, unlimited.slug);
     expect(roomy).toMatchObject({ plan: "unlimited", you_meet_them: false });
+    expect(roomy.limits.every((l: { value: unknown }) => l.value === null)).toBe(true);
     expect(roomy.limits.find((l: { key: string }) => l.key === "writes_per_day").used).toBeGreaterThan(0);
   });
 
@@ -114,32 +142,31 @@ describe("an organization's plan", () => {
     expect((await root.api("PATCH", L, { tenant: "no-such-org", plan: "unlimited" })).status).toBe(404);
   });
 
-  it("guards its limits with an etag once they have been changed", async () => {
+  it("guards its plan with an etag once it has been changed, and takes no limits of one organization's own", async () => {
     // Never changed: there is no etag to match.
-    const early = await root.api("PATCH", L, { tenant: free.slug, limits: { batch_max: 20 }, expected_etag: "made-up" });
+    const early = await root.api("PATCH", L, { tenant: free.slug, plan: "pro", expected_etag: "made-up" });
     expect(early.status).toBe(409);
     expect(early.body.error).toMatchObject({ code: "stale_etag", details: { current_etag: null } });
-    const first = await set({ batch_max: 20 });
-    expect(first.changed_limits).toEqual({ batch_max: 20 });
-    expect(first.etag).toEqual(expect.any(String));
-    const missing = await root.api("PATCH", L, { tenant: free.slug, limits: { batch_max: 21 } });
+    const pro = await move("pro");
+    expect(pro).toMatchObject({ plan: "pro", plan_name: "Pro" });
+    expect(pro.etag).toEqual(expect.any(String));
+    expect((await limitsOf(ned)).limits.find((l: { key: string }) => l.key === "members_max").value).toBe(PRO_AS_SHIPPED.members_max);
+    const missing = await root.api("PATCH", L, { tenant: free.slug, plan: "free" });
     expect(missing.status).toBe(409);
     expect(missing.body.error).toMatchObject({ code: "stale_etag", details: { current_etag: etag } });
-    const stale = await root.api("PATCH", L, { tenant: free.slug, limits: { batch_max: 21 }, expected_etag: "made-up" });
-    expect(stale.status).toBe(409);
-    // Back to the free plan's, all at once; the record says who changed it.
-    const back = await set({}, { reset_limits: true });
-    expect(back.changed_limits).toEqual({});
+    expect((await root.api("PATCH", L, { tenant: free.slug, plan: "free", expected_etag: "made-up" })).status).toBe(409);
+    // One organization's own limits are no longer a thing anyone sets.
+    expect((await root.api("PATCH", L, { tenant: free.slug, plan: "free", limits: { writes_per_day: 1 }, expected_etag: etag })).status).toBe(422);
+    expect((await root.api("PATCH", "/api/v1/organizations/limits", { tenant: free.slug, plan: "free" })).status).toBe(404);
+    await move("free");
     const listed = (await root.api("GET", "/api/v1/organizations")).body.items.find((o: { slug: string }) => o.slug === free.slug);
-    expect(listed).toMatchObject({ etag, limits_updated_by: { display_name: "Root Owner" } });
-    const refused = await root.api("PATCH", L, { tenant: free.slug, limits: { writes_per_minute: -1 }, expected_etag: etag });
-    expect(refused.status).toBe(422);
+    expect(listed).toMatchObject({ plan: "free", etag, plan_changed_by: { display_name: "Root Owner" } });
   });
 });
 
 describe("the free plan's limits", () => {
   it("count writes by the minute for everyone, its owner included, leave reads alone, and say when to come back", async () => {
-    await set({ writes_per_minute: 2 });
+    tweak({ writes_per_minute: 2 });
     try {
       const statuses: number[] = [];
       let last: { status: number; body: any; headers: Headers } | null = null;
@@ -160,12 +187,12 @@ describe("the free plan's limits", () => {
       // An unlimited organization meets none of it.
       for (let i = 0; i < 5; i++) expect((await root.api("POST", `${U}/outcomes`, { title: `Roomy outcome ${i}` })).status).toBe(201);
     } finally {
-      await set({ writes_per_minute: FREE_LIMITS.writes_per_minute });
+      reset();
     }
   });
 
   it("count calls by the minute, reads included", async () => {
-    await set({ requests_per_minute: 0 });
+    tweak({ requests_per_minute: 0 });
     try {
       const r = await ned.api("GET", `${P}/outcomes`);
       expect(r.status).toBe(429);
@@ -175,7 +202,7 @@ describe("the free plan's limits", () => {
       // A call that names no organization meets no organization's limits.
       expect((await ned.api("GET", "/api/v1/me/products")).status).toBe(200);
     } finally {
-      await set({ requests_per_minute: FREE_LIMITS.requests_per_minute });
+      reset();
     }
     expect((await ned.api("GET", `${P}/outcomes`)).status).toBe(200);
   });
@@ -183,7 +210,7 @@ describe("the free plan's limits", () => {
   it("give each person a day's writes, sources and exports, and refuse beyond them without touching a read", async () => {
     const before = await used(ned, "writes_per_day");
     const fays = await used(fay, "writes_per_day");
-    await set({ writes_per_day: before + 1 });
+    tweak({ writes_per_day: before + 1 });
     expect((await ned.api("POST", `${P}/outcomes`, { title: "The last one today" })).status).toBe(201);
     const over = await ned.api("POST", `${P}/outcomes`, { title: "One too many" });
     expect(over.status).toBe(409);
@@ -195,27 +222,27 @@ describe("the free plan's limits", () => {
     // Each person's allowance is their own: Ned's writes took nothing from Fay's.
     expect(await used(fay, "writes_per_day")).toBe(fays);
     // The day's writes never stop an export, which has an allowance of its own.
-    await set({ exports_per_day: 1 });
+    tweak({ exports_per_day: 1 });
     expect((await ned.api("POST", `${P}/exports`, {})).status).toBe(201);
     await h.worker.drain();
     const again = await ned.api("POST", `${P}/exports`, {});
     expect(again.status).toBe(409);
     expect(again.body.error.details).toMatchObject({ quota: "exports_per_day", limit: 1, used: 1 });
 
-    await set({ writes_per_day: 100000, exports_per_day: FREE_LIMITS.exports_per_day });
+    tweak({ writes_per_day: 100000, exports_per_day: BASE.exports_per_day });
     const sources = await used(ned, "sources_per_day");
-    await set({ sources_per_day: sources + 1 });
+    tweak({ sources_per_day: sources + 1 });
     expect((await ned.api("POST", `${P}/sources`, { title: "Sample source within the allowance", tags: ["notes"] })).status).toBe(201);
     const source = await ned.api("POST", `${P}/sources`, { title: "Sample source over the allowance", tags: ["notes"] });
     expect(source.status).toBe(409);
     expect(source.body.error.details).toMatchObject({ quota: "sources_per_day", limit: sources + 1, used: sources + 1 });
-    await set({ sources_per_day: 100 });
+    tweak({ sources_per_day: 100 });
   });
 
   it("count every source of a batch against the day's sources, and add none of a batch that would pass it", async () => {
     const batch = (label: string, n: number) => ({ sources: Array.from({ length: n }, (_, i) => ({ title: `Sample ${label} ${i + 1}`, path: `${label}-${i + 1}.md`, tags: ["notes"] })) });
     const before = await used(ned, "sources_per_day");
-    await set({ sources_per_day: before + 3 });
+    tweak({ sources_per_day: before + 3 });
     const two = await ned.api("POST", `${P}/sources/with-uploads`, batch("first-batch", 2));
     expect(two.status, JSON.stringify(two.body)).toBe(201);
     expect(await used(ned, "sources_per_day")).toBe(before + 2);
@@ -224,12 +251,12 @@ describe("the free plan's limits", () => {
     expect(over.body.error).toMatchObject({ code: "quota_exceeded", details: { quota: "sources_per_day", limit: before + 3, used: before + 2, unit: "sources" } });
     expect(over.body.error.message).toMatch(/new sources a day, and this call would add 2 with 1 left today\./);
     expect(await used(ned, "sources_per_day")).toBe(before + 2);
-    await set({ sources_per_day: 100 });
+    tweak({ sources_per_day: 100 });
   });
 
   it("count writes from everyone together against the organization's day", async () => {
     const all = (await root.api("GET", "/api/v1/organizations")).body.items.find((o: { slug: string }) => o.slug === free.slug).today.writes as number;
-    await set({ org_writes_per_day: all + 1 });
+    tweak({ org_writes_per_day: all + 1 });
     try {
       expect((await fay.api("POST", `${P}/outcomes`, { title: "The organization's last write today" })).status).toBe(201);
       const over = await ned.api("POST", `${P}/outcomes`, { title: "Past the organization's day" });
@@ -237,12 +264,12 @@ describe("the free plan's limits", () => {
       expect(over.body.error.details).toMatchObject({ quota: "org_writes_per_day", limit: all + 1 });
       expect(over.body.error.message).toMatch(/writes a day from everyone together/);
     } finally {
-      await set({ org_writes_per_day: FREE_LIMITS.org_writes_per_day });
+      reset();
     }
   });
 
   it("refuse what a limit of 0 switches off as off, not as an allowance used up", async () => {
-    await set({ exports_per_day: 0 });
+    tweak({ exports_per_day: 0 });
     try {
       const off = await fay.api("POST", `${P}/exports`, {});
       expect(off.status).toBe(403);
@@ -252,25 +279,25 @@ describe("the free plan's limits", () => {
       const listed = (await limitsOf(fay)).limits as { key: string; refusal: string }[];
       expect(listed.find((l) => l.key === "exports_per_day")?.refusal).toBe("403 plan_restricted");
       expect(listed.find((l) => l.key === "sources_per_day")?.refusal).toBe("409 quota_exceeded");
-      await set({ exports_per_day: FREE_LIMITS.exports_per_day, writes_per_day: 0 });
+      tweak({ exports_per_day: BASE.exports_per_day, writes_per_day: 0 });
       const write = await ned.api("POST", `${P}/outcomes`, { title: "While writing is off" });
       expect(write.status).toBe(403);
       expect(write.body.error.message).toMatch(/^Writing is off on this organization's plan\./);
       // A preview asks as a write does.
       const preview = await ned.api("POST", `${P}/story/pages/visit/preview`, { title: "A visit", body: "<main class=\"page\"><p>Text.</p></main>" });
       expect(preview.body.error).toMatchObject({ code: "plan_restricted", details: { setting: "writes_per_day" } });
-      await set({ writes_per_day: 100000, bytes_per_day: 0 });
+      tweak({ writes_per_day: 100000, bytes_per_day: 0 });
       const file = await ned.api("POST", `${P}/sources/${seeded}/uploads`, { path: "more.md", size: 10 });
       expect(file.status).toBe(403);
       expect(file.body.error.details).toMatchObject({ setting: "bytes_per_day" });
       expect((await ned.api("GET", `${P}/outcomes`)).status).toBe(200);
     } finally {
-      await set({}, { reset_limits: true });
+      reset();
     }
   });
 
   it("limit how much one call carries", async () => {
-    await set({ text_max_chars: 50, batch_max: 1 });
+    tweak({ text_max_chars: 50, batch_max: 1 });
     try {
       const long = await fay.api("POST", `${P}/assumptions`, { statement: "Too long", body: "x".repeat(51) });
       expect(long.status).toBe(413);
@@ -282,7 +309,7 @@ describe("the free plan's limits", () => {
       // A canvas uploaded as a ZIP would carry text past the cap on a field.
       expect((await fay.api("POST", `${P}/mockups/uploads`, {})).body.error.code).toBe("plan_restricted");
     } finally {
-      await set({}, { reset_limits: true });
+      reset();
     }
   });
 
@@ -290,12 +317,12 @@ describe("the free plan's limits", () => {
     const recording = await ned.api("POST", `${P}/sources/with-upload`, { tags: ["interview"], title: "Sample recording", path: "call.m4a" });
     expect(recording.status).toBe(403);
     expect(recording.body.error.code).toBe("plan_restricted");
-    await set({ fetch_url: false });
+    tweak({ fetch_url: false });
     const fetched = await ned.api("POST", `${P}/sources/${seeded}/fetch`, { url: "https://example.com/notes.txt" });
     expect(fetched.status).toBe(403);
     expect(fetched.body.error.message).toMatch(/^Fetching a file from a URL is off on this organization's plan/);
 
-    await set({ fetch_url: true, file_max_bytes: 100 });
+    tweak({ fetch_url: true, file_max_bytes: 100 });
     const declared = await ned.api("POST", `${P}/sources/${seeded}/uploads`, { path: "big.md", size: 101 });
     expect(declared.status).toBe(413);
     const grant = await ned.api("POST", `${P}/sources/${seeded}/uploads`, { path: "big.md" });
@@ -308,18 +335,19 @@ describe("the free plan's limits", () => {
     const bytes = await used(ned, "bytes_per_day");
     expect(bytes).toBeGreaterThanOrEqual(100);
 
-    await set({ file_max_bytes: 1000, bytes_per_day: bytes + 50 });
+    tweak({ file_max_bytes: 1000, bytes_per_day: bytes + 50 });
     expect((await ned.api("POST", `${P}/sources/${seeded}/uploads`, { path: "more.md" })).body.max_bytes).toBe(50);
-    await set({ bytes_per_day: bytes });
+    tweak({ bytes_per_day: bytes });
     const none = await ned.api("POST", `${P}/sources/${seeded}/uploads`, { path: "none.md" });
     expect(none.status).toBe(409);
     expect(none.body.error.details).toMatchObject({ quota: "bytes_per_day", limit: bytes, used: bytes, unit: "bytes" });
     // In an unlimited organization a grant may go straight to the store when it can.
-    await set({}, { reset_limits: true });
+    reset();
   });
 
   it("meet, after a move to the free plan during a day, what was used that day while the organization was unlimited", async () => {
-    await set({}, { plan: "unlimited", reset_limits: true });
+    reset();
+    await move("unlimited");
     // Counted on the unlimited plan too, and said so, though nobody meets the limits there.
     const mine = await limitsOf(ned);
     expect(mine).toMatchObject({ plan: "unlimited", you_meet_them: false });
@@ -342,11 +370,11 @@ describe("the free plan's limits", () => {
     expect(await today()).toMatchObject({ writes: everyone.writes + 5, sources: everyone.sources + 1, bytes: everyone.bytes + 40 });
 
     // Moved to the free plan the same day, the day's allowances start from what it already used.
-    await set({}, { plan: "free" });
+    await move("free");
     expect(await limitsOf(ned)).toMatchObject({ plan: "free", you_meet_them: true });
     expect(await used(ned, "writes_per_day")).toBe(writes + 5);
     expect(await used(ned, "bytes_per_day")).toBe(bytes + 40);
-    await set({ writes_per_day: writes + 6, sources_per_day: sources + 1 });
+    tweak({ writes_per_day: writes + 6, sources_per_day: sources + 1 });
     try {
       const source = await ned.api("POST", `${P}/sources`, { title: "Sample source past the allowance", tags: ["notes"] });
       expect(source.body.error).toMatchObject({ code: "quota_exceeded", details: { quota: "sources_per_day", limit: sources + 1, used: sources + 1 } });
@@ -355,18 +383,147 @@ describe("the free plan's limits", () => {
       expect(over.status).toBe(409);
       expect(over.body.error).toMatchObject({ code: "quota_exceeded", details: { quota: "writes_per_day", limit: writes + 6, used: writes + 6 } });
     } finally {
-      await set({}, { reset_limits: true });
+      reset();
     }
   });
 
   it("stop applying once an instance owner moves the organization to the unlimited plan, from the next call", async () => {
-    await set({ writes_per_minute: 0 });
+    tweak({ writes_per_minute: 0 });
     expect((await ned.api("POST", `${P}/outcomes`, { title: "Not now" })).status).toBe(429);
-    await set({}, { plan: "unlimited" });
+    await move("unlimited");
     expect((await limitsOf(ned)).you_meet_them).toBe(false);
     expect((await ned.api("POST", `${P}/outcomes`, { title: "Unlimited now" })).status).toBe(201);
-    await set({}, { plan: "free", reset_limits: true });
+    reset();
+    await move("free");
     expect((await limitsOf(ned)).plan).toBe("free");
+  });
+});
+
+describe("the plans offered", () => {
+  it("are public, with every limit and the price an instance owner set", async () => {
+    expect((await fay.api("PATCH", "/api/v1/plans", { plan: "pro", price: "$49 a month" })).status).toBe(403);
+    const priced = await root.api("PATCH", "/api/v1/plans", { plan: "pro", price: "$49 a month" });
+    expect(priced.status, JSON.stringify(priced.body)).toBe(200);
+    const r = await fetch(`${h.baseUrl}/api/v1/plans`);
+    expect(r.status).toBe(200);
+    const body = (await r.json()) as { plans: unknown[]; limits: { key: string }[]; file_max_bytes: number };
+    expect(body.plans).toEqual([
+      expect.objectContaining({ id: "free", name: "Free", price: null, limits: freePlan() }),
+      expect.objectContaining({ id: "pro", name: "Pro", price: "$49 a month", limits: PRO_AS_SHIPPED }),
+    ]);
+    expect(body.limits.map((l) => l.key)).toEqual(LIMITS.map((l) => l.key));
+    expect(body.file_max_bytes).toBe(h.config.fileMaxBytes);
+  });
+
+  it("are changed by an instance owner alone, for every organization on a plan, under the plan's etag", async () => {
+    const records = async () => (await root.api("GET", "/api/v1/organizations")).body.plan_records;
+    const first = (await records()).free;
+    expect(first.etag).toBeNull();
+    expect((await fay.api("PATCH", "/api/v1/plans", { plan: "free", limits: { sources_max: 75 } })).status).toBe(403);
+    const raised = await root.api("PATCH", "/api/v1/plans", { plan: "free", limits: { sources_max: 75, storage_max_bytes: null } });
+    expect(raised.status, JSON.stringify(raised.body)).toBe(200);
+    // Every organization on the plan meets it from the next call; none has limits of its own.
+    const mine = await limitsOf(ned);
+    expect(mine.limits.find((l: { key: string }) => l.key === "sources_max").value).toBe(75);
+    expect(mine.limits.find((l: { key: string }) => l.key === "storage_max_bytes").value).toBeNull();
+    const etag = (await records()).free.etag as string;
+    expect((await records()).free.changed).toEqual({ sources_max: 75, storage_max_bytes: null });
+    const stale = await root.api("PATCH", "/api/v1/plans", { plan: "free", limits: { sources_max: 80 } });
+    expect(stale.status).toBe(409);
+    expect(stale.body.error).toMatchObject({ code: "stale_etag", details: { current_etag: etag } });
+    expect((await root.api("PATCH", "/api/v1/plans", { plan: "free", limits: { sources_max: -1 }, expected_etag: etag })).status).toBe(422);
+    expect((await root.api("PATCH", "/api/v1/plans", { plan: "unlimited", limits: { sources_max: 1 } })).status).toBe(422);
+    // Back to the defaults, all at once.
+    const back = await root.api("PATCH", "/api/v1/plans", { plan: "free", reset: true, expected_etag: etag });
+    expect(back.status, JSON.stringify(back.body)).toBe(200);
+    expect((await records()).free.changed).toEqual({});
+    expect((await limitsOf(ned)).limits.find((l: { key: string }) => l.key === "sources_max").value).toBe(BASE.sources_max);
+  });
+});
+
+describe("the totals of a plan", () => {
+  afterAll(() => reset());
+
+  it("count the people who do more than read the Story, invitations included, and refuse one more", async () => {
+    const add = (email: string, role: string) => fay.api("POST", `/api/v1/tenants/${free.slug}/members`, { email, role, team });
+    // The free plan allows 2: Fay and Ned.
+    const third = await add("ola@example.com", "editor");
+    expect(third.status).toBe(409);
+    expect(third.body.error).toMatchObject({ code: "quota_exceeded", details: { quota: "members_max", limit: 2, used: 2, unit: "people" } });
+    expect(third.body.error.message).toMatch(/Readers of the Story don't count/);
+    // A reader takes no place, and someone already in it changes role without taking another.
+    expect((await add("rae@example.com", "reader")).status).toBe(201);
+    expect((await add("ned@example.com", "editor")).status).toBeLessThan(300);
+    // An invitation holds its place until it is accepted.
+    tweak({ members_max: 3 });
+    expect((await add("ola@example.com", "editor")).status).toBe(201);
+    const fourth = await add("pat@example.com", "editor");
+    expect(fourth.body.error).toMatchObject({ code: "quota_exceeded", details: { quota: "members_max", limit: 3, used: 3 } });
+    expect(fourth.body.error.message).toMatch(/it has 2 and 1 invited/);
+    reset();
+  });
+
+  it("count products and sources that aren't archived, so archiving makes room", async () => {
+    const products = `/api/v1/teams/${free.slug}/${team}/products`;
+    const second = await fay.api("POST", products, { name: "Second thoughts" });
+    expect(second.status).toBe(409);
+    expect(second.body.error).toMatchObject({ code: "quota_exceeded", details: { quota: "products_max", limit: 1, used: 1 } });
+    tweak({ products_max: 2 });
+    const made = await fay.api("POST", products, { name: "Second thoughts" });
+    expect(made.status, JSON.stringify(made.body)).toBe(201);
+    const Q = `/api/v1/p/${made.body.path}`;
+    expect((await fay.api("POST", `${Q}/archive`, { expected_etag: made.body.etag })).status).toBe(200);
+    tweak({ products_max: 1 });
+    const archived = (await fay.api("GET", Q)).body;
+    const restore = await fay.api("POST", `${Q}/restore`, { expected_etag: archived.etag });
+    expect(restore.status).toBe(409);
+    expect(restore.body.error.details).toMatchObject({ quota: "products_max" });
+
+    const held = (await limitsOf(fay)).holds.sources as number;
+    tweak({ sources_max: held + 1, sources_per_day: 1000 });
+    const last = await ned.api("POST", `${P}/sources`, { title: "Sample source that fills the plan", tags: ["notes"] });
+    expect(last.status).toBe(201);
+    const over = await ned.api("POST", `${P}/sources`, { title: "Sample source past the plan", tags: ["notes"] });
+    expect(over.status).toBe(409);
+    expect(over.body.error).toMatchObject({ code: "quota_exceeded", details: { quota: "sources_max", limit: held + 1, used: held + 1 } });
+    expect((await ned.api("POST", `${P}/sources/archive`, { record_ids: [last.body.record_id] })).status).toBe(200);
+    expect((await ned.api("POST", `${P}/sources`, { title: "Sample source once there is room", tags: ["notes"] })).status).toBe(201);
+    reset();
+  });
+
+  it("count storage, refuse a large write past it while small ones and reads go on, and bound an upload by what is left", async () => {
+    const stored = (await limitsOf(fay)).holds.storage.total as number;
+    tweak({ storage_max_bytes: stored + 5000 });
+    const big = await ned.api("POST", `${P}/assumptions`, { statement: "A premise written at length", body: "x".repeat(6000) });
+    expect(big.status).toBe(409);
+    expect(big.body.error).toMatchObject({ code: "quota_exceeded", details: { quota: "storage_max_bytes", limit: stored + 5000 } });
+    expect(big.body.error.message).toMatch(/Delete what is no longer needed to make room \(archiving keeps it\)/);
+    expect((await ned.api("POST", `${P}/outcomes`, { title: "A short outcome still fits" })).status).toBe(201);
+    expect((await ned.api("GET", `${P}/outcomes`)).status).toBe(200);
+    const grant = await ned.api("POST", `${P}/sources/${seeded}/uploads`, { path: "room.md" });
+    expect(grant.status).toBe(201);
+    expect(grant.body.max_bytes).toBeLessThanOrEqual(5000);
+    tweak({ storage_max_bytes: 1 });
+    const full = await ned.api("POST", `${P}/sources/${seeded}/uploads`, { path: "full.md" });
+    expect(full.status).toBe(409);
+    expect(full.body.error.details).toMatchObject({ quota: "storage_max_bytes" });
+    reset();
+  });
+
+  it("cap what each person is sent a day, counted on every plan", async () => {
+    const grant = await ned.api("POST", `${P}/sources/${seeded}/uploads`, { path: "sent.md" });
+    expect((await fetch(grant.body.url, { method: "PUT", headers: grant.body.headers, body: "s".repeat(300) })).status).toBe(201);
+    const file = `${P}/sources/${seeded}/attachment?path=sent.md`;
+    expect((await ned.api("GET", file)).status).toBe(200);
+    const sent = (await limitsOf(ned)).limits.find((l: { key: string }) => l.key === "sent_bytes_per_day").used as number;
+    expect(sent).toBeGreaterThanOrEqual(300);
+    tweak({ sent_bytes_per_day: sent + 100 });
+    const refused = await ned.api("GET", file);
+    expect(refused.status).toBe(409);
+    expect(refused.body.error).toMatchObject({ code: "quota_exceeded", details: { quota: "sent_bytes_per_day", limit: sent + 100, used: sent } });
+    // Fay has her own day.
+    expect((await fay.api("GET", file)).status).toBe(200);
+    reset();
   });
 });
 

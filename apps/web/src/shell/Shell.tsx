@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import { useLocation } from "react-router";
+import { keptLine } from "../lib/limits.ts";
 import type { Product } from "../lib/session.tsx";
-import { Callout, Glyph } from "../ui/index.tsx";
+import { ButtonLink, Callout, Glyph } from "../ui/index.tsx";
 import { isTypingTarget, NARROW_QUERY, PHONE_QUERY, shortcutLabel, useMediaQuery } from "../ui/media.ts";
 import { BrandMark } from "./brand.tsx";
 import { AccountMenu, BrandRow, PlainNav, ProductNav, ProductSwitcher, productSection } from "./panel.tsx";
@@ -331,6 +332,22 @@ export function ProductShell({ product, app, children }: { product: Product; app
       banner={
         <>
           {product.tenant.example ? <ExampleBanner tenant={product.tenant} /> : null}
+          {product.tenant.read_only ? (
+            <div className="canvas-banner">
+              <Callout
+                tone="attention"
+                title={`${product.tenant.name} is read-only`}
+                action={
+                  <ButtonLink to={`/t/${product.tenant.slug}/plan`} size="sm">
+                    See plan
+                  </ButtonLink>
+                }
+              >
+                It went back to the plan new organizations start on while whoever started it already has one there. You can still read and export everything here.{" "}
+                {keptLine(product.tenant.read_only)}.
+              </Callout>
+            </div>
+          ) : null}
           {product.archived_at ? (
             <div className="canvas-banner">
               <Callout tone="attention" title="This product is archived">
@@ -358,10 +375,10 @@ export function ProductShell({ product, app, children }: { product: Product; app
   );
 }
 
-const PLAIN_SECTIONS: Record<string, string> = { connect: "Connect an agent", settings: "Settings", instance: "Organizations", people: "People", members: "Members", limits: "Plan and limits", _system: "System" };
+const PLAIN_SECTIONS: Record<string, string> = { connect: "Connect an agent", settings: "Settings", instance: "Organizations", people: "People", members: "Members", plan: "Plan", limits: "Plan", _system: "System" };
 
 /**
- * The plain screen an address names: its one part, or Members or Plan and limits under
+ * The plain screen an address names: its one part, or Members or Plan under
  * /t/<organization>/. Anything else (a product that didn't open, an address the app doesn't know)
  * is in no section, so it takes no section's title and marks nothing current in the panel.
  */
@@ -369,7 +386,7 @@ export function plainSection(pathname: string): string {
   const parts = pathname.split("/").filter(Boolean);
   if (!parts.length) return "home";
   if (parts.length === 1) return parts[0]!;
-  return parts[0] === "t" && parts.length === 3 && (parts[2] === "members" || parts[2] === "limits") ? parts[2] : "";
+  return parts[0] === "t" && parts.length === 3 && (parts[2] === "members" || parts[2] === "plan" || parts[2] === "limits") ? parts[2] : "";
 }
 
 /**

@@ -113,7 +113,7 @@ curl -s https://app.what-build.com/api/v1/meta                    # release.vers
 
 **Then deploy the Worker.** Behind Cloudflare, the public site comes from the Worker, which serves
 the web app built when it was last deployed, never from the image
-([decision](../decisions/the-public-site-is-one-page-built-with-the-app.md)). Until it is deployed
+([decision](../decisions/the-public-site-is-pages-built-with-the-app.md)). Until it is deployed
 again, the site shows the page of whatever release it was deployed with. Once `/api/v1/meta`
 reports the new version, build the web app from the release's tag and deploy the Worker with the
 command in [analytics](analytics.md), which passes all its settings from `.env`:

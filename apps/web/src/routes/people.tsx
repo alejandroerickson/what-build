@@ -1,11 +1,13 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link } from "react-router";
 import { api, ApiError } from "../lib/api.ts";
-import { formatDate, plural, relativeTime, ROLE_WORD } from "../lib/format.ts";
+import { formatBytes, formatDate, plural, relativeTime, ROLE_WORD } from "../lib/format.ts";
 import { useMe } from "../lib/session.tsx";
 import { usePageTitle } from "../shell/slots.tsx";
-import { Avatar, Button, ButtonLink, Dialog, EmptyState, ErrorCallout, FindField, ListRow, Loading, Sheet, SheetBody, SheetHeader, StatusBadge, TextField, useToast } from "../ui/index.tsx";
+import { Avatar, Button, ButtonLink, Callout, Dialog, EmptyState, ErrorCallout, FindField, ListRow, Loading, Sheet, SheetBody, SheetHeader, StatusBadge, TextField, useToast } from "../ui/index.tsx";
+import { listed } from "./delete-dialog.tsx";
+import type { OrganizationImpact } from "./org.tsx";
 import "../styles/screens/instance.css";
 
 const DELETE_CONFIRMATION = "delete permanently";
@@ -21,7 +23,8 @@ interface Account {
   instance_owner: boolean;
   you: boolean;
   allowance: { allowed: number; created: number } | null;
-  organizations: { slug: string; name: string; role: string | null; roles: number; example?: true }[];
+  /** only_owner: nobody else owns it, so removing the account deletes it. */
+  organizations: { slug: string; name: string; role: string | null; roles: number; example?: true; only_owner?: true }[];
 }
 
 /** Where someone stands in each organization, in a line: "Owner of Acme, 2 roles in Harbor Labs". */
@@ -120,18 +123,40 @@ export function PeoplePage() {
   );
 }
 
+/** What an organization that goes with its only owner's account holds, in a line, and who else loses their roles there. */
+function holdsWords(c: OrganizationImpact["contents"]): string {
+  const products = c.products.length ? `${c.products.length === 1 ? "its product" : `${c.products.length} products`} (${c.products.map((p) => p.name).join(", ")})` : "no products";
+  const held = listed([products, c.sources > 0 && plural(c.sources, "source"), c.stored_files > 0 && `${plural(c.stored_files, "file")} (${formatBytes(c.bytes)})`]);
+  const others = c.people - 1;
+  return `${held}${others > 0 ? `; ${others === 1 ? "1 other person loses their role" : `${others} other people lose their roles`} there` : ""}.`;
+}
+
 function RemoveDialog({ account: a, onClose }: { account: Account; onClose: () => void }) {
   const qc = useQueryClient();
   const toast = useToast();
   const [typed, setTyped] = useState("");
   const matches = typed.trim().toLowerCase() === a.email.toLowerCase();
+  // The organizations nobody else owns go with the account; the example organization never does.
+  const alone = a.organizations.filter((o) => o.only_owner);
+  const blocked = alone.find((o) => o.example);
+  const impacts = useQueries({
+    queries: alone.map((o) => ({ queryKey: ["delete-impact", `/api/v1/tenants/${o.slug}/delete-impact`], queryFn: () => api<OrganizationImpact>("GET", `/api/v1/tenants/${o.slug}/delete-impact`) })),
+  });
+  const kept = a.organizations.length - alone.length;
   const remove = useMutation({
-    mutationFn: () => api<{ organizations_left: number }>("POST", "/api/v1/accounts/remove", { account_id: a.account_id, email: typed.trim(), confirm: DELETE_CONFIRMATION }),
+    mutationFn: () =>
+      api<{ organizations_left: number }>("POST", "/api/v1/accounts/remove", {
+        account_id: a.account_id,
+        email: typed.trim(),
+        confirm: DELETE_CONFIRMATION,
+        ...(alone.length ? { delete_organizations: alone.map((o) => o.slug) } : {}),
+      }),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["accounts"] });
       void qc.invalidateQueries({ queryKey: ["tenant-allowances"] });
       void qc.invalidateQueries({ queryKey: ["instance-organizations"] });
-      toast(`${a.display_name}’s account is removed.`);
+      void qc.invalidateQueries({ queryKey: ["products"] });
+      toast(alone.length ? `${a.display_name}’s account is removed, and ${listed(alone.map((o) => o.name))} ${alone.length === 1 ? "is" : "are"} deleted.` : `${a.display_name}’s account is removed.`);
       onClose();
     },
   });
@@ -147,8 +172,8 @@ function RemoveDialog({ account: a, onClose }: { account: Account; onClose: () =
           <Button onClick={onClose} disabled={remove.isPending}>
             Cancel
           </Button>
-          <Button variant="danger" busy={remove.isPending} busyLabel="Removing…" disabled={!matches} onClick={() => remove.mutate()}>
-            Remove account
+          <Button variant="danger" busy={remove.isPending} busyLabel="Removing…" disabled={!matches || Boolean(blocked)} onClick={() => remove.mutate()}>
+            {alone.length ? `Remove account and delete ${alone.length === 1 ? alone[0]!.name : plural(alone.length, "organization")}` : "Remove account"}
           </Button>
         </>
       }
@@ -157,18 +182,40 @@ function RemoveDialog({ account: a, onClose }: { account: Account; onClose: () =
         className="stack"
         onSubmit={(e) => {
           e.preventDefault();
-          if (matches) remove.mutate();
+          if (matches && !blocked) remove.mutate();
         }}
       >
+        {blocked ? (
+          <Callout inset tone="attention" title={`${a.display_name} is the only owner of the example organization`}>
+            It can&rsquo;t be deleted, so the account can&rsquo;t be removed until someone else owns {blocked.name}.
+          </Callout>
+        ) : alone.length ? (
+          <Callout inset tone="attention" title={alone.length === 1 ? `${alone[0]!.name} is deleted too` : `${plural(alone.length, "organization")} are deleted too`}>
+            <p>
+              {a.display_name} is {alone.length === 1 ? "its" : "their"} only owner, so {alone.length === 1 ? "it goes" : "they go"} with the account, with everything in{" "}
+              {alone.length === 1 ? "it" : "them"}:
+            </p>
+            <ul className="remove-orgs">
+              {alone.map((o, i) => (
+                <li key={o.slug}>
+                  <b>{o.name}</b>
+                  {": "}
+                  {impacts[i]?.data ? holdsWords(impacts[i]!.data!.contents) : impacts[i]?.isError ? "what it holds couldn’t be read" : "reading what it holds…"}
+                </li>
+              ))}
+            </ul>
+          </Callout>
+        ) : null}
         <ul className="instance-consequences">
           <li>They&rsquo;re signed out everywhere, and their agents are disconnected.</li>
-          {a.organizations.length ? <li>They lose access to {plural(a.organizations.length, "organization")}, and each one&rsquo;s access log records it.</li> : null}
+          {kept ? <li>They lose access to {plural(kept, "organization")}{alone.length ? " they share" : ""}, and each one&rsquo;s access log records it.</li> : null}
           <li>Their {a.allowance ? "invitations and allowance are" : "invitations are"} cancelled, and their email address and usage data are deleted.</li>
-          <li>Anything they added stays, with their name on it. We email them a confirmation.</li>
+          {kept || !alone.length ? <li>Anything they added {alone.length ? "to the others " : ""}stays, with their name on it.</li> : null}
+          <li>We email them a confirmation{alone.length ? ` that says what was deleted with the account` : ""}.</li>
         </ul>
         <TextField label={`Type ${a.email} to confirm`} autoComplete="off" spellCheck={false} value={typed} onChange={(e) => setTyped(e.target.value)} />
         {remove.isError ? (
-          <ErrorCallout inset error={remove.error} title={remove.error instanceof ApiError && remove.error.code === "last_owner" ? "Someone else has to own their organizations first" : undefined} />
+          <ErrorCallout inset error={remove.error} title={remove.error instanceof ApiError && remove.error.code === "last_owner" ? "Their organizations changed: close this and try again" : undefined} />
         ) : null}
       </form>
     </Dialog>

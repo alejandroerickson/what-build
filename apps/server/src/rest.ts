@@ -1,5 +1,5 @@
 import {
-  AppError, admitRead, documentDigest, execute, HOUSE_STYLE_IDS, OPERATIONS, printDocument, printSelection, readsOnlyTheStory, resolveScope, toAppError, unauthenticated,
+  AppError, admitRead, admitSend, documentDigest, execute, HOUSE_STYLE_IDS, OPERATIONS, printDocument, printSelection, readsOnlyTheStory, resolveScope, toAppError, unauthenticated,
   type Env, type OperationDef, type Principal, type Scope, type ScopeRef, type Tx,
 } from "@whatbuild/core";
 import { Hono, type Context } from "hono";
@@ -9,7 +9,7 @@ import { isOwnOrigin, restPrincipal } from "./auth/identity.ts";
 import type { ServerConfig } from "./config.ts";
 import { handOff } from "./content-documents.ts";
 import {
-  cardFront, findAttachment, findCard, findMockupPage, findSpecimen, findStoryVersion, htmlView, isHtmlAttachment, isPdf, printView, storyHtml, storyTheme, streamFile,
+  bytesAsked, cardFront, findAttachment, findCard, findMockupPage, findSpecimen, findStoryVersion, htmlView, isHtmlAttachment, isPdf, printView, storyHtml, storyTheme, streamFile,
 } from "./documents.ts";
 import { logError } from "./telemetry.ts";
 
@@ -153,6 +153,7 @@ export function restRoutes(env: Env & { config: ServerConfig }) {
       const download = c.req.query("download") === "1";
       const found = await inTenant(scope, (trx) => findAttachment(trx, productId, { recordId: c.req.param("record_id")!, path, version: c.req.query("version") }));
       if (!found) throw new AppError(404, "not_found", "No such attachment on this source.");
+      await admitSend(env, principal, scope, bytesAsked(c, found.v.size));
       // A PDF shown inline is a document; images, audio and video stay subresources of the app's pages.
       if (site && !download && isPdf(found.v.media_type)) return handOff(c, env, principal, scope, { purpose: "attachment", fv: found.v.file_version_id }, nameOf(path));
       return streamFile(c, env, found.v, path, download);
@@ -204,9 +205,9 @@ export function restRoutes(env: Env & { config: ServerConfig }) {
 
   app.get(`${SCOPE_PREFIX.product}/exports/:export_id/file`, async (c) => {
     try {
-      const { scope, productId } = await scoped(c);
+      const { principal, scope, productId } = await scoped(c);
       const { sendExport } = await import("./uploads.ts");
-      return await sendExport(c, env, scope.tenant!.tenant_id, c.req.param("export_id")!, productId);
+      return await sendExport(c, env, scope.tenant!.tenant_id, c.req.param("export_id")!, productId, (bytes) => admitSend(env, principal, scope, bytes, { refuse: false }));
     } catch (e) {
       return errorResponse(c, toAppError(e, WEB));
     }

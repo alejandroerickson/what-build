@@ -340,6 +340,7 @@ export const deleteOutcome = defineOperation({
   scope: "product",
   access: "admin",
   mutates: true,
+  allowReadOnlyOrganization: true,
   summary: "DELETE PERMANENTLY — cannot be undone. Destroys an outcome and its history; archiving it is the reversible alternative.",
   description:
     'Archiving it (outcomes_write(action="archive")) is the reversible alternative and almost always what is wanted. ' +

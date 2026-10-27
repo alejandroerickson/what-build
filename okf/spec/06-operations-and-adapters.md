@@ -64,7 +64,10 @@ call came through:
    name holds one, and Postgres reads no text that does.
 3. **Refuse a guest's write, and admit the call to its organization's limits.** A guest of the
    example organization is refused every operation that writes (`403 example_read_only`,
-   [§3.10](03-accounts-teams-and-identity.md)). In an organization on the free plan, and for a
+   [§3.10](03-accounts-teams-and-identity.md)). In a read-only organization, one moved back to the
+   starting plan while its creator has another there, every operation that writes is refused (`409 organization_read_only`), except
+   those marked `allowReadOnlyOrganization`: an export, a permanent delete and taking someone out
+   ([§3.3](03-accounts-teams-and-identity.md#33-tenants-and-teams)). In an organization on a plan with limits, and for a
    guest of the example, the call then meets what the plan switches off and the limits on calls
    and writes a minute ([§9.7](09-data-lifecycle.md); `403 plan_restricted`, `429`). This runs
    before validation, so a call that is refused still counts as a call.
@@ -73,15 +76,15 @@ call came through:
    character (U+0000) is refused the same way, naming the field (`details.fields`), since
    Postgres keeps no such character in text; nothing strips it. Over REST a path or a query that
    holds one is refused before any route runs, naming the field as here (§6.4), so this check
-   meets a JSON body's and an MCP call's, beside the schema's own refusals. On the free plan the
+   meets a JSON body's and an MCP call's, beside the schema's own refusals. On a plan with limits the
    input is then checked for size (`413 too_large`).
 5. Refuse writes to an archived product (`409 product_archived`) unless the operation allows it.
    An operation with slow work outside the database (`attachments.fetch_url`'s download) does it now,
    in its `prepare` step, holding no database connection; its checks read through a short
    read-only transaction of their own, and what it fetched is handed to the handler.
 6. **Run the handler in one transaction** scoped to the tenant (`app.tenant_id` set for row-level
-   security). The daily allowances are counted inside it, on every plan and refused only on the
-   free plan ([§9.7](09-data-lifecycle.md)), so a call that fails takes nothing from them.
+   security). The daily allowances are counted inside it, on every plan and refused only on a plan
+   with limits ([§9.7](09-data-lifecycle.md)), so a call that fails takes nothing from them.
    Mutating handlers record their activity event ([§4.10](04-data-model.md)) and enqueue
    background jobs in that same transaction; the worker is woken after commit.
 7. **Count the call,** however it ended, without delaying it: its operation, door, agent client,
@@ -106,10 +109,10 @@ tenant.
 | 401 | No or invalid identity or grant | `unauthenticated`, `invalid_grant` |
 | 403 | A role too low for the action; an agent connection's level too low for it; feedback turned off for an agent connection; something only a person does in the web app; a call outside a scoped MCP connector; a write by a guest of the example organization; a cross-origin cookie write; sign-up not allowed; deleting an account from a browser that has not signed in recently; something an organization's plan switches off | `forbidden`, `connection_level`, `feedback_off`, `web_only`, `outside_connector_scope`, `example_read_only`, `forbidden_origin`, `invite_only`, `invitation_wrong_address`, `plan_restricted`, `tenant_allowance`, `sign_in_again` |
 | 404 | Absent — including everything the caller has no role on | `not_found` |
-| 409 | Conflict with current state | `stale_etag`, `product_archived`, `record_archived`, `mockup_archived`, `slug_taken`, `frozen`, `too_many_attachments`, `no_text`, `no_file`, `mockup_on_story`, `already_uploaded`, `upload_used`, `example_organization`, `export_in_progress`, `last_owner`, `instance_owner`, `quota_exceeded` |
+| 409 | Conflict with current state | `stale_etag`, `product_archived`, `record_archived`, `mockup_archived`, `slug_taken`, `frozen`, `too_many_attachments`, `no_text`, `no_file`, `mockup_on_story`, `already_uploaded`, `upload_used`, `example_organization`, `export_in_progress`, `last_owner`, `instance_owner`, `quota_exceeded`, `organization_read_only` |
 | 410 | Deliberately deleted, with a tombstone; an invitation no longer usable | `record_deleted`, `assumption_deleted`, `outcome_deleted`, `story_page_deleted`, `mockup_deleted`, `annotation_deleted`, `invitation_used`, `invitation_expired` |
 | 413 | Body or file beyond a limit | `too_large` |
-| 422 | Invalid input | `invalid_input`, `edit_not_found`, `edit_ambiguous`, `unknown_field`, `unknown_action`, `unknown_tool`, `wrong_tool`, `product_required`, `too_long`, `cross_product_reference`, `outcome_cites_a_record`, `invalid_query`, `invalid_cursor`, `invalid_filter`, `invalid_html`, `invalid_patch`, `invalid_upload`, `fetch_failed`, `confirmation_required`, `name_mismatch`, `typed_email`, `confidence_requires_human` |
+| 422 | Invalid input | `invalid_input`, `edit_not_found`, `edit_ambiguous`, `unknown_field`, `unknown_action`, `unknown_tool`, `wrong_tool`, `product_required`, `too_long`, `cross_product_reference`, `outcome_cites_a_record`, `invalid_query`, `invalid_cursor`, `invalid_filter`, `invalid_html`, `invalid_patch`, `invalid_upload`, `fetch_failed`, `confirmation_required`, `name_mismatch`, `typed_email`, `confidence_requires_human`, `may_start_one`, `unknown_plan` |
 | 429 | Rate limited | `rate_limited` |
 
 - **`403` names the role.** A caller with a role on the product but too low for the action gets
@@ -126,15 +129,15 @@ tenant.
   another etag of the object sent in its place ([§4.1](04-data-model.md)).
 - **`quota_exceeded`** carries `{ quota, limit, used, unit }` in `details`. It is returned for the
   50 Story pages and the 50 mockups a product holds ([§9.2](09-data-lifecycle.md)), the mockups'
-  adding `archived`, and for the free plan's daily allowances, which add `resets_at`
+  adding `archived`, and for a plan's daily allowances, which add `resets_at`
   ([§9.7](09-data-lifecycle.md)). An allowance set to 0 is switched off and answers
   `403 plan_restricted` instead.
 - **`429`** is returned for sign-in links (five per address per hour), for a fourth URL fetch a
   person starts while three of theirs are in progress (`attachments.fetch_url`, on each instance), and
-  for calls and writes a minute on the free plan (and a guest's calls in the example organization),
+  for calls and writes a minute on a plan with limits (and a guest's calls in the example organization),
   with `{ limit, per, retry_after_seconds }` in `details` and a `Retry-After` header on REST. An
   organization on the unlimited plan has no rate limit.
-- **`413 too_large`** carries `{ limit }`, and for the free plan's limits on input `{ field, limit, unit }`.
+- **`413 too_large`** carries `{ limit }`, and for a plan's limits on input `{ field, limit, unit }`.
 - Database unique violations become `409 conflict`; serialization failures become
   `409 concurrent_change` ("Retry"). Anything unexpected is `500 internal`, logged, and never
   leaks details. Its message says to try again and how to report it if it repeats, as the door
@@ -251,7 +254,10 @@ being changed inside the handler.
 | `products` | `usage` | `GET /api/v1/usage` | instance owner |
 | `products` | `limits` | `GET /api/v1/tenants/:tenant/limits` | tenant member, or a guest of the example organization |
 | `products` | `organizations` | `GET /api/v1/organizations` | instance owner |
-| `products` | `set_limits` | `PATCH /api/v1/organizations/limits` | instance owner |
+| `products` | `set_plan` | `PATCH /api/v1/organizations/plan` | instance owner; a plan the deployment does not define is refused `422 unknown_plan` |
+| `products` | `set_plan_limits` | `PATCH /api/v1/plans` | instance owner; a plan the deployment does not define is refused `422 unknown_plan` |
+| `products` | `guests` | `GET /api/v1/guests` | instance owner |
+| `products` | `set_guests` | `PATCH /api/v1/guests` | instance owner |
 | `products` | `accounts` | `GET /api/v1/accounts` | instance owner |
 | `products` | `remove_account` | `POST /api/v1/accounts/remove` | instance owner, in the web app only |
 | `products` | `delete_account_impact` | `GET /api/v1/me/delete-impact` | signed in, of their own account, in the web app only |
@@ -266,8 +272,8 @@ being changed inside the handler.
 | `products` | `restore` | `POST P/restore` | admin |
 | `products` | `delete_impact` | `GET P/delete-impact` | admin |
 | `products` | `delete` | `DELETE P` | admin |
-| `products` | `delete_tenant_impact` | `GET /api/v1/tenants/:tenant/delete-impact` | owner, in the web app only |
-| `products` | `delete_tenant` | `DELETE /api/v1/tenants/:tenant` | owner, in the web app only |
+| `products` | `delete_tenant_impact` | `GET /api/v1/tenants/:tenant/delete-impact` | owner or instance owner, in the web app only |
+| `products` | `delete_tenant` | `DELETE /api/v1/tenants/:tenant` | owner or instance owner, in the web app only |
 | `products` | `export` | `POST P/exports` | viewer |
 | `products` | `exports` | `GET P/exports` | viewer |
 | `members` | `list` | `GET /api/v1/tenants/:tenant/members` | tenant member |
@@ -611,6 +617,9 @@ GET  /api/v1/downloads/card-preview/:preview_id?theme=light|dark    a card previ
 GET  /prototypes/:grant/<path>                       a mockup prototype's file; the grant in the path is the credential (§4.12)
 GET  /documents/:grant/<name>?theme=&frame=          on a content site: a document the app's route handed off (below)
 GET  /api/v1/meta                                    release, MCP server name and tools version, sign-in methods (public)
+GET  /api/v1/plans                                   the plans the deployment offers (none, if it defines none), every limit of each and its price, starting_plan, example, and whether guests may sign up (public)
+GET  /api/v1/me/guest-pass                           a guest account's place: let in when there is room, or why not and when to ask again
+POST /api/v1/me/ask-for-organization                 join the waitlist for an organization of one's own (§3.2)
 GET  /api/v1/connect                                 what the Connect page shows
 GET|PATCH /api/v1/me; GET /api/v1/me/agents; PATCH|DELETE /api/v1/me/agents/:family; POST /api/v1/me/sign-out-everywhere
 POST /api/v1/invitations/accept
@@ -783,7 +792,7 @@ noun's `_read` tool if it changes nothing, its `_delete` tool if it is a permane
 method is `DELETE`), and its `_write` tool otherwise (`mcpTool` in `registry.ts`). A connection is listed
 only the actions its level allows and its person could do (below): the instance owners' actions
 (`tenant_allowances`, `set_tenant_allowance`, `remove_tenant_allowance`, `usage`,
-`organizations`, `set_limits`, `accounts`) to an owner of the instance alone, on a scoped
+`organizations`, `set_plan`, `set_plan_limits`, `guests`, `set_guests`, `accounts`) to an owner of the instance alone, on a scoped
 connector only what its fence answers and the person's roles inside it reach, and on the unscoped
 connector what their roles in some organization they are in reach, unless they may start one
 ([decision](../decisions/an-agent-is-offered-only-what-its-person-could-do.md)). The table names
@@ -791,8 +800,8 @@ every action any connection may be offered.
 
 | Tool | Actions |
 |---|---|
-| `products_read` | `list`, `get`, `delete_impact`, `exports`, `tenant_allowances`, `usage`, `limits`, `organizations`, `accounts` |
-| `products_write` | `create_tenant`, `rename_tenant`, `create_team`, `create`, `update`, `update_concept`, `archive`, `restore`, `export`, `set_tenant_allowance`, `remove_tenant_allowance`, `set_limits` |
+| `products_read` | `list`, `get`, `delete_impact`, `exports`, `tenant_allowances`, `usage`, `limits`, `organizations`, `guests`, `accounts` |
+| `products_write` | `create_tenant`, `rename_tenant`, `create_team`, `create`, `update`, `update_concept`, `archive`, `restore`, `export`, `set_tenant_allowance`, `remove_tenant_allowance`, `set_plan`, `set_plan_limits`, `set_guests` |
 | `products_delete` | `delete` |
 | `members_read` | `list`, `activity` |
 | `members_write` | `grant`, `revoke`, `cancel_invitation` |
@@ -924,7 +933,8 @@ Rules:
 - **Sign-in endpoints** (`apps/server/src/auth/routes.ts`): `POST /auth/email` sends a link;
   `GET /auth/verify?token=` shows its page and changes nothing, and `POST /auth/verify` (form field
   `token`, same origin only) uses it and signs in; `GET /auth/google`, `/auth/microsoft` and their
-  `/callback`s run OpenID Connect; `POST /auth/dev-sign-in` exists outside production;
+  `/callback`s run OpenID Connect; `POST /auth/dev-sign-in`, and `GET /auth/dev-accounts`, which
+  lists the server's accounts for the sign-in page to offer, exist outside production;
   `POST /auth/sign-out`; `GET /auth/session` answers the web app's "who is signed in" with
   `signed_in` and, when true, what `GET /api/v1/me` returns, so being signed out is a `200` there
   and not an error the browser logs (`/api/v1/me` and every operation still answer `401` without a
@@ -1010,7 +1020,7 @@ one ZIP under it (a second PUT is `409 already_uploaded`), checks that whoever r
 still write to the product (`403 forbidden`), and stores the bytes with their size and SHA-256,
 answering `201` with what to call next. Nothing is read or published then:
 `mockups.publish { upload_id }` reads the ZIP before its transaction, checks it, and publishes
-([§4.12](04-data-model.md)). An organization on the free plan cannot request one (`403 plan_restricted`).
+([§4.12](04-data-model.md)). An organization on a plan with limits cannot request one (`403 plan_restricted`).
 
 A source holds at most 50 attachments (`409 too_many_attachments`). No operation accepts base64
 content. `attachments.get_download { record_id, path, file_version_id? }` returns a short-lived

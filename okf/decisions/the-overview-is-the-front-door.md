@@ -51,7 +51,7 @@ what each stage holds instead.
 
 - A new screen above 20px needs a new decision; the exception is the overview's intro only, and
   the public site's page, which reuses that intro
-  ([decision](the-public-site-is-one-page-built-with-the-app.md)).
+  ([decision](the-public-site-is-pages-built-with-the-app.md)).
 - Tokens live in `apps/web/src/styles/tokens.css`; the screen is `apps/web/src/routes/overview.tsx`.
 
 Specified in: [07-web-app §7.2 and §7.3](../spec/07-web-app.md), [DESIGN.md](../../apps/web/DESIGN.md).

@@ -23,6 +23,66 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
 
 ## Unreleased
 
+- **The deployment defines its plans, and limits belong to them.** It concerns every deployment,
+  and asks one thing of a deployment that offers plans: **give it `WHATBUILD_PLANS` before it takes
+  this release.** The plans, their names, every limit and each one's price come from the
+  deployment's configuration, a JSON file in the form of `deploy/plans.example.json` (or the JSON
+  itself), kept with the deployment's own settings; on Cloud Run, `PLANS_FILE` in `setup.sh`
+  stores it as the secret `whatbuild-plans` ([Cloud Run](cloud-run.md)). A
+  `WHATBUILD_NEW_ORGANIZATION_PLAN` that names a plan the file does not define stops the service
+  from starting, so set both together. Organizations already on `free` keep meeting limits only if
+  the file defines a plan with the id `free`; on any plan it does not define they meet none until
+  an instance owner moves them, and `/instance` marks them. The migration drops the limits an
+  instance owner had changed for one organization, so check the organizations listed with changed
+  limits before upgrading and move any that needs more to another plan afterwards, on `/instance`.
+  The release runs three migrations. `products.set_limits` is gone; `products.set_plan` (`PATCH
+  /api/v1/organizations/plan`) moves an organization to another plan, and a plan the deployment
+  does not define is refused (`422 unknown_plan`). A self-hosted deployment, which sets neither
+  setting, needs nothing: every organization stays unlimited, and the app now says nothing of
+  plans or billing there.
+- **Plans set totals.** A plan's limits now include what an organization holds: people (readers of
+  the Story don't count; an invitation holds a place), products and sources not archived, and
+  storage; and what each person is sent a day (an export is always sent). The example file's Free
+  plan is a starting point. An organization already past a total keeps everything and adds no more
+  of it until enough is archived or deleted; its people see this on its Plan page.
+- **Plans' limits and prices can be changed on `/instance`.** Optional: an instance owner changes
+  each plan's price, as people read it, and its limits, for every organization on it, over what the
+  file sets. Nothing takes payment. Deploy the Cloudflare Worker again so it serves the public
+  site's new plans page (`/plans` on the site's domain); it asks the service for the plans at most
+  once an hour.
+- **Guests.** It concerns a deployment with an example organization. An account in no organization,
+  with no allowance, is now a guest account, held to the guests' settings on `/instance`: 25 in at
+  once, 50 new a day, 2 hours each a day, 50 calls a minute and 10 MB of downloads a day, with a
+  waiting page past them; people in an organization never wait. Anyone may sign up as a guest only
+  once an instance owner turns on **Anyone can sign up as a guest**; until then sign-up stays as it
+  was. The public site then leads with exploring the example.
+- **One organization each on the starting plan.** It concerns a deployment whose new organizations
+  start on a plan it defines. An allowance now counts only the organizations someone started that
+  are on that plan and not read-only, so moving one to another plan frees its owner's place. The
+  counts under **Who can start organizations** on `/instance` change to match.
+- **An organization moved back to the starting plan may become read-only.** It concerns the same
+  deployments, and nothing changes until an instance owner moves an organization. When its creator
+  already has one on that plan, it is read-only for a year instead: its people read, export and
+  delete, and add nothing until it moves to another plan. Nothing erases it when the year is up;
+  an instance owner deletes it by hand.
+- **Instance owners delete any organization, and remove its only owner.** It asks nothing of a
+  deployment. On `/instance`, every organization but the example has **Delete**. On People,
+  removing an account that is the only owner of organizations now deletes them too, after a
+  warning that lists what each holds; before, it was refused.
+- **The waitlist is on `/instance`.** It asks nothing of a deployment. The people who asked on the
+  public site's form, and guests who ask in the app, are listed under **Waitlist**; **Let them start
+  one** gives an allowance of 1 and emails them.
+- **Whoever runs the deployment is named as seeing organizations.** It asks nothing of a
+  deployment. Where the deployment offers plans, the new-organization form and an organization's
+  Plan page now say that an organization's name and plan, and the name and email of everyone in
+  it, are visible to whoever runs the deployment, to write to its people and, where a plan has a
+  price, to bill the organization. The privacy page says the same of its name and people.
+- **The tools change for plans, guests and read-only organizations** (`tools_version` 0.43.0). It
+  asks nothing of a deployment, but a connected client sees the change only in a new session.
+  `products_write(action="set_limits")` is gone; instance owners have `set_plan`, `set_plan_limits`
+  and `set_guests` in `products_write` and `guests` in `products_read`, and every agent may read a
+  tenant's `read_only` and is refused writes there with `409 organization_read_only`. An agent
+  still never ends an account or deletes an organization: those stay in the web app.
 - **The privacy page is written again, as a short notice.** It concerns every deployment, and
   asks one thing of a deployment that set `WHATBUILD_PROVIDERS`. The page now says what is kept, why,
   who else handles it, how long it stays and what a person can do, in categories and prose, with

@@ -35,14 +35,14 @@ design system: tokens, type, components and the rules for using them — is docu
   loses what they are typing.
 - `409 quota_exceeded` is shown as a fact with a number and a next step, never as a failure of the
   person. (Enforced today: Story pages and mockups per product, [§9.2](09-data-lifecycle.md), and the
-  free plan's daily allowances, [§9.7](09-data-lifecycle.md).)
+  daily allowances of a plan the deployment defines, [§9.7](09-data-lifecycle.md).)
 - **No request the app knows will be refused.** Where the app can tell in advance that the server
   would refuse (a Story-only reader asking for members, a guest of the example organization asking
   for its people, an address whose id is not an id at all), it says so without asking. Where it cannot, it asks, and
   REST answers honestly: a source, assumption or other object that does not exist answers `404`,
   and its page says it was not found while the browser's console reports the `404` of the request.
   A `404` is final, so the app never asks for it again (a request that did not reach WhatBuild,
-  or a `5xx`, is asked again twice). A product, or an organization's Members or Plan and limits,
+  or a `5xx`, is asked again twice). A product, or an organization's Members or Plan,
   that answers `404` says at once that it doesn't exist or the person can't see it, as the server
   does of both, with a way back to their products.
   ◆ Decision: that console line is by design; the API is not bent to hide it.
@@ -132,9 +132,10 @@ the browser's back button and "open in new tab" both work.
   between them as it does between the inspector's groups.
 - **The footer** holds the account menu, which is about the person: their email; each
   organization they belong to, with their role in it, a link to its **Members** (left out where they
-  read only the Story) and, on the free plan or for an owner of the instance, to its **Plan and
-  limits**; the example organization is left out for its guests, who see neither its members nor
-  any allowance there, unless the guest is an owner of the instance, who sees its Plan and limits;
+  read only the Story) and, where the deployment offers plans, to its **Plan**; the example
+  organization is left out for its guests,
+  who see neither its members nor any allowance there, unless the guest is an owner of the
+  instance, who sees its Plan;
   the theme (Light, Dark or System, which is the default; remembered
   per browser); **New organization**, while they may still create one; **Organizations** and
   **People**, for an owner of the instance;
@@ -206,6 +207,11 @@ place.
    dragged and have no actions menu, as for a viewer. Roles are access, not content, and
    `members.grant` and `members.revoke` still work on an archived product, so its Settings keep
    People on this product for admins and say so above the list.
+   A read-only organization, one moved back to the plan new organizations start on while whoever
+   started it has another there ([§3.3](03-accounts-teams-and-identity.md#33-tenants-and-teams)),
+   says so above every screen of its products: that everyone can still read and export everything,
+   how long it is kept, and **See plan**. Its screens still offer writing, which the server refuses with
+   `409 organization_read_only` and a message saying why.
 7. On the overview, an organization where the person has no team or product role says so, and that
    there is nothing to open until an admin gives them one.
 8. Organization-level screens (the overview, Connect an agent, Settings, Members) use a different
@@ -221,7 +227,9 @@ product concept as plain words clamped to two lines, its Markdown markers droppe
 with links to Idea, Evidence, Exploration and Story and their counts, so any section of any product
 is one click away. A product where the person is a reader says "You can read its Story."
 in place of its concept, and links to the Story alone, with its count. Team admins get **New product**, a dialog on the overview (`?create=1`), so
-cancelling leaves the person there; it asks for a team only when they can create in more than one.
+cancelling leaves the person there; it asks for a team only when they can create in more than one,
+and when the organization already holds all the products its plan allows it says so, and how to
+make room, in place of Create.
 An organization with no product the person can see says so, and, to someone who cannot create
 one, whom to ask. The
 overview is the only list of products: `/products` redirects to it. Roles are not shown here; the
@@ -234,14 +242,16 @@ person's organization role is in the account menu, and who has which role is on 
 /join/:code                                   → / (the public sandbox's retired invitation links)
 /cookies                                      Cookies: what they are for, and the analytics choice; readable signed out
 /privacy                                      Privacy: what is kept, why, for how long, who handles it, whom to ask; readable signed out
+/plans                                        Plans: the plans offered side by side, with their prices; readable signed out
 /                   ?archived=1&create=1      the overview: what WhatBuild is, and every product; new product; first run with no organization
 /products                                     → / (with its query)
 /t/:tenant/members                            people and roles in an organization
-/t/:tenant/limits                             Plan and limits: an organization's plan, its limits and what is used today
+/t/:tenant/plan                               Plan: an organization's plan, what it holds against it, what is used today, and the plans side by side
+/t/:tenant/limits                             the same page, at the address it had before plans set every limit
 /connect            ?product                  Connect an agent: the MCP server URL for a product or all, and the agents connected now
 /settings                                     Settings: the person's display name, Sign out everywhere, and Delete account (?delete=account opens it)
 /account-deleted                              Your account has been deleted (signed out)
-/instance                                     Organizations: who may create organizations, and every organization's plan and limits (instance owners)
+/instance                                     Organizations: every organization's plan and what it holds, the plans, and who may create organizations (instance owners)
 /people                                       People: every account, and removing one (instance owners)
 
 /t/:tenant/:team/:product                     → …/idea
@@ -271,10 +281,16 @@ person's organization role is in the account menu, and who has which role is on 
 
 **The public site** is not part of the app: on the site's domain (served by the Cloudflare Worker,
 or by the image on the host named by `WHATBUILD_SITE_URL`), `/` is a
-page with the overview's intro and a form to hear when WhatBuild opens, and every other path
-redirects to the app. Without a site host it is at `/site/` (in development,
-`http://localhost:5273/site/`)
-([decision](../decisions/the-public-site-is-one-page-built-with-the-app.md)). When the deployment
+page with the overview's intro and a form to hear when a team can start, `/plans` the plans side by
+side, and every other path redirects to the app. Whoever serves a page writes into it what only the
+service knows (`whatbuild-site`, the answer of `GET /api/v1/plans`): the plans as an instance owner
+set them, and whether anyone may sign up as a guest. The Worker asks the service for it through
+Cloudflare's cache, an hour at a time; without it, a page shows the plans as the build has them.
+While guests may sign up, the front page leads with **Explore a real discovery** (sign-in, then the
+example organization as a guest), with **Start your team's own** beside it pointing at the form, and
+the plans page says the same. Without a site host they are at `/site/` and `/site/plans/` (in
+development, `http://localhost:5273/site/`, where the pages ask the local server)
+([decision](../decisions/the-public-site-is-pages-built-with-the-app.md)). When the deployment
 uses Google Analytics, whoever serves the page writes the measurement ID into it (a
 `whatbuild-analytics` meta tag), and the page shows the same cookie choice as the app, with Cookies
 in its footer to change it; a request to hear from us is counted as `generate_lead`
@@ -295,7 +311,7 @@ The document title is "<screen> · <section> · <product> · WhatBuild", with a 
 its section ("Evidence") said once. A screen shown in place of another names itself, never the one
 it stands in for: an address the app doesn't know is "Not found · WhatBuild", a product that
 answers `404` "Product not found · WhatBuild", an organization that does "Organization not found"
-with its section (Members, Plan and limits), and an error no screen handles "Something went
+with its section (Members, Plan), and an error no screen handles "Something went
 wrong · WhatBuild".
 
 The Story print view is served by the API, not the app: `GET
@@ -305,7 +321,10 @@ new tab ([§7.8](#78-story), [§6](06-operations-and-adapters.md)).
 ## 7.4 Sign-in, and the first ten minutes
 
 1. **Sign in** (`/signin`) with an email link, Microsoft or Google, whichever the deployment configures
-   ([§3.2](03-accounts-teams-and-identity.md)); in development, "sign in as" a seeded account. An
+   ([§3.2](03-accounts-teams-and-identity.md)); in development, one click signs in as any account on
+   the server (`GET /auth/dev-accounts`): the sample's people first, then the newest, each with what
+   it is there ("Owns Fieldnote Studio (Pro)", "Guest, on the waitlist"), the first 40 of them, or as
+   any address typed above. An
    email link opens a page the server renders, naming the address, whose one button, Sign in,
    signs in and returns to `next`. Wherever sign-in returns to is a path on this origin or `/`,
    by the server's rule (`safeNext`). Under the form, one line says WhatBuild is a free preview
@@ -315,10 +334,17 @@ new tab ([§7.8](#78-story), [§6](06-operations-and-adapters.md)).
    overview, where the example organization ([§3.10](03-accounts-teams-and-identity.md)) is listed,
    tagged Example organization and Read only, under a sheet, **Your own organization**, that says
    the example is there to read and to point an agent at, and offers **Start your organization**
-   where the account may create one, or says whom to ask where it may not.
+   where the account may create one. Where it may not, it says organizations open a few at a time,
+   to ask for one or be invited to someone's, and offers **Ask for your own organization**, which puts them on the
+   waitlist with one click ([§3.2](03-accounts-teams-and-identity.md#32-accounts-and-sign-in));
+   then it says since when they have been on it and that an email will tell them when they can
+   start one.
 3. **First run** (`/welcome`): name the organization and the first product in one form, for an
    account that may create one ([§3.3](03-accounts-teams-and-identity.md)); for someone who is not
-   an instance owner it adds that the organization starts on the free plan. The same form, titled
+   an instance owner, where the deployment offers plans, it adds which plan the organization starts
+   on, with its totals and a link to compare the plans, and that whoever runs this WhatBuild sees
+   its name and plan and the name and email of everyone in it, to write to its people, and to bill
+   it where a plan has a price; a deployment that offers no plans says neither. The same form, titled
    New organization, starts another. An account that may not says so: the people who run the
    instance decide who may, and someone can invite them instead; its link back leads to the
    example organization for someone with none of their own. A person who was invited follows
@@ -952,8 +978,8 @@ never described as deleting. A list row showing an archived object says *Archive
 - **Privacy** (`/privacy`, readable signed out; `apps/web/src/routes/privacy.tsx`). The privacy
   notice ([§9.1](09-data-lifecycle.md)): what is kept, why, who else handles it, how long it stays
   and what a person can do, in prose, with who runs the deployment, its contact and who else handles
-  the data from `/api/v1/meta`, and the month it last changed. Linked from the sign-in page,
-  Settings, Cookies and the public site's footer.
+  the data from `/api/v1/meta`, and the month it last changed. It names billing only where a plan
+  has a price (`GET /api/v1/plans`). Linked from the sign-in page, Settings, Cookies and the public site's footer.
 - **The cookie notice** (`apps/web/src/shell/CookieNotice.tsx`). When the deployment sets an
   analytics ID (`analytics_id` from `GET /auth/methods`), every screen, signed in or not, carries a
   small note at the bottom-right inset (flush along the bottom on phones) until the person presses
@@ -969,51 +995,113 @@ never described as deleting. A list row showing an archived object says *Archive
   followed, never by its words (`apps/web/src/lib/analytics.ts`, [§9.1](09-data-lifecycle.md)).
 - **Organizations** (`/instance`, from the panel and the account menu, for the instance's owners
   only; `apps/web/src/routes/instance.tsx`). First **Organizations**, every organization on the
-  instance (`products.organizations`), under what plan a new organization starts on here and that
-  it is set where the service is deployed (`WHATBUILD_NEW_ORGANIZATION_PLAN`): each row its name,
-  plan, whether it is the example, how many people are in it, who created it and when, the limits
-  changed from the free plan's, and what was added today, ending in its plan's badge, **Rename** and
-  **Plan and limits ›**; a row says the short names in links it had before. Rename opens a dialog
-  with the name and the short name in links (with those it had before beneath), which says links
-  with its current short name keep leading to it and its access log records the change, and saves
-  under the name's etag (`products.rename_tenant`; an instance owner renames any organization,
-  member or not). Plan and limits is a link to `/instance?org=<slug>`, which opens **Plan and limits of** the organization: the plan as a choice between Free and Unlimited, every limit in a field beside
-  the free plan's value (bytes in MB), Back to the free plan's limits, and Save, under the limits'
-  etag; closing it takes `org` off the address. Then **Who can start organizations**: what the rule
-  is, the default for every other address and who the owners are; then each address with an
-  allowance: its person or "no account yet", how many it may create and has created, who gave it
-  and when, the note, and what is left. **Let someone start organizations** opens a dialog for an
-  address, a number, a note and whether to tell them by email; Change edits the number and note
-  under the row's etag; Remove returns the address to the default after a confirmation. Giving an
-  allowance is also how a waiting person is let in. Anyone else reaching the address is told only
-  instance owners see this.
-- **Plan and limits** (`/t/:tenant/limits`, in the account menu for an organization on the free
-  plan, or any organization for an owner of the instance; `apps/web/src/routes/limits.tsx`). What a
-  person sees is said in words, for someone using WhatBuild rather than running it: a line that the
-  organization is on the free plan, that everyone in it has the same daily allowances, owners
-  included, when they start over (midnight UTC), and that only whoever runs this WhatBuild changes
-  the plan; then **Today**, the daily allowances in two groups, **You** (changes, sources added,
-  files uploaded, exports) and **Everyone in** the organization (changes, files uploaded), each as
-  "12 of 500" over a thin bar, which turns the warning colour and adds "used up" when it is, or as
-  "Off on this plan"; then **What you can add**, a few sentences on the limits they can run into: the
-  largest file the web app takes (the lowest of the plan's, the deployment's and the upload relay's,
-  since the web app uploads through the relay), or that uploading is off on the plan; the size above
-  which a file is kept but not read, when that is smaller; attachments on a source; mockups and
-  Story pages in a product; and, where the plan says so, that files must be in a format WhatBuild
-  reads or that adding a file from a link is off. The limit on calls a minute, the refusal a call
-  over a limit gets, the deployment's other limits and what sets them are not shown to them: agents
-  read them all from `products.limits`, and a call over one says so. An unlimited organization's
-  page says it has no daily allowances, and that what everyone does is still counted, day by day,
-  so that a move to the free plan during a day starts from what was already done
-  ([§9.7](09-data-lifecycle.md)), over What you can add; a guest of the example reaching the
-  address is told they have no allowances there. An owner of the instance sees instead the plan and
-  who in the organization meets the limits (on the free plan everyone, owners included; in the
-  example, its guests only the limit on calls a minute), and when the day's counts start over;
-  **Limits** (on an unlimited organization, **Limits on the free plan**), one row for each: what it
-  counts and over what, what it allows, what they used today (counted on every plan), and the
-  refusal a call over it gets; and **Limits of this deployment**, the ones every organization has,
-  with what sets each. Nobody changes anything here; an owner of the instance has **Change plan and
-  limits**, which opens the organization's dialog on the instance's page (`/instance?org=<slug>`).
+  instance (`products.organizations`), under a line saying each is on a plan of its own and what
+  plan a new organization starts on here, or, where the deployment offers no plans, that every
+  organization is Unlimited, both set where the service is deployed (`WHATBUILD_PLANS` and
+  `WHATBUILD_NEW_ORGANIZATION_PLAN`): each row its name (a link to its Plan page where the instance owner is in it), whether it is
+  the example, what it holds (people, with invitations waiting, products, sources and storage), who
+  created it and when, how long a read-only one is kept, and today's writes, ending in a Read-only
+  badge where it is, "Plan no longer defined" for one on a plan the deployment no longer defines,
+  its plan's badge and **Change plan** where the deployment offers plans, **Rename** and, but for the example,
+  **Delete**, which opens the dialog an owner's Settings use (what goes, why, its name typed;
+  `products.delete_tenant`, which an instance owner may call in any organization); the line above the rows
+  adds, where new organizations start on a plan the deployment defines, that each person has one
+  organization on it, that moving it to another plan lets them start another, and that one moved
+  back while they have another is read-only for a year; a row says the short names in links it had before. Rename opens a dialog with the name
+  and the short name in links (with those it had before beneath), which says links with its current
+  short name keep leading to it and its access log records the change, and saves under the name's
+  etag (`products.rename_tenant`; an instance owner renames any organization, member or not).
+  Change plan is a link to `/instance?org=<slug>`, which opens **Plan of** the organization: what it
+  holds, then a choice between the deployment's plans and Unlimited, each with its price where the
+  deployment names one, what it is for and its totals in words, the current one marked; when the
+  organization holds more than the chosen plan's totals, a note says by how much and that nothing
+  is removed; when the starting plan would make it read-only (`starting_plan_is_read_only`), a
+  note says so instead: its creator already has an organization on that plan, its people keep
+  reading, exporting and deleting for a year, and another plan makes it writable again; a
+  read-only organization says since when and until when, and choosing the starting plan once its
+  creator has a place for it offers **Make it writable**;
+  **Move to** the chosen plan saves under the plan's etag (`products.set_plan`), and the toast says
+  when it is read-only and until when; closing it takes
+  `org` off the address. Then, where the deployment offers plans, **Plans**: that limits belong to
+  plans, never to one organization, to raise as WhatBuild grows; the plans side by side (below);
+  and in the head a button for each plan, which opens **The** plan: its price, as people read it,
+  then every limit in a field (bytes in MB; a total, or the bytes sent a day, with **No limit**
+  beside it) next to what the deployment's configuration sets, saved under the plan's etag
+  (`products.set_plan_limits`) for every organization on it, with **Back to the configured
+  limits**. Then, where the deployment has an example organization, **Guests**: what a guest is, a badge for whether anyone can sign up as one,
+  how many are in (of the places), waiting, new today (of the day's) and ever, refreshed every half
+  minute, then each setting in a field next to its default, saved together under their etag
+  (`products.set_guests`). Then **Who can start
+  organizations**: what the rule is, the default for every other address and who the owners are;
+  then each address with an allowance: its person or "no account yet", how many it may create and
+  has created, who gave it and when, the note, and what is left. **Let someone start
+  organizations** opens a dialog for an address, a number, a note and whether to tell them by
+  email; Change edits the number and note under the row's etag; Remove returns the address to the
+  default after a confirmation. Where new organizations start on a plan the deployment defines, an
+  allowance counts organizations on it, named by the plan, and moving one to another plan frees its
+  place. Then, where the deployment has an example organization or someone is on it, **Waitlist**:
+  the people who asked for
+  an organization of their own, in the app or on the public site, earliest first, each with their
+  name and address, their organization, when they asked, whether they have signed up, and what
+  they wrote; **Let them start one** gives them an allowance of 1 and emails them, which takes
+  them off it. Anyone
+  else reaching the address is told only instance owners see this.
+- **Plan** (`/t/:tenant/plan`, and `/t/:tenant/limits` as before, in the account menu for every
+  organization the person is in, where the deployment offers plans; `apps/web/src/routes/limits.tsx`). What a person sees is said in
+  words, for someone using WhatBuild rather than running it. **Plan**: the plan's name and price,
+  what it is for, that everyone in the organization meets its limits, owners and their agents
+  included (an unlimited organization has none, and one on a plan the deployment no longer defines
+  meets none until it is moved); for a read-only organization, a Read-only mark and a note headed
+  with how long it is kept ("Kept until 26 Oct 2027 · 365 days left", the day in UTC, as every
+  refusal and the Organizations page give it) that says it went back to the
+  starting plan while whoever started it already has an organization there, that everyone can still
+  read, export and delete, and how to move it to another plan, in place of **What you can add**; on
+  the starting plan, where there is another, how to move to another plan (write to the deployment's
+  contact, or ask whoever runs this WhatBuild) and that each organization has a plan of its own; and,
+  where the deployment offers plans, that the organization's name and plan, and the name and email
+  of everyone in it, are visible to whoever runs this WhatBuild, who uses them to write to its
+  people, and to bill the organization where a plan has a price, with a link to Privacy. **What** the organization **holds**: people (counting
+  invitations not yet accepted; readers of the Story don't count), products and sources (archived
+  ones don't), and storage (split into files and text; archiving keeps it, deleting frees it), each
+  as "6 of 50" over a thin bar, with "Nearly full" from 80% and "Full", with its mark, when it is
+  reached, or "no limit". **Today**, with when it starts over (midnight UTC): **You** (changes,
+  sources added, files uploaded, data sent to you, exports) and **Everyone in** the organization
+  (changes, files uploaded), in the same form. **What you can add**: the largest file the web app
+  takes (the lowest of the plan's, the deployment's and the upload relay's, since the web app
+  uploads through the relay), the size above which a file is kept but not read when that is
+  smaller, attachments on a source, mockups and Story pages in a product, and, where the plan says
+  so, that files must be in a format WhatBuild reads (a plan with `documents_only` off keeps any
+  file) or that adding a file from a link is off. Then **Plans**, the plans side by side with this
+  one marked **Your plan**, where the deployment offers plans.
+  The refusal a call over a limit gets, the deployment's other limits and what sets them are shown
+  only to an owner of the instance, who also sees **Change plan** where the deployment offers plans, a link to the organization's
+  dialog on the instance's page, **Limits of the** plan (one row each: what it counts and over
+  what, what it allows, what is used, the refusal) and **Limits of this deployment**, with what sets
+  each. A guest of the example reaching the address is told its plan sets nothing for them but how
+  often they can call.
+- **The waiting page** (any signed-in address, for a guest account that is not in; `GuestGate` in
+  `apps/web/src/shell/guest-gate.tsx`). A guest account sees the app only while it holds a place
+  (`GET /api/v1/me/guest-pass`, asked every minute while in, which keeps the place). Otherwise one
+  sheet says why, in words: **WhatBuild is full right now**, how many guests are exploring, its
+  place in line with the progress mark, and that it comes in on its own while the page stays open
+  (asked again every 20 seconds); **Today's places for new guests are taken** or **You've used
+  today's time**, with when it starts again; or that no guests are let in. Then what a guest may
+  do, that organizations of one's own open a few at a time, **Ask for your own organization** (or,
+  once asked, since when they are on the waitlist), **Sign out** and **Settings**, which a waiting
+  guest still reaches. A guest that is in sees, on the example's one-line notice, the time
+  left today.
+- **Plans** (`/plans`, readable signed out; `apps/web/src/routes/plans.tsx`, and the public site's
+  `/plans`). The plans the deployment offers side by side (`GET /api/v1/plans`), as one table
+  (`apps/web/src/routes/plan-comparison.tsx`) the site, the app's page, an organization's Plan and
+  the instance's page all show: each plan's name, its price as the deployment writes it (none shown
+  where it gives none: "No charge" is a price a deployment may write), what it is for; then a few rows anyone reads at
+  a glance (people, products, sources, storage, the largest file, whether recordings, images and
+  any file are kept, an agent through MCP, readers who see only the Story, taking everything out,
+  changes a day), each with a short note where a word needs it, an included feature as a check and
+  one left out as a dash, each read aloud as a word; a line that each organization has a plan of its
+  own, billed on its own where a plan has a price; and **Every limit** behind a disclosure, every limit of every plan with
+  what it is counted over. Where the deployment offers no plans, `/plans` says so and compares
+  nothing, and the public site leaves out its link to Plans.
 - **People** (`/people`, from the panel and the account menu, for the instance's owners only;
   `apps/web/src/routes/people.tsx`). Every account (`products.accounts`): its name and address,
   where it stands in each organization, when it joined and was last seen, how many browsers and
@@ -1022,16 +1110,18 @@ never described as deleting. A list row showing an archived object says *Archive
   but an instance owner's) opens a dialog that says what removing does (signed out everywhere, every
   role taken with a record in each organization, invitations and allowance cancelled, the address
   forgotten, their usage data deleted, a confirmation emailed, the name kept on what they wrote)
-  and asks for the address typed exactly; an account
-  that is the only owner of an organization is refused, naming it
+  and asks for the address typed exactly. For an account that is the only owner of organizations,
+  a note above says they are deleted too, one line each with what it holds (its products by name,
+  sources, files) and how many other people lose their roles there, and the button says "Remove
+  account and delete" them; the only owner of the example organization can't be removed
   ([§3.2](03-accounts-teams-and-identity.md#32-accounts-and-sign-in)). Anyone else reaching the
   address is told only instance owners see it.
 - **The example organization** ([§3.10](03-accounts-teams-and-identity.md)), in
   `apps/web/src/shell/ExampleBanner.tsx`. Every screen of a product in it carries a notice above
   its content. To a guest, under "This is the example organization", it says it is a worked
-  discovery to read, search and point an agent at, and that nothing in it can be changed (and, to
-  someone with no organization who may not start one, whom to ask), with **Start your
-  organization** while they have none of their own and may create one; it shows in full until they
+  discovery to read, search and point an agent at, and that nothing in it can be changed, with
+  **Start your organization** while they have none of their own and may create one, or **Ask for
+  your own organization** while they may not and are not on the waitlist yet; it shows in full until they
   press Got it, then as one line, "Example organization · read only" (remembered per organization
   in the browser). To the organization's own people, its authors, it says in one line that they are
   one of its authors and that what they change there is what everyone who signs in sees. It shows nothing while it loads, so no screen waits for it. The

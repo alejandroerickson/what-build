@@ -15,6 +15,38 @@ import { newEtag, quotedName } from "../util.ts";
 
 const address = z.string().trim().email().max(320).transform((s) => s.toLowerCase());
 
+function newPlan(ctx: OpContext): string {
+  return ctx.ports.config.newOrganizationPlan ?? "unlimited";
+}
+
+/**
+ * The people who asked for an organization of their own and have no allowance yet: from the web
+ * app, as a guest, or from the public site's form. One row per address; the earliest asked first.
+ */
+async function waitlist(ctx: OpContext) {
+  const owners = new Set((ctx.ports.config.instanceOwners ?? []).map((e) => e.toLowerCase()));
+  const rows = await ctx.db
+    .selectFrom("interest as i")
+    .leftJoin("tenant_allowances as a", (j) => j.on(sql`a.email`, "=", sql`lower(i.email)`))
+    .leftJoin("accounts as ac", (j) => j.on(sql`lower(ac.email)`, "=", sql`lower(i.email)`).on("ac.deleted_at", "is", null))
+    .select(["i.email", "i.name", "i.organization", "i.note", "i.created_at", "i.updated_at", "ac.account_id", "ac.display_name"])
+    .where("a.email", "is", null)
+    .orderBy("i.created_at")
+    .limit(500)
+    .execute();
+  return rows
+    .filter((r) => !owners.has(r.email.toLowerCase()))
+    .map((r) => ({
+      email: r.email.toLowerCase(),
+      name: r.display_name ?? r.name,
+      organization: r.organization,
+      note: r.note,
+      asked_at: r.created_at,
+      asked_again_at: r.updated_at === r.created_at ? null : r.updated_at,
+      account: r.account_id ? { account_id: r.account_id, display_name: r.display_name } : null,
+    }));
+}
+
 function requireInstanceOwner(ctx: OpContext) {
   if (!isInstanceOwner(ctx.ports.config, ctx.principal.email))
     throw forbidden("Only an owner of this WhatBuild instance can let people start organizations.");
@@ -22,8 +54,12 @@ function requireInstanceOwner(ctx: OpContext) {
 
 type AllowanceRow = { email: string; allowed: number; note: string; etag: string; created_at: string; created_by: unknown; updated_at: string; updated_by: unknown };
 
-/** Each row as the instance's owners see it: whose account it is and how much of it is used. */
-async function views(db: Db, rows: AllowanceRow[]) {
+/**
+ * Each row as the instance's owners see it: whose account it is and how much of it is used, counting
+ * the organizations its account started that are on `plan`, the one new organizations start on, and
+ * not read-only (`tenant-allowance.ts`).
+ */
+async function views(db: Db, rows: AllowanceRow[], plan: string) {
   if (!rows.length) return [];
   const accounts = await db
     .selectFrom("accounts")
@@ -38,6 +74,8 @@ async function views(db: Db, rows: AllowanceRow[]) {
         .selectFrom("tenants")
         .select([sql<string>`created_by->>'account_id'`.as("account_id"), (eb) => eb.fn.countAll<string>().as("n")])
         .where(sql<string>`created_by->>'account_id'`, "in", ids)
+        .where("plan", "=", plan)
+        .where("read_only_since", "is", null)
         .groupBy(sql`created_by->>'account_id'`)
         .execute()
     : [];
@@ -67,9 +105,9 @@ export const listTenantAllowances = defineOperation({
   access: "any",
   instanceOwnersOnly: true,
   mutates: false,
-  summary: "Who may create organizations, and how many (instance owners).",
+  summary: "Who may create organizations, and how many, and who asked to (instance owners).",
   description:
-    "Lists every address an instance owner has given an allowance, with how many organizations it may create, how many its account has created, and what is left. Also returns the instance's owners, who may create any number, and default_allowed, the allowance of every address not listed. Being in an organization never lets anyone create one.",
+    "Lists every address an instance owner has given an allowance, with how many organizations it may have, how many its account has (created: those it started that are on the plan new organizations start on and not read-only, so one moved to another plan frees its place), and what is left. Also returns new_organization_plan, the plan whose organizations are counted, the instance's owners, who may create any number, default_allowed, the allowance of every address not listed, and waitlist: the people who asked for an organization of their own, from the web app or the public site, and have no allowance yet, earliest first. Let one start one with products_write(action=\"set_tenant_allowance\"), allowed 1. Being in an organization never lets anyone create one.",
   input: z.strictObject({}),
   rest: { method: "GET", path: "/tenant-allowances" },
   mcp: { tool: "products", action: "tenant_allowances" },
@@ -79,7 +117,9 @@ export const listTenantAllowances = defineOperation({
     return {
       instance_owners: ctx.ports.config.instanceOwners ?? [],
       default_allowed: ctx.ports.config.defaultTenantAllowance ?? 0,
-      items: await views(ctx.db, rows),
+      new_organization_plan: newPlan(ctx),
+      items: await views(ctx.db, rows, newPlan(ctx)),
+      waitlist: await waitlist(ctx),
     };
   },
 });
@@ -93,7 +133,7 @@ export const setTenantAllowance = defineOperation({
   connection: "admin",
   summary: "Let an address create a number of organizations, or change how many (instance owners).",
   description:
-    "allowed counts every organization the address's account has created, so 1 with one already created lets it create no more. 0 lets it create none, whatever the default. The address need not have an account yet: while sign-up is limited, an allowance above 0 also lets it sign up. To change an existing allowance pass expected_etag from products_read(action=\"tenant_allowances\"); for an address without one leave it out, as one sent then is refused with 409 stale_etag and current_etag null. With notify (the default), an address whose allowance grows is told by email where to start. Use remove_tenant_allowance to return an address to the default.",
+    "allowed counts the organizations the address's account started that are still on the plan new organizations start on and not read-only, so 1 with one already lets it start no more, and moving that one to another plan frees its place. 0 lets it create none, whatever the default. The address need not have an account yet: while sign-up is limited, an allowance above 0 also lets it sign up. To change an existing allowance pass expected_etag from products_read(action=\"tenant_allowances\"); for an address without one leave it out, as one sent then is refused with 409 stale_etag and current_etag null. With notify (the default), an address whose allowance grows is told by email where to start. Use remove_tenant_allowance to return an address to the default.",
   input: z.strictObject({
     email: address,
     allowed: z.number().int().min(0).max(1000),
@@ -127,7 +167,7 @@ export const setTenantAllowance = defineOperation({
         .execute();
     }
     const row = await ctx.db.selectFrom("tenant_allowances").selectAll().where("email", "=", input.email).executeTakeFirstOrThrow();
-    const [view] = await views(ctx.db, [row]);
+    const [view] = await views(ctx.db, [row], newPlan(ctx));
     const before = existing ? existing.allowed : (ctx.ports.config.defaultTenantAllowance ?? 0);
     let notified = false;
     if (input.notify && input.allowed > before && view!.remaining > 0 && ctx.ports.mailer) {

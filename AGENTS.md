@@ -61,9 +61,9 @@ message, every pull request's text and every issue and comment is published, and
 
 WhatBuild turns a product team's discovery material into outcomes, mockups, reviewed assumptions
 and a Story for stakeholders. People use a React web app; agents use an MCP server exposing 112 of
-the same 117 operations (all but deleting an organization and its preview, which only its owner
-does, removing an account, which only an instance owner does, and deleting one's own account and
-its preview, which only its person does, in the web app). There is no AI inside. One stateless image on Cloud Run,
+the same 117 operations (all but deleting an organization and its preview, which only its owners
+or an instance owner do, removing an account, which only an instance owner does, and deleting one's
+own account and its preview, which only its person does, in the web app). There is no AI inside. One stateless image on Cloud Run,
 Postgres, and object storage.
 
 The domain is **what-build.com**, with a hyphen: the public site at `what-build.com`, the app at
@@ -98,6 +98,7 @@ that folder. If your tool does not load skills, read the `SKILL.md` files direct
 | `triage-security-findings` | When `pnpm security`, the Security or CodeQL workflow, or Dependabot reports something; when adding or upgrading a dependency; before a release. |
 | `run-end-to-end-tests` | When asked to run the end-to-end, smoke or acceptance tests or a test plan, to test a release (on the Docker host), to QA the app through the browser and MCP, or to build the golden master. |
 | `read-usage` | When asked how a deployment is used: which features, through the app and agents, whether people come back, what fails; for analytics or insights; or to connect a deployment to its analytics. |
+| `run-the-instance` | When asked about a deployment's plans, prices or limits, the plan new organizations start on, moving an organization to another plan, a read-only organization, the waitlist, guests, who can start organizations, or deleting an organization or removing a person. |
 | `set-up-mail` | When asked to set up, check or repair a deployment's email; when invitations or sign-in links do not arrive or fail; to rotate the mail token or change provider. |
 
 ## Before you change anything
@@ -131,6 +132,7 @@ conducts each one that changes something:
 | copy some organizations out of a deployment (the example organization by default): to test on, to dev, or into another deployment's new database | `copying-an-organization.md` | `copy-an-organization` |
 | find out how a deployment is used (features, agents, people coming back, the site); connect its analytics | `analytics.md` | `read-usage` |
 | know what mail a deployment sends and through what; set it up, check it, rotate its token, change provider | `mail.md` | `set-up-mail` |
+| define or change a deployment's plans, their limits and prices (`WHATBUILD_PLANS`; its file's path is `PLANS_FILE` in `.env`), or offer none; move organizations between plans; let people in from the waitlist; set the guests' limits | `cloud-run.md` (Plans), spec §9.7 | `run-the-instance` |
 
 Production runs releases only: it moves when a release is published and its build approved,
 never on a merge, and a release that migrates is rehearsed on the dev deployment first. The

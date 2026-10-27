@@ -14,7 +14,7 @@ export const MCP_SERVER_NAME = "whatbuild";
  * it when the tools, their actions or the guide change: a client keeps the tool list it got when it
  * connected, and a newer version in an answer tells its agent that list is older.
  */
-export const TOOLS_VERSION = "0.42.0";
+export const TOOLS_VERSION = "0.43.0";
 
 export type GuideTopic = (typeof GUIDE_TOPICS)[number]["topic"];
 const TOPIC_NAMES = GUIDE_TOPICS.map((t) => t.topic) as [GuideTopic, ...GuideTopic[]];

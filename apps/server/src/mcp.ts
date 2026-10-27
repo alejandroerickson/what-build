@@ -25,7 +25,7 @@ const TOOL_TEXT: Record<string, { title: string; parts: [text: string, ...action
       ["Read an organization's plan and limits.", "limits"],
       ["Get a download grant for a finished export.", "exports"],
       ["Read what deleting a product would destroy.", "delete_impact"],
-      ["As an owner of this WhatBuild, read every organization's plan, every account, the allowances to start organizations, and how it is used.", "organizations", "accounts", "tenant_allowances", "usage"],
+      ["As an owner of this WhatBuild, read every organization's plan and the plans, every account, the allowances to start organizations and the waitlist, the guests' settings, and how it is used.", "organizations", "accounts", "tenant_allowances", "guests", "usage"],
     ],
   },
   products_write: {
@@ -34,7 +34,7 @@ const TOOL_TEXT: Record<string, { title: string; parts: [text: string, ...action
       ["Start an organization, a team or a product, rename or change them, and archive or restore a product.", "create_tenant", "create_team", "create", "update", "rename_tenant", "archive", "restore"],
       ["Write the product concept and its card.", "update_concept"],
       ["Export a whole product as a ZIP.", "export"],
-      ["As an owner of this WhatBuild, change an organization's plan and limits, and the allowances to start organizations.", "set_limits", "set_tenant_allowance", "remove_tenant_allowance"],
+      ["As an owner of this WhatBuild, move an organization to another plan, change a plan's limits and price, set the guests' settings, and the allowances to start organizations.", "set_plan", "set_plan_limits", "set_guests", "set_tenant_allowance", "remove_tenant_allowance"],
     ],
   },
   products_delete: {

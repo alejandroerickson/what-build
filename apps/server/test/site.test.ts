@@ -112,3 +112,36 @@ describe("the public site with Google Analytics", () => {
     expect(withIt.csp).toContain("https://*.googletagmanager.com");
   });
 });
+
+describe("the public site's plans page", () => {
+  let h: Harness;
+  const site = "what-build.test";
+  beforeAll(async () => {
+    const dist = mkdtempSync(join(tmpdir(), "wb-web-"));
+    mkdirSync(join(dist, "site", "plans"), { recursive: true });
+    writeFileSync(join(dist, "index.html"), "<p>the app</p>");
+    writeFileSync(join(dist, "site", "index.html"), "<html><head><title>site</title></head><body></body></html>");
+    writeFileSync(join(dist, "site", "plans", "index.html"), "<html><head><title>plans</title></head><body></body></html>");
+    h = await startHarness({ siteUrl: `https://${site}`, webDist: dist, instanceOwners: ["root@example.com"] });
+  });
+  afterAll(() => h.close());
+
+  it("is served at /plans from its own page, carrying the plans and guests as an instance owner set them", async () => {
+    const root = await h.signIn("root@example.com", "Root Owner");
+    expect((await root.api("PATCH", "/api/v1/plans", { plan: "pro", price: 'US$10 a "month"' })).status).toBe(200);
+    expect((await root.api("PATCH", "/api/v1/guests", { self_serve: true })).status).toBe(200);
+    for (const path of ["/plans", "/plans/"]) {
+      const res = await hostRequest(h.baseUrl, site, "GET", path);
+      expect(res.status).toBe(200);
+      expect(res.text).toContain("<title>plans</title>");
+      const meta = /<meta name="whatbuild-site" content="([^"]*)" \/>/.exec(res.text)?.[1] ?? "";
+      const written = JSON.parse(meta.replace(/&quot;/g, '"').replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&amp;/g, "&"));
+      expect(written.plans.find((p: { id: string }) => p.id === "pro").price).toBe('US$10 a "month"');
+      expect(written.guests).toEqual({ self_serve: true, open: true });
+    }
+    // The same, from the service, for the Cloudflare Worker to write in: answered on the site's host too.
+    const asked = await hostRequest(h.baseUrl, site, "GET", "/api/v1/plans");
+    expect(asked.status).toBe(200);
+    expect(JSON.parse(asked.text).guests.self_serve).toBe(true);
+  });
+});

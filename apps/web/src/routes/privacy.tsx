@@ -3,6 +3,7 @@ import { ACCOUNT_DELETION } from "@whatbuild/core/account-deletion";
 import type { ReactNode } from "react";
 import { Link } from "react-router";
 import { api } from "../lib/api.ts";
+import { anyPriced, usePlans } from "../lib/limits.ts";
 import { ButtonLink, ErrorCallout, Loading, Sheet, SheetBody, SheetHeader } from "../ui/index.tsx";
 import { EntryPage } from "./auth.tsx";
 import "../styles/screens/cookies.css";
@@ -47,6 +48,8 @@ function Kept({ lead, children }: { lead: string; children: ReactNode }) {
 export function PrivacyPage() {
   const q = useQuery({ queryKey: ["meta"], queryFn: () => api<{ privacy: Privacy }>("GET", "/api/v1/meta"), staleTime: Infinity });
   const p = q.data?.privacy;
+  // Billing is named only where a plan has a price; a self-hosted deployment offers none.
+  const plans = usePlans();
   const operator = p?.operator ?? "Whoever runs this WhatBuild";
   const ask = p?.contact ? <Contact to={p.contact} /> : "whoever runs this WhatBuild";
   return (
@@ -75,23 +78,27 @@ export function PrivacyPage() {
             <SheetBody>
               <ul className="privacy-list">
                 <Kept lead="Your account.">The email address you sign in with and your name, and the addresses of the people you invite.</Kept>
+                <Kept lead="Your organizations.">
+                  The name of each organization you start or join, and the names and emails of the people in it. {operator} sees these, to write to its people
+                  {anyPriced(plans.data?.plans) ? " and to bill the organization" : ""}.
+                </Kept>
                 <Kept lead="What you add.">
                   Everything you, and the agents you connect, put into an organization. It is kept with your name on it, so the people you work with know who added what.
                 </Kept>
                 <Kept lead="Records of running the service.">
-                  Your sessions, the agents you have connected, a log of requests, and counts of how WhatBuild is used. None of it holds your content, and the counts name
-                  nobody.
+                  Your sessions, the agents you have connected, a log of requests, and how much you use WhatBuild, to keep it within its limits and fair to everyone. WhatBuild
+                  also counts how it is used, under a code in place of your name. None of it holds your content.
                 </Kept>
                 {p.analytics ? (
                   <Kept lead="Analytics, if you accept it.">
                     Google Analytics sees which screens you open and what you do there, never names or content. <Link to="/cookies">Cookies</Link> holds your choice.
                   </Kept>
                 ) : null}
-                <Kept lead="What you send.">Feedback, and a request on the public site to hear when WhatBuild opens.</Kept>
+                <Kept lead="What you send.">Feedback, and a request for an organization of your own, with your name and email.</Kept>
               </ul>
               <p className="privacy-text privacy-after">
-                Your account, what you add, your sessions and your agents are kept because you use WhatBuild: without them there is no service. The log and the counts are kept
-                to run WhatBuild safely and make it better, which you may object to. Analytics runs only with your consent.
+                Your account, your organizations, what you add, your sessions, your agents and how much you use WhatBuild are kept because you use it: without them there is
+                no service. The log and the counts of use are kept to run WhatBuild safely and make it better, which you may object to. Analytics runs only with your consent.
               </p>
             </SheetBody>
           </Sheet>
@@ -110,8 +117,8 @@ export function PrivacyPage() {
             <SheetHeader id="privacy-long" title="How long it stays" />
             <SheetBody>
               <p className="privacy-text">
-                Your account, and the records about you, until you delete your account or it is removed. What you add, until it is deleted from its organization by you or its
-                administrators: {ACCOUNT_DELETION.stays.charAt(0).toLowerCase() + ACCOUNT_DELETION.stays.slice(1)} The log and the counts, for a limited time. Backups outlast
+                Your account, and the records about you, until you delete your account or it is removed. An organization, while it exists. What you add, until it is deleted from its organization by you or its
+                administrators: {ACCOUNT_DELETION.stays.charAt(0).toLowerCase() + ACCOUNT_DELETION.stays.slice(1)} The log and the counts of use, for a limited time. Backups outlast
                 a deletion for a limited time, then they are deleted too.
               </p>
             </SheetBody>

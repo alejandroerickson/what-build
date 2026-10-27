@@ -1,6 +1,6 @@
 import { createHmac } from "node:crypto";
 import { readFileSync } from "node:fs";
-import { AppError, PERMISSIONS_POLICY, REST_BODY_MAX_BYTES, TOOLS_VERSION, type BlobStore, type Db, type Env, type Mailer, type Ports } from "@whatbuild/core";
+import { AppError, configurePlans, PERMISSIONS_POLICY, REST_BODY_MAX_BYTES, TOOLS_VERSION, type BlobStore, type Db, type Env, type Mailer, type Ports } from "@whatbuild/core";
 import { SpanKind, SpanStatusCode, type Span } from "@opentelemetry/api";
 import { Hono } from "hono";
 import { bodyLimit } from "hono/body-limit";
@@ -177,6 +177,8 @@ export function createPorts(config: ServerConfig, blobs: BlobStore, mailer: Mail
  * queue again. A request from nobody signed in never calls it, so it cannot keep the database awake.
  */
 export function createApp(deps: { db: Db; ports: Ports; config: ServerConfig; release?: Release; onRequest?: () => void }) {
+  // The plans this deployment offers, as its configuration defines them, for every call this process serves.
+  configurePlans(deps.config.plans);
   const env: Env & { config: ServerConfig } = { db: deps.db, ports: deps.ports, config: deps.config };
   const release = deps.release ?? RELEASE;
   const app = new Hono();

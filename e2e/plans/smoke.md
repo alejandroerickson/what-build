@@ -58,8 +58,9 @@ other plans will too.
    same titles and counts, and the same words the source's Text showed.
 10. **Web and MCP, as a guest.** Sign in as `guest@example.com` on the web, then connect over MCP as
     the same address. *Expect:* the overview lists the example organization, marked Example
-    organization and Read only, and, since the guest may not start one, says that for an
-    organization of their own they ask whoever runs this WhatBuild; its products open with a notice that
+    organization and Read only, and, since the guest may not start one, says organizations open a
+    few at a time and offers **Ask for your own organization**; pressing it says they are on the
+    waitlist since today, and the button is gone after a reload. Its products open with a notice that
     it is a worked example nothing in it can change; its Members shows no people.
     `products_read(action="list")` lists the example's products with `your_role` guest and the tenant
     `example: true`; the tool list offers no write but `submit_feedback`, and no `create_tenant`;

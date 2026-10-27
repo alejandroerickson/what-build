@@ -19,8 +19,8 @@ export default defineConfig({
   build: {
     outDir: "dist",
     sourcemap: true,
-    // The app, and the public site's page (dist/site/index.html), which the server serves on the site's own host.
-    rollupOptions: { input: { app: fileURLToPath(new URL("index.html", import.meta.url)), site: fileURLToPath(new URL("site/index.html", import.meta.url)) } },
+    // The app, and the public site's pages (dist/site/index.html, dist/site/plans/index.html), which the server serves on the site's own host.
+    rollupOptions: { input: { app: fileURLToPath(new URL("index.html", import.meta.url)), site: fileURLToPath(new URL("site/index.html", import.meta.url)), "site-plans": fileURLToPath(new URL("site/plans/index.html", import.meta.url)) } },
   },
   test: { name: "web", environment: "jsdom", include: ["test/**/*.test.ts?(x)"] },
 } as never);
