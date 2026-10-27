@@ -71,6 +71,10 @@ The files matter: they are the sources' attachments and the text read from each,
 a source keeps its derived text, but no attachment opens and none can be read again. Pulling reads production and changes nothing there. What a copy holds and leaves behind,
 and every option, are in [copying an organization](copying-an-organization.md).
 
+`pnpm dataset` builds [the non-production dataset](the-non-production-dataset.md) from a pull: the
+same organizations beside synthetic ones of a size and shape chosen for testing, loaded as a pull
+is.
+
 Each pull is a new folder named for its UTC time, such as `.what-build/fixtures/2026-10-10T0411Z/`,
 holding `database.dump`, `files/` and `pulled.json`, which names the organizations. `pulled.json`
 is written last, so a pull that stopped part-way is never loaded. A git worktree without
@@ -142,7 +146,9 @@ does not have, so they run on the synthetic data. The agent-driven
 
 1. Pull a fresh copy and load it. The example organization's content shows most migrations; for
    one that rewrites content it lacks, name more of the instance owners' organizations, or pull
-   `--all`; for shapes none of them has, try the migration on synthetic content made like it.
+   `--all`; for shapes none of them has, load [the non-production dataset](the-non-production-dataset.md),
+   whose synthetic organizations have many members, products and sources, or synthetic content
+   made like the shape.
 2. Serve it with the release's code.
 3. Check three things:
    - every migration applies;

@@ -93,7 +93,8 @@ not running.
 |---|---|
 | this machine, to test on | `pnpm fixture load`, then `pnpm dev:fixture` ([a copy of production](a-copy-of-production.md)) |
 | the end-to-end golden master | `pnpm e2e golden` ([end-to-end tests](end-to-end-tests.md)) |
-| the dev deployment | [refreshing the copy](dev-deployment.md#refreshing-the-copy), with the organizations `NEON_DEV_COPY_ORGANIZATIONS` names |
+| the dev deployment | [refreshing the copy](dev-deployment.md#refreshing-the-copy), with the organizations `NEON_DEV_COPY_ORGANIZATIONS` names, in a dataset |
+| any of these, with synthetic organizations beside it | `pnpm dataset` builds [the non-production dataset](the-non-production-dataset.md) from a pull, which each of them loads as it loads a pull |
 | another deployment's new database | [below](#into-another-deployment) |
 
 ## Into another deployment

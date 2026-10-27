@@ -40,6 +40,7 @@ All of it is under `.what-build/`, which git ignores.
 corepack pnpm e2e golden                  # from the newest pull
 corepack pnpm e2e golden 2026-10-10T1621Z # from a named pull
 corepack pnpm e2e golden --org <slug>     # keep another organization than the example
+corepack pnpm e2e golden <dataset>        # from the non-production dataset, its synthetic organizations kept
 ```
 
 It is made from a pull of production ([a copy of production](a-copy-of-production.md)): a pull of
@@ -72,6 +73,13 @@ served, the development sign-in's people are given their roles in the example an
 organization: Riley owns each, Sam edits every team, Jordan reads every Story. The synthetic
 organization is left as it was built. Its people are guests of the example, as any account that
 belongs to no part of it.
+
+Built from [the non-production dataset](the-non-production-dataset.md) (`pnpm dataset`), the
+golden master keeps the dataset's synthetic organizations too, Harbor Labs among them, with their
+members, pending invitations, waitlist and allowances, and its products and sources; it makes
+Harbor Labs itself only when the dataset did not bring it. `golden.json` names every synthetic
+organization in `synthetic_organizations`, and the development sign-in's people get no role in
+any of them.
 
 The golden master is a copy of production outside production, with every rule of that guide: it
 holds only organizations an instance owner owns, beside the synthetic one

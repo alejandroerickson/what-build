@@ -149,7 +149,10 @@ machine and a server without the development sign-in, so it never touches a depl
 production deployment's example organization, or of other organizations its instance owners own, with their files, into the
 database `fixture` and serve it, with the migrations it lacks applied
 ([a copy of production](a-copy-of-production.md), [copying an organization](copying-an-organization.md)).
-The pull needs access to the deployment; nothing else does.
+The pull needs access to the deployment; nothing else does. `pnpm dataset` builds
+[the non-production dataset](the-non-production-dataset.md) from a pull: the same organizations
+beside Harbor Labs and these people's organizations, with products and sources in them, which the
+local copy, the golden master and the dev deployment load as a pull.
 
 ## End-to-end tests
 

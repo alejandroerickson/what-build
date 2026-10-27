@@ -55,11 +55,13 @@ function inMainCheckout(path: string) {
 }
 
 /** Where pulls are kept: this checkout's, or, in a git worktree that has none, the main checkout's. */
-function pullsDir() {
+export function pullsDir() {
   if (process.env["WHATBUILD_FIXTURE_DIR"] || existsSync(FIXTURES)) return FIXTURES;
   return inMainCheckout(".what-build/fixtures") ?? FIXTURES;
 }
-const PG_PORT = Number(process.env["WHATBUILD_PG_PORT"] ?? 54329);
+export const PG_PORT = Number(process.env["WHATBUILD_PG_PORT"] ?? 54329);
+/** The embedded Postgres that `pnpm dev` runs, where pulls are shaped and loaded. */
+export const LOCAL_PG = resolve(root, ".what-build/pg");
 export const FIXTURE_DATABASE = "fixture";
 export const FIXTURE_BLOBS = resolve(root, ".what-build/fixture-blobs");
 
@@ -126,6 +128,22 @@ export type PullRecord = {
   owned_by_instance_owners?: true;
   /** Taken to move its organizations into another production deployment: no copy outside production loads it. */
   for_another_deployment?: true;
+  /** A dataset (`pnpm dataset`): the pull it was built from, with synthetic organizations beside the pulled ones. */
+  dataset?: DatasetRecord;
+};
+
+/** What a dataset adds to its pull's record. */
+export type DatasetRecord = {
+  built_at: string;
+  /** The pull it was built from. */
+  from: string;
+  commit: string;
+  /** The last migration it has: the code's that built it. */
+  migration: string;
+  /** How many synthetic people (`pnpm people`) it was built with. */
+  people: number;
+  /** The synthetic organizations, made through the operations: no production data. */
+  synthetic: { slug: string; name: string }[];
 };
 
 /** Whether a copy outside production may hold the pull: one that checked who owns each of its organizations. */
@@ -160,7 +178,8 @@ function deploymentInstanceOwners(project: string | undefined) {
   return owners;
 }
 
-export async function pull(args: string[]) {
+/** Take a pull, as `pnpm fixture pull` does, and return its name. */
+export async function pull(args: string[]): Promise<string> {
   const everything = args.includes("--all");
   const elsewhere = args.includes("--for-another-deployment");
   const slugs = args.filter((_, i) => args[i - 1] === "--org").flatMap((a) => a.split(",")).filter(Boolean);
@@ -208,6 +227,7 @@ export async function pull(args: string[]) {
   };
   writeFileSync(join(dir, "pulled.json"), JSON.stringify(record, null, 2) + "\n");
   console.log(elsewhere ? `Pulled ${name} to move into another deployment: restore it there, then delete ${show(dir)}.` : `Pulled ${name}. Load it with: pnpm fixture load`);
+  return name;
 }
 
 /**
@@ -219,7 +239,7 @@ export async function pull(args: string[]) {
 async function dumpOrganizations(url: string, choice: Parameters<typeof organizationsToPull>[1], file: string) {
   const source = new pg.Client({ connectionString: nodePgUrl(url) });
   await source.connect();
-  const local = await connectOrStartLocalPg(resolve(root, ".what-build/pg"), PG_PORT, { portVariable: "WHATBUILD_PG_PORT" });
+  const local = await connectOrStartLocalPg(LOCAL_PG, PG_PORT, { portVariable: "WHATBUILD_PG_PORT" });
   const scratch = `pull_${randomBytes(4).toString("hex")}`;
   const tmp = mkdtempSync(join(tmpdir(), "whatbuild-pull-"));
   try {
@@ -301,7 +321,9 @@ export function readPull(name: string): PullRecord {
 }
 
 export function describePull(r: PullRecord) {
-  return r.organizations === "all" || !r.organizations ? "every organization" : r.organizations.map((o) => o.slug).join(", ");
+  const pulled = r.organizations === "all" || !r.organizations ? "every organization" : r.organizations.map((o) => o.slug).join(", ");
+  const synthetic = r.dataset?.synthetic.length;
+  return synthetic ? `${pulled}, and ${synthetic} synthetic organization${synthetic === 1 ? "" : "s"} (a dataset)` : pulled;
 }
 
 function list() {
@@ -350,7 +372,7 @@ export async function restorePull(local: LocalPg, database: string, blobs: strin
   return { name, ...counts.rows[0]! };
 }
 
-const adminUrlOf = (local: LocalPg, database: string) => local.adminUrl.replace(/\/postgres$/, `/${database}`);
+export const adminUrlOf = (local: LocalPg, database: string) => local.adminUrl.replace(/\/postgres$/, `/${database}`);
 
 /** A new, empty `database`, owned by the application's role, in place of any there was. Refuses while it is in use. */
 async function createDatabase(local: LocalPg, database: string) {
@@ -370,7 +392,7 @@ async function createDatabase(local: LocalPg, database: string) {
   await ext.end();
 }
 
-async function dropDatabase(local: LocalPg, database: string) {
+export async function dropDatabase(local: LocalPg, database: string) {
   const admin = new pg.Client({ connectionString: local.adminUrl });
   await admin.connect();
   await admin.query(`drop database if exists ${database}`).finally(() => admin.end());
@@ -395,7 +417,7 @@ function restoreDump(local: LocalPg, database: string, dump: string) {
 }
 
 async function load(requested?: string) {
-  const local = await connectOrStartLocalPg(resolve(root, ".what-build/pg"), PG_PORT, { portVariable: "WHATBUILD_PG_PORT" });
+  const local = await connectOrStartLocalPg(LOCAL_PG, PG_PORT, { portVariable: "WHATBUILD_PG_PORT" });
   try {
     const s = await restorePull(local, FIXTURE_DATABASE, FIXTURE_BLOBS, requested).catch((e: unknown) => {
       throw e instanceof Error && e.message.includes("is in use") ? new Error("The copy is being served: stop pnpm dev:fixture, then load again.") : e;

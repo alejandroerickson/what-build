@@ -45,8 +45,11 @@ command. This file says how to conduct the work.
 3. **Follow the destination's procedure:**
    - this machine, to test on: the `test-on-a-copy-of-production` skill;
    - the end-to-end golden master: the `run-end-to-end-tests` skill;
-   - the dev deployment: the `rehearse-on-the-dev-deployment` skill, "Refreshing the copy", then
-     record the slugs as `NEON_DEV_COPY_ORGANIZATIONS` in `.env`;
+   - the dev deployment: the `rehearse-on-the-dev-deployment` skill, "Refreshing the copy", which
+     loads the non-production dataset (`pnpm dataset`), then record the slugs as
+     `NEON_DEV_COPY_ORGANIZATIONS` in `.env`;
+   - any copy outside production with synthetic organizations beside the pulled ones:
+     `pnpm dataset` (`okf/operations/the-non-production-dataset.md`), loaded as a pull;
    - another production deployment's new database: the guide's "Into another deployment", step by
      step, with `--for-another-deployment`.
 4. **Check** that `pnpm fixture list`, or the pull's `pulled.json`, names exactly the

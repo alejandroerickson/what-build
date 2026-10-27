@@ -27,8 +27,8 @@ service that production's build runs, on the instance owners' organizations as p
 |---|---|---|
 | Google Cloud project | its own | its own, with the same names inside ([Cloud Run](cloud-run.md#what-is-where)) |
 | Postgres | a Neon project, branch `production` | its own Neon project: branch `main`, whose parent `prod-copy` holds the copy as it was loaded |
-| Organizations | all of them | the ones `NEON_DEV_COPY_ORGANIZATIONS` names, each one an instance owner owns, copied from production; nothing of the others, and never a customer's ([decision](../decisions/copies-outside-production-hold-only-organizations-an-instance-owner-owns.md)) |
-| Files | its bucket | its own bucket, with the copied organizations' files |
+| Organizations | all of them | the ones `NEON_DEV_COPY_ORGANIZATIONS` names, each one an instance owner owns, copied from production, beside the [non-production dataset](the-non-production-dataset.md)'s synthetic ones; nothing of the others, and never a customer's ([decision](../decisions/copies-outside-production-hold-only-organizations-an-instance-owner-owns.md)) |
+| Files | its bucket | its own bucket, with the dataset's files |
 | Deploys | a trigger on release tags, after approval | by hand, any tag or commit of `main`; no trigger |
 | Sign-in | its own identity providers and clients | Google, with an OAuth client of its own in the same Google Auth Platform project as production's |
 | Instance owners, sign-up allowlist | its own | the same as production's |
@@ -183,26 +183,28 @@ reset: files a rehearsal wrote stay, unreferenced and harmless.
 
 ## Refreshing the copy
 
-Load a new copy of production's organizations into `prod-copy`, then put dev back. The service
-keeps running on `main` while the copy loads. The copy holds the organizations
-`NEON_DEV_COPY_ORGANIZATIONS` names and nothing of the others, and each is one an instance owner
-owns ([copying an organization](copying-an-organization.md#which-organizations-may-leave-production));
-to change which, say so to the maintainer, and record the new list in step 5.
+Load a new copy into `prod-copy`, then put dev back. The service keeps running on `main` while
+the copy loads. The copy is the [non-production dataset](the-non-production-dataset.md): the
+organizations `NEON_DEV_COPY_ORGANIZATIONS` names and nothing of the others, each one an instance
+owner owns ([copying an organization](copying-an-organization.md#which-organizations-may-leave-production)),
+beside synthetic organizations with many members, pending invitations, and products and sources;
+to change which organizations, say so to the maintainer, and record the new list in step 6.
 
-**1. The copy.** Pull the organizations from production into a directory only you can read, with
-their files sent straight into dev's bucket, which is left holding theirs alone. It reads
+**1. The copy.** Build the dataset from production into a directory only you can read. It reads
 production and changes nothing there, and refuses an organization no instance owner owns. Pass
-`--org` with `NEON_DEV_COPY_ORGANIZATIONS`, or nothing for production's example organization:
+`--org` with `NEON_DEV_COPY_ORGANIZATIONS`, or nothing for production's example organization.
+`--production-schema` keeps production's schema, so that a rehearsal runs the new release's
+migrations on it: when `main` has migrations production lacks, build from a checkout of the
+release production runs.
 
 ```bash
 umask 077; D=$(mktemp -d)
-WHATBUILD_FIXTURE_DIR=$D GCP_PROJECT=$PP GCP_REGION=$PR corepack pnpm fixture pull --org <slug>[,<slug>…] \
-  --files-into gs://$P-whatbuild-files
-F=$(ls -d $D/*/)                                 # the pull; its pulled.json names what it holds
+WHATBUILD_FIXTURE_DIR=$D GCP_PROJECT=$PP GCP_REGION=$PR corepack pnpm dataset --production-schema --org <slug>[,<slug>…]
+F=$(ls -d $D/*-dataset/)                         # the dataset; its pulled.json names what it holds
 ```
 
 **2. The database.** Replace the database `whatbuild` on `prod-copy` as the administrator, and
-restore the pull's dump into it as `whatbuild`, as [Backups](backups.md#restoring-a-dump) explains.
+restore the dataset's dump into it as `whatbuild`, as [Backups](backups.md#restoring-a-dump) explains.
 The connections are `prod-copy`'s, not `main`'s: `APP` is dev's database URL with `prod-copy`'s
 host.
 
@@ -219,24 +221,35 @@ pg_restore --no-owner --no-privileges --exit-on-error --single-transaction --use
   --dbname="$APP&sslrootcert=system" $F/database.dump
 ```
 
-**3. Check it** against the rows the pull recorded: make `to.txt` as
+**3. The files.** Make dev's bucket hold the dataset's files and nothing else. The `.meta.json`
+beside each file is the local file store's and stays behind: the database holds each file's type
+and hash.
+
+```bash
+gcloud storage rsync --recursive --delete-unmatched-destination-objects --exclude='.*\.meta\.json$' \
+  $F/files gs://$P-whatbuild-files
+```
+
+**4. Check it** against the rows the dataset recorded: make `to.txt` as
 [Backups](backups.md#checking-a-restore) does, with `TO="$APP&sslrootcert=system"`, and `from.txt`
-from the pull. Every table matches:
+from the dataset. Every table matches:
 
 ```bash
 python3 -c 'import json, sys; [print(t, n) for t, n in json.load(open(sys.argv[1]))["rows"].items()]' \
   $F/pulled.json | LC_ALL=C sort > from.txt
 ```
 
-Then keep `pulled_at` and the slugs from `$F/pulled.json` for step 5, and `rm -r $D`.
+Then keep `pulled_at` and the slugs of `organizations` from `$F/pulled.json` for step 6, and
+`rm -r $D`.
 
-**4. Put dev back** ([above](#putting-it-back)), so that `main` is the new copy, and deploy the
+**5. Put dev back** ([above](#putting-it-back)), so that `main` is the new copy, and deploy the
 release production runs.
 
-**5. Record** in `.env` the copy's time (`pulled_at`) as `NEON_DEV_COPY_TAKEN`, and the slugs it
-holds as `NEON_DEV_COPY_ORGANIZATIONS`.
+**6. Record** in `.env` when production was read (`pulled_at`) as `NEON_DEV_COPY_TAKEN`, and the
+slugs of the organizations pulled, not the synthetic ones, as `NEON_DEV_COPY_ORGANIZATIONS`.
 
-The copy's accounts sign in with Google, the one way dev offers. Browser sessions and agents'
+The copy's accounts sign in with Google, the one way dev offers; the synthetic people, at
+`example.com` and `.example` addresses, sign in nowhere and are there for their shape. Browser sessions and agents'
 tokens from production do not work on dev: sessions belong to production's domain, and access
 tokens to production's address.
 
@@ -345,7 +358,7 @@ production ([decision](../decisions/copies-outside-production-hold-only-organiza
 - Dev is not where the [restore drill](backups.md#the-restore-drill) goes: it restores every
   organization, and stays in production's own accounts.
 - A copy goes from production to dev through a directory only you can read, deleted once loaded,
-  never through a pull kept in `.what-build/fixtures`. Nothing from the copy goes into the
+  never through a pull or a dataset kept in `.what-build/fixtures`. Nothing from the copy goes into the
   repository, a commit, an issue or a pull request.
 - Production is only read: through the backup role and its bucket, never the application's
   database secret.

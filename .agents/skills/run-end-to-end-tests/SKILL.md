@@ -35,7 +35,10 @@ what the plan expects, and report. The system, with every command, is described 
    (`ls .what-build/fixtures`, or the main checkout's in a worktree). With no pull to build
    it from, take one with `pnpm fixture pull`, without asking, following the
    `test-on-a-copy-of-production` skill; it takes the example organization, which is all the golden
-   master keeps. Stop the instance (`pnpm e2e stop`) before building. A pull taken before pulls
+   master keeps. When the person asks for the synthetic organizations too (many members, a
+   waitlist, many products and sources), build it from the non-production dataset instead
+   (`pnpm dataset`, then `pnpm e2e golden <dataset>`; `okf/operations/the-non-production-dataset.md`).
+   Stop the instance (`pnpm e2e stop`) before building. A pull taken before pulls
    checked who owns each organization is refused: delete it and pull again. If `pnpm dev:e2e` says
    the golden master was built from such a pull, build it again before the run.
 3. **Serve.** Run `pnpm dev:e2e > .what-build/e2e/server.log 2>&1` in the background with a long
