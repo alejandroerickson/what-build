@@ -169,12 +169,16 @@ The plans:
 
 `pnpm e2e browser help` lists the commands. The first command starts a headless Chrome (the
 installed Google Chrome, or `$CHROME`); `pnpm e2e browser start --headed` shows it instead.
-`signin` and `signout` clear the browser's storage, so nothing the app remembers per browser
-carries from one person to the next. `snapshot` prints the page's accessibility tree, the same names `click <role> <name>`,
+`signin` and `signout` leave the app before they clear the browser's cookies and storage, so the
+previous person's page sends nothing refused, and nothing the app remembers per browser carries
+from one person to the next. `snapshot` prints the page's accessibility tree, the same names `click <role> <name>`,
 `fill <label> <value>` and the rest use. `signin <riley|sam|jordan|morgan|casey|avery|email>` uses the development
 sign-in. Every command prints the page's address and, on lines starting with `!`, anything that
 went wrong in the page since the last command: console errors, uncaught exceptions, failed
-requests and 5xx responses. `wait <text>` and `wait-url <part>` wait for the app after a redirect
+requests, 5xx responses, and a 4xx for a script, style, image or font. A 4xx the app's own
+requests or a page the server writes were answered with (a 403, 404, 409 or 410 the app shows as a
+message) is a line starting with `·`: noted, so a step can see the refusal it expects, and not a
+problem. `wait <text>` and `wait-url <part>` wait for the app after a redirect
 or a load. `screenshot` saves into the current run; the app scrolls its own panes, so `--full`
 adds only what the document itself scrolls. `stop` closes it; its log is
 `.what-build/e2e/browser.log`.
@@ -191,7 +195,10 @@ driver is for any agent that has a shell.
 the level on the consent page, and exchanges the code with PKCE,
 the same requests a person's MCP client and browser make, so the OAuth server is tested on every
 run. Tokens are kept in `.what-build/e2e/mcp/` and made again when they expire or a reset forgets
-them. `tools` prints the tool descriptions an agent sees; `call` prints a tool's result, or its
+them, but not once the person's account is gone: a call with a token the server refuses (401)
+for an address that has no account any more, because it was removed or deleted, stops there with a
+non-zero exit and makes no account, so a removed person's agent never seems to work. `connect`
+signs the address in anyway, which makes a new account. `tools` prints the tool descriptions an agent sees; `call` prints a tool's result, or its
 error result with a non-zero exit (the `error result:` line goes to standard error, so the JSON
 can still be piped).
 

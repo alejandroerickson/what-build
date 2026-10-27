@@ -52,7 +52,8 @@ as `leaver-<the run's time>@example.com`.
    shows the confirmation mailed to the address: what was deleted, what stays, and whom to contact
    if it wasn't them; nothing about backups.
 8. **MCP, as the leaver, on the connection from step 4.** Call `products_read(action="list")`.
-   *Expect:* refused as signed out; the connection is gone.
+   *Expect:* refused as signed out; the connection is gone. The client stops at the 401, saying the
+   address has no account here any more, and makes none.
 9. **Web, as Riley.** The standard organization's Members, then a search for the leaver's phrase,
    then People. *Expect:* the leaver holds no role, and Access changes records that they left the
    organization by deleting their account, under their name. The source they added is found and

@@ -157,13 +157,18 @@ export async function createSession(db: Db, accountId: string, days: number, use
   return token;
 }
 
-export async function findOrCreateAccount(db: Db, email: string, displayName?: string): Promise<{ account: AccountRow; created: boolean }> {
-  const existing = await db
+/** The account an address signs in to, if it has one that is not deleted. */
+export function accountByEmail(db: Db, email: string): Promise<AccountRow | undefined> {
+  return db
     .selectFrom("accounts")
     .select(["account_id", "email", "display_name"])
     .where(sql<boolean>`lower(email) = lower(${email})`)
     .where("deleted_at", "is", null)
     .executeTakeFirst();
+}
+
+export async function findOrCreateAccount(db: Db, email: string, displayName?: string): Promise<{ account: AccountRow; created: boolean }> {
+  const existing = await accountByEmail(db, email);
   if (existing) {
     await db.updateTable("accounts").set({ email_verified_at: new Date().toISOString() }).where("account_id", "=", existing.account_id).where("email_verified_at", "is", null).execute();
     return { account: existing, created: false };

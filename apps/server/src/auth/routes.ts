@@ -6,7 +6,7 @@ import { sql } from "kysely";
 import { z } from "zod";
 import { microsoftSignIn, type ServerConfig } from "../config.ts";
 import { connectorReach } from "./connector-reach.ts";
-import { acceptInvitation, acceptInvitationsForEmail, clearSessionCookies, createSession, endEverything, findOrCreateAccount, isOwnOrigin, restPrincipal, sessionTokens, setSessionCookie } from "./identity.ts";
+import { acceptInvitation, acceptInvitationsForEmail, accountByEmail, clearSessionCookies, createSession, endEverything, findOrCreateAccount, isOwnOrigin, restPrincipal, sessionTokens, setSessionCookie } from "./identity.ts";
 import { returnsTo } from "./oauth.ts";
 import { authPage, authPageHeaders } from "./page.ts";
 
@@ -175,16 +175,24 @@ export function authRoutes(deps: { db: Db; config: ServerConfig; mailer: Mailer 
     return c.redirect(safeNext(row.redirect), 303);
   });
 
-  /** Development only: sign in as any email without a link. Compiled into the server, refused unless enabled. */
+  /**
+   * Development only: sign in as any email without a link. Compiled into the server, refused unless
+   * enabled. With `create: false` an address with no account is refused (404 no_account) and none is
+   * made, so a test tool signing someone in again can tell an account that was removed.
+   */
   app.post("/auth/dev-sign-in", async (c) => {
     if (!config.devAuth) throw notFound("Not available.");
-    const body = z.strictObject({ email: z.string().trim().email(), display_name: z.string().max(100).optional(), next: z.string().optional() }).safeParse(await c.req.json().catch(() => ({})));
+    const body = z
+      .strictObject({ email: z.string().trim().email(), display_name: z.string().max(100).optional(), next: z.string().optional(), create: z.boolean().default(true) })
+      .safeParse(await c.req.json().catch(() => ({})));
     if (!body.success) throw invalid("invalid_input", "Enter a valid email.");
+    if (!body.data.create && !(await accountByEmail(db, body.data.email)))
+      throw new AppError(404, "no_account", `${body.data.email} has no account here, and none was made.`);
     // Development lets any address in.
-    const { account } = await findOrCreateAccount(db, body.data.email, body.data.display_name);
+    const { account, created } = await findOrCreateAccount(db, body.data.email, body.data.display_name);
     await acceptInvitationsForEmail(db, account);
     await startSession(c, account.account_id);
-    return c.json({ signed_in: true, account, next: safeNext(body.data.next) });
+    return c.json({ signed_in: true, account, created, next: safeNext(body.data.next) });
   });
 
   /**

@@ -10,7 +10,7 @@ import { E2E_DIR, e2eBaseUrl, record } from "./e2e.ts";
  * The connection is a real one: the client registers itself, the person signs in and allows it on
  * the consent page, and the code is exchanged with PKCE, as any MCP client does; only the clicks
  * are made here. Each person's token is kept in .what-build/e2e/mcp/ and made again when a reset
- * forgets it.
+ * forgets it, but not once the person's account is gone: that call stops at the server's 401.
  */
 const TOKENS = join(E2E_DIR, "mcp");
 const PEOPLE: Record<string, string> = {
@@ -39,7 +39,9 @@ const HELP = `pnpm e2e mcp <command> [--as <person>|<email>] [--endpoint /mcp/t/
                                call guide '{"topic":"tools"}'   reads a topic of the guide
                                call search '{"query":"gate code","product":"harbor-labs/product-team/crewboard"}'
 
-A call connects first when it needs to. The endpoint defaults to /mcp (everything the person can reach).`;
+A call connects first when it needs to. The endpoint defaults to /mcp (everything the person can reach).
+A saved token the server refuses is made again (a reset forgets every token), unless the person's
+account is gone (removed): then the call stops at the 401 and makes no account. connect makes one.`;
 
 type Level = "viewer" | "editor" | "admin";
 type Saved = { email: string; endpoint: string; level: Level; client_id: string; access_token: string; expires_at: number };
@@ -63,17 +65,26 @@ const cookiesOf = (res: Response) =>
     .join("; ");
 const decode = (s: string) => s.replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&amp;/g, "&");
 
-/** Register, sign in, allow on the consent page at a level, and exchange the code: the whole OAuth connection. */
-async function connect(email: string, endpoint: string, level: Level): Promise<Saved> {
+/** Signing in again found no account for the address: it was removed, or the instance never had it. */
+class NoAccount extends Error {}
+
+/**
+ * Sign in, register, allow on the consent page at a level, and exchange the code: the whole OAuth
+ * connection. `again` is a connection made once more for someone who had a token: their account
+ * must still be there, since signing in an address with none would make a new account.
+ */
+async function connect(email: string, endpoint: string, level: Level, again = false): Promise<Saved> {
   const base = e2eBaseUrl();
   const fail = async (step: string, res: Response) => new Error(`MCP connection failed at ${step}: ${res.status} ${(await res.text()).slice(0, 300)}`);
+  const signin = await fetch(`${base}/auth/dev-sign-in`, { method: "POST", headers: { "content-type": "application/json", origin: base }, body: JSON.stringify({ email, ...(again ? { create: false } : {}) }) });
+  if (again && signin.status === 404 && ((await signin.clone().json().catch(() => null)) as { error?: { code?: string } } | null)?.error?.code === "no_account")
+    throw new NoAccount(email);
+  if (!signin.ok) throw await fail("the development sign-in", signin);
+  const session = cookiesOf(signin);
+
   const reg = await fetch(`${base}/oauth/register`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ client_name: "WhatBuild end-to-end agent", redirect_uris: [REDIRECT] }) });
   if (!reg.ok) throw await fail("registration", reg);
   const { client_id } = (await reg.json()) as { client_id: string };
-
-  const signin = await fetch(`${base}/auth/dev-sign-in`, { method: "POST", headers: { "content-type": "application/json", origin: base }, body: JSON.stringify({ email }) });
-  if (!signin.ok) throw await fail("the development sign-in", signin);
-  const session = cookiesOf(signin);
 
   const { verifier, challenge } = pkce();
   const resource = `${base}${endpoint}`;
@@ -100,24 +111,38 @@ async function connect(email: string, endpoint: string, level: Level): Promise<S
 
 const tokenFile = (email: string, endpoint: string, level: Level) => join(TOKENS, `${email}${endpoint.replace(/\//g, "_")}.${level}.json`);
 
-async function session(email: string, endpoint: string, level: Level, fresh = false) {
+async function session(email: string, endpoint: string, level: Level, refused = false) {
   const file = tokenFile(email, endpoint, level);
-  let saved = !fresh && existsSync(file) ? (JSON.parse(readFileSync(file, "utf8")) as Saved) : null;
-  if (!saved || saved.expires_at < Date.now()) saved = await connect(email, endpoint, level);
+  const had = existsSync(file);
+  let saved = !refused && had ? (JSON.parse(readFileSync(file, "utf8")) as Saved) : null;
+  if (!saved || saved.expires_at < Date.now()) saved = await connect(email, endpoint, level, had);
   const client = new Client({ name: "whatbuild-e2e", version: "1.0.0" });
   const transport = new StreamableHTTPClientTransport(new URL(`${e2eBaseUrl()}${endpoint}`), { requestInit: { headers: { Authorization: `Bearer ${saved.access_token}` } } });
   await client.connect(transport);
   return client;
 }
 
-/** A session, connecting again once if the token was forgotten (a reset to the golden master forgets every token). */
-async function withClient<T>(email: string, endpoint: string, level: Level, fn: (c: Client) => Promise<T>): Promise<T> {
+/**
+ * A session, connecting again once if the token was forgotten (a reset to the golden master forgets
+ * every token). A token refused because its account was removed is not connected again: that would
+ * make a new account with the address, and a removed person's agent would seem to work.
+ */
+async function withClient<T>(email: string, endpoint: string, level: Level, command: unknown[], fn: (c: Client) => Promise<T>): Promise<T> {
   let client: Client;
   try {
-    client = await session(email, endpoint, level);
+    try {
+      client = await session(email, endpoint, level);
+    } catch (e) {
+      if (!/401|Unauthorized|invalid_token/i.test(String(e))) throw e;
+      client = await session(email, endpoint, level, true);
+    }
   } catch (e) {
-    if (!/401|Unauthorized|invalid_token/i.test(String(e))) throw e;
-    client = await session(email, endpoint, level, true);
+    if (!(e instanceof NoAccount)) throw e;
+    const said =
+      `The server refused the saved token for ${email} (401), and ${email} has no account here any more: it was removed, or this instance never had it. ` +
+      `Nothing was called, and no account was made. pnpm e2e mcp connect --as ${email} signs the address in again, which makes a new account.`;
+    record({ surface: "mcp", as: email, endpoint, command, ok: false, result: said });
+    throw new Error(said);
   }
   try {
     return await fn(client);
@@ -141,11 +166,11 @@ export async function mcpCommand(args: string[]) {
     return console.log(`Connected as ${s.email} to ${e2eBaseUrl()}${s.endpoint}, at ${s.level}.`);
   }
   if (cmd === "info")
-    return withClient(email, endpoint, level, async (c) => {
+    return withClient(email, endpoint, level, ["info"], async (c) => {
       console.log(JSON.stringify({ server: c.getServerVersion(), instructions: c.getInstructions() }, null, 2));
     });
   if (cmd === "tools")
-    return withClient(email, endpoint, level, async (c) => {
+    return withClient(email, endpoint, level, ["tools"], async (c) => {
       for (const t of (await c.listTools()).tools) {
         // The title and hints a client shows the person and asks by: read-only, destructive, open world.
         const a = t.annotations ?? {};
@@ -163,7 +188,7 @@ export async function mcpCommand(args: string[]) {
     } catch {
       throw new Error(`The arguments are not JSON: ${raw}`);
     }
-    return withClient(email, endpoint, level, async (c) => {
+    return withClient(email, endpoint, level, ["call", tool, input], async (c) => {
       const res = (await c.callTool({ name: tool, arguments: input })) as { isError?: boolean; content: { type: string; text?: string }[] };
       const text = res.content.map((b) => (b.type === "text" ? b.text : `[${b.type}]`)).join("\n");
       const pretty = (() => {
