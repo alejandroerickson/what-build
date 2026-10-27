@@ -3,7 +3,7 @@ type: System Concept
 title: Agent-driven end-to-end tests on a golden master
 description: An agent follows a written test plan through the real web app and the real MCP server, on a local instance reset each time to a golden master made from production's example organization, and reports failures and anomalies.
 tags: [development, testing, qa, e2e, agents, mcp, browser]
-generated: {by: agent:claude, at: 2026-10-26}
+generated: {by: agent:claude, at: 2026-10-27}
 status: draft
 ---
 
@@ -25,7 +25,7 @@ with Google Chrome installed. Building the golden master needs a pull of product
 
 | Piece | What it is |
 |---|---|
-| The golden master | The database `golden` in the instance's own embedded Postgres (`.what-build/e2e/pg`, port `54339`) and its files (`.what-build/e2e/golden-blobs`). It is built once and stays as it is until it is built again. `.what-build/e2e/golden.json` says which pull it was built from, when, at which commit and schema, the three organizations' slugs and every product's path. |
+| The golden master | The database `golden` in the instance's own embedded Postgres (`.what-build/e2e/pg`, port `54339`) and its files (`.what-build/e2e/golden-blobs`). It is built once and stays as it is until it is built again. `.what-build/e2e/golden.json` says which pull it was built from, when, at which commit and schema, the three organizations' slugs, every product's path, and that the pull checked an instance owner owns what it took (`owned_by_instance_owners`). |
 | The instance | `pnpm dev:e2e`: the database `e2e`, made fresh from the golden master each time it starts, with its own files (`.what-build/e2e/blobs`), on `http://localhost:5283` (API `:8797`). It runs beside `pnpm dev`. Mail only prints. |
 | Plans | `e2e/plans/*.md`, Markdown steps in the product's vocabulary, each saying who acts, through which door, and what to expect. `e2e/plans/README.md` is the format. |
 | The browser driver | `pnpm e2e browser <command>`: a real Chrome kept open by a small daemon between commands, addressed by role, accessible name and label. The daemon listens on 127.0.0.1 and takes a command only with the token it writes to `.what-build/e2e/browser.json`, which only its owner can read, so a web page cannot drive it. |
@@ -40,11 +40,14 @@ All of it is under `.what-build/`, which git ignores.
 corepack pnpm e2e golden                  # from the newest pull
 corepack pnpm e2e golden 2026-10-10T1621Z # from a named pull
 corepack pnpm e2e golden --org <slug>     # keep another organization than the example
+corepack pnpm e2e golden <dataset>        # from the non-production dataset, its synthetic organizations kept
 ```
 
 It is made from a pull of production ([a copy of production](a-copy-of-production.md)): a pull of
-the example organization, `pnpm fixture pull`'s default, is all it needs (a pull taken before the
-example replaced the public sandbox gives the sandbox). It is restored as the
+the example organization, `pnpm fixture pull`'s default, is all it needs. It refuses a pull taken
+before pulls checked who owns each organization, and one taken to move into another deployment
+([copying an organization](copying-an-organization.md#which-organizations-may-leave-production)),
+so `--org` picks only an organization an instance owner owns. It is restored as the
 application's role, and shaped into three organizations
 ([decision](../decisions/end-to-end-tests-are-plans-an-agent-runs-on-a-golden-master.md)):
 
@@ -71,9 +74,19 @@ organization: Riley owns each, Sam edits every team, Jordan reads every Story. T
 organization is left as it was built. Its people are guests of the example, as any account that
 belongs to no part of it.
 
-The golden master is a copy of production, with every rule of that guide: it stays in
-`.what-build/`, and plans, reports that leave the machine, commits and issues never name or quote
-it.
+Built from [the non-production dataset](the-non-production-dataset.md) (`pnpm dataset`), the
+golden master keeps the dataset's synthetic organizations too, Harbor Labs among them, with their
+members, pending invitations, waitlist and allowances, and its products and sources; it makes
+Harbor Labs itself only when the dataset did not bring it. `golden.json` names every synthetic
+organization in `synthetic_organizations`, and the development sign-in's people get no role in
+any of them.
+
+The golden master is a copy of production outside production, with every rule of that guide: it
+holds only organizations an instance owner owns, beside the synthetic one
+([decision](../decisions/copies-outside-production-hold-only-organizations-an-instance-owner-owns.md)), it stays in `.what-build/`, and plans, reports that leave the machine, commits
+and issues never name or quote it. `pnpm dev:e2e` says so when it serves one built before pulls
+checked owners, `pnpm e2e export` refuses it, and `pnpm attention` names it: build it again from a
+new pull.
 
 The golden master is built in the instance's cluster in UTF-8, as every local cluster is
 ([local development](local-development.md#the-local-postgres)). **A golden master built before

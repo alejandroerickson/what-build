@@ -3,7 +3,7 @@ import { createHash, randomBytes } from "node:crypto";
 import type { AddressInfo } from "node:net";
 import { serve, type ServerType } from "@hono/node-server";
 import pg from "pg";
-import { definedPlans, forgetSettings, json, usageSettled, type GuestSettings, type Limits, type UrlFetcher } from "@whatbuild/core";
+import { definedPlans, forgetSettings, json, usageSettled, type GuestSettings, type Limits, type Ports, type UrlFetcher } from "@whatbuild/core";
 import { inject } from "vitest";
 import { MemoryBlobStore } from "../src/adapters/blobs.ts";
 import { MemoryMailer } from "../src/adapters/misc.ts";
@@ -19,6 +19,8 @@ export interface Harness {
   baseUrl: string;
   db: ReturnType<typeof createDb>["db"];
   worker: Worker;
+  /** The server's ports, for code that runs operations beside it, as a build tool does. */
+  ports: Ports;
   mailer: MemoryMailer;
   blobs: MemoryBlobStore;
   config: ServerConfig;
@@ -141,6 +143,7 @@ export async function startHarness(overrides: Partial<ServerConfig> | ((baseUrl:
     baseUrl,
     db,
     worker: worker!,
+    ports,
     mailer,
     blobs,
     config,

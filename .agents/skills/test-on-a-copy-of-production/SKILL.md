@@ -1,6 +1,6 @@
 ---
 name: test-on-a-copy-of-production
-description: Pull a private copy of the production deployment's example organization, or of the organizations named, with their files, load it into the local app, and serve it with pending migrations applied. Use it for manual QA, agent-driven end-to-end tests, working on the app locally with real data, or trying a release's migrations on real data before production. Use it when asked to pull the example organization, to run or work on the app locally with its data or other real data, to test or QA against production data, real data, a production copy, dump or fixture, to put the example organization or another organization into the local or test database, to try a migration on the deployment's data, or to serve that copy locally.
+description: Pull a private copy of the production deployment's example organization, or of other organizations its instance owners own, with their files, load it into the local app, and serve it with pending migrations applied. Use it for manual QA, agent-driven end-to-end tests, working on the app locally with real data, or trying a release's migrations on real data before production. Use it when asked to pull the example organization, to run or work on the app locally with its data or other real data, to test or QA against production data, real data, a production copy, dump or fixture, to put the example organization or another organization into the local or test database, to try a migration on the deployment's data, or to serve that copy locally.
 ---
 
 # Test on a copy of production
@@ -11,11 +11,12 @@ Read it before the first command. This file says how to conduct the work.
 
 ## What must stay true
 
-- **Only the organizations needed.** `pnpm fixture pull` takes the example organization and nothing of
-  the others (`okf/operations/copying-an-organization.md`). Name others with `--org` only when the
-  person names them. Pulling the example organization is routine and needs no go-ahead. Pull `--all` only
-  for a migration that needs every organization's content, with the person's go-ahead, and delete
-  that pull once it has served.
+- **Only the organizations needed, and only an instance owner's.** `pnpm fixture pull` takes the
+  example organization and nothing of the others (`okf/operations/copying-an-organization.md`).
+  Name others with `--org` only when the person names them. Pulling the example organization is
+  routine and needs no go-ahead. A customer's organization never comes to this machine: the pull
+  refuses an organization any of whose owners is not an instance owner, and that refusal is never
+  worked around (`okf/decisions/copies-outside-production-hold-only-organizations-an-instance-owner-owns.md`). `--all` takes every organization the instance owners own: use it only when the person asks.
 - **Nothing from the copy is published.** It is real people's data, and stays in `.what-build/`,
   on this machine. Never commit
   it, upload it, or paste or quote it into the repository, a commit message, an issue or a pull
@@ -35,7 +36,11 @@ Read it before the first command. This file says how to conduct the work.
 
 1. **Choose the copy.** Pull a fresh one with `pnpm fixture pull` (the example organization), or
    `pnpm fixture pull --org <slug>[,<slug>…]` for the organizations the person names, unless they
-   name an existing pull. `pnpm fixture list` lists the pulls and what each holds.
+   name an existing pull. When the test needs more than the example's shape (many members,
+   pending invitations, a waitlist, many products and sources), build the non-production dataset
+   instead: `pnpm dataset`, or `pnpm dataset --from <pull>` from a pull already taken
+   (`okf/operations/the-non-production-dataset.md`). It loads as a pull does. `pnpm fixture list` lists the pulls and what each holds; one it marks
+   "from before pulls checked owners" is not loaded: delete it and pull again.
 2. **Load it.** Stop any running `pnpm dev` or `pnpm dev:fixture`, then run `pnpm fixture load`.
    It prints the organizations, products and accounts in the copy, and the last migration it has.
 3. **Serve it.** Run `pnpm dev:fixture` in the background with a long time limit, and wait for the

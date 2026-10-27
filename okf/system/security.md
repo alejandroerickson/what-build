@@ -3,7 +3,7 @@ type: System Concept
 title: WhatBuild keeps each organization's material to its own people, and treats agent-written HTML, uploads and source text as hostile
 description: The threat model: what is protected, who the attackers are, the trust boundaries, and each control with where it lives in code and the decision that governs it.
 tags: [security, threat-model, tenancy, identity, oauth, example, limits, uploads]
-generated: {by: agent:claude, at: 2026-10-26}
+generated: {by: agent:claude, at: 2026-10-27}
 status: draft
 ---
 
@@ -427,7 +427,7 @@ since Google keeps Cloud Run's own request spans, whole addresses and all, in an
 trace storage ([decision](../decisions/alerts-watch-the-platform-and-traces-go-to-a-project-of-their-own.md)).
 An unexpected error answers `500` without detail (`app.ts`). Emails show a sender's chosen name on one line, quoted and bounded
 (`quotedName`). The web app's files are served only from inside their folder (`insideRoot`).
-`pnpm fixture pull` gives `pg_dump` the password in `PGPASSWORD`, and reads only the rows of the organizations it copies ([copying an organization](../operations/copying-an-organization.md)). The image is built from an allow-list (`.dockerignore`) and runs as `node` with
+`pnpm fixture pull` gives `pg_dump` the password in `PGPASSWORD`, reads only the rows of the organizations it copies, and, for a copy outside production, refuses an organization no instance owner owns, so a customer's organization never leaves production ([copying an organization](../operations/copying-an-organization.md#which-organizations-may-leave-production)). The image is built from an allow-list (`.dockerignore`) and runs as `node` with
 `NODE_ENV=production`; a server started without it is production all the same. CI gives pull requests a read-only token; production moves only on an
 approved release ([decision](../decisions/production-runs-releases-after-approval.md)). The Worker
 (`deploy/cloudflare/worker.js`) sets `X-Forwarded-Host`, which `site.ts` uses only to pick a page.

@@ -24,19 +24,24 @@ async function tablesWith(c: pg.Client, column: string) {
 }
 
 /**
- * Remove every organization but one, the accounts that belong to none of what is left, and what
- * only a running deployment needs: sessions, tokens, sign-in links, the public site's interest
- * list. Foreign keys are checked once at the end rather than ordered table by table.
+ * Remove every organization but those kept, the accounts that belonged only to the ones removed, and
+ * what only a running deployment needs: sessions, tokens, sign-in links. A dataset's synthetic
+ * people who are in no organization, its waitlist and its allowances stay: a pull carries none of a
+ * deployment's own rows, so all of them are synthetic. Foreign keys are checked once at the end
+ * rather than ordered table by table.
  */
-export async function keepOnlyTenant(c: pg.Client, tenantId: string) {
+export async function keepOnlyTenants(c: pg.Client, tenantIds: string[]) {
   await c.query("begin");
   try {
     await c.query("set local session_replication_role = replica");
-    for (const t of await tablesWith(c, "tenant_id")) await c.query(`delete from ${t} where tenant_id is distinct from $1`, [tenantId]);
-    await c.query("delete from tenants where tenant_id <> $1", [tenantId]);
-    for (const t of ["sessions", "oauth_codes", "oauth_tokens", "oauth_clients", "email_tokens", "interest"]) await c.query(`delete from ${t}`);
-    await c.query("delete from accounts a where not exists (select 1 from memberships m where m.account_id = a.account_id)");
-    await c.query("delete from tenant_allowances t where not exists (select 1 from accounts a where lower(a.email) = lower(t.email))");
+    await c.query(
+      `delete from accounts a where exists (select 1 from memberships m where m.account_id = a.account_id and m.tenant_id <> all($1))
+         and not exists (select 1 from memberships m where m.account_id = a.account_id and m.tenant_id = any($1))`,
+      [tenantIds],
+    );
+    for (const t of await tablesWith(c, "tenant_id")) await c.query(`delete from ${t} where tenant_id is null or tenant_id <> all($1)`, [tenantIds]);
+    await c.query("delete from tenants where tenant_id <> all($1)", [tenantIds]);
+    for (const t of ["sessions", "oauth_codes", "oauth_tokens", "oauth_clients", "email_tokens"]) await c.query(`delete from ${t}`);
     await c.query("commit");
   } catch (e) {
     await c.query("rollback");

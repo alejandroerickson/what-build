@@ -113,6 +113,11 @@ export function providersText(v: string | undefined): string | null {
   return v?.replace(/\s+/g, " ").trim().slice(0, 1200) || null;
 }
 
+/** WHATBUILD_INSTANCE_OWNERS: addresses separated by commas or semicolons, in lower case; a domain is not an address. A copy of the deployment reads it the same way. */
+export function instanceOwnersFrom(v: string | undefined): string[] {
+  return listOf(v).filter((s) => s.includes("@") && !s.startsWith("@"));
+}
+
 const MiB = 1024 * 1024;
 
 /** Microsoft sign-in is on only when the directory, the client ID and the secret are all set. */
@@ -234,7 +239,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
     webDist: env["WHATBUILD_WEB_DIST"] ?? null,
     runWorker: env["WHATBUILD_WORKER"] !== "0",
     signupAllowlist: env["WHATBUILD_SIGNUP_ALLOWLIST"] ? listOf(env["WHATBUILD_SIGNUP_ALLOWLIST"]) : null,
-    instanceOwners: listOf(env["WHATBUILD_INSTANCE_OWNERS"]).filter((s) => s.includes("@") && !s.startsWith("@")),
+    instanceOwners: instanceOwnersFrom(env["WHATBUILD_INSTANCE_OWNERS"]),
     defaultTenantAllowance: Math.max(0, Math.floor(num(env["WHATBUILD_TENANT_ALLOWANCE"], 0))),
     plans,
     newOrganizationPlan: startingPlanFrom(env["WHATBUILD_NEW_ORGANIZATION_PLAN"], plans),

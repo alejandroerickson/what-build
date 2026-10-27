@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 // What in this repository is waiting for someone, for an agent to tell the person at the start of
 // a session (AGENTS.md): dependency updates and alerts, a red run on main, an accepted vulnerability
-// whose time is up, unreleased changes production lacks, git hooks that are off, a pull of every
-// organization left on this machine, and a dev copy holding every organization from before copies
-// could be limited.
+// whose time is up, unreleased changes production lacks, git hooks that are off, and copies outside
+// production that may hold an organization no instance owner owns: pulls, golden masters and their
+// exports from before pulls checked owners, and a dev copy taken before then.
 // Each line names the skill that handles it. Prints nothing when nothing is waiting.
 //
 //   pnpm attention
@@ -77,24 +77,47 @@ function accepted() {
   }
 }
 
-// Local: copies of production holding every organization, where one of a few would do
-// (okf/operations/copying-an-organization.md). Pulls and .env live in the main checkout.
+// The day pulls began to check who owns each organization: a copy taken before it may hold one no
+// instance owner owns (okf/decisions/copies-outside-production-hold-only-organizations-an-instance-owner-owns.md).
+const OWNERS_CHECKED_SINCE = "2026-10-27T00:00:00Z";
+
+const readJson = (path) => {
+  try {
+    return JSON.parse(readFileSync(path, "utf8"));
+  } catch {
+    return null;
+  }
+};
+const plural = (names, one, many) => (names.length === 1 ? one : many);
+
+// Local: copies outside production that may hold an organization no instance owner owns
+// (okf/operations/copying-an-organization.md). Pulls and .env live in the main checkout; each
+// checkout has its own golden master.
 async function copies() {
   const common = await out("git", ["rev-parse", "--path-format=absolute", "--git-common-dir"]).catch(() => "");
   const top = common ? dirname(common) : ".";
   const pulls = resolve(process.env.WHATBUILD_FIXTURE_DIR ?? join(top, ".what-build/fixtures"));
-  const whole = (existsSync(pulls) ? readdirSync(pulls) : []).filter((d) => {
-    try {
-      const r = JSON.parse(readFileSync(join(pulls, d, "pulled.json"), "utf8"));
-      return !Array.isArray(r.organizations);
-    } catch {
-      return false;
-    }
+  const unchecked = (existsSync(pulls) ? readdirSync(pulls) : []).filter((d) => {
+    const r = readJson(join(pulls, d, "pulled.json"));
+    return r && !(r.owned_by_instance_owners === true && !r.for_another_deployment && Array.isArray(r.organizations));
   });
-  if (whole.length)
+  if (unchecked.length)
     say(
-      `${whole.length === 1 ? "a pull" : `${whole.length} pulls`} of production in .what-build/fixtures (${whole.join(", ")}) ${whole.length === 1 ? "holds" : "hold"} every organization: delete ${whole.length === 1 ? "it" : "them"} once done (\`rm -r .what-build/fixtures/<name>\`); a pull of the organizations you test on is enough`,
+      `${plural(unchecked, "a pull", `${unchecked.length} pulls`)} in .what-build/fixtures (${unchecked.join(", ")}) may hold an organization no instance owner owns: taken before pulls checked owners, or to move into another deployment. No copy outside production loads ${plural(unchecked, "it", "them")}: delete ${plural(unchecked, "it", "them")} (\`rm -r .what-build/fixtures/<name>\`) and pull again`,
       "test-on-a-copy-of-production",
+    );
+  const golden = [...new Set([resolve(".what-build/e2e"), join(top, ".what-build/e2e")])].flatMap((dir) => [
+    join(dir, "golden.json"),
+    ...(existsSync(join(dir, "export")) ? readdirSync(join(dir, "export")).map((d) => join(dir, "export", d, "golden.json")) : []),
+  ]);
+  const old = golden.filter((f) => {
+    const r = readJson(f);
+    return r && r.owned_by_instance_owners !== true;
+  });
+  if (old.length)
+    say(
+      `${plural(old, "a golden master or export", `${old.length} golden masters or exports`)} (${old.map((f) => dirname(f).replace(`${top}/`, "")).join(", ")}) ${plural(old, "was", "were")} built before pulls checked who owns each organization: build the golden master again (\`pnpm fixture pull\`, \`pnpm e2e golden\`), delete old exports, and load a new one on the Docker host`,
+      "run-end-to-end-tests",
     );
   let env = "";
   try {
@@ -102,9 +125,16 @@ async function copies() {
   } catch {
     return;
   }
-  const has = (key) => new RegExp(`^${key}=\\S`, "m").test(env);
-  if (has("NEON_DEV_PROJECT") && !has("NEON_DEV_COPY_ORGANIZATIONS"))
-    say("the dev deployment's copy of production holds every organization, from before copies could be limited: refresh it with only the organizations it should hold", "rehearse-on-the-dev-deployment");
+  const value = (key) => new RegExp(`^${key}=["']?([^"'\n]*)`, "m").exec(env)?.[1]?.trim() ?? "";
+  if (value("NEON_DEV_PROJECT")) {
+    const named = value("NEON_DEV_COPY_ORGANIZATIONS");
+    const taken = Date.parse(value("NEON_DEV_COPY_TAKEN"));
+    if (!named || named === "all" || !(taken >= Date.parse(OWNERS_CHECKED_SINCE)))
+      say(
+        "the dev deployment's copy of production was taken before pulls checked who owns each organization, or holds every organization, so it may hold one no instance owner owns: refresh it with only the instance owners' organizations",
+        "rehearse-on-the-dev-deployment",
+      );
+  }
 }
 
 async function github() {

@@ -4,7 +4,7 @@ import { sql } from "kysely";
 import pg from "pg";
 import { afterAll, beforeAll, describe, expect, it, inject } from "vitest";
 import { createDb, migrate } from "../src/database.ts";
-import { chooseOrganizations, copyOrganizations, DEPLOYMENT_TABLES } from "../src/organization-copy.ts";
+import { chooseOrganizations, copyOrganizations, DEPLOYMENT_TABLES, organizationsToPull, ownedByInstanceOwners } from "../src/organization-copy.ts";
 import { syncExampleTenant } from "../src/example-organization.ts";
 import { startHarness, type Harness } from "./harness.ts";
 import { buildOrganization, type Organization } from "./organization-fixture.ts";
@@ -15,6 +15,8 @@ let target: pg.Client;
 let kept: Organization;
 let left: Organization;
 let loner: string;
+/** An organization a customer owns alone. */
+let theirs: { slug: string; id: string };
 
 const adminUrlOf = (database: string) => {
   const url = new URL(inject("adminUrl"));
@@ -41,6 +43,12 @@ beforeAll(async () => {
   expect((await owner.api("POST", `/api/v1/tenants/${left.tenant.slug}/members`, { email: "ideas@sample.example", role: "editor", team: left.team.slug })).status).toBe(201);
   await h.connectAgent(other);
   loner = (await other.api("GET", "/api/v1/me")).body.account_id;
+  // The organization left behind is owned by a customer too, beside the instance owner.
+  expect((await owner.api("POST", `/api/v1/tenants/${left.tenant.slug}/members`, { email: "ideas@sample.example", role: "owner" })).status).toBe(201);
+  const customer = await h.signIn("customer@sample.example", "Sample Customer");
+  const made = await customer.api("POST", "/api/v1/tenants", { name: "Customer Work" });
+  expect(made.status).toBe(201);
+  theirs = { slug: made.body.tenant.slug, id: made.body.tenant.tenant_id };
   await usageSettled();
 
   // The deployment, read as its backup role reads it: past row-level security.
@@ -130,5 +138,48 @@ describe("copying an organization out of a deployment", () => {
     const max = (await target.query<{ n: string }>("select max(job_id)::text as n from jobs")).rows[0]!.n;
     const next = (await target.query<{ job_id: string }>("insert into jobs (tenant_id, kind, payload) values ($1, 'noop', '{}') returning job_id::text", [kept.tenant.id])).rows[0]!.job_id;
     expect(BigInt(next)).toBeGreaterThan(BigInt(max));
+  });
+});
+
+describe("a copy outside production", () => {
+  // owner@sample.example runs the deployment; the customer and the person who co-owns the organization left behind do not.
+  const instanceOwners = ["owner@sample.example"];
+
+  it("is an organization's only when every one of its owners is an instance owner", () => {
+    expect(ownedByInstanceOwners(["owner@sample.example"], instanceOwners)).toBe(true);
+    expect(ownedByInstanceOwners(["Owner@Sample.example"], instanceOwners)).toBe(true);
+    expect(ownedByInstanceOwners(["owner@sample.example", "customer@sample.example"], instanceOwners)).toBe(false);
+    expect(ownedByInstanceOwners([], instanceOwners)).toBe(false);
+  });
+
+  it("takes the example organization, which an instance owner owns", async () => {
+    expect((await organizationsToPull(source, { slugs: [], instanceOwners })).organizations.map((o) => o.slug)).toEqual([kept.tenant.slug]);
+    expect((await organizationsToPull(source, { slugs: [kept.tenant.slug], instanceOwners })).organizations.map((o) => o.slug)).toEqual([kept.tenant.slug]);
+  });
+
+  it("refuses an organization a customer owns, alone or beside an instance owner, says why, and names none of its people", async () => {
+    const alone = organizationsToPull(source, { slugs: [theirs.slug], instanceOwners });
+    await expect(alone).rejects.toThrow(/holds only organizations an instance owner owns/);
+    await expect(alone).rejects.toThrow(new RegExp(`${theirs.slug}: 1 of its 1 owner is not an instance owner`));
+    await expect(alone).rejects.toThrow(/Customers' organizations never leave production/);
+    await expect(alone).rejects.not.toThrow(/customer@sample\.example/);
+    const shared = organizationsToPull(source, { slugs: [kept.tenant.slug, left.tenant.slug], instanceOwners });
+    await expect(shared).rejects.toThrow(new RegExp(`This one is not:\\n  ${left.tenant.slug}: 1 of its 2 owners is not an instance owner`));
+    await expect(shared).rejects.not.toThrow(/ideas@sample\.example/);
+    // An organization of instance owners only is refused too while the deployment names others as its instance owners.
+    await expect(organizationsToPull(source, { slugs: [], instanceOwners: ["someone-else@sample.example"] })).rejects.toThrow(new RegExp(`${kept.tenant.slug}: 1 of its 1 owner is not an instance owner`));
+  });
+
+  it("takes with --all every organization the instance owners own, and only counts the others", async () => {
+    const all = await organizationsToPull(source, { slugs: [], all: true, instanceOwners });
+    expect(all.organizations.map((o) => o.slug)).toEqual([kept.tenant.slug]);
+    const tenants = (await source.query<{ n: number }>("select count(*)::int as n from tenants")).rows[0]!.n;
+    expect(all.others).toBe(tenants - 1);
+    await expect(organizationsToPull(source, { slugs: [], all: true, instanceOwners: ["nobody@sample.example"] })).rejects.toThrow(/own no organization/);
+  });
+
+  it("takes the organizations named, whoever owns them, only to move them into another production deployment", async () => {
+    expect((await organizationsToPull(source, { slugs: [theirs.slug, left.tenant.slug], instanceOwners: null })).organizations.map((o) => o.slug).sort()).toEqual([theirs.slug, left.tenant.slug].sort());
+    await expect(organizationsToPull(source, { slugs: [], all: true, instanceOwners: null })).rejects.toThrow(/names its organizations/);
   });
 });

@@ -1,9 +1,9 @@
 ---
 type: System Concept
 title: A copy of production on your machine, for manual QA, agent-driven end-to-end tests and trying migrations on real data
-description: Pulling the example organization or other organizations of the deployment, with their files, loading them into the embedded Postgres, serving them with pending migrations applied, and keeping the copy private.
+description: Pulling the example organization or other organizations the deployment's instance owners own, with their files, loading them into the embedded Postgres, serving them with pending migrations applied, and keeping the copy private.
 tags: [development, testing, qa, production, fixture, migrations]
-generated: {by: agent:claude, at: 2026-10-25}
+generated: {by: agent:claude, at: 2026-10-27}
 status: stable
 ---
 
@@ -14,8 +14,10 @@ production deployment has real volume and history: products agents built up over
 pages, revisions, attachments read more than once, and rows in the shape older releases left them. Use it
 for manual QA, for agent-driven end-to-end tests, and to watch a release's migrations run on real
 data before production does ([decision](../decisions/qa-uses-a-private-copy-of-production.md)).
-A copy holds the example organization, or the organizations named, and nothing of the others
-([copying an organization](copying-an-organization.md)). The skill `test-on-a-copy-of-production`
+A copy holds the example organization, or other organizations an instance owner owns, and nothing
+of the others: a customer's organization never leaves production
+([decision](../decisions/copies-outside-production-hold-only-organizations-an-instance-owner-owns.md),
+[copying an organization](copying-an-organization.md)). The skill `test-on-a-copy-of-production`
 conducts it.
 
 ## What may be done with it
@@ -23,45 +25,55 @@ conducts it.
 A copy is real people's data. Holding what a test needs on this machine is expected; publishing
 any of it never is.
 
-- **Pulling the example organization, or the organizations a test needs, to this machine is
-  routine.** It needs nobody's go-ahead: it is how WhatBuild is tested, and the skills do it
-  without asking.
-- **A pull of every organization (`--all`) needs the person's go-ahead**, and is deleted once it
-  has served. `pnpm attention` names one left behind.
+- **Pulling the example organization, or the instance owners' organizations a test needs, to this
+  machine is routine.** It needs nobody's go-ahead: it is how WhatBuild is tested, and the skills
+  do it without asking.
+- **Only organizations an instance owner owns**: every owner of each is among the deployment's
+  instance owners. The pull checks, and refuses any other, naming it and saying how many of its
+  owners are not instance owners. A customer's organization is never pulled for a test, whoever
+  names it.
 - A copy lives in `.what-build/fixtures/` (each pull) and in the embedded Postgres in
   `.what-build/pg` (the loaded copy), which git ignores, on the maintainer's machine. It is never
-  committed, uploaded, attached or copied anywhere else. The one other copy is the
-  [dev deployment](dev-deployment.md)'s, taken from production directly, never from a pull.
+  committed, uploaded, attached or copied anywhere else. The other copies outside production, the
+  [golden master](end-to-end-tests.md), its [Docker host](end-to-end-on-a-docker-host.md) and the
+  [dev deployment](dev-deployment.md), hold no more than this one may.
 - Nothing from it is quoted in the repository, a commit message, an issue or a pull request: no
   names, addresses, organizations, titles or text. Tests, the seed and screenshots stay synthetic.
 - Served, it sends no mail (mail prints to the terminal) and reads and writes only its local copy
   of the files, never the deployment's bucket.
-- Delete a pull you no longer need with `rm -r .what-build/fixtures/<name>`. `pnpm attention`
-  reports each pull of every organization until it is gone.
+- Delete a pull you no longer need with `rm -r .what-build/fixtures/<name>`. A pull taken before
+  pulls checked who owns each organization is never loaded, and `pnpm attention` reports it until
+  it is gone.
 
 ## What you need
 
 - For the Cloud Run deployment: `gcloud` signed in with access to its project, and `GCP_PROJECT`
-  in `.env` or the environment. A git worktree without a `.env` of its own reads the main
-  checkout's.
+  and `GCP_REGION` in `.env` or the environment. A git worktree without a `.env` of its own reads
+  the main checkout's.
 - `pg_dump` and `pg_restore` of the production server's major version or newer.
 
 ## Pull
 
 ```sh
 corepack pnpm fixture pull                     # the example organization
-corepack pnpm fixture pull --org <slug> …      # the organizations named
-corepack pnpm fixture pull --all               # every organization
+corepack pnpm fixture pull --org <slug> …      # the organizations named, each one an instance owner owns
+corepack pnpm fixture pull --all               # every organization the instance owners own
 corepack pnpm fixture list                     # the pulls, and what each holds
 ```
 
-It reads the organizations' rows through the read-only backup role (the secret
-`whatbuild-backup-database-url`; [Cloud Run](cloud-run.md), under backups), which reads every
-organization's rows and can change nothing, and copies their folders of the files bucket,
+It reads who the instance owners are from the service (`WHATBUILD_INSTANCE_OWNERS`), checks that
+an instance owner owns each organization it is to take, then reads their rows through the
+read-only backup role (the secret `whatbuild-backup-database-url`; [Cloud Run](cloud-run.md),
+under backups), which reads every organization's rows and can change nothing, and copies their
+folders of the files bucket,
 `gs://<project>-whatbuild-files`, with the type and hash the local file store keeps for each file.
 The files matter: they are the sources' attachments and the text read from each, so without them
 a source keeps its derived text, but no attachment opens and none can be read again. Pulling reads production and changes nothing there. What a copy holds and leaves behind,
 and every option, are in [copying an organization](copying-an-organization.md).
+
+`pnpm dataset` builds [the non-production dataset](the-non-production-dataset.md) from a pull: the
+same organizations beside synthetic ones of a size and shape chosen for testing, loaded as a pull
+is.
 
 Each pull is a new folder named for its UTC time, such as `.what-build/fixtures/2026-10-10T0411Z/`,
 holding `database.dump`, `files/` and `pulled.json`, which names the organizations. `pulled.json`
@@ -70,9 +82,10 @@ is written last, so a pull that stopped part-way is never loaded. A git worktree
 every checkout shares them and `pnpm attention` sees each one.
 
 For another deployment, set `WHATBUILD_FIXTURE_DATABASE_URL` to a role that reads everything and
-bypasses row-level security, as the backup role does. Set `WHATBUILD_FIXTURE_BUCKET` to its
-`gs://` bucket, or leave it out for a copy without files. `WHATBUILD_FIXTURE_DIR` keeps pulls
-somewhere else, for example so that several checkouts share them.
+bypasses row-level security, as the backup role does, and `WHATBUILD_FIXTURE_INSTANCE_OWNERS` to
+its `WHATBUILD_INSTANCE_OWNERS`. Set `WHATBUILD_FIXTURE_BUCKET` to its `gs://` bucket, or leave it
+out for a copy without files. `WHATBUILD_FIXTURE_DIR` keeps pulls somewhere else, for example so
+that several checkouts share them.
 
 ## Load
 
@@ -82,7 +95,9 @@ corepack pnpm fixture load 2026-10-10T0411Z   # a named one
 ```
 
 It replaces the database `fixture` in the embedded Postgres with the dump, and says which
-organizations it holds. That is the server
+organizations it holds. It refuses a pull from before pulls checked who owns each organization,
+and one taken to move into another deployment
+([copying an organization](copying-an-organization.md#into-another-deployment)). That is the server
 `pnpm dev` runs, and the load starts it if it is not running. The dump is restored as the
 application's role, the way [Cloud Run](cloud-run.md) restores a backup. The load also replaces
 `.what-build/fixture-blobs` with a working copy of the files. The synthetic database, `whatbuild`,
@@ -130,8 +145,10 @@ does not have, so they run on the synthetic data. The agent-driven
 ## Before a release that migrates
 
 1. Pull a fresh copy and load it. The example organization's content shows most migrations; for
-   one that rewrites content it lacks, name more organizations, or pull `--all` and delete that
-   pull afterwards.
+   one that rewrites content it lacks, name more of the instance owners' organizations, or pull
+   `--all`; for shapes none of them has, load [the non-production dataset](the-non-production-dataset.md),
+   whose synthetic organizations have many members, products and sources, or synthetic content
+   made like the shape.
 2. Serve it with the release's code.
 3. Check three things:
    - every migration applies;

@@ -3,7 +3,7 @@ type: System Concept
 title: A deployment's backups are its database's restore history, a restore point before each deploy, a nightly dump and a versioned files bucket; this guide says where each is, how to check it and how to restore one.
 description: For the operator and the agent working for them; what is kept, where and for how long on Cloud Run and Azure, setting up the nightly dump, checking that backups run, restoring a dump into an empty database, checking a restore, and the restore drill.
 tags: [operations, backups, restore, postgres, neon, cloud-run, azure, runbook]
-generated: {by: agent:claude, at: 2026-10-26}
+generated: {by: agent:claude, at: 2026-10-27}
 status: stable
 ---
 
@@ -13,8 +13,8 @@ This is the backup runbook ([§9.3](../spec/09-data-lifecycle.md), [§9.6](../sp
 what a deployment keeps, how to check that it is kept, and how to put a dump into a database. To
 go back after a release broke a deployment, follow
 [recovering from a bad release](recovering-from-a-bad-release.md), which uses the restores here.
-To put production's data into the [dev deployment](dev-deployment.md), copy it as that guide
-says; the restore in the middle is the one here.
+To put the instance owners' organizations into the [dev deployment](dev-deployment.md), copy
+them as that guide says; the restore in the middle is the one here.
 
 ## What is kept
 
@@ -71,7 +71,7 @@ gcloud scheduler jobs create http whatbuild-backup-nightly --project $P --locati
 ```
 
 The same role is the one that may read a deployment for a copy: [a copy of production](a-copy-of-production.md)
-and the [dev deployment](dev-deployment.md) dump through it.
+and the [dev deployment](dev-deployment.md) dump the instance owners' organizations through it.
 
 ## Checking the backups
 
@@ -183,18 +183,104 @@ with the dump's source just after taking it, or expect small differences in `act
 ## The restore drill
 
 A restore is **performed and written up before public sign-up opens, and quarterly after**
-([§9.3](../spec/09-data-lifecycle.md)). It has not been performed yet. The scratch environment is
-the [dev deployment](dev-deployment.md):
+([§9.3](../spec/09-data-lifecycle.md)). It has not been performed yet. The drill restores
+production's whole nightly dump and its whole files bucket, every organization's, so it never
+leaves production's own accounts: no copy outside production holds an organization an instance
+owner does not own ([decision](../decisions/copies-outside-production-hold-only-organizations-an-instance-owner-owns.md)),
+and the [dev deployment](dev-deployment.md) is such a copy. Its scratch target is a database and a
+bucket made for it in production's own Neon project and Google Cloud project, read by no one but
+the operator, checked, timed and deleted. The skill `perform-the-restore-drill` conducts it.
 
-1. Note the time, then restore last night's dump (step 1 above, the nightly one) into the dev
-   deployment's database, and copy production's files bucket into its own (step 4).
-2. Check it as above, against production's backup role, expecting the writes since the dump.
-3. Note the elapsed time. Record the date and the elapsed time in [§9.3](../spec/09-data-lifecycle.md)
-   in place of "It has not been performed yet", and in the Phase 6 row of the
-   [roadmap](../spec/10-roadmap.md).
-4. Put the dev deployment back to its own copy if it was in use
-   ([the dev deployment](dev-deployment.md#putting-it-back)).
+The commands use production's values: `P=$GCP_PROJECT`, `R=$GCP_REGION` and `N=$NEON_PROJECT`.
+Name them in every command, never `gcloud`'s current project. On Postgres other than Neon, the
+scratch database is an empty database on a scratch server in production's own project, made as
+step 2 of [Restoring a dump](#restoring-a-dump) makes one, and deleted with it; on Cloud SQL, which
+keeps its own backups and no nightly dump, the newest backup is restored into a new instance in
+production's project, checked the same way, and the instance deleted.
+
+**What the drill costs.** On a free plan the drill spends the same month's allowances production
+lives on, so it spends as little of them as it can:
+
+- **Storage.** The restored copy is a second copy of the database in the same Neon project, until
+  the branch is deleted. Check first that the database's size (`select
+  pg_size_pretty(pg_database_size('whatbuild'))`) fits twice within the plan's storage, with room.
+- **Compute.** The branch's compute runs while the dump is restored and checked, and counts against
+  the project's compute for the month. Step 1 creates it at the smallest size (`--cu 0.25`), and the
+  branch expires on its own six hours later should step 5 never run; run the steps back to back,
+  and delete the branch as soon as the check is done. Run the drill early in a
+  month, when most of the month's compute is left, never near its end.
+- **Transfer.** The dump is downloaded once, and the check reads counts and file keys, never
+  content. The bucket is copied within the same region, which Google Cloud does not charge as
+  transfer; the scratch bucket's storage is charged for the hours it exists.
+
+**1. The scratch target.** Note the time. Branch production's database in its own Neon project and
+make an empty database, `drill`, beside the branch's copy of `whatbuild`, which the drill never
+touches; make an empty bucket in production's project. A branch counts against the project's
+branches (ten on a free plan) until it is deleted.
+
+```bash
+T0=$(date -u +%s); S=restore-drill-$(date -u +%Y%m%dt%H%M)
+EXPIRES=$(python3 -c 'import datetime as d; print((d.datetime.now(d.timezone.utc) + d.timedelta(hours=6)).strftime("%Y-%m-%dT%H:%M:%SZ"))')
+neon branches create --project-id $N --name $S --parent production --cu 0.25 --expires-at $EXPIRES
+ADMIN=$(neon connection-string $S --project-id $N --role-name neondb_owner --database-name neondb)
+psql "$ADMIN" -v ON_ERROR_STOP=1 -c 'GRANT whatbuild TO neondb_owner WITH SET TRUE, INHERIT TRUE' \
+  -c 'CREATE DATABASE drill OWNER whatbuild' -c 'REVOKE whatbuild FROM neondb_owner'
+gcloud storage buckets create gs://$P-$S --project $P --location $R \
+  --uniform-bucket-level-access --public-access-prevention
+```
+
+The branch has production's roles. `APP` is the application's role and `READ` the backup role, each
+on the branch's host and the database `drill`:
+
+```bash
+HOST=$(python3 -c 'import sys, urllib.parse as u; print(u.urlsplit(sys.argv[1]).hostname.replace("-pooler", ""))' "$ADMIN")
+on_drill() { gcloud secrets versions access latest --secret "$1" --project $P |
+  python3 -c 'import sys, urllib.parse as u; p = u.urlsplit(sys.stdin.read().strip()); print(p._replace(netloc=p.netloc.rpartition("@")[0] + "@" + sys.argv[1], path="/drill").geturl())' "$HOST"; }
+APP="$(on_drill whatbuild-database-url)&sslrootcert=system"; READ=$(on_drill whatbuild-backup-database-url)
+```
+
+**2. Restore last night's dump** into `drill` as `whatbuild`, as steps 1 and 3 of
+[Restoring a dump](#restoring-a-dump) do, and copy production's files bucket into the scratch one:
+
+```bash
+umask 077; D=$(mktemp -d)
+gcloud storage cp "$(gcloud storage ls gs://$P-backups/ | LC_ALL=C sort | tail -1)" $D/database.dump
+pg_restore -l $D/database.dump | grep -vE 'COMMENT - EXTENSION|STATISTICS DATA' > $D/restore.list
+pg_restore --no-owner --no-privileges --exit-on-error --single-transaction --use-list=$D/restore.list \
+  --dbname="$APP" $D/database.dump
+gcloud storage rsync --recursive --no-user-output-enabled gs://$P-whatbuild-files gs://$P-$S
+```
+
+**3. Check it.** The rows, as [Checking a restore](#checking-a-restore) compares them, with `FROM`
+production's backup role (`gcloud secrets versions access latest --secret
+whatbuild-backup-database-url --project $P`) and `TO="$APP"`, expecting the writes since the dump
+in `activity`, `sessions` and the usage counts. Then the files: every file the restored database
+names is in the scratch bucket.
+
+```bash
+K="select string_agg(format('select %I from %I where %I is not null', column_name, table_name, column_name), ' union ')
+   from information_schema.columns where table_schema = 'public' and column_name like '%blob%' and data_type = 'text'"
+psql "$READ" -Atc "$(psql "$READ" -Atc "$K")" | LC_ALL=C sort -u > $D/named.txt
+gcloud storage ls --recursive "gs://$P-$S/**" | sed "s|^gs://$P-$S/||" | LC_ALL=C sort -u > $D/stored.txt
+LC_ALL=C comm -23 $D/named.txt $D/stored.txt | wc -l    # 0: no file the database names is missing
+```
+
+No service serves the scratch target, so nobody signs in to it: the rows and the files are the
+check.
+
+**4. Note the elapsed time**, `echo $(( ($(date -u +%s) - T0) / 60 )) minutes`. Record the date and
+the elapsed time in [§9.3](../spec/09-data-lifecycle.md) in place of "It has not been performed
+yet", and in the Phase 6 row of the [roadmap](../spec/10-roadmap.md).
+
+**5. Delete the scratch target and the dump.** Do it even when the drill stopped part-way: both
+hold every organization's data.
+
+```bash
+neon branches delete $S --project-id $N
+gcloud storage rm --recursive gs://$P-$S          # its files, then the bucket
+rm -r $D
+```
 
 The nightly manifest of the bucket's keys and sizes, against which a restore is to be checked, is
 planned ([§9.3](../spec/09-data-lifecycle.md)). Until it exists, the check is the table comparison
-and the sources opening with their text and their attachments.
+and every key the restored database names being in the scratch bucket.

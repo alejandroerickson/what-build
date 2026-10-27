@@ -3,7 +3,7 @@ type: Process
 title: Keeping private material out of the repository and finding known vulnerabilities
 description: The checks that keep secrets and private material out of what is published and find known vulnerabilities, where each runs, what to do about a finding, how to audit everything GitHub holds, and how to make the repository public.
 tags: [operations, security, public, privacy, dependencies, ci, agents]
-generated: {by: agent:claude, at: 2026-10-25}
+generated: {by: agent:claude, at: 2026-10-27}
 status: stable
 ---
 
@@ -38,7 +38,7 @@ What the app itself defends against, and where, is in the [threat model](../syst
 | Tenant isolation and row-level security | `pnpm test`: every operation from another organization, and every table's policy ([§3.6](../spec/03-accounts-teams-and-identity.md)) | a red CI |
 | CodeQL | `codeql.yml` on pull requests, pushes and weekly, once the repository is public | alerts in the Security tab |
 | Dependabot | alerts and a security update as an advisory appears; grouped version updates weekly, for releases at least seven days old | pull requests |
-| `pnpm attention` | at the start of every agent session (`AGENTS.md`): Dependabot's pull requests, its alerts but those accepted in `.github/osv-scanner.toml`, code and secret scanning alerts, the last run of each workflow on `main`, accepted vulnerabilities within 30 days of expiry with their reasons, unreleased changes to security-sensitive code, hooks that are off, pulls of every organization and a dev copy that names none ([copying an organization](copying-an-organization.md)) | tells the person |
+| `pnpm attention` | at the start of every agent session (`AGENTS.md`): Dependabot's pull requests, its alerts but those accepted in `.github/osv-scanner.toml`, code and secret scanning alerts, the last run of each workflow on `main`, accepted vulnerabilities within 30 days of expiry with their reasons, unreleased changes to security-sensitive code, hooks that are off, and pulls, golden masters, exports and a dev copy that may hold an organization no instance owner owns ([copying an organization](copying-an-organization.md#which-organizations-may-leave-production)) | tells the person |
 
 `pnpm install` installs the hooks: its `prepare` script points `core.hooksPath` at
 `scripts/githooks/`. It sets that for the worktree it runs in (git's `extensions.worktreeConfig`),

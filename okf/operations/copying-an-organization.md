@@ -1,9 +1,9 @@
 ---
 type: System Concept
 title: Copying an organization out of a deployment, into a local copy, the golden master, the dev deployment or another deployment's new database
-description: What a copy of one or more organizations holds and leaves behind, taking one with pnpm fixture pull, where each kind of copy goes, moving an organization into another deployment, and what a copy cannot do.
+description: What a copy of one or more organizations holds and leaves behind, which organizations a copy outside production may hold (only those an instance owner owns), taking one with pnpm fixture pull, where each kind of copy goes, moving an organization into another deployment, and what a copy cannot do.
 tags: [operations, production, privacy, tenancy, fixture, dev, migrations]
-generated: {by: agent:claude, at: 2026-10-25}
+generated: {by: agent:claude, at: 2026-10-27}
 status: draft
 ---
 
@@ -12,10 +12,33 @@ status: draft
 A deployment's organizations share one database
 ([decision](../decisions/shared-schema-tenancy-with-row-level-security.md)). A copy takes one or
 more of them out of it and nothing of the rest: the example organization, unless other
-organizations are named ([decision](../decisions/a-copy-of-production-holds-only-the-organizations-it-is-for.md)).
-Every copy of production is one: the [local copy](a-copy-of-production.md), the
-[golden master](end-to-end-tests.md) built from it, and the [dev deployment](dev-deployment.md)'s.
-The skill `copy-an-organization` conducts moving one into another deployment.
+organizations are named. Every copy of production is one: the [local copy](a-copy-of-production.md),
+the [golden master](end-to-end-tests.md) built from it and the
+[Docker host](end-to-end-on-a-docker-host.md) that serves it, the [dev deployment](dev-deployment.md)'s,
+and a move [into another deployment](#into-another-deployment). The skill `copy-an-organization`
+conducts moving one into another deployment.
+
+## Which organizations may leave production
+
+Every copy but a move into another production deployment is **outside production**, and holds
+only organizations an instance owner owns, beside synthetic ones: customers' organizations never
+leave production ([decision](../decisions/copies-outside-production-hold-only-organizations-an-instance-owner-owns.md)).
+An instance owner owns an organization when it has owners and every one of them is among the
+deployment's instance owners (`WHATBUILD_INSTANCE_OWNERS`); one a customer owns, alone or beside
+an instance owner, is the customer's. The example organization is one an instance owner owns.
+
+The pull checks this before it reads any organization's rows, and refuses an organization that
+fails, naming it and saying how many of its owners are not instance owners. It records the check
+in `pulled.json` (`"owned_by_instance_owners": true`). `pnpm fixture load`, `pnpm e2e golden`,
+`pnpm e2e export` and the Docker host's `load` refuse a copy without it: a pull or golden master
+from before pulls checked owners, or a pull taken to move into another deployment.
+`pnpm attention` names each such pull, golden master and export on this machine until it is
+deleted or made again.
+
+Not copies outside production: a [move into another deployment](#into-another-deployment) of
+its own, a [restore into production](recovering-from-a-bad-release.md) after a bad release, a
+deployment's own backups, and the [restore drill](backups.md#the-restore-drill), which stays in
+production's own accounts.
 
 ## What a copy holds
 
@@ -39,15 +62,17 @@ The copy refuses a table it has no rule for. A table either carries `tenant_id` 
 
 ```sh
 corepack pnpm fixture pull                            # the example organization
-corepack pnpm fixture pull --org <slug> --org <slug>  # the organizations named
-corepack pnpm fixture pull --all                      # everything, as pg_dump takes it
+corepack pnpm fixture pull --org <slug> --org <slug>  # the organizations named, each one an instance owner owns
+corepack pnpm fixture pull --all                      # every organization the instance owners own
 corepack pnpm fixture list                            # the pulls, and what each holds
 ```
 
-With `GCP_PROJECT` in `.env` (from a git worktree without one, the main checkout's) or the
-environment, a pull reads the Cloud Run deployment through its backup role and its files bucket. For
-another deployment, set `WHATBUILD_FIXTURE_DATABASE_URL` and `WHATBUILD_FIXTURE_BUCKET` ([a copy of
-production](a-copy-of-production.md#pull)). A pull is a folder in `.what-build/fixtures/` (the main
+With `GCP_PROJECT` and `GCP_REGION` in `.env` (from a git worktree without one, the main
+checkout's) or the environment, a pull reads the Cloud Run deployment through its backup role and
+its files bucket, and its instance owners from its service. For another deployment, set
+`WHATBUILD_FIXTURE_DATABASE_URL`, `WHATBUILD_FIXTURE_BUCKET` and
+`WHATBUILD_FIXTURE_INSTANCE_OWNERS` ([a copy of production](a-copy-of-production.md#pull)).
+`--all` prints how many organizations it left behind, and names none of them. A pull is a folder in `.what-build/fixtures/` (the main
 checkout's, from a git worktree without its own) named for its UTC time (`WHATBUILD_FIXTURE_DIR`
 puts it elsewhere), holding `database.dump`, `files/` and `pulled.json`, which names the
 organizations.
@@ -56,10 +81,11 @@ organizations.
 |---|---|
 | `--no-files` | the database only |
 | `--files-into gs://<bucket>` | the files go into that bucket instead of the folder, and it is left holding them and no other organization's: anything under another `t/<tenant_id>/` there is deleted. It refuses the deployment's own bucket. |
+| `--for-another-deployment` | with `--org`, and only with it: the organizations named, whoever owns them, to move them [into another deployment](#into-another-deployment). It needs `WHATBUILD_FIXTURE_DIR`, a directory only you can read, and no copy outside production loads the pull. |
 
 A pull reads the deployment and changes nothing there. It needs `pg_dump` and `pg_restore` of the
 deployment's major version or newer, and the embedded Postgres, which it starts if `pnpm dev` is
-not running. `pnpm attention` reports every pull of everything until it is deleted.
+not running.
 
 ## Where it goes
 
@@ -67,22 +93,25 @@ not running. `pnpm attention` reports every pull of everything until it is delet
 |---|---|
 | this machine, to test on | `pnpm fixture load`, then `pnpm dev:fixture` ([a copy of production](a-copy-of-production.md)) |
 | the end-to-end golden master | `pnpm e2e golden` ([end-to-end tests](end-to-end-tests.md)) |
-| the dev deployment | [refreshing the copy](dev-deployment.md#refreshing-the-copy), with the organizations `NEON_DEV_COPY_ORGANIZATIONS` names |
+| the dev deployment | [refreshing the copy](dev-deployment.md#refreshing-the-copy), with the organizations `NEON_DEV_COPY_ORGANIZATIONS` names, in a dataset |
+| any of these, with synthetic organizations beside it | `pnpm dataset` builds [the non-production dataset](the-non-production-dataset.md) from a pull, which each of them loads as it loads a pull |
 | another deployment's new database | [below](#into-another-deployment) |
 
 ## Into another deployment
 
-For example, to give an organization a deployment of its own. The target is set up as
-[Cloud Run](cloud-run.md) or [Azure](azure.md) describes, and its database is new or may be
-replaced. A copy cannot join a database that already holds organizations.
+For example, to give an organization a deployment of its own. The target is a production
+deployment of its own, set up as [Cloud Run](cloud-run.md) or [Azure](azure.md) describes, and its
+database is new or may be replaced. A copy cannot join a database that already holds organizations.
+This is the one copy that may take a customer's organization; never send it to a copy outside
+production.
 
 1. **Take the copy** into a directory only you can read. For a target on Cloud Storage, send the
    files straight to its bucket:
 
    ```bash
    umask 077; D=$(mktemp -d)
-   WHATBUILD_FIXTURE_DIR=$D corepack pnpm fixture pull --org <slug> --files-into gs://<target bucket>
-   WHATBUILD_FIXTURE_DIR=$D corepack pnpm fixture pull --org <slug>     # a target on a file share
+   WHATBUILD_FIXTURE_DIR=$D corepack pnpm fixture pull --org <slug> --for-another-deployment --files-into gs://<target bucket>
+   WHATBUILD_FIXTURE_DIR=$D corepack pnpm fixture pull --org <slug> --for-another-deployment     # a target on a file share
    ```
 
 2. **Restore it** into an empty database owned by the application's role, as
@@ -105,5 +134,6 @@ Production is never a target. It is only read.
 ## Where a copy may go
 
 Every copy follows the rules of [a copy of production](a-copy-of-production.md#what-may-be-done-with-it).
-It stays on the machine or goes to the deployment it is for. It never goes into the repository, a
-commit, an issue or a pull request. Once it is loaded elsewhere, it is deleted.
+It stays on the machine or goes to the deployment it is for, and one outside production holds only
+what [may leave production](#which-organizations-may-leave-production). It never goes into the
+repository, a commit, an issue or a pull request. Once it is loaded elsewhere, it is deleted.
