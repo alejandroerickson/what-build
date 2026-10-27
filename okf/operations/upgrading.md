@@ -23,7 +23,9 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
 
 ## Unreleased
 
-Nothing yet.
+- **v0.25.0 published no image.** Its build left out `deploy/plans.example.json`, which the image
+  carries as `/app/plans.example.json`, and failed. Take this release instead, doing what v0.25.0's
+  lines below ask. No migration beyond v0.25.0's.
 
 ## v0.25.0
 

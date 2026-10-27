@@ -5,6 +5,7 @@
 !pnpm-workspace.yaml
 !tsconfig.base.json
 !scripts/gen-guide.mjs
+!deploy/plans.example.json
 !packages/
 !apps/
 **/node_modules
