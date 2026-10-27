@@ -51,6 +51,15 @@ design system: tokens, type, components and the rules for using them — is docu
   midnight UTC), which are UTC days here as in a refusal
   ([decision](../decisions/times-are-utc-in-data-and-local-where-shown.md)).
 - Works on narrow screens. Meets WCAG 2.2 AA. Fully keyboard-operable.
+- **A title kept to one line is cut after a whole word, in reading order.** Wherever a title or a
+  name keeps to one line (the crumbs, the panel's Story tree, filters, mockups, products and
+  organizations, the inspector's title, the search palette's results, a filter chip), it takes
+  its own direction, and one too long ends in an ellipsis after its last whole word that leaves
+  room for it. A title that mixes English and Arabic keeps the words it begins with, where clipping
+  it at a pixel would keep the end of the Arabic or cut a letter in half; one in Arabic reads right
+  to left with the ellipsis at its left. It is measured before it is drawn, and again only when
+  its room or the fonts change. The whole title stays in the page for assistive technology and
+  shows on hover (the Whole Word Rule in [DESIGN.md](../../apps/web/DESIGN.md)).
 - **Interface text says one thing once.** A heading states the fact, the body adds only what the
   heading did not, and a rule is explained where it applies, not ahead of time. Words are plain and
   the same everywhere: an email address is an "email", a URL given to a person is a "link", a
@@ -174,7 +183,7 @@ the browser's back button and "open in new tab" both work.
 - **Outside a product** (the overview, Connect an agent, the person's Settings, organization
   Members) the panel is the same on every screen, whatever the person came from: each
   organization's name, over the label "Products" and then its products (a long name ends in an
-  ellipsis); the example organization last, headed **Example organization** with the library glyph,
+  ellipsis after a whole word, §7.1); the example organization last, headed **Example organization** with the library glyph,
   on a neutral wash, over its name and "read only" (to its authors, "you're an author"), with a ×
   that hides it from the panel for a guest; then a quiet link to Connect an agent and, for an owner of the instance, to
   **Organizations** and **People**, with the current screen marked. It never offers a way "back" to a product, because it cannot know the person came

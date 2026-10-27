@@ -4,7 +4,7 @@ import { track } from "../lib/analytics.ts";
 import { nestQuotes } from "../lib/format.ts";
 import { findWords, hitHref, hitMeta, kindOf, leadTo, Marked, matchedCount, resultHref, resultMeta, useDebounced, useFind, useRecentSearches, type FindResponse, type Marks } from "../lib/find.tsx";
 import type { Product } from "../lib/session.tsx";
-import { Glyph, type GlyphName } from "../ui/index.tsx";
+import { Glyph, OneLine, type GlyphName } from "../ui/index.tsx";
 import { isTypingTarget, PHONE_QUERY, shortcutLabel, useMediaQuery } from "../ui/media.ts";
 
 /**
@@ -29,12 +29,17 @@ interface Option {
   href?: string;
   fill?: string;
   glyph: GlyphName;
-  title: ReactNode;
+  title: string;
+  /** The words matched in the title. */
+  marks?: Marks;
   meta?: ReactNode;
   line?: ReactNode;
 }
 
 const SHOWN = 8;
+
+/** The marks that fall in the first `length` characters of a title, the part a cut line shows. */
+const marksIn = (marks: Marks, length: number): Marks => marks.filter(([s]) => s < length).map(([s, e]) => [s, Math.min(e, length)]);
 
 /**
  * On a phone a line of the palette holds about fifty characters, so the two it shows of an excerpt
@@ -58,7 +63,8 @@ function options(app: string, d: FindResponse | undefined, phone: boolean): Opti
       kind: atHit ? hit!.field : r.kind,
       href: atHit ? hitHref(app, r.id, hit!, d ? findWords(d) : "") : resultHref(app, r),
       glyph: kindOf(r.kind).glyph,
-      title: <Marked text={r.title} marks={r.title_marks} />,
+      title: r.title,
+      marks: r.title_marks,
       meta: resultMeta(r),
       line: hit ? (
         <>
@@ -230,7 +236,7 @@ function Palette({ app, base, product, text, setText, via, onClose }: { app: str
               <Glyph name={o.glyph} />
               <span className="find-pal-main">
                 <span className="find-pal-title">
-                  <span className="ellipsis">{o.title}</span>
+                  <OneLine text={o.title} render={o.marks?.length ? (shown) => <Marked text={shown} marks={marksIn(o.marks!, shown.length)} /> : undefined} />
                   {o.meta ? <span className="find-pal-meta">{o.meta}</span> : null}
                 </span>
                 {o.line ? <span className="find-pal-line">{o.line}</span> : null}
@@ -307,7 +313,7 @@ export function FindLauncher({ product }: { product: Product }) {
     <div className="find-launch-wrap">
       <button type="button" className="find-launch" onClick={() => open()} aria-keyshortcuts="Meta+K Control+K /">
         <Glyph name="search" size="sm" />
-        <span className="find-launch-label ellipsis">Search {product.name}</span>
+        <OneLine className="find-launch-label" text={`Search ${product.name}`} />
         <kbd>{shortcutLabel("K")}</kbd>
       </button>
     </div>

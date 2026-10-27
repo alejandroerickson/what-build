@@ -382,6 +382,11 @@
   gap: var(--s-1h);
   align-items: center;
 }
+/* The page's number, then its title on one line. */
+.xc-page-name {
+  display: flex;
+  align-items: baseline;
+}
 .xc-page-pick > .menu-anchor,
 .xc-page-pick > :first-child {
   flex: 1;

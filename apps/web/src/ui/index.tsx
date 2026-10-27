@@ -12,4 +12,5 @@ export {
   AgentFace, Avatar, Card, CopyField, Crumbs, FiltersInUse, Group, initials, KeyValue, ListRow, PageHeader, Segmented, Sheet, SheetBody, SheetHeader,
   type Crumb, type SegmentedItem,
 } from "./layout.tsx";
+export { OneLine, useMeasure } from "./one-line.tsx";
 export { Glyph, type GlyphName } from "./glyph.tsx";
