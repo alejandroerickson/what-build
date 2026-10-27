@@ -37,7 +37,7 @@ tenant               an organization: the isolation boundary
 - **Moving and copying** a source between products is allowed **within one team**
   ([§3.7](#37-moving-and-copying-between-products)).
 - In the UI the tenant is called the **organization**. The API and MCP say `tenant`.
-  ◆ Decision: two words for one concept is a known cost; see open question 8 in the
+  ◆ Decision: two words for one concept is a known cost; see open question 7 in the
   [roadmap](10-roadmap.md).
 
 ## 3.2 Accounts and sign-in

@@ -27,8 +27,8 @@ Google Cloud Run. Recorded in `okf/spec/02-architecture.md`.
   clean sources, read and correct their text, draft assumptions, build mockups, publish the Story.
 - **Stakeholders** who read the Story and rarely anything else _(inferred: whether they get their
   own role or share links is an open question)_.
-- **People evaluating the approach**, who should see a real, fully derived discovery (the sample
-  product) before signing up.
+- **People evaluating the approach**, who should see a real, fully derived discovery (the example
+  organization), which they read as a guest as soon as they sign up.
 
 ## Product Purpose
 

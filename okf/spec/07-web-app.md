@@ -374,11 +374,10 @@ new tab ([§7.8](#78-story), [§6](06-operations-and-adapters.md)).
 5. **Connect an agent** (`/connect`): paste one address into an MCP client and sign in when it asks
    ([§6.8](06-operations-and-adapters.md)).
 
-**Planned:** a public, read-only sample product at `/sample`, readable with no account — a
-synthetic discovery, fully derived, with sources and their text, assumptions, a mockup and a
-published Story, every write control absent except one "copy this into my own organization" call
-to action. Today the synthetic sample is created by `pnpm db:seed` and is visible only to its
-seeded accounts.
+No page is readable without an account. Someone who wants to look before committing to anything
+signs up and reads the example organization as a guest while there is room
+([decision](../decisions/guests-come-into-the-example-organization-while-there-is-room.md)). The
+synthetic sample `pnpm db:seed` creates is visible only to its seeded accounts.
 
 ## 7.5 Idea
 
