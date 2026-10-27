@@ -63,10 +63,13 @@ React 19, React Router 7, TanStack Query 5, Vite 8; Vitest. Details in
 [architecture](../spec/02-architecture.md).
 
 **Operations.** 117 operations, each defined once and exposed through both REST and MCP, but for
-five: deleting an organization and previewing that delete, which only its owners or an instance
-owner do, removing an account, which only an instance owner does, and deleting one's own account
-and previewing that, which only its person does, all in the web app. Agents are offered the other 112, as 28 tools
-([decision](../decisions/one-registry-two-front-doors.md)).
+seventeen: running the instance (its owners' ten actions on plans, organizations, guests,
+allowances, accounts and usage, and removing an account), renaming an organization or a product,
+which its owners or admins do, deleting an organization and previewing that delete, which only its
+owners or an instance owner do, and deleting one's own account and previewing that, which only its
+person does, all in the web app. Agents are offered the other 100, as 28 tools
+([decision](../decisions/one-registry-two-front-doors.md),
+[decision](../decisions/running-the-instance-is-done-in-the-web-app-never-by-an-agent.md)).
 
 **Tenancy.** Organization (tenant) → team → product. One shared database and schema; every content
 row carries `tenant_id`. Isolation is enforced three times: authorization before validation (`404`

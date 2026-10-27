@@ -32,8 +32,8 @@ hashed address is still personal data.
 - Nothing stored names an organization, a product, a record, an address or content. No cookie or
   browser storage is involved, so the cookie choice does not govern it. `/cookies` says that it
   happens and what is kept.
-- Only the instance's owners read the report (`products.usage`, `pnpm usage`), and it leaves them out
-  unless asked. The app gives Google Analytics nothing for them either.
+- Only the instance's owners read the report (`pnpm usage`; `products.usage` over REST, which no
+  agent is offered), and it leaves them out unless asked. The app gives Google Analytics nothing for them either.
 
 ## Consequences
 

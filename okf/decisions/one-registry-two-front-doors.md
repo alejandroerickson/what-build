@@ -16,7 +16,7 @@ The web app, scripts and agents must be able to do the same things with the same
 ## Decision
 
 - Each operation is declared once in `packages/core/src/ops/` with its name, scope, access (`read`, `write`, `admin`), input schema, REST mapping, MCP mapping and handler.
-- REST routes and MCP tools are generated from that registry. Every operation has both (120 today), but deleting an organization and its preview, which only its owners or an instance owner do, in the web app ([decision](archive-by-default-delete-guarded.md)).
+- REST routes and MCP tools are generated from that registry. Every operation has both (117 today), but what only a person does, in the web app: renaming an organization or a product, deleting an organization or one's own account and their previews ([decision](archive-by-default-delete-guarded.md)), and running the instance, removing an account among it ([decision](running-the-instance-is-done-in-the-web-app-never-by-an-agent.md)).
 - If the web app needs something, it becomes an operation; the UI has no private back door.
 
 ## Consequences

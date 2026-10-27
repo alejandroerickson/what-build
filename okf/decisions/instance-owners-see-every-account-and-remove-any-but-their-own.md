@@ -23,7 +23,9 @@ the only owner of an organization, after a warning, and delete any organization.
 
 - **People** (`/people`) lists every account for the instance's owners (`products.accounts`): its
   name and address, the organizations it is in with its roles, when it was last seen, its sessions
-  and agents, and its address's allowance. Through either door; it holds no organization's content.
+  and agents, and its address's allowance. In the web app only, as all of running the instance is
+  ([decision](running-the-instance-is-done-in-the-web-app-never-by-an-agent.md)); it holds no
+  organization's content.
 - **Removing an account is an instance owner's act in the web app** (`products.remove_account`,
   web only), with the address typed exactly. An instance owner's account cannot be removed there.
 - **The only owner of an organization takes it with them.** The dialog says which organizations go,

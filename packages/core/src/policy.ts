@@ -259,8 +259,9 @@ export function parseProductRef(ref: string): ScopeRef {
 /**
  * Resolve and authorize the scope of a call. Returns 404 for anything the caller cannot see
  * (including everything in other tenants) and 403 only when they can see it but lack the role.
- * With `asInstanceOwner`, which `execute` sets only for an owner of this WhatBuild calling a tenant
- * operation that allows them, the caller acts as one of the tenant's owners, member or not.
+ * With `asInstanceOwner`, which `execute` sets only for an owner of this WhatBuild calling, in the
+ * web app, a tenant operation that allows them, the caller acts as one of the tenant's owners,
+ * member or not.
  * `allowances` lets the refusal of a guest of the example organization say whether they may start
  * an organization of their own.
  */

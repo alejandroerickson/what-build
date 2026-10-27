@@ -38,6 +38,21 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
   `products_write(action="set_plan")` answers `owners_notified`. In the web app a read-only
   organization offers no write the server would refuse, and its Members page no new role; a team
   or product role has **Change**.
+- **Agents no longer run the instance** (`tools_version` 0.45.0). It concerns the instance's owners
+  and their agents, and asks nothing of a deployment. An instance owner's MCP connection, at any
+  level, is no longer offered `organizations`, `accounts`, `tenant_allowances`, `guests` or `usage`
+  in `products_read`, nor `set_plan`, `set_plan_limits`, `set_guests`, `set_tenant_allowance` or
+  `remove_tenant_allowance` in `products_write`
+  ([decision](../decisions/running-the-instance-is-done-in-the-web-app-never-by-an-agent.md)).
+  They are done in the web app, on Organizations (`/instance`) and People (`/people`), and
+  through REST as before. A connected agent loses them in its next session; until then a call to
+  one, or to any web-only action (deleting an organization or an account), is refused
+  `403 web_only`, saying where a person does it, where it used to be `422 unknown_action`. A
+  billing service that moves organizations with `PATCH /api/v1/organizations/plan` is unaffected.
+  No agent renames an organization or a product any more: `rename_tenant` and `update` leave
+  `products_write` too, for its owners on the organization's Members page, its admins in the
+  product's Settings, and an instance owner with Rename on Organizations.
+  The usage report (`pnpm usage`) is how the server's counts are read. No migration.
 
 ## v0.26.0
 

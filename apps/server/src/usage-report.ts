@@ -66,7 +66,7 @@ async function server(opts: UsageOptions): Promise<Section<Awaited<ReturnType<ty
   const project = setting("GCP_PROJECT");
   let url = setting("WHATBUILD_USAGE_DATABASE_URL");
   if (!url && project) url = run("gcloud", ["secrets", "versions", "access", "latest", "--secret=whatbuild-backup-database-url", `--project=${project}`]);
-  if (!url) return skipped("Set WHATBUILD_USAGE_DATABASE_URL to the deployment's database (a read-only role will do), or GCP_PROJECT for the Cloud Run deployment. An agent connected to WhatBuild as an instance owner can call products_read(action=\"usage\") instead.");
+  if (!url) return skipped("Set WHATBUILD_USAGE_DATABASE_URL to the deployment's database (a read-only role will do), or GCP_PROJECT for the Cloud Run deployment.");
   // libpq's sslrootcert=system (trust the system's certificates) is a file name to node-postgres, which trusts Node's own.
   const { db, pool } = createDb(url.replace(/([?&])sslrootcert=system(&|$)/, (_, before: string, after: string) => (after ? before : "")), 2);
   try {

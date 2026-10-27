@@ -11,6 +11,7 @@ export const readUsage = defineOperation({
   scope: "account",
   access: "any",
   instanceOwnersOnly: true,
+  webOnly: "whoever runs this WhatBuild reads it with its usage report, `pnpm usage`, in a checkout of WhatBuild with the deployment's settings",
   mutates: false,
   summary: "How this instance is used: operations, features, agent clients, failures, and people coming back (instance owners).",
   description:

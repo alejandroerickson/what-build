@@ -5,7 +5,8 @@ import { syncExampleTenant } from "../src/example-organization.ts";
 import { startHarness, type Browser, type Harness } from "./harness.ts";
 
 // An organization's owners rename it and change its slug, and so does an owner of the instance,
-// member or not. A slug it had before still names it, wherever an address does.
+// member or not, in the web app only: no agent renames one. A slug it had before still names it,
+// wherever an address does.
 
 let h: Harness;
 let root: Browser; // an instance owner, in no organization but the ones they start
@@ -128,37 +129,32 @@ describe("anyone but an owner", () => {
 });
 
 describe("an agent", () => {
-  it("renames the organization for an owner through a connection that may manage it, and is recorded as an agent", async () => {
+  // Renaming is a person's, in the web app: no connection offers it, the owner's at Admin included.
+  it("never renames the organization, at any level or on any connector, and is told where a person does it", async () => {
+    const before = await acmeOf(olga);
+    for (const [path, level] of [["/mcp", "admin"], ["/mcp", "editor"], [`/mcp/t/${acme}`, "admin"], [`/mcp/t/${product}`, "admin"]] as const) {
+      const c = await connect(olga, path, level);
+      const listed = (await c.listTools()).tools.flatMap((t) => ((t.inputSchema.properties?.["action"] as { enum?: string[] } | undefined)?.enum ?? []).map((a) => `${t.name}.${a}`));
+      expect(listed, path).not.toContain("products_write.rename_tenant");
+      const r = body(await c.callTool({ name: "products_write", arguments: { action: "rename_tenant", params: { tenant: acme, name: "Acme by an agent", expected_etag: before.name_etag } } }));
+      expect(r.status, `${path} ${level} ${JSON.stringify(r.json)}`).toBe(403);
+      expect(r.json.error.code).toBe("web_only");
+      expect(r.json.error.message).toContain("under Organization name on its Members page");
+      await c.close();
+    }
+    expect(await acmeOf(olga)).toMatchObject({ name: before.name, name_etag: before.name_etag });
+    expect((await olga.api("GET", `${T()}/members/activity`)).body.items.some((i: { through_agent?: boolean; action: string }) => i.action === "renamed" && i.through_agent)).toBe(false);
+  });
+
+  it("never renames a product either, and is told it is done in the product's Settings", async () => {
+    const p = (await olga.api("GET", `/api/v1/p/${product}`)).body;
     const c = await connect(olga);
-    const etag = (await acmeOf(olga)).name_etag;
-    const r = body(await c.callTool({ name: "products_write", arguments: { action: "rename_tenant", params: { tenant: acme, name: "Acme Works", expected_etag: etag } } }));
-    expect(r.status, JSON.stringify(r.json)).toBe(200);
-    expect(r.json).toMatchObject({ slug: acme, name: "Acme Works", previous_name: "Acme Research" });
-    const log = (await olga.api("GET", `${T()}/members/activity`)).body.items;
-    expect(log[0]).toMatchObject({ action: "renamed", entity_title: "Acme Works", through_agent: true });
+    const r = body(await c.callTool({ name: "products_write", arguments: { action: "update", product, params: { name: "Renamed by an agent", expected_etag: p.etag } } }));
+    expect(r.status, JSON.stringify(r.json)).toBe(403);
+    expect(r.json.error).toMatchObject({ code: "web_only", details: { operation: "products.update" } });
+    expect(r.json.error.message).toContain("in the product's Settings");
     await c.close();
-  });
-
-  it("is refused on a connection set to Edit, which manages no organization", async () => {
-    const c = await connect(olga, "/mcp", "editor");
-    const r = body(await c.callTool({ name: "products_write", arguments: { action: "rename_tenant", params: { tenant: acme, name: "Acme Edited", expected_etag: (await acmeOf(olga)).name_etag } } }));
-    expect(r.status).toBe(403);
-    expect(r.json.error.code).toBe("connection_level");
-    await c.close();
-  });
-
-  it("renames it through a connector scoped to the organization, and not through one scoped to a product in it", async () => {
-    const org = await connect(olga, `/mcp/t/${acme}`);
-    const r = body(await org.callTool({ name: "products_write", arguments: { action: "rename_tenant", params: { name: "Acme", expected_etag: (await acmeOf(olga)).name_etag } } }));
-    expect(r.status, JSON.stringify(r.json)).toBe(200);
-    expect(r.json.name).toBe("Acme");
-    await org.close();
-    const one = await connect(olga, `/mcp/t/${product}`);
-    const refused = body(await one.callTool({ name: "products_write", arguments: { action: "rename_tenant", params: { tenant: acme, name: "Acme Narrow", expected_etag: (await acmeOf(olga)).name_etag } } }));
-    expect(refused.status).toBe(403);
-    expect(refused.json.error.code).toBe("outside_connector_scope");
-    await one.close();
-    expect((await acmeOf(olga)).name).toBe("Acme");
+    expect((await olga.api("GET", `/api/v1/p/${product}`)).body).toMatchObject({ name: p.name, etag: p.etag });
   });
 });
 
@@ -166,14 +162,25 @@ describe("an instance owner", () => {
   it("renames any organization from the instance's list, member or not, with its name_etag", async () => {
     const list = (await root.api("GET", "/api/v1/organizations")).body.items;
     const item = list.find((o: { slug: string }) => o.slug === acme);
-    expect(item).toMatchObject({ name: "Acme", name_etag: (await acmeOf(olga)).name_etag });
+    const now = await acmeOf(olga);
+    expect(item).toMatchObject({ name: now.name, name_etag: now.name_etag });
     const r = await root.api("PATCH", T(), { name: "Acme Company", expected_etag: item.name_etag });
     expect(r.status, JSON.stringify(r.body)).toBe(200);
     expect(await acmeOf(olga)).toMatchObject({ name: "Acme Company" });
     // Their rename is recorded under their own name; it gives them no place in the organization.
-    expect((await olga.api("GET", `${T()}/members/activity`)).body.items[0]).toMatchObject({ action: "renamed", actor: { display_name: "Root Owner" }, summary: "Formerly Acme" });
+    expect((await olga.api("GET", `${T()}/members/activity`)).body.items[0]).toMatchObject({ action: "renamed", actor: { display_name: "Root Owner" }, summary: `Formerly ${now.name}` });
     expect((await root.api("GET", "/api/v1/me/products")).body.tenants.some((t: { slug: string }) => t.slug === acme)).toBe(false);
     expect((await root.api("GET", `${T()}/members`)).status).toBe(404);
+  });
+
+  it("renames one only in the web app: their agent is told where, as anyone's is", async () => {
+    const item = (await root.api("GET", "/api/v1/organizations")).body.items.find((o: { slug: string }) => o.slug === acme);
+    const c = await connect(root);
+    const r = body(await c.callTool({ name: "products_write", arguments: { action: "rename_tenant", params: { tenant: acme, name: "Acme by an agent", expected_etag: item.name_etag } } }));
+    expect(r.json.error.code, JSON.stringify(r.json)).toBe("web_only");
+    expect(r.json.error.message).toContain("with Rename on Organizations (`/instance`)");
+    await c.close();
+    expect(await acmeOf(olga)).toMatchObject({ name: item.name, name_etag: item.name_etag });
   });
 
   it("still meets the stale etag, and names an organization that does not exist as missing", async () => {

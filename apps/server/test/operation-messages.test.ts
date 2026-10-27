@@ -134,10 +134,10 @@ describe("descriptions that say only what is true", () => {
     expect(op("sources.move_to_product").description).toMatch(/^The source keeps its record_id/);
   });
 
-  it("says what the products tools are for, export and usage included", () => {
+  it("says what the products tools are for, export included, and nothing of running the instance", () => {
     const tool = (name: string) => toolDefinitions().tools.find((t) => t.name === name)!;
     expect(tool("products_write").description).toMatch(/Export a whole product as a ZIP/);
-    expect(tool("products_read").description).toMatch(/how it is used/);
+    expect(tool("products_read").description + tool("products_write").description).not.toMatch(/how it is used|owner of this WhatBuild|allowances/);
   });
 });
 

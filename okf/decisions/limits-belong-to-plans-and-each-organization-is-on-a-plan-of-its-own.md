@@ -27,8 +27,10 @@ that stops being paid for, and that the plans themselves are the deployment's
   `unlimited`, never offered, which sets none: the deployment's own organizations, and every
   organization of a deployment that defines no plans.
 - **An instance owner changes a plan's limits and price** (`products.set_plan_limits`,
-  `/instance`), for every organization on it, and raises them as the deployment grows. What they
-  set is stored with the deployment (`instance_settings`), over what its configuration defines.
+  `/instance`), in the web app and never through an agent
+  ([decision](running-the-instance-is-done-in-the-web-app-never-by-an-agent.md)), for every
+  organization on it, and raises them as the deployment grows. What they set is stored with the
+  deployment (`instance_settings`), over what its configuration defines.
 - **Totals beside the days:** people with more than the Story-only reader role (an invitation holds
   a place), products and sources that are not archived, and storage (files, and text as stored,
   every version), all per organization; and the bytes sent to each person a day.

@@ -43,8 +43,9 @@ OpenAPI document.
 
 A **parity test** (`apps/server/test/mcp.test.ts`, "adapter parity") fails if any operation is
 unreachable from either adapter, or if any tool action exists that is not in the registry. The one
-exception is what only a person does in the web app (`webOnly`): deleting an organization and its
-preview, which MCP never lists and `execute` refuses to anything but the web app.
+exception is what only a person does in the web app (`webOnly`): renaming an organization or a
+product, deleting an organization or one's own account and their previews, and running the instance
+(its owners' actions and removing an account), which MCP never lists and `execute` refuses to anything but the web app.
 
 `execute` (`packages/core/src/execute.ts`) is the one way an operation runs, whichever door the
 call came through:
@@ -120,7 +121,7 @@ tenant.
   needs editor"). With no role at all the answer is `404`, never `403`
   ([§3.5](03-accounts-teams-and-identity.md)). `connection_level` carries `{ level, needed }`
   and says that only the person raises it, under Connect an agent. A refusal to an agent names
-  the call it made, `products_write(action="set_plan")`, rather than the operation
+  the call it made, `sources_delete(action="delete")`, rather than the operation
   (`registry.ts` `callName`).
 - **`stale_etag`** carries `current_etag` in `details`: the etag the object has now, or `null`
   when there is nothing to match. It answers a stale etag and, for a write that may create what
@@ -250,25 +251,25 @@ being changed inside the handler.
 |---|---|---|---|
 | `products` | `list` | `GET /api/v1/me/products` | signed in |
 | `products` | `create_tenant` | `POST /api/v1/tenants` | an instance owner, or an allowance with room ([§3.3](03-accounts-teams-and-identity.md)) |
-| `products` | `tenant_allowances` | `GET /api/v1/tenant-allowances` | instance owner |
-| `products` | `set_tenant_allowance` | `PUT /api/v1/tenant-allowances` | instance owner |
-| `products` | `remove_tenant_allowance` | `POST /api/v1/tenant-allowances/remove` | instance owner |
-| `products` | `usage` | `GET /api/v1/usage` | instance owner |
+| `products` | `tenant_allowances` | `GET /api/v1/tenant-allowances` | instance owner, in the web app only |
+| `products` | `set_tenant_allowance` | `PUT /api/v1/tenant-allowances` | instance owner, in the web app only |
+| `products` | `remove_tenant_allowance` | `POST /api/v1/tenant-allowances/remove` | instance owner, in the web app only |
+| `products` | `usage` | `GET /api/v1/usage` | instance owner, in the web app only |
 | `products` | `limits` | `GET /api/v1/tenants/:tenant/limits` | tenant member, or a guest of the example organization |
-| `products` | `organizations` | `GET /api/v1/organizations` | instance owner |
-| `products` | `set_plan` | `PATCH /api/v1/organizations/plan` | instance owner; a plan the deployment does not define is refused `422 unknown_plan` |
-| `products` | `set_plan_limits` | `PATCH /api/v1/plans` | instance owner; a plan the deployment does not define is refused `422 unknown_plan` |
-| `products` | `guests` | `GET /api/v1/guests` | instance owner |
-| `products` | `set_guests` | `PATCH /api/v1/guests` | instance owner |
-| `products` | `accounts` | `GET /api/v1/accounts` | instance owner |
+| `products` | `organizations` | `GET /api/v1/organizations` | instance owner, in the web app only |
+| `products` | `set_plan` | `PATCH /api/v1/organizations/plan` | instance owner, in the web app only; a plan the deployment does not define is refused `422 unknown_plan` |
+| `products` | `set_plan_limits` | `PATCH /api/v1/plans` | instance owner, in the web app only; a plan the deployment does not define is refused `422 unknown_plan` |
+| `products` | `guests` | `GET /api/v1/guests` | instance owner, in the web app only |
+| `products` | `set_guests` | `PATCH /api/v1/guests` | instance owner, in the web app only |
+| `products` | `accounts` | `GET /api/v1/accounts` | instance owner, in the web app only |
 | `products` | `remove_account` | `POST /api/v1/accounts/remove` | instance owner, in the web app only |
 | `products` | `delete_account_impact` | `GET /api/v1/me/delete-impact` | signed in, of their own account, in the web app only |
 | `products` | `delete_account` | `POST /api/v1/me/delete` | signed in within the last 15 minutes, of their own account, in the web app only |
-| `products` | `rename_tenant` | `PATCH /api/v1/tenants/:tenant` | tenant owner, or an instance owner ([§3.3](03-accounts-teams-and-identity.md#33-tenants-and-teams)) |
+| `products` | `rename_tenant` | `PATCH /api/v1/tenants/:tenant` | tenant owner, or an instance owner, in the web app only ([§3.3](03-accounts-teams-and-identity.md#33-tenants-and-teams)) |
 | `products` | `create_team` | `POST /api/v1/tenants/:tenant/teams` | tenant admin |
 | `products` | `create` | `POST /api/v1/teams/:tenant/:team/products` | team admin |
 | `products` | `get` | `GET P` | reader |
-| `products` | `update` | `PATCH P` | admin |
+| `products` | `update` | `PATCH P` | admin, in the web app only |
 | `products` | `update_concept` | `PATCH P/idea/concept` | editor |
 | `products` | `archive` | `POST P/archive` | admin |
 | `products` | `restore` | `POST P/restore` | admin |
@@ -556,9 +557,10 @@ Notes on recent actions:
   both sides; a revision kept before cards had fronts brings back its title and back and keeps the
   front.
 - The concept's card is written with `products.update_concept`, for editors as well as admins, as
-  an outcome's card is; `products.update` renames a product and changes its slug, for admins only.
+  an outcome's card is; `products.update` renames a product and changes its slug, for admins only,
+  in the web app.
 - `products.rename_tenant` renames an organization and changes its slug, for its owners and for an
-  instance owner in any organization; a slug it had before still names it everywhere, and no other
+  instance owner in any organization, in the web app; a slug it had before still names it everywhere, and no other
   organization may take one (`409 slug_taken`) ([§3.3](03-accounts-teams-and-identity.md#33-tenants-and-teams)).
 - `outcomes.card_preview` takes a front (`card_html`, `kind` outcome or concept, and optionally the
   `title` and `back` it goes with) and makes every check a write of it makes, refusing with the
@@ -785,25 +787,28 @@ name the server's version and the tools, or the tool's actions, the connection i
 version. A call to a tool name from before the split (`sources`) says which tools its actions are
 in now, and one to `get_skill` that the skill is retired and `guide` replaces it.
 
-**Tools.** Twenty-eight tools over the 112 operations an agent may be offered (all 117 but deleting
-an organization and its preview, removing an account, and deleting one's own account and its
-preview): for each noun a `_read` tool, a `_write` tool and, where something can be deleted for
+**Tools.** Twenty-eight tools over the 100 operations an agent may be offered (all 117 but the 17 a
+person does only in the web app: renaming an organization or a product, deleting an organization
+and its preview, deleting one's own account and its preview, and running the instance, its owners'
+ten actions and removing an account,
+[decision](../decisions/running-the-instance-is-done-in-the-web-app-never-by-an-agent.md)): for each noun a `_read` tool, a `_write` tool and, where something can be deleted for
 good, a `_delete` tool, and three standalone
 ([decision](../decisions/mcp-tools-are-split-into-read-write-and-delete.md)). An action is in its
 noun's `_read` tool if it changes nothing, its `_delete` tool if it is a permanent delete (its REST
 method is `DELETE`), and its `_write` tool otherwise (`mcpTool` in `registry.ts`). A connection is listed
-only the actions its level allows and its person could do (below): the instance owners' actions
-(`tenant_allowances`, `set_tenant_allowance`, `remove_tenant_allowance`, `usage`,
-`organizations`, `set_plan`, `set_plan_limits`, `guests`, `set_guests`, `accounts`) to an owner of the instance alone, on a scoped
-connector only what its fence answers and the person's roles inside it reach, and on the unscoped
-connector what their roles in some organization they are in reach, unless they may start one
+only the actions its level allows and its person could do (below): on a scoped connector only
+what its fence answers and the person's roles inside it reach, and on the unscoped connector what
+their roles in some organization they are in reach, unless they may start one
 ([decision](../decisions/an-agent-is-offered-only-what-its-person-could-do.md)). The table names
-every action any connection may be offered.
+every action any connection may be offered. The instance owners' actions (`tenant_allowances`,
+`set_tenant_allowance`, `remove_tenant_allowance`, `usage`, `organizations`, `set_plan`,
+`set_plan_limits`, `guests`, `set_guests`, `accounts`) are offered to no connection, an instance
+owner's included: running the instance is done in the web app.
 
 | Tool | Actions |
 |---|---|
-| `products_read` | `list`, `get`, `delete_impact`, `exports`, `tenant_allowances`, `usage`, `limits`, `organizations`, `guests`, `accounts` |
-| `products_write` | `create_tenant`, `rename_tenant`, `create_team`, `create`, `update`, `update_concept`, `archive`, `restore`, `export`, `set_tenant_allowance`, `remove_tenant_allowance`, `set_plan`, `set_plan_limits`, `set_guests` |
+| `products_read` | `list`, `get`, `delete_impact`, `exports`, `limits` |
+| `products_write` | `create_tenant`, `create_team`, `create`, `update_concept`, `archive`, `restore`, `export` |
 | `products_delete` | `delete` |
 | `members_read` | `list`, `activity` |
 | `members_write` | `grant`, `revoke`, `cancel_invitation` |
@@ -855,7 +860,7 @@ Rules:
   A tool with actions called without `action` is `422 invalid_input` saying `action` is missing and
   listing the tool's actions (also in `details.actions`). It, and `unknown_action`, list only the
   actions the connection is offered, as its `tools/list` does (below): never a permanent delete to
-  an Edit connection, nor an instance owner's action to anyone else.
+  an Edit connection, nor anything a person does only in the web app.
 - **Aliases for names a caller reads.** The id is `outcome_id` on `outcomes` but `id` on
   `assumptions`. Each tool also accepts the other convention for its own entity: `id` on
   `outcomes`, `assumption_id` on `assumptions`. A field may also be accepted under the name it is
@@ -881,8 +886,8 @@ Rules:
 - **Listed by level and by the person.** `tools/list` answers each connection with only the
   actions its level allows ([§3.8](03-accounts-teams-and-identity.md)): Read only is offered
   reads, Edit also writes and archives, Admin also permanent deletes and managing products and
-  people. Of those, it offers the instance owners' actions only to an owner of the instance, and
-  only what the person's roles reach. A scoped connector offers only what its fence answers and
+  people. Of those, it offers only what the person's roles reach, and never what a person does
+  only in the web app (`webOnly`), the instance owners' actions included. A scoped connector offers only what its fence answers and
   their roles inside it reach: their role on the product, or in an organization the highest they
   hold anywhere in it (on its teams, for a team's actions). The unscoped connector offers what the
   highest roles they hold in any one organization they are in reach, the example organization's
@@ -894,6 +899,13 @@ Rules:
   allowance. A call to anything not listed, from a client that knows it anyway, reaches `execute`
   and is refused with what it needs (`403 connection_level`, `403 forbidden`,
   `403 example_read_only`, `403 tenant_allowance`); it is never `unknown_action`.
+- **Web-only, and said where.** An operation a person does only in the web app says where there
+  (`webOnly` in `registry.ts`: "a person does it in the web app, on Organizations (`/instance`),
+  Change plan on the organization's row"). A call to its action, in any of its noun's tools and
+  with `describe` too, is `403 web_only` before anything else is looked up, giving that place
+  for the agent to tell the person, saying it is in no agent's tool list and so not a sign of
+  an older one, and naming the operation in `details.operation`; it is counted under the
+  operation.
 - **Results** are JSON in one text content block. Product-scoped results add `scope`
   (tenant, team, product with its path, `your_role` capped by the connection's level and `guest`
   for a guest of the example organization,

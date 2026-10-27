@@ -33,7 +33,8 @@ machinery and each deployment its plans, and that payment lives elsewhere.
   shows no plan, price or billing wording anywhere. That is a self-hosted deployment's default.
 - **No price, and nothing true of one deployment's plans, is written in the repository.**
 - **Billing is a separate service**, kept with the deployment that sells plans. It takes payment
-  and moves an organization between plans through `products.set_plan`, as an instance owner does.
+  and moves an organization between plans through `products.set_plan` over REST, as an instance
+  owner does in the web app; no agent is offered it.
   The repository holds no payment provider's code.
 - Rejected: plans in the code with prices set per deployment (it still ships one seller's plans to
   every deployment), and billing inside the app (it ties the open code to one provider and one

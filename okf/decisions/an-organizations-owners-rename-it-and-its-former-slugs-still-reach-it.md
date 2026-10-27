@@ -32,10 +32,11 @@ organization and set its plan, but hold no role in most of them.
 - Rejected: HTTP redirects from the old address. An MCP client or a token bound to the old
   resource would not follow one, and a redirect would show the new slug to anyone holding the old,
   member or not.
-- **Its owners change them**, the example organization's owners as any others, through both doors;
-  an agent needs an admin connection. **An instance owner changes them in any organization**, as
-  one of its owners, member or not: an operation opts in with `allowInstanceOwners`, which lets
-  them in to that operation alone and gives no grant.
+- **Its owners change them**, the example organization's owners as any others. **An instance
+  owner changes them in any organization**, as one of its owners, member or not: an operation opts
+  in with `allowInstanceOwners`, which lets them in to that operation alone and gives no grant.
+  Both do it in the web app only; no agent renames an organization
+  ([decision](running-the-instance-is-done-in-the-web-app-never-by-an-agent.md)).
 - Name and slug share one etag, `tenants.name_etag`. A change is recorded in the organization's
   access log (`members.activity`).
 

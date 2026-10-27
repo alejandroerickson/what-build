@@ -158,7 +158,7 @@ The plans:
   their organization to Pro and back (read-only when they already have a Free one; the instance
   offers the example file's plans, Free and Pro), deletes an
   organization they are not in, and removes accounts, the only owner of an organization included,
-  through the web, with the instance owners' MCP actions checked against it.
+  through the web, and checks that no agent, the instance owner's included, is offered any of it.
 - `running-an-organization`: an organization's owner starts it on an allowance, fills it to Free's
   people total (an invitation holds a place, a reader of the Story is free), changes and takes
   roles, renames and deletes it; someone it no longer holds asks for, and starts, their own.

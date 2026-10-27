@@ -32,6 +32,7 @@ name what replaced it, and date the change. Smaller decisions are marked
 - [A scoped MCP connector is a fence, not a default](a-scoped-mcp-connector-is-a-fence.md)
 - [Connect an agent leads with one address, and limiting an agent is a choice behind it](the-connect-page-leads-with-one-address.md)
 - [An agent is offered only what its person could do](an-agent-is-offered-only-what-its-person-could-do.md)
+- [Running the instance is done in the web app, never by an agent; the MCP server is for discovery work](running-the-instance-is-done-in-the-web-app-never-by-an-agent.md)
 - [The public sandbox is reached only through a connector scoped to it](the-public-sandbox-is-reached-only-through-its-own-connector.md) (superseded)
 - [An invitation is accepted only by the account with the address it was sent to](invitations-belong-to-their-address.md)
 - [The public sandbox is one organization the deployment names, where invited visitors edit under made-up names and a daily reset puts a saved baseline back](the-public-sandbox-is-one-organization-with-pseudonymous-visitors.md) (superseded)

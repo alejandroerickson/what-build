@@ -81,12 +81,13 @@ not have landed.
 
 ## When a tool or action is missing
 
-A connection is offered only what it may do: what its level allows, the instance owners' own actions
-only to an instance owner, and what the person's roles reach (on a scoped connector, their role
-inside it; on the unscoped one, their highest role in any organization they are in, unless they may
-start an organization of their own). A tool's description speaks only of the actions it offers. A
-call to something the connection is not offered is refused with what it needs (a `403`), never as
-unknown.
+A connection is offered only what it may do: what its level allows, and what the person's roles
+reach (on a scoped connector, their role inside it; on the unscoped one, their highest role in any
+organization they are in, unless they may start an organization of their own). A tool's description
+speaks only of the actions it offers. A call to something the connection is not offered is refused
+with what it needs (a `403`), never as unknown. What a person does only in the web app (running this
+WhatBuild, renaming an organization or a product, deleting an organization or an account) is
+offered to no connection: a call to it is refused with `403 web_only`, saying where it is.
 
 The server keeps no session, so a client keeps the tool list it got when it connected, and
 authorizing again does not refresh it. Every product-scoped answer gives the version the server runs

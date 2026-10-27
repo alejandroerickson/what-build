@@ -104,10 +104,11 @@ export const listTenantAllowances = defineOperation({
   scope: "account",
   access: "any",
   instanceOwnersOnly: true,
+  webOnly: "a person does it in the web app, on Organizations (`/instance`), under Who can start organizations and Waitlist",
   mutates: false,
   summary: "Who may create organizations, and how many, and who asked to (instance owners).",
   description:
-    "Lists every address an instance owner has given an allowance, with how many organizations it may have, how many its account has (created: those it started that are on the plan new organizations start on and not read-only, so one moved to another plan frees its place), and what is left. Also returns new_organization_plan, the plan whose organizations are counted, the instance's owners, who may create any number, default_allowed, the allowance of every address not listed, and waitlist: the people who asked for an organization of their own, from the web app or the public site, and have no allowance yet, earliest first. Let one start one with products_write(action=\"set_tenant_allowance\"), allowed 1. Being in an organization never lets anyone create one.",
+    "Lists every address an instance owner has given an allowance, with how many organizations it may have, how many its account has (created: those it started that are on the plan new organizations start on and not read-only, so one moved to another plan frees its place), and what is left. Also returns new_organization_plan, the plan whose organizations are counted, the instance's owners, who may create any number, default_allowed, the allowance of every address not listed, and waitlist: the people who asked for an organization of their own, from the web app or the public site, and have no allowance yet, earliest first. Let one start one with products.set_tenant_allowance, allowed 1. Being in an organization never lets anyone create one.",
   input: z.strictObject({}),
   rest: { method: "GET", path: "/tenant-allowances" },
   mcp: { tool: "products", action: "tenant_allowances" },
@@ -129,11 +130,12 @@ export const setTenantAllowance = defineOperation({
   scope: "account",
   access: "any",
   instanceOwnersOnly: true,
+  webOnly: "a person does it in the web app, on Organizations (`/instance`): Let someone start organizations, or Change on an address, under Who can start organizations, or Let them start one on the Waitlist",
   mutates: true,
   connection: "admin",
   summary: "Let an address create a number of organizations, or change how many (instance owners).",
   description:
-    "allowed counts the organizations the address's account started that are still on the plan new organizations start on and not read-only, so 1 with one already lets it start no more, and moving that one to another plan frees its place. 0 lets it create none, whatever the default. The address need not have an account yet: while sign-up is limited, an allowance above 0 also lets it sign up. To change an existing allowance pass expected_etag from products_read(action=\"tenant_allowances\"); for an address without one leave it out, as one sent then is refused with 409 stale_etag and current_etag null. With notify (the default), an address whose allowance grows is told by email where to start. Use remove_tenant_allowance to return an address to the default.",
+    "allowed counts the organizations the address's account started that are still on the plan new organizations start on and not read-only, so 1 with one already lets it start no more, and moving that one to another plan frees its place. 0 lets it create none, whatever the default. The address need not have an account yet: while sign-up is limited, an allowance above 0 also lets it sign up. To change an existing allowance pass expected_etag from products.tenant_allowances; for an address without one leave it out, as one sent then is refused with 409 stale_etag and current_etag null. With notify (the default), an address whose allowance grows is told by email where to start. Use remove_tenant_allowance to return an address to the default.",
   input: z.strictObject({
     email: address,
     allowed: z.number().int().min(0).max(1000),
@@ -151,7 +153,7 @@ export const setTenantAllowance = defineOperation({
     const actor = json(ctx.actor);
     if (existing) {
       if (!input.expected_etag)
-        throw conflict("stale_etag", `${input.email} already has an allowance; read it with products_read(action="tenant_allowances") and pass its etag as expected_etag.`, { current_etag: existing.etag });
+        throw conflict("stale_etag", `${input.email} already has an allowance; read it with products.tenant_allowances and pass its etag as expected_etag.`, { current_etag: existing.etag });
       checkEtag(input.expected_etag, existing.etag, "allowance");
       await ctx.db
         .updateTable("tenant_allowances")
@@ -160,7 +162,7 @@ export const setTenantAllowance = defineOperation({
         .execute();
     } else {
       if (input.expected_etag !== undefined)
-        throw conflict("stale_etag", `${input.email} has no allowance of its own yet, so there is no etag to match: products_read(action="tenant_allowances") does not list it. Leave expected_etag out to give it one.`, { current_etag: null });
+        throw conflict("stale_etag", `${input.email} has no allowance of its own yet, so there is no etag to match: products.tenant_allowances does not list it. Leave expected_etag out to give it one.`, { current_etag: null });
       await ctx.db
         .insertInto("tenant_allowances")
         .values({ email: input.email, allowed: input.allowed, note: input.note ?? "", etag: newEtag(), created_at: ctx.now, created_by: actor, updated_at: ctx.now, updated_by: actor })
@@ -192,11 +194,12 @@ export const removeTenantAllowance = defineOperation({
   scope: "account",
   access: "any",
   instanceOwnersOnly: true,
+  webOnly: "a person does it in the web app, on Organizations (`/instance`), Remove on the address under Who can start organizations",
   mutates: true,
   connection: "admin",
   summary: "Return an address to the default allowance (instance owners).",
   description:
-    "Removes the allowance an instance owner gave the address, so it may create as many organizations as default_allowed, counting those it created. Organizations it already created stay as they are. Pass expected_etag from products_read(action=\"tenant_allowances\").",
+    "Removes the allowance an instance owner gave the address, so it may create as many organizations as default_allowed, counting those it created. Organizations it already created stay as they are. Pass expected_etag from products.tenant_allowances.",
   input: z.strictObject({ email: address, expected_etag: expectedEtag }),
   rest: { method: "POST", path: "/tenant-allowances/remove" },
   mcp: { tool: "products", action: "remove_tenant_allowance" },

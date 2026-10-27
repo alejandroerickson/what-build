@@ -26,9 +26,9 @@ work.
 ## Procedure
 
 1. **Gather.** From the root of the checkout, run `corepack pnpm usage` (28 days; `--days N`,
-   `--example exclude|only`, `--json` for the full data). It reads the settings from `.env`. An
-   agent connected to WhatBuild as an instance owner can call `products_read(action="usage")` instead,
-   on the unscoped connection (`/mcp`; a scoped connector refuses it), for the server's counts alone.
+   `--example exclude|only`, `--json` for the full data). It reads the settings from `.env`. Nothing
+   replaces it over MCP: no agent is offered `products_read(action="usage")`, an instance owner's
+   included.
 2. **Note what is missing.** A source without its settings is skipped and says what it needs. Tell
    the person, and offer to set it up with the guide's steps. Do not set anything up unasked.
 3. **Read it.** Work through these, and keep each claim tied to a number:
