@@ -5,7 +5,7 @@ import { api, ApiError, qs } from "../lib/api.ts";
 import { attribution, plural, quotedAtEnd, relativeTime } from "../lib/format.ts";
 import { findByTitle } from "../lib/fuzzy.ts";
 import { Markdown } from "../lib/markdown.tsx";
-import { useProduct } from "../lib/session.tsx";
+import { cannotWriteReason, useProduct } from "../lib/session.tsx";
 import { REVIEW_STATUS } from "../lib/status.ts";
 import type { RegisterEntry, RegisterSummary } from "../lib/types.ts";
 import { usePageTitle } from "../shell/slots.tsx";
@@ -516,7 +516,8 @@ const WHY_HINT: Record<Kind, string> = {
 export function EntryEditPage({ kind }: { kind: Kind }) {
   const { id } = useParams();
   const [params] = useSearchParams();
-  const { api: base, app, canWrite } = useProduct();
+  const ctx = useProduct();
+  const { api: base, app, canWrite } = ctx;
   const navigate = useNavigate();
   const qc = useQueryClient();
   const existing = useQuery({ queryKey: ["entry", base, kind, id], enabled: Boolean(id), queryFn: () => api<RegisterEntry>("GET", `${base}/${kind}/${id}`) });
@@ -530,7 +531,7 @@ export function EntryEditPage({ kind }: { kind: Kind }) {
       <>
         <PageHeader crumbs={crumbs} title={heading} />
         <Callout tone="info" title={`You can’t record ${kind} here`}>
-          You’re a viewer, or the product is archived. An admin of the product can change that.
+          {cannotWriteReason(ctx)}
         </Callout>
       </>
     );

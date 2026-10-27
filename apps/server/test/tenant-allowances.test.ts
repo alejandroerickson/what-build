@@ -79,6 +79,10 @@ describe("who may create an organization", () => {
     expect((await ask("nina@elsewhere.example")).status).toBe(403);
     const given = await owner.api("PUT", A, { email: "nina@elsewhere.example", allowed: 1 });
     expect(given.body).toMatchObject({ account: null, created: 0, remaining: 1, notified: true });
+    // The owner's name is quoted, and the mail says whose words those are, as an invitation does.
+    const notice = h.mailer.sent.find((m) => m.to === "nina@elsewhere.example")!;
+    expect(notice.subject).toMatch(/^".+" let you start an organization on WhatBuild$/);
+    expect(notice.text).toContain("The name in quotation marks is the one they gave WhatBuild.");
     expect((await ask("nina@elsewhere.example")).status).toBe(200);
     const { response: verified } = await h.followSignInLink();
     expect(verified.headers.get("location")).toBe("/welcome");

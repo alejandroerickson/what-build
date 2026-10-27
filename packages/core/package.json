@@ -9,6 +9,7 @@
     "./find-in-text": "./src/find-in-text.ts",
     "./page-sandbox": "./src/page-sandbox.ts",
     "./plans": "./src/plans.ts",
+    "./read-only": "./src/read-only.ts",
     "./safe-next": "./src/safe-next.ts"
   },
   "scripts": {

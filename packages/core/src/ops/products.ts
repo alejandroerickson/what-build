@@ -176,7 +176,7 @@ export const listProducts = defineOperation({
   mutates: false,
   summary: "List every product you can reach, across your tenants and teams, with your role and counts of what each holds.",
   description:
-    "Start here when you do not know which product to work in. Each item has `path` (tenant/team/product slugs) and `product_id`; pass either as `product` on product-scoped calls. Confirm the product with the person before your first write in a conversation. Archived products are left out unless include_archived is true. Each item's `counts` (one number per kind) and `stage_counts` (their totals per stage) are the ones products_read(action=\"get\") reports. Through an agent, your_role is the person's role capped by the connection's level, which connection_level gives (viewer reads, editor also writes and archives, admin also deletes permanently and manages products and people). Where your_role is reader you may read only the Story: such an item has no concept and counts only story_pages. A tenant marked story_only is one where you read only the Story everywhere, so its members are not listed to you. A tenant with `example: true` is the example organization: a worked example that every account reads, as its guest (your_role guest, viewer on every product), and that nobody but its authors changes, so every write there is refused with 403 example_read_only. Read it to learn how a discovery is done; do the person's own work in an organization of theirs. A tenant's plan is one this WhatBuild defines, whose limits everyone in it meets (products_read(action=\"limits\") lists them with what is used today), or unlimited, which sets none. A tenant with read_only is one that went back to the plan new organizations start on while whoever started it already had one there: read and export it, but every other write is refused (409 organization_read_only) until it moves to another plan; it is kept until kept_until. A tenant's name_etag guards its name and slug, which its owners change with products_write(action=\"rename_tenant\"); former_slugs, when present, are slugs it had before, which still reach it.",
+    "Start here when you do not know which product to work in. Each item has `path` (tenant/team/product slugs) and `product_id`; pass either as `product` on product-scoped calls. Confirm the product with the person before your first write in a conversation. Archived products are left out unless include_archived is true. Each item's `counts` (one number per kind) and `stage_counts` (their totals per stage) are the ones products_read(action=\"get\") reports. Through an agent, your_role is the person's role capped by the connection's level, which connection_level gives (viewer reads, editor also writes and archives, admin also deletes permanently and manages products and people). Where your_role is reader you may read only the Story: such an item has no concept and counts only story_pages. A tenant's your_role is your role in the organization itself: owner, admin, or member for someone whose roles are on its teams and products only (guest in the example organization). A tenant marked story_only is one where you read only the Story everywhere, so its members are not listed to you. A tenant with `example: true` is the example organization: a worked example that every account reads, as its guest (your_role guest, viewer on every product), and that nobody but its authors changes, so every write there is refused with 403 example_read_only. Read it to learn how a discovery is done; do the person's own work in an organization of theirs. A tenant's plan is one this WhatBuild defines, whose limits everyone in it meets (products_read(action=\"limits\") lists them with what is used today), or unlimited, which sets none. A tenant with read_only is one that went back to the plan new organizations start on while whoever started it already had one there: everyone in it may read, export, delete and take people out, as their roles allow, and every other write is refused (409 organization_read_only) until it moves to another plan; it is kept until kept_until. A tenant's name_etag guards its name and slug, which its owners change with products_write(action=\"rename_tenant\"); former_slugs, when present, are slugs it had before, which still reach it.",
   input: z.strictObject({ include_archived: z.boolean().default(false) }),
   rest: { method: "GET", path: "/me/products" },
   mcp: { tool: "products", action: "list" },
@@ -236,10 +236,11 @@ export const listProducts = defineOperation({
       ...(ctx.principal.level ? { connection_level: ctx.principal.level } : {}),
       items: items.map((i) => ({ ...i, ...countsFor(i.your_role, counts.get(i.product_id)!) })),
       tenants: tenants.map(({ example, read_only_since, kept_until, ...t }) => {
-        const tr = memberships.find((m) => m.scope_type === "tenant" && m.scope_id === t.tenant_id)?.role ?? null;
+        // Everyone with a role in the organization is in it: someone whose roles are on its teams and products only is a member, as the Members page says.
+        const tr = memberships.find((m) => m.scope_type === "tenant" && m.scope_id === t.tenant_id)?.role ?? "member";
         return {
           ...t,
-          // Back on the starting plan while its creator has another there: read and exported, kept until kept_until, added to by nobody.
+          // Back on the starting plan while its creator has another there: read, exported, deleted from and left, kept until kept_until, added to by nobody.
           ...(read_only_since ? { read_only: { since: read_only_since, kept_until } } : {}),
           // The example organization: read by everyone, changed by nobody but its members.
           ...(example ? { example: true } : {}),
@@ -863,7 +864,7 @@ export const revokeMember = defineOperation({
   connection: "admin",
   summary: "Remove someone's role at one scope, or remove them from the tenant entirely. Their past writes and attribution stay.",
   description:
-    "Revokes the grant at exactly the scope named. Other grants the person holds (on other teams or products) are untouched; a person whose last grant goes is no longer in the tenant. With whole_tenant, revokes every grant they hold in the tenant at once (needs tenant admin, and owner if they are an owner). A tenant keeps at least one owner.",
+    "Revokes the grant at exactly the scope named. Other grants the person holds (on other teams or products) are untouched; a person whose last grant goes is no longer in the tenant, which left_organization says and the access log records. With whole_tenant, revokes every grant they hold in the tenant at once (needs tenant admin, and owner if they are an owner). A tenant keeps at least one owner.",
   input: grantScope.extend({
     account_id: z.string().min(1),
     whole_tenant: z.boolean().default(false).describe("Remove the person from the tenant: every grant they hold, on the tenant, its teams and its products. Leave team and product out."),
@@ -899,8 +900,17 @@ export const revokeMember = defineOperation({
     }
     await ctx.db.deleteFrom("memberships").where("membership_id", "=", m.membership_id).execute();
     const acct = await ctx.db.selectFrom("accounts").select("display_name").where("account_id", "=", input.account_id).executeTakeFirst();
-    await recordActivity(ctx, { action: "revoked", entity_type: "membership", entity_id: input.account_id, entity_title: acct?.display_name ?? null, summary: `Removed ${m.role} on ${target.scope_type === "tenant" ? "organization" : target.scope_type} ${target.name}` });
-    return { revoked: true, account_id: input.account_id, scope_type: target.scope_type, scope: target.name };
+    // A person whose last role goes is no longer in the organization, and the access log says so.
+    const left = !(await ctx.db.selectFrom("memberships").select("membership_id").where("tenant_id", "=", ctx.scope.tenant!.tenant_id).where("account_id", "=", input.account_id).executeTakeFirst());
+    const removed = `${m.role} on ${target.scope_type === "tenant" ? "organization" : target.scope_type} ${target.name}`;
+    await recordActivity(ctx, {
+      action: "revoked",
+      entity_type: "membership",
+      entity_id: input.account_id,
+      entity_title: acct?.display_name ?? null,
+      summary: left ? `Removed from ${ctx.scope.tenant!.name}: ${removed} was their only role` : `Removed ${removed}`,
+    });
+    return { revoked: true, account_id: input.account_id, scope_type: target.scope_type, scope: target.name, ...(left ? { left_organization: true } : {}) };
   },
 });
 

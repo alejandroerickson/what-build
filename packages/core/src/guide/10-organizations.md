@@ -34,7 +34,9 @@ there is unlimited. Limits belong to the plan, never to one organization.
 On a plan with limits everyone in the organization, its owners included, meets them, and an agent's
 calls count as its person's: limits on how often and how much each day, and totals on what the
 organization holds (people who do more than read the Story, an invitation not yet accepted holding a
-place; products and sources not archived; and storage, files and text, every version). What each
+place; products and sources not archived; and storage, every version: files, which are attachments,
+the text read from each attachment, kept as a file of its own, and prototypes, and text written in
+WhatBuild). What each
 person is sent a day (attachments, mockup downloads, exports) is capped too.
 `products_read(action="limits", params={"tenant": "…"})`, or with `product` set to a product in it,
 lists every limit with its value (null for none) and what is used of it: today's for a daily one, a
@@ -52,9 +54,9 @@ guests' limits on calls a minute and downloads a day.
 An organization moved back to the plan new organizations start on, while whoever started it already
 has all the organizations there they may have, is **read-only**: `products_read(action="list")`
 marks its tenant `read_only`, with `since` and `kept_until`, the day it is kept until. Reading,
-searching, export, deleting and taking people out work there as usual; every other write is refused
-with `409 organization_read_only`, changing nothing, until an instance owner moves it to another
-plan.
+searching, export, deleting and taking people out work there as usual, as each person's roles
+allow; every other write is refused with `409 organization_read_only`, changing nothing, until an
+instance owner moves it to another plan. Its owners are mailed when it becomes read-only.
 
 | Refusal | What it means |
 |---|---|

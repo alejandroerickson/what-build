@@ -3,7 +3,7 @@ import { useRef, useState } from "react";
 import { useNavigate } from "react-router";
 import { api, putWithProgress } from "../lib/api.ts";
 import { formatBytes, formatDate, plural } from "../lib/format.ts";
-import { useProduct } from "../lib/session.tsx";
+import { cannotWriteReason, useProduct } from "../lib/session.tsx";
 import { usePageTitle } from "../shell/slots.tsx";
 import {
   Button, ButtonLink, Callout, EmptyState, ErrorCallout, FormGrid, Glyph, IconButton, KeyValue, PageHeader, Sheet, SheetBody, SheetHeader,
@@ -103,7 +103,8 @@ function FileRow({ item, onRemove, status }: { item: Item; onRemove?: () => void
 const STEPS = ["Describe it", "Add attachments", "Create"];
 
 export function SourceNewPage() {
-  const { api: base, app, canWrite } = useProduct();
+  const ctx = useProduct();
+  const { api: base, app, canWrite } = ctx;
   const navigate = useNavigate();
   const qc = useQueryClient();
   usePageTitle("Add a source");
@@ -148,7 +149,7 @@ export function SourceNewPage() {
       <>
         {header}
         <EmptyState title="You can’t add sources to this product" action={<ButtonLink to={`${app}/evidence`}>Back to Evidence</ButtonLink>}>
-          An admin of this product can make you an editor.
+          {cannotWriteReason(ctx)}
         </EmptyState>
       </>
     );

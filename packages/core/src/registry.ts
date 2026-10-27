@@ -215,6 +215,15 @@ export function mcpTool(op: Pick<OperationDef, "mutates" | "rest" | "mcp">): str
   return op.mcp.action ? `${op.mcp.tool}_${toolKind(op)}` : op.mcp.tool;
 }
 
+/**
+ * An operation as the caller names it in a refusal: an agent by the call it makes,
+ * `products_write(action="set_plan")`, and anyone else by the operation's name.
+ */
+export function callName(op: Pick<OperationDef, "name" | "mutates" | "rest" | "mcp">, surface: Principal["surface"]): string {
+  if (surface !== "mcp") return op.name;
+  return op.mcp.action ? `${mcpTool(op)}(action="${op.mcp.action}")` : mcpTool(op);
+}
+
 export function defineOperation<I extends z.ZodType, O, P = undefined>(def: OperationDef<I, O, P>): OperationDef<I, O, P> {
   return def;
 }

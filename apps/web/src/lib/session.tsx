@@ -177,6 +177,8 @@ interface ProductCtx {
   /** Web base for this product's screens. */
   app: string;
   canWrite: boolean;
+  /** The organization is read-only: nothing can be added or changed, whatever the role, but deletes still work. */
+  readOnlyOrganization: boolean;
   isAdmin: boolean;
   /** An admin, in a product that isn't archived: may delete permanently. */
   canDelete: boolean;
@@ -200,7 +202,8 @@ export function ProductProvider({ children, fallback }: { children: (ctx: Produc
     product: q.data,
     api: `/api/v1/p/${path}`,
     app: `/t/${path}`,
-    canWrite: (q.data.your_role === "editor" || q.data.your_role === "admin") && !q.data.archived_at,
+    canWrite: (q.data.your_role === "editor" || q.data.your_role === "admin") && !q.data.archived_at && !q.data.tenant.read_only,
+    readOnlyOrganization: Boolean(q.data.tenant.read_only),
     isAdmin: q.data.your_role === "admin",
     canDelete: q.data.your_role === "admin" && !q.data.archived_at,
     storyOnly: q.data.your_role === "reader",
@@ -211,6 +214,13 @@ export function ProductProvider({ children, fallback }: { children: (ctx: Produc
     // Storage may be blocked; the URL still carries the product.
   }
   return <ProductContext.Provider value={ctx}>{children(ctx)}</ProductContext.Provider>;
+}
+
+/** Why someone can't add or change anything in this product, for a screen that would otherwise invite it. */
+export function cannotWriteReason(ctx: Pick<ProductCtx, "product" | "readOnlyOrganization">): string {
+  if (ctx.readOnlyOrganization) return `${ctx.product.tenant.name} is read-only, so nothing new can be added to it or changed until it moves to another plan.`;
+  if (ctx.product.archived_at) return "This product is archived. An admin can restore it in Settings.";
+  return "You’re a viewer here. An admin of this product can make you an editor.";
 }
 
 export function useProduct(): ProductCtx {

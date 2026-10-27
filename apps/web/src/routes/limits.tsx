@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { READ_ONLY_ALLOWS } from "@whatbuild/core/read-only";
 import { useState, type ReactNode } from "react";
 import { Link, useParams, useSearchParams } from "react-router";
 import { api, ApiError } from "../lib/api.ts";
@@ -102,8 +103,8 @@ function PlanSummary({ l, owner }: { l: OrganizationLimits; owner: boolean }) {
             </p>
             {l.read_only ? (
               <Callout tone="attention" title={keptLine(l.read_only)}>
-                {org} went back to the {startName} plan while whoever started it already has a {startName} organization, so nothing new can be added. Everyone in it
-                can still read, export and delete. To work in it again, {ask} to move it to another plan.
+                {org} went back to the {startName} plan while whoever started it already has a {startName} organization, so nothing new can be added.{" "}
+                {READ_ONLY_ALLOWS} To work in it again, {ask} to move it to another plan.
               </Callout>
             ) : (
               <p>
@@ -162,7 +163,7 @@ function Holds({ l, holds }: { l: OrganizationLimits; holds: Holdings }) {
       used: s.total,
       limit: value(l, "storage_max_bytes"),
       unit: "bytes",
-      note: `${size(s.files)} of files, ${size(s.text)} of text. Archiving keeps it; deleting frees it.`,
+      note: `${size(s.files)} of files (attachments, the text read from each, kept as a file of its own, and prototypes), ${size(s.text)} of text. Archiving keeps it; deleting frees it.`,
     },
   ];
   return (
@@ -482,7 +483,7 @@ export function InstanceOrganizationsSheet() {
       )}
       {editing && q.data ? <PlanDialog key={editing.slug} org={editing} all={q.data} onClose={close} /> : null}
       {renaming ? <RenameDialog org={renaming} onClose={() => setRenamingSlug(null)} /> : null}
-      {deleting ? <OrganizationDeleteDialog tenant={deleting.slug} orgName={deleting.name} onClose={() => setDeletingSlug(null)} /> : null}
+      {deleting ? <OrganizationDeleteDialog tenant={deleting.slug} orgName={deleting.name} tellsOwners onClose={() => setDeletingSlug(null)} /> : null}
     </Sheet>
   );
 }
@@ -890,7 +891,7 @@ function PlanDialog({ org, all, onClose }: { org: InstanceOrganization; all: Ins
   const readOnly = plan === start && Boolean(org.starting_plan_is_read_only);
   const over = plan === "unlimited" || readOnly ? [] : overOn(org.holds, entry(plan));
   const save = useMutation({
-    mutationFn: () => api<{ read_only?: ReadOnly }>("PATCH", `${ORGS}/plan`, { tenant: org.slug, plan, ...(org.etag ? { expected_etag: org.etag } : {}) }),
+    mutationFn: () => api<{ read_only?: ReadOnly; owners_notified: number }>("PATCH", `${ORGS}/plan`, { tenant: org.slug, plan, ...(org.etag ? { expected_etag: org.etag } : {}) }),
     onSuccess: (r) => {
       void qc.invalidateQueries({ queryKey: ["instance-organizations"] });
       void qc.invalidateQueries({ queryKey: ["limits", org.slug] });
@@ -898,7 +899,11 @@ function PlanDialog({ org, all, onClose }: { org: InstanceOrganization; all: Ins
       // A move on or off the starting plan frees or takes its creator's place.
       void qc.invalidateQueries({ queryKey: ["tenant-allowances"] });
       void qc.invalidateQueries({ queryKey: ["me"] });
-      toast(r.read_only ? `${org.name} is read-only. ${keptLine(r.read_only)}.` : `${org.name} is on the ${planWord(plan, all.plan_names)} plan.`);
+      toast(
+        r.read_only
+          ? `${org.name} is read-only. ${keptLine(r.read_only)}.${r.owners_notified ? ` ${r.owners_notified === 1 ? "Its owner was" : "Its owners were"} told by email.` : ""}`
+          : `${org.name} is on the ${planWord(plan, all.plan_names)} plan.`,
+      );
       onClose();
     },
   });
@@ -958,7 +963,7 @@ function PlanDialog({ org, all, onClose }: { org: InstanceOrganization; all: Ins
         ) : null}
         {readOnly && !org.read_only ? (
           <Callout inset tone="attention" title={`${org.name} will be read-only`}>
-            {org.created_by.display_name} already has a {startName} organization, with no room for another. Its people can still read, export and delete everything for a year. Moving it to another plan makes it writable again.
+            {org.created_by.display_name} already has a {startName} organization, with no room for another, so nothing new can be added to {org.name}. {READ_ONLY_ALLOWS} It is kept for a year, and its owners are told by email. Moving it to another plan makes it writable again.
           </Callout>
         ) : null}
         {over.length ? (

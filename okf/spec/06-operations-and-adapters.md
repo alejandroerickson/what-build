@@ -119,7 +119,9 @@ tenant.
   `403` with `{ role, needed }` in `details` ("You are a viewer on product …; outcomes.create
   needs editor"). With no role at all the answer is `404`, never `403`
   ([§3.5](03-accounts-teams-and-identity.md)). `connection_level` carries `{ level, needed }`
-  and says that only the person raises it, under Connect an agent.
+  and says that only the person raises it, under Connect an agent. A refusal to an agent names
+  the call it made, `products_write(action="set_plan")`, rather than the operation
+  (`registry.ts` `callName`).
 - **`stale_etag`** carries `current_etag` in `details`: the etag the object has now, or `null`
   when there is nothing to match. It answers a stale etag and, for a write that may create what
   it writes (a source's summary, notes and derived text, a Story page's versions and notes, the

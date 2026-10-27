@@ -14,7 +14,7 @@ this guide.
 
 ## What WhatBuild sends
 
-Plain text, one message at a time. Four are sent while the request that causes it waits:
+Plain text, one message at a time. Six are sent while the request that causes it waits:
 
 | Message | Sent when | Code |
 |---|---|---|
@@ -22,6 +22,8 @@ Plain text, one message at a time. Four are sent while the request that causes i
 | An invitation | someone gives a role to an address that has no account | `packages/core/src/ops/products.ts` |
 | An allowance notice | an instance owner lets an address start organizations, and asks to tell them | `packages/core/src/ops/tenant-allowances.ts` |
 | An account's deletion confirmation | a person deletes their account, or an instance owner removes it: to the address it had, saying who ended it, what was deleted and what is kept, and whom to tell if it was not them (`WHATBUILD_PRIVACY_CONTACT`) | `packages/core/src/ops/accounts.ts` |
+| An organization's read-only notice | an instance owner moves an organization to the starting plan while whoever started it already has one there, which makes it read-only: to each of its owners, saying what they can still do, the day it is kept until, and whom to ask to move it | `packages/core/src/organization-notices.ts`, `packages/core/src/ops/limits.ts` |
+| An organization's deletion notice | an instance owner deletes an organization: to each of its other owners, saying when and by whom, and whom to tell if it was not expected | `packages/core/src/organization-notices.ts`, `packages/core/src/ops/deletes.ts` |
 
 Two are sent by the worker, not a request:
 
@@ -30,7 +32,8 @@ Two are sent by the worker, not a request:
 | A new agent connection | an agent connects as someone for the first time: a code is exchanged for a connection's first tokens, and the account has had no connection from a client of that name held at the same place; queued with the tokens, sent to the account's address when the worker runs it | `apps/server/src/auth/connection-notice.ts`, `apps/server/src/worker.ts` |
 | The feedback digest | the deployment names `WHATBUILD_FEEDBACK_EMAIL`, there is feedback not yet sent, and no digest went out in the last 24 hours; looked at when an instance starts, and at most every ten minutes while its worker is awake (it sleeps a minute after the last request, and wakes at the next) | `packages/core/src/feedback.ts`, `apps/server/src/worker.ts` |
 
-Nothing else sends mail: not the site's interest form. Sign-in links and invitations are
+Nothing else sends mail: not the site's interest form. A mail gives its days as UTC days, and
+says so ([decision](../decisions/times-are-utc-in-data-and-local-where-shown.md)). Sign-in links and invitations are
 specified in [§3](../spec/03-accounts-teams-and-identity.md), feedback in
 [§4.13](../spec/04-data-model.md#413-feedback).
 

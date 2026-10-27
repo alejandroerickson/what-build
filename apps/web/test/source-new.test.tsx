@@ -15,9 +15,16 @@ vi.mock("../src/lib/api.ts", async (original) => ({
     return { records: [], tags: [], added_by: [], sources: 0 };
   }),
 }));
+const product = { readOnlyOrganization: false };
 vi.mock("../src/lib/session.tsx", async (original) => ({
   ...(await original<typeof import("../src/lib/session.tsx")>()),
-  useProduct: () => ({ api: "/api/v1/products/p", app: "/t/acme/core/app", canWrite: true }),
+  useProduct: () => ({
+    api: "/api/v1/products/p",
+    app: "/t/acme/core/app",
+    canWrite: !product.readOnlyOrganization,
+    readOnlyOrganization: product.readOnlyOrganization,
+    product: { archived_at: null, tenant: { name: "Acme" } },
+  }),
 }));
 
 const { SourceNewPage } = await import("../src/routes/source-new.tsx");
@@ -33,6 +40,7 @@ afterEach(() => {
   unmount = null;
   document.body.innerHTML = "";
   calls.length = 0;
+  product.readOnlyOrganization = false;
   vi.restoreAllMocks();
 });
 
@@ -74,5 +82,27 @@ describe("adding a source in the app", () => {
     expect(calls).toContainEqual({ method: "POST", path: "/api/v1/products/p/sources" });
     expect(host.querySelector("output")?.textContent).toBe("/t/acme/core/app/evidence/rec_1");
     expect(errors.mock.calls.map((c) => String(c[0])).filter((m) => m.includes("Cannot update a component"))).toEqual([]);
+  });
+
+  it("says why there is no form in a read-only organization, rather than refusing at Create", async () => {
+    product.readOnlyOrganization = true;
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const host = document.createElement("div");
+    document.body.append(host);
+    const root = createRoot(host);
+    unmount = () => act(() => root.unmount());
+    await act(async () => {
+      root.render(
+        <QueryClientProvider client={qc}>
+          <MemoryRouter initialEntries={["/t/acme/core/app/evidence/new"]}>
+            <Routes>
+              <Route path="/t/acme/core/app/evidence/new" element={<SourceNewPage />} />
+            </Routes>
+          </MemoryRouter>
+        </QueryClientProvider>,
+      );
+    });
+    expect(host.querySelector("input")).toBeNull();
+    expect(host.textContent).toContain("Acme is read-only, so nothing new can be added to it or changed until it moves to another plan.");
   });
 });

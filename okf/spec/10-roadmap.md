@@ -285,7 +285,8 @@ visitors, invitation links, seats, baselines and daily reset.
   kept a year: reads, export, deletes and taking people out work, and every other write is refused
   with `409 organization_read_only`; moving it to another plan, or to the starting plan once its
   creator has a place for it, makes it writable. Everyone has a place for one there, even with no
-  allowance to start one.
+  allowance to start one. Its owners are mailed when it becomes read-only, and its screens offer
+  no write the server would refuse.
 - A deployment's plans are read from `WHATBUILD_PLANS`, a plan that cannot be read stops the server
   from starting, and a plan it does not define is refused (`422 unknown_plan`); a deployment that
   defines none offers none, and every organization on it is unlimited.
@@ -298,7 +299,6 @@ Not built yet:
 |---|---|
 | Billing | A deployment's plans are defined, priced and enforced, but nothing takes payment: an instance owner moves an organization to a paid plan by hand, and back to the starting plan (or read-only) when it stops paying. Billing stays out of this repository ([decision](../decisions/the-deployment-defines-its-plans-and-billing-stays-outside-the-repository.md)): a service of the deployment's own would take payment and move organizations through `products.set_plan`, with a token for a service rather than a person and a setting that points the Plan page's way to upgrade at its checkout, neither built yet. Which owner of an organization is billed for it is undecided. |
 | Erasing a read-only organization when its year is up | Its date is shown to its people and on `/instance`, but nothing warns them as it nears or erases it after; an instance owner deletes it by hand. |
-| Read-only in the web app's controls | A read-only organization's screens still offer writing, which the server refuses with a message saying why; the banner on every screen says it first. |
 | Storage reconciled against the store | What an organization holds is measured from its rows when asked; a nightly job checking stored bytes against the object store is planned ([§9.2](09-data-lifecycle.md)). |
 | What admission links do | The public sandbox's invitation links are gone. Whether a link should let a number of people in, or give an allowance, or something else, is undecided; until then an instance owner lets people in one address at a time, from the waitlist on `/instance`. |
 | Admission measured from load | Guests come in under numbers an instance owner sets and raises. Letting them in from the deployment's own load (database compute, latency) would follow it without anyone watching. |

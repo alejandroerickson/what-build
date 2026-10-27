@@ -5,6 +5,8 @@ import { checkConfirmation, DELETE_CONFIRMATION, DELETE_GUIDANCE, deleteGuards, 
 import { conflict, invalid } from "../errors.ts";
 import { CONTENT_TABLES } from "../tenant-tables.ts";
 import { defineOperation, type OpContext } from "../registry.ts";
+import { ownerAddresses, tellOwnersDeleted } from "../organization-notices.ts";
+import { isInstanceOwner } from "../tenant-allowance.ts";
 
 /**
  * Deleting what holds everything else: a product, with everything in it, and an organization, with
@@ -229,7 +231,7 @@ export const deleteOrganization = defineOperation({
   summary: "DELETE PERMANENTLY — cannot be undone. Destroys an organization and everything in it (its owners and the instance's, in the web app).",
   description:
     `An act in the web app, never an agent's, of one of the organization's owners or an owner of this instance, who may delete any organization. Needs the organization's name typed exactly, a reason, and confirm set to exactly "${DELETE_CONFIRMATION}". ` +
-    "Everything goes at once, from the product and from the file store shortly after; the example organization can't be deleted.",
+    "Everything goes at once, from the product and from the file store shortly after; the example organization can't be deleted. When an owner of this instance deletes it, its other owners are mailed that it was (owners_notified says how many).",
   input: z.strictObject({ tenant: z.string().min(1), reason: deleteGuards.reason, confirm: deleteGuards.confirm, name: typedName("organization") }),
   rest: { method: "DELETE", path: "" },
   mcp: { tool: "products", action: "delete_tenant" },
@@ -241,8 +243,11 @@ export const deleteOrganization = defineOperation({
     checkTypedName(input.name, t.name, "organization");
     refuseExample(t);
     const impact = await organizationDeletion(ctx);
+    // An owner of this instance deleting it tells its owners, who would otherwise find it gone. Their addresses go with it, so they are read first.
+    const owners = isInstanceOwner(ctx.ports.config, ctx.principal.email) ? await ownerAddresses(db, tid, ctx.principal.account_id) : [];
     await destroyOrganization(ctx, tid);
-    return { deleted: true, ...impact, reason: input.reason };
+    const owners_notified = owners.length ? await tellOwnersDeleted(ctx, owners, t) : 0;
+    return { deleted: true, ...impact, reason: input.reason, owners_notified };
   },
 });
 

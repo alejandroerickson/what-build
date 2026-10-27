@@ -23,7 +23,21 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
 
 ## Unreleased
 
-Nothing yet.
+- **An organization's owners are told when an instance owner makes it read-only or deletes it.**
+  It concerns a deployment that sends mail, and asks nothing of it: moving an organization to the
+  starting plan, where that makes it read-only, now mails each of its owners (but the instance
+  owner who moved it) what still works there and the day it is kept until; deleting one from
+  Organizations mails its owners that it was deleted. A deployment that sends no mail sends
+  neither. Mails now give their days as UTC days and say so ([Mail](mail.md)). No migration.
+- **The tools change for read-only organizations, roles and refusals** (`tools_version` 0.44.0). It
+  asks nothing of a deployment, but a connected client sees the change only in a new session. A
+  refusal names the call the agent made, `sources_delete(action="delete")`, not the operation;
+  `products_read(action="list")` gives `member` as a tenant's `your_role` for someone whose roles
+  are on its teams and products, where it gave `null`; `members_write(action="revoke")` answers
+  `left_organization` when the person's last role went, which the access log now records; and
+  `products_write(action="set_plan")` answers `owners_notified`. In the web app a read-only
+  organization offers no write the server would refuse, and its Members page no new role; a team
+  or product role has **Change**.
 
 ## v0.26.0
 
