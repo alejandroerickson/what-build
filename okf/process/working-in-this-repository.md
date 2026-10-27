@@ -3,7 +3,7 @@ type: Process
 title: How to change this repository
 description: The rules every change follows, for people and agents, including what may never be committed.
 tags: [process, agents, contributing, public]
-generated: {by: agent:claude, at: 2026-10-25}
+generated: {by: agent:claude, at: 2026-10-26}
 status: stable
 ---
 
@@ -95,8 +95,11 @@ Triaging a report, when asked:
    ([decision](../decisions/shared-schema-tenancy-with-row-level-security.md)); a table that may not
    have it is listed in `apps/server/test/row-level-security.test.ts` with the reason the
    specification gives.
-3. **Agents learn from the skill.** If agents should use a new operation differently, update
-   `packages/core/src/skill/SKILL.md` and run `pnpm gen:skill`.
+3. **Agents learn from the operations and the guide.** An operation's `description` says what it
+   does and refuses; a change to how a mechanism works goes in the guide's topic for it
+   (`packages/core/src/guide/`), then `pnpm gen:guide`. Both describe; neither prescribes a method
+   ([decision](../decisions/agents-learn-whatbuild-from-the-servers-guide.md)). Bump `TOOLS_VERSION`
+   (`packages/core/src/ops/meta.ts`) when the tools, their actions or the guide change.
 4. **Sample data.** Extend the seed so every feature has synthetic sample content.
 5. **Interface changes** follow [`DESIGN.md`](../../apps/web/DESIGN.md) and the
    [Studio decision](../decisions/studio-design-system.md): plain CSS on the tokens, primitives from

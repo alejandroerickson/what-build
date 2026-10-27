@@ -131,7 +131,7 @@ describe("an agent", () => {
   it("renames the organization for an owner through a connection that may manage it, and is recorded as an agent", async () => {
     const c = await connect(olga);
     const etag = (await acmeOf(olga)).name_etag;
-    const r = body(await c.callTool({ name: "products", arguments: { action: "rename_tenant", params: { tenant: acme, name: "Acme Works", expected_etag: etag } } }));
+    const r = body(await c.callTool({ name: "products_write", arguments: { action: "rename_tenant", params: { tenant: acme, name: "Acme Works", expected_etag: etag } } }));
     expect(r.status, JSON.stringify(r.json)).toBe(200);
     expect(r.json).toMatchObject({ slug: acme, name: "Acme Works", previous_name: "Acme Research" });
     const log = (await olga.api("GET", `${T()}/members/activity`)).body.items;
@@ -141,7 +141,7 @@ describe("an agent", () => {
 
   it("is refused on a connection set to Edit, which manages no organization", async () => {
     const c = await connect(olga, "/mcp", "editor");
-    const r = body(await c.callTool({ name: "products", arguments: { action: "rename_tenant", params: { tenant: acme, name: "Acme Edited", expected_etag: (await acmeOf(olga)).name_etag } } }));
+    const r = body(await c.callTool({ name: "products_write", arguments: { action: "rename_tenant", params: { tenant: acme, name: "Acme Edited", expected_etag: (await acmeOf(olga)).name_etag } } }));
     expect(r.status).toBe(403);
     expect(r.json.error.code).toBe("connection_level");
     await c.close();
@@ -149,12 +149,12 @@ describe("an agent", () => {
 
   it("renames it through a connector scoped to the organization, and not through one scoped to a product in it", async () => {
     const org = await connect(olga, `/mcp/t/${acme}`);
-    const r = body(await org.callTool({ name: "products", arguments: { action: "rename_tenant", params: { name: "Acme", expected_etag: (await acmeOf(olga)).name_etag } } }));
+    const r = body(await org.callTool({ name: "products_write", arguments: { action: "rename_tenant", params: { name: "Acme", expected_etag: (await acmeOf(olga)).name_etag } } }));
     expect(r.status, JSON.stringify(r.json)).toBe(200);
     expect(r.json.name).toBe("Acme");
     await org.close();
     const one = await connect(olga, `/mcp/t/${product}`);
-    const refused = body(await one.callTool({ name: "products", arguments: { action: "rename_tenant", params: { tenant: acme, name: "Acme Narrow", expected_etag: (await acmeOf(olga)).name_etag } } }));
+    const refused = body(await one.callTool({ name: "products_write", arguments: { action: "rename_tenant", params: { tenant: acme, name: "Acme Narrow", expected_etag: (await acmeOf(olga)).name_etag } } }));
     expect(refused.status).toBe(403);
     expect(refused.json.error.code).toBe("outside_connector_scope");
     await one.close();
@@ -246,10 +246,10 @@ describe("changing an organization's slug", () => {
     expect((await olga.api("GET", "/api/v1/tenants/initech/members")).status).toBe(200);
     expect((await olga.api("POST", `/api/v1/p/initech/${ini.team}/${ini.product}/outcomes`, { title: "Pay runs on time" })).status).toBe(201);
     const c = await connect(olga);
-    const viaPath = body(await c.callTool({ name: "outcomes", arguments: { action: "list", product: `initech/${ini.team}/${ini.product}`, params: {} } }));
+    const viaPath = body(await c.callTool({ name: "outcomes_read", arguments: { action: "list", product: `initech/${ini.team}/${ini.product}`, params: {} } }));
     expect(viaPath.status).toBe(200);
     expect(viaPath.json.scope.product.path).toBe(`initech-labs/${ini.team}/${ini.product}`);
-    const viaTenant = body(await c.callTool({ name: "members", arguments: { action: "list", params: { tenant: "initech" } } }));
+    const viaTenant = body(await c.callTool({ name: "members_read", arguments: { action: "list", params: { tenant: "initech" } } }));
     expect(viaTenant.status).toBe(200);
     expect(viaTenant.json.connector_address).toBeUndefined();
     await c.close();
@@ -258,14 +258,14 @@ describe("changing an organization's slug", () => {
   it("keeps a connector scoped by the old slug working, and tells its agent the new address", async () => {
     for (const path of ["/mcp/t/initech", `/mcp/t/initech/${ini.team}/${ini.product}`]) {
       const c = await connect(olga, path);
-      const r = body(await c.callTool({ name: "outcomes", arguments: { action: "list", params: {} } }));
+      const r = body(await c.callTool({ name: "outcomes_read", arguments: { action: "list", params: {} } }));
       expect(r.status, `${path} ${JSON.stringify(r.json)}`).toBe(200);
       expect(r.json.connector_address).toContain(`${h.baseUrl}/mcp/t/initech-labs${path.endsWith(ini.product) ? `/${ini.team}/${ini.product}` : ""}.`);
       expect(r.json.connector_address).toContain("a slug it had before (initech)");
       await c.close();
     }
     const current = await connect(olga, "/mcp/t/initech-labs");
-    expect(body(await current.callTool({ name: "outcomes", arguments: { action: "list", params: {} } })).json.connector_address).toBeUndefined();
+    expect(body(await current.callTool({ name: "outcomes_read", arguments: { action: "list", params: {} } })).json.connector_address).toBeUndefined();
     await current.close();
   });
 

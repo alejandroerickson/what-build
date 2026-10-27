@@ -16,7 +16,7 @@ Story pages are revised by different agents over weeks. Without shared memory ea
 ## Decision
 
 - `story.write_notes` stores Markdown notes on the page, with their own etag, not versioned with the HTML.
-- `story.get_page` returns them. The skill tells agents to read them before revising and update them after publishing.
+- `story.get_page` returns them. The guide says what they are and how they are written.
 - People read them in the Story inspector; only agents write them ([decision](agents-write-the-story-people-arrange-it.md)).
 
 ## Consequences

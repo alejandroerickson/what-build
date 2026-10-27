@@ -98,13 +98,13 @@ describe("describing sources with tags", () => {
     const client = new Client({ name: "test-agent", version: "1.0.0" });
     const token = await h.connectAgent(alice);
     await client.connect(new StreamableHTTPClientTransport(new URL(`${h.baseUrl}/mcp`), { requestInit: { headers: { authorization: `Bearer ${token}` } } }));
-    const facets = await client.callTool({ name: "sources", arguments: { action: "facets", product: P.replace("/api/v1/p/", ""), params: {} } });
+    const facets = await client.callTool({ name: "sources_read", arguments: { action: "facets", product: P.replace("/api/v1/p/", ""), params: {} } });
     expect(facets.isError).toBeFalsy();
     const t = (facets.content as { text: string }[])[0]!.text;
     expect(JSON.parse(t.slice(t.indexOf("{"))).tags.length).toBeGreaterThan(0);
-    const kinds = await client.callTool({ name: "sources", arguments: { action: "kinds" } });
+    const kinds = await client.callTool({ name: "sources_read", arguments: { action: "kinds" } });
     expect(kinds.isError).toBe(true);
-    expect((kinds.content as { text: string }[])[0]!.text).toMatch(/^422: Unknown sources action/);
+    expect((kinds.content as { text: string }[])[0]!.text).toMatch(/^422: Unknown sources_read action/);
     await client.close();
   });
 });

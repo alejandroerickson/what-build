@@ -79,7 +79,7 @@ describe("a source's derived text", () => {
     // to make it the source's text, with the etag that write needs.
     const beside = await attach(id, "summary.txt", SUMMARY);
     expect(beside.note).toContain(
-      "The source already has a derived text, so this one is kept beside it; if it should replace it, take it with derived(action=\"write_text\", from_attachment), passing the derived text's etag as expected_etag.",
+      "The source already has a derived text, so this one is kept beside it; if it should replace it, take it with derived_write(action=\"write_text\", from_attachment), passing the derived text's etag as expected_etag.",
     );
     await h.worker.drain();
     expect((await text(id)).body).toMatchObject({ text: WEEK, etag: read.body.etag });
@@ -331,7 +331,7 @@ describe("a source's derived text", () => {
     await client.connect(new StreamableHTTPClientTransport(new URL(`${h.baseUrl}/mcp`), { requestInit: { headers: { authorization: `Bearer ${await h.connectAgent(alice, "Text agent", "/mcp", "editor")}` } } }));
     try {
       const writeText = async (params: Record<string, unknown>) => {
-        const r = (await client.callTool({ name: "derived", arguments: { action: "write_text", product: productPath, params: { record_id: s, expected_etag: await etagOf(s), ...params } } })) as { isError?: boolean; content: { text: string }[] };
+        const r = (await client.callTool({ name: "derived_write", arguments: { action: "write_text", product: productPath, params: { record_id: s, expected_etag: await etagOf(s), ...params } } })) as { isError?: boolean; content: { text: string }[] };
         expect(r.isError, r.content[0]!.text).toBeFalsy();
       };
       await writeText({ content: said.replace("aloud", "out") });

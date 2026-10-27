@@ -24,7 +24,7 @@ const outcomeId = id("outcome").describe("The outcome id. id is accepted as anot
 const WHAT_AN_OUTCOME_IS =
   "An outcome is what the product's users should be able to achieve with it: the compass the evidence, assumptions, mockups and Story are read against, so write it to last. " +
   "Each outcome is a card on the Idea screen. Title: what the user achieves, from their side (\"The crew lead plans next week in minutes\"), shown in the card's head. " +
-  "card_html is the front, which people see first: a picture of the outcome that someone new to the team takes in at a glance, drawn with the card kit; call outcomes(action=\"card_guidance\") before drawing one, and outcomes(action=\"card_preview\") to look at it before writing it. " +
+  "card_html is the front, which people see first: a picture of the outcome that someone new to the team takes in at a glance, drawn with the card kit; call outcomes_read(action=\"card_guidance\") before drawing one, and outcomes_read(action=\"card_preview\") to look at it before writing it. " +
   "description is the back: what success looks like for the users and what it means, in depth (Markdown, up to 6,000 characters), which agents read first and people open with More info. " +
   "The two sides say the same thing and change together: a call that changes one sends the other too, unchanged if it still agrees, and one that sends only one side is refused with card_sides_together. " +
   "Neither side cites or retells evidence: no sources, quotes, calls, emails, dates, named customers or people who asked, journeys, assumptions or mockups. " +
@@ -40,7 +40,7 @@ function listed(row: Row) {
 }
 
 /** Said after a write that leaves an outcome with no front. */
-const NO_FRONT = 'This outcome has no front yet, so people see its text and a request for a picture: draw one in card_html, sent with its description, after reading outcomes(action="card_guidance").';
+const NO_FRONT = 'This outcome has no front yet, so people see its text and a request for a picture: draw one in card_html, sent with its description, after reading outcomes_read(action="card_guidance").';
 
 /**
  * An outcome as a write returns it: with a note when it has no front, and, when the write touched
@@ -95,7 +95,7 @@ export const listOutcomes = defineOperation({
     "Outcomes are what the product's users should be able to achieve with it, under the product concept. Read them at the start of any work in a product, and check what you write against them. " +
     "Assumptions point at them through outcome_ids; an outcome points at nothing. To see the assumptions that serve one, list assumptions with its outcome_id. " +
     "Archived outcomes are left out unless include_archived; archived_hidden says how many were left out. An archived outcome can still be linked, and assumptions flag such links in archived_outcome_ids. " +
-    "Each item's description is the back of its card, the text agents read; card_chars is the length of its front, the picture people see first (0 when it has none), and outcomes(action=\"get\") returns the front itself.",
+    "Each item's description is the back of its card, the text agents read; card_chars is the length of its front, the picture people see first (0 when it has none), and outcomes_read(action=\"get\") returns the front itself.",
   input: z.strictObject({
     include_archived: z.boolean().default(false),
     query: z.string().max(500).optional().describe("Case-insensitive substring of title or description."),
@@ -121,7 +121,7 @@ export const listOutcomes = defineOperation({
     const bare = roleAtLeast(ctx.scope.role, "editor") ? items.filter((o) => !o.card_html && !o.archived_at).length : 0;
     const notes = [
       archived_hidden ? `${archived_hidden} archived outcome${archived_hidden === 1 ? " is" : "s are"} not listed; pass include_archived to see ${archived_hidden === 1 ? "it" : "them"}.` : "",
-      bare ? `${bare} of these outcomes ${bare === 1 ? "has" : "have"} no front yet (card_chars 0), so people see only ${bare === 1 ? "its" : "their"} text: offer the person to draw ${bare === 1 ? "it" : "them"} (outcomes(action="card_guidance")).` : "",
+      bare ? `${bare} of these outcomes ${bare === 1 ? "has" : "have"} no front yet (card_chars 0), so people see only ${bare === 1 ? "its" : "their"} text (outcomes_read(action="card_guidance") says how a front is drawn).` : "",
     ].filter(Boolean);
     return {
       items: items.map(listed),
@@ -153,11 +153,11 @@ export const createOutcome = defineOperation({
   access: "write",
   mutates: true,
   summary: "Add an outcome: something the product's users should be able to achieve with it, not a feature, a task or a finding.",
-  description: `${WHAT_AN_OUTCOME_IS} Propose outcomes to the person and add them once they agree, each with both sides. A new outcome goes to the end of the order unless position places it.`,
+  description: `${WHAT_AN_OUTCOME_IS} Each is written with both sides. A new outcome goes to the end of the order unless position places it.`,
   input: z.strictObject({
     title: z.string().trim().min(1).max(200),
     description: z.string().max(DESCRIPTION_MAX).default("").describe("The back of the card, which agents read first: Markdown, up to 6,000 characters, on what success looks like for the users."),
-    card_html: z.string().max(CARD_HTML_MAX).default("").describe("The front of the card, the picture people see first: HTML in the card kit (outcomes(action=\"card_guidance\")). Draw it with the description: without it, people see only text."),
+    card_html: z.string().max(CARD_HTML_MAX).default("").describe("The front of the card, the picture people see first: HTML in the card kit (outcomes_read(action=\"card_guidance\")). Draw it with the description: without it, people see only text."),
     position: z.number().optional().describe("Ordering key, as on update: to place the outcome between two others, use a value between their positions. Omit to put it last."),
   }),
   rest: { method: "POST", path: "/outcomes" },
@@ -187,7 +187,7 @@ export const updateOutcome = defineOperation({
   summary: "Change an outcome's title, the two sides of its card, or its position. Pass only what changes, and both sides when either changes.",
   description:
     `Requires expected_etag from your latest read. Fields you omit keep their values. The previous title and both sides are kept as a revision. ${WHAT_AN_OUTCOME_IS} ` +
-    "An outcome changes when the person changes what the product is for, not when evidence arrives: when evidence challenges one, tell the person and propose new wording rather than adding the evidence to it. To retire one, archive it.",
+    "An outcome says what the product is for, not what evidence found: evidence goes in sources and assumptions. Each change keeps the wording it replaced as a revision. To retire one, archive it.",
   input: z.strictObject({
     outcome_id: outcomeId,
     expected_etag: expectedEtag,
@@ -202,7 +202,7 @@ export const updateOutcome = defineOperation({
     refuseReferences(input);
     const row = await load(ctx, input.outcome_id, true);
     checkEtag(input.expected_etag, row.etag, "outcome");
-    checkCardSides({ back: row.description, front: row.card_html }, { back: input.description, front: input.card_html }, { what: "The outcome", back: "description", read: 'outcomes(action="get")' });
+    checkCardSides({ back: row.description, front: row.card_html }, { back: input.description, front: input.card_html }, { what: "The outcome", back: "description", read: 'outcomes_read(action="get")' });
     checkIdeaCard(input.card_html, "The outcome");
     const changed = (["title", "description", "card_html", "position"] as const).filter((k) => input[k] !== undefined && input[k] !== row[k]);
     if (changed.some((k) => k !== "position"))
@@ -240,7 +240,7 @@ export const outcomeCardGuidance = defineOperation({
   mutates: false,
   summary: "How to draw an Idea card, an outcome's or the product concept's: how to choose what the front shows, the card kit's parts with examples, its pictograms, the room a front has, how to write the back, and a check before sending.",
   description:
-    "Read it before writing card_html with outcomes(action=\"create\") or (action=\"update\"), or products(action=\"create\") or (action=\"update_concept\"). The same for every product: guidance is the reference as Markdown, icons the pictogram names data-icon accepts, frames the widths and most height each front is shown at, and max_chars the longest front. outcomes(action=\"card_preview\") shows a front as the Idea screen will, with its height limit marked, before you write it. A write that touches a card returns card_advice when the card misses something this guidance asks.",
+    "Read it before writing card_html with outcomes_write(action=\"create\") or (action=\"update\"), or products_write(action=\"create\") or (action=\"update_concept\"). The same for every product: guidance is the reference as Markdown, icons the pictogram names data-icon accepts, frames the widths and most height each front is shown at, and max_chars the longest front. outcomes_read(action=\"card_preview\") shows a front as the Idea screen will, with its height limit marked, before you write it. A write that touches a card returns card_advice when the card misses something this guidance asks.",
   input: z.strictObject({}),
   rest: { method: "GET", path: "/idea/card-guidance" },
   mcp: { tool: "outcomes", action: "card_guidance" },
@@ -315,7 +315,7 @@ async function deletion(ctx: OpContext, row: Row) {
     archived: Boolean(row.archived_at),
     assumptions: assumptions.map((a) => ({ id: a.entry_id, statement: a.statement })),
     after_delete: "Its title, both sides of its card and its earlier versions go. It is removed from the outcome_ids of the assumptions that serve it.",
-    reversible_alternative: 'outcomes(action="archive") takes it out of the list and keeps it linkable.',
+    reversible_alternative: 'outcomes_write(action="archive") takes it out of the list and keeps it linkable.',
   };
 }
 
@@ -342,14 +342,14 @@ export const deleteOutcome = defineOperation({
   mutates: true,
   summary: "DELETE PERMANENTLY — cannot be undone. Destroys an outcome and its history; archiving it is the reversible alternative.",
   description:
-    'Archiving it (outcomes(action="archive")) is the reversible alternative and almost always what is wanted. ' +
+    'Archiving it (outcomes_write(action="archive")) is the reversible alternative and almost always what is wanted. ' +
     DELETE_GUIDANCE +
     " Leaves a tombstone: reads return 410 with who, when and why.",
   input: z.strictObject({ outcome_id: outcomeId, ...deleteGuards }),
   rest: { method: "DELETE", path: "/outcomes/:outcome_id" },
   mcp: { tool: "outcomes", action: "delete" },
   async handler(ctx, input) {
-    checkConfirmation(input.confirm, 'archive it with outcomes(action="archive")');
+    checkConfirmation(input.confirm, 'archive it with outcomes_write(action="archive")');
     const row = await load(ctx, input.outcome_id, true);
     checkEtag(input.expected_etag, row.etag, "outcome");
     const impact = await deletion(ctx, row);

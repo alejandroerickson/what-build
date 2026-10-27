@@ -505,7 +505,7 @@ export function ideaCardResponseHeaders(nonce: string, ancestor = "'self'"): Rec
 
 /* ---- What agents are told ---------------------------------------------------------------------- */
 
-/** The card kit's reference, as outcomes(action="card_guidance") gives it. */
+/** The card kit's reference, as outcomes_read(action="card_guidance") gives it. */
 export const CARD_GUIDANCE = `# Drawing an Idea card
 
 The product concept and each outcome is a card. On the Idea screen people see its **front** first: a picture of the idea, under the card's title. Its **back**, the text, opens with More info between the title and the picture, so the two are read together. You write both sides, in the same call.
@@ -513,7 +513,7 @@ The product concept and each outcome is a card. On the Idea screen people see it
 - **The front** (\`card_html\`) is what someone new to the team takes in within five seconds: for the concept, what the product promises, to whom, and what changes for them; for an outcome, what the users can do afterwards and the sign that they can. People do not read paragraphs here. Show it.
 - **The back** (the concept's \`concept\`, an outcome's \`description\`; Markdown) is the same idea in depth: what every agent working in the product reads first, and what a person opens More info to understand. It may say more than the front; it never says something different.
 
-The two sides change together. A call that changes one sends the other too, unchanged if it still agrees, and is refused otherwise (\`card_sides_together\`). Read both before you change either: \`products(action="get", include_card=true)\`, \`outcomes(action="get")\`. The concept's card changes with \`products(action="update_concept")\`, an outcome's with \`outcomes(action="create")\` or \`(action="update")\`; an editor may make either.
+The two sides change together. A call that changes one sends the other too, unchanged if it still agrees, and is refused otherwise (\`card_sides_together\`). Read both before you change either: \`products_read(action="get", include_card=true)\`, \`outcomes_read(action="get")\`. The concept's card changes with \`products_write(action="update_concept")\`, an outcome's with \`outcomes_write(action="create")\` or \`(action="update")\`; an editor may make either.
 
 ## How to draw a card
 
@@ -522,7 +522,7 @@ The two sides change together. A call that changes one sends the other too, unch
 3. **Pick one main part that shows that sentence** (the table below), and at most one or two that support it: a lede, a note, chips, a zone stating the success.
 4. **Pick one hue** for the card with \`data-hue\`; slate is for how things are today.
 5. **Write the words last, and few:** labels of two to five words, and no sentence that says what the picture already shows.
-6. **Look at it before you write it.** \`outcomes(action="card_preview")\` (with \`kind="concept"\` for the concept) makes every check the write makes and gives you a short-lived link to the front exactly as the Idea screen shows it, with a dashed line where a desktop stops showing it and a note saying how tall it is. Open it at ${CARD_FRAMES.outcome.width} and 390 wide, light and dark: nothing below the line at ${CARD_FRAMES.outcome.width}, nothing running into anything else at either width. Fix and preview again until it fits.
+6. **Look at it before you write it.** \`outcomes_read(action="card_preview")\` (with \`kind="concept"\` for the concept) makes every check the write makes and gives you a short-lived link to the front exactly as the Idea screen shows it, with a dashed line where a desktop stops showing it and a note saying how tall it is. Open it at ${CARD_FRAMES.outcome.width} and 390 wide, light and dark: nothing below the line at ${CARD_FRAMES.outcome.width}, nothing running into anything else at either width. Fix and preview again until it fits.
 7. **Check it against the list at the end,** and send both sides. If the response carries \`card_advice\`, fix what it names with an update.
 
 ## Choose the main part from what the card says

@@ -101,13 +101,13 @@ describe("a null character over MCP", () => {
     const search = result(await client.callTool({ name: "search", arguments: { product: path, query: "ga\u0000te" } }));
     expect(search.status).toBe(422);
     refusesNul(search.json, "query");
-    const list = result(await client.callTool({ name: "sources", arguments: { action: "list", product: path, params: { cursor: "x\u0000" } } }));
+    const list = result(await client.callTool({ name: "sources_read", arguments: { action: "list", product: path, params: { cursor: "x\u0000" } } }));
     expect(list.status).toBe(422);
     refusesNul(list.json, "cursor");
-    const activity = result(await client.callTool({ name: "activity", arguments: { action: "list", product: path, params: { cursor: "01\u0000" } } }));
+    const activity = result(await client.callTool({ name: "activity_read", arguments: { action: "list", product: path, params: { cursor: "01\u0000" } } }));
     expect(activity.status).toBe(422);
     refusesNul(activity.json, "cursor");
-    const product = result(await client.callTool({ name: "outcomes", arguments: { action: "list", product: `${path}\u0000` } }));
+    const product = result(await client.callTool({ name: "outcomes_read", arguments: { action: "list", product: `${path}\u0000` } }));
     expect(product.status).toBe(422);
     refusesNul(product.json, "product");
     // What the person reaches is still found, and searched, without one.

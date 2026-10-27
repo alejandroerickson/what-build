@@ -214,7 +214,7 @@ function registerOps(): OperationDef[] {
     access: "read",
     mutates: false,
     summary: `List ${kind}s, newest first: each one's statement, status and counts, without its body, links or review notes.`,
-    description: `${meaning} Without status it lists the current entries (unconfirmed and confirmed), the ones products(action="list") and products(action="get") count; not_current_hidden says how many refuted or superseded entries matching the other filters it left out. Pass status (one or more of unconfirmed, confirmed, refuted, superseded) to list those too. Filter also by an outcome, a tag or human confidence. Archived entries are left out unless include_archived. Each item says whether it is frozen (reviewed, so its statement and body can no longer be edited), which entries supersede it (superseded_by, newest first), and how many links it has out (link_count) and in (linked_from_count); get returns the links themselves.`,
+    description: `${meaning} Without status it lists the current entries (unconfirmed and confirmed), the ones products_read(action="list") and products_read(action="get") count; not_current_hidden says how many refuted or superseded entries matching the other filters it left out. Pass status (one or more of unconfirmed, confirmed, refuted, superseded) to list those too. Filter also by an outcome, a tag or human confidence. Archived entries are left out unless include_archived. Each item says whether it is frozen (reviewed, so its statement and body can no longer be edited), which entries supersede it (superseded_by, newest first), and how many links it has out (link_count) and in (linked_from_count); get returns the links themselves.`,
     input: z.strictObject({
       status: z.array(STATUS).max(4).optional().describe("Only these statuses. Omit for the current ones: unconfirmed and confirmed."),
       outcome_id: id("outcome").optional(),
@@ -292,7 +292,7 @@ function registerOps(): OperationDef[] {
     access: "write",
     mutates: true,
     summary: "Record an assumption. Starts unconfirmed.",
-    description: `${meaning} Create one only when the team needs to track this specific premise, and keep the register small. Say in the body why the team holds it. Label author_type honestly: ordinary conversational agreement is not a person's authorship.`,
+    description: `${meaning} The body says why the team holds it. author_type says who wrote it: agent, unless the words are the person's own; agreement in conversation is not a person's authorship.`,
     input: z.strictObject(createFields),
     rest: { method: "POST", path: `/${tool}` },
     mcp: { tool, action: "create" },

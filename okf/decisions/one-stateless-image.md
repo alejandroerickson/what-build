@@ -3,7 +3,7 @@ type: Decision
 title: One stateless container image serves everything and runs the worker
 description: The web app, REST, MCP, OAuth, the upload relay and the job worker ship in one image on Cloud Run.
 tags: [decision, architecture, deployment]
-generated: {by: agent:claude, at: 2026-10-25}
+generated: {by: agent:claude, at: 2026-10-26}
 status: stable
 ---
 
@@ -33,9 +33,9 @@ A side project on near-free infrastructure benefits from the fewest moving servi
   ([02-architecture](../spec/02-architecture.md)).
 - Large files never pass through the application or a tool call.
 - MCP has no session, so the server cannot tell a connected client that a release added tools
-  (`notifications/tools/list_changed`). The client keeps its list until a new session; the skill,
-  the server's instructions and its `unknown_tool` and `unknown_action` refusals tell the agent to
-  ask the person for one, and every product-scoped result gives the server's `skill_version`, so
+  (`notifications/tools/list_changed`). The client keeps its list until a new session; the guide,
+  the server's instructions and its `unknown_tool` and `unknown_action` refusals say a new session
+  brings the current one, and every product-scoped result gives the server's `tools_version`, so
   an upgrade made mid-conversation shows in the next answer
   ([06](../spec/06-operations-and-adapters.md)).
 

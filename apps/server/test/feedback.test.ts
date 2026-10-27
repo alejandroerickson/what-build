@@ -213,13 +213,13 @@ describe("an agent connection's feedback switch", () => {
     const one = result(await client.callTool({ name: "submit_feedback", arguments: { category: "issue", describe: true } }));
     expect(one.status).toBe(422);
     expect(one.json.error.message).toBe(
-      "`describe` is not an argument of submit_feedback: it is a tool of its own, whose arguments are its fields (category, message, tool, details, screen and reply), and only the grouped tools take action, params and describe. `message` is required. Nothing was changed; correct the call and send it again.",
+      "`describe` is not an argument of submit_feedback: it is a tool of its own, whose arguments are its fields (category, message, tool, details, screen and reply), and only the tools with actions take action, params and describe. `message` is required. Nothing was changed; correct the call and send it again.",
     );
     expect(one.json.error.message).not.toContain("did you mean");
     const grouped = result(await client.callTool({ name: "submit_feedback", arguments: { action: "send", params: { category: "issue", message: "Hi." } } }));
     expect(grouped.json.error.message).toMatch(/^`action` and `params` are not arguments of submit_feedback: it is a tool of its own, whose arguments are its fields \(category, message, /);
-    const skill = result(await client.callTool({ name: "get_skill", arguments: { describe: true } }));
-    expect(skill.json.error.message).toMatch(/^`describe` is not an argument of get_skill: it is a tool of its own, which takes no arguments, and only the grouped tools take action, params and describe\. Nothing was changed/);
+    const guide = result(await client.callTool({ name: "guide", arguments: { describe: true } }));
+    expect(guide.json.error.message).toMatch(/^`describe` is not an argument of guide: it is a tool of its own, whose arguments are its fields \(topic\), and only the tools with actions take action, params and describe\. Nothing was changed/);
     await client.close();
     expect(await h.db.selectFrom("feedback").selectAll().execute()).toEqual([]);
   });

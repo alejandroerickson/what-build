@@ -93,7 +93,7 @@ export const setTenantAllowance = defineOperation({
   connection: "admin",
   summary: "Let an address create a number of organizations, or change how many (instance owners).",
   description:
-    "allowed counts every organization the address's account has created, so 1 with one already created lets it create no more. 0 lets it create none, whatever the default. The address need not have an account yet: while sign-up is limited, an allowance above 0 also lets it sign up. To change an existing allowance pass expected_etag from products(action=\"tenant_allowances\"); for an address without one leave it out, as one sent then is refused with 409 stale_etag and current_etag null. With notify (the default), an address whose allowance grows is told by email where to start. Use remove_tenant_allowance to return an address to the default.",
+    "allowed counts every organization the address's account has created, so 1 with one already created lets it create no more. 0 lets it create none, whatever the default. The address need not have an account yet: while sign-up is limited, an allowance above 0 also lets it sign up. To change an existing allowance pass expected_etag from products_read(action=\"tenant_allowances\"); for an address without one leave it out, as one sent then is refused with 409 stale_etag and current_etag null. With notify (the default), an address whose allowance grows is told by email where to start. Use remove_tenant_allowance to return an address to the default.",
   input: z.strictObject({
     email: address,
     allowed: z.number().int().min(0).max(1000),
@@ -111,7 +111,7 @@ export const setTenantAllowance = defineOperation({
     const actor = json(ctx.actor);
     if (existing) {
       if (!input.expected_etag)
-        throw conflict("stale_etag", `${input.email} already has an allowance; read it with products(action="tenant_allowances") and pass its etag as expected_etag.`, { current_etag: existing.etag });
+        throw conflict("stale_etag", `${input.email} already has an allowance; read it with products_read(action="tenant_allowances") and pass its etag as expected_etag.`, { current_etag: existing.etag });
       checkEtag(input.expected_etag, existing.etag, "allowance");
       await ctx.db
         .updateTable("tenant_allowances")
@@ -120,7 +120,7 @@ export const setTenantAllowance = defineOperation({
         .execute();
     } else {
       if (input.expected_etag !== undefined)
-        throw conflict("stale_etag", `${input.email} has no allowance of its own yet, so there is no etag to match: products(action="tenant_allowances") does not list it. Leave expected_etag out to give it one.`, { current_etag: null });
+        throw conflict("stale_etag", `${input.email} has no allowance of its own yet, so there is no etag to match: products_read(action="tenant_allowances") does not list it. Leave expected_etag out to give it one.`, { current_etag: null });
       await ctx.db
         .insertInto("tenant_allowances")
         .values({ email: input.email, allowed: input.allowed, note: input.note ?? "", etag: newEtag(), created_at: ctx.now, created_by: actor, updated_at: ctx.now, updated_by: actor })
@@ -155,7 +155,7 @@ export const removeTenantAllowance = defineOperation({
   connection: "admin",
   summary: "Return an address to the default allowance (instance owners).",
   description:
-    "Removes the allowance an instance owner gave the address, so it may create as many organizations as default_allowed, counting those it created. Organizations it already created stay as they are. Pass expected_etag from products(action=\"tenant_allowances\").",
+    "Removes the allowance an instance owner gave the address, so it may create as many organizations as default_allowed, counting those it created. Organizations it already created stay as they are. Pass expected_etag from products_read(action=\"tenant_allowances\").",
   input: z.strictObject({ email: address, expected_etag: expectedEtag }),
   rest: { method: "POST", path: "/tenant-allowances/remove" },
   mcp: { tool: "products", action: "remove_tenant_allowance" },

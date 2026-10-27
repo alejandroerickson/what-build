@@ -48,7 +48,7 @@ describe("an etag sent before the first write", () => {
     const blind = await owen.api("PUT", A, { email: "nell@etags.example", allowed: 3, notify: false });
     expect(blind.status).toBe(409);
     expect(blind.body.error).toMatchObject({ code: "stale_etag", details: { current_etag: given.body.etag } });
-    expect(blind.body.error.message).toBe('nell@etags.example already has an allowance; read it with products(action="tenant_allowances") and pass its etag as expected_etag.');
+    expect(blind.body.error.message).toBe('nell@etags.example already has an allowance; read it with products_read(action="tenant_allowances") and pass its etag as expected_etag.');
   });
 
   it("is refused by a new mockup, a page's first version, a new page promoted from a mockup and the first hierarchy", async () => {

@@ -3,7 +3,7 @@ type: Specification
 title: WhatBuild turns a team's discovery material into insight and a story, with agents as first-class contributors.
 description: Who the product is for, the core loop, the four screens, the vocabulary, the non-negotiable behaviors, and what the product is not.
 tags: [spec, product, vocabulary, principles]
-generated: {by: agent:claude, at: 2026-10-25}
+generated: {by: agent:claude, at: 2026-10-26}
 status: stable
 ---
 
@@ -74,7 +74,7 @@ name). Routes are in
 
 ## 1.4 Vocabulary
 
-One word per concept, used identically in the UI, REST, MCP, the skill, and documentation. The
+One word per concept, used identically in the UI, REST, MCP, the guide, and documentation. The
 Idea screen's terms are a decision: [A product starts with its idea](../decisions/a-product-starts-with-an-idea-concept-and-outcomes.md).
 
 | Term | Meaning |

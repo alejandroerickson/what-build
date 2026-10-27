@@ -3,7 +3,7 @@ type: Decision
 title: Agents write the Story; people read it, and may arrange, archive and delete its pages by hand
 description: Only agents write a Story page's content, notes and style; in the web app people also drag pages into place, archive, restore and delete them, which is often quicker by hand than through an agent.
 tags: [decision, story, agents, web]
-generated: {by: agent:claude, at: 2026-10-14}
+generated: {by: agent:claude, at: 2026-10-26}
 status: stable
 ---
 
@@ -48,7 +48,7 @@ the app.
 - The tree's moves are pure functions in `apps/web/src/routes/story-model.ts`, saved through
   `story.set_hierarchy`; the page actions are in `apps/web/src/routes/story-actions.tsx`. No write
   control for a page's content, notes or style goes into `apps/web/src/routes/story*.tsx`.
-- The skill tells agents that people may move, archive and delete pages by hand, so an agent reads
-  the hierarchy again rather than assuming its last arrangement.
+- The guide says that people may move, archive and delete pages by hand, and that a person may have
+  moved pages since an agent last read the hierarchy.
 
 Specified in: [07-web-app §7.8](../spec/07-web-app.md), [04-data-model §4.11](../spec/04-data-model.md).

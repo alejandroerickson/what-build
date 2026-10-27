@@ -54,11 +54,11 @@ describe("a connector scoped to an organization", () => {
   it("sees only that organization and says so in its instructions", async () => {
     const c = await connect(`/mcp/t/${acme}`);
     expect(c.getInstructions()).toContain(`scoped to the organization ${acme}`);
-    const list = body(await c.callTool({ name: "products", arguments: { action: "list" } })).json;
+    const list = body(await c.callTool({ name: "products_read", arguments: { action: "list" } })).json;
     expect(list.items.map((i: { path: string }) => i.path).sort()).toEqual([billing, onboarding].sort());
     expect(list.tenants.map((t: { slug: string }) => t.slug)).toEqual([acme]);
     // Two products inside: it asks which, and lists only those.
-    const ask = body(await c.callTool({ name: "outcomes", arguments: { action: "list", params: {} } }));
+    const ask = body(await c.callTool({ name: "outcomes_read", arguments: { action: "list", params: {} } }));
     expect(ask.status).toBe(422);
     expect(JSON.stringify(ask.json)).not.toContain(payroll);
     await c.close();
@@ -66,26 +66,26 @@ describe("a connector scoped to an organization", () => {
 
   it("works anywhere inside it", async () => {
     const c = await connect(`/mcp/t/${acme}`);
-    const made = body(await c.callTool({ name: "outcomes", arguments: { action: "create", product: billing, params: { title: "Invoices go out on time" } } }));
+    const made = body(await c.callTool({ name: "outcomes_write", arguments: { action: "create", product: billing, params: { title: "Invoices go out on time" } } }));
     expect(made.status).toBe(200);
     expect(made.json.scope.product.path).toBe(billing);
-    const members = body(await c.callTool({ name: "members", arguments: { action: "list", params: {} } }));
+    const members = body(await c.callTool({ name: "members_read", arguments: { action: "list", params: {} } }));
     expect(members.status).toBe(200);
     await c.close();
   });
 
   it("refuses another organization's product, its tenant calls and account-wide writes, and changes nothing", async () => {
     const c = await connect(`/mcp/t/${acme}`);
-    const write = body(await c.callTool({ name: "outcomes", arguments: { action: "create", product: payroll, params: { title: "Payslips are right" } } }));
+    const write = body(await c.callTool({ name: "outcomes_write", arguments: { action: "create", product: payroll, params: { title: "Payslips are right" } } }));
     expect(write.status).toBe(403);
     expect(write.json.error.code).toBe("outside_connector_scope");
     expect(write.json.error.message).toContain(`organization Acme (${acme})`);
     expect((await alice.api("GET", `/api/v1/p/${payroll}/outcomes`)).body.items).toHaveLength(0);
     const read = body(await c.callTool({ name: "search", arguments: { product: payroll, query: "pay" } }));
     expect(read.json.error.code).toBe("outside_connector_scope");
-    const tenantCall = body(await c.callTool({ name: "members", arguments: { action: "list", params: { tenant: globex } } }));
+    const tenantCall = body(await c.callTool({ name: "members_read", arguments: { action: "list", params: { tenant: globex } } }));
     expect(tenantCall.json.error.code).toBe("outside_connector_scope");
-    const newOrg = body(await c.callTool({ name: "products", arguments: { action: "create_tenant", params: { name: "Initech" } } }));
+    const newOrg = body(await c.callTool({ name: "products_write", arguments: { action: "create_tenant", params: { name: "Initech" } } }));
     expect(newOrg.json.error.code).toBe("outside_connector_scope");
     expect((await alice.api("GET", "/api/v1/me/products")).body.tenants).toHaveLength(2);
     await c.close();
@@ -94,7 +94,7 @@ describe("a connector scoped to an organization", () => {
   it("answers 404 when the person cannot reach the organization", async () => {
     const bob = await h.signIn("bob@example.com", "Bob");
     const c = await connect(`/mcp/t/${acme}`, await h.connectAgent(bob));
-    const r = body(await c.callTool({ name: "products", arguments: { action: "list" } }));
+    const r = body(await c.callTool({ name: "products_read", arguments: { action: "list" } }));
     expect(r.status).toBe(404);
     expect(r.json.error.message).toContain(`organization ${acme}`);
     await c.close();
@@ -105,11 +105,11 @@ describe("a connector scoped to a product", () => {
   it("sees only that product, needs no product argument, and refuses every other", async () => {
     const c = await connect(`/mcp/t/${onboarding}`);
     expect(c.getInstructions()).toContain(`scoped to the product ${onboarding}`);
-    const list = body(await c.callTool({ name: "products", arguments: { action: "list" } })).json;
+    const list = body(await c.callTool({ name: "products_read", arguments: { action: "list" } })).json;
     expect(list.items.map((i: { path: string }) => i.path)).toEqual([onboarding]);
-    expect(body(await c.callTool({ name: "outcomes", arguments: { action: "list", params: {} } })).status).toBe(200);
+    expect(body(await c.callTool({ name: "outcomes_read", arguments: { action: "list", params: {} } })).status).toBe(200);
     for (const other of [billing, payroll]) {
-      const r = body(await c.callTool({ name: "outcomes", arguments: { action: "list", product: other, params: {} } }));
+      const r = body(await c.callTool({ name: "outcomes_read", arguments: { action: "list", product: other, params: {} } }));
       expect(r.json.error?.code, other).toBe("outside_connector_scope");
     }
     await c.close();
@@ -117,14 +117,14 @@ describe("a connector scoped to a product", () => {
 
   it("refuses organization and team calls and moving work to another product, but answers the organization's limits", async () => {
     const c = await connect(`/mcp/t/${onboarding}`);
-    expect(body(await c.callTool({ name: "members", arguments: { action: "list", params: {} } })).json.error.code).toBe("outside_connector_scope");
-    expect(body(await c.callTool({ name: "products", arguments: { action: "create", params: { name: "Third" } } })).json.error.code).toBe("outside_connector_scope");
-    const src = body(await c.callTool({ name: "sources", arguments: { action: "create", params: { tags: ["interview"], title: "Interview", date: "2026-09-01" } } }));
+    expect(body(await c.callTool({ name: "members_read", arguments: { action: "list", params: {} } })).json.error.code).toBe("outside_connector_scope");
+    expect(body(await c.callTool({ name: "products_write", arguments: { action: "create", params: { name: "Third" } } })).json.error.code).toBe("outside_connector_scope");
+    const src = body(await c.callTool({ name: "sources_write", arguments: { action: "create", params: { tags: ["interview"], title: "Interview", date: "2026-09-01" } } }));
     expect(src.status).toBe(200);
-    const copy = body(await c.callTool({ name: "sources", arguments: { action: "copy_to_product", params: { record_id: src.json.record_id, to_product: billing.split("/")[2] } } }));
+    const copy = body(await c.callTool({ name: "sources_write", arguments: { action: "copy_to_product", params: { record_id: src.json.record_id, to_product: billing.split("/")[2] } } }));
     expect(copy.json.error.code).toBe("outside_connector_scope");
     // The caller's own standing in the organization: the fence lets it through for the product's organization.
-    const limits = body(await c.callTool({ name: "products", arguments: { action: "limits", params: {} } }));
+    const limits = body(await c.callTool({ name: "products_read", arguments: { action: "limits", params: {} } }));
     expect(limits.status).toBe(200);
     expect(limits.json).toMatchObject({ organization: { slug: acme }, plan: "unlimited", you_meet_them: false });
     await c.close();
@@ -194,28 +194,28 @@ describe("the example organization", () => {
   it("is reached through the unscoped connector, listed and read there, and refuses every write", async () => {
     const c = await connect("/mcp", await h.connectAgent(gus, "Guest agent"));
     expect(c.getInstructions()).toContain("example organization");
-    const list = body(await c.callTool({ name: "products", arguments: { action: "list" } })).json;
+    const list = body(await c.callTool({ name: "products_read", arguments: { action: "list" } })).json;
     expect(list.items.map((i: { path: string }) => i.path)).toEqual([showcase]);
     expect(list.items[0]).toMatchObject({ tenant: { slug: commons, example: true }, your_role: "guest" });
     expect(list.tenants).toEqual([expect.objectContaining({ slug: commons, example: true, your_role: "guest" })]);
     expect(list.public_sandboxes).toBeUndefined();
-    const read = body(await c.callTool({ name: "outcomes", arguments: { action: "list", product: showcase, params: {} } }));
+    const read = body(await c.callTool({ name: "outcomes_read", arguments: { action: "list", product: showcase, params: {} } }));
     expect(read.status).toBe(200);
     expect(read.json.scope).toMatchObject({ example: true, your_role: "guest" });
-    const write = body(await c.callTool({ name: "outcomes", arguments: { action: "create", product: showcase, params: { title: "Not here" } } }));
+    const write = body(await c.callTool({ name: "outcomes_write", arguments: { action: "create", product: showcase, params: { title: "Not here" } } }));
     expect(write.status).toBe(403);
     expect(write.json.error.code).toBe("example_read_only");
     expect(write.json.error.message).toMatch(/create an organization of your own/);
     // Someone with no product of their own is asked which product: the example's are never picked by themselves.
-    expect(body(await c.callTool({ name: "outcomes", arguments: { action: "list", params: {} } })).json.error.code).toBe("product_required");
+    expect(body(await c.callTool({ name: "outcomes_read", arguments: { action: "list", params: {} } })).json.error.code).toBe("product_required");
     await c.close();
   });
 
   it("is never picked as the product a call means when the person has one of their own", async () => {
     const c = await connect("/mcp", await h.connectAgent(dee, "Own agent"));
-    const list = body(await c.callTool({ name: "products", arguments: { action: "list" } })).json;
+    const list = body(await c.callTool({ name: "products_read", arguments: { action: "list" } })).json;
     expect(list.items.map((i: { path: string }) => i.path).sort()).toEqual([showcase, solo].sort());
-    const unnamed = body(await c.callTool({ name: "outcomes", arguments: { action: "list", params: {} } }));
+    const unnamed = body(await c.callTool({ name: "outcomes_read", arguments: { action: "list", params: {} } }));
     expect(unnamed.status).toBe(200);
     expect(unnamed.json.scope.product.path).toBe(solo);
     await c.close();
@@ -223,10 +223,10 @@ describe("the example organization", () => {
 
   it("works through its own connector, which picks its product by itself", async () => {
     const c = await connect(`/mcp/t/${commons}`, await h.connectAgent(gus, "Guest example agent", `/mcp/t/${commons}`));
-    const read = body(await c.callTool({ name: "outcomes", arguments: { action: "list", params: {} } }));
+    const read = body(await c.callTool({ name: "outcomes_read", arguments: { action: "list", params: {} } }));
     expect(read.status).toBe(200);
     expect(read.json.scope.product.path).toBe(showcase);
-    const limits = body(await c.callTool({ name: "products", arguments: { action: "limits", params: {} } }));
+    const limits = body(await c.callTool({ name: "products_read", arguments: { action: "limits", params: {} } }));
     expect(limits.json).toMatchObject({ organization: { slug: commons }, you_meet_them: "calls_per_minute_only" });
     await c.close();
   });

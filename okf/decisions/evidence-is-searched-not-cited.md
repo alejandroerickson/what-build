@@ -3,7 +3,7 @@ type: Decision
 title: Evidence is found by searching, not kept as citations
 description: Nothing structural points from an assumption, a Story page or a mockup to a source; agents search the evidence when they need it, and a Story page uses the product's material however suits its readers.
 tags: [decision, evidence, citations, assumptions, story, mockups, agents]
-generated: {by: agent:claude, at: 2026-10-18}
+generated: {by: agent:claude, at: 2026-10-26}
 status: stable
 ---
 
@@ -57,7 +57,7 @@ stakeholders to read), not a quoted or cited record of how decisions were reache
 
 - No operation takes or returns citations, references, lineage or related sources; migration
   `0028_citations_refs_and_lineage_retired.sql` dropped them.
-- The skill and the Story guidance (`packages/core/src/skill/SKILL.md`, `story-guidance.ts`)
+- The guide and the Story guidance (`packages/core/src/guide/`, `story-guidance.ts`)
   never ask an agent to cite, and set no rule about how a Story page quotes, paraphrases,
   attributes or links; a server test looks for the rules the guidance once set.
 

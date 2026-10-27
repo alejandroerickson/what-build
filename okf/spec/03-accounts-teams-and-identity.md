@@ -379,7 +379,7 @@ call takes `tenant` (and `team`) from its params or the endpoint, and otherwise 
 and team of a `product` it names that the caller can see, unless it takes a product of its own
 ([§6.5](06-operations-and-adapters.md)). Every product-scoped MCP
 result echoes `scope` (tenant, team, product, `your_role` capped by the connection's level,
-`connection_level`, and the server's `skill_version`) so an agent and the person reading its
+`connection_level`, and the server's `tools_version`) so an agent and the person reading its
 transcript can see where a write landed and what it may do there.
 
 **A scoped endpoint is a fence, not a default**
@@ -394,7 +394,7 @@ agent and turns off the ones they are not using; for everything at once there is
 
 | Through | Answers | Refuses |
 |---|---|---|
-| an organization's endpoint | every product, team and tenant operation in that organization; `products.list` (narrowed to it), `get_skill`, `submit_feedback` | another organization; the other account-level operations (`products.create_tenant`, the instance's allowances, organizations and usage) |
+| an organization's endpoint | every product, team and tenant operation in that organization; `products.list` (narrowed to it), `guide`, `submit_feedback` | another organization; the other account-level operations (`products.create_tenant`, the instance's allowances, organizations and usage) |
 | a product's endpoint | that product's operations; `products.list` (narrowed to it); `products.limits` for its organization; the account reads above | every other product; team and tenant operations (`members.*`, `products.create`, `products.create_team`); moving or copying a source to another product |
 | `/mcp`, unscoped | every operation in every organization the person reaches, the example organization included; every account-level operation | nothing for being unscoped; the example organization refuses its guests' writes on every endpoint |
 

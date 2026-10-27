@@ -1,8 +1,8 @@
 /**
- * Story authoring guidance, served by story(action="guidance"). It gives agents taste, a way to
+ * Story authoring guidance, served by story_read(action="guidance"). It gives agents taste, a way to
  * choose a design system, and passes to run on a page. It does not give them WhatBuild's own look:
  * a Story is the team's document, often read outside the team, so it follows the product's Story
- * style (story(action="get_style")): the company's own design system, or a house style
+ * style (story_read(action="get_style")): the company's own design system, or a house style
  * (story-styles.ts) adopted for the product.
  *
  * The Story is the team's own communication, not a record of how decisions were reached, so the
@@ -15,7 +15,7 @@
 import { STORY_FONTS } from "./story-fonts.ts";
 import { HOUSE_STYLES, VOCABULARY, pageDocument, type HouseStyle } from "./story-styles.ts";
 
-export const GUIDANCE_VERSION = "5.0.0";
+export const GUIDANCE_VERSION = "5.1.0";
 
 /** The typefaces the server embeds in a page that names them; no font file is ever sent for these. */
 export const CARRIED_TYPEFACES = {
@@ -46,10 +46,10 @@ export function catalogue(styles: HouseStyle[] = HOUSE_STYLES) {
 
 /** How an agent settles which design system a product's Story uses. */
 export const STYLE_WORKFLOW = [
-  'Call story(action="get_style") before writing or restyling any page. When the product has a Story style, every page follows it: publish with body and WhatBuild puts the stylesheet around it (paste it into <style> yourself only when you send a whole document as html). Follow its rules, and extend it rather than contradict it.',
-  "When the product has no Story style, ask the person before the first page: does their company have a design system, brand guide or document template that stakeholder reports should follow?",
-  "If it does, build the Story style from it: its colours for light and dark, its fonts (a carried typeface when the design system uses one, otherwise the system fallbacks), its spacing, radii and tone, written as one stylesheet that styles the shared vocabulary. Save it with set_style (name, summary, rules, stylesheet). Read what they share as reference; never copy a font file whose licence you have not seen.",
-  'If it does not, offer the house styles below, and tell the person they can preview each in the web app (Story → the Story style section under the page tree). Adopt the one they pick with set_style { house_style }. If they leave it to you, choose by audience using best_for, adopt it, and say which you chose and why.',
+  'Call story_read(action="get_style") before writing or restyling any page. When the product has a Story style, every page follows it: publish with body and WhatBuild puts the stylesheet around it (paste it into <style> yourself only when you send a whole document as html). Follow its rules, and extend it rather than contradict it.',
+  "A product with no Story style can take the company's own design system, brand guide or document template, or a house style.",
+  "To follow a company's design system, build the Story style from it: its colours for light and dark, its fonts (a carried typeface when the design system uses one, otherwise the system fallbacks), its spacing, radii and tone, written as one stylesheet that styles the shared vocabulary. Save it with set_style (name, summary, rules, stylesheet). Read what they share as reference; never copy a font file whose licence you have not seen.",
+  "To adopt a house style, set_style { house_style }; best_for says whom each suits, and people can preview each in the web app (Story → the Story style section under the page tree).",
   "Never style a Story in WhatBuild's own app look. The Story belongs to the team and is often read by people who have never seen WhatBuild.",
   "When the person asks for a different style later, set_style again, then publish each page with restyle: true: the page content stays, the stylesheet changes.",
   "When a Story needs something the style does not have (a product's own diagram, a matrix), add it to the product's Story style with set_style, so every page shares it. A rule written into one page is lost to the next.",
@@ -103,16 +103,12 @@ export const DESIGN_PASSES = [
   { pass: "polish", when: "Last.", checks: ["Read it in rendered order.", "Check every quotation, count and date against the sources you read, and every link.", "Headings, link text and table labels make sense out of context.", "Focus is visible; no meaning carried by colour alone."] },
 ];
 
-/**
- * Design tools the agent may already have. Most people will never discover them on their own, so
- * the guidance asks the agent to use them, and to mention them once when they are missing.
- */
+/** How a page can be looked at before it is published, and reviewed with whatever design tools the agent has. */
 export const DESIGN_TOOLS = {
-  why: "Pages are better when a design skill reviews them. People rarely know these exist; tell them.",
+  why: "A page is easier to judge seen than read as HTML.",
   use: [
-    "If your harness has a design skill installed, use it on every page before publishing: for example Impeccable (impeccable.style) with its critique, distill, bolder, quieter, typeset, layout, adapt and polish commands, or Anthropic's frontend-design skill. Run them on the page's HTML as you would on a web page.",
-    'Look at every page before publishing it. Send the publish call to story(action="preview") instead: it makes every check publish makes and gives a grant to GET the exact document publish would store, in the Story style and the page sandbox. Open it with a browser tool, a headless browser or a screenshot tool, sending the grant\'s headers, at desktop width (1280) and about 390px wide, with ?theme=light and ?theme=dark. Fix what you see; don\'t publish blind.',
-    "If no design skill is installed, tell the person once, in one sentence, that installing one improves Story pages (Impeccable installs with `npx impeccable install`), then run the DESIGN_PASSES here yourself.",
+    'story_read(action="preview") takes the publish call\'s params, makes every check publish makes, and gives a grant to GET the exact document publish would store, in the Story style and the page sandbox. Open it with a browser tool, a headless browser or a screenshot tool, sending the grant\'s headers, at desktop width (1280) and about 390px wide, with ?theme=light and ?theme=dark.',
+    "A design skill or review tool in your harness can run on a preview's HTML as on any web page; the DESIGN_PASSES here are the same kinds of pass.",
   ],
 };
 
@@ -214,7 +210,7 @@ export const WORKFLOW = [
   "Read the current version of the page and its notes for agents (get_page → agent_notes) before revising it, keep what is useful, and pass its etag.",
   "On a later version send only what changes: the title, summary and html you omit carry forward from the current version. patch_html fixes a sentence by exact find and replace; from_version restores an earlier version as a new one. Compare html_sha256 to confirm identical HTML.",
   "Publish with body: only the markup inside <body>. WhatBuild wraps it in a document with the product's Story style, so you never send the stylesheet and every page carries the same one. Send html only for a whole document of your own.",
-  'Preview before you publish: send the same call to story(action="preview"). It refuses what publish would refuse, publishes nothing, and returns a grant to GET the exact page publish would store. Look at it at desktop and phone width, in light and dark, then send the same params to publish.',
+  'Preview before you publish: send the same call to story_read(action="preview"). It refuses what publish would refuse, publishes nothing, and returns a grant to GET the exact page publish would store. Look at it at desktop and phone width, in light and dark, then send the same params to publish.',
   "Use the hierarchy to find related pages; give each page a short lower-case page_id; link related pages inline, and link the pages beneath a page from it (nav.pages).",
   "summary describes the page itself and shows in navigation. Keep mechanics out of it — which sources a page rests on, ids, what is still to fold in — and in the notes for agents; the activity log already records each version.",
   "Publishing does not place a page: set_hierarchy does, with its own etag. Place each new page unless your instructions say otherwise; then leave it unplaced and say so.",

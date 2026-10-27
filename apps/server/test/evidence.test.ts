@@ -184,7 +184,7 @@ describe("what upload, read and search say about a source", () => {
     const edited = await alice.api("PUT", `${P}/sources/${recordId}/derived/text`, { edits: [{ old_text: "by the week", new_text: "by the fortnight" }], expected_etag: cur.body.etag });
     expect(edited.status).toBe(200);
     expect((await alice.api("GET", `${P}/sources/${recordId}`)).body.warnings).toEqual([
-      "This source's derived text was written or edited, so it follows no attachment: the text read from pipeline-notes.md and pipeline.xlsx is kept but never searched, and a new version of one does not change the derived text. Take an attachment's text with derived(action=\"write_text\", from_attachment=…), passing the derived text's etag as expected_etag, only if it should replace the derived text.",
+      "This source's derived text was written or edited, so it follows no attachment: the text read from pipeline-notes.md and pipeline.xlsx is kept but never searched, and a new version of one does not change the derived text. Take an attachment's text with derived_write(action=\"write_text\", from_attachment=…), passing the derived text's etag as expected_etag, only if it should replace the derived text.",
     ]);
   });
 

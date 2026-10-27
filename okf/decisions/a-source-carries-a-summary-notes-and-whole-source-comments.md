@@ -3,7 +3,7 @@ type: Decision
 title: A source carries a summary written for people, freeform notes and comments on the whole source, and no outline
 description: Beside its words, a source has a short summary people read, notes agents and people keep, and comments on the source as a whole, because outlines, passage-anchored comments and agent-only notes added granularity nobody used.
 tags: [decision, sources, evidence, comments, notes, web, mcp, product]
-generated: {by: agent:claude, at: 2026-10-17}
+generated: {by: agent:claude, at: 2026-10-26}
 status: stable
 ---
 
@@ -52,7 +52,7 @@ how people read a source.
 
 - `derived.write_note` and `derived.read_note` take `note_kind` `summary` or `notes` only
   (`packages/core/src/ops/derived.ts`); `sources.annotate` takes no range
-  (`packages/core/src/ops/sources.ts`). The agent skill tells agents who the summary is for.
+  (`packages/core/src/ops/sources.ts`). The guide says where people see the summary.
 - `sources.list` returns summaries only with `include_summary`, cut at 1,000 characters, so a
   plain list stays small for agents.
 

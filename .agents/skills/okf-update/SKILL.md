@@ -36,8 +36,10 @@ adding a near-duplicate.
    - `AGENTS.md`: its path table and summary.
    - `README.md`: what a person sees first.
    - `apps/web/PRODUCT.md` and `apps/web/DESIGN.md`: the product and design records.
-   - `packages/core/src/skill/SKILL.md`: how connected agents use the operations. After editing
-     it, run `pnpm gen:skill`.
+   - `packages/core/src/guide/`: the guide connected agents read through the `guide` tool, which
+     describes how WhatBuild works without prescribing a method. After editing a topic, run
+     `pnpm gen:guide`, and bump `TOOLS_VERSION` in `packages/core/src/ops/meta.ts` when the tools,
+     their actions or the guide change.
    - `.agents/skills/`: these skills, when the bundle's layout or rules change.
 10. **Validate:** `python3 okf/tools/validate_okf.py` must report 0 errors.
 11. **Public check.** The pre-commit hook runs `scripts/check-publishable.mjs` on what you commit
@@ -50,12 +52,12 @@ adding a near-duplicate.
 
 | When you change | Check |
 |---|---|
-| `packages/core/src/ops/**`, `registry.ts`, `schemas.ts`, `errors.ts` | `spec/06` (the operation table and error codes); the operation and tool counts in `AGENTS.md`, `system/overview.md`, `system/repository-map.md`, `spec/10`; the decisions `one-registry-two-front-doors` and `mcp-tools-grouped-by-noun`; the product `SKILL.md` |
-| `apps/server/src/mcp.ts`, `rest.ts`, `public-routes.ts` | `spec/06`, `spec/02`, `system/overview.md` |
+| `packages/core/src/ops/**`, `registry.ts`, `schemas.ts`, `errors.ts` | `spec/06` (the operation table and error codes); the operation and tool counts in `AGENTS.md`, `system/overview.md`, `system/repository-map.md`, `spec/10`; the decisions `one-registry-two-front-doors` and `mcp-tools-are-split-into-read-write-and-delete`; the product's guide (`packages/core/src/guide/`) |
+| `apps/server/src/mcp.ts`, `rest.ts`, `public-routes.ts` | `spec/06`, `spec/02`, `system/overview.md`; for a tool's name, title or annotations, the decision `mcp-tools-are-split-into-read-write-and-delete`; for the instructions, the decision `agents-learn-whatbuild-from-the-servers-guide` |
 | `apps/server/src/documents.ts`, `content-documents.ts`, `packages/core/src/content-address.ts`, what a content site serves (`WHATBUILD_CONTENT_URL`) | `spec/06` §6.4, `spec/02`, `system/security.md`, decision `with-a-content-site-every-page-and-inline-file-is-served-from-it`, the content-site lines of `operations/cloud-run.md` and `operations/azure.md`, `operations/upgrading.md` |
 | `packages/core/src/policy.ts`, roles, membership | `spec/03`, decisions `access-is-per-product-roles` and `a-reader-reads-only-the-story`, `system/overview.md` |
 | `packages/core/src/limits.ts`, `ops/limits.ts`, the example organization (`apps/server/src/example-organization.ts`, the guest grant in `policy.ts`), `WHATBUILD_EXAMPLE_TENANT`, `WHATBUILD_NEW_ORGANIZATION_PLAN` | `spec/03` §3.3 and §3.10, `spec/09` §9.7, decisions `every-account-reads-the-example-organization-which-only-its-staff-write` and `free-organizations-meet-limits-that-only-instance-owners-change`, `system/security.md`, the product `SKILL.md`, `operations/upgrading.md` |
-| `packages/core/src/connector-scope.ts`, `apps/server/src/auth/connector-reach.ts`, MCP endpoint paths | `spec/03` §3.6 and §3.8, `spec/06` §6.5 and §6.8, decision `a-scoped-mcp-connector-is-a-fence`, the product `SKILL.md` |
+| `packages/core/src/connector-scope.ts`, `apps/server/src/auth/connector-reach.ts`, MCP endpoint paths | `spec/03` §3.6 and §3.8, `spec/06` §6.5 and §6.8, decision `a-scoped-mcp-connector-is-a-fence`, the product's guide (`packages/core/src/guide/01-start.md`) |
 | `apps/server/src/auth/**`, sessions, tokens | `spec/03`, decision `built-in-identity-and-oauth`; a sign-in method also the Sign-in sections of `operations/cloud-run.md` and `operations/azure.md` |
 | `apps/server/src/migrations/*.sql`, `packages/core/src/db.ts` | `spec/04`; tenancy or row-level security changes: decision `shared-schema-tenancy-with-row-level-security`; retention: `spec/09` |
 | `html-rules.ts` (what a Story page and a mockup page may hold), `page-sandbox.ts` (the sandbox each is shown in) | `spec/04` §4.11 and §4.12, decisions `story-pages-are-sandboxed-agent-html` and `mockups-are-versioned-canvases-in-exploration`, `system/security.md`, the descriptions of `mockups.publish` and `mockups.request_upload`, the product `SKILL.md` |

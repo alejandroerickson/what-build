@@ -200,10 +200,9 @@ describe("deleting an organization", () => {
     const client = new Client({ name: "delta-agent", version: "1.0.0" });
     await client.connect(new StreamableHTTPClientTransport(new URL(`${h.baseUrl}/mcp`), { requestInit: { headers: { authorization: `Bearer ${token}` } } }));
     const { tools } = await client.listTools();
-    const actions = (tools.find((t) => t.name === "products")!.inputSchema.properties!["action"] as { enum: string[] }).enum;
-    expect(actions).toContain("delete");
-    expect(actions).not.toContain("delete_tenant");
-    const r = (await client.callTool({ name: "products", arguments: { action: "delete_tenant", params: { tenant: org.tenant.slug, name: "Delta Works", reason: "x", confirm: "delete permanently" } } })) as { content: { text: string }[] };
+    const actions = (tools.find((t) => t.name === "products_delete")!.inputSchema.properties!["action"] as { enum: string[] }).enum;
+    expect(actions).toEqual(["delete"]);
+    const r = (await client.callTool({ name: "products_delete", arguments: { action: "delete_tenant", params: { tenant: org.tenant.slug, name: "Delta Works", reason: "x", confirm: "delete permanently" } } })) as { content: { text: string }[] };
     expect(r.content[0]!.text).toContain("unknown_action");
     await client.close();
     expect((await owner.api("GET", "/api/v1/me/products")).body.tenants.map((t: { slug: string }) => t.slug)).toContain(org.tenant.slug);

@@ -48,7 +48,7 @@ describe("one address for the app", () => {
   it("never moves a probe, an agent, an API client or a write", async () => {
     const host = "whatbuild.kindsky-1234.westeurope.azurecontainerapps.io";
     // Probes and agents send no Sec-Fetch-Mode, whatever the path.
-    for (const path of ["/health", "/", "/t/acme/core/planner", "/whatbuild-skill.md"]) expect((await open(app, path, { host })).status, path).toBe(200);
+    for (const path of ["/health", "/", "/t/acme/core/planner", "/api/v1/meta"]) expect((await open(app, path, { host })).status, path).toBe(200);
     // A browser's navigation to a machine's path: health, the API with its grants, MCP, OAuth and the metadata beside them.
     for (const path of ["/health", "/api/v1/meta", "/api/v1/downloads/01ABC?grant=x", "/api/v1/uploads/01ABC", "/mcp", "/mcp/t/acme", "/oauth/authorize?client_id=x", "/.well-known/oauth-authorization-server", "/.well-known/oauth-protected-resource/mcp"])
       expect((await open(app, path, { host, ...NAVIGATE })).status, path).toBe(200);

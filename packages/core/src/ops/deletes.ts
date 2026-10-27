@@ -70,7 +70,7 @@ async function productDeletion(ctx: OpContext) {
     after_delete:
       "Everything in the product goes, archived or not: its concept, outcomes, sources with their attachments, derived texts, summaries, notes and comments, assumptions with their reviews, mockups, the Story, exports and activity. " +
       "Roles given on this product go with it; roles on its team and organization stay. A connector scoped to this product reaches nothing.",
-    reversible_alternative: 'products(action="archive") hides it and makes it read-only, and erases nothing; export it first to keep a copy.',
+    reversible_alternative: 'products_write(action="archive") hides it and makes it read-only, and erases nothing; export it first to keep a copy.',
   };
 }
 
@@ -99,14 +99,14 @@ export const deleteProduct = defineOperation({
   allowArchivedProduct: true,
   summary: "DELETE PERMANENTLY — cannot be undone. Destroys a whole product and everything in it; archive is the reversible alternative (product admins).",
   description:
-    'Archiving (products(action="archive")) is the reversible alternative, and an export (products(action="export")) keeps a copy; offer both first. ' +
-    DELETE_GUIDANCE.replace("the matching delete_impact", 'products(action="delete_impact")') +
+    'Archiving (products_write(action="archive")) is the reversible alternative, and an export (products_write(action="export")) keeps a copy. ' +
+    DELETE_GUIDANCE.replace("the matching delete_impact", 'products_read(action="delete_impact")') +
     " name must be the product's name, typed exactly as the person confirmed it. Leaves a tombstone. The bytes of its files go shortly after, except those a copy in another product still uses.",
   input: z.strictObject({ ...deleteGuards, name: typedName("product") }),
   rest: { method: "DELETE", path: "" },
   mcp: { tool: "products", action: "delete" },
   async handler(ctx, input) {
-    checkConfirmation(input.confirm, 'archive it with products(action="archive")');
+    checkConfirmation(input.confirm, 'archive it with products_write(action="archive")');
     const pid = productId(ctx);
     const tid = tenantId(ctx);
     const p = await ctx.db.selectFrom("products").selectAll().where("product_id", "=", pid).forUpdate().executeTakeFirstOrThrow();

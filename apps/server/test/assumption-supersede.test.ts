@@ -26,7 +26,7 @@ async function entry(statement: string) {
   return r.body as { id: string; etag: string };
 }
 
-const supersedeOverMcp = (params: Record<string, unknown>) => client.callTool({ name: "assumptions", arguments: { action: "supersede", product: productPath, params } });
+const supersedeOverMcp = (params: Record<string, unknown>) => client.callTool({ name: "assumptions_write", arguments: { action: "supersede", product: productPath, params } });
 const latestReview = async (id: string) => (await alice.api("GET", `${P}/assumptions/${id}`)).body.reviews[0];
 const supersededSummaries = async (id: string) =>
   (await alice.api("GET", `${P}/activity?entity_id=${id}`)).body.items.filter((i: { action: string }) => i.action === "superseded").map((i: { summary: string }) => i.summary);
@@ -91,7 +91,7 @@ describe("who judged an assumption superseded", () => {
   });
 
   it("is described in supersede's guidance", async () => {
-    const r = await client.callTool({ name: "assumptions", arguments: { action: "supersede", describe: true } });
+    const r = await client.callTool({ name: "assumptions_write", arguments: { action: "supersede", describe: true } });
     const text = (r as { content: { text: string }[] }).content[0]!.text;
     expect(text).toContain("reviewer_type says who judged the old entry superseded, as in review");
     expect(text).toContain('"reviewer_type"');

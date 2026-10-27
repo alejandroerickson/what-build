@@ -117,7 +117,10 @@ export interface OperationDef<I extends z.ZodType = z.ZodType, O = unknown, P = 
   description: string;
   input: I;
   rest: { method: "GET" | "POST" | "PATCH" | "PUT" | "DELETE"; path: string };
-  /** The MCP tool and action. A tool with no action is a standalone tool. */
+  /**
+   * The kind of object it acts on and its action there, or a standalone tool's name and no action.
+   * The MCP tool an action is in follows from the operation itself ({@link mcpTool}).
+   */
   mcp: { tool: string; action?: string };
   /** Writes allowed while the product is archived (restore, and deleting the product). */
   allowArchivedProduct?: boolean;
@@ -186,6 +189,26 @@ export function capRole(role: ProductRole | null, level: ConnectionLevel | undef
   if (!level || !role || role === "reader") return role;
   const rank: Record<ProductRole, number> = { reader: -1, viewer: 0, editor: 1, admin: 2 };
   return rank[role] <= LEVEL_RANK[level] ? role : level;
+}
+
+/**
+ * What an MCP tool does to the data it reaches: `read` changes nothing, `write` creates, changes,
+ * archives or restores, and `delete` destroys for good. A tool never mixes two of them.
+ */
+export type ToolKind = "read" | "write" | "delete";
+
+/** The kind of tool an operation is in. A permanent delete is the one write whose REST method is DELETE. */
+export function toolKind(op: Pick<OperationDef, "mutates" | "rest">): ToolKind {
+  if (!op.mutates) return "read";
+  return op.rest.method === "DELETE" ? "delete" : "write";
+}
+
+/**
+ * The MCP tool an operation is in: a standalone tool by its own name, and an action in
+ * `<noun>_read`, `<noun>_write` or `<noun>_delete`, by what it does.
+ */
+export function mcpTool(op: Pick<OperationDef, "mutates" | "rest" | "mcp">): string {
+  return op.mcp.action ? `${op.mcp.tool}_${toolKind(op)}` : op.mcp.tool;
 }
 
 export function defineOperation<I extends z.ZodType, O, P = undefined>(def: OperationDef<I, O, P>): OperationDef<I, O, P> {

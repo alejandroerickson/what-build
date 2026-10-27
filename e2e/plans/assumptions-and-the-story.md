@@ -16,7 +16,7 @@ checked on the way.
 
 1. **MCP, as Sam, in the standard organization.** In a product that has sources, find words in a
    source's text that support a claim about its users (search, then read the text around a hit
-   with `derived(action="text")`). Create an assumption whose
+   with `derived_read(action="text")`). Create an assumption whose
    body says in a sentence or two why the team holds it. Then try the same call with a
    `citations` field.
    *Expect:* the first is created unconfirmed, with its statement and body as sent; the second is
@@ -59,7 +59,7 @@ checked on the way.
 ## Look out for
 
 - Anything that still shows citations, references, "Cited in", "Cited by" or "Built from".
-- Story guidance or a skill that still tells an agent how to quote, attribute or link on a Story
+- Story guidance, the guide or an operation's description that still tells an agent how to quote, attribute or link on a Story
   page (exact quotations only, attribution by role, no links to the evidence); the Story sets no
   such rule.
 - Anything a reader can see that the decision on readers says they cannot

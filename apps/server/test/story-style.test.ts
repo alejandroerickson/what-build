@@ -169,7 +169,9 @@ describe("Story guidance", () => {
     expect(g.body.carried_typefaces.families).toEqual(STORY_FONTS.map((f) => f.family));
     expect(g.body.house_styles[0].stylesheet).toBeUndefined();
     expect(g.body.design_passes.map((p: { pass: string }) => p.pass)).toEqual(expect.arrayContaining(["critique", "distill", "bolder", "quieter", "typeset", "layout", "adapt", "polish"]));
-    expect(JSON.stringify(g.body.design_tools)).toContain("Impeccable");
+    // It says how to look at a page before publishing it, and promotes no tool.
+    expect(JSON.stringify(g.body.design_tools)).toContain('story_read(action=\\"preview\\")');
+    expect(JSON.stringify(g.body.design_tools)).not.toMatch(/Impeccable|install|tell the person/i);
     const text = JSON.stringify(g.body);
     for (const appToken of ["#5a53e8", "#8b85ff", '\\"Inter', "Inter Variable", "--wb-"]) expect(text, appToken).not.toContain(appToken);
   });

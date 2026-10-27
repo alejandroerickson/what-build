@@ -32,7 +32,7 @@ export async function loadRecord(ctx: OpContext, recordId: string, opts: { lock?
 export function archivedSource(recordId: string) {
   return conflict(
     "record_archived",
-    `Source ${recordId} is archived, and an archived source is read-only. Nothing was changed. Restore it first, with sources(action="restore", params={"record_ids": ["${recordId}"]}) or Restore on the source in the web app, then send this again.`,
+    `Source ${recordId} is archived, and an archived source is read-only. Nothing was changed. Restore it first, with sources_write(action="restore", params={"record_ids": ["${recordId}"]}) or Restore on the source in the web app, then send this again.`,
   );
 }
 
@@ -207,7 +207,7 @@ export async function derivedStatuses(ctx: OpContext, recordIds: string[]) {
 
 /** Said wherever a source whose attachments have text, but which has no derived text, shows up. */
 export const NO_TEXT_WARNING =
-  "This source has an attachment with text but no derived text of its own, so search finds it only by its title, tags, summary, notes and comments. Take an attachment's text with derived(action=\"write_text\", from_attachment=…), or write the text.";
+  "This source has an attachment with text but no derived text of its own, so search finds it only by its title, tags, summary, notes and comments. Take an attachment's text with derived_write(action=\"write_text\", from_attachment=…), or write the text.";
 
 /** Some paths, in words: "a.vtt", "a.vtt and b.xlsx", "a.vtt, b.xlsx and c.pdf". */
 const listed = (paths: string[]) => (paths.length < 2 ? (paths[0] ?? "") : `${paths.slice(0, -1).join(", ")} and ${paths[paths.length - 1]}`);
@@ -227,7 +227,7 @@ export function sourceWarnings(s: Pick<TextStatus, "derived_status" | "text_from
       `This source's derived text is taken from ${s.text_from}, so ${read}. If ${one ? "its" : "their"} words should be found, write them into the derived text, the summary or the notes, or add ${one ? "it" : "each"} as a source of its own.`,
     ];
   return [
-    `This source's derived text was written or edited, so it follows no attachment: ${read}, and a new version of ${one ? "it" : "one"} does not change the derived text. Take an attachment's text with derived(action="write_text", from_attachment=…), passing the derived text's etag as expected_etag, only if it should replace the derived text.`,
+    `This source's derived text was written or edited, so it follows no attachment: ${read}, and a new version of ${one ? "it" : "one"} does not change the derived text. Take an attachment's text with derived_write(action="write_text", from_attachment=…), passing the derived text's etag as expected_etag, only if it should replace the derived text.`,
   ];
 }
 
@@ -299,8 +299,8 @@ export const sourceFacets = defineOperation({
   mutates: false,
   summary: "What sources can be filtered by: the tags in use, most used first, and the people who added sources.",
   description:
-    "Read the tags before tagging a source, and reuse one the team already uses rather than coining a near-duplicate (interview, not interviews or customer-interview). A tag says what the material is (interview, workshop, deck, analysis), whom it concerns (an organization or a segment) or what it bears on. Counts are of live sources unless include_archived is true; tags_truncated says the list stopped at the most used " +
-    `${MAX_FACET_TAGS}. added_by lists each person who added sources, by account_id with their name when they last added one, and how many; an agent's additions count as the person's. Filter with sources(action=\"list\", tags=…) or (added_by=account_id).`,
+    "The tags the product's sources carry, most used first, and who added sources. Counts are of live sources unless include_archived is true; tags_truncated says the list stopped at the most used " +
+    `${MAX_FACET_TAGS}. added_by lists each person who added sources, by account_id with their name when they last added one, and how many; an agent's additions count as the person's. Filter with sources_read(action=\"list\", tags=…) or (added_by=account_id).`,
   input: z.strictObject({ include_archived: z.boolean().default(false) }),
   // Registered before sources.get, so /sources/facets is never read as a source id.
   rest: { method: "GET", path: "/sources/facets" },
@@ -339,11 +339,11 @@ export const listSources = defineOperation({
   mutates: false,
   summary: "List sources by metadata: newest added first, or by date, last update or title, either way round. For what sources say, use search.",
   description:
-    "Filters combine. `tags` must all be on a source; sources(action=\"facets\") lists the tags in use and who added sources. `added_by` is an account_id; `added_since` keeps sources added at or after a date or time; `date_from` and `date_to` bound the source's own date. `query` is a case-insensitive substring over metadata only — title, tags and attachment names — never what a source says; use `search` for that. `sort`: added (newest added first, the default), date (the source's own date, newest first, undated last), updated (details most recently changed first) or title (A to Z). `order` reverses it: asc or desc, defaulting to desc for the three dates and asc for title; undated sources stay last either way. Returns each source's metadata with derived_status, the attachment the derived text was taken from (text_from) and next_cursor; pass the cursor back with the same filters, sort and order. " +
+    "Filters combine. `tags` must all be on a source; sources_read(action=\"facets\") lists the tags in use and who added sources. `added_by` is an account_id; `added_since` keeps sources added at or after a date or time; `date_from` and `date_to` bound the source's own date. `query` is a case-insensitive substring over metadata only — title, tags and attachment names — never what a source says; use `search` for that. `sort`: added (newest added first, the default), date (the source's own date, newest first, undated last), updated (details most recently changed first) or title (A to Z). `order` reverses it: asc or desc, defaulting to desc for the three dates and asc for title; undated sources stay last either way. Returns each source's metadata with derived_status, the attachment the derived text was taken from (text_from) and next_cursor; pass the cursor back with the same filters, sort and order. " +
     `include_summary adds each source's summary (null without one, cut at ${LIST_SUMMARY_MAX} characters), which is what people read when they browse the list.`,
   input: z.strictObject({
     tags: z.array(z.string()).max(20).optional().describe("All must match."),
-    added_by: z.string().min(1).max(100).optional().describe("An account_id from sources(action=\"facets\"): only the sources that person added, in the app or through an agent."),
+    added_by: z.string().min(1).max(100).optional().describe("An account_id from sources_read(action=\"facets\"): only the sources that person added, in the app or through an agent."),
     added_since: z.union([isoDate, z.iso.datetime({ offset: true })]).optional().describe("Only sources added at or after this date (UTC midnight) or time."),
     date_from: isoDate.optional().describe("The source's own date, on or after."),
     date_to: isoDate.optional().describe("The source's own date, on or before."),
@@ -494,7 +494,7 @@ export const getSource = defineOperation({
   mutates: false,
   summary: "Read a source cheaply (brief), or everything about it (full): attachments, derived text, comments.",
   description:
-    "Start with detail=\"brief\": derived_status says whether the source has a derived text (ready) and text_chars how long it is, to plan derived(action=\"text\") windows; warnings names each attachment with text that the derived text does not use, which search never reads (attachments with no text, such as recordings and images, are not named), and says when the source has no derived text though an attachment has text. etag is the one sources.update and sources.delete expect. `full` adds the attachments (each with how its text was read, and which one the derived text was taken from), the derived text's etag (the one derived(action=\"write_text\") takes) and who wrote it last, comments, and in agent_notes the summary and notes that exist, each with its own etag (the one derived(action=\"write_note\") takes) and who wrote it last. Neither returns file bytes or the text itself. An archived source is still readable by id.",
+    "Start with detail=\"brief\": derived_status says whether the source has a derived text (ready) and text_chars how long it is, to plan derived_read(action=\"text\") windows; warnings names each attachment with text that the derived text does not use, which search never reads (attachments with no text, such as recordings and images, are not named), and says when the source has no derived text though an attachment has text. etag is the one sources_write(action=\"update\") and sources_delete(action=\"delete\") expect. `full` adds the attachments (each with how its text was read, and which one the derived text was taken from), the derived text's etag (the one derived_write(action=\"write_text\") takes) and who wrote it last, comments, and in agent_notes the summary and notes that exist, each with its own etag (the one derived_write(action=\"write_note\") takes) and who wrote it last. Neither returns file bytes or the text itself. An archived source is still readable by id.",
   input: z.strictObject({ record_id: id("source"), detail: z.enum(["brief", "full"]).default("brief") }),
   rest: { method: "GET", path: "/sources/:record_id" },
   mcp: { tool: "sources", action: "get" },
@@ -538,7 +538,7 @@ export const recordMetadata = {
   date: isoDate.nullable().optional().describe("The date of the event or document, never the upload date. Null when unknown."),
   tags: tags
     .optional()
-    .describe("What the material is (interview, workshop, deck, analysis), whom it concerns (an organization, a segment) and what it bears on. Reuse the product's tags from sources(action=\"facets\"). Up to 50, stored lower-case."),
+    .describe("Labels people filter sources by; sources_read(action=\"facets\") lists the ones the product uses. Up to 50, stored lower-case."),
 };
 
 export async function insertRecord(
@@ -586,9 +586,9 @@ export const createSource = defineOperation({
   scope: "product",
   access: "write",
   mutates: true,
-  summary: "Create a source from its title, date and tags; then add attachments with attachments.request_upload or attachments.fetch_url, or write its text with derived.write_text.",
+  summary: "Create a source from its title, date and tags; then add attachments with attachments_write(action=\"request_upload\") or attachments_write(action=\"fetch_url\"), or write its text with derived_write(action=\"write_text\").",
   description:
-    "Describe the material with a title and tags; there are no kinds or folders. To create a source and get an upload grant in one call, use attachments(action=\"create_upload\"). Before creating, check sources(action=\"list\", query=…) for an equivalent source — duplicates dilute search. warnings names any live source with the same title and date; nothing is refused.",
+    "Describe the material with a title and tags; there are no kinds or folders. To create a source and get an upload grant in one call, use attachments_write(action=\"create_upload\"). Before creating, check sources_read(action=\"list\", query=…) for an equivalent source — duplicates dilute search. warnings names any live source with the same title and date; nothing is refused.",
   input: z.strictObject(recordMetadata),
   rest: { method: "POST", path: "/sources" },
   mcp: { tool: "sources", action: "create" },
@@ -606,12 +606,12 @@ export const updateSource = defineOperation({
   mutates: true,
   summary: "Correct a source's metadata in place: title, date or tags. Pass only what changes.",
   description:
-    "Fix mistakes here; never archive and recreate, because links and comments point at the record id. The id, attachments, derived text and comments are untouched. tags replaces the whole list. An archived source is read-only: restore it first (sources(action=\"restore\")), or this is refused with 409 record_archived. Requires expected_etag: the source's current etag, from sources(action=\"get\") or the result of your last write to it. Adding an attachment also changes it. A stale one gets 409 stale_etag with details.current_etag; read the source again before retrying.",
+    "Fix mistakes here; never archive and recreate, because links and comments point at the record id. The id, attachments, derived text and comments are untouched. tags replaces the whole list. An archived source is read-only: restore it first (sources_write(action=\"restore\")), or this is refused with 409 record_archived. Requires expected_etag: the source's current etag, from sources_read(action=\"get\") or the result of your last write to it. Adding an attachment also changes it. A stale one gets 409 stale_etag with details.current_etag; read the source again before retrying.",
   input: z.strictObject({ record_id: id("source"), expected_etag: expectedEtag, ...recordMetadata, title: recordMetadata.title.optional() }),
   rest: { method: "PATCH", path: "/sources/:record_id" },
   mcp: { tool: "sources", action: "update" },
   async handler(ctx, input) {
-    // An archived source is read-only, its title, date and tags too, until sources.restore brings it back.
+    // An archived source is read-only, its title, date and tags too, until sources_write(action="restore") brings it back.
     const r = await loadRecord(ctx, input.record_id, { lock: true, live: true });
     checkEtag(input.expected_etag, r.etag, "source");
     const next = {
@@ -848,7 +848,7 @@ export const deleteAnnotation = defineOperation({
   rest: { method: "DELETE", path: "/annotations/:annotation_id" },
   mcp: { tool: "sources", action: "delete_annotation" },
   async handler(ctx, input) {
-    checkConfirmation(input.confirm, "archive it with sources(action=\"update_annotation\", archived: true)");
+    checkConfirmation(input.confirm, "archive it with sources_write(action=\"update_annotation\", archived: true)");
     const a = await ctx.db.selectFrom("annotations").selectAll().where("annotation_id", "=", input.annotation_id).where("product_id", "=", productId(ctx)).forUpdate().executeTakeFirst();
     if (!a) {
       await refuseIfDeleted(ctx, "annotation", input.annotation_id, `Comment ${input.annotation_id}`);
@@ -995,7 +995,7 @@ export const deleteImpact = defineOperation({
     const { _blobs, _prefixes, ...rest } = await impact(ctx, r);
     void _blobs;
     void _prefixes;
-    return { ...rest, reversible_alternative: "sources(action=\"archive\") takes it out of views and search and erases nothing." };
+    return { ...rest, reversible_alternative: "sources_write(action=\"archive\") takes it out of views and search and erases nothing." };
   },
 });
 
@@ -1006,7 +1006,7 @@ export const deleteSource = defineOperation({
   mutates: true,
   summary: "DELETE PERMANENTLY — cannot be undone. Destroys a source's attachments, derived text, notes and comments; archive is the reversible alternative.",
   description:
-    "Archive (sources.archive) is the reversible alternative and almost always what is wanted. " +
+    "Archive (sources_write(action=\"archive\")) is the reversible alternative and almost always what is wanted. " +
     DELETE_GUIDANCE +
     " Leaves a tombstone: reads return 410 with who, when and why.",
   input: z.strictObject({ record_id: id("source"), ...deleteGuards }),

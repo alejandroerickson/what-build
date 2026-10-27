@@ -3,7 +3,7 @@ type: Decision
 title: The product concept and each outcome is a card with a front for people and a back for agents, and agents write both
 description: Idea shows each idea as a card, an agent-drawn picture in WhatBuild's card kit on the front and the deep text agents read on the back, which More info opens above the picture; the two sides change together and the web app edits neither.
 tags: [decision, product, idea, outcomes, agents, design-system]
-generated: {by: agent:claude, at: 2026-10-25}
+generated: {by: agent:claude, at: 2026-10-26}
 status: stable
 ---
 
@@ -44,14 +44,14 @@ person's edit skips. The maintainer chose this model on 2026-10-24.
   who it is for, a flow, before and after, a measure, a spectrum, a loop, a timeline, a
   comparison, a voice, chips, notes). Unlike a Story page, which follows the team's own design
   system because it is read outside the team ([decision](story-pages-follow-the-teams-design-system.md)),
-  a card is read inside WhatBuild, so it looks like WhatBuild. `outcomes(action="card_guidance")`
+  a card is read inside WhatBuild, so it looks like WhatBuild. `outcomes_read(action="card_guidance")`
   gives agents how to choose what a front shows, the kit's reference with examples, the
   pictograms, the room a front has, how to write the back, and a check before sending; a write
   that touches a card returns `card_advice` on what WhatBuild can check of that guidance, without
-  refusing the write. WhatBuild cannot measure a front itself, so `outcomes(action="card_preview")`
+  refusing the write. WhatBuild cannot measure a front itself, so `outcomes_read(action="card_preview")`
   gives an agent the front as the Idea screen shows it, with the height a desktop shows marked, to
-  look at in a browser before writing it, as `story(action="preview")` does for a Story page.
-- **Editors write both cards.** The concept's card is written with `products(action="update_concept")`
+  look at in a browser before writing it, as `story_read(action="preview")` does for a Story page.
+- **Editors write both cards.** The concept's card is written with `products_write(action="update_concept")`
   by editors as well as admins, as an outcome's is, since agents connected at Edit write the Idea;
   renaming a product and changing its slug stay with admins.
 - **A front is agent HTML in a sandbox**, as a Story page is
@@ -71,7 +71,7 @@ person's edit skips. The maintainer chose this model on 2026-10-24.
 
 - The Idea screen reads as pictures first. A card with no front yet opens on its text and asks
   for an agent to draw the picture, so products made before fronts existed stay readable until one
-  does; `outcomes(action="list")` and `products(action="get")` tell agents which cards have none.
+  does; `outcomes_read(action="list")` and `products_read(action="get")` tell agents which cards have none.
 - Cards differ in height, by their pictures and by whether their text is open, so the outcomes
   stand one under another, each as wide as the concept: side by side, a shorter card left a gap
   beside it. Every card has the same width and the same most height, so neither says anything about
@@ -90,7 +90,7 @@ person's edit skips. The maintainer chose this model on 2026-10-24.
   digest of the front it was issued for ([decision](with-a-content-site-every-page-and-inline-file-is-served-from-it.md)).
 - The web app's Idea screen (`apps/web/src/routes/idea.tsx`) offers no editor for the concept or an
   outcome.
-- The skill teaches both sides and the kit (`packages/core/src/skill/SKILL.md`), and the sample
+- The guide describes both sides and the kit (`packages/core/src/guide/05-idea.md`), and the sample
   product has a front on every card (`apps/server/src/seed-content.ts`).
 
 Specified in: [§4.2.1 Cards](../spec/04-data-model.md), [§7.5 Idea](../spec/07-web-app.md),

@@ -44,10 +44,10 @@ describe("counting calls", () => {
     const listed = await ana.api("GET", "/api/v1/me/products");
     expect(listed.headers.get("X-WhatBuild-Operation")).toBe("products.list");
     expect((await ana.api("PATCH", `/api/v1/p/${path}`, { colour: "red" })).status).toBe(422);
-    await agent.callTool({ name: "products", arguments: { action: "list" } });
-    expect((await agent.callTool({ name: "products", arguments: { action: "explode" } })).isError).toBe(true);
-    expect((await agent.callTool({ name: "products", arguments: { action: "get", product_id: "x" } })).isError).toBe(true);
-    expect((await agent.callTool({ name: "sources", arguments: { action: "list", product: "no-such/team/product" } })).isError).toBe(true);
+    await agent.callTool({ name: "products_read", arguments: { action: "list" } });
+    expect((await agent.callTool({ name: "products_read", arguments: { action: "explode" } })).isError).toBe(true);
+    expect((await agent.callTool({ name: "products_read", arguments: { action: "get", product_id: "x" } })).isError).toBe(true);
+    expect((await agent.callTool({ name: "sources_read", arguments: { action: "list", product: "no-such/team/product" } })).isError).toBe(true);
     await usageSettled();
 
     const calls = await h.db.selectFrom("usage_calls").selectAll().execute();

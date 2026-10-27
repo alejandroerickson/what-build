@@ -1,6 +1,6 @@
 import { createHmac } from "node:crypto";
 import { readFileSync } from "node:fs";
-import { AppError, PERMISSIONS_POLICY, REST_BODY_MAX_BYTES, SKILL_VERSION, type BlobStore, type Db, type Env, type Mailer, type Ports } from "@whatbuild/core";
+import { AppError, PERMISSIONS_POLICY, REST_BODY_MAX_BYTES, TOOLS_VERSION, type BlobStore, type Db, type Env, type Mailer, type Ports } from "@whatbuild/core";
 import { SpanKind, SpanStatusCode, type Span } from "@opentelemetry/api";
 import { Hono } from "hono";
 import { bodyLimit } from "hono/body-limit";
@@ -26,7 +26,7 @@ import { siteRoutes } from "./site.ts";
 import { logError, requestFields, requestIdOf, tracer, withRequestId } from "./telemetry.ts";
 import { uploadRoutes } from "./uploads.ts";
 
-export const SERVER_VERSION = process.env["WHATBUILD_RELEASE"] ?? `dev-${SKILL_VERSION}`;
+export const SERVER_VERSION = process.env["WHATBUILD_RELEASE"] ?? `dev-${TOOLS_VERSION}`;
 
 /** The largest body sign-in and OAuth read. */
 const AUTH_BODY_MAX_BYTES = 64 * 1024;
@@ -87,7 +87,7 @@ export function loggedPath(path: string): string {
 }
 
 export interface Release {
-  /** WHATBUILD_RELEASE: a tag such as v0.3.1, a commit, or dev-<skill version> on a development server. */
+  /** WHATBUILD_RELEASE: a tag such as v0.3.1, a commit, or dev-<tools version> on a development server. */
   version: string;
   /** The full commit the image was built from, and when; null on a development server. */
   commit: string | null;

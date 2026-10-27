@@ -73,7 +73,7 @@ describe("mockups", () => {
       based_on_version: null,
       page_ids: ["grid", "timeline"],
       url: `${h.baseUrl}/t/${P.replace("/api/v1/p/", "")}/exploration/mockups/${id}`,
-      next: expect.stringContaining('mockups(action="get")'),
+      next: expect.stringContaining('mockups_read(action="get")'),
     });
     expect(r.headers.get("etag")).toBe(`"${etag}"`);
     const v = await canvasOf(P, id);

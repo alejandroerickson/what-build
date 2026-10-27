@@ -3,7 +3,7 @@ type: Decision
 title: A product starts with its idea, a product concept and the outcomes its users should achieve
 description: The first screen is Idea, holding the product concept and outcomes; an outcome is what the product's users achieve with it, the compass the rest of the product is read against, and it cites nothing.
 tags: [decision, product, vocabulary, outcomes]
-generated: {by: agent:claude, at: 2026-10-16}
+generated: {by: agent:claude, at: 2026-10-26}
 status: stable
 ---
 
@@ -45,8 +45,8 @@ how it ends: outcomes are the compass, they cite nothing, and they are current o
   (`archived_at`, `include_archived`, `archive` and `restore`). Rejected: active, achieved and
   archived statuses. "Achieved" made an outcome a task to tick off, and three states asked people
   to keep a status nobody read.
-- "Outcome" is the one word for the object everywhere: UI, REST (`/outcomes`), MCP (`outcomes`),
-  the schema (`outcomes`, `outcome_id`, `outcome_ids`) and the skill.
+- "Outcome" is the one word for the object everywhere: UI, REST (`/outcomes`), MCP (`outcomes_read`,
+  `outcomes_write`, `outcomes_delete`), the schema (`outcomes`, `outcome_id`, `outcome_ids`) and the guide.
 - Rejected: "capability" (it describes what the product does, and pulls toward a feature list);
   "job" (a job to be done exists without the product, and the word already means background work).
 
@@ -54,13 +54,13 @@ how it ends: outcomes are the compass, they cite nothing, and they are current o
 
 - Assumptions, mockups and Story pages link to what users should achieve, so the work is read
   against user value rather than against a research plan.
-- Some teams use "outcome" for a business metric; the screen and the skill say whose outcome it is.
+- Some teams use "outcome" for a business metric; the screen and the guide say whose outcome it is.
 
 ## Constrains
 
-- Help text, operation descriptions, the MCP server's instructions and the skill define an outcome
-  from the user's side, as the compass, citing nothing (`packages/core/src/ops/outcomes.ts`,
-  `apps/server/src/mcp.ts`, `packages/core/src/skill/SKILL.md`).
+- Help text, operation descriptions, the MCP server's instructions and the guide define an outcome
+  from the user's side, citing nothing (`packages/core/src/ops/outcomes.ts`,
+  `apps/server/src/mcp.ts`, `packages/core/src/guide/05-idea.md`).
 - `outcomes.create` and `outcomes.update` refuse a title or description holding a record id
   (`outcome_cites_a_record`); outcome reads carry no counts of what points at them.
 - Sample content writes outcomes as user outcomes (`apps/server/src/seed-content.ts`).

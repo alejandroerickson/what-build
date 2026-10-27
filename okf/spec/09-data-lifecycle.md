@@ -330,9 +330,9 @@ Everything that can be archived can also be deleted, and so can an organization:
   its versions and the sub-pages that would move up. For a mockup: its versions and the Story
   pages that show it. For a product or organization: everything it holds, counted. Each says in
   `after_delete` what becomes of what points at it. The web UI shows this inside the confirmation
-  dialog. The skill requires an agent to call it and show the person the result before proposing
-  a delete, and to delete only once the person approves that impact (a delete approved in advance
-  still waits for the preview), never slipped into a run of other actions.
+  dialog. An agent's delete takes the impact's etag, so it reads the impact first, and a permanent
+  delete is in a `_delete` tool of its own, which a client such as Claude asks the person about
+  before each call.
 - **What each removes:**
   - A source: its attachments and their versions, its readings, its derived text and its pieces
     in the search index, comments, summary and notes; a background job then deletes the

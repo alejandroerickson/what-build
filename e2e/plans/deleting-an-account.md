@@ -18,9 +18,9 @@ as `leaver-<the run's time>@example.com`.
 ## Steps
 
 1. **MCP, as Sam and as Riley, each at `--level admin`.** List the tools, then call
-   `products(action="delete_account", email: "<their address>", confirm: "delete permanently")`.
-   *Expect:* `products` offers neither `delete_account` nor `delete_account_impact`; the call
-   answers `unknown_action`; `products(action="list")` still works for both.
+   `products_delete(action="delete_account", email: "<their address>", confirm: "delete permanently")`.
+   *Expect:* no `products_` tool offers `delete_account` or `delete_account_impact`; the call
+   answers `unknown_action`; `products_read(action="list")` still works for both.
 2. **Web, as Riley.** Open Settings. *Expect:* Delete account is its own section, closed: one line
    and a Delete account… button, which reads as opening the section rather than deleting. Open it.
    *Expect:* what deleting will do, in the future tense, naming the organizations Riley would lose,
@@ -34,7 +34,7 @@ as `leaver-<the run's time>@example.com`.
 4. **Web, as the leaver.** Sign in with the leaver's address. Add a source to a product of the
    standard organization, with a synthetic text from the run's folder carrying a phrase of its
    own. Start an organization of their own, with a made-up name. Then **MCP, as the leaver**:
-   connect and call `products(action="list")`. *Expect:* both organizations listed.
+   connect and call `products_read(action="list")`. *Expect:* both organizations listed.
 5. **Web, as the leaver.** In Settings, open Delete account. *Expect:* it names both organizations
    as the ones they would lose. **You're the only owner of** their organization, with Make someone
    else owner and Delete organization, and no address field. Follow Delete organization.
@@ -51,7 +51,7 @@ as `leaver-<the run's time>@example.com`.
    stays and that a confirmation was emailed. Opening the app goes to sign-in. The instance's log
    shows the confirmation mailed to the address: what was deleted, what stays, and whom to contact
    if it wasn't them; nothing about backups.
-8. **MCP, as the leaver, on the connection from step 4.** Call `products(action="list")`.
+8. **MCP, as the leaver, on the connection from step 4.** Call `products_read(action="list")`.
    *Expect:* refused as signed out; the connection is gone.
 9. **Web, as Riley.** The standard organization's Members, then a search for the leaver's phrase,
    then People. *Expect:* the leaver holds no role, and Access changes records that they left the

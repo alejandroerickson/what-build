@@ -36,7 +36,7 @@ function refFromInput(op: OperationDef, input: Record<string, unknown>, ref: Sco
 /** Fields sources no longer have, and what to send instead. */
 const RETIRED_SOURCE_FIELDS = new Set(["kind", "organization", "folder"]);
 const RETIRED_SOURCE_HINT =
-  " Sources have no kind, organization or folder any more: say what the material is and whom it concerns with tags, reusing the ones sources(action=\"facets\") lists.";
+  " Sources have no kind, organization or folder any more: say what the material is and whom it concerns with tags, reusing the ones sources_read(action=\"facets\") lists.";
 
 /** Dimensions and their filters, which sources and assumptions no longer have. The filter that took their place is `tags` on sources and search, `tag` on assumptions. */
 const RETIRED_DIMENSION_FIELDS = new Set(["dimensions", "customer", "product_area", "lifecycle_stage"]);
@@ -54,7 +54,7 @@ const RETIRED_VALUES: { ops: string[]; field: string; values: string[]; hint: st
     ops: ["derived.write_note", "derived.read_note"],
     field: "note_kind",
     values: ["outline"],
-    hint: " A source has no outline any more: note_kind is summary (what the source is and what it tells the team, which people read) or notes (anything else worth keeping). Find your way through a long source with search and derived(action=\"text\") windows.",
+    hint: " A source has no outline any more: note_kind is summary (what the source is and what it tells the team, which people read) or notes (anything else worth keeping). Find your way through a long source with search and derived_read(action=\"text\") windows.",
   },
 ];
 
@@ -90,7 +90,7 @@ function retiredFieldHint(op: OperationDef, error: z.ZodError, input: unknown): 
   );
 }
 
-/** What a grouped tool's call carries beside an action's fields. A standalone tool takes none of them. */
+/** What a call to a tool with actions carries beside an action's fields. A standalone tool takes none of them. */
 const GROUPED_ARGUMENTS = ["action", "params", "describe"];
 
 /**
@@ -101,7 +101,7 @@ function standaloneSentence(op: OperationDef, sent: string[]): string {
   const fields = Object.keys((op.input as unknown as { shape?: Record<string, unknown> }).shape ?? {});
   return (
     `${wordList(sent.map((k) => `\`${k}\``))} ${sent.length === 1 ? "is not an argument" : "are not arguments"} of ${op.mcp.tool}: it is a tool of its own, ` +
-    `${fields.length ? `whose arguments are its fields (${wordList(fields)})` : "which takes no arguments"}, and only the grouped tools take action, params and describe.`
+    `${fields.length ? `whose arguments are its fields (${wordList(fields)})` : "which takes no arguments"}, and only the tools with actions take action, params and describe.`
   );
 }
 
@@ -253,7 +253,7 @@ function connectionLevelTooLow(op: OperationDef, principal: Principal): AppError
     403,
     "connection_level",
     `This connection is set to ${LEVEL_NAMES[level]}, and ${op.name} needs ${LEVEL_NAMES[needed]}. Nothing was changed. ` +
-      `Tell the person: only they can raise it, under Connect an agent in WhatBuild. Never look for a way around it.`,
+      `Only the person can raise it, under Connect an agent in WhatBuild.`,
     { level, needed },
   );
 }

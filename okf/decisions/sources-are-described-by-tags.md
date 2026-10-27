@@ -3,7 +3,7 @@ type: Decision
 title: Sources are described by a title, a date and tags; there are no kinds, folders, organization field, dimensions, participants, source system or provenance
 description: What a source is, whom it concerns and what it bears on are tags, which people and agents reuse through sources.facets, because a closed list of kinds slowed intake and changed nothing about storage or search, and the other fields said what a tag or the source's notes say.
 tags: [decision, sources, evidence, tags, mcp, web, product]
-generated: {by: agent:claude, at: 2026-10-18}
+generated: {by: agent:claude, at: 2026-10-26}
 status: stable
 ---
 
@@ -62,8 +62,8 @@ chose on 2026-10-16 to remove them, keeping a source's tags and its three dates.
   repository, a commit range). The source's notes say so in words; attachments carry no
   provenance ([decision](a-sources-words-are-one-derived-text-and-attachments-are-never-searched.md)).
 - Rejected on 2026-10-13: importing agents' session transcripts as sources. A whole session holds
-  far more than a team should share; an agent uploads a digest of what its session found instead,
-  tagged `agent-session` (the skill says so), so the team can tell such sources apart.
+  far more than a team should share; an agent can upload a digest of what its session found instead,
+  as a source like any other.
 - Rejected: keeping organization as a field. It is one more thing to fill in, and a tag filters
   the same.
 

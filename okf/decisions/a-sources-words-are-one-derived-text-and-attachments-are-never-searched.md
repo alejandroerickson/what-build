@@ -3,7 +3,7 @@ type: Decision
 title: A source's words are one derived text; its files are attachments, read and kept but never searched; search reads a source's title, tags, summary, derived text, notes and comments
 description: Each source has one Markdown text that people and agents read, correct and search, taken from an attachment until someone writes it, because numbered passages of one primary file could not be corrected, moved with every parse and left everything else a source holds unsearched.
 tags: [decision, sources, evidence, search, derived, attachments, mcp, web, product]
-generated: {by: agent:claude, at: 2026-10-17}
+generated: {by: agent:claude, at: 2026-10-26}
 status: stable
 ---
 
@@ -27,8 +27,8 @@ files attachments everywhere. This replaces
   (`source_texts`). People read and edit it on the source's page; agents read it in windows by
   code-point offset (`derived.text`) and write it whole, by exact edits, or from an attachment
   (`derived.write_text`).
-- A source's files are **attachments** in the app, REST, the MCP tool `attachments`, the skill and
-  the documentation, with no role and no provenance. Every version of every attachment is read when
+- A source's files are **attachments** in the app, REST, the MCP tools `attachments_read` and
+  `attachments_write`, the guide and the documentation, with no role and no provenance. Every version of every attachment is read when
   it arrives, and what was read is kept with it and stays readable, but is never searched.
 - The derived text **follows its attachment**: the first reading with text becomes it, and a later
   reading of the same attachment replaces it, until someone writes or edits it.

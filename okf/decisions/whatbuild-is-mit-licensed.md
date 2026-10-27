@@ -21,7 +21,7 @@ the hosted service. The maintainer chose on 2026-10-26 that WhatBuild stays MIT.
 ## Decision
 
 - **Everything in the repository is MIT-licensed** ([`LICENSE`](../../LICENSE)): the server, the
-  web app, the parsers, the agent skill, the deployment scripts and this bundle. There is one
+  web app, the parsers, the agent guide, the deployment scripts and this bundle. There is one
   codebase; no feature is kept for a closed or paid edition.
 - **Anyone may run, change, sell or embed a copy, open or closed**, and keep their changes to
   themselves. The only condition is the MIT licence's: keep the copyright notice and the licence

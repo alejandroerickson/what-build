@@ -4,7 +4,7 @@
 !pnpm-lock.yaml
 !pnpm-workspace.yaml
 !tsconfig.base.json
-!scripts/gen-skill.mjs
+!scripts/gen-guide.mjs
 !packages/
 !apps/
 **/node_modules

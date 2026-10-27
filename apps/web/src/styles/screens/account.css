@@ -79,8 +79,61 @@
 .agents-reach + .agents-address {
   margin-top: var(--s-3);
 }
-.agents-step-body > .agents-fence {
+.agents-step-body .agents-fence {
+  margin: var(--s-2) 0 0;
+  max-width: 66ch;
+  color: var(--muted);
+  line-height: 1.5;
+}
+.agents-fence:empty {
+  display: none;
+}
+/* Limiting the agent: a quiet button whose chevron turns to say which way it goes, as More info does. */
+.agents-limit {
+  gap: 3px;
+  margin: var(--s-2) 0 0 calc(-1 * var(--s-2));
+  padding: 0 var(--s-1) 0 var(--s-2);
+}
+.agents-limit .glyph {
+  color: var(--faint);
+  transition: transform var(--dur-3) var(--ease-fold);
+}
+.agents-limit[aria-expanded="true"] {
+  background: var(--hover);
+  color: var(--text);
+}
+.agents-limit[aria-expanded="true"] .glyph {
+  color: var(--muted);
+  transform: rotate(180deg);
+}
+/* What each level may do, side by side; stacked on a phone. */
+.agents-levels {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--s-1h);
+  max-width: 66ch;
+  margin: var(--s-2) 0 0;
+}
+.agents-step-body > .agents-levels + p {
   margin-top: var(--s-2);
+}
+.agents-level {
+  padding: var(--s-1h) var(--s-2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+}
+.agents-level dt {
+  font-weight: var(--fw-medium);
+}
+.agents-level-default {
+  color: var(--faint);
+  font-weight: normal;
+}
+.agents-level dd {
+  margin: var(--s-0) 0 0;
+  color: var(--muted);
+  font-size: var(--fs-sm);
+  line-height: 1.45;
 }
 .agents-fence strong {
   color: var(--text);
@@ -339,6 +392,9 @@
 }
 
 @media (max-width: 760px) {
+  .agents-levels {
+    grid-template-columns: minmax(0, 1fr);
+  }
   .account-actions {
     padding-left: var(--sheet-px);
   }
@@ -363,4 +419,10 @@
 }
 .agents-feedback input {
   margin-top: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .agents-limit .glyph {
+    transition: none;
+  }
 }

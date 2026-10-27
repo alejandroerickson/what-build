@@ -868,7 +868,7 @@ describe("PDF", () => {
     expect(r).toMatchObject({ status: "unsupported", parser: "pdf", parser_version: "5", status_detail: SCAN_DETAIL, facts: { text_layer_chars: 0 } });
     // Its detail says what an agent that can see the pages does instead.
     expect(r.status_detail).toMatch(/^the PDF has no text layer: its pages are pictures, as a scan's are, and WhatBuild performs no OCR; an agent that can see its pages should read them/);
-    expect(r.status_detail).toContain('derived(action="write_text")');
+    expect(r.status_detail).toContain('derived_write(action="write_text")');
   });
 });
 

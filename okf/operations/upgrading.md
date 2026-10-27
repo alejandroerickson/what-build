@@ -31,8 +31,18 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
   confirmation that names `WHATBUILD_PRIVACY_CONTACT` as whom to tell if it was not them: set it, or the
   confirmation says only "whoever runs this WhatBuild". Nothing tells the person how long backups
   keep them; [erasure](erasure.md) says how an operator keeps backups, Neon `pre-migrate-…`
-  branches and copies of production from outlasting 35 days. No migration. The skill is now at version 0.41.0, saying an
-  agent never ends an account; agents fetch it again as the server's instructions tell them.
+  branches and copies of production from outlasting 35 days. No migration.
+- **The MCP tools are split, and the skill is retired.** It concerns every deployment and asks
+  nothing of one, but every connected agent notices. Each kind of object now has a `_read`, a
+  `_write` and, where it can be deleted for good, a `_delete` tool (`sources_read`,
+  `sources_write`, `sources_delete`, …), 28 tools where there were 13, each with a title and a
+  read-only or destructive hint, so a client such as Claude may ask before each write. The
+  `whatbuild` skill, `get_skill`, `/whatbuild-skill.md`, `/whatbuild-skill.zip` and the Connect
+  page's skill download are gone: the `guide` tool serves the same knowledge from the server, and
+  answers give `tools_version` (0.42.0) where they gave `skill_version`. A client that connected
+  before the upgrade keeps the old tool list until a new session; its calls to old tool names are
+  refused with the new names. A skill people installed by hand is obsolete and can be removed. No
+  migration.
 
 ## v0.23.2
 

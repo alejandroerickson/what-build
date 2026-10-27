@@ -129,7 +129,7 @@ corepack pnpm e2e plans                 # the plans and their titles
 corepack pnpm e2e run smoke             # start a run: makes its folder and records into it
 corepack pnpm e2e run                   # which run is recording; a new run replaces it
 corepack pnpm e2e browser signin sam    # then browser and mcp commands, as the plan says
-corepack pnpm e2e mcp call products '{"action":"list"}'
+corepack pnpm e2e mcp call products_read '{"action":"list"}'
 ```
 
 The plans:

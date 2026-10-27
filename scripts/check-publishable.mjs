@@ -57,7 +57,7 @@ const DOC_PLACES = [
   /^\.claude\/CLAUDE\.md$/,
   /^apps\/web\/(DESIGN|PRODUCT)\.md$/,
   /(^|\/)README\.md$/,
-  /^packages\/core\/src\/skill\/SKILL\.md$/,
+  /^packages\/core\/src\/guide\/\d\d-[a-z0-9-]+\.md$/,
   /^\.github\//,
   /^e2e\/plans\/[\w-]+\.md$/,
 ];

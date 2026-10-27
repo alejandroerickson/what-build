@@ -139,7 +139,7 @@ describe("register edits", () => {
   it("says in the review guidance that any review freezes the entry", async () => {
     const client = new Client({ name: "test-agent", version: "1.0.0" });
     await client.connect(new StreamableHTTPClientTransport(new URL(`${h.baseUrl}/mcp`), { requestInit: { headers: { authorization: `Bearer ${agentToken}` } } }));
-    const d = text(await client.callTool({ name: "assumptions", arguments: { action: "review", describe: true } }));
+    const d = text(await client.callTool({ name: "assumptions_write", arguments: { action: "review", describe: true } }));
     expect(d.description).toContain("freezes the entry's statement and body");
     await client.close();
   });
@@ -192,9 +192,9 @@ describe("register lists", () => {
     // Over MCP too, and asking for every status lists every entry with nothing left out.
     const client = new Client({ name: "count-test", version: "1" });
     await client.connect(new StreamableHTTPClientTransport(new URL(`${h.baseUrl}/mcp`), { requestInit: { headers: { Authorization: `Bearer ${agentToken}` } } }));
-    const mcp = text(await client.callTool({ name: "assumptions", arguments: { action: "list", product: p.body.path } }));
+    const mcp = text(await client.callTool({ name: "assumptions_read", arguments: { action: "list", product: p.body.path } }));
     expect(mcp.items.map((i: any) => i.id).sort()).toEqual(current);
-    const every = text(await client.callTool({ name: "assumptions", arguments: { action: "list", product: p.body.path, params: { status: ["unconfirmed", "confirmed", "refuted", "superseded"] } } }));
+    const every = text(await client.callTool({ name: "assumptions_read", arguments: { action: "list", product: p.body.path, params: { status: ["unconfirmed", "confirmed", "refuted", "superseded"] } } }));
     expect(every.items).toHaveLength(4);
     expect(every.not_current_hidden).toBe(0);
     await client.close();
@@ -268,16 +268,16 @@ describe("id aliases", () => {
     const other = await alice.api("POST", `${P}/outcomes`, { title: "Another aim" });
     const as = await alice.api("POST", `${P}/assumptions`, { statement: "Alias premise." });
 
-    expect(text(await call("outcomes", "get", { id: obj.body.outcome_id })).title).toBe("Alias aim");
-    expect(text(await call("outcomes", "revisions", { id: obj.body.outcome_id })).items).toBeDefined();
-    expect(text(await call("assumptions", "get", { assumption_id: as.body.id })).statement).toBe("Alias premise.");
+    expect(text(await call("outcomes_read", "get", { id: obj.body.outcome_id })).title).toBe("Alias aim");
+    expect(text(await call("outcomes_read", "revisions", { id: obj.body.outcome_id })).items).toBeDefined();
+    expect(text(await call("assumptions_read", "get", { assumption_id: as.body.id })).statement).toBe("Alias premise.");
     // The canonical names still work.
-    expect(text(await call("assumptions", "get", { id: as.body.id })).statement).toBe("Alias premise.");
-    expect(text(await call("outcomes", "get", { outcome_id: obj.body.outcome_id })).title).toBe("Alias aim");
+    expect(text(await call("assumptions_read", "get", { id: as.body.id })).statement).toBe("Alias premise.");
+    expect(text(await call("outcomes_read", "get", { outcome_id: obj.body.outcome_id })).title).toBe("Alias aim");
 
-    const clash = await call("outcomes", "get", { id: obj.body.outcome_id, outcome_id: other.body.outcome_id });
+    const clash = await call("outcomes_read", "get", { id: obj.body.outcome_id, outcome_id: other.body.outcome_id });
     expect(clash.isError).toBe(true);
-    const wrongKind = await call("assumptions", "get", { outcome_id: obj.body.outcome_id });
+    const wrongKind = await call("assumptions_read", "get", { outcome_id: obj.body.outcome_id });
     expect(wrongKind.isError).toBe(true);
     // Over REST the path carries the canonical id; an agreeing alias in the body is accepted.
     const u = await alice.api("PATCH", `${P}/outcomes/${obj.body.outcome_id}`, { id: obj.body.outcome_id, expected_etag: obj.body.etag, description: "Faster." });

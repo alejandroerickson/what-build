@@ -29,12 +29,12 @@ async function offered(client: Client): Promise<string[]> {
   const { tools } = await client.listTools();
   return tools.flatMap((t) => {
     const action = t.inputSchema.properties?.["action"] as { enum?: string[] } | undefined;
-    return action?.enum ? action.enum.map((a) => `${t.name}.${a}`) : [t.name];
+    return action?.enum ? action.enum.map((a) => `${t.name.replace(/_(read|write|delete)$/, "")}.${a}`) : [t.name];
   });
 }
 
 async function newSource(client: Client, title: string) {
-  return result(await client.callTool({ name: "sources", arguments: { action: "create", product: path, params: { title } } }));
+  return result(await client.callTool({ name: "sources_write", arguments: { action: "create", product: path, params: { title } } }));
 }
 
 beforeAll(async () => {
@@ -82,11 +82,11 @@ describe("what each level may do", () => {
     // Olga is an admin, but this connection acts as an editor.
     expect(made.json.scope.your_role).toBe("editor");
     expect(made.json.scope.connection_level).toBe("editor");
-    const del = result(await client.callTool({ name: "sources", arguments: { action: "delete", product: path, params: { record_id: made.json.record_id, expected_etag: made.json.etag, reason: "x", confirm: "delete permanently" } } }));
+    const del = result(await client.callTool({ name: "sources_delete", arguments: { action: "delete", product: path, params: { record_id: made.json.record_id, expected_etag: made.json.etag, reason: "x", confirm: "delete permanently" } } }));
     expect(del.status).toBe(403);
     expect(del.json.error).toMatchObject({ code: "connection_level", details: { level: "editor", needed: "admin" } });
     expect(del.json.error.message).toContain("Connect an agent");
-    const list = result(await client.callTool({ name: "products", arguments: { action: "list" } }));
+    const list = result(await client.callTool({ name: "products_read", arguments: { action: "list" } }));
     expect(list.json.connection_level).toBe("editor");
     expect(list.json.items[0].your_role).toBe("editor");
     await client.close();
@@ -98,7 +98,7 @@ describe("what each level may do", () => {
     const named: Record<string, Record<string, string[]>> = {};
     for (const [k, client] of clients.entries()) {
       const { tools } = await client.listTools();
-      for (const tool of ["sources", "products"]) {
+      for (const tool of tools.map((t) => t.name).filter((t) => /^(sources|products)_/.test(t))) {
         const listed = (tools.find((t) => t.name === tool)!.inputSchema.properties!["action"] as { enum: string[] }).enum;
         const missing = result(await client.callTool({ name: tool, arguments: { params: {} } }));
         expect(missing.status).toBe(422);
@@ -107,7 +107,8 @@ describe("what each level may do", () => {
         const unknown = result(await client.callTool({ name: tool, arguments: { action: "explode", product: path, params: {} } }));
         expect(unknown.json.error).toMatchObject({ code: "unknown_action", details: { actions: listed } });
         expect(unknown.json.error.message).toContain(`offers this connection these ${tool} actions: ${listed.join(", ")}.`);
-        (named[levels[k]!] ??= {})[tool] = listed;
+        const noun = tool.slice(0, tool.indexOf("_"));
+        (named[levels[k]!] ??= {})[noun] = [...((named[levels[k]!] ??= {})[noun] ?? []), ...listed];
       }
       await client.close();
     }
@@ -137,7 +138,7 @@ describe("what each level may do", () => {
     const refused = await newSource(client, "Should not exist");
     expect(refused.status).toBe(403);
     expect(refused.json.error.code).toBe("connection_level");
-    expect(result(await client.callTool({ name: "sources", arguments: { action: "list", product: path, params: {} } })).status).toBe(200);
+    expect(result(await client.callTool({ name: "sources_read", arguments: { action: "list", product: path, params: {} } })).status).toBe(200);
     await client.close();
   });
 
@@ -145,8 +146,8 @@ describe("what each level may do", () => {
     const admin = await connect(await h.connectAgent(olga, "Admin agent", "/mcp", "admin"));
     expect(await offered(admin)).toContain("sources.delete");
     const made = await newSource(admin, "Deleted by an agent");
-    const impact = result(await admin.callTool({ name: "sources", arguments: { action: "delete_impact", product: path, params: { record_id: made.json.record_id } } }));
-    const del = result(await admin.callTool({ name: "sources", arguments: { action: "delete", product: path, params: { record_id: made.json.record_id, expected_etag: impact.json.etag, reason: "The person asked", confirm: "delete permanently" } } }));
+    const impact = result(await admin.callTool({ name: "sources_read", arguments: { action: "delete_impact", product: path, params: { record_id: made.json.record_id } } }));
+    const del = result(await admin.callTool({ name: "sources_delete", arguments: { action: "delete", product: path, params: { record_id: made.json.record_id, expected_etag: impact.json.etag, reason: "The person asked", confirm: "delete permanently" } } }));
     expect(del.status, JSON.stringify(del.json)).toBe(200);
     await admin.close();
 
@@ -154,7 +155,7 @@ describe("what each level may do", () => {
     const his = await connect(await h.connectAgent(eddie, "Eddie's agent", "/mcp", "admin"));
     const mine = await newSource(his, "Eddie's source");
     expect(mine.json.scope.your_role).toBe("editor");
-    const refused = result(await his.callTool({ name: "sources", arguments: { action: "delete", product: path, params: { record_id: mine.json.record_id, expected_etag: mine.json.etag, reason: "x", confirm: "delete permanently" } } }));
+    const refused = result(await his.callTool({ name: "sources_delete", arguments: { action: "delete", product: path, params: { record_id: mine.json.record_id, expected_etag: mine.json.etag, reason: "x", confirm: "delete permanently" } } }));
     expect(refused.status).toBe(403);
     expect(refused.json.error.code).toBe("forbidden");
     await his.close();
@@ -179,7 +180,7 @@ describe("changing a level", () => {
     const rows = await h.db.selectFrom("oauth_tokens").select("level").where("family_id", "=", agent.family_id).where("revoked_at", "is", null).execute();
     expect(rows.length).toBe(2);
     expect(rows.every((r) => r.level === "admin")).toBe(true);
-    const del = result(await client.callTool({ name: "sources", arguments: { action: "delete", product: path, params: { record_id: made.json.record_id, expected_etag: made.json.etag, reason: "Raised to delete", confirm: "delete permanently" } } }));
+    const del = result(await client.callTool({ name: "sources_delete", arguments: { action: "delete", product: path, params: { record_id: made.json.record_id, expected_etag: made.json.etag, reason: "Raised to delete", confirm: "delete permanently" } } }));
     expect(del.status, JSON.stringify(del.json)).toBe(200);
 
     await olga.api("PATCH", `/api/v1/me/agents/${agent.family_id}`, { level: "viewer" });

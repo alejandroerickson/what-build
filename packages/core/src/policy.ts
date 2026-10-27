@@ -206,10 +206,10 @@ export async function exampleReadOnly(db: Db, config: AllowanceConfig, account: 
     .limit(1)
     .executeTakeFirst();
   const own = elsewhere
-    ? `Do your own work in an organization you are in: products(action="list") lists them, as the panel of the WhatBuild web app does.`
+    ? `Do your own work in an organization you are in: products_read(action="list") lists them, as the panel of the WhatBuild web app does.`
     : (await tenantAllowanceOf(db, config, account)).remaining !== 0
-      ? `To do your own work, create an organization of your own: products(action="create_tenant"), or New organization in the WhatBuild web app.`
-      : `This account may not start an organization: for one of your own, ask whoever runs this WhatBuild, or ask someone to invite you to theirs. Do not call products(action="create_tenant"), which would be refused.`;
+      ? `To do your own work, create an organization of your own: products_write(action="create_tenant"), or New organization in the WhatBuild web app.`
+      : `This account may not start an organization: for one of your own, ask whoever runs this WhatBuild, or ask someone to invite you to theirs. Do not call products_write(action="create_tenant"), which would be refused.`;
   return new AppError(
     403,
     "example_read_only",
@@ -252,7 +252,7 @@ export function parseProductRef(ref: string): ScopeRef {
   if (parts.length === 3 && parts.every(Boolean)) return { tenant: parts[0]!, team: parts[1]!, product: parts[2]! };
   throw invalid(
     "invalid_product",
-    `"${ref}" is not a product reference. Pass a product id, or "tenant/team/product" slugs as products(action="list") shows them.`,
+    `"${ref}" is not a product reference. Pass a product id, or "tenant/team/product" slugs as products_read(action="list") shows them.`,
   );
 }
 

@@ -239,7 +239,7 @@ describe("activity by people or agents", () => {
   it("splits what people did (the app) from what agents did (MCP)", async () => {
     const client = new Client({ name: "test-agent", version: "1.0.0" });
     await client.connect(new StreamableHTTPClientTransport(new URL(`${h.baseUrl}/mcp`), { requestInit: { headers: { authorization: `Bearer ${await h.connectAgent(alice)}` } } }));
-    const viaMcp = await client.callTool({ name: "assumptions", arguments: { action: "create", product: productPath, params: { statement: "Written by an agent" } } });
+    const viaMcp = await client.callTool({ name: "assumptions_write", arguments: { action: "create", product: productPath, params: { statement: "Written by an agent" } } });
     expect(viaMcp.isError).toBeFalsy();
     await client.close();
     const people = await alice.api("GET", `${P}/activity?by=people&limit=200`);

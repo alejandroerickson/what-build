@@ -28,7 +28,7 @@ const WRONG_FIELD_HINTS: Record<string, { fields: string[]; hint: string }> = {
   // What the passage reader took (start, end, unit, seq), and length, a common guess at limit.
   "derived.text": {
     fields: ["start", "end", "unit", "seq", "length"],
-    hint: " derived(action=\"text\") reads by code-point offset: send offset and limit, where the window starts (such as a little before a search hit's char_start) and how many characters it holds. There are no passages to read by number.",
+    hint: " derived_read(action=\"text\") reads by code-point offset: send offset and limit, where the window starts (such as a little before a search hit's char_start) and how many characters it holds. There are no passages to read by number.",
   },
 };
 

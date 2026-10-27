@@ -1,4 +1,3 @@
-import { SKILL_NAME } from "@whatbuild/core";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 // deploy/cloudflare/worker.js, the Worker in front of the Cloud Run service.
@@ -35,8 +34,6 @@ describe("the Cloudflare Worker", () => {
       "/.well-known/oauth-protected-resource/mcp/t/acme/core/planner",
       "/favicon.svg",
       "/theme-boot.js",
-      `/${SKILL_NAME}-skill.md`,
-      `/${SKILL_NAME}-skill.zip`,
       "/robots.txt",
       "/api/v1/meta",
       "/mcp",

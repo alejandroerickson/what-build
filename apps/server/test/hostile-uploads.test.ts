@@ -511,7 +511,7 @@ describe("a read that keeps failing", () => {
     const d = await derivation(recordId);
     expect(d).toMatchObject({ status: "failed", parser: "none" });
     expect(d.status_detail).toBe(
-      'this file could not be read: reading it failed 5 times, so it was given up; the file is stored, and reading it again may help (Read it again in the web app, or derived(action="rederive"))',
+      'this file could not be read: reading it failed 5 times, so it was given up; the file is stored, and reading it again may help (Read it again in the web app, or derived_write(action="rederive"))',
     );
     expect(await reading(recordId)).toEqual(expect.objectContaining({ status: "failed", status_detail: d.status_detail }));
     expect((await alice.api("GET", `${P}/sources/${recordId}`)).body).toMatchObject({ derived_status: "failed", status_detail: d.status_detail });

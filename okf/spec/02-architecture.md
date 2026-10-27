@@ -282,7 +282,7 @@ Requirements this places on the design:
 - **Reading attachments runs on the same queue** as production, in the worker. Development MUST
   NOT read an attachment inline in the request; that is an observable behavior difference.
 - **CI uses this path.** The GitHub Actions workflow ([`.github/workflows/ci.yml`](../../.github/workflows/ci.yml))
-  installs, checks that the embedded skill text matches `SKILL.md`, type-checks, runs `pnpm test`
+  installs, checks that the embedded guide matches its Markdown topics, type-checks, runs `pnpm test`
   against embedded Postgres, and builds.
 - ◆ Decision: **development may substitute an adapter, never a behavior.** A difference a caller
   can observe is a bug.
@@ -313,7 +313,7 @@ deployment is involved
   [§8.5](08-search.md).)
 - **Untrusted content everywhere.** Source text, Markdown, and Story HTML are attacker-controlled
   from the application's point of view. Markdown is rendered without raw HTML; Story renders only
-  in a sandbox ([§4.11](04-data-model.md)); derived text returned to agents is data, and the skill
+  in a sandbox ([§4.11](04-data-model.md)); derived text returned to agents is data, and the guide
   and the MCP server instructions say so.
 - **Cookie-carrying writes must come from the app's own origin**, on every route, because
   `SameSite=Lax` is not enough on a shared parent domain. Every `wb_` cookie counts but
@@ -377,13 +377,13 @@ deployment is involved
 packages/
   parsers/          text, md, vtt, srt, html, docx, doc, pdf, xlsx, csv → readable Markdown (pure: bytes in, text out)
   core/             operation registry and every operation, policy, ports, Kysely table
-                    types, Story guidance and print view, the versioned product skill (src/skill/)
+                    types, Story guidance and print view, the guide agents read (src/guide/)
 apps/
   server/           Hono app: static assets, REST, MCP, OAuth and identity, upload relay, worker,
                     adapters (fs, memory, GCS blobs; SMTP, ACS and console mail), SQL migrations, seed;
                     CLI commands serve, worker, migrate, seed
   web/              React SPA, with PRODUCT.md and DESIGN.md
-scripts/            gen-skill (embeds SKILL.md), e2e and screenshot scripts, git hooks
+scripts/            gen-guide (embeds the guide's topics), e2e and screenshot scripts, git hooks
 e2e/plans/          end-to-end test plans an agent runs through the web app and MCP
 deploy/             Dockerfile; cloud-run/: setup script and cloudbuild.yaml (guide:
                     okf/operations/cloud-run.md)
