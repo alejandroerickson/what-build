@@ -5,8 +5,9 @@ import { Link, Navigate, useSearchParams } from "react-router";
 import { api, ApiError } from "../lib/api.ts";
 import { forgetPersonalState } from "../lib/local-state.ts";
 import { useMe } from "../lib/session.tsx";
-import { Button, ButtonLink, Callout, ErrorCallout, Loading, Sheet, SheetBody, SheetHeader, TextField } from "../ui/index.tsx";
+import { Button, ButtonLink, Callout, ErrorCallout, Loading, OneLine, Sheet, SheetBody, SheetHeader, TextField } from "../ui/index.tsx";
 import { EntryPage } from "./auth.tsx";
+import { PrivacyLink } from "../shell/privacy-link.tsx";
 import "../styles/screens/account.css";
 
 /** What `confirm` says on every permanent delete; the server refuses anything else. */
@@ -184,7 +185,7 @@ function OnlyOwner({ orgs }: { orgs: AccountDeleteImpact["organizations"] }) {
       <ul className="farewell-blocks">
         {orgs.map((o) => (
           <li key={o.slug} className="farewell-block">
-            <span className="farewell-block-name ellipsis">{o.name}</span>
+            <OneLine className="farewell-block-name" text={o.name} />
             <div className="farewell-block-actions">
               <ButtonLink size="sm" to={`/t/${o.slug}/members`} aria-label={`Make someone else owner of ${o.name}`}>
                 Make someone else owner
@@ -313,7 +314,7 @@ export function AccountDeletedPage() {
         </SheetBody>
       </Sheet>
       <p className="entry-fine">
-        <Link to="/privacy">Privacy</Link> · <Link to="/signin">Sign in</Link>
+        <PrivacyLink /> · <Link to="/signin">Sign in</Link>
       </p>
     </EntryPage>
   );

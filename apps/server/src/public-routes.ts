@@ -7,9 +7,9 @@ import { restPrincipal } from "./auth/identity.ts";
 import { microsoftSignIn, type ServerConfig } from "./config.ts";
 
 /**
- * What the public site and the plans pages show that only the deployment knows: the plans as an
- * instance owner set them, the largest file it takes, whom to write to, and whether anyone may come
- * in as a guest.
+ * What the public site's pages and the app's plans pages show that only the deployment knows: the
+ * plans as an instance owner set them, the largest file it takes, whom to write to, whether anyone
+ * may come in as a guest, and what the privacy page says of who runs it.
  */
 export async function siteCatalogue(db: Db, config: ServerConfig) {
   const guests = await readGuests(db);
@@ -23,7 +23,20 @@ export async function siteCatalogue(db: Db, config: ServerConfig) {
     file_max_bytes: config.fileMaxBytes,
     contact: config.privacyContact,
     guests: { self_serve: guests.self_serve, open: guests.at_once > 0 },
+    // What the site's privacy page says that only the deployment knows.
+    privacy: {
+      operator: config.operator,
+      contact: config.privacyContact,
+      providers: config.providers,
+      analytics: Boolean(config.analyticsId),
+    },
   };
+}
+
+/** Where this deployment's privacy page is: a page of the public site, never a screen of the app. */
+export function privacyUrl(config: ServerConfig): string {
+  const site = config.siteUrl ? new URL(config.siteUrl) : null;
+  return site && site.host !== new URL(config.publicBaseUrl).host ? `${site.origin}/privacy` : `${config.publicBaseUrl}/site/privacy/`;
 }
 
 export function publicRoutes(deps: { db: Db; config: ServerConfig; release: Release }) {
@@ -41,17 +54,13 @@ export function publicRoutes(deps: { db: Db; config: ServerConfig; release: Rele
       mcp: { name: MCP_SERVER_NAME, tools_version: TOOLS_VERSION },
       auth: { email_link: config.mailer !== "none", google: Boolean(config.googleClientId && config.googleClientSecret), microsoft: microsoftSignIn(config), dev: config.devAuth },
       inference: "none: WhatBuild runs no language model; intelligence comes from the agent you connect",
-      // What the privacy page says that only the deployment knows.
-      privacy: {
-        operator: config.operator,
-        contact: config.privacyContact,
-        providers: config.providers,
-        analytics: Boolean(config.analyticsId),
-      },
+      // The privacy page, which is the public site's: on its own domain, or on the app's origin without one.
+      privacy_url: privacyUrl(config),
     }),
   );
   // The plans this WhatBuild offers, for its plans pages and anyone deciding: every limit, and each
-  // one's price as an instance owner set it; and whether anyone may come in as a guest.
+  // one's price as an instance owner set it; whether anyone may come in as a guest; and what the
+  // privacy page names.
   app.get("/api/v1/plans", async (c) => c.json(await siteCatalogue(deps.db, config), 200, { "Cache-Control": "public, max-age=300" }));
 
   app.get("/api/v1/connect", async (c) => {

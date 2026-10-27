@@ -16,13 +16,23 @@ import { PlanComparison } from "../routes/plan-comparison.tsx";
 const EMPTY = { email: "", name: "", organization: "", note: "", website: "" };
 
 /** The Google Analytics measurement ID, which whoever serves the page writes into it; null for none. */
-const ANALYTICS_ID = document.querySelector<HTMLMetaElement>('meta[name="whatbuild-analytics"]')?.content || null;
+export const ANALYTICS_ID = document.querySelector<HTMLMetaElement>('meta[name="whatbuild-analytics"]')?.content || null;
+
+/** What the privacy page says that only the deployment knows (`privacy` in `/api/v1/plans`). */
+export interface SitePrivacy {
+  operator: string | null;
+  contact: string | null;
+  /** Who else handles it, as a paragraph the deployment wrote; null when it has said nothing. */
+  providers: string | null;
+  /** Whether the app loads Google Analytics for those who accept it. */
+  analytics: boolean;
+}
 
 /**
- * What only the deployment knows of its plans and guests (`/api/v1/plans`), which whoever serves
- * the page writes into it, so a visit asks the service nothing; null when it wrote nothing.
+ * What only the deployment knows of its plans, its guests and who runs it (`/api/v1/plans`), which
+ * whoever serves the page writes into it, so a visit asks the service nothing; null when it wrote nothing.
  */
-const WRITTEN: (PlansCatalogue & { guests?: { self_serve: boolean; open: boolean } }) | null = (() => {
+const WRITTEN: (PlansCatalogue & { guests?: { self_serve: boolean; open: boolean }; privacy?: SitePrivacy }) | null = (() => {
   try {
     const raw = document.querySelector<HTMLMetaElement>('meta[name="whatbuild-site"]')?.content;
     return raw ? JSON.parse(raw) : null;
@@ -32,11 +42,11 @@ const WRITTEN: (PlansCatalogue & { guests?: { self_serve: boolean; open: boolean
 })();
 
 /**
- * The plans and guests as the deployment has them: written into the page, or in development, where
- * Vite serves the page and writes nothing, asked of the local server. The plans are the
- * deployment's alone, so a page that could not be told them shows none.
+ * The plans, guests and privacy facts as the deployment has them: written into the page, or in
+ * development, where Vite serves the page and writes nothing, asked of the local server. They are
+ * the deployment's alone, so a page that could not be told them shows none.
  */
-function useSite() {
+export function useSite() {
   const [site, setSite] = useState(WRITTEN);
   useEffect(() => {
     if (!site && import.meta.env.DEV) api<NonNullable<typeof WRITTEN>>("GET", "/api/v1/plans").then(setSite, () => {});
@@ -48,7 +58,7 @@ function useSite() {
  * What every page of the public site shares: the canvas without the app's panel, the theme the
  * system asks for, analytics once a visitor accepts, and the footer.
  */
-function SiteFrame({ children, home, explore }: { children: ReactNode; home?: boolean; explore?: boolean }) {
+export function SiteFrame({ children, home, explore }: { children: ReactNode; home?: boolean; explore?: boolean }) {
   const site = useSite();
   const [cookiesOpen, setCookiesOpen] = useState(false);
   const choice = useCookieChoice();
@@ -78,7 +88,7 @@ function SiteFrame({ children, home, explore }: { children: ReactNode; home?: bo
           </span>
           <span className="site-foot-end">
             {home ? site?.plans?.length ? <a href={sitePath("plans")}>Plans</a> : null : <a href={sitePath("")}>WhatBuild</a>}
-            <a href="/privacy">Privacy</a>
+            <a href={sitePath("privacy")}>Privacy</a>
             {ANALYTICS_ID ? (
               <button type="button" className="site-foot-link" onClick={() => setCookiesOpen(true)}>
                 Cookies
@@ -109,7 +119,7 @@ function SiteFrame({ children, home, explore }: { children: ReactNode; home?: bo
  * A page of the site by name, wherever the site is served: at its own domain's root, or under
  * /site/ on the app's origin when the deployment names no site domain (as in development).
  */
-export function sitePath(page: "" | "plans"): string {
+export function sitePath(page: "" | "plans" | "privacy"): string {
   const base = location.pathname.startsWith("/site/") ? "/site/" : "/";
   return page ? `${base}${page}/` : base;
 }

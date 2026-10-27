@@ -122,7 +122,7 @@ immediately; permanent delete over MCP happens only with every guard of
 
 Backup configuration and a **rehearsed restore**; product export (built) and import; organization
 export; deleting an organization (built); account deletion, which also removes the person's counted days of
-use (built: [§9.5](09-data-lifecycle.md#delete-an-account)); the privacy page and its list of providers (built: `/privacy`);
+use (built: [§9.5](09-data-lifecycle.md#delete-an-account)); the privacy page and its list of providers (built: `/privacy` on the public site);
 abuse limits; the operator runbooks
 ([§9.6](09-data-lifecycle.md); erasure is built); alerts and traces for the Cloud Run deployment (built; an outage
 that keeps requests from reaching Cloud Run still mails nobody, and the Azure deployment has

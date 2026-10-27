@@ -2,7 +2,8 @@ import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { MemoryRouter } from "react-router";
 import { afterEach, describe, expect, it } from "vitest";
-import { Crumbs, wordEnds } from "../src/ui/layout.tsx";
+import { Crumbs } from "../src/ui/layout.tsx";
+import { wordEnds } from "../src/ui/one-line.tsx";
 
 // A crumb's label takes its own direction, and a long one is cut after a word in reading order, so a
 // title that mixes English and Arabic keeps the words it starts with. Layout decides where; these
@@ -42,7 +43,7 @@ describe("crumbs", () => {
         </MemoryRouter>,
       );
     });
-    const labels = [...host.querySelectorAll(".crumb-label")];
+    const labels = [...host.querySelectorAll(".one-line")];
     expect(labels.map((l) => l.getAttribute("dir"))).toEqual(["auto", "auto"]);
     expect(labels.map((l) => l.textContent)).toEqual(["Evidence", title]);
     expect(host.querySelector('[aria-current="page"]')?.textContent).toBe(title);

@@ -3,7 +3,8 @@ import { IconButton } from "./button.tsx";
 
 /**
  * A native modal dialog: the browser traps and restores focus. Escape and a click on the backdrop
- * close it unless `dismissable` is false (while a save is running, for example).
+ * close it unless `dismissable` is false (while a save is running, for example). The click must
+ * start on the backdrop too: selecting text in a field and letting go outside keeps it open.
  */
 export function Dialog({ open, onClose, title, description, children, footer, dismissable = true, wide }: {
   open: boolean;
@@ -16,6 +17,8 @@ export function Dialog({ open, onClose, title, description, children, footer, di
   wide?: boolean;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
+  /** Whether the press that led to the coming click started on the backdrop. */
+  const pressedBackdrop = useRef(false);
   const titleId = useId();
   const descId = useId();
   useEffect(() => {
@@ -34,8 +37,13 @@ export function Dialog({ open, onClose, title, description, children, footer, di
         e.preventDefault();
         if (dismissable) onClose();
       }}
+      onPointerDown={(e) => {
+        pressedBackdrop.current = e.target === ref.current;
+      }}
       onClick={(e) => {
-        if (dismissable && e.target === ref.current) onClose();
+        const fromBackdrop = pressedBackdrop.current;
+        pressedBackdrop.current = false;
+        if (dismissable && fromBackdrop && e.target === ref.current) onClose();
       }}
     >
       <div className="dialog-head">

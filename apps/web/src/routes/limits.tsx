@@ -14,6 +14,7 @@ import { Button, ButtonLink, Callout, ChoiceRow, Dialog, EmptyState, ErrorCallou
 import { NotVisible } from "./auth.tsx";
 import { OrganizationDeleteDialog } from "./org.tsx";
 import { PlanComparison } from "./plan-comparison.tsx";
+import { PrivacyLink } from "../shell/privacy-link.tsx";
 import "../styles/screens/limits.css";
 
 // ---- /t/:tenant/plan ------------------------------------------------------------------------------
@@ -125,7 +126,7 @@ function PlanSummary({ l, owner }: { l: OrganizationLimits; owner: boolean }) {
                 <Glyph name="info" size="sm" />
                 <span>
                   {org}&rsquo;s name and plan, and the name and email of everyone in it, are visible to whoever runs this WhatBuild, who uses them to{" "}
-                  {anyPriced(l.plans) ? "bill the organization and to " : ""}write to its people. <Link to="/privacy">Privacy</Link>
+                  {anyPriced(l.plans) ? "bill the organization and to " : ""}write to its people. <PrivacyLink />
                 </span>
               </p>
             ) : null}

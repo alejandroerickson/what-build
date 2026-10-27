@@ -155,11 +155,14 @@ the stream settings to keep, the Worker command and how to read reports.
 gcloud run services update whatbuild --region $R --update-env-vars WHATBUILD_ANALYTICS_ID=G-XXXXXXXXXX
 ```
 
-**The privacy page.** `/privacy` names who runs the deployment (`WHATBUILD_OPERATOR`), where to
+**The privacy page.** The public site's `/privacy`, which the app links to, names who runs the
+deployment (`WHATBUILD_OPERATOR`), where to
 write about one's data (`WHATBUILD_PRIVACY_CONTACT`, an email address or a web page) and
 who else handles the data (`WHATBUILD_PROVIDERS`, a paragraph shown as written: the providers by
 name, or by kind where the deployment would rather not name them)
-([§9.1](../spec/09-data-lifecycle.md)). Without them it says they have not been named. A
+([§9.1](../spec/09-data-lifecycle.md)). Without them it says they have not been named. The
+Worker learns them from the service with the plans, an hour at a time, so a change shows on the
+site within the hour. A
 deployment's mail provider is one of them: it receives every recipient's address and message
 ([Mail](mail.md)). The paragraph holds commas, so pass it with gcloud's alternate delimiter:
 

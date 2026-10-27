@@ -140,6 +140,36 @@
   line-height: var(--lh-body);
 }
 
+/* The privacy page: the plans page's head with the month it last changed, then prose, with one list of what is kept under plain leads. */
+.site-privacy-changed {
+  margin: 0 0 var(--s-4);
+  color: var(--faint);
+  font-size: var(--fs-sm);
+}
+.privacy-text {
+  max-width: 68ch;
+  margin: 0;
+  color: var(--text);
+  line-height: 1.5;
+}
+.privacy-text + .privacy-text,
+.privacy-after {
+  margin-top: var(--s-2h);
+}
+.privacy-list {
+  display: grid;
+  gap: var(--s-2h);
+  max-width: 68ch;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: var(--text);
+  line-height: 1.5;
+}
+.privacy-list b {
+  font-weight: var(--fw-semibold);
+}
+
 /* While guests may sign up: exploring first, a team's own organization beside it. */
 .site-ways-in {
   display: flex;
