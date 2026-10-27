@@ -3,7 +3,7 @@ type: Specification
 title: Nothing is ever trapped - say what we promise, keep export open, and never let a limit block a read.
 description: What we tell people, limits and quotas (enforced and planned), backups and in-product versioning, export, archive and permanent delete of everything archivable and of an organization, the operator runbooks, plans and their limits, and how retired insights and decisions became sources.
 tags: [spec, lifecycle, quotas, backups, export, archive, delete, limits, plans]
-generated: {by: agent:claude, at: 2026-10-26}
+generated: {by: agent:claude, at: 2026-10-27}
 status: stable
 ---
 
@@ -180,7 +180,9 @@ sign-up opens**, and repeated quarterly. An untested backup is not a backup, and
 most likely to be skipped under time pressure, so it is an acceptance criterion of a phase
 ([§10 Phase 6](10-roadmap.md)) rather than a good intention. It has not been performed yet.
 [Backups](../operations/backups.md#the-restore-drill) gives the procedure; the scratch environment
-is the [dev deployment](../operations/dev-deployment.md).
+is a database and a bucket made for the drill in production's own accounts and deleted after it,
+never the [dev deployment](../operations/dev-deployment.md), which holds only organizations an
+instance owner owns ([decision](../decisions/copies-outside-production-hold-only-organizations-an-instance-owner-owns.md)).
 
 **Object storage.** Blobs are immutable and keyed opaquely (`t/<tenant>/r/<record>/f/<file
 version>`; a mockup's prototype files by upload and hash, `t/<tenant>/p/<product>/mockup-prototypes/<upload>/<sha256>`,

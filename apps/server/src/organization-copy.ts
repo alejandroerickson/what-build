@@ -5,6 +5,11 @@ import type pg from "pg";
  * rows, read from the deployment in one snapshot through a role that bypasses row-level security,
  * and written into an empty database with the deployment's schema. Nothing of any other
  * organization is read. The accounts that come along are the ones the copied rows refer to.
+ *
+ * A copy outside production (a local copy, the end-to-end golden master, a Docker host, the dev
+ * deployment) holds only organizations an instance owner owns: customers' organizations never leave
+ * production (okf/decisions/copies-outside-production-hold-only-organizations-an-instance-owner-owns.md).
+ * Only a move into another production deployment takes others.
  */
 
 export type Organization = { tenant_id: string; slug: string; name: string; example: boolean };
@@ -20,23 +25,96 @@ export const DEPLOYMENT_TABLES = [
   "tenant_allowances", "interest", "usage_calls", "usage_people", "feedback_counts", "instance_settings", "guest_passes",
 ];
 
+/** The column that marks the example organization: a deployment that has not yet taken the release that replaced the public sandbox marks the sandbox instead. */
+async function exampleFlag(c: pg.Client) {
+  return (await c.query("select 1 from information_schema.columns where table_schema = 'public' and table_name = 'tenants' and column_name = 'example'")).rowCount ? "example" : "sandbox";
+}
+
 /** The organizations named by slug, or, with none named, the deployment's example organization. Reads no other organization. */
 export async function chooseOrganizations(c: pg.Client, slugs: string[]): Promise<Organization[]> {
-  // A deployment that has not yet taken the release that replaced the public sandbox marks the sandbox instead.
-  const flag = (await c.query("select 1 from information_schema.columns where table_schema = 'public' and table_name = 'tenants' and column_name = 'example'")).rowCount ? "example" : "sandbox";
+  const flag = await exampleFlag(c);
   if (!slugs.length) {
     const example = (await c.query<Organization>(`select tenant_id, slug, name, ${flag} as example from tenants where ${flag} order by slug`)).rows;
     if (example.length === 1) return example;
     throw new Error(
       example.length
         ? `The deployment has ${example.length} example organizations: name the organizations with --org <slug>.`
-        : "The deployment has no example organization: name the organizations with --org <slug>, or take everything with --all.",
+        : "The deployment has no example organization: name the organizations with --org <slug>, or take every organization its instance owners own with --all.",
     );
   }
   const found = (await c.query<Organization>(`select tenant_id, slug, name, ${flag} as example from tenants where slug = any($1) order by slug`, [slugs])).rows;
   const missing = slugs.filter((s) => !found.some((t) => t.slug === s));
   if (missing.length) throw new Error(`The deployment has no organization ${missing.join(", ")}.`);
   return found;
+}
+
+/** The owners of the organization itself, by address: who holds its owner's role. */
+const OWNERS = `select m.tenant_id, lower(a.email) as email from memberships m join accounts a on a.account_id = m.account_id
+  where m.scope_type = 'tenant' and m.scope_id = m.tenant_id and m.role = 'owner'`;
+
+/**
+ * Whether an instance owner owns an organization: it has owners, and every one of them is one of the
+ * deployment's instance owners. An organization a customer owns, alone or beside an instance owner,
+ * is the customer's.
+ */
+export function ownedByInstanceOwners(owners: readonly string[], instanceOwners: readonly string[]) {
+  return owners.length > 0 && owners.every((o) => instanceOwners.includes(o.toLowerCase()));
+}
+
+/** Each organization's owners, by address. */
+export async function ownersOf(c: pg.Client, tenantIds: string[]) {
+  const owners = new Map<string, string[]>(tenantIds.map((t) => [t, []]));
+  for (const r of (await c.query<{ tenant_id: string; email: string }>(`${OWNERS} and m.tenant_id = any($1) order by 2`, [tenantIds])).rows) owners.get(r.tenant_id)!.push(r.email);
+  return owners;
+}
+
+/** Refuse, saying why, if an instance owner does not own each of the organizations: none of them then leaves the deployment. */
+export async function refuseOrganizationsNoInstanceOwnerOwns(c: pg.Client, organizations: Organization[], instanceOwners: readonly string[]) {
+  const owners = await ownersOf(c, organizations.map((o) => o.tenant_id));
+  const refused = organizations.flatMap((o) => {
+    const of = owners.get(o.tenant_id) ?? [];
+    if (ownedByInstanceOwners(of, instanceOwners)) return [];
+    const others = of.filter((e) => !instanceOwners.includes(e)).length;
+    return [`${o.slug}: ${of.length ? `${others} of its ${of.length} owner${of.length === 1 ? "" : "s"} ${others === 1 ? "is not an instance owner" : "are not instance owners"}` : "it has no owner"}`];
+  });
+  if (refused.length)
+    throw new Error(`A copy outside production holds only organizations an instance owner owns, every owner of which is one of the deployment's instance owners (WHATBUILD_INSTANCE_OWNERS). ${refused.length === 1 ? "This one is not" : "These are not"}:
+  ${refused.join("\n  ")}
+Customers' organizations never leave production. Moving one into another production deployment of its own is the one copy that takes it: pnpm fixture pull --org <slug> --for-another-deployment (okf/operations/copying-an-organization.md).`);
+}
+
+/** Every organization the deployment's instance owners own, and how many it has besides. Reads nothing of the others but their number. */
+export async function organizationsInstanceOwnersOwn(c: pg.Client, instanceOwners: readonly string[]) {
+  const flag = await exampleFlag(c);
+  const organizations = (
+    await c.query<Organization>(
+      `select t.tenant_id, t.slug, t.name, t.${flag} as example from tenants t
+       where exists (select 1 from (${OWNERS}) o where o.tenant_id = t.tenant_id)
+         and not exists (select 1 from (${OWNERS}) o where o.tenant_id = t.tenant_id and o.email <> all($1))
+       order by t.slug`,
+      [instanceOwners],
+    )
+  ).rows;
+  const all = (await c.query<{ n: number }>("select count(*)::int as n from tenants")).rows[0]!.n;
+  return { organizations, others: all - organizations.length };
+}
+
+/**
+ * The organizations a pull takes: those named, the example organization when none are, or with
+ * `all` every one the instance owners own. For a copy outside production (`instanceOwners` given),
+ * it refuses any an instance owner does not own; a move into another production deployment passes
+ * null and takes the organizations named.
+ */
+export async function organizationsToPull(c: pg.Client, choice: { slugs: string[]; all?: boolean; instanceOwners: readonly string[] | null }) {
+  if (choice.all) {
+    if (!choice.instanceOwners) throw new Error("--all takes the organizations the instance owners own, for a copy outside production; a move into another deployment names its organizations.");
+    const { organizations, others } = await organizationsInstanceOwnersOwn(c, choice.instanceOwners);
+    if (!organizations.length) throw new Error("The deployment's instance owners own no organization by themselves, so none may go to a copy outside production.");
+    return { organizations, others };
+  }
+  const organizations = await chooseOrganizations(c, choice.slugs);
+  if (choice.instanceOwners) await refuseOrganizationsNoInstanceOwnerOwns(c, organizations, choice.instanceOwners);
+  return { organizations, others: undefined };
 }
 
 async function tablesWith(c: pg.Client, column: string) {

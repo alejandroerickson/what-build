@@ -57,8 +57,20 @@ export const e2eBaseUrl = () => process.env["WHATBUILD_E2E_URL"] ?? `http://loca
 export const PLANS = resolve(root, "e2e/plans");
 
 /** What golden.json says: the pull it came from, the two organizations, and their products' paths. */
-/** `sandbox` names the example organization in a golden master built before it replaced the public sandbox; `synthetic` is absent from one built before it had a synthetic organization. */
-export type GoldenRecord = { built_at: string; pull: string; migration: string; commit: string; example?: string; sandbox?: string; standard: string; synthetic?: string; products: string[] };
+/**
+ * `sandbox` names the example organization in a golden master built before it replaced the public
+ * sandbox; `synthetic` is absent from one built before it had a synthetic organization;
+ * `owned_by_instance_owners` from one built before pulls checked who owns each organization, which no
+ * copy outside production may hold.
+ */
+export type GoldenRecord = { built_at: string; pull: string; migration: string; commit: string; example?: string; sandbox?: string; standard: string; synthetic?: string; products: string[]; owned_by_instance_owners?: true };
+
+/** Why a golden master may not be exported, or nothing: one built before pulls checked who owns each organization. */
+export function goldenRefusal(golden: GoldenRecord): string | undefined {
+  return golden.owned_by_instance_owners
+    ? undefined
+    : `The golden master was built from the pull ${golden.pull}, taken before pulls checked who owns each organization, so it may hold one no instance owner owns. Build it again from a new pull: pnpm fixture pull, then pnpm e2e golden.`;
+}
 
 /**
  * The synthetic organization: the development sample (`seed.ts`), made by people who belong to it
@@ -165,7 +177,8 @@ async function buildGolden(args: string[]) {
       const products = (
         await c.query<{ path: string }>("select t.slug || '/' || m.slug || '/' || p.slug as path from products p join teams m using (team_id) join tenants t on t.tenant_id = p.tenant_id order by 1")
       ).rows.map((r) => r.path);
-      record = { built_at: new Date().toISOString(), pull: s.name, migration, commit: gitCommit(), example: keep.slug, standard: standard.slug, synthetic: SYNTHETIC, products };
+      // restorePull loads only a pull that checked an instance owner owns every organization in it.
+      record = { built_at: new Date().toISOString(), pull: s.name, migration, commit: gitCommit(), example: keep.slug, standard: standard.slug, synthetic: SYNTHETIC, products, owned_by_instance_owners: true };
       console.log(`The golden master is ${keep.slug}, the example organization in the copy ${s.name}, ${standard.slug}, a copy of it that is not the example, and ${SYNTHETIC}, a synthetic organization with people of its own:
   ${products.join("\n  ")}`);
     } finally {
@@ -204,6 +217,8 @@ async function exportGolden(args: string[]) {
   const scratch = "golden_export";
   try {
     if (!golden || !(await local.hasDatabase(E2E.golden))) throw new Error("There is no golden master yet: run pnpm e2e golden first.");
+    const refused = goldenRefusal(golden);
+    if (refused) throw new Error(refused);
     await admin(local, async (c) => {
       await c.query(`drop database if exists ${scratch}`);
       await c.query(`create database ${scratch} template ${E2E.golden} owner ${APP_ROLE}`);

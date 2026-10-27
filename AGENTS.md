@@ -7,8 +7,8 @@ one copy.
 
 Run `corepack pnpm attention`. It prints what is waiting in this repository: Dependabot's pull
 requests and the alerts nobody has accepted, a failed run on `main`, an accepted vulnerability whose
-time is up, changes production lacks, git hooks that are off, copies of production that hold every
-organization. If it prints anything, tell the person in a line or two before you start their task,
+time is up, changes production lacks, git hooks that are off, copies outside production that may
+hold an organization no instance owner owns. If it prints anything, tell the person in a line or two before you start their task,
 and offer to handle each item with the skill it names. This is how the maintainer hears of these
 chores. Do not act on an item unasked. An accepted vulnerability has been looked at already: its
 line gives the reason, which says what fixes it and when. Say that, and offer the fix only once it
@@ -45,10 +45,13 @@ message, every pull request's text and every issue and comment is published, and
   providers they use, what they have set up, their traffic. Documentation gives the step any
   deployment takes (`CAP=<amount>`, `my-whatbuild` in examples and tests); those facts stay outside
   the repository.
-- A copy of production (`.what-build/fixtures/`, the `fixture` database, the golden master) is
-  real people's data. Pulling the example organization to this machine is routine and needs no
-  go-ahead; a pull of every organization needs one. Never commit a copy, and never quote it in
-  the repository, a commit, an issue or a pull request
+- A copy of production outside production (`.what-build/fixtures/`, the `fixture` database, the
+  golden master and its exports, the Docker host, the dev deployment) is real people's data, and
+  holds only organizations an instance owner owns, beside synthetic ones: customers'
+  organizations never leave production, whoever names them, and the pull refuses them
+  ([decision](okf/decisions/copies-outside-production-hold-only-organizations-an-instance-owner-owns.md)).
+  Pulling the example organization to this machine is routine and needs no go-ahead. Never
+  commit a copy, and never quote it in the repository, a commit, an issue or a pull request
   ([a copy of production](okf/operations/a-copy-of-production.md#what-may-be-done-with-it)).
 - Tools that install their own instructions (memory, routing or workflow tools) keep them in your
   user-level configuration, never in this file, `.agents/skills/` or `okf/`.
@@ -92,9 +95,10 @@ that folder. If your tool does not load skills, read the `SKILL.md` files direct
 | `okf-decision` | When a change makes, revises or reverses a durable choice. |
 | `azure-self-host` | When asked to host, update or repair a self-hosted copy on Azure with the Azure CLI. |
 | `make-a-release` | When asked to release a version or move production: publish the release, approve the deploy. |
-| `rehearse-on-the-dev-deployment` | Before production runs a release that migrates, or when asked to deploy to dev, refresh or reset dev's copy of production, change which organizations dev holds, set dev up, or rehearse a restore. |
+| `rehearse-on-the-dev-deployment` | Before production runs a release that migrates, or when asked to deploy to dev, refresh or reset dev's copy of production, change which organizations dev holds, or set dev up. |
+| `perform-the-restore-drill` | When asked to perform or rehearse the restore drill, or to test that a deployment's backups restore. |
 | `recover-a-deployment` | When a new version broke a deployment (Cloud Run or Azure): roll back, restore the database. |
-| `test-on-a-copy-of-production` | When asked to pull the example organization (or another organization) and run the app locally on it, to QA or test end to end on real data, or to try migrations on a copy of production. |
+| `test-on-a-copy-of-production` | When asked to pull the example organization (or another of the instance owners') and run the app locally on it, to QA or test end to end on real data, or to try migrations on a copy of production. |
 | `copy-an-organization` | When asked to dump, export, extract or move an organization or the example organization, to keep an organization out of a copy, or to give an organization a deployment of its own. |
 | `audit-for-leaks` | When asked to check the repository or its history for secrets or private material, when something may have leaked, or to make the repository public. |
 | `triage-security-findings` | When `pnpm security`, the Security or CodeQL workflow, or Dependabot reports something; when adding or upgrading a dependency; before a release. |
@@ -128,10 +132,10 @@ conducts each one that changes something:
 | serve the golden master on a Docker host (a NAS) with each release, and test there | `end-to-end-on-a-docker-host.md` | `run-end-to-end-tests` |
 | check for known vulnerabilities and private material | `security-checks.md` | `triage-security-findings`, `audit-for-leaks` |
 | rehearse a release on the dev deployment; refresh or reset its copy of production; set it up | `dev-deployment.md` | `rehearse-on-the-dev-deployment` |
-| know what is backed up, check that backups run, restore a dump, perform the restore drill | `backups.md` | `rehearse-on-the-dev-deployment` (the drill) |
+| know what is backed up, check that backups run, restore a dump, perform the restore drill | `backups.md` | `perform-the-restore-drill` (the drill) |
 | go back after a release broke a deployment | `recovering-from-a-bad-release.md` | `recover-a-deployment` |
 | test on a copy of production on this machine | `a-copy-of-production.md` | `test-on-a-copy-of-production` |
-| copy some organizations out of a deployment (the example organization by default): to test on, to dev, or into another deployment's new database | `copying-an-organization.md` | `copy-an-organization` |
+| copy some organizations out of a deployment (the example organization by default): to test on or to dev (only the instance owners' organizations), or into another production deployment's new database | `copying-an-organization.md` | `copy-an-organization` |
 | find out how a deployment is used (features, agents, people coming back, the site); connect its analytics | `analytics.md` | `read-usage` |
 | know what mail a deployment sends and through what; set it up, check it, rotate its token, change provider | `mail.md` | `set-up-mail` |
 | define or change a deployment's plans, their limits and prices (`WHATBUILD_PLANS`; its file's path is `PLANS_FILE` in `.env`), or offer none; move organizations between plans; let people in from the waitlist; set the guests' limits | `cloud-run.md` (Plans), spec §9.7 | `run-the-instance` |

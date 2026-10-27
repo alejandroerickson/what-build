@@ -83,6 +83,10 @@ reset() {
 load() {
   src=${1:?usage: whatbuild-e2e.sh load <folder pnpm e2e export made>}
   [ -f "$src/database.dump" ] && [ -f "$src/golden.json" ] || { echo "$src holds no export (database.dump, golden.json, files/)." >&2; exit 1; }
+  # A copy outside production holds only organizations an instance owner owns; an export from before
+  # pulls checked owners may hold another.
+  grep -q '"owned_by_instance_owners": true' "$src/golden.json" || {
+    echo "$src is from a golden master built before pulls checked who owns each organization: export a new one (pnpm fixture pull, pnpm e2e golden, pnpm e2e export)." >&2; exit 1; }
   dest="$WHATBUILD_E2E_DIR/data/golden"
   if [ "$(cd "$src" && pwd)" != "$dest" ]; then
     rm -rf "$dest.new" && mkdir -p "$dest.new"
@@ -134,6 +138,8 @@ case "${1:-}" in
     # Every product's path, as pnpm e2e run prints them from a checkout's own golden master.
     if [ -f "$golden_json" ]; then
       sed -n '/"products"/,/]/s/^ *"\([^"]*\)",\{0,1\}$/product   \1/p' "$golden_json"
+      grep -q '"owned_by_instance_owners": true' "$golden_json" ||
+        echo "warning   this golden master was built before pulls checked who owns each organization: load a new export"
     fi
     compose ps
     ;;

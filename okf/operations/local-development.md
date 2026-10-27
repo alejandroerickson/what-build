@@ -3,7 +3,7 @@ type: System Concept
 title: Running WhatBuild locally, testing it, and checking the interface
 description: The one-command development setup, the test and build commands, and the browser scripts.
 tags: [development, testing, local]
-generated: {by: agent:claude, at: 2026-10-26}
+generated: {by: agent:claude, at: 2026-10-27}
 status: stable
 ---
 
@@ -146,7 +146,7 @@ machine and a server without the development sign-in, so it never touches a depl
 ## A copy of production
 
 `pnpm fixture pull`, `pnpm fixture load` and `pnpm dev:fixture` put a private copy of the
-production deployment's example organization, or of the organizations named, with their files, into the
+production deployment's example organization, or of other organizations its instance owners own, with their files, into the
 database `fixture` and serve it, with the migrations it lacks applied
 ([a copy of production](a-copy-of-production.md), [copying an organization](copying-an-organization.md)).
 The pull needs access to the deployment; nothing else does.
@@ -169,7 +169,7 @@ plans in `e2e/plans/` there through the browser and MCP and reports what it find
 | `pnpm db:migrate`, `pnpm db:seed` | Run migrations or the seed against `DATABASE_URL`, as a development server. |
 | `python3 okf/tools/validate_okf.py` | Checks the documentation bundle: frontmatter, types, links, indexes. |
 | `pnpm security` | Known vulnerabilities in the dependencies (osv-scanner) and weaknesses in the workflows (zizmor), with pinned scanners downloaded on first use ([security checks](security-checks.md)). |
-| `pnpm attention` | What is waiting in the repository: Dependabot's pull requests and the alerts nobody has accepted, failed runs on `main`, accepted vulnerabilities near expiry, changes production lacks, hooks that are off, copies of production that hold every organization. Agents run it at the start of every session ([security checks](security-checks.md)). |
+| `pnpm attention` | What is waiting in the repository: Dependabot's pull requests and the alerts nobody has accepted, failed runs on `main`, accepted vulnerabilities near expiry, changes production lacks, hooks that are off, copies outside production that may hold an organization no instance owner owns. Agents run it at the start of every session ([security checks](security-checks.md)). |
 | `pnpm check:publishable --all` | Nothing private in the tree or the history. The git hooks `pnpm install` turns on run it on every commit and push. |
 
 CI (`.github/workflows/ci.yml`) runs the documentation check, the guide check, typecheck, test and build on every push to

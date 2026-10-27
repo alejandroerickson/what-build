@@ -7,7 +7,8 @@ import { fileURLToPath } from "node:url";
 import { json, newId, type Db } from "@whatbuild/core";
 import pg from "pg";
 import { findOrCreateAccount } from "./auth/identity.ts";
-import { chooseOrganizations, copyOrganizations, type Organization } from "./organization-copy.ts";
+import { instanceOwnersFrom } from "./config.ts";
+import { copyOrganizations, organizationsToPull, type Organization } from "./organization-copy.ts";
 import { SEED_ACCOUNTS } from "./seed.ts";
 import { APP_ROLE, connectOrStartLocalPg, type LocalPg } from "./testing/pg.ts";
 
@@ -25,15 +26,20 @@ import { APP_ROLE, connectOrStartLocalPg, type LocalPg } from "./testing/pg.ts";
  *                             are given a place in every organization
  *
  * A pull holds the deployment's example organization, or the organizations named with --org, and only
- * their rows and files ever leave the deployment (organization-copy.ts); --all takes everything.
+ * their rows and files ever leave the deployment (organization-copy.ts). It is for a copy outside
+ * production, so it refuses an organization an instance owner does not own; --all takes every one
+ * they do. --for-another-deployment takes the organizations named to move them into another
+ * production deployment, and no copy outside production loads it.
  *
  *   pnpm fixture pull [--org <slug>]… [--all] [--no-files | --files-into gs://<bucket>]
+ *   pnpm fixture pull --org <slug>… --for-another-deployment [--files-into gs://<bucket>]
  *   pnpm fixture list         the pulls and what each holds
  *
  * pull reads WHATBUILD_FIXTURE_DATABASE_URL (a role that reads everything and bypasses row-level
- * security) and WHATBUILD_FIXTURE_BUCKET (gs://…); with GCP_PROJECT instead (from the environment
- * or .env), the Cloud Run deployment's backup role and files bucket. In a git worktree without a
- * .env or pulls of its own, the main checkout's are used, so every checkout shares them.
+ * security), WHATBUILD_FIXTURE_BUCKET (gs://…) and WHATBUILD_FIXTURE_INSTANCE_OWNERS (the
+ * deployment's WHATBUILD_INSTANCE_OWNERS); with GCP_PROJECT instead (from the environment or .env),
+ * the Cloud Run deployment's backup role, files bucket and service's instance owners. In a git
+ * worktree without a .env or pulls of its own, the main checkout's are used, so every checkout shares them.
  */
 const root = resolve(fileURLToPath(new URL("../../..", import.meta.url)));
 const FIXTURES = resolve(root, process.env["WHATBUILD_FIXTURE_DIR"] ?? ".what-build/fixtures");
@@ -108,7 +114,7 @@ export function nodePgUrl(url: string) {
   return url.slice(0, q) + (params.size ? `?${params}` : "");
 }
 
-/** What pulled.json says: when, which organizations (or all of them), and where the files went. */
+/** What pulled.json says: when, which organizations (or, in a pull from before pulls were limited, all of them), and where the files went. */
 export type PullRecord = {
   pulled_at: string;
   organizations?: Omit<Organization, "example">[] | "all";
@@ -116,14 +122,54 @@ export type PullRecord = {
   rows?: Record<string, number>;
   files: boolean;
   files_into?: string;
+  /** The pull checked that an instance owner owns every organization in it, so a copy outside production may hold it. */
+  owned_by_instance_owners?: true;
+  /** Taken to move its organizations into another production deployment: no copy outside production loads it. */
+  for_another_deployment?: true;
 };
 
-async function pull(args: string[]) {
+/** Whether a copy outside production may hold the pull: one that checked who owns each of its organizations. */
+export function mayLeaveProduction(r: PullRecord) {
+  return r.owned_by_instance_owners === true && !r.for_another_deployment && Array.isArray(r.organizations);
+}
+
+/** Why a copy outside production refuses a pull, or nothing when it may hold it. */
+export function refusalOf(name: string, r: PullRecord): string | undefined {
+  if (mayLeaveProduction(r)) return undefined;
+  if (r.for_another_deployment) return `The pull ${name} was taken to move its organizations into another production deployment, and goes only there: no copy outside production loads it. Delete it once it is restored there.`;
+  return `The pull ${name} was taken before pulls checked who owns each organization, so it may hold one no instance owner owns, which no copy outside production holds. Delete it (rm -r ${show(join(pullsDir(), name))}) and pull again: pnpm fixture pull.`;
+}
+
+/**
+ * The deployment's instance owners, as its server reads them: WHATBUILD_FIXTURE_INSTANCE_OWNERS, or,
+ * for the Cloud Run deployment, its service's WHATBUILD_INSTANCE_OWNERS. A pull for a copy outside
+ * production takes only the organizations they own, so it never guesses them.
+ */
+function deploymentInstanceOwners(project: string | undefined) {
+  let value = process.env["WHATBUILD_FIXTURE_INSTANCE_OWNERS"];
+  if (value === undefined && project && !process.env["WHATBUILD_FIXTURE_DATABASE_URL"]) {
+    const region = process.env["GCP_REGION"] ?? fromDotEnv("GCP_REGION");
+    if (!region) throw new Error("Set GCP_REGION to the Cloud Run deployment's region, so that the pull reads who its instance owners are.");
+    type Service = { spec?: { template?: { spec?: { containers?: { env?: { name: string; value?: string }[] }[] } } } };
+    const service = JSON.parse(run("gcloud", ["run", "services", "describe", "whatbuild", `--project=${project}`, `--region=${region}`, "--format=json"])) as Service;
+    value = service.spec?.template?.spec?.containers?.flatMap((c) => c.env ?? []).find((e) => e.name === "WHATBUILD_INSTANCE_OWNERS")?.value ?? "";
+  }
+  if (value === undefined) throw new Error("Set WHATBUILD_FIXTURE_INSTANCE_OWNERS to the deployment's WHATBUILD_INSTANCE_OWNERS: a copy outside production holds only the organizations its instance owners own.");
+  const owners = instanceOwnersFrom(value);
+  if (!owners.length) throw new Error("The deployment names no instance owners (WHATBUILD_INSTANCE_OWNERS), so none of its organizations may go to a copy outside production.");
+  return owners;
+}
+
+export async function pull(args: string[]) {
   const everything = args.includes("--all");
+  const elsewhere = args.includes("--for-another-deployment");
   const slugs = args.filter((_, i) => args[i - 1] === "--org").flatMap((a) => a.split(",")).filter(Boolean);
   const into = args[args.indexOf("--files-into") + 1];
   const filesInto = args.includes("--files-into") ? into?.replace(/\/+$/, "") : undefined;
-  if (everything && slugs.length) throw new Error("Name organizations with --org, or take everything with --all, not both.");
+  if (everything && slugs.length) throw new Error("Name organizations with --org, or take every organization the instance owners own with --all, not both.");
+  if (elsewhere && (everything || !slugs.length)) throw new Error("--for-another-deployment moves the organizations named with --org, and only those.");
+  if (elsewhere && !process.env["WHATBUILD_FIXTURE_DIR"])
+    throw new Error("A copy for another deployment goes through a directory only you can read, never .what-build/fixtures: set WHATBUILD_FIXTURE_DIR to one (umask 077; D=$(mktemp -d)).");
   if (args.includes("--files-into") && !/^gs:\/\/[^/]+$/.test(filesInto ?? "")) throw new Error("--files-into takes a bucket: gs://<name>.");
 
   const project = process.env["GCP_PROJECT"] ?? fromDotEnv("GCP_PROJECT");
@@ -134,22 +180,18 @@ async function pull(args: string[]) {
   const bucket = args.includes("--no-files") ? undefined : (process.env["WHATBUILD_FIXTURE_BUCKET"] ?? (project ? `gs://${project}-whatbuild-files` : undefined))?.replace(/\/+$/, "");
   if (filesInto && !bucket) throw new Error("--files-into needs the deployment's bucket: set WHATBUILD_FIXTURE_BUCKET or GCP_PROJECT.");
   if (filesInto && filesInto === bucket) throw new Error("--files-into names the deployment's own bucket, which a pull only reads.");
+  // Who runs the deployment: a copy outside production holds only the organizations they own.
+  const instanceOwners = elsewhere ? null : deploymentInstanceOwners(project);
 
   const name = new Date().toISOString().slice(0, 16).replace(":", "") + "Z";
   const dir = join(pullsDir(), name);
   if (existsSync(dir)) throw new Error(`There is already a pull named ${name}: wait a minute and pull again.`);
   mkdirSync(dir, { recursive: true, mode: 0o700 });
-  let organizations: Organization[] | undefined;
-  let rows: Record<string, number> | undefined;
+  let organizations: Organization[];
+  let rows: Record<string, number>;
   try {
-    if (everything) {
-      console.log(`Dumping the whole database into ${show(dir)}/database.dump…`);
-      const dump = pgDumpCommand(url, join(dir, "database.dump"));
-      execFileSync("pg_dump", dump.args, { stdio: "inherit", env: dump.env });
-    } else {
-      ({ organizations, rows } = await dumpOrganizations(url, slugs, join(dir, "database.dump")));
-    }
-    if (bucket) copyFiles(bucket, organizations?.map((o) => o.tenant_id), filesInto ?? join(dir, "files"));
+    ({ organizations, rows } = await dumpOrganizations(url, { slugs, all: everything, instanceOwners }, join(dir, "database.dump")));
+    if (bucket) copyFiles(bucket, organizations.map((o) => o.tenant_id), filesInto ?? join(dir, "files"));
     else console.log("No bucket: this copy has no files, so its sources open without their attachments.");
   } catch (e) {
     rmSync(dir, { recursive: true, force: true });
@@ -158,13 +200,14 @@ async function pull(args: string[]) {
   // Written last: a pull that stopped part-way has no pulled.json and is never loaded.
   const record: PullRecord = {
     pulled_at: new Date().toISOString(),
-    organizations: organizations?.map(({ tenant_id, slug, name }) => ({ tenant_id, slug, name })) ?? "all",
-    ...(rows ? { rows: Object.fromEntries(Object.entries(rows).sort(([a], [b]) => (a < b ? -1 : 1))) } : {}),
+    organizations: organizations.map(({ tenant_id, slug, name }) => ({ tenant_id, slug, name })),
+    rows: Object.fromEntries(Object.entries(rows).sort(([a], [b]) => (a < b ? -1 : 1))),
     files: Boolean(bucket) && !filesInto,
     ...(filesInto ? { files_into: filesInto } : {}),
+    ...(elsewhere ? { for_another_deployment: true } : { owned_by_instance_owners: true }),
   };
   writeFileSync(join(dir, "pulled.json"), JSON.stringify(record, null, 2) + "\n");
-  console.log(`Pulled ${name}. Load it with: pnpm fixture load`);
+  console.log(elsewhere ? `Pulled ${name} to move into another deployment: restore it there, then delete ${show(dir)}.` : `Pulled ${name}. Load it with: pnpm fixture load`);
 }
 
 /**
@@ -173,15 +216,16 @@ async function pull(args: string[]) {
  * deployment, and the scratch database is dumped, so the pull is an ordinary dump that every
  * consumer of a pull restores as it is. The scratch database is dropped.
  */
-async function dumpOrganizations(url: string, slugs: string[], file: string) {
+async function dumpOrganizations(url: string, choice: Parameters<typeof organizationsToPull>[1], file: string) {
   const source = new pg.Client({ connectionString: nodePgUrl(url) });
   await source.connect();
   const local = await connectOrStartLocalPg(resolve(root, ".what-build/pg"), PG_PORT, { portVariable: "WHATBUILD_PG_PORT" });
   const scratch = `pull_${randomBytes(4).toString("hex")}`;
   const tmp = mkdtempSync(join(tmpdir(), "whatbuild-pull-"));
   try {
-    const organizations = await chooseOrganizations(source, slugs);
+    const { organizations, others } = await organizationsToPull(source, choice);
     console.log(`Copying ${organizations.map((o) => `${o.slug}${o.example ? " (the example organization)" : ""}`).join(", ")} into ${show(file)}…`);
+    if (others) console.log(`  ${others} other organization${others === 1 ? " stays" : "s stay"} behind: an instance owner does not own ${others === 1 ? "it" : "them"}.`);
     const schema = pgDumpCommand(url, join(tmp, "schema.dump"), ["--schema-only"]);
     execFileSync("pg_dump", schema.args, { stdio: "inherit", env: schema.env });
     await createDatabase(local, scratch);
@@ -207,13 +251,13 @@ async function dumpOrganizations(url: string, slugs: string[], file: string) {
 }
 
 /**
- * Copy the files of the organizations (every organization's folder t/<tenant_id>/, or the whole
- * bucket) into a local folder, with the type and hash the local file store keeps beside each file,
- * or into another bucket, which is left holding those files and no other organization's.
+ * Copy the files of the organizations (each one's folder t/<tenant_id>/) into a local folder, with
+ * the type and hash the local file store keeps beside each file, or into another bucket, which is
+ * left holding those files and no other organization's.
  */
-function copyFiles(bucket: string, tenantIds: string[] | undefined, into: string) {
+function copyFiles(bucket: string, tenantIds: string[], into: string) {
   const toBucket = into.startsWith("gs://");
-  console.log(`Copying ${tenantIds ? "the organizations' files" : "every file"} from ${bucket} into ${toBucket ? into : show(into)}…`);
+  console.log(`Copying the organizations' files from ${bucket} into ${toBucket ? into : show(into)}…`);
   const folders = (b: string) => {
     try {
       return run("gcloud", ["storage", "ls", `${b}/t/`]).split("\n").map((l) => /\/t\/([^/]+)\/$/.exec(l.trim())?.[1]).filter((t): t is string => Boolean(t));
@@ -223,22 +267,22 @@ function copyFiles(bucket: string, tenantIds: string[] | undefined, into: string
   };
   const rsync = (from: string, to: string) =>
     execFileSync("gcloud", ["storage", "rsync", "--recursive", "--no-user-output-enabled", ...(toBucket ? ["--delete-unmatched-destination-objects"] : []), from, to], { stdio: "inherit" });
-  const stored = tenantIds ? new Set(folders(bucket)) : undefined;
-  const prefixes = tenantIds ? tenantIds.filter((t) => stored!.has(t)).map((t) => `t/${t}`) : [""];
+  const stored = new Set(folders(bucket));
+  const prefixes = tenantIds.filter((t) => stored.has(t)).map((t) => `t/${t}`);
   if (!toBucket) mkdirSync(into, { recursive: true });
   for (const p of prefixes) {
-    if (!toBucket && p) mkdirSync(join(into, p), { recursive: true });
-    rsync(p ? `${bucket}/${p}` : bucket, p ? `${into}/${p}` : into);
+    if (!toBucket) mkdirSync(join(into, p), { recursive: true });
+    rsync(`${bucket}/${p}`, `${into}/${p}`);
   }
   if (toBucket) {
     // What other organizations left in the bucket goes: it holds what the copy holds.
-    if (tenantIds) for (const t of folders(into).filter((t) => !tenantIds.includes(t))) execFileSync("gcloud", ["storage", "rm", "--recursive", "--no-user-output-enabled", `${into}/t/${t}`], { stdio: "inherit" });
+    for (const t of folders(into).filter((t) => !tenantIds.includes(t))) execFileSync("gcloud", ["storage", "rm", "--recursive", "--no-user-output-enabled", `${into}/t/${t}`], { stdio: "inherit" });
     return;
   }
   // The local file store keeps each file's type and hash beside it.
   const types = new Map<string, string | undefined>();
   for (const p of prefixes) {
-    const listing = JSON.parse(run("gcloud", ["storage", "objects", "list", `${bucket}/${p ? `${p}/` : ""}**`, "--format=json"])) as { name: string; content_type?: string }[];
+    const listing = JSON.parse(run("gcloud", ["storage", "objects", "list", `${bucket}/${p}/**`, "--format=json"])) as { name: string; content_type?: string }[];
     for (const o of listing) types.set(o.name, o.content_type);
   }
   for (const entry of readdirSync(into, { recursive: true, withFileTypes: true })) {
@@ -265,7 +309,8 @@ function list() {
   if (!pulls.length) return console.log(`No pulls in ${show(pullsDir())}: run pnpm fixture pull.`);
   for (const name of pulls) {
     const r = readPull(name);
-    console.log(`${name}  ${describePull(r)}${r.files ? "" : ", without files"}`);
+    const kept = r.for_another_deployment ? "; to move into another deployment, not to load here" : mayLeaveProduction(r) ? "" : "; from before pulls checked owners: delete it";
+    console.log(`${name}  ${describePull(r)}${r.files ? "" : ", without files"}${kept}`);
   }
 }
 
@@ -286,6 +331,8 @@ export async function restorePull(local: LocalPg, database: string, blobs: strin
   const dir = join(pullsDir(), name);
 
   const r = readPull(name);
+  const refused = refusalOf(name, r);
+  if (refused) throw new Error(refused);
   await createDatabase(local, database);
   console.log(`Restoring ${name} (${describePull(r)}) into the database "${database}"…`);
   restoreDump(local, database, join(dir, "database.dump"));
@@ -398,10 +445,12 @@ async function main() {
   if (command === "list") return list();
   console.log(`Usage:
   pnpm fixture pull                   the deployment's example organization
-  pnpm fixture pull --org <slug>[,<slug>…]  the organizations named
-  pnpm fixture pull --all             every organization
+  pnpm fixture pull --org <slug>[,<slug>…]  the organizations named, each one an instance owner owns
+  pnpm fixture pull --all             every organization the instance owners own
     --no-files                        without the files
     --files-into gs://<bucket>        the files into that bucket instead, which then holds them alone
+    --for-another-deployment          with --org, to move them into another production deployment
+                                      (WHATBUILD_FIXTURE_DIR names a directory only you can read)
   pnpm fixture list                   the pulls, and what each holds
   pnpm fixture load [name]            the newest pull, or the one named (then pnpm dev:fixture)`);
   process.exitCode = 1;

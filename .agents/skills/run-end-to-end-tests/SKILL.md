@@ -19,8 +19,9 @@ what the plan expects, and report. The system, with every command, is described 
   browser or the MCP client at `pnpm dev`, the dev deployment or production.
 - **Report; do not fix.** Note every finding with its evidence and carry on with the plan. Change
   code only if the person asked you to fix what you find, and then after the report.
-- **Nothing from the golden master is published.** It comes from a pull of production, and the
-  rules of the `test-on-a-copy-of-production` skill apply: nothing from it leaves `.what-build/`; your report
+- **Nothing from the golden master is published.** It comes from a pull of production, holds only
+  organizations an instance owner owns beside the synthetic one, and the rules of the
+  `test-on-a-copy-of-production` skill apply: nothing from it leaves `.what-build/`; your report
   stays in the run's folder and your answer to the person; a plan, commit, issue or pull request
   names and quotes none of it.
 - **Everything you create is synthetic.** Write files you upload into the run's folder.
@@ -34,7 +35,9 @@ what the plan expects, and report. The system, with every command, is described 
    (`ls .what-build/fixtures`, or the main checkout's in a worktree). With no pull to build
    it from, take one with `pnpm fixture pull`, without asking, following the
    `test-on-a-copy-of-production` skill; it takes the example organization, which is all the golden
-   master keeps. Stop the instance (`pnpm e2e stop`) before building.
+   master keeps. Stop the instance (`pnpm e2e stop`) before building. A pull taken before pulls
+   checked who owns each organization is refused: delete it and pull again. If `pnpm dev:e2e` says
+   the golden master was built from such a pull, build it again before the run.
 3. **Serve.** Run `pnpm dev:e2e > .what-build/e2e/server.log 2>&1` in the background with a long
    time limit, and wait until `curl -sf http://localhost:5283/health` answers. It runs beside
    `pnpm dev`. A failed migration or job, or a 5xx, in `server.log` is a finding; `GET /mcp 405`
@@ -97,11 +100,14 @@ The procedure above changes only here. On the host, run the script as
      `ssh -f -N -L $E2E_TUNNEL_PORT:127.0.0.1:$E2E_HOST_PORT $E2E_HOST`.
   2. Run `status`. It says the release served, the golden master's organizations and products,
      and the containers.
-  3. If the release to test is not the one served (the person's, or the newest:
+  3. If `status` warns that the golden master was built before pulls checked owners, tell the
+     person: the host needs a new export (`pnpm e2e export`, copied and `load`ed as
+     `okf/operations/end-to-end-on-a-docker-host.md` says), which only the maintainer loads.
+  4. If the release to test is not the one served (the person's, or the newest:
      `gh release list --limit 1`), run `update <tag>`. It pulls the image, runs the release's
      migrations on a fresh copy of the golden master, and serves it. A migration that fails there
      is a blocker. Otherwise run `reset`.
-  4. The golden master is the host's, which `status` describes. The checkout's own, if it has one,
+  5. The golden master is the host's, which `status` describes. The checkout's own, if it has one,
      plays no part, so read the organizations' slugs and the products from `status`, not from what
      `pnpm e2e run` prints.
 - **Every `pnpm e2e` command** carries `WHATBUILD_E2E_URL=http://localhost:$E2E_TUNNEL_PORT`.

@@ -1,11 +1,12 @@
 ---
 name: rehearse-on-the-dev-deployment
-description: Work on WhatBuild's dev deployment, a second Cloud Run deployment that holds a copy of production's example organization or other organizations named; rehearse a release or a commit of main (its migrations above all) before production moves, refresh its copy of those organizations and their files, change which organizations it holds, put it back to the copy, set one up from nothing, or perform the restore drill there. Use when asked to deploy to dev or staging, to rehearse, try or test a release or migration on a deployment, to copy production's data, the example organization or another organization to dev, to keep an organization out of dev, to reset or refresh dev, to set up a dev deployment, or to rehearse a restore from backup.
+description: Work on WhatBuild's dev deployment, a second Cloud Run deployment that holds a copy of production's example organization or other organizations its instance owners own; rehearse a release or a commit of main (its migrations above all) before production moves, refresh its copy of those organizations and their files, change which organizations it holds, put it back to the copy, or set one up from nothing. Use when asked to deploy to dev or staging, to rehearse, try or test a release or migration on a deployment, to copy the example organization or another of the instance owners' organizations to dev, to keep an organization out of dev, to reset or refresh dev, or to set up a dev deployment. Not for the restore drill (perform-the-restore-drill), which never uses dev.
 ---
 
 # Rehearse on the dev deployment
 
-You are working on the maintainer's dev deployment, which holds real people's data. The
+You are working on the maintainer's dev deployment, which holds real people's data: the instance
+owners' organizations and the accounts their rows name. The
 knowledge, with every command, is in `okf/operations/dev-deployment.md`; restoring and checking a
 dump are in `okf/operations/backups.md`. Read the sections your task needs before the first
 command. This file is how to conduct the work.
@@ -21,10 +22,11 @@ command. This file is how to conduct the work.
   time, never `gcloud`'s current project. Never write the values into the repository.
 - **Dev shares nothing with production**: no secret, OAuth client, database or bucket. It sends no
   mail, and never gets mail settings: its addresses are real people's (`okf/operations/mail.md`).
-- **Dev holds only the organizations named.** `NEON_DEV_COPY_ORGANIZATIONS` in `.env` names them:
-  production's example organization unless the maintainer names others. Never copy another organization
-  to dev unless the maintainer names it, and record the list after every refresh. If the line is
-  missing, dev still holds every organization from before copies were limited: tell the
+- **Dev holds only organizations an instance owner owns.** `NEON_DEV_COPY_ORGANIZATIONS` in `.env`
+  names them: production's example organization unless the maintainer names others. A customer's
+  organization never goes to dev, whoever names it: the pull refuses it, and that refusal is never
+  worked around (`okf/decisions/copies-outside-production-hold-only-organizations-an-instance-owner-owns.md`). Record the list after every refresh. If the line is missing or says
+  `all`, or `pnpm attention` says dev's copy was taken before pulls checked owners, tell the
   maintainer and offer a refresh.
 - **The copy is real people's data.** Keep dumps in a directory only you can read and delete them
   once loaded. Nothing from the copy goes into the repository, a commit, an issue or a pull
@@ -61,8 +63,8 @@ approved):
 **Putting it back, refreshing the copy, setting one up:** the guide's sections of those names, in
 order. After a refresh, update `NEON_DEV_COPY_TAKEN` and `NEON_DEV_COPY_ORGANIZATIONS` in `.env`.
 
-**The restore drill:** `okf/operations/backups.md`, "The restore drill". Record its date and
-elapsed time where the guide says; that record is a fact about the system, not a session note.
+**The restore drill** is not done here: it restores every organization, so it stays in
+production's own accounts. Use the `perform-the-restore-drill` skill.
 
 ## When the guide is wrong
 
