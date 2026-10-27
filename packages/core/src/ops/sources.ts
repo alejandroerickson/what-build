@@ -494,7 +494,7 @@ export const getSource = defineOperation({
   mutates: false,
   summary: "Read a source cheaply (brief), or everything about it (full): attachments, derived text, comments.",
   description:
-    "Start with detail=\"brief\": derived_status says whether the source has a derived text (ready) and text_chars how long it is, to plan derived_read(action=\"text\") windows; warnings names each attachment with text that the derived text does not use, which search never reads (attachments with no text, such as recordings and images, are not named), and says when the source has no derived text though an attachment has text. etag is the one sources.update and sources.delete expect. `full` adds the attachments (each with how its text was read, and which one the derived text was taken from), the derived text's etag (the one derived_write(action=\"write_text\") takes) and who wrote it last, comments, and in agent_notes the summary and notes that exist, each with its own etag (the one derived_write(action=\"write_note\") takes) and who wrote it last. Neither returns file bytes or the text itself. An archived source is still readable by id.",
+    "Start with detail=\"brief\": derived_status says whether the source has a derived text (ready) and text_chars how long it is, to plan derived_read(action=\"text\") windows; warnings names each attachment with text that the derived text does not use, which search never reads (attachments with no text, such as recordings and images, are not named), and says when the source has no derived text though an attachment has text. etag is the one sources_write(action=\"update\") and sources_delete(action=\"delete\") expect. `full` adds the attachments (each with how its text was read, and which one the derived text was taken from), the derived text's etag (the one derived_write(action=\"write_text\") takes) and who wrote it last, comments, and in agent_notes the summary and notes that exist, each with its own etag (the one derived_write(action=\"write_note\") takes) and who wrote it last. Neither returns file bytes or the text itself. An archived source is still readable by id.",
   input: z.strictObject({ record_id: id("source"), detail: z.enum(["brief", "full"]).default("brief") }),
   rest: { method: "GET", path: "/sources/:record_id" },
   mcp: { tool: "sources", action: "get" },
@@ -586,7 +586,7 @@ export const createSource = defineOperation({
   scope: "product",
   access: "write",
   mutates: true,
-  summary: "Create a source from its title, date and tags; then add attachments with attachments.request_upload or attachments.fetch_url, or write its text with derived.write_text.",
+  summary: "Create a source from its title, date and tags; then add attachments with attachments_write(action=\"request_upload\") or attachments_write(action=\"fetch_url\"), or write its text with derived_write(action=\"write_text\").",
   description:
     "Describe the material with a title and tags; there are no kinds or folders. To create a source and get an upload grant in one call, use attachments_write(action=\"create_upload\"). Before creating, check sources_read(action=\"list\", query=…) for an equivalent source — duplicates dilute search. warnings names any live source with the same title and date; nothing is refused.",
   input: z.strictObject(recordMetadata),
@@ -611,7 +611,7 @@ export const updateSource = defineOperation({
   rest: { method: "PATCH", path: "/sources/:record_id" },
   mcp: { tool: "sources", action: "update" },
   async handler(ctx, input) {
-    // An archived source is read-only, its title, date and tags too, until sources.restore brings it back.
+    // An archived source is read-only, its title, date and tags too, until sources_write(action="restore") brings it back.
     const r = await loadRecord(ctx, input.record_id, { lock: true, live: true });
     checkEtag(input.expected_etag, r.etag, "source");
     const next = {
@@ -1006,7 +1006,7 @@ export const deleteSource = defineOperation({
   mutates: true,
   summary: "DELETE PERMANENTLY — cannot be undone. Destroys a source's attachments, derived text, notes and comments; archive is the reversible alternative.",
   description:
-    "Archive (sources.archive) is the reversible alternative and almost always what is wanted. " +
+    "Archive (sources_write(action=\"archive\")) is the reversible alternative and almost always what is wanted. " +
     DELETE_GUIDANCE +
     " Leaves a tombstone: reads return 410 with who, when and why.",
   input: z.strictObject({ record_id: id("source"), ...deleteGuards }),

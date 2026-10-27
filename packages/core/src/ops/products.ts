@@ -329,7 +329,7 @@ export const renameTenant = defineOperation({
   summary: "Rename an organization, change its slug, or both (owners, and the instance's owners).",
   description:
     "Pass only what changes, name or slug, with expected_etag: the tenant's name_etag from products_read(action=\"list\"); an owner of this WhatBuild instance, who may rename any organization on it, finds it in products_read(action=\"organizations\") too. " +
-    "A new slug changes the first part of every product's path (acme/core/onboarding becomes acme-labs/core/onboarding): use the new paths from then on. The old slug keeps working everywhere: products.list lists it in the tenant's former_slugs, calls that name it reach the organization, a connector scoped to it keeps working, and the web app takes an address with it to the new one. " +
+    "A new slug changes the first part of every product's path (acme/core/onboarding becomes acme-labs/core/onboarding): use the new paths from then on. The old slug keeps working everywhere: products_read(action=\"list\") lists it in the tenant's former_slugs, calls that name it reach the organization, a connector scoped to it keeps working, and the web app takes an address with it to the new one. " +
     "A slug another organization has, or had before, is refused with 409 slug_taken. Taking back one of its own former slugs is allowed. " +
     "The example organization's owners rename it as any owners do. The change is in the organization's access log, members_read(action=\"activity\").",
   input: z.strictObject({

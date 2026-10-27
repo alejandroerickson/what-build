@@ -29,7 +29,7 @@ const HELP = `pnpm e2e mcp <command> [--as <person>|<email>] [--endpoint /mcp/t/
   connect                 connect as that person (sam by default) through OAuth, as an agent would,
                           at the level chosen on the consent page (editor, Edit, unless --level says)
   info                    the server's name, version and instructions
-  tools [--full]          the tools and their descriptions (--full adds each input schema)
+  tools [--full]          the tools, each with its title and hints, and their descriptions (--full adds each input schema)
   call <tool> '<json>'    call a tool with these arguments, and print its result
                           e.g. call products_read '{"action":"list"}'
                                call story_read '{"action":"get_page","product":"harbor-labs/product-team/crewboard","params":{"page_id":"overview"}}'
@@ -147,7 +147,10 @@ export async function mcpCommand(args: string[]) {
   if (cmd === "tools")
     return withClient(email, endpoint, level, async (c) => {
       for (const t of (await c.listTools()).tools) {
-        console.log(`## ${t.name}\n${t.description ?? ""}`);
+        // The title and hints a client shows the person and asks by: read-only, destructive, open world.
+        const a = t.annotations ?? {};
+        const hints = [a.readOnlyHint ? "read-only" : "", a.destructiveHint ? "destructive" : "", a.openWorldHint ? "open world" : ""].filter(Boolean).join(", ");
+        console.log(`## ${t.name}: ${t.title ?? a.title ?? "(no title)"} [${hints || "no hint"}]\n${t.description ?? ""}`);
         if (args.includes("--full")) console.log(JSON.stringify(t.inputSchema, null, 2));
         console.log("");
       }
