@@ -33,6 +33,12 @@
   color: var(--text);
   font-weight: var(--fw-semibold);
 }
+.find-in-source,
+.find-in-source > a {
+  display: flex;
+  align-items: baseline;
+  min-width: 0;
+}
 .find-in .glyph {
   position: relative;
   top: 2px;

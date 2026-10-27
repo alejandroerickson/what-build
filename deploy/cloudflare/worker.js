@@ -79,16 +79,17 @@ function pageHeaders(analytics, beacon) {
 const attr = (v) => v.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
 /** The site's pages, by path, and where each is in the build. */
-const SITE_PAGES = { "/": "/site/", "/plans": "/site/plans/", "/plans/": "/site/plans/" };
+const SITE_PAGES = { "/": "/site/", "/plans": "/site/plans/", "/plans/": "/site/plans/", "/privacy": "/site/privacy/", "/privacy/": "/site/privacy/" };
 
-/** How long Cloudflare keeps the service's answer about plans and guests: it wakes the service at most this often. */
+/** How long Cloudflare keeps the service's answer about plans, guests and who runs it: it wakes the service at most this often. */
 const CATALOGUE_SECONDS = 3600;
 
 /**
- * What only the service knows of its plans (their limits and prices, as an instance owner set them)
- * and of its guests (whether anyone may come in): asked of the service through Cloudflare's cache,
- * so a visit wakes it at most once an hour. Null when the service does not answer; the pages then
- * show the plans as the build has them.
+ * What only the service knows of its plans (their limits and prices, as an instance owner set them),
+ * of its guests (whether anyone may come in) and of who runs it and who else handles people's data,
+ * which the privacy page says: asked of the service through Cloudflare's cache, so a visit wakes it
+ * at most once an hour. Null when the service does not answer; the pages then show the plans as the
+ * build has them, and the privacy page says it could not load.
  */
 async function catalogue(url, env) {
   try {

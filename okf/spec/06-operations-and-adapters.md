@@ -620,8 +620,8 @@ GET  /api/v1/downloads/story-preview/:preview_id?theme=light|dark   a Story prev
 GET  /api/v1/downloads/card-preview/:preview_id?theme=light|dark    a card preview's front under its grant
 GET  /prototypes/:grant/<path>                       a mockup prototype's file; the grant in the path is the credential (§4.12)
 GET  /documents/:grant/<name>?theme=&frame=          on a content site: a document the app's route handed off (below)
-GET  /api/v1/meta                                    release, MCP server name and tools version, sign-in methods (public)
-GET  /api/v1/plans                                   the plans the deployment offers (none, if it defines none), every limit of each and its price, starting_plan, example, and whether guests may sign up (public)
+GET  /api/v1/meta                                    release, MCP server name and tools version, sign-in methods, where the privacy page is (public)
+GET  /api/v1/plans                                   the plans the deployment offers (none, if it defines none), every limit of each and its price, starting_plan, example, whether guests may sign up, and what the privacy page names (public)
 GET  /api/v1/me/guest-pass                           a guest account's place: let in when there is room, or why not and when to ask again
 POST /api/v1/me/ask-for-organization                 join the waitlist for an organization of one's own (§3.2)
 GET  /api/v1/connect                                 what the Connect page shows

@@ -62,7 +62,8 @@ as `leaver-<the run's time>@example.com`.
     the standard organization, no organization of its own, the example organization as a guest.
     (The development sign-in lets any address in; a deployment where sign-up is limited asks for
     it to be let in again.)
-11. **Web, signed out, then as Sam.** Open Privacy. *Expect:* under What you can do, Delete your
+11. **Web, signed out, then as Sam.** Open Privacy from the sign-in page. *Expect:* it opens in a
+    new tab on the public site's page (`/site/privacy/` here), and under What you can do, Delete your
     account links to Settings, where Delete account is open for Sam; he reaches the address field
     and leaves by Cancel. At phone width and in the dark theme, the section reads in order, Cancel
     before Delete account.

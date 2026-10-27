@@ -7,7 +7,7 @@ import { useProduct } from "../lib/session.tsx";
 import { REVIEW_STATUS } from "../lib/status.ts";
 import { understood } from "../shell/find-palette.tsx";
 import { PanelContext, PanelFilter, PanelSection, usePageTitle } from "../shell/slots.tsx";
-import { EmptyState, ErrorCallout, FindField, Glyph, Loading, Sheet, SheetHeader, StatusBadge } from "../ui/index.tsx";
+import { EmptyState, ErrorCallout, FindField, Glyph, Loading, OneLine, Sheet, SheetHeader, StatusBadge, useMeasure } from "../ui/index.tsx";
 import { shortcutLabel } from "../ui/media.ts";
 import "../styles/screens/search.css";
 
@@ -91,17 +91,7 @@ export function SearchPage() {
           {busy && q ? <Glyph name="loader" className="spin find-busy" /> : null}
         </div>
         {d ? <Understood d={d} retry={link({ strict: "1" })} /> : null}
-        {recordId ? (
-          <p className="find-in">
-            <Glyph name="library" size="sm" />
-            <span className="ellipsis">
-              In <Link to={`${app}/evidence/${recordId}`} className="quiet-link">{source?.title ?? "one source"}</Link>
-            </span>
-            <Link to={link({ record_id: "" })} className="quiet-link">
-              Search everything
-            </Link>
-          </p>
-        ) : null}
+        {recordId ? <SearchIn title={source?.title ?? "one source"} to={`${app}/evidence/${recordId}`} all={link({ record_id: "" })} /> : null}
       </Sheet>
 
       {!recordId ? <SearchFilters areas={areas} total={all.length} show={show} link={link} /> : null}
@@ -140,6 +130,27 @@ export function SearchPage() {
         </div>
       )}
     </>
+  );
+}
+
+/** The source a search is narrowed to, by its title on one line, and the way back to searching everything. */
+function SearchIn({ title, to, all }: { title: string; to: string; all: string }) {
+  // The title's link is as wide as the title, so it is cut against the room the line has.
+  const line = useRef<HTMLParagraphElement>(null);
+  const measure = useMeasure(line);
+  return (
+    <p ref={line} className="find-in">
+      <Glyph name="library" size="sm" />
+      <span className="find-in-source">
+        In{"\u00a0"}
+        <Link to={to} className="quiet-link">
+          <OneLine text={title} measure={measure} />
+        </Link>
+      </span>
+      <Link to={all} className="quiet-link">
+        Search everything
+      </Link>
+    </p>
   );
 }
 

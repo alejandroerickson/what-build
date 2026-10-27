@@ -3,7 +3,7 @@ type: Decision
 title: The privacy page is a short notice written to stay true, in categories rather than mechanics
 description: What the privacy page is for, what it must say and must not, and why it names no number a release could change, so that it is right by construction and rarely needs to change.
 tags: [decision, privacy, web, data-lifecycle]
-generated: {by: agent:claude, at: 2026-10-27}
+generated: {by: agent:claude, at: 2026-10-26}
 status: stable
 ---
 
@@ -52,31 +52,25 @@ The privacy page is a notice, not a specification. It is written to these object
    who runs it, where to write, and who else handles the data, the last as a paragraph it writes
    itself (`WHATBUILD_PROVIDERS`), naming its providers or describing them by kind, as it chooses.
 
-It stays in the web app, at `/privacy` on the app's domain, rather than on the public site: the
-sign-in page, Settings, Cookies, the account-deletion page and the deletion mail all point there,
-every deployment needs one whether or not it has a site, the site's domain already sends `/privacy`
-to the app, and the text now changes rarely enough that a release is an acceptable way to change it.
+It is a page of the public site, which the app opens in a new tab
+([decision](the-privacy-page-is-a-page-of-the-public-site.md)).
 
 ## Consequences
 
 - A change to the product's data handling is a change to a category on the page only when it
   adds a category, removes one, or changes who handles the data or for how long in kind. Most
   releases leave the page alone.
-- `privacy` in `GET /api/v1/meta` gives the operator, the contact, the providers paragraph and
+- `privacy` in `GET /api/v1/plans` gives the operator, the contact, the providers paragraph and
   whether analytics is set, and no durations.
 - An operator who wants a longer policy, or one under a specific regime, writes it elsewhere and
   points `WHATBUILD_PRIVACY_CONTACT` at it, or at an address; the page links to it as a contact.
-- Rejected: moving the page to the public site
-  ([decision](the-public-site-is-pages-built-with-the-app.md)). The app would still need a page for
-  deployments without a site, every link to it is in the app or its mail, and the text would still
-  live in this repository.
 
 ## Constrains
 
-- `apps/web/src/routes/privacy.tsx`, `apps/server/src/public-routes.ts` (`privacy`),
+- `apps/web/src/site/SitePrivacyPage.tsx`, `apps/server/src/public-routes.ts` (`privacy`),
   `apps/server/src/config.ts` (`WHATBUILD_OPERATOR`, `WHATBUILD_PRIVACY_CONTACT`,
   `WHATBUILD_PROVIDERS`), `apps/server/test/privacy.test.ts`.
 - `LAST_CHANGED` in the page moves only with a change that matters to a person, and the
   [upgrading notes](../operations/upgrading.md) say when it did.
 
-Specified in: [09-data-lifecycle §9.1](../spec/09-data-lifecycle.md), [07-web-app §7.11](../spec/07-web-app.md).
+Specified in: [09-data-lifecycle §9.1](../spec/09-data-lifecycle.md), [07-web-app §7.3](../spec/07-web-app.md).
