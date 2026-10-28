@@ -1,7 +1,7 @@
-import { useQuery } from "@tanstack/react-query";
-import { createContext, useContext, type ReactNode } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { createContext, useContext, useEffect, type ReactNode } from "react";
 import { Link, useLocation } from "react-router";
-import { api } from "../lib/api.ts";
+import { api, setGuestWaitingHandler } from "../lib/api.ts";
 import { untilTime } from "../lib/format.ts";
 import { useMe, useSignOut } from "../lib/session.tsx";
 import { Button, Glyph, Loading, Sheet, SheetBody, SheetHeader, StatusBadge } from "../ui/index.tsx";
@@ -31,29 +31,46 @@ export function useGuestPass(): GuestPass | null {
 /** Screens a guest reaches while waiting: their own settings, where they sign out. */
 const OPEN_WHILE_WAITING = new Set(["/settings"]);
 
+/** How long a guest's place, as last asked, is taken as it stands before a new screen or a return to the tab asks again. */
+const PASS_FRESH_MS = 60_000;
+
 /**
  * For a guest account (in no organization, with no allowance), the way in: while there is room it
- * shows the app, and asks again every minute, which keeps their place; when there is none, a
- * waiting page that asks again every few seconds, which keeps their place in line, and lets them in
- * on its own. Anyone else goes straight through.
+ * shows the app, and when there is none a waiting page. It asks only when the guest does something
+ * (opens the app, moves to another screen, comes back to the tab, or asks again on the waiting
+ * page), never on a timer, so an open tab nobody looks at neither holds a place nor keeps the
+ * database awake. The server decides the place on every call the guest makes, and a call refused
+ * because they are not in brings the waiting page at once. Anyone else goes straight through.
  */
 export function GuestGate({ children }: { children: ReactNode }) {
   const me = useMe();
   const loc = useLocation();
+  const qc = useQueryClient();
   const guest = Boolean(me.data?.guest);
   const pass = useQuery({
     queryKey: ["guest-pass"],
     queryFn: () => api<GuestPass>("GET", "/api/v1/me/guest-pass"),
     enabled: guest,
-    refetchInterval: (q) => (q.state.data?.status === "in" ? 60_000 : Math.max(5, Math.min(60, q.state.data?.retry_after_seconds ?? 20)) * 1000),
-    refetchIntervalInBackground: true,
+    staleTime: PASS_FRESH_MS,
+    refetchOnWindowFocus: true,
   });
+  useEffect(() => {
+    if (!guest) return;
+    setGuestWaitingHandler((refused) => qc.setQueryData<GuestPass>(["guest-pass"], { ...(refused as Omit<GuestPass, "guest">), guest: true }));
+    return () => setGuestWaitingHandler(null);
+  }, [guest, qc]);
+  const { isStale, refetch } = pass;
+  useEffect(() => {
+    if (guest && isStale) void refetch();
+    // Only a move to another screen asks again; the place going stale on its own does not.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loc.pathname]);
   if (!guest) return <>{children}</>;
   if (pass.isPending) return <div className="center-page"><Loading label="Finding you a place…" /></div>;
   // If the place can't be asked about, the screens themselves say what went wrong.
   if (pass.isError || pass.data.status === "in" || OPEN_WHILE_WAITING.has(loc.pathname))
     return <GuestPassContext.Provider value={pass.data ?? null}>{children}</GuestPassContext.Provider>;
-  return <WaitingRoom pass={pass.data} />;
+  return <WaitingRoom pass={pass.data} asking={pass.isFetching} askAgain={() => void refetch()} />;
 }
 
 /** Hours and minutes, as a person reads a time left: "1 h 40 min", "25 min". */
@@ -63,14 +80,15 @@ export function timeLeft(minutes: number): string {
   return h ? `${h} h${m ? ` ${m} min` : ""}` : `${m} min`;
 }
 
-function WaitingRoom({ pass }: { pass: GuestPass }) {
+/** The waiting page. It asks again only when the guest does: with Try again while a place may free, or by coming back to the tab. */
+function WaitingRoom({ pass, asking, askAgain }: { pass: GuestPass; asking: boolean; askAgain: () => void }) {
   const signOut = useSignOut();
   const resets = pass.resets_at ? untilTime(pass.resets_at) : "at midnight UTC";
   const words =
     pass.reason === "full"
       ? {
           title: "WhatBuild is full right now",
-          lead: `${pass.in_now ?? "Every"} ${pass.in_now === 1 ? "guest is" : "guests are"} exploring, the most it lets in at once. You’ll come in on your own as soon as a place frees: keep this page open.`,
+          lead: `${pass.in_now ?? "Every"} ${pass.in_now === 1 ? "guest is" : "guests are"} exploring, the most it lets in at once. Try again in a minute: your place in line is kept for two minutes after you last ask.`,
           status: <StatusBadge tone="progress">Number {pass.position} in line</StatusBadge>,
         }
       : pass.reason === "new_today"
@@ -87,7 +105,7 @@ function WaitingRoom({ pass }: { pass: GuestPass }) {
             }
           : {
               title: "WhatBuild isn’t letting guests in right now",
-              lead: "Try again later. This page asks again on its own.",
+              lead: "Try again later.",
               status: <StatusBadge tone="neutral">Closed to guests</StatusBadge>,
             };
   return (
@@ -102,6 +120,12 @@ function WaitingRoom({ pass }: { pass: GuestPass }) {
           <p className="muted">As a guest you read the example organization, a real discovery, and can point your agent at it. Organizations of your own open a few at a time.</p>
           <AskForOrganization variant="quiet" />
           <div className="waiting-actions">
+            {/* Today's limits change only at midnight UTC, so only a full or closed WhatBuild offers to ask again now. */}
+            {pass.reason === "full" || pass.reason === "closed" ? (
+              <Button size="sm" variant="primary" icon="rotate-ccw" busy={asking} busyLabel="Asking…" onClick={askAgain}>
+                Try again
+              </Button>
+            ) : null}
             <Button size="sm" variant="quiet" icon="log-out" onClick={() => void signOut()}>
               Sign out
             </Button>

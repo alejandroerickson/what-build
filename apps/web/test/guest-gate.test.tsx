@@ -71,12 +71,14 @@ describe("the guest gate", () => {
     expect((await gate()).textContent).toBe("the app");
   });
 
-  it("shows a guest who must wait where they stand in line, and that they will come in on their own", async () => {
+  it("shows a guest who must wait where they stand in line, and how to keep their place", async () => {
     state.pass = { guest: true, status: "waiting", reason: "full", position: 3, in_now: 25, retry_after_seconds: 20 };
-    const text = (await gate()).textContent ?? "";
+    const host = await gate();
+    const text = host.textContent ?? "";
     expect(text).toContain("WhatBuild is full right now");
     expect(text).toContain("Number 3 in line");
-    expect(text).toContain("25 guests are exploring, the most it lets in at once. You’ll come in on your own as soon as a place frees");
+    expect(text).toContain("25 guests are exploring, the most it lets in at once. Try again in a minute: your place in line is kept for two minutes after you last ask.");
+    expect([...host.querySelectorAll("button")].map((b) => b.textContent)).toContain("Try again");
     expect(text).not.toContain("the app");
   });
 
@@ -98,5 +100,7 @@ describe("the guest gate", () => {
     const text = (await gate()).textContent ?? "";
     expect(text).toContain("Today’s places for new guests are taken");
     expect(text).toContain("Come back in 5 h, at midnight UTC.");
+    // Nothing changes before midnight, so there is nothing to try again.
+    expect(text).not.toContain("Try again");
   });
 });

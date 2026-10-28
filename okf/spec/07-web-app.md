@@ -1128,11 +1128,16 @@ never described as deleting. A list row showing an archived object says *Archive
   often they can call.
 - **The waiting page** (any signed-in address, for a guest account that is not in; `GuestGate` in
   `apps/web/src/shell/guest-gate.tsx`). A guest account sees the app only while it holds a place
-  (`GET /api/v1/me/guest-pass`, asked every minute while in, which keeps the place). Otherwise one
-  sheet says why, in words: **WhatBuild is full right now**, how many guests are exploring, its
-  place in line with the progress mark, and that it comes in on its own while the page stays open
-  (asked again every 20 seconds); **Today's places for new guests are taken** or **You've used
-  today's time**, with when it starts again; or that no guests are let in. Then what a guest may
+  (`GET /api/v1/me/guest-pass`). The app asks only when the guest does something: when it opens,
+  when they move to another screen or come back to the tab once the last answer is a minute old,
+  and when they press **Try again**; never on a timer, so a tab left open neither holds a place
+  nor keeps the database awake. The server decides the place on every call the guest makes, and a
+  call refused with `guest_waiting` brings the waiting page at once, from the refusal's own
+  details. Otherwise one sheet says why, in words: **WhatBuild is full right now**, how many
+  guests are exploring, its place in line with the progress mark, and that its place is kept for
+  two minutes after it last asks, with **Try again**; **Today's places for new guests are taken**
+  or **You've used today's time**, with when it starts again; or that no guests are let in, with
+  **Try again**. Then what a guest may
   do, that organizations of one's own open a few at a time, **Ask for your own organization** (or,
   once asked, since when they are on the waitlist), **Sign out** and **Settings**, which a waiting
   guest still reaches. A guest that is in sees, on the example's one-line notice, the time

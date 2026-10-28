@@ -15,8 +15,8 @@ import { isInstanceOwner } from "./tenant-allowance.ts";
  *
  * A place is held while the guest, or their agent, calls at least every `idle_minutes`; their time
  * in counts towards `minutes_per_day`, which starts again at midnight UTC. Guests coming in for the
- * first time count towards `new_per_day`. Someone waiting asks again every few seconds (the web app's
- * waiting page does), and keeps their place in line while they do.
+ * first time count towards `new_per_day`. Someone waiting keeps their place in line while they ask
+ * again at least every two minutes; the web app asks only when they do something, never on a timer.
  */
 
 /** How long someone waiting keeps their place in line without asking again. */

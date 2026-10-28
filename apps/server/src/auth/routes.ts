@@ -438,8 +438,8 @@ export function authRoutes(deps: { db: Db; config: ServerConfig; mailer: Mailer 
 
   /**
    * A guest account's place: let them in if there is room, or say why not and how long to wait.
-   * The web app's waiting page asks again every few seconds, which keeps their place in line. Anyone
-   * else is no guest, and always in.
+   * The web app asks only when the guest does something (opens it, moves to another screen, comes
+   * back to the tab, presses Try again), never on a timer. Anyone else is no guest, and always in.
    */
   app.get("/api/v1/me/guest-pass", async (c) => {
     const p = await requirePrincipal(c);
