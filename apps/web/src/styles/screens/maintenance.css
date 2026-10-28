@@ -1,0 +1,76 @@
+/*
+ * The site's page while WhatBuild is down for maintenance: the overview's intro (overview.css), with
+ * the day it is back beside it in the journey's place, as a leaf of a desk calendar drawn in the
+ * W mark's terms: a tile under a title-bar line, the line at work while the work goes on.
+ */
+
+.maintenance-back {
+  padding-bottom: var(--s-4);
+}
+
+.maintenance-day {
+  display: grid;
+  justify-items: center;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--panel);
+  box-shadow:
+    0 1px 2px rgb(0 0 0 / 0.04),
+    0 6px 16px -8px rgb(0 0 0 / 0.12);
+}
+.maintenance-day-month {
+  position: relative;
+  justify-self: stretch;
+  overflow: hidden;
+  padding: var(--s-1h) var(--s-3) calc(var(--s-1h) + 1px);
+  background: var(--accent);
+  color: var(--accent-text);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+  text-align: center;
+}
+/* The title-bar line: a short stroke of light that crosses it and comes back. */
+.maintenance-day-month::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 36%;
+  height: 2px;
+  background: var(--accent-text);
+  opacity: 0.55;
+  animation: maintenance-work 2.6s cubic-bezier(0.65, 0, 0.35, 1) infinite alternate;
+}
+@keyframes maintenance-work {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(278%);
+  }
+}
+.maintenance-day-date {
+  padding: var(--s-4) 0 var(--s-1);
+  font-size: var(--fs-display);
+  font-weight: var(--fw-semibold);
+  line-height: 1;
+  letter-spacing: var(--tracking-display);
+  font-variant-numeric: tabular-nums;
+}
+.maintenance-day-weekday {
+  padding-bottom: var(--s-4);
+  color: var(--muted);
+  font-size: var(--fs-base);
+}
+.maintenance-back-note {
+  margin: var(--s-3) 0 0;
+  color: var(--muted);
+  font-size: var(--fs-sm);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .maintenance-day-month::after {
+    display: none;
+  }
+}

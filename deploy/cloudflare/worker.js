@@ -12,7 +12,9 @@
 // (e.g. example.com); APP_URL, the app's origin (e.g. https://app.example.com); and, optionally,
 // ANALYTICS_ID, a Google Analytics measurement ID the site's pages load once a visitor accepts, and
 // CF_ANALYTICS_TOKEN, a Cloudflare Web Analytics site token: its beacon sets no cookie, so it
-// counts every visit to the site's pages, those who decline included. One secret (wrangler secret
+// counts every visit to the site's pages, those who decline included; and MAINTENANCE, which closes
+// both domains behind a page that says WhatBuild is down for maintenance, until the day it names
+// (e.g. 2027-01-15), if it names one. One secret (wrangler secret
 // put): EDGE_KEY, the service's WHATBUILD_EDGE_KEY, sent with every request passed on, so the
 // service refuses whoever goes around this Worker to its run.app address
 // (apps/server/src/edge-key.ts).
@@ -118,6 +120,30 @@ async function sitePage(request, url, env) {
   return response;
 }
 
+/** What an agent or a script gets instead of the maintenance page: the API's own error shape. */
+const MACHINE_PATHS = /^\/(?:api|mcp|oauth|auth|\.well-known)(?:\/|$)/;
+
+/**
+ * While MAINTENANCE is set, every address on both domains answers 503 here and nothing reaches the
+ * service: a page asked for by a browser gets the site's page marked for maintenance, anything else
+ * the API's error shape. A day (2027-01-15) is when the page says WhatBuild will be back, and sets
+ * Retry-After; any other value says only that it is down.
+ */
+async function maintenance(request, url, env) {
+  const day = /^\d{4}-\d{2}-\d{2}$/.test(env.MAINTENANCE) && !Number.isNaN(Date.parse(`${env.MAINTENANCE}T00:00:00Z`)) ? env.MAINTENANCE : null;
+  const left = day ? Math.ceil((Date.parse(`${day}T00:00:00Z`) - Date.now()) / 1000) : 0;
+  const headers = { "Retry-After": String(Math.max(left, 300)), "Cache-Control": "no-store", "X-Robots-Tag": "noindex" };
+  const read = request.method === "GET" || request.method === "HEAD";
+  if (!read || MACHINE_PATHS.test(url.pathname) || !(request.headers.get("Accept") ?? "").includes("text/html")) {
+    const message = `WhatBuild is down for maintenance${day ? ` until ${day}` : ""}. Try again later.`;
+    return Response.json({ error: { code: "maintenance", status: 503, message } }, { status: 503, headers });
+  }
+  const page = await env.ASSETS.fetch(new Request(new URL(SITE_PAGES["/"], url), request));
+  const head = `<meta name="whatbuild-maintenance" content="${attr(day ?? "")}" />\n<meta name="robots" content="noindex" />\n</head>`;
+  const body = (await page.text()).replace(/<title>[^<]*<\/title>/, "<title>Down for maintenance · WhatBuild</title>").replace("</head>", head);
+  return new Response(request.method === "HEAD" ? null : body, { status: 503, headers: { "Content-Type": "text/html; charset=utf-8", ...PAGE_HEADERS, ...headers } });
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
@@ -125,6 +151,10 @@ export default {
     const read = request.method === "GET" || request.method === "HEAD";
 
     if (site && url.host === `www.${site}`) return Response.redirect(`https://${site}${url.pathname}${url.search}`, 301);
+    if (env.MAINTENANCE) {
+      if (SITE_FILES.test(url.pathname) && read) return env.ASSETS.fetch(request);
+      return maintenance(request, url, env);
+    }
     if (site && url.host === site) {
       if (Object.hasOwn(SITE_PAGES, url.pathname) && read) return sitePage(request, url, env);
       if (SITE_FILES.test(url.pathname) && read) return env.ASSETS.fetch(request);
