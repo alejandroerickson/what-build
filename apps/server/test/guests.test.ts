@@ -111,13 +111,34 @@ describe("a guest account", () => {
 describe("signing up as a guest", () => {
   it("is open to anyone only while an instance owner lets guests sign up themselves", async () => {
     const ask = () => fetch(`${h.baseUrl}/auth/email`, { method: "POST", headers: { "content-type": "application/json", origin: h.baseUrl }, body: JSON.stringify({ email: "stranger@unlisted.example" }) });
+    const linksTo = () => h.mailer.sent.filter((m) => m.to === "stranger@unlisted.example").length;
+    // Answered as any address is, and sent nothing, while guests can't sign up.
     const closed = await ask();
-    expect(closed.status).toBe(403);
-    expect(((await closed.json()) as { error: { code: string } }).error.code).toBe("invite_only");
+    expect(closed.status).toBe(200);
+    expect(await closed.json()).toEqual({ received: true });
+    expect(linksTo()).toBe(0);
     await withGuestSettings(h, { self_serve: true }, async () => {
       expect((await ask()).status).toBe(200);
+      expect(linksTo()).toBe(1);
       expect((await fetch(`${h.baseUrl}/api/v1/plans`).then((r) => r.json())) as unknown).toMatchObject({ guests: { self_serve: true, open: true } });
     });
+  });
+});
+
+describe("the sign-in form", () => {
+  it("answers an address that may not sign in exactly as one that may, and limits both alike", async () => {
+    const ask = (email: string) => fetch(`${h.baseUrl}/auth/email`, { method: "POST", headers: { "content-type": "application/json", origin: h.baseUrl }, body: JSON.stringify({ email }) });
+    const answers = async (email: string) => {
+      const out: string[] = [];
+      for (let i = 0; i < 6; i++) {
+        const r = await ask(email);
+        out.push(`${r.status} ${JSON.stringify(await r.json())}`);
+      }
+      return out;
+    };
+    // An account here, and an address nothing lets in.
+    await h.signIn("gil@listed.example");
+    expect(await answers("nobody@unlisted.example")).toEqual(await answers("gil@listed.example"));
   });
 });
 

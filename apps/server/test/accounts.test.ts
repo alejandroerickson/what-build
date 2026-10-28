@@ -141,9 +141,11 @@ describe("removing an account", () => {
     expect(record).toMatchObject({ to: "pete@example.com", subject: "Your WhatBuild account has been deleted" });
     expect(record.text).toMatch(/by an owner of this WhatBuild/);
 
-    // Signing up again is refused while sign-up is limited and nothing lets the address in.
+    // While sign-up is limited and nothing lets the address in, it is sent no link, though it is answered as any address is.
+    const mails = h.mailer.sent.length;
     const again = await fetch(`${h.baseUrl}/auth/email`, { method: "POST", headers: { "content-type": "application/json", origin: h.baseUrl }, body: JSON.stringify({ email: "pete@example.com" }) });
-    expect(again.status).toBe(403);
+    expect(again.status).toBe(200);
+    expect(h.mailer.sent.length).toBe(mails);
   });
 
   it("answers 404 for an account already removed", async () => {

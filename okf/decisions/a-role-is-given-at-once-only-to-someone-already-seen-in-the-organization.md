@@ -39,7 +39,9 @@ model listed this as an accepted trade-off for a clearer message. The maintainer
 
 - `grantOne` and `seenByCaller` in `packages/core/src/ops/products.ts` decide it; the members
   tests check the answer for an account elsewhere matches the one for no account.
-- The sign-in form's `403 invite_only` still says whether an address may sign up; that trade-off
-  is in [security](../system/security.md).
+- The sign-in form follows the same rule: it answers every address alike and mails a link only to
+  one that may sign in ([§3.2](../spec/03-accounts-teams-and-identity.md)).
+- Two people in one organization see each other as `members.list` shows them; that rule is
+  unchanged ([§3.5](../spec/03-accounts-teams-and-identity.md)).
 
 Specified in: [§3.5](../spec/03-accounts-teams-and-identity.md).

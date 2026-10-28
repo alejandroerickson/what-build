@@ -112,13 +112,18 @@ export function authRoutes(deps: { db: Db; config: ServerConfig; mailer: Mailer 
     return c.json({ error: { code: "internal", status: 500, message: "WhatBuild hit an unexpected error. Try again." } }, 500);
   });
 
-  /** Email a single-use sign-in link. The same response whether or not an account exists. */
+  /**
+   * Email a single-use sign-in link to an address that may sign in here. Every address gets the
+   * same answer, at the same speed, and meets the same hourly limit, so the form never says whether
+   * an address has an account, an invitation or an allowance: one that may not sign in is sent
+   * nothing, and its request is counted as a link would be. The email goes out after the answer,
+   * so a slow mail server does not tell them apart either; a failure to send it is logged.
+   */
   app.post("/auth/email", async (c) => {
     if (config.mailer === "none") throw notFound("Sign-in links by email aren’t set up on this server. Sign in another way.");
     const body = z.strictObject({ email: z.string().trim().email().max(320), next: z.string().max(2000).optional() }).safeParse(await c.req.json().catch(() => ({})));
     if (!body.success) throw invalid("invalid_input", "Enter a valid email.");
     const email = body.data.email;
-    if (!(await mayJoin(email))) throw new AppError(403, "invite_only", "WhatBuild is invite-only for now. Ask someone who uses it to invite this email.");
     const recent = await db
       .selectFrom("email_tokens")
       .select((eb) => eb.fn.countAll<number>().as("n"))
@@ -126,14 +131,21 @@ export function authRoutes(deps: { db: Db; config: ServerConfig; mailer: Mailer 
       .where("created_at", ">", new Date(Date.now() - 3600_000).toISOString())
       .executeTakeFirst();
     if (Number(recent?.n ?? 0) >= SIGN_IN_LINKS_PER_HOUR) throw new AppError(429, "rate_limited", "Too many sign-in links for this email in the last hour. Use the latest one, or try again later.");
+    const allowed = await mayJoin(email);
+    // A link is made either way, so the limit counts every address alike; one that may not sign in
+    // is never sent, and opening it would be refused all the same.
     const token = randomToken();
     await db
       .insertInto("email_tokens")
       .values({ token_hash: sha256Hex(token), email, purpose: "sign_in", redirect: safeNext(body.data.next), expires_at: new Date(Date.now() + 15 * 60_000).toISOString() })
       .execute();
-    const link = `${config.publicBaseUrl}/auth/verify?token=${token}`;
-    await mailer.send({ to: email, subject: "Your WhatBuild sign-in link", text: `Sign in to WhatBuild:\n\n${link}\n\nThe link works once, for 15 minutes. If you didn’t ask for it, ignore this email.\n` });
-    return c.json({ sent: true, ...(config.env !== "production" && config.mailer === "console" ? { dev_note: "In development, the link is printed in the server’s terminal." } : {}) });
+    if (allowed) {
+      const link = `${config.publicBaseUrl}/auth/verify?token=${token}`;
+      void mailer
+        .send({ to: email, subject: "Your WhatBuild sign-in link", text: `Sign in to WhatBuild:\n\n${link}\n\nThe link works once, for 15 minutes. If you didn’t ask for it, ignore this email.\n` })
+        .catch((e: unknown) => console.error(JSON.stringify({ at: new Date().toISOString(), event: "sign_in_link_not_sent", error: e instanceof Error ? e.message : String(e) })));
+    }
+    return c.json({ received: true, ...(config.env !== "production" && config.mailer === "console" ? { dev_note: "In development, a link is printed in the server’s terminal." } : {}) });
   });
 
   /** Opening the link: a page with one button, which posts it back. Nothing is read but the link's own row. */

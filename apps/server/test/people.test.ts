@@ -92,15 +92,21 @@ describe("pnpm people on an instance", () => {
 
   it("lets in, by a sign-in link, the domain on the allowlist and whoever was invited or given an allowance, and no one else", async () => {
     const plan = first.plan;
-    const link = async (email: string) => (await fetch(`${h.baseUrl}/auth/email`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ email }) })).status;
+    // Every address is answered alike; only one that may sign in is sent a link.
+    const link = async (email: string) => {
+      const before = h.mailer.sent.length;
+      const r = await fetch(`${h.baseUrl}/auth/email`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ email }) });
+      expect(r.status).toBe(200);
+      return h.mailer.sent.length > before;
+    };
     const invited = plan.people.find((p) => p.kind === "invited")!.email;
     const allowed = plan.people.find((p) => p.kind === "allowed")!.email;
     const waitlisted = plan.people.find((p) => p.kind === "waitlist")!.email;
-    expect(await link(`new.colleague${plan.allowlist}`)).toBe(200);
-    expect(await link(invited)).toBe(200);
-    expect(await link(allowed)).toBe(200);
-    expect(await link(waitlisted)).toBe(403);
-    expect(await link("someone@elsewhere.example")).toBe(403);
+    expect(await link(`new.colleague${plan.allowlist}`)).toBe(true);
+    expect(await link(invited)).toBe(true);
+    expect(await link(allowed)).toBe(true);
+    expect(await link(waitlisted)).toBe(false);
+    expect(await link("someone@elsewhere.example")).toBe(false);
   });
 
   it("refuses an address that is not this machine, and a server without development sign-in", async () => {

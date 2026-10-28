@@ -108,7 +108,7 @@ tenant.
 |---|---|---|
 | 400 | Malformed upload request (relay only) | `invalid_length`, `empty_body` |
 | 401 | No or invalid identity or grant | `unauthenticated`, `invalid_grant` |
-| 403 | A role too low for the action; an agent connection's level too low for it; feedback turned off for an agent connection; something only a person does in the web app; a call outside a scoped MCP connector; a write by a guest of the example organization; a cross-origin cookie write; sign-up not allowed; deleting an account from a browser that has not signed in recently; something an organization's plan switches off | `forbidden`, `connection_level`, `feedback_off`, `web_only`, `outside_connector_scope`, `example_read_only`, `forbidden_origin`, `invite_only`, `invitation_wrong_address`, `plan_restricted`, `tenant_allowance`, `sign_in_again` |
+| 403 | A role too low for the action; an agent connection's level too low for it; feedback turned off for an agent connection; something only a person does in the web app; a call outside a scoped MCP connector; a write by a guest of the example organization; a cross-origin cookie write; deleting an account from a browser that has not signed in recently; something an organization's plan switches off | `forbidden`, `connection_level`, `feedback_off`, `web_only`, `outside_connector_scope`, `example_read_only`, `forbidden_origin`, `invitation_wrong_address`, `plan_restricted`, `tenant_allowance`, `sign_in_again` |
 | 404 | Absent — including everything the caller has no role on | `not_found` |
 | 409 | Conflict with current state | `stale_etag`, `product_archived`, `record_archived`, `mockup_archived`, `slug_taken`, `frozen`, `too_many_attachments`, `no_text`, `no_file`, `mockup_on_story`, `already_uploaded`, `upload_used`, `example_organization`, `export_in_progress`, `last_owner`, `instance_owner`, `quota_exceeded`, `organization_read_only` |
 | 410 | Deliberately deleted, with a tombstone; an invitation no longer usable | `record_deleted`, `assumption_deleted`, `outcome_deleted`, `story_page_deleted`, `mockup_deleted`, `annotation_deleted`, `invitation_used`, `invitation_expired` |
@@ -954,7 +954,10 @@ Rules:
   every session by `POST /api/v1/me/sign-out-everywhere { keep_this_session? }`
   ([§3.8](03-accounts-teams-and-identity.md#38-identity-of-the-caller)). The session cookie is `__Host-wb_session` over HTTPS
   and `wb_session` over HTTP ([§3.8](03-accounts-teams-and-identity.md#38-identity-of-the-caller)).
-- **Sign-in endpoints** (`apps/server/src/auth/routes.ts`): `POST /auth/email` sends a link;
+- **Sign-in endpoints** (`apps/server/src/auth/routes.ts`): `POST /auth/email` sends a link to an
+  address that may sign in, and answers every address alike (`{ received: true }`, or `429` past
+  five an hour, counted for any address), sending the mail after the answer
+  ([§3.2](03-accounts-teams-and-identity.md));
   `GET /auth/verify?token=` shows its page and changes nothing, and `POST /auth/verify` (form field
   `token`, same origin only) uses it and signs in; `GET /auth/google`, `/auth/microsoft` and their
   `/callback`s run OpenID Connect; `POST /auth/dev-sign-in`, and `GET /auth/dev-accounts`, which

@@ -63,7 +63,7 @@ export function SignIn() {
   const navigate = useNavigate();
   const accounts = useDevAccounts(Boolean(methods.data?.dev));
   const people = accounts.data?.items.length ? accounts.data.items : DEV_PEOPLE;
-  const send = useMutation({ mutationFn: () => api<{ sent: boolean; dev_note?: string }>("POST", "/auth/email", { email: email.trim(), next }) });
+  const send = useMutation({ mutationFn: () => api<{ received: boolean; dev_note?: string }>("POST", "/auth/email", { email: email.trim(), next }) });
   const dev = useMutation({
     mutationFn: (e: string) => api("POST", "/auth/dev-sign-in", { email: e, next }),
     onSuccess: async () => {
@@ -124,7 +124,8 @@ export function SignIn() {
           {emailLink ? (
             send.isSuccess ? (
               <Callout inset tone="positive" title="Check your email" action={<Button size="sm" variant="quiet" onClick={() => send.reset()}>Use another email</Button>}>
-                We sent a sign-in link to {email.trim()}. It works once, for 15 minutes.{send.data.dev_note ? ` ${send.data.dev_note}` : ""}
+                If {email.trim()} can sign in here, a sign-in link is on its way. It works once, for 15 minutes. If nothing arrives, check the address, or ask someone who uses WhatBuild to invite you.
+                {send.data.dev_note ? ` ${send.data.dev_note}` : ""}
               </Callout>
             ) : (
               <form

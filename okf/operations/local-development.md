@@ -134,8 +134,8 @@ The instance is invite-only, as a deployment taking sign-ups is: `WHATBUILD_SIGN
 lets in the biggest organization's domain (`@northwind.example`). The development sign-in lets
 anyone in, so to try admission as a stranger would, sign out and ask for a sign-in link instead,
 which is printed in the terminal with every invitation: an address at that domain, an invited
-address or one with an allowance gets one, and any other (someone on the waitlist, say) is refused
-with `invite_only`.
+address or one with an allowance gets one, and any other (someone on the waitlist, say) gets the
+same answer on the page and no link.
 
 `pnpm people [--count <n>] [--url <address>] [--owner <instance owner>]` adds the same people to
 an instance already running: `pnpm dev` (`http://localhost:5273`, the default), the end-to-end

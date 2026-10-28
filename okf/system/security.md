@@ -58,6 +58,13 @@ holds each one; the linked decisions say why. Observed in the code on 2026-10-10
   conditional update marks it used, and only the request that made it signs in. It lasts
   15 minutes, five an hour per address; its page is never framed or cached and sends no referrer
   off its origin.
+- Nothing tells someone signed out, or outside an organization, whether an address has an
+  account. The sign-in form answers every address alike, at the same speed and under the same
+  hourly limit, and mails a link only to one that may sign in; an invite-only refusal is shown only
+  after a sign-in proves the address is the person's. Giving a role invites anyone the giver does
+  not already see in the organization, account or not, with the same answer either way
+  ([decision](../decisions/a-role-is-given-at-once-only-to-someone-already-seen-in-the-organization.md)).
+  `apps/server/test/guests.test.ts` and `members.test.ts` compare the answers.
 - Google needs `email_verified` and WhatBuild as audience. Microsoft accepts one configured
   directory (`aud`, `tid`, `iss`), and from it only an address whose domain has evidence: the
   token's `xms_edov` (Entra's word that the domain's owner verified it), or a domain the
@@ -437,11 +444,6 @@ and declared authorship ([decision](../decisions/attribution-and-declared-author
 may link anywhere, open new tabs and navigate its own frame. Every account sees the names of the
 example organization's staff on what they wrote and in its activity log. These trade-offs are deliberate; each names what would change it:
 
-- In invite-only mode the sign-in form tells an address that it may not sign up (`403
-  invite_only`, [§6.2](../spec/06-operations-and-adapters.md)), which says whether an address has an
-  account, an invitation or an allowance, for a message people can act on. Giving a role says
-  nothing of the kind: anyone the giver doesn't already see in the organization is invited,
-  account or not ([decision](../decisions/a-role-is-given-at-once-only-to-someone-already-seen-in-the-organization.md)).
 - Two refreshes of one agent connection at the same moment end it, as any reuse of a refresh token
   does ([§3.8](../spec/03-accounts-teams-and-identity.md)).
 - The limit on agent registrations is counted for the whole deployment, because behind the edge

@@ -41,6 +41,13 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
   account
   ([decision](../decisions/a-role-is-given-at-once-only-to-someone-already-seen-in-the-organization.md)).
   Scripts that add people with accounts must have them accept, through the link or by signing in.
+- **The sign-in form answers every address alike.** It concerns everyone who signs in, and
+  whoever runs an invite-only deployment, and asks nothing of a deployment. `POST /auth/email`
+  used to refuse an address that may not sign in with `403 invite_only`; now it answers
+  `{ received: true }` for every address, at the same speed and under the same hourly limit, and
+  mails a link only to one that may sign in. The page says a link is on its way if the address can
+  sign in here. A sign-in link the mail server fails to send is logged (`sign_in_link_not_sent`)
+  instead of answering `500`.
 
 ## v0.28.0
 

@@ -18,7 +18,7 @@ Plain text, one message at a time. Six are sent while the request that causes it
 
 | Message | Sent when | Code |
 |---|---|---|
-| A sign-in link | someone asks for one on the sign-in page (`POST /auth/email`), at most five per address an hour | `apps/server/src/auth/routes.ts` |
+| A sign-in link | someone asks for one on the sign-in page (`POST /auth/email`) for an address that may sign in, at most five per address an hour | `apps/server/src/auth/routes.ts` |
 | An invitation | someone gives a role to an address they don't already see in the organization, whether or not it has an account | `packages/core/src/ops/products.ts` |
 | An allowance notice | an instance owner lets an address start organizations, and asks to tell them | `packages/core/src/ops/tenant-allowances.ts` |
 | An account's deletion confirmation | a person deletes their account, or an instance owner removes it: to the address it had, saying who ended it, what was deleted and what is kept, and whom to tell if it was not them (`WHATBUILD_PRIVACY_CONTACT`) | `packages/core/src/ops/accounts.ts` |
@@ -39,7 +39,9 @@ specified in [§3](../spec/03-accounts-teams-and-identity.md), feedback in
 
 **A message that cannot be sent fails its request.** An invitation or an allowance runs in one
 transaction with its message, so a failed send leaves nothing behind and the person sees an
-internal error; a failed sign-in link answers `500`. A deployment whose mail is broken therefore
+internal error. A sign-in link is the exception: it is sent after the sign-in form answers, which
+answers every address alike, so a failed send is logged (`sign_in_link_not_sent`) and the person
+sees only that no email came. A deployment whose mail is broken therefore
 cannot invite anyone new, while one with no mail at all can: the person inviting is shown the link
 to pass on, and the sign-in page offers no email link. The one exception is a deletion's record: a
 failed send is logged (`account deletion: the confirmation was not mailed`) and the account ends anyway,
@@ -232,7 +234,7 @@ deployment sends no mail, so it sends no digest.
 
 | Sign | Cause | Fix |
 |---|---|---|
-| Inviting a new address fails with an internal error; sign-in links answer `500` | the send failed; the service logs the mail-provider error | read it (below), then the rows that follow |
+| Inviting a new address fails with an internal error; sign-in links don't arrive and the log says `sign_in_link_not_sent` | the send failed; the service logs the mail-provider error | read it (below), then the rows that follow |
 | `535 5.7.8` | the token is wrong, revoked or lacks Email Sending: Edit, or the user name is not `api_token` | rotate the token |
 | `550 5.7.1 … not enabled for domain` | the sender's domain is not onboarded under the token's account, or was onboarded a minute ago | onboard it, or wait a minute |
 | The sender is `no-reply@localhost` | `WHATBUILD_MAIL_FROM` is unset, most often after re-running `setup.sh` without `MAIL_FROM` | set it again (step 4) |

@@ -74,16 +74,21 @@ describe("who may create an organization", () => {
   });
 
   it("lets an address that has no account sign up while sign-up is limited, and start its organization", async () => {
-    const ask = (email: string) =>
-      fetch(`${h.baseUrl}/auth/email`, { method: "POST", headers: { "content-type": "application/json", origin: h.baseUrl }, body: JSON.stringify({ email, next: "/welcome" }) });
-    expect((await ask("nina@elsewhere.example")).status).toBe(403);
+    // Every address is answered alike; what tells them apart is whether a link is sent.
+    const ask = async (email: string) => {
+      const before = h.mailer.sent.length;
+      const r = await fetch(`${h.baseUrl}/auth/email`, { method: "POST", headers: { "content-type": "application/json", origin: h.baseUrl }, body: JSON.stringify({ email, next: "/welcome" }) });
+      expect(r.status).toBe(200);
+      return h.mailer.sent.slice(before).some((m) => m.to === email && m.subject === "Your WhatBuild sign-in link");
+    };
+    expect(await ask("nina@elsewhere.example")).toBe(false);
     const given = await owner.api("PUT", A, { email: "nina@elsewhere.example", allowed: 1 });
     expect(given.body).toMatchObject({ account: null, created: 0, remaining: 1, notified: true });
     // The owner's name is quoted, and the mail says whose words those are, as an invitation does.
     const notice = h.mailer.sent.find((m) => m.to === "nina@elsewhere.example")!;
     expect(notice.subject).toMatch(/^".+" let you start an organization on WhatBuild$/);
     expect(notice.text).toContain("The name in quotation marks is the one they gave WhatBuild.");
-    expect((await ask("nina@elsewhere.example")).status).toBe(200);
+    expect(await ask("nina@elsewhere.example")).toBe(true);
     const { response: verified } = await h.followSignInLink();
     expect(verified.headers.get("location")).toBe("/welcome");
     const nina = await h.signIn("nina@elsewhere.example");
@@ -91,7 +96,7 @@ describe("who may create an organization", () => {
     expect((await nina.api("POST", "/api/v1/tenants", { name: "Nina's second" })).status).toBe(403);
     // An allowance of 0 lets nobody in.
     await owner.api("PUT", A, { email: "zero@elsewhere.example", allowed: 0, notify: true });
-    expect((await ask("zero@elsewhere.example")).status).toBe(403);
+    expect(await ask("zero@elsewhere.example")).toBe(false);
   });
 
   it("takes only one place when two creations race for the last one", async () => {
