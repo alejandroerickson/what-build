@@ -64,6 +64,13 @@ const SCOPED: Record<string, Probe> = {
       { product: a.product.id, email: "planted@example.com", role: "admin" },
     ],
   },
+  "members.grant_many": {
+    input: (a) => ({ team: a.team.id, people: [{ email: "planted@example.com", role: "admin" }] }),
+    inside: (a) => [
+      { team: a.team.id, people: [{ email: "planted@example.com", role: "admin" }] },
+      { product: a.product.id, people: [{ email: "planted@example.com", role: "admin" }] },
+    ],
+  },
   "members.revoke": {
     input: (a) => ({ account_id: a.member.accountId, team: a.team.id }),
     inside: (a) => [{ account_id: a.member.accountId, team: a.team.id }, { account_id: a.ownerAccountId, whole_tenant: true }],

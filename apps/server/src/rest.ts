@@ -28,7 +28,7 @@ const WEB = { surface: "web" } as const;
 export const OPERATION_HEADER = "X-WhatBuild-Operation";
 
 /** Operations that create something answer 201. */
-const CREATES = /\.(create\w*|publish|promote_mockup|request_upload|fetch_url|annotate|export)$|^members\.grant$/;
+const CREATES = /\.(create\w*|publish|promote_mockup|request_upload|fetch_url|annotate|export)$|^members\.grant(_many)?$/;
 
 export function restPath(op: OperationDef): string {
   return `${SCOPE_PREFIX[op.scope]}${op.rest.path}`;

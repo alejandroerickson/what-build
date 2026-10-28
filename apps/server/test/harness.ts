@@ -40,6 +40,14 @@ export interface Harness {
   connectAgent(browser: Browser, clientName?: string, resourcePath?: string, level?: "viewer" | "editor" | "admin" | null): Promise<string>;
   /** As connectAgent, with the refresh token and the client it was issued to; `redirect` is where the client receives the code (a loopback address unless given). */
   connectAgentTokens(browser: Browser, clientName?: string, resourcePath?: string, level?: "viewer" | "editor" | "admin" | null, redirect?: string): Promise<{ access_token: string; refresh_token: string; client_id: string }>;
+  /**
+   * Whether someone signed in here accepts an invitation the moment a browser here gives it
+   * (`members.grant` or `members.grant_many` through REST), as a person who follows the link would.
+   * A role is given at once only to someone the giver already sees in the organization, so this is
+   * how a test brings a signed-in person into one. On by default; a test of invitations themselves
+   * turns it off.
+   */
+  acceptsInvitations: boolean;
   close(): Promise<void>;
 }
 
@@ -92,6 +100,18 @@ export async function startHarness(overrides: Partial<ServerConfig> | ((baseUrl:
   worker = new Worker({ db, ports }, 60_000, () => {});
   app = createApp({ db, ports, config });
 
+  /** Everyone signed in here, by address, so an invitation to one of them can be accepted as they would. */
+  const signedIn = new Map<string, Browser>();
+  const state = { acceptsInvitations: true };
+  /** The invitations a grant's answer made, by address, accepted by whoever here they were sent to. */
+  const acceptInvitations = async (sentTo: { email?: string }, answer: unknown) => {
+    const a = answer as { invited?: boolean; invite_link?: string; results?: { email: string; invited?: boolean; invite_link?: string }[] };
+    const made = a.results ?? (a.invited ? [{ email: sentTo.email ?? "", invited: true, invite_link: a.invite_link }] : []);
+    for (const m of made) {
+      const who = m.invited && m.invite_link ? signedIn.get(m.email.toLowerCase()) : undefined;
+      if (who) await who.api("POST", "/api/v1/invitations/accept", { token: m.invite_link!.split("/invite/")[1] });
+    }
+  };
   const makeBrowser = (email: string, cookie: string): Browser => ({
     email,
     cookie,
@@ -108,6 +128,7 @@ export async function startHarness(overrides: Partial<ServerConfig> | ((baseUrl:
       } catch {
         parsed = text;
       }
+      if (state.acceptsInvitations && method === "POST" && res.status === 201 && /^\/api\/v1\/tenants\/[^/]+\/members(?:\/many)?$/.test(path)) await acceptInvitations((body ?? {}) as { email?: string }, parsed);
       return { status: res.status, body: parsed as never, headers: res.headers };
     },
   });
@@ -140,6 +161,12 @@ export async function startHarness(overrides: Partial<ServerConfig> | ((baseUrl:
   };
 
   return {
+    get acceptsInvitations() {
+      return state.acceptsInvitations;
+    },
+    set acceptsInvitations(on: boolean) {
+      state.acceptsInvitations = on;
+    },
     baseUrl,
     db,
     worker: worker!,
@@ -157,7 +184,9 @@ export async function startHarness(overrides: Partial<ServerConfig> | ((baseUrl:
       // The session cookie, by either of its names (__Host-wb_session over HTTPS), never the old name being cleared.
       const cookie = res.headers.getSetCookie().map((c) => c.split(";")[0]!).find((c) => /^(?:__Host-)?wb_session=./.test(c));
       if (!cookie) throw new Error("sign-in set no session cookie");
-      return makeBrowser(email, cookie);
+      const browser = makeBrowser(email, cookie);
+      signedIn.set(email.toLowerCase(), browser);
+      return browser;
     },
     async followSignInLink() {
       const link = /https?:\/\/\S+\/auth\/verify\?token=\S+/.exec(mailer.sent.at(-1)?.text ?? "")?.[0];

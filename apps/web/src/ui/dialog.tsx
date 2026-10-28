@@ -6,7 +6,7 @@ import { IconButton } from "./button.tsx";
  * close it unless `dismissable` is false (while a save is running, for example). The click must
  * start on the backdrop too: selecting text in a field and letting go outside keeps it open.
  */
-export function Dialog({ open, onClose, title, description, children, footer, dismissable = true, wide }: {
+export function Dialog({ open, onClose, title, description, children, footer, dismissable = true, wide, className }: {
   open: boolean;
   onClose: () => void;
   title: ReactNode;
@@ -15,6 +15,8 @@ export function Dialog({ open, onClose, title, description, children, footer, di
   footer?: ReactNode;
   dismissable?: boolean;
   wide?: boolean;
+  /** A screen's own class, for a dialog its stylesheet sizes. */
+  className?: string;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
   /** Whether the press that led to the coming click started on the backdrop. */
@@ -30,7 +32,7 @@ export function Dialog({ open, onClose, title, description, children, footer, di
   return (
     <dialog
       ref={ref}
-      className={`dialog${wide ? " dialog-wide" : ""}`}
+      className={`dialog${wide ? " dialog-wide" : ""}${className ? ` ${className}` : ""}`}
       aria-labelledby={titleId}
       aria-describedby={description ? descId : undefined}
       onCancel={(e) => {

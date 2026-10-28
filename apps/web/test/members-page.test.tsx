@@ -8,7 +8,8 @@ import { ToastProvider } from "../src/ui/index.tsx";
 
 // An organization's Members page offers only what the server would do: a team or product role can
 // be changed where it is shown, the dialog for someone's only role says what each choice does, Give
-// access forgets a refusal once the choice changes, and a read-only organization offers no new role.
+// access gives many people roles in one call and forgets a refusal once the choice changes, and a
+// read-only organization offers no new role.
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 HTMLDialogElement.prototype.showModal ??= function (this: HTMLDialogElement) {
@@ -44,8 +45,10 @@ vi.mock("../src/lib/api.ts", async (original) => ({
       return { items: [{ product_id: "p1", path: "acme/core/planner", name: "Planner", tenant: { tenant_id: "t1", slug: "acme", name: "Acme" }, team: { team_id: "team1", slug: "core", name: "Core" }, your_role: "admin" }], tenants: [tenant()] };
     if (path.includes("/members/activity")) return { items: [], next_cursor: null };
     if (method === "GET" && path === "/api/v1/tenants/acme/members") return members();
-    if (method === "POST" && path === "/api/v1/tenants/acme/members" && state.refuseGrant)
+    if (method === "POST" && path === "/api/v1/tenants/acme/members/many" && state.refuseGrant)
       throw new ApiError(409, "quota_exceeded", "A limit was reached: Acme has 2 people, all its plan allows.");
+    if (method === "POST" && path === "/api/v1/tenants/acme/members/many")
+      return { results: (body!.people as { email: string }[]).map((p) => ({ email: p.email, invited: !p.email.startsWith("pat"), invite_link: "http://localhost/invite/x" })) };
     return {};
   }),
 }));
@@ -86,6 +89,12 @@ async function page() {
 
 const buttons = (root: ParentNode, label: string) => [...root.querySelectorAll("button")].filter((b) => b.textContent?.trim() === label || b.getAttribute("aria-label") === label);
 const settle = () => act(() => new Promise((r) => setTimeout(r, 10)));
+async function type(field: HTMLTextAreaElement | HTMLInputElement, text: string) {
+  await act(async () => {
+    Object.getOwnPropertyDescriptor(Object.getPrototypeOf(field), "value")!.set!.call(field, text);
+    field.dispatchEvent(new Event("input", { bubbles: true }));
+  });
+}
 
 describe("the Members page", () => {
   it("changes a product role from the role's own menu, and offers removing it there", async () => {
@@ -116,20 +125,56 @@ describe("the Members page", () => {
     expect(buttons(dialog, "Remove from organization")).toHaveLength(1);
   });
 
+  it("gives people from the organization and pasted addresses their roles in one call", async () => {
+    const host = await page();
+    await act(async () => buttons(host, "Give access")[0]!.click());
+    const dialog = document.querySelector("dialog[open]")!;
+    // On the Core team, Olive is admin as the organization's owner; Pat, with a product role only, is offered.
+    expect(dialog.querySelector('[aria-label="People on the Core team"]')!.textContent).toContain("Olive Owner");
+    const offered = dialog.querySelector('[aria-label="People in Acme not on the Core team"]')!;
+    expect(offered.textContent).toContain("Pat Editor");
+    expect(offered.textContent).not.toContain("Olive Owner");
+    await act(async () => offered.querySelector<HTMLInputElement>('input[type="checkbox"]')!.click());
+    await act(async () => buttons(dialog, "Add 1 person to the Core team")[0]!.click());
+    await act(async () => buttons(dialog, "Paste addresses")[0]!.click());
+    await type(dialog.querySelector("textarea")!, "Ana Lima <ana@example.com>; pat@example.com, ben@");
+    const read = dialog.querySelector('[aria-label="Addresses read"]')!.textContent;
+    expect(read).toContain("Ana Lima");
+    expect(read).toContain("gets an invitation");
+    expect(read).toContain("already moved across");
+    expect(dialog.textContent).toContain("Left out, not an address: ben@");
+    const reader = dialog.querySelector<HTMLSelectElement>(`select[id$="-join"]`)!;
+    await act(async () => {
+      reader.value = "reader";
+      reader.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    await act(async () => buttons(dialog, "Add 1 person to the Core team")[0]!.click());
+    await act(async () => buttons(dialog, "Add 2 people")[0]!.click());
+    await settle();
+    expect(calls.filter((c) => c.path.endsWith("/members/many"))).toEqual([
+      {
+        method: "POST",
+        path: "/api/v1/tenants/acme/members/many",
+        body: { team: "team1", people: [{ email: "ana@example.com", role: "reader" }, { email: "pat@example.com", role: "editor" }] },
+      },
+    ]);
+    // Ana had no account: her invitation's link is there to copy.
+    expect(document.querySelector("dialog[open]")!.textContent).toContain("ana@example.com");
+    expect(buttons(document, "Copy the invitation link for ana@example.com")).toHaveLength(1);
+  });
+
   it("forgets Give access's refusal as soon as the choice changes", async () => {
     state.refuseGrant = true;
     const host = await page();
     await act(async () => buttons(host, "Give access")[0]!.click());
     const dialog = document.querySelector("dialog[open]")!;
-    const email = dialog.querySelector<HTMLInputElement>('input[type="email"]')!;
-    await act(async () => {
-      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(email, "new@example.com");
-      email.dispatchEvent(new Event("input", { bubbles: true }));
-    });
-    await act(async () => buttons(dialog, "Give access")[0]!.click());
+    await act(async () => buttons(dialog, "Paste addresses")[0]!.click());
+    await type(dialog.querySelector("textarea")!, "new@example.com");
+    await act(async () => buttons(dialog, "Add 1 person to the Core team")[0]!.click());
+    await act(async () => buttons(dialog, "Add 1 person")[0]!.click());
     await settle();
     expect(dialog.textContent).toContain("A limit was reached");
-    const role = [...dialog.querySelectorAll("select")].at(-1)!;
+    const role = dialog.querySelector<HTMLSelectElement>('select[aria-label="Role for new@example.com"]')!;
     await act(async () => {
       role.value = "reader";
       role.dispatchEvent(new Event("change", { bubbles: true }));

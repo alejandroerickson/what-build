@@ -2,16 +2,17 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router";
 import { api, ApiError, qs } from "../lib/api.ts";
-import { aRole, formatBytes, formatDate, formatDateTime, plural, relativeTime, scopeWords } from "../lib/format.ts";
+import { formatBytes, formatDate, formatDateTime, plural, relativeTime, scopeWords } from "../lib/format.ts";
 import { useOrganizationLimits } from "../lib/limits.ts";
 import { useProduct, useProducts } from "../lib/session.tsx";
 import { ActivityFeed, ENTITY_LABEL, useActivity, type ActivityFilter } from "../shell/ActivityFeed.tsx";
 import { usePageTitle } from "../shell/slots.tsx";
 import {
-  Avatar, Button, Callout, CopyField, Dialog, ErrorCallout, FormGrid, Glyph, Loading, Menu, MenuGroup, MenuItem, MenuRadio,
-  MenuSeparator, Segmented, SelectField, Sheet, SheetBody, SheetHeader, StatusBadge, TextField, useToast,
+  Avatar, Button, Callout, Dialog, ErrorCallout, FormGrid, Glyph, Loading, Menu, MenuGroup, MenuItem, MenuRadio,
+  MenuSeparator, Sheet, SheetBody, SheetHeader, StatusBadge, TextField, useToast,
 } from "../ui/index.tsx";
 import { DeleteDialog, listed } from "./delete-dialog.tsx";
+import { PeopleEditor, type OrgPerson, type PendingInvitation } from "./people-editor.tsx";
 import "../styles/screens/activity.css";
 import "../styles/screens/settings.css";
 
@@ -259,7 +260,8 @@ interface ProductMembers {
   guest?: true;
 }
 interface OrgMembers {
-  members: { account_id: string; display_name: string; email: string; grants: Grant[] }[];
+  members: OrgPerson[];
+  invitations?: PendingInvitation[];
   /** Only the people on what this person reads, below an owner or admin of the organization. */
   partial?: boolean;
 }
@@ -428,112 +430,45 @@ function PeopleSheet() {
           )}
         </>
       )}
-      {isAdmin && adding ? <AddPeopleDialog onClose={() => setAdding(false)} existing={q.data?.members.map((m) => m.account_id) ?? []} /> : null}
+      {isAdmin && adding ? <AddPeopleDialog onClose={() => setAdding(false)} /> : null}
     </Sheet>
   );
 }
 
-function AddPeopleDialog({ onClose, existing }: { onClose: () => void; existing: string[] }) {
+/** Add people to the product, many at a time, and change the roles of the people on it. */
+function AddPeopleDialog({ onClose }: { onClose: () => void }) {
   const { product } = useProduct();
   const tenant = product.tenant.slug;
-  const qc = useQueryClient();
-  const toast = useToast();
   const org = useQuery({ queryKey: ["members", tenant], queryFn: () => api<OrgMembers>("GET", `/api/v1/tenants/${tenant}/members`) });
-  const candidates = (org.data?.members ?? []).filter((m) => !existing.includes(m.account_id));
-  const [mode, setMode] = useState<"org" | "email">("org");
-  const [person, setPerson] = useState("");
-  const [email, setEmail] = useState("");
-  const [role, setRole] = useState<Role>("editor");
-  const [link, setLink] = useState<string | null>(null);
-  useEffect(() => {
-    if (org.data && !candidates.length) setMode("email");
-    // Only once the organization list arrives.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [org.data]);
-  const target = mode === "org" ? candidates.find((m) => m.account_id === person) : null;
-  const add = useMutation({
-    mutationFn: () => api<{ invited: boolean; invite_link?: string }>("POST", `/api/v1/tenants/${tenant}/members`, { product: product.product_id, email: target ? target.email : email.trim(), role }),
-    onSuccess: (r) => {
-      void qc.invalidateQueries({ queryKey: ["members", tenant] });
-      if (r.invited) {
-        setLink(r.invite_link ?? null);
-        toast(`Invitation created for ${email.trim()}.`);
-      } else {
-        toast(`${target?.display_name ?? email.trim()} is now ${aRole(role)} on ${product.name}.`);
-        onClose();
-      }
-    },
-  });
-  const ready = mode === "org" ? Boolean(target) : /\S+@\S+\.\S+/.test(email.trim());
+  const title = `Add people to ${product.name}`;
+  if (!org.data)
+    return (
+      <Dialog open wide onClose={onClose} title={title}>
+        {org.isError ? <ErrorCallout inset title="The organization’s people couldn’t be loaded" error={org.error} onRetry={() => org.refetch()} /> : <Loading label="Loading people…" lines={3} />}
+      </Dialog>
+    );
   return (
-    <Dialog
-      open
+    <PeopleEditor
+      tenant={tenant}
+      orgName={product.tenant.name}
+      title={title}
+      description={`A role here covers ${product.name} only. People from the organization get it at once; anyone else is invited, and joins by accepting within 7 days.`}
+      target={{
+        scope_type: "product",
+        scope_id: product.product_id,
+        team_id: product.team.team_id,
+        team_name: product.team.name,
+        name: product.name,
+        body: { product: product.product_id },
+        roles: ROLES,
+        defaultRole: "editor",
+      }}
+      members={org.data.members}
+      partial={Boolean(org.data.partial)}
+      invitations={org.data.invitations ?? []}
+      canEdit={() => true}
       onClose={onClose}
-      title={`Add people to ${product.name}`}
-      description="They get this role on this product only. Someone without an account gets an invitation link that works for 7 days."
-      footer={
-        link ? (
-          <Button variant="primary" onClick={onClose}>
-            Done
-          </Button>
-        ) : (
-          <>
-            <Button onClick={onClose}>Cancel</Button>
-            <Button variant="primary" busy={add.isPending} busyLabel="Adding…" disabled={!ready} onClick={() => add.mutate()}>
-              Add to {product.name}
-            </Button>
-          </>
-        )
-      }
-    >
-      {link ? (
-        <div className="stack-sm">
-          <Callout inset tone="positive" title="Invitation created">
-            We email it where email is set up. You can also share the link yourself: it works once, within 7 days.
-          </Callout>
-          <CopyField label="Invitation link" value={link} />
-        </div>
-      ) : (
-        <div className="people-add">
-          <Segmented
-            label="Who to add"
-            equal
-            value={mode}
-            onChange={(id) => setMode(id as "org" | "email")}
-            items={[
-              { id: "org", label: "From the organization", disabled: Boolean(org.data) && !candidates.length },
-              { id: "email", label: "By email" },
-            ]}
-          />
-          {mode === "org" ? (
-            org.isPending ? (
-              <Loading lines={1} variant="lines" />
-            ) : org.isError ? (
-              <ErrorCallout inset title="The organization’s people couldn’t be loaded" error={org.error} onRetry={() => org.refetch()} />
-            ) : (
-              <SelectField label="Person" value={person} onChange={(e) => setPerson(e.target.value)} hint={org.data?.partial ? "Only people on the teams and products you can open are listed." : undefined}>
-                <option value="">Choose someone…</option>
-                {candidates.map((m) => (
-                  <option key={m.account_id} value={m.account_id}>
-                    {m.display_name} ({m.email})
-                  </option>
-                ))}
-              </SelectField>
-            )
-          ) : (
-            <TextField label="Email" type="email" autoComplete="off" value={email} onChange={(e) => setEmail(e.target.value)} />
-          )}
-          <SelectField label="Role" value={role} onChange={(e) => setRole(e.target.value as Role)}>
-            {ROLES.map((r) => (
-              <option key={r} value={r}>
-                {ROLE_WORD[r]}: {ROLE_HINT[r].toLowerCase()}
-              </option>
-            ))}
-          </SelectField>
-          {add.isError ? <ErrorCallout inset error={add.error} /> : null}
-        </div>
-      )}
-    </Dialog>
+    />
   );
 }
 

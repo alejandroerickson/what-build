@@ -3,7 +3,7 @@ type: Decision
 title: An invitation is accepted only by the account with the address it was sent to
 description: Invitation links are pointers to an invitation, not bearer credentials; the verified email address is what grants the role.
 tags: [decision, identity, invitations, security, roles]
-generated: {by: agent:claude, at: 2026-10-25}
+generated: {by: agent:claude, at: 2026-10-27}
 status: stable
 ---
 
@@ -11,7 +11,8 @@ status: stable
 
 ## Context
 
-Granting a role to someone without an account creates an invitation, emailed where mail is
+Granting a role to someone not already in the organization creates an invitation, whether or not
+they have an account ([decision](a-role-is-given-at-once-only-to-someone-already-seen-in-the-organization.md)), emailed where mail is
 configured and always returned to the inviter as a link to pass on. Links get forwarded, pasted in
 the wrong chat and opened in a browser signed in as someone else. Signing in already accepts every
 invitation addressed to the verified email, so the link adds nothing for its rightful owner except a

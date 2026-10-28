@@ -23,7 +23,31 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
 
 ## Unreleased
 
-Nothing yet.
+- **People are added many at a time** (`tools_version` 0.46.0). It asks nothing of a deployment;
+  a connected client sees the new action only in a new session. A product's **Add people** and
+  the organization's **Give access** open one dialog with two lists: people picked from the
+  organization, or read from a pasted list of addresses, move across to the product, team or
+  organization with a role each, beside the people already there, whose roles change and who
+  come off it in the same dialog, saved at once. `members_write` gains `grant_many`
+  (`POST /api/v1/tenants/:tenant/members/many`), which gives up to 100 people roles at one scope,
+  all or nothing, as one write. `members_write(action="grant")` now answers `unchanged: true` for
+  the role someone already holds there and records nothing for it, and `previous_role` when it
+  replaced one. No migration.
+- **Someone not already in the organization is invited, account or not.** It concerns everyone who
+  gives roles, and their agents, and asks nothing of a deployment. Giving a role to an address
+  with an account used to add that person at once and answer with their name; now only someone
+  the giver already sees in the organization gets the role at once, and anyone else gets an
+  invitation and joins by accepting it, so the answer never says whether an address has an
+  account
+  ([decision](../decisions/a-role-is-given-at-once-only-to-someone-already-seen-in-the-organization.md)).
+  Scripts that add people with accounts must have them accept, through the link or by signing in.
+- **The sign-in form answers every address alike.** It concerns everyone who signs in, and
+  whoever runs an invite-only deployment, and asks nothing of a deployment. `POST /auth/email`
+  used to refuse an address that may not sign in with `403 invite_only`; now it answers
+  `{ received: true }` for every address, at the same speed and under the same hourly limit, and
+  mails a link only to one that may sign in. The page says a link is on its way if the address can
+  sign in here. A sign-in link the mail server fails to send is logged (`sign_in_link_not_sent`)
+  instead of answering `500`.
 
 ## v0.28.0
 

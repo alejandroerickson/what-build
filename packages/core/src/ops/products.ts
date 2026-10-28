@@ -783,6 +783,104 @@ export const listMembers = defineOperation({
   },
 });
 
+type GrantTarget = Awaited<ReturnType<typeof resolveGrantTarget>>;
+type Mail = { to: string; subject: string; text: string };
+const GRANT_ROLES = ["owner", "admin", "member", "editor", "viewer", "reader"] as const;
+/** The most people one members.grant_many call names. */
+export const GRANTS_PER_CALL = 100;
+
+/** The roles that apply where a grant lands: the organization's own, or a team's and a product's. */
+const rolesAt = (target: GrantTarget): readonly string[] => (target.scope_type === "tenant" ? ["owner", "admin", "member"] : PRODUCT_ROLES);
+
+/**
+ * The people in the organization the caller already sees, as members.list shows them: everyone to
+ * an owner or admin of it, and otherwise the people on the teams and products they read. Asked of
+ * an account, it says whether a role may be given to it at once.
+ */
+function seenByCaller(ctx: OpContext): (accountId: string) => Promise<boolean> {
+  const tid = ctx.scope.tenant!.tenant_id;
+  let reach: Promise<ReturnType<typeof directoryReach> | null> | null = null;
+  return async (accountId) => {
+    const theirs = await ctx.db.selectFrom("memberships").select(["scope_type", "scope_id", "role"]).where("tenant_id", "=", tid).where("account_id", "=", accountId).execute();
+    if (!theirs.length) return false;
+    if (accountId === ctx.principal.account_id || tenantRoleAtLeast(ctx.scope.tenantRole, "admin")) return true;
+    reach ??= (async () => {
+      const [mine, teams, products] = await Promise.all([
+        membershipsFor(ctx.db, ctx.principal.account_id, tid),
+        ctx.db.selectFrom("teams").select("team_id").where("tenant_id", "=", tid).execute(),
+        ctx.db.selectFrom("products").select(["product_id", "team_id"]).where("tenant_id", "=", tid).execute(),
+      ]);
+      return directoryReach(mine, tid, teams, products);
+    })();
+    const r = await reach;
+    return Boolean(r && theirs.some((g) => r.shows(g.scope_type, g.scope_id, g.role)));
+  };
+}
+
+/**
+ * Give one person a role where `target` is, after the caller's standing there was checked. Someone
+ * the caller already sees in the organization gets the role at once (replacing the one they hold
+ * there). Anyone else gets an invitation by email, whether or not they have an account, so the
+ * answer never tells the caller whether an address has an account, here or in another
+ * organization, or whose it is; they join when they accept it. The invitation's email is
+ * returned, not sent, so a call that grants many sends them once every grant has been made.
+ */
+async function grantOne(ctx: OpContext, target: GrantTarget, email: string, role: string, seen: (accountId: string) => Promise<boolean>) {
+  const tid = ctx.scope.tenant!.tenant_id;
+  await checkMembers(ctx.db, ctx.limits ?? null, email, role);
+  const found = await ctx.db.selectFrom("accounts").select(["account_id", "display_name"]).where(sql<boolean>`lower(email) = lower(${email})`).where("deleted_at", "is", null).executeTakeFirst();
+  const account = found && (await seen(found.account_id)) ? found : null;
+  if (!account) {
+    const token = randomToken();
+    const invitation_id = newId();
+    const expires = new Date(Date.parse(ctx.now) + 7 * 86400_000).toISOString();
+    await ctx.db
+      .insertInto("invitations")
+      .values({ invitation_id, tenant_id: tid, scope_type: target.scope_type, scope_id: target.scope_id, email, role, token_hash: sha256Hex(token), expires_at: expires, created_by: json(ctx.actor) })
+      .execute();
+    const link = `${ctx.ports.config.publicBaseUrl}/invite/${token}`;
+    // The inviter's name is theirs to choose: in the email it is one line, quoted and bounded, so it never reads as WhatBuild's own words.
+    const who = quotedName(ctx.actor.display_name);
+    const where = oneLine(target.name, 100);
+    const mail: Mail = {
+      to: email,
+      subject: `${who} invited you to ${where} on WhatBuild`,
+      text:
+        `${who} invited you to ${where} on WhatBuild, as ${/^[aeiou]/.test(role) ? "an" : "a"} ${role}.\n\n` +
+        `Accept the invitation:\n${link}\n\n` +
+        `The link works once, within 7 days, when you sign in with this email.\n` +
+        `The name in quotation marks is the one the inviter gave WhatBuild.\n`,
+    };
+    await recordActivity(ctx, { action: "invited", entity_type: "membership", entity_id: invitation_id, entity_title: target.name, summary: `Invited someone as ${role}` });
+    // The link is returned to the inviter too, so an invitation works even where no email is sent.
+    return { mail, result: { invited: true as const, invitation_id, invite_link: link, expires_at: expires, scope_type: target.scope_type, scope: target.name, role } };
+  }
+  const existing = await ctx.db.selectFrom("memberships").select(["membership_id", "role"]).where("scope_type", "=", target.scope_type).where("scope_id", "=", target.scope_id).where("account_id", "=", account.account_id).executeTakeFirst();
+  const granted = { invited: false as const, account_id: account.account_id, display_name: account.display_name, scope_type: target.scope_type, scope: target.name, role: role as ProductRole | TenantRole };
+  // The role they already hold there: nothing to change, and nothing for the access log.
+  if (existing?.role === role) return { mail: null, result: { ...granted, unchanged: true as const } };
+  if (existing?.role === "owner") {
+    // Only an owner changes an owner's role, as only an owner removes one.
+    await requireAdminOf(ctx, target, "owner");
+    const owners = await ctx.db.selectFrom("memberships").select("membership_id").where("scope_type", "=", "tenant").where("scope_id", "=", tid).where("role", "=", "owner").execute();
+    if (owners.length <= 1) throw conflict("last_owner", "An organization keeps at least one owner. Make someone else owner first.");
+  }
+  if (existing) await ctx.db.updateTable("memberships").set({ role }).where("membership_id", "=", existing.membership_id).execute();
+  else
+    await ctx.db
+      .insertInto("memberships")
+      .values({ membership_id: newId(), tenant_id: tid, scope_type: target.scope_type, scope_id: target.scope_id, account_id: account.account_id, role, created_by: json(ctx.actor) })
+      .execute();
+  await recordActivity(ctx, {
+    action: existing ? "role_changed" : "granted",
+    entity_type: "membership",
+    entity_id: account.account_id,
+    entity_title: account.display_name,
+    summary: `${existing ? "Changed role to" : "Granted"} ${role} on ${target.scope_type === "tenant" ? "organization" : target.scope_type} ${target.name}`,
+  });
+  return { mail: null, result: { ...granted, ...(existing ? { previous_role: existing.role } : {}) } };
+}
+
 export const grantMember = defineOperation({
   name: "members.grant",
   scope: "tenant",
@@ -790,69 +888,93 @@ export const grantMember = defineOperation({
   needsSomewhere: "admin",
   mutates: true,
   connection: "admin",
-  summary: "Give someone a role on the tenant, a team, or a product; invites them by email if they have no account.",
+  summary: "Give someone a role on the tenant, a team, or a product; invites by email anyone not already in the organization.",
   description:
-    "Admins of the target grant roles there: product admins on their product, team admins on their team, tenant admins on the tenant (owners for owner). Roles: tenant owner|admin|member; team and product admin|editor|viewer|reader. A reader reads only the Story: its pages, their versions and their export, without the evidence, assumptions and mockups behind them. Granting again replaces the role at that scope. Someone without an account gets an invitation link by email, valid 7 days.",
+    "Admins of the target grant roles there: product admins on their product, team admins on their team, tenant admins on the tenant (owners for owner). Roles: tenant owner|admin|member; team and product admin|editor|viewer|reader. A reader reads only the Story: its pages, their versions and their export, without the evidence, assumptions and mockups behind them. Someone you already see in the organization (everyone, for its owners and admins; otherwise the people on the teams and products you read) gets the role at once: granting again replaces the role at that scope, and granting the role they already hold there changes nothing and says unchanged. Anyone else gets an invitation by email, valid 7 days, whether or not they have an account, and joins when they accept it: the answer never says whether an address has an account. To give many people roles at once, use grant_many.",
   input: grantScope.extend({
     email: z.string().email().max(320),
-    role: z.enum(["owner", "admin", "member", "editor", "viewer", "reader"]),
+    role: z.enum(GRANT_ROLES),
   }),
   rest: { method: "POST", path: "/members" },
   mcp: { tool: "members", action: "grant" },
   async handler(ctx, input) {
     const target = await resolveGrantTarget(ctx, input);
     await requireAdminOf(ctx, target, input.role);
-    const allowed = target.scope_type === "tenant" ? ["owner", "admin", "member"] : PRODUCT_ROLES;
+    const allowed = rolesAt(target);
     if (!allowed.includes(input.role)) throw invalid("invalid_role", `Role ${input.role} doesn’t apply to ${target.scope_type === "tenant" ? "an organization" : `a ${target.scope_type}`}; use ${allowed.join(", ")}.`);
-    const tid = ctx.scope.tenant!.tenant_id;
-    await checkMembers(ctx.db, ctx.limits ?? null, input.email, input.role);
-    const account = await ctx.db.selectFrom("accounts").select(["account_id", "display_name"]).where(sql<boolean>`lower(email) = lower(${input.email})`).where("deleted_at", "is", null).executeTakeFirst();
-    if (!account) {
-      const token = randomToken();
-      const invitation_id = newId();
-      const expires = new Date(Date.parse(ctx.now) + 7 * 86400_000).toISOString();
-      await ctx.db
-        .insertInto("invitations")
-        .values({ invitation_id, tenant_id: tid, scope_type: target.scope_type, scope_id: target.scope_id, email: input.email, role: input.role, token_hash: sha256Hex(token), expires_at: expires, created_by: json(ctx.actor) })
-        .execute();
-      const link = `${ctx.ports.config.publicBaseUrl}/invite/${token}`;
-      // The inviter's name is theirs to choose: in the email it is one line, quoted and bounded, so it never reads as WhatBuild's own words.
-      const who = quotedName(ctx.actor.display_name);
-      const where = oneLine(target.name, 100);
-      await ctx.ports.mailer?.send({
-        to: input.email,
-        subject: `${who} invited you to ${where} on WhatBuild`,
-        text:
-          `${who} invited you to ${where} on WhatBuild, as ${/^[aeiou]/.test(input.role) ? "an" : "a"} ${input.role}.\n\n` +
-          `Accept the invitation:\n${link}\n\n` +
-          `The link works once, within 7 days, when you sign in with this email.\n` +
-          `The name in quotation marks is the one the inviter gave WhatBuild.\n`,
-      });
-      await recordActivity(ctx, { action: "invited", entity_type: "membership", entity_id: invitation_id, entity_title: target.name, summary: `Invited someone as ${input.role}` });
-      // The link is returned to the inviter too, so an invitation works even where no email is sent.
-      return { invited: true, invitation_id, invite_link: link, expires_at: expires, scope_type: target.scope_type, scope: target.name, role: input.role };
+    const { mail, result } = await grantOne(ctx, target, input.email, input.role, seenByCaller(ctx));
+    if (mail) await ctx.ports.mailer?.send(mail);
+    return result;
+  },
+});
+
+export const grantMembers = defineOperation({
+  name: "members.grant_many",
+  scope: "tenant",
+  access: "any",
+  needsSomewhere: "admin",
+  mutates: true,
+  connection: "admin",
+  summary: "Give many people roles on the tenant, one team, or one product at once; invites by email anyone not already in the organization.",
+  description:
+    `Grants as members.grant does, for up to ${GRANTS_PER_CALL} people at one scope (the tenant, a team or a product), each with their own role: people you already see in the organization get the role at once (replacing the one they hold there), and anyone else gets an invitation by email, valid 7 days, whether or not they have an account. It is all or nothing, and counts as one write: a refusal (a role that does not apply to the scope, an address sent twice, a role the caller may not give, the last owner demoted, a plan's total of people reached) changes nothing and names the address it is about. Each result says invited (with invite_link), or the role given, with previous_role when it replaced one, or unchanged when they already held it. Invitations are emailed once every role is given; one that could not be emailed says emailed: false, and its invite_link still works.`,
+  input: grantScope.extend({
+    people: z
+      .array(z.strictObject({ email: z.string().email().max(320), role: z.enum(GRANT_ROLES) }))
+      .min(1)
+      .max(GRANTS_PER_CALL)
+      .describe("Who gets what: each address once, with the role it gets at this scope."),
+  }),
+  rest: { method: "POST", path: "/members/many" },
+  mcp: { tool: "members", action: "grant_many" },
+  async handler(ctx, input) {
+    const target = await resolveGrantTarget(ctx, input);
+    await requireAdminOf(ctx, target, input.people.some((p) => p.role === "owner") ? "owner" : "admin");
+    const allowed = rolesAt(target);
+    const wrong = input.people.find((p) => !allowed.includes(p.role));
+    if (wrong)
+      throw invalid("invalid_role", `Role ${wrong.role} (for ${wrong.email}) doesn’t apply to ${target.scope_type === "tenant" ? "an organization" : `a ${target.scope_type}`}; use ${allowed.join(", ")}. Nothing was changed.`, { email: wrong.email });
+    const seen = new Set<string>();
+    for (const p of input.people) {
+      const key = p.email.toLowerCase();
+      if (seen.has(key)) throw invalid("invalid_input", `${p.email} is sent twice: send each address once, with the role it gets. Nothing was changed.`, { email: p.email });
+      seen.add(key);
     }
-    const existing = await ctx.db.selectFrom("memberships").select(["membership_id", "role"]).where("scope_type", "=", target.scope_type).where("scope_id", "=", target.scope_id).where("account_id", "=", account.account_id).executeTakeFirst();
-    if (existing?.role === "owner" && input.role !== "owner") {
-      // Only an owner changes an owner's role, as only an owner removes one.
-      await requireAdminOf(ctx, target, "owner");
-      const owners = await ctx.db.selectFrom("memberships").select("membership_id").where("scope_type", "=", "tenant").where("scope_id", "=", tid).where("role", "=", "owner").execute();
-      if (owners.length <= 1) throw conflict("last_owner", "An organization keeps at least one owner. Make someone else owner first.");
+    const results: (Awaited<ReturnType<typeof grantOne>>["result"] & { email: string; emailed?: false })[] = [];
+    const sees = seenByCaller(ctx);
+    const mails: Mail[] = [];
+    for (const [i, p] of input.people.entries()) {
+      try {
+        const { mail, result } = await grantOne(ctx, target, p.email, p.role, sees);
+        results.push({ email: p.email, ...result });
+        if (mail) mails.push(mail);
+      } catch (e) {
+        // A refusal is about one address: it says which, and that the others were not given either.
+        if (e instanceof AppError && e.code === "quota_exceeded")
+          throw new AppError(e.status, e.code, `${e.message.replace(/\.?$/, ".")} Of the ${input.people.length} addresses sent, the plan has room for the first ${i}, and ${p.email} is past it. Nothing was changed.`, { ...e.details, email: p.email, room_for: i });
+        if (e instanceof AppError) throw new AppError(e.status, e.code, `${p.email}: ${e.message} Nothing was changed.`, { ...e.details, email: p.email });
+        throw e;
+      }
     }
-    if (existing) await ctx.db.updateTable("memberships").set({ role: input.role }).where("membership_id", "=", existing.membership_id).execute();
-    else
-      await ctx.db
-        .insertInto("memberships")
-        .values({ membership_id: newId(), tenant_id: tid, scope_type: target.scope_type, scope_id: target.scope_id, account_id: account.account_id, role: input.role, created_by: json(ctx.actor) })
-        .execute();
-    await recordActivity(ctx, {
-      action: existing ? "role_changed" : "granted",
-      entity_type: "membership",
-      entity_id: account.account_id,
-      entity_title: account.display_name,
-      summary: `${existing ? "Changed role to" : "Granted"} ${input.role} on ${target.scope_type === "tenant" ? "organization" : target.scope_type} ${target.name}`,
-    });
-    return { invited: false, account_id: account.account_id, display_name: account.display_name, scope_type: target.scope_type, scope: target.name, role: input.role as ProductRole | TenantRole };
+    // The roles are given before any invitation goes out, and an invitation that can't be emailed keeps its link.
+    for (const mail of mails) {
+      const r = results.find((x) => x.invited && x.email === mail.to)!;
+      try {
+        await ctx.ports.mailer?.send(mail);
+      } catch {
+        Object.assign(r, { emailed: false });
+      }
+    }
+    const count = (f: (r: (typeof results)[number]) => boolean) => results.filter(f).length;
+    return {
+      scope_type: target.scope_type,
+      scope: target.name,
+      granted: count((r) => !r.invited && !("unchanged" in r) && !("previous_role" in r)),
+      changed: count((r) => "previous_role" in r),
+      unchanged: count((r) => "unchanged" in r),
+      invited: count((r) => r.invited),
+      results,
+    };
   },
 });
 
@@ -990,5 +1112,5 @@ export const listAccessActivity = defineOperation({
 
 export const productOps = [
   listProducts, createTenant, renameTenant, createTeam, createProduct, getProduct, updateProduct, updateConcept, archiveProduct, restoreProduct,
-  listMembers, grantMember, revokeMember, cancelInvitation, listAccessActivity,
+  listMembers, grantMember, grantMembers, revokeMember, cancelInvitation, listAccessActivity,
 ];

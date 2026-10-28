@@ -126,7 +126,7 @@ time, all at `example.com` or a `.example` domain:
 They are made through the running instance, as its people would make them: each signs in through
 the development sign-in, Riley Chen (the instance's owner) gives the allowances without their
 notices, owners start their organizations, Riley moves each to the plan that holds its people, and
-owners grant roles and invite; their writes meet their plan's limits, whose waits it sits out. So attribution, activity and limits are as in real use.
+owners invite their people, and those with an account accept, as from the email; their writes meet their plan's limits, whose waits it sits out. So attribution, activity and limits are as in real use.
 At the end it prints everyone by what they are. Sign in as any of them with the development
 sign-in's "As the email above".
 
@@ -134,8 +134,8 @@ The instance is invite-only, as a deployment taking sign-ups is: `WHATBUILD_SIGN
 lets in the biggest organization's domain (`@northwind.example`). The development sign-in lets
 anyone in, so to try admission as a stranger would, sign out and ask for a sign-in link instead,
 which is printed in the terminal with every invitation: an address at that domain, an invited
-address or one with an allowance gets one, and any other (someone on the waitlist, say) is refused
-with `invite_only`.
+address or one with an allowance gets one, and any other (someone on the waitlist, say) gets the
+same answer on the page and no link.
 
 `pnpm people [--count <n>] [--url <address>] [--owner <instance owner>]` adds the same people to
 an instance already running: `pnpm dev` (`http://localhost:5273`, the default), the end-to-end

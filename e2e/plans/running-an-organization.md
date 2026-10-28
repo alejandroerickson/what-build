@@ -33,7 +33,10 @@ are people she invites.
    the people Free allows, and the message says what makes room (removing someone or cancelling an
    invitation) or that a larger plan would. Nothing is added.
 5. **Web, as Dana.** Invite Fay as a reader of the product's Story instead. *Expect:* it works:
-   readers of the Story don't count, and the Plan page still says "2 of 2".
+   readers of the Story don't count, and the Plan page still says "2 of 2". Then invite Morgan,
+   who has an account in the synthetic organization, as a reader too. *Expect:* Morgan's address
+   is treated as any other: an invitation waiting under its address, no name, nothing said of an
+   account, and Morgan not among the members.
 6. **Web, as Eli.** Sign in through the invitation, or with Eli's address, which accepts it.
    *Expect:* Eli sees the organization and edits its product: add a source with a short synthetic
    text written into the run's folder. As Fay, the product opens on its Story and nothing else.

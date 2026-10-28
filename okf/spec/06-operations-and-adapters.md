@@ -1,9 +1,9 @@
 ---
 type: Specification
 title: Every capability is one registered operation, reached identically over REST and MCP.
-description: The operation registry, the error model and bounds, the full catalogue of 117 operations with their REST routes and MCP tools, authorization and agent connection levels, upload flows, the guide and the Connect page.
+description: The operation registry, the error model and bounds, the full catalogue of 118 operations with their REST routes and MCP tools, authorization and agent connection levels, upload flows, the guide and the Connect page.
 tags: [spec, operations, rest, mcp, registry, uploads, guide]
-generated: {by: agent:claude, at: 2026-10-26}
+generated: {by: agent:claude, at: 2026-10-27}
 status: stable
 ---
 
@@ -35,7 +35,7 @@ defineOperation({
 });
 ```
 
-`OPERATIONS` in `packages/core/src/index.ts` lists all 117. From that list, and from nothing else,
+`OPERATIONS` in `packages/core/src/index.ts` lists all 118. From that list, and from nothing else,
 the server builds the REST routes, the MCP tools with their `action` enums and JSON Schemas (via
 `z.toJSONSchema`), and the `describe` responses. The web app calls the same REST routes through
 one small hand-written client (`apps/web/src/lib/api.ts`); there is no generated client and no
@@ -108,7 +108,7 @@ tenant.
 |---|---|---|
 | 400 | Malformed upload request (relay only) | `invalid_length`, `empty_body` |
 | 401 | No or invalid identity or grant | `unauthenticated`, `invalid_grant` |
-| 403 | A role too low for the action; an agent connection's level too low for it; feedback turned off for an agent connection; something only a person does in the web app; a call outside a scoped MCP connector; a write by a guest of the example organization; a cross-origin cookie write; sign-up not allowed; deleting an account from a browser that has not signed in recently; something an organization's plan switches off | `forbidden`, `connection_level`, `feedback_off`, `web_only`, `outside_connector_scope`, `example_read_only`, `forbidden_origin`, `invite_only`, `invitation_wrong_address`, `plan_restricted`, `tenant_allowance`, `sign_in_again` |
+| 403 | A role too low for the action; an agent connection's level too low for it; feedback turned off for an agent connection; something only a person does in the web app; a call outside a scoped MCP connector; a write by a guest of the example organization; a cross-origin cookie write; deleting an account from a browser that has not signed in recently; something an organization's plan switches off | `forbidden`, `connection_level`, `feedback_off`, `web_only`, `outside_connector_scope`, `example_read_only`, `forbidden_origin`, `invitation_wrong_address`, `plan_restricted`, `tenant_allowance`, `sign_in_again` |
 | 404 | Absent — including everything the caller has no role on | `not_found` |
 | 409 | Conflict with current state | `stale_etag`, `product_archived`, `record_archived`, `mockup_archived`, `slug_taken`, `frozen`, `too_many_attachments`, `no_text`, `no_file`, `mockup_on_story`, `already_uploaded`, `upload_used`, `example_organization`, `export_in_progress`, `last_owner`, `instance_owner`, `quota_exceeded`, `organization_read_only` |
 | 410 | Deliberately deleted, with a tombstone; an invitation no longer usable | `record_deleted`, `assumption_deleted`, `outcome_deleted`, `story_page_deleted`, `mockup_deleted`, `annotation_deleted`, `invitation_used`, `invitation_expired` |
@@ -242,7 +242,7 @@ it always has.
 
 ### The operation catalogue
 
-All 117 operations, generated from `OPERATIONS`. The MCP tool is the operation name's first half;
+All 118 operations, generated from `OPERATIONS`. The MCP tool is the operation name's first half;
 standalone tools (—) take their fields directly. "Needs" is the minimum role
 ([§3.5](03-accounts-teams-and-identity.md)); `members` write actions check admin at the level
 being changed inside the handler.
@@ -281,6 +281,7 @@ being changed inside the handler.
 | `products` | `exports` | `GET P/exports` | viewer |
 | `members` | `list` | `GET /api/v1/tenants/:tenant/members` | tenant member |
 | `members` | `grant` | `POST /api/v1/tenants/:tenant/members` | admin at the target |
+| `members` | `grant_many` | `POST /api/v1/tenants/:tenant/members/many` | admin at the target |
 | `members` | `revoke` | `POST /api/v1/tenants/:tenant/members/revoke` | admin at the target; tenant admin with `whole_tenant` |
 | `members` | `cancel_invitation` | `POST /api/v1/tenants/:tenant/invitations/cancel` | admin at the target |
 | `members` | `activity` | `GET /api/v1/tenants/:tenant/members/activity` | tenant admin |
@@ -581,6 +582,15 @@ Notes on recent actions:
   `403` where they are its reader.
 - The `members` writes answer a team or product the caller has no role on with the same `404` as
   one that does not exist, before anything else is checked, so they never name it.
+- `members.grant` gives one person a role at one scope, replacing the one they hold there, when the
+  caller already sees them in the organization; anyone else is invited by email, account or not,
+  with the same answer either way ([§3.5](03-accounts-teams-and-identity.md)). The role they already hold there changes
+  nothing and answers `unchanged: true`, with no entry in the access log. `members.grant_many`
+  does the same for up to 100 people at one scope, each with their own role, in one transaction
+  that counts as one write: a refusal of any of them (a role that does not apply there, an
+  address sent twice, the last owner demoted, the plan's total of people reached) changes nothing
+  and names the address in `details.email`. Its invitations are emailed once every role is given;
+  one that could not be emailed answers `emailed: false` and keeps its `invite_link`.
 - `members.revoke` removes the grant at exactly the scope named; with `whole_tenant: true` (and no
   team or product) it removes every grant the person holds in the tenant, which takes them out of
   it. That needs tenant admin, or owner when they are an owner.
@@ -787,7 +797,7 @@ name the server's version and the tools, or the tool's actions, the connection i
 version. A call to a tool name from before the split (`sources`) says which tools its actions are
 in now, and one to `get_skill` that the skill is retired and `guide` replaces it.
 
-**Tools.** Twenty-eight tools over the 100 operations an agent may be offered (all 117 but the 17 a
+**Tools.** Twenty-eight tools over the 101 operations an agent may be offered (all 118 but the 17 a
 person does only in the web app: renaming an organization or a product, deleting an organization
 and its preview, deleting one's own account and its preview, and running the instance, its owners'
 ten actions and removing an account,
@@ -811,7 +821,7 @@ owner's included: running the instance is done in the web app.
 | `products_write` | `create_tenant`, `create_team`, `create`, `update_concept`, `archive`, `restore`, `export` |
 | `products_delete` | `delete` |
 | `members_read` | `list`, `activity` |
-| `members_write` | `grant`, `revoke`, `cancel_invitation` |
+| `members_write` | `grant`, `grant_many`, `revoke`, `cancel_invitation` |
 | `outcomes_read` | `list`, `get`, `delete_impact`, `revisions`, `get_revision`, `card_guidance`, `card_preview` |
 | `outcomes_write` | `create`, `update`, `archive`, `restore`, `restore_revision` |
 | `outcomes_delete` | `delete` |
@@ -878,7 +888,7 @@ Rules:
   scoped endpoint defaults to the endpoint's. Named with `product` instead, it acts on the
   organization, and team, that the product is in, once the product is found visible to the
   caller (`404` otherwise), as `products_read(action="limits", product=…)` does; an action that takes a
-  product of its own in `params` (`members` `list`, `grant` and `revoke`) does not read `product`
+  product of its own in `params` (`members` `list`, `grant`, `grant_many` and `revoke`) does not read `product`
   so. Naming none is `422 invalid_input`, saying `tenant` (or `team`) is missing, where to read it
   (the first parts of a product's path) and, where it applies, that `product` names it too.
 - **Scoped means scoped.** On a scoped endpoint the scope is checked in `execute`, after
@@ -944,7 +954,10 @@ Rules:
   every session by `POST /api/v1/me/sign-out-everywhere { keep_this_session? }`
   ([§3.8](03-accounts-teams-and-identity.md#38-identity-of-the-caller)). The session cookie is `__Host-wb_session` over HTTPS
   and `wb_session` over HTTP ([§3.8](03-accounts-teams-and-identity.md#38-identity-of-the-caller)).
-- **Sign-in endpoints** (`apps/server/src/auth/routes.ts`): `POST /auth/email` sends a link;
+- **Sign-in endpoints** (`apps/server/src/auth/routes.ts`): `POST /auth/email` sends a link to an
+  address that may sign in, and answers every address alike (`{ received: true }`, or `429` past
+  five an hour, counted for any address), sending the mail after the answer
+  ([§3.2](03-accounts-teams-and-identity.md));
   `GET /auth/verify?token=` shows its page and changes nothing, and `POST /auth/verify` (form field
   `token`, same origin only) uses it and signs in; `GET /auth/google`, `/auth/microsoft` and their
   `/callback`s run OpenID Connect; `POST /auth/dev-sign-in`, and `GET /auth/dev-accounts`, which

@@ -213,9 +213,11 @@ describe("deleting your own account", () => {
   });
 
   it("leaves the address free to start again from nothing, once let in", async () => {
-    // While sign-up is limited, nothing lets the address in any more.
+    // While sign-up is limited, nothing lets the address in any more: it is sent no link, though answered as any address is.
+    const mails = h.mailer.sent.length;
     const again = await fetch(`${h.baseUrl}/auth/email`, { method: "POST", headers: { "content-type": "application/json", origin: h.baseUrl }, body: JSON.stringify({ email: "dana@example.com" }) });
-    expect(again.status).toBe(403);
+    expect(again.status).toBe(200);
+    expect(h.mailer.sent.length).toBe(mails);
     expect((await root.api("PUT", "/api/v1/tenant-allowances", { email: "dana@example.com", allowed: 1, notify: false })).status).toBeLessThan(300);
     const back = await h.signIn("dana@example.com");
     const newId = await idOf("dana@example.com");

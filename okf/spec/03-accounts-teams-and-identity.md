@@ -3,7 +3,7 @@ type: Specification
 title: Accounts belong to tenants, tenants hold teams, teams run products, and one role check decides every call.
 description: The account → tenant → team → product hierarchy, sign-in, roles and what they grant, plans and their limits, addressing and isolation, moving sources between products, caller identity, attribution, and the example organization every account reads.
 tags: [spec, accounts, tenancy, roles, identity, oauth, isolation, example, limits]
-generated: {by: agent:claude, at: 2026-10-26}
+generated: {by: agent:claude, at: 2026-10-27}
 status: stable
 ---
 
@@ -94,7 +94,13 @@ different account once used, it answers `410 invitation_used`; expired or cancel
 **Invite-only mode.** `WHATBUILD_SIGNUP_ALLOWLIST` (emails and `@domains`) limits who may create an
 account. Existing accounts, invited addresses, the instance's owners and addresses with an
 allowance above 0 to create organizations ([§3.3](#33-tenants-and-teams)) always may. Staging runs invite-only until public
-sign-up opens ([§10 Phase 6](10-roadmap.md)).
+sign-up opens ([§10 Phase 6](10-roadmap.md)). The sign-in form answers every address alike, "if it
+can sign in here, a link is on its way", at the same speed and under the same hourly limit, and
+sends a link only to an address that may sign in, so it never says whether an address has an
+account, an invitation or an allowance
+([decision](../decisions/a-role-is-given-at-once-only-to-someone-already-seen-in-the-organization.md)).
+A refusal is said only after a sign-in proves the address is the person's (an email link, Google
+or Microsoft): the sign-in page then says the WhatBuild is invite-only.
 
 **Signing up as a guest** (◆ [decision](../decisions/guests-come-into-the-example-organization-while-there-is-room.md)).
 While an instance owner lets guests sign up themselves (the guests' `self_serve`, on `/instance`),
@@ -395,8 +401,13 @@ A product is addressed as `tenant/team/product` (slugs or ids at each level) or 
   and the one needed ("You are a viewer on product Crewboard; outcomes.create needs editor").
 - **Membership administration:** admins grant and revoke where they are admin: product admins on
   their product, team admins on their team, tenant admins on the tenant, and only owners grant
-  owner or change or remove an owner's role. Granting someone without an account creates a 7-day
-  invitation, emailed where mail is configured and always returned to the inviter as a
+  owner or change or remove an owner's role. A role is given at once only to someone the giver
+  already sees in the organization (everyone in it, to its owners and admins; the people on the
+  teams and products they read, to anyone else). Anyone else gets a 7-day invitation, whether or
+  not they have an account, and joins by accepting it, so giving a role never says whether an
+  address has an account, here or elsewhere, or whose it is
+  ([decision](../decisions/a-role-is-given-at-once-only-to-someone-already-seen-in-the-organization.md)).
+  An invitation is emailed where mail is configured and always returned to the inviter as a
   single-use link. The email shows the inviter's display name on one line, without control or
   direction-changing characters, at most 60 characters and in quotation marks, and says it is the
   name they gave WhatBuild. A tenant keeps at least one owner (`409 last_owner`).

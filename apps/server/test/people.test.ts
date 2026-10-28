@@ -75,8 +75,11 @@ describe("pnpm people on an instance", () => {
     expect(await count(sql<{ n: number }>`select count(*) as n from invitations where accepted_at is null`)).toBe(plan.people.filter((p) => p.kind === "invited").length);
     expect(await count(sql<{ n: number }>`select count(*) as n from tenant_allowances`)).toBe(plan.people.filter((p) => p.allowance !== undefined).length);
     expect(await count(sql<{ n: number }>`select count(*) as n from interest`)).toBe(plan.people.filter((p) => p.kind === "waitlist").length);
-    // Invitations are mailed, as they are to anyone; allowances are given without their notice.
-    expect(h.mailer.sent.map((m) => m.to).sort()).toEqual(plan.people.filter((p) => p.kind === "invited").map((p) => p.email).sort());
+    // Everyone an owner brings in is invited by mail, as anyone not yet in an organization is, and
+    // those with an account accept; allowances are given without their notice.
+    const owners = new Map(plan.organizations.map((o) => [o.slug, o.owner]));
+    const invitedOnce = plan.people.flatMap((p) => p.organizations.filter((o) => owners.get(o.slug) !== p.email).map(() => p.email));
+    expect(h.mailer.sent.map((m) => m.to).sort()).toEqual(invitedOnce.sort());
   });
 
   it("adds nothing the second time", async () => {
@@ -84,20 +87,26 @@ describe("pnpm people on an instance", () => {
     const again = await addPeople({ url: h.baseUrl, count: COUNT, owner: OWNER });
     expect(again.added).toEqual({ waitlist: first.added.waitlist, allowances: 0, organizations: 0, grants: 0, invitations: 0 });
     expect(h.mailer.sent.length).toBe(mails);
-    expect(await count(sql<{ n: number }>`select count(*) as n from invitations`)).toBe(first.added.invitations);
+    expect(await count(sql<{ n: number }>`select count(*) as n from invitations`)).toBe(first.added.invitations + first.added.grants);
   });
 
   it("lets in, by a sign-in link, the domain on the allowlist and whoever was invited or given an allowance, and no one else", async () => {
     const plan = first.plan;
-    const link = async (email: string) => (await fetch(`${h.baseUrl}/auth/email`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ email }) })).status;
+    // Every address is answered alike; only one that may sign in is sent a link.
+    const link = async (email: string) => {
+      const before = h.mailer.sent.length;
+      const r = await fetch(`${h.baseUrl}/auth/email`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ email }) });
+      expect(r.status).toBe(200);
+      return h.mailer.sent.length > before;
+    };
     const invited = plan.people.find((p) => p.kind === "invited")!.email;
     const allowed = plan.people.find((p) => p.kind === "allowed")!.email;
     const waitlisted = plan.people.find((p) => p.kind === "waitlist")!.email;
-    expect(await link(`new.colleague${plan.allowlist}`)).toBe(200);
-    expect(await link(invited)).toBe(200);
-    expect(await link(allowed)).toBe(200);
-    expect(await link(waitlisted)).toBe(403);
-    expect(await link("someone@elsewhere.example")).toBe(403);
+    expect(await link(`new.colleague${plan.allowlist}`)).toBe(true);
+    expect(await link(invited)).toBe(true);
+    expect(await link(allowed)).toBe(true);
+    expect(await link(waitlisted)).toBe(false);
+    expect(await link("someone@elsewhere.example")).toBe(false);
   });
 
   it("refuses an address that is not this machine, and a server without development sign-in", async () => {
