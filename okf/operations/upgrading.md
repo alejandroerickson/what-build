@@ -23,7 +23,16 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
 
 ## Unreleased
 
-Nothing yet.
+- **People are added many at a time** (`tools_version` 0.46.0). It asks nothing of a deployment;
+  a connected client sees the new action only in a new session. A product's **Add people** and
+  the organization's **Give access** open one dialog with two lists: people picked from the
+  organization, or read from a pasted list of addresses, move across to the product, team or
+  organization with a role each, beside the people already there, whose roles change and who
+  come off it in the same dialog, saved at once. `members_write` gains `grant_many`
+  (`POST /api/v1/tenants/:tenant/members/many`), which gives up to 100 people roles at one scope,
+  all or nothing, as one write. `members_write(action="grant")` now answers `unchanged: true` for
+  the role someone already holds there and records nothing for it, and `previous_role` when it
+  replaced one. No migration.
 
 ## v0.28.0
 

@@ -9,11 +9,12 @@ import { useMe, useProducts } from "../lib/session.tsx";
 import { ActivityLog, type ActivityItem } from "../shell/ActivityFeed.tsx";
 import { usePageTitle } from "../shell/slots.tsx";
 import {
-  Avatar, Button, ButtonLink, Callout, CopyField, Dialog, EmptyState, ErrorCallout, FormGrid, Glyph, Loading, Menu, MenuGroup, MenuItem, MenuRadio, MenuSeparator,
+  Avatar, Button, ButtonLink, Callout, Dialog, EmptyState, ErrorCallout, FormGrid, Glyph, Loading, Menu, MenuGroup, MenuItem, MenuRadio, MenuSeparator,
   SelectField, Sheet, SheetBody, SheetHeader, StatusBadge, TextArea, TextField, useToast,
 } from "../ui/index.tsx";
 import { EntryPage, NotVisible } from "./auth.tsx";
 import { DeleteDialog, listed } from "./delete-dialog.tsx";
+import { PeopleEditor, type EditorTarget } from "./people-editor.tsx";
 import { PrivacyLink } from "../shell/privacy-link.tsx";
 import "../styles/screens/account.css";
 import "../styles/screens/activity.css";
@@ -506,7 +507,19 @@ export function MembersPage() {
       {t && tenantAdmin ? <OrganizationNameSheet key={t.name_etag} slug={t.slug} name={t.name} etag={t.name_etag} owner={t.your_role === "owner"} readOnly={readOnly} /> : null}
       {t?.your_role === "owner" && !t.example ? <DeleteOrganizationSheet tenant={tenant} orgName={orgName} /> : null}
       {giving ? (
-        <GiveAccessDialog tenant={tenant} orgName={orgName} initialEmail={giving.email} onClose={() => setGiving(null)} canManage={canManage} tenantAdmin={tenantAdmin} ownerHere={t?.your_role === "owner"} />
+        <GiveAccessDialog
+          tenant={tenant}
+          orgName={orgName}
+          initialEmail={giving.email}
+          members={q.data?.members ?? []}
+          partial={Boolean(q.data?.partial)}
+          invitations={q.data?.invitations ?? []}
+          selfId={me.data?.account_id}
+          onClose={() => setGiving(null)}
+          canManage={canManage}
+          tenantAdmin={tenantAdmin}
+          ownerHere={t?.your_role === "owner"}
+        />
       ) : null}
       {removing ? <RemoveMemberDialog tenant={tenant} orgName={orgName} member={removing.m} lastGrant={removing.g} keepAsMember={tenantAdmin && !readOnly} onClose={() => setRemoving(null)} /> : null}
     </>
@@ -820,154 +833,71 @@ function RemoveMemberDialog({ tenant, orgName, member: m, lastGrant, keepAsMembe
   );
 }
 
-const ROLE_MEANING: Record<string, string> = {
-  owner: "Admin of every team and product, and can make other owners.",
-  admin: "Admin of every team and product in the organization.",
-  member: "Can’t open any product until they also have a team or product role.",
-};
 /** The roles on a team or product, highest first, as the role menus offer them. */
 const SCOPE_ROLES = ["admin", "editor", "viewer", "reader"];
-const SCOPE_ROLE_MEANING: Record<string, string> = {
-  viewer: "Reads everything, changes nothing.",
-  reader: "Reads only the Story.",
-  editor: "Reads and writes everything, including the Story.",
-  admin: "Reads and writes, and also manages settings and people.",
-};
 
-function GiveAccessDialog({ tenant, orgName, initialEmail, onClose, canManage, tenantAdmin, ownerHere }: {
+/**
+ * Give people roles on a team, a product or the organization, many at a time, and change the roles
+ * of the people who have one there: the target is chosen first, then the people.
+ */
+function GiveAccessDialog({ tenant, orgName, initialEmail, members, partial, invitations, selfId, onClose, canManage, tenantAdmin, ownerHere }: {
   tenant: string;
   orgName: string;
   initialEmail?: string | undefined;
+  members: Member[];
+  partial: boolean;
+  invitations: MembersResponse["invitations"];
+  selfId: string | undefined;
   onClose: () => void;
   canManage: (g: { scope_type: string; scope_id: string; role: string }) => boolean;
   tenantAdmin: boolean;
   ownerHere: boolean;
 }) {
   const products = useProducts();
-  const qc = useQueryClient();
-  const toast = useToast();
   const t = products.data?.tenants.find((x) => x.slug === tenant);
-  // Teams and products first: they are what lets someone open a product. The organization role comes last.
-  const targets = [
-    ...(t?.teams ?? []).filter((tm) => canManage({ scope_type: "team", scope_id: tm.team_id, role: "editor" })).map((tm) => ({ value: tm.slug, label: `Team: ${tm.name} (every product in it)`, words: scopeWords("team", tm.name), roles: ["reader", "viewer", "editor", "admin"] })),
+  // Teams and products first: they are what lets someone open a product. The organization comes last.
+  const targets: (EditorTarget & { label: string })[] = [
+    ...(t?.teams ?? [])
+      .filter((tm) => canManage({ scope_type: "team", scope_id: tm.team_id, role: "editor" }))
+      .map((tm) => ({ scope_type: "team" as const, scope_id: tm.team_id, team_id: tm.team_id, name: tm.name, body: { team: tm.team_id }, roles: SCOPE_ROLES, defaultRole: "editor", label: `Team: ${tm.name} (every product in it)` })),
     ...(products.data?.items ?? [])
       .filter((p) => p.tenant.slug === tenant && canManage({ scope_type: "product", scope_id: p.product_id, role: "editor" }))
-      .map((p) => ({ value: `${p.team.slug}/${p.path.split("/")[2]}`, label: `Product: ${p.name}`, words: p.name, roles: ["reader", "viewer", "editor", "admin"] })),
-    ...(tenantAdmin ? [{ value: "", label: `Organization: ${orgName}`, words: orgName, roles: ownerHere ? ["member", "admin", "owner"] : ["member", "admin"] }] : []),
+      .map((p) => ({ scope_type: "product" as const, scope_id: p.product_id, team_id: p.team.team_id, team_name: p.team.name, name: p.name, body: { product: p.product_id }, roles: SCOPE_ROLES, defaultRole: "editor", label: `Product: ${p.name}` })),
+    ...(tenantAdmin
+      ? [{ scope_type: "tenant" as const, scope_id: t?.tenant_id ?? "", team_id: null, name: orgName, body: {}, roles: ownerHere ? ["owner", "admin", "member"] : ["admin", "member"], defaultRole: "member", label: `Organization: ${orgName}` }]
+      : []),
   ];
-  const [email, setEmail] = useState(initialEmail ?? "");
-  const [target, setTarget] = useState(targets[0]?.value ?? "");
-  const roles = targets.find((x) => x.value === target)?.roles ?? ["reader", "viewer", "editor", "admin"];
-  const [role, setRole] = useState(target ? "editor" : "member");
-  const [link, setLink] = useState<string | null>(null);
-  const meaning = (target ? SCOPE_ROLE_MEANING : ROLE_MEANING)[role];
-  const grant = useMutation({
-    mutationFn: () => {
-      const [team, product] = target.split("/");
-      return api<{ invited: boolean; invite_link?: string }>("POST", `/api/v1/tenants/${tenant}/members`, { email: email.trim(), role, ...(team ? { team } : {}), ...(product ? { product } : {}) });
-    },
-    onSuccess: (r) => {
-      void qc.invalidateQueries({ queryKey: ["members", tenant] });
-      if (r.invited) {
-        setLink(r.invite_link ?? null);
-        toast(`Invitation created for ${email.trim()}.`);
-      } else {
-        const where = targets.find((x) => x.value === target)?.words ?? orgName;
-        toast(`${email.trim()} is now ${aRole(role)} ${target ? "on" : "of"} ${where}.`);
-        onClose();
-      }
-    },
-  });
-  const valid = /\S+@\S+\.\S+/.test(email.trim());
+  const [chosen, setChosen] = useState(`${targets[0]?.scope_type}:${targets[0]?.scope_id}`);
+  const target = targets.find((x) => `${x.scope_type}:${x.scope_id}` === chosen) ?? targets[0];
+  if (!target)
+    return (
+      <Dialog open onClose={onClose} title="Give people access">
+        {products.isError ? <ErrorCallout inset error={products.error} onRetry={() => products.refetch()} /> : products.isPending ? <Loading lines={2} /> : <p className="muted">There&rsquo;s no team or product here you can give access to.</p>}
+      </Dialog>
+    );
   return (
-    <Dialog
-      open
-      onClose={onClose}
-      dismissable={!grant.isPending}
-      title="Give someone access"
-      description="People already on WhatBuild get the role right away. Anyone else gets an invitation link that works for 7 days."
-      footer={
-        link ? (
-          <Button variant="primary" onClick={onClose}>
-            Done
-          </Button>
-        ) : (
-          <>
-            <Button onClick={onClose} disabled={grant.isPending}>
-              Cancel
-            </Button>
-            <Button variant="primary" busy={grant.isPending} busyLabel="Saving…" disabled={!valid || !targets.length} onClick={() => grant.mutate()}>
-              Give access
-            </Button>
-          </>
-        )
+    <PeopleEditor
+      tenant={tenant}
+      orgName={orgName}
+      title="Give people access"
+      description="People already on WhatBuild get their role right away. Anyone else gets an invitation that works for 7 days."
+      above={
+        <SelectField label="Give access to" value={chosen} onChange={(e) => setChosen(e.target.value)} hint={target.scope_type === "tenant" ? "A member opens only the teams and products they have a role on." : undefined}>
+          {targets.map((x) => (
+            <option key={`${x.scope_type}:${x.scope_id}`} value={`${x.scope_type}:${x.scope_id}`}>
+              {x.label}
+            </option>
+          ))}
+        </SelectField>
       }
-    >
-      {link ? (
-        <div className="stack-sm">
-          <Callout inset tone="positive" title="Invitation created">
-            We email it where email is set up. You can also share the link: it works once, within 7 days, and only for {email.trim()}.
-          </Callout>
-          <CopyField label="Invitation link" value={link} />
-        </div>
-      ) : (
-        <form
-          className="stack"
-          onSubmit={(e) => {
-            e.preventDefault();
-            if (valid) grant.mutate();
-          }}
-        >
-          <TextField
-            label="Email"
-            type="email"
-            required
-            autoComplete="off"
-            value={email}
-            onChange={(e) => {
-              setEmail(e.target.value);
-              grant.reset();
-            }}
-          />
-          <SelectField
-            label="Give access to"
-            value={target}
-            onChange={(e) => {
-              setTarget(e.target.value);
-              setRole(e.target.value ? "editor" : "member");
-              grant.reset();
-            }}
-          >
-            {targets.map((x) => (
-              <option key={x.value} value={x.value}>
-                {x.label}
-              </option>
-            ))}
-          </SelectField>
-          <SelectField
-            label="Role"
-            value={role}
-            onChange={(e) => {
-              setRole(e.target.value);
-              // A refusal was for the choice before: a new one may well succeed.
-              grant.reset();
-            }}
-            hint={target || role !== "member" ? meaning : undefined}
-          >
-            {roles.map((r) => (
-              <option key={r} value={r}>
-                {ROLE_WORD[r]}
-              </option>
-            ))}
-          </SelectField>
-          {!target && role === "member" ? (
-            <Callout inset tone="attention" title="A member can’t open any product yet">
-              To let them read or write, choose a team or product under Give access to.
-            </Callout>
-          ) : null}
-          {grant.isError ? <ErrorCallout inset error={grant.error} /> : null}
-        </form>
-      )}
-    </Dialog>
+      target={target}
+      members={members}
+      partial={partial}
+      invitations={invitations}
+      // Your own organization role is changed by another owner or admin, as on the Members page.
+      canEdit={(p, own) => (target.scope_type === "tenant" && p.account_id === selfId ? false : canManage(own ?? { scope_type: target.scope_type, scope_id: target.scope_id, role: "editor" }))}
+      initialAdd={initialEmail ? [initialEmail] : undefined}
+      onClose={onClose}
+    />
   );
 }

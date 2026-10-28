@@ -179,7 +179,7 @@ describe("a connector scoped to an organization", () => {
     const actions = await offeredAt(eddie, `/mcp/t/${org}`);
     expect(actions).toEqual(expect.arrayContaining(["sources.create", "members.list"]));
     // An editor deletes nothing, manages nobody, and the organization's own administration is its admins'.
-    for (const a of ["sources.delete", "members.grant", "members.revoke", "members.cancel_invitation", "members.activity", "products.create", "products.create_team"]) expect(actions, a).not.toContain(a);
+    for (const a of ["sources.delete", "members.grant", "members.grant_many", "members.revoke", "members.cancel_invitation", "members.activity", "products.create", "products.create_team"]) expect(actions, a).not.toContain(a);
     const owner = await offeredAt(olive, `/mcp/t/${org}`);
     expect(owner).toEqual(expect.arrayContaining(["sources.delete", "members.activity", "members.grant", "products.create", "products.create_team"]));
     // Renaming the organization is its owners', in the web app.
@@ -188,7 +188,7 @@ describe("a connector scoped to an organization", () => {
 
   it("lists a product's admin its people to manage, but no product of their own to make", async () => {
     const actions = await offeredAt(paula, `/mcp/t/${org}`);
-    expect(actions).toEqual(expect.arrayContaining(["sources.delete", "members.list", "members.grant", "members.revoke"]));
+    expect(actions).toEqual(expect.arrayContaining(["sources.delete", "members.list", "members.grant", "members.grant_many", "members.revoke"]));
     // A team's admin creates its products; a product's grant reaches no team.
     for (const a of ["products.create", "products.create_team", "members.activity"]) expect(actions, a).not.toContain(a);
   });

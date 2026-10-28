@@ -83,11 +83,6 @@
   line-height: var(--lh-body);
   max-width: calc(var(--measure) + 2 * var(--sheet-px));
 }
-.people-add {
-  display: grid;
-  gap: var(--s-3h);
-}
-
 /* Export */
 .export-list {
   margin: 0;

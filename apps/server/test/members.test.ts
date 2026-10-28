@@ -177,3 +177,99 @@ describe("the organization's access log", () => {
     expect(product.body.items.some((i: { entity_type: string }) => i.entity_type === "membership")).toBe(false);
   });
 });
+
+describe("giving many people roles at once", () => {
+  const many = (who: Browser, body: Record<string, unknown>) => who.api("POST", `/api/v1/tenants/${T}/members/many`, body);
+  const onPlanner = { team: planning, product: "planner" };
+
+  it("gives people with an account their roles and invites the rest, in one call that sends each invitation", async () => {
+    await h.signIn("bea@example.com", "Bea Batch");
+    await h.signIn("cy@example.com", "Cy Batch");
+    const before = h.mailer.sent.length;
+    const r = await many(alice, {
+      ...onPlanner,
+      people: [
+        { email: "bea@example.com", role: "editor" },
+        { email: "CY@example.com", role: "reader" },
+        { email: "pat@example.com", role: "viewer" },
+        { email: "dee-invitee@example.com", role: "viewer" },
+        { email: "eli-invitee@example.com", role: "reader" },
+      ],
+    });
+    expect(r.status, JSON.stringify(r.body)).toBe(201);
+    expect(r.body).toMatchObject({ scope_type: "product", scope: "Planner", granted: 2, invited: 2 });
+    expect(r.body.changed + r.body.unchanged).toBe(1);
+    const byEmail = Object.fromEntries(r.body.results.map((x: { email: string }) => [x.email, x]));
+    expect(byEmail["bea@example.com"]).toMatchObject({ invited: false, display_name: "Bea Batch", role: "editor" });
+    expect(byEmail["CY@example.com"]).toMatchObject({ invited: false, display_name: "Cy Batch", role: "reader" });
+    expect(byEmail["dee-invitee@example.com"]).toMatchObject({ invited: true, role: "viewer" });
+    expect(byEmail["dee-invitee@example.com"].invite_link).toContain("/invite/");
+    expect(h.mailer.sent.slice(before).map((m) => m.to).sort()).toEqual(["dee-invitee@example.com", "eli-invitee@example.com"]);
+    const people = await list(alice, `?team=${planning}&product=planner`);
+    const role = (email: string) => people.body.members.find((m: { email: string }) => m.email === email)?.product_access.role;
+    expect([role("bea@example.com"), role("cy@example.com")]).toEqual(["editor", "reader"]);
+    expect(people.body.invitations.map((i: { email: string }) => i.email)).toEqual(expect.arrayContaining(["dee-invitee@example.com", "eli-invitee@example.com"]));
+  });
+
+  it("says unchanged for a role someone already holds there, and records nothing for it", async () => {
+    const log = async () => (await alice.api("GET", `/api/v1/tenants/${T}/members/activity?limit=200`)).body.items.length;
+    const was = await log();
+    const r = await many(alice, { ...onPlanner, people: [{ email: "bea@example.com", role: "editor" }] });
+    expect(r.status).toBe(201);
+    expect(r.body).toMatchObject({ granted: 0, changed: 0, unchanged: 1, invited: 0 });
+    expect(r.body.results[0].unchanged).toBe(true);
+    expect(await log()).toBe(was);
+    const changed = await many(alice, { ...onPlanner, people: [{ email: "bea@example.com", role: "viewer" }] });
+    expect(changed.body).toMatchObject({ changed: 1 });
+    expect(changed.body.results[0]).toMatchObject({ role: "viewer", previous_role: "editor" });
+  });
+
+  it("changes nothing when any one of them is refused, and names that address", async () => {
+    const mails = h.mailer.sent.length;
+    const cases: [Record<string, unknown>, string][] = [
+      // A role that doesn't apply where they land: owner on a product, editor of the organization.
+      [{ ...onPlanner, people: [{ email: "fay-invitee@example.com", role: "viewer" }, { email: "gus-invitee@example.com", role: "owner" }] }, "gus-invitee@example.com"],
+      [{ people: [{ email: "fay-invitee@example.com", role: "member" }, { email: "gus-invitee@example.com", role: "editor" }] }, "gus-invitee@example.com"],
+      // The same address twice, whatever its case.
+      [{ ...onPlanner, people: [{ email: "fay-invitee@example.com", role: "viewer" }, { email: "Fay-Invitee@example.com", role: "editor" }] }, "Fay-Invitee@example.com"],
+    ];
+    for (const [body, named] of cases) {
+      const r = await many(alice, body);
+      expect(r.status, JSON.stringify(r.body)).toBe(422);
+      expect(r.body.error.message).toContain(named);
+      expect(r.body.error.message).toContain("Nothing was changed");
+    }
+    expect(h.mailer.sent.length).toBe(mails);
+    const invited = (await list(alice)).body.invitations.map((i: { email: string }) => i.email.toLowerCase());
+    for (const e of ["fay-invitee@example.com", "gus-invitee@example.com"]) expect(invited).not.toContain(e);
+  });
+
+  it("is refused to someone who doesn't administer the scope, and answers a product they can't see as missing", async () => {
+    const own = await many(pat, { ...onPlanner, people: [{ email: "hank-invitee@example.com", role: "viewer" }] });
+    expect(own.status).toBe(403);
+    const hidden = await many(pam, { team: "research", product: "secret-bets", people: [{ email: "pat@example.com", role: "viewer" }] });
+    expect(hidden.status).toBe(404);
+    expect(JSON.stringify(hidden.body)).not.toContain("Secret Bets");
+    const owners = await many(adam, { people: [{ email: "pat@example.com", role: "owner" }] });
+    expect(owners.status).toBe(403);
+    expect(owners.body.error.details).toMatchObject({ needed: "owner" });
+  });
+
+  it("keeps the last owner, undoing the roles given before it in the same call", async () => {
+    const solo = await h.signIn("solo@example.com", "Solo Owner");
+    const t = (await solo.api("POST", "/api/v1/tenants", { name: "Solo Works" })).body.tenant.slug;
+    await h.signIn("ivy@example.com", "Ivy Batch");
+    const r = await solo.api("POST", `/api/v1/tenants/${t}/members/many`, { people: [{ email: "ivy@example.com", role: "admin" }, { email: "solo@example.com", role: "admin" }] });
+    expect(r.status).toBe(409);
+    expect(r.body.error.code).toBe("last_owner");
+    expect(r.body.error.details).toMatchObject({ email: "solo@example.com" });
+    const people = (await solo.api("GET", `/api/v1/tenants/${t}/members`)).body.members.map((m: { email: string }) => m.email);
+    expect(people).toEqual(["solo@example.com"]);
+  });
+
+  it("takes at most 100 people a call", async () => {
+    const people = Array.from({ length: 101 }, (_, i) => ({ email: `many-${i}@example.com`, role: "reader" }));
+    expect((await many(alice, { ...onPlanner, people })).status).toBe(422);
+    expect((await many(alice, { ...onPlanner, people: [] })).status).toBe(422);
+  });
+});

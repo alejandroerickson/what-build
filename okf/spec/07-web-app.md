@@ -3,7 +3,7 @@ type: Specification
 title: The web app is a person's way to run the same operations an agent runs, one screen at a time.
 description: Principles, the shell and product switching, the overview, routes, first run, and the behavior of every screen (Idea, Evidence, Exploration, Story, Activity, archive and delete, organization and account screens).
 tags: [spec, web, ui, routes, shell]
-generated: {by: agent:claude, at: 2026-10-26}
+generated: {by: agent:claude, at: 2026-10-27}
 status: stable
 ---
 
@@ -919,10 +919,10 @@ never described as deleting. A list row showing an archived object says *Archive
   offers both. Tenant admins get a menu per person: give access,
   change the organization role, and **Remove from the organization**, which asks first and lists
   every role they lose (`members.revoke` with `whole_tenant`). Outstanding invitations ("Waiting
-  to join") show their expiry and a cancel control. **Give access** takes an email, a team,
-  product or the organization itself (teams first; the organization's member role warns that it
-  opens no product), and a role described in words; someone without an account gets a
-  single-use link. The person's writes and their attribution stay after any removal.
+  to join") show their expiry and a cancel control. **Give access** opens the people editor
+  (below) for a team, a product or the organization itself, chosen first (teams first; the
+  organization's member role says that it opens no product); from a person's own Give access,
+  that person is already chosen. Your own organization role is not changed there. The person's writes and their attribution stay after any removal.
   Someone who is not an owner or admin of the organization sees only the people on the teams and
   products they can open, and the owners and admins, as the page says; since they may not see
   every role a person holds, removing one never asks as if it were the last
@@ -970,10 +970,32 @@ never described as deleting. A list row showing an archived object says *Archive
   Archive instead while the product is live (§7.10). **People** lists everyone who can reach this
   product and how, in words: a product role, or a role inherited from the team or the
   organization (`members.list` with `product`). Product admins get a role picker (admin, editor,
-  viewer, reader) for product roles, **Add people** (pick someone already in the organization whom
-  they can see, or invite by email; `members.grant` with the product scope), Remove (revokes the product role only), and
+  viewer, reader) for product roles, **Add people** (the people editor, below, for the product),
+  Remove (revokes the product role only), and
   outstanding invitations with a cancel control. An inherited role links to the organization's
   Members, where it is changed. Access is per product; nothing is granted per page or per source.
+- **The people editor** (`apps/web/src/routes/people-editor.tsx`), a wide dialog that changes who
+  has a role on one product, team or the organization, many people at a time. On the left, **Who
+  to add**: everyone in the organization the person can see who has no role there, each with a
+  checkbox (a find field above more than six, and one box for all), or **Paste addresses**, a field
+  that reads any list of addresses as it is pasted (separated by commas, semicolons, new lines or
+  tabs; `Name <address>`; Outlook's `"Last, First" <address>`; a spreadsheet's name and address
+  columns; `mailto:`), listing each address once with its name and what happens to it (in the
+  organization, gets an invitation, invited already, already there), and naming in a callout what
+  isn't an address; under either, **Join as**, the role they arrive with, described in words. Two
+  arrow buttons between the lists move the people chosen across, and back. On the right, everyone
+  there now: those added first, marked by a hairline at their edge, each with a role picker; then
+  the people already there, each with their role (a picker where the person may change it), or
+  the broader role they have through their team or the organization, with a picker that gives
+  them one of their own here when it can outrank it. Choosing people on the right offers **Set
+  role…** for all of them at once, and the left arrow takes them off (struck through, with
+  **Keep**; at a team or product only, saying when it is their only role and so takes them out of
+  the organization). Nothing changes until **Add N people** or **Save changes**, which the foot
+  summarizes beside it: one `members.grant_many` for every role given or changed (100 a call),
+  then `members.revoke` for each person taken off. A refusal changes nothing and names the
+  address; it is forgotten once the choice changes. Invitations made are then listed, each with
+  **Copy link**, and **Copy every link**; one that could not be emailed says so. At phone width
+  the lists stack and the arrows point down and up.
 - **Settings** (`/settings`, from the account menu). Display name, and the email the person signs
   in with (read-only); Sign out everywhere; **Delete account**; below them, quiet links to Cookies
   and Privacy.

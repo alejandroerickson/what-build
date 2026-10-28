@@ -1,0 +1,264 @@
+/* Who has a role on a product, a team or the organization, changed many at a time (people-editor.tsx). */
+
+.dialog.pe-dialog {
+  width: min(960px, calc(100vw - 32px));
+}
+
+.pe {
+  display: grid;
+  gap: var(--s-3h);
+}
+.pe-columns {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  gap: var(--s-2h);
+  align-items: stretch;
+}
+.pe-col {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  overflow: hidden;
+}
+.pe-col-title {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-1h);
+  margin: 0;
+  padding: var(--s-2h) var(--s-3);
+  border-bottom: 1px solid var(--line);
+  font-size: var(--fs-md);
+  font-weight: var(--fw-semibold);
+}
+.pe-count {
+  color: var(--faint);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-regular);
+}
+.pe-col-tools {
+  padding: var(--s-2h) var(--s-3) 0;
+}
+.pe-col-tools .input,
+.pe-col-tools .select-wrap {
+  max-width: none;
+}
+/* Each list scrolls on its own, at least this tall, and the shorter column's grows to meet the other's foot. */
+.pe-list {
+  flex: 1 1 288px;
+  min-height: 0;
+  margin: var(--s-2) 0 0;
+  padding: 0 0 var(--s-1);
+  overflow: auto;
+  list-style: none;
+  border-top: 1px solid var(--line);
+}
+.pe-col-title + .pe-list {
+  margin-top: 0;
+  border-top: 0;
+}
+.pe-row {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  min-height: 40px;
+  padding: var(--s-1) var(--s-3);
+}
+label.pe-row {
+  cursor: pointer;
+}
+label.pe-row:hover {
+  background: var(--hover);
+}
+.pe-row:has(input:focus-visible) {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+.pe-row input[type="checkbox"]:focus-visible {
+  outline: none;
+}
+.pe-all {
+  margin-top: var(--s-1h);
+  min-height: var(--h-md);
+}
+.pe-all + .pe-list {
+  margin-top: 0;
+}
+.pe-who {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+}
+.pe-name {
+  font-weight: var(--fw-medium);
+  overflow-wrap: anywhere;
+}
+.pe-sub {
+  color: var(--faint);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-ui);
+  overflow-wrap: anywhere;
+}
+/* A change not yet saved: someone added, or a role changed. */
+.pe-state {
+  white-space: nowrap;
+}
+.pe-row-new {
+  box-shadow: inset 2px 0 0 var(--line-strong);
+}
+.pe-row-gone .pe-name {
+  color: var(--faint);
+  text-decoration: line-through;
+}
+label.pe-row-off {
+  cursor: default;
+}
+label.pe-row-off:hover {
+  background: transparent;
+}
+.pe-row-off .pe-name {
+  color: var(--muted);
+}
+.pe-check-none {
+  flex: none;
+  width: 13px;
+}
+.pe-face-empty {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: var(--avatar);
+  height: var(--avatar);
+  border: 1px dashed var(--line-strong);
+  border-radius: 50%;
+  color: var(--faint);
+}
+.pe-role {
+  flex: none;
+  width: 104px;
+}
+.pe-role .select {
+  min-height: var(--h-sm);
+  height: var(--h-sm);
+}
+.pe-role-text {
+  flex: none;
+  color: var(--muted);
+}
+.pe-move {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: var(--s-2);
+}
+.pe-move-btn {
+  border: 1px solid var(--line-2);
+  background: var(--panel);
+  color: var(--text);
+}
+.pe-move-btn:hover:not(:disabled) {
+  background: var(--hover);
+}
+.pe-move-btn:disabled {
+  color: var(--faint);
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+.pe-join {
+  margin-top: auto;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-1h) var(--s-2);
+  padding: var(--s-2) var(--s-3);
+  border-top: 1px solid var(--line);
+}
+.pe-join-label {
+  color: var(--muted);
+  font-weight: var(--fw-medium);
+}
+.pe-join .select-wrap {
+  width: 116px;
+}
+.pe-join-hint {
+  color: var(--faint);
+  font-size: var(--fs-sm);
+}
+.pe-bulk {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+}
+.pe-bulk-count {
+  flex: 1;
+  color: var(--muted);
+}
+.pe-bulk .select-wrap {
+  width: 116px;
+}
+.pe-empty,
+.pe-note {
+  margin: 0;
+  padding: var(--s-3);
+  color: var(--faint);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-body);
+}
+.pe-empty {
+  flex: 1;
+}
+.pe-note {
+  padding-top: var(--s-2);
+  border-top: 1px solid var(--line);
+}
+.pe-unreadable {
+  font-family: var(--mono);
+  font-size: var(--fs-xs);
+  overflow-wrap: anywhere;
+}
+.pe-summary {
+  margin-right: auto;
+  align-self: center;
+  color: var(--muted);
+}
+.pe-links {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  max-height: 320px;
+  overflow: auto;
+  list-style: none;
+  border-top: 1px solid var(--line);
+}
+.pe-link-row {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  min-height: 36px;
+  border-bottom: 1px solid var(--line);
+}
+.pe-link-row .pe-name {
+  flex: 1;
+  min-width: 0;
+}
+.pe-target {
+  display: grid;
+  gap: var(--s-1h);
+}
+
+@media (max-width: 760px) {
+  .pe-columns {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .pe-move {
+    flex-direction: row;
+  }
+  .pe-move-btn .glyph {
+    transform: rotate(90deg);
+  }
+  .pe-list {
+    flex-basis: auto;
+    max-height: 240px;
+  }
+}
