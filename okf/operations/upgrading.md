@@ -23,6 +23,10 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
 
 ## Unreleased
 
+Nothing yet.
+
+## v0.28.0
+
 - **People are added many at a time** (`tools_version` 0.46.0). It asks nothing of a deployment;
   a connected client sees the new action only in a new session. A product's **Add people** and
   the organization's **Give access** open one dialog with two lists: people picked from the
@@ -48,9 +52,6 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
   mails a link only to one that may sign in. The page says a link is on its way if the address can
   sign in here. A sign-in link the mail server fails to send is logged (`sign_in_link_not_sent`)
   instead of answering `500`.
-
-## v0.28.0
-
 - **The privacy page moves to the public site.** It concerns every deployment. The notice is now a
   page of the public site, at `/privacy` on the site's domain, or at `/site/privacy/` on the app's
   origin for a deployment without a site. The app has no privacy screen and nothing at `/privacy`
