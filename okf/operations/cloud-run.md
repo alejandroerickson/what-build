@@ -3,7 +3,7 @@ type: System Concept
 title: WhatBuild runs as one stateless Cloud Run service with Postgres and a Cloud Storage bucket.
 description: What a deployment on Cloud Run is made of, how deploy/cloud-run/setup.sh creates it, sign-in, deploying and restore points before migrating, its alerts and traces, cost, names, and useful commands; backups and the dev deployment have guides of their own.
 tags: [operations, deployment, cloud-run, gcp]
-generated: {by: agent:claude, at: 2026-10-26}
+generated: {by: agent:claude, at: 2026-10-28}
 status: stable
 ---
 
@@ -331,6 +331,18 @@ tells them apart by Host. Put them in front of the service one of three ways:
   Browser Integrity Check for `/mcp`, `/oauth`, `/.well-known` and `/api` with a configuration
   rule; and turn off Email Address Obfuscation and Rocket Loader, which rewrite HTML. A request
   that sends nothing for 100 seconds is cut off; no WhatBuild operation runs that long.
+
+  **Down for maintenance.** To take the deployment down on purpose (its database is out of reach,
+  or a repair needs nobody writing), deploy the Worker as usual with one more setting,
+  `--var MAINTENANCE:<day>`, such as `2027-01-15`, the day it is expected back. Every address on
+  both domains then answers `503` at the edge with `Retry-After` until that day, and nothing
+  reaches the service: a browser gets the site's page saying WhatBuild is down for maintenance
+  and back by that day, and the API, MCP, OAuth and `/.well-known` get the API's error shape with
+  the code `maintenance`, so an agent says why it cannot connect. Any value that is not a day
+  shows the page without one. The page is the site's own build, so it needs no service and no
+  database. Deploy again without `MAINTENANCE` to come back. It closes nothing at the service
+  itself: close that too (`allUsers` off its invoker role, as the [kill switch](#a-hard-limit-on-the-bill)
+  does) when its `run.app` address must not answer either.
 
 - **Cloud Run domain mappings** (free), only in the regions that support them (`us-central1`,
   `us-east1`, `us-east4`, `us-west1`, `europe-west1`, `europe-west4`, `europe-north1`,

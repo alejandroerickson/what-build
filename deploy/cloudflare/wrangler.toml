@@ -13,6 +13,9 @@
 # who runs the deployment and who else handles its data, which the privacy page says, come from the
 # service (GET /api/v1/plans), kept in Cloudflare's cache for an hour.
 #
+# Add --var MAINTENANCE:2027-01-15 to take both domains down for maintenance until that day: every
+# address answers 503 here, and nothing reaches the service. Deploy again without it to come back.
+#
 # The edge key, the service's WHATBUILD_EDGE_KEY, is a secret: put it once, and deploys keep it.
 #
 #   gcloud secrets versions access latest --secret whatbuild-edge-key --project <project> \

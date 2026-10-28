@@ -3,7 +3,7 @@ type: Specification
 title: WhatBuild is one TypeScript application image over Postgres and an object store, and the same code runs on a laptop with only Node.
 description: The requirements behind the stack, the stack itself, the deployment shape, ports and adapters, the operation protocol, the local development contract, cross-cutting rules, and the repository layout.
 tags: [spec, architecture, stack, development, deployment]
-generated: {by: agent:claude, at: 2026-10-27}
+generated: {by: agent:claude, at: 2026-10-28}
 status: stable
 ---
 
@@ -116,7 +116,8 @@ before the service moves to it, Cloud Storage for blobs, Secret Manager for secr
   on a schedule. A plan's limits are counted in Postgres (`limit_counters`), so every
   instance counts against the same totals ([§9.7](09-data-lifecycle.md)).
 - **The public site rides along.** Behind Cloudflare the Worker serves its pages (the front page,
-  the plans and the privacy page) from the edge and passes on only its form. Otherwise, with
+  the plans and the privacy page) from the edge and passes on only its form; with `MAINTENANCE`
+  set it answers every address on both domains with the site's page down for maintenance. Otherwise, with
   `WHATBUILD_SITE_URL` set (for example `https://what-build.com`), requests whose Host is that site
   get its pages and its interest form; `www.` redirects to it and every other path redirects to the
   app at `WHATBUILD_PUBLIC_URL`. On the app's origin the pages are under `/site/`; the app links

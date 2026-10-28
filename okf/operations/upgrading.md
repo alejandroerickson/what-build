@@ -3,7 +3,7 @@ type: Process
 title: What a deployment must do when it takes a release
 description: The changes a release asks of the people who run a deployment (settings, app registrations, behaviour they will notice), kept per release, with the unreleased ones on top until the next release carries them into its notes.
 tags: [operations, releases, upgrading, self-hosting, configuration]
-generated: {by: agent:claude, at: 2026-10-27}
+generated: {by: agent:claude, at: 2026-10-28}
 status: stable
 ---
 
@@ -23,7 +23,12 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
 
 ## Unreleased
 
-Nothing yet.
+- **Behind Cloudflare, the Worker can take a deployment down for maintenance.** It asks nothing of
+  a deployment. Deployed with one more setting, `--var MAINTENANCE:<day>`, the Worker answers every
+  address on both domains `503` with a page saying WhatBuild is down for maintenance and back by
+  that day, and the API, MCP and OAuth with the error code `maintenance`, without reaching the
+  service; deployed again without it, everything is as before
+  ([Cloud Run](cloud-run.md), "Down for maintenance").
 
 ## v0.28.0
 
