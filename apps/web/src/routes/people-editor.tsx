@@ -74,7 +74,7 @@ interface Holder {
   /** Their role at exactly this scope, if they hold one. */
   own: string | null;
   /** Access from a broader grant that outranks any role of their own here: their team's, or the organization's. */
-  through: { role: string; from: string } | null;
+  through: { role: string; kind: "tenant" | "team"; words: string; keeps: string } | null;
   /** Whether the caller may change their role here (give one, when they have none of their own). */
   editable: boolean;
   /** Their one role in the organization, so taking it takes them out of it. */
@@ -98,8 +98,9 @@ function holdersOf(people: OrgPerson[], target: EditorTarget, canEdit: (p: OrgPe
     if (target.scope_type !== "tenant") {
       const org = p.grants.find((g) => g.scope_type === "tenant" && (g.role === "owner" || g.role === "admin"));
       const team = target.scope_type === "product" ? p.grants.find((g) => g.scope_type === "team" && g.scope_id === target.team_id) : undefined;
-      if (org) through = { role: "admin", from: `organization ${org.role}` };
-      else if (team) through = { role: team.role, from: `the ${target.team_name ?? team.scope.name} team's ${team.role}`.replace(/ team team/, " team") };
+      const teamWords = scopeWords("team", target.team_name ?? team?.scope.name ?? "");
+      if (org) through = { role: "admin", kind: "tenant", words: `Organization ${org.role}`, keeps: `stays admin as an organization ${org.role}` };
+      else if (team) through = { role: team.role, kind: "team", words: `${ROLE_WORD[team.role]} on ${teamWords}`, keeps: `stays ${team.role} on ${teamWords}` };
       // A broader role that doesn't outrank theirs here changes nothing.
       if (through && own && RANK[own.role]! >= RANK[through.role]!) through = null;
     }
@@ -216,7 +217,7 @@ export function PeopleEditor({ tenant, orgName, target, title, description, abov
       setPasted("");
       setSkipped(new Set());
     }
-    setSaid(`${people(chosen.length)} added to ${where} as ${ROLE_WORD[joinAs]?.toLowerCase()}. Save to give them the role.`);
+    setSaid(`Moved ${people(chosen.length)} across as ${ROLE_WORD[joinAs]?.toLowerCase()}. Nothing changes until you save.`);
   };
 
   const removable = target.scope_type !== "tenant";
@@ -227,7 +228,7 @@ export function PeopleEditor({ tenant, orgName, target, title, description, abov
     setAdded((a) => a.filter((x) => !pickedRight.has(`new:${x.key}`)));
     setRemoved((r) => new Set([...r, ...off.map((h) => h.account_id)]));
     setPickedRight(new Set());
-    setSaid([back.length ? `${people(back.length)} taken back` : "", off.length ? `${people(off.length)} to come off ${where}` : ""].filter(Boolean).join(", ") + ".");
+    setSaid([back.length ? `Moved ${people(back.length)} back` : "", off.length ? `${people(off.length)} taken off ${where} when you save` : ""].filter(Boolean).join(". ") + ".");
   };
 
   const pickable = (h: Holder) => h.editable && !removed.has(h.account_id);
@@ -247,12 +248,11 @@ export function PeopleEditor({ tenant, orgName, target, title, description, abov
   const takenOff = holders.filter((h) => removed.has(h.account_id));
   const grants = [...added.map((a) => ({ email: a.email, role: a.role })), ...changed.map((h) => ({ email: h.email, role: roleOf[h.account_id]! }))];
   const pending = grants.length + takenOff.length;
-  const words = (verbs: [string, string, string]) =>
-    [
-      added.length ? `${people(added.length)} ${verbs[0]}` : "",
-      changed.length ? `${plural(changed.length, "role")} ${verbs[1]}` : "",
-      takenOff.length ? `${takenOff.length} ${verbs[2]}` : "",
-    ].filter(Boolean);
+  const summary = [
+    added.length ? `${people(added.length)} to add` : "",
+    changed.length ? `${plural(changed.length, "role")} to change` : "",
+    takenOff.length ? `${people(takenOff.length)} to take off` : "",
+  ].filter(Boolean);
 
   // What would be saved: a refusal is about these changes, and is forgotten once they change.
   const changes = JSON.stringify([grants, takenOff.map((h) => h.account_id)]);
@@ -278,15 +278,20 @@ export function PeopleEditor({ tenant, orgName, target, title, description, abov
     },
     onSuccess: ({ invited, failed }) => {
       void qc.invalidateQueries({ queryKey: ["members", tenant] });
-      const done = words(["added", "changed", "taken off"]);
-      if (failed.length) toast(`Couldn’t take ${failed.join(", ")} off ${where}. The rest is saved.`, { tone: "negative" });
-      else toast(`${where.replace(/^./, (c) => c.toUpperCase())}: ${done.join(", ")}.`);
+      if (failed.length) toast(`Couldn’t take ${failed.join(", ")} off ${where}. Everything else is saved.`, { tone: "negative" });
+      else toast(added.length && !changed.length && !takenOff.length ? `Added ${people(added.length)} to ${where}.` : `Saved the changes to ${where}.`);
       if (invited.length) setMade(invited);
       else onClose();
     },
   });
 
   const count = holders.length - takenOff.length + added.length;
+  const own = holders.filter((h) => !h.through);
+  const via = holders.filter((h) => h.through);
+  const viaKinds = new Set(via.map((h) => h.through!.kind));
+  const teamWords = scopeWords("team", target.team_name ?? "");
+  const labelled = [added.length, own.length, via.length].filter(Boolean).length > 1;
+  const viaLabel = viaKinds.size === 2 ? `Through ${teamWords} or ${orgName}` : viaKinds.has("team") ? `Through ${teamWords}` : `Through ${orgName}`;
 
   if (made)
     return (
@@ -294,6 +299,49 @@ export function PeopleEditor({ tenant, orgName, target, title, description, abov
         <InvitationsMade made={made} />
       </Dialog>
     );
+
+  const holderRow = (h: Holder) => {
+    const off = removed.has(h.account_id);
+    const role = roleOf[h.account_id] ?? h.own ?? "";
+    const was = h.own && role !== h.own ? h.own : null;
+    return (
+      <li key={h.account_id} className={`pe-row${off ? " pe-row-gone" : ""}`}>
+        {pickable(h) ? (
+          <input type="checkbox" aria-label={`Choose ${h.name}`} checked={pickedRight.has(h.account_id)} onChange={(e) => setPickedRight(toggle(pickedRight, h.account_id, e.target.checked))} />
+        ) : (
+          <span className="pe-check-none" aria-hidden="true" />
+        )}
+        <Avatar name={h.name} />
+        <span className="pe-who">
+          <span className="pe-name">{h.name}</span>
+          <span className="pe-sub">
+            {off
+              ? `Taken off when you save${h.through ? `; ${h.through.keeps}` : h.only ? `, and out of ${orgName}: it’s their only role there` : ""}`
+              : h.through
+                ? `${h.through.words}${h.own ? `, which outranks ${h.own} here` : ""}`
+                : was
+                  ? `${h.email} · was ${was}`
+                  : h.email}
+          </span>
+        </span>
+        {off ? (
+          <Button size="sm" variant="quiet" onClick={() => setRemoved((r) => toggle(r, h.account_id, false))}>
+            Keep
+          </Button>
+        ) : h.editable ? (
+          <RoleSelect
+            label={`Role for ${h.name}`}
+            roles={h.own && !target.roles.includes(h.own) ? [h.own, ...target.roles] : target.roles}
+            none={h.own ? undefined : `${ROLE_WORD[h.through!.role]} (team)`}
+            value={role}
+            onChange={(r) => setRoleOf((x) => ({ ...x, [h.account_id]: r }))}
+          />
+        ) : (
+          <span className="pe-role-text">{ROLE_WORD[h.through?.role ?? h.own!]}</span>
+        )}
+      </li>
+    );
+  };
 
   return (
     <Dialog
@@ -306,7 +354,7 @@ export function PeopleEditor({ tenant, orgName, target, title, description, abov
       description={description}
       footer={
         <>
-          <span className="pe-summary">{pending ? `${words(["to add", "to change", "to take off"]).join(", ")}.` : "Nothing changes until you save."}</span>
+          <span className="pe-summary">{summary.length ? `${summary.join(", ")}.` : "Nothing changes until you save."}</span>
           <Button onClick={onClose} disabled={save.isPending}>
             Cancel
           </Button>
@@ -320,17 +368,18 @@ export function PeopleEditor({ tenant, orgName, target, title, description, abov
         {above}
         <div className="pe-columns">
           <section className="pe-col" aria-labelledby={`${id}-from`}>
-            <h3 id={`${id}-from`} className="pe-col-title">
+            <h3 id={`${id}-from`} className="visually-hidden">
               Who to add
             </h3>
-            <div className="pe-col-tools">
+            <div className="pe-col-head">
               <Segmented
                 label="Who to add"
                 equal
+                className="pe-modes"
                 value={mode}
                 onChange={(m) => setMode(m as "org" | "paste")}
                 items={[
-                  { id: "org", label: `From ${orgName}`, disabled: !candidates.length },
+                  { id: "org", label: "From the organization", disabled: !candidates.length },
                   { id: "paste", label: "Paste addresses" },
                 ]}
               />
@@ -361,7 +410,7 @@ export function PeopleEditor({ tenant, orgName, target, title, description, abov
                         }}
                       />
                       <span className="pe-who">
-                        <span className="pe-name">{needle ? `All ${shown.length} found` : `Everyone not on ${where}`}</span>
+                        <span className="pe-name">Select all</span>
                       </span>
                       <span className="pe-count num">{shown.length}</span>
                     </label>
@@ -381,10 +430,18 @@ export function PeopleEditor({ tenant, orgName, target, title, description, abov
                     </ul>
                   </>
                 ) : (
-                  <p className="pe-empty">
-                    {needle ? "Nobody matches." : `Everyone in ${orgName} you can see is ${target.scope_type === "tenant" ? "here" : `on ${where}`}${added.length ? " or chosen" : ""}.`} To add someone else, paste
-                    their address.
-                  </p>
+                  <div className="pe-empty">
+                    <p>
+                      {needle
+                        ? `Nobody matches “${find.trim()}”.`
+                        : target.scope_type === "tenant"
+                          ? "Everyone in the organization you can see has a role in it."
+                          : `Everyone in the organization you can see is on ${where}${added.length ? " or moved across" : ""}.`}
+                    </p>
+                    <Button size="sm" variant="quiet" onClick={() => setMode("paste")}>
+                      Paste addresses instead
+                    </Button>
+                  </div>
                 )}
                 {partial ? <p className="pe-note">Only the people on the teams and products you can open are listed.</p> : null}
               </>
@@ -398,10 +455,22 @@ export function PeopleEditor({ tenant, orgName, target, title, description, abov
                     spellCheck={false}
                     autoComplete="off"
                     placeholder="ana@example.com, Ben Ito <ben@example.com>; …"
-                    hint="Paste them from email, a spreadsheet or any list, with or without names."
+                    hint="From email, a spreadsheet or any list, with or without names."
                     onChange={(e) => setPasted(e.target.value)}
                   />
                 </div>
+                {read.unreadable.length || read.repeated ? (
+                  <div className="pe-col-tools">
+                    <Callout inset tone="attention">
+                      {read.unreadable.length ? (
+                        <>
+                          Left out, not {read.unreadable.length === 1 ? "an address" : "addresses"}: <span className="pe-unreadable">{read.unreadable.join(", ")}</span>.{" "}
+                        </>
+                      ) : null}
+                      {read.repeated ? `${plural(read.repeated, "repeated address", "repeated addresses")} ${read.repeated === 1 ? "is" : "are"} listed once.` : null}
+                    </Callout>
+                  </div>
+                ) : null}
                 {pasteRows.length ? (
                   <ul className="pe-list" aria-label="Addresses read">
                     {pasteRows.map((r) => (
@@ -414,13 +483,15 @@ export function PeopleEditor({ tenant, orgName, target, title, description, abov
                             <span className="pe-sub">
                               {r.person || r.name ? `${r.email} · ` : ""}
                               {r.state === "holder"
-                                ? `already on ${where}`
+                                ? target.scope_type === "tenant"
+                                  ? `already has a role in ${orgName}`
+                                  : `already on ${where}`
                                 : r.state === "added"
-                                  ? "chosen"
+                                  ? "already moved across"
                                   : r.state === "member"
-                                    ? `in ${orgName}`
+                                    ? "in the organization"
                                     : r.state === "invited"
-                                      ? "invited already: gets a new invitation"
+                                      ? "invited already; gets a new invitation"
                                       : "gets an invitation"}
                             </span>
                           </span>
@@ -428,19 +499,6 @@ export function PeopleEditor({ tenant, orgName, target, title, description, abov
                       </li>
                     ))}
                   </ul>
-                ) : null}
-                {read.unreadable.length || read.repeated ? (
-                  <div className="pe-col-tools">
-                    <Callout inset tone="attention">
-                      {read.unreadable.length ? (
-                        <>
-                          {read.unreadable.length === 1 ? "This isn’t an address, so it’s left out: " : `These ${read.unreadable.length} aren’t addresses, so they’re left out: `}
-                          <span className="pe-unreadable">{read.unreadable.join(", ")}</span>.{" "}
-                        </>
-                      ) : null}
-                      {read.repeated ? `${plural(read.repeated, "address", "addresses")} came more than once and ${read.repeated === 1 ? "is" : "are"} listed once.` : null}
-                    </Callout>
-                  </div>
                 ) : null}
               </>
             )}
@@ -482,94 +540,77 @@ export function PeopleEditor({ tenant, orgName, target, title, description, abov
           </div>
 
           <section className="pe-col" aria-labelledby={`${id}-to`}>
-            <h3 id={`${id}-to`} className="pe-col-title">
-              {target.scope_type === "tenant" ? `Roles in ${orgName}` : `On ${where}`}
-              <span className="pe-count num">{count}</span>
-            </h3>
-            {rightPicked.length ? (
-              <div className="pe-col-tools pe-bulk">
-                <span className="pe-bulk-count">{people(rightPicked.length)} chosen</span>
-                <span className="select-wrap">
-                  <select className="input select" aria-label={`Role for the ${people(rightPicked.length)} chosen`} value="" onChange={(e) => e.target.value && setRoleForPicked(e.target.value)}>
-                    <option value="">Set role…</option>
-                    {target.roles.map((r) => (
-                      <option key={r} value={r}>
-                        {ROLE_WORD[r]}
-                      </option>
-                    ))}
-                  </select>
-                  <Glyph name="chevron-down" size="sm" />
-                </span>
-                <Button size="sm" variant="quiet" onClick={() => setPickedRight(new Set())}>
-                  Clear
-                </Button>
-              </div>
-            ) : null}
+            <div className="pe-col-head">
+              <h3 id={`${id}-to`} className="pe-col-title">
+                {target.scope_type === "tenant" ? `Roles in ${orgName}` : `On ${where}`}
+                <span className="pe-count num">{count}</span>
+              </h3>
+              {rightPicked.length ? (
+                <div className="pe-bulk">
+                  <span className="pe-bulk-count">{rightPicked.length} chosen</span>
+                  <span className="select-wrap">
+                    <select className="input select" aria-label={`Role for the ${people(rightPicked.length)} chosen`} value="" onChange={(e) => e.target.value && setRoleForPicked(e.target.value)}>
+                      <option value="">Set role…</option>
+                      {target.roles.map((r) => (
+                        <option key={r} value={r}>
+                          {ROLE_WORD[r]}
+                        </option>
+                      ))}
+                    </select>
+                    <Glyph name="chevron-down" size="sm" />
+                  </span>
+                  <IconButton icon="x" size="sm" label="Clear the choice" onClick={() => setPickedRight(new Set())} />
+                </div>
+              ) : null}
+            </div>
             {count ? (
-              <ul className="pe-list" aria-label={target.scope_type === "tenant" ? `Roles in ${orgName}` : `People on ${where}`}>
-                {added.map((a) => (
-                  <li key={`new:${a.key}`} className="pe-row pe-row-new">
-                    <input type="checkbox" aria-label={`Choose ${a.name ?? a.email}`} checked={pickedRight.has(`new:${a.key}`)} onChange={(e) => setPickedRight(toggle(pickedRight, `new:${a.key}`, e.target.checked))} />
-                    <Face name={a.account_id ? (a.name ?? a.email) : null} />
-                    <span className="pe-who">
-                      <span className="pe-name">{a.name ?? a.email}</span>
-                      <span className="pe-sub">
-                        {a.name ? `${a.email} ` : ""}
-                        <span className="pe-state">{a.name ? "· " : ""}{a.account_id ? "to add" : "to invite"}</span>
-                      </span>
-                    </span>
-                    <RoleSelect label={`Role for ${a.name ?? a.email}`} roles={target.roles} value={a.role} onChange={(role) => setAdded((xs) => xs.map((x) => (x.key === a.key ? { ...x, role } : x)))} />
-                  </li>
-                ))}
-                {holders.map((h) => {
-                  const off = removed.has(h.account_id);
-                  const role = roleOf[h.account_id] ?? h.own ?? "";
-                  const was = h.own && role !== h.own ? h.own : null;
-                  return (
-                    <li key={h.account_id} className={`pe-row${off ? " pe-row-gone" : was || (!h.own && role) ? " pe-row-new" : ""}`}>
-                      {pickable(h) ? (
-                        <input type="checkbox" aria-label={`Choose ${h.name}`} checked={pickedRight.has(h.account_id)} onChange={(e) => setPickedRight(toggle(pickedRight, h.account_id, e.target.checked))} />
-                      ) : (
-                        <span className="pe-check-none" aria-hidden="true" />
-                      )}
-                      <Avatar name={h.name} />
-                      <span className="pe-who">
-                        <span className="pe-name">{h.name}</span>
-                        <span className="pe-sub">
-                          {off
-                            ? h.through
-                              ? `comes off, and keeps ${h.through.role} as ${h.through.from}`
-                              : h.only
-                                ? `comes off, and out of ${orgName}: it’s their only role`
-                                : "comes off"
-                            : h.through
-                              ? `${ROLE_WORD[h.through.role]} as ${h.through.from}${h.own ? `, which outranks ${h.own} here` : ""}`
-                              : was
-                                ? `${h.email} · was ${ROLE_WORD[was]?.toLowerCase()}`
-                                : h.email}
-                        </span>
-                      </span>
-                      {off ? (
-                        <Button size="sm" variant="quiet" onClick={() => setRemoved((r) => toggle(r, h.account_id, false))}>
-                          Keep
-                        </Button>
-                      ) : h.editable ? (
-                        <RoleSelect
-                          label={`Role for ${h.name}`}
-                          roles={h.own && !target.roles.includes(h.own) ? [h.own, ...target.roles] : target.roles}
-                          none={h.own ? undefined : ROLE_WORD[h.through!.role]}
-                          value={role}
-                          onChange={(r) => setRoleOf((x) => ({ ...x, [h.account_id]: r }))}
-                        />
-                      ) : (
-                        <span className="pe-role-text">{ROLE_WORD[h.through?.role ?? h.own!]}</span>
-                      )}
-                    </li>
-                  );
-                })}
-              </ul>
+              <div className="pe-list" role="group" aria-label={target.scope_type === "tenant" ? `Roles in ${orgName}` : `People on ${where}`}>
+                {added.length ? (
+                  <>
+                    {labelled ? (
+                      <p className="pe-group" id={`${id}-add`}>
+                        To add
+                      </p>
+                    ) : null}
+                    <ul aria-labelledby={labelled ? `${id}-add` : undefined}>
+                      {added.map((a) => (
+                        <li key={`new:${a.key}`} className="pe-row">
+                          <input type="checkbox" aria-label={`Choose ${a.name ?? a.email}`} checked={pickedRight.has(`new:${a.key}`)} onChange={(e) => setPickedRight(toggle(pickedRight, `new:${a.key}`, e.target.checked))} />
+                          <Face name={a.account_id ? (a.name ?? a.email) : null} />
+                          <span className="pe-who">
+                            <span className="pe-name">{a.name ?? a.email}</span>
+                            <span className="pe-sub">
+                              {a.name ? a.email : null}
+                              {a.account_id ? null : <span className="pe-state">{a.name ? " · " : ""}gets an invitation</span>}
+                            </span>
+                          </span>
+                          <RoleSelect label={`Role for ${a.name ?? a.email}`} roles={target.roles} value={a.role} onChange={(role) => setAdded((xs) => xs.map((x) => (x.key === a.key ? { ...x, role } : x)))} />
+                        </li>
+                      ))}
+                    </ul>
+                  </>
+                ) : null}
+                {own.length ? (
+                  <>
+                    {labelled ? (
+                      <p className="pe-group" id={`${id}-own`}>
+                        Already here
+                      </p>
+                    ) : null}
+                    <ul aria-labelledby={labelled ? `${id}-own` : undefined}>{own.map(holderRow)}</ul>
+                  </>
+                ) : null}
+                {via.length ? (
+                  <>
+                    <p className="pe-group" id={`${id}-via`}>
+                      {viaLabel}
+                    </p>
+                    <ul aria-labelledby={`${id}-via`}>{via.map(holderRow)}</ul>
+                  </>
+                ) : null}
+              </div>
             ) : (
-              <p className="pe-empty">Nobody yet. Choose people on the left, then move them here.</p>
+              <p className="pe-empty">Nobody here yet. Choose people on the left and move them across.</p>
             )}
           </section>
         </div>

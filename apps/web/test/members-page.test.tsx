@@ -141,8 +141,8 @@ describe("the Members page", () => {
     const read = dialog.querySelector('[aria-label="Addresses read"]')!.textContent;
     expect(read).toContain("Ana Lima");
     expect(read).toContain("gets an invitation");
-    expect(read).toContain("chosen");
-    expect(dialog.textContent).toContain("This isn’t an address, so it’s left out: ben@");
+    expect(read).toContain("already moved across");
+    expect(dialog.textContent).toContain("Left out, not an address: ben@");
     const reader = dialog.querySelector<HTMLSelectElement>(`select[id$="-join"]`)!;
     await act(async () => {
       reader.value = "reader";

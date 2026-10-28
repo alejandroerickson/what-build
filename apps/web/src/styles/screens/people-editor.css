@@ -22,13 +22,25 @@
   border-radius: var(--r-md);
   overflow: hidden;
 }
+/* Both heads are the same height, so the two lists start level. */
+.pe-col-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-1h) var(--s-2);
+  min-height: 48px;
+  padding: var(--s-2) var(--s-3);
+  border-bottom: 1px solid var(--line);
+}
+.pe-modes {
+  flex: 1;
+}
 .pe-col-title {
   display: flex;
+  flex: 1;
   align-items: baseline;
   gap: var(--s-1h);
   margin: 0;
-  padding: var(--s-2h) var(--s-3);
-  border-bottom: 1px solid var(--line);
   font-size: var(--fs-md);
   font-weight: var(--fw-semibold);
 }
@@ -54,9 +66,29 @@
   list-style: none;
   border-top: 1px solid var(--line);
 }
-.pe-col-title + .pe-list {
+.pe-col-head + .pe-list {
   margin-top: 0;
   border-top: 0;
+}
+.pe-list ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.pe-list > ul:first-child {
+  padding-top: var(--s-1);
+}
+/* A group's label stays at the top of the list while its people scroll under it. */
+.pe-group {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  margin: 0;
+  padding: var(--s-2h) var(--s-3) var(--s-1);
+  background: var(--panel);
+  color: var(--faint);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-medium);
 }
 .pe-row {
   display: flex;
@@ -100,12 +132,8 @@ label.pe-row:hover {
   line-height: var(--lh-ui);
   overflow-wrap: anywhere;
 }
-/* A change not yet saved: someone added, or a role changed. */
 .pe-state {
   white-space: nowrap;
-}
-.pe-row-new {
-  box-shadow: inset 2px 0 0 var(--line-strong);
 }
 .pe-row-gone .pe-name {
   color: var(--faint);
@@ -136,7 +164,7 @@ label.pe-row-off:hover {
 }
 .pe-role {
   flex: none;
-  width: 104px;
+  width: 120px;
 }
 .pe-role .select {
   min-height: var(--h-sm);
@@ -179,7 +207,7 @@ label.pe-row-off:hover {
   font-weight: var(--fw-medium);
 }
 .pe-join .select-wrap {
-  width: 116px;
+  width: 120px;
 }
 .pe-join-hint {
   color: var(--faint);
@@ -188,17 +216,24 @@ label.pe-row-off:hover {
 .pe-bulk {
   display: flex;
   align-items: center;
-  gap: var(--s-2);
+  gap: var(--s-1h);
 }
 .pe-bulk-count {
-  flex: 1;
   color: var(--muted);
+  white-space: nowrap;
 }
 .pe-bulk .select-wrap {
-  width: 116px;
+  width: 120px;
+}
+.pe-bulk .select {
+  min-height: var(--h-sm);
+  height: var(--h-sm);
 }
 .pe-empty,
 .pe-note {
+  display: grid;
+  justify-items: start;
+  gap: var(--s-2);
   margin: 0;
   padding: var(--s-3);
   color: var(--faint);
@@ -207,6 +242,13 @@ label.pe-row-off:hover {
 }
 .pe-empty {
   flex: 1;
+  align-content: start;
+}
+.pe-empty p {
+  margin: 0;
+}
+.pe-empty .btn {
+  margin-left: calc(-1 * var(--s-2));
 }
 .pe-note {
   padding-top: var(--s-2);
@@ -242,9 +284,13 @@ label.pe-row-off:hover {
   flex: 1;
   min-width: 0;
 }
-.pe-target {
-  display: grid;
-  gap: var(--s-1h);
+
+/* A finger needs a bigger arrow than a pointer does. */
+@media (pointer: coarse) {
+  .pe-move-btn {
+    width: 40px;
+    height: 40px;
+  }
 }
 
 @media (max-width: 760px) {

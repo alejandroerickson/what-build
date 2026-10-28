@@ -975,27 +975,29 @@ never described as deleting. A list row showing an archived object says *Archive
   outstanding invitations with a cancel control. An inherited role links to the organization's
   Members, where it is changed. Access is per product; nothing is granted per page or per source.
 - **The people editor** (`apps/web/src/routes/people-editor.tsx`), a wide dialog that changes who
-  has a role on one product, team or the organization, many people at a time. On the left, **Who
-  to add**: everyone in the organization the person can see who has no role there, each with a
-  checkbox (a find field above more than six, and one box for all), or **Paste addresses**, a field
-  that reads any list of addresses as it is pasted (separated by commas, semicolons, new lines or
-  tabs; `Name <address>`; Outlook's `"Last, First" <address>`; a spreadsheet's name and address
-  columns; `mailto:`), listing each address once with its name and what happens to it (in the
-  organization, gets an invitation, invited already, already there), and naming in a callout what
-  isn't an address; under either, **Join as**, the role they arrive with, described in words. Two
-  arrow buttons between the lists move the people chosen across, and back. On the right, everyone
-  there now: those added first, marked by a hairline at their edge, each with a role picker; then
-  the people already there, each with their role (a picker where the person may change it), or
-  the broader role they have through their team or the organization, with a picker that gives
-  them one of their own here when it can outrank it. Choosing people on the right offers **Set
-  role…** for all of them at once, and the left arrow takes them off (struck through, with
-  **Keep**; at a team or product only, saying when it is their only role and so takes them out of
-  the organization). Nothing changes until **Add N people** or **Save changes**, which the foot
-  summarizes beside it: one `members.grant_many` for every role given or changed (100 a call),
-  then `members.revoke` for each person taken off. A refusal changes nothing and names the
-  address; it is forgotten once the choice changes. Invitations made are then listed, each with
-  **Copy link**, and **Copy every link**; one that could not be emailed says so. At phone width
-  the lists stack and the arrows point down and up.
+  has a role on one product, team or the organization, many people at a time. On the left, under a
+  segmented head: **From the organization**, everyone in it the person can see who has no role
+  there, each with a checkbox (a find field above more than six, and **Select all**); or **Paste
+  addresses**, a field that reads any list of addresses as it is pasted (separated by commas,
+  semicolons, new lines or tabs; `Name <address>`; Outlook's `"Last, First" <address>`; a
+  spreadsheet's name and address columns; `mailto:`), saying under it what was left out as not an
+  address, then listing each address once with its name and what happens to it (in the
+  organization, gets an invitation, invited already, already there). With nobody left to pick, it
+  opens on Paste addresses. Under either, **Join as**, the role they arrive with, described in
+  words. Two arrow buttons between the lists move the people chosen across, and back. On the
+  right, everyone there, in groups: **To add**, each with a role picker; **Already here**, each
+  with their role (a picker where the person may change it); and those with access through the
+  team or the organization, each with that role, and a picker that gives a team's people a role
+  of their own here. A group is labelled when there is more than one, and always when its access
+  is inherited. Choosing people on the right puts **Set role…** for all of them in its head, and
+  the left arrow takes them off (struck through, with **Keep**; at a team or product only, saying
+  "Taken off when you save" and when it is their only role there). Nothing changes until **Add N
+  people** or **Save changes**, which the foot summarizes beside it: one `members.grant_many` for
+  every role given or changed (100 a call), then `members.revoke` for each person taken off. A
+  refusal changes nothing and names the address; it is forgotten once the choice changes. A save
+  that only adds says so in a toast ("Added 3 people to Crewboard"); invitations made are then
+  listed, each with **Copy link**, and **Copy every link**; one that could not be emailed says so.
+  At phone width the lists stack and the arrows point down and up.
 - **Settings** (`/settings`, from the account menu). Display name, and the email the person signs
   in with (read-only); Sign out everywhere; **Delete account**; below them, quiet links to Cookies
   and Privacy.
