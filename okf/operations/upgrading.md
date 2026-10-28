@@ -33,6 +33,14 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
   all or nothing, as one write. `members_write(action="grant")` now answers `unchanged: true` for
   the role someone already holds there and records nothing for it, and `previous_role` when it
   replaced one. No migration.
+- **Someone not already in the organization is invited, account or not.** It concerns everyone who
+  gives roles, and their agents, and asks nothing of a deployment. Giving a role to an address
+  with an account used to add that person at once and answer with their name; now only someone
+  the giver already sees in the organization gets the role at once, and anyone else gets an
+  invitation and joins by accepting it, so the answer never says whether an address has an
+  account
+  ([decision](../decisions/a-role-is-given-at-once-only-to-someone-already-seen-in-the-organization.md)).
+  Scripts that add people with accounts must have them accept, through the link or by signing in.
 
 ## v0.28.0
 

@@ -126,7 +126,7 @@ time, all at `example.com` or a `.example` domain:
 They are made through the running instance, as its people would make them: each signs in through
 the development sign-in, Riley Chen (the instance's owner) gives the allowances without their
 notices, owners start their organizations, Riley moves each to the plan that holds its people, and
-owners grant roles and invite; their writes meet their plan's limits, whose waits it sits out. So attribution, activity and limits are as in real use.
+owners invite their people, and those with an account accept, as from the email; their writes meet their plan's limits, whose waits it sits out. So attribution, activity and limits are as in real use.
 At the end it prints everyone by what they are. Sign in as any of them with the development
 sign-in's "As the email above".
 

@@ -582,8 +582,9 @@ Notes on recent actions:
   `403` where they are its reader.
 - The `members` writes answer a team or product the caller has no role on with the same `404` as
   one that does not exist, before anything else is checked, so they never name it.
-- `members.grant` gives one person a role at one scope, replacing the one they hold there, or
-  invites them by email when they have no account; the role they already hold there changes
+- `members.grant` gives one person a role at one scope, replacing the one they hold there, when the
+  caller already sees them in the organization; anyone else is invited by email, account or not,
+  with the same answer either way ([§3.5](03-accounts-teams-and-identity.md)). The role they already hold there changes
   nothing and answers `unchanged: true`, with no entry in the access log. `members.grant_many`
   does the same for up to 100 people at one scope, each with their own role, in one transaction
   that counts as one write: a refusal of any of them (a role that does not apply there, an

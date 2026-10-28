@@ -35,6 +35,7 @@ name what replaced it, and date the change. Smaller decisions are marked
 - [Running the instance is done in the web app, never by an agent; the MCP server is for discovery work](running-the-instance-is-done-in-the-web-app-never-by-an-agent.md)
 - [The public sandbox is reached only through a connector scoped to it](the-public-sandbox-is-reached-only-through-its-own-connector.md) (superseded)
 - [An invitation is accepted only by the account with the address it was sent to](invitations-belong-to-their-address.md)
+- [A role is given at once only to someone the giver already sees in the organization; anyone else is invited, account or not](a-role-is-given-at-once-only-to-someone-already-seen-in-the-organization.md)
 - [The public sandbox is one organization the deployment names, where invited visitors edit under made-up names and a daily reset puts a saved baseline back](the-public-sandbox-is-one-organization-with-pseudonymous-visitors.md) (superseded)
 - [Every account reads the example organization, which only its staff write](every-account-reads-the-example-organization-which-only-its-staff-write.md)
 - [Only the instance's owners decide who may create organizations, and how many](only-instance-owners-decide-who-creates-organizations.md)

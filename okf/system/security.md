@@ -438,9 +438,10 @@ may link anywhere, open new tabs and navigate its own frame. Every account sees 
 example organization's staff on what they wrote and in its activity log. These trade-offs are deliberate; each names what would change it:
 
 - In invite-only mode the sign-in form tells an address that it may not sign up (`403
-  invite_only`, [§6.2](../spec/06-operations-and-adapters.md)), and adding someone grants an
-  existing account at once but sends an invitation otherwise ([§3.5](../spec/03-accounts-teams-and-identity.md)):
-  both say whether an address has an account or an invitation, for a message people can act on.
+  invite_only`, [§6.2](../spec/06-operations-and-adapters.md)), which says whether an address has an
+  account, an invitation or an allowance, for a message people can act on. Giving a role says
+  nothing of the kind: anyone the giver doesn't already see in the organization is invited,
+  account or not ([decision](../decisions/a-role-is-given-at-once-only-to-someone-already-seen-in-the-organization.md)).
 - Two refreshes of one agent connection at the same moment end it, as any reuse of a refresh token
   does ([§3.8](../spec/03-accounts-teams-and-identity.md)).
 - The limit on agent registrations is counted for the whole deployment, because behind the edge

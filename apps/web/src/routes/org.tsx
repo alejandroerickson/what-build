@@ -880,7 +880,7 @@ function GiveAccessDialog({ tenant, orgName, initialEmail, members, partial, inv
       tenant={tenant}
       orgName={orgName}
       title="Give people access"
-      description="Anyone without an account gets an invitation that works for 7 days."
+      description="People from the organization get their role at once; anyone else is invited, and joins by accepting within 7 days."
       above={
         <SelectField label="Give access to" value={chosen} onChange={(e) => setChosen(e.target.value)} hint={target.scope_type === "tenant" ? "A member opens only the teams and products they have a role on." : undefined}>
           {targets.map((x) => (

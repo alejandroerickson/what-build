@@ -307,7 +307,10 @@ export async function addPeople(opts: AddPeopleOptions): Promise<AddPeopleResult
       const here = p.organizations.find((o) => o.slug === org.slug);
       if (!here || p.email === org.owner) continue;
       if (p.kind === "invited" ? waiting.has(p.email) : roleOf.get(p.email) === here.role) continue;
-      must(await client.call(org.owner, "POST", `/api/v1/tenants/${org.slug}/members`, { email: p.email, role: here.role }), `Adding ${p.email} to ${org.name}`);
+      const given = must(await client.call(org.owner, "POST", `/api/v1/tenants/${org.slug}/members`, { email: p.email, role: here.role }), `Adding ${p.email} to ${org.name}`);
+      // Someone not yet in the organization is invited whether or not they have an account; one who has one accepts, as from the email.
+      if (p.kind !== "invited" && given.invited)
+        must(await client.call(p.email, "POST", "/api/v1/invitations/accept", { token: String(given.invite_link).split("/invite/")[1] }), `${p.email} accepting ${org.name}'s invitation`);
       if (p.kind === "invited") added.invitations++;
       else added.grants++;
     }

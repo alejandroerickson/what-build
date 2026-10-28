@@ -14,7 +14,7 @@ import { createDb, migrate, migrationNames } from "./database.ts";
 import { adminUrlOf, dropDatabase, LOCAL_PG, PG_PORT, pgDumpCommand, pull, pullsDir, readPull, refusalOf, restorePull, type PullRecord } from "./fixture.ts";
 import { DEPLOYMENT_TABLES } from "./organization-copy.ts";
 import { addPeople, DEFAULT_COUNT, planPeople, type Plan } from "./people.ts";
-import { call, SEED_ACCOUNTS, seed, upload, type SeedPeople } from "./seed.ts";
+import { call, grantAndAccept, SEED_ACCOUNTS, seed, upload, type SeedPeople } from "./seed.ts";
 import { connectOrStartLocalPg } from "./testing/pg.ts";
 import { Worker } from "./worker.ts";
 
@@ -63,9 +63,9 @@ export async function addHarborLabs(env: Env, worker: Worker, admin: pg.Client, 
   while ((await worker.drain()) > 0);
   const [riley, sam] = SEED_ACCOUNTS;
   const owner = (await findOrCreateAccount(env.db, SYNTHETIC_PEOPLE[0].email, SYNTHETIC_PEOPLE[0].display_name)).account;
-  await findOrCreateAccount(env.db, sam.email, sam.display_name);
+  const samAccount = (await findOrCreateAccount(env.db, sam.email, sam.display_name)).account;
   const team = (await admin.query<{ slug: string }>("select m.slug from teams m join tenants t using (tenant_id) where t.slug = $1", [SYNTHETIC])).rows[0]!.slug;
-  await call(env, { ...owner, auth_kind: "dev", surface: "web", client: null }, "members.grant", { tenant: SYNTHETIC, team, product: "crewboard", email: sam.email, role: "reader" });
+  await grantAndAccept(env, { ...owner, auth_kind: "dev", surface: "web", client: null }, { tenant: SYNTHETIC, team, product: "crewboard", role: "reader" }, samAccount);
   // The editor's allowance to start an organization comes from the instance's owner, Riley, as in
   // development, not from the organization's owner.
   const instanceOwner = (await findOrCreateAccount(env.db, riley.email, riley.display_name)).account;

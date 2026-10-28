@@ -452,7 +452,7 @@ function AddPeopleDialog({ onClose }: { onClose: () => void }) {
       tenant={tenant}
       orgName={product.tenant.name}
       title={title}
-      description={`A role here covers ${product.name} only. Anyone without an account gets an invitation that works for 7 days.`}
+      description={`A role here covers ${product.name} only. People from the organization get it at once; anyone else is invited, and joins by accepting within 7 days.`}
       target={{
         scope_type: "product",
         scope_id: product.product_id,

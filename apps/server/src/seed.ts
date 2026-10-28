@@ -1,6 +1,6 @@
 import { actorOf, createTenantWithTeam, execute, houseStyle, json, newEtag, OPERATIONS_BY_NAME, type Env, type Principal, type ScopeRef } from "@whatbuild/core";
 import { sql } from "kysely";
-import { findOrCreateAccount } from "./auth/identity.ts";
+import { acceptInvitation, findOrCreateAccount, type AccountRow } from "./auth/identity.ts";
 import {
   MOCKUP, HANDOFF_HTML, HANDOFF_NOTES, INTERVIEW_AGENT_NOTES, INTERVIEW_RECORDER_EXPORT, INTERVIEW_TXT, INTERVIEW_VTT, OVERVIEW_NOTES, OWNER_NOTES_MD, RESEARCH_EXPORT_MD, SAMPLE, SOURCE_SUMMARIES, STORY_HTML,
 } from "./seed-content.ts";
@@ -20,6 +20,17 @@ export async function call(env: Env, who: Principal, name: string, input: Record
   const op = OPERATIONS_BY_NAME.get(name);
   if (!op) throw new Error(`no operation ${name}`);
   return (await execute(env, who, op, input, ref)).result as Record<string, unknown>;
+}
+
+/**
+ * Give `account` a role through `members.grant`, as `who`, and have them accept it. Someone not yet
+ * in the organization is invited, whether or not they have an account, and joins by accepting, as
+ * a person does from the email.
+ */
+export async function grantAndAccept(env: Env, who: Principal, input: Record<string, unknown>, account: AccountRow) {
+  const r = await call(env, who, "members.grant", { ...input, email: account.email });
+  if (r["invited"]) await acceptInvitation(env.db, String(r["invitation_id"]), account);
+  return r;
 }
 
 /** Upload `text` as the attachment `path` of a source, through the grant an agent would use. */
@@ -54,10 +65,10 @@ export async function seed(env: Env, worker: Worker, log: (m: string) => void = 
   );
   const tenant = created.tenant.slug;
   const team = created.team.slug;
-  await call(env, riley, "members.grant", { tenant, team, email: accounts[1]!.email, role: "editor" });
+  await grantAndAccept(env, riley, { tenant, team, role: "editor" }, accounts[1]!);
   const product = (await call(env, riley, "products.create", { tenant, team, name: SAMPLE.product, slug: "crewboard", concept: SAMPLE.concept, card_html: SAMPLE.concept_card })) as { product_id: string };
   const ref: ScopeRef = { product: product.product_id };
-  await call(env, riley, "members.grant", { tenant, team, product: "crewboard", email: accounts[2]!.email, role: "reader" });
+  await grantAndAccept(env, riley, { tenant, team, product: "crewboard", role: "reader" }, accounts[2]!);
 
   const outcomeIds: string[] = [];
   for (const o of SAMPLE.outcomes) outcomeIds.push(String((await call(env, riley, "outcomes.create", o, ref))["outcome_id"]));

@@ -259,12 +259,16 @@ export function PeopleEditor({ tenant, orgName, target, title, description, abov
   const save = useMutation({
     mutationFn: async (_changes: string) => {
       const invited: InvitationMade[] = [];
+      let given = 0;
       for (let i = 0; i < grants.length; i += PER_CALL) {
         const r = await api<{ results: { email: string; invited: boolean; invite_link?: string; emailed?: false }[] }>("POST", `/api/v1/tenants/${tenant}/members/many`, {
           ...target.body,
           people: grants.slice(i, i + PER_CALL),
         });
-        for (const x of r.results) if (x.invited && x.invite_link) invited.push({ email: x.email, invite_link: x.invite_link, emailed: x.emailed !== false });
+        for (const x of r.results) {
+          if (x.invited && x.invite_link) invited.push({ email: x.email, invite_link: x.invite_link, emailed: x.emailed !== false });
+          else if (!x.invited) given++;
+        }
       }
       const failed: string[] = [];
       for (const h of takenOff) {
@@ -274,12 +278,15 @@ export function PeopleEditor({ tenant, orgName, target, title, description, abov
           failed.push(h.name);
         }
       }
-      return { invited, failed };
+      return { invited, given, failed };
     },
-    onSuccess: ({ invited, failed }) => {
+    onSuccess: ({ invited, given, failed }) => {
       void qc.invalidateQueries({ queryKey: ["members", tenant] });
       if (failed.length) toast(`Couldn’t take ${failed.join(", ")} off ${where}. Everything else is saved.`, { tone: "negative" });
-      else toast(added.length && !changed.length && !takenOff.length ? `Added ${people(added.length)} to ${where}.` : `Saved the changes to ${where}.`);
+      // Someone invited isn't there until they accept, so the toast says which happened.
+      else if (added.length && !changed.length && !takenOff.length)
+        toast(given && invited.length ? `Added ${people(given)} to ${where} and invited ${invited.length}.` : invited.length ? `Invited ${people(invited.length)} to ${where}.` : `Added ${people(given)} to ${where}.`);
+      else toast(`Saved the changes to ${where}.`);
       if (invited.length) setMade(invited);
       else onClose();
     },
@@ -668,7 +675,7 @@ export function InvitationsMade({ made }: { made: InvitationMade[] }) {
       <Callout inset tone={unsent ? "attention" : "positive"} title={made.length === 1 ? "Invitation created" : `${made.length} invitations created`}>
         {unsent
           ? `${plural(unsent, "invitation")} couldn’t be emailed: copy ${unsent === 1 ? "its link" : "their links"} and send ${unsent === 1 ? "it" : "them"} yourself.`
-          : "We email them where email is set up. You can also share each link yourself: it works once, within 7 days, and only for its address."}
+          : "Each joins when they accept. We email the invitations where email is set up, and you can share each link yourself: it works once, within 7 days, and only for its address."}
       </Callout>
       <ul className="pe-links">
         {made.map((m) => (

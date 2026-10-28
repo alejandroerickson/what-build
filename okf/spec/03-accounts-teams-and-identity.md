@@ -3,7 +3,7 @@ type: Specification
 title: Accounts belong to tenants, tenants hold teams, teams run products, and one role check decides every call.
 description: The account → tenant → team → product hierarchy, sign-in, roles and what they grant, plans and their limits, addressing and isolation, moving sources between products, caller identity, attribution, and the example organization every account reads.
 tags: [spec, accounts, tenancy, roles, identity, oauth, isolation, example, limits]
-generated: {by: agent:claude, at: 2026-10-26}
+generated: {by: agent:claude, at: 2026-10-27}
 status: stable
 ---
 
@@ -395,8 +395,13 @@ A product is addressed as `tenant/team/product` (slugs or ids at each level) or 
   and the one needed ("You are a viewer on product Crewboard; outcomes.create needs editor").
 - **Membership administration:** admins grant and revoke where they are admin: product admins on
   their product, team admins on their team, tenant admins on the tenant, and only owners grant
-  owner or change or remove an owner's role. Granting someone without an account creates a 7-day
-  invitation, emailed where mail is configured and always returned to the inviter as a
+  owner or change or remove an owner's role. A role is given at once only to someone the giver
+  already sees in the organization (everyone in it, to its owners and admins; the people on the
+  teams and products they read, to anyone else). Anyone else gets a 7-day invitation, whether or
+  not they have an account, and joins by accepting it, so giving a role never says whether an
+  address has an account, here or elsewhere, or whose it is
+  ([decision](../decisions/a-role-is-given-at-once-only-to-someone-already-seen-in-the-organization.md)).
+  An invitation is emailed where mail is configured and always returned to the inviter as a
   single-use link. The email shows the inviter's display name on one line, without control or
   direction-changing characters, at most 60 characters and in quotation marks, and says it is the
   name they gave WhatBuild. A tenant keeps at least one owner (`409 last_owner`).
