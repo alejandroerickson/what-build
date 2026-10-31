@@ -49,6 +49,26 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
   that day, and the API, MCP and OAuth with the error code `maintenance`, without reaching the
   service; deployed again without it, everything is as before
   ([Cloud Run](cloud-run.md), "Down for maintenance").
+- **A mockup prints whole.** It asks nothing of a deployment. In the Story's print view a mockup
+  page, or each page of a canvas, lays out at its frame's width and is scaled down to the paper, on
+  one sheet where it fits, where its right side used to be cut off and one such page shrank the
+  whole PDF. What any page fixes to the window, such as an open dialog's backdrop, stays within
+  that page instead of repeating on every sheet. Other Story pages print as they did.
+- **Search corrects a typo the way §8.2 says.** It asks nothing of a deployment. Two neighbouring
+  letters swapped now count as one edit, as the specification always said, so a five-letter word
+  with a swap is corrected, and a whole word one edit away is preferred to a longer word whose
+  start is.
+- **A deleted assumption, mockup or Story page says so.** It asks nothing of a deployment. Its
+  address, as Activity links to it, shows who deleted it, when and why, as a deleted source's
+  always did, where it showed an error with Try again, and Activity words every deletion.
+- **The instance's page says when sign-up is open.** It concerns a deployment with no
+  `WHATBUILD_SIGNUP_ALLOWLIST`, where anyone can make an account, as anyone always could: Guests
+  said "Invited only" there, and now says "Anyone can sign up", with a note on how to close it.
+  `setup.sh` always sets the list; a deployment that set none and means to be closed sets one.
+- **A read-only organization's product Settings offer nothing that is then refused.** It asks
+  nothing of a deployment: the name is read only there, and Add people is gone.
+- **The mockup canvas keeps a page fitted or filling the width while the window changes,** until
+  someone moves it. It asks nothing of a deployment.
 - **The mockup canvas zooms in smaller steps with a mouse wheel.** It asks nothing of a deployment.
   A notch with ⌘ or Ctrl moves the zoom by about 10% at most, where it moved about 30% with ⌘ and
   nearly threefold with Ctrl; a pinch still follows the fingers.

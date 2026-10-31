@@ -2,7 +2,7 @@ import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/rea
 import { useContext, useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router";
 import { api, ApiError, isObjectId, qs } from "../lib/api.ts";
-import { actorName, attribution, formatBytes, formatDate, plural, quotedAtEnd, relativeTime, viaSurface } from "../lib/format.ts";
+import { actorName, attribution, deletedSentence, formatBytes, formatDate, plural, quotedAtEnd, relativeTime, viaSurface } from "../lib/format.ts";
 import { Markdown } from "../lib/markdown.tsx";
 import { useProduct } from "../lib/session.tsx";
 import type { Actor, RecordFull } from "../lib/types.ts";
@@ -110,15 +110,13 @@ export function SourceDetailPage() {
     );
   if (q.isError) {
     const e = q.error as ApiError;
-    if (e.status === 410) {
-      const t = (e.details?.["tombstone"] ?? {}) as { title?: string; deleted_at?: string; reason?: string; deleted_by?: { display_name: string } };
+    const deleted = deletedSentence(e);
+    if (deleted) {
       return (
         <>
           <EvidenceFilters />
           <PageHeader crumbs={[{ label: "Evidence", to: `${app}/evidence` }, { label: "Deleted source" }]} title="This source was deleted" />
-          <EmptyState action={<ButtonLink to={`${app}/evidence`}>Back to Evidence</ButtonLink>}>
-            {`${t.title ?? "It"} was deleted by ${t.deleted_by?.display_name ?? "someone"} on ${formatDate(t.deleted_at)}. Reason: ${t.reason ?? "not given"}.`}
-          </EmptyState>
+          <EmptyState action={<ButtonLink to={`${app}/evidence`}>Back to Evidence</ButtonLink>}>{deleted}</EmptyState>
         </>
       );
     }

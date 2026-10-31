@@ -177,7 +177,7 @@ export function PlainNav({ section }: { section: string }) {
                 </div>
               )}
               <div id={labelId} className="nav-org-label">
-                <OneLine text={t.example ? `${t.name} · ${guest ? "read only" : "you’re an author"}` : "Products"} />
+                <OneLine text={t.example ? `${t.name} · ${items.some((p) => p.tenant.tenant_id === t.tenant_id && (p.your_role === "editor" || p.your_role === "admin")) ? "you’re an author" : "read only"}` : "Products"} />
               </div>
               {t.example && guest ? (
                 <IconButton className="nav-org-hide" size="sm" icon="x" label="Hide the example organization from the panel" title="Hide from the panel" disabled={hide.isPending} onClick={() => hide.mutate(true)} />

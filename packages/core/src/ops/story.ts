@@ -394,7 +394,7 @@ export const getPage = defineOperation({
   scope: "product",
   access: "story",
   mutates: false,
-  summary: "Read a Story page's current version, with its HTML, notes for agents, and the page etag you need to publish again.",
+  summary: "Read a Story page's current version, with its HTML, notes for agents, and its etag.",
   description:
     "404 means the page has never been published. An archived page stays readable here, except to a reader (the Story-only role), who gets 404 for it. Read this before revising a page, and keep what is useful. agent_notes holds what agents keep about the page — its purpose, sources still to fold in, choices about its structure — with its own etag for write_notes; read it before revising. include_html false leaves out the HTML (html_chars and html_sha256 stay). A reader (the Story-only role) gets the page without agent_notes.",
   input: z.strictObject({ page_id: pageId, include_html: z.boolean().default(true) }),
@@ -558,7 +558,7 @@ async function draftVersion(ctx: OpContext, input: PublishInput, opts: { lock: b
     const problems = inspectStoryHtml(html);
     if (problems.length) throw invalid("invalid_html", `${opts.refused}: ${problems.join(" ")}`, { problems });
     const count = await ctx.db.selectFrom("story_pages").select((eb) => eb.fn.countAll<number>().as("n")).where("product_id", "=", pid).executeTakeFirst();
-    if (Number(count?.n ?? 0) >= MAX_PAGES) throw conflict("quota_exceeded", `A product’s Story holds at most ${MAX_PAGES} pages.`, { quota: "story_pages", limit: MAX_PAGES, used: Number(count?.n ?? 0), unit: "pages" });
+    if (Number(count?.n ?? 0) >= MAX_PAGES) throw conflict("quota_exceeded", `A product’s Story holds at most ${MAX_PAGES} pages, archived ones included.`, { quota: "story_pages", limit: MAX_PAGES, used: Number(count?.n ?? 0), unit: "pages" });
     return { existing: null, n: 1, title: input.title, summary, html, mockup: null, carried: [] as (typeof CARRIED)[number][], based_on_version: null };
   }
   if (existing.archived_at) throw conflict("page_archived", `Page "${input.page_id}" is archived; restore it before publishing.`);
@@ -968,7 +968,7 @@ export const promoteMockup = defineOperation({
     if (!existing) {
       if (input.expected_etag) throw conflict("stale_etag", `Page "${input.page_id}" doesn’t exist yet, so there is no etag to match. Leave expected_etag out to create it.`, { current_etag: null });
       const count = await ctx.db.selectFrom("story_pages").select((eb) => eb.fn.countAll<number>().as("n")).where("product_id", "=", pid).executeTakeFirst();
-      if (Number(count?.n ?? 0) >= MAX_PAGES) throw conflict("quota_exceeded", `A product’s Story holds at most ${MAX_PAGES} pages.`, { quota: "story_pages", limit: MAX_PAGES, used: Number(count?.n ?? 0), unit: "pages" });
+      if (Number(count?.n ?? 0) >= MAX_PAGES) throw conflict("quota_exceeded", `A product’s Story holds at most ${MAX_PAGES} pages, archived ones included.`, { quota: "story_pages", limit: MAX_PAGES, used: Number(count?.n ?? 0), unit: "pages" });
       pageIdOut = input.page_id ?? (await freeSlug(ctx, mp?.page_id ?? slugOf(m.title)));
       const title = input.title ?? mp?.title ?? m.title;
       const summary = input.summary ?? `From the mockup "${m.title}", version ${mv.n}.`;
@@ -1086,22 +1086,27 @@ async function printPages(ctx: OpContext, versionIds: string[]) {
   for (const slot of order) {
     const r = rows.find((x) => x.page_id === slot.page_id)!;
     const canvas = r.mockup?.page_id === null ? await canvasPrintPages(ctx, r.mockup.mockup_version_id) : null;
-    pages.push({ page_id: r.page_id, title: r.title, version: r.n, published_at: r.created_at, archived: Boolean(r.archived_at), depth: slot.depth, level: slot.level, html: canvas ? "" : await shownHtml(ctx.db, r, ctx.ports.blobs), ...(canvas ? { canvas_pages: canvas } : {}) });
+    const frame = r.mockup?.page_id ? await mockupFrame(ctx, r.mockup.mockup_version_id, r.mockup.page_id) : undefined;
+    pages.push({ page_id: r.page_id, title: r.title, version: r.n, published_at: r.created_at, archived: Boolean(r.archived_at), depth: slot.depth, level: slot.level, html: canvas ? "" : await shownHtml(ctx.db, r, ctx.ports.blobs), ...(frame ? { frame } : {}), ...(canvas ? { canvas_pages: canvas } : {}) });
   }
   return pages;
 }
 
 /** A canvas's pages as the print view shows them, in their order on the canvas. */
 async function canvasPrintPages(ctx: OpContext, versionId: string) {
-  const rows = await ctx.db.selectFrom("mockup_pages").select(["page_id", "title"]).where("version_id", "=", versionId).orderBy("position").execute();
+  const rows = await ctx.db.selectFrom("mockup_pages").select(["page_id", "title", "width", "height"]).where("version_id", "=", versionId).orderBy("position").execute();
   const pages = [];
-  for (const p of rows) pages.push({ page_id: p.page_id, title: p.title, html: await mockupPageHtml(ctx.db, versionId, p.page_id, ctx.ports.blobs) });
+  for (const p of rows) pages.push({ page_id: p.page_id, title: p.title, frame: { width: p.width, height: p.height }, html: await mockupPageHtml(ctx.db, versionId, p.page_id, ctx.ports.blobs) });
   return pages;
+}
+
+async function mockupFrame(ctx: OpContext, versionId: string, pageId: string) {
+  return ctx.db.selectFrom("mockup_pages").select(["width", "height"]).where("version_id", "=", versionId).where("page_id", "=", pageId).executeTakeFirst();
 }
 
 /** A canvas prints under its own heading, each of its pages a section one level down. */
 function printSections(pages: Awaited<ReturnType<typeof printPages>>) {
-  return pages.flatMap((p) => [p, ...(p.canvas_pages ?? []).map((c) => ({ ...p, page_id: `${p.page_id}.${c.page_id}`, title: c.title, html: c.html, level: p.level + 1, depth: p.depth + 1 }))]);
+  return pages.flatMap((p) => [p, ...(p.canvas_pages ?? []).map((c) => ({ ...p, page_id: `${p.page_id}.${c.page_id}`, title: c.title, html: c.html, frame: c.frame, level: p.level + 1, depth: p.depth + 1 }))]);
 }
 
 function printPath(ctx: OpContext, ids: string[]) {
@@ -1124,7 +1129,7 @@ export const printView = defineOperation({
     const path = printPath(ctx, pages.map((p) => p.page_id));
     return {
       product: { name: ctx.scope.product!.name, path: productPath(ctx) },
-      pages: pages.map(({ html, canvas_pages, ...p }) => ({ ...p, html_chars: html.length, ...(canvas_pages ? { canvas_pages: canvas_pages.map((c) => ({ page_id: c.page_id, title: c.title, html_chars: c.html.length })) } : {}) })),
+      pages: pages.map(({ html, canvas_pages, frame: _frame, ...p }) => ({ ...p, html_chars: html.length, ...(canvas_pages ? { canvas_pages: canvas_pages.map((c) => ({ page_id: c.page_id, title: c.title, html_chars: c.html.length })) } : {}) })),
       path,
       url: `${ctx.ports.config.publicBaseUrl}${path}`,
     };

@@ -135,7 +135,7 @@ the browser's back button and "open in new tab" both work.
   offers "Search for <word> instead" (`?strict=1`). When more match than the 60 listed, it says
   "Showing the best 60 of N. Add a word to narrow them.", and the palette's All N results counts
   every match. Nothing holding the words says "Nothing matches" and suggests another word or fewer
-  words. An outcome found opens Idea scrolled to it and marked (`?outcome`). Readers have no search.
+  words. An outcome found opens Idea scrolled to it and marked (`?outcome`). A reader searches the Story alone ([§8.2](08-search.md)).
 - **A reader** ([§3.5](03-accounts-teams-and-identity.md)) has only the Story: L1 is **Story**
   alone with its count, and the quiet group is gone. The product opens on the Story, and any other
   product screen, opened by a link or typed, takes a reader to the Story, with a toast saying they
@@ -847,7 +847,11 @@ page of a mockup reaches it by promotion, from the mockup (§7.7).
   it is the printable width, about 670 to 700px on A4 or Letter, below the house styles' 48rem
   breakpoint, so a page's narrow layout applies there (grids stack into one column). The print
   view does not pretend the paper is wider: a layout made for 900px would be cramped or clipped
-  at 680px, and the narrow layout is the one the page's author made for that width.
+  at 680px, and the narrow layout is the one the page's author made for that width. A mockup page
+  is drawn at one size, so it lays out in its frame, with what its stylesheet asks of the viewport
+  (width in a media query, `vw` and `vh`) answered for the frame, and is scaled down to the printable
+  width (and on screen, to the window), kept on one sheet where it fits. On any page, what a page fixes to the window stays within that page, so an
+  open dialog's backdrop never repeats on every sheet.
 - An empty Story uses the first-use state ([§7.5](#75-idea)): agents write it, so the request to
   copy is the only path. It says pages follow the company's design system or a house style, and
   offers **Preview Story styles**.

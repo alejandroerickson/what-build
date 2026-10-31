@@ -190,3 +190,11 @@ export function fileTypeName(mediaType: string | null | undefined, path?: string
   if (ext) return `${ext.toUpperCase()} file`;
   return t || "Unknown type";
 }
+
+/** What a read of something deleted permanently answers (410): who, when and why. Null for any other failure. */
+export function deletedSentence(error: unknown): string | null {
+  const e = error as { status?: number; details?: Record<string, unknown> | null } | null;
+  if (e?.status !== 410) return null;
+  const t = (e.details?.["tombstone"] ?? {}) as { title?: string; deleted_at?: string; reason?: string; deleted_by?: { display_name: string } };
+  return `${t.title ?? "It"} was deleted by ${t.deleted_by?.display_name ?? "someone"} on ${formatDate(t.deleted_at)}. Reason: ${(t.reason ?? "not given").replace(/[.\s]+$/, "")}.`;
+}

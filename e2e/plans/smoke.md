@@ -68,10 +68,11 @@ other plans will too.
     with `403 example_read_only`, which says that, since the guest may not start an organization,
     they ask whoever runs this WhatBuild for one, and not to call `create_tenant`.
 11. **MCP, as Jordan.** List the tools and the products, then try to list sources in a product, and
-    to search it. *Expect:* the tools are `story_read` and `products_read` (with `guide` and
-    `submit_feedback`), and no `sources_`, `outcomes_` or `members_` tool and no `search`; the products are listed
-    with the role reader; both calls are refused with a clear error naming reader and viewer, not
-    an empty result and never `unknown_action` or `unknown_tool`.
+    to search it, first with no mode and then in `plain` mode. *Expect:* the tools are `story_read`,
+    `products_read` and `search` (with `guide` and `submit_feedback`), and no `sources_`, `outcomes_`
+    or `members_` tool; the products are listed with the role reader; listing sources and a search
+    with no mode are refused with a clear error naming reader and viewer, not an empty result and
+    never `unknown_action` or `unknown_tool`; `plain` mode answers with Story pages alone.
 12. **Web, any person.** At phone width (390 × 844) and in the dark theme, revisit the overview, a
     source and a Story page. *Expect:* nothing overflows, overlaps or becomes unreadable, and the
     overview's tiles under each product show each section's name and count whole.

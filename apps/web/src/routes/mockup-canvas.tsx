@@ -270,6 +270,12 @@ export function Canvas({ version, pageSrc, selected, onSelect, onKey, canFocus, 
   const pointers = useRef(new Map<number, { x: number; y: number }>());
   const gesture = useRef<Gesture | null>(null);
   const touched = useRef(false);
+  // The page last shown fitted or filling the width, kept so while the window changes until someone moves it.
+  const following = useRef<{ id: string; how: PageView } | null>(null);
+  const moved = useCallback(() => {
+    touched.current = true;
+    following.current = null;
+  }, []);
   const columns = Math.max(1, version.columns ?? version.pages.length);
   const panning = mode === "pan" || space;
 
@@ -351,6 +357,7 @@ export function Canvas({ version, pageSrc, selected, onSelect, onKey, canFocus, 
     (id: string | null, how: PageView = pageView) => {
       if (!id) return;
       touched.current = true;
+      following.current = { id, how };
       onSelect(id);
       if (how === "fill") fillBox(boxes[id]);
       else fitBox(boxes[id]);
@@ -395,17 +402,20 @@ export function Canvas({ version, pageSrc, selected, onSelect, onKey, canFocus, 
   // someone moves it.
   useLayoutEffect(() => {
     touched.current = false;
+    following.current = null;
     fitCanvas(false);
   }, [version.version, fitCanvas]);
   useEffect(() => {
     const vp = viewport.current;
     if (!vp) return;
     const ro = new ResizeObserver(() => {
-      if (!touched.current) fitCanvas(false);
+      const shown = following.current;
+      if (shown) (shown.how === "fill" ? fillBox : fitBox)(boxes[shown.id], false);
+      else if (!touched.current) fitCanvas(false);
     });
     ro.observe(vp);
     return () => ro.disconnect();
-  }, [fitCanvas]);
+  }, [fitCanvas, fitBox, fillBox, boxes]);
   useEffect(() => {
     if (showRequest) showPage(selected);
     // Only a new request shows the page; selecting a page from the inspector's list does too, through it.
@@ -415,7 +425,7 @@ export function Canvas({ version, pageSrc, selected, onSelect, onKey, canFocus, 
   const zoomAt = useCallback((factor: number, cx?: number, cy?: number, glide = false) => {
     const vp = viewport.current;
     if (!vp) return;
-    touched.current = true;
+    moved();
     const apply = (v: View) => {
       const z = clamp(v.z * factor);
       const px = cx ?? vp.clientWidth / 2;
@@ -447,7 +457,7 @@ export function Canvas({ version, pageSrc, selected, onSelect, onKey, canFocus, 
         wheelZoom(e.deltaY, e.deltaMode === 1, e.ctrlKey && !e.metaKey, e.clientX, e.clientY);
         return;
       }
-      touched.current = true;
+      moved();
       nudge();
       const step = e.deltaMode === 1 ? 16 : 1;
       const dx = (e.shiftKey ? e.deltaY || e.deltaX : e.deltaX) * step;
@@ -480,7 +490,7 @@ export function Canvas({ version, pageSrc, selected, onSelect, onKey, canFocus, 
       else if (k === "-" || k === "_") zoomAt(0.8, undefined, undefined, true);
       else if (k === "0") zoomAt(1 / view.z, undefined, undefined, true);
       else if (k === "1") {
-        touched.current = true;
+        moved();
         fitCanvas();
       } else if (k === "2") fitShown();
       else if (k === "3") fillShown();
@@ -566,7 +576,7 @@ export function Canvas({ version, pageSrc, selected, onSelect, onKey, canFocus, 
       const was = g.pinch;
       g.pinch = now;
       const factor = was.d > 0 ? now.d / was.d : 1;
-      touched.current = true;
+      moved();
       nudge();
       // The point of the page under the fingers' midpoint stays under it as they spread and move.
       setView((v) => {
@@ -578,7 +588,7 @@ export function Canvas({ version, pageSrc, selected, onSelect, onKey, canFocus, 
     if (!g.moved && Math.hypot(e.clientX - g.startX, e.clientY - g.startY) < 4) return;
     if (!g.moved) {
       g.moved = true;
-      touched.current = true;
+      moved();
       setDragging(true);
     }
     nudge();
@@ -741,7 +751,7 @@ export function Canvas({ version, pageSrc, selected, onSelect, onKey, canFocus, 
           minWidth={200}
           trigger={<>{pct}%</>}
         >
-          <MenuItem onSelect={() => { touched.current = true; fitCanvas(); }} kbd={coarse ? undefined : "1"}>Fit the canvas</MenuItem>
+          <MenuItem onSelect={() => { moved(); fitCanvas(); }} kbd={coarse ? undefined : "1"}>Fit the canvas</MenuItem>
           <MenuItem onSelect={fitShown} kbd={coarse ? undefined : "2"}>{selected ? "Fit the selected page" : "Fit the page in the middle"}</MenuItem>
           <MenuItem onSelect={fillShown} kbd={coarse ? undefined : "3"}>{selected ? "Fill the width with the selected page" : "Fill the width with the page in the middle"}</MenuItem>
           <MenuSeparator />
@@ -769,7 +779,7 @@ export function Canvas({ version, pageSrc, selected, onSelect, onKey, canFocus, 
             <span className="visually-hidden">{selected ? "Fill the width with the selected page" : "Fill the width with the page in the middle"}</span>
           </button>
         </div>
-        <button type="button" className="xc-tool" onClick={() => { touched.current = true; fitCanvas(); }} title="Fit the canvas (1)" aria-keyshortcuts="1">
+        <button type="button" className="xc-tool" onClick={() => { moved(); fitCanvas(); }} title="Fit the canvas (1)" aria-keyshortcuts="1">
           <Glyph name="layout-grid" />
           <span className="visually-hidden">Fit the canvas</span>
         </button>
@@ -790,7 +800,7 @@ export function Canvas({ version, pageSrc, selected, onSelect, onKey, canFocus, 
               <MenuItem onSelect={() => step(1)} disabled={selectedIndex === version.pages.length - 1} kbd="→">Next page</MenuItem>
               <MenuItem onSelect={fitShown} kbd="2">{selected ? "Fit the selected page" : "Fit the page in the middle"}</MenuItem>
               <MenuItem onSelect={fillShown} kbd="3">{selected ? "Fill the width with the selected page" : "Fill the width with the page in the middle"}</MenuItem>
-              <MenuItem onSelect={() => { touched.current = true; fitCanvas(); }} kbd="1">Fit the canvas</MenuItem>
+              <MenuItem onSelect={() => { moved(); fitCanvas(); }} kbd="1">Fit the canvas</MenuItem>
               <MenuSeparator />
               <MenuItem onSelect={() => zoomAt(1.25, undefined, undefined, true)} kbd="+">Zoom in</MenuItem>
               <MenuItem onSelect={() => zoomAt(0.8, undefined, undefined, true)} kbd="−">Zoom out</MenuItem>

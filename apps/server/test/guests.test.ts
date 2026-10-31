@@ -31,6 +31,19 @@ beforeAll(async () => {
 }, 120_000);
 afterAll(async () => h?.close());
 
+describe("what the instance's page says of sign-up", () => {
+  it("says sign-up is open where no allowlist limits it, whatever self_serve says", async () => {
+    expect((await olive.api("GET", "/api/v1/guests")).body).toMatchObject({ open_without_allowlist: false, settings: { self_serve: false } });
+    const open = await startHarness({ instanceOwners: ["olive@example.com"] });
+    try {
+      const owner = await open.signIn("olive@example.com", "Olive Owner");
+      expect((await owner.api("GET", "/api/v1/guests")).body).toMatchObject({ open_without_allowlist: true, settings: { self_serve: false } });
+    } finally {
+      await open.close();
+    }
+  });
+});
+
 describe("a guest account", () => {
   it("is one in no organization and with no allowance, and comes in while there is room", async () => {
     const gil = await h.signIn("gil@listed.example", "Gil Guest");

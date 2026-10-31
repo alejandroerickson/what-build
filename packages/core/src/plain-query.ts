@@ -363,17 +363,23 @@ export function excerpt(text: string, match: Pick<TextMatch, "ranges" | "spans">
 /** Levenshtein distance, giving up once it passes `max`. */
 export function editDistanceWithin(a: string, b: string, max: number): boolean {
   if (Math.abs(a.length - b.length) > max) return false;
+  let before: number[] = [];
   let prev = Array.from({ length: b.length + 1 }, (_, j) => j);
+  let prevBest = 0;
   for (let i = 1; i <= a.length; i++) {
     const row = [i];
     let best = i;
     for (let j = 1; j <= b.length; j++) {
-      const swap = i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1] ? prev[j - 2]! + 1 : Infinity;
+      // Two neighbouring letters swapped count as one edit, from the row before the one before.
+      const swap = i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1] ? before[j - 2]! + 1 : Infinity;
       row[j] = Math.min(prev[j]! + 1, row[j - 1]! + 1, prev[j - 1]! + (a[i - 1] === b[j - 1] ? 0 : 1), swap);
       best = Math.min(best, row[j]!);
     }
-    if (best > max) return false;
+    // A swap reaches back two rows, so only two rows past the limit end it early.
+    if (best > max && prevBest > max) return false;
+    before = prev;
     prev = row;
+    prevBest = best;
   }
   return prev[b.length]! <= max;
 }
@@ -390,17 +396,34 @@ export function closestWord(word: string, texts: string[], typing: boolean): str
   const max = w.length >= 6 ? 2 : 1;
   const counts = new Map<string, number>();
   for (const t of texts) for (const m of fold(t).matchAll(WORD)) counts.set(m[0], (counts.get(m[0]) ?? 0) + 1);
-  let best: { word: string; d: number; n: number } | null = null;
+  let best: { word: string; d: number; n: number; whole: boolean } | null = null;
   for (const [cand, n] of counts) {
     if (cand === w || cand.length < 3 || idLike(cand) || (typing && cand.startsWith(w))) continue;
     // A word still being typed is compared with the starts of each candidate around its length.
     const targets = typing ? [w.length - 1, w.length, w.length + 1].filter((l) => l >= 3 && l <= cand.length).map((l) => cand.slice(0, l)) : [cand];
     for (let d = 1; d <= max; d++) {
-      if (!targets.some((target) => target !== w && editDistanceWithin(w, target, d))) continue;
+      const hits = targets.filter((target) => target !== w && editDistanceWithin(w, target, d));
+      if (!hits.length) continue;
+      // A word one edit away beats a longer word whose start is, however often that one is said.
+      const whole = hits.includes(cand);
       const gap = Math.abs(cand.length - w.length);
-      if (!best || d < best.d || (d === best.d && (n > best.n || (n === best.n && gap < Math.abs(best.word.length - w.length))))) best = { word: cand, d, n };
+      const better = !best || d < best.d || (d === best.d && (whole !== best.whole ? whole : n > best.n || (n === best.n && gap < Math.abs(best.word.length - w.length))));
+      if (better) best = { word: cand, d, n, whole };
       break;
     }
   }
   return best?.word ?? null;
+}
+
+/**
+ * The word with two neighbouring letters swapped, each way it can be, as one query for the search
+ * index. Trigrams miss a swap in a short word, which shares almost none with the word meant.
+ */
+export function swappedLettersTsquery(word: string): string | null {
+  // As the index holds it: lower case, accents kept. No word people mean is this long.
+  const w = word.normalize("NFC").toLocaleLowerCase("en-US");
+  if (w.length > 64 || !/^[\p{L}\p{N}]+$/u.test(w)) return null;
+  const swapped = new Set<string>();
+  for (let i = 0; i + 1 < w.length; i++) if (w[i] !== w[i + 1]) swapped.add(`${w.slice(0, i)}${w[i + 1]}${w[i]}${w.slice(i + 2)}`);
+  return swapped.size ? [...swapped].map((x) => `'${x}'`).join(" | ") : null;
 }

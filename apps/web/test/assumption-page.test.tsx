@@ -24,6 +24,7 @@ const recorded = { ...entry };
 vi.mock("../src/lib/api.ts", async (original) => ({
   ...(await original<typeof import("../src/lib/api.ts")>()),
   api: vi.fn(async (_method: string, path: string) => {
+    if (path === `${BASE}/assumptions/${ID}` && entry["deleted"]) throw new (await original<typeof import("../src/lib/api.ts")>()).ApiError(410, "assumption_deleted", "Deleted.", { tombstone: entry["deleted"] });
     if (path === `${BASE}/assumptions/${ID}`) return { ...entry };
     return { items: [] };
   }),
@@ -45,6 +46,7 @@ afterEach(() => {
   unmount?.();
   unmount = null;
   document.body.innerHTML = "";
+  delete entry["deleted"];
   Object.assign(entry, recorded);
 });
 
@@ -82,6 +84,18 @@ async function moreActions(host: HTMLElement): Promise<string[]> {
   const menu = document.querySelector('[role="menu"]')!;
   return [...menu.children].map((el) => (el.getAttribute("role") === "separator" ? "—" : (el.querySelector(".menu-text")?.textContent ?? el.textContent ?? "").trim()));
 }
+
+describe("an assumption that was deleted", () => {
+  it("says who deleted it, when and why, and offers no retry", async () => {
+    entry["deleted"] = { title: "Crews plan by the day.", reason: "Recorded twice.", deleted_at: "2026-10-02T12:00:00.000Z", deleted_by: { display_name: "Riley Chen" } };
+    const host = await open();
+    expect(host.querySelector("h1")?.textContent).toBe("This assumption was deleted");
+    expect(host.textContent).toContain("Crews plan by the day. was deleted by Riley Chen on");
+    expect(host.textContent).toContain("Reason: Recorded twice.");
+    expect(host.textContent).not.toContain("Recorded twice..");
+    expect(host.textContent).not.toContain("Try again");
+  });
+});
 
 describe("an assumption's byline", () => {
   const minutesAgo = (n: number) => new Date(Date.now() - n * 60_000).toISOString();

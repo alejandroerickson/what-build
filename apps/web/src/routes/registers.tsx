@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router";
 import { api, ApiError, qs } from "../lib/api.ts";
-import { attribution, plural, quotedAtEnd, relativeTime } from "../lib/format.ts";
+import { attribution, deletedSentence, plural, quotedAtEnd, relativeTime } from "../lib/format.ts";
 import { findByTitle } from "../lib/fuzzy.ts";
 import { Markdown } from "../lib/markdown.tsx";
 import { cannotWriteReason, useProduct } from "../lib/session.tsx";
@@ -312,6 +312,14 @@ export function RegisterEntryPage({ kind }: { kind: Kind }) {
   const listPath = `${app}/exploration/${kind}`;
   const crumbsFor = (label: string) => [{ label: TITLE[kind], to: listPath }, { label }];
   if (q.isPending) return <Loading lines={6} variant="lines" />;
+  const deleted = deletedSentence(q.error);
+  if (deleted)
+    return (
+      <>
+        <PageHeader crumbs={crumbsFor(`Deleted ${ONE[kind].toLowerCase()}`)} title={`This ${ONE[kind].toLowerCase()} was deleted`} />
+        <EmptyState action={<ButtonLink to={listPath}>Back to {TITLE[kind]}</ButtonLink>}>{deleted}</EmptyState>
+      </>
+    );
   if (q.isError)
     return (
       <>

@@ -159,7 +159,7 @@ function Organization({ tenant, products, showArchived, onShowArchived, onCreate
           <p>
           {guest
             ? "A worked discovery to learn from. Open its product and read Idea, Evidence, Exploration and Story in order."
-            : "Everyone who signs in can read this organization. You’re one of its authors."}
+            : `Everyone who signs in can read this organization.${shown.some((p) => p.your_role === "editor" || p.your_role === "admin") ? " You’re one of its authors." : ""}`}
           </p>
         </div>
       ) : null}

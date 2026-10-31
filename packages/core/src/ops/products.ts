@@ -951,7 +951,7 @@ export const grantMembers = defineOperation({
       } catch (e) {
         // A refusal is about one address: it says which, and that the others were not given either.
         if (e instanceof AppError && e.code === "quota_exceeded")
-          throw new AppError(e.status, e.code, `${e.message.replace(/\.?$/, ".")} Of the ${input.people.length} addresses sent, the plan has room for the first ${i}, and ${p.email} is past it. Nothing was changed.`, { ...e.details, email: p.email, room_for: i });
+          throw new AppError(e.status, e.code, `${e.message.replace(/\.?$/, ".")} ${i ? `Of the ${input.people.length} addresses sent, the plan has room for the first ${i}, and ${p.email} is past it.` : `The plan has no room for ${p.email}.`} Nothing was changed.`, { ...e.details, email: p.email, room_for: i });
         if (e instanceof AppError) throw new AppError(e.status, e.code, `${p.email}: ${e.message} Nothing was changed.`, { ...e.details, email: p.email });
         throw e;
       }

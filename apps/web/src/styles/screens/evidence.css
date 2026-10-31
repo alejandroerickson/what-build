@@ -274,7 +274,25 @@
   text-underline-offset: 2px;
 }
 
-/* Text: the source's words, as one document. */
+/* Text: the source's words, as one document. Its head stays in sight, so a find can step through a long text. */
+.source-text-sheet {
+  overflow: clip;
+}
+.source-text-sheet > .sheet-head {
+  position: sticky;
+  /* The canvas's own padding is above where sticky would stop, and rows would show through it. */
+  top: calc(-1 * var(--canvas-pt));
+  z-index: 2;
+  background: var(--panel);
+}
+/* A phone's canvas keeps room above for the floating panel buttons: the head rests under them, with
+   the sheet's colour above it, so no rows show behind them. */
+@media (max-width: 760px) {
+  .source-text-sheet > .sheet-head {
+    top: 0;
+    box-shadow: 0 -56px 0 var(--panel);
+  }
+}
 .text-find-bar {
   display: inline-flex;
   align-items: center;

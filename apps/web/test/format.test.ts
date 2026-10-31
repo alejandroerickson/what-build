@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { fileTypeName, nestQuotes, quotedAtEnd, untilTime, viaSurface } from "../src/lib/format.ts";
+import { deletedSentence, fileTypeName, nestQuotes, quotedAtEnd, untilTime, viaSurface } from "../src/lib/format.ts";
 
 describe("untilTime", () => {
   const now = Date.parse("2026-09-29T10:00:00Z");
@@ -63,5 +63,20 @@ describe("viaSurface", () => {
     expect(viaSurface({ surface: "web", client: null })).toBe("");
     expect(viaSurface({ surface: null, client: null })).toBe("");
     expect(viaSurface(null)).toBe("");
+  });
+});
+
+describe("deletedSentence", () => {
+  const tombstone = { title: "The brief", reason: "Made by mistake.", deleted_at: "2026-10-02T12:00:00.000Z", deleted_by: { display_name: "Riley Chen" } };
+
+  it("says who, when and why, ending in one full stop whatever the reason ends in", () => {
+    const said = deletedSentence({ status: 410, details: { tombstone } })!;
+    expect(said).toMatch(/^The brief was deleted by Riley Chen on .+\. Reason: Made by mistake\.$/);
+    expect(deletedSentence({ status: 410, details: { tombstone: { ...tombstone, reason: "No full stop" } } })).toMatch(/Reason: No full stop\.$/);
+  });
+
+  it("is nothing for any other failure", () => {
+    expect(deletedSentence({ status: 404 })).toBeNull();
+    expect(deletedSentence(null)).toBeNull();
   });
 });
