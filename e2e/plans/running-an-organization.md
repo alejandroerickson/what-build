@@ -51,8 +51,9 @@ are people she invites.
    *Expect:* the form says links with the old short name keep leading to it; the panel and the overview show the
    new name; an address with the old short name leads to the new one.
 10. **Web, as Dana.** On the overview, open New product. *Expect:* the dialog says the
-    organization holds all the products Free allows and how to make room, and Create product
-    stays disabled, even with a name typed.
+    organization holds all the products Free allows, archived ones included, that deleting one
+    makes room, and that it takes an admin of that product, and Create product stays disabled, even
+    with a name typed.
     Cancel. **MCP, as Dana.** `products_read(action="limits")` for her organization. *Expect:* `plan` free,
     `holds` with the people, products, sources and storage the Plan page showed, and every limit
     with its value and what Dana used today. `products_read(action="list")` gives the tenant's new slug

@@ -658,7 +658,7 @@ export const archiveSources = defineOperation({
   mutates: true,
   summary: "Archive sources: out of lists and out of search (including yours), erasing nothing. Reversible.",
   description:
-    "Archive is how a team says \"stop showing me this, and stop letting the agent find it\" without losing it. Archiving an archived source is a no-op success. Returns {archived, failed}.",
+    "Archive is how a team says \"stop showing me this, and stop letting the agent find it\" without losing it. An archived source still counts against a plan's totals, so archiving makes no room; deleting does. Archiving an archived source is a no-op success. Returns {archived, failed}.",
   input: z.strictObject({ record_ids: batchIds }),
   rest: { method: "POST", path: "/sources/archive" },
   mcp: { tool: "sources", action: "archive" },

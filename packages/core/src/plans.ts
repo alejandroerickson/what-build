@@ -172,8 +172,8 @@ export interface LimitInfo {
 /** Every limit, in the order the control panel shows them. */
 export const LIMITS: LimitInfo[] = [
   { key: "members_max", group: "total", label: "People", unit: "people", per: "The whole organization", refusal: "409 quota_exceeded", help: "Everyone with a role in it, owners included. People who only read the Story don't count." },
-  { key: "products_max", group: "total", label: "Products", unit: "products", per: "The whole organization", refusal: "409 quota_exceeded", help: "Products that aren't archived." },
-  { key: "sources_max", group: "total", label: "Sources", unit: "sources", per: "The whole organization", refusal: "409 quota_exceeded", help: "Sources that aren't archived. Archived ones still take storage." },
+  { key: "products_max", group: "total", label: "Products", unit: "products", per: "The whole organization", refusal: "409 quota_exceeded", help: "Every product, archived or not. Deleting one makes room." },
+  { key: "sources_max", group: "total", label: "Sources", unit: "sources", per: "The whole organization", refusal: "409 quota_exceeded", help: "Every source, archived or not. Deleting one makes room." },
   { key: "storage_max_bytes", group: "total", label: "Storage", unit: "bytes", per: "The whole organization", refusal: "409 quota_exceeded", help: "Attachments with every version and the text read from each, and everything written, earlier versions included. Archiving keeps it all; deleting frees it." },
   { key: "requests_per_minute", group: "frequency", label: "Calls", unit: "calls", per: "Each person, each minute", refusal: "429 rate_limited", help: "Every call a person or their agent makes, reads included." },
   { key: "writes_per_minute", group: "frequency", label: "Writes", unit: "writes", per: "Each person, each minute", refusal: "429 rate_limited", help: "Calls that change something." },
