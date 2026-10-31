@@ -4,14 +4,14 @@ Exporting a product, starting an organization, plans with their limits and total
 
 ## Export
 
-`products_write(action="export")` builds a ZIP of the whole product: sources with their attachments,
-texts, summaries, notes and comments, outcomes, assumptions, reviews, earlier texts, mockups, Story
-versions, tombstones and activity. `products_read(action="exports")` gives a download grant once it
+`products_export(action="export")` builds a ZIP of the whole product and changes nothing in it:
+sources with their attachments, texts, summaries, notes and comments, outcomes, assumptions, reviews,
+earlier texts, mockups, Story versions, tombstones and activity. `products_read(action="exports")` gives a download grant once it
 is ready. The bundle's `README.txt` says what each file holds.
 
 A viewer, editor or admin can export at any time, an archived product too; a reader, who reads only
-the Story, cannot (`403`). Nobody exports the example organization. On a plan that limits exports,
-each person exports as many times a day as it allows. An export is counted against what a person is
+the Story, cannot (`403`). A guest of the example organization exports nothing; its members do. On a
+plan that limits exports, each person exports as many times a day as it allows. An export is counted against what a person is
 sent a day, and always sent.
 
 ## Starting an organization

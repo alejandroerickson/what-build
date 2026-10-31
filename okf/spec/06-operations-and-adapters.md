@@ -29,6 +29,7 @@ defineOperation({
   rest: { method: "POST", path: "/assumptions/:id/review" },
   mcp: { tool: "assumptions", action: "review" },
   allowArchivedProduct: false,           // true only for products.restore, products.export and deleting the product
+  copiesOut: false,                      // true only for products.export: it takes a copy away, and is in a tool of its own
   connection: undefined,                 // the agent connection level it needs, when its access alone does not say
   webOnly: false,                        // true only for deleting an organization and its preview
   handler: async (ctx, input) => { … },
@@ -804,15 +805,16 @@ name the server's version and the tools, or the tool's actions, the connection i
 version. A call to a tool name from before the split (`sources`) says which tools its actions are
 in now, and one to `get_skill` that the skill is retired and `guide` replaces it.
 
-**Tools.** Twenty-eight tools over the 101 operations an agent may be offered (all 118 but the 17 a
+**Tools.** Twenty-nine tools over the 101 operations an agent may be offered (all 118 but the 17 a
 person does only in the web app: renaming an organization or a product, deleting an organization
 and its preview, deleting one's own account and its preview, and running the instance, its owners'
 ten actions and removing an account,
 [decision](../decisions/running-the-instance-is-done-in-the-web-app-never-by-an-agent.md)): for each noun a `_read` tool, a `_write` tool and, where something can be deleted for
-good, a `_delete` tool, and three standalone
+good, a `_delete` tool, `products_export`, and three standalone
 ([decision](../decisions/mcp-tools-are-split-into-read-write-and-delete.md)). An action is in its
 noun's `_read` tool if it changes nothing, its `_delete` tool if it is a permanent delete (its REST
-method is `DELETE`), and its `_write` tool otherwise (`mcpTool` in `registry.ts`). A connection is listed
+method is `DELETE`), its `_export` tool if it takes a copy away and changes nothing the team has
+(`copiesOut`), and its `_write` tool otherwise (`mcpTool` in `registry.ts`). A connection is listed
 only the actions its level allows and its person could do (below): on a scoped connector only
 what its fence answers and the person's roles inside it reach, and on the unscoped connector what
 their roles in some organization they are in reach, unless they may start one
@@ -825,8 +827,9 @@ owner's included: running the instance is done in the web app.
 | Tool | Actions |
 |---|---|
 | `products_read` | `list`, `get`, `delete_impact`, `exports`, `limits` |
-| `products_write` | `create_tenant`, `create_team`, `create`, `update_concept`, `archive`, `restore`, `export` |
+| `products_write` | `create_tenant`, `create_team`, `create`, `update_concept`, `archive`, `restore` |
 | `products_delete` | `delete` |
+| `products_export` | `export` |
 | `members_read` | `list`, `activity` |
 | `members_write` | `grant`, `grant_many`, `revoke`, `cancel_invitation` |
 | `outcomes_read` | `list`, `get`, `delete_impact`, `revisions`, `get_revision`, `card_guidance`, `card_preview` |
@@ -856,7 +859,7 @@ owner's included: running the instance is done in the web app.
 Tools with actions take exactly four arguments: `action` (an enum), `params` (the action's fields),
 `describe`, and `product` — a `product_id` or `tenant/team/product`. Standalone tools take their
 fields directly, plus `product` when product-scoped. Tools are listed noun by noun, each noun's
-read, write and delete together.
+read, write, delete and export together.
 
 Rules:
 
@@ -865,12 +868,20 @@ Rules:
 - **Read, write and delete never mix.** Every tool has a `title`. A read tool says
   `readOnlyHint: true`; a write or delete tool says `destructiveHint: true`, so a client may ask the
   person before each call, and `attachments_write`, which fetches from the web, says
-  `openWorldHint: true`. An action called in another of its noun's tools is `422 wrong_tool`, naming
-  the tool it is in (`details.tool`), and changes nothing.
+  `openWorldHint: true`. `products_export` says neither read-only nor destructive: it records that an
+  export was asked for and counts against a plan's daily exports, and it changes nothing the team has,
+  so a Read only connection, which may export, is shown no write tool for it. An action called in
+  another of its noun's tools is `422 wrong_tool`, naming the tool it is in (`details.tool`), and
+  changes nothing; for an export the refusal adds that a client not listing `products_export` holds
+  an older list.
 - **Self-describing.** A tool's description is a few sentences about what it does, a pointer
   to `describe`, and one line per action. Its sentences speak only of the actions the connection
   is offered (`TOOL_TEXT` in `mcp.ts`), as its lines do: an Edit connection is not listed
-  `members_write`, and a reader's `story_read` says nothing of the style or the guidance. Called with `action` and `describe: true` (and no
+  `members_write`, a reader's `story_read` says nothing of the style or the guidance, and
+  `products_write` speaks of starting an organization only to someone offered `create_tenant`.
+  `search` shows someone who reads only the Story (the list offers them nothing that needs viewer)
+  what it does for them, in plain mode over the Story, with a schema that asks for that mode
+  (`forStoryReader` in `registry.ts`); what a call is checked against stays the same. Called with `action` and `describe: true` (and no
   `params`), it returns that action's scope, access, whether it mutates, its guidance and its
   exact JSON Schema — without executing.
 - **Strict.** Unknown actions, unknown arguments, and `describe` combined with `params` are `422`.
@@ -902,7 +913,7 @@ Rules:
   authorization and before the handler, so a refused call changes nothing and writes no activity.
 - **Listed by level and by the person.** `tools/list` answers each connection with only the
   actions its level allows ([§3.8](03-accounts-teams-and-identity.md)): Read only is offered
-  reads, Edit also writes and archives, Admin also permanent deletes and managing products and
+  reads, `products_export` and `submit_feedback`, Edit also writes and archives, Admin also permanent deletes and managing products and
   people. Of those, it offers only what the person's roles reach, and never what a person does
   only in the web app (`webOnly`), the instance owners' actions included. A scoped connector offers only what its fence answers and
   their roles inside it reach: their role on the product, or in an organization the highest they
@@ -919,10 +930,10 @@ Rules:
 - **Web-only, and said where.** An operation a person does only in the web app says where there
   (`webOnly` in `registry.ts`: "a person does it in the web app, on Organizations (`/instance`),
   Change plan on the organization's row"). A call to its action, in any of its noun's tools and
-  with `describe` too, is `403 web_only` before anything else is looked up, giving that place
-  for the agent to tell the person, saying it is in no agent's tool list and so not a sign of
-  an older one, and naming the operation in `details.operation`; it is counted under the
-  operation.
+  with `describe` too, is `403 web_only` before anything else is looked up, naming the call as it
+  was made and giving that place for the agent to tell the person, saying it is in no agent's tool
+  list and so not a sign of an older one, and naming the operation in `details.operation`; it is
+  counted under the operation.
 - **Results** are JSON in one text content block. Product-scoped results add `scope`
   (tenant, team, product with its path, `your_role` capped by the connection's level and `guest`
   for a guest of the example organization,

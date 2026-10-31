@@ -673,7 +673,8 @@ an editor, and an admin's Edit connection as one too.
 
 - Each operation needs a level: `admin` and `owner` access need Admin, writes need Edit, reads
   need Read only; an operation may say otherwise (`connection`): managing people, creating an
-  organization and the instance's allowances need Admin, and `submit_feedback` Read only.
+  organization and the instance's allowances need Admin, and `submit_feedback` Read only. An
+  export's access is a read's, so it needs Read only too.
 - `execute` refuses an operation above the connection's level with `403 connection_level`, before
   it resolves any scope, naming the level it has and the one needed. MCP lists only the actions
   the level allows, so an Edit connection is never offered a permanent delete, and of those only

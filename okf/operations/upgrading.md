@@ -23,6 +23,15 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
 
 ## Unreleased
 
+- **An export has a tool of its own, and agents are told more exactly what they may do**
+  (`tools_version` 0.50.0). It asks nothing of a deployment; a connected client sees the change in a
+  new session. `products_write(action="export")` is now `products_export(action="export")`, marked
+  neither read-only nor destructive, so a Read only connection lists no write tool: a client holding
+  the older list that calls it where it was is refused with `422 wrong_tool`, naming the tool and
+  saying a new session brings it. `search` tells someone who reads only the Story what it reads for
+  them, `products_write` speaks of starting an organization only to someone offered it, the server's
+  instructions no longer say an example organization's authors are refused, and a `403 web_only`
+  names the call as it was made.
 - **Archived products and sources count against a plan's totals** (`tools_version` 0.49.0). It asks
   nothing of a deployment, and only concerns one that defines plans. People will notice: archiving
   no longer makes room under `products_max` or `sources_max`, only deleting does, and restoring is

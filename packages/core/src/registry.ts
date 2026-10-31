@@ -118,12 +118,24 @@ export interface OperationDef<I extends z.ZodType = z.ZodType, O = unknown, P = 
   /** Guidance returned by `describe`: when to use it, what it returns, pitfalls. */
   description: string;
   input: I;
+  /**
+   * What a standalone tool's list entry says to someone who reads only the Story, in place of its
+   * summary, description and schema: a tool's description speaks only of what it offers them. It
+   * changes nothing a call is checked against.
+   */
+  forStoryReader?: { summary: string; description: string; input: z.ZodType };
   rest: { method: "GET" | "POST" | "PATCH" | "PUT" | "DELETE"; path: string };
   /**
    * The kind of object it acts on and its action there, or a standalone tool's name and no action.
    * The MCP tool an action is in follows from the operation itself ({@link mcpTool}).
    */
   mcp: { tool: string; action?: string };
+  /**
+   * It takes a copy away and changes nothing the team has, though it leaves a record that it did: an
+   * export. Someone who only reads may do it, so it is in a tool of its own (`<noun>_export`), which
+   * says it destroys nothing, and a Read only connection is shown no write tool to reach it.
+   */
+  copiesOut?: boolean;
   /** Writes allowed while the product is archived (restore, and deleting the product). */
   allowArchivedProduct?: boolean;
   /** Writes allowed while the organization is read-only, its Pro plan no longer paid for: an export, a permanent delete, taking someone out. */
@@ -207,21 +219,23 @@ export function capRole(role: ProductRole | null, level: ConnectionLevel | undef
 
 /**
  * What an MCP tool does to the data it reaches: `read` changes nothing, `write` creates, changes,
- * archives or restores, and `delete` destroys for good. A tool never mixes two of them.
+ * archives or restores, `delete` destroys for good, and `export` takes a copy away. A tool never
+ * mixes two of them.
  */
-export type ToolKind = "read" | "write" | "delete";
+export type ToolKind = "read" | "write" | "delete" | "export";
 
 /** The kind of tool an operation is in. A permanent delete is the one write whose REST method is DELETE. */
-export function toolKind(op: Pick<OperationDef, "mutates" | "rest">): ToolKind {
+export function toolKind(op: Pick<OperationDef, "mutates" | "rest" | "copiesOut">): ToolKind {
   if (!op.mutates) return "read";
+  if (op.copiesOut) return "export";
   return op.rest.method === "DELETE" ? "delete" : "write";
 }
 
 /**
  * The MCP tool an operation is in: a standalone tool by its own name, and an action in
- * `<noun>_read`, `<noun>_write` or `<noun>_delete`, by what it does.
+ * `<noun>_read`, `<noun>_write`, `<noun>_delete` or `<noun>_export`, by what it does.
  */
-export function mcpTool(op: Pick<OperationDef, "mutates" | "rest" | "mcp">): string {
+export function mcpTool(op: Pick<OperationDef, "mutates" | "rest" | "mcp" | "copiesOut">): string {
   return op.mcp.action ? `${op.mcp.tool}_${toolKind(op)}` : op.mcp.tool;
 }
 
@@ -229,7 +243,7 @@ export function mcpTool(op: Pick<OperationDef, "mutates" | "rest" | "mcp">): str
  * An operation as the caller names it in a refusal: an agent by the call it makes,
  * `sources_delete(action="delete")`, and anyone else by the operation's name.
  */
-export function callName(op: Pick<OperationDef, "name" | "mutates" | "rest" | "mcp">, surface: Principal["surface"]): string {
+export function callName(op: Pick<OperationDef, "name" | "mutates" | "rest" | "mcp" | "copiesOut">, surface: Principal["surface"]): string {
   if (surface !== "mcp") return op.name;
   return op.mcp.action ? `${mcpTool(op)}(action="${op.mcp.action}")` : mcpTool(op);
 }

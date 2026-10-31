@@ -10,6 +10,10 @@ Each kind of object has up to three tools, named after it:
 - `<kind>_write` creates, changes, archives and restores.
 - `<kind>_delete` deletes permanently, and only that.
 
+`products_export` takes one action, `export`, as a product's delete tool does. It takes a copy of a
+product away and changes nothing in it, so it is neither a read nor a write, and a client is told it
+destroys nothing.
+
 The kinds are `products`, `members`, `sources`, `attachments`, `derived`, `outcomes`, `assumptions`,
 `mockups`, `story` and `activity`. Each of these tools takes `action`, `params` (the action's fields),
 `product`, and `describe`. Called with an action, `describe: true` and no params, it returns that
