@@ -3,7 +3,7 @@ type: Specification
 title: The web app is a person's way to run the same operations an agent runs, one screen at a time.
 description: Principles, the shell and product switching, the overview, routes, first run, and the behavior of every screen (Idea, Evidence, Exploration, Story, Activity, archive and delete, organization and account screens).
 tags: [spec, web, ui, routes, shell]
-generated: {by: agent:claude, at: 2026-10-30}
+generated: {by: agent:claude, at: 2026-10-31}
 status: stable
 ---
 
@@ -1124,7 +1124,7 @@ never described as deleting. A list row showing an archived object says *Archive
   of everyone in it, are visible to whoever runs this WhatBuild, who uses them to write to its
   people, and to bill the organization where a plan has a price, with a link to Privacy. **What** the organization **holds**: people (counting
   invitations not yet accepted; readers of the Story don't count), products and sources (archived
-  ones don't), and storage (split into files, which are attachments, the text read from each, kept as a file of its own, and prototypes, and text; archiving keeps it, deleting frees it), each
+  ones count, and deleting one makes room), and storage (split into files, which are attachments, the text read from each, kept as a file of its own, and prototypes, and text; archiving keeps it, deleting frees it), each
   as "6 of 50" over a thin bar, with "Nearly full" from 80% and "Full", with its mark, when it is
   reached, or "no limit". **Today**, with when it starts over (midnight UTC): **You** (changes,
   sources added, files uploaded, data sent to you, exports) and **Everyone in** the organization

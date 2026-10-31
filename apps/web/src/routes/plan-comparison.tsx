@@ -23,8 +23,8 @@ export function PlanComparison({ plans, limits, fileMaxBytes, current, every = "
   const count = (n: Amount, one: string, many: string) => (n === null ? "No limit" : typeof n === "number" ? `${n.toLocaleString("en-US")} ${n === 1 ? one : many}` : "");
   const rows: { label: string; note?: string; cell: (p: PlanEntry) => ReactNode }[] = [
     { label: "People", note: "Readers of the Story are free and don’t count.", cell: (p) => count(v(p, "members_max"), "person", "people") },
-    { label: "Products", note: "One product is one discovery. Archived ones don’t count.", cell: (p) => count(v(p, "products_max"), "product", "products") },
-    { label: "Sources", note: "Interviews, calls, documents. Archived ones don’t count.", cell: (p) => count(v(p, "sources_max"), "source", "sources") },
+    { label: "Products", note: "One product is one discovery. Archived ones count.", cell: (p) => count(v(p, "products_max"), "product", "products") },
+    { label: "Sources", note: "Interviews, calls, documents. Archived ones count.", cell: (p) => count(v(p, "sources_max"), "source", "sources") },
     { label: "Storage", note: "Files and text together.", cell: (p) => amount(v(p, "storage_max_bytes"), "bytes") },
     { label: "Largest file", cell: (p) => size(Math.min(fileMaxBytes, Number(v(p, "file_max_bytes") ?? fileMaxBytes))) },
     { label: "Recordings, images and any file kept", note: "Text is read from documents on every plan.", cell: (p) => <Has yes={v(p, "documents_only") === false} /> },

@@ -272,8 +272,9 @@ visitors, invitation links, seats, baselines and daily reset.
 - An organization made on an allowance gets the deployment's plan, and on a plan the deployment
   defines meets every limit of it, its owners included; one an instance owner makes is unlimited; only an instance
   owner moves one to another plan, and nobody changes one organization's limits.
-- A write past a total is refused, and archiving (or, for storage, deleting) makes room; a reader
-  of the Story never takes a place among the people.
+- A write past a total is refused, and deleting (or, for people, taking someone out) makes room,
+  never archiving; restoring is never refused by a total; a reader of the Story never takes a place
+  among the people.
 - Every limit is refused with a usable error through REST, and the same limit through MCP; reads,
   search and export within the limits still work.
 - A second organization on the starting plan is refused; moving the first to another plan lets

@@ -34,7 +34,7 @@ there is unlimited. Limits belong to the plan, never to one organization.
 On a plan with limits everyone in the organization, its owners included, meets them, and an agent's
 calls count as its person's: limits on how often and how much each day, and totals on what the
 organization holds (people who do more than read the Story, an invitation not yet accepted holding a
-place; products and sources not archived; and storage, every version: files, which are attachments,
+place; products and sources, archived or not; and storage, every version: files, which are attachments,
 the text read from each attachment, kept as a file of its own, and prototypes, and text written in
 WhatBuild). What each
 person is sent a day (attachments, mockup downloads, exports) is capped too.
@@ -44,8 +44,18 @@ day being a UTC day; what the organization holds for a total, also in `holds`. I
 offered in `plans`, empty where there are none. A guest of the example organization meets only the
 guests' limits on calls a minute and downloads a day.
 
-- Reading, searching, archiving, deleting and export are never stopped by a limit.
-- Archiving makes room under people, products and sources; only deleting frees storage.
+- A total never stops reading, searching, archiving, restoring, deleting or export.
+- A day's writes never stop reading, searching, export, deleting, removing someone or cancelling an
+  invitation, and those last three are not counted as writes. They do stop archiving and restoring.
+  Calls and writes a minute pace them all.
+- Archiving makes no room: what is archived still counts. Deleting makes room under products, sources
+  and storage, and needs a product's admin and a connection at Admin; an editor can't, and the
+  refusal says who can. Removing someone or cancelling an invitation makes room under people.
+- Restoring adds nothing to a total, so no total refuses it. It is a write, so the day's writes do.
+  A source in an archived product is deleted by restoring the product first, or by deleting the
+  product whole.
+- An organization past a total keeps everything and stays writable: only adding more of that kind is
+  refused.
 - A reader of the Story does not count among the people, so one can be invited when the people
   total is reached.
 
@@ -61,7 +71,7 @@ instance owner moves it to another plan. Its owners are mailed when it becomes r
 | Refusal | What it means |
 |---|---|
 | `429 rate_limited` | Too many calls, or writes, in this minute. `retry_after_seconds` says when calls are accepted again. |
-| `409 quota_exceeded` | A day's allowance is used up, or a total the plan sets is reached: `details` has `quota`, `limit`, `used` and, for a day's, `resets_at`. The message says what makes room. |
+| `409 quota_exceeded` | A day's allowance is used up, or a total the plan sets is reached: `details` has `quota`, `limit`, `used` and, for a day's, `resets_at`. A call past both is refused for the total, which waiting does not lift, with the day's in `also`. The message says what makes room. |
 | `413 too_large` | One field, file or batch is over its size: `details` has `limit`. |
 | `403 plan_restricted` | The plan does not allow this at all (a limit of 0, fetching from a URL switched off, a file the parsers do not read, uploading a mockup canvas as a ZIP). The message names the alternative where there is one. |
 | `409 organization_read_only` | The organization is read-only: `details` has `read_only_since` and `kept_until`. |
