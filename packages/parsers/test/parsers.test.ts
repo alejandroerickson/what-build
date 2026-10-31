@@ -1,7 +1,7 @@
 import { strToU8, zipSync } from "fflate";
 import { describe, expect, it } from "vitest";
 import { cleanPayload } from "../src/cues.ts";
-import { clock, currentReading, derive, IMAGE_DETAIL, RECORDING_DETAIL, recordingDurationMs, SCAN_DETAIL, settledReading, sliceCodePoints, tableMarkdown, type ParseResult } from "../src/index.ts";
+import { clock, currentReading, derive, IMAGE_DETAIL, READING_LIMITS, RECORDING_DETAIL, recordingDurationMs, SCAN_DETAIL, settledReading, sliceCodePoints, tableMarkdown, type ParseResult } from "../src/index.ts";
 import { bytesReader } from "../src/media.ts";
 import { splitLong } from "../src/text.ts";
 import { builtinFormat, formatNumber, formatText, readFormat } from "../src/numfmt.ts";
@@ -814,6 +814,21 @@ describe("XLSX", () => {
         "# Sheet: Workings (hidden)\n\n| Row | Note | Owner |\n| --- | --- | --- |\n| 2 | Rates from the 2026 card | Sam |\n",
     );
     expect(r.facts).toMatchObject({ sheet_count: 2, hidden_sheets: ["Workings"], hidden_rows: 1, hidden_columns: 1 });
+    expect(r.facts).not.toHaveProperty("hidden_sheets_left_out");
+  });
+
+  it("names at most a hundred hidden sheets in its facts, each cut short if it is long, and says how many it left out", async () => {
+    const r = await derive(
+      makeWorkbook([
+        { name: "Plan", rows: [["Crew"], ["North"]] },
+        ...Array.from({ length: 150 }, (_, i) => ({ name: `${"w".repeat(200)} ${i}`, state: "hidden" as const, rows: [["Note"], ["Rates"]] })),
+      ]),
+      "plan.xlsx",
+    );
+    expect(r).toMatchObject({ status: "ready", facts: { sheet_count: 151, hidden_sheets_left_out: 50 } });
+    const named = r.facts["hidden_sheets"] as string[];
+    expect(named).toHaveLength(100);
+    expect(Math.max(...named.map((name) => name.length))).toBe(64);
   });
 
   it("reads a value its format shows as nothing as General, and says it is hidden, but a zero as the blank it shows", async () => {
@@ -1865,5 +1880,18 @@ describe("the readable text", () => {
 
   it("says a time the way people write it", () => {
     expect([0, 5_000, 65_000, 3_599_000, 3_723_000].map(clock)).toEqual(["0:00", "0:05", "1:05", "59:59", "1:02:03"]);
+  });
+});
+
+describe("what a reading holds beside its text", () => {
+  it("keeps a detail within its limit, and whole characters", async () => {
+    const r = await derive(utf8("x"), `a.${"😀".repeat(READING_LIMITS.detailChars)}`);
+    expect(r.status_detail!.length).toBeLessThanOrEqual(READING_LIMITS.detailChars);
+    expect(r.status_detail).not.toMatch(/\p{Cs}/u);
+  });
+
+  it("holds no half of a surrogate pair, which Postgres refuses in JSON and a text or a font can bring", async () => {
+    const r = await derive(utf8("x"), "a.\ud83dz");
+    expect(r.status_detail).toBe("no parser reads .\uFFFDz files");
   });
 });

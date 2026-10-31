@@ -3,7 +3,7 @@ type: System Concept
 title: The dev deployment is a second Cloud Run deployment, laid out like production and holding a copy of its example organization or other organizations its instance owners own, where a release is rehearsed before production moves.
 description: For the maintainer and the agent working for them; what the dev deployment is and how it differs from production, where its values are, rehearsing a release on it, putting it back, refreshing its copy of the instance owners' organizations, setting one up from nothing, and keeping its data private.
 tags: [operations, deployment, dev, rehearsal, migrations, cloud-run, neon, production]
-generated: {by: agent:claude, at: 2026-10-30}
+generated: {by: agent:claude, at: 2026-10-31}
 status: stable
 ---
 
@@ -113,7 +113,7 @@ rm -rf "$S"
   (`gcloud run services logs read whatbuild --project $P --region $R --limit 100`) has no 500s.
 
 **4. Hostile files**, when the release changes parsing (`packages/parsers/`,
-`apps/server/src/parse-thread.ts` or `parse-worker.ts`), the parse limits (`WHATBUILD_PARSE_*`) or
+`apps/server/src/parse-process.ts`, `parse-child.ts` or `parse-worker.ts`), the parse limits (`WHATBUILD_PARSE_*`) or
 the image's memory. Make them on your machine; none is committed:
 
 ```bash
@@ -127,16 +127,40 @@ made for the rehearsal; a plan with limits refuses files over its `file_max_byte
 
 - Each source ends in the status the script printed (its Text and Attachments say it), within a
   couple of minutes, and no job is left waiting.
-- The service kept answering while they parsed: pages opened, and the log has no 500s and no
-  instance that ran out of memory:
+- **The peak of each parse, from the processes themselves.** Each parse leaves a line in the log once
+  its process is gone: how it ended, the peak of its process as that process measured it, what the
+  server holds at that moment, and how many other processes run beside the server. Read them with the
+  instance each came from:
+
+  ```bash
+  gcloud logging read 'resource.type="cloud_run_revision" AND resource.labels.service_name="whatbuild" AND textPayload:("parse: the process" OR "listening on" OR "Memory limit" OR "put back in the queue")' \
+    --project $P --freshness 1h --format='value(timestamp,labels.instanceId,textPayload)'
+  ```
+
+  Add each line's peak, what the server holds, and the file's size, which the server holds while
+  its process runs. This sum, not the metric below, is the reading: the platform samples memory about
+  once a minute, and a parse's peak lasts a second or two, so a chart can look healthy near the limit.
+  If any sum came within about a sixth of the limit, or an instance ran out, lower
+  `WHATBUILD_PARSE_MEMORY_MB` (or give the service more memory) on dev, upload the files again, and
+  make the same change on production ([Cloud Run](cloud-run.md#setting-it-up), **Parsing**).
+- **How each parse ended.** `ended by <signal or exit code>` in that line means its process ended
+  without an answer; its source says `failed` with the reason, or, for a process killed from outside
+  or one that never began, its job is tried again. The service should have kept answering.
+- **No process left behind.** The same lines end with `<n> other processes`, normally none. It
+  should be the same after every parse: a number that grows means a parse left something running.
+  Where the server has no `/proc` to count them, the line leaves the count out; there, list the
+  server's processes with what the platform offers, or say that it could not be checked.
+- **The service kept answering**: pages opened, and the log has no 500s and no instance that ran out
+  of memory:
 
   ```bash
   gcloud logging read 'resource.type="cloud_run_revision" AND resource.labels.service_name="whatbuild" AND (severity>=ERROR OR textPayload:"Memory limit")' \
     --project $P --freshness 1h --format='value(timestamp,textPayload)'
   ```
 
-- The revision's memory while they parsed: the service's **Metrics** tab in the console,
-  *Container memory utilization*, or the 99th percentile of each minute from the Monitoring API:
+- **The memory the platform saw**, for the level the server keeps between parses: the service's
+  **Metrics** tab in the console, *Container memory utilization*, or the 99th percentile of each
+  minute from the Monitoring API:
 
   ```bash
   t() { python3 -c "import datetime as d; print((d.datetime.now(d.timezone.utc) - d.timedelta(hours=$1)).strftime('%Y-%m-%dT%H:%M:%SZ'))"; }
@@ -147,16 +171,51 @@ made for the rehearsal; a plan with limits refuses files over its `file_max_byte
     python3 -c 'import sys,json; [print(p["interval"]["endTime"], round(100 * p["value"]["doubleValue"]), "%") for s in json.load(sys.stdin).get("timeSeries", []) for p in s["points"]]'
   ```
 
-  If it came within about a sixth of the limit, or an instance ran out, lower
-  `WHATBUILD_PARSE_MEMORY_MB` (or give the service more memory) on dev, upload the files again,
-  and make the same change on production ([Cloud Run](cloud-run.md#setting-it-up), **Parsing**).
-  A PDF whose content inflates (`inflating.pdf`) uses nearly all a parse may: about 600 MB more
-  for the process at the default limits.
+- **The execution environment.** What ends an instance can differ between Cloud Run's environments,
+  and `deploy/cloud-run/setup.sh` pins none, so record the one in use with the results below:
 
-**5. Report.** What ran, what migrated, what each job did, what each hostile file ended as and the
-memory it took, and what failed. A migration or job that fails on dev is a finding: production's
-build is not approved, the fix is a new commit, and dev is put back before the fix is rehearsed.
-Never repair dev's schema by hand.
+  ```bash
+  gcloud run services describe whatbuild --project $P --region $R --format=json |
+    python3 -c 'import sys,json; print(json.load(sys.stdin)["spec"]["template"]["metadata"].get("annotations", {}).get("run.googleapis.com/execution-environment", "not set: the platform chooses"))'
+  ```
+
+**4a. What ends first: a step test, on dev only, never on production.** It says what the rest cannot:
+whether, on this platform, a parse's process past the instance's memory dies alone or takes the
+server with it. Setting `oom_score_adj` does not settle that, since a platform may end the whole
+container whatever it says. Raise `WHATBUILD_PARSE_MEMORY_MB` through steps from the value in use, say
+by 128 at a time, until something dies, with requests going throughout:
+
+```bash
+gcloud run services update whatbuild --project $P --region $R --update-env-vars WHATBUILD_PARSE_MEMORY_MB=$MB
+while sleep 0.2; do curl -s -o /dev/null -w '%{http_code} %{time_total}\n' "$DEV_URL/api/v1/meta"; done > traffic.txt &
+T=$!
+# Upload every hostile file again, as above, and wait for each to end. At the first death of the
+# whole instance, stop and put the value back: its job's lock holds for 10 minutes and it is then
+# tried again, which at a raised limit only repeats the death and spoils the numbers.
+kill $T
+sort -k2 -n traffic.txt | awk '{ t[NR] = $2; if ($1 == 0 || $1 >= 500) bad++ } END { print NR " requests, p95 " t[int(NR * 0.95)] " s, " bad + 0 " failed" }'
+```
+
+Then read the lines of step 4's first command, with their instances:
+
+- `parse: … ended by SIGKILL`, and later lines from the same instance: the parse's process died alone,
+  and the server went on.
+- `Memory limit`, then a new `listening on` from another instance: the whole instance ended, the
+  server with it.
+
+Record, for each step, the peaks, which of those happened, the requests' p95 and how many failed,
+and whether `put back in the queue` came just before `Memory limit`: if the platform stops an instance
+over its limit with a signal, such a job is put back rather than spending an attempt for its first
+hour. On Linux a child's reported peak can start at the server's own size, because a process carries
+it across exec, so a small parse reads high; the heaviest parses' peaks are right.
+Afterwards put the value back (`--update-env-vars WHATBUILD_PARSE_MEMORY_MB=<the value before>`, or
+`--remove-env-vars WHATBUILD_PARSE_MEMORY_MB` if it had none), and delete `traffic.txt`.
+
+**5. Report.** What ran, what migrated, what each job did, what each hostile file ended as, the peak
+and the server's memory for each, whether any process was left behind, the execution environment, what
+the step test ended and at which value, the requests' p95 and failures, and what failed. A migration or
+job that fails on dev is a finding: production's build is not approved, the fix is a new commit, and
+dev is put back before the fix is rehearsed. Never repair dev's schema by hand.
 
 After a rehearsal that passed, dev may stay on the new release; it is then what production will be.
 

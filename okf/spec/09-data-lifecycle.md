@@ -120,8 +120,8 @@ running without a compliance program.
 | Per attachment | 100 MB (`WHATBUILD_FILE_MAX_BYTES`) | Yes — `413 too_large` |
 | Through the upload relay | 25 MB (`WHATBUILD_RELAY_MAX_BYTES`); larger files need direct upload URLs | Yes — `413 too_large` |
 | Read per attachment | 25 MB (`WHATBUILD_PARSE_CAP_BYTES`); a larger attachment is stored, not read | Yes |
-| Memory for reading one attachment | 384 MB of heap (`WHATBUILD_PARSE_MEMORY_MB`), and half as much again for buffers; a parse that needs more is stopped and fails | Yes |
-| Time for reading one attachment | 120 seconds (`WHATBUILD_PARSE_TIMEOUT_SECONDS`); a parse that runs longer is stopped and fails | Yes |
+| Memory for reading one attachment | 288 MB of heap (`WHATBUILD_PARSE_MEMORY_MB`), and half as much again for buffers, the text it returns among them; a parse that needs more is stopped and fails. The process it runs in costs more than these: about 70 MiB before it starts, and at its peak more than twice the heap's limit, about 660 MiB at the default in the heaviest case measured and occasionally more, beside what the server holds in the same instance | Yes |
+| Time for reading one attachment | 120 seconds (`WHATBUILD_PARSE_TIMEOUT_SECONDS`), counted from when its process starts; a parse that runs longer is stopped and fails | Yes |
 | Paragraphs read from one attachment | 200,000; a file that would make more is stored, not read (`too_large`), except a PDF whose short lines would, read to its sentences' ends instead ([§5.5](05-derived-layer.md)) | Yes |
 | Pages of a parsed PDF | 2,000; a longer PDF is stored, not read (`too_large`) | Yes |
 | Attachments per source | 50 | Yes — `409 too_many_attachments` |

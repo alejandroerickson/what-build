@@ -3,7 +3,7 @@ type: Specification
 title: WhatBuild is one TypeScript application image over Postgres and an object store, and the same code runs on a laptop with only Node.
 description: The requirements behind the stack, the stack itself, the deployment shape, ports and adapters, the operation protocol, the local development contract, cross-cutting rules, and the repository layout.
 tags: [spec, architecture, stack, development, deployment]
-generated: {by: agent:claude, at: 2026-10-30}
+generated: {by: agent:claude, at: 2026-10-31}
 status: stable
 ---
 
@@ -36,7 +36,7 @@ Observed in the `package.json` files, the [`deploy/Dockerfile`](../../deploy/Doc
 | Concern | Choice | Why |
 |---|---|---|
 | Language | **TypeScript** (strict), ES modules | One language across server, web and tooling; the schema → types → JSON Schema path the registry depends on. |
-| Server runtime | **Node.js** 24 (`.nvmrc`, `node:24-slim` image; `engines` allows 22.22.2 or later on 22, and 24.15 or later: the parse thread reads its memory with `worker.getHeapStatistics()`, from 22.16; in development and tests Node strips the types of its entry itself, by default from 22.18; and the web app's tests run under jsdom, which needs those versions; the server alone, outside the image, runs on 22.18) | Boring, universal. No Bun/Deno-only APIs in shared code. |
+| Server runtime | **Node.js** 24 (`.nvmrc`, `node:24-slim` image; `engines` allows 22.22.2 or later on 22, and 24.15 or later: the parse's process reads its thread's memory with `worker.getHeapStatistics()`, from 22.16; in development and tests Node strips the types of its entries itself, by default from 22.18; and the web app's tests run under jsdom, which needs those versions; the server alone, outside the image, runs on 22.18) | Boring, universal. No Bun/Deno-only APIs in shared code. |
 | HTTP | **Hono** on `@hono/node-server` | Small, standards-based (`Request`/`Response`), portable across container hosts. |
 | MCP | **`@modelcontextprotocol/sdk`** | Official SDK. Streamable HTTP transport in stateless mode (no session id, JSON responses). A stdio proxy is planned. |
 | Schemas | **Zod 4** | One strict schema per operation yields TypeScript types, runtime validation, and JSON Schema for MCP tools and `describe`. |
@@ -102,13 +102,16 @@ before the service moves to it, Cloud Storage for blobs, Secret Manager for secr
   at every attempt or failed at its last (an export at its first): one that failed then is left for
   the new version with that attempt not spent, since it may have failed on the new schema. The
   migration is recorded in the transaction that queued the work, so nothing slips between.
-- **An attachment is read in a thread of its own.** The worker starts a worker thread for each parse,
-  with no environment, a heap of `WHATBUILD_PARSE_MEMORY_MB` (384 by default), half as much again
-  for buffers and `WHATBUILD_PARSE_TIMEOUT_SECONDS` (120); a parse past them is stopped and fails,
-  and the process keeps serving ([§5.1](05-derived-layer.md),
-  [decision](../decisions/each-file-is-parsed-in-a-thread-of-its-own-with-memory-and-time-limits.md)).
-  The defaults suit a 1 GiB instance. The bundle carries the thread's entry as
-  `dist/parse-worker.js` beside `dist/main.js` ([`build.mjs`](../../apps/server/build.mjs)).
+- **An attachment is read in a process of its own.** The worker starts a child process for each
+  parse, with no environment and none of the server's flags, which parses in a worker thread with
+  a heap of `WHATBUILD_PARSE_MEMORY_MB` (288 by default), half as much again for buffers, and
+  `WHATBUILD_PARSE_TIMEOUT_SECONDS` (120); a parse past them is stopped and fails, a parse that ends
+  in a fatal error ends only itself, and the server keeps serving ([§5.1](05-derived-layer.md),
+  [decision](../decisions/each-file-is-parsed-in-a-process-of-its-own-so-a-parse-that-ends-in-a-fatal-error-ends-only-itself.md)).
+  The defaults suit a 1 GiB instance. The bundle carries the child's and the thread's entries as
+  `dist/parse-child.js` and `dist/parse-worker.js` beside `dist/main.js`
+  ([`build.mjs`](../../apps/server/build.mjs)), and the image's build runs a parse through them
+  (`node main.js check-parsing`).
 - **The example organization is named by configuration.** `WHATBUILD_EXAMPLE_TENANT` names the
   organization every account reads, by its slug or one it had before, and is copied to
   `tenants.example` at start-up
@@ -176,7 +179,7 @@ interfaces; adapters live in [`apps/server/src/adapters`](../../apps/server/src/
 | `GrantSigner` | Sign and verify upload and download grants | HMAC with `WHATBUILD_GRANT_KEY` | the same, with a fixed development key | the same |
 | `Mailer` | Sign-in links, invitations, allowance notices, an account's deletion confirmation, an organization's read-only and deletion notices to its owners, a new agent connection's notice and the daily feedback digest | SMTP, ACS with managed identity, or none (email links then off) | printed to the terminal | captured in memory |
 | `UrlFetcher` | Size-capped, SSRF-safe HTTPS fetch for `attachments.fetch_url` | yes | yes | yes |
-| `FileParser` | Parse one attachment's bytes into its readable Markdown, away from the requests | a worker thread per file, with memory and time limits | the same | the same |
+| `FileParser` | Parse one attachment's bytes into its readable Markdown, away from the requests | a child process per file, parsing in a worker thread, with memory and time limits | the same | the same |
 
 ◆ Decision: ACS mail uses the official Azure Email and Identity SDKs behind `Mailer`, with
 `ManagedIdentityCredential` and an optional user-assigned identity client ID. This lets Azure

@@ -1,5 +1,6 @@
 import { hostname } from "node:os";
 import { SpanKind, SpanStatusCode, type Span } from "@opentelemetry/api";
+import { ParseInterrupted, ParseStopped } from "@whatbuild/parsers";
 import {
   indexSources, markExportFailed, pruneFeedbackCounts, pruneUsage, runDerivation, runEvidenceMove, runExport, sendFeedbackDigest, stagedPrototypeKeys, type Env,
 } from "@whatbuild/core";
@@ -17,7 +18,8 @@ const MAX_ATTEMPTS = 5;
  * What the reading of a file whose every attempt failed with an error says, recorded when the worker
  * gives the read up, so its attachment says it could not be read instead of "Reading" for good.
  */
-const READ_GIVEN_UP = `this file could not be read: reading it failed ${MAX_ATTEMPTS} times, so it was given up; the file is stored, and reading it again may help (Read it again in the web app, or derived_write(action="rederive"))`;
+const readGivenUp = (why?: string) =>
+  `this file could not be read: reading it failed ${MAX_ATTEMPTS} times${why ? `, the last because ${why}` : ""}, so it was given up; the file is stored, and reading it again may help (Read it again in the web app, or derived_write(action="rederive"))`;
 /** How often an instance looks whether the feedback digest is due. */
 const DIGEST_CHECK_MS = 10 * 60_000;
 /** How long a lock outlives the worker that took it before another worker may take the job. */
@@ -40,10 +42,11 @@ interface Job {
 /**
  * The job worker: claims work from the Postgres queue with SKIP LOCKED, so any number of replicas
  * can run it without a broker. Derivation always runs here, never inside the request that uploaded
- * the file, in every environment, and the parse itself in a worker thread of its own held to a
- * memory and a time limit (parse-thread.ts). A job that stops the process anyway, or fails, is given
- * up after five attempts (an export at its first failure), and a read given up records a failed
- * reading of its attachment.
+ * the file, in every environment, and the parse itself in a child process of its own (parse-process.ts),
+ * so one that ends in a fatal error ends only itself, and that process is held to a memory and a time
+ * limit. A job that stops this process anyway (an instance out of memory, say), or fails, is given up after
+ * five attempts (an export at its first failure), and a read given up records a failed reading of
+ * its attachment.
  *
  * Started with `idleMs`, as the service starts it, the worker sleeps once that long has passed
  * without a request or a job: it stops looking at the queue, so a database that suspends when no
@@ -55,6 +58,8 @@ interface Job {
 export class Worker {
   private timer: NodeJS.Timeout | null = null;
   private running = false;
+  /** The drain under way, or the last one, for a shutdown to wait for. */
+  private draining: Promise<number> = Promise.resolve(0);
   private again = false;
   private stopped = false;
   /** How long the worker looks after the last request or job before it sleeps; null, it never sleeps. */
@@ -78,10 +83,16 @@ export class Worker {
     this.look(0);
   }
 
-  stop() {
+  /**
+   * Takes no more jobs, and resolves once the one running, if any, has ended. The server's shutdown
+   * stops its parse, if it is one, and that job goes back in the queue, with this attempt not spent in its first hour;
+   * it waits for this before the database goes, since that takes the database.
+   */
+  stop(): Promise<unknown> {
     this.stopped = true;
     if (this.timer) clearTimeout(this.timer);
     this.timer = null;
+    return this.draining;
   }
 
   /**
@@ -148,27 +159,41 @@ export class Worker {
     return ms === null || ms === undefined ? null : Math.ceil(Number(ms));
   }
 
-  async drain(): Promise<number> {
+  drain(): Promise<number> {
+    // A commit may wake a worker on its way down; the database may be going with it.
+    if (this.stopped) return Promise.resolve(0);
     if (this.running) {
       this.again = true;
-      return 0;
+      return Promise.resolve(0);
     }
     this.running = true;
+    this.draining = this.takeJobs();
+    return this.draining;
+  }
+
+  private async takeJobs(): Promise<number> {
     let done = 0;
     try {
       do {
         this.again = false;
         if (await this.supersededByAMigration()) break;
         for (;;) {
+          if (this.stopped) break;
           await this.prune().catch((e) => this.log(`prune: ${(e as Error).message}`));
           await this.feedbackDigest().catch((e) => this.log(`feedback digest: ${(e as Error).message}`));
           await this.giveUpAbandoned().catch((e) => this.log(`give up: ${(e as Error).message}`));
+          // A stop may have come during any of that, and the claim itself may cross with one.
+          if (this.stopped) break;
           const job = await this.claim();
           if (!job) break;
+          if (this.stopped) {
+            await this.putBack(job);
+            break;
+          }
           await this.run(job);
           done++;
         }
-      } while (this.again);
+      } while (this.again && !this.stopped);
     } catch (e) {
       this.log(`worker: ${(e as Error).message}`);
     } finally {
@@ -281,9 +306,9 @@ export class Worker {
   /**
    * Give up the jobs that used every attempt without finishing. A job that fails is given up in
    * `run`, by `giveUp`; these are the ones the process stopped during, every time, most likely
-   * because the job itself took it down (a file that needs more memory than the server has).
-   * Claiming one again would take the server down again, so it is marked done, and a derivation or
-   * an export records that it failed.
+   * because the job itself took it down (an export, or a parse past what the instance has left,
+   * needing more memory than it holds). Claiming one again could take the server down again, so it
+   * is marked done, and a derivation or an export records that it failed.
    */
   private async giveUpAbandoned(): Promise<void> {
     const reason = `the server stopped while running this ${MAX_ATTEMPTS} times, most likely for lack of memory or time, so WhatBuild gave it up`;
@@ -360,11 +385,13 @@ export class Worker {
         await trx.updateTable("jobs").set({ done_at: new Date().toISOString(), error: null }).where("job_id", "=", job.job_id).execute();
       });
     } catch (e) {
+      // Says nothing of the job or its file: nothing is recorded, and the next instance takes it at once.
+      if (e instanceof ParseStopped) return this.putBack(job);
       span.setStatus({ code: SpanStatusCode.ERROR });
       span.setAttribute("error.type", errorType(e));
       const msg = (e as Error).message?.slice(0, 500) ?? String(e);
       // An export is given up at its first failure, any other job at its last attempt.
-      if (job.attempts >= MAX_ATTEMPTS || job.kind === "export") return this.giveUp(job, msg);
+      if (job.attempts >= MAX_ATTEMPTS || job.kind === "export") return this.giveUp(job, msg, e instanceof ParseInterrupted ? e.message : undefined);
       this.log(`job ${job.job_id} ${job.kind} failed (attempt ${job.attempts}): ${msg}`);
       await this.env.db
         .updateTable("jobs")
@@ -375,10 +402,23 @@ export class Worker {
   }
 
   /**
+   * Gives back a job this worker claimed and is not going to finish since it was stopped: its lock,
+   * and for its first hour the attempt it counted. After that a stop spends one, so that stops alone
+   * cannot put a job back without end, and a job the instance keeps stopping for still gets given up.
+   */
+  private async putBack(job: Job): Promise<void> {
+    await sql`
+      update jobs set locked_at = null, locked_by = null, attempts = attempts - (created_at > now() - interval '1 hour')::int
+      where job_id = ${job.job_id} and done_at is null and locked_by = ${this.id}`.execute(this.env.db);
+    this.log(`job ${job.job_id} ${job.kind} put back in the queue: the server is stopping`);
+  }
+
+  /**
    * Give up a job whose last attempt failed with an error (an export's first), in one transaction
    * with what records that it ended. A read records a `failed` reading of its attachment version
-   * that says it could not be read and that reading it again may help: its attachment then says so,
-   * where it would read "Reading" for good, and Read it again (`derived.rederive`) reads it afresh.
+   * that says it could not be read, why if `why` can say so to people, and that reading it again may
+   * help: its attachment then says so, where it would read "Reading" for good, and Read it again
+   * (`derived.rederive`) reads it afresh.
    * An export records its failure. The statement that gives it up looks for a later version's
    * migration, as the claim and the abandoned jobs' give-up do: while the database has one, the
    * attempt may have failed on that version's schema, so the job is left for the version that
@@ -386,7 +426,7 @@ export class Worker {
    * nothing changes and the job keeps its lock: once that is ten minutes old, the abandoned jobs'
    * give-up takes a job at its last attempt, and the claim an export, which then runs again.
    */
-  private async giveUp(job: Job, error: string): Promise<void> {
+  private async giveUp(job: Job, error: string, why?: string): Promise<void> {
     const outcome = await this.env.db
       .transaction()
       .execute(async (trx): Promise<"given up" | "left" | "taken over"> => {
@@ -410,7 +450,7 @@ export class Worker {
             file_version_id: String(job.payload["file_version_id"]),
             force: Boolean(job.payload["force"]),
             quiet: Boolean(job.payload["quiet"]),
-            failed: READ_GIVEN_UP,
+            failed: readGivenUp(why),
           });
         else if (job.kind === "export") await markExportFailed(trx, String(job.payload["export_id"]), error);
         return "given up";

@@ -36,7 +36,8 @@ command. This file is how to conduct the work.
    that to `main`, then `gh release create` with them as the notes' first section, as the guide
    shows. Watch the Release workflow to the end.
 5. **Production, if asked:** if the release adds migrations, or changes parsing
-   (`packages/parsers/`, `apps/server/src/parse-thread.ts`, the `WHATBUILD_PARSE_*` limits) or the
+   (`packages/parsers/`, `apps/server/src/parse-process.ts`, `parse-child.ts`, `parse-worker.ts`, the
+   `WHATBUILD_PARSE_*` limits) or the
    service's memory, rehearse it on the dev deployment first and report the result. Before
    approving, do on production what the release's lines in `upgrading.md` ask of a deployment, with
    the person's yes: plans, for one, through the `run-the-instance` skill, since a starting plan the
