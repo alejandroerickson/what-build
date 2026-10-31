@@ -29,6 +29,9 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
   that day, and the API, MCP and OAuth with the error code `maintenance`, without reaching the
   service; deployed again without it, everything is as before
   ([Cloud Run](cloud-run.md), "Down for maintenance").
+- **The mockup canvas zooms in smaller steps with a mouse wheel.** It asks nothing of a deployment.
+  A notch with ⌘ or Ctrl moves the zoom by about 10% at most, where it moved about 30% with ⌘ and
+  nearly threefold with Ctrl; a pinch still follows the fingers.
 
 ## v0.28.0
 

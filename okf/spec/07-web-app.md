@@ -634,7 +634,8 @@ restores one. Its writes are promoting a page to the Story, and, for a product's
   from where it is. In interact mode a touch that begins on a page is the page's.
 - **Scroll and zoom.** Scroll moves the canvas up and down, and Shift with scroll sideways; ⌘ or
   Ctrl with scroll, or a pinch, zooms about the pointer, from 5% to 400%, over a page in interact
-  mode too. The toolbar has zoom out, the zoom level (a menu: Fit the canvas, Fit the selected page,
+  mode too. A notch of a mouse wheel moves the zoom by about 10% at most, and a pinch follows the
+  fingers. The toolbar has zoom out, the zoom level (a menu: Fit the canvas, Fit the selected page,
   Fill the width with the selected page, 50%, 100%, 200%), zoom in, fit and fill the selected
   page, fit the canvas, the previous and next page, and a list of every key (each one also runs
   from the list). Keys: `+` and `−`, `0` for 100%, `1` fits the canvas, `2` fits the selected page

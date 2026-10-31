@@ -11,6 +11,7 @@ import { Button, ButtonLink, Callout, Crumbs, Dialog, EmptyState, ErrorCallout, 
 import { COARSE_POINTER_QUERY, isTypingTarget, useMediaQuery } from "../ui/media.ts";
 import { DeleteDialog } from "./delete-dialog.tsx";
 import { FirstUse } from "./first-use.tsx";
+import { wheelZoomFactor } from "./mockup-wheel-zoom.ts";
 import { usePageView, type PageView } from "./story-flip.tsx";
 import { FocusToggle, useStoryFocus } from "./story-focus.tsx";
 import type { Actor } from "./story-model.ts";
@@ -520,13 +521,13 @@ function Canvas({ version, pageSrc, selected, onSelect, onKey, canFocus, pageVie
     else setView(apply);
   }, [go, view]);
 
-  /** A pinch, or ⌘ or Ctrl with scroll, zooms about the pointer; a pinch arrives as Ctrl with small steps. */
+  /** A pinch, or ⌘ or Ctrl with scroll, zooms about the pointer. */
   const wheelZoom = useCallback(
     (dy: number, line: boolean, pinch: boolean, clientX: number, clientY: number) => {
       const r = viewport.current?.getBoundingClientRect();
       if (!r) return;
       nudge();
-      zoomAt(Math.exp(-dy * (line ? 0.05 : 0.0025) * (pinch ? 4 : 1)), clientX - r.left, clientY - r.top);
+      zoomAt(wheelZoomFactor(dy, line, pinch), clientX - r.left, clientY - r.top);
     },
     [zoomAt, nudge],
   );
