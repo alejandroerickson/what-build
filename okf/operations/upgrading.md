@@ -52,7 +52,8 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
 - **A mockup prints whole.** It asks nothing of a deployment. In the Story's print view a mockup
   page, or each page of a canvas, lays out at its frame's width and is scaled down to the paper, on
   one sheet where it fits, where its right side used to be cut off and one such page shrank the
-  whole PDF. Other Story pages print as they did.
+  whole PDF. What any page fixes to the window, such as an open dialog's backdrop, stays within
+  that page instead of repeating on every sheet. Other Story pages print as they did.
 - **Search corrects a typo the way §8.2 says.** It asks nothing of a deployment. Two neighbouring
   letters swapped now count as one edit, as the specification always said, so a five-letter word
   with a swap is corrected, and a whole word one edit away is preferred to a longer word whose

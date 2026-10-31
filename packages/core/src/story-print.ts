@@ -222,9 +222,27 @@ function scopeSelectorList(list: string): string {
   return splitTopLevel(list, ",").map(scopeSelector).join(",");
 }
 
+const WIDTH_QUERY = /\(\s*(min-|max-)?width\s*(:|<=|>=|<|>|=)\s*([\d.]+)(px|em|rem)\s*\)/gi;
+
+/**
+ * What a media query asks of the width, answered for a mockup page's frame rather than the paper, so
+ * the page lays out as it does in its frame: always true or always false, whatever the page prints on.
+ */
+function answerWidthQueries(query: string, frameWidth: number): string {
+  return query.replace(WIDTH_QUERY, (_m, side: string | undefined, op: string, n: string, unit: string) => {
+    const at = Number(n) * (unit.toLowerCase() === "px" ? 1 : 16);
+    const kind = side?.toLowerCase() === "min-" || op === ">=" ? ">=" : side?.toLowerCase() === "max-" || op === "<=" ? "<=" : op;
+    const holds = kind === ">=" ? frameWidth >= at : kind === "<=" ? frameWidth <= at : kind === ">" ? frameWidth > at : kind === "<" ? frameWidth < at : frameWidth === at;
+    return holds ? "(min-width:0)" : "(max-width:0)";
+  });
+}
+
+/** A fixed element would repeat on every sheet, over everything: it stays on its page, within the page's box. */
+const unfixed = (declarations: string) => declarations.replace(/(^|[{;\s])position\s*:\s*fixed\b/gi, "$1position:absolute");
+
 /** A dark-scheme media query applies on screen only, so a dark-mode browser still prints on paper. */
-function scopeMediaPrelude(prelude: string): string {
-  return splitTopLevel(prelude, ",")
+function scopeMediaPrelude(prelude: string, frameWidth?: number): string {
+  return splitTopLevel(frameWidth ? answerWidthQueries(prelude, frameWidth) : prelude, ",")
     .map((q) => {
       const t = q.trim();
       if (!/prefers-color-scheme\s*:\s*dark/i.test(t)) return q;
@@ -238,9 +256,10 @@ function scopeMediaPrelude(prelude: string): string {
 
 /**
  * Rewrite a page's stylesheet for its shadow root: `:root`, `html` and `body` become `:host`, so the
- * page's tokens and base styles still apply, and dark-scheme rules stay off paper.
+ * page's tokens and base styles still apply, dark-scheme rules stay off paper, and nothing is fixed
+ * to the sheet. frameWidth, a mockup page's, answers what its media queries ask of the width.
  */
-export function scopeStoryCss(css: string): string {
+export function scopeStoryCss(css: string, frameWidth?: number): string {
   let out = "";
   let i = 0;
   while (i < css.length) {
@@ -278,11 +297,11 @@ export function scopeStoryCss(css: string): string {
       const name = /^@([-\w]+)/.exec(prelude)?.[1]?.toLowerCase() ?? "";
       if (BLOCK_AT_RULES_WITH_RULES.has(name)) {
         const keyword = /^@[-\w]+/.exec(prelude)![0];
-        const head = name === "media" ? `${keyword}${scopeMediaPrelude(prelude.slice(keyword.length))}` : prelude;
-        out += `${head}{${scopeStoryCss(css.slice(stop + 1, close - 1))}}`;
+        const head = name === "media" ? `${keyword}${scopeMediaPrelude(prelude.slice(keyword.length), frameWidth)}` : prelude;
+        out += `${head}{${scopeStoryCss(css.slice(stop + 1, close - 1), frameWidth)}}`;
       } else out += css.slice(i, close);
     } else {
-      out += `${scopeSelectorList(prelude)}${css.slice(stop, close)}`;
+      out += `${scopeSelectorList(prelude)}${unfixed(css.slice(stop, close))}`;
     }
     i = close;
   }
@@ -341,12 +360,12 @@ function dropLeadingTitle(body: Node, title: string): boolean {
 const DROPPED = new Set(["script", "meta", "base", "link", "iframe", "frame", "frameset", "object", "embed", "portal", "form"]);
 
 /** Remove scripts, refused elements and inline event handlers, and scope every <style> left in the body. */
-function sanitize(n: Node) {
+function sanitize(n: Node, frameWidth?: number) {
   if (n.childNodes) n.childNodes = n.childNodes.filter((c) => !DROPPED.has(c.tagName ?? ""));
-  if (n.attrs) n.attrs = n.attrs.filter((a) => !a.name.toLowerCase().startsWith("on"));
-  if (n.tagName === "style") for (const c of n.childNodes ?? []) if (c.nodeName === "#text") c.value = scopeStoryCss(c.value ?? "");
-  for (const c of n.childNodes ?? []) sanitize(c);
-  if (n.content) sanitize(n.content);
+  if (n.attrs) n.attrs = n.attrs.filter((a) => !a.name.toLowerCase().startsWith("on")).map((a) => (a.name.toLowerCase() === "style" ? { ...a, value: unfixed(a.value) } : a));
+  if (n.tagName === "style") for (const c of n.childNodes ?? []) if (c.nodeName === "#text") c.value = scopeStoryCss(c.value ?? "", frameWidth);
+  for (const c of n.childNodes ?? []) sanitize(c, frameWidth);
+  if (n.content) sanitize(n.content, frameWidth);
 }
 
 const HEADING = /^h([1-6])$/;
@@ -385,23 +404,23 @@ export interface PreparedPage {
 }
 
 /** titleHeading, the level of the heading the print view gives the page's title, nests the page's own headings under it. */
-export function prepareStoryPage(html: string, title: string, titleHeading?: number): PreparedPage {
+export function prepareStoryPage(html: string, title: string, titleHeading?: number, frameWidth?: number): PreparedPage {
   const doc = parseHtml(html) as unknown as Node;
   const root = findChild(doc, "html");
   const head = findChild(root, "head");
   const body = findChild(root, "body");
   const styles: string[] = [];
-  for (const c of head?.childNodes ?? []) if (c.tagName === "style") styles.push(scopeStoryCss(textOf(c)));
+  for (const c of head?.childNodes ?? []) if (c.tagName === "style") styles.push(scopeStoryCss(textOf(c), frameWidth));
   const hostAttrs = new Map<string, string>();
   const classes: string[] = [];
   for (const a of [...(root?.attrs ?? []), ...(body?.attrs ?? [])]) {
     const name = a.name.toLowerCase();
     if (name === "class") classes.push(a.value);
-    else if (name === "lang" || name === "dir" || name === "style" || name.startsWith("data-")) hostAttrs.set(name, a.value);
+    else if (name === "lang" || name === "dir" || name === "style" || name.startsWith("data-")) hostAttrs.set(name, name === "style" ? unfixed(a.value) : a.value);
   }
   if (classes.join(" ").trim()) hostAttrs.set("class", classes.join(" ").trim());
   if (!body) return { styles, body: "", host: [...hostAttrs].map(([name, value]) => ({ name, value })), dropped_title: false };
-  sanitize(body);
+  sanitize(body, frameWidth);
   const dropped = dropLeadingTitle(body, title);
   if (titleHeading) nestHeadings(body, titleHeading);
   return { styles, body: serialize(body as never), host: [...hostAttrs].map(([name, value]) => ({ name, value })), dropped_title: dropped };
@@ -467,7 +486,8 @@ body { margin: 0; }
 h2.print-heading { font-size: 24px; } h3.print-heading { font-size: 20px; } h4.print-heading { font-size: 17px; }
 h5.print-heading, h6.print-heading { font-size: 15px; }
 .print-meta { margin: 0 0 16px; font-size: 12px; color: #555555; break-after: avoid; }
-.print-frame { zoom: var(--screen-fit, var(--print-fit)); break-inside: avoid; }
+[data-print-page] { position: relative; }
+.print-frame { zoom: var(--screen-fit, var(--print-fit)); break-inside: avoid; overflow: clip; }
 @page { margin: 18mm 16mm; }
 @media print {
   .print-bar { display: none; }
@@ -496,7 +516,7 @@ export function composePrintDocument(input: { productName: string; exportedAt: s
   const sections = pages
     .map((p) => {
       const h = headingLevel(p.level);
-      const prepared = prepareStoryPage(p.html, p.title, h);
+      const prepared = prepareStoryPage(p.html, p.title, h, p.frame_width);
       const host = prepared.host.map((a) => ` ${a.name}="${escapeHtml(a.value)}"`).join("");
       const styles = prepared.styles.map((s) => `<style>${s.replace(/<\/style/gi, "<\\/style")}</style>`).join("");
       const shown = `<div data-print-page="${p.page_id}"${host}><template shadowrootmode="open">${styles}${prepared.body}</template></div>`;

@@ -102,7 +102,7 @@ export function ActivityPage() {
 // ---- Settings -----------------------------------------------------------------------------------
 
 export function ProductSettingsPage() {
-  const { isAdmin, product } = useProduct();
+  const { isAdmin, product, readOnlyOrganization } = useProduct();
   const archive = useArchiveProduct();
   const loc = useLocation();
   usePageTitle("Settings");
@@ -117,7 +117,7 @@ export function ProductSettingsPage() {
       <PeopleSheet />
       <ExportSheet />
       <OrganizationSheet />
-      {isAdmin ? <ArchiveSheet archive={archive} /> : null}
+      {isAdmin && !readOnlyOrganization ? <ArchiveSheet archive={archive} /> : null}
       {/* A live product's delete dialog offers archiving it instead; one already archived has nothing to offer. */}
       {isAdmin ? <DeleteProductSheet onArchive={product.archived_at ? undefined : () => archive.change.mutate(false)} /> : null}
       <p className="settings-foot">
@@ -366,7 +366,7 @@ function PeopleSheet() {
                     </span>
                   </div>
                   <div className="people-end">
-                    {isAdmin && own ? (
+                    {isAdmin && own && !readOnlyOrganization ? (
                       <Menu
                         label={`Product role for ${m.display_name}: ${ROLE_WORD[own.role]}`}
                         triggerClassName="field-button people-role"

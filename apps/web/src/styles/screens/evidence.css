@@ -285,6 +285,14 @@
   z-index: 2;
   background: var(--panel);
 }
+/* A phone's canvas keeps room above for the floating panel buttons: the head rests under them, with
+   the sheet's colour above it, so no rows show behind them. */
+@media (max-width: 760px) {
+  .source-text-sheet > .sheet-head {
+    top: 0;
+    box-shadow: 0 -56px 0 var(--panel);
+  }
+}
 .text-find-bar {
   display: inline-flex;
   align-items: center;

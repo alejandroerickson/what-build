@@ -148,6 +148,27 @@ describe("the composed document", () => {
     expect(html).toContain('data-print-page="overview" lang="en" data-mode="print" class="theme wb"');
   });
 
+  it("keeps what a page fixes on its own page, in its stylesheets and its style attributes", () => {
+    expect(scopeStoryCss(".veil { position: fixed; inset: 0 }")).toBe(".veil { position:absolute; inset: 0 }");
+    expect(scopeStoryCss(".a{color:red;POSITION:FIXED!important}")).toBe(".a{color:red;position:absolute!important}");
+    expect(scopeStoryCss("@media screen { .a { position: fixed } }")).toBe("@media screen { .a { position:absolute } }");
+    expect(scopeStoryCss(".a { background-position: fixed; position: sticky }")).toBe(".a { background-position: fixed; position: sticky }");
+    const prepared = prepareStoryPage(page("T", '<div style="position: fixed; top: 0">Dialog</div><style>.b { position: fixed }</style>'), "T");
+    expect(prepared.body).toContain('style="position:absolute; top: 0"');
+    expect(prepared.body).toContain(".b { position:absolute }");
+  });
+
+  it("answers what a mockup page's media queries ask of the width for its frame, not the paper", () => {
+    expect(scopeStoryCss("@media (max-width: 900px) { .a { order: 1 } }", 1440)).toContain("@media (max-width:0) {");
+    expect(scopeStoryCss("@media (min-width: 900px) { .a { order: 1 } }", 1440)).toContain("@media (min-width:0) {");
+    expect(scopeStoryCss("@media screen and (min-width: 60em) { .a { order: 1 } }", 800)).toContain("@media screen and (max-width:0) {");
+    expect(scopeStoryCss("@media (width <= 48rem) { .a { order: 1 } }", 390)).toContain("@media (min-width:0) {");
+    expect(scopeStoryCss("@media (width > 500px), print { .a { order: 1 } }", 390)).toContain("@media (max-width:0), print {");
+    // A page with no frame answers to the paper, and a query about anything else is left alone.
+    expect(scopeStoryCss("@media (max-width: 900px) { .a { order: 1 } }")).toContain("@media (max-width: 900px)");
+    expect(scopeStoryCss("@media (orientation: landscape) { .a { order: 1 } }", 1440)).toContain("(orientation: landscape)");
+  });
+
   it("lays a mockup page out at its frame's width and scales it to the paper, and leaves other pages alone", () => {
     const framed = composePrintDocument({
       productName: "Crewboard",

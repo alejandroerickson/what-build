@@ -756,7 +756,7 @@ export function InstanceGuestsSheet() {
           <div className="limits-scroll">
             <Table className="limits-edit" head={["Setting", "Value", "Default"]}>
               {q.data.fields.map((f) => (
-                <Row key={f.key} label={f.label} help={f.help}>
+                <Row key={f.key} label={f.label} help={f.key === "self_serve" && q.data?.open_without_allowlist ? "With no sign-up allowlist, anyone can make an account either way." : f.help}>
                   <Cell className="limits-value">
                     <LimitField
                       limit={{ key: f.key, label: f.label, unit: f.unit === "bytes" ? "bytes" : f.unit, group: f.unit === "switch" ? "switch" : "frequency", per: f.unit === "switch" ? "" : f.unit }}
