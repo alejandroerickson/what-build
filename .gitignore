@@ -36,6 +36,3 @@ coverage/
 
 # Documentation holds reference knowledge only (see okf/decisions/public-repository-reference-docs.md)
 /okf/log.md
-
-# A copy of an earlier parser the fuzzed comparison writes while it runs
-packages/parsers/test/.parser5-*/

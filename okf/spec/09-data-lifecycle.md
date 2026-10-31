@@ -124,6 +124,7 @@ running without a compliance program.
 | Time for reading one attachment | 120 seconds (`WHATBUILD_PARSE_TIMEOUT_SECONDS`), counted from when its process starts; a parse that runs longer is stopped and fails | Yes |
 | Paragraphs read from one attachment | 200,000; a file that would make more is stored, not read (`too_large`), except a PDF whose short lines would, read to its sentences' ends instead ([§5.5](05-derived-layer.md)) | Yes |
 | Pages of a parsed PDF | 2,000; a longer PDF is stored, not read (`too_large`) | Yes |
+| Looking for tables on one page of a PDF | 200,000 rows fitted to columns, and 10,000,000,000 cells checked against columns; what is left reads as lines, and a line that would overdraw the cells reads as a line at once ([§5.3](05-derived-layer.md)) | Yes |
 | Attachments per source | 50 | Yes — `409 too_many_attachments` |
 | A derived text written whole | 2,000,000 characters; a longer one is uploaded as an attachment and its text taken | Yes — `422 too_long` |
 | Story pages | 50 per product | Yes — `409 quota_exceeded`, quota `story_pages` |

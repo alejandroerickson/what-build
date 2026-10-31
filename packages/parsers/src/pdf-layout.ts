@@ -14,9 +14,7 @@ import type { Block } from "./types.ts";
  *   cells where a gap is wider than a space between words can be.
  * - Lines drawn apart on one baseline are one line, as a form's label and its value are, unless
  *   one of them stands in a column of prose: each column of a page of two is read in turn.
- * - Lines of cells set in the same columns, one under the next, are a table. A file may draw two
- *   cells as one run, so columns set too close for that to show are looked for where the file or
- *   columns of numbers show them (`findTightTables`), and in doubt the lines read as lines.
+ * - Lines of cells set in the same columns, one under the next, are a table.
  * - A line set clearly larger than the page's text is a heading of its own (`pageHeadings`).
  * - Lines of one cell are a paragraph while each wraps onto the next (`paragraphEnds`): a line that
  *   stops short of its column's width, or a line that starts a list, ends what came before it.
@@ -43,8 +41,6 @@ export interface Cell {
   text: string;
   x0: number;
   x1: number;
-  /** Where it stands is reckoned from the letters of a run that holds more than it (`wordsOf`), not read from the file. */
-  rough?: boolean;
 }
 
 /**
@@ -78,8 +74,6 @@ export interface Line {
   table?: Table;
   /** Whether most of its text runs right to left, so that it reads from its right. */
   rtl: boolean;
-  /** Its runs, while its page's tables are looked for: a page keeps only its lines. */
-  runs?: Run[];
   /** Of the lines at other angles than the page's text, the frame this one stands upright in. */
   frame?: number;
 }
@@ -97,8 +91,7 @@ const CELL_GAP = 0.8;
 /**
  * A gap this many ems wide, wider than a space between words, may part the cells of a table set
  * tight, as the columns its rows share show: the layout looks for tables in cells parted this
- * finely, and reads any other line in cells parted by `CELL_GAP`. Cells set closer than this are
- * looked for by what stands between them across the rows (`findTightTables`).
+ * finely, and reads any other line in cells parted by `CELL_GAP`.
  */
 const COLUMN_GAP = 0.4;
 /** A gap this many ems wide between two runs is a space between words. */
@@ -111,23 +104,12 @@ const MAX_TABLE_LINES = 400;
 const MAX_TABLE_TRIES = 40;
 const TABLE_BUDGET = 200_000;
 /**
- * What looking for tables set tight may cost a page, in words read and words checked against the
- * stretches so far, and the most runs and characters a line may have to be a table's row: a page
- * that never makes such a table is then read as lines.
+ * What fitting rows to columns may cost a page, in cells checked against columns: a row costs its
+ * cells times its cells and the columns so far, and one line of 200,000 cells would take longer than
+ * a file is given. A line that would overdraw this is read as a line, at no cost. A table of 40,000
+ * columns and two rows stays within it.
  */
-const TIGHT_BUDGET = 1_000_000;
-const MAX_ROW_PARTS = 96;
-const MAX_ROW_CHARS = 1000;
-/** How far a word's edge reckoned from its run's letters may be from where it stands, in ems. */
-const ROUGH_EDGE = 0.4;
-/** The narrowest stretch between two columns, in ems, how far a cell reckoned may stand from its column's edge, and how little gaps may differ to be one width. */
-const MIN_GUTTER = 0.05;
-const ROUGH_COLUMN = 0.6;
-const SAME_GAP = 0.02;
-/** A gap of one width on every row, narrower than this many ems, may be a space between words: a fixed-pitch font's is 0.6. */
-const WIDEST_SPACE = 0.7;
-/** How near one another, in ems, numbers reckoned from a run's letters stand to be a column by themselves. */
-const NUMBERS_IN_LINE = 0.3;
+const CELL_BUDGET = 10_000_000_000;
 /** How many lines above and below a line show the width of its column, and how near their left edges must be, in ems. */
 const MEASURE_WINDOW = 12;
 const SAME_EDGE = 0.25;
@@ -392,7 +374,6 @@ function lineOf(group: Strip[]): Line {
     cells,
     fine: runs.length > 1 ? withMarker(cellsOf(runs, COLUMN_GAP), largest.size, false) : cells,
     rtl: readsFromRight(runs),
-    runs,
     x0: Infinity,
     x1: -Infinity,
     y: largest.y,
@@ -426,15 +407,7 @@ export function lineText(cells: readonly { text: string }[]): string {
 export function layoutPage(upright: TextRun[], others: TextRun[][], bottom: number, top: number): PageLayout {
   const lines = linesOf(upright);
   findTables(lines);
-  for (const l of lines) l.runs = undefined;
-  const turned = others.flatMap((runs, frame) =>
-    strips(runs.map(boxed)).map((s) => {
-      const l = lineOf([s]);
-      l.runs = undefined;
-      l.frame = frame;
-      return l;
-    }),
-  );
+  const turned = others.flatMap((runs, frame) => strips(runs.map(boxed)).map((s) => ({ ...lineOf([s]), frame })));
   return { lines, turned, bottom, top };
 }
 
@@ -529,15 +502,10 @@ const NUMERIC = /^[-+−(]?[$€£¥]?\s?\d[\d.,\s]*%?\)?$/;
 
 /** Whether cells stand in a column: all on their left edges, their middles, or, numbers, their right edges. */
 function inLine(cells: Cell[], em: number): boolean {
-  const within = (list: Cell[], tol: number) => {
-    const n = list.length;
-    if (mostWithin(list.map((c) => c.x0), tol) === n || mostWithin(list.map((c) => (c.x0 + c.x1) / 2), tol) === n) return true;
-    return list.every((c) => NUMERIC.test(c.text)) && mostWithin(list.map((c) => c.x1), tol) === n;
-  };
+  const n = cells.length;
   const tol = Math.max(1.5, 0.15 * em);
-  // A cell reckoned from a run's letters stands only about where it says.
-  const read = cells.filter((c) => !c.rough);
-  return read.length === cells.length ? within(cells, tol) : within(read, tol) && within(cells, ROUGH_COLUMN * em);
+  if (mostWithin(cells.map((c) => c.x0), tol) === n || mostWithin(cells.map((c) => (c.x0 + c.x1) / 2), tol) === n) return true;
+  return cells.every((c) => NUMERIC.test(c.text)) && mostWithin(cells.map((c) => c.x1), tol) === n;
 }
 
 /**
@@ -559,17 +527,19 @@ function aligned(head: Cell | null, body: Cell[], em: number): boolean {
  * time are read a column at a time.
  */
 function findTables(lines: Line[]): void {
-  const found = new Map<Table, Found>();
   const fine = (l: Line) => l.fine;
-  // A line of more cells than any table has columns is no row: fitting it to columns costs the square of its cells.
-  const rowLike = (k: number) => lines[k]!.fine.length > 1 && lines[k]!.fine.length <= MAX_ROW_PARTS && !stretched(lines[k]!, [lines[k - 1], lines[k + 1]], fine);
+  const rowLike = (k: number) => lines[k]!.fine.length > 1 && !stretched(lines[k]!, [lines[k - 1], lines[k + 1]], fine);
   // What looking for tables may cost a page, in rows fitted to columns: a page of many lines
   // that never make a table is then read as lines.
   let budget = TABLE_BUDGET;
+  let cellBudget = CELL_BUDGET;
   type Built = { columns: Columns; em: number; rows: number; bridged: number };
   const add = (b: Built, k: number): Built | null => {
     budget--;
     const l = lines[k]!;
+    const cost = l.fine.length * (b.columns.length + l.fine.length);
+    if (cost > cellBudget) return null;
+    cellBudget -= cost;
     const next = fit(b.columns, l.fine, Math.min(b.em, l.small), b.rows > 0 && rowLike(k));
     if (!next) return null;
     return { columns: next.columns, em: Math.min(b.em, l.small), rows: b.rows + (l.fine.length > 1 ? 1 : 0), bridged: b.bridged + (next.bridges ? 1 : 0) };
@@ -616,8 +586,7 @@ function findTables(lines: Line[]): void {
       const built = taken.length ? columnsOf(taken) : null;
       if (!built || built.rows < 2) break;
       if (built.bridged * 3 <= built.rows && built.columns.length >= 2) table = tableOf(taken.map((k) => lines[k]!), built.columns, built.em);
-      if (table) found.set(table, { lines: taken.length, columns: built.columns, bridged: built.bridged > 0 });
-      else taken.pop();
+      if (!table) taken.pop();
     }
     if (!table) {
       i++;
@@ -626,16 +595,15 @@ function findTables(lines: Line[]): void {
     for (const k of taken) lines[k]!.table = table;
     i = taken[taken.length - 1]! + 1;
   }
-  findTightTables(lines, found);
 }
 
 /** The table that lines make in these columns, or null when its columns are not aligned. */
-function tableOf(lines: Line[], columns: Columns, em: number, cellsFor: (l: Line) => Cell[] = (l) => l.fine): Table | null {
+function tableOf(lines: Line[], columns: Columns, em: number): Table | null {
   const rows: { cells: string[]; at: (Cell | null)[]; y: number; size: number; rtl: boolean }[] = [];
   for (const l of lines.slice().sort((a, b) => b.y - a.y)) {
     const cells = columns.map(() => "");
     const at: (Cell | null)[] = columns.map(() => null);
-    for (const c of cellsFor(l)) {
+    for (const c of l.fine) {
       let k = columns.findIndex((col) => c.x0 < col.x1 && c.x1 > col.x0);
       if (k < 0) k = Math.max(0, columns.findLastIndex((col) => col.x0 <= c.x0));
       cells[k] = cells[k] ? `${cells[k]} ${c.text}` : c.text;
@@ -685,582 +653,6 @@ function tableOf(lines: Line[], columns: Columns, em: number, cellsFor: (l: Line
     );
   }
   return table;
-}
-
-// ---- Tables set tight --------------------------------------------------------------------------
-
-/** A table the first search found: how many lines it takes, its columns, and whether a cell of it reaches across a gutter. */
-interface Found {
-  lines: number;
-  columns: Columns;
-  bridged: boolean;
-}
-
-/**
- * A word of a line and where it stands. A run that holds one word, or a word at either end of a run,
- * has that edge from the file (`exact0`, `exact1`). pdf.js reads two cells set closer than 0.6 of
- * their font's height as one run when nothing in the file parts them, with a space between them, so
- * a word inside a run has only an edge reckoned from the letters before it.
- */
-interface Word {
-  text: string;
-  x0: number;
-  x1: number;
-  exact0: boolean;
-  exact1: boolean;
-  /** The stretch the word certainly covers: all of it, less `ROUGH_EDGE` at an edge reckoned. */
-  lo: number;
-  hi: number;
-  /** Set against the word before it in reading order with no space between, as a word in two fonts is. */
-  glued: boolean;
-  number: boolean;
-  /** How wide its run's characters are on average: in a font whose characters are all one width, a space between words is one of them. */
-  pitch: number;
-}
-
-/** About how wide a character is set, in ems: near enough, with a run's own width to scale it, to tell which word stands where. */
-function charWidth(code: number): number {
-  if (code >= 0x2e80) return 1;
-  // Space, i l j t f r I . , : ; ' " ! |
-  if (code === 0x20 || code === 0x69 || code === 0x6c || code === 0x6a || code === 0x74 || code === 0x66 || code === 0x72 || code === 0x49) return 0.28;
-  if (code === 0x2e || code === 0x2c || code === 0x3a || code === 0x3b || code === 0x27 || code === 0x22 || code === 0x21 || code === 0x7c) return 0.28;
-  // ( ) [ ] { } / \ -
-  if (code === 0x28 || code === 0x29 || code === 0x5b || code === 0x5d || code === 0x7b || code === 0x7d || code === 0x2f || code === 0x5c || code === 0x2d) return 0.33;
-  // m w M W @ %
-  if (code === 0x6d || code === 0x77 || code === 0x4d || code === 0x57 || code === 0x40 || code === 0x25) return 0.85;
-  if (code >= 0x41 && code <= 0x5a) return 0.68;
-  return 0.55;
-}
-
-function reckon(text: string): number {
-  let w = 0;
-  for (let i = 0; i < text.length; i++) w += charWidth(text.charCodeAt(i));
-  return w;
-}
-
-/** A number with a decimal point, where a section's number has one with a heading after it: in a table, it is a cell. */
-const DECIMAL = /^\d{1,3}\.\d{1,3}$/;
-
-/** A line's words, across the page from its left; or null when a line has too much in it to be a row, or no width. */
-function wordsOf(line: Line): Word[] | null {
-  const runs = line.runs;
-  if (!runs || runs.length > MAX_ROW_PARTS) return null;
-  let chars = 0;
-  for (const r of runs) chars += r.text.length;
-  if (chars > MAX_ROW_CHARS) return null;
-  const across = runs.slice().sort(line.rtl ? (a, b) => b.x1 - a.x1 : (a, b) => a.x - b.x);
-  const edge = ROUGH_EDGE * line.small;
-  const words: Word[] = [];
-  let prev: Run | null = null;
-  for (const r of across) {
-    const width = r.x1 - r.x;
-    if (width <= 0) return null;
-    const scale = width / (reckon(r.text) || 1);
-    let at = 0;
-    let end = 0;
-    let first = true;
-    for (const m of r.text.matchAll(/[^ \t\r\n]+/g)) {
-      at += reckon(r.text.slice(end, m.index));
-      const wide = reckon(m[0]);
-      end = m.index + m[0].length;
-      const atStart = m.index === 0;
-      const atEnd = end === r.text.length;
-      const x0 = r.rtl ? r.x1 - (at + wide) * scale : r.x + at * scale;
-      const x1 = r.rtl ? r.x1 - at * scale : r.x + (at + wide) * scale;
-      const exact0 = r.rtl ? atEnd : atStart;
-      const exact1 = r.rtl ? atStart : atEnd;
-      const mid = (x0 + x1) / 2;
-      const space = prev ? (line.rtl ? prev.x - r.x1 : r.x - prev.x1) : 0;
-      words.push({
-        text: m[0],
-        x0,
-        x1,
-        exact0,
-        exact1,
-        lo: exact0 ? x0 : Math.min(mid, x0 + edge),
-        hi: exact1 ? x1 : Math.max(mid, x1 - edge),
-        glued: first && prev !== null && atStart && space < WORD_GAP * line.small && !isSpaceUnit(prev.text.charCodeAt(prev.text.length - 1)),
-        number: NUMERIC.test(m[0]),
-        pitch: width / r.text.length,
-      });
-      at += wide;
-      first = false;
-    }
-    prev = r;
-  }
-  if (words.length > MAX_ROW_PARTS) return null;
-  // A cell that only marks a list item stays with its words, as `withMarker` keeps it.
-  const head = words[0];
-  const after = words[1];
-  if (head && after && head.text.length <= 12 && MARKER.test(head.text) && !DECIMAL.test(head.text)) {
-    words.splice(0, 2, { ...after, text: `${head.text} ${after.text}`, x0: Math.min(head.x0, after.x0), x1: Math.max(head.x1, after.x1), lo: Math.min(head.lo, after.lo), hi: Math.max(head.hi, after.hi), glued: false, exact0: line.rtl ? after.exact0 : head.exact0, exact1: line.rtl ? head.exact1 : after.exact1, number: false });
-  }
-  return words.sort((a, b) => a.x0 - b.x0);
-}
-
-/** A number and the digits after it as a number set in thousands is written (`12 500`), which is one. */
-const inThousands = (a: Word, b: Word) => a.number && b.number && /^\d{1,3}$/.test(a.text) && /^\d{3}(?!\d)/.test(b.text);
-
-/**
- * Whether the file parts two neighbouring words by a gap: each edge is where it put it, and they stand
- * at least a word's space apart. pdf.js parts the words of a fixed-pitch font into runs at their
- * spaces, one character wide, which show nothing; and a number set in thousands takes more than that
- * to part.
- */
-const gapBetween = (a: Word, b: Word, em: number) => {
-  if (!a.exact1 || !b.exact0) return false;
-  const gap = b.x0 - a.x1;
-  if (gap < WORD_GAP * em || Math.abs(gap - a.pitch) <= SAME_GAP * em || Math.abs(gap - b.pitch) <= SAME_GAP * em) return false;
-  return gap >= CELL_GAP * em || !inThousands(a, b);
-};
-
-/** A number and a number after it, as cells of numbers are. */
-const numbersApart = (a: Word, b: Word) => a.number && b.number && !inThousands(a, b);
-
-/**
- * Whether what stands in a line says two neighbouring words may be two cells: the file parts them by
- * a gap, or they are two numbers. A number after a word says nothing: `Flat 2`, `Group 1` and
- * `Room 12` are one cell as often as two.
- */
-const parted = (a: Word, b: Word, em: number) => gapBetween(a, b, em) || numbersApart(a, b);
-
-/** A stretch across the page that no word of a table's rows so far covers, and whether a row has spoken for it (`parted`). */
-type Stretch = { lo: number; hi: number; spoken: boolean };
-
-/**
- * The stretches left open under a row's words, those narrower than a gutter being none; or null when
- * the row closes one that a row has spoken for: it is no row of this table, as a sentence under it is not.
- */
-function crossStretches(open: Stretch[], words: Word[], gutter: number, em: number): Stretch[] | null {
-  const out: Stretch[] = [];
-  for (const s of open) {
-    const from = out.length;
-    let lo = s.lo;
-    for (const w of words) {
-      if (w.hi <= lo || w.lo >= s.hi) continue;
-      if (w.lo - lo >= gutter) out.push({ lo, hi: w.lo, spoken: s.spoken });
-      lo = Math.max(lo, w.hi);
-    }
-    if (s.hi - lo >= gutter) out.push({ lo, hi: s.hi, spoken: s.spoken });
-    if (s.spoken && out.length === from) return null;
-    // Parted by a word in it, it is what this row says of each part.
-    if (out.length - from > 1) for (let n = from; n < out.length; n++) out[n]!.spoken = false;
-  }
-  for (let n = 1; n < words.length; n++) {
-    const a = words[n - 1]!;
-    const b = words[n]!;
-    if (!parted(a, b, em)) continue;
-    // The stretch nearest the cell after it: the rest of a wide gap may be another row's words.
-    let nearest: Stretch | undefined;
-    for (const s of out) if (s.lo >= a.hi && s.hi <= b.lo) nearest = s;
-    if (nearest) nearest.spoken = true;
-  }
-  return out;
-}
-
-/** A stretch that rows speak for as a gutter: where its middle is, the gaps the file shows at it, how many rows hold numbers either side of it, how many a word and then a number, and how many have words merely end at it. */
-interface Gutter {
-  at: number;
-  gaps: number[];
-  numbers: number;
-  beforeNumbers: number;
-  meets: number;
-}
-
-/**
- * What the rows say of each stretch: a row's pair of words (`parted`) speaks for the one stretch
- * between them, or, where several lie between them, as under a row that leaves a column empty, for
- * the one the most rows speak for, then the rightmost, since the cell after it stands at its edge.
- */
-function guttersIn(open: Stretch[], rows: { words: Word[]; em: number }[]): Gutter[] {
-  const inner = open.filter((s) => Number.isFinite(s.lo) && Number.isFinite(s.hi));
-  const gutters: Gutter[] = inner.map((s) => ({ at: (s.lo + s.hi) / 2, gaps: [], numbers: 0, beforeNumbers: 0, meets: 0 }));
-  const unsure: { between: number[]; apart: boolean; gap: number | null }[] = [];
-  for (const { words, em } of rows) {
-    for (let n = 1; n < words.length; n++) {
-      const a = words[n - 1]!;
-      const b = words[n]!;
-      const between: number[] = [];
-      inner.forEach((s, i) => {
-        if (s.lo >= a.hi && s.hi <= b.lo) between.push(i);
-      });
-      if (!between.length) continue;
-      const gap = gapBetween(a, b, em) ? b.x0 - a.x1 : null;
-      const apart = numbersApart(a, b);
-      if (!a.number && b.number && between.length === 1) gutters[between[0]!]!.beforeNumbers++;
-      if (gap === null && !apart) {
-        for (const i of between) gutters[i]!.meets++;
-        continue;
-      }
-      if (between.length === 1) {
-        if (gap !== null) gutters[between[0]!]!.gaps.push(gap);
-        if (apart) gutters[between[0]!]!.numbers++;
-      } else unsure.push({ between, apart, gap });
-    }
-  }
-  for (const { between, apart, gap } of unsure) {
-    let best = between[0]!;
-    for (const i of between) if (gutters[i]!.gaps.length + gutters[i]!.numbers >= gutters[best]!.gaps.length + gutters[best]!.numbers) best = i;
-    if (gap !== null) gutters[best]!.gaps.push(gap);
-    if (apart) gutters[best]!.numbers++;
-  }
-  return gutters;
-}
-
-/** A row's words as the cell each column holds, where the cuts part them: only the columns it fills. */
-function cellsAcross(words: Word[], cuts: number[], rtl: boolean): { k: number; cell: Cell; exact0: boolean; exact1: boolean }[] {
-  const byColumn = new Map<number, Word[]>();
-  for (const w of words) {
-    const mid = (w.x0 + w.x1) / 2;
-    let k = 0;
-    while (k < cuts.length && mid > cuts[k]!) k++;
-    const list = byColumn.get(k);
-    if (list) list.push(w);
-    else byColumn.set(k, [w]);
-  }
-  return [...byColumn]
-    .sort(([a], [b]) => a - b)
-    .map(([k, list]) => {
-      let text = "";
-      for (const [i, w] of (rtl ? list.slice().reverse() : list).entries()) text += i === 0 || w.glued ? w.text : ` ${w.text}`;
-      let right = -Infinity;
-      for (const w of list) right = Math.max(right, w.x1);
-      const x0 = Math.max(k > 0 ? cuts[k - 1]! : -Infinity, list[0]!.x0);
-      const x1 = Math.min(k < cuts.length ? cuts[k]! : Infinity, right);
-      const exact0 = list[0]!.exact0;
-      const exact1 = list[list.length - 1]!.exact1;
-      return { k, exact0, exact1, cell: exact0 && exact1 ? { text, x0, x1 } : { text, x0, x1, rough: true } };
-    });
-}
-
-/** Whether `xs`, two at least, all stand within `tol` of one another. */
-const onOneEdge = (xs: number[], tol: number) => xs.length >= 2 && mostWithin(xs, tol) === xs.length;
-
-/** A cell that starts with a number, and one with no digit in it: what a column's cells are, to tell a row of it from a line under it. */
-const STARTS_WITH_NUMBER = /^[-+−(]?[$€£¥]?\s?\d/;
-const HAS_DIGIT = /\d/;
-
-/**
- * Find the tables `findTables` could not, because their columns are set closer than a gap can tell:
- * rows of cells whose gaps are no wider than the spaces between words, or whose cells a run holds
- * together, so that some rows, or all, seem to have fewer cells than they do.
- *
- * What it reads is people's evidence, and a value in the wrong cell is the worst a reading can do,
- * so in doubt it makes no table, and those rows read a line each. A column has to be shown, not
- * guessed at: the stretches no row's words cover (`guttersIn`) are gutters only where
- *
- * - two rows at least have a gap the file shows at it, the cells after it stand on one edge, and the
- *   gap's width differs from row to row or is wider than a word's: a narrow gap of one width is a
- *   space between words; or
- * - one row has such a gap, the table's other gutters are shown, two other rows have words end at it,
- *   and the cells after it stand about where that row's does; or
- * - three rows at least hold a number either side of it, three such columns of numbers where the file
- *   shows no column at all (`Week North South`, each row one run).
- *
- * A word and the number after it never show a column, and neither does a cell the same on every row.
- * A row the file does not part is one of the rows only where it fills every column, in the kind of
- * cell each holds; under the last row the file parts, a line must hold numbers in every column after
- * the first, so a title above a table or a note under it stays out of it.
- *
- * It replaces a table the first search found only where the first search lost rows or held two cells
- * in one, and every column of that table stays a column (`replaces`), so a table whose columns are
- * plain to see reads as it did.
- */
-function findTightTables(lines: Line[], found: Map<Table, Found>): void {
-  let budget = TIGHT_BUDGET;
-  const wordsAt: (Word[] | null | undefined)[] = new Array(lines.length);
-  const wordsOfLine = (k: number): Word[] | null => {
-    let w = wordsAt[k];
-    if (w === undefined) {
-      w = wordsOf(lines[k]!);
-      wordsAt[k] = w;
-      if (w) budget -= w.length;
-    }
-    return w;
-  };
-  const textOf = (k: number) => lines[k]!.cells.map((c) => c.text).join(" ");
-  const sameSize = (a: Line, b: Line) => Math.abs(a.size - b.size) <= 0.1 * Math.max(a.size, b.size);
-  /** A row the file parts by a gap somewhere. */
-  const gapped = (k: number) => {
-    const words = wordsOfLine(k)!;
-    return words.some((w, n) => n > 0 && gapBetween(words[n - 1]!, w, lines[k]!.small));
-  };
-  const spokenFor = (k: number) => {
-    const words = wordsOfLine(k);
-    return !!words && words.some((w, n) => n > 0 && parted(words[n - 1]!, w, lines[k]!.small));
-  };
-
-  /** The lines under `from`, one under the next, that leave a stretch open that the lines so far say is a gutter. */
-  const linesUnder = (from: number): { taken: number[]; open: Stretch[] } => {
-    const taken = [from];
-    let open = crossStretches([{ lo: -Infinity, hi: Infinity, spoken: false }], wordsOfLine(from)!, MIN_GUTTER * lines[from]!.small, lines[from]!.small)!;
-    let pitch = 0;
-    for (let k = from + 1; k < lines.length && taken.length < MAX_TABLE_LINES && budget > 0; k++) {
-      const prev = lines[taken[taken.length - 1]!]!;
-      const l = lines[k]!;
-      const down = prev.y - l.y;
-      if (!(down > 0 && down <= ROW_GAP * Math.max(prev.size, l.size)) || (pitch && down > ROW_SPREAD * pitch)) break;
-      const words = wordsOfLine(k);
-      if (!words) break;
-      budget -= (open.length + 1) * (words.length + 1);
-      if (!spokenFor(k) && !sameSize(prev, l)) break;
-      const next = crossStretches(open, words, MIN_GUTTER * Math.min(prev.small, l.small), l.small);
-      if (!next) break;
-      open = next;
-      taken.push(k);
-      pitch = Math.max(pitch, down);
-    }
-    return { taken, open };
-  };
-
-  /** The lines of `taken` from the first on that keep to the columns the rows show, and any lines above them that do. */
-  const settle = (taken: number[], open: Stretch[]) => {
-    const em = taken.reduce((m, k) => Math.min(m, lines[k]!.small), Infinity);
-    const tol = Math.max(1.5, 0.15 * em);
-    let wordCount = 0;
-    for (const k of taken) wordCount += wordsOfLine(k)!.length;
-    budget -= wordCount * (open.length + 1);
-    const gutters = guttersIn(open, taken.map((k) => ({ words: wordsOfLine(k)!, em: lines[k]!.small })));
-    let shown = gutters.filter((g) => g.gaps.length >= 1 || g.numbers >= 3);
-    const cutsOf = (list: Gutter[]) => list.map((g) => g.at);
-    let cuts = cutsOf(shown);
-    const across = (k: number) => cellsAcross(wordsOfLine(k)!, cuts, lines[k]!.rtl);
-    /** What each column's cells are: how many rows fill it, where the file sets their edges, and, under the first row, which may be a heading, the same and what they hold. */
-    type Read = { fills: number[]; lefts: number[][]; rights: number[][]; bodyLefts: number[][]; bodyRights: number[][]; reckonedLefts: number[][]; texts: Set<string>[]; read: number[]; numbers: number[]; words: number[] };
-    const readColumns = (): Read => {
-      const n = cuts.length + 1;
-      const lists = () => Array.from({ length: n }, (): number[] => []);
-      const counts = () => new Array<number>(n).fill(0);
-      const r: Read = { fills: counts(), lefts: lists(), rights: lists(), bodyLefts: lists(), bodyRights: lists(), reckonedLefts: lists(), texts: Array.from({ length: n }, () => new Set<string>()), read: counts(), numbers: counts(), words: counts() };
-      for (const [row, k] of taken.entries()) {
-        for (const c of across(k)) {
-          r.fills[c.k]!++;
-          if (c.exact0) r.lefts[c.k]!.push(c.cell.x0);
-          if (c.exact1) r.rights[c.k]!.push(c.cell.x1);
-          if (row === 0) continue;
-          if (c.exact0) r.bodyLefts[c.k]!.push(c.cell.x0);
-          else r.reckonedLefts[c.k]!.push(c.cell.x0);
-          if (c.exact1) r.bodyRights[c.k]!.push(c.cell.x1);
-          r.texts[c.k]!.add(c.cell.text);
-          if (c.exact0 || c.exact1) {
-            r.read[c.k]!++;
-            if (STARTS_WITH_NUMBER.test(c.cell.text)) r.numbers[c.k]!++;
-            if (!HAS_DIGIT.test(c.cell.text)) r.words[c.k]!++;
-          }
-        }
-      }
-      budget -= wordCount * (n + 1);
-      return r;
-    };
-    /** Whether the file shows a gutter: gaps at it wider than a space between words, or whose width differs from row to row, as such a space does not, and the cells after them on one edge. */
-    const fileShows = (r: Read, n: number): boolean => {
-      const { gaps } = shown[n]!;
-      if (gaps.length < 2 || (Math.max(...gaps) - Math.min(...gaps) <= SAME_GAP * em && Math.min(...gaps) < WIDEST_SPACE * em)) return false;
-      return onOneEdge(r.lefts[n + 1]!, tol) || onOneEdge(r.bodyLefts[n + 1]!, tol) || onOneEdge(r.rights[n + 1]!, tol) || onOneEdge(r.bodyRights[n + 1]!, tol);
-    };
-    /**
-     * Whether the file shows a gutter on one row, a table's other gutters being shown: two other rows
-     * have words end at it, and the cells after it stand about where that row's cell does.
-     */
-    const oneRowShows = (r: Read, n: number): boolean => {
-      const g = shown[n]!;
-      if (g.gaps.length !== 1 || g.meets < 2 || r.lefts[n + 1]!.length !== 1) return false;
-      const edge = r.lefts[n + 1]![0]!;
-      if (!r.reckonedLefts[n + 1]!.length || !r.reckonedLefts[n + 1]!.every((x) => Math.abs(x - edge) <= ROUGH_COLUMN * em)) return false;
-      return shown.some((_, m) => m !== n && fileShows(r, m));
-    };
-    /** Whether a gutter holds, by what the columns either side of it hold; one that does not is taken away, and the rest asked again. */
-    const holds = (r: Read, n: number): boolean =>
-      // A column one row fills alone is no column, as a number set in a wide gutter is not; and a cell the same on every row is part of the cell after it: `Flat 2`, `Group 1`.
-      r.fills[n]! >= 2 && r.fills[n + 1]! >= 2 && r.texts[n]!.size > 1 && (shown[n]!.numbers >= 3 || fileShows(r, n) || oneRowShows(r, n));
-    let read = readColumns();
-    while (cuts.length && budget > 0) {
-      const fails = shown.findIndex((_, n) => !holds(read, n));
-      if (fails < 0) break;
-      shown = shown.filter((_, n) => n !== fails);
-      cuts = cutsOf(shown);
-      read = readColumns();
-    }
-    if (!cuts.length || budget <= 0) return null;
-    const byFile = shown.filter((_, n) => fileShows(read, n));
-    // Numbers alone show a table only as three columns of them.
-    if (!byFile.length && shown.length < 2) return null;
-    // The word before the first column of numbers parts from it, unless it is the same on every row.
-    const firstOfNumbers = shown.find((g) => g.numbers >= 3);
-    if (firstOfNumbers && !shown.some((g) => g.at < firstOfNumbers.at)) {
-      let before: Gutter | undefined;
-      for (const g of gutters) if (g.at < firstOfNumbers.at && g.beforeNumbers >= 3 && (!before || g.at > before.at)) before = g;
-      if (before) {
-        const was = shown;
-        shown = [before, ...shown];
-        cuts = cutsOf(shown);
-        const r = readColumns();
-        // Every row under the first has only numbers after it, or a number stands in the first column on some, as `Dol 83` may.
-        const under = taken.slice(1);
-        const lastWords = new Set(under.map((k) => across(k).find((c) => c.k === 0)?.cell.text.split(" ").pop()));
-        const onlyNumbers = under.every((k) => wordsOfLine(k)!.every((w) => w.x1 <= before!.at || w.number));
-        const firstNumbers = under.flatMap((k) => across(k).find((c) => c.k === 1)?.cell ?? []);
-        const inLine = mostWithin(firstNumbers.map((c) => c.x0), NUMBERS_IN_LINE * em) === firstNumbers.length || mostWithin(firstNumbers.map((c) => c.x1), NUMBERS_IN_LINE * em) === firstNumbers.length;
-        if (lastWords.size === 1 || !onlyNumbers || !inLine || r.fills[0]! < under.length || r.fills[1]! < under.length) {
-          shown = was;
-          cuts = cutsOf(shown);
-        }
-      }
-    }
-    const columnOf = (w: Word) => {
-      const k = cuts.findIndex((c) => (w.x0 + w.x1) / 2 <= c);
-      return k < 0 ? cuts.length : k;
-    };
-    // A gap as wide as a column's, inside a column, says a column has not been found.
-    const holdsACellsGap = (k: number) => {
-      const words = wordsOfLine(k)!;
-      const em = lines[k]!.small;
-      return words.some((w, n) => {
-        const a = words[n - 1];
-        return !!a && gapBetween(a, w, em) && w.x0 - a.x1 >= COLUMN_GAP * em && columnOf(a) === columnOf(w);
-      });
-    };
-    budget -= wordCount * (cuts.length + 1);
-    if (taken.some(holdsACellsGap)) return null;
-    // Where the file says its columns' cells stand: a row reckoned must stand about there, and on
-    // the one edge the file sets all of them on, if it does. What its cells are: numbers, or words.
-    const columns = readColumns();
-    const lefts = columns.lefts.map((xs) => xs.slice().sort((a, b) => a - b));
-    const rights = columns.rights.map((xs) => xs.slice().sort((a, b) => a - b));
-    const holdsNumbers = (k: number) => columns.read[k]! >= 2 && columns.numbers[k] === columns.read[k];
-    const holdsWords = (k: number) => columns.read[k]! >= 2 && columns.words[k] === columns.read[k];
-    const keeps = (cells: ReturnType<typeof across>, first: boolean) =>
-      cells.every(({ k, cell, exact0, exact1 }) => {
-        if (!cell.rough) return true;
-        // A row's cell the file does not part is of the kind its column holds; a first row's may be its heading.
-        if (!first && ((holdsNumbers(k) && !STARTS_WITH_NUMBER.test(cell.text)) || (holdsWords(k) && HAS_DIGIT.test(cell.text)))) return false;
-        const ls = lefts[k]!;
-        const rs = rights[k]!;
-        // An edge the file gives stands where the column's do; one reckoned, about there.
-        const nearLeft = ls.length > 0 && Math.abs(cell.x0 - ls[ls.length >> 1]!) <= (exact0 && !first ? tol : ROUGH_COLUMN * em);
-        const nearRight = rs.length > 0 && Math.abs(cell.x1 - rs[rs.length >> 1]!) <= (exact1 && !first ? tol : ROUGH_COLUMN * em);
-        if (onOneEdge(ls, tol)) return nearLeft;
-        if (onOneEdge(rs, tol)) return nearRight;
-        return (!ls.length && !rs.length) || nearLeft || nearRight;
-      });
-    budget -= wordCount * (cuts.length + 1);
-    // How far the rows the file parts reach: a table is as wide as its cells.
-    let reachRight = -Infinity;
-    for (const k of taken) if (gapped(k)) for (const w of wordsOfLine(k)!) reachRight = Math.max(reachRight, w.x1);
-    if (reachRight === -Infinity) reachRight = Infinity;
-    /** A line the file does not part as one of the rows: it fills every column, in about as many words as cells, and ends no sentence, as a title or a line of text would. */
-    const wholeRow = (k: number, cells: ReturnType<typeof across>) => {
-      const words = wordsOfLine(k)!;
-      return cells.length === cuts.length + 1 && !endsSentence(textOf(k)) && words.length <= 2 * (cuts.length + 1) && words[words.length - 1]!.x1 <= reachRight + 3 * em;
-    };
-    /** Two numbers in one cell, where the row says two cells stand: it is not the row these columns make of it. */
-    const numbersInOneCell = (k: number) => {
-      const words = wordsOfLine(k)!;
-      return words.some((w, n) => n > 0 && numbersApart(words[n - 1]!, w) && columnOf(words[n - 1]!) === columnOf(w));
-    };
-    const asRow = (k: number, first: boolean) => {
-      const cells = across(k);
-      if (numbersInOneCell(k) || (!gapped(k) && cells.length > 1 && !wholeRow(k, cells))) return null;
-      return keeps(cells, first) ? cells : null;
-    };
-    const rows = new Map<number, Cell[]>();
-    let singles = 0;
-    for (const [row, k] of taken.entries()) {
-      const cells = asRow(k, row === 0);
-      if (!cells || (cells.length < 2 && ++singles > 2)) break;
-      if (cells.length >= 2) singles = 0;
-      rows.set(k, cells.map((c) => c.cell));
-    }
-    // A table ends at its last row of cells. Under the last row the file parts, a line is one of the
-    // rows only as numbers after a first cell: a note under the table may hold a number that stands in a column.
-    const kept = [...rows.keys()];
-    const endsTable = (k: number) => {
-      const cells = rows.get(k)!;
-      return cells.length < 2 || (!gapped(k) && !cells.slice(1).every((c) => STARTS_WITH_NUMBER.test(c.text)));
-    };
-    while (kept.length && endsTable(kept[kept.length - 1]!)) rows.delete(kept.pop()!);
-    if (!kept.length) return null;
-    let widest = 0;
-    for (let n = 1; n < kept.length; n++) widest = Math.max(widest, lines[kept[n - 1]!]!.y - lines[kept[n]!]!.y);
-    // Above the first row the file parts, rows it does not, filling every column: a first row often is.
-    const above: [number, Cell[]][] = [];
-    for (let k = kept[0]! - 1; k >= 0 && above.length + kept.length < MAX_TABLE_LINES; k--) {
-      const l = lines[k]!;
-      const under = lines[k + 1]!;
-      const down = l.y - under.y;
-      if (!wordsOfLine(k) || !(down > 0 && down <= ROW_GAP * Math.max(l.size, under.size)) || (widest && down > ROW_SPREAD * widest) || !sameSize(l, under) || endsInColon(textOf(k))) break;
-      budget -= (cuts.length + 1) * wordsOfLine(k)!.length;
-      if (cuts.some((c) => wordsOfLine(k)!.some((w) => w.lo < c && w.hi > c))) break;
-      const cells = asRow(k, true);
-      if (!cells || cells.length <= cuts.length) break;
-      above.push([k, cells.map((c) => c.cell)]);
-    }
-    return { rows: new Map<number, Cell[]>([...above.reverse(), ...rows]), cuts, byFile: byFile.map((g) => g.at) };
-  };
-
-  for (let i = 0; i < lines.length && budget > 0; ) {
-    if (!spokenFor(i)) {
-      i++;
-      continue;
-    }
-    const { taken, open } = linesUnder(i);
-    const settled = settle(taken, open);
-    if (!settled) {
-      i++;
-      continue;
-    }
-    const { rows, cuts, byFile } = settled;
-    const reach = [...rows.keys()];
-    const full = reach.filter((k) => rows.get(k)!.length >= 2);
-    // Characters set a column apart, as text written down the page is read across, are no cells.
-    let letters = 0;
-    let cellCount = 0;
-    for (const k of full) {
-      for (const c of rows.get(k)!) {
-        cellCount++;
-        if (codePointLength(c.text) === 1 && !NUMERIC.test(c.text)) letters++;
-      }
-    }
-    if (letters * 2 > cellCount) {
-      i++;
-      continue;
-    }
-    let wraps = 0;
-    for (let n = 1; n < full.length; n++) if (wrapsOnto(textOf(full[n - 1]!), textOf(full[n]!))) wraps++;
-    // Three rows of cells at least. Lines of cells that wrap onto the next are prose, a cell's own wrapped line having one cell.
-    if (full.length < 3 || wraps >= Math.max(1, Math.ceil((full.length - 1) / 3))) {
-      i++;
-      continue;
-    }
-    const taking = reach.map((k) => lines[k]!);
-    const cellsByLine = new Map(reach.map((k) => [lines[k]!, rows.get(k)!] as const));
-    const columns: Columns = [-Infinity, ...cuts].map((x0, k) => ({ x0, x1: k < cuts.length ? cuts[k]! : Infinity }));
-    const table = tableOf(taking, columns, taking.reduce((m, l) => Math.min(m, l.small), Infinity), (l) => cellsByLine.get(l) ?? []);
-    if (!table) {
-      i++;
-      continue;
-    }
-    // A first row that leaves a column empty says that column is none.
-    if (table.rows[0]!.slice(1).some((c) => !c)) {
-      i++;
-      continue;
-    }
-    // A table found already stays, unless this one reads all of its lines, keeps every column it
-    // had, and shows what it missed: rows it lost, two cells it held in one, or a gutter inside a
-    // column of it that the file shows, or that numbers show with a line of the table it left out.
-    const before = new Map<Table, number>();
-    for (const l of taking) if (l.table) before.set(l.table, (before.get(l.table) ?? 0) + 1);
-    const rowsParted = full.filter(gapped).length;
-    const replaces = ([t, n]: [Table, number]) => {
-      const f = found.get(t);
-      if (!f || t.form || t.prose || f.lines !== n) return false;
-      if (!f.columns.every((c, m) => m === 0 || cuts.some((x) => x >= f.columns[m - 1]!.x1 && x <= c.x0))) return false;
-      const inside = (x: number) => f.columns.some((c) => x > c.x0 && x < c.x1);
-      return f.bridged || rowsParted > t.rows.length || byFile.some(inside) || (cuts.some(inside) && full.length > t.rows.length);
-    };
-    if ([...before].every(replaces)) for (const l of taking) l.table = table;
-    i = reach[reach.length - 1]! + 1;
-  }
 }
 
 /**
@@ -1356,6 +748,26 @@ const GOES_ON = /^[\p{Ll}\p{Lo}]/u;
 const HAS_WORD = /\p{L}{2}/u;
 /** A line that opens as the line above did, its first word and then a number: `Chapter 1`, `Flat 2`, `In 2019`. */
 const WORD_AND_NUMBER = /^(\p{L}+) \d/u;
+
+/** About how wide a character is set, in ems: near enough, with a run's own width to scale it, to tell how long a line's first word is. */
+function charWidth(code: number): number {
+  if (code >= 0x2e80) return 1;
+  // Space, i l j t f r I . , : ; ' " ! |
+  if (code === 0x20 || code === 0x69 || code === 0x6c || code === 0x6a || code === 0x74 || code === 0x66 || code === 0x72 || code === 0x49) return 0.28;
+  if (code === 0x2e || code === 0x2c || code === 0x3a || code === 0x3b || code === 0x27 || code === 0x22 || code === 0x21 || code === 0x7c) return 0.28;
+  // ( ) [ ] { } / \ -
+  if (code === 0x28 || code === 0x29 || code === 0x5b || code === 0x5d || code === 0x7b || code === 0x7d || code === 0x2f || code === 0x5c || code === 0x2d) return 0.33;
+  // m w M W @ %
+  if (code === 0x6d || code === 0x77 || code === 0x4d || code === 0x57 || code === 0x40 || code === 0x25) return 0.85;
+  if (code >= 0x41 && code <= 0x5a) return 0.68;
+  return 0.55;
+}
+
+function reckon(text: string): number {
+  let w = 0;
+  for (let i = 0; i < text.length; i++) w += charWidth(text.charCodeAt(i));
+  return w;
+}
 
 /** How wide a line's first word is, in the run that holds it: what would have to fit on the line above. */
 function firstWordWidth(line: Line): number {

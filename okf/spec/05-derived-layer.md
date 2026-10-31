@@ -223,33 +223,18 @@ order and laid out by where they stand on the page:
   form, half of whose rows hold a label (`Client:` beside `Example Co.`), read a line per row, and
   columns of prose drawn a line across them at a time, read a column at a time.
 - **Tables set tighter.** pdf.js reads two cells less than 0.6 of the font's height apart as one run
-  unless something in the file parts them (a tag, as in a tagged PDF, or a change of font), so such a
-  table's rows seem to have fewer cells than it has columns, and which cells run together differs
-  from row to row. A second search looks for them, and in doubt makes no table. Its columns are
-  stretches across the page that no row's words cover, a word inside a run standing where its letters
-  put it, near enough, and such a stretch is a gutter only where something shows it: two rows have a
-  gap the file shows at it (at least 0.15 of the font's height, and not one character of a fixed-pitch
-  font), with the cells after it on one edge, and the gap's width differs from row to row or is at
-  least 0.7 of the font's height, since a narrower gap of one width is a space between words; or one
-  row has such a gap, the table's other gutters are shown, two other rows have words end at it, and
-  the cells after it stand within 0.6 of the font's height of that row's; or three rows hold a number
-  either side of it (`12 500`, a number in thousands, being one number). Numbers alone show a table
-  only as three columns of them, and the word before the first of them then parts from it if only
-  numbers follow it on every row and they stand in line. A word and the number after it never show a
-  column (`Flat 2`, `Group 1`, `Room 12`), a column whose cell is the same on every row is part of the
-  next (`Group | 1`), and a gap of 0.4 of the font's height left inside a column, or a first row that
-  leaves a column after its first empty, means no table. A table needs three rows of cells. A row with
-  no gap the file shows is one of its rows only where it fills every column, in at most two words a
-  column and ends no sentence, each cell of the kind its column holds (numbers, or words), standing
-  within 0.6 of the font's height of its column's cells, or where the file gives that edge, on it; under the last
-  row the file parts, it must also hold numbers in every column after the first, so a title above a
-  table or a note under it (`Revised 2026`, `See note 3`) stays out. Lines whose cells wrap onto the
-  next, as prose's do, and single characters set apart, as text written down the page is, make no
-  table. This table replaces one found the first way only where it reads all of that one's lines and
-  keeps every column it had, and shows what that one missed: rows of cells it lost, two cells it held
-  in one by reaching across a gutter, a gutter inside one of its columns that the file shows, or, with
-  numbers, one that a first row it left out fills. So a table whose columns are plain to see reads as
-  it did.
+  unless something in the file parts them (a tag, as in a tagged PDF, or a change of font), and which
+  cells run together differs from row to row. Nothing looks for the columns of such a table: it reads
+  as far as those gaps show them, as a table of the rows that show the same columns, with cells held
+  in one where a row does not part them, and its other rows as plain lines. Its words stay whole and in
+  their line's order, except that cells a tagged file sets closer than 0.15 of the font's height read
+  with no space between them (`12098` for `120` and `98`). What a search for such a table's columns
+  must meet is in the [roadmap](10-roadmap.md#planned--a-pdfs-tables-set-tight).
+- **What looking for tables may cost.** A page's search stops at 200,000 rows fitted to columns, and
+  at 10,000,000,000 cells checked against columns, a row costing its cells times its cells and the
+  columns so far; what is left reads as lines, with every word. A line that would overdraw the cells
+  is read as a line at once, and the search goes on under it, so a line of 200,000 cells does not take
+  the time a file is given, while 40,000 columns of two rows still read as a table.
 - **Headings.** A line of one cell set clearly larger than its page's text, every run of it at
   least 1.15 times the size most of the page's characters outside its tables are set in, is a
   heading of its own, never run into the text before or after it, with the lines just under it in
@@ -289,8 +274,10 @@ order and laid out by where they stand on the page:
   or under a line that stops short. A word broken at the end of a line goes on, and a line the file
   gives no width to says nothing of where it stops. Lines next to one another that each start with a
   short label (`Sample ID: S-0001`) stand apart. A file whose lines would make more paragraphs than a
-  reading may hold (§5.5) reads them to their sentences' ends only, rather than not at all. Lines at
-  other angles than the page's text are read the same way, each angle's apart from the others'.
+  reading may hold (§5.5) reads them to their sentences' ends only, rather than not at all, where
+  memory lets it get so far: at the default limit (§5.1) a page of more than about 170,000 short lines
+  is stopped for memory first. Lines at other angles than the page's text are read the same way, each
+  angle's apart from the others'.
 - **Running headers and footers.** One of the three lines at a page's top or bottom, in the outer
   eighth of the page and set apart from the text inward by white space at least 1.5 of the smaller
   font's height, or a line at another angle than the page's text (a stamp up the margin), is
@@ -311,16 +298,14 @@ repeat it, so a page's own first line stays.
 
 ◆ Decision: a PDF's table reads as a pipe table only when its columns are found, aligned; rows whose
 columns cannot be found read a line each, their cells kept apart, which reads as the page does
-without claiming a structure the file does not show. Where the words of a run stand is reckoned, not
-read, so it can support a column the file shows, or that numbers show, and never show one alone.
+without claiming a structure the file does not show.
 
-◆ Decision: PDF text is people's evidence, so the search for tables set tight gives way to doubt. A
-value in the wrong cell is the worst a reading can do, because it changes what a reader believes the
-data says; next worst is a table that read correctly and no longer does; a false paragraph break,
-or a line read plainly instead of as a table, is mild. So it looks only where the first search lost
-rows or held cells in one, a column needs evidence the file or a column of numbers gives, and it
-never replaces a table it cannot show to be wrong, even where that leaves a tight table read as lines
-or with cells in one.
+◆ Decision: PDF text is people's evidence, so a table's columns are found only where the gaps the
+file sets show them. A value in the wrong cell is the worst a reading can do, because it changes what
+a reader believes the data says; next worst is a table that read correctly and no longer does; a
+false paragraph break, or a line read plainly instead of as a table, is mild. A plain line cannot put
+a value under the wrong heading, so a table set too tight for its gaps to show its columns reads as
+lines or as a part of a table, with its words whole.
 
 ◆ Decision: a line of a PDF that ends no sentence ends its paragraph by where it stops, not by what
 it ends in: running a heading or a list into the text under it misreads the page, where parting a

@@ -106,10 +106,10 @@ export const HOSTILE_FILES = [
   },
   {
     name: "short-lines.pdf",
-    what: "a PDF of about 6 KB whose one page draws 190,000 short lines with no full stop, each its own paragraph, just under the most a reading may hold",
-    // Measured: about 6 seconds.
-    expect: "ready, after some seconds: the most paragraphs a PDF's layout makes of one page",
-    make: () => shortLinesPdf(190_000),
+    what: "a PDF of about 6 KB whose one page draws 170,000 short lines with no full stop, each its own paragraph: about the most a page holds at the default memory",
+    // Measured: about 2 seconds.
+    expect: `ready, after some seconds, or ${AT_A_LIMIT}`,
+    make: () => shortLinesPdf(170_000),
   },
   {
     name: "blank-pages.pdf",

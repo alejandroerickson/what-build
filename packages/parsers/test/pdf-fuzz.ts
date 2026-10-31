@@ -3,7 +3,7 @@ import { makePdfPages, pdfTable, pdfTextWidth, type PdfRun } from "./fixtures.ts
 /**
  * Seeded synthetic pages with a known right reading: tables (their cells), lists and short lines
  * with numbers in them (one line each, no table), and pages that mix them with prose. What a parser
- * reads of them is compared with that reading, and with what an earlier parser read.
+ * reads of them is compared with that reading, and its tables with `pdf-tables.snap`.
  */
 
 /** A small generator of numbers from a seed, so that a failure comes back the same. */
@@ -29,8 +29,9 @@ const name = (r: Rand) => {
   return w.charAt(0).toUpperCase() + w.slice(1);
 };
 
-type ColumnKind = "words" | "number" | "decimal" | "money" | "percent" | "thousands" | "unit" | "labelled" | "same-label";
-const COLUMN_KINDS: readonly ColumnKind[] = ["words", "number", "decimal", "money", "percent", "thousands", "unit", "labelled", "same-label"];
+type ColumnKind = "words" | "number" | "decimal" | "money" | "percent" | "thousands" | "unit" | "labelled" | "same-label" | "date" | "code" | "bracketed";
+const COLUMN_KINDS: readonly ColumnKind[] = ["words", "number", "decimal", "money", "percent", "thousands", "unit", "labelled", "same-label", "date", "code", "bracketed"];
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 const cellOf = (r: Rand, kind: ColumnKind, label: string): string => {
   switch (kind) {
@@ -52,6 +53,12 @@ const cellOf = (r: Rand, kind: ColumnKind, label: string): string => {
       return `${name(r)} ${between(r, 1, 99)}`;
     case "same-label":
       return `${label} ${between(r, 1, 99)}`;
+    case "date":
+      return `${between(r, 1, 28)} ${pick(r, MONTHS)} ${between(r, 2019, 2026)}`;
+    case "code":
+      return `${pick(r, ["A", "B", "C"])}-${between(r, 10, 99)}`;
+    case "bracketed":
+      return `(${between(r, 1, 99)},${String(between(r, 0, 999)).padStart(3, "0")})`;
   }
 };
 
@@ -82,8 +89,8 @@ const tableMarkdownOf = (rows: string[][]) => [`| ${rows[0]!.join(" | ")} |`, `|
 
 /**
  * One fuzzed table at a place on the page, or null when it does not fit its width. `plain` keeps to a
- * table the first search reads as set: Helvetica, its columns of numbers on their left edges or, whole
- * numbers, their right.
+ * table that reads as set: Helvetica, its columns of numbers on their left edges or, whole numbers,
+ * their right.
  */
 export function fuzzTable(r: Rand, gaps: readonly number[], top = 700, plain = false): FuzzTable | null {
   const columns = between(r, 2, 5);
@@ -124,6 +131,8 @@ const LIST_SHAPES: readonly ((r: Rand) => string[])[] = [
   (r) => Array.from({ length: between(r, 3, 6) }, () => `${name(r)} ${between(r, 18, 80)}`),
   (r) => Array.from({ length: between(r, 3, 6) }, (_, i) => `Room ${i + 10} ${word(r)} ${word(r)}`),
   (r) => Array.from({ length: between(r, 3, 6) }, () => `${name(r)} ${pick(r, ["Road", "Lane", "Way"])} ${between(r, 1, 300)}`),
+  (r) => Array.from({ length: between(r, 3, 6) }, () => `020 ${between(r, 1000, 9999)} ${String(between(r, 0, 9999)).padStart(4, "0")}`),
+  (r) => Array.from({ length: between(r, 3, 6) }, () => `${String(between(r, 1, 28)).padStart(2, "0")} ${String(between(r, 1, 12)).padStart(2, "0")} ${between(r, 2019, 2026)}`),
 ];
 
 export interface FuzzList {
@@ -218,57 +227,37 @@ export function tablesIn(markdown: string): string[] {
   return out;
 }
 
-/** How a reading's tables stand against a table's right cells, from best to worst. */
-export type TableReading = "right" | "none" | "merged" | "split" | "false row" | "misplaced";
-const WORSE: readonly TableReading[] = ["right", "none", "merged", "split", "false row", "misplaced"];
+/** A heading across two columns of a table, as a `colspan` is set: a table's rows, and the words above them. */
+export function fuzzSpanning(r: Rand, gaps: readonly number[], top = 700): FuzzPage {
+  const year = between(r, 2019, 2025);
+  const rows = [["Region", "Q1", "Q2", "Q1", "Q2"], ...Array.from({ length: between(r, 2, 6) }, () => [name(r), ...[0, 1, 2, 3].map(() => `${between(r, 1, 9)},${String(between(r, 0, 999)).padStart(3, "0")}`)])];
+  const gap = pick(r, gaps);
+  const body = pdfTable(rows, { gap, top: top - 14 });
+  return { tables: [], lists: [], runs: [{ text: `Sales ${year}`, x: body[1]!.x, y: top }, { text: `Sales ${year + 1}`, x: body[3]!.x, y: top }, ...body] };
+}
 
-/**
- * What a reading made of a table: `right`, its rows and cells as set; `none`, no table; `merged`, cells
- * held in one, or rows that fall out of a table or into another, nothing in a wrong place; `split`, a cell in two; `false row`, a
- * table's row that is none of the rows; `misplaced`, a value in a column other rows hold another's in.
- */
-export function tableReading(markdown: string, rows: string[][]): TableReading {
-  const tables = tablesIn(markdown);
-  if (!tables.length) return "none";
-  let worst: TableReading = "right";
-  const hit = (r: TableReading) => {
-    if (WORSE.indexOf(r) > WORSE.indexOf(worst)) worst = r;
+/** A table of two columns and a note under it, in reach of its rows, holding a number that stands in its second column. */
+export function fuzzNoted(r: Rand, gaps: readonly number[], top = 700): FuzzPage {
+  const rows = [["Part", "Count"], ...Array.from({ length: between(r, 2, 6) }, () => [name(r), String(between(r, 1, 99))])];
+  const gap = pick(r, gaps);
+  return { tables: [], lists: [], runs: [...pdfTable(rows, { gap, top }), { text: pick(r, ["Revised 2026", "See note 3", "Based on 36 crews", "Source 2024 survey"]), x: 72, y: top - rows.length * 14 }] };
+}
+
+/** What a parser reads as tables of seeded pages of every kind, each table as its lines: `pdf-tables.snap` holds what they should be. */
+export async function tableReadings(read: (bytes: Uint8Array) => Promise<string>, gaps: { clear: readonly number[]; tight: readonly number[] }, pages: number): Promise<string> {
+  const out: string[] = [];
+  const reads = async (said: string, bytes: Uint8Array) => {
+    const tables = tablesIn(await read(bytes));
+    out.push(`== ${said}`, ...(tables.length ? tables : ["no table"]), "");
   };
-  const keys = rows.map((r) => r.join(" "));
-  const used = new Set<number>();
-  for (const table of tables) {
-    const lines = table.split("\n").filter((l) => !/^\|[\s\-|]+\|$/.test(l));
-    const read = lines.map((l) => l.replace(/^\|\s?/, "").replace(/\s?\|$/, "").split(" | ").map((c) => c.trim()));
-    const placed = new Map<number, Set<number>>();
-    for (const row of read) {
-      const key = row.filter(Boolean).join(" ");
-      let at = keys.findIndex((k, i) => k === key && !used.has(i));
-      if (at < 0) at = keys.indexOf(key);
-      if (at < 0) {
-        hit("false row");
-        continue;
-      }
-      used.add(at);
-      const tokens = rows[at]!.flatMap((cell, column) => cell.split(" ").map((text) => ({ text, column })));
-      let next = 0;
-      const inCell = new Map<number, number>();
-      row.forEach((cell, j) => {
-        if (!cell) return;
-        for (const text of cell.split(" ")) {
-          const token = tokens[next++];
-          if (!token || token.text !== text) {
-            hit("misplaced");
-            return;
-          }
-          if (inCell.has(token.column) && inCell.get(token.column) !== j) hit("split");
-          inCell.set(token.column, j);
-          if (!placed.has(token.column)) placed.set(token.column, new Set());
-          placed.get(token.column)!.add(j);
-        }
-      });
+  for (let seed = 0; seed < pages; seed++) {
+    for (const [kind, list, salt] of [["tight", gaps.tight, 2], ["clear", gaps.clear, 1]] as const) {
+      const t = fuzzTable(seeded(seed * 7 + salt), list);
+      if (t) await reads(`${kind} ${seed}, gap ${t.gap}${t.tagged ? ", tagged" : ""}${t.mono ? ", fixed pitch" : ""}`, fuzzPdf([t.runs], t.tagged));
     }
-    for (const columns of placed.values()) if (columns.size > 1) hit("misplaced");
-    if ((read[0]?.length ?? 0) < rows[0]!.length) hit("merged");
+    const all = [...gaps.tight, ...gaps.clear];
+    await reads(`spanning ${seed}`, fuzzPdf([fuzzSpanning(seeded(seed * 19 + 4), all).runs], seed % 4 === 0));
+    await reads(`noted ${seed}`, fuzzPdf([fuzzNoted(seeded(seed * 23 + 6), all).runs], seed % 4 === 0));
   }
-  return worst === "right" && (used.size < rows.length || tables.length > 1) ? "merged" : worst;
+  return out.join("\n");
 }

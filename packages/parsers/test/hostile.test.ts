@@ -488,30 +488,23 @@ describe("PDF pages that would take long to lay out", () => {
     expect(timed(100_000)).toBeLessThan(6000);
   }, 60_000);
 
-  it("gives up a line of more cells than any table has columns at once", () => {
-    // Set apart by a cell's gap, fitting them to columns would cost the square of their number.
+  it("reads as a line at once a line whose cells would take too long to fit to columns, and finds the table under it", () => {
+    // Set apart by a cell's gap, fitting them to columns costs the square of their number: more than the time a file is given.
     const wide = Array.from({ length: 200_000 }, (_, i) => run("ab", i * 16, 700, i));
+    const rows = [["Sample", "Result"], ["Lead", "0.01"], ["Copper", "1.3"]].flatMap((row, i) => row.map((text, j) => run(text, 72 + j * 120, 680 - i * 14, 200_000 + i * 2 + j)));
     const started = performance.now();
-    expect(layoutPage(wide, [], 0, 792).lines.some((l) => l.table)).toBe(false);
+    const { lines } = layoutPage([...wide, ...rows], [], 0, 792);
     expect(performance.now() - started).toBeLessThan(6000);
+    expect(lines[0]!.table).toBeUndefined();
+    expect(lines[0]!.fine).toHaveLength(200_000);
+    expect(lines[1]!.table?.rows).toEqual([["Sample", "Result"], ["Lead", "0.01"], ["Copper", "1.3"]]);
   }, 60_000);
 
-  it("stops looking for tables set tight at the page's budget, whatever the lines hold", () => {
-    const y = (i: number) => 1_000_000 - i * 12;
-    const timed = (name: string, runs: TextRun[], lines: number) => {
-      const started = performance.now();
-      expect(layoutPage(runs, [], 0, 1_000_100).lines, name).toHaveLength(lines);
-      expect(performance.now() - started, name).toBeLessThan(6000);
-    };
-    // Numbers in one run, every row a table's until a row that is not.
-    timed("numbers", Array.from({ length: 40_000 }, (_, i) => run("11.25 12.00 15.50 13.75 14.25", 72, y(i), i)), 40_000);
-    // The most runs a row may have, never standing in the same columns.
-    timed("runs", Array.from({ length: 1500 }, (_, i) => Array.from({ length: 96 }, (_, j) => run("ab", 72 + j * 13 + (i % 7), y(i), i * 96 + j))).flat(), 1500);
-    // Too many words to be a row, and numbers among them: read as lines.
-    timed("words", Array.from({ length: 3000 }, (_, i) => run(Array.from({ length: 400 }, () => "1").join(" "), 72, y(i), i)), 3000);
-    // Rows that read as prose only once their columns are found, again and again.
-    timed("prose", Array.from({ length: 40_000 }, (_, i) => [run("the crew", 72, y(i), i * 2), run("went home and left 12", 130, y(i), i * 2 + 1)]).flat(), 40_000);
-  }, 120_000);
+  it("still fits a row of thousands of cells, however few a table has", () => {
+    const rows = [0, 1].flatMap((i) => Array.from({ length: 3000 }, (_, j) => run("ab", j * 16, 700 - i * 14, i * 3000 + j)));
+    const { lines } = layoutPage(rows, [], 0, 792);
+    expect(lines[0]!.table?.rows[0]).toHaveLength(3000);
+  }, 60_000);
 
   it("reads a file of more short lines than a reading may hold paragraphs as it reads text that runs on, not as too large", async () => {
     const { r } = await measured(makePdfOfLines(MAX_SEGMENTS + 5000, "Short"), "lines.pdf");
