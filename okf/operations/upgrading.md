@@ -23,6 +23,18 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
 
 ## Unreleased
 
+- **A PDF's short lines and its tables set tight read as the page does (PDF parser 6).** It asks
+  nothing of a deployment beyond the release's rehearsal with hostile files, as for any change to
+  parsing; the list now has `short-lines.pdf`. People will notice it in what is read from now on: a
+  line with no full stop that stops short of its column's width (a name, a heading in the text's own
+  size, a closing line) is a paragraph of its own where it ran into the next, each list item stands
+  apart, and a table whose cells are set closer than about half their font's height keeps its rows
+  and columns where they ran together or fell out of it. Nothing is read again by itself: a source
+  read earlier keeps its text, and search goes on finding it, until its attachment is read again
+  (`derived_write(action="rederive")`, or Read it again in the web app, one attachment at a time) or
+  a new version of it arrives; `parser_version` in `derived_read(action="manifest")` says which parser
+  made a reading. Then a source whose text still follows that attachment takes the new text and a new
+  etag, and a text someone wrote or edited is left alone; the reading made earlier is kept.
 - **An export has a tool of its own, and agents are told more exactly what they may do**
   (`tools_version` 0.50.0). It asks nothing of a deployment; a connected client sees the change in a
   new session. `products_write(action="export")` is now `products_export(action="export")`, marked

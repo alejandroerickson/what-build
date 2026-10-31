@@ -195,7 +195,7 @@ export interface PdfRun {
  * A PDF of pages of text runs, each run drawn where it says in the order given, as a content stream
  * draws them: so a test chooses whether a table is drawn row by row or column by column.
  */
-export function makePdfPages(pages: PdfRun[][]): Uint8Array {
+export function makePdfPages(pages: PdfRun[][], options: { tagged?: boolean } = {}): Uint8Array {
   // Written in WinAnsiEncoding: Latin-1 as itself, and the bullet and dashes at their own codes.
   const WIN_ANSI: Record<string, number> = { "•": 0x95, "–": 0x96, "—": 0x97 };
   const esc = (s: string) =>
@@ -212,8 +212,12 @@ export function makePdfPages(pages: PdfRun[][]): Uint8Array {
   ];
   const kids: string[] = [];
   for (const runs of pages) {
+    // Marked content parts text as a tagged PDF's cells are parted, however close they stand; without it, pdf.js reads runs less than 0.6 of an em apart as one.
     const stream = runs
-      .map((r) => `BT /${r.bold ? "F2" : "F1"} ${r.size ?? 11} Tf ${r.turned ? "0 1 -1 0" : "1 0 0 1"} ${r.x} ${r.y} Tm (${esc(r.text)}) Tj ET`)
+      .map((r, n) => {
+        const text = `BT /${r.bold ? "F2" : "F1"} ${r.size ?? 11} Tf ${r.turned ? "0 1 -1 0" : "1 0 0 1"} ${r.x} ${r.y} Tm (${esc(r.text)}) Tj ET`;
+        return options.tagged ? `/P <</MCID ${n}>> BDC ${text} EMC` : text;
+      })
       .join("\n");
     objects.push(`<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`);
     objects.push(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents ${objects.length} 0 R >>`);
@@ -236,6 +240,59 @@ export function makePdfPages(pages: PdfRun[][]): Uint8Array {
 /** Lines of text set one under another from `top`, `leading` points apart, as a paragraph's lines are. */
 export function pdfLines(lines: string[], o: { x?: number; top?: number; leading?: number; size?: number } = {}): PdfRun[] {
   return lines.map((text, i) => ({ text, x: o.x ?? 72, y: (o.top ?? 700) - i * (o.leading ?? 14), ...(o.size ? { size: o.size } : {}) }));
+}
+
+/** A one-page PDF of `count` lines of `text`, set small enough that all of them stand on the page. */
+export function makePdfOfLines(count: number, text: string): Uint8Array {
+  const leading = 780 / count;
+  const stream = `BT /F1 ${(leading * 0.6).toFixed(6)} Tf 72 785 Td ${leading.toFixed(6)} TL\n${`(${text}) Tj T* `.repeat(count)}ET`;
+  const objects = [
+    "<< /Type /Catalog /Pages 2 0 R >>",
+    "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+    "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>",
+    `<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`,
+    "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+  ];
+  const parts = ["%PDF-1.4\n"];
+  let length = parts[0]!.length;
+  const offsets: number[] = [];
+  objects.forEach((body, i) => {
+    offsets.push(length);
+    const part = `${i + 1} 0 obj\n${body}\nendobj\n`;
+    parts.push(part);
+    length += part.length;
+  });
+  parts.push(`xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`, ...offsets.map((o) => `${String(o).padStart(10, "0")} 00000 n \n`));
+  parts.push(`trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${length}\n%%EOF\n`);
+  return utf8(parts.join(""));
+}
+
+/** Helvetica's advances in thousandths of an em, from the space (32) to the tilde (126). */
+const HELVETICA = [278, 278, 355, 556, 556, 889, 667, 191, 333, 333, 389, 584, 278, 333, 278, 278, 556, 556, 556, 556, 556, 556, 556, 556, 556, 556, 278, 278, 584, 584, 584, 556, 1015, 667, 667, 722, 722, 667, 611, 778, 722, 278, 500, 667, 556, 833, 722, 778, 667, 778, 722, 667, 611, 722, 667, 944, 667, 667, 611, 278, 278, 278, 469, 556, 333, 556, 556, 500, 556, 556, 278, 556, 556, 222, 222, 500, 222, 833, 556, 556, 556, 556, 333, 500, 278, 556, 500, 722, 500, 500, 500, 334, 260, 334, 584];
+
+/** How wide a text is set in Helvetica: where a test wants a gap of an exact size. */
+export function pdfTextWidth(text: string, size = 11): number {
+  let w = 0;
+  for (let i = 0; i < text.length; i++) w += HELVETICA[text.charCodeAt(i) - 32] ?? 556;
+  return (w * size) / 1000;
+}
+
+/**
+ * A table's cells, each drawn on its own, its columns as wide as their widest cell and `gap` ems
+ * apart, each column set on its left or (`right`, by index) its right edge.
+ */
+export function pdfTable(rows: string[][], o: { x?: number; top?: number; leading?: number; gap?: number; right?: number[] } = {}): PdfRun[] {
+  const size = 11;
+  const widths = rows[0]!.map((_, j) => Math.max(...rows.map((r) => pdfTextWidth(r[j] ?? ""))));
+  let at = o.x ?? 72;
+  const xs = widths.map((w) => {
+    const x = at;
+    at += w + (o.gap ?? 1) * size;
+    return x;
+  });
+  return rows.flatMap((r, i) =>
+    r.map((text, j) => ({ text, x: o.right?.includes(j) ? xs[j]! + widths[j]! - pdfTextWidth(text) : xs[j]!, y: (o.top ?? 700) - i * (o.leading ?? 14) })),
+  );
 }
 
 /** A PDF of `pages` blank pages: a few bytes each, so a small file can have very many. */

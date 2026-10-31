@@ -376,7 +376,7 @@ describe("a parse that needs more memory than the server gives one file", () => 
     expect(run.ms).toBeLessThan(10_000);
     expect(run.slowest).toBeLessThan(1000);
     expect(await derivation(ids[0]!, at.owner, at.product)).toMatchObject({ status: "too_large", status_detail: `the file makes more than ${MAX_SEGMENTS} paragraphs; files that make more are stored but not read` });
-    expect(await derivation(ids[1]!, at.owner, at.product)).toMatchObject({ status: "too_large", parser: "pdf", parser_version: "5", status_detail: `the PDF has 20000 pages; PDFs over ${MAX_PDF_PAGES} pages are stored but not parsed` });
+    expect(await derivation(ids[1]!, at.owner, at.product)).toMatchObject({ status: "too_large", parser: "pdf", parser_version: "6", status_detail: `the PDF has 20000 pages; PDFs over ${MAX_PDF_PAGES} pages are stored but not parsed` });
   });
 
   it("goes on parsing ordinary files in a new thread each time", async () => {
