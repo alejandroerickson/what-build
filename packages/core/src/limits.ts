@@ -171,15 +171,25 @@ const restricted = (message: string, details?: Record<string, unknown>) => new A
 /** Where the limits come from, for a refusal: the free plan, or the example organization. */
 const HERE = (lc: Pick<LimitContext, "guest">) => (lc.guest ? "The example organization" : "This organization's plan");
 
-/** `used` is what the day had used before the refused call; `asked`, when one call takes several, how many it would have taken. */
-function quota(lc: LimitContext, name: LimitKey, used: number, unit: string, what: string, asked = 1) {
+/** A day's allowance used up: what the plan allows, in words, and the details. `used` is what the day had used before the refused call; `asked`, when one call takes several, how many it would have taken. */
+function dayUsedUp(lc: LimitContext, name: LimitKey, used: number, unit: string, what: string, asked = 1) {
   const limit = lc.limits[name] as number;
   const left = Math.max(0, limit - used);
   const batch = asked > 1 ? `, and this call would add ${asked} with ${left} left today` : "";
-  return conflict("quota_exceeded", `${HERE(lc)} allows ${what}${batch}. The allowance starts again at ${lc.day_end}. Reading, searching and what is already here are unaffected.`, {
-    quota: name, limit, used, unit, resets_at: lc.day_end,
-  });
+  return { allows: `${HERE(lc)} allows ${what}${batch}.`, details: { quota: name, limit, used, unit, resets_at: lc.day_end } };
 }
+
+function quota(lc: LimitContext, name: LimitKey, used: number, unit: string, what: string, asked = 1) {
+  const day = dayUsedUp(lc, name, used, unit, what, asked);
+  return conflict("quota_exceeded", `${day.allows} The allowance starts again at ${lc.day_end}. Reading, searching and what is already here are unaffected.`, day.details);
+}
+
+/**
+ * What is counted and never stopped by a day's writes, or by writing being off: taking work out, and
+ * taking things away, which is how an organization past a total makes room. How often anyone may
+ * call still paces them.
+ */
+const NEVER_STOPPED = /\.(export|archive|archive_page|delete|delete_page|delete_annotation|delete_tenant)$/;
 
 /**
  * Operations counted against a daily allowance beyond the count of writes, and what one call takes
@@ -219,7 +229,7 @@ function off(setting: LimitKey) {
 export function refuseSwitchedOff(lc: LimitContext, op: Pick<OperationDef, "name" | "mutates">): void {
   const s = lc.limits;
   if (lc.guest || !op.mutates) return;
-  if (op.name !== "products.export") {
+  if (!NEVER_STOPPED.test(op.name)) {
     if (s.writes_per_day === 0) throw off("writes_per_day");
     if (s.org_writes_per_day === 0) throw off("org_writes_per_day");
   }
@@ -269,7 +279,7 @@ export function checkInput(lc: LimitContext, op: Pick<OperationDef, "name">, inp
  * The daily allowances, counted inside the operation's own transaction: a call that is refused, or
  * that fails, takes nothing from them. They are counted at `at` on every plan, and refused only
  * where the call meets limits (`lc`). `input` is the call's validated input, for an operation that
- * adds several of what an allowance counts.
+ * adds several of what an allowance counts, and for what a refusal says of the plan's totals.
  */
 export async function countWrite(trx: Db, at: Tally, lc: LimitContext | null, principal: Principal, op: Pick<OperationDef, "name" | "mutates">, input?: unknown): Promise<void> {
   if (lc?.guest || !op.mutates) return;
@@ -283,18 +293,30 @@ export async function countWrite(trx: Db, at: Tally, lc: LimitContext | null, pr
   ]);
   if (!lc) return;
   const s = lc.limits;
-  // An export is counted, and never stopped by the allowance of writes: it is how someone leaves with their work.
-  if (op.name !== "products.export") {
+  const held = (input ?? {}) as Record<string, unknown>;
+  if (!NEVER_STOPPED.test(op.name)) {
     const mine = n.get(`${me}:writes`) ?? 0;
-    if (mine > s.writes_per_day) throw quota(lc, "writes_per_day", mine - 1, "writes", `each person ${s.writes_per_day} writes a day`);
+    if (mine > s.writes_per_day) throw await pastTheDay(trx, lc, op, held, "writes_per_day", mine - 1, "writes", `each person ${s.writes_per_day} writes a day`);
     const all = n.get(`${ORG}:writes`) ?? 0;
-    if (all > s.org_writes_per_day) throw quota(lc, "org_writes_per_day", all - 1, "writes", `${s.org_writes_per_day} writes a day from everyone together`);
+    if (all > s.org_writes_per_day) throw await pastTheDay(trx, lc, op, held, "org_writes_per_day", all - 1, "writes", `${s.org_writes_per_day} writes a day from everyone together`);
   }
   if (daily) {
     const used = n.get(`${me}:${daily.counter}`) ?? 0;
     const limit = s[daily.setting] as number;
-    if (used > limit) throw quota(lc, daily.setting, used - takes, daily.unit, daily.what(limit), takes);
+    if (used > limit) throw await pastTheDay(trx, lc, op, held, daily.setting, used - takes, daily.unit, daily.what(limit), takes);
   }
+}
+
+/**
+ * The refusal of a call past a day's allowance. A total it would also meet is said first, with the
+ * day's allowance beside it (`also`), because the day starts again and the total does not: saying
+ * only "tomorrow" would send someone to a second refusal.
+ */
+async function pastTheDay(trx: Db, lc: LimitContext, op: Pick<OperationDef, "name" | "mutates">, input: Record<string, unknown>, name: LimitKey, used: number, unit: string, what: string, asked = 1): Promise<AppError> {
+  const total = (await totalRefusal(trx, lc, op, input)) ?? (await laterTotalRefusal(trx, lc, op, input));
+  if (!total) return quota(lc, name, used, unit, what, asked);
+  const day = dayUsedUp(lc, name, used, unit, what, asked);
+  return conflict("quota_exceeded", `${total.message} Today's allowance is used up too. ${day.allows} It starts again at ${lc.day_end}.`, { ...total.details, also: day.details });
 }
 
 /**
@@ -309,10 +331,7 @@ export async function uploadLimit(trx: Db, lc: LimitContext, accountId: string, 
   if (s.org_bytes_per_day === 0) throw off("org_bytes_per_day");
   const used = await usageToday(trx, lc, accountId);
   const left = await storageLeft(trx, lc);
-  if (left <= 0)
-    throw conflict("quota_exceeded", `This organization's plan keeps ${sizeWords(s.storage_max_bytes!)}, and it is full. Delete what is no longer needed to make room (archiving keeps it), or ask whoever runs this WhatBuild to move the organization to a larger plan.`, {
-      quota: "storage_max_bytes", limit: s.storage_max_bytes, used: s.storage_max_bytes, unit: "bytes",
-    });
+  if (left <= 0) throw storageFull(lc);
   if (used.bytes >= s.bytes_per_day) throw quota(lc, "bytes_per_day", used.bytes, "bytes", `each person ${s.bytes_per_day} bytes of uploads a day`);
   if (used.org_bytes >= s.org_bytes_per_day) throw quota(lc, "org_bytes_per_day", used.org_bytes, "bytes", `${s.org_bytes_per_day} bytes of uploads a day from everyone together`);
   const daily = Math.min(s.bytes_per_day - used.bytes, s.org_bytes_per_day - used.org_bytes);
@@ -322,7 +341,7 @@ export async function uploadLimit(trx: Db, lc: LimitContext, accountId: string, 
       file.size > Math.min(fileMaxBytes, s.file_max_bytes)
         ? `The file is ${file.size} bytes; this organization's plan takes files of at most ${Math.min(fileMaxBytes, s.file_max_bytes)} bytes.`
         : left < daily
-          ? `The file is ${file.size} bytes, and the organization's plan has ${left} bytes of storage left. Delete what is no longer needed to make room.`
+          ? `The file is ${file.size} bytes, and the organization's plan has ${left} bytes of storage left. ${ROOM.storage_max_bytes}.`
           : `The file is ${file.size} bytes, and ${limit} bytes are left in today's upload allowance, which starts again at ${lc.day_end}.`,
       { limit },
     );
@@ -369,9 +388,9 @@ export interface Holdings {
   members: number;
   /** Invitations to more than reading the Story, not yet accepted, to someone not already counted: each holds a place. */
   invited: number;
-  /** Products not archived. */
+  /** Products, archived or not. */
   products: number;
-  /** Sources not archived. */
+  /** Sources, archived or not, whether or not their product is. */
   sources: number;
   /** Bytes kept: files, and text as it is stored, every version of each. */
   storage: { files: number; text: number; total: number };
@@ -383,9 +402,10 @@ function stored(table: string, columns: string[]) {
 }
 
 /**
- * What an organization holds against its plan's totals. Files are every attachment version, the
- * text read from each and the distinct files of mockup prototypes; text is what is written, as the
- * database stores it, every version kept. Archiving keeps all of it; only deleting frees it.
+ * What an organization holds against its plan's totals. Products and sources count whether archived
+ * or not, so nobody archives and restores to get round a plan. Files are every attachment version,
+ * the text read from each and the distinct files of mockup prototypes; text is what is written, as
+ * the database stores it, every version kept. Archiving keeps all of it; only deleting frees it.
  */
 export async function holdingsOf(db: Db, tenantId: string): Promise<Holdings> {
   const row = await db
@@ -394,8 +414,8 @@ export async function holdingsOf(db: Db, tenantId: string): Promise<Holdings> {
       sql<number>`(SELECT count(DISTINCT account_id) FROM memberships WHERE tenant_id = t.tenant_id AND role <> 'reader')`.as("members"),
       sql<number>`(SELECT count(DISTINCT lower(i.email)) FROM invitations i WHERE i.tenant_id = t.tenant_id AND i.role <> 'reader' AND i.accepted_at IS NULL AND i.expires_at > now()
         AND NOT EXISTS (SELECT 1 FROM accounts a JOIN memberships m ON m.account_id = a.account_id AND m.tenant_id = t.tenant_id AND m.role <> 'reader' WHERE lower(a.email) = lower(i.email)))`.as("invited"),
-      sql<number>`(SELECT count(*) FROM products WHERE tenant_id = t.tenant_id AND archived_at IS NULL)`.as("products"),
-      sql<number>`(SELECT count(*) FROM records WHERE tenant_id = t.tenant_id AND archived_at IS NULL)`.as("sources"),
+      sql<number>`(SELECT count(*) FROM products WHERE tenant_id = t.tenant_id)`.as("products"),
+      sql<number>`(SELECT count(*) FROM records WHERE tenant_id = t.tenant_id)`.as("sources"),
       sql<number>`(SELECT coalesce(sum(size), 0) FROM (SELECT DISTINCT blob_key, size FROM file_versions WHERE tenant_id = t.tenant_id) f)
         + (SELECT coalesce(sum(text_chars), 0) FROM derivations WHERE tenant_id = t.tenant_id)
         + (SELECT coalesce(sum(size), 0) FROM (SELECT DISTINCT blob_key, size FROM mockup_prototype_files WHERE tenant_id = t.tenant_id) p)`.as("files"),
@@ -429,31 +449,37 @@ function textBytes(value: unknown): number {
 }
 
 /** Operations that never add to what an organization holds, whatever text they carry: leaving, tidying, taking out. */
-const NEVER_ADDS = /\.(archive|archive_page|restore_page|delete|delete_page|delete_annotation|revoke|cancel_invitation|export|set_hierarchy|review|link|unlink|remove_account|set_plan)$/;
+const NEVER_ADDS = /\.(archive|archive_page|restore|restore_page|delete|delete_page|delete_annotation|revoke|cancel_invitation|export|set_hierarchy|review|link|unlink|remove_account|set_plan)$/;
 
 /** What an operation adds to a total, read from its validated input. */
 const ADDS: Record<string, { products?: number; sources?: (input: Record<string, unknown>) => number }> = {
   "products.create": { products: 1 },
-  "products.restore": { products: 1 },
   "sources.create": { sources: () => 1 },
   "attachments.create_upload": { sources: () => 1 },
   "attachments.create_uploads": { sources: (i) => Math.max(1, (i["sources"] as unknown[] | undefined)?.length ?? 1) },
   "sources.copy_to_product": { sources: () => 1 },
-  "sources.restore": { sources: (i) => (i["record_ids"] as unknown[] | undefined)?.length ?? 1 },
 };
 
-/** How to make room under each total. */
+/**
+ * What makes room under each total, and who can do it: a refusal may reach an editor or an agent's
+ * connection, who add and archive but do not delete.
+ */
 const ROOM: Partial<Record<LimitKey, string>> = {
-  members_max: "Remove someone or cancel an invitation to make room",
-  products_max: "Archive a product to make room",
-  sources_max: "Archive sources that are no longer needed to make room",
-  storage_max_bytes: "Delete what is no longer needed to make room (archiving keeps it)",
+  members_max: "Removing someone or cancelling an invitation makes room",
+  products_max: "Deleting a product no longer needed makes room, which its admins can do; archiving one does not",
+  sources_max: "Deleting sources no longer needed makes room, which their product's admins can do; archiving them does not",
+  storage_max_bytes: "Deleting what is no longer needed makes room, which a product's admins can do; archiving it does not",
 };
 
 function overTotal(lc: LimitContext, name: LimitKey, used: number, unit: string, message: string) {
-  return conflict("quota_exceeded", `${message} ${ROOM[name] ?? "Make room"}, or ask whoever runs this WhatBuild to move the organization to a larger plan. Reading, searching and export are unaffected.`, {
+  return conflict("quota_exceeded", `${message} ${ROOM[name] ?? "Make room"}. Whoever runs this WhatBuild can also move the organization to a larger plan. Reading, searching and export are unaffected.`, {
     quota: name, limit: lc.limits[name], used, unit,
   });
+}
+
+function storageFull(lc: LimitContext) {
+  const max = lc.limits.storage_max_bytes!;
+  return overTotal(lc, "storage_max_bytes", max, "bytes", `This organization's plan keeps ${sizeWords(max)}, and it is full.`);
 }
 
 const sizeWords = (n: number) => (n >= 1024 * MiB ? `${+(n / (1024 * MiB)).toFixed(1)} GB` : `${+(n / MiB).toFixed(1)} MB`);
@@ -461,29 +487,51 @@ const sizeWords = (n: number) => (n >= 1024 * MiB ? `${+(n / (1024 * MiB)).toFix
 /**
  * The totals of the organization's plan: refused when the call would take the organization past
  * one. Runs in the operation's transaction, after the tenant row is locked, so two calls at once
- * cannot both take the last place. Products and sources that are archived don't count, so archiving
- * makes room; storage counts everything kept, so only deleting frees it.
+ * cannot both take the last place. Everything kept counts, archived or not, so only deleting makes
+ * room, and restoring adds nothing and is never refused by a total.
  */
 export async function checkTotals(trx: Db, lc: LimitContext, op: Pick<OperationDef, "name" | "mutates">, input: Record<string, unknown>): Promise<void> {
-  if (lc.guest || !op.mutates || NEVER_ADDS.test(op.name)) return;
+  const refusal = await totalRefusal(trx, lc, op, input);
+  if (refusal) throw refusal;
+}
+
+async function totalRefusal(trx: Db, lc: LimitContext, op: Pick<OperationDef, "name" | "mutates">, input: Record<string, unknown>): Promise<AppError | null> {
+  if (lc.guest || !op.mutates || NEVER_ADDS.test(op.name)) return null;
   const s = lc.limits;
   const adds = ADDS[op.name];
   const incoming = textBytes(input);
   const storage = s.storage_max_bytes !== null && incoming > STORAGE_CHECKED_FROM;
   const products = adds?.products && s.products_max !== null;
   const sources = adds?.sources && s.sources_max !== null;
-  if (!storage && !products && !sources) return;
+  if (!storage && !products && !sources) return null;
   await trx.selectFrom("tenants").select("tenant_id").where("tenant_id", "=", lc.tenant_id).forUpdate().execute();
   const h = await holdingsOf(trx, lc.tenant_id);
   if (products && h.products + adds!.products! > s.products_max!)
-    throw overTotal(lc, "products_max", h.products, "products", `This organization's plan allows ${s.products_max === 1 ? "1 product that isn't archived" : `${s.products_max} products that aren't archived`}, and it has ${h.products}.`);
+    return overTotal(lc, "products_max", h.products, "products", `This organization's plan allows ${s.products_max === 1 ? "1 product" : `${s.products_max} products`}, archived ones included, and it has ${h.products}.`);
   if (sources) {
     const n = adds!.sources!(input);
     if (h.sources + n > s.sources_max!)
-      throw overTotal(lc, "sources_max", h.sources, "sources", `This organization's plan allows ${s.sources_max === 1 ? "1 source that isn't archived" : `${s.sources_max} sources that aren't archived`}; it has ${h.sources}${n > 1 ? `, and this call would add ${n}` : ""}.`);
+      return overTotal(lc, "sources_max", h.sources, "sources", `This organization's plan allows ${s.sources_max === 1 ? "1 source" : `${s.sources_max} sources`}, archived ones included; it has ${h.sources}${n > 1 ? `, and this call would add ${n}` : ""}.`);
   }
   if (storage && h.storage.total + incoming > s.storage_max_bytes!)
-    throw overTotal(lc, "storage_max_bytes", h.storage.total, "bytes", `This organization's plan keeps ${sizeWords(s.storage_max_bytes!)}, and it holds ${sizeWords(h.storage.total)}, so this ${sizeWords(incoming)} doesn't fit.`);
+    return overTotal(lc, "storage_max_bytes", h.storage.total, "bytes", `This organization's plan keeps ${sizeWords(s.storage_max_bytes!)}, and it holds ${sizeWords(h.storage.total)}, so this ${sizeWords(incoming)} doesn't fit.`);
+  return null;
+}
+
+/** Operations whose grant meets the storage total in their own handler, whatever text they carry. */
+const UPLOADS = /^attachments\.(request_upload|create_upload|create_uploads|fetch_url)$/;
+
+/** What a call's own handler would refuse for a total, which `checkTotals` leaves to it: a full organization's upload, a role past the people allowed. */
+async function laterTotalRefusal(trx: Db, lc: LimitContext, op: Pick<OperationDef, "name">, input: Record<string, unknown>): Promise<AppError | null> {
+  if (UPLOADS.test(op.name) && (await storageLeft(trx, lc)) <= 0) return storageFull(lc);
+  const people = op.name === "members.grant" ? [input] : op.name === "members.grant_many" ? ((input["people"] ?? []) as Record<string, unknown>[]) : [];
+  try {
+    for (const p of people) await checkMembers(trx, lc, String(p["email"]), String(p["role"]));
+  } catch (e) {
+    if (e instanceof AppError) return e;
+    throw e;
+  }
+  return null;
 }
 
 /**

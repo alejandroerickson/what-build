@@ -3,7 +3,7 @@ type: Specification
 title: Nothing is ever trapped - say what we promise, keep export open, and never let a limit block a read.
 description: What we tell people, limits and quotas (enforced and planned), backups and in-product versioning, export, archive and permanent delete of everything archivable and of an organization, the operator runbooks, plans and their limits, and how retired insights and decisions became sources.
 tags: [spec, lifecycle, quotas, backups, export, archive, delete, limits, plans]
-generated: {by: agent:claude, at: 2026-10-27}
+generated: {by: agent:claude, at: 2026-10-31}
 status: stable
 ---
 
@@ -136,7 +136,7 @@ running without a compliance program.
 | Sign-in links | 5 per address per hour | Yes — `429 rate_limited` |
 | OAuth client registrations | 50 an hour waiting for their first connection; one that never connects is removed after 7 days | Yes — `429 rate_limited` |
 | Exports in progress | one per product at a time | Yes — `409 export_in_progress` |
-| People, products and sources not archived, and storage, per organization | The plan's (§9.7) | Yes, on a plan the deployment defines — `409 quota_exceeded` |
+| People, products and sources (archived ones included), and storage, per organization | The plan's (§9.7) | Yes, on a plan the deployment defines — `409 quota_exceeded` |
 | Writes and calls a minute, writes, sources, exports, uploaded bytes and bytes sent a day | The plan's (§9.7) | Yes, on a plan the deployment defines — `429 rate_limited`, `409 quota_exceeded`, `413 too_large`, `403 plan_restricted` |
 | Organization exports | 2 / day | Planned |
 
@@ -159,8 +159,10 @@ Rules:
    cannot drift (§9.7). What an organization holds is measured when a write could take it past a
    total, from its rows and stored sizes, inside the write's transaction with the tenant locked.
    **Planned:** a nightly job reconciling stored bytes against the object store.
-5. Archiving does not free storage; deleting does. Archiving does make room under people (removing
-   someone, or cancelling an invitation), products and sources. The UI says so where it matters.
+5. Archiving frees nothing: products and sources count against their totals whether archived or
+   not, so nobody archives and restores to get round a plan, and storage counts everything kept.
+   Deleting makes room under products, sources and storage; removing someone or cancelling an
+   invitation, under people. The UI says so where it matters.
 
 **Abuse limits**, which are not quotas but belong beside them. Built: the sign-in link limit,
 the limits on OAuth client registration and on sign-in and OAuth request bodies
@@ -285,7 +287,8 @@ been here".
 - It takes the object **out of listings, out of the UI's main views, and out of the search space an
   agent can reach** ([§8.2](08-search.md)). That last part is the point: archiving is how a team
   says "stop showing me this, and stop letting the agent find it", without losing it.
-- Archiving does **not** free storage. Deleting does, and the UI says so.
+- Archiving frees **nothing**: what is archived still counts against a plan's products, sources and
+  storage (§9.7). Deleting frees it, and the UI says so.
 - **Archive is what every destructive-looking control offers first.** Delete is available from the
   same place, one step further in, and never pre-selected; its dialog offers Archive instead.
 
@@ -498,8 +501,8 @@ instead, set on the same page ([§3.10](03-accounts-teams-and-identity.md#310-th
 | Limit | Setting | Counted over | Refusal |
 |---|---|---|---|
 | People with a role above reading the Story, invitations included | `members_max` | the organization | `409 quota_exceeded` |
-| Products not archived | `products_max` | the organization | `409 quota_exceeded` |
-| Sources not archived | `sources_max` | the organization | `409 quota_exceeded` |
+| Products, archived ones included | `products_max` | the organization | `409 quota_exceeded` |
+| Sources, archived ones included | `sources_max` | the organization | `409 quota_exceeded` |
 | Storage: files and text, every version | `storage_max_bytes` | the organization | `409 quota_exceeded`; an upload grant's `max_bytes` is what is left |
 | Calls, reads included | `requests_per_minute` | each person, each minute | `429 rate_limited` |
 | Writes | `writes_per_minute` | each person, each minute | `429 rate_limited` |
@@ -533,7 +536,10 @@ Rules:
    allowance is refused whole, with the day's count before the call as `used` and a message
    saying how many it would add and how many are left.
 4. **A day's allowance never stops a read or a search** (§9.2 rule 1). Export is counted by
-   `exports_per_day` alone: the day's writes never stop it.
+   `exports_per_day` alone: the day's writes never stop it. Archiving and deleting are counted as
+   writes and never stopped by the day's writes, or by writing being off (a limit of 0): deleting is
+   how an organization past a total makes room. Restoring is a write they do stop. Calls and writes a
+   minute pace all of them.
 5. **On a plan with limits an upload goes through the relay only**, where the size is enforced as
    the bytes arrive; no direct-to-store URL is issued. A grant's `max_bytes` is the lowest of the
    file limits, what is left of the day's bytes and what is left of the storage. Bytes are counted
@@ -574,21 +580,25 @@ Rules:
 
 11. **What an organization holds** is measured when a write could take it past a total
     (`holdingsOf`): people with any role but reader, and pending invitations to anyone not already
-    counted, each holding a place; products and sources not archived; and storage, the distinct
+    counted, each holding a place; products and sources, archived or not; and storage, the distinct
     files of its attachments' every version, the text read from each, the distinct files of its
     mockups' prototypes, and the text it has written as the database stores it (sources' texts,
     notes, comments, Story and mockup pages, assumptions, outcomes and earlier versions), every
     version kept. A write is checked with the organization locked, so two at once cannot both take
-    the last place: creating or restoring a product, adding, copying in or restoring sources, and
-    any write whose input carries more than 4 KB of text, which meets the storage total; a smaller
-    one (a title, a review, a tag) never does. Giving someone a role, or inviting them, is checked
-    against the people total (`members.grant`); a reader is never refused.
-12. **Leaving, tidying and taking out are never refused by a total**: archiving, restoring a page,
-    deleting, cancelling an invitation, removing someone, reviewing and linking, and exporting. A
-    refusal says what makes room: removing someone or cancelling an invitation, archiving, or for
-    storage deleting.
+    the last place: creating a product, adding or copying in sources, and any write whose input
+    carries more than 4 KB of text, which meets the storage total; a smaller one (a title, a review,
+    a tag) never does. Giving someone a role, or inviting them, is checked against the people total
+    (`members.grant`); a reader is never refused.
+12. **Leaving, tidying and taking out are never refused by a total**: archiving, restoring, deleting,
+    cancelling an invitation, removing someone, reviewing and linking, and exporting. Restoring adds
+    nothing to a total, which already counts what is archived. A refusal says what makes room and who
+    can do it, since it may reach an editor or an agent's connection, who add and archive but do not
+    delete: removing someone or cancelling an invitation, or a product's admins deleting. A call past
+    a day's allowance that would also meet a total is refused for the total, which waiting does not
+    lift, with the day's allowance in `details.also` and in its message.
 13. **Moving to another plan removes nothing.** An organization that holds more than its new plan's
-    totals keeps it all, and can add nothing more of that kind until enough is archived or deleted.
+    totals keeps it all, and can add nothing more of that kind until enough is deleted, or people
+    taken out. It stays writable in every other way; a total never makes an organization read-only.
     An organization moved back to the starting plan while its creator already has one there is
     read-only instead, kept a year ([§3.3](03-accounts-teams-and-identity.md#33-tenants-and-teams)): it keeps
     everything, its people read, export, delete and take people out, and every other write is

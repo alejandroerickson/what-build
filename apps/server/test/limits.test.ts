@@ -463,31 +463,222 @@ describe("the totals of a plan", () => {
     reset();
   });
 
-  it("count products and sources that aren't archived, so archiving makes room", async () => {
+  /** Delete a product as an admin does, name typed. */
+  const deleteProduct = async (who: Browser, path: string, name: string) => {
+    const { etag } = (await who.api("GET", `${path}/delete-impact`)).body;
+    return who.api("DELETE", path, { expected_etag: etag, name, reason: "A test product", confirm: "delete permanently" });
+  };
+  /** Delete a source as an admin does. */
+  const deleteSource = async (who: Browser, record_id: string) => {
+    const { etag } = (await fay.api("GET", `${P}/sources/${record_id}`)).body;
+    return who.api("DELETE", `${P}/sources/${record_id}`, { expected_etag: etag, reason: "A test source", confirm: "delete permanently" });
+  };
+  const addSource = (who: Browser, title: string) => who.api("POST", `${P}/sources`, { title, tags: ["notes"] });
+  const holds = async () => (await limitsOf(fay)).holds as { products: number; sources: number; storage: { total: number } };
+
+  it("count products whether archived or not, so archiving makes no room, restoring is free, and deleting makes room", async () => {
     const products = `/api/v1/teams/${free.slug}/${team}/products`;
     const second = await fay.api("POST", products, { name: "Second thoughts" });
     expect(second.status).toBe(409);
     expect(second.body.error).toMatchObject({ code: "quota_exceeded", details: { quota: "products_max", limit: 1, used: 1 } });
+    expect(second.body.error.message).toMatch(/allows 1 product, archived ones included, and it has 1\./);
     tweak({ products_max: 2 });
     const made = await fay.api("POST", products, { name: "Second thoughts" });
     expect(made.status, JSON.stringify(made.body)).toBe(201);
     const Q = `/api/v1/p/${made.body.path}`;
     expect((await fay.api("POST", `${Q}/archive`, { expected_etag: made.body.etag })).status).toBe(200);
+    // At the limit, archiving made no room for another.
+    expect((await holds()).products).toBe(2);
+    const third = await fay.api("POST", products, { name: "Third thoughts" });
+    expect(third.status).toBe(409);
+    expect(third.body.error).toMatchObject({ code: "quota_exceeded", details: { quota: "products_max", limit: 2, used: 2, unit: "products" } });
+    expect(third.body.error.message).toMatch(/Deleting a product no longer needed makes room, which its admins can do; archiving one does not\./);
+    expect(third.body.error.message).not.toMatch(/Archive/);
+    // Restoring adds nothing, even past the total.
     tweak({ products_max: 1 });
     const archived = (await fay.api("GET", Q)).body;
     const restore = await fay.api("POST", `${Q}/restore`, { expected_etag: archived.etag });
-    expect(restore.status).toBe(409);
-    expect(restore.body.error.details).toMatchObject({ quota: "products_max" });
+    expect(restore.status, JSON.stringify(restore.body)).toBe(200);
+    expect((await holds()).products).toBe(2);
+    // Deleting makes room, whether or not the product is archived.
+    tweak({ products_max: 2 });
+    expect((await fay.api("POST", `${Q}/archive`, { expected_etag: (await fay.api("GET", Q)).body.etag })).status).toBe(200);
+    const gone = await deleteProduct(fay, Q, "Second thoughts");
+    expect(gone.status, JSON.stringify(gone.body)).toBe(200);
+    expect((await holds()).products).toBe(1);
+    const again = await fay.api("POST", products, { name: "Third thoughts" });
+    expect(again.status, JSON.stringify(again.body)).toBe(201);
+    expect((await deleteProduct(fay, `/api/v1/p/${again.body.path}`, "Third thoughts")).status).toBe(200);
+    reset();
+  });
 
-    const held = (await limitsOf(fay)).holds.sources as number;
+  it("count sources whether archived or not, and an editor told to delete is told who can", async () => {
+    const held = (await holds()).sources;
     tweak({ sources_max: held + 1, sources_per_day: 1000 });
-    const last = await ned.api("POST", `${P}/sources`, { title: "Sample source that fills the plan", tags: ["notes"] });
+    const last = await addSource(ned, "Sample source that fills the plan");
     expect(last.status).toBe(201);
-    const over = await ned.api("POST", `${P}/sources`, { title: "Sample source past the plan", tags: ["notes"] });
+    const over = await addSource(ned, "Sample source past the plan");
     expect(over.status).toBe(409);
     expect(over.body.error).toMatchObject({ code: "quota_exceeded", details: { quota: "sources_max", limit: held + 1, used: held + 1 } });
+    expect(over.body.error.message).toMatch(/allows \d+ sources, archived ones included; it has \d+\./);
+    // At the limit, archiving made no room for another, and restoring took none.
     expect((await ned.api("POST", `${P}/sources/archive`, { record_ids: [last.body.record_id] })).status).toBe(200);
-    expect((await ned.api("POST", `${P}/sources`, { title: "Sample source once there is room", tags: ["notes"] })).status).toBe(201);
+    expect((await holds()).sources).toBe(held + 1);
+    const stillOver = await addSource(ned, "Sample source after archiving");
+    expect(stillOver.status).toBe(409);
+    expect(stillOver.body.error.details).toMatchObject({ quota: "sources_max", used: held + 1 });
+    const restored = await ned.api("POST", `${P}/sources/restore`, { record_ids: [last.body.record_id] });
+    expect(restored.status, JSON.stringify(restored.body)).toBe(200);
+    expect(restored.body.restored).toHaveLength(1);
+    // The message names who deletes, since the editor it reached cannot.
+    expect(over.body.error.message).toMatch(/Deleting sources no longer needed makes room, which their product's admins can do; archiving them does not\./);
+    expect((await deleteSource(ned, last.body.record_id)).status).toBe(403);
+    expect((await deleteSource(fay, last.body.record_id)).status).toBe(200);
+    const room = await addSource(ned, "Sample source once there is room");
+    expect(room.status).toBe(201);
+    expect((await deleteSource(fay, room.body.record_id)).status).toBe(200);
+    reset();
+  });
+
+  it("never refuse a restore for a total, however large a batch it names, and keep what limits a call", async () => {
+    const one = await addSource(fay, "Sample source to restore");
+    expect((await fay.api("POST", `${P}/sources/archive`, { record_ids: [one.body.record_id] })).status).toBe(200);
+    // Two hundred ids carry more than the 4 KB of text that meets the storage total.
+    const ids = [one.body.record_id, ...Array.from({ length: 199 }, (_, i) => `01ARZ3NDEKTSV4RRFFQ69G${String(i).padStart(4, "0")}`)];
+    tweak({ sources_max: 1, products_max: 1, storage_max_bytes: 1, batch_max: 200 });
+    const restored = await fay.api("POST", `${P}/sources/restore`, { record_ids: ids });
+    expect(restored.status, JSON.stringify(restored.body)).toBe(200);
+    expect(restored.body.restored).toHaveLength(1);
+    // How many a call names is its own limit.
+    tweak({ batch_max: 1 });
+    const batch = await fay.api("POST", `${P}/sources/restore`, { record_ids: ids.slice(0, 2) });
+    expect(batch.status).toBe(413);
+    expect(batch.body.error.details).toMatchObject({ field: "record_ids", limit: 1 });
+    reset();
+    expect((await deleteSource(fay, one.body.record_id)).status).toBe(200);
+  });
+
+  it("say a total as well when a call past a day's allowance would meet it, and the day's alone when it would not", async () => {
+    const { sources: held } = await holds();
+    const today = await used(ned, "sources_per_day");
+    // The day's sources used up, and every source the plan allows held.
+    tweak({ sources_max: held, sources_per_day: today, writes_per_day: 100_000 });
+    const both = await addSource(ned, "Sample source past both");
+    expect(both.status).toBe(409);
+    expect(both.body.error).toMatchObject({
+      code: "quota_exceeded",
+      details: { quota: "sources_max", limit: held, used: held, unit: "sources", also: { quota: "sources_per_day", limit: today, used: today, unit: "sources", resets_at: dayOf(new Date()).day_end } },
+    });
+    expect(both.body.error.message).toMatch(/Deleting sources no longer needed makes room/);
+    expect(both.body.error.message).toMatch(new RegExp(`Today's allowance is used up too\\. This organization's plan allows each person ${today} new sources a day\\. It starts again at ${dayOf(new Date()).day_end}\\.$`));
+    // A refused call took nothing from the day.
+    expect(await used(ned, "sources_per_day")).toBe(today);
+    // With room under the total, waiting for tomorrow is the whole truth.
+    tweak({ sources_max: held + 1 });
+    const day = await addSource(ned, "Sample source past the day");
+    expect(day.body.error).toMatchObject({ code: "quota_exceeded", details: { quota: "sources_per_day", resets_at: dayOf(new Date()).day_end } });
+    expect(day.body.error.details.also).toBeUndefined();
+    expect(day.body.error.message).not.toMatch(/Deleting/);
+    reset();
+
+    // The day's writes, past each of the other totals.
+    tweak({ writes_per_day: await used(fay, "writes_per_day"), org_writes_per_day: 100_000 });
+    const product = await fay.api("POST", `/api/v1/teams/${free.slug}/${team}/products`, { name: "Past the day and the total" });
+    expect(product.body.error.details).toMatchObject({ quota: "products_max", also: { quota: "writes_per_day" } });
+    const person = await fay.api("POST", `/api/v1/tenants/${free.slug}/members`, { email: "sol@example.com", role: "editor", team });
+    expect(person.body.error.details).toMatchObject({ quota: "members_max", also: { quota: "writes_per_day" } });
+    expect(person.body.error.message).toMatch(/Removing someone or cancelling an invitation makes room/);
+    // A role that takes no place is refused for the day alone.
+    const reader = await fay.api("POST", `/api/v1/tenants/${free.slug}/members`, { email: "ren@example.com", role: "reader", team });
+    expect(reader.body.error.details).toMatchObject({ quota: "writes_per_day" });
+    expect(reader.body.error.details.also).toBeUndefined();
+    tweak({ storage_max_bytes: 1 });
+    const upload = await fay.api("POST", `${P}/sources/${seeded}/uploads`, { path: "past-both.md" });
+    expect(upload.body.error.details).toMatchObject({ quota: "storage_max_bytes", also: { quota: "writes_per_day" } });
+    const long = await fay.api("POST", `${P}/assumptions`, { statement: "A premise at length", body: "x".repeat(6000) });
+    expect(long.body.error.details).toMatchObject({ quota: "storage_max_bytes", also: { quota: "writes_per_day" } });
+    // Without a total in play, the day's alone.
+    const short = await fay.api("POST", `${P}/outcomes`, { title: "A short outcome past the day" });
+    expect(short.body.error.details).toMatchObject({ quota: "writes_per_day" });
+    expect(short.body.error.details.also).toBeUndefined();
+    reset();
+  });
+
+  it("leave an organization past its totals with everything it holds: read, searched, exported, restored and deleted, and adding refused with what makes room", async () => {
+    const products = `/api/v1/teams/${free.slug}/${team}/products`;
+    tweak({ products_max: 2, sources_per_day: 1000, exports_per_day: 1000 });
+    const made = await fay.api("POST", products, { name: "Shelved discovery" });
+    expect(made.status, JSON.stringify(made.body)).toBe(201);
+    const Q = `/api/v1/p/${made.body.path}`;
+    const shelved = await addSource(fay, "Sample source later shelved");
+    expect(shelved.status).toBe(201);
+    expect((await fay.api("POST", `${P}/sources/archive`, { record_ids: [shelved.body.record_id] })).status).toBe(200);
+    expect((await fay.api("POST", `${Q}/archive`, { expected_etag: made.body.etag })).status).toBe(200);
+    const before = await holds();
+    const listed = (await fay.api("GET", `${P}/sources?include_archived=true`)).body.records.length as number;
+
+    // The plan's totals now sit below what it holds, as an upgrade would leave one with archived material.
+    tweak({ products_max: 1, sources_max: 1 });
+    const limits = await limitsOf(fay);
+    expect(limits.holds).toMatchObject({ products: before.products, sources: before.sources });
+    expect(limits.limits.find((l: { key: string }) => l.key === "sources_max")).toMatchObject({ value: 1, used: before.sources });
+    // Nothing is removed, and it is not read-only.
+    expect(limits.read_only).toBeUndefined();
+    expect((await fay.api("GET", "/api/v1/me/products")).body.tenants.find((t: { slug: string }) => t.slug === free.slug).read_only).toBeUndefined();
+    expect((await fay.api("GET", `${P}/sources?include_archived=true`)).body.records).toHaveLength(listed);
+    expect((await ned.api("GET", `${P}/sources/${shelved.body.record_id}`)).status).toBe(200);
+    expect((await ned.api("GET", `${P}/search?query=visit`)).status).toBe(200);
+    const exported = await ned.api("POST", `${P}/exports`, {});
+    expect(exported.status, JSON.stringify(exported.body)).toBe(201);
+    await h.worker.drain();
+    // Work that adds no source or product goes on.
+    expect((await ned.api("POST", `${P}/outcomes`, { title: "An outcome past the totals" })).status).toBe(201);
+    // Adding is refused, saying what makes room.
+    const source = await addSource(ned, "Sample source past the total");
+    expect(source.status).toBe(409);
+    expect(source.body.error).toMatchObject({ code: "quota_exceeded", details: { quota: "sources_max", limit: 1, used: before.sources } });
+    expect(source.body.error.message).toMatch(/Deleting sources no longer needed makes room/);
+    const product = await fay.api("POST", products, { name: "Past the total" });
+    expect(product.body.error.details).toMatchObject({ quota: "products_max", limit: 1, used: before.products });
+    expect(product.body.error.message).toMatch(/Deleting a product no longer needed makes room/);
+    // Restoring and archiving work, and change no count.
+    expect((await ned.api("POST", `${P}/sources/restore`, { record_ids: [shelved.body.record_id] })).status).toBe(200);
+    expect((await ned.api("POST", `${P}/sources/archive`, { record_ids: [shelved.body.record_id] })).status).toBe(200);
+    const restored = await fay.api("POST", `${Q}/restore`, { expected_etag: (await fay.api("GET", Q)).body.etag });
+    expect(restored.status, JSON.stringify(restored.body)).toBe(200);
+    expect(await holds()).toMatchObject({ products: before.products, sources: before.sources });
+    // Deleting works, and comes down by what it takes.
+    expect((await deleteSource(fay, shelved.body.record_id)).status).toBe(200);
+    expect((await holds()).sources).toBe(before.sources - 1);
+    expect((await deleteProduct(fay, Q, "Shelved discovery")).status).toBe(200);
+    expect((await holds()).products).toBe(before.products - 1);
+    reset();
+  });
+
+  it("count a delete and an archive against the day's writes without stopping them, and stop a restore, which adds work back", async () => {
+    tweak({ sources_per_day: 1000 });
+    const kept = await addSource(fay, "Sample source archived past the day");
+    const shed = await addSource(fay, "Sample source deleted past the day");
+    const allMine = await used(fay, "writes_per_day");
+    tweak({ writes_per_day: allMine });
+    const refused = await fay.api("POST", `${P}/outcomes`, { title: "Past the day's writes" });
+    expect(refused.body.error.details).toMatchObject({ quota: "writes_per_day" });
+    expect((await fay.api("POST", `${P}/sources/archive`, { record_ids: [kept.body.record_id] })).status).toBe(200);
+    expect((await deleteSource(fay, shed.body.record_id)).status).toBe(200);
+    // Both are writes all the same.
+    expect(await used(fay, "writes_per_day")).toBe(allMine + 2);
+    // A restore is a write the day's allowance stops, and no total is in play to name.
+    const restore = await fay.api("POST", `${P}/sources/restore`, { record_ids: [kept.body.record_id] });
+    expect(restore.status).toBe(409);
+    expect(restore.body.error.details).toMatchObject({ quota: "writes_per_day" });
+    expect(restore.body.error.details.also).toBeUndefined();
+
+    // Nor does switching writing off stop them.
+    tweak({ writes_per_day: 0 });
+    expect((await fay.api("POST", `${P}/outcomes`, { title: "While writing is off" })).body.error.code).toBe("plan_restricted");
+    const off = await addSource(fay, "Sample source while writing is off");
+    expect(off.body.error.code).toBe("plan_restricted");
+    expect((await deleteSource(fay, kept.body.record_id)).status).toBe(200);
     reset();
   });
 
@@ -497,7 +688,7 @@ describe("the totals of a plan", () => {
     const big = await ned.api("POST", `${P}/assumptions`, { statement: "A premise written at length", body: "x".repeat(6000) });
     expect(big.status).toBe(409);
     expect(big.body.error).toMatchObject({ code: "quota_exceeded", details: { quota: "storage_max_bytes", limit: stored + 5000 } });
-    expect(big.body.error.message).toMatch(/Delete what is no longer needed to make room \(archiving keeps it\)/);
+    expect(big.body.error.message).toMatch(/Deleting what is no longer needed makes room, which a product's admins can do; archiving it does not\./);
     expect((await ned.api("POST", `${P}/outcomes`, { title: "A short outcome still fits" })).status).toBe(201);
     expect((await ned.api("GET", `${P}/outcomes`)).status).toBe(200);
     const grant = await ned.api("POST", `${P}/sources/${seeded}/uploads`, { path: "room.md" });
