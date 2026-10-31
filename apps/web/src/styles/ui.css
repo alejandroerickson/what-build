@@ -31,7 +31,8 @@
   -webkit-line-clamp: 1;
   line-clamp: 1;
 }
-.one-line[data-cut]::after {
+.one-line[data-cut]::after,
+.one-line[data-lead]::before {
   content: "…";
   content: "…" / "";
 }

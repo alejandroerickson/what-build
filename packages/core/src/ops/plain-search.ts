@@ -11,7 +11,9 @@ import type { OpContext } from "../registry.ts";
  * plain-query.ts), ranked, and grouped so a source shows up once with the best places it says
  * the words: its derived text, summary, notes or comments. Lexical and deterministic: no model and
  * no embeddings. It reads stored text and search vectors, a page's words among them
- * (`html_search_text` in the migrations), and never a page's HTML.
+ * (`html_search_text` in the migrations), and never a page's HTML. What has no stored vector goes
+ * through `words_search_vector`, as a page's words do, so no text takes a search longer than its length
+ * says.
  */
 
 export const FIND_KINDS = ["idea", "outcome", "source", "assumption", "mockup", "story"] as const satisfies readonly FindKind[];
@@ -194,7 +196,7 @@ async function sources(ctx: OpContext, p: ParsedFind, i: Input, q: string): Prom
     sql<{ record_id: string; title: string; date: string | null; tags: string[] }>`
       select r.record_id, r.title, r.date, r.tags from records r
       where r.product_id = ${pid} and r.archived_at is null ${one}
-        and to_tsvector('simple', r.title || ' ' || array_to_string(r.tags, ' ')) @@ to_tsquery('simple', ${q})`.execute(ctx.db),
+        and words_search_vector(r.title || ' ' || array_to_string(r.tags, ' ')) @@ to_tsquery('simple', ${q})`.execute(ctx.db),
   ]);
   const ids = new Set([...hits.rows.map((h) => h.record_id), ...titled.rows.map((r) => r.record_id)]);
   const beyond = hits.rows.length < limit || i.record_id ? { any: 0, all: 0 } : await sourcesBeyond(ctx, p, q, live, [...ids]);
@@ -267,9 +269,8 @@ async function sourcesBeyond(ctx: OpContext, p: ParsedFind, q: string, live: Raw
 interface ShownPage {
   page_id: string | null;
   page_title: string | null;
-  body: string[];
-  /** What is on the page itself, which says whether a result opens on it. */
-  onPage: string;
+  /** What the page itself says, in the order an excerpt should prefer it, ahead of its title. */
+  says: string[];
 }
 
 async function smallKinds(ctx: OpContext, p: ParsedFind, i: Input, q: string): Promise<FindResult[]> {
@@ -285,15 +286,19 @@ async function smallKinds(ctx: OpContext, p: ParsedFind, i: Input, q: string): P
     want("outcome")
       ? sql<{ outcome_id: string; title: string; description: string }>`
         select outcome_id, title, description from outcomes
-        where product_id = ${pid} and archived_at is null and to_tsvector('simple', title || ' ' || description) @@ ${tsq}`.execute(ctx.db)
+        where product_id = ${pid} and archived_at is null and words_search_vector(title || ' ' || description) @@ ${tsq}`.execute(ctx.db)
       : null,
     want("mockup")
+      // What a mockup says of itself is read once, however many pages it has.
       ? sql<{ mockup_id: string; title: string; summary: string; brief: string; page_id: string | null; page_title: string | null; notes: string | null; text: string | null }>`
-        select m.mockup_id, m.title, m.summary, v.brief, pg.page_id, pg.title as page_title, pg.notes, pg.search_text as text
-        from mockups m join mockup_versions v on v.version_id = m.current_version_id
-          left join mockup_pages pg on pg.version_id = v.version_id
-        where m.product_id = ${pid} and m.archived_at is null
-          and (pg.tsv @@ ${tsq} or to_tsvector('simple', m.title || ' ' || m.summary || ' ' || v.brief || ' ' || coalesce(pg.title, '') || ' ' || coalesce(pg.notes, '')) @@ ${tsq})
+        with own as materialized (
+          select m.mockup_id, m.title, m.summary, v.version_id, v.brief, words_search_vector(m.title || ' ' || m.summary || ' ' || v.brief) @@ ${tsq} as holds
+          from mockups m join mockup_versions v on v.version_id = m.current_version_id
+          where m.product_id = ${pid} and m.archived_at is null
+        )
+        select own.mockup_id, own.title, own.summary, own.brief, pg.page_id, pg.title as page_title, pg.notes, pg.search_text as text
+        from own left join mockup_pages pg on pg.version_id = own.version_id
+        where own.holds or pg.tsv @@ ${tsq} or words_search_vector(coalesce(pg.title, '') || ' ' || coalesce(pg.notes, '')) @@ ${tsq}
         order by pg.position`.execute(ctx.db)
       : null,
     want("story")
@@ -305,7 +310,7 @@ async function smallKinds(ctx: OpContext, p: ParsedFind, i: Input, q: string): P
         from story_pages sp join story_versions v on v.version_id = sp.current_version_id
           left join mockup_pages pg on pg.version_id = v.mockup->>'mockup_version_id' and (v.mockup->>'page_id' is null or pg.page_id = v.mockup->>'page_id')
         where sp.product_id = ${pid} and sp.archived_at is null
-          and (v.tsv @@ ${tsq} or pg.tsv @@ ${tsq} or to_tsvector('simple', sp.title || ' ' || sp.summary || ' ' || case when v.mockup->>'page_id' is null then coalesce(pg.title, '') else '' end) @@ ${tsq})
+          and (v.tsv @@ ${tsq} or pg.tsv @@ ${tsq} or words_search_vector(sp.title || ' ' || sp.summary || ' ' || case when v.mockup->>'page_id' is null then coalesce(pg.title, '') else '' end) @@ ${tsq})
         order by pg.position`.execute(ctx.db)
       : null,
     want("idea") ? ctx.db.selectFrom("products").select(["concept"]).where("product_id", "=", pid).executeTakeFirst() : null,
@@ -319,39 +324,48 @@ async function smallKinds(ctx: OpContext, p: ParsedFind, i: Input, q: string): P
   // What is Markdown is read as its words, as a source's text is.
   for (const a of assumptions?.rows ?? []) push("assumption", a.entry_id, { title: a.statement, body: [shownWords(a.body)] }, { status: a.status });
   for (const o of outcomes?.rows ?? []) push("outcome", o.outcome_id, { title: o.title, body: [shownWords(o.description)] }, {});
-  // A mockup is one result; the page that matches best is the one it opens on.
-  const best = (title: string, pages: ShownPage[]) => {
-    const scored = pages.map((pg) => ({ pg, s: scoreDoc({ title, body: pg.body }, p) }));
+  // A mockup is one result, scored by its best page. Its summary and brief count on every page, so
+  // they cannot say which page it opens on: that is the page saying the most of the words itself, and
+  // of those the one whose title says them best, as a result's own title is scored.
+  const best = (title: string, own: { summary: string; brief?: string }, pages: ShownPage[]) => {
+    const scored = pages.map((pg) => ({
+      pg,
+      s: scoreDoc({ title, body: [own.summary, ...pg.says, own.brief ?? ""] }, p),
+      said: scoreDoc({ title: "", body: pg.says }, p).found.filter(Boolean).length,
+      titled: scoreDoc({ title: pg.page_title ?? "", body: [] }, p).score,
+    }));
     scored.sort((a, b) => b.s.score - a.s.score);
     const top = scored[0]!;
+    const opens = [...scored].sort((a, b) => b.said - a.said || b.titled - a.titled || b.s.score - a.s.score)[0]!;
     const found = p.terms.map((_, k) => scored.some((x) => x.s.found[k]));
+    // A page it names is what it quotes, or the summary when that says as many of the words; the brief
+    // is quoted only when no page says any of them.
+    const quote = opens.said ? scoreDoc({ title, body: [own.summary, ...opens.pg.says] }, p) : opens.s;
     return {
       found,
       result: {
         title,
         title_marks: top.s.title.ranges,
-        snippet: top.s.snippet,
-        snippet_marks: top.s.snippet_marks,
+        snippet: quote.snippet,
+        snippet_marks: quote.snippet_marks,
         missing: missingWords(p, found),
         score: round(top.s.score + (100 * (found.filter(Boolean).length - top.s.found.filter(Boolean).length)) / p.terms.length),
       },
-      // Open on the page only when the words are on it, not just in the title, summary or brief.
-      page: matchText(top.pg.onPage, p.terms).found.some(Boolean) ? { page_id: top.pg.page_id, page_title: top.pg.page_title } : {},
+      page: opens.said ? { page_id: opens.pg.page_id, page_title: opens.pg.page_title } : {},
     };
   };
   const byMockup = new Map<string, NonNullable<typeof mockups>["rows"]>();
   for (const m of mockups?.rows ?? []) byMockup.set(m.mockup_id, [...(byMockup.get(m.mockup_id) ?? []), m]);
-  const heldByMockup = new Map<string, { found: boolean[]; result: FindResult }>();
+  const heldByMockup = new Map<string, { found: boolean[]; result: FindResult; named: boolean }>();
   for (const [mid, pages] of byMockup) {
     const first = pages[0]!;
-    const b = best(first.title, pages.map((pg) => ({
+    const b = best(first.title, { summary: first.summary, brief: shownWords(first.brief) }, pages.map((pg) => ({
       page_id: pg.page_id,
       page_title: pg.page_title,
-      body: [first.summary, pg.page_title ?? "", shownWords(pg.notes ?? ""), pg.text ?? "", shownWords(first.brief)],
-      onPage: `${pg.page_title ?? ""} ${pg.notes ?? ""} ${pg.text ?? ""}`,
+      says: [shownWords(pg.notes ?? ""), pg.text ?? "", pg.page_title ?? ""],
     })));
     const result: FindResult = { kind: "mockup", id: mid, ...b.result, meta: { ...b.page, pages: pages.length } };
-    heldByMockup.set(mid, { found: b.found, result });
+    heldByMockup.set(mid, { found: b.found, result, named: "page_id" in b.page });
     out.push(result);
   }
   // One result for each Story page, a whole canvas's pages among them. A page from a mockup is one
@@ -367,18 +381,23 @@ async function smallKinds(ctx: OpContext, p: ParsedFind, i: Input, q: string): P
     const first = rows[0]!;
     const canvas = first.mockup?.page_id === null;
     const onCanvas = canvas ? rows.filter((r) => !shownAlone.has(`${first.mockup!.mockup_version_id}:${r.shown_id}`)) : rows;
-    const b = best(first.title, (onCanvas.length ? onCanvas : [{ ...first, shown_id: null, shown_title: null, shown_text: null }]).map((r) => {
-      const words = (first.mockup ? r.shown_text : r.text) ?? "";
-      const named = canvas ? (r.shown_title ?? "") : "";
-      return { page_id: r.shown_id, page_title: r.shown_title, body: [first.summary, named, words], onPage: `${named} ${words}` };
-    }));
+    const b = best(first.title, { summary: first.summary }, (onCanvas.length ? onCanvas : [{ ...first, shown_id: null, shown_title: null, shown_text: null }]).map((r) => ({
+      page_id: r.shown_id,
+      page_title: r.shown_title,
+      says: [(first.mockup ? r.shown_text : r.text) ?? "", canvas ? (r.shown_title ?? "") : ""],
+    })));
     if (!b.found.some(Boolean)) continue;
     const held = first.mockup ? heldByMockup.get(first.mockup.mockup_id) : undefined;
     if (held && b.found.every((f, k) => !f || held.found[k])) {
-      // It ranks and opens as the Story page would have, whose title may be the words searched for.
+      // It ranks as the Story page would have, whose title may be the words searched for. The page it
+      // names is still its own for those words, and the excerpt is from that page; only when none of
+      // its pages says them does it open on the page shown here, if the current version still has it:
+      // a mockup's result speaks of its current version, wherever the Story page stays.
       if (b.result.score > held.result.score) {
         held.result.score = b.result.score;
-        if (first.mockup?.page_id) held.result.meta = { ...held.result.meta, page_id: first.mockup.page_id, page_title: first.shown_title };
+        const pageId = first.mockup?.page_id;
+        const shown = pageId && !held.named ? byMockup.get(first.mockup!.mockup_id)?.find((r) => r.page_id === pageId) : undefined;
+        if (shown) held.result.meta = { ...held.result.meta, page_id: shown.page_id, page_title: shown.page_title };
       }
       continue;
     }

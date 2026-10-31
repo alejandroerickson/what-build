@@ -115,14 +115,76 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
   It asks nothing of a deployment. A Story-only reader gets the Search field and `search` in plain
   mode, over the Story alone; everything else stays refused. For everyone else, a Story page that
   shows a mockup page or canvas no longer appears beside its mockup in results.
-- **Search keeps each page's words beside its HTML, and stops a search that takes too long**
-  (`tools_version` 0.47.0). A deployment does nothing beyond its usual migration. The migration,
-  `0040_html_pages_keep_their_words.sql`, rewrites `mockup_pages` and `story_versions`, and nothing
-  can read or write them until it ends: about half a second for 20 MB of HTML on a developer's
-  machine, so seconds to perhaps a minute on a small database. An image from before it still runs on
-  the migrated database. People will notice that words between two script or style blocks, which
-  search used to miss, are now found. Where a search or a page would have hung, it now answers:
-  `503 search_timed_out`, `search_busy` or `database_busy`. A connected client sees the new
+- **A result names the page titled with the words, and a palette title shows the word that found
+  it.** It asks nothing of a deployment. A mockup or a whole canvas found by a word in one page's
+  title names and opens on that page, where it named the first page holding the word. In the palette,
+  a title too long for its line whose words fall past the cut now starts nearer them, after an
+  ellipsis, with the words marked.
+- **Search keeps each page's words beside its HTML, finds a word spelled with an entity, and stops a
+  search that takes too long** (`tools_version` 0.47.0). Most deployments do nothing beyond their
+  usual migration, `0040_html_pages_keep_their_words.sql`; one with a lot of pages sizes them first.
+  It rewrites `mockup_pages` and `story_versions`, every version of every page and not only the
+  current ones, and nothing can read or write them until it ends. No page's words can make it fail with
+  an error. How long it takes grows with what the deployment holds, and pages vary in cost, so the size
+  is a guide and not a promise. The migration job is killed at 600 seconds and is not retried
+  (`--task-timeout 600 --max-retries 0` from `setup.sh`, `--replica-timeout 600 --replica-retry-limit 0`
+  on Azure), and a job killed for time leaves nothing changed and can be run with longer. Run this in
+  `psql` as the role the job uses, a day or so ahead, to see how much there is (row-level security
+  hides the rows unless a tenant is set):
+
+  ```sql
+  DO $$
+  DECLARE t text; rows bigint := 0; bytes bigint := 0; r bigint; b bigint;
+  BEGIN
+    FOR t IN SELECT tenant_id FROM tenants LOOP
+      PERFORM set_config('app.tenant_id', t, true);
+      SELECT count(*), coalesce(sum(octet_length(html)), 0) INTO r, b FROM mockup_pages;
+      rows := rows + r; bytes := bytes + b;
+      SELECT count(*), coalesce(sum(octet_length(html)), 0) INTO r, b FROM story_versions;
+      rows := rows + r; bytes := bytes + b;
+    END LOOP;
+    RAISE NOTICE '% pages, % MB of HTML', rows, bytes / 1000000;
+  END $$;
+  ```
+
+  With more than a few hundred megabytes of HTML, or a small database, give the job longer first, which
+  costs nothing if it is not needed and lasts until someone changes it
+  (`gcloud run jobs update "$JOB" --region "$REGION" --task-timeout <seconds>`,
+  `az containerapp job update ... --replica-timeout <seconds>`). Two limits count against that time.
+  The wait for the tables, up to two minutes, comes out of the job's own time, so allow for it. And on
+  Cloud Run a build lasts at most 1,800 seconds (`timeout` in `deploy/cloud-run/cloudbuild.yaml`), the
+  image's build and the wait for the job together: a build that reaches that fails and the service is
+  not deployed, while the job goes on by itself and may yet commit. Then wait for the job to end
+  (`gcloud run jobs executions list --job "$JOB" --region "$REGION" --limit 1`). If it succeeded, the
+  version before goes on running on the migrated database, which it can, and a new build of the same
+  release finds nothing to migrate and deploys. If it failed, read on. The rewrite also needs free
+  disk, as much as the two tables take now and about three times the HTML for pages that are all words.
+  What each outcome leaves:
+  - **The tables stay in use.** The migration waits for reads and saves in progress and gives way to
+    them, so none of them fails: each waits a fraction of a second at most. After two minutes of that
+    it ends with an error saying so, having changed nothing. A long transaction or a backup holding a
+    table does this, and so does steady traffic: reads and saves with hardly a gap between them can
+    leave no moment when neither table is in use, and running the job again under the same traffic ends
+    the same way. So see what `pg_stat_activity` shows, end it if it is a stray transaction, and run the
+    job again at a quieter time, or hold traffic off for the moment it needs (behind Cloudflare, the
+    Worker's `MAINTENANCE` setting does: [Cloud Run](cloud-run.md), "Down for maintenance").
+  - **The job is killed, or the migration fails.** Its transaction never commits, so the columns, the
+    functions and the line in `schema_migrations` are not there, and the release's service was not
+    deployed: the version before it goes on running. But a killed job's statement goes on in the
+    database until it next writes to the job, so both tables stay locked, and whatever reads them
+    waits, until the rewrite has run its course. To end it sooner, find it with
+    `SELECT pid, now() - xact_start FROM pg_stat_activity WHERE query LIKE '-- A page''s words%';`
+    and run `SELECT pg_terminate_backend(<pid>);`. Then give the job longer, and run it again.
+
+  An image from before it still runs on the migrated database. People will notice that words between
+  two script or style blocks, which search used to miss, are now found, and that a page's words
+  spelled with `&eacute;`, `&#233;` or `&#xE9;` are found by `café` and show as the letter in a result,
+  where they showed a gap; entities that stand for no letter stay a gap. A page of very many unusual
+  words has only its first words searched. A long run with no spaces, a list or a language written
+  without them, is found word by word, and a single word of more than 255 characters by the start of
+  each piece ([§8.3](../spec/08-search.md)). A save costs about a
+  millisecond more for a page of ordinary size. Where a search or a page would have hung, it now
+  answers: `503 search_timed_out`, `search_busy` or `database_busy`. A connected client sees the new
   description only in a new session ([§8.8](../spec/08-search.md)).
 - **Behind Cloudflare, the Worker can take a deployment down for maintenance.** It asks nothing of
   a deployment. Deployed with one more setting, `--var MAINTENANCE:<day>`, the Worker answers every

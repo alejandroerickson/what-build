@@ -70,9 +70,29 @@ export function useMeasure(ref: RefObject<HTMLElement | null>): string {
 
 // ---- A title on one line ------------------------------------------------------------------------
 
+const BETWEEN_WORDS = /[\s,;:·—–-]*\s[\s,;:·—–-]*/gu;
+
 /** Where a title may be cut: at the end of each word, before the spaces and the dash, comma or dot that join it to the next. */
 export function wordEnds(text: string): number[] {
-  return [...text.matchAll(/[\s,;:·—–-]*\s[\s,;:·—–-]*/gu)].map((m) => m.index).filter((i) => i > 0);
+  return [...text.matchAll(BETWEEN_WORDS)].map((m) => m.index).filter((i) => i > 0);
+}
+
+/** Where a title may start later than it does: at the start of each word after the first. */
+function wordStarts(text: string): number[] {
+  return [...text.matchAll(BETWEEN_WORDS)].map((m) => m.index + m[0].length).filter((i) => i < text.length);
+}
+
+/**
+ * The part of a title one word smaller, for a line that turned out too wide: it ends a word sooner,
+ * or starts a word later when that would lose what it keeps, or, with nothing before that left to
+ * lose, ends a word sooner within it. Nothing, when it is down to the first word of what it keeps.
+ */
+function aWordLess(text: string, from: number, at: number, keepFrom = 0, keepTo = 0): { from: number; at: number } | null {
+  const end = wordEnds(text).filter((i) => i < at).pop() ?? -1;
+  if (!from && (end >= keepTo || !keepFrom)) return { from, at: end };
+  const later = wordStarts(text).find((i) => i > from && i <= keepFrom);
+  if (later !== undefined) return { from: later, at };
+  return end > keepFrom ? { from, at: end } : null;
 }
 
 /** The widths a line was last cut for: its own, and its parent's. */
@@ -87,23 +107,32 @@ const sizes = (el: HTMLElement) => `${el.clientWidth}:${el.parentElement?.client
  * only when its box or its parent's changes width, a font loads, or `measure` changes; never while
  * nothing moves. The rest stays in the text, hidden, so assistive technology reads it all, and a
  * cut title shows the whole of it on hover.
+ *
+ * Given `keep`, the line does not leave that stretch out: when its first words end before the
+ * stretch does, the line starts at a word nearer it, after an ellipsis, as far back as still fits. A
+ * stretch wider than the line shows as much of itself as fits, from its start.
  */
-export function OneLine({ text, measure = "", render, className = "" }: {
+export function OneLine({ text, measure = "", render, keep, className = "" }: {
   text: string;
   /** From useMeasure, where the line's own box and its parent's are as wide as their content. */
   measure?: string;
-  /** Draws the part shown (a match marked in it, say). The line is measured as plain text. */
-  render?: (shown: string) => ReactNode;
+  /** Draws the part shown (a match marked in it, say), which starts `from` into the text. The line is measured as plain text. */
+  render?: (shown: string, from: number) => ReactNode;
+  /** Where what the line must show starts and ends, such as a match. */
+  keep?: readonly [number, number] | undefined;
   className?: string;
 }) {
   const ref = useRef<HTMLSpanElement>(null);
   const seen = useRef("");
   const again = useRef(false);
   const [moved, setMoved] = useState(0);
-  const key = `${measure}:${moved}:${text}`;
-  // Where the part shown ends: the whole text when it fits, -1 when not even its first word does.
-  const [fit, setFit] = useState<{ key: string; at: number } | null>(null);
+  const keepFrom = keep?.[0];
+  const keepTo = keep?.[1];
+  const key = `${measure}:${moved}:${keepFrom ?? ""}:${keepTo ?? ""}:${text}`;
+  // Where the part shown starts and ends: to the whole text's end when it fits, -1 when not even its first word does.
+  const [fit, setFit] = useState<{ key: string; from: number; at: number } | null>(null);
   const current = fit?.key === key;
+  const from = current ? fit.from : 0;
   const at = current ? fit.at : text.length;
   const cut = at >= 0 && at < text.length;
   useLayoutEffect(() => {
@@ -117,8 +146,13 @@ export function OneLine({ text, measure = "", render, className = "" }: {
         if (!again.current) {
           again.current = true;
           setMoved((n) => n + 1);
-        } else setFit({ key, at: wordEnds(text).filter((i) => i < at).pop() ?? -1 });
-        return;
+          return;
+        }
+        const less = aWordLess(text, from, at, keepFrom, keepTo);
+        if (less) {
+          setFit({ key, ...less });
+          return;
+        }
       }
       again.current = false;
       seen.current = sizes(el);
@@ -126,6 +160,7 @@ export function OneLine({ text, measure = "", render, className = "" }: {
     }
     const node = el.firstChild;
     let best = text.length;
+    let start = 0;
     if (node instanceof Text && !fits()) {
       // Each try is drawn and measured before the browser paints, then the whole text put back.
       best = -1;
@@ -138,10 +173,39 @@ export function OneLine({ text, measure = "", render, className = "" }: {
           lo = mid + 1;
         } else hi = mid - 1;
       }
+      if (keepFrom !== undefined && keepTo !== undefined && keepFrom > 0 && keepTo > best) {
+        const leavesRoom = (s: number, e: number) => {
+          node.data = `…${text.slice(s, e)}${e < text.length ? "…" : ""}`;
+          return fits();
+        };
+        // The earliest start that still leaves room, or else the start of what is kept.
+        best = ends.find((i) => i >= keepTo) ?? text.length;
+        const starts = wordStarts(text).filter((i) => i <= keepFrom);
+        start = keepFrom;
+        for (let lo = 0, hi = starts.length - 1; lo <= hi; ) {
+          const mid = (lo + hi) >> 1;
+          if (leavesRoom(starts[mid]!, best)) {
+            start = starts[mid]!;
+            hi = mid - 1;
+          } else lo = mid + 1;
+        }
+        // Wider than the line, it ends after its last word that fits, or else its first.
+        if (start === keepFrom && !leavesRoom(start, best)) {
+          const within = ends.filter((i) => i > keepFrom && i < best);
+          best = within[0] ?? best;
+          for (let lo = 1, hi = within.length - 1; lo <= hi; ) {
+            const mid = (lo + hi) >> 1;
+            if (leavesRoom(start, within[mid]!)) {
+              best = within[mid]!;
+              lo = mid + 1;
+            } else hi = mid - 1;
+          }
+        }
+      }
       node.data = text;
     }
-    setFit({ key, at: best });
-  }, [current, at, key, text]);
+    setFit({ key, from: start, at: best });
+  }, [current, from, at, key, keepFrom, keepTo, text]);
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
@@ -154,10 +218,11 @@ export function OneLine({ text, measure = "", render, className = "" }: {
       unwatchFonts();
     };
   }, []);
-  const shown = cut ? text.slice(0, at) : text;
+  const shown = text.slice(from, cut ? at : text.length);
   return (
-    <span ref={ref} className={`one-line${className ? ` ${className}` : ""}`} dir="auto" title={cut ? text : undefined} data-cut={cut ? "" : undefined}>
-      {!current || !render ? shown : render(shown)}
+    <span ref={ref} className={`one-line${className ? ` ${className}` : ""}`} dir="auto" title={cut || from ? text : undefined} data-cut={cut ? "" : undefined} data-lead={from ? "" : undefined}>
+      {from ? <span className="visually-hidden">{text.slice(0, from)}</span> : null}
+      {!current || !render ? shown : render(shown, from)}
       {cut ? <span className="visually-hidden">{text.slice(at)}</span> : null}
     </span>
   );

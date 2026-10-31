@@ -361,6 +361,257 @@ describe("promoting a mockup page to the Story", () => {
   });
 });
 
+describe("which page a result on several pages names", () => {
+  let S: string;
+  let mockupId: string;
+  const page = (words: string) => `<!doctype html><html lang="en"><body><p>${words}</p></body></html>`;
+  const named = async (b: Browser, words: string) => {
+    const r = await b.api("GET", `${S}/search?mode=plain&strict=true&query=${encodeURIComponent(words)}`);
+    expect(r.status, JSON.stringify(r.body)).toBe(200);
+    return (r.body.results as { id: string; meta: { page_id?: string; page_title?: string } }[]).find((x) => x.id === (b === rita ? "whole-yard" : mockupId))?.meta;
+  };
+
+  beforeAll(async () => {
+    const p = await alice.api("POST", `/api/v1/teams/${tenantSlug}/${teamSlug}/products`, { name: "Titled pages" });
+    S = `/api/v1/p/${p.body.path}`;
+    expect((await alice.api("POST", `/api/v1/tenants/${tenantSlug}/members`, { team: teamSlug, product: "titled-pages", email: "rita@example.com", role: "reader" })).status).toBe(201);
+    const m = await alice.api("POST", `${S}/mockups`, {
+      title: "Yard planning",
+      pages: [
+        { page_id: "intro", title: "Introduction", html: page("The rota is agreed on Monday, and then the rota goes up by the gate.") },
+        { page_id: "notes", title: "Rota notes", html: page("Who swapped with whom.") },
+        { page_id: "rota", title: "Rota", html: page("Who works when.") },
+        { page_id: "gate", title: "Gate", html: page("Codes change on Friday.") },
+        { page_id: "vans", title: "Vans", html: page("Each of the vans is loaded at seven.") },
+      ],
+    });
+    expect(m.status, JSON.stringify(m.body)).toBe(201);
+    mockupId = m.body.mockup_id;
+    expect((await alice.api("POST", `${S}/story/promote-mockup`, { mockup_id: mockupId, page_id: "whole-yard" })).status).toBe(201);
+  });
+
+  it("is the page titled with the words, ahead of the first that says them", async () => {
+    expect(await named(alice, "rota")).toMatchObject({ page_id: "rota", page_title: "Rota" });
+    expect(await named(alice, "gate")).toMatchObject({ page_id: "gate", page_title: "Gate" });
+  });
+
+  it("is the one whose title says them best, of those titled with them", async () => {
+    expect(await named(alice, "rota notes")).toMatchObject({ page_id: "notes" });
+  });
+
+  it("holds the most of the words, whatever its title", async () => {
+    expect(await named(alice, "rota monday")).toMatchObject({ page_id: "intro", page_title: "Introduction" });
+  });
+
+  it("is the first that says them when no page is titled with them", async () => {
+    expect(await named(alice, "monday")).toMatchObject({ page_id: "intro" });
+    expect(await named(alice, "friday")).toMatchObject({ page_id: "gate" });
+  });
+
+  it("is no page when the words are only in the mockup's own title", async () => {
+    expect(await named(alice, "yard")).toEqual({ pages: 5 });
+  });
+
+  it("is the same for a reader on the whole canvas", async () => {
+    expect(await named(rita, "rota")).toEqual({ page_id: "rota", page_title: "Rota" });
+    expect(await named(rita, "rota monday")).toEqual({ page_id: "intro", page_title: "Introduction" });
+  });
+
+  it("quotes that page, not another, and what it says ahead of the title that names it", async () => {
+    const hit = async (words: string) => (await alice.api("GET", `${S}/search?mode=plain&strict=true&query=${encodeURIComponent(words)}`)).body.results.find((x: { id: string }) => x.id === mockupId);
+    const titled = await hit("rota");
+    expect(titled.snippet).toBe("Rota");
+    expect((await hit("vans")).snippet).toBe("Each of the vans is loaded at seven.");
+  });
+
+  describe("with a Story page standing in for one of its pages", () => {
+    const hitOf = async (words: string, id: string) =>
+      (await alice.api("GET", `${S}/search?mode=plain&strict=true&query=${encodeURIComponent(words)}`)).body.results.filter((x: { id: string }) => x.id === id) as { id: string; kind: string; score: number; snippet: string | null; meta: { page_id?: string; page_title?: string } }[];
+    let titledId: string;
+    let briefId: string;
+
+    beforeAll(async () => {
+      const titled = await alice.api("POST", `${S}/mockups`, {
+        title: "Plain board",
+        pages: [
+          { page_id: "intro", title: "Introduction", html: page("zebraword is agreed on Monday.") },
+          { page_id: "zebraword", title: "Zebraword", html: page("Nothing about it here.") },
+        ],
+      });
+      titledId = titled.body.mockup_id;
+      expect((await alice.api("POST", `${S}/story/promote-mockup`, { mockup_id: titledId, mockup_page_id: "intro", page_id: "zebra-story", title: "Zebraword" })).status).toBe(201);
+      const inBrief = await alice.api("POST", `${S}/mockups`, {
+        title: "Other board",
+        brief: "This is about quokkaword, on no page.",
+        pages: [
+          { page_id: "first", title: "First", html: page("Nothing here.") },
+          { page_id: "shown", title: "Shown", html: page("Nothing here either.") },
+        ],
+      });
+      briefId = inBrief.body.mockup_id;
+      expect((await alice.api("POST", `${S}/story/promote-mockup`, { mockup_id: briefId, mockup_page_id: "shown", page_id: "quokka-story", title: "Quokkaword" })).status).toBe(201);
+    });
+
+    it("names the mockup's own page for the words, quotes that page, and takes the Story page's score", async () => {
+      const [hit, ...rest] = await hitOf("zebraword", titledId);
+      expect(rest).toEqual([]);
+      expect(hit!.meta).toMatchObject({ page_id: "zebraword", page_title: "Zebraword" });
+      expect(hit!.snippet).toBe("Zebraword");
+      expect((await hitOf("zebraword", "zebra-story"))).toEqual([]);
+      const alone = await alice.api("GET", `${S}/search?mode=plain&strict=true&kind=story&query=zebraword`);
+      expect(hit!.score).toBe(alone.body.results.find((x: { id: string }) => x.id === "zebra-story").score);
+    });
+
+    it("names the page it shows when no page of the mockup says the words, beside the mockup's own excerpt", async () => {
+      const [hit] = await hitOf("quokkaword", briefId);
+      expect(hit!.meta).toMatchObject({ page_id: "shown", page_title: "Shown" });
+      expect(hit!.snippet).toContain("about quokkaword, on no page.");
+    });
+  });
+
+  describe("when the mockup's own summary or brief says the words too", () => {
+    type Result = { id: string; kind: string; score: number; snippet: string | null; meta: { page_id?: string; page_title?: string; pages?: number } };
+    const hitFor = async (b: Browser, words: string, id: string) => {
+      const r = await b.api("GET", `${S}/search?mode=plain&strict=true&query=${encodeURIComponent(words)}`);
+      expect(r.status, JSON.stringify(r.body)).toBe(200);
+      return (r.body.results as Result[]).find((x) => x.id === id);
+    };
+    const twoPages = (later: string) => [
+      { page_id: "first", title: "First", html: page("Nothing to see.") },
+      { page_id: "later", title: "Later", html: page(later) },
+    ];
+    const publish = async (fields: Record<string, unknown>) => {
+      const r = await alice.api("POST", `${S}/mockups`, { title: "A board", ...fields });
+      expect(r.status, JSON.stringify(r.body)).toBe(201);
+      return r.body.mockup_id as string;
+    };
+
+    it("names the later page that says a word the brief says too, and quotes that page", async () => {
+      const id = await publish({ brief: "About the bilbyword.", pages: twoPages("The bilbyword runs.") });
+      const hit = await hitFor(alice, "bilbyword", id);
+      expect(hit!.meta).toEqual({ page_id: "later", page_title: "Later", pages: 2 });
+      expect(hit!.snippet).toBe("The bilbyword runs.");
+    });
+
+    it("names the later page that says a word the summary says too, and quotes the summary, which says as many", async () => {
+      const id = await publish({ summary: "About the dingoword.", pages: twoPages("The dingoword runs.") });
+      const hit = await hitFor(alice, "dingoword", id);
+      expect(hit!.meta).toEqual({ page_id: "later", page_title: "Later", pages: 2 });
+      expect(hit!.snippet).toBe("About the dingoword.");
+    });
+
+    it("quotes the page it names, not a brief that holds more of the words", async () => {
+      const id = await publish({ brief: "The emuword and the kiwiword.", pages: twoPages("The kiwiword runs.") });
+      const hit = await hitFor(alice, "emuword kiwiword", id);
+      expect(hit!.meta).toMatchObject({ page_id: "later" });
+      expect(hit!.snippet).toBe("The kiwiword runs.");
+    });
+
+    it("names the page saying the most of the words, whichever the summary or brief says", async () => {
+      const id = await publish({ brief: "The ibisword.", pages: [{ page_id: "first", title: "First", html: page("The ibisword runs.") }, { page_id: "later", title: "Later", html: page("The ibisword and the koalaword run.") }] });
+      expect((await hitFor(alice, "ibisword koalaword", id))!.meta).toMatchObject({ page_id: "later" });
+    });
+
+    it("quotes the brief and names no page when no page says any of the words", async () => {
+      const id = await publish({ brief: "About the numbatword.", pages: twoPages("Nothing here either.") });
+      const hit = await hitFor(alice, "numbatword", id);
+      expect(hit!.meta).toEqual({ pages: 2 });
+      expect(hit!.snippet).toBe("About the numbatword.");
+    });
+
+    it("does not let a Story page standing in name its own page when a current page says the word", async () => {
+      const id = await publish({ brief: "About the possumword.", pages: twoPages("The possumword runs.") });
+      expect((await alice.api("POST", `${S}/story/promote-mockup`, { mockup_id: id, mockup_page_id: "first", page_id: "possum-story", title: "Possumword" })).status).toBe(201);
+      const hit = await hitFor(alice, "possumword", id);
+      expect(hit!.meta).toMatchObject({ page_id: "later", page_title: "Later" });
+      expect(hit!.snippet).toBe("The possumword runs.");
+      expect(await hitFor(alice, "possumword", "possum-story")).toBeUndefined();
+    });
+
+    it("names, for a reader of a whole canvas, the later page saying a word the Story page's summary says too", async () => {
+      const id = await publish({ pages: twoPages("The wombatword runs.") });
+      expect((await alice.api("POST", `${S}/story/promote-mockup`, { mockup_id: id, page_id: "wombat-canvas", summary: "About the wombatword." })).status).toBe(201);
+      const hit = await hitFor(rita, "wombatword", "wombat-canvas");
+      expect(hit!.meta).toEqual({ page_id: "later", page_title: "Later" });
+      expect(hit!.snippet).toBe("About the wombatword.");
+    });
+
+    it("names no page, for a reader of a whole canvas, when only the Story page's summary says the word", async () => {
+      const id = await publish({ pages: twoPages("Nothing here.") });
+      expect((await alice.api("POST", `${S}/story/promote-mockup`, { mockup_id: id, page_id: "quoll-canvas", summary: "About the quollword." })).status).toBe(201);
+      const hit = await hitFor(rita, "quollword", "quoll-canvas");
+      expect(hit!.meta).toEqual({});
+      expect(hit!.snippet).toBe("About the quollword.");
+    });
+  });
+
+  describe("once the mockup's current version has moved on from the page a Story page shows", () => {
+    type Result = { id: string; kind: string; snippet: string | null; meta: { page_id?: string; page_title?: string; pages?: number } };
+    const results = async (b: Browser, words: string, extra = "") => {
+      const r = await b.api("GET", `${S}/search?mode=plain&strict=true&query=${encodeURIComponent(words)}${extra}`);
+      expect(r.status, JSON.stringify(r.body)).toBe(200);
+      return r.body.results as Result[];
+    };
+    const publishTwice = async (brief: string, firstWords: string) => {
+      const v1 = await alice.api("POST", `${S}/mockups`, {
+        title: "A moving board",
+        pages: [
+          { page_id: "gone", title: "Gone", html: page(firstWords) },
+          { page_id: "stays", title: "Stays", html: page("Nothing to see.") },
+        ],
+      });
+      expect(v1.status, JSON.stringify(v1.body)).toBe(201);
+      return {
+        id: v1.body.mockup_id as string,
+        move: async () => {
+          const m = await alice.api("GET", `${S}/mockups/${v1.body.mockup_id}`);
+          const v2 = await alice.api("POST", `${S}/mockups`, { mockup_id: v1.body.mockup_id, expected_etag: m.body.etag, brief, pages: [{ page_id: "stays", title: "Stays renamed" }] });
+          expect(v2.status, JSON.stringify(v2.body)).toBe(201);
+        },
+      };
+    };
+
+    it("names no page when the page it shows is gone from the current version, and the word is only in the brief", async () => {
+      const { id, move } = await publishTwice("About the hakeaword.", "Nothing to see.");
+      expect((await alice.api("POST", `${S}/story/promote-mockup`, { mockup_id: id, mockup_page_id: "gone", page_id: "hakea-story", title: "Hakeaword" })).status).toBe(201);
+      await move();
+      const [hit, ...rest] = (await results(alice, "hakeaword")).filter((x) => x.id === id || x.id === "hakea-story");
+      expect(rest).toEqual([]);
+      expect(hit).toMatchObject({ kind: "mockup", id, snippet: "About the hakeaword." });
+      expect(hit!.meta).toEqual({ pages: 1 });
+      // Nothing of the brief reaches someone who reads the Story alone.
+      expect(await results(rita, "hakeaword")).toEqual([expect.objectContaining({ id: "hakea-story", meta: {} })]);
+    });
+
+    it("names the page it shows by its current title when the current version still has it", async () => {
+      const { id, move } = await publishTwice("About the banksiaword.", "Nothing to see.");
+      expect((await alice.api("POST", `${S}/story/promote-mockup`, { mockup_id: id, mockup_page_id: "stays", page_id: "banksia-story", title: "Banksiaword" })).status).toBe(201);
+      await move();
+      const hit = (await results(alice, "banksiaword")).find((x) => x.id === id);
+      expect(hit!.meta).toEqual({ pages: 1, page_id: "stays", page_title: "Stays renamed" });
+    });
+
+    it("keeps naming for a reader the page of the version their Story page stays on, which is the one they see", async () => {
+      const { id, move } = await publishTwice("About the waratahword.", "The grevilleaword runs.");
+      expect((await alice.api("POST", `${S}/story/promote-mockup`, { mockup_id: id, page_id: "moving-canvas" })).status).toBe(201);
+      await move();
+      expect(await results(rita, "grevilleaword")).toEqual([expect.objectContaining({ kind: "story", id: "moving-canvas", snippet: "The grevilleaword runs.", meta: { page_id: "gone", page_title: "Gone" } })]);
+      // Whoever may read the mockup is told the same about the Story page, since the mockup no longer says it.
+      expect((await results(alice, "grevilleaword")).map((x) => [x.kind, x.id, x.meta])).toEqual([["story", "moving-canvas", { page_id: "gone", page_title: "Gone" }]]);
+      // And the reader is told nothing from the version they do not see.
+      expect(await results(rita, "waratahword")).toEqual([]);
+    });
+  });
+
+  it("does not change how the result scores: by the page that scores highest", async () => {
+    const r = await alice.api("GET", `${S}/search?mode=plain&strict=true&query=rota`);
+    const hit = r.body.results.find((x: { id: string }) => x.id === mockupId);
+    // The first page says it twice over and the third is titled with it, each a body to the mockup.
+    expect(hit.meta.page_id).toBe("rota");
+    expect(hit.score).toBe(108);
+  });
+});
+
 describe("searching for what a Story page shows of a mockup", () => {
   let S: string;
   let oneId: string;

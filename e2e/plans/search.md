@@ -133,6 +133,21 @@ that what one door writes the other finds at once, and that a reader searches th
     open the Search screen. *Expect:* the palette fits the screen and its results are readable;
     every line of matching text under a result shows a marked word within its two lines, and
     marked words stand out in both themes; nothing overflows or overlaps.
+16. **MCP, then web, as Sam.** Over MCP, create a mockup of synthetic text with three pages: the first
+    titled "Introduction" and saying a made-up word and `caf&eacute; cr&#232;me l'ann&#xE9;e
+    &lt;script&gt;alert(1)&lt;/script&gt; <&#115;cript>alert(2)</&#115;cript> &#0; &#xD800;`, the second
+    titled with the made-up word and a little more, and the third titled with the made-up word alone
+    and saying something else. Search for the made-up word, `café`, `crème`, `année` and `alert`, over
+    MCP and in the palette. *Expect:* the save succeeds; the made-up word names and opens the third
+    page, in both doors; the other words find the first page and show as those letters, marked; the
+    excerpt shows `script` and `< script>` as plain text and nothing runs. `cafe` finds it too;
+    `annee` does not, since the index keeps accents.
+17. **Web, as Sam.** Create an assumption whose statement is longer than the palette's line, with a
+    made-up word near its end, and search for that word in the palette, on a desktop and at phone
+    width. *Expect:* its title starts near the word, after an ellipsis, with the word marked; hovering
+    shows the whole statement. Search for the made-up word and the word before it, in quotes and then
+    not. *Expect:* each time, both words show, marked. Search for its first word. *Expect:* its title
+    starts where it starts.
 
 ## Look out for
 

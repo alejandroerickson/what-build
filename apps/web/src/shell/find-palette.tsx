@@ -39,8 +39,21 @@ interface Option {
 
 const SHOWN = 8;
 
-/** The marks that fall in the first `length` characters of a title, the part a cut line shows. */
-const marksIn = (marks: Marks, length: number): Marks => marks.filter(([s]) => s < length).map(([s, e]) => [s, Math.min(e, length)]);
+/** The marks that fall in the `length` characters of a title from `from`, the part a cut line shows, placed in that part. */
+const marksIn = (marks: Marks, from: number, length: number): Marks =>
+  marks.filter(([s, e]) => e > from && s < from + length).map(([s, e]) => [Math.max(s, from) - from, Math.min(e, from + length) - from]);
+
+/** What a cut line must show of a title: its first mark, with the marks after it that no word separates, so words side by side stay together. */
+function firstMarked(title: string, marks: Marks | undefined): [number, number] | undefined {
+  if (!marks?.length) return undefined;
+  const [start, firstEnd] = marks[0]!;
+  let end = firstEnd;
+  for (const [s, e] of marks.slice(1)) {
+    if (/[\p{L}\p{N}]/u.test(title.slice(end, s))) break;
+    end = e;
+  }
+  return [start, end];
+}
 
 /**
  * On a phone a line of the palette holds about fifty characters, so the two it shows of an excerpt
@@ -246,7 +259,7 @@ function Palette({ app, base, product, text, setText, via, onClose }: { app: str
               <Glyph name={o.glyph} />
               <span className="find-pal-main">
                 <span className="find-pal-title">
-                  <OneLine text={o.title} render={o.marks?.length ? (shown) => <Marked text={shown} marks={marksIn(o.marks!, shown.length)} /> : undefined} />
+                  <OneLine text={o.title} keep={firstMarked(o.title, o.marks)} render={o.marks?.length ? (shown, from) => <Marked text={shown} marks={marksIn(o.marks!, from, shown.length)} /> : undefined} />
                   {o.meta ? <span className="find-pal-meta">{o.meta}</span> : null}
                 </span>
                 {o.line ? <span className="find-pal-line">{o.line}</span> : null}
