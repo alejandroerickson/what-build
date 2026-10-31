@@ -3,7 +3,7 @@ type: Process
 title: Keeping private material out of the repository and finding known vulnerabilities
 description: The checks that keep secrets and private material out of what is published and find known vulnerabilities, where each runs, what to do about a finding, how to audit everything GitHub holds, and how to make the repository public.
 tags: [operations, security, public, privacy, dependencies, ci, agents]
-generated: {by: agent:claude, at: 2026-10-30}
+generated: {by: agent:claude, at: 2026-10-31}
 status: stable
 ---
 
@@ -108,14 +108,21 @@ pnpm security workflows   # zizmor over .github/; GH_TOKEN=$(gh auth token) adds
 1. **Upgrade.** A direct dependency: raise it in its `package.json` and `pnpm install`. A
    transitive one: `pnpm update -r <package>`, or a `pnpm.overrides` entry in the root
    `package.json` when its parent pins it. Then `pnpm typecheck`, `pnpm test` and `pnpm build`.
-   pnpm installs no release younger than a week (`minimumReleaseAge` in `pnpm-workspace.yaml`),
+   pnpm resolves no release younger than a week (`minimumReleaseAge` in `pnpm-workspace.yaml`),
    as Dependabot waits; take the newest version that fixes the advisory and is old enough. A fix
    that cannot wait goes in `minimumReleaseAgeExclude` there, with a comment, and comes out once
-   it has aged. The image's own `npm install` of the packages the server leaves out of its bundle
-   (`EXTERNAL` in `apps/server/build.mjs`) waits the same week, with `--min-release-age` in
-   `deploy/Dockerfile`, and runs no install scripts. A fix for one of those that cannot wait also
-   goes in `--min-release-age-exclude` there: without it a direct one fails the image's build, and
-   a transitive one stays at its older version.
+   it has aged.
+
+   The image takes the packages the server leaves out of its bundle
+   (`packages/server-external`), and everything beneath them, from `pnpm-lock.yaml`, with
+   `pnpm deploy --prod --ignore-scripts` in `deploy/Dockerfile`, so the file these scans read holds
+   the tree that ships, and no package runs an install script. That install, like
+   `--frozen-lockfile`, resolves nothing and does not ask `minimumReleaseAge` again: the wait holds
+   where a release enters the lockfile, and an entry made some other way, such as Dependabot's
+   security update, which does not wait, reaches the image once it is merged. To raise one of those
+   packages, raise it in `packages/server-external` and where the code imports it, or
+   `pnpm update -r <package>`: `apps/server/build.mjs` fails if the two resolve to different
+   versions.
 2. **Accept it only if no fix exists or WhatBuild cannot reach it**: an `[[IgnoredVulns]]` entry
    in `.github/osv-scanner.toml` with its `reason` and an `ignoreUntil` no more than 90 days away.
    The reason says why, and what fixes it and when: for a fix that waits to be a week old, its
