@@ -23,10 +23,6 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
 
 ## Unreleased
 
-Nothing yet.
-
-## v0.29.0
-
 - **A whole mockup canvas can go on the Story, and the Story is one tree** (`tools_version` 0.48.0).
   It asks nothing of a deployment beyond the release's migration, which moves each product's
   Published mockups to the end of its Story tree, in their order, and which only a restored database
