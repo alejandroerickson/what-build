@@ -3,7 +3,7 @@ type: System Concept
 title: The dev deployment is a second Cloud Run deployment, laid out like production and holding a copy of its example organization or other organizations its instance owners own, where a release is rehearsed before production moves.
 description: For the maintainer and the agent working for them; what the dev deployment is and how it differs from production, where its values are, rehearsing a release on it, putting it back, refreshing its copy of the instance owners' organizations, setting one up from nothing, and keeping its data private.
 tags: [operations, deployment, dev, rehearsal, migrations, cloud-run, neon, production]
-generated: {by: agent:claude, at: 2026-10-30}
+generated: {by: agent:claude, at: 2026-10-31}
 status: stable
 ---
 
@@ -113,7 +113,7 @@ rm -rf "$S"
   (`gcloud run services logs read whatbuild --project $P --region $R --limit 100`) has no 500s.
 
 **4. Hostile files**, when the release changes parsing (`packages/parsers/`,
-`apps/server/src/parse-thread.ts` or `parse-worker.ts`), the parse limits (`WHATBUILD_PARSE_*`) or
+`apps/server/src/parse-process.ts`, `parse-child.ts` or `parse-worker.ts`), the parse limits (`WHATBUILD_PARSE_*`) or
 the image's memory. Make them on your machine; none is committed:
 
 ```bash
@@ -127,6 +127,17 @@ made for the rehearsal; a plan with limits refuses files over its `file_max_byte
 
 - Each source ends in the status the script printed (its Text and Attachments say it), within a
   couple of minutes, and no job is left waiting.
+- No instance started while they parsed, whatever became of a parse. A parse's process that ended
+  without an answer leaves a line in the log, `parse: the process parsing a file ended by <signal or
+  exit code>`; its source should say `failed` with the reason, and the service should have kept
+  answering. A `SIGKILL` there means something outside the parse ended it, most likely for want of
+  memory, so read the memory below with it:
+
+  ```bash
+  gcloud logging read 'resource.type="cloud_run_revision" AND resource.labels.service_name="whatbuild" AND textPayload:("parse: the process" OR "listening on")' \
+    --project $P --freshness 1h --format='value(timestamp,textPayload)'
+  ```
+
 - The service kept answering while they parsed: pages opened, and the log has no 500s and no
   instance that ran out of memory:
 
@@ -150,8 +161,8 @@ made for the rehearsal; a plan with limits refuses files over its `file_max_byte
   If it came within about a sixth of the limit, or an instance ran out, lower
   `WHATBUILD_PARSE_MEMORY_MB` (or give the service more memory) on dev, upload the files again,
   and make the same change on production ([Cloud Run](cloud-run.md#setting-it-up), **Parsing**).
-  A PDF whose content inflates (`inflating.pdf`) uses nearly all a parse may: about 600 MB more
-  for the process at the default limits.
+  The files that use the most (`inflating.pdf`, `dense-24mb.txt`) use nearly all a parse may, in
+  its process, beside what the server itself holds. The two share the instance's limit.
 
 **5. Report.** What ran, what migrated, what each job did, what each hostile file ended as and the
 memory it took, and what failed. A migration or job that fails on dev is a finding: production's

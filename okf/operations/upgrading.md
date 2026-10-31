@@ -23,6 +23,18 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
 
 ## Unreleased
 
+- **Each file is parsed in a child process of its own**, not a thread of the server's, so a parse
+  that ends in a fatal error ends only itself. `WHATBUILD_PARSE_MEMORY_MB` and
+  `WHATBUILD_PARSE_TIMEOUT_SECONDS` mean what they did, and it asks nothing of a deployment beyond
+  allowing the server to start a process, which every platform these guides name does. People may
+  notice new reasons on a `failed` reading: `parsing it ended in a fatal error (SIGABRT)`, `the
+  system stopped the process parsing it`. A deployment may notice `parse: the process parsing a file
+  ended by …` in its log, and that the instance's memory now counts a process per parse beside the
+  server, so a release's rehearsal reads both ([dev deployment](dev-deployment.md), step 4): that
+  each hostile file ends in the status `scripts/hostile-files.mjs` prints, that the service answered
+  throughout with no new instance started and no process left behind, and how near the instance's
+  limit its memory came. The image's build now runs a parse (`node main.js check-parsing`), so a
+  build that cannot fails there rather than at the first upload.
 - **Signing in no longer accepts invitations: a person joins only by choosing to** (`tools_version`
   0.51.0). It asks nothing of a deployment, and adds no migration. People will notice: someone
   invited is not in the organization after signing in, however they sign in. They see each

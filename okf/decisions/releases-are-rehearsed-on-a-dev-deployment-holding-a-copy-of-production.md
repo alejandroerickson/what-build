@@ -3,7 +3,7 @@ type: Decision
 title: A release that migrates is rehearsed on a dev deployment that holds a copy of production, before production's deploy is approved
 description: A second Cloud Run deployment, sharing nothing with production, holds a copy of the organizations its instance owners own, with their files, so that a release's migrations run on real data through the real deploy before production runs them.
 tags: [decision, deployment, releases, migrations, dev, production, privacy, operations]
-generated: {by: agent:claude, at: 2026-10-27}
+generated: {by: agent:claude, at: 2026-10-31}
 status: stable
 ---
 
@@ -34,8 +34,8 @@ they settled what the copy may hold: only organizations an instance owner owns
 - **Before production's build of a release that adds a migration is approved**, that release (or
   its commit, before tagging) is deployed to dev, and its migrations and the jobs they queue are
   checked there, unless the maintainer says to skip it. The same holds for a release that
-  changes parsing (`packages/parsers/`, `apps/server/src/parse-thread.ts`, the `WHATBUILD_PARSE_*` limits) or the service's memory: hostile files are uploaded on dev and its memory is read there
-  (`scripts/hostile-files.mjs`), since a parse that runs out of memory takes the instance with it.
+  changes parsing (`packages/parsers/`, `apps/server/src/parse-process.ts`, `parse-child.ts`, `parse-worker.ts`, the `WHATBUILD_PARSE_*` limits) or the service's memory: hostile files are uploaded on dev and its memory is read there
+  (`scripts/hostile-files.mjs`), since a parse and the server share the instance's memory.
 - Rejected: **a dev deployment with synthetic data only**, which would not show migrations on the
   shapes months of real use leave; **a branch of production's Neon database for dev**, which would
   give dev's identity and key access to production's project; **a trigger on dev**, which would

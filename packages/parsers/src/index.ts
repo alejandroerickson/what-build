@@ -147,7 +147,7 @@ function stored(r: ParseResult): ParseResult {
  * Derive the text of one file: its segments, and the readable Markdown a derivation stores. A pure
  * function of bytes: it never throws for a bad file — every outcome is a status — so the worker can
  * always record what happened. What it may cost in memory and time is bounded where it runs: the
- * server runs it in a worker thread of its own (apps/server/src/parse-thread.ts). Nothing it returns
+ * server runs it in a child process of its own (apps/server/src/parse-process.ts). Nothing it returns
  * holds U+0000: the facts say how many were dropped (`null_characters_dropped`).
  */
 export async function derive(

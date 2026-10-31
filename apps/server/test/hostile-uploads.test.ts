@@ -8,7 +8,7 @@ import type { ServerConfig } from "../src/config.ts";
 import { startHarness, type Browser, type Harness } from "./harness.ts";
 
 // Hostile files through the server's own upload path: the relay's limits, the worker that parses
-// what arrives in a thread held to a memory and a time limit, and the Story and mockup HTML a
+// what arrives in a process of its own held to a memory and a time limit, and the Story and mockup HTML a
 // request parses. The parsers' own hostile cases are in packages/parsers/test/hostile.test.ts;
 // these show the server stays up, keeps answering, and says what happened.
 
@@ -344,7 +344,7 @@ function withLimits(limits: Partial<ServerConfig>) {
 describe("a parse that needs more memory than the server gives one file", () => {
   const { at, upload } = withLimits({ parseMemoryMb: 128, parseTimeoutSeconds: 60 });
 
-  it("stops it in its own thread, records it as failed with the reason, and keeps answering", async () => {
+  it("stops it in its own process, records it as failed with the reason, and keeps answering", async () => {
     // A 190 KB PDF whose one content stream unpacks to 64 MB of text took 7.8 seconds and 1.4 GB
     // inside the server; dense HTML near the sandbox's file limit took 1 GB.
     const ops = "(ab) Tj T* ".repeat(Math.ceil((64 * MiB) / 11));
@@ -379,7 +379,7 @@ describe("a parse that needs more memory than the server gives one file", () => 
     expect(await derivation(ids[1]!, at.owner, at.product)).toMatchObject({ status: "too_large", parser: "pdf", parser_version: "5", status_detail: `the PDF has 20000 pages; PDFs over ${MAX_PDF_PAGES} pages are stored but not parsed` });
   });
 
-  it("goes on parsing ordinary files in a new thread each time", async () => {
+  it("goes on parsing ordinary files in a new process each time", async () => {
     const ids = await upload([
       { path: "notes.md", body: "# Visit\n\nCrews text the office every Friday.\n" },
       { path: "plan.pdf", body: pdfDrawing(2, "(Crews plan the week on Friday.) Tj T*\n") },
@@ -394,7 +394,7 @@ describe("a parse that needs more memory than the server gives one file", () => 
 describe("a parse that takes longer than the server gives one file", () => {
   const { at, upload } = withLimits({ parseMemoryMb: 384, parseTimeoutSeconds: 1 });
 
-  it("stops its thread at the limit, records it as failed with the reason, and keeps answering", async () => {
+  it("stops its process at the limit, records it as failed with the reason, and keeps answering", async () => {
     // Two thousand pages drawing one small stream of text: a 300 KB file that takes seconds to read.
     const [id] = await upload([{ path: "slow.pdf", body: pdfDrawing(MAX_PDF_PAGES - 1, "(crews plan the week) Tj T*\n".repeat(730)) }]);
     const run = await drainWhileAsking(at.h, at.owner);

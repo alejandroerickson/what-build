@@ -72,7 +72,7 @@ properties:
           # per-file limit instead of the 25 MiB that suits Cloud Run.
           - name: WHATBUILD_RELAY_MAX_BYTES
             value: "104857600"
-          # Each file is parsed in a thread held to this heap, and half as much again for buffers.
+          # Each file is parsed in a process of its own, held to this heap and half as much again for buffers.
           # The default, 384, suits 1 GiB; this container has 2 GiB.
           - name: WHATBUILD_PARSE_MEMORY_MB
             value: "768"

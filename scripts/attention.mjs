@@ -23,7 +23,7 @@ const ago = (iso) => (days(iso) === 0 ? "today" : days(iso) === 1 ? "yesterday" 
 const SENSITIVE = [
   "apps/server/src/auth/", "apps/server/src/app.ts", "apps/server/src/rest.ts", "apps/server/src/mcp.ts",
   "apps/server/src/uploads.ts", "apps/server/src/public-routes.ts", "apps/server/src/adapters/",
-  "apps/server/src/parse-thread.ts", "apps/server/src/config.ts", "packages/core/src/policy.ts",
+  "apps/server/src/parse-process.ts", "apps/server/src/parse-child.ts", "apps/server/src/parse-worker.ts", "apps/server/src/config.ts", "packages/core/src/policy.ts",
   "packages/core/src/execute.ts", "packages/core/src/connector-scope.ts", "packages/core/src/story-html.ts",
   "packages/parsers/src/", "pnpm-lock.yaml", "deploy/Dockerfile",
 ];

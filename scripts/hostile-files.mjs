@@ -89,7 +89,6 @@ export const HOSTILE_FILES = [
   {
     name: "inflating.pdf",
     what: "a PDF of about 130 KB whose one content stream inflates to 64 MB of text to draw",
-    // Measured: about 4.5 seconds, the process about 600 MB larger at the parse's peak.
     expect: "ready, after some seconds, the parse having used nearly all the memory it may: the file to watch the instance's memory for",
     make: () => inflatingPdf(64),
   },

@@ -42,8 +42,8 @@ export interface ParseResult {
 
 /**
  * A parse as a derivation stores it: what its row records, and the bytes of `text.md`. Bytes
- * rather than a string, so a parse made in a worker thread reaches the server as a buffer handed
- * over without a copy, however long the text is.
+ * rather than a string, so a parse made in another process reaches the server as they are, on a
+ * pipe, however long the text is.
  */
 export interface ParsedFile {
   status: DerivationStatus;

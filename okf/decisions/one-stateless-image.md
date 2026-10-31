@@ -16,9 +16,9 @@ A side project on near-free infrastructure benefits from the fewest moving servi
 ## Decision
 
 - One image serves the SPA, `/api/v1`, `/mcp`, `/oauth` and the upload relay, and runs the job worker.
-- The worker parses each file in a worker thread of the same process, held to a memory and a time
-  limit, so a file can fail but never take the service down
-  ([decision](each-file-is-parsed-in-a-thread-of-its-own-with-memory-and-time-limits.md)).
+- The worker parses each file in a child process of its own, started from the same image and held
+  to a memory and a time limit, so a parse that ends in a fatal error ends only itself
+  ([decision](each-file-is-parsed-in-a-process-of-its-own-so-a-parse-that-ends-in-a-fatal-error-ends-only-itself.md)).
 - It is stateless: no module-level mutable state, no in-process caches of tenant data, MCP without session affinity.
 - Uploads go straight to object storage through signed grants; the application registers the stored object afterwards.
 - Migrations run as a separate job before a new revision serves traffic.
