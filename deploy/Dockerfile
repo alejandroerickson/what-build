@@ -44,5 +44,7 @@ COPY --from=build /src/apps/web/dist/ ./web/
 # The example plans, for a deployment that offers plans to point WHATBUILD_PLANS at, or copy.
 COPY deploy/plans.example.json ./plans.example.json
 USER node
+# The image's own parse: a bundle or an image that cannot run one fails here, and not at the first upload.
+RUN node main.js check-parsing
 EXPOSE 8080
 CMD ["node", "--enable-source-maps", "main.js", "serve"]

@@ -3,7 +3,7 @@ type: System Concept
 title: WhatBuild runs as one stateless Cloud Run service with Postgres and a Cloud Storage bucket.
 description: What a deployment on Cloud Run is made of, how deploy/cloud-run/setup.sh creates it, sign-in, deploying and restore points before migrating, its alerts and traces, cost, names, and useful commands; backups and the dev deployment have guides of their own.
 tags: [operations, deployment, cloud-run, gcp]
-generated: {by: agent:claude, at: 2026-10-30}
+generated: {by: agent:claude, at: 2026-10-31}
 status: stable
 ---
 
@@ -77,12 +77,14 @@ file (Cloud Run refuses bodies over 32 MiB). `SIGNED_URLS=1` also hands agents d
 upload URLs for larger files, up to the 100 MB per-file limit; it grants the runtime identity the
 right to sign as itself.
 
-**Parsing.** The worker parses each file in a thread of its own, held to 384 MB of heap, half as
+**Parsing.** The worker parses each file in a process of its own, held to 288 MB of heap, half as
 much again for buffers, and 120 seconds; a file that needs more is recorded as failed, and the
 service keeps answering meanwhile ([§5.1](../spec/05-derived-layer.md#51-reading-an-attachment)). The
-defaults suit the service's 1 GiB, leaving the rest to the server. Give the service more memory
-before raising them (`WHATBUILD_PARSE_MEMORY_MB`, about a third of the instance's memory;
-`WHATBUILD_PARSE_TIMEOUT_SECONDS`):
+process's peak is more than twice that heap and counts beside the server in the instance's memory, and
+the defaults suit the service's 1 GiB, leaving about a sixth of it clear. Cloud Run terminates an
+instance over its limit. Give the service more memory before raising them
+(`WHATBUILD_PARSE_MEMORY_MB`; `WHATBUILD_PARSE_TIMEOUT_SECONDS`), and check the new value with a
+[rehearsal](dev-deployment.md#rehearsing-a-release):
 
 ```bash
 gcloud run services update whatbuild --region $R --memory 2Gi --update-env-vars WHATBUILD_PARSE_MEMORY_MB=768

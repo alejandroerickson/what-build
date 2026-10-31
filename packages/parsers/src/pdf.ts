@@ -83,7 +83,7 @@ export const pdfParser: FormatParser = {
     const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
     // pdf.js has no limit on what a compressed stream decodes to. It is given the limits it has,
     // and images, which text extraction never needs, are off; the memory and time limits of the
-    // thread the server parses in bound the rest.
+    // process the server parses in bound the rest.
     const task = pdfjs.getDocument({
       data: new Uint8Array(bytes),
       useSystemFonts: false,

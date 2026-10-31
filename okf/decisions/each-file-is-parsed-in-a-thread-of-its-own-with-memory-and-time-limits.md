@@ -3,11 +3,13 @@ type: Decision
 title: Each file is parsed in a worker thread of its own, held to a memory and a time limit, so a file can fail but never take the server down
 description: The job worker hands every parse to a new thread with a heap limit, a watch on its buffers and a deadline; a parse past any of them ends as a failed derivation and the server keeps answering.
 tags: [decision, architecture, parsers, security, availability]
-generated: {by: agent:claude, at: 2026-10-17}
-status: stable
+generated: {by: agent:claude, at: 2026-10-31}
+status: deprecated
 ---
 
 # Each file is parsed in a worker thread of its own, held to a memory and a time limit, so a file can fail but never take the server down
+
+Superseded on 2026-10-31 by [Each file is parsed in a child process of its own, so a parse that ends in a fatal error ends only itself](each-file-is-parsed-in-a-process-of-its-own-so-a-parse-that-ends-in-a-fatal-error-ends-only-itself.md).
 
 ## Context
 

@@ -40,8 +40,8 @@ holds each one; the linked decisions say why. Observed in the code on 2026-10-10
 2. **Agent and server**: an OAuth token bound to the MCP endpoint a person approved; REST takes none.
 3. **Server and database**: one tenant per transaction, under forced row-level security.
 4. **Agent-written HTML and the app**: pages run in an opaque origin with no network access.
-5. **Uploads and the server**: a signed grant per file; parsing in a worker thread held to a memory
-   and a time limit, never in a request.
+5. **Uploads and the server**: a signed grant per file; parsing in a process of its own held to a
+   memory and a time limit, never in a request.
 6. **Server and the internet**: the URL fetcher, the identity providers, mail.
 7. **Edge and service**: the Cloudflare Worker passes requests through; the controls are in the service.
 8. **Repository and production**: approved releases only; no credential in the repository or image.
@@ -334,14 +334,20 @@ holds each one; the linked decisions say why. Observed in the code on 2026-10-10
   its own check, naming the field either way, so none reaches Postgres, which keeps none in text,
   or a file path; nothing strips it. Uploaded bytes and the MCP endpoint's body are not read by
   the middleware, and an MCP call's input meets the operation's check.
-- Parsing is a pure function of bytes, run by the worker in a worker thread of its own for each
-  file, with an empty environment (`apps/server/src/parse-thread.ts`,
-  [decision](../decisions/each-file-is-parsed-in-a-thread-of-its-own-with-memory-and-time-limits.md)).
-  The thread's heap is held to `WHATBUILD_PARSE_MEMORY_MB` (384 MB by default), its buffers to
-  half as much again and its run to `WHATBUILD_PARSE_TIMEOUT_SECONDS` (120 s); a parse past any of
-  them is stopped and its derivation recorded as failed with the reason, while the server goes on
-  answering. A job that stops the process anyway is given up after five attempts and recorded as
-  failed (`apps/server/src/worker.ts`).
+- Parsing is a pure function of bytes, run by the worker in a child process of its own for each
+  file, with an empty environment and none of the server's flags or open files
+  (`apps/server/src/parse-process.ts`,
+  [decision](../decisions/each-file-is-parsed-in-a-process-of-its-own-so-a-parse-that-ends-in-a-fatal-error-ends-only-itself.md)).
+  It is a boundary for crashes and not for privilege: the process runs as the same user as the
+  server, on the same network. It parses in a worker thread, whose heap is held to
+  `WHATBUILD_PARSE_MEMORY_MB` (288 MB by default) and buffers to half as much again; the server holds the parse's run to
+  `WHATBUILD_PARSE_TIMEOUT_SECONDS` (120 s). A parse past any of them is stopped and its derivation
+  recorded as failed with the reason, and so is one whose process ends in a fatal error, while the
+  server goes on answering; one killed from outside is tried again. What the process writes back is counted as it
+  arrives, held to limits and validated, and it ends if the server dies; what it started ends with
+  its process group. A job that stops the
+  server anyway is given up after five attempts and recorded as failed
+  (`apps/server/src/worker.ts`).
 - Parsers bound what a file can make them do (`packages/parsers/src/`). A file over the parse cap
   (25 MiB) is stored but not read; DOCX, XLSX and DOC packages count the bytes they unpack against
   the cap and stop past it, whatever sizes they declare; a PDF of more than 2,000 pages, and a file

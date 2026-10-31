@@ -45,12 +45,16 @@ export interface UrlFetcher {
 
 /**
  * Parses one file's bytes into its sidecars, away from the requests the server is answering. The
- * server runs each parse in a worker thread of its own, held to a memory and a time limit, so a
- * file that would need more ends as a failed derivation rather than taking the server down. Never
- * rejects for a bad file: every outcome is a status.
+ * server runs each parse in a child process of its own, held to a memory and a time limit, so a
+ * parse that needs more, or ends in a fatal error, ends only itself, as a failed derivation. Never
+ * rejects for a bad file: every outcome is a status. It rejects when the parse could not finish for
+ * a reason that need not be the file's, so that the job is tried again (`ParseInterrupted`, or any
+ * other error), and with `ParseStopped` when the server is stopping, which spends no attempt.
  */
 export interface FileParser {
   parse(bytes: Uint8Array, fileName: string, options: { mediaType: string | null; parseCapBytes: number }): Promise<ParsedFile>;
+  /** For a server shutting down: ends every parse running, each of which rejects with `ParseStopped`, and refuses any more. */
+  stop(): void;
 }
 
 export interface Mailer {

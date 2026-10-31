@@ -1,9 +1,9 @@
 ---
 type: Specification
 title: Every attachment is read into readable Markdown and kept, and each source has one derived text that people and agents read, edit and search.
-description: Reading attachments (when a reading runs, its thread and limits, what it stores, its statuses), the parsers and how they lay text out, the derived text and how it follows its attachment, and the reads and writes of the derived layer.
+description: Reading attachments (when a reading runs, its process and limits, what it stores, its statuses), the parsers and how they lay text out, the derived text and how it follows its attachment, and the reads and writes of the derived layer.
 tags: [spec, derived-layer, parsers, derived-text, attachments]
-generated: {by: agent:claude, at: 2026-10-26}
+generated: {by: agent:claude, at: 2026-10-31}
 status: stable
 ---
 
@@ -45,19 +45,26 @@ The activity log records each outcome under the system actor (WhatBuild, client 
 became the source's; or `derivation_<status>`, "Could not read the text of deck.key: unsupported".
 A reading the system asks for itself (after a migration) records nothing.
 
-**Each reading has a thread and limits of its own**
-([decision](../decisions/each-file-is-parsed-in-a-thread-of-its-own-with-memory-and-time-limits.md)).
-The worker hands the file's bytes to a new worker thread
-([`parse-thread.ts`](../../apps/server/src/parse-thread.ts)), which parses them into the readable
-Markdown and returns its bytes, so the server keeps answering requests while any file is read. The
-thread's JavaScript heap is held to `WHATBUILD_PARSE_MEMORY_MB` (384 MB by default), the buffers it
-holds outside the heap to half as much again, and its run to `WHATBUILD_PARSE_TIMEOUT_SECONDS`
-(120 by default). A parse past any of them is stopped, and its reading is `failed` with the limit
-and its value in `status_detail`. A job is tried at most five times, counting the times the process
-stopped while running it. A reading whose job failed all five times is given up and recorded as
-`failed` with parser `none`, its `status_detail` saying why: the job stopped the process each time,
-or it failed with an error (the store or the database refusing what it read, say), which until then
-left the attachment `pending` for good. After an error, the reading, which says that the file could
+**Each reading has a process and limits of its own**
+([decision](../decisions/each-file-is-parsed-in-a-process-of-its-own-so-a-parse-that-ends-in-a-fatal-error-ends-only-itself.md)).
+The worker hands the file's bytes to a new child process
+([`parse-process.ts`](../../apps/server/src/parse-process.ts)), which parses them in a worker thread
+into the readable Markdown and returns its bytes, so the server keeps answering requests while any
+file is read, and a parse that ends in a fatal error ends only itself. The thread's JavaScript heap
+is held to `WHATBUILD_PARSE_MEMORY_MB` (288 MB by default), the buffers it holds outside the heap to
+half as much again, and the parse's run to `WHATBUILD_PARSE_TIMEOUT_SECONDS` (120 by default). A
+parse past any of them is stopped, and its reading is `failed` with the limit and its value in
+`status_detail`. A process that began its work and ends any other way before it answers, or gives an
+answer that cannot be read, leaves a `failed` reading that says so: `parsing it ended in a fatal
+error (SIGABRT)`. Read it again, or `rederive`, tries once more. What need not be the file's doing is
+tried again instead: a process that could not start, that ended before its thread was running, or
+that was killed from outside. A parse the server's own shutdown stops records nothing against the
+file, its job goes back in the queue, and that attempt is not spent. A job is tried at most five
+times, counting the times the server died while running it. A reading whose job failed all five times is given up and recorded as
+`failed` with parser `none`, its `status_detail` saying why: the job stopped the server each time,
+its process was killed (`reading it failed 5 times, the last because the process parsing it was
+killed`), or it failed with an error (the store or the database refusing what it read, say), which
+until then left the attachment `pending` for good. After an error, the reading, which says that the file could
 not be read and that reading it again may help, is recorded in the transaction that gives the job
 up, so neither happens without the other. Read it again, or `rederive`, tries once more. While the
 database has a later version's migration, a reading's job is not given up, as none is claimed
@@ -104,12 +111,14 @@ downloaded; only the byte ranges holding those headers are read.
 (`text_layer_chars`), tables, and each line repeated across its pages that was read once or left
 out (`headers_and_footers`) with the count of lines left out (`headers_and_footers_left_out`); tables, tracked
 changes and comments for DOCX; `doc_format` and tables for DOC; for XLSX, sheets, hidden sheets
-(`hidden_sheets`), the hidden rows and columns read (`hidden_rows`, `hidden_columns`), the values
+(`hidden_sheets`, naming at most 100, with `hidden_sheets_left_out` past that), the hidden rows and columns read (`hidden_rows`, `hidden_columns`), the values
 other than zero a format shows as nothing (`hidden_values`) and the formulas saved without a value
 (`formulas_without_values`); rows and the delimiter for CSV; skipped
 cues for VTT and SRT; `transcript_turns` for a text, Markdown, DOCX or DOC file read as a
 transcript), and, in any format, `null_characters_dropped` when the reading left out null
-characters (§5.3). `inference: "none"` states that no model produced or altered the text.
+characters (§5.3). A status detail and each fact are kept within limits (`READING_LIMITS` in
+[`packages/parsers/src/types.ts`](../../packages/parsers/src/types.ts)), and hold nothing a Postgres
+text or JSON value refuses. `inference: "none"` states that no model produced or altered the text.
 
 Readings made while sources had passages also hold a `segments.jsonl`, which nothing reads any
 more; a product export includes it ([§4.14](04-data-model.md)).

@@ -8,6 +8,9 @@ export const MAX_ROWS = 50_000;
 export const MAX_COLUMNS = 256;
 export const MAX_CHARS = 20_000_000;
 export const MAX_CELL = 32_767;
+/** The sheets a fact names, at most, and the characters of each. A sheet's name in Excel is at most 31. */
+export const MAX_SHEETS_NAMED = 100;
+const MAX_SHEET_NAME_SAID = 64;
 
 /** A non-empty row of a sheet: its 1-based row number and its non-empty cells. */
 export interface SheetRow {
@@ -22,6 +25,12 @@ export interface SheetRow {
  * format shows as nothing, unless that value is a zero.
  */
 export const HIDDEN = "(hidden)";
+
+/** A list of sheets as the facts name them, and how many it leaves out, if any. */
+function named(key: string, sheets: string[]): Record<string, string[] | number> {
+  const said = sheets.slice(0, MAX_SHEETS_NAMED).map((name) => name.slice(0, MAX_SHEET_NAME_SAID));
+  return { [key]: said, ...(sheets.length > said.length ? { [`${key}_left_out`]: sheets.length - said.length } : {}) };
+}
 
 function columnIndex(ref: string): number {
   const letters = ref.match(/^[A-Z]+/)?.[0] ?? "A";
@@ -278,8 +287,8 @@ export const xlsxParser: FormatParser = {
         sheet_count: sheets.length,
         row_count: rowCount,
         truncated: truncatedSheets.length > 0,
-        truncated_sheets: truncatedSheets,
-        hidden_sheets: sheets.filter((s) => s.hidden).map((s) => s.name),
+        ...named("truncated_sheets", truncatedSheets),
+        ...named("hidden_sheets", sheets.filter((s) => s.hidden).map((s) => s.name)),
         hidden_rows: hiddenRows,
         hidden_columns: hiddenColumns,
         hidden_values: hiddenValues,

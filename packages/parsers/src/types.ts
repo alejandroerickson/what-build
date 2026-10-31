@@ -42,8 +42,8 @@ export interface ParseResult {
 
 /**
  * A parse as a derivation stores it: what its row records, and the bytes of `text.md`. Bytes
- * rather than a string, so a parse made in a worker thread reaches the server as a buffer handed
- * over without a copy, however long the text is.
+ * rather than a string, so a parse made in another process reaches the server as they are, on a
+ * pipe, however long the text is.
  */
 export interface ParsedFile {
   status: DerivationStatus;
@@ -86,6 +86,33 @@ export interface Block {
 export class TooLargeError extends Error {
   override name = "TooLargeError";
 }
+
+/**
+ * A parse the server stopped because it is shutting down. It says nothing about the file or the job:
+ * the job goes back in the queue with this attempt not spent.
+ */
+export class ParseStopped extends Error {
+  override name = "ParseStopped";
+  constructor() {
+    super("the server is stopping, so reading this file was stopped; it is tried again");
+  }
+}
+
+/**
+ * A parse that did not end by the file's doing, as far as anyone can tell: its process could not
+ * start, or something outside it ended it. The job is tried again, and if every attempt ends so, this
+ * reason is what its reading says. The message is shown to people, so it holds nothing of the server's.
+ */
+export class ParseInterrupted extends Error {
+  override name = "ParseInterrupted";
+}
+
+/**
+ * The most a reading may hold beside its text, in a field its row or manifest keeps. `derive` keeps a
+ * reading to these, and the server refuses an answer past them. The characters a status detail or a
+ * fact may hold are UTF-16 code units; a list's items are its strings.
+ */
+export const READING_LIMITS = { detailChars: 1000, parserChars: 64, factKeyChars: 64, factKeys: 64, factChars: 256, factItems: 100 };
 
 /** Sources over this size are stored but not parsed (`too_large`). Operator-configurable. */
 export const DEFAULT_PARSE_CAP_BYTES = 25 * 1024 * 1024;

@@ -83,12 +83,13 @@ export interface ServerConfig {
   fileMaxBytes: number;
   parseCapBytes: number;
   /**
-   * The JavaScript heap of the worker thread each file is parsed in, in MB; the buffers a parse
-   * holds outside the heap may take half as much again. A parse that needs more ends as a failed
-   * derivation.
+   * The JavaScript heap of the worker thread each file is parsed in, in MB, in the child process
+   * that file has; the buffers a parse holds outside the heap may take half as much again. A parse
+   * that needs more ends as a failed derivation. That process's peak is more than twice this,
+   * beside what the server holds; the default leaves about a sixth of 1 GiB clear of the two.
    */
   parseMemoryMb: number;
-  /** How long one parse may run, in seconds, before its thread is stopped and the derivation fails. */
+  /** How long one parse may run, in seconds, before its process is stopped and the derivation fails. */
   parseTimeoutSeconds: number;
   grantTtlSeconds: number;
   urlFetchMaxBytes: number;
@@ -119,6 +120,8 @@ export function instanceOwnersFrom(v: string | undefined): string[] {
 }
 
 const MiB = 1024 * 1024;
+/** The heap of one parse's thread on a 1 GiB instance (`ServerConfig.parseMemoryMb`), a value a rehearsal checks. */
+const DEFAULT_PARSE_MEMORY_MB = 288;
 
 /** Microsoft sign-in is on only when the directory, the client ID and the secret are all set. */
 export function microsoftSignIn(config: ServerConfig): boolean {
@@ -249,7 +252,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
     fileMaxBytes: num(env["WHATBUILD_FILE_MAX_BYTES"], 100 * MiB),
     parseCapBytes: num(env["WHATBUILD_PARSE_CAP_BYTES"], 25 * MiB),
     // Sized for a 1 GiB instance: a parse at the limit leaves the server about half of it.
-    parseMemoryMb: Math.max(32, Math.floor(num(env["WHATBUILD_PARSE_MEMORY_MB"], 384))),
+    parseMemoryMb: Math.max(32, Math.floor(num(env["WHATBUILD_PARSE_MEMORY_MB"], DEFAULT_PARSE_MEMORY_MB))),
     parseTimeoutSeconds: Math.max(1, num(env["WHATBUILD_PARSE_TIMEOUT_SECONDS"], 120)),
     grantTtlSeconds: num(env["WHATBUILD_GRANT_TTL_SECONDS"], 30 * 60),
     urlFetchMaxBytes: num(env["WHATBUILD_URL_FETCH_MAX_BYTES"], 25 * MiB),

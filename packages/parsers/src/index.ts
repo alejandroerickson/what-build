@@ -9,7 +9,7 @@ import { renderMarkdown } from "./markdown.ts";
 import { markdownParser, plaintextParser } from "./plaintext.ts";
 import { extensionOf, SCAN_DETAIL, settle } from "./statuses.ts";
 import { assemble, decodeText, nonSpaceCodePoints } from "./text.ts";
-import { DEFAULT_PARSE_CAP_BYTES, TooLargeError, type DerivationStatus, type FormatParse, type FormatParser, type ParseResult, type Segment, type TableRef } from "./types.ts";
+import { DEFAULT_PARSE_CAP_BYTES, READING_LIMITS, TooLargeError, type DerivationStatus, type FormatParse, type FormatParser, type ParseResult, type Segment, type TableRef } from "./types.ts";
 import { xlsxParser } from "./xlsx.ts";
 
 export type { Block, DerivationStatus, FormatParse, ParsedFile, ParseResult, Segment, TableRef } from "./types.ts";
@@ -17,7 +17,7 @@ export { codePointLength, sliceCodePoints, splitLong, MAX_SEGMENT_CHARS, MAX_SEG
 export { clock, markdownAsIs, renderMarkdown, tableMarkdown, TURN_CHARS } from "./markdown.ts";
 export { MAX_PDF_PAGES } from "./pdf.ts";
 export { recordingDurationMs, type ByteReader } from "./media.ts";
-export { DEFAULT_PARSE_CAP_BYTES, TooLargeError } from "./types.ts";
+export { DEFAULT_PARSE_CAP_BYTES, ParseInterrupted, ParseStopped, READING_LIMITS, TooLargeError } from "./types.ts";
 export { HtmlLimitError, MAX_HTML_DEPTH, parseHtml } from "./html.ts";
 export { TooManyEntriesError, unzipParts, zipEntries, type ZipEntry } from "./zip.ts";
 export {
@@ -133,12 +133,17 @@ function dropNul(parsed: FormatParse): number {
   return dropped;
 }
 
-/** A reading's detail and facts without U+0000, which their columns cannot hold either. */
+/** A string as its column can hold it: within `chars`, with no U+0000 and no half of a surrogate pair, which Postgres refuses in JSON. */
+function storable(s: string, chars: number): string {
+  return withoutNul(s).slice(0, chars).replace(/\p{Cs}/gu, "\uFFFD");
+}
+
+/** A reading's detail and facts as their columns can hold them, within the limits the server takes them to. */
 function stored(r: ParseResult): ParseResult {
-  if (r.status_detail !== null) r.status_detail = withoutNul(r.status_detail);
+  if (r.status_detail !== null) r.status_detail = storable(r.status_detail, READING_LIMITS.detailChars);
   for (const [k, v] of Object.entries(r.facts)) {
-    if (typeof v === "string") r.facts[k] = withoutNul(v);
-    else if (Array.isArray(v)) r.facts[k] = v.map(withoutNul);
+    if (typeof v === "string") r.facts[k] = storable(v, READING_LIMITS.factChars);
+    else if (Array.isArray(v)) r.facts[k] = v.slice(0, READING_LIMITS.factItems).map((item) => storable(item, READING_LIMITS.factChars));
   }
   return r;
 }
@@ -147,8 +152,9 @@ function stored(r: ParseResult): ParseResult {
  * Derive the text of one file: its segments, and the readable Markdown a derivation stores. A pure
  * function of bytes: it never throws for a bad file — every outcome is a status — so the worker can
  * always record what happened. What it may cost in memory and time is bounded where it runs: the
- * server runs it in a worker thread of its own (apps/server/src/parse-thread.ts). Nothing it returns
- * holds U+0000: the facts say how many were dropped (`null_characters_dropped`).
+ * server runs it in a child process of its own (apps/server/src/parse-process.ts). Nothing it returns
+ * holds U+0000: the facts say how many were dropped (`null_characters_dropped`). Its detail and
+ * facts stay within `READING_LIMITS`.
  */
 export async function derive(
   bytes: Uint8Array,
