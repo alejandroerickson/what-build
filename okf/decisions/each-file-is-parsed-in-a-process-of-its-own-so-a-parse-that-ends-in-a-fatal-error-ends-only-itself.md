@@ -26,8 +26,7 @@ error then ends only itself, and its costs, set out below, are worth that.
 - The limits keep their meaning. In the child, the thread's heap is limited to
   `WHATBUILD_PARSE_MEMORY_MB` (288 by default, for a 1 GiB instance), and its buffers are read every
   50 ms and held to half of it. The server holds `WHATBUILD_PARSE_TIMEOUT_SECONDS` (120) and ends
-  the child with SIGKILL. Past any of them the derivation is `failed`, saying which limit and its
-  value, however the parse was stopped.
+  the child with SIGKILL. Past any of them the derivation is `failed`, with its reason.
 - A child that began its work and then ends in a fatal error, exits, or gives an answer that cannot
   be read leaves a `failed` derivation that says so, at once. What need not be the file's doing is
   tried again, up to five attempts in all, and the reading then gives the last reason: a child that
@@ -48,7 +47,7 @@ error then ends only itself, and its costs, set out below, are worth that.
   its end of a pipe closes and the child's event loop is free to see it, and shortly after its time
   limit if the server has not ended it, with a signal of its own that reads as that limit.
 - A shutdown (`FileParser.stop`) rejects the parse running with `ParseStopped`, and the worker puts
-  its job back: the lock cleared, the attempt not spent, nothing recorded against the file. The
+  its job back: the lock cleared, the attempt not spent for the job's first hour, nothing recorded against the file. The
   database ends only after that (`apps/server/src/shutdown.ts`), within the platform's stop window.
 - On Linux the child raises its own `oom_score_adj`. That asks the kernel to choose it before the
   server where the kernel ends one process at a time (plain Docker on Linux, say). It is no protection

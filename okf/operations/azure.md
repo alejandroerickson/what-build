@@ -758,7 +758,7 @@ hostile files, upload each as the one attachment of a source of its own, and rea
 
 ```bash
 H=$(mktemp -d); node scripts/hostile-files.mjs "$H"
-az containerapp logs show --subscription "$AZ_SUBSCRIPTION" -g "$AZ_RG" -n "$AZ_APP" --tail 300 | grep -E 'parse: the process|listening on'
+az containerapp logs show --subscription "$AZ_SUBSCRIPTION" -g "$AZ_RG" -n "$AZ_APP" --tail 300 | grep -E 'parse: the process|listening on|put back in the queue'
 az containerapp logs show --subscription "$AZ_SUBSCRIPTION" -g "$AZ_RG" -n "$AZ_APP" --type system --tail 100 | grep -iE 'oom|killed|restart'
 az containerapp replica list --subscription "$AZ_SUBSCRIPTION" -g "$AZ_RG" -n "$AZ_APP" \
   --query '[].{name:name, restarts:properties.containers[0].restartCount, created:properties.createdTime}' -o table
@@ -779,8 +779,10 @@ az containerapp replica list --subscription "$AZ_SUBSCRIPTION" -g "$AZ_RG" -n "$
 
   `parse: … ended by SIGKILL` with the replica's restart count unchanged means the parse's process
   died alone. A new `listening on`, a higher restart count or an `OOMKilled` in the system log means
-  the whole container ended. Keep requests going meanwhile, as the Cloud Run rehearsal's traffic
-  loop does, and record their p95 and how many failed. Put the value back afterwards.
+  the whole container ended. At the first such end, stop and put the value back: its job's lock holds
+  for 10 minutes and it is then tried again, which at a raised limit only repeats it. Keep requests
+  going meanwhile, as the Cloud Run rehearsal's traffic loop does, and record their p95, how many
+  failed, and whether `put back in the queue` came just before the end. Put the value back afterwards.
 
 ## Variations
 

@@ -85,7 +85,7 @@ export class Worker {
 
   /**
    * Takes no more jobs, and resolves once the one running, if any, has ended. The server's shutdown
-   * stops its parse, if it is one, and that job goes back in the queue with this attempt not spent;
+   * stops its parse, if it is one, and that job goes back in the queue, with this attempt not spent in its first hour;
    * it waits for this before the database goes, since that takes the database.
    */
   stop(): Promise<unknown> {
@@ -401,12 +401,16 @@ export class Worker {
     }
   }
 
-  /** Gives back a job this worker claimed and is not going to finish since it was stopped: its lock, and the attempt it counted. */
+  /**
+   * Gives back a job this worker claimed and is not going to finish since it was stopped: its lock,
+   * and for its first hour the attempt it counted. After that a stop spends one, so that stops alone
+   * cannot put a job back without end, and a job the instance keeps stopping for still gets given up.
+   */
   private async putBack(job: Job): Promise<void> {
     await sql`
-      update jobs set locked_at = null, locked_by = null, attempts = attempts - 1
+      update jobs set locked_at = null, locked_by = null, attempts = attempts - (created_at > now() - interval '1 hour')::int
       where job_id = ${job.job_id} and done_at is null and locked_by = ${this.id}`.execute(this.env.db);
-    this.log(`job ${job.job_id} ${job.kind} put back in the queue, this attempt not spent: the server is stopping`);
+    this.log(`job ${job.job_id} ${job.kind} put back in the queue: the server is stopping`);
   }
 
   /**

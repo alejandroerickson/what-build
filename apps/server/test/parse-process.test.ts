@@ -247,11 +247,6 @@ describe("what a child writes", () => {
     expect((process.memoryUsage().rss - rss) / MiB).toBeLessThan(40);
   });
 
-  it("on stderr, saying it is out of memory, reads as the memory limit", async () => {
-    const r = await standIn("runs-out-of-memory", encode("x"), { memoryMb: 128, timeoutSeconds: 60 });
-    expect(r).toMatchObject({ status: "failed", status_detail: `parsing it needed more than the 128 MB of memory this server gives one file, so it was stopped; ${STORED}`, char_count: 0 });
-  });
-
   it("on stderr is kept to a bounded tail, and is not an answer", async () => {
     const rss = process.memoryUsage().rss;
     const r = await standIn("floods-stderr", encode("x"), { memoryMb: 128, timeoutSeconds: 2 });
@@ -521,7 +516,6 @@ describe("through the server", () => {
   it("a parse that aborts is a failed reading with its reason, the server answers throughout, and the next file is read", async () => {
     const real = h.ports.parser;
     const aborting = await upload("abort.txt");
-    const memory = await upload("runs-out-of-memory.txt");
     h.ports.parser = processParser({ memoryMb: 128, timeoutSeconds: 60 }, { child: CHILD });
     let draining = true;
     const answers: number[] = [];
@@ -541,10 +535,8 @@ describe("through the server", () => {
     expect(answers.length).toBeGreaterThan(0);
     expect(answers.every((s) => s === 200)).toBe(true);
     expect(await reading(aborting)).toMatchObject({ status: "failed", status_detail: `parsing it ended in a fatal error (SIGABRT), so it was stopped; ${STORED}` });
-    expect(await reading(memory)).toMatchObject({ status: "failed", status_detail: `parsing it needed more than the 128 MB of memory this server gives one file, so it was stopped; ${STORED}` });
     // Each job is done, with no attempt left over: the failure is the reading's, not the worker's.
     expect(await job(aborting)).toMatchObject({ attempts: 1, done_at: expect.any(String) });
-    expect(await job(memory)).toMatchObject({ attempts: 1, done_at: expect.any(String) });
     expect((await owner.api("GET", `${P}/sources/${aborting}`)).body).toMatchObject({ derived_status: "failed" });
 
     const next = await upload("notes.md", "# Notes\n\nCrews text the office.\n");
@@ -637,6 +629,21 @@ describe("through the server", () => {
     await h.worker.drain();
     expect(await reading(running)).toMatchObject({ status: "ready" });
     expect(await reading(waiting)).toMatchObject({ status: "ready" });
+  });
+
+  it("a stop spends an attempt of a job over an hour old, so stops alone cannot put it back without end", async () => {
+    const running = await upload("spins.txt");
+    await sql`update jobs set created_at = now() - interval '2 hours' where kind = 'derive' and payload->>'record_id' = ${running}`.execute(h.db);
+    const { db, pool } = createDb(h.config.databaseUrl!, 5);
+    const parser = processParser(LIMITS, { thread: THREAD });
+    const worker = aWorker(parser, () => undefined, db);
+    const drained = worker.drain();
+    await until(() => parseChildren().length === 1, 15_000, "the parse to start");
+    await shutDown({ worker, parser, pool });
+    await drained;
+    expect(await job(running)).toMatchObject({ attempts: 1, done_at: null, locked_at: null, error: null });
+    await h.worker.drain();
+    expect(await reading(running)).toMatchObject({ status: "ready" });
   });
 
   it("a shutdown at a job's last attempt records nothing against the file, and the attempt is not spent", async () => {

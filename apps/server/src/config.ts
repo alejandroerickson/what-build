@@ -251,7 +251,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
     relayMaxBytes: num(env["WHATBUILD_RELAY_MAX_BYTES"], 25 * MiB),
     fileMaxBytes: num(env["WHATBUILD_FILE_MAX_BYTES"], 100 * MiB),
     parseCapBytes: num(env["WHATBUILD_PARSE_CAP_BYTES"], 25 * MiB),
-    // Sized for a 1 GiB instance: a parse at the limit leaves the server about half of it.
+    // Sized for a 1 GiB instance, to leave the margin the dev deployment's rehearsal reads.
     parseMemoryMb: Math.max(32, Math.floor(num(env["WHATBUILD_PARSE_MEMORY_MB"], DEFAULT_PARSE_MEMORY_MB))),
     parseTimeoutSeconds: Math.max(1, num(env["WHATBUILD_PARSE_TIMEOUT_SECONDS"], 120)),
     grantTtlSeconds: num(env["WHATBUILD_GRANT_TTL_SECONDS"], 30 * 60),

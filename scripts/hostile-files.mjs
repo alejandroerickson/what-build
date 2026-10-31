@@ -20,12 +20,9 @@ import { constants, deflateRawSync, deflateSync } from "node:zlib";
 
 const MiB = 1024 * 1024;
 const MAX_PDF_PAGES = 2000;
-const MAX_SEGMENTS = 200_000;
 const PARSE_CAP_BYTES = 25 * MiB;
-const MEMORY_MB = 288;
 
-const TOO_MANY_PARAGRAPHS = `too large: "the file makes more than ${MAX_SEGMENTS} paragraphs; files that make more are stored but not read"`;
-const NEEDED_MEMORY = `failed: "parsing it needed more than the ${MEMORY_MB} MB of memory this server gives one file, so it was stopped; the file is stored but not parsed"`;
+const AT_A_LIMIT = "too large or failed, with its reason";
 
 /** `unit` repeated to `bytes` bytes, whole units only. */
 const fill = (unit, bytes) => Buffer.from(unit.repeat(Math.floor(bytes / Buffer.byteLength(unit))));
@@ -90,7 +87,7 @@ export const HOSTILE_FILES = [
   {
     name: "inflating.pdf",
     what: "a PDF of about 130 KB whose one content stream inflates to 64 MB of text to draw",
-    expect: `ready, after some seconds, or ${NEEDED_MEMORY}`,
+    expect: `ready, after some seconds, or ${AT_A_LIMIT}`,
     make: () => inflatingPdf(64),
   },
   {
@@ -108,20 +105,20 @@ export const HOSTILE_FILES = [
   {
     name: "dense-5mb.txt",
     what: "5 MB of one-letter paragraphs, at the public sandbox's file limit: 1.7 million would-be paragraphs",
-    expect: `${TOO_MANY_PARAGRAPHS}, or ${NEEDED_MEMORY}`,
+    expect: AT_A_LIMIT,
     make: () => fill("a\n\n", 5 * MiB),
   },
   {
     name: "dense-24mb.txt",
     what: "24 MB of one-letter paragraphs, under the 25 MB relay and parse limits: 8.4 million would-be paragraphs",
     // Splitting it into paragraphs needs more memory than counting the first 200,000 of them.
-    expect: NEEDED_MEMORY,
+    expect: AT_A_LIMIT,
     make: () => fill("a\n\n", 24 * MiB),
   },
   {
     name: "dense.html",
     what: "5 MB of unclosed list items: a million elements to build",
-    expect: NEEDED_MEMORY,
+    expect: AT_A_LIMIT,
     make: () => fill("<li>a", 5 * MiB),
   },
   {

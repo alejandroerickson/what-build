@@ -133,7 +133,7 @@ made for the rehearsal; a plan with limits refuses files over its `file_max_byte
   instance each came from:
 
   ```bash
-  gcloud logging read 'resource.type="cloud_run_revision" AND resource.labels.service_name="whatbuild" AND textPayload:("parse: the process" OR "listening on" OR "Memory limit")' \
+  gcloud logging read 'resource.type="cloud_run_revision" AND resource.labels.service_name="whatbuild" AND textPayload:("parse: the process" OR "listening on" OR "Memory limit" OR "put back in the queue")' \
     --project $P --freshness 1h --format='value(timestamp,labels.instanceId,textPayload)'
   ```
 
@@ -189,7 +189,9 @@ by 128 at a time, until something dies, with requests going throughout:
 gcloud run services update whatbuild --project $P --region $R --update-env-vars WHATBUILD_PARSE_MEMORY_MB=$MB
 while sleep 0.2; do curl -s -o /dev/null -w '%{http_code} %{time_total}\n' "$DEV_URL/api/v1/meta"; done > traffic.txt &
 T=$!
-# Upload every hostile file again, as above, and wait for each to end.
+# Upload every hostile file again, as above, and wait for each to end. At the first death of the
+# whole instance, stop and put the value back: its job's lock holds for 10 minutes and it is then
+# tried again, which at a raised limit only repeats the death and spoils the numbers.
 kill $T
 sort -k2 -n traffic.txt | awk '{ t[NR] = $2; if ($1 == 0 || $1 >= 500) bad++ } END { print NR " requests, p95 " t[int(NR * 0.95)] " s, " bad + 0 " failed" }'
 ```
@@ -201,7 +203,11 @@ Then read the lines of step 4's first command, with their instances:
 - `Memory limit`, then a new `listening on` from another instance: the whole instance ended, the
   server with it.
 
-Record, for each step, the peaks, which of those happened, the requests' p95 and how many failed.
+Record, for each step, the peaks, which of those happened, the requests' p95 and how many failed,
+and whether `put back in the queue` came just before `Memory limit`: if the platform stops an instance
+over its limit with a signal, such a job is put back rather than spending an attempt for its first
+hour. On Linux a child's reported peak can start at the server's own size, because a process carries
+it across exec, so a small parse reads high; the heaviest parses' peaks are right.
 Afterwards put the value back (`--update-env-vars WHATBUILD_PARSE_MEMORY_MB=<the value before>`, or
 `--remove-env-vars WHATBUILD_PARSE_MEMORY_MB` if it had none), and delete `traffic.txt`.
 

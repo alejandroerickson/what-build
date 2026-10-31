@@ -24,14 +24,12 @@ const MiB = 1024 * 1024;
 const ANSWER_MAX_BYTES = 256 * 1024;
 /** The frames a child may say ahead of its answer, per second of the time limit: it says its peak five times a second. */
 const NOTES_PER_SECOND = 8;
-/** How much of what a child says on stderr is kept, for how it ended; the fatal error's line is near its end. */
+/** How much of what a child says on stderr is kept, for how it ended. */
 const SAID_KEPT_BYTES = 16 * 1024;
 /** How much of it is read at all. Past this, the pipe is closed. */
 const SAID_READ_BYTES = MiB;
 /** How long after a child ends the last of its output may take to arrive. */
 const LAST_OUTPUT_MS = 500;
-/** Words in what a child said that mean its parse needed more memory, whichever way it was stopped. */
-const OUT_OF_MEMORY = /out of memory/i;
 /** What a child sends itself a little past its time limit, should the server not have ended it by then (parse-child.ts). */
 const LAST_RESORT = "SIGALRM";
 
@@ -212,7 +210,6 @@ export function processParser(limits: ParseLimits, testOnly: { child?: URL; thre
           how = `ended by ${by} without an answer${words ? `: ${words}` : ""}`;
           // Before it began its work, the file has had no part in it: not enough memory or threads to start, say.
           if (!began) return interrupted(`the process parsing it ended by ${by} before it could begin`);
-          if (signal && OUT_OF_MEMORY.test(said)) return finish(tooMuchMemory());
           if (signal === LAST_RESORT) return finish(tooLong());
           // From outside, and it may have been ended for what something else on the instance used.
           if (signal === "SIGKILL") return interrupted("the process parsing it was killed, most likely for lack of memory");

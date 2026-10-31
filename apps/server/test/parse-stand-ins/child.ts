@@ -36,10 +36,6 @@ const heldOpen = () => setInterval(() => undefined, 60_000);
 const job = JSON.parse(read(read(4).readUInt32LE(0)).toString()) as { fileName: string; size: number };
 const bytes = read(job.size);
 const acts: Record<string, () => void> = {
-  "runs-out-of-memory": () => {
-    writeSync(2, "a stand-in is out of memory\n");
-    process.abort();
-  },
   abort: () => process.abort(),
   "says-how-it-fell": () => {
     writeSync(2, "lines before it\nFATAL ERROR: a stand-in's words\nlines after it\n");
