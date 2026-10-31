@@ -30,9 +30,10 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
   the day of the upgrade: nothing is removed, it is not read-only, reading, searching, export,
   archiving, restoring and deleting go on, and only adding more of that kind is refused, with a
   message saying a product's admins can delete to make room. An instance owner sees on `/instance`
-  what each organization holds, and can raise a plan's totals there. Deleting and archiving are now
-  also never stopped by the day's writes, or by writing being off, and a refusal past a day's
-  allowance and a total names the total, with the day's in `details.also`.
+  what each organization holds, and can raise a plan's totals there. Deleting, removing someone and
+  cancelling an invitation are now never stopped by the day's writes, or by writing being off, and
+  are not counted as writes. A refusal past a day's allowance and a total names the total, with the
+  day's in `details.also`.
 - **A whole mockup canvas can go on the Story, and the Story is one tree** (`tools_version` 0.48.0).
   It asks nothing of a deployment beyond the release's migration, which moves each product's
   Published mockups to the end of its Story tree, in their order, and which only a restored database

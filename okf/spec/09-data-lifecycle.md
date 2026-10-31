@@ -142,8 +142,9 @@ running without a compliance program.
 
 Rules:
 
-1. **A quota blocks writes. It never blocks a search, an archive, a delete or an export.** Someone
-   over their limit can still work with, and leave with, everything they have. This is what makes
+1. **A quota blocks writes. It never blocks a search, a delete or an export.** Someone over their
+   limit can still work with, and leave with, everything they have. A total never blocks an archive
+   either; a day's writes do, as they do a restore (§9.7 rule 4). This is what makes
    §9.1 honest. The one limit that stops a read is the plan's cap on bytes sent to a person a day,
    on attachments and mockup downloads, and it never stops an export, which is counted and always
    sent.
@@ -536,10 +537,11 @@ Rules:
    allowance is refused whole, with the day's count before the call as `used` and a message
    saying how many it would add and how many are left.
 4. **A day's allowance never stops a read or a search** (§9.2 rule 1). Export is counted by
-   `exports_per_day` alone: the day's writes never stop it. Archiving and deleting are counted as
-   writes and never stopped by the day's writes, or by writing being off (a limit of 0): deleting is
-   how an organization past a total makes room. Restoring is a write they do stop. Calls and writes a
-   minute pace all of them.
+   `exports_per_day` alone: the day's writes never stop it. Deleting, removing someone and cancelling
+   an invitation are how an organization past a total makes room: they are not counted as writes, and
+   the day's writes, or writing being off (a limit of 0), never stop them, so one person's clearing up
+   takes nothing from anyone's day. Archiving and restoring are writes they do stop: archiving makes
+   no room, and one operation may do both. Calls and writes a minute pace all of them.
 5. **On a plan with limits an upload goes through the relay only**, where the size is enforced as
    the bytes arrive; no direct-to-store URL is issued. A grant's `max_bytes` is the lowest of the
    file limits, what is left of the day's bytes and what is left of the storage. Bytes are counted
@@ -551,7 +553,7 @@ Rules:
    call against `requests_per_minute` for whoever requested its grant. On a deployment with a
    content site, a document the app's route hands off there counts once, at the app's route; its
    address on the content site counts nothing more.
-7. **A limit of 0 refuses everything it counts.** A daily allowance a plan sets to 0
+7. **A limit of 0 refuses everything it counts**, and never what rule 4 says it does not stop. A daily allowance a plan sets to 0
    (`writes_per_day`, `org_writes_per_day`, `sources_per_day`, `exports_per_day`, `bytes_per_day`,
    `org_bytes_per_day`) is switched off rather than used up: the call is refused, before its
    allowance is counted, with `403 plan_restricted`, like a switch that is off, with

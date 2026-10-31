@@ -680,7 +680,7 @@ function ArchiveSheet({ archive: { change, refresh } }: { archive: ReturnType<ty
         <p className="muted">
           {archived
             ? `Restoring puts ${product.name} back in product lists and makes it writable again.`
-            : `Archiving hides ${product.name} from product lists and makes it read-only. It and what it holds still count toward its plan’s products, sources and storage. You can restore it later.`}
+            : `Archiving hides ${product.name} from product lists and makes it read-only. It and what it holds still count toward any limits on its plan. You can restore it later.`}
         </p>
         {change.isError ? (
           <ErrorCallout inset error={change.error} onRetry={change.error instanceof ApiError && change.error.code === "stale_etag" ? refresh : undefined} />

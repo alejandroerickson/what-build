@@ -44,12 +44,16 @@ day being a UTC day; what the organization holds for a total, also in `holds`. I
 offered in `plans`, empty where there are none. A guest of the example organization meets only the
 guests' limits on calls a minute and downloads a day.
 
-- A total or a day's writes never stops reading, searching, archiving, deleting or export; calls and
-  writes a minute pace them all.
+- A total never stops reading, searching, archiving, restoring, deleting or export.
+- A day's writes never stop reading, searching, export, deleting, removing someone or cancelling an
+  invitation, and those last three are not counted as writes. They do stop archiving and restoring.
+  Calls and writes a minute pace them all.
 - Archiving makes no room: what is archived still counts. Deleting makes room under products, sources
   and storage, and needs a product's admin and a connection at Admin; an editor can't, and the
   refusal says who can. Removing someone or cancelling an invitation makes room under people.
 - Restoring adds nothing to a total, so no total refuses it. It is a write, so the day's writes do.
+  A source in an archived product is deleted by restoring the product first, or by deleting the
+  product whole.
 - An organization past a total keeps everything and stays writable: only adding more of that kind is
   refused.
 - A reader of the Story does not count among the people, so one can be invited when the people

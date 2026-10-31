@@ -51,10 +51,14 @@ that stops being paid for, and that the plans themselves are the deployment's
 - **Only instance owners move an organization to another plan** (`products.set_plan`); nobody
   changes one organization's limits. A move never removes anything an organization holds past the
   new plan's totals.
-- **Never blocked:** reading, searching, archiving, deleting and export, by a total or a day's
-  writes; calls and writes a minute pace them. A person is told to delete to make room, so a day's
-  writes must not stop them, and whoever reads the refusal is told who can delete, since an editor
-  who adds and archives cannot. An export is counted against the bytes sent and always sent.
+- **Never blocked:** reading, searching, deleting and export, by a total or a day's writes; calls
+  and writes a minute pace them. A person is told to delete to make room, so a day's writes must not
+  stop them, nor removing someone or cancelling an invitation, and none of those is counted as a
+  write, so one person's clearing up takes nothing from anyone's day. Whoever reads the refusal is told
+  who can delete, since an editor who adds and archives cannot. An export is counted against the bytes
+  sent and always sent. A total never stops archiving or restoring; a day's writes do, because
+  archiving makes no room, and an operation that archives may restore as well, so sparing it would
+  leave writes without a limit.
 - **A total never makes an organization read-only.** One past a total keeps everything and goes on
   working; only adding more of that kind is refused.
 - **A plan's price is the deployment's**, as people read it, in its configuration or set by an

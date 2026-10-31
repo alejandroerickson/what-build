@@ -531,7 +531,7 @@ describe("the totals of a plan", () => {
     expect(restored.status, JSON.stringify(restored.body)).toBe(200);
     expect(restored.body.restored).toHaveLength(1);
     // The message names who deletes, since the editor it reached cannot.
-    expect(over.body.error.message).toMatch(/Deleting sources no longer needed makes room, which their product's admins can do; archiving them does not\./);
+    expect(over.body.error.message).toMatch(/Deleting sources no longer needed makes room, which their product's admins can do \(in an archived product, by restoring it first or deleting it whole\); archiving them does not\./);
     expect((await deleteSource(ned, last.body.record_id)).status).toBe(403);
     expect((await deleteSource(fay, last.body.record_id)).status).toBe(200);
     const room = await addSource(ned, "Sample source once there is room");
@@ -655,30 +655,58 @@ describe("the totals of a plan", () => {
     reset();
   });
 
-  it("count a delete and an archive against the day's writes without stopping them, and stop a restore, which adds work back", async () => {
+  it("never stop or count what makes room, and stop archiving and restoring, however they are asked for", async () => {
     tweak({ sources_per_day: 1000 });
     const kept = await addSource(fay, "Sample source archived past the day");
     const shed = await addSource(fay, "Sample source deleted past the day");
+    expect((await fay.api("POST", `${P}/sources/archive`, { record_ids: [kept.body.record_id] })).status).toBe(200);
+    const made = await fay.api("POST", `${P}/assumptions`, { statement: "Sample assumption flipped past the day" });
+    expect(made.body.etag).toBeTruthy();
     const allMine = await used(fay, "writes_per_day");
     tweak({ writes_per_day: allMine });
     const refused = await fay.api("POST", `${P}/outcomes`, { title: "Past the day's writes" });
     expect(refused.body.error.details).toMatchObject({ quota: "writes_per_day" });
-    expect((await fay.api("POST", `${P}/sources/archive`, { record_ids: [kept.body.record_id] })).status).toBe(200);
+
+    // Deleting goes on, and takes nothing from anyone's day.
     expect((await deleteSource(fay, shed.body.record_id)).status).toBe(200);
-    // Both are writes all the same.
-    expect(await used(fay, "writes_per_day")).toBe(allMine + 2);
+    expect(await used(fay, "writes_per_day")).toBe(allMine);
+
+    // Archiving makes no room and is stopped, a call that changes nothing included.
+    const noop = await fay.api("POST", `${P}/sources/archive`, { record_ids: [kept.body.record_id] });
+    expect(noop.status).toBe(409);
+    expect(noop.body.error.details).toMatchObject({ quota: "writes_per_day" });
+
+    // An operation that archives also restores, so a flip cannot write past the day.
+    const flip = await fay.api("POST", `${P}/assumptions/${made.body.id}/archive`, { archived: true, expected_etag: made.body.etag });
+    expect(flip.status).toBe(409);
+    expect(flip.body.error.details).toMatchObject({ quota: "writes_per_day" });
+    expect(await used(fay, "writes_per_day")).toBe(allMine);
+
     // A restore is a write the day's allowance stops, and no total is in play to name.
     const restore = await fay.api("POST", `${P}/sources/restore`, { record_ids: [kept.body.record_id] });
     expect(restore.status).toBe(409);
     expect(restore.body.error.details).toMatchObject({ quota: "writes_per_day" });
     expect(restore.body.error.details.also).toBeUndefined();
 
-    // Nor does switching writing off stop them.
+    // Switching writing off stops archiving too, and never what makes room.
     tweak({ writes_per_day: 0 });
     expect((await fay.api("POST", `${P}/outcomes`, { title: "While writing is off" })).body.error.code).toBe("plan_restricted");
     const off = await addSource(fay, "Sample source while writing is off");
     expect(off.body.error.code).toBe("plan_restricted");
+    expect((await fay.api("POST", `${P}/sources/archive`, { record_ids: [kept.body.record_id] })).body.error.code).toBe("plan_restricted");
     expect((await deleteSource(fay, kept.body.record_id)).status).toBe(200);
+    reset();
+  });
+
+  it("let one person clear up past the day without using up everyone's", async () => {
+    tweak({ sources_per_day: 1000 });
+    const first = await addSource(fay, "Sample source one of the clearing up");
+    const second = await addSource(fay, "Sample source two of the clearing up");
+    const together = await used(fay, "org_writes_per_day");
+    tweak({ writes_per_day: await used(fay, "writes_per_day"), org_writes_per_day: together + 1 });
+    expect((await deleteSource(fay, first.body.record_id)).status).toBe(200);
+    expect((await deleteSource(fay, second.body.record_id)).status).toBe(200);
+    expect(await used(fay, "org_writes_per_day")).toBe(together);
     reset();
   });
 

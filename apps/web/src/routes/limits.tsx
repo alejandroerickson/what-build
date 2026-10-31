@@ -157,8 +157,8 @@ function Holds({ l, holds }: { l: OrganizationLimits; holds: Holdings }) {
       unit: "",
       note: holds.invited ? `Counts ${plural(holds.invited, "invitation")} not yet accepted. Readers of the Story don’t count.` : "Readers of the Story don’t count.",
     },
-    { label: "Products", used: holds.products, limit: value(l, "products_max"), unit: "", note: "Archived ones count. Deleting one makes room." },
-    { label: "Sources", used: holds.sources, limit: value(l, "sources_max"), unit: "", note: "Archived ones count. Deleting one makes room." },
+    { label: "Products", used: holds.products, limit: value(l, "products_max"), unit: "", note: value(l, "products_max") === null ? undefined : "Archived ones count. Deleting one makes room." },
+    { label: "Sources", used: holds.sources, limit: value(l, "sources_max"), unit: "", note: value(l, "sources_max") === null ? undefined : "Archived ones count. Deleting one makes room." },
     {
       label: "Storage",
       used: s.total,

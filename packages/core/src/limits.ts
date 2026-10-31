@@ -185,11 +185,13 @@ function quota(lc: LimitContext, name: LimitKey, used: number, unit: string, wha
 }
 
 /**
- * What is counted and never stopped by a day's writes, or by writing being off: taking work out, and
- * taking things away, which is how an organization past a total makes room. How often anyone may
- * call still paces them.
+ * What a day's writes, or writing being off, never stop, and what is not counted as a write: taking
+ * work out, and what makes room under a total. None of it can go on without end, since each takes away
+ * something that takes a counted write to put back, so one person's clearing up leaves everyone
+ * else's day alone. How often anyone may call still paces them. Archiving is not here: it makes no
+ * room, and an operation that archives may restore as well, or change nothing.
  */
-const NEVER_STOPPED = /\.(export|archive|archive_page|delete|delete_page|delete_annotation|delete_tenant)$/;
+const NEVER_STOPPED = /\.(export|delete|delete_page|delete_annotation|delete_tenant)$|^members\.(revoke|cancel_invitation)$/;
 
 /**
  * Operations counted against a daily allowance beyond the count of writes, and what one call takes
@@ -286,15 +288,15 @@ export async function countWrite(trx: Db, at: Tally, lc: LimitContext | null, pr
   const me = principal.account_id;
   const daily = DAILY[op.name];
   const takes = daily?.takes ? daily.takes(input) : 1;
+  const stopped = !NEVER_STOPPED.test(op.name);
   const n = await bump(trx, at.tenant_id, "day", at.day_start, [
-    { account_id: me, counter: "writes", by: 1 },
-    { account_id: ORG, counter: "writes", by: 1 },
+    ...(stopped ? [{ account_id: me, counter: "writes" as const, by: 1 }, { account_id: ORG, counter: "writes" as const, by: 1 }] : []),
     ...(daily ? [{ account_id: me, counter: daily.counter, by: takes }] : []),
   ]);
   if (!lc) return;
   const s = lc.limits;
   const held = (input ?? {}) as Record<string, unknown>;
-  if (!NEVER_STOPPED.test(op.name)) {
+  if (stopped) {
     const mine = n.get(`${me}:writes`) ?? 0;
     if (mine > s.writes_per_day) throw await pastTheDay(trx, lc, op, held, "writes_per_day", mine - 1, "writes", `each person ${s.writes_per_day} writes a day`);
     const all = n.get(`${ORG}:writes`) ?? 0;
@@ -467,7 +469,7 @@ const ADDS: Record<string, { products?: number; sources?: (input: Record<string,
 const ROOM: Partial<Record<LimitKey, string>> = {
   members_max: "Removing someone or cancelling an invitation makes room",
   products_max: "Deleting a product no longer needed makes room, which its admins can do; archiving one does not",
-  sources_max: "Deleting sources no longer needed makes room, which their product's admins can do; archiving them does not",
+  sources_max: "Deleting sources no longer needed makes room, which their product's admins can do (in an archived product, by restoring it first or deleting it whole); archiving them does not",
   storage_max_bytes: "Deleting what is no longer needed makes room, which a product's admins can do; archiving it does not",
 };
 
