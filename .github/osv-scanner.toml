@@ -6,18 +6,11 @@
 # ignoreUntil = 2026-12-31
 # reason = "Only reachable through …, which WhatBuild never calls."
 
-# body-parser comes with express, which @modelcontextprotocol/sdk depends on. WhatBuild serves MCP
-# through the SDK's web-standard transport on Hono and never loads express. Fixed in 2.4.0: upgrade
-# once it is a week old (2026-10-29).
-[[IgnoredVulns]]
-id = "GHSA-27r3-jxmh-p828"
-ignoreUntil = 2026-11-01
-reason = "body-parser under express, which WhatBuild never loads: MCP is served on Hono. Upgrade to 2.4.0 once it is a week old, on 2026-10-29."
-
-# @azure/msal-node 6, under @azure/identity, which does not yet allow 7, the fixed major. The flaw
-# is in MSAL's authorization code flow; WhatBuild uses @azure/identity only for a managed identity
-# that sends mail through Azure Communication Services (adapters/mail-acs.ts).
+# @azure/msal-node 6, under @azure/identity 4.14.0. @azure/identity 4.14.1 moves to 7, the fixed
+# major: upgrade once it is a week old (2026-11-06). The flaw is in MSAL's authorization code flow;
+# WhatBuild uses @azure/identity only for a managed identity that sends mail through Azure
+# Communication Services (adapters/mail-acs.ts).
 [[IgnoredVulns]]
 id = "GHSA-xcx6-jx8p-x3h5"
-ignoreUntil = 2027-01-22
-reason = "MSAL's authorization code flow, which WhatBuild never uses: @azure/identity serves only a managed identity for mail. Upgrade when @azure/identity allows @azure/msal-node 7."
+ignoreUntil = 2026-11-09
+reason = "MSAL's authorization code flow, which WhatBuild never uses: @azure/identity serves only a managed identity for mail. Upgrade @azure/identity to 4.14.1, which takes @azure/msal-node 7, once it is a week old, on 2026-11-06."
