@@ -313,12 +313,16 @@ export function Canvas({ version, pageSrc, selected, onSelect, onKey, canFocus, 
     setBoxes(next);
   }, [version.version, version.pages, columns]);
 
+  const glide = useRef<number | undefined>(undefined);
+  useEffect(() => () => window.clearTimeout(glide.current), []);
+
   /** Move to a view, gliding there unless the person prefers less motion. */
   const go = useCallback(
     (v: View) => {
       if (!reduceMotion) {
         setGliding(true);
-        window.setTimeout(() => setGliding(false), 220);
+        window.clearTimeout(glide.current);
+        glide.current = window.setTimeout(() => setGliding(false), 220);
       }
       setView(v);
     },
