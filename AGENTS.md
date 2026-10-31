@@ -79,6 +79,7 @@ The domain is **what-build.com**, with a hyphen: the public site at `what-build.
 | `okf/` | **All documentation.** Start at `okf/index.md`, then `okf/system/overview.md`. |
 | `packages/core` | Operations (defined once, served over REST and MCP), policy, domain rules, the guide agents read. |
 | `packages/parsers` | Pure parsers from a file's bytes to readable Markdown. |
+| `packages/server-external` | The packages the server leaves out of its bundle, which the image installs from `pnpm-lock.yaml`. |
 | `apps/server` | Hono server: REST, MCP, identity and OAuth, uploads, worker, migrations, seed. |
 | `apps/web` | React app on the Studio design system, with `PRODUCT.md` and `DESIGN.md`, the product and design records design tooling reads. |
 | `e2e/plans` | End-to-end test plans an agent runs through the web app and MCP (`okf/operations/end-to-end-tests.md`). |

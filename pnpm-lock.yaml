@@ -185,6 +185,27 @@ importers:
         specifier: ^6.0.0
         version: 6.0.0
 
+  packages/server-external:
+    dependencies:
+      '@azure/communication-email':
+        specifier: ^1.1.0
+        version: 1.1.0
+      '@azure/identity':
+        specifier: ^4.14.0
+        version: 4.14.0
+      '@google-cloud/storage':
+        specifier: ^8.4.0
+        version: 8.4.0
+      google-auth-library:
+        specifier: ^11.2.0
+        version: 11.2.0
+      nodemailer:
+        specifier: ^10.1.6
+        version: 10.1.6
+      pdfjs-dist:
+        specifier: ^6.4.299
+        version: 6.4.299
+
 packages:
 
   '@asamuzakjp/css-color@7.1.7':

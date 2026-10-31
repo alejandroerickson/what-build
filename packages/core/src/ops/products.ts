@@ -1,6 +1,6 @@
 import { sql } from "kysely";
 import { z } from "zod";
-import { checkEtag, keepRevision, recordActivity } from "../common.ts";
+import { changedSummary, checkEtag, keepRevision, recordActivity } from "../common.ts";
 import { json, type Db } from "../db.ts";
 import { AppError, conflict, forbidden, invalid, notFound } from "../errors.ts";
 import { effectiveRole, membershipsFor, PRODUCT_ROLES, readsOnlyTheStory, readsOnlyTheStoryIn, reportedRole, roleAtLeast, tenantRoleAtLeast } from "../policy.ts";
@@ -10,6 +10,7 @@ import { isInstanceOwner, requireTenantAllowance } from "../tenant-allowance.ts"
 import { expectedEtag, slug } from "../schemas.ts";
 import { newEtag, newId, oneLine, quotedName, randomToken, sha256Hex, slugify } from "../util.ts";
 import { adviseIdeaCard, CARD_HTML_MAX, checkCardSides, checkIdeaCard } from "../idea-card.ts";
+import { actionAsRead } from "./activity.ts";
 
 async function uniqueSlug(exists: (s: string) => Promise<boolean>, base: string): Promise<string> {
   const root = slugify(base, 40, "product").padEnd(3, "0");
@@ -508,7 +509,7 @@ export const updateProduct = defineOperation({
       .set({ name: input.name ?? row.name, slug: input.slug ?? row.slug, etag: newEtag(), updated_at: ctx.now, updated_by: json(ctx.actor) })
       .where("product_id", "=", pid)
       .execute();
-    await recordActivity(ctx, { action: "updated", entity_type: "product", entity_id: pid, entity_title: input.name ?? row.name, summary: `Changed ${changed.join(", ")}` });
+    await recordActivity(ctx, { action: "updated", entity_type: "product", entity_id: pid, entity_title: input.name ?? row.name, summary: changedSummary(changed) });
     const next = await ctx.db.selectFrom("products").selectAll().where("product_id", "=", pid).executeTakeFirstOrThrow();
     return productView(next, { ...ctx, scope: { ...ctx.scope } });
   },
@@ -545,7 +546,7 @@ export const updateConcept = defineOperation({
       .where("product_id", "=", pid)
       .execute();
     const said = { concept: "concept", card_html: "concept's front" } as const;
-    await recordActivity(ctx, { action: "updated", entity_type: "product", entity_id: pid, entity_title: row.name, summary: `Changed ${changed.map((k) => said[k]).join(", ")}` });
+    await recordActivity(ctx, { action: "updated", entity_type: "product", entity_id: pid, entity_title: row.name, summary: changedSummary(changed.map((k) => said[k])) });
     const next = await ctx.db.selectFrom("products").selectAll().where("product_id", "=", pid).executeTakeFirstOrThrow();
     return { ...productView(next, { ...ctx, scope: { ...ctx.scope } }), ...conceptAdvice(next) };
   },
@@ -557,7 +558,7 @@ export const archiveProduct = defineOperation({
   access: "admin",
   mutates: true,
   summary: "Archive a product: hidden from lists and read-only until restored. Erases nothing.",
-  description: "Archiving is reversible. While archived, writes return 409 product_archived; reads and export still work.",
+  description: "Archiving is reversible. While archived, writes return 409 product_archived; reads and export still work. An archived product and its sources still count against a plan's totals, so archiving makes no room; deleting does.",
   input: z.strictObject({ expected_etag: expectedEtag }),
   rest: { method: "POST", path: "/archive" },
   mcp: { tool: "products", action: "archive" },
@@ -1100,7 +1101,7 @@ export const listAccessActivity = defineOperation({
       actor: r.actor,
       channel: r.channel,
       through_agent: r.channel === "mcp",
-      action: r.action,
+      action: actionAsRead(r.action, r.summary),
       entity_type: r.entity_type,
       entity_id: r.entity_id,
       entity_title: r.entity_title,

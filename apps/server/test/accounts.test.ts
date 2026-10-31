@@ -119,7 +119,7 @@ describe("removing an account", () => {
     // No role anywhere, recorded in the organization's access log.
     expect(await h.db.selectFrom("memberships").select("membership_id").where("account_id", "=", peteId).execute()).toEqual([]);
     const log = (await olive.api("GET", `/api/v1/tenants/${org}/members/activity`)).body.items;
-    expect(log[0]).toMatchObject({ action: "revoked", entity_id: peteId, entity_title: "Pete Editor" });
+    expect(log[0]).toMatchObject({ action: "account_removed", entity_id: peteId, entity_title: "Pete Editor" });
     expect(log[0].summary).toMatch(/by an owner of this instance/);
 
     // Nothing left that lets the address in, and the address itself is forgotten.

@@ -2,7 +2,7 @@ import { TooLargeError, TooManyEntriesError, zipEntries } from "@whatbuild/parse
 import { sql } from "kysely";
 import { strToU8, zipSync } from "fflate";
 import { z } from "zod";
-import { checkEtag, productId, recordActivity, tenantId } from "../common.ts";
+import { checkEtag, listed, productId, recordActivity, tenantId } from "../common.ts";
 import { json, type Tx } from "../db.ts";
 import { checkConfirmation, DELETE_GUIDANCE, deleteGuards, leaveTombstone, refuseIfDeleted } from "../deletion.ts";
 import { AppError, conflict, forbidden, invalid, notFound, tooLarge } from "../errors.ts";
@@ -1022,11 +1022,6 @@ export const deleteMockup = defineOperation({
     return { deleted: true, ...rest, reason: input.reason };
   },
 });
-
-/** Items in a sentence: "a", "a and b", "a, b and c". */
-function listed(items: string[]): string {
-  return items.length < 2 ? (items[0] ?? "") : `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}`;
-}
 
 /** The distinct prototype blobs a mockup's versions hold. */
 async function prototypeBlobsOf(db: Tx, mockupId: string) {

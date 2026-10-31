@@ -196,7 +196,7 @@ describe("deleting your own account", () => {
     // Each organization records that she left, and what she wrote keeps her name.
     for (const org of [owenOrg, sharedOrg]) {
       const log = (await owen.api("GET", `/api/v1/tenants/${org}/members/activity`)).body.items;
-      expect(log[0]).toMatchObject({ action: "revoked", entity_id: danaId, entity_title: "Dana Editor" });
+      expect(log[0]).toMatchObject({ action: "account_deleted", entity_id: danaId, entity_title: "Dana Editor" });
       expect(log[0].summary).toMatch(/by deleting their account/);
     }
     expect(JSON.stringify((await owen.api("GET", `${P}/sources/${source}`)).body)).toContain("Dana Editor");

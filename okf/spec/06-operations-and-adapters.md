@@ -3,7 +3,7 @@ type: Specification
 title: Every capability is one registered operation, reached identically over REST and MCP.
 description: The operation registry, the error model and bounds, the full catalogue of 118 operations with their REST routes and MCP tools, authorization and agent connection levels, upload flows, the guide and the Connect page.
 tags: [spec, operations, rest, mcp, registry, uploads, guide]
-generated: {by: agent:claude, at: 2026-10-30}
+generated: {by: agent:claude, at: 2026-10-31}
 status: stable
 ---
 
@@ -134,7 +134,8 @@ tenant.
 - **`quota_exceeded`** carries `{ quota, limit, used, unit }` in `details`. It is returned for the
   50 Story pages and the 50 mockups a product holds ([§9.2](09-data-lifecycle.md)), the mockups'
   adding `archived`, and for a plan's daily allowances, which add `resets_at`
-  ([§9.7](09-data-lifecycle.md)). An allowance set to 0 is switched off and answers
+  ([§9.7](09-data-lifecycle.md)). A call past a day's allowance that would also meet a total names
+  the total, with the day's allowance in `details.also`. An allowance set to 0 is switched off and answers
   `403 plan_restricted` instead.
 - **`429`** is returned for sign-in links (five per address per hour), for a fourth URL fetch a
   person starts while three of theirs are in progress (`attachments.fetch_url`, on each instance), and
@@ -605,8 +606,8 @@ Notes on recent actions:
   `product`, `membership`, `source`, `outcome`, `assumption`, `story_page`, `story_hierarchy`,
   `story_style` and `mockup` (anything else is `422`).
 - `members.activity` is the organization's access log, for its owners and admins: roles given,
-  changed and removed, people removed from the organization, invitations sent, accepted and
-  cancelled. It takes `actor`, `since`, `limit` and `cursor`, and pages like `activity.list`. A product's
+  changed and removed, people removed from the organization, accounts ended there
+  (`account_deleted`, `account_removed`), invitations sent, accepted and cancelled. It takes `actor`, `since`, `limit` and `cursor`, and pages like `activity.list`. A product's
   `activity.list` leaves these events out, because they belong to the organization, all but
   someone joining the product through an invitation, which both logs hold.
 

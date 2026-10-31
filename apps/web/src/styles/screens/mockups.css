@@ -100,15 +100,17 @@
   position: relative;
   flex: 1 1 auto;
   min-height: 0;
+  container: xc-board / inline-size;
   touch-action: none;
 }
 /* A sheet-shaped board one step down from the canvas, so white pages lift off it in both themes. */
 .xc-viewport {
+  --xc-board: color-mix(in srgb, var(--canvas) 94%, var(--text));
   position: absolute;
   inset: 0;
   overflow: hidden;
   border-radius: var(--r-lg);
-  background-color: color-mix(in srgb, var(--canvas) 94%, var(--text));
+  background-color: var(--xc-board);
   background-image: radial-gradient(circle at 1px 1px, color-mix(in srgb, var(--line-2) 80%, transparent) 1px, transparent 0);
   background-size: 24px 24px;
   box-shadow: inset 0 0 0 0.5px color-mix(in srgb, var(--text) 12%, transparent);
@@ -188,7 +190,10 @@
 
 /* ---- Labels: screen size, above each page ---------------------------------------------------- */
 
-/* The labels move as one layer, translated by the view; each sits at its page's place at the zoom. */
+/* The labels move as one layer, translated by the view; each sits at its page's place at the zoom.
+   The gap between rows scales with the zoom and a label does not, so at a low zoom a label lies over
+   the bottom of a taller page above it. Its controls keep the board's tone, whatever is under them,
+   so they read in either theme on a page of any colour. */
 .xc-labels {
   position: absolute;
   top: 0;
@@ -220,7 +225,7 @@
   padding: 0 var(--s-1h) 0 var(--s-1);
   border: 0;
   border-radius: var(--r-xs);
-  background: none;
+  background: var(--xc-board);
   color: var(--muted);
   font: inherit;
   font-size: var(--fs-sm);
@@ -229,7 +234,7 @@
   transition: background var(--dur-1) var(--ease), color var(--dur-1) var(--ease);
 }
 .xc-label-name:hover {
-  background: color-mix(in srgb, var(--panel) 70%, transparent);
+  background: color-mix(in srgb, var(--panel) 70%, var(--xc-board));
   color: var(--text);
 }
 .xc-label-n,
@@ -258,7 +263,7 @@
   height: var(--h-sm);
   border: 0;
   border-radius: var(--r-xs);
-  background: none;
+  background: var(--xc-board);
   color: var(--faint);
   cursor: pointer;
   opacity: 0;
@@ -270,12 +275,14 @@
   opacity: 1;
 }
 .xc-label-fit:hover {
-  background: color-mix(in srgb, var(--panel) 70%, transparent);
+  background: color-mix(in srgb, var(--panel) 70%, var(--xc-board));
   color: var(--text);
 }
-/* A page drawn small drops its size, then its title, keeping its number and the fit button. */
+/* A page drawn small drops its size, then its title, then the fit button, which would run into the
+   next page's number: the number stays, and the toolbar still fits the page once it is selected. */
 .xc-label[data-narrow] .xc-label-size,
-.xc-label[data-tiny] .xc-label-title {
+.xc-label[data-tiny] .xc-label-title,
+.xc-label[data-cramped] .xc-label-fit {
   display: none;
 }
 @media (hover: none) {
@@ -286,25 +293,38 @@
 
 /* ---- Toolbar ---------------------------------------------------------------------------------- */
 
-/* Its own layer above the board, so moving the pages under it never repaints it. */
+/* Its own layer above the board, so moving the pages under it never repaints it. Centred on the
+   board and never wider than it: what depends on the room is the board's width, which panels narrow
+   in a wide window too. Short of room the rules go, and then its groups wrap whole. */
 .xc-tools {
   position: absolute;
+  right: 0;
   bottom: var(--s-3);
-  left: 50%;
+  left: 0;
   z-index: 1;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
+  justify-content: center;
   gap: var(--s-0);
+  width: fit-content;
+  margin-inline: auto;
   padding: var(--s-0);
   border-radius: var(--r-md);
   background: var(--popover);
   box-shadow: var(--shadow);
-  transform: translateX(-50%);
   will-change: transform;
 }
-.xc-modes {
+.xc-modes,
+.xc-tools-group {
   display: flex;
+  align-items: center;
   gap: var(--s-0);
+}
+@container xc-board (max-width: 424px) {
+  .xc-tools-rule {
+    display: none;
+  }
 }
 .xc-tool {
   display: inline-grid;
@@ -376,6 +396,15 @@
   }
   .xc-tools-rule {
     margin: var(--s-2) 0;
+  }
+  /* A phone narrower than most keeps the bar on one row: the controls stay 44px tall. */
+  @container xc-board (max-width: 365px) {
+    .xc-tool {
+      min-width: 36px;
+    }
+    .xc-zoom {
+      min-width: 48px;
+    }
   }
 }
 

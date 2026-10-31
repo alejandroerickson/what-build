@@ -93,6 +93,8 @@ const VERBS: Record<string, string> = {
   "membership:granted": "gave a role to",
   "membership:role_changed": "changed the role of",
   "membership:revoked": "removed a role from",
+  "membership:account_deleted": "deleted their account and left the organization",
+  "membership:account_removed": "removed the account of",
   "membership:joined": "joined",
   "membership:invited": "invited someone to",
   "membership:invitation_cancelled": "cancelled an invitation",
@@ -244,8 +246,8 @@ export function ActivityLog({ query: q, linkOf, empty }: { query: ActivityPages;
             {g.items.map((i) => {
               const verb = VERBS[`${i.entity_type}:${i.action}`] ?? i.action.replace(/_/g, " ");
               const href = linkOf(i);
-              // A cancelled invitation names nobody, and someone who joined is the actor: the sentence ends at its verb.
-              const title = i.entity_type === "membership" && i.action === "joined" ? null : i.entity_title ?? (i.entity_type === "membership" ? null : ENTITY_LABEL[i.entity_type] ?? i.entity_type.replace(/_/g, " "));
+              // A cancelled invitation names nobody, and someone who joined or deleted their own account is the actor: the sentence ends at its verb.
+              const title = i.entity_type === "membership" && (i.action === "joined" || i.action === "account_deleted") ? null : i.entity_title ?? (i.entity_type === "membership" ? null : ENTITY_LABEL[i.entity_type] ?? i.entity_type.replace(/_/g, " "));
               const today = g.day === "Today";
               return (
                 <li key={i.activity_id} className="activity-row">

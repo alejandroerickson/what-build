@@ -1,0 +1,14 @@
+{
+  "name": "@whatbuild/server-external",
+  "version": "0.1.0",
+  "private": true,
+  "description": "What the server leaves out of its bundle, which the image installs from pnpm-lock.yaml. Raise a version here and where the code imports it, together: the build refuses two.",
+  "dependencies": {
+    "@azure/communication-email": "^1.1.0",
+    "@azure/identity": "^4.14.0",
+    "@google-cloud/storage": "^8.4.0",
+    "google-auth-library": "^11.2.0",
+    "nodemailer": "^10.1.6",
+    "pdfjs-dist": "^6.4.299"
+  }
+}
