@@ -13,7 +13,8 @@
  * - Small words (the, of, how…) are left out when other words remain.
  * - A word naming a kind of thing ("mockups", "assumptions") brings that kind first instead of
  *   being searched for, when other words remain.
- * - Case and accents are ignored.
+ * - Case is ignored, and so are accents when a match is marked and scored; the search vectors keep
+ *   them, so a word finds what its root starts as written (cafe finds café, resume not résumé).
  */
 
 export type FindKind = "idea" | "outcome" | "source" | "assumption" | "mockup" | "story";

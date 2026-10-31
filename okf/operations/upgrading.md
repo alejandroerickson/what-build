@@ -71,6 +71,23 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
   It asks nothing of a deployment. A Story-only reader gets the Search field and `search` in plain
   mode, over the Story alone; everything else stays refused. For everyone else, a Story page that
   shows a mockup page or canvas no longer appears beside its mockup in results.
+- **A word spelled with an entity inside it is found.** A deployment does nothing beyond its usual
+  migration. The migration, `0042_a_word_keeps_the_letters_entities_spell.sql`, replaces
+  `html_search_text` and rebuilds `search_text` and `tsv`, which rewrites `mockup_pages` and
+  `story_versions`. It locks both tables first (`ACCESS EXCLUSIVE`), and nothing can read or write
+  them until it ends: about 3 seconds for 20 MB of pages that are mostly markup and about 40 seconds
+  for 20 MB of pages that are all words, on a developer's machine under load, the same as `0040` on
+  the same pages. It takes the same time again after `0040` for a deployment that takes both in one
+  upgrade, in a transaction of its own, so those tables are free for a moment between the two. An
+  image from before it still runs on the migrated database. People will notice that a page's words
+  spelled with `&eacute;`, `&#233;` or `&#xE9;` are found by `café` and show as the letter in a
+  result, where they showed a gap; entities that stand for no letter stay a gap
+  ([§8.3](../spec/08-search.md)). A save costs about 3 milliseconds more for each page.
+- **A result names the page titled with the words, and a palette title shows the word that found
+  it.** It asks nothing of a deployment. A mockup or a whole canvas found by a word in one page's
+  title names and opens on that page, where it named the first page holding the word. In the palette,
+  a title too long for its line whose word falls past the cut now starts nearer that word, after an
+  ellipsis, with the word marked.
 - **Search keeps each page's words beside its HTML, and stops a search that takes too long**
   (`tools_version` 0.47.0). A deployment does nothing beyond its usual migration. The migration,
   `0040_html_pages_keep_their_words.sql`, rewrites `mockup_pages` and `story_versions`, and nothing

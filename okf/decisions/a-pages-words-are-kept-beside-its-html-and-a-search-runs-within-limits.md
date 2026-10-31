@@ -3,7 +3,7 @@ type: Decision
 title: A page's words are kept beside its HTML, and a search runs within limits
 description: Postgres keeps each mockup page's and Story version's words and search vector in generated columns, so search never reads HTML, and a search has few slots, a time limit and stops when its caller goes, so it cannot starve other requests of connections.
 tags: [decision, search, database, operations]
-generated: {by: agent:claude, at: 2026-10-30}
+generated: {by: agent:claude, at: 2026-10-31}
 status: stable
 ---
 
@@ -28,6 +28,13 @@ fill in existing rows; and generated columns.
   that makes it current.
 - The words are capped at 200,000 characters a page, which always fit a search vector. HTML past the
   words (styles, scripts, paths, data: URIs) costs nothing against the cap.
+- An entity that stands for a letter is that letter in the words, named or numeric, so `caf&eacute;`
+  is found as `café` (migration `0042`, which replaces a space in every entity's place). Any other
+  entity stays a word break, so `&lt;`, `&gt;` and `&amp;` never become characters a reader of the
+  words could take for markup. The function cuts the text with plain string functions rather than a
+  regular expression, whose cost per match would make a page of nothing but references take seconds,
+  and holds its tables itself, since a table or a helper function of ours would not resolve when a
+  backup restores with an empty `search_path`.
 - No GIN index on `tsv`: search reads one product's current pages, found through its mockups and
   Story pages, where one made no measurable difference and would have held every old version too.
 - `search` is `bounded`: three at a time on a server, twelve more waiting two seconds at most and

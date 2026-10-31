@@ -99,10 +99,58 @@ describe("a page's words", () => {
     ["an SVG's words, not its paths", '<svg viewBox="0 0 9 9"><title>Chart</title><path d="M0 0L10 10Z"/><text x="1">Revenue</text></svg>', "Chart Revenue"],
     ["a picture held in a data: URI", '<img src="data:image/png;base64,QUJDREVG" alt="Photo"><p>shown</p>', "shown"],
     ["a < that opens no tag", "<p>a < b and c > d</p>", "a < b and c > d"],
-    ["entities, as blanks", "<p>Q&amp;A&nbsp;today</p>", "Q A today"],
+    ["entities that stand for no letter, as blanks", "<p>Q&amp;A&nbsp;today</p>", "Q A today"],
     ["a tag before punctuation, with no space left", "<p><b>word</b>, then <i>another</i>.</p>", "word, then another."],
+    ["a letter by its name", "<p>caf&eacute; cr&egrave;me, CAF&Eacute;.</p>", "café crème, CAFÉ."],
+    ["a letter by its number", "caf&#233; caf&#xE9; caf&#xe9; caf&#XE9;", "café café café café"],
+    ["a number with leading zeros", "caf&#00000000000000000233; caf&#x00000000000000000E9;", "café café"],
+    ["letters beyond Latin, by name and by number", "&alpha;&#x3B2; &#x6F22;&#x5B57; &Scaron;koda &#xD55C;&#xAE00; &Afr; &fjlig;ord", "αβ 漢字 Škoda 한글 𝔄 fjord"],
+    ["a letter's combining mark", "cafe&#769;", "cafe\u0301"],
+    ["a number browsers read in windows-1252, as the letter they show", "&#138;koda &#x9E; &#131;", "Škoda ž ƒ"],
+    ["an ampersand in text and a semicolon in text", "a & b; c &d e; fish &;", "a & b; c &d e; fish &;"],
+    ["what only looks like a reference, for want of its semicolon", "caf&eacute caf&#233 caf&#xE9", "caf&eacute caf&#233 caf&#xE9"],
+    ["one pass only, so an escaped reference is no reference", "&amp;eacute; &amp;lt; &amp;#233; &#38;eacute; &&#101;acute;", "eacute; lt; #233; eacute; &eacute;"],
+    ["what a < is followed by, never a tag", "<&#115;cript>alert(1)</&#115;cript> x <&eacute;>", "< script>alert(1)</ script> x < é>"],
   ])("handles %s", async (_what, html, words) => {
     expect(await wordsOf(html)).toBe(words);
+  });
+
+  it.each([
+    ["markup, in every spelling", "&lt; &LT; &#60; &#060; &#x3C; &#x3c; &#X3C; &gt; &GT; &#62; &#x3e; &amp; &AMP; &#38; &#x26; &quot; &#34; &apos; &#39; &#x27; &#96; &grave; &sol; &#47;"],
+    ["space, joiners and a soft hyphen", "&nbsp; &#160; &#xA0; &ensp; &thinsp; &shy; &#173; &zwj; &zwnj; &#10; &NewLine; &Tab;"],
+    ["punctuation and symbols", "&rsquo; &#8217; &mdash; &#8212; &hellip; &copy; &euro; &#150; &#146; &times; &divide; &#x1F600; &#128512; &trade;"],
+    ["digits", "&#48; &#x39; &#x661;"],
+    ["a name nobody defined, or any other shape of one", "&nosuch; &Eacute2; &a#b; &##65; &#xx41; &#x#41; &#12a; &#xZZ;"],
+    ["numbers that are no character", "&#; &#x; &#0; &#00; &#x0; &#X000; &#xD800; &#xDFFF; &#55296; &#57343; &#1114112; &#x110000; &#x7FFFFFFF; &#2147483648; &#4294967296; &#99999999999999999999999999; &#xFFFFFFFFFFFFFFFFFFFFFFFF;"],
+    ["controls, noncharacters and direction overrides", "&#1; &#x1F; &#127; &#x81; &#x9D; &#xFDD0; &#xFFFE; &#xFFFF; &#x1FFFF; &#x10FFFF; &#x202E; &#xFEFF;"],
+  ])("leaves %s a word break, with no error", async (_what, refs) => {
+    for (const ref of refs.split(" ")) expect(await wordsOf(`x${ref}y`), ref).toBe("x y");
+  });
+
+  it("never holds a tag or a < made of a reference, so what reads it as text has nothing to escape that the page did not say", async () => {
+    const words = await wordsOf("&lt;script&gt;alert(1)&lt;/script&gt; &#60;img src=x onerror=alert(1)&#62; &#x3C;b&#x3E; <&#115;cript>x</&#115;cript> <&#98;>y</&#98;>");
+    expect(words).toBe("script alert(1) /script img src=x onerror=alert(1) b < script>x</ script> < b>y</ b>");
+    expect(words).not.toMatch(/<\/?[a-z]/i);
+    // The parser of a search vector would drop a whole tag, and the word with it.
+    const v = await sql<{ v: string }>`select to_tsvector('simple', html_search_text(${"<&#115;cript>"}))::text as v`.execute(h.db);
+    expect(v.rows[0]!.v).toBe("'script':1");
+  });
+
+  it("is computed in one function that names nothing of ours, so a backup restores with an empty search_path", async () => {
+    await h.db.transaction().execute(async (trx) => {
+      await sql`set local search_path = ''`.execute(trx);
+      const r = await sql<{ t: string }>`select public.html_search_text(${"caf&eacute; caf&#233; caf&#xE9; &#138;"}) as t`.execute(trx);
+      expect(r.rows[0]!.t).toBe("café café café Š");
+    });
+  });
+
+  it("stands alone: no index, view or other object depends on the words", async () => {
+    const r = await sql<{ d: string }>`
+      select d.classid::regclass::text || ' ' || d.objid::text as d from pg_depend d
+      join pg_attribute a on a.attrelid = d.refobjid and a.attnum = d.refobjsubid
+      where d.refobjid in ('mockup_pages'::regclass, 'story_versions'::regclass) and a.attname in ('search_text', 'tsv')
+        and d.classid <> 'pg_attrdef'::regclass`.execute(h.db);
+    expect(r.rows).toEqual([]);
   });
 
   it("stays quick on the worst shapes a page's limit allows", async () => {
@@ -117,6 +165,19 @@ describe("a page's words", () => {
       ["a tag that never ends", `<div ${"x".repeat(990_000)}`],
       ["angle brackets alone", "<".repeat(990_000)],
       ["ampersands alone", "&a".repeat(495_000)],
+      ["nothing but ampersands", "&".repeat(1_000_000)],
+      ["nothing but ampersands, and one semicolon", `${"&".repeat(999_999)};`],
+      ["nothing but semicolons", ";".repeat(1_000_000)],
+      ["ampersands before semicolons", "&;".repeat(500_000)],
+      ["references to no letter", "&a;".repeat(333_000)],
+      ["references to letters, by name", "&eacute;".repeat(125_000)],
+      ["references to letters, in decimal", "&#233;".repeat(166_000)],
+      ["references to letters, in hex", "&#xE9;".repeat(166_000)],
+      ["references to no character", "&#0;".repeat(250_000)],
+      ["references with no number", "&#;".repeat(333_000)],
+      ["references after a < that opens no tag", "</&#97;".repeat(142_000)],
+      ["one name that never ends", `&${"a".repeat(999_000)};`],
+      ["one number that never ends", `&#${"9".repeat(999_000)};`],
       ["spaces before punctuation", "  ,".repeat(330_000)],
       ["spaces alone", " ".repeat(990_000)],
     ];
@@ -170,6 +231,68 @@ describe("a page's words", () => {
     const costliest = Array.from({ length: 100_000 }, (_, i) => String.fromCodePoint(0x20000 + i)).join(" ");
     const r = await sql<{ n: number }>`select length(to_tsvector('simple', html_search_text(${costliest})))::int as n`.execute(h.db);
     expect(r.rows[0]!.n).toBeGreaterThan(0);
+    // The same words by number: a page's limit holds more of them than that, and they are cut the same way.
+    const spelled = Array.from({ length: 100_000 }, (_, i) => `&#x${(0x20000 + i).toString(16)};`).join(" ");
+    const s = await sql<{ n: number; w: number }>`select length(to_tsvector('simple', html_search_text(${spelled})))::int as n, length(html_search_text(${spelled}))::int as w`.execute(h.db);
+    expect(s.rows[0]!.n).toBeGreaterThan(0);
+    expect(s.rows[0]!.w).toBeLessThanOrEqual(200_000);
+  });
+
+  it("saves a page of references that are no character, for mockups and Story pages alike", async () => {
+    const body = `<p>savedword ${"&#0; &#xD800; &#1114112; &#99999999999999999999; &#xFFFFFFFFFFFF; ".repeat(100)}</p>`;
+    const { mockup_id } = await publishMockup("Odd numbers", body);
+    await publishStory("odd-numbers", "Odd numbers", body);
+    expect(await holding("savedword", "mockup")).toEqual([mockup_id]);
+    expect(await holding("savedword", "story")).toEqual(["odd-numbers"]);
+  });
+
+  describe("spelled with an entity", () => {
+    let mockupId = "";
+    beforeAll(async () => {
+      const body = "<p>Le Caf&eacute; du coin, la cr&#232;me, l'ann&#xE9;e, mon r&eacute;sum&eacute;, un cafe&#769; et cinco a&ntilde;os.</p>";
+      ({ mockup_id: mockupId } = await publishMockup("Entities", body));
+      await publishStory("entities", "Entities", body);
+    });
+
+    it.each([
+      ["as it is stored", "café"],
+      ["in capitals", "CAFÉ"],
+      ["a letter from a decimal number", "crème"],
+      ["a letter from a hex number", "année"],
+      ["while it is typed", "caf"],
+      ["without its accent, whose root starts the same", "cafe"],
+    ])("is found %s", async (_how, word) => {
+      expect(await holding(word, "mockup")).toEqual([mockupId]);
+      expect(await holding(word, "story")).toEqual(["entities"]);
+    });
+
+    it("is not found without an accent that comes before the root's end, as the index keeps accents, like a word written out", async () => {
+      expect(await holding("résumé", "mockup")).toEqual([mockupId]);
+      expect(await holding("resume", "mockup")).toEqual([]);
+      expect(await holding("anos", "mockup")).toEqual([]);
+      const written = await publishMockup("Written out", "<p>mon pâté</p>");
+      expect(await holding("pâté", "mockup")).toEqual([written.mockup_id]);
+      expect(await holding("pate", "mockup")).toEqual([]);
+    });
+
+    it("is shown and marked as the letter, in an excerpt", async () => {
+      const r = await alice.api("GET", `${P}/search?mode=plain&strict=true&kind=mockup&query=${encodeURIComponent("crème")}`);
+      const hit = r.body.results.find((x: { id: string }) => x.id === mockupId) as { snippet: string; snippet_marks: [number, number][] };
+      expect(hit.snippet).toContain("Le Café du coin, la crème,");
+      expect(hit.snippet_marks.map(([a, b]) => hit.snippet.slice(a, b))).toEqual(["crème"]);
+    });
+
+    it("is found by an agent too", async () => {
+      const token = await h.connectAgent(alice, "entity-agent");
+      const client = new Client({ name: "entity-agent", version: "1.0.0" });
+      await client.connect(new StreamableHTTPClientTransport(new URL(`${h.baseUrl}/mcp`), { requestInit: { headers: { authorization: `Bearer ${token}` } } }));
+      const r = await client.callTool({ name: "search", arguments: { product: path, mode: "plain", query: "crème" } });
+      expect(r.isError, JSON.stringify(r.content)).toBeFalsy();
+      const results = JSON.parse((r.content as { text: string }[])[0]!.text).results as { kind: string; id: string; snippet: string }[];
+      expect(results.map((x) => x.id).sort()).toEqual(["entities", mockupId].sort());
+      expect(results[0]!.snippet).toContain("crème");
+      await client.close();
+    });
   });
 
   it("leaves a page's words out of what a page reads as", async () => {
@@ -470,6 +593,7 @@ describe("a product with many heavy pages", () => {
 
   let mockupId = "";
   beforeAll(async () => {
+    expect((await alice.api("POST", `${P}/mockups`, { title: "Spelled", pages: [{ page_id: "board", title: "Board", html: page("<p>migratedcaf&eacute;</p>") }] })).status).toBe(201);
     // 200 pages of about 90 KB each, about 18 MB, in mockups of ten pages.
     for (let m = 0; m < 20; m++) {
       const pages = Array.from({ length: 10 }, (_, n) => ({ page_id: `p${n}`, title: `Screen ${n}`, html: heavy(m * 10 + n, n) }));
@@ -508,6 +632,23 @@ describe("a product with many heavy pages", () => {
         "select count(*)::int as all, (count(*) filter (where tsv is not null))::int as kept, (count(*) filter (where tsv @@ to_tsquery('simple', 'afterscript75x')))::int as found from mockup_pages",
       )).rows[0]!;
       expect(after).toMatchObject({ all: before, kept: before, found: 1 });
+
+      // That one left a space where an entity was. The one after it takes every page's words again.
+      const holdsLetter = async () => (await c.query<{ n: number }>("select count(*)::int as n from mockup_pages where tsv @@ to_tsquery('simple', 'migratedcafé') and search_text like '%migratedcafé%'")).rows[0]!.n;
+      const stored = async () => (await c.query<{ n: number }>("select count(*)::int as n from mockup_pages where tsv @@ to_tsquery('simple', 'migratedcaf')")).rows[0]!.n;
+      expect(await holdsLetter()).toBe(0);
+      expect(await stored()).toBe(1);
+      const again = Date.now();
+      await c.query(readFileSync(fileURLToPath(new URL("../src/migrations/0042_a_word_keeps_the_letters_entities_spell.sql", import.meta.url)), "utf8"));
+      expect(Date.now() - again).toBeLessThan(20_000);
+      expect(await holdsLetter()).toBe(1);
+      const rebuilt = (await c.query<{ all: number; kept: number; found: number }>(
+        "select count(*)::int as all, (count(*) filter (where tsv is not null))::int as kept, (count(*) filter (where tsv @@ to_tsquery('simple', 'afterscript75x')))::int as found from mockup_pages",
+      )).rows[0]!;
+      expect(rebuilt).toMatchObject({ all: before, kept: before, found: 1 });
+      // The columns are generated still, by the new words: a row written now has the letter too.
+      const generated = (await c.query<{ n: number }>("select count(*)::int as n from information_schema.columns where table_name in ('mockup_pages', 'story_versions') and column_name in ('search_text', 'tsv') and is_generated = 'ALWAYS'")).rows[0]!.n;
+      expect(generated).toBe(4);
     } finally {
       await c.query("rollback");
       await c.end();

@@ -319,24 +319,28 @@ async function smallKinds(ctx: OpContext, p: ParsedFind, i: Input, q: string): P
   // What is Markdown is read as its words, as a source's text is.
   for (const a of assumptions?.rows ?? []) push("assumption", a.entry_id, { title: a.statement, body: [shownWords(a.body)] }, { status: a.status });
   for (const o of outcomes?.rows ?? []) push("outcome", o.outcome_id, { title: o.title, body: [shownWords(o.description)] }, {});
-  // A mockup is one result; the page that matches best is the one it opens on.
+  // A mockup is one result, scored by its best page. It opens on the page holding the most of the
+  // words, and of those on the one whose title says them best, as a result's own title is scored:
+  // every page is a body to its mockup, so the score alone would name the first that holds them.
   const best = (title: string, pages: ShownPage[]) => {
-    const scored = pages.map((pg) => ({ pg, s: scoreDoc({ title, body: pg.body }, p) }));
+    const scored = pages.map((pg) => ({ pg, s: scoreDoc({ title, body: pg.body }, p), titled: scoreDoc({ title: pg.page_title ?? "", body: [] }, p).score }));
+    const held = (x: (typeof scored)[number]) => x.s.found.filter(Boolean).length;
     scored.sort((a, b) => b.s.score - a.s.score);
     const top = scored[0]!;
+    const opens = [...scored].sort((a, b) => held(b) - held(a) || b.titled - a.titled || b.s.score - a.s.score)[0]!;
     const found = p.terms.map((_, k) => scored.some((x) => x.s.found[k]));
     return {
       found,
       result: {
         title,
         title_marks: top.s.title.ranges,
-        snippet: top.s.snippet,
-        snippet_marks: top.s.snippet_marks,
+        snippet: opens.s.snippet,
+        snippet_marks: opens.s.snippet_marks,
         missing: missingWords(p, found),
-        score: round(top.s.score + (100 * (found.filter(Boolean).length - top.s.found.filter(Boolean).length)) / p.terms.length),
+        score: round(top.s.score + (100 * (found.filter(Boolean).length - held(top))) / p.terms.length),
       },
       // Open on the page only when the words are on it, not just in the title, summary or brief.
-      page: matchText(top.pg.onPage, p.terms).found.some(Boolean) ? { page_id: top.pg.page_id, page_title: top.pg.page_title } : {},
+      page: matchText(opens.pg.onPage, p.terms).found.some(Boolean) ? { page_id: opens.pg.page_id, page_title: opens.pg.page_title } : {},
     };
   };
   const byMockup = new Map<string, NonNullable<typeof mockups>["rows"]>();
@@ -347,7 +351,8 @@ async function smallKinds(ctx: OpContext, p: ParsedFind, i: Input, q: string): P
     const b = best(first.title, pages.map((pg) => ({
       page_id: pg.page_id,
       page_title: pg.page_title,
-      body: [first.summary, pg.page_title ?? "", shownWords(pg.notes ?? ""), pg.text ?? "", shownWords(first.brief)],
+      // What the page says ahead of its title, which meta names: the excerpt prefers it.
+      body: [first.summary, shownWords(pg.notes ?? ""), pg.text ?? "", pg.page_title ?? "", shownWords(first.brief)],
       onPage: `${pg.page_title ?? ""} ${pg.notes ?? ""} ${pg.text ?? ""}`,
     })));
     const result: FindResult = { kind: "mockup", id: mid, ...b.result, meta: { ...b.page, pages: pages.length } };
@@ -370,7 +375,7 @@ async function smallKinds(ctx: OpContext, p: ParsedFind, i: Input, q: string): P
     const b = best(first.title, (onCanvas.length ? onCanvas : [{ ...first, shown_id: null, shown_title: null, shown_text: null }]).map((r) => {
       const words = (first.mockup ? r.shown_text : r.text) ?? "";
       const named = canvas ? (r.shown_title ?? "") : "";
-      return { page_id: r.shown_id, page_title: r.shown_title, body: [first.summary, named, words], onPage: `${named} ${words}` };
+      return { page_id: r.shown_id, page_title: r.shown_title, body: [first.summary, words, named], onPage: `${named} ${words}` };
     }));
     if (!b.found.some(Boolean)) continue;
     const held = first.mockup ? heldByMockup.get(first.mockup.mockup_id) : undefined;
