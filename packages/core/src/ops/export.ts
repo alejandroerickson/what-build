@@ -247,7 +247,8 @@ export async function runExport(db: Tx, ports: Ports, job: { tenant_id: string; 
   for (const p of pages) {
     add(`story/pages/${p.page_id}/page.json`, j(p));
     for (const v of await db.selectFrom("story_versions").selectAll().where("product_id", "=", pid).where("page_id", "=", p.page_id).orderBy("n").execute()) {
-      const { html, ...meta } = v;
+      const { html, search_text, tsv, ...meta } = v;
+      void search_text, void tsv;
       add(`story/pages/${p.page_id}/v${v.n}.json`, j(meta));
       // A version that shows a mockup page has no HTML of its own: its JSON names the page under mockups/.
       if (!v.mockup) add(`story/pages/${p.page_id}/v${v.n}.html`, html);
@@ -259,7 +260,7 @@ export async function runExport(db: Tx, ports: Ports, job: { tenant_id: string; 
       const { brief, ...meta } = v;
       const pages = await db.selectFrom("mockup_pages").selectAll().where("version_id", "=", v.version_id).orderBy("position").execute();
       const dir = `mockups/${m.mockup_id}/v${v.n}`;
-      add(`${dir}/version.json`, j({ ...meta, pages: pages.map(({ html, notes, ...p }) => (void html, void notes, p)) }));
+      add(`${dir}/version.json`, j({ ...meta, pages: pages.map(({ html, notes, search_text, tsv, ...p }) => (void html, void notes, void search_text, void tsv, p)) }));
       add(`${dir}/brief.md`, brief);
       for (const p of pages) {
         // A page that enters the prototype has no HTML of its own; version.json gives its entry.

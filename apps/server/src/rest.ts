@@ -59,7 +59,7 @@ export function coerceQuery(op: OperationDef, query: Record<string, string>): Re
 
 function errorResponse(c: Context, e: AppError) {
   if (e.status === 401) c.header("WWW-Authenticate", 'Bearer realm="whatbuild"');
-  const retry = e.status === 429 ? e.details?.["retry_after_seconds"] : undefined;
+  const retry = e.status === 429 || e.status === 503 ? e.details?.["retry_after_seconds"] : undefined;
   if (typeof retry === "number") c.header("Retry-After", String(Math.max(1, Math.ceil(retry))));
   return c.json({ error: e.toJSON() }, e.status as 400);
 }
@@ -110,7 +110,7 @@ export function restRoutes(env: Env & { config: ServerConfig }) {
         const shape = (op.input as unknown as { shape?: Record<string, unknown> }).shape ?? {};
         if (ifMatch && "expected_etag" in shape && input["expected_etag"] === undefined) input["expected_etag"] = ifMatch;
         const ref: ScopeRef = op.scope === "product" ? { tenant, team, product } : {};
-        const { result } = await execute(env, principal, op, input, ref);
+        const { result } = await execute(env, principal, op, input, ref, null, op.bounded ? c.req.raw.signal : undefined);
         const etag = (result as { etag?: unknown } | null)?.etag;
         if (typeof etag === "string") c.header("ETag", `"${etag}"`);
         // Which operation ran, so the web app counts a change by its name rather than by its address.

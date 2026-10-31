@@ -18,12 +18,20 @@ function typeParser(oid: number, format?: string): (v: string) => unknown {
   return pg.types.getTypeParser(oid, format as "text");
 }
 
-export function createDb(databaseUrl: string, max = 10): { db: Kysely<DB>; pool: pg.Pool } {
+/**
+ * How long a request waits for a connection before it is answered that the server is busy, rather
+ * than hanging for as long as whatever holds them all does. It is ample for a Postgres that suspends
+ * when idle to wake.
+ */
+const CONNECTION_WAIT_MS = 15_000;
+
+export function createDb(databaseUrl: string, max = 10, connectionWaitMs = CONNECTION_WAIT_MS): { db: Kysely<DB>; pool: pg.Pool } {
   const pool = new pg.Pool({
     connectionString: databaseUrl,
     max,
     types: { getTypeParser: typeParser as never },
     idleTimeoutMillis: 30_000,
+    connectionTimeoutMillis: connectionWaitMs,
   });
   // A connection the database drops (a hosted Postgres restarting its compute, say) is an 'error'
   // event on its client, and one nothing listens for stops the process with every request it was
@@ -39,6 +47,23 @@ export function createDb(databaseUrl: string, max = 10): { db: Kysely<DB>; pool:
   // Each statement inside a traced request or job is a span of its own (telemetry.ts).
   const db = new Kysely<DB>({ dialect: new PostgresDialect({ pool }), log: querySpan });
   return { db, pool };
+}
+
+/**
+ * Say so when requests have been waiting for a connection across two looks at the pool. Severity
+ * ERROR, so the log's alert mails it: every connection is held, and the service's health check,
+ * which reads no database, still answers. It says how many, and how many searches, and nothing else.
+ */
+export function watchPool(pool: Pick<pg.Pool, "totalCount" | "idleCount" | "waitingCount">, searches: { running: number; waiting: number }, everyMs = 10_000, log: (line: string) => void = console.error): () => void {
+  let waited = false;
+  const timer = setInterval(() => {
+    const waiting = pool.waitingCount > 0;
+    if (waiting && waited)
+      log(JSON.stringify({ at: new Date().toISOString(), severity: "ERROR", event: "database_pool_saturated", connections: pool.totalCount, idle: pool.idleCount, requests_waiting: pool.waitingCount, searches_running: searches.running, searches_waiting: searches.waiting }));
+    waited = waiting;
+  }, everyMs);
+  timer.unref();
+  return () => clearInterval(timer);
 }
 
 const MIGRATIONS = fileURLToPath(new URL("./migrations/", import.meta.url));

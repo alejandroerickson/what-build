@@ -2,7 +2,7 @@ import { serve } from "@hono/node-server";
 import { usageSettled } from "@whatbuild/core";
 import { createApp, createBlobStore, createMailer, createPorts, SERVER_VERSION } from "./app.ts";
 import { loadConfig } from "./config.ts";
-import { checkRowSecurity, createDb, migrate } from "./database.ts";
+import { checkRowSecurity, createDb, migrate, watchPool } from "./database.ts";
 import { syncExampleTenant } from "./example-organization.ts";
 import { seed } from "./seed.ts";
 import { startTracing } from "./telemetry.ts";
@@ -70,6 +70,7 @@ async function main() {
     console.log("warning: WHATBUILD_SANDBOX_TENANT is no longer read. The public sandbox became the example organization: name it with WHATBUILD_EXAMPLE_TENANT.");
 
   if (config.runWorker) worker.start({ idleMs: WORKER_IDLE_MS });
+  watchPool(pool, ports.searches);
   const app = createApp({ db, ports, config, onRequest: config.runWorker ? () => worker?.nudge() : undefined });
   const server = serve({ fetch: app.fetch, port: config.port, hostname: "0.0.0.0" }, (info) => {
     console.log(`WhatBuild listening on :${info.port} (public URL ${config.publicBaseUrl})`);

@@ -1,13 +1,13 @@
 ---
 type: Decision
-title: One search covers the whole product and reads plain words, with no model and no index of its own
-description: People search everything in a product from one place, as they type, by deterministic word matching on the database's own text search, so no search calls a model or needs an index built for it.
+title: One search covers the whole product and reads plain words, with no model
+description: People search everything in a product from one place, as they type, by deterministic word matching on the database's own text search, so no search calls a model.
 tags: [decision, search, web]
-generated: {by: agent:claude, at: 2026-10-17}
+generated: {by: agent:claude, at: 2026-10-30}
 status: stable
 ---
 
-# One search covers the whole product and reads plain words, with no model and no index of its own
+# One search covers the whole product and reads plain words, with no model
 
 ## Context
 
@@ -29,8 +29,9 @@ which would cost money on every search. The maintainer chose one plain-word sear
   last word as a prefix, typos corrected from the product's own words and said so, and partial
   matches named when nothing holds every word. It is `search`'s `plain` mode, so agents have it too.
 - It runs on the text search already in Postgres (stored `tsvector`s and `pg_trgm`), over the
-  same index of sources' texts the other modes read (`text_chunks`): no model, no embeddings, no
-  index built for it, no call that costs per search.
+  same index of sources' texts the other modes read (`text_chunks`) and the words kept beside each
+  page's HTML ([decision](a-pages-words-are-kept-beside-its-html-and-a-search-runs-within-limits.md)):
+  no model, no embeddings, no call that costs per search.
 - Rejected: semantic search as the default, which needs a model and an index of embeddings; and
   separate searches per screen, which make people know where something lives first.
 
@@ -38,8 +39,8 @@ which would cost money on every search. The maintainer chose one plain-word sear
 
 - Anything typed finds something across the product, and results arrive while typing.
 - It matches words, not meaning: a synonym the product never uses finds nothing.
-- Each search scans the pieces of the product's sources' texts and its pages; a very large
-  product would need its candidate query bounded more tightly.
+- Each search scans the pieces of the product's sources' texts and its pages' stored words, within
+  limits on how long it runs and how many run at once.
 
 ## Constrains
 

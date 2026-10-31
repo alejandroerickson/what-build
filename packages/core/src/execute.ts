@@ -2,6 +2,7 @@ import { SpanStatusCode, trace } from "@opentelemetry/api";
 import { sql } from "kysely";
 import type { z } from "zod";
 import { json, type ActorSnapshot, type Db } from "./db.ts";
+import { boundedSearch } from "./bounded-search.ts";
 import { checkConnectorScope, type ConnectorScope } from "./connector-scope.ts";
 import { AppError, conflict, invalid } from "./errors.ts";
 import { resolveAliases, wrongFieldHint } from "./field-aliases.ts";
@@ -23,6 +24,9 @@ export interface Env {
   db: Db;
   ports: Ports;
 }
+
+/** The pool's own words for a request that waited for a connection as long as it may (`createDb`), or for a new connection that took as long. */
+const POOL_WAIT_OVER = new Set(["timeout exceeded when trying to connect", "Connection terminated due to connection timeout"]);
 
 export function actorOf(p: Principal): ActorSnapshot {
   return { account_id: p.account_id, display_name: p.display_name, surface: p.surface, client: p.client };
@@ -174,7 +178,7 @@ export async function admitSend(env: Env, principal: Principal, scope: Scope, by
  * organization, validate the input strictly, run any slow `prepare` step outside a transaction,
  * then run the handler in one transaction that is scoped to the tenant (row-level security), counts
  * the day's use on every plan, and writes its activity event alongside the change. A call through a scoped MCP connector also stays
- * inside it.
+ * inside it. `signal`, where the door has one, says whoever asked has gone: a bounded operation then stops.
  */
 export async function execute(
   env: Env,
@@ -183,6 +187,7 @@ export async function execute(
   rawInput: unknown,
   ref: ScopeRef = {},
   connector: ConnectorScope | null = null,
+  signal?: AbortSignal,
 ): Promise<{ result: unknown; scope: Scope }> {
   // Every call is counted, however it ends (`usage.ts`), and is a span of the request's trace,
   // which names the operation, the door, the agent client's family and the outcome, and nobody.
@@ -191,7 +196,7 @@ export async function execute(
   const count = (outcome: string) => countCall(env, principal, { operation: op.name, feature: op.mcp.tool, outcome, example: example() });
   return tracer.startActiveSpan(op.name, { attributes: { "whatbuild.operation": op.name, ...(principal.surface ? { "whatbuild.door": principal.surface } : {}), ...(principal.surface === "mcp" ? { "whatbuild.client": clientFamily(principal) } : {}) } }, async (span) => {
     try {
-      const ran = await run(env, principal, op, rawInput, ref, connector, reached);
+      const ran = await run(env, principal, op, rawInput, ref, connector, reached, signal);
       count("ok");
       span.setAttributes({ "whatbuild.outcome": "ok", "whatbuild.example": example() });
       return ran;
@@ -215,6 +220,7 @@ async function run(
   ref: ScopeRef,
   connector: ConnectorScope | null,
   reached: { scope?: Scope },
+  signal: AbortSignal | undefined,
 ): Promise<{ result: unknown; scope: Scope }> {
   // A refusal names the operation as the caller calls it: an agent by its tool and action.
   const called = callName(op, principal.surface);
@@ -274,7 +280,15 @@ async function run(
   const prepared = op.prepare
     ? await op.prepare({ principal, scope, ports: env.ports, limits, now, read: (fn) => inTransaction(fn, "read") }, input as never)
     : undefined;
-  const result = await inTransaction((ctx) => op.handler(ctx, input as never, prepared), "call");
+  const handle = (ctx: OpContext) => op.handler(ctx, input as never, prepared);
+  const result = op.bounded
+    ? await boundedSearch({ db: env.db, gate: env.ports.searches }, signal, (begin) =>
+        inTransaction(async (ctx) => {
+          await begin(ctx.db);
+          return handle(ctx);
+        }, "call"),
+      )
+    : await inTransaction(handle, "call");
   if (enqueued) env.ports.notifyJobs?.();
   return { result, scope };
 }
@@ -334,5 +348,6 @@ export function toAppError(e: unknown, caller?: Pick<Principal, "surface" | "fee
   const pg = e as { code?: string; constraint?: string; message?: string };
   if (pg?.code === "23505") return conflict("conflict", "That conflicts with something that already exists. Read the current state and retry.", { constraint: pg.constraint });
   if (pg?.code === "40001" || pg?.code === "40P01") return conflict("concurrent_change", "Another change landed at the same moment. Retry.");
+  if (pg?.message && POOL_WAIT_OVER.has(pg.message)) return new AppError(503, "database_busy", "WhatBuild is too busy to answer this just now. Nothing was changed. Try again in a moment.", { retry_after_seconds: 5 });
   return new AppError(500, "internal", `WhatBuild hit an unexpected error. It has been logged; try again, and ${reportIt(caller)}.`);
 }

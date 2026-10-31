@@ -479,7 +479,7 @@ function errorResult(e: unknown, principal: Principal) {
   return { content: [{ type: "text" as const, text: `${err.status}: ${err.message}\n${JSON.stringify({ error: err.toJSON() })}` }], isError: true };
 }
 
-function buildServer(env: Env, principal: Principal, bound: ScopeRef | null) {
+function buildServer(env: Env, principal: Principal, bound: ScopeRef | null, signal: AbortSignal) {
   const server = new Server(
     { name: MCP_SERVER_NAME, version: TOOLS_VERSION, title: "WhatBuild" },
     {
@@ -583,7 +583,7 @@ function buildServer(env: Env, principal: Principal, bound: ScopeRef | null) {
         else if ((op.scope === "team" || op.scope === "tenant") && productArg !== undefined && rawInput && typeof rawInput === "object" && (rawInput as Record<string, unknown>)["tenant"] === undefined)
           await placeOfProduct(env, principal, op, rawInput as Record<string, unknown>, productArg as string);
         reached = true;
-        ran = await execute(env, principal, op, rawInput, ref, fence);
+        ran = await execute(env, principal, op, rawInput, ref, fence, signal);
       } catch (e) {
         if (e instanceof AppError && (e.code === "tenant_required" || e.code === "team_required")) {
           // The rest of the input is checked as it stands, and the place it lacks then says what to pass.
@@ -638,7 +638,7 @@ export function mcpRoutes(env: Env & { config: ServerConfig }) {
       return c.json({ error: { code: "method_not_allowed", status: 405, message: "This MCP endpoint is stateless; POST JSON-RPC requests." } }, 405, { Allow: "POST" });
     }
     const transport = new WebStandardStreamableHTTPServerTransport({ sessionIdGenerator: undefined, enableJsonResponse: true, maxRequestBodySize: MCP_BODY_MAX_BYTES });
-    const server = buildServer(env, principal, bound);
+    const server = buildServer(env, principal, bound, c.req.raw.signal);
     await server.connect(transport);
     try {
       return await transport.handleRequest(c.req.raw);

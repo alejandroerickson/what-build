@@ -608,6 +608,9 @@ export interface StoryVersionsTable {
   html: string;
   /** No longer written or read; kept so older versions keep their row as it was. */
   note: Def<string>;
+  /** The words of `html` and their search vector, which Postgres keeps with it. Never part of what a version reads as. */
+  search_text: ColumnType<string, never, never>;
+  tsv: ColumnType<string, never, never>;
   /** Set when the version shows one page of a mockup version instead of HTML of its own (html is then empty). */
   mockup: JsonNull<MockupPageRef>;
   previous_version_id: string | null;
@@ -679,6 +682,9 @@ export interface MockupPagesTable {
   html: string | null;
   /** A path in the version's prototype, with a query and a fragment if wanted; null for a page with HTML of its own. */
   entry: ColumnType<string | null, string | null | undefined, string | null>;
+  /** The words of `html` and their search vector, which Postgres keeps with it; null with it. Never part of what a page reads as. */
+  search_text: ColumnType<string | null, never, never>;
+  tsv: ColumnType<string | null, never, never>;
   /** A prototype image the Story's print view shows for an entry page. */
   poster: ColumnType<string | null, string | null | undefined, string | null>;
 }

@@ -1,6 +1,6 @@
 import { createHmac } from "node:crypto";
 import { readFileSync } from "node:fs";
-import { AppError, configurePlans, PERMISSIONS_POLICY, REST_BODY_MAX_BYTES, TOOLS_VERSION, type BlobStore, type Db, type Env, type Mailer, type Ports } from "@whatbuild/core";
+import { AppError, configurePlans, PERMISSIONS_POLICY, REST_BODY_MAX_BYTES, SearchGate, TOOLS_VERSION, type BlobStore, type Db, type Env, type Mailer, type Ports } from "@whatbuild/core";
 import { SpanKind, SpanStatusCode, type Span } from "@opentelemetry/api";
 import { Hono } from "hono";
 import { bodyLimit } from "hono/body-limit";
@@ -144,6 +144,7 @@ export function createPorts(config: ServerConfig, blobs: BlobStore, mailer: Mail
     mailer,
     fetcher: new SafeUrlFetcher(),
     notifyJobs,
+    searches: new SearchGate(),
     config: {
       publicBaseUrl: config.publicBaseUrl,
       serverVersion: SERVER_VERSION,

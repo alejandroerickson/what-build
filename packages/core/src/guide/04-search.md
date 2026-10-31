@@ -6,8 +6,10 @@ The three search modes, what each reads and matches, the shape of a hit, and wha
 
 `search` reads what sources say: each source's title, tags, summary, derived text, notes and
 comments, never its attachments; and assumptions' statements and bodies. `plain` mode also reads
-outcomes, mockups, Story pages and the product concept. Search is lexical: no mode matches meaning,
-and **an empty result does not show that the evidence is absent**.
+outcomes, mockups, Story pages and the product concept. Of a mockup page or a Story page it reads
+the words a reader sees, an SVG's text among them, never its scripts, styles or markup, up to the
+first 200,000 characters of words a page holds. Search is lexical: no mode matches meaning, and
+**an empty result does not show that the evidence is absent**.
 
 ## Modes
 
@@ -33,6 +35,12 @@ Exact and ranked search take filters; `plain` finds where something is across th
   derived text yet (`sources_read(action="list")` gives each source's `derived_status`).
 - `search_scope` says whether sources, assumptions or both were searched. `scope`, as in every
   answer, says where the call ran.
+
+## When a search does not finish
+
+A search has 5 seconds, then `503 search_timed_out`; when the server is running as many as it can, it
+may answer `503 search_busy`. Neither says anything about the words, and nothing was changed: try
+more specific words, or try again in a moment.
 
 ## Hits
 

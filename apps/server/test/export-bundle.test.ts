@@ -124,6 +124,19 @@ describe("the bundle", () => {
     expect(JSON.stringify(assumptions)).not.toMatch(/'crews':|'texts':/);
   });
 
+  it("holds a page's versions without the words and search vector the database keeps beside its HTML", () => {
+    const story = JSON.parse(strFromU8(files["story/pages/overview/v1.json"]!));
+    expect(story.title).toBe("Overview");
+    const versions = Object.keys(files).filter((f) => /^mockups\/[^/]+\/v\d+\/version\.json$/.test(f));
+    expect(versions.length).toBeGreaterThan(0);
+    const pages = versions.flatMap((f) => JSON.parse(strFromU8(files[f]!)).pages as Record<string, unknown>[]);
+    expect(pages.length).toBeGreaterThan(0);
+    for (const held of [story, ...pages]) {
+      expect(held).not.toHaveProperty("search_text");
+      expect(held).not.toHaveProperty("tsv");
+    }
+  });
+
   it("holds the earlier texts of the product concept, an outcome, a comment and an assumption", () => {
     const revisions = JSON.parse(strFromU8(files["revisions.json"]!)) as { object_type: string; content: Record<string, string> }[];
     expect(revisions.map((r) => r.object_type).sort()).toEqual(["annotation", "assumption", "outcome", "product"]);
