@@ -18,7 +18,7 @@ import { authRoutes } from "./auth/routes.ts";
 import type { ServerConfig } from "./config.ts";
 import { mcpRoutes } from "./mcp.ts";
 import { refuseNullCharacters } from "./null-characters.ts";
-import { threadParser } from "./parse-thread.ts";
+import { processParser } from "./parse-process.ts";
 import { prototypeRoutes } from "./prototype.ts";
 import { publicRoutes, staticRoutes } from "./public-routes.ts";
 import { OPERATION_HEADER, restRoutes } from "./rest.ts";
@@ -140,7 +140,7 @@ export function createPorts(config: ServerConfig, blobs: BlobStore, mailer: Mail
   return {
     blobs,
     grants: new HmacGrantSigner(config.grantKey),
-    parser: threadParser({ memoryMb: config.parseMemoryMb, timeoutSeconds: config.parseTimeoutSeconds }),
+    parser: processParser({ memoryMb: config.parseMemoryMb, timeoutSeconds: config.parseTimeoutSeconds }),
     mailer,
     fetcher: new SafeUrlFetcher(),
     notifyJobs,

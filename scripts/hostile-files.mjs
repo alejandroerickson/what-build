@@ -1,14 +1,15 @@
 #!/usr/bin/env node
 // Hostile upload files, for rehearsing a release on the dev deployment: upload them through the
-// app and watch that each ends in its status while the service keeps answering and its memory stays
-// clear of the instance's limit (okf/operations/dev-deployment.md, "Rehearsing a release"). Each is
+// app and watch that each ends in its status while the service keeps answering and each parse's peak,
+// with what the server holds, stays clear of the instance's limit (okf/operations/dev-deployment.md,
+// "Rehearsing a release"). Each is
 // made here from nothing; none is committed. They are the cases the parsers' and the server's tests
 // make (packages/parsers/test/hostile.test.ts, apps/server/test/hostile-uploads.test.ts), at full size.
 //
 //   node scripts/hostile-files.mjs <folder>
 //
 // Writes the files into <folder>, about 47 MB in all, and prints, for each, what it is and what
-// WhatBuild should record for it at the default limits (WHATBUILD_PARSE_MEMORY_MB=384,
+// WhatBuild should record for it at the default limits (WHATBUILD_PARSE_MEMORY_MB=288,
 // WHATBUILD_PARSE_TIMEOUT_SECONDS=120, WHATBUILD_PARSE_CAP_BYTES of 25 MiB). With other limits a
 // file may end otherwise: lower memory turns more of them into failures for memory.
 
@@ -19,12 +20,9 @@ import { constants, deflateRawSync, deflateSync } from "node:zlib";
 
 const MiB = 1024 * 1024;
 const MAX_PDF_PAGES = 2000;
-const MAX_SEGMENTS = 200_000;
 const PARSE_CAP_BYTES = 25 * MiB;
-const MEMORY_MB = 384;
 
-const TOO_MANY_PARAGRAPHS = `too large: "the file makes more than ${MAX_SEGMENTS} paragraphs; files that make more are stored but not read"`;
-const NEEDED_MEMORY = `failed: "parsing it needed more than the ${MEMORY_MB} MB of memory this server gives one file, so it was stopped; the file is stored but not parsed"`;
+const AT_A_LIMIT = "too large or failed, with its reason";
 
 /** `unit` repeated to `bytes` bytes, whole units only. */
 const fill = (unit, bytes) => Buffer.from(unit.repeat(Math.floor(bytes / Buffer.byteLength(unit))));
@@ -89,8 +87,7 @@ export const HOSTILE_FILES = [
   {
     name: "inflating.pdf",
     what: "a PDF of about 130 KB whose one content stream inflates to 64 MB of text to draw",
-    // Measured: about 4.5 seconds, the process about 600 MB larger at the parse's peak.
-    expect: "ready, after some seconds, the parse having used nearly all the memory it may: the file to watch the instance's memory for",
+    expect: `ready, after some seconds, or ${AT_A_LIMIT}`,
     make: () => inflatingPdf(64),
   },
   {
@@ -108,20 +105,20 @@ export const HOSTILE_FILES = [
   {
     name: "dense-5mb.txt",
     what: "5 MB of one-letter paragraphs, at the public sandbox's file limit: 1.7 million would-be paragraphs",
-    expect: TOO_MANY_PARAGRAPHS,
+    expect: AT_A_LIMIT,
     make: () => fill("a\n\n", 5 * MiB),
   },
   {
     name: "dense-24mb.txt",
     what: "24 MB of one-letter paragraphs, under the 25 MB relay and parse limits: 8.4 million would-be paragraphs",
     // Splitting it into paragraphs needs more memory than counting the first 200,000 of them.
-    expect: NEEDED_MEMORY,
+    expect: AT_A_LIMIT,
     make: () => fill("a\n\n", 24 * MiB),
   },
   {
     name: "dense.html",
     what: "5 MB of unclosed list items: a million elements to build",
-    expect: NEEDED_MEMORY,
+    expect: AT_A_LIMIT,
     make: () => fill("<li>a", 5 * MiB),
   },
   {
@@ -153,7 +150,7 @@ function main() {
     writeFileSync(join(out, f.name), bytes);
     console.log(`${f.name} (${size(bytes.length)})\n  ${f.what}\n  → ${f.expect}\n`);
   }
-  console.log("Upload each as the only attachment of a source of its own. While they parse, the service should go on answering; afterwards, read the revision's memory (okf/operations/dev-deployment.md).");
+  console.log("Upload each as the only attachment of a source of its own. While they parse, the service should go on answering; afterwards, read each parse's line in the log (okf/operations/dev-deployment.md).");
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) main();

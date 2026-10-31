@@ -3,7 +3,7 @@ type: System Concept
 title: WhatBuild self-hosts on Azure Container Apps with Azure Database for PostgreSQL and a mounted file share, set up by an agent with the Azure CLI.
 description: What a self-hosted deployment on Azure is made of, how each resource is configured, the commands that create it, sign-in with a Microsoft work account, the variations between organizations, deploying a new version, cost and removal.
 tags: [operations, deployment, azure, self-hosting, container-apps, entra]
-generated: {by: agent:claude, at: 2026-10-30}
+generated: {by: agent:claude, at: 2026-10-31}
 status: draft
 ---
 
@@ -69,12 +69,13 @@ filesystem adapter on a mounted Azure Files share needs no change to the image a
 image stateless. It costs two things: Container Apps mounts a share only with the storage
 account's key, never an identity, and every upload passes through the service.
 
-**Parsing has twice the room.** The worker parses each file in a thread of its own, held to a
+**Parsing has twice the room.** The worker parses each file in a process of its own, held to a
 heap of `WHATBUILD_PARSE_MEMORY_MB`, half as much again for buffers, and
 `WHATBUILD_PARSE_TIMEOUT_SECONDS` (120 seconds); a file that needs more is recorded as failed while
 the service keeps answering ([§5.1](../spec/05-derived-layer.md#51-reading-an-attachment)). The image's
-default heap, 384 MB, suits 1 GiB; the definition gives this app's 2 GiB a heap of 768 MB. Keep it
-near a third of the container's memory if that changes.
+default heap, 288 MB, suits 1 GiB; the definition gives this app's 2 GiB a heap of 768 MB. The
+process's peak counts beside the server in the container's memory, so check a change with
+[Checking parsing's memory](#checking-parsings-memory).
 
 ## Two directories, not two subscriptions
 
@@ -747,6 +748,41 @@ Changing a setting is `az containerapp update --set-env-vars NAME=value` (the sa
 vault. Leave `NODE_ENV` to the image, which sets `production`: only `development` or `test` turns
 on development behaviour (anyone signs in as anyone), and a server without it is production
 ([local development](local-development.md#development-and-production)).
+
+## Checking parsing's memory
+
+For a deployment that changes `WHATBUILD_PARSE_MEMORY_MB` or the container's memory, or takes a
+release that changes parsing. Do it on a replica you can afford to lose, outside working hours, as
+[the dev deployment's rehearsal](dev-deployment.md#rehearsing-a-release) does on Cloud Run: make the
+hostile files, upload each as the one attachment of a source of its own, and read:
+
+```bash
+H=$(mktemp -d); node scripts/hostile-files.mjs "$H"
+az containerapp logs show --subscription "$AZ_SUBSCRIPTION" -g "$AZ_RG" -n "$AZ_APP" --tail 300 | grep -E 'parse: the process|listening on|put back in the queue'
+az containerapp logs show --subscription "$AZ_SUBSCRIPTION" -g "$AZ_RG" -n "$AZ_APP" --type system --tail 100 | grep -iE 'oom|killed|restart'
+az containerapp replica list --subscription "$AZ_SUBSCRIPTION" -g "$AZ_RG" -n "$AZ_APP" \
+  --query '[].{name:name, restarts:properties.containers[0].restartCount, created:properties.createdTime}' -o table
+```
+
+- **The peak.** Each `parse: the process parsing a file …` line gives its process's peak and what the
+  server holds. Their sum, with the file's size, should stay at least a sixth under the container's
+  memory.
+- **No process left behind.** The same lines end with how many other processes run beside the
+  server. It should stay what it was, normally none, from one parse to the next.
+- **What ends first.** Azure Container Apps runs on Kubernetes, which may end a whole container when it
+  runs out of memory, so do not assume the parse's process goes alone. To find out, raise the limit
+  by steps, uploading the files again at each, until something dies:
+
+  ```bash
+  az containerapp update --subscription "$AZ_SUBSCRIPTION" -g "$AZ_RG" -n "$AZ_APP" --set-env-vars WHATBUILD_PARSE_MEMORY_MB=$MB
+  ```
+
+  `parse: … ended by SIGKILL` with the replica's restart count unchanged means the parse's process
+  died alone. A new `listening on`, a higher restart count or an `OOMKilled` in the system log means
+  the whole container ended. At the first such end, stop and put the value back: its job's lock holds
+  for 10 minutes and it is then tried again, which at a raised limit only repeats it. Keep requests
+  going meanwhile, as the Cloud Run rehearsal's traffic loop does, and record their p95, how many
+  failed, and whether `put back in the queue` came just before the end. Put the value back afterwards.
 
 ## Variations
 

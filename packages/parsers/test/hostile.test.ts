@@ -11,9 +11,9 @@ import { codePointLength, isSpaceUnit, nonSpaceCodePoints } from "../src/text.ts
 import { makeBlankPdf, makeDocx, makePdf, makeXlsx, utf8 } from "./fixtures.ts";
 
 // Hostile files: each must end in a status (never a crash or a hang) within bounded time and
-// memory. The server parses each file in a worker thread held to a memory and a time limit, so
+// memory. The server parses each file in a process of its own held to a memory and a time limit, so
 // even a parse that ran away would end as a failed derivation (apps/server/test/hostile-uploads.test.ts
-// shows those limits at work); these tests hold the parsers to bounds of their own, so what stops a
+// and parse-process.test.ts show those limits at work); these tests hold the parsers to bounds of their own, so what stops a
 // hostile file is a reason, not a limit. Every hostile file is made here; none is committed.
 
 const MiB = 1024 * 1024;

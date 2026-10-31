@@ -142,13 +142,13 @@ text with the scope echoed.
 **From upload to text.** Request a signed upload grant → bytes go to object storage →
 the upload relay adds the attachment as they arrive (`complete_upload` does, after a PUT straight to
 the bucket) → a job to read it is queued → the worker reads it,
-in a thread of its own held to a memory and a time limit, into an immutable reading
+in a process of its own held to a memory and a time limit, into an immutable reading
 (`text.md`, `manifest.json`) → when the source has no text, or its text is still this
 attachment's, the reading becomes the source's derived text, and its pieces are indexed for search
 in the same transaction ([derived layer](../spec/05-derived-layer.md),
 [search](../spec/08-search.md),
 [decision](../decisions/a-sources-words-are-one-derived-text-and-attachments-are-never-searched.md),
-[decision](../decisions/each-file-is-parsed-in-a-thread-of-its-own-with-memory-and-time-limits.md)).
+[decision](../decisions/each-file-is-parsed-in-a-process-of-its-own-so-a-parse-that-ends-in-a-fatal-error-ends-only-itself.md)).
 Every write of a source's title, tags, summary, notes, text or comments indexes it again the same
 way.
 
