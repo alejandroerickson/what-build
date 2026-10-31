@@ -3,7 +3,7 @@ type: Specification
 title: The web app is a person's way to run the same operations an agent runs, one screen at a time.
 description: Principles, the shell and product switching, the overview, routes, first run, and the behavior of every screen (Idea, Evidence, Exploration, Story, Activity, archive and delete, organization and account screens).
 tags: [spec, web, ui, routes, shell]
-generated: {by: agent:claude, at: 2026-10-27}
+generated: {by: agent:claude, at: 2026-10-30}
 status: stable
 ---
 
@@ -117,7 +117,10 @@ the browser's back button and "open in new tab" both work.
   button at the field's end (⌘Enter / Ctrl+Enter) opens the Search screen with the words, and
   empties the palette. Closing it (Escape or a click outside) keeps the words for next time; another
   product starts empty. A line under the field says how the words were read: a corrected word
-  ("Showing results for quote."), a kind brought first, or that nothing holds every word.
+  ("Showing results for quote."), a kind brought first, or that nothing holds every word. A search
+  typed past or left behind is cancelled, on the server too ([§8.8](08-search.md)), and one that
+  fails is not asked again by itself: the palette says what the server said, the Search screen has
+  "Search didn't finish" with its message and a button to try again, and the next word typed asks anew.
   The **Search screen** (`/search?q`) has the same field, searching as you type, and lists the
   results under the product's four areas, each a sheet in the panel's order: **Idea** (the product
   concept, then outcomes), **Evidence** (sources, each with the best three places it says the

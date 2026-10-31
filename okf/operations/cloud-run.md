@@ -3,7 +3,7 @@ type: System Concept
 title: WhatBuild runs as one stateless Cloud Run service with Postgres and a Cloud Storage bucket.
 description: What a deployment on Cloud Run is made of, how deploy/cloud-run/setup.sh creates it, sign-in, deploying and restore points before migrating, its alerts and traces, cost, names, and useful commands; backups and the dev deployment have guides of their own.
 tags: [operations, deployment, cloud-run, gcp]
-generated: {by: agent:claude, at: 2026-10-28}
+generated: {by: agent:claude, at: 2026-10-30}
 status: stable
 ---
 
@@ -463,8 +463,24 @@ figures arrive hours late. An unexpected error behind a 500 mails twice, once fr
 service: an uptime check every few minutes would keep an instance alive, and billed, all month. So
 an outage that keeps requests from reaching Cloud Run (the domain, DNS, Cloudflare) mails nothing.
 
+**Pages stay on the loading screen while `/health` answers.** The health check reads no database, so
+it cannot see every connection being held. The server says so itself: `database_pool_saturated` is
+an ERROR line, so `whatbuild: errors in the log` mails it, and `503 database_busy` follows after 15
+seconds. Searches cannot be the cause on their own, since they have few slots and a time limit
+([§8.8](../spec/08-search.md)); their lines (`search_busy`, `search_stopped`, `search_slow`) say how
+they are doing. To see what holds the connections, as the service's database role:
+
+```sql
+select state, wait_event_type, now() - query_start as running, left(query, 80) as query
+from pg_stat_activity where datname = current_database() and state <> 'idle' order by running desc;
+```
+
+`select pg_cancel_backend(<pid>)` stops a statement and rolls its transaction back, changing nothing else.
+
 ```bash
 PROJECT_ID=$P node deploy/cloud-run/alerts.mjs     # create or update; ALERT_EMAIL=… to mail elsewhere, DRY_RUN=1 to print them
+gcloud logging read 'jsonPayload.event=("database_pool_saturated" OR "search_busy" OR "search_stopped" OR "search_slow")' \
+  --project $P --freshness 1d --limit 20      # the pool's and searches' lines
 gcloud logging read 'resource.type="cloud_run_revision" AND resource.labels.service_name="whatbuild" AND severity>=ERROR AND NOT log_id("run.googleapis.com/requests")' \
   --project $P --freshness 1d --limit 20      # the error lines
 gcloud logging read 'jsonPayload.request_id="<request id>"' --project $P --freshness 7d   # every line of one request

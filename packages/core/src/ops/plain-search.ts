@@ -7,8 +7,9 @@ import type { OpContext } from "../registry.ts";
 /**
  * Plain search (`search` with `mode: "plain"`): one search over everything in a product, read the way a person means it (see
  * plain-query.ts), ranked, and grouped so a source shows up once with the best places it says
- * the words: its derived text, summary, notes or comments. Lexical and deterministic: no model, no
- * embeddings, no index beyond the ones `search` already uses.
+ * the words: its derived text, summary, notes or comments. Lexical and deterministic: no model and
+ * no embeddings. It reads stored text and search vectors, a page's words among them
+ * (`html_search_text` in the migrations), and never a page's HTML.
  */
 
 export const FIND_KINDS = ["idea", "outcome", "source", "assumption", "mockup", "story"] as const satisfies readonly FindKind[];
@@ -64,13 +65,6 @@ export interface FindResult {
    * would read past COUNT_PIECES_MAX pieces, rather than given short.
    */
   match_count?: number;
-}
-
-/** Text from stored HTML: scripts, styles and tags dropped, entities blanked. */
-function htmlText(col: RawBuilder<unknown>): RawBuilder<string> {
-  const text = sql`regexp_replace(regexp_replace(regexp_replace(${col}, '<(script|style)[^>]*?>.*?</\\1>', ' ', 'gi'), '<[^>]+>', ' ', 'g'), '&[a-zA-Z0-9#]+;', ' ', 'g')`;
-  // A tag between a word and its punctuation leaves a space before the comma; close it.
-  return sql<string>`regexp_replace(${text}, '\\s+([,.;:!?)])', '\\1', 'g')`;
 }
 
 /**
@@ -284,21 +278,19 @@ async function smallKinds(ctx: OpContext, p: ParsedFind, i: Input, q: string): P
       : null,
     want("mockup")
       ? sql<{ mockup_id: string; title: string; summary: string; brief: string; page_id: string | null; page_title: string | null; notes: string | null; text: string | null }>`
-        select * from (
-          select m.mockup_id, m.title, m.summary, v.brief, pg.page_id, pg.title as page_title, pg.notes, ${htmlText(sql`pg.html`)} as text, pg.position
-          from mockups m join mockup_versions v on v.version_id = m.current_version_id
-            left join mockup_pages pg on pg.version_id = v.version_id
-          where m.product_id = ${pid} and m.archived_at is null) x
-        where to_tsvector('simple', x.title || ' ' || x.summary || ' ' || x.brief || ' ' || coalesce(x.page_title, '') || ' ' || coalesce(x.notes, '') || ' ' || coalesce(x.text, '')) @@ ${tsq}
-        order by x.position`.execute(ctx.db)
+        select m.mockup_id, m.title, m.summary, v.brief, pg.page_id, pg.title as page_title, pg.notes, pg.search_text as text
+        from mockups m join mockup_versions v on v.version_id = m.current_version_id
+          left join mockup_pages pg on pg.version_id = v.version_id
+        where m.product_id = ${pid} and m.archived_at is null
+          and (pg.tsv @@ ${tsq} or to_tsvector('simple', m.title || ' ' || m.summary || ' ' || v.brief || ' ' || coalesce(pg.title, '') || ' ' || coalesce(pg.notes, '')) @@ ${tsq})
+        order by pg.position`.execute(ctx.db)
       : null,
     want("story")
       ? sql<{ page_id: string; title: string; summary: string; text: string }>`
-        select * from (
-          select sp.page_id, sp.title, sp.summary, ${htmlText(sql`v.html`)} as text
-          from story_pages sp join story_versions v on v.version_id = sp.current_version_id
-          where sp.product_id = ${pid} and sp.archived_at is null) x
-        where to_tsvector('simple', x.title || ' ' || x.summary || ' ' || x.text) @@ ${tsq}`.execute(ctx.db)
+        select sp.page_id, sp.title, sp.summary, v.search_text as text
+        from story_pages sp join story_versions v on v.version_id = sp.current_version_id
+        where sp.product_id = ${pid} and sp.archived_at is null
+          and (v.tsv @@ ${tsq} or to_tsvector('simple', sp.title || ' ' || sp.summary) @@ ${tsq})`.execute(ctx.db)
       : null,
     want("idea") ? ctx.db.selectFrom("products").select(["concept"]).where("product_id", "=", pid).executeTakeFirst() : null,
   ]);

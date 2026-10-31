@@ -3,7 +3,7 @@ type: Process
 title: What a deployment must do when it takes a release
 description: The changes a release asks of the people who run a deployment (settings, app registrations, behaviour they will notice), kept per release, with the unreleased ones on top until the next release carries them into its notes.
 tags: [operations, releases, upgrading, self-hosting, configuration]
-generated: {by: agent:claude, at: 2026-10-28}
+generated: {by: agent:claude, at: 2026-10-30}
 status: stable
 ---
 
@@ -23,6 +23,15 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
 
 ## Unreleased
 
+- **Search keeps each page's words beside its HTML, and stops a search that takes too long**
+  (`tools_version` 0.47.0). A deployment does nothing beyond its usual migration. The migration,
+  `0040_html_pages_keep_their_words.sql`, rewrites `mockup_pages` and `story_versions`, and nothing
+  can read or write them until it ends: about half a second for 20 MB of HTML on a developer's
+  machine, so seconds to perhaps a minute on a small database. An image from before it still runs on
+  the migrated database. People will notice that words between two script or style blocks, which
+  search used to miss, are now found. Where a search or a page would have hung, it now answers:
+  `503 search_timed_out`, `search_busy` or `database_busy`. A connected client sees the new
+  description only in a new session ([§8.8](../spec/08-search.md)).
 - **Behind Cloudflare, the Worker can take a deployment down for maintenance.** It asks nothing of
   a deployment. Deployed with one more setting, `--var MAINTENANCE:<day>`, the Worker answers every
   address on both domains `503` with a page saying WhatBuild is down for maintenance and back by

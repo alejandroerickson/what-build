@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import { useLocation, useNavigate } from "react-router";
 import { track } from "../lib/analytics.ts";
+import { ApiError } from "../lib/api.ts";
 import { nestQuotes } from "../lib/format.ts";
 import { findWords, hitHref, hitMeta, kindOf, leadTo, Marked, matchedCount, resultHref, resultMeta, useDebounced, useFind, useRecentSearches, type FindResponse, type Marks } from "../lib/find.tsx";
 import type { Product } from "../lib/session.tsx";
@@ -209,6 +210,7 @@ function Palette({ app, base, product, text, setText, via, onClose }: { app: str
           </button>
         </div>
       ) : null}
+      {typed && res.isError && !searching ? <p className="find-pal-empty">{res.error instanceof ApiError ? res.error.message : "Search didn’t finish. Try again."}</p> : null}
       {typed && d && !d.results.length ? (
         <p className="find-pal-empty">
           Nothing in {product.name} matches “{nestQuotes(text.trim())}”. Try another word.

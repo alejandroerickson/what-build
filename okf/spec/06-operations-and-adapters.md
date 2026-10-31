@@ -3,7 +3,7 @@ type: Specification
 title: Every capability is one registered operation, reached identically over REST and MCP.
 description: The operation registry, the error model and bounds, the full catalogue of 118 operations with their REST routes and MCP tools, authorization and agent connection levels, upload flows, the guide and the Connect page.
 tags: [spec, operations, rest, mcp, registry, uploads, guide]
-generated: {by: agent:claude, at: 2026-10-27}
+generated: {by: agent:claude, at: 2026-10-30}
 status: stable
 ---
 
@@ -115,6 +115,7 @@ tenant.
 | 413 | Body or file beyond a limit | `too_large` |
 | 422 | Invalid input | `invalid_input`, `edit_not_found`, `edit_ambiguous`, `unknown_field`, `unknown_action`, `unknown_tool`, `wrong_tool`, `product_required`, `too_long`, `cross_product_reference`, `outcome_cites_a_record`, `invalid_query`, `invalid_cursor`, `invalid_filter`, `invalid_html`, `invalid_patch`, `invalid_upload`, `fetch_failed`, `confirmation_required`, `name_mismatch`, `typed_email`, `confidence_requires_human`, `may_start_one`, `unknown_plan` |
 | 429 | Rate limited | `rate_limited` |
+| 503 | Too busy to answer, or a search stopped ([§8.8](08-search.md)), with nothing changed | `search_timed_out`, `search_busy`, `database_busy` |
 
 - **`403` names the role.** A caller with a role on the product but too low for the action gets
   `403` with `{ role, needed }` in `details` ("You are a viewer on product …; outcomes.create

@@ -165,6 +165,11 @@ export interface OperationDef<I extends z.ZodType = z.ZodType, O = unknown, P = 
    */
   needsTenantAllowance?: boolean;
   /**
+   * A search: it runs in one of the server's few search slots, under a time limit, and stops if whoever
+   * asked goes away (`bounded-search.ts`), so searches cannot take every connection from other work.
+   */
+  bounded?: boolean;
+  /**
    * Slow work that must hold no database connection, such as a download. It runs once the call is
    * authorized and its input valid, outside any transaction, and what it returns reaches the
    * handler as `prepared`.

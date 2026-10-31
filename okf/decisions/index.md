@@ -3,7 +3,7 @@ type: Index
 title: Decisions
 description: Architectural decision records, each with its context, the choice, and what it constrains.
 tags: [index, decisions, adr]
-generated: {by: agent:claude, at: 2026-10-27}
+generated: {by: agent:claude, at: 2026-10-30}
 status: stable
 ---
 
@@ -16,7 +16,8 @@ name what replaced it, and date the change. Smaller decisions are marked
 
 - [WhatBuild contains no AI; agents bring the intelligence over MCP](no-ai-in-the-product.md)
 - [Postgres is the only database: rows, search and the job queue](postgres-is-the-only-database.md)
-- [One search covers the whole product and reads plain words, with no model and no index of its own](one-search-reads-plain-words-across-the-whole-product.md)
+- [One search covers the whole product and reads plain words, with no model](one-search-reads-plain-words-across-the-whole-product.md)
+- [A page's words are kept beside its HTML, and a search runs within limits](a-pages-words-are-kept-beside-its-html-and-a-search-runs-within-limits.md)
 - [One stateless container image serves everything and runs the worker](one-stateless-image.md)
 - [Each file is parsed in a worker thread of its own, held to a memory and a time limit, so a file can fail but never take the server down](each-file-is-parsed-in-a-thread-of-its-own-with-memory-and-time-limits.md)
 - [Self-hosting on Azure is done by an agent with the Azure CLI, from instructions in the repository, and shares nothing with the Cloud Run deployment](self-hosting-on-azure-is-agent-led-and-shares-nothing-with-cloud-run.md)

@@ -3,7 +3,7 @@ type: Specification
 title: Every object in a product, with its fields, limits and invariants, as the REST and MCP wire sees it.
 description: The common envelope (ids, etags, attribution, revisions), outcomes, sources and their tags, attachments, comments, summaries and notes, evidence links, the assumption register, views, activity, Story, mockups, feedback, the product bundle, and the storage layout.
 tags: [spec, data-model, schema, revisions, story, mockups, export]
-generated: {by: agent:claude, at: 2026-10-25}
+generated: {by: agent:claude, at: 2026-10-30}
 status: stable
 ---
 
@@ -485,7 +485,8 @@ server wraps in a document carrying the product's Story style), `html` (a whole 
 neither (a generated title page). A
 version is immutable: `version` (1, 2, 3…), `title`, `summary` (describes the page), `html`,
 `published_at`, `published_by`, and `html_sha256` (computed on read, so identical HTML can be
-recognised without reading it). Readers see the latest version; any version
+recognised without reading it). The database keeps a version's words beside its HTML for search
+([§8.3](08-search.md)), in no answer and no export. Readers see the latest version; any version
 can be read by number. Limit: 50 pages per product (`409 quota_exceeded`). Agents write pages; agents
 and people arrange, archive and restore them, and admins delete them
 ([decision](../decisions/agents-write-the-story-people-arrange-it.md)). `story.list_pages` leaves
@@ -732,7 +733,9 @@ side by side), each with design notes, and a brief that says what the canvas exp
 the whole canvas: `version` (1, 2, 3…), `title`, `summary`, `brief` (Markdown, ≤ 50,000: what the
 canvas explores, for whom, the questions it should answer, what each page tries), `columns` (1–12
 pages side by side before the canvas wraps, or null for one row), the `pages` in order, the
-`files` it carries, its `prototype` if it carries one, `published_at` and `published_by`. A
+`files` it carries, its `prototype` if it carries one, `published_at` and `published_by`. The
+database keeps each page's words beside its HTML for search ([§8.3](08-search.md)), in no answer and
+no export. A
 page:
 `page_id` (a slug, `[a-z0-9][a-z0-9-]*`, ≤ 80 chars), `title` (1–200), `notes` (Markdown,
 ≤ 10,000, the page's design notes), `width` (240–2,560 CSS pixels, default 1,280; 390 for a

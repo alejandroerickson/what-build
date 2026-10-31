@@ -3,7 +3,7 @@ type: Specification
 title: WhatBuild is one TypeScript application image over Postgres and an object store, and the same code runs on a laptop with only Node.
 description: The requirements behind the stack, the stack itself, the deployment shape, ports and adapters, the operation protocol, the local development contract, cross-cutting rules, and the repository layout.
 tags: [spec, architecture, stack, development, deployment]
-generated: {by: agent:claude, at: 2026-10-28}
+generated: {by: agent:claude, at: 2026-10-30}
 status: stable
 ---
 
@@ -363,8 +363,9 @@ deployment is involved
   a door, an agent client's family, an outcome or error code, a job's kind, a statement's verb and
   first table, an error's type, never a statement's text or an error's message. Google's endpoint
   is reached as the service's identity. How the service is used is counted per call in the database,
-  not in the logs (`packages/core/src/usage.ts`). The Cloud Run deployment's alerts watch the
-  platform's own metrics and log ([Cloud Run](../operations/cloud-run.md#alerts)).
+  not in the logs (`packages/core/src/usage.ts`). A search's limits and a pool with requests waiting
+  on it are told in lines of numbers alone ([§8.8](08-search.md)). The Cloud Run deployment's alerts
+  watch the platform's own metrics and log ([Cloud Run](../operations/cloud-run.md#alerts)).
   ◆ Decision: alerts on Cloud Run's own signals, and traces in a project that runs nothing
   ([decision](../decisions/alerts-watch-the-platform-and-traces-go-to-a-project-of-their-own.md)).
   ◆ Decision: operational telemetry about the *service* in the logs; usage counted on the server

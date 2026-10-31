@@ -3,7 +3,7 @@ type: System Concept
 title: WhatBuild self-hosts on Azure Container Apps with Azure Database for PostgreSQL and a mounted file share, set up by an agent with the Azure CLI.
 description: What a self-hosted deployment on Azure is made of, how each resource is configured, the commands that create it, sign-in with a Microsoft work account, the variations between organizations, deploying a new version, cost and removal.
 tags: [operations, deployment, azure, self-hosting, container-apps, entra]
-generated: {by: agent:claude, at: 2026-10-25}
+generated: {by: agent:claude, at: 2026-10-30}
 status: draft
 ---
 
@@ -385,6 +385,12 @@ then listed by `az storage file list --account-name "$AZ_STORAGE" --share-name "
 start-up error naming `EACCES` under `/data/blobs` means the share is mounted for another user:
 add `mountOptions: "uid=1000,gid=1000,dir_mode=0770,file_mode=0660"` to the volume in the
 definition (the image runs as `node`, user 1000) and apply it with `az containerapp update --yaml`.
+
+If pages stay on the loading screen while `/health` answers, the app's log says whether its database
+connections are all held (`database_pool_saturated`) and how searches are doing (`search_busy`,
+`search_stopped`, `search_slow`): `az containerapp logs show … --tail 200 | grep -E 'database_pool|search_'`.
+[Search's limits](../spec/08-search.md) stop a slow search by themselves, and the statements in
+Cloud Run's guide ([Alerts](cloud-run.md#alerts)) show what holds the connections and stop one.
 
 ## Sign-in
 

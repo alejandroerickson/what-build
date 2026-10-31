@@ -96,13 +96,18 @@ export function useDebounced<T>(value: T, ms: number): T {
   return v;
 }
 
-/** Find as you type: the last answer stays on screen while the next one loads. */
+/**
+ * Find as you type: the last answer stays on screen while the next one loads. A search typed past
+ * is cancelled, on the server too, and one that fails is not asked again by itself: the next word
+ * typed asks anew.
+ */
 export function useFind(base: string, query: string, opts: { kind?: string; recordId?: string; strict?: boolean } = {}) {
   const q = query.trim();
   return useQuery({
     queryKey: ["find", base, q, opts.kind ?? "", opts.recordId ?? "", Boolean(opts.strict)],
-    queryFn: () => api<FindResponse>("GET", `${base}/search${qs({ mode: "plain", query: q, kind: opts.kind, record_id: opts.recordId, strict: opts.strict ? "true" : "" })}`),
+    queryFn: ({ signal }) => api<FindResponse>("GET", `${base}/search${qs({ mode: "plain", query: q, kind: opts.kind, record_id: opts.recordId, strict: opts.strict ? "true" : "" })}`, undefined, { signal }),
     enabled: q.length > 0,
+    retry: false,
     placeholderData: (prev) => (q ? prev : undefined),
     staleTime: 30_000,
   });
