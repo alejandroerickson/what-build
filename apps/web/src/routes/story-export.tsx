@@ -1,25 +1,24 @@
 import { useMemo, useState, type CSSProperties } from "react";
 import { useProduct } from "../lib/session.tsx";
 import { Button, ChoiceRow, Dialog } from "../ui/index.tsx";
-import { flatten, MAX_PAGES, type Arrangement, type PageSummary, type StoryNode } from "./story-model.ts";
+import { flatten, MAX_PAGES, type PageSummary, type StoryNode } from "./story-model.ts";
 
 /**
  * Export to PDF: the person picks pages, and the browser prints the server's print view. Each
  * chosen page prints at its current version; the inspector's details stay behind.
  */
-export function ExportDialog({ tree, archived, preselect, onClose }: { tree: Arrangement; archived: PageSummary[]; preselect: string[]; onClose: () => void }) {
+export function ExportDialog({ tree, archived, preselect, onClose }: { tree: StoryNode[]; archived: PageSummary[]; preselect: string[]; onClose: () => void }) {
   const { api: base } = useProduct();
   const groups = useMemo(() => {
     const out: { label: string | null; rows: { node: Pick<StoryNode, "page_id" | "title">; level: number }[] }[] = [];
-    const pages = flatten(tree.pages);
+    const pages = flatten(tree);
     if (pages.length) out.push({ label: null, rows: pages });
-    if (tree.mockups.length) out.push({ label: "Published mockups", rows: tree.mockups.map((n) => ({ node: n, level: 1 })) });
     if (archived.length) out.push({ label: "Archived pages", rows: archived.map((n) => ({ node: n, level: 1 })) });
     return out;
   }, [tree, archived]);
   const all = groups.flatMap((g) => g.rows.map((r) => r.node.page_id));
   // The count and Select all cover the Story as it reads; an archived page is added only by ticking it.
-  const live = useMemo(() => [...flatten(tree.pages).map((r) => r.node.page_id), ...tree.mockups.map((m) => m.page_id)], [tree]);
+  const live = useMemo(() => flatten(tree).map((r) => r.node.page_id), [tree]);
   const [picked, setPicked] = useState<Set<string>>(() => new Set(preselect.filter((id) => all.includes(id))));
   const ids = all.filter((id) => picked.has(id)).slice(0, MAX_PAGES);
   const pickedLive = live.filter((id) => picked.has(id)).length;

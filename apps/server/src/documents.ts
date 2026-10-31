@@ -36,6 +36,11 @@ export function storyTheme(theme: string | undefined): "light" | "dark" | undefi
  * a mockup page is composed with that page (shownHtml).
  */
 export async function findStoryVersion(trx: Tx, productId: string, by: { pageId: string; n: number } | { versionId: string }, readerOnly: boolean) {
+  const row = await storyVersionRow(trx, productId, by, readerOnly);
+  return row ? { version_id: row.version_id, html: await shownHtml(trx, row), mockup: Boolean(row.mockup) } : null;
+}
+
+function storyVersionRow(trx: Tx, productId: string, by: { pageId: string; n: number } | { versionId: string }, readerOnly: boolean) {
   let q = trx
     .selectFrom("story_versions as v")
     .innerJoin("story_pages as p", "p.page_id", "v.page_id")
@@ -44,8 +49,20 @@ export async function findStoryVersion(trx: Tx, productId: string, by: { pageId:
     .where("p.product_id", "=", productId);
   q = "versionId" in by ? q.where("v.version_id", "=", by.versionId) : q.where("v.page_id", "=", by.pageId).where("v.n", "=", by.n);
   if (readerOnly) q = q.where("p.archived_at", "is", null);
-  const row = await q.executeTakeFirst();
-  return row ? { version_id: row.version_id, html: await shownHtml(trx, row), mockup: Boolean(row.mockup) } : null;
+  return q.executeTakeFirst();
+}
+
+/**
+ * A page of the canvas a Story page's version shows. This is how a reader reaches a canvas's pages,
+ * so it finds nothing unless the version shows a whole canvas, and then only that one mockup
+ * version's pages; a page the version does not show is not found.
+ */
+export async function findStoryCanvasPage(trx: Tx, productId: string, by: { pageId: string; n: number } | { versionId: string }, pageId: string, readerOnly: boolean) {
+  const row = await storyVersionRow(trx, productId, by, readerOnly);
+  if (!row?.mockup || row.mockup.page_id !== null) return null;
+  const p = await trx.selectFrom("mockup_pages").select("html").where("version_id", "=", row.mockup.mockup_version_id).where("page_id", "=", pageId).executeTakeFirst();
+  // A page that enters the prototype has no HTML of its own: its frame opens the entry (prototype_url).
+  return p ? { version_id: row.version_id, html: p.html ?? prototypeNotice() } : null;
 }
 
 /** A mockup version's page, by the mockup and the version's number (the app's address) or by the version's id (a grant's). */

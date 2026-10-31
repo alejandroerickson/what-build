@@ -6,7 +6,9 @@ The three search modes, what each reads and matches, the shape of a hit, and wha
 
 `search` reads what sources say: each source's title, tags, summary, derived text, notes and
 comments, never its attachments; and assumptions' statements and bodies. `plain` mode also reads
-outcomes, mockups, Story pages and the product concept. Of a mockup page or a Story page it reads
+outcomes, mockups, Story pages and the product concept. A Story page that shows a mockup page or a
+whole canvas is listed once, as the mockup, unless it holds a word the mockup does not; `kind: "story"`
+lists it anyway. A reader searches the Story alone, in `plain` mode. Of a mockup page or a Story page it reads
 the words a reader sees, an SVG's text among them, never its scripts, styles or markup, up to the
 first 200,000 characters of words a page holds. Search is lexical: no mode matches meaning, and
 **an empty result does not show that the evidence is absent**.

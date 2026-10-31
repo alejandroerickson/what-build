@@ -120,10 +120,15 @@ that what one door writes the other finds at once, and that a reader has no sear
     search of step 3 and the queries of step 6, and the MCP search of step 10. *Expect:* the same
     results as in the standard organization, which holds the same content, and the made-up word of
     step 11 is not found in the example organization.
-13. **Web and MCP, as Jordan (reader).** Open the product. *Expect:* the panel has no Search field;
-    ⌘K and `/` do nothing; `/search?q=<a word>` takes Jordan to the Story with a toast, without an
-    error. Over MCP, `search` in plain mode is refused with a clear error, not an empty result.
-14. **Web, as Sam.** At phone width (390 × 844) and in the dark theme, open the palette, search, and
+13. **Web and MCP, as Jordan (reader).** Open the product. *Expect:* the panel's Search field reads
+    "Search the Story". Search for a Story page's title, then for a word on a page of a whole canvas on
+    the Story, then for a source's title and an assumption's statement, as a palette search and over
+    MCP's `search` in `plain` mode. *Expect:* the Story page, and the canvas opening at that page; the
+    source and the assumption find nothing and no correction names them. `search` in another mode, or
+    with `kind: "source"`, is refused with a permission error naming reader and viewer.
+14. **Web, as Sam.** Search for a word on a mockup page that is promoted to the Story, and for the
+    mockup's title. *Expect:* the mockup is listed once, under Exploration, with no Story result for it.
+15. **Web, as Sam.** At phone width (390 × 844) and in the dark theme, open the palette, search, and
     open the Search screen. *Expect:* the palette fits the screen and its results are readable;
     every line of matching text under a result shows a marked word within its two lines, and
     marked words stand out in both themes; nothing overflows or overlaps.

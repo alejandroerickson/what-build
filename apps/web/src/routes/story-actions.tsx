@@ -4,7 +4,7 @@ import { quotedAtEnd } from "../lib/format.ts";
 import { useProduct } from "../lib/session.tsx";
 import { useToast } from "../ui/index.tsx";
 import { DeleteDialog } from "./delete-dialog.tsx";
-import { toServer, type Arrangement, type Hierarchy, type PageView } from "./story-model.ts";
+import { toServer, type Hierarchy, type PageView, type StoryNode } from "./story-model.ts";
 
 /** A Story page as its actions need it: the tree's rows, the archived list and the page shown all have these. */
 export interface PageRef {
@@ -31,7 +31,7 @@ function why(e: unknown): string {
  * its subpages up into its place; its Undo restores the page and puts the navigation back as it was
  * before, so the page returns where it stood rather than at the end.
  */
-export function useArchiveActions(tree: Arrangement) {
+export function useArchiveActions(tree: StoryNode[]) {
   const { api: base } = useProduct();
   const qc = useQueryClient();
   const toast = useToast();
@@ -44,7 +44,7 @@ export function useArchiveActions(tree: Arrangement) {
   };
 
   const putBack = useMutation({
-    mutationFn: async ({ page, before }: { page: PageRef; before: Arrangement }) => {
+    mutationFn: async ({ page, before }: { page: PageRef; before: StoryNode[] }) => {
       const now = await api<PageView>("GET", `${base}/story/pages/${page.page_id}?include_html=false`);
       await api("POST", `${base}/story/pages/${page.page_id}/restore`, { expected_etag: now.etag });
       const fresh = await api<Hierarchy>("GET", `${base}/story/hierarchy`);
@@ -67,7 +67,7 @@ export function useArchiveActions(tree: Arrangement) {
   });
 
   const archive = useMutation({
-    mutationFn: ({ page }: { page: PageRef; before: Arrangement }) =>
+    mutationFn: ({ page }: { page: PageRef; before: StoryNode[] }) =>
       api<{ promoted_children: string[] }>("POST", `${base}/story/pages/${page.page_id}/archive`, { expected_etag: page.etag }),
     onSuccess: (r, { page, before }) => {
       refresh(page.page_id);

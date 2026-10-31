@@ -55,6 +55,14 @@ checked on the way.
     from its history.
 11. **Web, as Sam.** Export the Story to PDF from the Story screen (or open its print view).
     *Expect:* the print view lists the new page in hierarchy order, readable on paper.
+12. **Web, as Sam.** Open a mockup in Exploration and use **Promote canvas to Story**. In the Story's
+    tree, drag the new page under a Story page, and a mockup page under the canvas. *Expect:* one new
+    Story page, however many pages the canvas has, at the end of the tree until it is moved; every row
+    moves alike, keeps its place after a reload, and has an icon that names it on hover: Story page,
+    Mockup page, Mockup canvas. The mockup's inspector names the Story page and the version it shows.
+13. **Web, as Jordan.** Open that canvas in the Story, pan, zoom and step through its pages. Then try
+    the mockup's own address. *Expect:* the board and its page titles draw as on the mockup's screen,
+    with no brief, notes or files; the mockup itself is refused, with the Story's toast.
 
 ## Look out for
 

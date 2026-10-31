@@ -5,7 +5,7 @@ import { nestQuotes } from "../lib/format.ts";
 import { byArea, FIND_AREAS, findWords, hitHref, hitMeta, kindOf, Marked, matchedCount, resultHref, resultMeta, useDebounced, useFind, useRecentSearches, type FindResponse, type FindResult } from "../lib/find.tsx";
 import { useProduct } from "../lib/session.tsx";
 import { REVIEW_STATUS } from "../lib/status.ts";
-import { understood } from "../shell/find-palette.tsx";
+import { searchLabel, understood } from "../shell/find-palette.tsx";
 import { PanelContext, PanelFilter, PanelSection, usePageTitle } from "../shell/slots.tsx";
 import { EmptyState, ErrorCallout, FindField, Glyph, Loading, OneLine, Sheet, SheetHeader, StatusBadge, useMeasure } from "../ui/index.tsx";
 import { shortcutLabel } from "../ui/media.ts";
@@ -17,12 +17,13 @@ import "../styles/screens/search.css";
  * under it: its text, summary, notes or comments. The panel narrows to one area.
  */
 export function SearchPage() {
-  const { api: base, app, product } = useProduct();
+  const { api: base, app, product, storyOnly } = useProduct();
   const [params, setParams] = useSearchParams();
   const q = params.get("q") ?? "";
   const area = FIND_AREAS.find((a) => a.id === params.get("show"));
   const show = area?.id ?? "";
-  const recordId = params.get("record_id") ?? "";
+  // A reader has only the Story, so an address for one source searches it instead.
+  const recordId = storyOnly ? "" : (params.get("record_id") ?? "");
   const strict = params.get("strict") === "1";
   const [text, setText] = useState(q);
   const typed = useDebounced(text, 120);
@@ -73,7 +74,7 @@ export function SearchPage() {
         <SheetHeader level={1} title="Search" />
         <div className="find-bar" role="search">
           <FindField
-            label={recordId ? "Search this source" : `Search ${product.name}`}
+            label={recordId ? "Search this source" : searchLabel(product)}
             className="find-big"
             value={text}
             onChange={(e) => setText(e.target.value)}
@@ -94,10 +95,10 @@ export function SearchPage() {
         {recordId ? <SearchIn title={source?.title ?? "one source"} to={`${app}/evidence/${recordId}`} all={link({ record_id: "" })} /> : null}
       </Sheet>
 
-      {!recordId ? <SearchFilters areas={areas} total={all.length} show={show} link={link} /> : null}
+      {!recordId && !storyOnly ? <SearchFilters areas={areas} total={all.length} show={show} link={link} /> : null}
 
       {!q.trim() ? (
-        <EmptyState title={`Search everything in ${product.name}`}>
+        <EmptyState title={storyOnly ? "Search the Story" : `Search everything in ${product.name}`}>
           Press {shortcutLabel("K")} on any screen to search without leaving it.
         </EmptyState>
       ) : res.isError ? (

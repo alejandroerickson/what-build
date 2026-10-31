@@ -185,8 +185,23 @@ export async function seed(env: Env, worker: Worker, log: (m: string) => void = 
     },
     ref,
   );
-  // Each page of the mockup on the Story, under Published mockups, for stakeholders to flip through.
+  // Each page of the mockup on the Story, for stakeholders to flip through, and the whole canvas before them, all in one tree.
   for (const page of ["jobs-board", "day-planner", "crew-message"]) await call(env, samAgent, "story.promote_mockup", { mockup_id: mockup["mockup_id"], mockup_page_id: page }, ref);
+  await call(env, samAgent, "story.promote_mockup", { mockup_id: mockup["mockup_id"], page_id: "hand-off-canvas", title: "The hand-off, whole canvas" }, ref);
+  const storyTree = await call(env, samAgent, "story.get_hierarchy", {}, ref);
+  await call(
+    env,
+    samAgent,
+    "story.set_hierarchy",
+    {
+      items: [
+        ...(storyTree["items"] as unknown[]),
+        { page_id: "hand-off-canvas", children: ["jobs-board", "day-planner", "crew-message"].map((page_id) => ({ page_id, children: [] })) },
+      ],
+      expected_etag: storyTree["etag"],
+    },
+    ref,
+  );
   await call(env, riley, "sources.annotate", { record_id: vtt, note: "The moment to design for is the typed hand-off message, not the spreadsheet.", tags: ["hand-off"] }, ref);
   // The editor (Sam) may start one organization of their own; the owner (Riley, the instance's owner in development) gave it.
   const sam = people[1].email;

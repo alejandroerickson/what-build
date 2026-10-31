@@ -159,8 +159,8 @@ Product reads return `counts`, one number per kind (`sources`, `outcomes`, `assu
 stage holds, which the web app shows beside each stage
 ([decision](../decisions/each-stage-counts-every-item-it-holds.md)): `idea` is the outcomes (the
 product concept is one field, not an item), `evidence` the sources, `exploration` the mockups plus
-the current assumptions, and `story` the live Story pages, which are exactly the pages in the tree,
-the unplaced ones and the Published mockups (§4.11).
+the current assumptions, and `story` the live Story pages, which are exactly the pages in the tree
+and the unplaced ones (§4.11).
 
 `outcomes.archive` and `outcomes.restore` set and clear `archived_at`. `outcomes.list` leaves
 archived outcomes out unless `include_archived`, and says how many it left out: `archived_hidden` (the count, honouring `query`) and, when it is not zero, a
@@ -517,19 +517,28 @@ with every page costs an agent its length each time and lets pages drift apart; 
 adds is the same on every page and changes in one place. `html` stays for a document that is not
 in the product's style.
 
-**A page from a mockup.** A version may show one page of a mockup version instead of HTML of its
-own ([§4.12](#412-mockups)): `story.promote_mockup { mockup_id, mockup_page_id, version?, page_id?,
-title?, summary?, expected_etag? }` publishes it, on a new page or, with an existing page's
-`page_id` and its etag, as that page's next version. A new page takes the `page_id` given when no
-page has it yet, and otherwise the mockup page's slug, with `-2`, `-3`… when that is taken; it is
-titled with the mockup page's title unless `title` is given. `version` is the mockup version, the current one by
-default. The version stores `mockup` (`mockup_id`, `mockup_version_id`, `version`, `page_id`) and
-no HTML: mockup versions are immutable, so the page is read from the mockup when it is shown and is
-never copied. It stays on that mockup version until
-it is promoted again; reading it returns `mockup` with the page's `width` and `height` and, for
-every role but a reader, the mockup's title, the version shown and the mockup's current version.
-The page appears among the Story's Published mockups (Hierarchy, below).
-`html`, `html_chars` and `html_sha256` describe the mockup page, which keeps the mockup's HTML
+**A page from a mockup.** A version may show one page of a mockup version, or its whole canvas,
+instead of HTML of its own ([§4.12](#412-mockups)): `story.promote_mockup { mockup_id,
+mockup_page_id?, version?, page_id?, title?, summary?, expected_etag? }` publishes it, on a new page
+or, with an existing page's `page_id` and its etag, as that page's next version. Without
+`mockup_page_id` it shows the whole canvas, on one Story page however many pages the canvas has. A
+new page takes the `page_id` given when no page has it yet, and otherwise the mockup page's slug, or
+a slug of the mockup's title for a whole canvas, with `-2`, `-3`… when that is taken; it is titled
+with the mockup page's title, or the mockup's, unless `title` is given. `version` is the mockup
+version, the current one by default. The version stores `mockup` (`mockup_id`, `mockup_version_id`,
+`version`, and `page_id`, null for a whole canvas) and no HTML: mockup versions are immutable, so
+what it shows is read from the mockup when it is shown and is never copied. It stays on that mockup
+version until it is promoted again; reading it returns `mockup` with the page's `width` and `height`
+and, for every role but a reader, the mockup's title, the version shown and the mockup's current
+version. A promoted page has no special place in the Story: it is unplaced until it is placed, and
+an existing page keeps its place (Hierarchy, below).
+A whole canvas reads as `mockup: { canvas: true, columns, pages: [{ page_id, title, width, height,
+entry?, prototype_url? }], prototype? }`, the same team fields but no one page's size; each page's HTML
+comes from `GET …/story/pages/:page_id/versions/:n/pages/:mockup_page_id/html`, which finds nothing
+unless that version shows a whole canvas, and then only that mockup version's pages. Where one
+document is needed (`html`, the version's HTML route, a preview) a whole canvas gives a notice, and
+`html_sha256` is of the mockup version it shows, so it tells a canvas's versions apart.
+For one page, `html`, `html_chars` and `html_sha256` describe the mockup page, which keeps the mockup's HTML
 rules (§4.12) and sandbox on the Story: it may hold scripts of any length and a form, whose
 submission goes nowhere. A later `publish` without `html` or
 `body` keeps showing the mockup page; `html` or `body` replaces it with HTML of the page's own; and
@@ -564,7 +573,7 @@ different people.
 The route takes `?theme=light|dark` (written onto the page's `<html>` as `data-wb-theme` for that
 response) and `?frame=1`, which the app's frame always sends: it appends one inline script, inside
 the sandbox, that posts only the name of an F, Esc, ← or → key press to the parent (focus mode,
-and flipping through the Published mockups, [§7.8](07-web-app.md)), unless the page handled the
+and flipping through the mockup pages, [§7.8](07-web-app.md)), unless the page handled the
 key itself, hands a link to another page of the same Story to the app, and turns a
 click on any other link that would replace the page in its frame into a new tab. For the second,
 the app tells the frame the address its Story's pages live under once the frame has loaded; on a
@@ -619,21 +628,14 @@ the notes are empty, and passing the page etag instead is refused with a message
 **Print view.** `story.print_view` composes 1–50 chosen pages, each at its current version, into
 one HTML document for a browser to print to PDF ([§6.4](06-operations-and-adapters.md)).
 
-**Hierarchy.** A separate per-product object with its own etag, in two parts:
-
-- **The tree** (`items`): an ordered tree of `page_id`s, depth ≤ 6, each page at most once, every
-  page live and published, none showing a mockup page. Publishing a page never places it; placing
-  a page never publishes it. Pages not yet placed are listed in `unplaced`, never in `items`, and
-  readers see them at the end of the tree until an agent adds them to it. A stored node whose page is archived, missing or showing a mockup page is skipped and
-  its children promoted into its place; archiving a page takes it out of the stored tree, and a
-  restored page returns unplaced.
-- **The Published mockups** (`mockups`): every live page whose current version shows a mockup
-  page, flat, in the order agents set (`set_hierarchy { mockups }`, a list of page ids that
-  replaces the order; omitted, the order is kept), then any not listed, in the order their current
-  versions were published. A promoted page joins the end at once, and leaves when `html` or `body`
-  replaces the mockup page, returning to its place in the tree if it has one. Archiving takes a
-  page out of the order. `set_hierarchy` refuses a page showing a mockup page in the tree, and any
-  other page in `mockups` (`422 invalid_hierarchy`).
+**Hierarchy.** A separate per-product object with its own etag: an ordered tree of `page_id`s
+(`items`), depth ≤ 6, each page at most once, every page live and published. It holds every kind of
+page alike, placed and nested the same way, and each node reads with a `kind` that follows the page's
+current version: `story_page`, `mockup_page` (one page of a mockup) or `canvas` (a mockup's whole
+canvas). Publishing a page never places it; placing a page never publishes it. Pages not yet placed are listed in `unplaced`, never in `items`, and
+readers see them at the end of the tree until someone adds them to it. A stored node whose page is archived or missing is skipped and
+its children promoted into its place; archiving a page takes it out of the stored tree, and a
+restored page returns unplaced.
 
 `set_hierarchy` takes the hierarchy's etag as `expected_etag`. Before the first save there is none
 (`get_hierarchy` gives `etag: null`), and `expected_etag` is null or left out (an etag sent then
@@ -643,7 +645,7 @@ published, or is archived, is refused too (`422 invalid_hierarchy`, with `detail
 `details.archived`), and the refusal says what to do: publish it, or restore it, first, or leave
 it out.
 
-Every published page appears exactly once, in the tree or among the Published mockups
+Every published page appears exactly once, in the tree or among the unplaced
 ([decision](../decisions/mockups-are-versioned-canvases-in-exploration.md)).
 
 **Story style.** A product has at most one: the design system every Story page follows, either the
@@ -926,11 +928,12 @@ gives `quota { used, limit, unit, archived_included }`: the product's mockups ag
 archived ones counted, so an agent sees the limit before a publish meets it. `products.get`'s
 counts stay the live mockups the stage shows.
 
-**On the Story.** A page of a mockup version can be promoted to the Story (§4.11).
-`mockups.get` returns `story_pages`: each Story page whose current version shows one of the
-mockup's pages, with the mockup page and version it shows and the Story page's etag. The Story
-serves a promoted page through its own HTML route, so a Story reader sees that page and nothing
-else of the mockup; a promoted page of an archived mockup stays readable. A promoted entry's
+**On the Story.** A page of a mockup version, or its whole canvas, can be promoted to the Story
+(§4.11). `mockups.get` returns `story_pages`: each Story page whose current version shows one of the
+mockup's pages or its whole canvas, with the mockup page (null for the whole canvas) and version it
+shows and the Story page's etag. The Story serves what it shows through its own HTML routes, so a
+Story reader sees that and nothing else of the mockup: never its brief, notes, files or other
+versions; a promoted page of an archived mockup stays readable. A promoted entry's
 version gives, in its `mockup`, the `entry`, its `prototype_url`, `prototype_sandbox` and
 `prototype_expires_at`, to a reader too, whose address reaches that version's whole prototype and
 nothing else of the mockup ([decision](../decisions/a-reader-reads-only-the-story.md)); its HTML,

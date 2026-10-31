@@ -32,6 +32,9 @@ which would cost money on every search. The maintainer chose one plain-word sear
   same index of sources' texts the other modes read (`text_chunks`) and the words kept beside each
   page's HTML ([decision](a-pages-words-are-kept-beside-its-html-and-a-search-runs-within-limits.md)):
   no model, no embeddings, no call that costs per search.
+- A page from a mockup is listed once, and a reader searches the Story alone
+  ([decision](mockups-are-versioned-canvases-in-exploration.md),
+  [decision](a-reader-reads-only-the-story.md)).
 - Rejected: semantic search as the default, which needs a model and an index of embeddings; and
   separate searches per screen, which make people know where something lives first.
 

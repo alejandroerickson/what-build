@@ -153,7 +153,9 @@ describe("a connector scoped to a product", () => {
   it("lists a reader only the Story", async () => {
     const actions = await offeredAt(rita, `/mcp/t/${path}`);
     expect(actions).toEqual(expect.arrayContaining(["story.list_pages", "story.get_page"]));
-    for (const a of ["sources.list", "search", "outcomes.list", "assumptions.list", "mockups.list", "story.guidance", "activity.list"]) expect(actions, a).not.toContain(a);
+    // Search is listed: for a reader it reads only the Story.
+    expect(actions).toContain("search");
+    for (const a of ["sources.list", "outcomes.list", "assumptions.list", "mockups.list", "story.guidance", "activity.list"]) expect(actions, a).not.toContain(a);
   });
 
   it("lists an admin what the connection's level allows", async () => {
@@ -196,7 +198,7 @@ describe("a connector scoped to an organization", () => {
   it("lists a reader none of the organization's people", async () => {
     const actions = await offeredAt(rita, `/mcp/t/${org}`);
     expect(actions).toEqual(expect.arrayContaining(["story.list_pages", "products.limits"]));
-    for (const a of ["members.list", "sources.list", "search"]) expect(actions, a).not.toContain(a);
+    for (const a of ["members.list", "sources.list"]) expect(actions, a).not.toContain(a);
   });
 
   it("lists an instance owner none of their own actions, and refuses them with where they are", async () => {
@@ -219,7 +221,7 @@ describe("the unscoped connector, for someone who may start no organization", ()
   it("lists a reader everywhere the Story and the account's own reads", async () => {
     const actions = await offeredAt(rita, "/mcp");
     expect(actions).toEqual(expect.arrayContaining(["story.list_pages", "story.get_page", "story.get_hierarchy", "products.list", "products.get", "products.limits", "guide"]));
-    for (const a of ["sources.list", "search", "outcomes.list", "mockups.list", "members.list", "story.guidance", "products.update_concept", "products.create_tenant", "products.create", "sources.create"])
+    for (const a of ["sources.list", "outcomes.list", "mockups.list", "members.list", "story.guidance", "products.update_concept", "products.create_tenant", "products.create", "sources.create"])
       expect(actions, a).not.toContain(a);
     // Only the Story's reads, the account's own reads (and its feedback), and the organization's limits.
     for (const a of actions) {

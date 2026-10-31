@@ -7,7 +7,7 @@ import { sql } from "kysely";
 import { requestedHost } from "./canonical-host.ts";
 import type { ServerConfig } from "./config.ts";
 import {
-  cardFront, FALLBACK_HTML_POLICY, findAttachment, findCard, findMockupPage, findSpecimen, findStoryVersion, htmlView, isHtmlAttachment, isPdf, printView, storyHtml, storyTheme, streamFile,
+  cardFront, FALLBACK_HTML_POLICY, findAttachment, findCard, findMockupPage, findSpecimen, findStoryCanvasPage, findStoryVersion, htmlView, isHtmlAttachment, isPdf, printView, storyHtml, storyTheme, streamFile,
 } from "./documents.ts";
 import { logError } from "./telemetry.ts";
 import { requesterMayRead } from "./uploads.ts";
@@ -80,6 +80,11 @@ export function contentDocumentRoutes(env: Env & { config: ServerConfig }) {
           const v = await inTenant(tenant, (trx) => findStoryVersion(trx, product, { versionId: str("sv") ?? "" }, readsOnlyTheStory(scope.role)));
           if (!v) throw gone();
           return storyHtml(c, v.html, v.mockup ? undefined : theme, frame, v.mockup, site);
+        }
+        case "story_canvas_page": {
+          const p = await inTenant(tenant, (trx) => findStoryCanvasPage(trx, product, { versionId: str("sv") ?? "" }, str("pg") ?? "", readsOnlyTheStory(scope.role)));
+          if (!p) throw gone();
+          return storyHtml(c, p.html, undefined, frame, true, site);
         }
         case "mockup_page": {
           const p = await inTenant(tenant, (trx) => findMockupPage(trx, product, { versionId: str("xv") ?? "" }, str("pg") ?? ""));

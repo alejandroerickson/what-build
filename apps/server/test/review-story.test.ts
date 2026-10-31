@@ -275,8 +275,8 @@ describe("the Story's navigation", () => {
     const got = await alice.api("GET", `${N}/story/hierarchy`);
     expect(ids(got.body.items)).toEqual(["overview"]);
     expect(got.body.unplaced).toEqual([
-      { page_id: "detail", title: "Detail", description: expect.any(String) },
-      { page_id: "plan", title: "Plan", description: expect.any(String) },
+      { page_id: "detail", title: "Detail", description: expect.any(String), kind: "story_page" },
+      { page_id: "plan", title: "Plan", description: expect.any(String), kind: "story_page" },
     ]);
 
     // Sent back as it is, the tree saves without placing anything.
@@ -292,7 +292,7 @@ describe("the Story's navigation", () => {
       expected_etag: same.body.etag,
     });
     expect(placed.status, JSON.stringify(placed.body)).toBe(200);
-    expect(placed.body.items).toEqual([{ page_id: "overview", title: "Overview", description: expect.any(String), children: [{ page_id: "detail", title: "Detail", description: expect.any(String), children: [] }] }]);
+    expect(placed.body.items).toEqual([{ page_id: "overview", title: "Overview", description: expect.any(String), kind: "story_page", children: [{ page_id: "detail", title: "Detail", description: expect.any(String), kind: "story_page", children: [] }] }]);
     expect(ids(placed.body.unplaced)).toEqual(["plan"]);
   });
 
@@ -424,7 +424,8 @@ describe("the sample product", () => {
     expect((await sam.api("GET", `${S}/assumptions`)).body.items).toHaveLength(1);
     expect((await sam.api("GET", `${S}/mockups`)).body.items).toHaveLength(1);
     const tree = await sam.api("GET", `${S}/story/hierarchy`);
-    expect(tree.body.mockups.map((m: { page_id: string }) => m.page_id)).toEqual(["jobs-board", "day-planner", "crew-message"]);
+    const canvas = tree.body.items.find((n: { kind: string }) => n.kind === "canvas");
+    expect(canvas.children.map((m: { page_id: string; kind: string }) => [m.page_id, m.kind])).toEqual([["jobs-board", "mockup_page"], ["day-planner", "mockup_page"], ["crew-message", "mockup_page"]]);
     const overview = await sam.api("GET", `${S}/story/pages/overview`);
     expect(overview.body.agent_notes.content).toContain("## Purpose");
     // The sample Story quotes its sources in words and links to no place in them.

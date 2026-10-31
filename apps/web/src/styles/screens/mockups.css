@@ -27,6 +27,10 @@
   gap: var(--s-3);
   min-height: 420px;
 }
+/* A Story page that shows a whole canvas: the same board, under the Story's crumbs. */
+.story-view.mockup-view {
+  flex: 1 1 auto;
+}
 .mockup-view > .first-use,
 .mockup-view > .empty {
   max-width: var(--content-max);
