@@ -36,10 +36,12 @@ install, and so that it runs well before the repository becomes public.
   ignored, so an agent that wants to keep notes has somewhere to keep them.
 - **Scanners are pinned** by version and SHA-256 in `scripts/tools.mjs`, downloaded on first use
   into the user's cache: gitleaks, osv-scanner for the dependencies, zizmor for the workflows.
-- **A release waits a week** before it enters `pnpm-lock.yaml`: Dependabot's cooldown and pnpm's
-  `minimumReleaseAge` for an upgrade made by hand give a hijacked release time to be found. Every
-  install in the image takes what that file says and resolves nothing
-  ([decision](one-stateless-image.md)).
+- **A release waits a week** before an upgrade brings it into `pnpm-lock.yaml`: Dependabot's cooldown
+  and pnpm's `minimumReleaseAge` for an upgrade made by hand give a hijacked release time to be found.
+  Nothing checks an entry's age once it is in the file, so one that arrives another way (a security
+  update, a hand edit) is for its reviewer to judge. Every package the image installs from the
+  workspace takes what that file says and resolves nothing, and pnpm itself is pinned by version in
+  `deploy/Dockerfile` ([decision](one-stateless-image.md)).
 - **GitHub's own features** do the rest: Dependabot alerts, security updates and weekly grouped
   updates; CodeQL, and secret scanning with push protection, once the
   repository is public. An OWASP ZAP baseline scans the app, built as in production, weekly in CI.

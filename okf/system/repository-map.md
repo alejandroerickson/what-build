@@ -9,7 +9,7 @@ status: stable
 
 # Repository map
 
-A pnpm workspace: two apps and two libraries. The root holds only what a tool looks for there: the
+A pnpm workspace: two apps, two libraries and a package listing what the server leaves out of its bundle. The root holds only what a tool looks for there: the
 workspace's own files (`package.json`, the lockfile, `pnpm-workspace.yaml`, `tsconfig.base.json`,
 `vitest.config.ts`, `.nvmrc`), the ignore files git, Docker and `gcloud` read from the root,
 `README.md`, `AGENTS.md` and `LICENSE`. Everything else is in a folder

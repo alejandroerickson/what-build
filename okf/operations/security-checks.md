@@ -118,8 +118,9 @@ pnpm security workflows   # zizmor over .github/; GH_TOKEN=$(gh auth token) adds
    `pnpm deploy --prod --ignore-scripts` in `deploy/Dockerfile`, so the file these scans read holds
    the tree that ships, and no package runs an install script. That install, like
    `--frozen-lockfile`, resolves nothing and does not ask `minimumReleaseAge` again: the wait holds
-   where a release enters the lockfile, and an entry made some other way, such as Dependabot's
-   security update, which does not wait, reaches the image once it is merged. To raise one of those
+   where an upgrade resolves a release into the lockfile, and nothing in CI checks an entry's age
+   afterwards. An entry made some other way, such as a security update or a hand edit, reaches the
+   image once it is merged, so whoever reviews a lockfile change judges it. To raise one of those
    packages, raise it in `packages/server-external` and where the code imports it, or
    `pnpm update -r <package>`: `apps/server/build.mjs` fails if the two resolve to different
    versions.

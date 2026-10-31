@@ -24,8 +24,8 @@ COPY scripts/gen-guide.mjs scripts/
 ARG WHATBUILD_COMMIT=""
 # What the server leaves out of its bundle (apps/server/build.mjs) comes from pnpm-lock.yaml, the
 # file the scanners read: a deploy resolves nothing, so a release reaches the image only through the
-# lockfile, where the week's wait holds (okf/operations/security-checks.md), and no package runs an
-# install script. pnpm asks for inject-workspace-packages to deploy from the shared lockfile; this
+# lockfile, where an upgrade waits its week (okf/operations/security-checks.md), and no package in
+# that tree runs an install script. pnpm asks for inject-workspace-packages to deploy from the shared lockfile; this
 # package has no workspace dependencies for it to change.
 RUN node scripts/gen-guide.mjs \
  && pnpm --filter @whatbuild/web build \
