@@ -1,4 +1,5 @@
 import { layoutPage, pageBlocks, repeatedLines, type PageLayout, type TextRun } from "./pdf-layout.ts";
+import { MAX_SEGMENTS, segmentCount } from "./text.ts";
 import { TooLargeError, type Block, type FormatParser } from "./types.ts";
 
 type TextItem = { str?: string; dir?: string; width?: number; transform?: number[] };
@@ -78,7 +79,7 @@ function runsOf(items: TextItem[], view: number[]): { upright: TextRun[]; others
  */
 export const pdfParser: FormatParser = {
   name: "pdf",
-  version: "5",
+  version: "6",
   async parse(bytes) {
     const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
     // pdf.js has no limit on what a compressed stream decodes to. It is given the limits it has,
@@ -113,18 +114,29 @@ export const pdfParser: FormatParser = {
     }
     // Headers and footers are known only once every page is read.
     const repeated = repeatedLines(pages);
-    const blocks: Block[] = [];
-    const headings: { block: Block; size: number }[] = [];
+    let blocks: Block[] = [];
+    let headings: { block: Block; size: number }[] = [];
     let textChars = 0;
     let tables = 0;
-    pages.forEach((p, i) => {
-      blocks.push({ text: `# Page ${i + 1}`, heading_level: 1, page: i + 1 });
-      const out = pageBlocks(p, i + 1, repeated.lines);
-      for (const b of out.blocks) blocks.push(b);
-      for (const h of out.headings) headings.push(h);
-      textChars += out.chars;
-      tables += out.tables;
-    });
+    const readPages = (onlySentences: boolean) => {
+      blocks = [];
+      headings = [];
+      textChars = 0;
+      tables = 0;
+      for (const [i, p] of pages.entries()) {
+        blocks.push({ text: `# Page ${i + 1}`, heading_level: 1, page: i + 1 });
+        const out = pageBlocks(p, i + 1, repeated.lines, onlySentences ? { onlySentences } : { room: MAX_SEGMENTS - blocks.length });
+        for (const b of out.blocks) blocks.push(b);
+        for (const h of out.headings) headings.push(h);
+        textChars += out.chars;
+        tables += out.tables;
+        if (!onlySentences && blocks.length > MAX_SEGMENTS) return;
+      }
+    };
+    readPages(false);
+    // A file of more short lines than a reading may hold paragraphs reads them run together rather
+    // than not at all. A long paragraph counts as the pieces it will be split into.
+    if (segmentCount(blocks) > MAX_SEGMENTS) readPages(true);
     // So are the sizes headings are set in. A heading's level follows its size, the same size the
     // same level throughout the file: the largest is level 2, under each page's `# Page N`, the next
     // level 3, and so on to 6.

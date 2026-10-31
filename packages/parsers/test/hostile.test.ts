@@ -4,11 +4,11 @@ import { describe, expect, it } from "vitest";
 import { stripCueMarkup, voiceName } from "../src/cues.ts";
 import { DEFAULT_PARSE_CAP_BYTES, derive, MAX_HTML_DEPTH, MAX_PDF_PAGES, MAX_SEGMENTS, parseHtml, toParsedFile, type ParseResult } from "../src/index.ts";
 import { formatNumber, formatText, readFormat } from "../src/numfmt.ts";
-import { layoutPage, repeatedLines, type TextRun } from "../src/pdf-layout.ts";
+import { layoutPage, pageBlocks, repeatedLines, type TextRun } from "../src/pdf-layout.ts";
 import { atxHeading, MAX_LIST_DEPTH, stripInlineMarkdown } from "../src/plaintext.ts";
 import { speakerLine } from "../src/speakers.ts";
 import { codePointLength, isSpaceUnit, nonSpaceCodePoints } from "../src/text.ts";
-import { makeBlankPdf, makeDocx, makePdf, makeXlsx, utf8 } from "./fixtures.ts";
+import { makeBlankPdf, makeDocx, makePdf, makePdfOfLines, makePdfOfStreams, makeXlsx, utf8 } from "./fixtures.ts";
 
 // Hostile files: each must end in a status (never a crash or a hang) within bounded time and
 // memory. The server parses each file in a process of its own held to a memory and a time limit, so
@@ -419,7 +419,7 @@ describe("files that would make too much", () => {
       const { r, ms } = await measured(makeBlankPdf(pages), "blank.pdf");
       expect(r.status, `${pages} pages`).toBe("too_large");
       expect(r.status_detail).toBe(`the PDF has ${pages} pages; PDFs over ${MAX_PDF_PAGES} pages are stored but not parsed`);
-      expect(r.parser_version).toBe("5");
+      expect(r.parser_version).toBe("6");
       expect(ms).toBeLessThan(3000);
     }
     expect(await derive(makeBlankPdf(3), "blank.pdf")).toMatchObject({ status: "unsupported", status_detail: expect.stringContaining("no text layer") });
@@ -475,6 +475,57 @@ describe("PDF pages that would take long to lay out", () => {
     expect(page.lines.some((l) => l.table)).toBe(false);
     expect(performance.now() - started).toBeLessThan(3000);
   });
+
+  it("reads a page of very many short lines, a paragraph each, in time linear in them", () => {
+    const lines = (n: number) => Array.from({ length: n }, (_, i) => run("Short line", 72, 10_000_000 - i * 12, i));
+    const timed = (n: number) => {
+      const page = layoutPage(lines(n), [], 0, 10_000_100);
+      const started = performance.now();
+      const { blocks } = pageBlocks(page, 1, new Map());
+      expect(blocks).toHaveLength(n);
+      return performance.now() - started;
+    };
+    expect(timed(100_000)).toBeLessThan(6000);
+  }, 60_000);
+
+  it("reads as a line at once a line whose cells would take too long to fit to columns, and finds the table under it", () => {
+    // Set apart by a cell's gap, fitting them to columns costs the square of their number: more than the time a file is given.
+    const wide = Array.from({ length: 200_000 }, (_, i) => run("ab", i * 16, 700, i));
+    const rows = [["Sample", "Result"], ["Lead", "0.01"], ["Copper", "1.3"]].flatMap((row, i) => row.map((text, j) => run(text, 72 + j * 120, 680 - i * 14, 200_000 + i * 2 + j)));
+    const started = performance.now();
+    const { lines } = layoutPage([...wide, ...rows], [], 0, 792);
+    expect(performance.now() - started).toBeLessThan(6000);
+    expect(lines[0]!.table).toBeUndefined();
+    expect(lines[0]!.fine).toHaveLength(200_000);
+    expect(lines[1]!.table?.rows).toEqual([["Sample", "Result"], ["Lead", "0.01"], ["Copper", "1.3"]]);
+  }, 60_000);
+
+  it("still fits a row of thousands of cells, however few a table has", () => {
+    const rows = [0, 1].flatMap((i) => Array.from({ length: 3000 }, (_, j) => run("ab", j * 16, 700 - i * 14, i * 3000 + j)));
+    const { lines } = layoutPage(rows, [], 0, 792);
+    expect(lines[0]!.table?.rows[0]).toHaveLength(3000);
+  }, 60_000);
+
+  it("reads a file of more short lines than a reading may hold paragraphs as it reads text that runs on, not as too large", async () => {
+    const { r } = await measured(makePdfOfLines(MAX_SEGMENTS + 5000, "Short"), "lines.pdf");
+    expect(r.status).toBe("ready");
+    expect(r.segments.length).toBeLessThan(5000);
+    const fewer = await derive(makePdfOfLines(30_000, "Short"), "lines.pdf");
+    expect(fewer.segments).toHaveLength(30_001);
+  }, 120_000);
+
+  it("counts the pieces a long paragraph is split into, so a file just under the limit in blocks still reads", async () => {
+    // Short lines just under the limit, and a page of long lines with no full stop that split into more than the rest.
+    const short = 199_900;
+    const leading = 780 / short;
+    const shortLines = `BT /F1 ${(leading * 0.6).toFixed(6)} Tf 72 785 Td ${leading.toFixed(6)} TL\n${"(Short) Tj T* ".repeat(short)}ET`;
+    const longLines = `BT /F1 0.05 Tf 10 700 Td 1 TL\n${`(${"word ".repeat(4000)}) Tj T* `.repeat(40)}ET`;
+    const { r } = await measured(makePdfOfStreams([shortLines, longLines]), "lines.pdf");
+    expect(r.status).toBe("ready");
+    // Every word of the long page is kept, read with the short lines to the sentences' ends.
+    expect(r.segments.length).toBeLessThan(5000);
+    expect(r.segments.map((g) => g.text).join(" ").match(/word/g)).toHaveLength(160_000);
+  }, 120_000);
 
   it("compares lines repeated up the margin in time linear in their length", () => {
     const pages = [1, 2, 3].map(() => layoutPage([run("The text of the page.", 72, 400, 0)], [[run("9".repeat(200_000), 580, 300, 1)]], 0, 792));

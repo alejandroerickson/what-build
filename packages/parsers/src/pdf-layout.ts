@@ -16,6 +16,8 @@ import type { Block } from "./types.ts";
  *   one of them stands in a column of prose: each column of a page of two is read in turn.
  * - Lines of cells set in the same columns, one under the next, are a table.
  * - A line set clearly larger than the page's text is a heading of its own (`pageHeadings`).
+ * - Lines of one cell are a paragraph while each wraps onto the next (`paragraphEnds`): a line that
+ *   stops short of its column's width, or a line that starts a list, ends what came before it.
  * - A line repeated in the same place on most pages (a running header or footer, a page number)
  *   is read once, where it first appears, or not at all (`repeatedLines`).
  */
@@ -49,6 +51,8 @@ export interface Table {
   rows: string[][];
   form: boolean;
   prose: boolean;
+  /** Columns of prose: each column's lines, to read as the paragraphs they make. */
+  columnLines?: Line[][];
 }
 
 /** A line of a page. */
@@ -68,6 +72,10 @@ export interface Line {
   /** Its cells parted at gaps of `COLUMN_GAP`, which a table's columns may show to be cells. */
   fine: Cell[];
   table?: Table;
+  /** Whether most of its text runs right to left, so that it reads from its right. */
+  rtl: boolean;
+  /** Of the lines at other angles than the page's text, the frame this one stands upright in. */
+  frame?: number;
 }
 
 /** A page's lines in reading order, its lines at other angles (a note up the margin), and its bottom and top. */
@@ -95,6 +103,32 @@ const ROW_SPREAD = 1.35;
 const MAX_TABLE_LINES = 400;
 const MAX_TABLE_TRIES = 40;
 const TABLE_BUDGET = 200_000;
+/**
+ * What fitting rows to columns may cost a page, in cells checked against columns: a row costs its
+ * cells times its cells and the columns so far, and one line of 200,000 cells would take longer than
+ * a file is given. A line that would overdraw this is read as a line, at no cost. A table of 40,000
+ * columns and two rows stays within it.
+ */
+const CELL_BUDGET = 10_000_000_000;
+/** How many lines above and below a line show the width of its column, and how near their left edges must be, in ems. */
+const MEASURE_WINDOW = 12;
+const SAME_EDGE = 0.25;
+/** Lines no wider than this many ems, in all, are no column: a line of them wraps onto nothing but lower case. */
+const NARROWEST_COLUMN = 8;
+/** A line that goes on in lower case ends a paragraph only when it stops this far short of its column's width. */
+const STOPS_SHORT = 0.6;
+/** A line wider than a line near it by more than this many ems, or this part of its width, is of another shape: lines narrower than it may make a block of their own. */
+const OTHER_SHAPE = 4;
+const OTHER_SHAPE_PART = 0.25;
+/** How many lines make a block of their own, and how far a paragraph's first line may be indented from them, in ems. */
+const SMALLEST_BLOCK = 3;
+const INDENT = 3;
+/** Two lines with nothing near them read on where the upper is at least this many ems wide: as wide as a page's text is, and no heading is. */
+const WIDE_ALONE = 30;
+/** Rows of a table whose columns could not be found hold few words; lines that hold more are prose whose count happens to agree. */
+const MOST_WORDS_IN_A_ROW = 8;
+/** White space between two lines this many times the page's usual leading parts two paragraphs. */
+const PARAGRAPH_GAP = 1.25;
 
 interface Run extends TextRun {
   x1: number;
@@ -269,12 +303,18 @@ function joinStrips(list: Strip[]): Strip[][] {
   return [...groups.values()];
 }
 
-/** A line's runs split into cells where a gap between them is `gap` ems wide or more. */
-function cellsOf(runs: Run[], gap = CELL_GAP): Cell[] {
+/** Whether most of a line's text runs right to left. */
+function readsFromRight(runs: Run[]): boolean {
   let rtl = 0;
   for (const r of runs) rtl += r.rtl ? r.text.length : -r.text.length;
+  return rtl > 0;
+}
+
+/** A line's runs split into cells where a gap between them is `gap` ems wide or more. */
+function cellsOf(runs: Run[], gap = CELL_GAP): Cell[] {
   // A line written right to left reads from its right.
-  const across = runs.slice().sort(rtl > 0 ? (a, b) => b.x1 - a.x1 : (a, b) => a.x - b.x);
+  const rtl = readsFromRight(runs);
+  const across = runs.slice().sort(rtl ? (a, b) => b.x1 - a.x1 : (a, b) => a.x - b.x);
   // A cell's text in parts, joined once: reading the end of a string built up run by run would
   // flatten it each time, in time quadratic in a line's runs.
   type Open = { parts: string[]; last: number; x0: number; x1: number; size: number };
@@ -286,7 +326,7 @@ function cellsOf(runs: Run[], gap = CELL_GAP): Cell[] {
       cur = open(r);
       continue;
     }
-    const space = rtl > 0 ? cur.x0 - r.x1 : r.x - cur.x1;
+    const space = rtl ? cur.x0 - r.x1 : r.x - cur.x1;
     const em = Math.min(cur.size, r.size);
     if (space >= gap * em) {
       cells.push(cur);
@@ -333,6 +373,7 @@ function lineOf(group: Strip[]): Line {
   const line: Line = {
     cells,
     fine: runs.length > 1 ? withMarker(cellsOf(runs, COLUMN_GAP), largest.size, false) : cells,
+    rtl: readsFromRight(runs),
     x0: Infinity,
     x1: -Infinity,
     y: largest.y,
@@ -366,7 +407,7 @@ export function lineText(cells: readonly { text: string }[]): string {
 export function layoutPage(upright: TextRun[], others: TextRun[][], bottom: number, top: number): PageLayout {
   const lines = linesOf(upright);
   findTables(lines);
-  const turned = others.flatMap((runs) => strips(runs.map(boxed)).map((s) => lineOf([s])));
+  const turned = others.flatMap((runs, frame) => strips(runs.map(boxed)).map((s) => ({ ...lineOf([s]), frame })));
   return { lines, turned, bottom, top };
 }
 
@@ -491,10 +532,14 @@ function findTables(lines: Line[]): void {
   // What looking for tables may cost a page, in rows fitted to columns: a page of many lines
   // that never make a table is then read as lines.
   let budget = TABLE_BUDGET;
+  let cellBudget = CELL_BUDGET;
   type Built = { columns: Columns; em: number; rows: number; bridged: number };
   const add = (b: Built, k: number): Built | null => {
     budget--;
     const l = lines[k]!;
+    const cost = l.fine.length * (b.columns.length + l.fine.length);
+    if (cost > cellBudget) return null;
+    cellBudget -= cost;
     const next = fit(b.columns, l.fine, Math.min(b.em, l.small), b.rows > 0 && rowLike(k));
     if (!next) return null;
     return { columns: next.columns, em: Math.min(b.em, l.small), rows: b.rows + (l.fine.length > 1 ? 1 : 0), bridged: b.bridged + (next.bridges ? 1 : 0) };
@@ -554,7 +599,7 @@ function findTables(lines: Line[]): void {
 
 /** The table that lines make in these columns, or null when its columns are not aligned. */
 function tableOf(lines: Line[], columns: Columns, em: number): Table | null {
-  const rows: { cells: string[]; at: (Cell | null)[]; y: number; size: number }[] = [];
+  const rows: { cells: string[]; at: (Cell | null)[]; y: number; size: number; rtl: boolean }[] = [];
   for (const l of lines.slice().sort((a, b) => b.y - a.y)) {
     const cells = columns.map(() => "");
     const at: (Cell | null)[] = columns.map(() => null);
@@ -579,7 +624,7 @@ function tableOf(lines: Line[], columns: Columns, em: number): Table | null {
       prev.y = l.y;
       continue;
     }
-    rows.push({ cells, at, y: l.y, size: l.size });
+    rows.push({ cells, at, y: l.y, size: l.size, rtl: l.rtl });
   }
   if (rows.length < 2) return null;
   // Every column but the first lines up, as a table's do.
@@ -594,7 +639,20 @@ function tableOf(lines: Line[], columns: Columns, em: number): Table | null {
       for (let i = 1; i < cells.length; i++) if (wrapsOnto(cells[i - 1]!, cells[i]!)) wraps++;
       return cells.length >= 3 && wraps >= Math.max(1, Math.ceil((cells.length - 1) / 3));
     });
-  return { rows: rows.map((r) => r.cells), form: labelled * 2 >= rows.length, prose };
+  const table: Table = { rows: rows.map((r) => r.cells), form: labelled * 2 >= rows.length, prose };
+  if (prose) {
+    // A column's lines, each as the line of a page of one column it would be.
+    table.columnLines = columns.map((_, k) =>
+      rows.flatMap((r) => {
+        const at = r.at[k];
+        const text = r.cells[k];
+        if (!at || !text) return [];
+        const line: Line = { cells: [{ text, x0: at.x0, x1: at.x1 }], fine: [], rtl: r.rtl, x0: at.x0, x1: at.x1, y: r.y, size: r.size, small: r.size, bottom: r.y, top: r.y, order: 0 };
+        return [line];
+      }),
+    );
+  }
+  return table;
 }
 
 /**
@@ -673,15 +731,219 @@ function labelled(line: Line): boolean {
   return first.slice(0, colon).split(" ").length <= 5;
 }
 
+/** A bullet: a list item however it goes on. */
+const LIST_BULLET = /^[•◦▪▫‣⁃●○■□►▸▹▶➢➤✓✔☐☑·∙]\s/u;
+/** A dash or a star, which may also be a line of prose going on: `– and the office`. */
+const LIST_DASH = /^[–—*-]\s+(\P{Ll})?/u;
+/** A number or letter that marks an item: `1.`, `2)`, `(3)`, `1.2.`, `1.2 Scope`, `(a)`, `b)`, `iv.`. */
+const LIST_NUMBER = /^(?:\(?\d{1,3}[.)]|\(\d{1,3}\)|\d{1,3}(?:\.\d{1,3}){1,4}\.|\d{1,3}(?:\.\d{1,3}){1,4}(?=\s+\p{Lu})|\(?[A-Za-z]\)|\(?[ivxIVX]{2,5}[.)])\s/u;
+/** Writing that breaks between any two characters, with no spaces to break at. */
+const BREAKS_ANYWHERE = /^[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}]/u;
+/** Writing that breaks between its words and sets no space between them, so a line cannot tell how long its first word is: it is taken to be as long as a long one. */
+const UNSPACED_WORDS = /^[\p{Script=Thai}\p{Script=Lao}\p{Script=Khmer}\p{Script=Myanmar}]/u;
+const LONG_UNSPACED_WORD = 20;
+/** A line that goes on from the line above: in lower case, or in writing with no lower case to tell. */
+const GOES_ON = /^[\p{Ll}\p{Lo}]/u;
+/** A line with a word in it: one without is a formula's or a listing's (`x = 10 + y`), which is set as it is written and wraps onto nothing. */
+const HAS_WORD = /\p{L}{2}/u;
+/** A line that opens as the line above did, its first word and then a number: `Chapter 1`, `Flat 2`, `In 2019`. */
+const WORD_AND_NUMBER = /^(\p{L}+) \d/u;
+
+/** About how wide a character is set, in ems: near enough, with a run's own width to scale it, to tell how long a line's first word is. */
+function charWidth(code: number): number {
+  if (code >= 0x2e80) return 1;
+  // Space, i l j t f r I . , : ; ' " ! |
+  if (code === 0x20 || code === 0x69 || code === 0x6c || code === 0x6a || code === 0x74 || code === 0x66 || code === 0x72 || code === 0x49) return 0.28;
+  if (code === 0x2e || code === 0x2c || code === 0x3a || code === 0x3b || code === 0x27 || code === 0x22 || code === 0x21 || code === 0x7c) return 0.28;
+  // ( ) [ ] { } / \ -
+  if (code === 0x28 || code === 0x29 || code === 0x5b || code === 0x5d || code === 0x7b || code === 0x7d || code === 0x2f || code === 0x5c || code === 0x2d) return 0.33;
+  // m w M W @ %
+  if (code === 0x6d || code === 0x77 || code === 0x4d || code === 0x57 || code === 0x40 || code === 0x25) return 0.85;
+  if (code >= 0x41 && code <= 0x5a) return 0.68;
+  return 0.55;
+}
+
+function reckon(text: string): number {
+  let w = 0;
+  for (let i = 0; i < text.length; i++) w += charWidth(text.charCodeAt(i));
+  return w;
+}
+
+/** How wide a line's first word is, in the run that holds it: what would have to fit on the line above. */
+function firstWordWidth(line: Line): number {
+  const cell = line.cells[0]!;
+  const text = cell.text;
+  let end = text.indexOf(" ");
+  if (end < 0) end = text.length;
+  if (BREAKS_ANYWHERE.test(text)) end = text.codePointAt(0)! > 0xffff ? 2 : 1;
+  else if (UNSPACED_WORDS.test(text)) end = Math.min(end, LONG_UNSPACED_WORD);
+  return ((cell.x1 - cell.x0) * reckon(text.slice(0, end))) / (reckon(text) || 1);
+}
+
+/** The white space most lines in one size stand apart by, for each size. */
+function usualLeading(lines: Line[], prose: boolean[]): Map<number, number> {
+  const seen = new Map<number, Map<number, number>>();
+  for (let k = 1; k < lines.length; k++) {
+    if (!prose[k] || !prose[k - 1]) continue;
+    const a = lines[k - 1]!;
+    const b = lines[k]!;
+    const down = a.y - b.y;
+    if (down <= 0 || down > 3 * b.size || Math.abs(a.size - b.size) > 0.05 * b.size) continue;
+    const size = Math.round(b.size * 10);
+    const counts = seen.get(size) ?? new Map<number, number>();
+    const at = Math.round(down * 2) / 2;
+    counts.set(at, (counts.get(at) ?? 0) + 1);
+    seen.set(size, counts);
+  }
+  const out = new Map<number, number>();
+  for (const [size, counts] of seen) {
+    let best = 0;
+    let most = 0;
+    for (const [at, n] of counts) if (n > most || (n === most && at < best)) [best, most] = [at, n];
+    out.set(size, best);
+  }
+  return out;
+}
+
+/**
+ * Whether a line of `lines` ends a paragraph, where it ends no sentence (the reader asks only then):
+ * `item` says the paragraph so far is a list item.
+ *
+ * A line of a paragraph breaks where the next word no longer fits. So a line that stops short of the
+ * width of its column, with room for the next line's first word, ends its paragraph, whatever it
+ * ends in, and a column's width is the widest of the lines near it that start where it or the next
+ * starts, in its size: a quote or a box set narrower than the text is measured by its own lines, and
+ * so is a block of lines that wrap onto one another at a narrower width than a text above or below
+ * them at their edge, as a column under a line across the page, or lines beside a figure, are.
+ * Lines that go on in lower case take more to part, as they read on: they part only where the line
+ * stops well short, or where either holds no word, as a line of a formula or a listing does not. Lines that do not are parted by less: by white space wider than the page's lines
+ * are set at, a change of size, lines too narrow to be a column, a line wider than any line near it
+ * shows a column to be, or, as a table's rows whose columns could not be found do, two lines that
+ * each end in a number or three that hold as many words, or a line that opens as the one above did,
+ * its first word and a number. A line that starts a list always stands apart from what came before it.
+ * A line the file gives no width to says nothing, and goes on, as vertical text does.
+ */
+function paragraphEnds(lines: Line[]): (k: number, item: boolean) => boolean {
+  const prose = lines.map((l, k) => !l.table && (l.cells.length === 1 || stretched(l, [lines[k - 1], lines[k + 1]])));
+  const leading = usualLeading(lines, prose);
+  const near = (l: Line) => (l.rtl ? -l.x1 : l.x0);
+  const far = (l: Line) => (l.rtl ? -l.x0 : l.x1);
+  /** How many words a line holds, if it is a line of prose short enough for that to say anything, ending nothing and going on from nothing. */
+  const wordsIn = (k: number) => {
+    const l = lines[k];
+    if (!l || !prose[k] || l.cells.length !== 1) return 0;
+    const text = l.cells[0]!.text;
+    if (text.length > 120 || LOWER_START.test(text) || endsSentence(text) || text.endsWith(",")) return 0;
+    let n = 1;
+    for (let i = 0; i < text.length; i++) if (text.charCodeAt(i) === 0x20) n++;
+    return n;
+  };
+  /** Three lines from this one with as many words, more than one and few, as the rows of a table are whose columns could not be found. */
+  const wordsAlike = (k: number) => {
+    const n = wordsIn(k);
+    return n > 1 && n <= MOST_WORDS_IN_A_ROW && wordsIn(k + 1) === n && wordsIn(k + 2) === n;
+  };
+  /**
+   * How wide a block of lines is that a line stands in, with a wider text at its edge above or below:
+   * the widest of the lines either side of it, one after the next, that wrap onto one another and are
+   * no wider than it by more than `OTHER_SHAPE`. Null when they make no block: too few lines, or none
+   * going on from the line above, as a list of short lines does not.
+   */
+  const blockWidth = (k: number, em: number): number | null => {
+    const a = lines[k]!;
+    const reach = far(a) + Math.max(OTHER_SHAPE * em, OTHER_SHAPE_PART * (far(a) - near(a)));
+    const inBlock = (j: number) => {
+      const l = lines[j];
+      return !!l && prose[j]! && Math.abs(l.size - a.size) <= 0.05 * Math.max(l.size, a.size) && Math.abs(near(l) - near(a)) <= INDENT * em && far(l) <= reach;
+    };
+    const goesOn = (j: number) => GOES_ON.test(lines[j]!.cells[0]!.text);
+    let widest = far(a);
+    let count = 1;
+    let wraps = goesOn(k);
+    for (let j = k - 1; j >= Math.max(0, k - MEASURE_WINDOW) && inBlock(j); j--) {
+      widest = Math.max(widest, far(lines[j]!));
+      count++;
+      wraps ||= goesOn(j);
+    }
+    for (let j = k + 1; j <= k + 1 + MEASURE_WINDOW && inBlock(j); j++) {
+      widest = Math.max(widest, far(lines[j]!));
+      count++;
+      wraps ||= goesOn(j);
+    }
+    return count >= SMALLEST_BLOCK && wraps ? widest : null;
+  };
+  return (k, item) => {
+    const a = lines[k]!;
+    const b = lines[k + 1];
+    if (!b || !prose[k] || !prose[k + 1]) return false;
+    if (a.frame !== b.frame) return true;
+    const widthA = far(a) - near(a);
+    const start = b.cells[0]!.text;
+    if (LIST_BULLET.test(start)) return true;
+    const endA = a.cells[a.cells.length - 1]!.text;
+    if (HYPHENS.has(endA.charAt(endA.length - 1)) && LETTER.test(start.charAt(0))) return false;
+    if (widthA <= 0 || far(b) - near(b) <= 0) return false;
+    const em = Math.min(a.size, b.size);
+    // Only a line under this one, in its column, says how wide the column is.
+    const under = near(b) < far(a) && far(b) > near(a);
+    const sameSize = (l: Line, m: Line) => Math.abs(l.size - m.size) <= 0.05 * Math.max(l.size, m.size);
+    const ofColumn = (l: Line) => sameSize(l, a) && (Math.abs(near(l) - near(a)) <= SAME_EDGE * em || (under && Math.abs(near(l) - near(b)) <= SAME_EDGE * em));
+    let measure = under ? Math.max(far(a), far(b)) : far(a);
+    let seconded = under && far(b) >= far(a) - Math.max(2 * em, 0.12 * widthA);
+    let alone = true;
+    for (let j = Math.max(0, k - MEASURE_WINDOW); j <= Math.min(lines.length - 1, k + 1 + MEASURE_WINDOW); j++) {
+      if (j === k || j === k + 1 || !prose[j]) continue;
+      const l = lines[j]!;
+      if (!ofColumn(l)) continue;
+      alone = false;
+      measure = Math.max(measure, far(l));
+      if (far(l) >= far(a) - Math.max(2 * em, 0.12 * widthA)) seconded = true;
+    }
+    if (measure > far(a)) measure = Math.min(measure, blockWidth(k, em) ?? measure);
+    if (alone && under && widthA >= WIDE_ALONE * em) seconded = true;
+    const opensAlike = WORD_AND_NUMBER.exec(start);
+    if (opensAlike && WORD_AND_NUMBER.exec(a.cells[0]!.text)?.[1] === opensAlike[1]) return true;
+    const roomy = far(a) + 0.25 * em + 1.25 * firstWordWidth(b) <= measure;
+    const wordAfter = LIST_DASH.exec(start);
+    if (wordAfter && (item || roomy || wordAfter[1])) return true;
+    if (LIST_NUMBER.test(start) && (item || roomy)) return true;
+    const changesSize = !sameSize(a, b);
+    const narrow = measure - near(a) < NARROWEST_COLUMN * em;
+    const down = a.y - b.y;
+    const usual = leading.get(Math.round(b.size * 10));
+    const whiteSpace = under && !!usual && down > PARAGRAPH_GAP * usual;
+    if (LOWER_START.test(start)) {
+      // A large figure and the words under it that go on from it (`87%`, `of the crews`) read on.
+      if (changesSize) return false;
+      if (!HAS_WORD.test(endA) || !HAS_WORD.test(start)) return true;
+      if (roomy && widthA < STOPS_SHORT * (measure - near(a))) return true;
+      return narrow && !endA.includes(" ") && !start.includes(" ");
+    }
+    // Writing whose next word cannot be told parts only where a line stops well short, or by white space.
+    if (UNSPACED_WORDS.test(start)) return changesSize || whiteSpace || (roomy && widthA < STOPS_SHORT * (measure - near(a)));
+    if (changesSize || narrow || roomy || !seconded) return true;
+    if (whiteSpace) return true;
+    return (endsInNumber(endA) && endsInNumber(b.cells[b.cells.length - 1]!.text)) || wordsAlike(k - 1) || wordsAlike(k);
+  };
+}
+
+/** Whether a text ends in a number: read from its last few characters, as a line may be very long. */
+const endsInNumber = (text: string) => /\d[\d.,%)]*$/.test(text.slice(-24));
+
+/** Whether a text starts a list, by what any line of it says. */
+const startsItem = (text: string) => LIST_BULLET.test(text) || LIST_DASH.test(text) || LIST_NUMBER.test(text);
+
 /** How a repeated line is read: left out, or kept, where it first appears, as this text, at the top of its page or the end. */
 export type Repeated = { keep: string | null; top: boolean };
 
 /**
  * A page's blocks, after its `# Page N` heading, and the characters of text they hold. Its headings
  * are among them, each with the size it is set in, for pdf.ts to give it a level once every page is
- * read: their words for now, at level 2.
+ * read: their words for now, at level 2. It stops reading past `room` blocks: the file makes too many
+ * this way. With `onlySentences`, a paragraph ends only where a sentence does, for such a file.
  */
-export function pageBlocks(page: PageLayout, pageNo: number, repeated: Map<Line, Repeated>): { blocks: Block[]; chars: number; tables: number; headings: { block: Block; size: number }[] } {
+export function pageBlocks(page: PageLayout, pageNo: number, repeated: Map<Line, Repeated>, options: { room?: number; onlySentences?: boolean } = {}): { blocks: Block[]; chars: number; tables: number; headings: { block: Block; size: number }[] } {
+  const { room = Infinity, onlySentences = false } = options;
   const blocks: Block[] = [];
   const headed: { block: Block; size: number }[] = [];
   let chars = 0;
@@ -695,15 +957,24 @@ export function pageBlocks(page: PageLayout, pageNo: number, repeated: Map<Line,
     if (t) push(t);
     para = [];
   };
+  /** A line goes into the paragraph, which it ends if it ends a sentence, or its column shows it stops there. */
+  let item = false;
+  const readLine = (text: string, ends: (k: number, item: boolean) => boolean, k: number) => {
+    if (!para.length) item = startsItem(text);
+    para.push(text);
+    if (endsSentence(text) || (!onlySentences && ends(k, item))) flush();
+  };
   const tables = new Set<Table>();
   const lines = page.lines.filter((l) => !repeated.has(l));
   const headings = pageHeadings(lines);
+  const endsHere = paragraphEnds(lines);
   // The lines up to this one are a heading's, already read.
   let readTo = -1;
   // A header kept reads first, whenever the stream draws it.
   for (const l of page.lines) if (repeated.get(l)?.keep && repeated.get(l)!.top) push(repeated.get(l)!.keep!);
   for (const [k, line] of lines.entries()) {
     if (k <= readTo) continue;
+    if (blocks.length > room) break;
     const heading = headings.get(k);
     if (heading) {
       // A heading stands on its own, never run into the text before or after it.
@@ -721,15 +992,11 @@ export function pageBlocks(page: PageLayout, pageNo: number, repeated: Map<Line,
       tables.add(t);
       flush();
       if (t.prose) {
-        // Read a column at a time, each as the paragraphs its lines make.
-        for (let c = 0; c < (t.rows[0]?.length ?? 0); c++) {
-          for (const r of t.rows) {
-            if (!r[c]) continue;
-            para.push(r[c]!);
-            if (endsSentence(r[c]!)) flush();
-          }
-          flush();
-        }
+        // Read a column at a time, as the paragraphs its lines make, one going on into the next.
+        const read = t.columnLines?.flat() ?? [];
+        const ends = paragraphEnds(read);
+        for (const [i, l] of read.entries()) readLine(l.cells[0]!.text, ends, i);
+        flush();
       } else if (t.form) for (const r of t.rows) push(lineText(r.filter(Boolean).map((text) => ({ text }))));
       else {
         for (const b of tableBlocks(t.rows)) blocks.push({ ...b, page: pageNo });
@@ -751,15 +1018,12 @@ export function pageBlocks(page: PageLayout, pageNo: number, repeated: Map<Line,
       push(text);
       continue;
     }
-    para.push(text);
-    if (endsSentence(text)) flush();
+    readLine(text, endsHere, k);
   }
   flush();
-  for (const line of page.turned) {
-    if (repeated.has(line)) continue;
-    para.push(line.cells.map((c) => c.text).join(" "));
-    if (endsSentence(para[para.length - 1]!)) flush();
-  }
+  const turned = page.turned.filter((l) => !repeated.has(l));
+  const endsTurned = paragraphEnds(turned);
+  for (const [k, line] of turned.entries()) readLine(line.cells.map((c) => c.text).join(" "), endsTurned, k);
   flush();
   // A footer kept, and a stamp, read last.
   for (const l of [...page.lines, ...page.turned]) if (repeated.get(l)?.keep && !repeated.get(l)!.top) push(repeated.get(l)!.keep!);

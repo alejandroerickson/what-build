@@ -122,8 +122,9 @@ running without a compliance program.
 | Read per attachment | 25 MB (`WHATBUILD_PARSE_CAP_BYTES`); a larger attachment is stored, not read | Yes |
 | Memory for reading one attachment | 288 MB of heap (`WHATBUILD_PARSE_MEMORY_MB`), and half as much again for buffers, the text it returns among them; a parse that needs more is stopped and fails. The process it runs in costs more than these: about 70 MiB before it starts, and at its peak more than twice the heap's limit, about 660 MiB at the default in the heaviest case measured and occasionally more, beside what the server holds in the same instance | Yes |
 | Time for reading one attachment | 120 seconds (`WHATBUILD_PARSE_TIMEOUT_SECONDS`), counted from when its process starts; a parse that runs longer is stopped and fails | Yes |
-| Paragraphs read from one attachment | 200,000; a file that would make more is stored, not read (`too_large`) | Yes |
+| Paragraphs read from one attachment | 200,000; a file that would make more is stored, not read (`too_large`), except a PDF whose short lines would, read to its sentences' ends instead ([§5.5](05-derived-layer.md)) | Yes |
 | Pages of a parsed PDF | 2,000; a longer PDF is stored, not read (`too_large`) | Yes |
+| Looking for tables on one page of a PDF | 200,000 rows fitted to columns, and 10,000,000,000 cells checked against columns; what is left reads as lines, and a line that would overdraw the cells reads as a line at once ([§5.3](05-derived-layer.md)) | Yes |
 | Attachments per source | 50 | Yes — `409 too_many_attachments` |
 | A derived text written whole | 2,000,000 characters; a longer one is uploaded as an attachment and its text taken | Yes — `422 too_long` |
 | Story pages | 50 per product | Yes — `409 quota_exceeded`, quota `story_pages` |

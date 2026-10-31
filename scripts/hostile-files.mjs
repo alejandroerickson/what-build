@@ -56,6 +56,20 @@ function inflatingPdf(mib) {
   ]);
 }
 
+/** One page whose content stream draws `count` short lines, set small enough that all of them stand on the page: a paragraph each. */
+function shortLinesPdf(count) {
+  const leading = 780 / count;
+  const ops = fill("(Short) Tj T* ", count * Buffer.byteLength("(Short) Tj T* "));
+  const stream = deflateSync(Buffer.concat([Buffer.from(`BT /F1 ${(leading * 0.6).toFixed(6)} Tf 72 785 Td ${leading.toFixed(6)} TL\n`), ops, Buffer.from("ET")]), { level: 9 });
+  return pdf([
+    "<< /Type /Catalog /Pages 2 0 R >>",
+    "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+    "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>",
+    [`<< /Length ${stream.length} /Filter /FlateDecode >>`, stream],
+    "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+  ]);
+}
+
 /** A PDF of `pages` blank pages: a few bytes each, so a small file has very many. */
 function blankPdf(pages) {
   const kids = Array.from({ length: pages }, (_, i) => `${i + 3} 0 R`).join(" ");
@@ -89,6 +103,13 @@ export const HOSTILE_FILES = [
     what: "a PDF of about 130 KB whose one content stream inflates to 64 MB of text to draw",
     expect: `ready, after some seconds, or ${AT_A_LIMIT}`,
     make: () => inflatingPdf(64),
+  },
+  {
+    name: "short-lines.pdf",
+    what: "a PDF of about 6 KB whose one page draws 170,000 short lines with no full stop, each its own paragraph: about the most a page holds at the default memory",
+    // Measured: about 2 seconds.
+    expect: `ready, after some seconds, or ${AT_A_LIMIT}`,
+    make: () => shortLinesPdf(170_000),
   },
   {
     name: "blank-pages.pdf",

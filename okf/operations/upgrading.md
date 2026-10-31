@@ -23,6 +23,21 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
 
 ## Unreleased
 
+- **A PDF's short lines read as the page does (PDF parser 6).** It asks nothing of a deployment
+  beyond the release's rehearsal with hostile files, as for any change to parsing; the list now has
+  `short-lines.pdf`. People will notice it in what is read from now on: a line with no full stop that
+  stops short of its column's width (a name, a heading in the text's own size, a closing line) is a
+  paragraph of its own where it ran into the next, and each list item stands apart. Tables read as
+  they did, and the rows of a table set too tight for its gaps to show its columns, which ran together,
+  stand apart the same way where they stop short. Nothing is read again by itself: a source read earlier
+  keeps its text, and search goes on finding it, until its attachment is read again
+  (`derived_write(action="rederive")`, or Read it again in the web app, one attachment at a time) or
+  a new version of it arrives; `parser_version` in `derived_read(action="manifest")` says which parser
+  made a reading. Then a source whose text still follows that attachment takes the new text and a new
+  etag, and a text someone wrote or edited is left alone; the reading made earlier is kept. Copying a
+  source to another product reads its attachments again, so the copy of a source read earlier takes
+  this parser's text where its text still follows the attachment, though the source it came from
+  keeps its own.
 - **Each file is parsed in a child process of its own**, not a thread of the server's, so a parse
   that ends in a fatal error ends only itself. `WHATBUILD_PARSE_TIMEOUT_SECONDS` means what it did,
   and it asks nothing of a deployment beyond allowing the server to start a process, which every

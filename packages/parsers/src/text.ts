@@ -115,6 +115,16 @@ export function splitLong(text: string, max = MAX_SEGMENT_CHARS): string[] {
   return out;
 }
 
+/** How many segments blocks make once long ones are split: what `assemble` would make of them, without the copies. */
+export function segmentCount(blocks: Block[]): number {
+  let n = 0;
+  for (const block of blocks) {
+    const clean = block.text.trim();
+    if (clean) n += clean.length <= MAX_SEGMENT_CHARS ? 1 : splitLong(clean).length;
+  }
+  return n;
+}
+
 /**
  * Assemble blocks into segments and the text they index into. Segments are joined by a blank
  * line; `text` ends with one newline past the last offset. `text[char_start:char_end] == segment.text`
