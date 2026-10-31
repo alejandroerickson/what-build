@@ -361,6 +361,78 @@ describe("promoting a mockup page to the Story", () => {
   });
 });
 
+describe("which page a result on several pages names", () => {
+  let S: string;
+  let mockupId: string;
+  const page = (words: string) => `<!doctype html><html lang="en"><body><p>${words}</p></body></html>`;
+  const named = async (b: Browser, words: string) => {
+    const r = await b.api("GET", `${S}/search?mode=plain&strict=true&query=${encodeURIComponent(words)}`);
+    expect(r.status, JSON.stringify(r.body)).toBe(200);
+    return (r.body.results as { id: string; meta: { page_id?: string; page_title?: string } }[]).find((x) => x.id === (b === rita ? "whole-yard" : mockupId))?.meta;
+  };
+
+  beforeAll(async () => {
+    const p = await alice.api("POST", `/api/v1/teams/${tenantSlug}/${teamSlug}/products`, { name: "Titled pages" });
+    S = `/api/v1/p/${p.body.path}`;
+    expect((await alice.api("POST", `/api/v1/tenants/${tenantSlug}/members`, { team: teamSlug, product: "titled-pages", email: "rita@example.com", role: "reader" })).status).toBe(201);
+    const m = await alice.api("POST", `${S}/mockups`, {
+      title: "Yard planning",
+      pages: [
+        { page_id: "intro", title: "Introduction", html: page("The rota is agreed on Monday, and then the rota goes up by the gate.") },
+        { page_id: "notes", title: "Rota notes", html: page("Who swapped with whom.") },
+        { page_id: "rota", title: "Rota", html: page("Who works when.") },
+        { page_id: "gate", title: "Gate", html: page("Codes change on Friday.") },
+        { page_id: "vans", title: "Vans", html: page("Each of the vans is loaded at seven.") },
+      ],
+    });
+    expect(m.status, JSON.stringify(m.body)).toBe(201);
+    mockupId = m.body.mockup_id;
+    expect((await alice.api("POST", `${S}/story/promote-mockup`, { mockup_id: mockupId, page_id: "whole-yard" })).status).toBe(201);
+  });
+
+  it("is the page titled with the words, ahead of the first that says them", async () => {
+    expect(await named(alice, "rota")).toMatchObject({ page_id: "rota", page_title: "Rota" });
+    expect(await named(alice, "gate")).toMatchObject({ page_id: "gate", page_title: "Gate" });
+  });
+
+  it("is the one whose title says them best, of those titled with them", async () => {
+    expect(await named(alice, "rota notes")).toMatchObject({ page_id: "notes" });
+  });
+
+  it("holds the most of the words, whatever its title", async () => {
+    expect(await named(alice, "rota monday")).toMatchObject({ page_id: "intro", page_title: "Introduction" });
+  });
+
+  it("is the first that says them when no page is titled with them", async () => {
+    expect(await named(alice, "monday")).toMatchObject({ page_id: "intro" });
+    expect(await named(alice, "friday")).toMatchObject({ page_id: "gate" });
+  });
+
+  it("is no page when the words are only in the mockup's own title", async () => {
+    expect(await named(alice, "yard")).toEqual({ pages: 5 });
+  });
+
+  it("is the same for a reader on the whole canvas", async () => {
+    expect(await named(rita, "rota")).toEqual({ page_id: "rota", page_title: "Rota" });
+    expect(await named(rita, "rota monday")).toEqual({ page_id: "intro", page_title: "Introduction" });
+  });
+
+  it("quotes that page, not another, and what it says ahead of the title that names it", async () => {
+    const hit = async (words: string) => (await alice.api("GET", `${S}/search?mode=plain&strict=true&query=${encodeURIComponent(words)}`)).body.results.find((x: { id: string }) => x.id === mockupId);
+    const titled = await hit("rota");
+    expect(titled.snippet).toBe("Rota");
+    expect((await hit("vans")).snippet).toBe("Each of the vans is loaded at seven.");
+  });
+
+  it("does not change how the result scores: by the page that scores highest", async () => {
+    const r = await alice.api("GET", `${S}/search?mode=plain&strict=true&query=rota`);
+    const hit = r.body.results.find((x: { id: string }) => x.id === mockupId);
+    // The first page says it twice over and the third is titled with it, each a body to the mockup.
+    expect(hit.meta.page_id).toBe("rota");
+    expect(hit.score).toBe(108);
+  });
+});
+
 describe("searching for what a Story page shows of a mockup", () => {
   let S: string;
   let oneId: string;

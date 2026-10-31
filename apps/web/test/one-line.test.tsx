@@ -58,7 +58,7 @@ async function resize(chars: number, show = true) {
 const one = (el: Element) => !hidden && el.classList.contains("one-line");
 const layout = {
   clientHeight: (el: Element) => (one(el) ? LINE : 0),
-  scrollHeight: (el: Element) => (one(el) ? LINE * Math.max(1, Math.ceil(([...drawn(el)].length + (el.hasAttribute("data-cut") ? 1 : 0)) / room)) : 0),
+  scrollHeight: (el: Element) => (one(el) ? LINE * Math.max(1, Math.ceil(([...drawn(el)].length + (el.hasAttribute("data-cut") ? 1 : 0) + (el.hasAttribute("data-lead") ? 1 : 0)) / room)) : 0),
   clientWidth: (el: Element) => (one(el) ? room * 8 : 0),
 };
 
@@ -155,6 +155,67 @@ describe("a title on one line", () => {
     expect(l).toMatchObject({ cut: true, text: MIXED, title: MIXED });
     const parts = [...l.el.childNodes].filter((n) => !(n instanceof Element && n.classList.contains("visually-hidden")));
     expect(parts.map((n) => [n.nodeName, n.textContent])).toEqual([["#text", "Crew "], ["MARK", "lead"], ["#text", " interview مقابلة"]]);
+  });
+});
+
+describe("a title on one line with a place to keep", () => {
+  const LONG = "Quarterly planning review of the northern depots and their lead schedulers on call";
+  const at = LONG.indexOf("schedulers");
+
+  it("that its first words reach stays as it is", async () => {
+    const l = line(await render(<OneLine text={LONG} keep={LONG.indexOf("planning")} />));
+    expect(l).toMatchObject({ shown: "Quarterly planning review of", cut: true, title: LONG, text: LONG });
+    expect(l.el.hasAttribute("data-lead")).toBe(false);
+  });
+
+  it("past its cut starts at a word nearer it, after an ellipsis, as far back as still fits", async () => {
+    const l = line(await render(<OneLine text={LONG} keep={at} />));
+    expect(l).toMatchObject({ shown: "and their lead schedulers", cut: true, title: LONG, text: LONG });
+    expect(l.el.hasAttribute("data-lead")).toBe(true);
+  });
+
+  it("near its end shows through to the end, with no second ellipsis", async () => {
+    const end = LONG.indexOf("call");
+    const l = line(await render(<OneLine text={LONG} keep={end} />));
+    expect(l).toMatchObject({ shown: "their lead schedulers on call", cut: false, title: LONG, text: LONG });
+    expect(l.el.hasAttribute("data-lead")).toBe(true);
+  });
+
+  it("hands what it draws the part shown and where that part starts", async () => {
+    const seen: [string, number][] = [];
+    await render(<OneLine text={LONG} keep={at} render={(shown, from) => (seen.push([shown, from]), shown)} />);
+    const [shown, from] = seen[seen.length - 1]!;
+    expect(shown).toBe("and their lead schedulers");
+    expect(LONG.slice(from, from + shown.length)).toBe(shown);
+  });
+
+  it("drawn wider than it was measured starts a word later, rather than losing it", async () => {
+    // Just room for what is measured, "…and their lead schedulers…", and none for what the mark adds.
+    room = 27;
+    const host = await render(
+      <OneLine text={LONG} keep={at} render={(shown, from) => <>{shown.slice(0, at - from)}<mark>{shown.slice(at - from, at - from + 10)}</mark>{shown.slice(at - from + 10)}</>} />,
+    );
+    expect(line(host)).toMatchObject({ cut: true, text: LONG, title: LONG });
+    expect(host.querySelector("mark")?.textContent).toBe("schedulers");
+    expect(drawn(host.querySelector(".one-line")!)).toBe("their lead  schedulers");
+  });
+
+  it("is moved again when its room changes, and back when it all fits", async () => {
+    const host = await render(<OneLine text={LONG} keep={at} />);
+    await resize(17);
+    expect(line(host).shown).toBe("lead schedulers");
+    await resize(16);
+    expect(line(host).shown).toBe("schedulers");
+    await resize(100);
+    const l = line(host);
+    expect(l).toMatchObject({ shown: LONG, cut: false, title: null });
+    expect(l.el.hasAttribute("data-lead")).toBe(false);
+  });
+
+  it("that is its first word adds nothing", async () => {
+    const l = line(await render(<OneLine text={LONG} keep={0} />));
+    expect(l).toMatchObject({ shown: "Quarterly planning review of", cut: true });
+    expect(l.el.hasAttribute("data-lead")).toBe(false);
   });
 });
 
