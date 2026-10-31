@@ -557,7 +557,7 @@ export const archiveProduct = defineOperation({
   access: "admin",
   mutates: true,
   summary: "Archive a product: hidden from lists and read-only until restored. Erases nothing.",
-  description: "Archiving is reversible. While archived, writes return 409 product_archived; reads and export still work.",
+  description: "Archiving is reversible. While archived, writes return 409 product_archived; reads and export still work. An archived product and its sources still count against a plan's totals, so archiving makes no room; deleting does.",
   input: z.strictObject({ expected_etag: expectedEtag }),
   rest: { method: "POST", path: "/archive" },
   mcp: { tool: "products", action: "archive" },

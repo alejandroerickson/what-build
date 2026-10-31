@@ -3,7 +3,7 @@ type: Roadmap
 title: Phases 0 to 5 are mostly built, with an example organization every account reads and plans that set every limit; durability, data rights and public sign-up come next.
 description: What is built and what is not, phase by phase, with acceptance criteria; the open questions that remain, the ones already settled, the risks, and problems seen that are not yet explained.
 tags: [roadmap, status, phases, open-questions, risks, problems]
-generated: {by: agent:claude, at: 2026-10-27}
+generated: {by: agent:claude, at: 2026-10-31}
 status: stable
 ---
 
@@ -272,8 +272,9 @@ visitors, invitation links, seats, baselines and daily reset.
 - An organization made on an allowance gets the deployment's plan, and on a plan the deployment
   defines meets every limit of it, its owners included; one an instance owner makes is unlimited; only an instance
   owner moves one to another plan, and nobody changes one organization's limits.
-- A write past a total is refused, and archiving (or, for storage, deleting) makes room; a reader
-  of the Story never takes a place among the people.
+- A write past a total is refused, and deleting (or, for people, taking someone out) makes room,
+  never archiving; restoring is never refused by a total; a reader of the Story never takes a place
+  among the people.
 - Every limit is refused with a usable error through REST, and the same limit through MCP; reads,
   search and export within the limits still work.
 - A second organization on the starting plan is refused; moving the first to another plan lets

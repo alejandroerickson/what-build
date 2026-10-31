@@ -134,7 +134,8 @@ tenant.
 - **`quota_exceeded`** carries `{ quota, limit, used, unit }` in `details`. It is returned for the
   50 Story pages and the 50 mockups a product holds ([§9.2](09-data-lifecycle.md)), the mockups'
   adding `archived`, and for a plan's daily allowances, which add `resets_at`
-  ([§9.7](09-data-lifecycle.md)). An allowance set to 0 is switched off and answers
+  ([§9.7](09-data-lifecycle.md)). A call past a day's allowance that would also meet a total names
+  the total, with the day's allowance in `details.also`. An allowance set to 0 is switched off and answers
   `403 plan_restricted` instead.
 - **`429`** is returned for sign-in links (five per address per hour), for a fourth URL fetch a
   person starts while three of theirs are in progress (`attachments.fetch_url`, on each instance), and

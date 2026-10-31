@@ -73,8 +73,8 @@ export function CreateProductDialog({ onClose, tenants }: { onClose: () => void;
           ) : null}
           {full && limits.data ? (
             <Callout inset tone="attention" title={`${limits.data.organization.name} holds all the products its plan allows`}>
-              Its {limits.data.plan_name} plan allows {cap === 1 ? "1 product that isn’t archived" : `${cap} products that aren’t archived`}, and it has {held}. Archive a product to
-              make room, or ask whoever runs this WhatBuild to move the organization to a larger plan.
+              Its {limits.data.plan_name} plan allows {cap === 1 ? "1 product" : `${cap} products`}, archived ones included, and it has {held}. An admin of a product no longer needed
+              can delete it in its Settings to make room, or ask whoever runs this WhatBuild to move the organization to a larger plan.
             </Callout>
           ) : null}
           <TextField label="Name" required maxLength={100} value={name} onChange={(e) => setName(e.target.value)} />
