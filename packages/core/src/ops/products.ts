@@ -828,6 +828,16 @@ function seenByCaller(ctx: OpContext): (accountId: string) => Promise<boolean> {
 async function grantOne(ctx: OpContext, target: GrantTarget, email: string, role: string, seen: (accountId: string) => Promise<boolean>) {
   const tid = ctx.scope.tenant!.tenant_id;
   await checkMembers(ctx.db, ctx.limits ?? null, email, role);
+  // An address has one open invitation to a place: a new one replaces it, and the role itself makes it moot.
+  await ctx.db
+    .updateTable("invitations")
+    .set({ expires_at: ctx.now })
+    .where("scope_type", "=", target.scope_type)
+    .where("scope_id", "=", target.scope_id)
+    .where(sql<boolean>`lower(email) = lower(${email})`)
+    .where("accepted_at", "is", null)
+    .where("expires_at", ">", ctx.now)
+    .execute();
   const found = await ctx.db.selectFrom("accounts").select(["account_id", "display_name"]).where(sql<boolean>`lower(email) = lower(${email})`).where("deleted_at", "is", null).executeTakeFirst();
   const account = found && (await seen(found.account_id)) ? found : null;
   if (!account) {
@@ -847,8 +857,8 @@ async function grantOne(ctx: OpContext, target: GrantTarget, email: string, role
       subject: `${who} invited you to ${where} on WhatBuild`,
       text:
         `${who} invited you to ${where} on WhatBuild, as ${/^[aeiou]/.test(role) ? "an" : "a"} ${role}.\n\n` +
-        `Accept the invitation:\n${link}\n\n` +
-        `The link works once, within 7 days, when you sign in with this email.\n` +
+        `You join only if you accept. Accept or decline it here:\n${link}\n\n` +
+        `The link works within 7 days, when you sign in with this email. The invitation also waits for you there whenever you sign in.\n` +
         `The name in quotation marks is the one the inviter gave WhatBuild.\n`,
     };
     await recordActivity(ctx, { action: "invited", entity_type: "membership", entity_id: invitation_id, entity_title: target.name, summary: `Invited someone as ${role}` });
@@ -890,7 +900,7 @@ export const grantMember = defineOperation({
   connection: "admin",
   summary: "Give someone a role on the tenant, a team, or a product; invites by email anyone not already in the organization.",
   description:
-    "Admins of the target grant roles there: product admins on their product, team admins on their team, tenant admins on the tenant (owners for owner). Roles: tenant owner|admin|member; team and product admin|editor|viewer|reader. A reader reads only the Story: its pages, their versions and their export, without the evidence, assumptions and mockups behind them. Someone you already see in the organization (everyone, for its owners and admins; otherwise the people on the teams and products you read) gets the role at once: granting again replaces the role at that scope, and granting the role they already hold there changes nothing and says unchanged. Anyone else gets an invitation by email, valid 7 days, whether or not they have an account, and joins when they accept it: the answer never says whether an address has an account. To give many people roles at once, use grant_many.",
+    "Admins of the target grant roles there: product admins on their product, team admins on their team, tenant admins on the tenant (owners for owner). Roles: tenant owner|admin|member; team and product admin|editor|viewer|reader. A reader reads only the Story: its pages, their versions and their export, without the evidence, assumptions and mockups behind them. Someone you already see in the organization (everyone, for its owners and admins; otherwise the people on the teams and products you read) gets the role at once: granting again replaces the role at that scope, and granting the role they already hold there changes nothing and says unchanged. Anyone else gets an invitation by email, valid 7 days, whether or not they have an account, and joins only if they accept it in the web app, which no agent can do for them: the answer never says whether an address has an account. A new invitation to the same address at the same place replaces one still open. To give many people roles at once, use grant_many.",
   input: grantScope.extend({
     email: z.string().email().max(320),
     role: z.enum(GRANT_ROLES),
@@ -1061,7 +1071,9 @@ export const cancelInvitation = defineOperation({
     }
     const target = { scope_type: inv.scope_type, scope_id: inv.scope_id, team_id: teamId, product_id: inv.scope_type === "product" ? inv.scope_id : null, name: inv.scope_type as string } as Awaited<ReturnType<typeof resolveGrantTarget>>;
     await requireAdminOf(ctx, target, inv.role);
-    await ctx.db.updateTable("invitations").set({ expires_at: ctx.now }).where("invitation_id", "=", inv.invitation_id).execute();
+    // Only while it is open: of a cancellation and an answer sent together, whichever reaches the row first is the only one.
+    const ended = await ctx.db.updateTable("invitations").set({ expires_at: ctx.now }).where("invitation_id", "=", inv.invitation_id).where("accepted_at", "is", null).where("expires_at", ">", ctx.now).executeTakeFirst();
+    if (!Number(ended.numUpdatedRows)) throw notFound("No such outstanding invitation.");
     await recordActivity(ctx, { action: "invitation_cancelled", entity_type: "membership", entity_id: inv.invitation_id, entity_title: null, summary: "Cancelled an invitation" });
     return { cancelled: true };
   },
@@ -1074,7 +1086,7 @@ export const listAccessActivity = defineOperation({
   mutates: false,
   summary: "Who gave, changed or removed whose access in the organization, or renamed it, and when: newest first (tenant admins).",
   description:
-    "The organization's access log: roles given, changed and removed, people removed from the organization, invitations sent, accepted and cancelled, and the organization renamed or given a new slug. A product's activity.list leaves these out, because they belong to the organization, all but someone joining the product through an invitation. Entries name the person and the scope and never an email address. Filters: actor (account id), since (ISO 8601).",
+    "The organization's access log: roles given, changed and removed, people removed from the organization, invitations sent, accepted, cancelled and declined, and the organization renamed or given a new slug. A product's activity.list leaves these out, because they belong to the organization, all but someone joining the product through an invitation. Entries name the person and the scope and never an email address; someone who declined an invitation is named only as Someone. Filters: actor (account id), since (ISO 8601).",
   input: z.strictObject({
     tenant: z.string().min(1),
     actor: z.string().max(100).optional(),

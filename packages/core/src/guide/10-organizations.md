@@ -1,6 +1,6 @@
 # Organizations, plans and export
 
-Exporting a product, starting an organization, plans with their limits and totals, read-only organizations, and running this WhatBuild, which is done in the web app.
+Exporting a product, starting or joining an organization, plans with their limits and totals, read-only organizations, and running this WhatBuild, which is done in the web app.
 
 ## Export
 
@@ -23,6 +23,15 @@ message says whom to ask; in the web app, **Ask for your own organization** puts
 waitlist the instance's owners read. Where new organizations start on a plan the deployment
 defines, each person has one organization on it, and moving that one to another plan frees its
 place. The answer's `plan` says which plan the new organization is on.
+
+## Joining an organization
+
+Someone invited joins an organization only by accepting, which a person does in the web app: from
+the invitations it shows them once signed in, or from the invitation's link. No tool accepts or
+declines an invitation, and neither signing in nor connecting an agent accepts one. Until they
+accept, the organization is not in `products_read(action="list")` and a connector scoped to it
+answers `404`, so an agent whose person expects an organization there can tell them to look for the
+invitation in the web app.
 
 ## Plans and limits
 

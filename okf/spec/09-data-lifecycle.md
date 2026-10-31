@@ -3,7 +3,7 @@ type: Specification
 title: Nothing is ever trapped - say what we promise, keep export open, and never let a limit block a read.
 description: What we tell people, limits and quotas (enforced and planned), backups and in-product versioning, export, archive and permanent delete of everything archivable and of an organization, the operator runbooks, plans and their limits, and how retired insights and decisions became sources.
 tags: [spec, lifecycle, quotas, backups, export, archive, delete, limits, plans]
-generated: {by: agent:claude, at: 2026-10-27}
+generated: {by: agent:claude, at: 2026-10-31}
 status: stable
 ---
 
@@ -160,7 +160,7 @@ Rules:
    total, from its rows and stored sizes, inside the write's transaction with the tenant locked.
    **Planned:** a nightly job reconciling stored bytes against the object store.
 5. Archiving does not free storage; deleting does. Archiving does make room under people (removing
-   someone, or cancelling an invitation), products and sources. The UI says so where it matters.
+   someone, or an invitation cancelled or declined), products and sources. The UI says so where it matters.
 
 **Abuse limits**, which are not quotas but belong beside them. Built: the sign-in link limit,
 the limits on OAuth client registration and on sign-in and OAuth request bodies
@@ -578,7 +578,7 @@ Rules:
     files of its attachments' every version, the text read from each, the distinct files of its
     mockups' prototypes, and the text it has written as the database stores it (sources' texts,
     notes, comments, Story and mockup pages, assumptions, outcomes and earlier versions), every
-    version kept. A write is checked with the organization locked, so two at once cannot both take
+    version kept. An invitation holds its place until it is accepted, declined, cancelled or runs out. A write is checked with the organization locked, so two at once cannot both take
     the last place: creating or restoring a product, adding, copying in or restoring sources, and
     any write whose input carries more than 4 KB of text, which meets the storage total; a smaller
     one (a title, a review, a tag) never does. Giving someone a role, or inviting them, is checked

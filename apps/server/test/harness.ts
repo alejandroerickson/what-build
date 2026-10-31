@@ -41,11 +41,12 @@ export interface Harness {
   /** As connectAgent, with the refresh token and the client it was issued to; `redirect` is where the client receives the code (a loopback address unless given). */
   connectAgentTokens(browser: Browser, clientName?: string, resourcePath?: string, level?: "viewer" | "editor" | "admin" | null, redirect?: string): Promise<{ access_token: string; refresh_token: string; client_id: string }>;
   /**
-   * Whether someone signed in here accepts an invitation the moment a browser here gives it
-   * (`members.grant` or `members.grant_many` through REST), as a person who follows the link would.
-   * A role is given at once only to someone the giver already sees in the organization, so this is
-   * how a test brings a signed-in person into one. On by default; a test of invitations themselves
-   * turns it off.
+   * Whether someone here accepts what they are invited to as soon as they can: an invitation a
+   * browser here gives them (`members.grant` or `members.grant_many` through REST) once they are
+   * signed in, and the ones waiting for them when they sign in, each through the same requests the
+   * web app's Accept sends. Signing in accepts nothing by itself, and a role is given at once only to
+   * someone the giver already sees in the organization, so this is how a test brings a person into
+   * one. On by default; a test of invitations themselves turns it off.
    */
   acceptsInvitations: boolean;
   close(): Promise<void>;
@@ -186,6 +187,8 @@ export async function startHarness(overrides: Partial<ServerConfig> | ((baseUrl:
       if (!cookie) throw new Error("sign-in set no session cookie");
       const browser = makeBrowser(email, cookie);
       signedIn.set(email.toLowerCase(), browser);
+      if (state.acceptsInvitations)
+        for (const i of (await browser.api<{ items: { invitation_id: string }[] }>("GET", "/api/v1/me/invitations")).body.items) await browser.api("POST", "/api/v1/invitations/accept", { invitation_id: i.invitation_id });
       return browser;
     },
     async followSignInLink() {

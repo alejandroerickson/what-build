@@ -3,7 +3,7 @@ type: Specification
 title: Every object in a product, with its fields, limits and invariants, as the REST and MCP wire sees it.
 description: The common envelope (ids, etags, attribution, revisions), outcomes, sources and their tags, attachments, comments, summaries and notes, evidence links, the assumption register, views, activity, Story, mockups, feedback, the product bundle, and the storage layout.
 tags: [spec, data-model, schema, revisions, story, mockups, export]
-generated: {by: agent:claude, at: 2026-10-30}
+generated: {by: agent:claude, at: 2026-10-31}
 status: stable
 ---
 
@@ -466,7 +466,7 @@ An append-only event log, written in the same transaction as the mutation that c
   insight or a decision became a source (§4.7), its events were relabelled as the source's. They
   are included in a product export.
 - An event about the organization's people and access (a role given, changed or removed, an
-  invitation sent, accepted or cancelled), and the organization's renaming (`tenant`, `renamed` or
+  invitation sent, accepted, cancelled or declined), and the organization's renaming (`tenant`, `renamed` or
   `slug_changed`, with its name as its title and what it was as its summary), is read by the organization's
   owners and admins with `members.activity`; a product's `activity.list` leaves out the ones that
   belong to no product.

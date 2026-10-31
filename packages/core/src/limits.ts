@@ -488,8 +488,8 @@ export async function checkTotals(trx: Db, lc: LimitContext, op: Pick<OperationD
 
 /**
  * The people a plan allows: refused when giving someone a role, or inviting them, would take the
- * organization past them. A pending invitation holds its place until it is accepted, cancelled or
- * runs out; someone already in the organization, and a reader of the Story, take none.
+ * organization past them. A pending invitation holds its place until it is accepted, declined,
+ * cancelled or runs out; someone already in the organization, and a reader of the Story, take none.
  */
 export async function checkMembers(trx: Db, lc: LimitContext | null, email: string, role: string): Promise<void> {
   if (!lc || lc.guest || lc.limits.members_max === null || role === "reader") return;

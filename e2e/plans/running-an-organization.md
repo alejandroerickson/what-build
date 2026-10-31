@@ -10,7 +10,8 @@ surfaces: [web, mcp]
 What the owner of a Free organization does with it, start to finish: start it, invite people up to
 Free's totals (an invitation holds a place; a reader of the Story is free), change and take away
 roles, cancel an invitation, rename it, read its Plan page, and delete it. And what someone invited
-into it may do: start one of their own, when they are allowed one. It makes its own people and
+into it may do: find the invitation when they sign in, accept or decline it, and start one of their
+own, when they are allowed one. It makes its own people and
 organizations, and deletes only those. Free is the plan new organizations start on in
 `deploy/plans.example.json`, which the end-to-end instance offers.
 
@@ -37,16 +38,25 @@ are people she invites.
    who has an account in the synthetic organization, as a reader too. *Expect:* Morgan's address
    is treated as any other: an invitation waiting under its address, no name, nothing said of an
    account, and Morgan not among the members.
-6. **Web, as Eli.** Sign in through the invitation, or with Eli's address, which accepts it.
-   *Expect:* Eli sees the organization and edits its product: add a source with a short synthetic
-   text written into the run's folder. As Fay, the product opens on its Story and nothing else.
+6. **Web, as Eli.** Sign in with Eli's address, without the link. *Expect:* signing in joins
+   nothing: Eli is not in the organization, and above the screen (or on `/welcome`) an invitation
+   names the organization, the role and Dana, in quotation marks, with Accept and Decline. Accept it.
+   *Expect:* a toast names the organization and role, and Eli sees it and edits its product: add a
+   source with a short synthetic text written into the run's folder. **As Fay,** open the invitation's
+   link and sign in. *Expect:* the page asks, and opening it changed nothing, as Dana's Members page
+   shows. Accept. *Expect:* the product opens on its Story and nothing else. Open the link again.
+   *Expect:* it says Fay is already in. **As Morgan,** sign in, find the invitation among Morgan's
+   own organization's screens, and press Decline. *Expect:* it leaves without a reload, and focus
+   stays on the page. **As Dana:** Morgan's address has left Waiting to join, and the access log says
+   Someone declined an invitation to the product, with no name or address. Opening its link as
+   Morgan says it is no longer open.
 7. **Web, as Dana.** Change Eli to a viewer, then Remove from organization (Remove role would keep
    him a member). *Expect:* each change is
    listed in the organization's access log, by Dana; as Eli, after a reload, the product is read
    only, then gone. His source stays, with his name on it.
 8. **Web, as Dana.** Invite Gus as an editor, then cancel the invitation before he signs in.
    *Expect:* the Plan page goes back to the people it held before; signing in as Gus finds no
-   organization of Dana's.
+   organization of Dana's and no invitation, and its link says it is no longer open.
 9. **Web, as Dana.** Rename the organization on its Members page, changing its short name in links.
    *Expect:* the form says links with the old short name keep leading to it; the panel and the overview show the
    new name; an address with the old short name leads to the new one.
@@ -76,6 +86,9 @@ are people she invites.
 ## Look out for
 
 - The people total counting a reader of the Story, or not counting a waiting invitation.
+- Anyone in an organization they did not accept: after signing in, after opening a link, or after
+  declining. An invitation shown to the wrong account, or one cancelled or expired still offered.
+- A decline that names who declined anywhere the inviter reads, or keeps its place in the people total.
 - A role change or removal that does not reach an open browser or agent on its next call.
 - Anything left behind after a delete: the organization in a panel, a product reachable by its old
   address, a place still counted in its owner's allowance.

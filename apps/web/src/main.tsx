@@ -181,6 +181,8 @@ const router = createBrowserRouter([{ element: <Root />, errorElement: <RouteErr
   { path: "/plans", element: <PlansPage />, errorElement: <RouteError /> },
   // The public sandbox's invitation links are retired: one opens the app, where the example organization is.
   { path: "/join/:code", element: <Navigate to="/" replace />, errorElement: <RouteError /> },
+  // An invitation's link is answered from outside the guests' gate: someone invited who isn't in yet takes no guest's place to read it.
+  { path: "/invite/:token", element: <RequireSession><AcceptInvite /></RequireSession>, errorElement: <RouteError /> },
   {
     element: (
       <RequireSession>
@@ -192,7 +194,6 @@ const router = createBrowserRouter([{ element: <Root />, errorElement: <RouteErr
     errorElement: <RouteError />,
     children: [
       { path: "/welcome", element: <Welcome /> },
-      { path: "/invite/:token", element: <AcceptInvite /> },
       { element: <PlainShell><Outlet /></PlainShell>, children: [
         { path: "/", element: <OverviewPage /> },
         { path: "/products", element: <ProductsRedirect /> },

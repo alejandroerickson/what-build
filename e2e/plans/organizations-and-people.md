@@ -91,7 +91,8 @@ and **Cleo** are three such addresses, signed in with `pnpm e2e browser signin <
     it will be read-only: Morgan, who started it, has no Free organization, and everyone has a place
     for one even without an allowance to start one. Cancel.
 13. **Web, as Ana, in her remaining organization (Pro).** Invite Ben by address as an editor of its
-    team. Then **web, as Ben,** sign in: the organization and its product are there.
+    team. Then **web, as Ben,** sign in and accept the invitation shown: the organization and its
+    product are there.
 14. **Web, as Riley.** Open People (account menu). *Expect:* every account, Ana as owner of her
     organization and Ben with a role in it; Riley marked You and Owns this WhatBuild, with no
     Remove. Press **Remove** on Ben. *Expect:* the dialog says what happens (signed out
@@ -102,7 +103,7 @@ and **Cleo** are three such addresses, signed in with `pnpm e2e browser signin <
 15. **Web, as Riley.** On People, press **Remove** on Ana. *Expect:* a note says her organization is
     deleted too, since she is its only owner, and lists what it holds (its product by name, its
     sources); the button says "Remove account and delete <her organization>". Cancel instead.
-16. **Web, as Ana.** Invite Cleo to the organization as an owner; **as Cleo,** sign in, so it has
+16. **Web, as Ana.** Invite Cleo to the organization as an owner; **as Cleo,** sign in and accept, so it has
     two owners. **Web, as Riley,** press Remove on Ana. *Expect:* no organization is deleted this
     time: the dialog says only that she loses her roles. Remove her. *Expect:* as Cleo, the
     organization and its product are still there, and its access log records Ana's removal.

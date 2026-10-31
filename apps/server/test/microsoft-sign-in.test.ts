@@ -91,7 +91,7 @@ describe("Microsoft sign-in", () => {
     expect(startCookie).toMatch(/HttpOnly/i);
   });
 
-  it("creates the account, accepts its invitations, starts a session and returns to next", async () => {
+  it("creates the account, leaves its invitations waiting, starts a session and returns to next", async () => {
     const owner = await h.signIn("owner@work.example", "Owner");
     const t = await owner.api("POST", "/api/v1/tenants", { name: "Work" });
     await owner.api("POST", `/api/v1/tenants/${t.body.tenant.slug}/members`, { team: t.body.team.slug, email: "invited@outside.example", role: "viewer" });
@@ -108,8 +108,10 @@ describe("Microsoft sign-in", () => {
     const me = (await (await fetch(`${h.baseUrl}/api/v1/me`, { headers: { cookie: r.session! } })).json()) as { account_id: string; email: string; display_name: string };
     expect(me.email.toLowerCase()).toBe("invited@outside.example");
     expect(me.display_name).toBe("Invited Person");
-    const invitation = await h.db.selectFrom("invitations").select(["accepted_by"]).where("email", "=", "invited@outside.example").executeTakeFirstOrThrow();
-    expect(invitation.accepted_by).toBe(me.account_id);
+    const invitation = await h.db.selectFrom("invitations").select(["accepted_at", "accepted_by"]).where("email", "=", "invited@outside.example").executeTakeFirstOrThrow();
+    expect(invitation).toEqual({ accepted_at: null, accepted_by: null });
+    const waiting = (await (await fetch(`${h.baseUrl}/api/v1/me/invitations`, { headers: { cookie: r.session! } })).json()) as { items: { role: string }[] };
+    expect(waiting.items.map((i) => i.role)).toEqual(["viewer"]);
   });
 
   /** The address of the account a sign-in with the current claims reaches, or the place it was refused to. */
