@@ -3,7 +3,7 @@ type: Specification
 title: Every attachment is read into readable Markdown and kept, and each source has one derived text that people and agents read, edit and search.
 description: Reading attachments (when a reading runs, its thread and limits, what it stores, its statuses), the parsers and how they lay text out, the derived text and how it follows its attachment, and the reads and writes of the derived layer.
 tags: [spec, derived-layer, parsers, derived-text, attachments]
-generated: {by: agent:claude, at: 2026-10-26}
+generated: {by: agent:claude, at: 2026-10-31}
 status: stable
 ---
 
@@ -213,6 +213,22 @@ order and laid out by where they stand on the page:
   rows at most. A table is a pipe table under its first row (`table_count` counts them), except a
   form, half of whose rows hold a label (`Client:` beside `Example Co.`), read a line per row, and
   columns of prose drawn a line across them at a time, read a column at a time.
+- **Tables set tighter.** pdf.js reads two cells less than 0.6 of the font's height apart as one run
+  unless something in the file parts them (a tag, as in a tagged PDF, or a change of font), so such a
+  table's rows seem to have fewer cells than it has columns, and which cells run together differs
+  from row to row. Its columns are then the stretches across the page that no row's words cover, a
+  word inside a run standing where its letters put it, near enough. Such a stretch is a gutter when
+  the file parts two words at it on two rows, by a gap at least 0.15 of the font's height wide, or
+  by a number that follows (`12 500`, a number in thousands, being one number); or, once a table has
+  a gutter, on one row where two others have a word end there. A table needs three rows of cells, or
+  two where the file parts every cell. A row with no such gap is one of its rows only where its cells
+  stand within 0.6 of the font's height of their columns' cells, it reaches no more than 3 ems past
+  the table, ends no sentence, and holds at most three words a column; with no number to part it, it
+  also fills every column, so a title above a table or a line of text under it stays out. Lines whose
+  cells wrap onto the next, as prose's do, and single characters set apart, as text written down the
+  page is, make no table. This table replaces one found the first way only where it reads all of
+  that one's lines and reads more rows or more columns, or that one held two cells in one, so a table
+  whose columns are plain to see reads as it did.
 - **Headings.** A line of one cell set clearly larger than its page's text, every run of it at
   least 1.15 times the size most of the page's characters outside its tables are set in, is a
   heading of its own, never run into the text before or after it, with the lines just under it in
@@ -222,11 +238,28 @@ order and laid out by where they stand on the page:
   level follows its size, the same size the same level throughout the file: the largest is level
   2, under the page's `# Page N`, the next 3, and so on to 6. A heading set in the text's own size,
   in bold or in capitals, is not told from the text, since the text layer says nothing of a font's
-  weight: it is read with the paragraph under it.
+  weight: it is a paragraph of its own where it stops short of its column's width, as any short line
+  is.
 - **Paragraphs.** Lines of one cell are joined into a paragraph that ends at a line ending in `.`,
-  `!`, `?`, `:` or `;`, as they always were, or at a heading: list items that end no sentence run
-  on. Lines next to one another that each start with a short label (`Sample ID: S-0001`) stand
-  apart.
+  `!`, `?`, `:` or `;`, as they always were, at a heading, or at a line that stops short of its
+  column, whatever it ends in: there was room on it for the next line's first word, and a line of a
+  paragraph breaks only where the next word does not fit. A column's width is the widest of the 12
+  lines either side, in the line's size, that start within a quarter of the font's height of where
+  it or the next line starts, so a quote set narrower than the text is measured by its own lines.
+  Under a line that does not go on in lower case, a paragraph also ends at white space more than
+  1.25 times the page's usual spacing for that size, at a change of size, under lines no wider in all
+  than 8 ems, under a line wider than any near it shows a column to be, and in rows of a table whose
+  columns could not be found: two lines that each end in a number, or three that hold as many words.
+  A line that does go on in lower case reads on unless it stops short of 0.6 of its column's width,
+  or both lines are a single word under those 8 ems; a large figure and the words that go on from it
+  (`87%`, `of the crews`) read on. A line that starts a list stands apart from what came before it,
+  and its own wrapped lines stay with it: a bullet always, a dash or a star unless lower case follows
+  it on a line that fills its column, and a number or letter (`1.`, `2)`, `(a)`, `iv.`) within a list
+  or under a line that stops short. A word broken at the end of a line goes on, and a line the file
+  gives no width to says nothing of where it stops. Lines next to one another that each start with a
+  short label (`Sample ID: S-0001`) stand apart. A file whose lines would make more paragraphs than a
+  reading may hold (§5.5) reads them to their sentences' ends only, rather than not at all. Lines at
+  other angles than the page's text are read the same way, each angle's apart from the others'.
 - **Running headers and footers.** One of the three lines at a page's top or bottom, in the outer
   eighth of the page and set apart from the text inward by white space at least 1.5 of the smaller
   font's height, or a line at another angle than the page's text (a stamp up the margin), is
@@ -247,7 +280,15 @@ repeat it, so a page's own first line stays.
 
 ◆ Decision: a PDF's table reads as a pipe table only when its columns are found, aligned; rows whose
 columns cannot be found read a line each, their cells kept apart, which reads as the page does
-without claiming a structure the file does not show.
+without claiming a structure the file does not show. Where the words of a run stand is reckoned, not
+read, so it can support a column the file shows, or that numbers show, and never show one alone.
+
+◆ Decision: a line of a PDF that ends no sentence ends its paragraph by where it stops, not by what
+it ends in: running a heading or a list into the text under it misreads the page, where parting a
+sentence only loses a phrase across the break, and a line-breaker's own rule, that a line breaks
+where the next word does not fit, tells the two apart without guessing at language. So what a line
+says decides only where it stands does not: a line that fills its column, with a capital under it and
+no white space between, still reads on.
 
 **Untimed transcripts.** Plain text, Markdown, DOCX and DOC share one rule
 ([`speakers.ts`](../../packages/parsers/src/speakers.ts)), so a transcript reads the same whatever
@@ -389,7 +430,7 @@ Each reading has a `status`, terminal for that reading:
 | `ready` | Text read. |
 | `needs_transcript` | A recording (an audio or video media type or extension): stored and playable, never transcribed. Its transcript is another attachment. `duration_ms` gives its playing time when the container states it. |
 | `unsupported` | No words to read: no parser reads this attachment's extension or media type, or it is pictures, an image or a PDF with no text layer (a scan's pages are pictures; there is no OCR). It is no failure, and reading it again changes nothing. For an image or a PDF of pictures, `status_detail` says that an agent that can see it should describe it in the source's summary and write its words as the text with `derived_write(action="write_text")` if search should find them. |
-| `too_large` | Too large to read: over the parse cap, 25 MiB by default for every format (`WHATBUILD_PARSE_CAP_BYTES`), in which case the file is not read at all; a DOCX, XLSX or DOC package whose parts unpack to more than the cap; a PDF of more than 2,000 pages; or a file that would make more than 200,000 paragraphs. The attachment is stored; `status_detail` says which. |
+| `too_large` | Too large to read: over the parse cap, 25 MiB by default for every format (`WHATBUILD_PARSE_CAP_BYTES`), in which case the file is not read at all; a DOCX, XLSX or DOC package whose parts unpack to more than the cap; a PDF of more than 2,000 pages; or a file that would make more than 200,000 paragraphs (a PDF whose short lines would is read to its sentences' ends instead, §5.3). The attachment is stored; `status_detail` says which. |
 | `failed` | The parser errored, **or** it kept almost nothing: a text-like file (plain text, Markdown, VTT, SRT, CSV, TSV) that kept under 10% of at least 200 characters, or an HTML page with no readable text (a page whose text is drawn by scripts, such as a single-page app's shell); **or** the parse needed more memory or time than the deployment gives one file, or its reading stopped the server, or failed with an error, five times (§5.1). `status_detail` says which. |
 
 ◆ Decision: a PDF with no text layer is `unsupported`, as an image is, not `failed`: its pages are

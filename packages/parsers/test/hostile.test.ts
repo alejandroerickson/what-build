@@ -4,11 +4,11 @@ import { describe, expect, it } from "vitest";
 import { stripCueMarkup, voiceName } from "../src/cues.ts";
 import { DEFAULT_PARSE_CAP_BYTES, derive, MAX_HTML_DEPTH, MAX_PDF_PAGES, MAX_SEGMENTS, parseHtml, toParsedFile, type ParseResult } from "../src/index.ts";
 import { formatNumber, formatText, readFormat } from "../src/numfmt.ts";
-import { layoutPage, repeatedLines, type TextRun } from "../src/pdf-layout.ts";
+import { layoutPage, pageBlocks, repeatedLines, type TextRun } from "../src/pdf-layout.ts";
 import { atxHeading, MAX_LIST_DEPTH, stripInlineMarkdown } from "../src/plaintext.ts";
 import { speakerLine } from "../src/speakers.ts";
 import { codePointLength, isSpaceUnit, nonSpaceCodePoints } from "../src/text.ts";
-import { makeBlankPdf, makeDocx, makePdf, makeXlsx, utf8 } from "./fixtures.ts";
+import { makeBlankPdf, makeDocx, makePdf, makePdfOfLines, makeXlsx, utf8 } from "./fixtures.ts";
 
 // Hostile files: each must end in a status (never a crash or a hang) within bounded time and
 // memory. The server parses each file in a worker thread held to a memory and a time limit, so
@@ -419,7 +419,7 @@ describe("files that would make too much", () => {
       const { r, ms } = await measured(makeBlankPdf(pages), "blank.pdf");
       expect(r.status, `${pages} pages`).toBe("too_large");
       expect(r.status_detail).toBe(`the PDF has ${pages} pages; PDFs over ${MAX_PDF_PAGES} pages are stored but not parsed`);
-      expect(r.parser_version).toBe("5");
+      expect(r.parser_version).toBe("6");
       expect(ms).toBeLessThan(3000);
     }
     expect(await derive(makeBlankPdf(3), "blank.pdf")).toMatchObject({ status: "unsupported", status_detail: expect.stringContaining("no text layer") });
@@ -475,6 +475,51 @@ describe("PDF pages that would take long to lay out", () => {
     expect(page.lines.some((l) => l.table)).toBe(false);
     expect(performance.now() - started).toBeLessThan(3000);
   });
+
+  it("reads a page of very many short lines, a paragraph each, in time linear in them", () => {
+    const lines = (n: number) => Array.from({ length: n }, (_, i) => run("Short line", 72, 10_000_000 - i * 12, i));
+    const timed = (n: number) => {
+      const page = layoutPage(lines(n), [], 0, 10_000_100);
+      const started = performance.now();
+      const { blocks } = pageBlocks(page, 1, new Map());
+      expect(blocks).toHaveLength(n);
+      return performance.now() - started;
+    };
+    expect(timed(100_000)).toBeLessThan(6000);
+  }, 60_000);
+
+  it("gives up a line of more cells than any table has columns at once", () => {
+    // Set apart by a cell's gap, fitting them to columns would cost the square of their number.
+    const wide = Array.from({ length: 200_000 }, (_, i) => run("ab", i * 16, 700, i));
+    const started = performance.now();
+    expect(layoutPage(wide, [], 0, 792).lines.some((l) => l.table)).toBe(false);
+    expect(performance.now() - started).toBeLessThan(6000);
+  }, 60_000);
+
+  it("stops looking for tables set tight at the page's budget, whatever the lines hold", () => {
+    const y = (i: number) => 1_000_000 - i * 12;
+    const timed = (name: string, runs: TextRun[], lines: number) => {
+      const started = performance.now();
+      expect(layoutPage(runs, [], 0, 1_000_100).lines, name).toHaveLength(lines);
+      expect(performance.now() - started, name).toBeLessThan(6000);
+    };
+    // Numbers in one run, every row a table's until a row that is not.
+    timed("numbers", Array.from({ length: 40_000 }, (_, i) => run("11.25 12.00 15.50 13.75 14.25", 72, y(i), i)), 40_000);
+    // The most runs a row may have, never standing in the same columns.
+    timed("runs", Array.from({ length: 1500 }, (_, i) => Array.from({ length: 96 }, (_, j) => run("ab", 72 + j * 13 + (i % 7), y(i), i * 96 + j))).flat(), 1500);
+    // Too many words to be a row, and numbers among them: read as lines.
+    timed("words", Array.from({ length: 3000 }, (_, i) => run(Array.from({ length: 400 }, () => "1").join(" "), 72, y(i), i)), 3000);
+    // Rows that read as prose only once their columns are found, again and again.
+    timed("prose", Array.from({ length: 40_000 }, (_, i) => [run("the crew", 72, y(i), i * 2), run("went home and left 12", 130, y(i), i * 2 + 1)]).flat(), 40_000);
+  }, 120_000);
+
+  it("reads a file of more short lines than a reading may hold paragraphs as it reads text that runs on, not as too large", async () => {
+    const { r } = await measured(makePdfOfLines(MAX_SEGMENTS + 5000, "Short"), "lines.pdf");
+    expect(r.status).toBe("ready");
+    expect(r.segments.length).toBeLessThan(5000);
+    const fewer = await derive(makePdfOfLines(30_000, "Short"), "lines.pdf");
+    expect(fewer.segments).toHaveLength(30_001);
+  }, 120_000);
 
   it("compares lines repeated up the margin in time linear in their length", () => {
     const pages = [1, 2, 3].map(() => layoutPage([run("The text of the page.", 72, 400, 0)], [[run("9".repeat(200_000), 580, 300, 1)]], 0, 792));
