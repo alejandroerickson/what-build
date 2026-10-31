@@ -605,8 +605,9 @@ deleted as `products.delete_tenant` deletes, once `delete_organizations` names e
 organizations by slug; without that it is refused (`409 last_owner`), and the example organization
 is never deleted this way (`409 example_organization`). `products.accounts` marks each such
 organization `only_owner`. In one transaction it ends the
-account's sign-ins as Sign out everywhere does; takes every role it holds, recording `revoked` in
-each organization's access log with the person's name and who ended it; cancels the invitations
+account's sign-ins as Sign out everywhere does; takes every role it holds, recording
+`account_removed` (`account_deleted` when the person ends their own) in each organization's access
+log with the person's name and who ended it; cancels the invitations
 still waiting at its address; removes the address's allowance and its unused sign-in links; deletes
 the person's agent tokens and authorization codes, their counts against limits and against
 feedback, and their counted days of use (`forgetPerson`, `packages/core/src/usage.ts`, also for
@@ -698,7 +699,8 @@ an editor, and an admin's Edit connection as one too.
 
 - Each operation needs a level: `admin` and `owner` access need Admin, writes need Edit, reads
   need Read only; an operation may say otherwise (`connection`): managing people, creating an
-  organization and the instance's allowances need Admin, and `submit_feedback` Read only.
+  organization and the instance's allowances need Admin, and `submit_feedback` Read only. An
+  export's access is a read's, so it needs Read only too.
 - `execute` refuses an operation above the connection's level with `403 connection_level`, before
   it resolves any scope, naming the level it has and the one needed. MCP lists only the actions
   the level allows, so an Edit connection is never offered a permanent delete, and of those only

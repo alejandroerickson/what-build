@@ -3,7 +3,7 @@ type: System Concept
 title: WhatBuild at three altitudes
 description: The whole system from the top down, the major parts, and the mechanics underneath, with links to the detail.
 tags: [overview, architecture, tenancy, access, mcp]
-generated: {by: agent:claude, at: 2026-10-27}
+generated: {by: agent:claude, at: 2026-10-31}
 status: stable
 ---
 
@@ -67,7 +67,7 @@ seventeen: running the instance (its owners' ten actions on plans, organizations
 allowances, accounts and usage, and removing an account), renaming an organization or a product,
 which its owners or admins do, deleting an organization and previewing that delete, which only its
 owners or an instance owner do, and deleting one's own account and previewing that, which only its
-person does, all in the web app. Agents are offered the other 101, as 28 tools
+person does, all in the web app. Agents are offered the other 101, as 29 tools
 ([decision](../decisions/one-registry-two-front-doors.md),
 [decision](../decisions/running-the-instance-is-done-in-the-web-app-never-by-an-agent.md)).
 
@@ -112,10 +112,10 @@ anyone sign up as one
 **MCP.** `/mcp` for every product the account can reach, `/mcp/t/<tenant>` for one organization,
 or `/mcp/t/<tenant>/<team>/<product>` for one product. A scoped endpoint is a fence: it refuses
 every call outside its scope, and its token works nowhere wider
-([decision](../decisions/a-scoped-mcp-connector-is-a-fence.md)). 28 tools: for each noun a
+([decision](../decisions/a-scoped-mcp-connector-is-a-fence.md)). 29 tools: for each noun a
 `_read`, a `_write` and, where something can be deleted for good, a `_delete` tool, each with
 `action`, `params`, `describe` and `product`, a title and a read-only or destructive hint, plus
-`search`, `guide` and `submit_feedback`
+`products_export`, which is neither, and `search`, `guide` and `submit_feedback`
 ([decision](../decisions/mcp-tools-are-split-into-read-write-and-delete.md)). The server's
 instructions describe WhatBuild and its tools; the `guide` tool explains how it works, one topic at
 a time, with nothing to install

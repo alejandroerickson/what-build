@@ -306,13 +306,14 @@ export function organizationReadOnly(name: string, readOnly: { since: string; ke
 /**
  * The refusal of a call, through any door but the web app, to what a person does only there. It
  * says where, for the agent to tell the person, and that no tool list holds it, so the agent does
- * not take it for a list from another version.
+ * not take it for a list from another version. `called` is the tool the agent called it in, which
+ * it names: no tool holds the action, so naming another would send the agent looking there.
  */
-export function webOnlyRefusal(op: Pick<OperationDef, "name" | "mutates" | "rest" | "mcp" | "webOnly">, surface: Principal["surface"]): AppError {
+export function webOnlyRefusal(op: Pick<OperationDef, "name" | "mutates" | "rest" | "mcp" | "copiesOut" | "webOnly">, surface: Principal["surface"], called?: string): AppError {
   return new AppError(
     403,
     "web_only",
-    `No agent is offered ${callName(op, surface)}: ${op.webOnly}. Tell the person where it is. ` +
+    `No agent is offered ${called ? `${called}(action="${op.mcp.action}")` : callName(op, surface)}: ${op.webOnly}. Tell the person where it is. ` +
       `It is in no agent's tool list, so this is not a list from another version.${op.mutates ? " Nothing was changed." : ""}`,
     { operation: op.name },
   );

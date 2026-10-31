@@ -38,6 +38,26 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
   its person has accepted: no tool accepts or declines, and a connected client sees the guide's new
   words in a new session. A new invitation to an address now replaces the one still open at the
   same place, whose old link stops working.
+- **An export has a tool of its own, and agents are told more exactly what they may do**
+  (`tools_version` 0.50.0). It asks nothing of a deployment; a connected client sees the change in a
+  new session. `products_write(action="export")` is now `products_export(action="export")`, marked
+  neither read-only nor destructive, so a Read only connection lists no write tool: a client holding
+  the older list that calls it where it was is refused with `422 wrong_tool`, naming the tool and
+  saying a new session brings it. `search` tells someone who reads only the Story what it reads for
+  them, `products_write` speaks of starting an organization only to someone offered it, the server's
+  instructions no longer say an example organization's authors are refused, and a `403 web_only`
+  names the call as it was made.
+- **Archived products and sources count against a plan's totals** (`tools_version` 0.49.0). It asks
+  nothing of a deployment, and only concerns one that defines plans. People will notice: archiving
+  no longer makes room under `products_max` or `sources_max`, only deleting does, and restoring is
+  never refused for a total. An organization holding archived material may now be past a total on
+  the day of the upgrade: nothing is removed, it is not read-only, reading, searching, export,
+  archiving, restoring and deleting go on, and only adding more of that kind is refused, with a
+  message saying a product's admins can delete to make room. An instance owner sees on `/instance`
+  what each organization holds, and can raise a plan's totals there. Deleting, removing someone and
+  cancelling an invitation are now never stopped by the day's writes, or by writing being off, and
+  are not counted as writes. A refusal past a day's allowance and a total names the total, with the
+  day's in `details.also`.
 - **A whole mockup canvas can go on the Story, and the Story is one tree** (`tools_version` 0.48.0).
   It asks nothing of a deployment beyond the release's migration, which moves each product's
   Published mockups to the end of its Story tree, in their order, and which only a restored database

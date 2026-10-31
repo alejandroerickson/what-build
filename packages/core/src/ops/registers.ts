@@ -1,6 +1,6 @@
 import { sql, type Selectable } from "kysely";
 import { z } from "zod";
-import { checkEtag, keepRevision, normalizeTags, productId, recordActivity, tenantId } from "../common.ts";
+import { changedSummary, checkEtag, keepRevision, normalizeTags, productId, recordActivity, tenantId } from "../common.ts";
 import { json, type RegisterEntriesTable, type RegisterLink } from "../db.ts";
 import { checkConfirmation, DELETE_GUIDANCE, deleteGuards, dropRevisions, leaveTombstone, refuseIfDeleted } from "../deletion.ts";
 import { conflict, invalid, notFound } from "../errors.ts";
@@ -360,7 +360,7 @@ function registerOps(): OperationDef[] {
         ...(["links", "outcome_ids", "tags"] as const).filter((k) => !same(after[k], row[k])),
       ];
       const diff = (["statement", "body"] as const).filter((k) => next[k] !== row[k]).map((k) => textDiff(k, row[k], next[k])!);
-      await recordActivity(ctx, { action: "updated", entity_type: kind, entity_id: row.entry_id, entity_title: next.statement, summary: changed.length ? `Changed ${changed.join(", ")}` : "Edited the entry" });
+      await recordActivity(ctx, { action: "updated", entity_type: kind, entity_id: row.entry_id, entity_title: next.statement, summary: changed.length ? changedSummary(changed) : "Edited the entry" });
       return { ...(await detail(ctx, after)), changed, diff };
     },
   });

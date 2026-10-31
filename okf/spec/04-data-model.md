@@ -449,13 +449,14 @@ An append-only event log, written in the same transaction as the mutation that c
 | `action` | What happened, e.g. `created`, `reviewed`, `archived`, `derived`. |
 | `entity_type`, `entity_id`, `entity_title` | What was touched. |
 | `actor`, `channel` | Actor snapshot; the surface (`web`, `rest`, `mcp`), or none for the system. |
-| `summary` | ≤ 280 chars, generated: "Marked confirmed with high confidence", "Read the text of call.vtt; it is the source’s derived text" (never the parser's name or version, which the reading's manifest holds), "Edited the derived text", "Added a comment". |
+| `summary` | ≤ 280 chars, generated: "Marked confirmed with high confidence", "Read the text of call.vtt; it is the source’s derived text" (never the parser's name or version, which the reading's manifest holds), "Edited the derived text", "Added a comment", "Changed the outcomes it bears on and the tags" (the words the app uses for what changed, never a field's name). |
 
 - **It never contains content.** No bodies, no source text, no HTML, no email addresses. The
   summary names objects; it does not quote them. An archived comment's entry once ended with the
   reason it was archived ("Archived a comment: …"); `activity.list` reads such an entry without it,
-  as it reads an old parse entry without the parser's label, though the stored row, and so an
-  export's `activity.jsonl`, still holds it.
+  as it reads an old parse entry without the parser's label and an old edit that named its fields
+  ("Changed outcome_ids, tags") in the app's words, though the stored row, and so an export's
+  `activity.jsonl`, still holds what was recorded.
 - `activity.list` filters by `entity_type`, `entity_id`, `actor`, `channel`, `by` (`people` for
   the web app, and for the REST API in entries from when personal tokens reached it; `agents` for
   MCP; what WhatBuild does by itself, which has no channel, is in neither) and `since`, with the
@@ -469,7 +470,10 @@ An append-only event log, written in the same transaction as the mutation that c
   invitation sent, accepted, cancelled or declined), and the organization's renaming (`tenant`, `renamed` or
   `slug_changed`, with its name as its title and what it was as its summary), is read by the organization's
   owners and admins with `members.activity`; a product's `activity.list` leaves out the ones that
-  belong to no product.
+  belong to no product. An account's ending is `account_deleted` when the person deleted it and
+  `account_removed` when an instance owner did, each with the person's name as its title and not
+  `revoked`, which is one role taken; `members.activity` reads one recorded as `revoked` before
+  these existed as what it was.
   Events the public sandbox wrote about its invitation links, visitors and settings stay in its
   organization's log, and `members.activity` no longer lists them.
 - Several people and several agents write into one product, and "what did that agent just do" is a

@@ -88,11 +88,11 @@ describe("refusals", () => {
     const client = new Client({ name: "delete-agent", version: "1.0.0" });
     await client.connect(new StreamableHTTPClientTransport(new URL(`${h.baseUrl}/mcp`), { requestInit: { headers: { authorization: `Bearer ${await h.connectAgent(owen, "Owen's agent")}` } } }));
     for (const action of ["delete_account", "delete_account_impact"]) {
-      for (const name of ["products_read", "products_write", "products_delete"]) {
+      for (const name of ["products_read", "products_write", "products_delete", "products_export"]) {
         const r = (await client.callTool({ name, arguments: { action, params: { email: "owen@example.com", confirm: "delete permanently" } } })) as { isError?: boolean; content: { text: string }[] };
         expect(r.isError).toBe(true);
-        // Whichever of its noun's tools is called, the agent is told where the person does it.
-        expect(r.content[0]!.text).toMatch(new RegExp(`^403: No agent is offered products_${action === "delete_account" ? "write" : "read"}\\(action="${action}"\\): a person does it in the web app, in their own Settings \\(\`/settings\`\\), Delete account\\.`));
+        // Whichever of its noun's tools is called, the agent is told where the person does it, of the call it made.
+        expect(r.content[0]!.text).toMatch(new RegExp(`^403: No agent is offered ${name}\\(action="${action}"\\): a person does it in the web app, in their own Settings \\(\`/settings\`\\), Delete account\\.`));
       }
     }
     await client.close();
@@ -196,7 +196,7 @@ describe("deleting your own account", () => {
     // Each organization records that she left, and what she wrote keeps her name.
     for (const org of [owenOrg, sharedOrg]) {
       const log = (await owen.api("GET", `/api/v1/tenants/${org}/members/activity`)).body.items;
-      expect(log[0]).toMatchObject({ action: "revoked", entity_id: danaId, entity_title: "Dana Editor" });
+      expect(log[0]).toMatchObject({ action: "account_deleted", entity_id: danaId, entity_title: "Dana Editor" });
       expect(log[0].summary).toMatch(/by deleting their account/);
     }
     expect(JSON.stringify((await owen.api("GET", `${P}/sources/${source}`)).body)).toContain("Dana Editor");

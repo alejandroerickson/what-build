@@ -77,6 +77,40 @@ step("a hit opens the source's text with the words marked");
 await page.goto(`${app}/activity`);
 await page.getByText("commented on").first().waitFor();
 step("the activity log shows the comment");
+await page.goto(`${app}/exploration/mockups`);
+await page.locator(".xc-label").first().waitFor();
+await page.waitForTimeout(400);
+const focusOn = () => page.locator(".mockup-view[data-focus]").count();
+if (await focusOn()) {
+  await page.keyboard.press("f");
+  await page.waitForTimeout(300);
+}
+const onScreen = () => page.locator(".xc-frame").first().boundingBox();
+const fitted = await onScreen();
+// From a corner of the board, which a fitted canvas leaves empty: a press on a label would not drag.
+const board = await page.locator(".xc-viewport").boundingBox();
+await page.mouse.move(board.x + 16, board.y + 16);
+await page.mouse.down();
+await page.mouse.move(board.x + 66, board.y + 46, { steps: 4 });
+await page.mouse.up();
+await page.waitForTimeout(300);
+const placed = await onScreen();
+if (Math.abs(placed.x - fitted.x - 50) > 0.5 || Math.abs(placed.y - fitted.y - 30) > 0.5) throw new Error(`A drag on the board moved a page from ${fitted.x},${fitted.y} to ${placed.x},${placed.y}`);
+await page.keyboard.press("f");
+await page.waitForTimeout(300);
+const inFocus = await onScreen();
+if (!(await focusOn()) || Math.abs(inFocus.x - placed.x) > 0.5 || Math.abs(inFocus.y - placed.y) > 0.5) throw new Error(`Focus mode moved a page placed by hand from ${placed.x},${placed.y} to ${inFocus.x},${inFocus.y}`);
+await page.keyboard.press("f");
+await page.waitForTimeout(300);
+step("focus mode left a canvas placed by hand where it was");
+for (const width of [760, 390, 320]) {
+  await page.setViewportSize({ width, height: 900 });
+  await page.waitForTimeout(300);
+  const [tools, around] = await Promise.all([page.locator(".xc-tools").boundingBox(), page.locator(".xc-viewport").boundingBox()]);
+  if (tools.x < around.x - 0.5 || tools.x + tools.width > around.x + around.width + 0.5) throw new Error(`At ${width}px the canvas's toolbar runs from ${tools.x} to ${tools.x + tools.width}, past the board at ${around.x} to ${around.x + around.width}`);
+}
+await page.setViewportSize({ width: 1280, height: 900 });
+step("the canvas's toolbar stayed inside its board in a narrow window");
 await page.goto(`${app}/settings`);
 await page.getByRole("button", { name: "Export this product" }).click();
 await page.getByRole("link", { name: /Download/ }).first().waitFor({ timeout: 20000 });

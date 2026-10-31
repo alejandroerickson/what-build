@@ -5,7 +5,7 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { sql } from "kysely";
 import pg from "pg";
-import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { createDb, watchPool } from "../src/database.ts";
 import { startHarness, type Browser, type Harness } from "./harness.ts";
 
@@ -255,7 +255,8 @@ describe("a slow search", () => {
     expect(r.body.error.message).toContain("Nothing was changed");
     expect(Date.now() - began).toBeLessThan(2500);
     expect(gate.running).toBe(0);
-    expect(await runningSearches()).toBe(0);
+    // Postgres may report a cancelled statement as active for a moment after the answer has gone.
+    await vi.waitFor(async () => expect(await runningSearches()).toBe(0), { timeout: 2000 });
 
     // The limit went with its transaction: no connection carries it, and a write has none.
     const settings = await Promise.all(Array.from({ length: 5 }, () => sql<{ s: string }>`select pg_sleep(0.05), current_setting('statement_timeout') as s`.execute(h.db)));

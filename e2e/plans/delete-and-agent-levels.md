@@ -25,7 +25,7 @@ deletes only what it made itself in the run.
    `outcomes_delete`, `story_delete`, `mockups_delete`, `products_delete`), and no `members_write`:
    `members_read` offers `list` alone, and its description says nothing of granting, revoking or
    inviting. Every tool has a title; each `_read` tool is marked read-only and each `_write` tool
-   destructive. `products_read(action="list")` says `connection_level: "editor"`. `products_write`
+   destructive; `products_export` is marked neither. `products_read(action="list")` says `connection_level: "editor"`. `products_write`
    offers `update_concept` and `outcomes_read` offers `card_preview`: an editor writes the Idea's
    cards. Preview a concept front with
    `outcomes_read(action="card_preview", kind="concept", card_html=<a short front>)` and open its `url` with its `headers` at 900
@@ -82,7 +82,8 @@ deletes only what it made itself in the run.
 14. **MCP, as Jordan, on a connector scoped to a product of the standard organization**
     (`--endpoint /mcp/t/<org>/<team>/<product>`). List the tools. *Expect:* `story_read` and
     `products_read` and `search` (with `guide` and `submit_feedback`), and no `story_write`, no
-    `sources_`, `outcomes_` or `members_` tool; `search` takes `plain` mode alone, over the Story;
+    `sources_`, `outcomes_` or `members_` tool; `search` takes `plain` mode alone, over the Story, and
+    its description and schema say nothing of sources;
     `sources_read(action="list")` called anyway answers `403`, naming reader and viewer.
     Then as Sam on the organization's connector (`--endpoint /mcp/t/<org>`): writes and archives,
     `members_read` `list`, and no `_delete` tool, no `members_write`, no `create_team`.
@@ -93,6 +94,12 @@ deletes only what it made itself in the run.
     description says nothing of publishing to Jordan. Casey, who may start an organization (the
     golden master's sample allowance goes to the synthetic organization's editor), is offered
     everything the level allows. Sam, who may not, is offered no `create_tenant`.
+16. **MCP, as Sam, in the standard organization, at `--level viewer`.** List the tools, then call
+    `products_export(action="export")` on a product there, and `products_read(action="exports")`.
+    *Expect:* the `_read` tools, `products_export` (marked neither read-only nor destructive),
+    `search`, `guide` and `submit_feedback`, and no `_write` or `_delete` tool. The export starts, and
+    its download is listed once it is ready. `products_write(action="export")` called anyway answers
+    `422 wrong_tool`, naming `products_export`.
 
 ## Look out for
 

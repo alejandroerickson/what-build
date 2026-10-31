@@ -1,3 +1,5 @@
+import { json, newId } from "@whatbuild/core";
+import { sql } from "kysely";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { startHarness, type Browser, type Harness } from "./harness.ts";
 
@@ -136,6 +138,30 @@ describe("an invitation email", () => {
 
 describe("the organization's access log", () => {
   const log = (who: Browser, query = "") => who.api("GET", `/api/v1/tenants/${T}/members/activity${query}`);
+
+  it.each([
+    ["Left Acme Labs (2 roles) by deleting their account", "account_deleted"],
+    ["Removed from Acme Labs (1 role) with the account, by an owner of this instance", "account_removed"],
+    ["Removed from Acme Labs (2 roles)", "revoked"],
+    ["Removed editor on product Planner", "revoked"],
+    ["Removed editor on product Left by deleting their account", "revoked"],
+  ])("reads an entry recorded as revoked, saying %s, as %s", async (summary, action) => {
+    const { tenant_id } = await h.db.selectFrom("tenants").select("tenant_id").where("slug", "=", T).executeTakeFirstOrThrow();
+    const activityId = newId();
+    await h.db.transaction().execute(async (trx) => {
+      await sql`select set_config('app.tenant_id', ${tenant_id}, true)`.execute(trx);
+      await trx
+        .insertInto("activity")
+        .values({
+          activity_id: activityId, tenant_id, team_id: null, product_id: null,
+          actor: json({ account_id: "someone", display_name: "Someone", surface: "web", client: null }),
+          actor_account_id: "someone", channel: "web", action: "revoked", entity_type: "membership", entity_id: "someone", entity_title: "Someone", summary,
+        })
+        .execute();
+    });
+    const entry = (await alice.api("GET", `/api/v1/tenants/${T}/members/activity?limit=200`)).body.items.find((i: { activity_id: string }) => i.activity_id === activityId);
+    expect(entry).toMatchObject({ action, summary });
+  });
 
   it("shows owners and admins every change to who has access, newest first, with no email address", async () => {
     await grant(alice, { team: planning, product: "planner", email: "pat@example.com", role: "editor" });

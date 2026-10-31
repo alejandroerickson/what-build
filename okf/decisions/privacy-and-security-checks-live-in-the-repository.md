@@ -3,7 +3,7 @@ type: Decision
 title: Checks that keep private material out and find known vulnerabilities live in the repository, with pinned tools, and no separate service
 description: Git hooks and CI run one publishable check; pinned scanners and GitHub's own features find vulnerabilities; nothing else is hosted or installed.
 tags: [decision, security, public, privacy, ci, agents, process]
-generated: {by: agent:claude, at: 2026-10-30}
+generated: {by: agent:claude, at: 2026-10-31}
 status: stable
 ---
 
@@ -36,9 +36,12 @@ install, and so that it runs well before the repository becomes public.
   ignored, so an agent that wants to keep notes has somewhere to keep them.
 - **Scanners are pinned** by version and SHA-256 in `scripts/tools.mjs`, downloaded on first use
   into the user's cache: gitleaks, osv-scanner for the dependencies, zizmor for the workflows.
-- **A release waits a week** before it is installed: Dependabot's cooldown, pnpm's
-  `minimumReleaseAge` for an upgrade made by hand, and npm's `--min-release-age` in the image's
-  last install give a hijacked release time to be found.
+- **A release waits a week** before an upgrade brings it into `pnpm-lock.yaml`: Dependabot's cooldown
+  and pnpm's `minimumReleaseAge` for an upgrade made by hand give a hijacked release time to be found.
+  Nothing checks an entry's age once it is in the file, so one that arrives another way (a security
+  update, a hand edit) is for its reviewer to judge. Every package the image installs from the
+  workspace takes what that file says and resolves nothing, and pnpm itself is pinned by version in
+  `deploy/Dockerfile` ([decision](one-stateless-image.md)).
 - **GitHub's own features** do the rest: Dependabot alerts, security updates and weekly grouped
   updates; CodeQL, and secret scanning with push protection, once the
   repository is public. An OWASP ZAP baseline scans the app, built as in production, weekly in CI.

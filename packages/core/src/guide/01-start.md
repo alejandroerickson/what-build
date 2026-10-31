@@ -49,9 +49,9 @@ as the lower of the two, and `your_role` is already capped by the level. Anythin
 with `403 connection_level`; only the person can raise the level, under Connect an agent in the web
 app. A `403` names the role you have and the one needed.
 
-The tools a connection is offered follow both: a Read only connection gets the `_read` tools (and of
-the writes only an export and `submit_feedback`), an Edit connection also the `_write` tools, and only
-an Admin connection the `_delete` tools. Tools
+The tools a connection is offered follow both: a Read only connection gets the `_read` tools,
+`products_export` and `submit_feedback`, an Edit connection also the `_write` tools, and only an Admin
+connection the `_delete` tools. Tools
 and actions the person's roles cannot reach are left out as well (see `guide(topic="tools")`).
 
 ## Scoped connectors
@@ -68,8 +68,8 @@ A deployment may have one organization every account reads: the **example organi
 show what a discovery in WhatBuild looks like.
 
 - Anyone who is not one of its members is its guest (`your_role` guest, a viewer of every product).
-- Every write there, an export and a preview included, is refused with `403 example_read_only`, which
-  changes nothing. The refusal names where the person can work instead: an organization they are in,
+- A guest's every write there, an export and a preview included, is refused with
+  `403 example_read_only`, which changes nothing. The refusal names where the person can work instead: an organization they are in,
   one they may create, or neither.
 - Its people are not shown to a guest: `members_read(action="list")` answers an empty list with
   `guest: true`.

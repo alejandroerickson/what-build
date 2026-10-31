@@ -621,10 +621,14 @@ restores one. Its writes are promoting a page to the Story, and, for a product's
 - **Opening.** `…/exploration/mockups` opens the mockup last opened in this product in this
   browser, otherwise the most recent; with none, the first-use state gives the request to copy for
   an agent. A mockup opens fitted to the window, and stays fitted as the window changes until the
-  person moves it.
+  person moves it. From then on its pages stay where they are on the screen when the board's edges
+  move, as they do when a panel hides or shows and when focus mode begins or ends.
 - **Labels.** Above each page, drawn at screen size so it reads at any zoom: its number, its title,
   its size, and a button that fits that page to the window. A narrow label drops the size, then
-  the title.
+  the title, then, where it would run into the next page's label, the fit button. Whatever it has
+  room to show, its button is named for the page's title. The gap between rows scales with the zoom
+  and a label does not, so at a low zoom a label lies over the bottom of a taller page above it,
+  where it keeps the board's tone so that it reads on a page of any colour, in either theme.
 - **Pan and interact.** A toolbar at the bottom of the canvas holds two modes. **Pan** (the hand,
   `H`, the default): a drag anywhere moves the canvas and a click selects a page; the pages take no
   pointer. **Interact** (the pointer, `V`): the pages take the pointer, so their links, buttons and
@@ -652,7 +656,10 @@ restores one. Its writes are promoting a page to the Story, and, for a product's
   chosen). Every control names its key in its tooltip. Moves glide
   unless the person prefers reduced motion. Where a finger is the pointer, the toolbar's controls
   are 44px tall, and zoom in, zoom out and the list of keys give way: a pinch zooms, and there is
-  no keyboard to list. A pinch that begins on the toolbar does not zoom the app.
+  no keyboard to list. A pinch that begins on the toolbar does not zoom the app. The toolbar stays
+  inside the board however narrow the board is, as docked panels can make it in a wide window too:
+  short of room its rules go, and then its groups of controls wrap onto a second row, every control
+  still there.
 - **Keys from inside a page.** Once someone is working inside a page, its keys go to the page's
   frame, not the app. The frame script ([§4.12](04-data-model.md)) is told the page is on a canvas
   and passes the canvas's keys on, with Space held and let go and a pinch over the page, so they
@@ -868,7 +875,9 @@ claude-desktop, confirmed an assumption — 14:02". The surface is "in the app",
 "via <client>"; what WhatBuild does by itself, such as reading an attachment, has no surface and
 reads "on the server", however the attachment was uploaded, and says what came of it in a
 person's words: "Read the text of call.vtt; it is the source’s derived text", never the parser's
-internal label (events recorded with one are read without it, over MCP as in the app). The kind of object changed (`?entity_type=`) or
+internal label (events recorded with one are read without it, over MCP as in the app). An edit says
+what changed in the words the app uses, "Changed the outcomes it bears on and the tags", never a
+field's name (events recorded with field names are read in the same words). The kind of object changed (`?entity_type=`) or
 one object (`&entity_id=`) narrows it, held in the URL. Entries are grouped by day, each with its
 count of changes, and load 50 at a time under "Show older changes"; the oldest day loaded may go on
 past them, so while older changes wait its count says only what is loaded ("37+ changes").
@@ -945,8 +954,10 @@ never described as deleting. A list row showing an archived object says *Archive
   every role a person holds, removing one never asks as if it were the last
   ([§3.5](03-accounts-teams-and-identity.md)). Below, owners and admins of the organization see
   **Access changes**: the organization's access log (`members.activity`), drawn as the Activity
-  feed is (§7.9), newest first, with a rename as "renamed the organization to …", and someone
-  whose last role was removed as removed from the organization.
+  feed is (§7.9), newest first, with a rename as "renamed the organization to …", someone
+  whose last role was removed as removed from the organization, someone who deleted their own
+  account as "deleted their account and left the organization", and an instance owner's removal of
+  an account as "removed the account of …".
   Then **Organization name**, for its owners and admins: the name and its short name in links (the
   slug), each in a field, the short name checked as typed against the server's rule and saying that
   every product's address begins with it and that links with the old one still lead here. Owners
@@ -1142,7 +1153,7 @@ never described as deleting. A list row showing an archived object says *Archive
   of everyone in it, are visible to whoever runs this WhatBuild, who uses them to write to its
   people, and to bill the organization where a plan has a price, with a link to Privacy. **What** the organization **holds**: people (counting
   invitations not yet accepted; readers of the Story don't count), products and sources (archived
-  ones don't), and storage (split into files, which are attachments, the text read from each, kept as a file of its own, and prototypes, and text; archiving keeps it, deleting frees it), each
+  ones count, and deleting one makes room), and storage (split into files, which are attachments, the text read from each, kept as a file of its own, and prototypes, and text; archiving keeps it, deleting frees it), each
   as "6 of 50" over a thin bar, with "Nearly full" from 80% and "Full", with its mark, when it is
   reached, or "no limit". **Today**, with when it starts over (midnight UTC): **You** (changes,
   sources added, files uploaded, data sent to you, exports) and **Everyone in** the organization

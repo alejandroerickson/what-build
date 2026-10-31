@@ -3,7 +3,7 @@ type: Decision
 title: Limits belong to plans, never to one organization, and each organization is on a plan of its own
 description: A plan sets every limit, the totals an organization holds included; an instance owner moves an organization between plans and changes no organization's limits.
 tags: [decision, limits, plans, tenancy, billing, cost]
-generated: {by: agent:claude, at: 2026-10-26}
+generated: {by: agent:claude, at: 2026-10-31}
 status: stable
 ---
 
@@ -32,8 +32,11 @@ that stops being paid for, and that the plans themselves are the deployment's
   organization on it, and raises them as the deployment grows. What they set is stored with the
   deployment (`instance_settings`), over what its configuration defines.
 - **Totals beside the days:** people with more than the Story-only reader role (an invitation holds
-  a place), products and sources that are not archived, and storage (files, and text as stored,
-  every version), all per organization; and the bytes sent to each person a day.
+  a place), products and sources, archived or not, and storage (files, and text as stored, every
+  version), all per organization; and the bytes sent to each person a day.
+- **Archived products and sources count.** Otherwise someone archives what they hold, adds as much
+  again, and restores what they need in turn, and a plan's totals limit nothing. Deleting is how to
+  make room, so restoring adds nothing and no total refuses it.
 - **One organization, one plan.** A second organization is a second plan, billed on its own.
 - **One organization each on the starting plan** (the one new organizations start on, Free in the
   example file). An allowance counts the organizations someone started that are still on it and
@@ -48,9 +51,16 @@ that stops being paid for, and that the plans themselves are the deployment's
 - **Only instance owners move an organization to another plan** (`products.set_plan`); nobody
   changes one organization's limits. A move never removes anything an organization holds past the
   new plan's totals.
-- **Never blocked:** reading, searching, archiving, deleting and export. Archiving makes room under
-  people, products and sources; only deleting frees storage. An export is counted against the
-  bytes sent and always sent.
+- **Never blocked:** reading, searching, deleting and export, by a total or a day's writes; calls
+  and writes a minute pace them. A person is told to delete to make room, so a day's writes must not
+  stop them, nor removing someone or cancelling an invitation, and none of those is counted as a
+  write, so one person's clearing up takes nothing from anyone's day. Whoever reads the refusal is told
+  who can delete, since an editor who adds and archives cannot. An export is counted against the bytes
+  sent and always sent. A total never stops archiving or restoring; a day's writes do, because
+  archiving makes no room, and an operation that archives may restore as well, so sparing it would
+  leave writes without a limit.
+- **A total never makes an organization read-only.** One past a total keeps everything and goes on
+  working; only adding more of that kind is refused.
 - **A plan's price is the deployment's**, as people read it, in its configuration or set by an
   instance owner; the repository never holds one. Billing, when it comes, is a service of its own.
 - **Who runs the deployment sees** an organization's name and plan, and the name and email of

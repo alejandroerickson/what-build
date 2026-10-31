@@ -3,7 +3,7 @@ type: Decision
 title: An agent is offered only what its person could do
 description: An MCP connection lists only what the person's roles reach (inside a scoped connector, or in some organization they are in on the unscoped one, unless they may start an organization), and nothing a person does only in the web app, as the web app shows people only what they may do; a call to anything else is still refused with what it needs, or where a person does it.
 tags: [decision, mcp, agents, security]
-generated: {by: agent:claude, at: 2026-10-26}
+generated: {by: agent:claude, at: 2026-10-31}
 status: stable
 ---
 
@@ -44,7 +44,8 @@ actions left MCP altogether
   `tools_version`, are how an agent knows its tool list is from another version. Rejected:
   answering an action the guide describes as unknown, which would send the person to restart for
   nothing.
-- A tool's description speaks only of the actions the connection is offered.
+- A tool's description speaks only of the actions the connection is offered, and `search` says to
+  someone who reads only the Story what it does for them, with a schema that asks for its one mode.
 - The list is computed when the client connects. Someone whose role, allowance or ownership
   changes starts a new session to see the new list.
 

@@ -33,7 +33,7 @@ const HELP = `pnpm e2e mcp <command> [--as <person>|<email>] [--endpoint /mcp/t/
   call <tool> '<json>'    call a tool with these arguments, and print its result
                           e.g. call products_read '{"action":"list"}'
                                call story_read '{"action":"get_page","product":"harbor-labs/product-team/crewboard","params":{"page_id":"overview"}}'
-                          Tools with actions (<noun>_read, <noun>_write, <noun>_delete) take action,
+                          Tools with actions (<noun>_read, <noun>_write, <noun>_delete, products_export) take action,
                           params (the action's fields), describe and product;
                           call <tool> '{"action":"…","describe":true}' prints an action's schema.
                                call guide '{"topic":"tools"}'   reads a topic of the guide

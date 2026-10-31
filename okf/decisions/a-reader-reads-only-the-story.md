@@ -3,7 +3,7 @@ type: Decision
 title: A reader reads only the Story, never the evidence behind it
 description: A team or product role below viewer for stakeholders, enforced by the server: Story pages, their versions and their export, without the notes agents keep on them.
 tags: [decision, access, roles, story, stakeholders]
-generated: {by: agent:claude, at: 2026-10-30}
+generated: {by: agent:claude, at: 2026-10-31}
 status: stable
 ---
 
@@ -54,7 +54,8 @@ product as anyone else does. It revises one consequence of
   what it shows, mockup pages and whole canvases among them. It reads no source, assumption, outcome
   or concept, no mockup's brief or notes, and offers back only corrections from the Story's own
   titles; every other mode, kind or source is refused. The maintainer chose this on 2026-10-30, so a
-  stakeholder can find a page once a Story holds many.
+  stakeholder can find a page once a Story holds many. Their agent's tool list says only this of
+  `search`.
 - The server never changes a page's HTML for a reader. What its author wrote, including mentions
   of the evidence, is the reader's to read; the evidence itself is out of reach.
 - Rejected: hiding the rest only in the web app, since the API and MCP would still serve it;

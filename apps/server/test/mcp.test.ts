@@ -73,7 +73,9 @@ describe("adapter parity", () => {
       expect(t.title, t.name).toMatch(/^[A-Z]/);
       expect(t.annotations, t.name).toMatchObject({ title: t.title });
       const reads = t.name.endsWith("_read") || t.name === "search" || t.name === "guide";
-      expect(t.annotations, t.name).toMatchObject(reads ? { readOnlyHint: true, destructiveHint: false } : { readOnlyHint: false, destructiveHint: true });
+      // An export changes nothing the team has, though it leaves a record, so it says neither.
+      const copies = t.name.endsWith("_export");
+      expect(t.annotations, t.name).toMatchObject(reads ? { readOnlyHint: true, destructiveHint: false } : { readOnlyHint: false, destructiveHint: !copies });
       expect(t.name.length, t.name).toBeLessThanOrEqual(64);
     }
     // Fetching a document is the one action that reaches outside WhatBuild.
@@ -103,7 +105,7 @@ describe("MCP", () => {
     // Permanent deletes are tools of their own, which a client asks the person about before each call.
     expect(tools.find((t) => t.name === "sources_delete")).toMatchObject({ annotations: { readOnlyHint: false, destructiveHint: true } });
     // Listed by the kind of object, each kind's read, write and delete together.
-    expect(tools.map((t) => t.name).slice(0, 5)).toEqual(["products_read", "products_write", "products_delete", "members_read", "members_write"]);
+    expect(tools.map((t) => t.name).slice(0, 5)).toEqual(["products_read", "products_write", "products_delete", "products_export", "members_read"]);
     expect(tools.find((t) => t.name === "sources_write")).toMatchObject({ title: "Change sources", annotations: { readOnlyHint: false, destructiveHint: true } });
     expect(tools.find((t) => t.name === "sources_read")).toMatchObject({ title: "Read sources", annotations: { readOnlyHint: true } });
     // The client keeps the list it connected with, so the instructions say what a missing tool means.
@@ -150,6 +152,25 @@ describe("MCP", () => {
     expect(text(await client.callTool({ name: "outcomes_write", arguments: { action: "list", product: path } })).error.details.tool).toBe("outcomes_read");
     expect(text(await client.callTool({ name: "outcomes_write", arguments: { action: "delete", product: path } })).error.details.tool).toBe("outcomes_delete");
     expect((await alice.api("GET", `/api/v1/p/${path}/outcomes`)).body.items).toEqual([]);
+    await client.close();
+  });
+
+  it("points an export called where it used to be to its own tool, saying a client that lists none holds an older list", async () => {
+    const client = await connect(agentToken);
+    const r = await client.callTool({ name: "products_write", arguments: { action: "export", product: path } });
+    expect((r.content as { text: string }[])[0]!.text).toMatch(/^422: products_write has no action export: it takes a copy away and changes nothing, so it is in products_export\. Nothing was changed\. A client that does not list products_export holds a tool list from an older version of this server; a new session .*brings the current one\./);
+    expect(text(r).error).toMatchObject({ code: "wrong_tool", details: { tool: "products_export", action: "export" } });
+    expect((await alice.api("GET", `/api/v1/p/${path}/exports`)).body.items).toEqual([]);
+    // A call to the noun's old tool name says where its actions went, the export's among them.
+    const old = await client.callTool({ name: "products", arguments: { action: "export", product: path } });
+    expect((old.content as { text: string }[])[0]!.text).toMatch(/^422: Unknown tool products\. Its actions are now in products_read, products_write, products_delete, products_export, by whether they read, change, export or permanently delete\./);
+    await client.close();
+  });
+
+  it("says a write in the example organization is refused to anyone but its authors, who may write there", async () => {
+    const client = await connect(agentToken);
+    expect(client.getInstructions()).toContain("only its authors change, so a write there by anyone else is refused");
+    expect(client.getInstructions()).not.toMatch(/every write there/);
     await client.close();
   });
 
