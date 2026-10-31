@@ -45,7 +45,7 @@ The server refuses a delete without its three guards:
 - `confirm` set to exactly `"delete permanently"` (otherwise `confirmation_required`).
 
 A whole product also takes its `name`, typed exactly. A mockup cannot be deleted while a Story page
-shows it. An export (`products_write(action="export")`) keeps a copy of a product first.
+shows it. An export (`products_export(action="export")`) keeps a copy of a product first.
 
 A deleted object leaves a tombstone: reading it answers `410` with who deleted it, when and why.
 Deleting an organization is its owner's act in the web app, and no tool offers it.

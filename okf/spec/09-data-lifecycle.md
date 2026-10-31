@@ -3,7 +3,7 @@ type: Specification
 title: Nothing is ever trapped - say what we promise, keep export open, and never let a limit block a read.
 description: What we tell people, limits and quotas (enforced and planned), backups and in-product versioning, export, archive and permanent delete of everything archivable and of an organization, the operator runbooks, plans and their limits, and how retired insights and decisions became sources.
 tags: [spec, lifecycle, quotas, backups, export, archive, delete, limits, plans]
-generated: {by: agent:claude, at: 2026-10-27}
+generated: {by: agent:claude, at: 2026-10-31}
 status: stable
 ---
 
@@ -231,7 +231,7 @@ whose earlier wording a write replaces; what an attachment was read as stays rea
 **Product bundle — built.** `products.export` builds one ZIP of a whole product in the background
 (`packages/core/src/ops/export.ts`); `products.exports` lists recent exports with a short-lived
 download grant for each ready one. A viewer, editor or admin may export, through **both
-adapters**, and export is **never blocked** for them — not by a quota, and not by archiving the
+adapters** (over MCP in `products_export`, which a Read only connection is offered too), and export is **never blocked** for them — not by a quota, and not by archiving the
 product. A reader, who reads only the Story, may not (`403`); the Story's own export is its print
 view ([§6.4](06-operations-and-adapters.md)). On a plan that limits it each person exports as many
 times a day as `exports_per_day` allows (§9.7), and a guest of the example organization exports nothing:

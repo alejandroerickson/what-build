@@ -102,7 +102,7 @@ export const deleteProduct = defineOperation({
   allowArchivedProduct: true,
   summary: "DELETE PERMANENTLY — cannot be undone. Destroys a whole product and everything in it; archive is the reversible alternative (product admins).",
   description:
-    'Archiving (products_write(action="archive")) is the reversible alternative, and an export (products_write(action="export")) keeps a copy. ' +
+    'Archiving (products_write(action="archive")) is the reversible alternative, and an export (products_export(action="export")) keeps a copy. ' +
     DELETE_GUIDANCE.replace("the matching delete_impact", 'products_read(action="delete_impact")') +
     " name must be the product's name, typed exactly as the person confirmed it. Leaves a tombstone. The bytes of its files go shortly after, except those a copy in another product still uses.",
   input: z.strictObject({ ...deleteGuards, name: typedName("product") }),

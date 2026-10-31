@@ -43,7 +43,7 @@ async function offered(client: Client): Promise<{ actions: string[]; description
   const { tools } = await client.listTools();
   const actions = tools.flatMap((t) => {
     const action = t.inputSchema.properties?.["action"] as { enum?: string[] } | undefined;
-    return action?.enum ? action.enum.map((a) => `${t.name.replace(/_(read|write|delete)$/, "")}.${a}`) : [t.name];
+    return action?.enum ? action.enum.map((a) => `${t.name.replace(/_(read|write|delete|export)$/, "")}.${a}`) : [t.name];
   });
   return { actions, descriptions: Object.fromEntries(tools.map((t) => [t.name, t.description ?? ""])) };
 }
@@ -77,10 +77,12 @@ async function noAllowance(email: string) {
 /** What a tool's description says it does: before the pointer to describe and the list of actions. */
 const said = (description: string) => description.slice(0, description.indexOf("\nActions:")).split(" Pick an action;")[0]!;
 
+const EVERY_TOOL = toolDefinitions();
+
 /** Each of a tool's actions its description speaks of by name (`set_style`, or `set style`), though the connection is not offered it. */
 function unofferedNamed(tool: string, description: string, offeredActions: string[]): string[] {
   const prose = said(description);
-  const all = toolDefinitions().groups.get(tool)!.map((o) => o.mcp.action!);
+  const all = EVERY_TOOL.groups.get(tool)!.map((o) => o.mcp.action!);
   return all
     .filter((a) => !offeredActions.includes(a))
     .filter((a) => new RegExp(`\\b(${a}|${a.replace(/_/g, " ")})\\b`, "i").test(prose));
@@ -131,7 +133,16 @@ describe("the instance owners' actions", () => {
       expect(move.json.error.message).not.toMatch(/new session|restart/);
       // Nor described, nor told to move to another tool.
       expect(result(await client.callTool({ name: "products_read", arguments: { action: "organizations", describe: true } })).json.error.code).toBe("web_only");
-      expect(result(await client.callTool({ name: "products_read", arguments: { action: "set_guests", params: {} } })).json.error.code).toBe("web_only");
+      const elsewhere = result(await client.callTool({ name: "products_read", arguments: { action: "set_guests", params: {} } }));
+      expect(elsewhere.json.error.code).toBe("web_only");
+      // It names the call as it was made: no tool holds the action, so another tool's name would mislead.
+      expect(elsewhere.json.error.message).toMatch(/^No agent is offered products_read\(action="set_guests"\): /);
+      expect(elsewhere.json.error.message).not.toContain("products_write");
+      const readInWrite = result(await client.callTool({ name: "products_write", arguments: { action: "usage", params: { days: 1 } } }));
+      expect(readInWrite.json.error.message).toMatch(/^No agent is offered products_write\(action="usage"\): /);
+      const deleteInExport = result(await client.callTool({ name: "products_export", arguments: { action: "delete_tenant", params: {} } }));
+      expect(deleteInExport.json.error.code).toBe("web_only");
+      expect(deleteInExport.json.error.message).toMatch(/^No agent is offered products_export\(action="delete_tenant"\): /);
       const unknown = result(await client.callTool({ name: "products_read", arguments: { action: "explode" } }));
       expect(unknown.json.error.code).toBe("unknown_action");
       for (const a of INSTANCE_ACTIONS) expect(unknown.json.error.details.actions, a).not.toContain(a);
@@ -230,6 +241,14 @@ describe("the unscoped connector, for someone who may start no organization", ()
     }
   });
 
+  it("tells a reader everywhere, with nothing but the Story to read, what search reads for them", async () => {
+    const at = "/mcp";
+    const client = await connect(await h.connectAgent(rita, "Rita's agent, unscoped", at), at);
+    const tool = (await client.listTools()).tools.find((t) => t.name === "search")!;
+    expect(tool.description).toMatch(/^Search this product's Story pages\./);
+    await client.close();
+  });
+
   it("lists an editor somewhere their writes, and no one to manage, no product to make and no organization to start", async () => {
     const actions = await offeredAt(eddie, "/mcp");
     expect(actions).toEqual(expect.arrayContaining(["sources.create", "outcomes.create", "products.update_concept", "story.publish", "members.list"]));
@@ -269,7 +288,7 @@ describe("a connector scoped to a product of the example organization", () => {
   it("lists its guest every read and no write", async () => {
     const actions = await offeredAt(gus, `/mcp/t/${example}`);
     expect(actions).toEqual(expect.arrayContaining(["sources.list", "search", "story.list_pages", "outcomes.list"]));
-    for (const a of ["sources.create", "sources.annotate", "outcomes.create", "story.publish"]) expect(actions, a).not.toContain(a);
+    for (const a of ["sources.create", "sources.annotate", "outcomes.create", "story.publish", "products.export"]) expect(actions, a).not.toContain(a);
     // Feedback is the person's own, whatever their role.
     expect(actions).toContain("submit_feedback");
   });
@@ -301,6 +320,81 @@ describe("a connector scoped to a product of the example organization", () => {
     const refused = result(await able.callTool({ name: "sources_write", arguments: { action: "create", product: example, params: { title: "Not here" } } }));
     expect(refused.json.error.message).toMatch(/create an organization of your own: products_write\(action="create_tenant"\)/);
     await able.close();
+  });
+});
+
+describe("an export, on a Read only connection", () => {
+  it("is in a tool of its own that says it destroys nothing, with no write tool beside it", async () => {
+    const at = `/mcp/t/${path}`;
+    const client = await connect(await h.connectAgent(vic, "Vic's read-only agent", at, "viewer"), at);
+    const { tools } = await client.listTools();
+    const names = tools.map((t) => t.name);
+    expect(names).toContain("products_export");
+    expect(names.filter((n) => n.endsWith("_write") || n.endsWith("_delete"))).toEqual([]);
+    const tool = tools.find((t) => t.name === "products_export")!;
+    expect(tool.annotations).toMatchObject({ title: "Export a product", readOnlyHint: false, destructiveHint: false });
+    expect(said(tool.description!)).toMatch(/changes nothing in the product/);
+    // The one tool on this list that is marked destructive is the person's own report to the developer.
+    expect(tools.filter((t) => t.annotations?.destructiveHint).map((t) => t.name)).toEqual(["submit_feedback"]);
+    const made = result(await client.callTool({ name: "products_export", arguments: { action: "export" } }));
+    expect(made.json).toMatchObject({ status: "pending", scope: { connection_level: "viewer", your_role: "viewer" } });
+    const listed = result(await client.callTool({ name: "products_read", arguments: { action: "exports" } }));
+    expect(listed.json.items.map((i: { export_id: string }) => i.export_id)).toContain(made.json.export_id);
+    expect(result(await client.callTool({ name: "products_export", arguments: { action: "export", describe: true } })).json).toMatchObject({ tool: "products_export", action: "export", mutates: true });
+    await client.close();
+  });
+
+  it("is offered at every level to someone who may make one, and not to a reader", async () => {
+    for (const level of ["viewer", "editor", "admin"] as const) expect((await offeredAt(vic, `/mcp/t/${path}`, level)), level).toContain("products.export");
+    expect((await offeredWith(olive, `/mcp/t/${path}`, "editor")).descriptions["products_export"]).toBeDefined();
+    expect((await offeredWith(rita, `/mcp/t/${path}`)).descriptions["products_export"]).toBeUndefined();
+  });
+});
+
+describe("search, for someone who reads only the Story", () => {
+  async function searchTool(browser: Browser, at: string) {
+    const client = await connect(await h.connectAgent(browser, `Search at ${at}`, at), at);
+    const tool = (await client.listTools()).tools.find((t) => t.name === "search")!;
+    await client.close();
+    return tool;
+  }
+
+  it("says what it reads for them, the Story, and nothing of sources or anything else they cannot search", async () => {
+    const tool = await searchTool(rita, `/mcp/t/${path}`);
+    expect(tool.description).toMatch(/^Search this product's Story pages\./);
+    expect(tool.description).toMatch(/It takes mode "plain".*any other is refused with 403/);
+    expect(tool.description).not.toMatch(/what a product's sources say|derived|record_id|attachment|assumptions come/i);
+    // Its schema is what a call that works takes, so mode is asked for rather than left to a default it would refuse.
+    const fields = tool.inputSchema.properties as Record<string, { const?: string }>;
+    expect(Object.keys(fields).sort()).toEqual(["kind", "limit", "mode", "product", "query", "strict"]);
+    expect(fields["mode"]!.const).toBe("plain");
+    expect(tool.inputSchema.required).toEqual(expect.arrayContaining(["query", "mode"]));
+    expect(JSON.stringify(fields)).not.toMatch(/source|substring|ranked/i);
+  });
+
+  it("reads the same on a connector scoped to the organization", async () => {
+    expect((await searchTool(rita, `/mcp/t/${org}`)).description).toMatch(/^Search this product's Story pages\./);
+  });
+
+  it("says all of it on the unscoped connector once they read more somewhere: a guest of the example organization reads sources there", async () => {
+    // The example organization exists by now, and every account is its guest, a viewer.
+    expect((await searchTool(rita, "/mcp")).description).toMatch(/^Search what a product's sources say.*A reader searches only the Story, in plain mode\./s);
+  });
+
+  it("still says what it reads for sources to anyone who may read them", async () => {
+    const tool = await searchTool(vic, `/mcp/t/${path}`);
+    expect(tool.description).toMatch(/^Search what a product's sources say/);
+    expect(Object.keys(tool.inputSchema.properties as object)).toEqual(expect.arrayContaining(["record_id", "scope", "date_from"]));
+  });
+
+  it("answers what its schema asks for, and refuses what it leaves out, as it always did", async () => {
+    const at = `/mcp/t/${path}`;
+    const client = await connect(await h.connectAgent(rita, "Rita's searching agent", at), at);
+    expect(result(await client.callTool({ name: "search", arguments: { query: "harvest", mode: "plain" } })).json).toMatchObject({ mode: "plain" });
+    const refused = result(await client.callTool({ name: "search", arguments: { query: "harvest" } }));
+    expect(refused.status).toBe(403);
+    expect(refused.json.error.message).toMatch(/send mode "plain"/);
+    await client.close();
   });
 });
 
@@ -337,11 +431,28 @@ describe("each tool's description", () => {
       }
     }
     for (const [what, keep] of lists) {
-      for (const [tool, ops] of toolDefinitions(keep).groups) {
-        const description = toolDefinitions(keep).tools.find((t) => t.name === tool)!.description;
+      const definitions = toolDefinitions(keep);
+      for (const [tool, ops] of definitions.groups) {
+        const description = definitions.tools.find((t) => t.name === tool)!.description;
         expect(unofferedNamed(tool, description, ops.map((o) => o.mcp.action!)), `${tool}, ${what}`).toEqual([]);
       }
     }
+  });
+
+  it("speaks of starting an organization only to someone offered it, and opens with the work on a product", async () => {
+    // Olive owns an organization: a connector scoped to it reaches no other, so she starts none there.
+    const scoped = await offeredWith(olive, `/mcp/t/${org}`);
+    expect(scoped.actions).toEqual(expect.arrayContaining(["products.create", "products.create_team"]));
+    expect(scoped.actions).not.toContain("products.create_tenant");
+    expect(said(scoped.descriptions["products_write"]!)).not.toMatch(/organization/i);
+    expect(said(scoped.descriptions["products_write"]!)).toMatch(/Start a product or a team/);
+    // An editor writes the concept, and is told of nothing else.
+    const editing = (await offeredWith(eddie, "/mcp", "editor")).descriptions["products_write"]!;
+    expect(said(editing)).toBe("Write the product concept and its card.");
+    // Someone with room in an allowance, at Admin, is told of it, and after what they do most.
+    const able = await offeredWith(vic, "/mcp", "admin");
+    expect(able.actions).toContain("products.create_tenant");
+    expect(said(able.descriptions["products_write"]!)).toMatch(/^Write the product concept and its card\..*Start an organization of your own\.$/);
   });
 
   it("says nothing of granting or inviting to an Edit connection, which may only list the people", async () => {
