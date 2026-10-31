@@ -1,9 +1,9 @@
 ---
 type: Specification
 title: Every attachment is read into readable Markdown and kept, and each source has one derived text that people and agents read, edit and search.
-description: Reading attachments (when a reading runs, its thread and limits, what it stores, its statuses), the parsers and how they lay text out, the derived text and how it follows its attachment, and the reads and writes of the derived layer.
+description: Reading attachments (when a reading runs, its process and limits, what it stores, its statuses), the parsers and how they lay text out, the derived text and how it follows its attachment, and the reads and writes of the derived layer.
 tags: [spec, derived-layer, parsers, derived-text, attachments]
-generated: {by: agent:claude, at: 2026-10-26}
+generated: {by: agent:claude, at: 2026-10-31}
 status: stable
 ---
 
@@ -45,16 +45,20 @@ The activity log records each outcome under the system actor (WhatBuild, client 
 became the source's; or `derivation_<status>`, "Could not read the text of deck.key: unsupported".
 A reading the system asks for itself (after a migration) records nothing.
 
-**Each reading has a thread and limits of its own**
-([decision](../decisions/each-file-is-parsed-in-a-thread-of-its-own-with-memory-and-time-limits.md)).
-The worker hands the file's bytes to a new worker thread
-([`parse-thread.ts`](../../apps/server/src/parse-thread.ts)), which parses them into the readable
-Markdown and returns its bytes, so the server keeps answering requests while any file is read. The
-thread's JavaScript heap is held to `WHATBUILD_PARSE_MEMORY_MB` (384 MB by default), the buffers it
-holds outside the heap to half as much again, and its run to `WHATBUILD_PARSE_TIMEOUT_SECONDS`
-(120 by default). A parse past any of them is stopped, and its reading is `failed` with the limit
-and its value in `status_detail`. A job is tried at most five times, counting the times the process
-stopped while running it. A reading whose job failed all five times is given up and recorded as
+**Each reading has a process and limits of its own**
+([decision](../decisions/each-file-is-parsed-in-a-process-of-its-own-so-a-parse-that-ends-in-a-fatal-error-ends-only-itself.md)).
+The worker hands the file's bytes to a new child process
+([`parse-process.ts`](../../apps/server/src/parse-process.ts)), which parses them in a worker thread
+into the readable Markdown and returns its bytes, so the server keeps answering requests while any
+file is read, and a parse that ends in a fatal error ends only itself. The thread's JavaScript heap
+is held to `WHATBUILD_PARSE_MEMORY_MB` (384 MB by default), the buffers it holds outside the heap to
+half as much again, and the parse's run to `WHATBUILD_PARSE_TIMEOUT_SECONDS` (120 by default). A
+parse past any of them is stopped, and its reading is `failed` with the limit and its value in
+`status_detail`. A process that ends any other way before it answers, or gives an answer that cannot
+be read, leaves a `failed` reading that says so: `parsing it ended in a fatal error (SIGABRT)`, `the
+system stopped the process parsing it`. Read it again, or `rederive`, tries once more. A parse the
+server's own shutdown stops records nothing: its job is tried again. A job is tried at most five
+times, counting the times the server stopped while running it. A reading whose job failed all five times is given up and recorded as
 `failed` with parser `none`, its `status_detail` saying why: the job stopped the process each time,
 or it failed with an error (the store or the database refusing what it read, say), which until then
 left the attachment `pending` for good. After an error, the reading, which says that the file could

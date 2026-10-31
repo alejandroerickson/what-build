@@ -83,12 +83,12 @@ export interface ServerConfig {
   fileMaxBytes: number;
   parseCapBytes: number;
   /**
-   * The JavaScript heap of the worker thread each file is parsed in, in MB; the buffers a parse
-   * holds outside the heap may take half as much again. A parse that needs more ends as a failed
-   * derivation.
+   * The JavaScript heap of the worker thread each file is parsed in, in MB, in the child process
+   * that file has; the buffers a parse holds outside the heap may take half as much again. A parse
+   * that needs more ends as a failed derivation.
    */
   parseMemoryMb: number;
-  /** How long one parse may run, in seconds, before its thread is stopped and the derivation fails. */
+  /** How long one parse may run, in seconds, before its process is stopped and the derivation fails. */
   parseTimeoutSeconds: number;
   grantTtlSeconds: number;
   urlFetchMaxBytes: number;

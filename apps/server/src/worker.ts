@@ -40,10 +40,11 @@ interface Job {
 /**
  * The job worker: claims work from the Postgres queue with SKIP LOCKED, so any number of replicas
  * can run it without a broker. Derivation always runs here, never inside the request that uploaded
- * the file, in every environment, and the parse itself in a worker thread of its own held to a
- * memory and a time limit (parse-thread.ts). A job that stops the process anyway, or fails, is given
- * up after five attempts (an export at its first failure), and a read given up records a failed
- * reading of its attachment.
+ * the file, in every environment, and the parse itself in a child process of its own held to a
+ * memory and a time limit (parse-process.ts), so one that ends in a fatal error ends only itself. A
+ * job that stops this process anyway (an instance out of memory, say), or fails, is given up after
+ * five attempts (an export at its first failure), and a read given up records a failed reading of
+ * its attachment.
  *
  * Started with `idleMs`, as the service starts it, the worker sleeps once that long has passed
  * without a request or a job: it stops looking at the queue, so a database that suspends when no
@@ -78,6 +79,7 @@ export class Worker {
     this.look(0);
   }
 
+  /** Takes no more jobs. The one running, if any, finishes; the server's shutdown stops its parse, if it is one. */
   stop() {
     this.stopped = true;
     if (this.timer) clearTimeout(this.timer);
@@ -160,6 +162,7 @@ export class Worker {
         this.again = false;
         if (await this.supersededByAMigration()) break;
         for (;;) {
+          if (this.stopped) break;
           await this.prune().catch((e) => this.log(`prune: ${(e as Error).message}`));
           await this.feedbackDigest().catch((e) => this.log(`feedback digest: ${(e as Error).message}`));
           await this.giveUpAbandoned().catch((e) => this.log(`give up: ${(e as Error).message}`));
@@ -168,7 +171,7 @@ export class Worker {
           await this.run(job);
           done++;
         }
-      } while (this.again);
+      } while (this.again && !this.stopped);
     } catch (e) {
       this.log(`worker: ${(e as Error).message}`);
     } finally {
@@ -281,9 +284,9 @@ export class Worker {
   /**
    * Give up the jobs that used every attempt without finishing. A job that fails is given up in
    * `run`, by `giveUp`; these are the ones the process stopped during, every time, most likely
-   * because the job itself took it down (a file that needs more memory than the server has).
-   * Claiming one again would take the server down again, so it is marked done, and a derivation or
-   * an export records that it failed.
+   * because the job itself took it down (an export, or a parse past what the instance has left,
+   * needing more memory than it holds). Claiming one again could take the server down again, so it
+   * is marked done, and a derivation or an export records that it failed.
    */
   private async giveUpAbandoned(): Promise<void> {
     const reason = `the server stopped while running this ${MAX_ATTEMPTS} times, most likely for lack of memory or time, so WhatBuild gave it up`;

@@ -4,6 +4,7 @@ import { createApp, createBlobStore, createMailer, createPorts, SERVER_VERSION }
 import { loadConfig } from "./config.ts";
 import { checkRowSecurity, createDb, migrate, watchPool } from "./database.ts";
 import { syncExampleTenant } from "./example-organization.ts";
+import { checkParsing } from "./parse-process.ts";
 import { seed } from "./seed.ts";
 import { startTracing } from "./telemetry.ts";
 import { Worker } from "./worker.ts";
@@ -21,9 +22,11 @@ const WORKER_IDLE_MS = 60_000;
  *   worker    the job worker only
  *   migrate   apply database migrations, then exit
  *   seed      create the synthetic sample product and three accounts, then exit
+ *   check-parsing   parse a small file of each kind a package is needed for, then exit; needs no database
  */
 async function main() {
   const command = process.argv[2] ?? "serve";
+  if (command === "check-parsing") return checkParsing();
   const config = loadConfig();
   if (!config.databaseUrl) throw new Error("DATABASE_URL is not set. For local development run `pnpm dev`, which starts a database for you.");
   const { db, pool } = createDb(config.databaseUrl);
@@ -63,7 +66,7 @@ async function main() {
     console.log("worker running");
     return;
   }
-  if (command !== "serve") throw new Error(`Unknown command ${command}. Use serve, worker, migrate or seed.`);
+  if (command !== "serve") throw new Error(`Unknown command ${command}. Use serve, worker, migrate, seed or check-parsing.`);
 
   await syncExampleTenant(db, config.exampleTenant);
   if (process.env["WHATBUILD_SANDBOX_TENANT"] && !config.exampleTenant)
@@ -77,6 +80,8 @@ async function main() {
   });
   const shutdown = () => {
     worker?.stop();
+    // Its job goes back in the queue, for the next instance, without waiting for the parse.
+    ports.parser.stop();
     // The calls already answered are counted before the database goes.
     server.close(() => void usageSettled().then(() => tracing?.shutdown()).then(() => pool.end()).then(() => process.exit(0)));
     setTimeout(() => process.exit(0), 8000).unref();

@@ -3,7 +3,7 @@ type: System Concept
 title: WhatBuild self-hosts on Azure Container Apps with Azure Database for PostgreSQL and a mounted file share, set up by an agent with the Azure CLI.
 description: What a self-hosted deployment on Azure is made of, how each resource is configured, the commands that create it, sign-in with a Microsoft work account, the variations between organizations, deploying a new version, cost and removal.
 tags: [operations, deployment, azure, self-hosting, container-apps, entra]
-generated: {by: agent:claude, at: 2026-10-30}
+generated: {by: agent:claude, at: 2026-10-31}
 status: draft
 ---
 
@@ -69,7 +69,7 @@ filesystem adapter on a mounted Azure Files share needs no change to the image a
 image stateless. It costs two things: Container Apps mounts a share only with the storage
 account's key, never an identity, and every upload passes through the service.
 
-**Parsing has twice the room.** The worker parses each file in a thread of its own, held to a
+**Parsing has twice the room.** The worker parses each file in a process of its own, held to a
 heap of `WHATBUILD_PARSE_MEMORY_MB`, half as much again for buffers, and
 `WHATBUILD_PARSE_TIMEOUT_SECONDS` (120 seconds); a file that needs more is recorded as failed while
 the service keeps answering ([§5.1](../spec/05-derived-layer.md#51-reading-an-attachment)). The image's
