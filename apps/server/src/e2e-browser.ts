@@ -39,7 +39,9 @@ const HELP = `pnpm e2e browser <command>   (the browser starts with the first co
   click-text <text>               click the element showing this text
   fill <label> <value>            fill a field by its label
   select <label> <option>         choose an option in a select
-  check <label> | uncheck <label> tick or clear a checkbox or radio
+  check <label> | uncheck <label> tick or clear a checkbox or radio, and wait until it shows that (a box
+                                  whose state lives in the app takes a moment); a radio clears only
+                                  by checking another in its group
   press <key>                     press a key (Enter, Escape, ArrowRight, Control+k, …)
   upload <label> <file>           put a file into the file input with this label (or "file" for the first)
   wait <text> [ms]                wait until the text shows, visibly (default 10000 ms)
@@ -186,7 +188,7 @@ async function daemon(headed: boolean) {
         return `selected "${b}" in "${a}"`;
       case "check":
       case "uncheck":
-        await (await one(page.getByLabel(need(a, "a label"), { exact: flags.exact }), `the label "${a}"`)).setChecked(cmd === "check");
+        await setBox(await one(page.getByLabel(need(a, "a label"), { exact: flags.exact }), `the label "${a}"`), cmd === "check", a!);
         return `${cmd}ed "${a}"`;
       case "press":
         await page.keyboard.press(need(a, "a key"));
@@ -257,6 +259,26 @@ async function signedOut(page: Page) {
     localStorage.clear();
     sessionStorage.clear();
   });
+}
+
+/** How long a box may take to show what a click asked for. */
+const BOX_SETTLES_MS = 5000;
+
+/**
+ * Tick or clear a box, and wait until it shows that. Playwright's setChecked looks the moment its
+ * click returns and calls an unchanged box a failure, but a controlled box whose state lives in the
+ * app shows the change only once the app has it: Connect's radios, whose choice is in the address,
+ * read unchanged for some milliseconds after the click. A box that never shows it is still a failure.
+ */
+export async function setBox(box: Pick<Locator, "isChecked" | "getAttribute" | "click">, wanted: boolean, label: string, settlesMs = BOX_SETTLES_MS) {
+  if ((await box.isChecked()) === wanted) return;
+  if (!wanted && (await box.getAttribute("type")) === "radio") throw new Error(`"${label}" is a radio, which clears only when another in its group is checked.`);
+  await box.click();
+  const until = Date.now() + settlesMs;
+  while ((await box.isChecked()) !== wanted) {
+    if (Date.now() >= until) throw new Error(`Clicking "${label}" did not ${wanted ? "check" : "clear"} it: it still shows the old state ${settlesMs} ms later. The app refused the change, or it is wrong.`);
+    await new Promise((r) => setTimeout(r, 25));
+  }
 }
 
 function valueOf(args: string[], flag: string) {
