@@ -12,6 +12,7 @@ RUN npm install -g pnpm@10.34.5 --no-audit --no-fund
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json ./
 COPY packages/parsers/package.json packages/parsers/
 COPY packages/core/package.json packages/core/
+COPY packages/server-external/package.json packages/server-external/
 COPY apps/server/package.json apps/server/
 COPY apps/web/package.json apps/web/
 RUN pnpm install --frozen-lockfile
@@ -21,12 +22,15 @@ COPY scripts/gen-guide.mjs scripts/
 # The commit being built, recorded in build.json and in the web app, which compares the two to
 # know when a release replaced it; Cloud Build, the Release workflow and the Azure guide pass it.
 ARG WHATBUILD_COMMIT=""
-# npm installs what the server leaves out of its bundle (apps/server/build.mjs). A release must be a
-# week old here too (okf/operations/security-checks.md), and no package runs an install script.
+# What the server leaves out of its bundle (apps/server/build.mjs) comes from pnpm-lock.yaml, the
+# file the scanners read: a deploy resolves nothing, so a release reaches the image only through the
+# lockfile, where an upgrade waits its week (okf/operations/security-checks.md), and no package in
+# that tree runs an install script. pnpm asks for inject-workspace-packages to deploy from the shared lockfile; this
+# package has no workspace dependencies for it to change.
 RUN node scripts/gen-guide.mjs \
  && pnpm --filter @whatbuild/web build \
  && node apps/server/build.mjs \
- && cd apps/server/dist && npm install --omit=dev --no-audit --no-fund --ignore-scripts --min-release-age=7
+ && pnpm --config.inject-workspace-packages=true --filter @whatbuild/server-external deploy --prod --ignore-scripts /external
 
 # ---- 2. Run -------------------------------------------------------------------------------------
 FROM node:24-slim
@@ -35,6 +39,7 @@ ENV NODE_ENV=production \
     WHATBUILD_WEB_DIST=/app/web
 WORKDIR /app
 COPY --from=build /src/apps/server/dist/ ./
+COPY --from=build /external/node_modules/ ./node_modules/
 COPY --from=build /src/apps/web/dist/ ./web/
 # The example plans, for a deployment that offers plans to point WHATBUILD_PLANS at, or copy.
 COPY deploy/plans.example.json ./plans.example.json
