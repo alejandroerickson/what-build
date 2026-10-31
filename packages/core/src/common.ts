@@ -18,6 +18,47 @@ export type EntityType =
   | "annotation"
   | "feedback";
 
+/** Items in a sentence: "a", "a and b", "a, b and c". */
+export function listed(items: string[]): string {
+  return items.length < 2 ? (items[0] ?? "") : `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}`;
+}
+
+/**
+ * What the activity log calls each part of an object that changed: the words the app uses for it,
+ * never the name of its field. `front` and `concept's front` are what older entries say.
+ */
+const CHANGED_WORDS: Readonly<Record<string, string>> = {
+  title: "the title",
+  date: "the date",
+  tags: "the tags",
+  name: "the name",
+  slug: "the short name in links",
+  statement: "the statement",
+  body: "why the team holds it",
+  links: "the links to other assumptions",
+  outcome_ids: "the outcomes it bears on",
+  description: "the text",
+  card_html: "the picture",
+  front: "the picture",
+  position: "its place in the order",
+  concept: "the concept",
+  "concept's front": "the concept's picture",
+};
+
+/** An activity entry's summary for a change to these fields: "Changed the title and the tags". */
+export function changedSummary(fields: readonly string[]): string {
+  return `Changed ${listed(fields.map((f) => CHANGED_WORDS[f] ?? f))}`;
+}
+
+/**
+ * The same sentence for an entry recorded with the fields' names ("Changed outcome_ids, tags"). Any
+ * other summary, one already in words included, comes back as it is.
+ */
+export function changedInWords(summary: string): string {
+  const fields = /^Changed (.+)$/.exec(summary)?.[1]?.split(", ");
+  return fields?.every((f) => Object.hasOwn(CHANGED_WORDS, f)) ? changedSummary(fields) : summary;
+}
+
 /**
  * Append one activity event in the caller's transaction. Events name objects; they never quote
  * content, bodies, a source's text or email addresses.

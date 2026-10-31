@@ -129,7 +129,67 @@ describe("filtering a product's log by who made the change", () => {
   });
 });
 
+/** An entry as it was recorded some time ago. */
+async function recorded(action: string, entity_type: string, summary: string) {
+  const activityId = newId();
+  await h.db.transaction().execute(async (trx) => {
+    await sql`select set_config('app.tenant_id', ${tenantId}, true)`.execute(trx);
+    await trx
+      .insertInto("activity")
+      .values({
+        activity_id: activityId, tenant_id: tenantId, team_id: null, product_id: productId,
+        actor: json({ account_id: "someone", display_name: "Someone", surface: "web", client: null }),
+        actor_account_id: "someone", channel: "web", action, entity_type, entity_id: null, entity_title: "Something", summary,
+      })
+      .execute();
+  });
+  return (await log()).find((i) => i.activity_id === activityId)!;
+}
+
 describe("what an entry says", () => {
+  it("says what changed in the app's words, never a field's name", async () => {
+    const outcome = await alice.api("POST", `${P}/outcomes`, { title: "Read the log" });
+    const assumption = await alice.api("POST", `${P}/assumptions`, { statement: "Words read better than fields." });
+    const edited = await alice.api("PATCH", `${P}/assumptions/${assumption.body.id}`, { expected_etag: assumption.body.etag, body: "People said so.", outcome_ids: [outcome.body.outcome_id], tags: ["words"] });
+    expect(edited.status).toBe(200);
+    expect((await log("&entity_type=assumption")).find((i) => i.action === "updated")?.summary).toBe("Changed why the team holds it, the outcomes it bears on and the tags");
+
+    const renamed = await alice.api("PATCH", `${P}/outcomes/${outcome.body.outcome_id}`, { expected_etag: outcome.body.etag, title: "Read the log in words", position: 99 });
+    expect(renamed.status).toBe(200);
+    expect((await log("&entity_type=outcome")).find((i) => i.action === "updated")?.summary).toBe("Changed the title and its place in the order");
+
+    const source = (await alice.api("GET", `${P}/sources?limit=1`)).body.records[0];
+    const dated = await alice.api("PATCH", `${P}/sources/${source.record_id}`, { expected_etag: source.etag, date: "2026-09-01" });
+    expect(dated.status).toBe(200);
+    expect((await log("&entity_type=source")).find((i) => i.action === "updated")?.summary).toBe("Changed the date");
+
+    const product = (await alice.api("GET", P)).body;
+    const slugged = await alice.api("PATCH", P, { expected_etag: product.etag, name: "Logbook again" });
+    expect(slugged.status).toBe(200);
+    expect((await log("&entity_type=product")).find((i) => i.action === "updated")?.summary).toBe("Changed the name");
+  });
+
+  it.each([
+    ["updated", "assumption", "Changed outcome_ids, tags", "Changed the outcomes it bears on and the tags"],
+    ["updated", "assumption", "Changed statement, body, links", "Changed the statement, why the team holds it and the links to other assumptions"],
+    ["updated", "outcome", "Changed title, description, front", "Changed the title, the text and the picture"],
+    ["reordered", "outcome", "Changed position", "Changed its place in the order"],
+    ["updated", "source", "Changed title, date, tags", "Changed the title, the date and the tags"],
+    ["updated", "product", "Changed name, slug", "Changed the name and the short name in links"],
+    ["updated", "product", "Changed concept, concept's front", "Changed the concept and the concept's picture"],
+  ])("reads an entry (%s, %s) recorded as %s in the same words", async (action, entityType, was, reads) => {
+    expect((await recorded(action, entityType, was)).summary).toBe(reads);
+  });
+
+  it.each([
+    ["updated", "assumption", "Changed the tags"],
+    ["updated", "assumption", "Edited the entry"],
+    ["updated", "story_page", "Published version 2"],
+    ["archived", "source", "Changed title"],
+  ])("leaves an entry (%s, %s) that names no field, %s, as it is", async (action, entityType, summary) => {
+    expect((await recorded(action, entityType, summary)).summary).toBe(summary);
+  });
+
   it("names a link between assumptions in words", async () => {
     const linked = (await log("&entity_type=assumption")).find((i) => i.action === "linked");
     expect(linked?.summary).toBe("Linked to an assumption it supports");

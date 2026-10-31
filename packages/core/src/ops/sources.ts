@@ -1,7 +1,7 @@
 import { currentReading, IMAGE_DETAIL, SCAN_DETAIL, settledReading } from "@whatbuild/parsers";
 import { sql, type Selectable } from "kysely";
 import { z } from "zod";
-import { checkEtag, keepRevision, normalizeTags, productId, recordActivity, tenantId } from "../common.ts";
+import { changedSummary, checkEtag, keepRevision, normalizeTags, productId, recordActivity, tenantId } from "../common.ts";
 import { json, type RecordsTable, type Tx } from "../db.ts";
 import { checkConfirmation, DELETE_CONFIRMATION, DELETE_GUIDANCE, deleteGuards, dropRevisions, leaveTombstone, refuseIfDeleted } from "../deletion.ts";
 import { conflict, gone, invalid, notFound } from "../errors.ts";
@@ -639,7 +639,7 @@ export const updateSource = defineOperation({
       entity_type: "source",
       entity_id: r.record_id,
       entity_title: next.title,
-      summary: `Changed ${changed.join(", ")}`,
+      summary: changedSummary(changed),
     });
     const after = await loadRecord(ctx, r.record_id);
     const s = (await derivedStatuses(ctx, [r.record_id])).get(r.record_id);

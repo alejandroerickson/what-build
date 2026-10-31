@@ -220,7 +220,7 @@ async function endAccount(ctx: OpContext, account: Ending, self: boolean) {
       .insertInto("activity")
       .values({
         activity_id: newId(), tenant_id: t.tenant_id, team_id: null, product_id: null, actor: json(ctx.actor), actor_account_id: ctx.actor.account_id,
-        channel: ctx.actor.surface, action: "revoked", entity_type: "membership", entity_id: id, entity_title: account.display_name,
+        channel: ctx.actor.surface, action: self ? "account_deleted" : "account_removed", entity_type: "membership", entity_id: id, entity_title: account.display_name,
         summary: self ? `Left ${t.name} (${roles}) by deleting their account` : `Removed from ${t.name} (${roles}) with the account, by an owner of this instance`,
       })
       .execute();
