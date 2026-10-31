@@ -96,13 +96,18 @@ export function useDebounced<T>(value: T, ms: number): T {
   return v;
 }
 
-/** Find as you type: the last answer stays on screen while the next one loads. */
+/**
+ * Find as you type: the last answer stays on screen while the next one loads. A search typed past
+ * is cancelled, on the server too, and one that fails is not asked again by itself: the next word
+ * typed asks anew.
+ */
 export function useFind(base: string, query: string, opts: { kind?: string; recordId?: string; strict?: boolean } = {}) {
   const q = query.trim();
   return useQuery({
     queryKey: ["find", base, q, opts.kind ?? "", opts.recordId ?? "", Boolean(opts.strict)],
-    queryFn: () => api<FindResponse>("GET", `${base}/search${qs({ mode: "plain", query: q, kind: opts.kind, record_id: opts.recordId, strict: opts.strict ? "true" : "" })}`),
+    queryFn: ({ signal }) => api<FindResponse>("GET", `${base}/search${qs({ mode: "plain", query: q, kind: opts.kind, record_id: opts.recordId, strict: opts.strict ? "true" : "" })}`, undefined, { signal }),
     enabled: q.length > 0,
+    retry: false,
     placeholderData: (prev) => (q ? prev : undefined),
     staleTime: 30_000,
   });
@@ -148,7 +153,7 @@ export function resultHref(app: string, r: FindResult): string {
     case "mockup":
       return `${app}/exploration/mockups/${r.id}${r.meta.page_id ? `?page=${encodeURIComponent(r.meta.page_id)}` : ""}`;
     case "story":
-      return `${app}/story/${r.id}`;
+      return `${app}/story/${r.id}${r.meta.page_id ? `?page=${encodeURIComponent(r.meta.page_id)}` : ""}`;
     case "outcome":
       return `${app}/idea?outcome=${encodeURIComponent(r.id)}`;
     case "idea":
@@ -186,7 +191,7 @@ export function resultMeta(r: FindResult, { status = true }: { status?: boolean 
     if (r.match_count) parts.push(`${r.match_count} ${r.match_count === 1 ? "match" : "matches"}`);
   }
   if (status && r.kind === "assumption" && r.meta.status) parts.push(REVIEW_STATUS[r.meta.status]?.label ?? r.meta.status);
-  if (r.kind === "mockup" && r.meta.page_title) parts.push(`page “${r.meta.page_title}”`);
+  if ((r.kind === "mockup" || r.kind === "story") && r.meta.page_title) parts.push(`page “${r.meta.page_title}”`);
   return parts.join(" · ");
 }
 

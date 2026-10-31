@@ -30,7 +30,7 @@ export const BUNDLE_LAYOUT: readonly { path: string; holds: string }[] = [
   { path: "records/<record_id>/agent-notes/<kind>.md", holds: "The source's summary (summary.md) and notes (notes.md)." },
   { path: "assumptions.json", holds: "The assumptions, each with its reviews." },
   { path: "revisions.json", holds: "Earlier texts of the outcomes, the assumptions, the comments and the product concept." },
-  { path: "story/hierarchy.json", holds: "The Story's page tree and its Published mockups." },
+  { path: "story/hierarchy.json", holds: "The Story's page tree." },
   { path: "story/style.json", holds: "The Story style, when the product has one." },
   { path: "story/style.css", holds: "The Story style's stylesheet." },
   { path: "story/pages/<page_id>/page.json", holds: "A Story page." },
@@ -247,9 +247,10 @@ export async function runExport(db: Tx, ports: Ports, job: { tenant_id: string; 
   for (const p of pages) {
     add(`story/pages/${p.page_id}/page.json`, j(p));
     for (const v of await db.selectFrom("story_versions").selectAll().where("product_id", "=", pid).where("page_id", "=", p.page_id).orderBy("n").execute()) {
-      const { html, ...meta } = v;
+      const { html, search_text, tsv, ...meta } = v;
+      void search_text, void tsv;
       add(`story/pages/${p.page_id}/v${v.n}.json`, j(meta));
-      // A version that shows a mockup page has no HTML of its own: its JSON names the page under mockups/.
+      // A version that shows a mockup page or canvas has no HTML of its own: its JSON names it under mockups/.
       if (!v.mockup) add(`story/pages/${p.page_id}/v${v.n}.html`, html);
     }
   }
@@ -259,7 +260,7 @@ export async function runExport(db: Tx, ports: Ports, job: { tenant_id: string; 
       const { brief, ...meta } = v;
       const pages = await db.selectFrom("mockup_pages").selectAll().where("version_id", "=", v.version_id).orderBy("position").execute();
       const dir = `mockups/${m.mockup_id}/v${v.n}`;
-      add(`${dir}/version.json`, j({ ...meta, pages: pages.map(({ html, notes, ...p }) => (void html, void notes, p)) }));
+      add(`${dir}/version.json`, j({ ...meta, pages: pages.map(({ html, notes, search_text, tsv, ...p }) => (void html, void notes, void search_text, void tsv, p)) }));
       add(`${dir}/brief.md`, brief);
       for (const p of pages) {
         // A page that enters the prototype has no HTML of its own; version.json gives its entry.

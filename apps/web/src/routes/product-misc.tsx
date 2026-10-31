@@ -102,7 +102,7 @@ export function ActivityPage() {
 // ---- Settings -----------------------------------------------------------------------------------
 
 export function ProductSettingsPage() {
-  const { isAdmin, product } = useProduct();
+  const { isAdmin, product, readOnlyOrganization } = useProduct();
   const archive = useArchiveProduct();
   const loc = useLocation();
   usePageTitle("Settings");
@@ -117,9 +117,9 @@ export function ProductSettingsPage() {
       <PeopleSheet />
       <ExportSheet />
       <OrganizationSheet />
-      {isAdmin ? <ArchiveSheet archive={archive} /> : null}
+      {isAdmin && !readOnlyOrganization ? <ArchiveSheet archive={archive} /> : null}
       {/* A live product's delete dialog offers archiving it instead; one already archived has nothing to offer. */}
-      {isAdmin ? <DeleteProductSheet onArchive={product.archived_at ? undefined : () => archive.change.mutate(false)} /> : null}
+      {isAdmin ? <DeleteProductSheet onArchive={product.archived_at || readOnlyOrganization ? undefined : () => archive.change.mutate(false)} /> : null}
       <p className="settings-foot">
         Your display name is in <Link to="/settings">your own settings</Link>.
       </p>
@@ -128,14 +128,14 @@ export function ProductSettingsPage() {
 }
 
 function ProductDetails() {
-  const { product, api: base, isAdmin } = useProduct();
+  const { product, api: base, isAdmin, readOnlyOrganization } = useProduct();
   const qc = useQueryClient();
   const toast = useToast();
   const navigate = useNavigate();
   const [name, setName] = useState(product.name);
   const [slug, setSlug] = useState(product.slug);
   const archived = Boolean(product.archived_at);
-  const editable = isAdmin && !archived;
+  const editable = isAdmin && !archived && !readOnlyOrganization;
   const dirty = name !== product.name || slug !== product.slug;
   const save = useMutation({
     mutationFn: () =>
@@ -277,7 +277,7 @@ function useProductMembers() {
 }
 
 function PeopleSheet() {
-  const { product, isAdmin } = useProduct();
+  const { product, isAdmin, readOnlyOrganization } = useProduct();
   const { q } = useProductMembers();
   const qc = useQueryClient();
   const toast = useToast();
@@ -316,7 +316,7 @@ function PeopleSheet() {
         title="People on this product"
         count={count}
         end={
-          isAdmin ? (
+          isAdmin && !readOnlyOrganization ? (
             <Button icon="user-plus" onClick={() => setAdding(true)}>Add people</Button>
           ) : q.data?.guest ? null : (
             <Link className="quiet-link" to={membersLink}>Organization members</Link>
@@ -378,14 +378,19 @@ function PeopleSheet() {
                           </>
                         }
                       >
-                        <MenuGroup label={`Role on ${product.name}`}>
-                          {ROLES.map((r) => (
-                            <MenuRadio key={r} checked={own.role === r} meta={ROLE_HINT[r]} onSelect={() => own.role !== r && grant.mutate({ email: m.email, role: r })}>
-                              {ROLE_WORD[r]}
-                            </MenuRadio>
-                          ))}
-                        </MenuGroup>
-                        <MenuSeparator />
+                        {/* A read-only organization changes no roles, but people can still be taken out. */}
+                        {readOnlyOrganization ? null : (
+                          <>
+                            <MenuGroup label={`Role on ${product.name}`}>
+                              {ROLES.map((r) => (
+                                <MenuRadio key={r} checked={own.role === r} meta={ROLE_HINT[r]} onSelect={() => own.role !== r && grant.mutate({ email: m.email, role: r })}>
+                                  {ROLE_WORD[r]}
+                                </MenuRadio>
+                              ))}
+                            </MenuGroup>
+                            <MenuSeparator />
+                          </>
+                        )}
                         <MenuItem icon="x" tone="danger" onSelect={() => revoke.mutate(m)}>
                           Remove from {product.name}
                         </MenuItem>

@@ -608,19 +608,22 @@ export interface StoryVersionsTable {
   html: string;
   /** No longer written or read; kept so older versions keep their row as it was. */
   note: Def<string>;
-  /** Set when the version shows one page of a mockup version instead of HTML of its own (html is then empty). */
+  /** The words of `html` and their search vector, which Postgres keeps with it. Never part of what a version reads as. */
+  search_text: ColumnType<string, never, never>;
+  tsv: ColumnType<string, never, never>;
+  /** Set when the version shows one page, or the whole canvas, of a mockup version instead of HTML of its own (html is then empty). */
   mockup: JsonNull<MockupPageRef>;
   previous_version_id: string | null;
   created_at: Ts;
   created_by: Json<ActorSnapshot>;
 }
 
-/** One page of one mockup version, as a Story page version shows it. */
+/** One page of one mockup version, or its whole canvas (page_id null), as a Story page version shows it. */
 export interface MockupPageRef {
   mockup_id: string;
   mockup_version_id: string;
   version: number;
-  page_id: string;
+  page_id: string | null;
 }
 
 export interface MockupsTable {
@@ -679,6 +682,9 @@ export interface MockupPagesTable {
   html: string | null;
   /** A path in the version's prototype, with a query and a fragment if wanted; null for a page with HTML of its own. */
   entry: ColumnType<string | null, string | null | undefined, string | null>;
+  /** The words of `html` and their search vector, which Postgres keeps with it; null with it. Never part of what a page reads as. */
+  search_text: ColumnType<string | null, never, never>;
+  tsv: ColumnType<string | null, never, never>;
   /** A prototype image the Story's print view shows for an entry page. */
   poster: ColumnType<string | null, string | null | undefined, string | null>;
 }
@@ -702,8 +708,6 @@ export interface StoryHierarchiesTable {
   product_id: string;
   tenant_id: string;
   items: Json<StoryNode[]>;
-  /** The order of the Published mockups section: ids of pages whose current version shows a mockup page. */
-  mockups: ColumnType<string[], string | undefined, string>;
   etag: string;
   updated_at: Ts;
   updated_by: Json<ActorSnapshot>;

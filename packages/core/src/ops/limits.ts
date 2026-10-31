@@ -399,7 +399,8 @@ export const guestSettings = defineOperation({
     requireInstanceOwner(ctx);
     const settings = await readGuests(ctx.db);
     const record = await settingRecord(ctx.db, "guests");
-    return { settings, defaults: GUEST_DEFAULTS, fields: GUEST_FIELDS, etag: record.etag, updated_at: record.updated_at, updated_by: record.updated_by, now: await guestCounts(ctx.db, settings) };
+    // With no sign-up allowlist nothing limits who makes an account, whatever self_serve says, so the page says so.
+    return { settings, defaults: GUEST_DEFAULTS, fields: GUEST_FIELDS, open_without_allowlist: !ctx.ports.config.signupAllowlist, etag: record.etag, updated_at: record.updated_at, updated_by: record.updated_by, now: await guestCounts(ctx.db, settings) };
   },
 });
 

@@ -629,7 +629,7 @@ export function organizationImpactWords(name: string, c: OrganizationImpact["con
   const stop = c.pending_invitations > 0 && (c.pending_invitations === 1 ? "1 invitation stops working" : `${c.pending_invitations} invitations stop working`);
   return {
     goes: `Everything in ${name} goes at once${held ? `: ${held}${within ? `, with ${within}` : ""}` : ""}.`,
-    people: lose ? `${lose}${stop ? `, and ${stop}` : ""}. Their accounts, and their roles in other organizations, stay.` : stop ? `${stop}.` : null,
+    people: lose ? `${lose}${stop ? `, and ${stop}` : ""}. ${c.people === 1 ? "Their account" : "Their accounts"}, and their roles in other organizations, stay.` : stop ? `${stop}.` : null,
   };
 }
 

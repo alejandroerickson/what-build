@@ -286,7 +286,7 @@ describe("promoting a mockup page to the Story", () => {
     const r = await alice.api("POST", `${P}/story/promote-mockup`, { mockup_id: mockupId, mockup_page_id: "phone" });
     expect(r.status, JSON.stringify(r.body)).toBe(201);
     pageEtag = r.body.etag;
-    expect(r.body).toMatchObject({ page_id: "phone", title: "Phone view", current_version: 1, placed: true });
+    expect(r.body).toMatchObject({ page_id: "phone", title: "Phone view", current_version: 1, placed: false });
     expect(r.body.current.mockup).toMatchObject({ mockup_id: mockupId, version: 1, page_id: "phone", page_title: "Phone view", width: 390, height: 760, current_version: 1 });
     const got = await alice.api("GET", `${P}/story/pages/phone`);
     expect(got.body.current.html).toContain("Phone v1");
@@ -357,10 +357,144 @@ describe("promoting a mockup page to the Story", () => {
     expect(files["story/pages/phone-2/v1.html"]).toBeUndefined();
     const plan = await alice.api("GET", `${P}/story/print-view?page_ids=phone-2`);
     expect(plan.body.pages[0].html_chars).toBeGreaterThan(0);
+    expect(await (await raw(alice, `${P}/story/print?page_ids=phone-2`)).text()).toMatch(/<div class="print-frame" data-print-frame="\d+" style="width:\d+px;min-height:\d+px;--print-fit:[\d.]+"><div data-print-page="phone-2"/);
   });
 });
 
-describe("the Story's published mockups", () => {
+describe("searching for what a Story page shows of a mockup", () => {
+  let S: string;
+  let oneId: string;
+  let boardId: string;
+  type Hit = { kind: string; id: string; meta: { page_id?: string; page_title?: string } };
+  const find = async (b: Browser, words: string, extra = "") => {
+    const r = await b.api("GET", `${S}/search?mode=plain&query=${encodeURIComponent(words)}${extra}`);
+    expect(r.status, JSON.stringify(r.body)).toBe(200);
+    return r.body as { results: Hit[]; corrections: { from: string; to: string }[] };
+  };
+  const kinds = async (b: Browser, words: string, extra = "") => (await find(b, words, extra)).results.map((x) => `${x.kind}:${x.id}`);
+
+  beforeAll(async () => {
+    const p = await alice.api("POST", `/api/v1/teams/${tenantSlug}/${teamSlug}/products`, { name: "Findable" });
+    S = `/api/v1/p/${p.body.path}`;
+    for (const [email, role] of [["vic@example.com", "viewer"], ["rita@example.com", "reader"]])
+      expect((await alice.api("POST", `/api/v1/tenants/${tenantSlug}/members`, { team: teamSlug, product: "findable", email, role })).status).toBe(201);
+    const one = await alice.api("POST", `${S}/mockups`, {
+      title: "Harbour walk",
+      brief: "Only the team reads briefword.",
+      pages: [
+        { page_id: "alpha", title: "Alpha screen", notes: "Only the team reads notesword.", html: page("alphaword") },
+        { page_id: "unshown", title: "Unshown screen", html: page("unshownword") },
+      ],
+    });
+    oneId = one.body.mockup_id;
+    const board = await alice.api("POST", `${S}/mockups`, {
+      title: "Quay board",
+      pages: [
+        { page_id: "gamma", title: "Gamma screen", html: page("gammaword") },
+        { page_id: "delta", title: "Delta screen", html: page("deltaword") },
+      ],
+    });
+    boardId = board.body.mockup_id;
+    expect((await alice.api("POST", `${S}/story/pages/overview/versions`, { title: "Overview", html: page("overviewword") })).status).toBe(201);
+    expect((await alice.api("POST", `${S}/story/promote-mockup`, { mockup_id: oneId, mockup_page_id: "alpha", page_id: "alpha-page", title: "Stakeholder preview" })).status).toBe(201);
+    expect((await alice.api("POST", `${S}/story/promote-mockup`, { mockup_id: boardId, page_id: "whole-board" })).status).toBe(201);
+    expect((await alice.api("POST", `${S}/outcomes`, { title: "Reach outcomeword" })).status).toBeLessThan(300);
+    expect((await alice.api("POST", `${S}/assumptions`, { statement: "Crews want assumptionword." })).status).toBeLessThan(300);
+  });
+
+  it("lists a page from a mockup once, as the mockup, for whoever may read the mockup", async () => {
+    expect(await kinds(alice, "alphaword")).toEqual([`mockup:${oneId}`]);
+    expect(await kinds(alice, "gammaword")).toEqual([`mockup:${boardId}`]);
+    // The promoted pages' summaries name their mockups, which alone would list each one again.
+    expect(await kinds(alice, "harbour")).toEqual([`mockup:${oneId}`]);
+    expect(await kinds(alice, "quay")).toEqual([`mockup:${boardId}`]);
+    expect(await kinds(vic, "alphaword")).toEqual([`mockup:${oneId}`]);
+  });
+
+  it("ranks and opens the mockup as the page it stands in for would have", async () => {
+    const promoted = await alice.api("POST", `${S}/story/promote-mockup`, { mockup_id: oneId, mockup_page_id: "unshown", page_id: "beacon", title: "Beacon" });
+    expect(promoted.status).toBe(201);
+    // Harbour walk's first page says the word in its text; the page promoted as Beacon is titled with it.
+    const m = await alice.api("GET", `${S}/mockups/${oneId}`);
+    const next = await alice.api("POST", `${S}/mockups`, { mockup_id: oneId, expected_etag: m.body.etag, pages: [{ page_id: "alpha", title: "Alpha screen", html: page("alphaword and Unshown words") }, { page_id: "unshown", title: "Unshown screen", html: page("unshownword") }] });
+    expect(next.status, JSON.stringify(next.body)).toBe(201);
+    const hit = (await find(alice, "unshown screen")).results.find((x) => x.kind === "mockup");
+    expect(hit?.meta.page_id).toBe("unshown");
+    const now = await alice.api("GET", `${S}/story/pages/beacon?include_html=false`);
+    expect((await alice.api("DELETE", `${S}/story/pages/beacon`, { expected_etag: now.body.etag, reason: "Only for this test", confirm: "delete permanently" })).status).toBe(200);
+  });
+
+  it("still lists a Story page of its own, and one that holds a word its mockup does not", async () => {
+    expect(await kinds(alice, "overviewword")).toEqual(["story:overview"]);
+    expect(await kinds(alice, "stakeholder")).toEqual(["story:alpha-page"]);
+  });
+
+  it("gives a page from a mockup to whoever asks for the Story alone", async () => {
+    expect(await kinds(alice, "alphaword", "&kind=story")).toEqual(["story:alpha-page"]);
+    expect(await kinds(alice, "gammaword", "&kind=story")).toEqual(["story:whole-board"]);
+  });
+
+  it("finds a Story page by what it stays on, once the mockup has moved on, and when the mockup is archived", async () => {
+    const m = await alice.api("GET", `${S}/mockups/${boardId}`);
+    const next = await alice.api("POST", `${S}/mockups`, { mockup_id: boardId, expected_etag: m.body.etag, pages: [{ page_id: "gamma", title: "Gamma screen", html: page("rewritten") }, { page_id: "delta" }] });
+    expect(next.status, JSON.stringify(next.body)).toBe(201);
+    expect(await kinds(alice, "gammaword")).toEqual(["story:whole-board"]);
+    expect(await kinds(alice, "rewritten")).toEqual([`mockup:${boardId}`]);
+    const o = await alice.api("GET", `${S}/mockups/${oneId}`);
+    const gone = await alice.api("POST", `${S}/mockups/${oneId}/archive`, { expected_etag: o.body.etag });
+    expect(gone.status).toBe(200);
+    expect(await kinds(alice, "alphaword")).toEqual(["story:alpha-page"]);
+    expect((await alice.api("POST", `${S}/mockups/${oneId}/restore`, { expected_etag: gone.body.etag })).status).toBe(200);
+  });
+
+  it("lets a reader search the Story alone: every page by what it shows, and a canvas's page by its words", async () => {
+    expect(await kinds(rita, "overviewword")).toEqual(["story:overview"]);
+    expect(await kinds(rita, "alphaword")).toEqual(["story:alpha-page"]);
+    const onCanvas = await find(rita, "deltaword");
+    expect(onCanvas.results.map((x) => [x.kind, x.id, x.meta])).toEqual([["story", "whole-board", { page_id: "delta", page_title: "Delta screen" }]]);
+    expect(await kinds(rita, "gamma")).toEqual(["story:whole-board"]);
+    // The canvas's title opens the board, on no page of it.
+    expect((await find(rita, "quay")).results[0]?.meta).toEqual({});
+  });
+
+  it("gives a reader a mockup page once when a canvas holds it too, unless another page of the canvas holds the words", async () => {
+    const promoted = await alice.api("POST", `${S}/story/promote-mockup`, { mockup_id: boardId, mockup_page_id: "delta", version: 1, page_id: "delta-alone", title: "Delta alone" });
+    expect(promoted.status, JSON.stringify(promoted.body)).toBe(201);
+    expect(await kinds(rita, "deltaword")).toEqual(["story:delta-alone"]);
+    expect((await find(rita, "gammaword")).results.map((x) => [x.id, x.meta.page_id])).toEqual([["whole-board", "gamma"]]);
+    const now = await alice.api("GET", `${S}/story/pages/delta-alone?include_html=false`);
+    expect((await alice.api("DELETE", `${S}/story/pages/delta-alone`, { expected_etag: now.body.etag, reason: "Only for this test", confirm: "delete permanently" })).status).toBe(200);
+    expect(await kinds(rita, "deltaword")).toEqual(["story:whole-board"]);
+  });
+
+  it("gives a reader nothing else of the product, in results or in the words it offers back", async () => {
+    for (const word of ["briefword", "notesword", "unshownword", "outcomeword", "assumptionword"]) {
+      const got = await find(rita, word);
+      expect(got.results, word).toEqual([]);
+      expect(got.corrections, word).toEqual([]);
+    }
+    // One letter away from words only the team holds, as a typo would be.
+    for (const word of ["outcomewors", "assumptionwors", "briefwors", "harbous"]) expect((await find(rita, word)).corrections, word).toEqual([]);
+    expect((await find(rita, "overvieu ")).corrections).toEqual([{ from: "overvieu", to: "overview" }]);
+  });
+
+  it("refuses a reader every other search", async () => {
+    for (const q of ["query=alpha", "query=alpha&mode=ranked", "query=alpha&mode=plain&kind=mockup", "query=alpha&mode=plain&kind=source", "query=alpha&mode=plain&record_id=01ARZ3NDEKTSV4RRFFQ69G5FAV"]) {
+      const r = await rita.api("GET", `${S}/search?${q}`);
+      expect(r.status, q).toBe(403);
+      expect(r.body.error.details.role, q).toBe("reader");
+    }
+    expect((await rita.api("GET", `${S}/search?mode=plain&query=alpha&kind=story`)).status).toBe(200);
+  });
+
+  it("leaves an archived page out of a reader's search", async () => {
+    const now = await alice.api("GET", `${S}/story/pages/whole-board?include_html=false`);
+    expect((await alice.api("POST", `${S}/story/pages/whole-board/archive`, { expected_etag: now.body.etag })).status).toBe(200);
+    expect(await kinds(rita, "deltaword")).toEqual([]);
+  });
+});
+
+describe("pages from a mockup in the Story's tree", () => {
   let Q: string;
   let mockupId: string;
   const ids = (items: { page_id: string }[]) => items.map((x) => x.page_id);
@@ -378,63 +512,154 @@ describe("the Story's published mockups", () => {
     expect((await alice.api("POST", `${Q}/story/pages/overview/versions`, { title: "Overview", html: page("Overview") })).status).toBe(201);
   });
 
-  it("gathers every promoted page in a section of its own, in the order promoted, never in the tree", async () => {
+  it("leaves a promoted page unplaced, at the end of the tree, and says what kind of page it is", async () => {
     for (const id of ["p1", "p2", "p3"]) {
       const r = await alice.api("POST", `${Q}/story/promote-mockup`, { mockup_id: mockupId, mockup_page_id: id });
       expect(r.status).toBe(201);
-      expect(r.body.placed).toBe(true);
+      expect(r.body.placed).toBe(false);
     }
     const h = await tree();
     expect(ids(h.items)).toEqual([]);
-    expect(ids(h.unplaced)).toEqual(["overview"]);
-    expect(ids(h.mockups)).toEqual(["p1", "p2", "p3"]);
-    expect(h.mockups[0]).toEqual({ page_id: "p1", title: "P1", description: expect.stringContaining("Directions") });
+    expect(ids(h.unplaced)).toEqual(["overview", "p1", "p2", "p3"]);
+    expect(h.unplaced[0].kind).toBe("story_page");
+    expect(h.unplaced[1]).toEqual({ page_id: "p1", title: "P1", description: expect.stringContaining("Directions"), kind: "mockup_page" });
   });
 
-  it("takes the order an agent sets, and keeps it when a later call leaves mockups out", async () => {
-    const set = await alice.api("PUT", `${Q}/story/hierarchy`, { items: [{ page_id: "overview", children: [] }], mockups: ["p3", "p1"], expected_etag: (await tree()).etag });
+  it("places and nests a page from a mockup like any other, and sends the tree back as it read it", async () => {
+    const set = await alice.api("PUT", `${Q}/story/hierarchy`, {
+      items: [{ page_id: "p3", children: [{ page_id: "overview", children: [{ page_id: "p1", children: [] }] }] }],
+      expected_etag: (await tree()).etag,
+    });
     expect(set.status, JSON.stringify(set.body)).toBe(200);
-    expect(ids(set.body.mockups)).toEqual(["p3", "p1", "p2"]);
-    expect(set.body.unplaced).toEqual([]);
-    const again = await alice.api("PUT", `${Q}/story/hierarchy`, { items: [{ page_id: "overview", children: [] }], expected_etag: set.body.etag });
-    expect(again.status).toBe(200);
-    expect(ids(again.body.mockups)).toEqual(["p3", "p1", "p2"]);
+    expect(ids(set.body.items)).toEqual(["p3"]);
+    expect(set.body.items[0].kind).toBe("mockup_page");
+    expect(set.body.items[0].children[0]).toMatchObject({ page_id: "overview", kind: "story_page", children: [{ page_id: "p1", kind: "mockup_page" }] });
+    expect(ids(set.body.unplaced)).toEqual(["p2"]);
+    const again = await alice.api("PUT", `${Q}/story/hierarchy`, { items: set.body.items, expected_etag: set.body.etag });
+    expect(again.status, JSON.stringify(again.body)).toBe(200);
+    expect(again.body.items).toEqual(set.body.items);
   });
 
-  it("refuses a page from a mockup in the tree, any other page among the mockups, and a page twice", async () => {
+  it("refuses a page twice, and a separate list of mockups, which is gone", async () => {
     const etag = (await tree()).etag;
-    const inTree = await alice.api("PUT", `${Q}/story/hierarchy`, { items: [{ page_id: "overview", children: [{ page_id: "p1", children: [] }] }], expected_etag: etag });
-    expect(inTree.status).toBe(422);
-    expect(inTree.body.error.message).toMatch(/belong in mockups, not items: p1/);
-    const notOne = await alice.api("PUT", `${Q}/story/hierarchy`, { items: [], mockups: ["overview"], expected_etag: etag });
-    expect(notOne.status).toBe(422);
-    expect(notOne.body.error.message).toMatch(/belong in items, not mockups: overview/);
-    const twice = await alice.api("PUT", `${Q}/story/hierarchy`, { items: [], mockups: ["p1", "p1"], expected_etag: etag });
+    const twice = await alice.api("PUT", `${Q}/story/hierarchy`, { items: [{ page_id: "p1", children: [] }, { page_id: "p1", children: [] }], expected_etag: etag });
     expect(twice.status).toBe(422);
     expect(twice.body.error.message).toMatch(/"p1" appears more than once/);
-    expect((await vic.api("PUT", `${Q}/story/hierarchy`, { items: [], mockups: ["p1"], expected_etag: etag })).status).toBe(404);
+    const old = await alice.api("PUT", `${Q}/story/hierarchy`, { items: [], mockups: ["p1"], expected_etag: etag });
+    expect(old.status).toBe(422);
+    expect((await vic.api("PUT", `${Q}/story/hierarchy`, { items: [], expected_etag: etag })).status).toBe(404);
   });
 
-  it("moves a placed page into the section while it shows a mockup page, and back to its place once it has HTML of its own", async () => {
+  it("keeps a placed page where it stands when it comes to show a mockup page, and when it gets HTML of its own again", async () => {
     const promoted = await alice.api("POST", `${Q}/story/promote-mockup`, { mockup_id: mockupId, mockup_page_id: "p2", page_id: "overview", expected_etag: await etagOf("overview") });
     expect(promoted.status).toBe(201);
+    expect(promoted.body.placed).toBe(true);
     let h = await tree();
-    expect(ids(h.items)).toEqual([]);
-    expect(ids(h.mockups)).toEqual(["p3", "p1", "p2", "overview"]);
+    expect(h.items[0].children[0]).toMatchObject({ page_id: "overview", kind: "mockup_page" });
     const own = await alice.api("POST", `${Q}/story/pages/overview/versions`, { html: page("Overview again"), expected_etag: promoted.body.etag });
     expect(own.status).toBe(201);
     h = await tree();
-    expect(ids(h.items)).toEqual(["overview"]);
-    expect(ids(h.mockups)).toEqual(["p3", "p1", "p2"]);
+    expect(h.items[0].children[0]).toMatchObject({ page_id: "overview", kind: "story_page" });
   });
 
   it("prints in the Story's order, and drops an archived page from the order it was given", async () => {
     const plan = await alice.api("GET", `${Q}/story/print-view?page_ids=p1,p2,overview,p3`);
-    expect(ids(plan.body.pages)).toEqual(["overview", "p3", "p1", "p2"]);
+    expect(ids(plan.body.pages)).toEqual(["p3", "overview", "p1", "p2"]);
     expect((await alice.api("POST", `${Q}/story/pages/p1/archive`, { expected_etag: await etagOf("p1") })).status).toBe(200);
-    expect(ids((await tree()).mockups)).toEqual(["p3", "p2"]);
+    expect(ids((await tree()).items[0].children[0].children)).toEqual([]);
     expect((await alice.api("POST", `${Q}/story/pages/p1/restore`, { expected_etag: await etagOf("p1") })).status).toBe(200);
-    expect(ids((await tree()).mockups)).toEqual(["p3", "p1", "p2"]);
+    expect(ids((await tree()).unplaced)).toEqual(["p1", "p2"]);
+  });
+
+  describe("a whole canvas on the Story", () => {
+    let canvas: { etag: string; page_id: string; current: { mockup: Record<string, unknown> } };
+
+    it("takes one Story page, however many pages the canvas has, and points at one mockup version", async () => {
+      const before = (await alice.api("GET", Q)).body.counts.story_pages;
+      const r = await alice.api("POST", `${Q}/story/promote-mockup`, { mockup_id: mockupId });
+      expect(r.status, JSON.stringify(r.body)).toBe(201);
+      canvas = r.body;
+      expect(r.body.title).toBe("Directions");
+      expect(r.body.page_id).toBe("directions");
+      expect(r.body.placed).toBe(false);
+      expect(r.body.current.mockup).toMatchObject({ canvas: true, mockup_id: mockupId, page_id: null });
+      expect(r.body.current.mockup.pages.map((p: { page_id: string }) => p.page_id)).toEqual(["p1", "p2", "p3"]);
+      expect((await alice.api("GET", Q)).body.counts.story_pages).toBe(before + 1);
+      expect((await tree()).unplaced.find((u: { page_id: string }) => u.page_id === r.body.page_id).kind).toBe("canvas");
+      const m = await alice.api("GET", `${Q}/mockups/${mockupId}`);
+      expect(m.body.story_pages.find((p: { page_id: string }) => p.page_id === r.body.page_id)).toMatchObject({ mockup_page_id: null });
+    });
+
+    it("gives a reader what the canvas draws and each page's HTML, and nothing else of the mockup", async () => {
+      expect((await alice.api("POST", `/api/v1/tenants/${tenantSlug}/members`, { team: teamSlug, product: "flipbook", email: "rita@example.com", role: "reader" })).status).toBe(201);
+      const read = await rita.api("GET", `${Q}/story/pages/${canvas.page_id}?include_html=false`);
+      expect(read.status, JSON.stringify(read.body)).toBe(200);
+      const m = read.body.current.mockup;
+      expect(m.canvas).toBe(true);
+      expect(m.pages.map((p: { page_id: string }) => Object.keys(p).sort())).toEqual([["height", "page_id", "title", "width"], ["height", "page_id", "title", "width"], ["height", "page_id", "title", "width"]]);
+      for (const secret of ["mockup_id", "mockup_title", "brief", "notes", "files", "current_version"]) expect(m).not.toHaveProperty(secret);
+      const shown = await raw(rita, `${Q}/story/pages/${canvas.page_id}/versions/1/pages/p2/html`);
+      expect(shown.status).toBe(200);
+      expect(await shown.text()).toContain("<h1>p2</h1>");
+      expect(shown.headers.get("content-security-policy")).toContain("form-action 'none'");
+      // Only this canvas's pages, through this Story page: never the mockup's own routes.
+      expect((await raw(rita, `${Q}/story/pages/${canvas.page_id}/versions/1/pages/nope/html`)).status).toBe(404);
+      expect((await raw(rita, `${Q}/mockups/${mockupId}/versions/1/pages/p2/html`)).status).toBe(403);
+      expect((await rita.api("GET", `${Q}/mockups/${mockupId}`)).status).toBe(403);
+    });
+
+    it("finds no canvas page through a Story page that shows one page, or none", async () => {
+      expect((await raw(alice, `${Q}/story/pages/p2/versions/1/pages/p1/html`)).status).toBe(404);
+      const own = await alice.api("POST", `${Q}/story/pages/plain/versions`, { title: "Plain", html: page("Plain") });
+      expect(own.status).toBe(201);
+      expect((await raw(alice, `${Q}/story/pages/plain/versions/1/pages/p1/html`)).status).toBe(404);
+    });
+
+    it("stays on its mockup version until it is promoted again, and a reader follows only that", async () => {
+      const m = await alice.api("GET", `${Q}/mockups/${mockupId}`);
+      const next = await alice.api("POST", `${Q}/mockups`, { mockup_id: mockupId, expected_etag: m.body.etag, pages: [{ page_id: "p1" }, { page_id: "added", title: "Added", html: page("Added") }] });
+      expect(next.status, JSON.stringify(next.body)).toBe(201);
+      const still = await alice.api("GET", `${Q}/story/pages/${canvas.page_id}?include_html=false`);
+      expect(still.body.current.mockup.pages.map((p: { page_id: string }) => p.page_id)).toEqual(["p1", "p2", "p3"]);
+      expect((await raw(rita, `${Q}/story/pages/${canvas.page_id}/versions/1/pages/added/html`)).status).toBe(404);
+      const moved = await alice.api("POST", `${Q}/story/promote-mockup`, { mockup_id: mockupId, page_id: canvas.page_id, expected_etag: still.body.etag });
+      expect(moved.status).toBe(201);
+      expect(moved.body.current.mockup.pages.map((p: { page_id: string }) => p.page_id)).toEqual(["p1", "added"]);
+      expect((await raw(rita, `${Q}/story/pages/${canvas.page_id}/versions/2/pages/added/html`)).status).toBe(200);
+      // A later version without html keeps showing the canvas, and versions tell its mockup versions apart.
+      const kept = await alice.api("POST", `${Q}/story/pages/${canvas.page_id}/versions`, { title: "Renamed canvas", expected_etag: moved.body.etag });
+      expect(kept.status).toBe(201);
+      expect(kept.body.current.mockup.canvas).toBe(true);
+      const versions = (await alice.api("GET", `${Q}/story/pages/${canvas.page_id}/versions`)).body.items;
+      expect(versions[0].html_sha256).toBe(versions[1].html_sha256);
+      expect(versions[1].html_sha256).not.toBe(versions[2].html_sha256);
+      expect(kept.body.current.html_sha256).toBe(versions[0].html_sha256);
+    });
+
+    it("hides an archived canvas from a reader, page by page too", async () => {
+      const now = await alice.api("GET", `${Q}/story/pages/${canvas.page_id}?include_html=false`);
+      expect((await alice.api("POST", `${Q}/story/pages/${canvas.page_id}/archive`, { expected_etag: now.body.etag })).status).toBe(200);
+      expect((await raw(rita, `${Q}/story/pages/${canvas.page_id}/versions/1/pages/p2/html`)).status).toBe(404);
+      expect((await raw(alice, `${Q}/story/pages/${canvas.page_id}/versions/1/pages/p2/html`)).status).toBe(200);
+      const back = await alice.api("GET", `${Q}/story/pages/${canvas.page_id}?include_html=false`);
+      expect((await alice.api("POST", `${Q}/story/pages/${canvas.page_id}/restore`, { expected_etag: back.body.etag })).status).toBe(200);
+    });
+
+    it("prints page by page under the canvas's heading", async () => {
+      const plan = await alice.api("GET", `${Q}/story/print-view?page_ids=${canvas.page_id}`);
+      expect(plan.status).toBe(200);
+      expect(plan.body.pages[0].canvas_pages.map((p: { page_id: string }) => p.page_id)).toEqual(["p1", "added"]);
+      const doc = await raw(alice, `${Q}/story/print?page_ids=${canvas.page_id}`);
+      const html = await doc.text();
+      expect(html).toContain(`id="page-${canvas.page_id}.added"`);
+      expect(html).toContain("Added");
+      expect(html).toContain(`data-print-frame="1280" style="width:1280px;min-height:800px;--print-fit:0.5250"><div data-print-page="${canvas.page_id}.added"`);
+    });
+
+    it("holds the mockup back from deletion while it shows it", async () => {
+      const impact = await alice.api("GET", `${Q}/mockups/${mockupId}/delete-impact`);
+      expect(impact.body.story_pages_showing.some((p: { page_id: string; mockup_page_id: string | null }) => p.page_id === canvas.page_id && p.mockup_page_id === null)).toBe(true);
+    });
   });
 });
 
@@ -765,7 +990,7 @@ describe("a working prototype on a canvas", () => {
     expect(prototypeSandbox(false)).toBe(MOCKUP_PAGE_SANDBOX);
     expect(prototypeSandbox(true)).toBe(`${MOCKUP_PAGE_SANDBOX} allow-modals`);
     const frames: Record<string, string[]> = {
-      "mockups.tsx": ["sandbox={prototype?.sandbox ?? MOCKUP_PAGE_SANDBOX}"],
+      "mockup-canvas.tsx": ["sandbox={prototype?.sandbox ?? MOCKUP_PAGE_SANDBOX}"],
       "story.tsx": ["sandbox={prototype?.sandbox ?? (size ? MOCKUP_PAGE_SANDBOX : STORY_PAGE_SANDBOX)}"],
       "story-style.tsx": ["sandbox={STORY_PAGE_SANDBOX}"],
     };

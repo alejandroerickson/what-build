@@ -1,4 +1,4 @@
-import { closestWord, excerpt, matchText, parseFind, termTsquery, wordRoot } from "@whatbuild/core";
+import { closestWord, editDistanceWithin, excerpt, matchText, parseFind, swappedLettersTsquery, termTsquery, wordRoot } from "@whatbuild/core";
 import { findCount, findPattern, findWords } from "@whatbuild/core/find-in-text";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { shownWords } from "../../../packages/core/src/ops/plain-search.ts";
@@ -168,6 +168,19 @@ describe("how plain search reads a query", () => {
     expect(closestWord("20735", ["Ticket CB26-20734 and ticket 20733"], false)).toBeNull();
     expect(closestWord("cb27", ["Ticket CB26-20734"], false)).toBeNull();
     expect(closestWord("rout", ["rout1 then the route"], false)).toBe("route");
+    // A whole word one edit away beats a longer word whose start is, however often that one is said.
+    expect(closestWord("treys", ["greyscale greyscale greyscale", "the trays"], true)).toBe("trays");
+    expect(swappedLettersTsquery("tarys")).toContain("'trays'");
+    // Two neighbouring letters swapped are one edit, wherever they are in the word.
+    for (const typo of ["rtays", "tarys", "tryas", "trasy"]) expect(editDistanceWithin(typo, "trays", 1), typo).toBe(true);
+    expect(editDistanceWithin("ytars", "trays", 1)).toBe(false);
+    expect(closestWord("tryas", ["the trays"], false)).toBe("trays");
+    expect(swappedLettersTsquery("two words")).toBeNull();
+    expect(swappedLettersTsquery("aa")).toBeNull();
+    // As the index holds a word, accents kept, and never a query too long for Postgres to take.
+    expect(swappedLettersTsquery("Seañl")).toContain("'señal'");
+    expect(swappedLettersTsquery("\uFB03".repeat(500))).toBeNull();
+    expect(swappedLettersTsquery("a".repeat(65))).toBeNull();
   });
 });
 
@@ -195,7 +208,11 @@ describe("plain search over the sample product", () => {
 
   it("finds every kind of thing in one search, a matching title first", async () => {
     const r = await find("crew message");
-    expect(titles(r)[0]).toBe("story: Crew message");
+    // A Story page that shows a mockup page is listed once, as the mockup, which ranks as the page would.
+    expect(titles(r)[0]).toBe("mockup: Planning the week: jobs first or days first");
+    expect(r.results[0].meta.page_title).toBe("Crew message");
+    expect(titles(r)).not.toContain("story: Crew message");
+    // A Story page of its own that says the words is still listed.
     expect(new Set(r.results.map((x: { kind: string }) => x.kind))).toEqual(new Set(["story", "source", "mockup", "outcome", "idea"]));
     // A source appears once, with the best places it says the words: each names its field and where its piece starts.
     const greenline = r.results.find((x: { title: string }) => x.title.startsWith("Crew lead interview"));
@@ -240,8 +257,8 @@ describe("plain search over the sample product", () => {
     const key = (x: { kind: string; id: string }) => `${x.kind}:${x.id}`;
     const crew = await find("crew");
     expect(crew.kind_hint).toBeNull();
-    // Sources say "crew" more than the mockup does: by the words alone, one leads it.
-    expect(crew.results.findIndex((x: { kind: string }) => x.kind === "mockup")).toBeGreaterThan(crew.results.findIndex((x: { kind: string }) => x.kind === "source"));
+    // Sources say "crew" more than the outcome does: by the words alone, one leads it.
+    expect(crew.results.findIndex((x: { kind: string }) => x.kind === "outcome")).toBeGreaterThan(crew.results.findIndex((x: { kind: string }) => x.kind === "source"));
     for (const [q, kind] of [["mockups crew", "mockup"], ["crew assumptions", "assumption"], ["outcomes crew", "outcome"]] as const) {
       const r = await find(q);
       expect(r.kind_hint).toBe(kind);
@@ -281,9 +298,14 @@ describe("plain search over the sample product", () => {
     expect((await sam.api("GET", `${S}/search?query=crew&strict=true`)).body).toMatchObject({ error: { code: "invalid_filter" } });
   });
 
-  it("is open to viewers and closed to someone who reads only the Story", async () => {
+  it("reads only the Story for someone who reads only the Story", async () => {
     const jordan = await h.signIn("jordan@example.com");
-    expect((await jordan.api("GET", `${S}/search?mode=plain&query=crew`)).status).toBe(403);
+    const r = await jordan.api("GET", `${S}/search?mode=plain&query=crew`);
+    expect(r.status).toBe(200);
+    expect(r.body.results.length).toBeGreaterThan(0);
+    expect(new Set(r.body.results.map((x: { kind: string }) => x.kind))).toEqual(new Set(["story"]));
+    expect(r.body.counts).not.toHaveProperty("source");
+    expect((await jordan.api("GET", `${S}/search?query=crew`)).status).toBe(403);
   });
 });
 

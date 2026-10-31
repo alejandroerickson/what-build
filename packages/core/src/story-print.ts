@@ -13,6 +13,8 @@ import { escapeHtml, PERMISSIONS_POLICY } from "./story-html.ts";
  */
 
 export const PRINT_MAX_PAGES = 50;
+/** What one print view holds, once each canvas among its pages counts as its own pages as well. */
+export const PRINT_MAX_SECTIONS = 100;
 
 type Node = {
   nodeName: string;
@@ -189,7 +191,8 @@ export function scopeSelector(selector: string): string {
   // scoped while its own masks are still in place, and everything is put back at the end.
   const masks: string[] = [];
   const parens: string[] = [];
-  const masked = maskQuoted(selector, masks);
+  // The masks are marked with these two characters, so a stored page's own would point at nothing.
+  const masked = maskQuoted(selector.replace(/[\u0000\u0001]/g, ""), masks);
   const scope = (sel: string): string => {
     let s = sel;
     let prev = "";
@@ -220,9 +223,50 @@ function scopeSelectorList(list: string): string {
   return splitTopLevel(list, ",").map(scopeSelector).join(",");
 }
 
+/** A mockup page's frame in CSS pixels, which it lays out in on paper as it does on its canvas. */
+export interface PrintFrame {
+  width: number;
+  height: number;
+}
+
+const WIDTH_QUERY = /\(\s*(min-|max-)?width\s*(:|<=|>=|<|>|=)\s*([\d.]+)(px|em|rem)\s*\)/gi;
+const WIDTH_QUERY_REVERSED = /\(\s*([\d.]+)(px|em|rem)\s*(<=|>=|<|>)\s*width\s*\)/gi;
+const WIDTH_QUERY_RANGE = /\(\s*([\d.]+)(px|em|rem)\s*(<=|<)\s*width\s*(<=|<)\s*([\d.]+)(px|em|rem)\s*\)/gi;
+const lengthOf = (n: string, unit: string) => Number(n) * (unit.toLowerCase() === "px" ? 1 : 16);
+const compare = (a: number, op: string, b: number) => (op === ">=" ? a >= b : op === "<=" ? a <= b : op === ">" ? a > b : op === "<" ? a < b : a === b);
+const FLIPPED: Record<string, string> = { "<=": ">=", ">=": "<=", "<": ">", ">": "<" };
+const answer = (holds: boolean) => (holds ? "(min-width:0)" : "(max-width:0)");
+
+/**
+ * What a media query asks of the width, answered for a mockup page's frame rather than the paper, so
+ * the page lays out as it does in its frame: always true or always false, whatever the page prints on.
+ */
+function answerWidthQueries(query: string, width: number): string {
+  return query
+    .replace(WIDTH_QUERY, (_m, side: string | undefined, op: string, n: string, unit: string) => {
+      const kind = side?.toLowerCase() === "min-" ? ">=" : side?.toLowerCase() === "max-" ? "<=" : op;
+      return answer(compare(width, kind, lengthOf(n, unit)));
+    })
+    .replace(WIDTH_QUERY_REVERSED, (_m, n: string, unit: string, op: string) => answer(compare(width, FLIPPED[op]!, lengthOf(n, unit))))
+    .replace(WIDTH_QUERY_RANGE, (_m, a: string, au: string, aop: string, bop: string, b: string, bu: string) =>
+      answer(compare(lengthOf(a, au), aop, width) && compare(width, bop, lengthOf(b, bu))),
+    );
+}
+
+/** A fixed element would repeat on every sheet, over everything: it stays on its page, within the page's box. */
+const unfixed = (declarations: string) => declarations.replace(/(^|[{;\s])position\s*:\s*fixed\b/gi, "$1position:absolute");
+
+/** What a page's declarations say of the viewport, answered for its frame, with any @media nested among them. */
+function inFrame(declarations: string, frame?: PrintFrame): string {
+  if (!frame) return declarations;
+  return declarations
+    .replace(/@media[^{;}]*/gi, (m) => answerWidthQueries(m, frame.width))
+    .replace(/(^|[\s:(,+*/-])(\d*\.?\d+)[sdl]?(vw|vh)\b/gi, (_m, before: string, n: string, unit: string) => `${before}${+((Number(n) * (unit.toLowerCase() === "vw" ? frame.width : frame.height)) / 100).toFixed(3)}px`);
+}
+
 /** A dark-scheme media query applies on screen only, so a dark-mode browser still prints on paper. */
-function scopeMediaPrelude(prelude: string): string {
-  return splitTopLevel(prelude, ",")
+function scopeMediaPrelude(prelude: string, frame?: PrintFrame): string {
+  return splitTopLevel(frame ? answerWidthQueries(prelude, frame.width) : prelude, ",")
     .map((q) => {
       const t = q.trim();
       if (!/prefers-color-scheme\s*:\s*dark/i.test(t)) return q;
@@ -236,9 +280,10 @@ function scopeMediaPrelude(prelude: string): string {
 
 /**
  * Rewrite a page's stylesheet for its shadow root: `:root`, `html` and `body` become `:host`, so the
- * page's tokens and base styles still apply, and dark-scheme rules stay off paper.
+ * page's tokens and base styles still apply, dark-scheme rules stay off paper, and nothing is fixed
+ * to the sheet. A mockup page's frame answers what its stylesheet asks of the viewport.
  */
-export function scopeStoryCss(css: string): string {
+export function scopeStoryCss(css: string, frame?: PrintFrame): string {
   let out = "";
   let i = 0;
   while (i < css.length) {
@@ -276,11 +321,11 @@ export function scopeStoryCss(css: string): string {
       const name = /^@([-\w]+)/.exec(prelude)?.[1]?.toLowerCase() ?? "";
       if (BLOCK_AT_RULES_WITH_RULES.has(name)) {
         const keyword = /^@[-\w]+/.exec(prelude)![0];
-        const head = name === "media" ? `${keyword}${scopeMediaPrelude(prelude.slice(keyword.length))}` : prelude;
-        out += `${head}{${scopeStoryCss(css.slice(stop + 1, close - 1))}}`;
+        const head = name === "media" ? `${keyword}${scopeMediaPrelude(prelude.slice(keyword.length), frame)}` : prelude;
+        out += `${head}{${scopeStoryCss(css.slice(stop + 1, close - 1), frame)}}`;
       } else out += css.slice(i, close);
     } else {
-      out += `${scopeSelectorList(prelude)}${css.slice(stop, close)}`;
+      out += `${scopeSelectorList(prelude)}${inFrame(unfixed(css.slice(stop, close)), frame)}`;
     }
     i = close;
   }
@@ -339,12 +384,12 @@ function dropLeadingTitle(body: Node, title: string): boolean {
 const DROPPED = new Set(["script", "meta", "base", "link", "iframe", "frame", "frameset", "object", "embed", "portal", "form"]);
 
 /** Remove scripts, refused elements and inline event handlers, and scope every <style> left in the body. */
-function sanitize(n: Node) {
+function sanitize(n: Node, frame?: PrintFrame) {
   if (n.childNodes) n.childNodes = n.childNodes.filter((c) => !DROPPED.has(c.tagName ?? ""));
-  if (n.attrs) n.attrs = n.attrs.filter((a) => !a.name.toLowerCase().startsWith("on"));
-  if (n.tagName === "style") for (const c of n.childNodes ?? []) if (c.nodeName === "#text") c.value = scopeStoryCss(c.value ?? "");
-  for (const c of n.childNodes ?? []) sanitize(c);
-  if (n.content) sanitize(n.content);
+  if (n.attrs) n.attrs = n.attrs.filter((a) => !a.name.toLowerCase().startsWith("on")).map((a) => (a.name.toLowerCase() === "style" ? { ...a, value: inFrame(unfixed(a.value), frame) } : a));
+  if (n.tagName === "style") for (const c of n.childNodes ?? []) if (c.nodeName === "#text") c.value = scopeStoryCss(c.value ?? "", frame);
+  for (const c of n.childNodes ?? []) sanitize(c, frame);
+  if (n.content) sanitize(n.content, frame);
 }
 
 const HEADING = /^h([1-6])$/;
@@ -383,23 +428,23 @@ export interface PreparedPage {
 }
 
 /** titleHeading, the level of the heading the print view gives the page's title, nests the page's own headings under it. */
-export function prepareStoryPage(html: string, title: string, titleHeading?: number): PreparedPage {
+export function prepareStoryPage(html: string, title: string, titleHeading?: number, frame?: PrintFrame): PreparedPage {
   const doc = parseHtml(html) as unknown as Node;
   const root = findChild(doc, "html");
   const head = findChild(root, "head");
   const body = findChild(root, "body");
   const styles: string[] = [];
-  for (const c of head?.childNodes ?? []) if (c.tagName === "style") styles.push(scopeStoryCss(textOf(c)));
+  for (const c of head?.childNodes ?? []) if (c.tagName === "style") styles.push(scopeStoryCss(textOf(c), frame));
   const hostAttrs = new Map<string, string>();
   const classes: string[] = [];
   for (const a of [...(root?.attrs ?? []), ...(body?.attrs ?? [])]) {
     const name = a.name.toLowerCase();
     if (name === "class") classes.push(a.value);
-    else if (name === "lang" || name === "dir" || name === "style" || name.startsWith("data-")) hostAttrs.set(name, a.value);
+    else if (name === "lang" || name === "dir" || name === "style" || name.startsWith("data-")) hostAttrs.set(name, name === "style" ? inFrame(unfixed(a.value), frame) : a.value);
   }
   if (classes.join(" ").trim()) hostAttrs.set("class", classes.join(" ").trim());
   if (!body) return { styles, body: "", host: [...hostAttrs].map(([name, value]) => ({ name, value })), dropped_title: false };
-  sanitize(body);
+  sanitize(body, frame);
   const dropped = dropLeadingTitle(body, title);
   if (titleHeading) nestHeadings(body, titleHeading);
   return { styles, body: serialize(body as never), host: [...hostAttrs].map(([name, value]) => ({ name, value })), dropped_title: dropped };
@@ -414,7 +459,12 @@ export interface PrintPage {
   published_at: string;
   level: number;
   html: string;
+  /** A mockup page's frame: it lays out in that, and is scaled to fit the paper. */
+  frame?: PrintFrame;
 }
+
+/** The narrowest paper a print view fits: A4 less the @page margins (178mm), in CSS pixels. Letter is wider. */
+const PRINTABLE_WIDTH = 672;
 
 export function printCsp(nonce: string): string {
   return (
@@ -460,11 +510,16 @@ body { margin: 0; }
 h2.print-heading { font-size: 24px; } h3.print-heading { font-size: 20px; } h4.print-heading { font-size: 17px; }
 h5.print-heading, h6.print-heading { font-size: 15px; }
 .print-meta { margin: 0 0 16px; font-size: 12px; color: #555555; break-after: avoid; }
+[data-print-page] { position: relative; }
+/* What a mockup page draws against its box, such as a dialog's backdrop, needs the frame's height too. */
+.print-frame > [data-print-page] { min-height: inherit; }
+.print-frame { zoom: var(--screen-fit, var(--print-fit)); break-inside: avoid; overflow: clip; }
 @page { margin: 18mm 16mm; }
 @media print {
   .print-bar { display: none; }
   .print-doc { max-width: none; padding: 0; }
   .print-section[data-level="1"] { break-before: page; margin-top: 0; }
+  .print-frame { zoom: var(--print-fit); }
 }
 `;
 
@@ -487,14 +542,15 @@ export function composePrintDocument(input: { productName: string; exportedAt: s
   const sections = pages
     .map((p) => {
       const h = headingLevel(p.level);
-      const prepared = prepareStoryPage(p.html, p.title, h);
+      const prepared = prepareStoryPage(p.html, p.title, h, p.frame);
       const host = prepared.host.map((a) => ` ${a.name}="${escapeHtml(a.value)}"`).join("");
       const styles = prepared.styles.map((s) => `<style>${s.replace(/<\/style/gi, "<\\/style")}</style>`).join("");
+      const shown = `<div data-print-page="${p.page_id}"${host}><template shadowrootmode="open">${styles}${prepared.body}</template></div>`;
       return (
         `<section class="print-section" id="page-${p.page_id}" data-level="${p.level}" aria-labelledby="title-${p.page_id}">\n` +
         `<h${h} class="print-heading" id="title-${p.page_id}">${escapeHtml(p.title)}</h${h}>\n` +
         `<p class="print-meta">Version ${p.version} · published ${dateElement(p.published_at)}</p>\n` +
-        `<div data-print-page="${p.page_id}"${host}><template shadowrootmode="open">${styles}${prepared.body}</template></div>\n` +
+        (p.frame ? `<div class="print-frame" data-print-frame="${p.frame.width}" style="width:${p.frame.width}px;min-height:${p.frame.height}px;--print-fit:${Math.min(1, PRINTABLE_WIDTH / p.frame.width).toFixed(4)}">${shown}</div>\n` : `${shown}\n`) +
         `</section>`
       );
     })
@@ -504,6 +560,9 @@ export function composePrintDocument(input: { productName: string; exportedAt: s
   const script =
     `var local = new Intl.DateTimeFormat("en-GB", ${JSON.stringify(DATE_FORMAT)});` +
     'document.querySelectorAll("time[datetime]").forEach(function (t) { t.textContent = local.format(new Date(t.getAttribute("datetime"))); });' +
+    // On screen a mockup page fits the window; on paper, the width written into its frame.
+    'function fit() { document.querySelectorAll("[data-print-frame]").forEach(function (f) { f.style.setProperty("--screen-fit", String(Math.min(1, f.parentElement.clientWidth / Number(f.dataset.printFrame)))); }); }' +
+    'fit(); window.addEventListener("resize", fit);' +
     'document.getElementById("print-now").addEventListener("click", function () { window.print(); });' +
     'window.addEventListener("load", function () { setTimeout(function () { window.print(); }, 300); });';
   return `<!doctype html>

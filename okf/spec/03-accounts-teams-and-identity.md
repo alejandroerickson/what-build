@@ -3,7 +3,7 @@ type: Specification
 title: Accounts belong to tenants, tenants hold teams, teams run products, and one role check decides every call.
 description: The account → tenant → team → product hierarchy, sign-in, roles and what they grant, plans and their limits, addressing and isolation, moving sources between products, caller identity, attribution, and the example organization every account reads.
 tags: [spec, accounts, tenancy, roles, identity, oauth, isolation, example, limits]
-generated: {by: agent:claude, at: 2026-10-27}
+generated: {by: agent:claude, at: 2026-10-30}
 status: stable
 ---
 
@@ -92,7 +92,8 @@ different account once used, it answers `410 invitation_used`; expired or cancel
 `410 invitation_expired`; an unknown token, `404`.
 
 **Invite-only mode.** `WHATBUILD_SIGNUP_ALLOWLIST` (emails and `@domains`) limits who may create an
-account. Existing accounts, invited addresses, the instance's owners and addresses with an
+account. Without it there is no invite-only mode and anyone may, whatever the guests' `self_serve`
+says, and `/instance` says so. Existing accounts, invited addresses, the instance's owners and addresses with an
 allowance above 0 to create organizations ([§3.3](#33-tenants-and-teams)) always may. Staging runs invite-only until public
 sign-up opens ([§10 Phase 6](10-roadmap.md)). The sign-in form answers every address alike, "if it
 can sign in here, a link is on its way", at the same speed and under the same hourly limit, and
@@ -375,11 +376,12 @@ A product is addressed as `tenant/team/product` (slugs or ids at each level) or 
   operations, and `products.get`, declare the access level `story` (`products.list` lists every
   product the caller holds a role on); every
   other product operation needs viewer and answers a reader `403` ("You are a reader on product
-  Crewboard; sources.list needs viewer"), and so do a source's attachment and text, an export's
+  Crewboard; sources.list needs viewer"), except `search` in plain mode, which reads only the Story
+  for a reader ([§8.2](08-search.md)), and so do a source's attachment and text, an export's
   file, a Story style specimen and a mockup's page. A reader's Story reads leave out `agent_notes`, and of a page
-  promoted from a mockup keep only its size; their product reads leave out `concept` and count only `story_pages` (and `stage_counts.story`). A page's HTML is
-  served to a reader exactly as published, and a promoted mockup page through the Story's own
-  route, so a reader sees that page and nothing else of the mockup ([§4.11](04-data-model.md)).
+  promoted from a mockup keep only its size, or for a whole canvas its layout and each page's title and size; their product reads leave out `concept` and count only `story_pages` (and `stage_counts.story`). A page's HTML is
+  served to a reader exactly as published, and a promoted mockup page or canvas through the Story's own
+  routes, so a reader sees that and nothing else of the mockup ([§4.11](04-data-model.md)).
   Someone who reads only the Story everywhere in an organization (a reader on its teams or
   products, with nothing higher there and no organization role but member) sees none of its
   people: `members.list` answers `403`, and `products.list` marks that organization

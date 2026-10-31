@@ -3,7 +3,7 @@ type: System Concept
 title: Agent-driven end-to-end tests on a golden master
 description: An agent follows a written test plan through the real web app and the real MCP server, on a local instance reset each time to a golden master made from production's example organization, and reports failures and anomalies.
 tags: [development, testing, qa, e2e, agents, mcp, browser]
-generated: {by: agent:claude, at: 2026-10-27}
+generated: {by: agent:claude, at: 2026-10-30}
 status: draft
 ---
 
@@ -166,7 +166,7 @@ The plans:
   is published and read by a reader, who is refused everything else.
 - `search`: the palette and the Search screen find every kind of thing by plain words, read as the
   specification says; the web and MCP's plain mode agree; what one door writes the other finds; a
-  reader has no search.
+  reader searches the Story alone.
 - `organizations-and-people`: an owner of this WhatBuild lets someone in from the waitlist, moves
   their organization to Pro and back (read-only when they already have a Free one; the instance
   offers the example file's plans, Free and Pro), deletes an

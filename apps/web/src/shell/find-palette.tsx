@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import { useLocation, useNavigate } from "react-router";
 import { track } from "../lib/analytics.ts";
+import { ApiError } from "../lib/api.ts";
 import { nestQuotes } from "../lib/format.ts";
 import { findWords, hitHref, hitMeta, kindOf, leadTo, Marked, matchedCount, resultHref, resultMeta, useDebounced, useFind, useRecentSearches, type FindResponse, type Marks } from "../lib/find.tsx";
 import type { Product } from "../lib/session.tsx";
@@ -150,7 +151,7 @@ function Palette({ app, base, product, text, setText, via, onClose }: { app: str
     <dialog
       ref={ref}
       className={`find-pal${flash ? " is-flash" : ""}`}
-      aria-label={`Search ${product.name}`}
+      aria-label={searchLabel(product)}
       onKeyDown={() => setTouched(true)}
       onPointerDown={() => setTouched(true)}
       onCancel={(e) => {
@@ -174,7 +175,7 @@ function Palette({ app, base, product, text, setText, via, onClose }: { app: str
           aria-autocomplete="list"
           aria-activedescendant={opts[active] ? `${listId}-${active}` : undefined}
           aria-keyshortcuts={typed ? "Meta+Enter Control+Enter" : undefined}
-          placeholder={`Search ${product.name}`}
+          placeholder={searchLabel(product)}
           value={text}
           autoComplete="off"
           spellCheck={false}
@@ -204,14 +205,23 @@ function Palette({ app, base, product, text, setText, via, onClose }: { app: str
       {!typed && recent.length ? (
         <div className="find-pal-head">
           <span id={`${listId}-h`}>Recent searches</span>
-          <button type="button" className="panel-text-button" onClick={clear}>
+          <button
+            type="button"
+            className="panel-text-button"
+            onClick={() => {
+              // The button goes with the list, so the field takes the focus it would have dropped.
+              clear();
+              input.current?.focus();
+            }}
+          >
             Clear
           </button>
         </div>
       ) : null}
+      {typed && res.isError && !searching ? <p className="find-pal-empty">{res.error instanceof ApiError ? res.error.message : "Search didn’t finish. Try again."}</p> : null}
       {typed && d && !d.results.length ? (
         <p className="find-pal-empty">
-          Nothing in {product.name} matches “{nestQuotes(text.trim())}”. Try another word.
+          Nothing in {product.your_role === "reader" ? "the Story" : product.name} matches “{nestQuotes(text.trim())}”. Try another word.
         </p>
       ) : null}
       {opts.length ? (
@@ -278,10 +288,7 @@ export function FindProvider({ app, base, product, children }: { app: string; ba
     setVia("field");
     setOpen(true);
   }, []);
-  // A reader has only the Story, which search does not cover.
-  const enabled = product.your_role !== "reader";
   useEffect(() => {
-    if (!enabled) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.defaultPrevented) return;
       const cmdK = (e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === "k";
@@ -294,7 +301,7 @@ export function FindProvider({ app, base, product, children }: { app: string; ba
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [enabled]);
+  }, []);
   // Following a result closes it; so does any other navigation. Another product starts empty.
   useEffect(() => setOpen(false), [loc.pathname, loc.search]);
   useEffect(() => setText(""), [base]);
@@ -306,6 +313,11 @@ export function FindProvider({ app, base, product, children }: { app: string; ba
   );
 }
 
+/** What search covers, in words: the whole product, or for a reader the Story alone. */
+export function searchLabel(product: Pick<Product, "name" | "your_role">): string {
+  return product.your_role === "reader" ? "Search the Story" : `Search ${product.name}`;
+}
+
 /** The panel's Search field: a button that opens the palette, with its shortcut. */
 export function FindLauncher({ product }: { product: Product }) {
   const open = useOpenFind();
@@ -313,7 +325,7 @@ export function FindLauncher({ product }: { product: Product }) {
     <div className="find-launch-wrap">
       <button type="button" className="find-launch" onClick={() => open()} aria-keyshortcuts="Meta+K Control+K /">
         <Glyph name="search" size="sm" />
-        <OneLine className="find-launch-label" text={`Search ${product.name}`} />
+        <OneLine className="find-launch-label" text={searchLabel(product)} />
         <kbd>{shortcutLabel("K")}</kbd>
       </button>
     </div>

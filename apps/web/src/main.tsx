@@ -222,6 +222,7 @@ const router = createBrowserRouter([{ element: <Root />, errorElement: <RouteErr
           { index: true, element: <ProductHome /> },
           { path: "story", element: <StoryPage /> },
           { path: "story/:pageId", element: <StoryPage /> },
+          { path: "search", element: <SearchPage /> },
           {
             element: <NotForStoryReaders />,
             children: [
@@ -229,7 +230,6 @@ const router = createBrowserRouter([{ element: <Root />, errorElement: <RouteErr
               { path: "evidence", element: <EvidencePage /> },
               { path: "evidence/new", element: <SourceNewPage /> },
               { path: "evidence/:recordId", element: <SourceDetailPage /> },
-              { path: "search", element: <SearchPage /> },
               { path: "synthesis/*", element: <SynthesisLink /> },
               {
                 path: "exploration",

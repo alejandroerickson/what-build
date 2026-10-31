@@ -3,7 +3,7 @@ type: Specification
 title: The web app is a person's way to run the same operations an agent runs, one screen at a time.
 description: Principles, the shell and product switching, the overview, routes, first run, and the behavior of every screen (Idea, Evidence, Exploration, Story, Activity, archive and delete, organization and account screens).
 tags: [spec, web, ui, routes, shell]
-generated: {by: agent:claude, at: 2026-10-27}
+generated: {by: agent:claude, at: 2026-10-30}
 status: stable
 ---
 
@@ -83,12 +83,11 @@ the browser's back button and "open in new tab" both work.
   from every screen, with the button that hides the panel at the row's far end. Only the mark and
   wordmark are the link, so a click that misses the hide button does not leave the screen. Then the
   product switch, showing the product and its organization and team, and under it the **Search**
-  field, "Search <product>" with its shortcut, which opens the search palette (below).
+  field, "Search <product>" with its shortcut, or for a reader "Search the Story", which opens the search palette (below).
 - **L1**, exactly and in this order: **Idea, Evidence, Exploration, Story**, each with its count:
   every item the stage holds (`stage_counts`, [§4.2](04-data-model.md),
   [decision](../decisions/each-stage-counts-every-item-it-holds.md)). Idea counts outcomes, Evidence
-  sources, Exploration mockups and current assumptions together, and Story its pages, those in the
-  tree and the Published mockups alike.
+  sources, Exploration mockups and current assumptions together, and Story its pages, of every kind.
   Below them, quieter: **Connect an agent**, **Activity** (§7.9) and the product's **Settings**.
   Exploration opens on its mockups; the mockups, then the assumptions, are listed in its panel. The app's URLs follow the areas
   (`/evidence`, `/exploration/…`); REST and MCP name the objects (`sources`, `mockups`).
@@ -96,7 +95,8 @@ the browser's back button and "open in new tab" both work.
   `/exploration/…`. Exploration once listed insights and decisions too; a link to one opens the
   source it became ([§4.7](04-data-model.md)), and a link to either list opens Exploration.
 - **Search** covers the whole product in one place, by plain words ([§8.2](08-search.md), plain
-  mode). The **palette** opens from the panel's Search field, ⌘K / Ctrl+K, or `/` when not typing,
+  mode); for a reader, the Story alone, with the Search screen under the Story's panel. A page from a
+  mockup is listed once: as the mockup, under Exploration, or for a reader on the Story. The **palette** opens from the panel's Search field, ⌘K / Ctrl+K, or `/` when not typing,
   on any product screen. It springs into place with a small overshoot (it simply appears with
   reduced motion), and if it is left untouched for three seconds it flashes white once and settles
   to the lifted shadow. It opens as the field alone, with up to six **recent searches** under it
@@ -117,7 +117,10 @@ the browser's back button and "open in new tab" both work.
   button at the field's end (⌘Enter / Ctrl+Enter) opens the Search screen with the words, and
   empties the palette. Closing it (Escape or a click outside) keeps the words for next time; another
   product starts empty. A line under the field says how the words were read: a corrected word
-  ("Showing results for quote."), a kind brought first, or that nothing holds every word.
+  ("Showing results for quote."), a kind brought first, or that nothing holds every word. A search
+  typed past or left behind is cancelled, on the server too ([§8.8](08-search.md)), and one that
+  fails is not asked again by itself: the palette says what the server said, the Search screen has
+  "Search didn't finish" with its message and a button to try again, and the next word typed asks anew.
   The **Search screen** (`/search?q`) has the same field, searching as you type, and lists the
   results under the product's four areas, each a sheet in the panel's order: **Idea** (the product
   concept, then outcomes), **Evidence** (sources, each with the best three places it says the
@@ -132,7 +135,7 @@ the browser's back button and "open in new tab" both work.
   offers "Search for <word> instead" (`?strict=1`). When more match than the 60 listed, it says
   "Showing the best 60 of N. Add a word to narrow them.", and the palette's All N results counts
   every match. Nothing holding the words says "Nothing matches" and suggests another word or fewer
-  words. An outcome found opens Idea scrolled to it and marked (`?outcome`). Readers have no search.
+  words. An outcome found opens Idea scrolled to it and marked (`?outcome`). A reader searches the Story alone ([§8.2](08-search.md)).
 - **A reader** ([§3.5](03-accounts-teams-and-identity.md)) has only the Story: L1 is **Story**
   alone with its count, and the quiet group is gone. The product opens on the Story, and any other
   product screen, opened by a link or typed, takes a reader to the Story, with a toast saying they
@@ -288,7 +291,7 @@ person's organization role is in the account menu, and who has which role is on 
   /exploration/insights/:id  /exploration/decisions/:id   → /evidence/:id (the source it became)
   /exploration/insights  /exploration/decisions          → /exploration
   /synthesis/…                                → the same path and query under /exploration
-  /story[/:page]      ?v=N
+  /story[/:page]      ?v=N &page=<page_id>  a page, at a version; on a whole canvas, with one of its pages selected
   /connect            ?product                Connect an agent, in the product's shell, with this product picked
   /activity           ?entity_type &entity_id
   /settings                                   name, slug, people, export, organization, archive
@@ -634,7 +637,8 @@ restores one. Its writes are promoting a page to the Story, and, for a product's
   from where it is. In interact mode a touch that begins on a page is the page's.
 - **Scroll and zoom.** Scroll moves the canvas up and down, and Shift with scroll sideways; ⌘ or
   Ctrl with scroll, or a pinch, zooms about the pointer, from 5% to 400%, over a page in interact
-  mode too. The toolbar has zoom out, the zoom level (a menu: Fit the canvas, Fit the selected page,
+  mode too. A notch of a mouse wheel moves the zoom by about 10% at most, and a pinch follows the
+  fingers. The toolbar has zoom out, the zoom level (a menu: Fit the canvas, Fit the selected page,
   Fill the width with the selected page, 50%, 100%, 200%), zoom in, fit and fill the selected
   page, fit the canvas, the previous and next page, and a list of every key (each one also runs
   from the list). Keys: `+` and `−`, `0` for 100%, `1` fits the canvas, `2` fits the selected page
@@ -682,12 +686,13 @@ restores one. Its writes are promoting a page to the Story, and, for a product's
 - **On the Story** ([decision](../decisions/agents-write-the-story-people-arrange-it.md)). Under
   the page picker, each Story page that shows the selected page is named and linked with the
   mockup version it shows. An editor whose page is not on the Story gets **Promote to Story**: a
-  dialog says that a new Story page at the end of Published mockups will show the page as it is in
-  the version shown, and that it stays on that version until someone promotes a newer one, and asks
-  for its title (the page's own by default). Where a
+  dialog says that a new Story page at the end of the tree will show the page as it is in
+  the version shown, that a reader sees it but not the brief or the notes, and that it stays on that
+  version until someone promotes a newer one, and asks for its title (the page's own by default). Where a
   Story page shows the selected page at another version, **Show version N** moves it to the version
-  shown, as its next version. A toast confirms that the page is under Published mockups, with
-  Open to go to the page.
+  shown, as its next version. Under the version's details, the same goes for the whole canvas:
+  **Promote canvas to Story**, with the mockup's title by default, and **Show version N**. A toast
+  confirms that it is on the Story and says to drag it where it belongs, with Open to go to the page.
 
 ### Assumptions
 
@@ -743,16 +748,21 @@ page of a mockup reaches it by promotion, from the mockup (§7.7).
   place, and was put back.
 - **A page from a mockup** ([§4.11](04-data-model.md)) is shown at its own size, scaled down and
   never up, on paper as on the canvas, without the app's theme. Content taller than the page's
-  height scrolls inside its frame, scaled with it. Its crumbs read Story › Published mockups › the
-  page. A control beside the crumbs, and `2` and `3` (from inside the page too), choose between
+  height scrolls inside its frame, scaled with it. A control beside the crumbs, and `2` and `3` (from inside the page too), choose between
   **fit**, the whole page within the room under the crumbs, and **fill**, the page's width filling
   the measure with its top at the top, to scroll down through it. The choice holds while flipping,
   and the browser remembers it (`whatbuild.story.mockup-view`, fill until chosen). A promoted entry
   into a prototype is framed at its entry's address, as on the canvas, for a reader too: the
   prototype's links move between its documents inside the frame, and a load that is not one of
   them is put back.
-- **Flipping through the published mockups.** On a published mockup, a small control beside the
-  crumbs gives its place ("2 of 5") between buttons to the previous and next one, and ← and →
+- **A whole canvas** ([§4.11](04-data-model.md)) opens as the mockup's board (§7.7), the width of
+  the window, for a reader too: pan, zoom, interact, fit and fill, the keys and focus mode work as
+  they do there, with the selected page in the address (`?page=`) and each page's title above it.
+  The board holds the pages alone: the Story shows no brief, notes or files, which the team reads on
+  the mockup, linked from the inspector.
+- **Flipping through the mockup pages.** On a page that shows a mockup page, a small control beside the
+  crumbs gives its place among the Story's mockup pages, in the tree's order ("2 of 5"), between
+  buttons to the previous and next one, and ← and →
   flip to them, in focus mode or not, from the app or from inside the page (the frame passes the
   keys on unless the page used them). Not while typing, with a dialog or menu open, or in a control
   that uses the arrows itself, such as the page tree. It stops at the first and the last; focus
@@ -772,16 +782,18 @@ page of a mockup reaches it by promotion, from the mockup (§7.7).
   ⇧⌘\) also leave focus mode, and leaving the Story ends it; the panels come back as they were.
   At phone width, where the panels are drawers already, there is no focus mode.
 - **The tree.** A keyboard tree (one tab stop, arrow keys to move and to open or close a branch)
-  with "Find a page", the current page marked and its ancestors kept open. **Story pages** is the
-  tree, with pages not placed yet at its end; **Published mockups** lists every page promoted from
-  a mockup, in the order set, each with a screen glyph; and **Archived pages** folds away below.
+  with "Find a page", the current page marked and its ancestors kept open. **Story pages** is one
+  tree of every kind of page, with pages not placed yet at its end, and **Archived pages** folds away
+  below. Each row's icon says what the page is, and hovering over it names it: a page for a **Story
+  page**, a screen for a **Mockup page**, a grid for a **Mockup canvas**. A screen reader hears the
+  last two after the title.
 - **Arranging by hand.** For an editor, each row has a handle (shown on hover, focus and the
   current row, always on touch): dragging it puts the page before or after another, or inside one
   to nest it, with a bar or a ring showing where it lands, and a strip at the end of the tree for
   the end of the top level; Esc cancels. With a row focused, Alt and ↑ or ↓ swap it with its
   neighbour, Alt and → nests it under the page above, and Alt and ← moves it out to follow its
-  parent; the move is announced and the page keeps focus. Published mockups reorder the same way
-  but never nest, and never enter the tree. A move shows at once and saves the whole arrangement
+  parent; the move is announced and the page keeps focus. Every kind of page moves alike, and any
+  may hold any other. A move shows at once and saves the whole arrangement
   with `story.set_hierarchy`, placing every page the tree shows; a drag confirms with a toast with
   **Undo**. A move refused (a page into its own subpages, deeper than six levels) says why. If the
   Story changed meanwhile, the move is applied to the newer tree and saved again once; if it no
@@ -792,7 +804,7 @@ page of a mockup reaches it by promotion, from the mockup (§7.7).
   permanently…** for an admin, as everywhere (§7.10). An archived page's row offers **Restore**,
   export and delete. Archiving moves the page's subpages up into its place, and its toast's
   **Undo** restores the page and puts the navigation back as it was; a restored page returns at
-  the end of the tree, or of the Published mockups. Under the tree, **Story style** names the product's
+  the end of the tree. Under the tree, **Story style** names the product's
   Story style ("A house style", "Adapted from Clear", "Your design system", or "None yet") and
   opens the style dialog.
 - **The style dialog** lists the style in use and every house style, and shows the chosen one
@@ -820,8 +832,7 @@ page of a mockup reaches it by promotion, from the mockup (§7.7).
     export, since the server gives a reader no archived page; a Story with no pages says that they
     appear once the product's team publishes them. A reader or viewer arranges, archives and
     deletes nothing: the tree has no handles, and its menus only export.
-- **Export to PDF.** The dialog lists every page as checkboxes, in the Story's order (the tree,
-  then the published mockups), then archived pages, with Select all, Clear and a count; it opens with the page or pages it was
+- **Export to PDF.** The dialog lists every page as checkboxes, in the Story's order, then archived pages, with Select all, Clear and a count; it opens with the page or pages it was
   asked for already selected, and the person can change the selection. The count and Select all
   cover the pages the Story shows; an archived page goes in only when ticked, and the count adds it
   ("3 of 24 pages selected, and 1 archived"). One line says that each page's current version opens
@@ -836,7 +847,11 @@ page of a mockup reaches it by promotion, from the mockup (§7.7).
   it is the printable width, about 670 to 700px on A4 or Letter, below the house styles' 48rem
   breakpoint, so a page's narrow layout applies there (grids stack into one column). The print
   view does not pretend the paper is wider: a layout made for 900px would be cramped or clipped
-  at 680px, and the narrow layout is the one the page's author made for that width.
+  at 680px, and the narrow layout is the one the page's author made for that width. A mockup page
+  is drawn at one size, so it lays out in its frame, with what its stylesheet asks of the viewport
+  (width in a media query, `vw` and `vh`) answered for the frame, and is scaled down to the printable
+  width (and on screen, to the window), kept on one sheet where it fits. On any page, what a page fixes to the window stays within that page, so an
+  open dialog's backdrop never repeats on every sheet.
 - An empty Story uses the first-use state ([§7.5](#75-idea)): agents write it, so the request to
   copy is the only path. It says pages follow the company's design system or a house style, and
   offers **Preview Story styles**.

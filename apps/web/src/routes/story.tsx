@@ -1,17 +1,19 @@
 import { useQuery } from "@tanstack/react-query";
 import { MOCKUP_PAGE_SANDBOX, STORY_PAGE_SANDBOX } from "@whatbuild/core/page-sandbox";
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Navigate, useNavigate, useParams, useSearchParams } from "react-router";
 import { api, ApiError } from "../lib/api.ts";
 import { useProduct } from "../lib/session.tsx";
 import { useScheme } from "../shell/theme.ts";
 import { Inspector, usePageTitle } from "../shell/slots.tsx";
+import { deletedSentence } from "../lib/format.ts";
 import { Button, ButtonLink, Callout, Crumbs, EmptyState, ErrorCallout, Loading, Sheet } from "../ui/index.tsx";
 import { FirstUse } from "./first-use.tsx";
+import { Canvas, pageAddress, usePinnedPrototype } from "./mockup-canvas.tsx";
 import { DeletePage, useArchiveActions, type PageActions, type PageRef } from "./story-actions.tsx";
 import { ExportDialog } from "./story-export.tsx";
 import { StoryInspectorBody } from "./story-inspector.tsx";
-import { mockupStop, trail, type Hierarchy, type PageSummary, type PageView, type VersionItem, type VersionView } from "./story-model.ts";
+import { arrangement, flatten, mockupStop, trail, type CanvasShown, type Hierarchy, type PageSummary, type PageView, type VersionItem, type VersionView } from "./story-model.ts";
 import { MockupFlip, PAGE_VIEW_KEYS, PageViewToggle, useFlipKeys, usePageView, usePageViewKeys, type FlipKey, type PageView as MockupPageView } from "./story-flip.tsx";
 import { FocusToggle, useStoryFocus, type StoryKey } from "./story-focus.tsx";
 import { StyleDialog, styleLine, useStoryStyle } from "./story-style.tsx";
@@ -182,6 +184,54 @@ export function StoryFrame({
   );
 }
 
+/**
+ * A Story page that shows a whole canvas: the mockup's board, for whoever reads the Story, with the
+ * page chosen in the URL as on the mockup's own screen (?page=). Its pages come from the Story page's
+ * own route, which a reader may use, and it holds only the mockup's pages, with no brief or notes.
+ */
+function StoryCanvas({ base, pageId, shown, mockup, onKey, canFocus, reread }: {
+  base: string;
+  pageId: string;
+  shown: VersionView;
+  mockup: CanvasShown;
+  onKey: (key: "f" | "Escape") => void;
+  canFocus: boolean;
+  reread: () => void;
+}) {
+  const [params, setParams] = useSearchParams();
+  const [pageView, setPageView] = usePageView("whatbuild.mockup.page-view", "fit");
+  const { pages } = mockup;
+  const version = useMemo(
+    () => ({ version: shown.version, title: shown.title, columns: mockup.columns, pages, prototype: mockup.prototype ?? null }),
+    [shown.version, shown.title, mockup.columns, pages, mockup.prototype],
+  );
+  const pinned = usePinnedPrototype(version, reread);
+  const asked = params.get("page");
+  const select = useCallback(
+    (id: string | null) => {
+      const next = new URLSearchParams(params);
+      if (id) next.set("page", id);
+      else next.delete("page");
+      setParams(next, { replace: true });
+    },
+    [params, setParams],
+  );
+  if (!pages.length) return <EmptyState title="This canvas is gone">Its mockup was deleted after this version was published.</EmptyState>;
+  return (
+    <Canvas
+      version={version}
+      pageSrc={(p) => pageAddress(p, version, pinned, `${base}/story/pages/${pageId}/versions/${shown.version}/pages/${p.page_id}/html`)}
+      selected={pages.some((p) => p.page_id === asked) ? asked : null}
+      onSelect={select}
+      onKey={onKey}
+      canFocus={canFocus}
+      pageView={pageView}
+      onPageView={setPageView}
+      showRequest={0}
+    />
+  );
+}
+
 export function StoryPage() {
   const { pageId } = useParams();
   const { api: base, app, product, storyOnly, canWrite } = useProduct();
@@ -217,7 +267,10 @@ export function StoryPage() {
     queryFn: () => api<VersionView>("GET", `${base}/story/pages/${pageId}/versions/${asked}?include_html=false`),
   });
 
-  const focusMode = useStoryFocus(page.isSuccess);
+  const shown = page.data ? (wantsOld ? old.data : page.data.current) : undefined;
+  const onCanvas = Boolean(shown?.mockup?.canvas);
+  // A canvas gains the whole screen, on a phone too, as it does on the mockup's own screen.
+  const focusMode = useStoryFocus(page.isSuccess, { onPhone: onCanvas });
 
   const rememberKey = `whatbuild.story.${product.product_id}`;
   useEffect(() => {
@@ -233,17 +286,17 @@ export function StoryPage() {
 
   const all = pages.data?.items ?? [];
   const archived = all.filter((p) => p.archived_at);
-  const arrangement = arrange.tree;
+  const pageTree = arrange.tree;
   const titleOf = (id: string) => all.find((p) => p.page_id === id)?.title ?? id;
   const refOf = (id: string): PageRef | undefined => all.find((p) => p.page_id === id);
 
   // Arranging, archiving and deleting pages by hand; agents do the same through MCP.
   const [deleting, setDeleting] = useState<PageRef | null>(null);
-  const { archive, restore } = useArchiveActions(arrangement);
+  const { archive, restore } = useArchiveActions(pageTree);
   const actions: PageActions = { archive, restore, remove: setDeleting };
 
-  // On a published mockup, the arrows and the control beside the crumbs flip to the ones either side.
-  const stop = pageId ? mockupStop(arrangement, pageId) : null;
+  // On a mockup page, the arrows and the control beside the crumbs flip to the mockup pages either side.
+  const stop = pageId && !onCanvas ? mockupStop(pageTree, pageId) : null;
   const prevId = stop?.prev?.page_id;
   const nextId = stop?.next?.page_id;
   const flip = useCallback(
@@ -254,7 +307,7 @@ export function StoryPage() {
     [prevId, nextId, app, navigate],
   );
   useFlipKeys(stop ? flip : null);
-  // Fit (2) or fill (3) a published mockup; the choice holds as the arrows flip to the next one.
+  // Fit (2) or fill (3) a mockup page; the choice holds as the arrows flip to the next one.
   const [mockupView, setMockupView] = usePageView("whatbuild.story.mockup-view", "fill");
   usePageViewKeys(stop ? setMockupView : null);
   const onFrameKey = (key: StoryKey) => {
@@ -270,7 +323,7 @@ export function StoryPage() {
 
   const dialogs = (
     <>
-      {exporting ? <ExportDialog tree={arrangement} archived={archived} preselect={exporting} onClose={() => setExporting(null)} /> : null}
+      {exporting ? <ExportDialog tree={pageTree} archived={archived} preselect={exporting} onClose={() => setExporting(null)} /> : null}
       {styling && style.data ? <StyleDialog view={style.data} scheme={scheme} onClose={() => setStyling(false)} /> : null}
       {deleting ? (
         <DeletePage
@@ -299,13 +352,9 @@ export function StoryPage() {
     } catch {
       remembered = null;
     }
-    const known =
-      remembered &&
-      (h.data.mockups.some((m) => m.page_id === remembered) ||
-        h.data.items.some(function has(n): boolean {
-          return n.page_id === remembered || n.children.some(has);
-        }));
-    const first = (known ? remembered : null) ?? h.data.items[0]?.page_id ?? h.data.mockups[0]?.page_id;
+    const everyPage = arrangement(h.data);
+    const known = remembered && flatten(everyPage).some((r) => r.node.page_id === remembered);
+    const first = (known ? remembered : null) ?? everyPage[0]?.page_id;
     if (first) return <Navigate to={`${app}/story/${first}${window.location.search}`} replace />;
     return (
       <div className="story-view">
@@ -334,23 +383,27 @@ export function StoryPage() {
     );
   }
 
-  const path = trail(arrangement.pages, pageId);
-  const root = arrangement.pages[0]?.page_id ?? arrangement.mockups[0]?.page_id;
-  const title = page.data?.title ?? path?.[path.length - 1]?.title ?? (stop ? arrangement.mockups[stop.index]?.title : undefined) ?? titleOf(pageId);
+  const path = trail(pageTree, pageId);
+  const root = pageTree[0]?.page_id;
+  const title = page.data?.title ?? path?.[path.length - 1]?.title ?? titleOf(pageId);
   const crumbs = [
     { label: "Story", ...(root && root !== pageId ? { to: `${app}/story/${root}` } : {}) },
     ...(path ?? []).slice(0, -1).map((c) => ({ label: c.title, to: `${app}/story/${c.page_id}` })),
-    ...(stop ? [{ label: "Published mockups" }] : []),
-    { label: page.isError ? "Page not found" : title },
+    { label: page.isError ? (deletedSentence(page.error) ? "Deleted page" : "Page not found") : title },
   ];
 
   if (page.isError) {
     const gone = page.error instanceof ApiError && page.error.isNotFound;
+    const deleted = deletedSentence(page.error);
     return (
       <div className="story-view">
         {tree}
         <Crumbs label="Page location" currentAsHeading items={crumbs} />
-        {gone ? (
+        {deleted ? (
+          <EmptyState title="This page was deleted" action={root ? <ButtonLink to={`${app}/story/${root}`}>Open the Story</ButtonLink> : undefined}>
+            {deleted}
+          </EmptyState>
+        ) : gone ? (
           <EmptyState title="This page isn’t in the Story" action={root ? <ButtonLink to={`${app}/story/${root}`}>Open the Story</ButtonLink> : undefined}>
             The link may be mistyped, or the page was never published here.
           </EmptyState>
@@ -363,10 +416,11 @@ export function StoryPage() {
   }
 
   const p = page.data;
-  const shown = p ? (wantsOld ? old.data : p.current) : undefined;
+  const shownMockup = shown?.mockup;
+  const onePage = shownMockup && !shownMockup.canvas ? shownMockup : undefined;
 
   return (
-    <div className="story-view">
+    <div className={onCanvas ? "story-view mockup-view" : "story-view"} data-focus={onCanvas && focusMode.focus ? "" : undefined}>
       {tree}
       <div className="story-bar">
         <Crumbs label="Page location" currentAsHeading items={crumbs} />
@@ -403,14 +457,28 @@ export function StoryPage() {
               It has {p.current_version} {p.current_version === 1 ? "version" : "versions"}.
             </Callout>
           ) : null}
-          {shown ? (
+          {shown?.mockup?.canvas ? (
+            <StoryCanvas
+              key={`${pageId}:${shown.version}`}
+              base={base}
+              pageId={pageId}
+              shown={shown}
+              mockup={shown.mockup}
+              onKey={focusMode.onKey}
+              canFocus={focusMode.available}
+              reread={() => {
+                void page.refetch();
+                if (wantsOld) void old.refetch();
+              }}
+            />
+          ) : shown ? (
             <StoryFrame
               key={`${pageId}:${shown.version}:${scheme}`}
               title={shown.title}
               scheme={scheme}
-              src={shown.mockup?.prototype_url ?? `${base}/story/pages/${pageId}/versions/${shown.version}/html${shown.mockup ? "" : `?theme=${scheme}`}`}
-              size={shown.mockup ? { width: shown.mockup.width, height: shown.mockup.height } : undefined}
-              prototype={shown.mockup?.prototype_url && shown.mockup.prototype_sandbox ? { sandbox: shown.mockup.prototype_sandbox } : null}
+              src={onePage?.prototype_url ?? `${base}/story/pages/${pageId}/versions/${shown.version}/html${onePage ? "" : `?theme=${scheme}`}`}
+              size={onePage ? { width: onePage.width, height: onePage.height } : undefined}
+              prototype={onePage?.prototype_url && onePage.prototype_sandbox ? { sandbox: onePage.prototype_sandbox } : null}
               view={mockupView}
               onKey={onFrameKey}
               storyBase={`${window.location.origin}${app}/story/`}

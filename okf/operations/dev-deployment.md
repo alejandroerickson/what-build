@@ -3,7 +3,7 @@ type: System Concept
 title: The dev deployment is a second Cloud Run deployment, laid out like production and holding a copy of its example organization or other organizations its instance owners own, where a release is rehearsed before production moves.
 description: For the maintainer and the agent working for them; what the dev deployment is and how it differs from production, where its values are, rehearsing a release on it, putting it back, refreshing its copy of the instance owners' organizations, setting one up from nothing, and keeping its data private.
 tags: [operations, deployment, dev, rehearsal, migrations, cloud-run, neon, production]
-generated: {by: agent:claude, at: 2026-10-27}
+generated: {by: agent:claude, at: 2026-10-30}
 status: stable
 ---
 
@@ -51,7 +51,7 @@ In `.env` in the maintainer's clone, beside production's:
 | `NEON_DEV_PROJECT` | the Neon project |
 | `NEON_DEV_BRANCH` | `main`, the branch the service uses |
 | `NEON_DEV_COPY_BRANCH` | `prod-copy`, the copy as it was loaded |
-| `NEON_DEV_COPY_TAKEN` | when the copy was taken from production, in UTC |
+| `NEON_DEV_COPY_TAKEN` | when the copy was taken from production, as the dataset's `pulled_at` writes it (`pnpm attention` reads it as a date, and reports a value it cannot read as a copy from before pulls checked owners) |
 | `NEON_DEV_COPY_ORGANIZATIONS` | the organizations the copy holds, by slug, comma-separated: production's example organization unless the maintainer names others an instance owner owns. `pnpm attention` reports a dev deployment whose `.env` has no such line or says `all`, or whose copy was taken before pulls checked who owns each organization. |
 
 The secrets are in the dev project's Secret Manager: `whatbuild-database-url`,
@@ -163,9 +163,11 @@ After a rehearsal that passed, dev may stay on the new release; it is then what 
 ## Putting it back
 
 To return dev to the copy as it was loaded, for example to rehearse a fix: delete the restore
-points rehearsals made, reset `main` to its parent, then deploy the release production runs.
-Neon refuses to reset a branch that still has children, and a deletion takes a few seconds to
-finish, so wait for it:
+points rehearsals made, reset `main` to `prod-copy`, then deploy the release production runs.
+Name `prod-copy` rather than `^parent`: restoring `main` from a restore point leaves that restore
+point as its parent, and the reset would then go back to it instead of the copy. Neon refuses to
+reset a branch that still has children, and a deletion takes a few seconds to finish, so wait for
+it:
 
 ```bash
 for b in $(neon branches list --project-id $N -o json | python3 -c '
@@ -175,7 +177,7 @@ print(" ".join(b["id"] for b in bs if b.get("parent_id") == main))'); do
   neon branches delete $b --project-id $N >/dev/null
 done
 sleep 20
-neon branches restore main ^parent --project-id $N
+neon branches restore main prod-copy --project-id $N
 ```
 
 Then deploy production's release as in [step 2](#rehearsing-a-release). The files bucket is not
@@ -202,6 +204,12 @@ umask 077; D=$(mktemp -d)
 WHATBUILD_FIXTURE_DIR=$D GCP_PROJECT=$PP GCP_REGION=$PR corepack pnpm dataset --production-schema --org <slug>[,<slug>…]
 F=$(ls -d $D/*-dataset/)                         # the dataset; its pulled.json names what it holds
 ```
+
+When production's database cannot be read, its compute suspended or the deployment closed, build
+from a recent pull instead: copy the pull into `$D` and add `--from <pull>` in place of `--org`,
+leaving out `GCP_PROJECT` and `GCP_REGION`. It holds the organizations the pull took, so choose
+one that holds what `NEON_DEV_COPY_ORGANIZATIONS` names, and its `pulled_at` is when production
+was read. `pnpm dataset` first shipped in v0.28.0, which has the same schema as v0.27.0.
 
 **2. The database.** Replace the database `whatbuild` on `prod-copy` as the administrator, and
 restore the dataset's dump into it as `whatbuild`, as [Backups](backups.md#restoring-a-dump) explains.

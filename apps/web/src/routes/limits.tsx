@@ -671,6 +671,7 @@ interface GuestsView {
   updated_at: string | null;
   updated_by: { display_name: string } | null;
   now: { in_now: number; waiting: number; new_today: number; ever: number };
+  open_without_allowlist: boolean;
 }
 
 /**
@@ -702,13 +703,18 @@ export function InstanceGuestsSheet() {
         level={2}
         id="instance-guests-title"
         title="Guests"
-        end={s ? <StatusBadge tone={s["at_once"] === 0 ? "neutral" : s["self_serve"] ? "positive" : "neutral"}>{s["at_once"] === 0 ? "Closed" : s["self_serve"] ? "Anyone can sign up" : "Invited only"}</StatusBadge> : null}
+        end={s ? <StatusBadge tone={s["at_once"] === 0 ? "neutral" : s["self_serve"] || q.data?.open_without_allowlist ? "positive" : "neutral"}>{s["at_once"] === 0 ? "Closed" : s["self_serve"] || q.data?.open_without_allowlist ? "Anyone can sign up" : "Invited only"}</StatusBadge> : null}
       />
       <SheetBody className="instance-intro">
         <p className="muted">
           A guest is an account in no organization: they read the example organization, and point their agent at it, and nothing else. Each holds a place while they
           work; past the places, they wait in line and come in on their own. People in an organization never wait.
         </p>
+        {q.data?.open_without_allowlist ? (
+          <Callout inset tone="attention">
+            This WhatBuild has no sign-up allowlist, so anyone can make an account, whatever the switch below says. Set <code>WHATBUILD_SIGNUP_ALLOWLIST</code> to close sign-up.
+          </Callout>
+        ) : null}
         {q.data ? (
           <dl className="guests-now">
             <div>
@@ -750,7 +756,7 @@ export function InstanceGuestsSheet() {
           <div className="limits-scroll">
             <Table className="limits-edit" head={["Setting", "Value", "Default"]}>
               {q.data.fields.map((f) => (
-                <Row key={f.key} label={f.label} help={f.help}>
+                <Row key={f.key} label={f.label} help={f.key === "self_serve" && q.data?.open_without_allowlist ? "With no sign-up allowlist, anyone can make an account either way." : f.help}>
                   <Cell className="limits-value">
                     <LimitField
                       limit={{ key: f.key, label: f.label, unit: f.unit === "bytes" ? "bytes" : f.unit, group: f.unit === "switch" ? "switch" : "frequency", per: f.unit === "switch" ? "" : f.unit }}
@@ -959,7 +965,7 @@ function PlanDialog({ org, all, onClose }: { org: InstanceOrganization; all: Ins
         </fieldset>
         {org.read_only ? (
           <p className="muted">
-            Read-only since {formatDate(org.read_only.since.slice(0, 10))}. {keptLine(org.read_only)}.
+            Read-only since {formatDate(org.read_only.since)}. {keptLine(org.read_only)}.
           </p>
         ) : null}
         {readOnly && !org.read_only ? (

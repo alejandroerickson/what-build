@@ -12,7 +12,7 @@ A person searches everything in a product from one place, the palette (the panel
 `search`'s `plain` mode. This plan checks that every kind of thing can be found, that the words are
 read as the specification says (any order, forgiving endings, the last word as a prefix, typos
 corrected and said so, partial matches that name the missing words), that the web and MCP agree,
-that what one door writes the other finds at once, and that a reader has no search
+that what one door writes the other finds at once, and that a reader searches the Story alone
 (`okf/spec/08-search.md` §8.2, `okf/spec/07-web-app.md` §7.2).
 
 ## Steps
@@ -120,10 +120,16 @@ that what one door writes the other finds at once, and that a reader has no sear
     search of step 3 and the queries of step 6, and the MCP search of step 10. *Expect:* the same
     results as in the standard organization, which holds the same content, and the made-up word of
     step 11 is not found in the example organization.
-13. **Web and MCP, as Jordan (reader).** Open the product. *Expect:* the panel has no Search field;
-    ⌘K and `/` do nothing; `/search?q=<a word>` takes Jordan to the Story with a toast, without an
-    error. Over MCP, `search` in plain mode is refused with a clear error, not an empty result.
-14. **Web, as Sam.** At phone width (390 × 844) and in the dark theme, open the palette, search, and
+13. **Web and MCP, as Jordan (reader).** Open the product, showing the panels if focus mode hid them.
+    *Expect:* the panel's Search field reads "Search the Story". Search for a Story page's title, then for a word on a page of a whole canvas on
+    the Story, then for a source's title and an assumption's statement, as a palette search and over
+    MCP's `search` in `plain` mode. *Expect:* the Story page, and the canvas opening at that page; the
+    source and the assumption are never listed and no correction names them, though a Story page
+    that says the same words is found. `search` in another mode, or
+    with `kind: "source"`, is refused with a permission error naming reader and viewer.
+14. **Web, as Sam.** Search for a word on a mockup page that is promoted to the Story, and for the
+    mockup's title. *Expect:* the mockup is listed once, under Exploration, with no Story result for it.
+15. **Web, as Sam.** At phone width (390 × 844) and in the dark theme, open the palette, search, and
     open the Search screen. *Expect:* the palette fits the screen and its results are readable;
     every line of matching text under a result shows a marked word within its two lines, and
     marked words stand out in both themes; nothing overflows or overlaps.

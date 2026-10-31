@@ -3,7 +3,7 @@ type: Process
 title: What a deployment must do when it takes a release
 description: The changes a release asks of the people who run a deployment (settings, app registrations, behaviour they will notice), kept per release, with the unreleased ones on top until the next release carries them into its notes.
 tags: [operations, releases, upgrading, self-hosting, configuration]
-generated: {by: agent:claude, at: 2026-10-28}
+generated: {by: agent:claude, at: 2026-10-31}
 status: stable
 ---
 
@@ -23,12 +23,55 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
 
 ## Unreleased
 
+- **A whole mockup canvas can go on the Story, and the Story is one tree** (`tools_version` 0.48.0).
+  It asks nothing of a deployment beyond the release's migration, which moves each product's
+  Published mockups to the end of its Story tree, in their order, and which only a restored database
+  undoes; a connected client sees the change in a new session. People will notice the Published
+  mockups section is gone: its pages are rows of the tree, each with an icon, and can be dragged
+  anywhere in it. `story.set_hierarchy` refuses `mockups`, and `story.get_hierarchy` no longer gives
+  it, so an agent working from an older tool list is told so.
+- **A reader can search the Story, and a page from a mockup is found once** (`tools_version` 0.48.0).
+  It asks nothing of a deployment. A Story-only reader gets the Search field and `search` in plain
+  mode, over the Story alone; everything else stays refused. For everyone else, a Story page that
+  shows a mockup page or canvas no longer appears beside its mockup in results.
+- **Search keeps each page's words beside its HTML, and stops a search that takes too long**
+  (`tools_version` 0.47.0). A deployment does nothing beyond its usual migration. The migration,
+  `0040_html_pages_keep_their_words.sql`, rewrites `mockup_pages` and `story_versions`, and nothing
+  can read or write them until it ends: about half a second for 20 MB of HTML on a developer's
+  machine, so seconds to perhaps a minute on a small database. An image from before it still runs on
+  the migrated database. People will notice that words between two script or style blocks, which
+  search used to miss, are now found. Where a search or a page would have hung, it now answers:
+  `503 search_timed_out`, `search_busy` or `database_busy`. A connected client sees the new
+  description only in a new session ([§8.8](../spec/08-search.md)).
 - **Behind Cloudflare, the Worker can take a deployment down for maintenance.** It asks nothing of
   a deployment. Deployed with one more setting, `--var MAINTENANCE:<day>`, the Worker answers every
   address on both domains `503` with a page saying WhatBuild is down for maintenance and back by
   that day, and the API, MCP and OAuth with the error code `maintenance`, without reaching the
   service; deployed again without it, everything is as before
   ([Cloud Run](cloud-run.md), "Down for maintenance").
+- **A mockup prints whole.** It asks nothing of a deployment. In the Story's print view a mockup
+  page, or each page of a canvas, lays out at its frame's width and is scaled down to the paper, on
+  one sheet where it fits, where its right side used to be cut off and one such page shrank the
+  whole PDF. What any page fixes to the window, such as an open dialog's backdrop, stays within
+  that page instead of repeating on every sheet. Other Story pages print as they did.
+- **Search corrects a typo the way §8.2 says.** It asks nothing of a deployment. Two neighbouring
+  letters swapped now count as one edit, as the specification always said, so a five-letter word
+  with a swap is corrected, and a whole word one edit away is preferred to a longer word whose
+  start is.
+- **A deleted assumption, mockup or Story page says so.** It asks nothing of a deployment. Its
+  address, as Activity links to it, shows who deleted it, when and why, as a deleted source's
+  always did, where it showed an error with Try again, and Activity words every deletion.
+- **The instance's page says when sign-up is open.** It concerns a deployment with no
+  `WHATBUILD_SIGNUP_ALLOWLIST`, where anyone can make an account, as anyone always could: Guests
+  said "Invited only" there, and now says "Anyone can sign up", with a note on how to close it.
+  `setup.sh` always sets the list; a deployment that set none and means to be closed sets one.
+- **A read-only organization's product Settings offer nothing that is then refused.** It asks
+  nothing of a deployment: the name is read only there, and Add people is gone.
+- **The mockup canvas keeps a page fitted or filling the width while the window changes,** until
+  someone moves it. It asks nothing of a deployment.
+- **The mockup canvas zooms in smaller steps with a mouse wheel.** It asks nothing of a deployment.
+  A notch with ⌘ or Ctrl moves the zoom by about 10% at most, where it moved about 30% with ⌘ and
+  nearly threefold with Ctrl; a pinch still follows the fingers.
 
 ## v0.28.0
 

@@ -208,10 +208,10 @@ const SCOPED: Record<string, Probe> = {
   "story.get_hierarchy": { input: () => ({}) },
   "story.set_hierarchy": {
     input: (a) => ({ items: [{ page_id: a.page.id, children: [] }], expected_etag: a.hierarchyEtag }),
-    // Their own navigation, with its current etag, naming the victim's page in the tree and the victim's promoted page among the Published mockups.
+    // Their own navigation, with its current etag, naming the victim's page and the victim's promoted page in the tree.
     inside: async (a, b) => [
       { items: [{ page_id: a.page.id, children: [] }], expected_etag: await etagOf(b, "story/hierarchy") },
-      { items: [], mockups: [a.promotedPage.id], expected_etag: await etagOf(b, "story/hierarchy") },
+      { items: [{ page_id: a.promotedPage.id, children: [] }], expected_etag: await etagOf(b, "story/hierarchy") },
     ],
   },
   "story.archive_page": { input: (a) => ({ page_id: a.page.id, expected_etag: a.page.etag }) },

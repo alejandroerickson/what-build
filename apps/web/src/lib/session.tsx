@@ -220,6 +220,7 @@ export function ProductProvider({ children, fallback }: { children: (ctx: Produc
 export function cannotWriteReason(ctx: Pick<ProductCtx, "product" | "readOnlyOrganization">): string {
   if (ctx.readOnlyOrganization) return `${ctx.product.tenant.name} is read-only, so nothing new can be added to it or changed until it moves to another plan.`;
   if (ctx.product.archived_at) return "This product is archived. An admin can restore it in Settings.";
+  if (ctx.product.your_role === "guest") return "This is a worked example to read, so nothing in it can be added or changed.";
   return "You’re a viewer here. An admin of this product can make you an editor.";
 }
 

@@ -3,7 +3,7 @@ type: Specification
 title: Every capability is one registered operation, reached identically over REST and MCP.
 description: The operation registry, the error model and bounds, the full catalogue of 118 operations with their REST routes and MCP tools, authorization and agent connection levels, upload flows, the guide and the Connect page.
 tags: [spec, operations, rest, mcp, registry, uploads, guide]
-generated: {by: agent:claude, at: 2026-10-27}
+generated: {by: agent:claude, at: 2026-10-30}
 status: stable
 ---
 
@@ -115,6 +115,7 @@ tenant.
 | 413 | Body or file beyond a limit | `too_large` |
 | 422 | Invalid input | `invalid_input`, `edit_not_found`, `edit_ambiguous`, `unknown_field`, `unknown_action`, `unknown_tool`, `wrong_tool`, `product_required`, `too_long`, `cross_product_reference`, `outcome_cites_a_record`, `invalid_query`, `invalid_cursor`, `invalid_filter`, `invalid_html`, `invalid_patch`, `invalid_upload`, `fetch_failed`, `confirmation_required`, `name_mismatch`, `typed_email`, `confidence_requires_human`, `may_start_one`, `unknown_plan` |
 | 429 | Rate limited | `rate_limited` |
+| 503 | Too busy to answer, or a search stopped ([§8.8](08-search.md)), with nothing changed | `search_timed_out`, `search_busy`, `database_busy` |
 
 - **`403` names the role.** A caller with a role on the product but too low for the action gets
   `403` with `{ role, needed }` in `details` ("You are a viewer on product …; outcomes.create
@@ -326,7 +327,7 @@ being changed inside the handler.
 | `derived` | `rederive` | `POST P/sources/:record_id/rederive` | editor |
 | `derived` | `write_note` | `PUT P/sources/:record_id/agent-notes/:note_kind` | editor |
 | `derived` | `read_note` | `GET P/sources/:record_id/agent-notes/:note_kind` | viewer |
-| `search` | — | `GET P/search` | viewer |
+| `search` | — | `GET P/search` | reader, for the Story alone in plain mode; viewer for the rest |
 | `assumptions` | `list` | `GET P/assumptions` | viewer |
 | `assumptions` | `get` | `GET P/assumptions/:id` | viewer |
 | `assumptions` | `create` | `POST P/assumptions` | editor |
@@ -521,15 +522,17 @@ Notes on recent actions:
   stateless, uses relative addresses and no network, and what its warnings mean.
   `mockups.get_download` gives a version as a ZIP through a grant, for an agent to build the next
   version elsewhere ([§4.12](04-data-model.md)). `mockups.get` lists the Story pages that show
-  its pages.
+  its pages or its whole canvas.
 - `story.promote_mockup` publishes a Story page version that shows one page of a mockup version,
-  on a new page or as an existing page's next version, without copying it; the version reports
-  `mockup` with the page's size. It answers `201` like `publish` ([§4.11](04-data-model.md)).
-  The page appears among the Story's Published mockups at once (`placed: true`).
-- `story.get_hierarchy` returns the tree as saved as `items`, the live pages not yet placed as
-  `unplaced` (`{page_id, title, description}`, never also in `items`) and the Published mockups as
-  `mockups`, in order. Its `items` round-trip: `story.set_hierarchy` accepts them as they are
-  (the `title` and `description` on each node are ignored), and placing a page is adding it there.
+  or without `mockup_page_id` its whole canvas, on a new page or as an existing page's next version,
+  without copying it; the version reports `mockup` with the page's size, or the canvas's layout and
+  pages. It answers `201` like `publish` ([§4.11](04-data-model.md)). A new page is unplaced, like
+  any other (`placed: false`).
+- `story.get_hierarchy` returns the tree as saved as `items`, with the live pages not yet placed as
+  `unplaced` (`{page_id, title, description, kind}`, never also in `items`); each node's `kind` is
+  `story_page`, `mockup_page` or `canvas`. Its `items` round-trip: `story.set_hierarchy` accepts them
+  as they are (the `title`, `description` and `kind` on each node are ignored), and placing a page is
+  adding it there.
   `story.set_hierarchy` takes the
   tree and, optionally, `mockups` to reorder that section ([§4.11](04-data-model.md)). Before the
   first save its `expected_etag` may be null or left out (an etag sent then is `409 stale_etag`
@@ -622,6 +625,7 @@ GET  P/sources/:record_id/text                       a source's whole derived te
 GET  P/exports/:export_id/file                       an export ZIP for the web app
 GET  P/story/pages/:page_id/versions/:version/html?theme=light|dark   Story page HTML
 GET  P/story/print?page_ids=…                        the Story print view (HTML)
+GET  P/story/pages/:page_id/versions/:version/pages/:mockup_page_id/html   a page of the canvas that Story page's version shows; a reader may ask
 GET  P/mockups/:mockup_id/versions/:version/pages/:page_id/html   a mockup page's HTML
 GET  P/idea/concept/card, P/outcomes/:outcome_id/card?theme=   an Idea card's front
 GET  P/story/style/specimen, P/story/house-styles/:style/specimen?theme=   a style's specimen
@@ -674,7 +678,7 @@ attachment without `download=1`, an HTML page's view) makes every check it makes
 `<name>` is the attachment's name or `page.html`, `card.html`, `specimen.html`, `story.html`; the
 route ignores it. The grant (`contentAddress` in `packages/core/src/content-address.ts`) is
 `{ v: 1, purpose, t, p, …object, a, exp }`: one purpose per kind (`story_page` with the version,
-`mockup_page` with the mockup version and page, `specimen` with a house style or the digest of the
+`story_canvas_page` with the version and a page of the canvas it shows, `mockup_page` with the mockup version and page, `specimen` with a house style or the digest of the
 product's style's specimen, `card` with an outcome, if any, and the digest of its front, `print`
 with the page versions, `attachment` with the file version), the tenant, the product, the
 requester, and an expiry `WHATBUILD_GRANT_TTL_SECONDS` from issue. Every load of an app address
@@ -722,9 +726,11 @@ expired or dropped preview is `404`.
 
 `story.print_view { page_ids }` (1–50 page ids, comma-separated in a query string) plans a print
 view: exactly the pages named, each at its current version, in the Story's order — a depth-first
-walk of the tree, the pages not yet placed, then the Published mockups in their order, and
+walk of the tree, then the pages not yet placed, and
 archived pages last, by title; a reader is given no archived page, which is missing for them
-([§3.5](03-accounts-teams-and-identity.md)). Each page
+([§3.5](03-accounts-teams-and-identity.md)). A page that shows a whole canvas prints page by page,
+each section a level below its heading, listed as `canvas_pages`; a print view holds at most 100
+sections in all (`422 print_too_long`). Each page
 carries `depth` (its depth in the hierarchy) and `level` (its outline level among the chosen
 pages: one more than the number of chosen ancestors, so the outline never skips a level). The
 result also gives `path` and `url` for the document itself.

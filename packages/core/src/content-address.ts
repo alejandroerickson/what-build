@@ -18,6 +18,7 @@ export const DOCUMENT_ROUTE = "/documents";
  * another's lookup. Each names its object as it was when the grant was issued:
  *
  * - `story_page`: `sv`, a Story page's version.
+ * - `story_canvas_page`: `sv`, a Story page's version that shows a whole canvas, and `pg`, a page of it.
  * - `mockup_page`: `xv`, a mockup's version, and `pg`, its page.
  * - `specimen`: `hs`, a house style, or `d`, the digest of the product's style's specimen.
  * - `card`: `o`, an outcome (absent for the product concept), and `d`, the digest of its front.
@@ -25,7 +26,7 @@ export const DOCUMENT_ROUTE = "/documents";
  * - `attachment`: `fv`, an attachment's file version: a PDF shown inline, or an HTML file in its
  *   preview's sandbox, and nothing else.
  */
-export const DOCUMENT_PURPOSES = ["story_page", "mockup_page", "specimen", "card", "print", "attachment"] as const;
+export const DOCUMENT_PURPOSES = ["story_page", "story_canvas_page", "mockup_page", "specimen", "card", "print", "attachment"] as const;
 export type DocumentPurpose = (typeof DOCUMENT_PURPOSES)[number];
 
 export function isDocumentPurpose(purpose: unknown): purpose is DocumentPurpose {

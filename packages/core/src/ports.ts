@@ -1,4 +1,5 @@
 import type { ParsedFile } from "@whatbuild/parsers";
+import type { SearchGate } from "./bounded-search.ts";
 
 /**
  * The core depends only on these interfaces. Each adapter implements one; the in-memory ones are
@@ -112,4 +113,6 @@ export interface Ports {
   mailer?: Mailer;
   /** Wakes the job worker after a commit that enqueued work. */
   notifyJobs?: () => void;
+  /** This server's searches, how many run and how long each may (`bounded-search.ts`). */
+  searches: SearchGate;
 }

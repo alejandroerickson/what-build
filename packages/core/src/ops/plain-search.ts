@@ -1,14 +1,17 @@
 import { sql, type RawBuilder } from "kysely";
 import { productId } from "../common.ts";
+import type { MockupPageRef } from "../db.ts";
 import { findCount, findPattern, findWords } from "../find-in-text.ts";
-import { closestWord, excerpt, findTsquery, fold, idLike, matchText, parseFind, termPattern, termTsquery, wordRoot, type FindKind, type FindTerm, type ParsedFind, type TextMatch } from "../plain-query.ts";
+import { closestWord, excerpt, findTsquery, fold, idLike, matchText, parseFind, swappedLettersTsquery, termPattern, termTsquery, wordRoot, type FindKind, type FindTerm, type ParsedFind, type TextMatch } from "../plain-query.ts";
+import { readsOnlyTheStory } from "../policy.ts";
 import type { OpContext } from "../registry.ts";
 
 /**
  * Plain search (`search` with `mode: "plain"`): one search over everything in a product, read the way a person means it (see
  * plain-query.ts), ranked, and grouped so a source shows up once with the best places it says
- * the words: its derived text, summary, notes or comments. Lexical and deterministic: no model, no
- * embeddings, no index beyond the ones `search` already uses.
+ * the words: its derived text, summary, notes or comments. Lexical and deterministic: no model and
+ * no embeddings. It reads stored text and search vectors, a page's words among them
+ * (`html_search_text` in the migrations), and never a page's HTML.
  */
 
 export const FIND_KINDS = ["idea", "outcome", "source", "assumption", "mockup", "story"] as const satisfies readonly FindKind[];
@@ -64,13 +67,6 @@ export interface FindResult {
    * would read past COUNT_PIECES_MAX pieces, rather than given short.
    */
   match_count?: number;
-}
-
-/** Text from stored HTML: scripts, styles and tags dropped, entities blanked. */
-function htmlText(col: RawBuilder<unknown>): RawBuilder<string> {
-  const text = sql`regexp_replace(regexp_replace(regexp_replace(${col}, '<(script|style)[^>]*?>.*?</\\1>', ' ', 'gi'), '<[^>]+>', ' ', 'g'), '&[a-zA-Z0-9#]+;', ' ', 'g')`;
-  // A tag between a word and its punctuation leaves a space before the comma; close it.
-  return sql<string>`regexp_replace(${text}, '\\s+([,.;:!?)])', '\\1', 'g')`;
 }
 
 /**
@@ -267,6 +263,15 @@ async function sourcesBeyond(ctx: OpContext, p: ParsedFind, q: string, live: Raw
   return r.rows[0] ?? { any: 0, all: 0 };
 }
 
+/** One page of something shown across pages, as search reads it. */
+interface ShownPage {
+  page_id: string | null;
+  page_title: string | null;
+  body: string[];
+  /** What is on the page itself, which says whether a result opens on it. */
+  onPage: string;
+}
+
 async function smallKinds(ctx: OpContext, p: ParsedFind, i: Input, q: string): Promise<FindResult[]> {
   const pid = productId(ctx);
   const want = (k: FindKind) => !i.record_id && (!i.kind || i.kind === k);
@@ -284,21 +289,24 @@ async function smallKinds(ctx: OpContext, p: ParsedFind, i: Input, q: string): P
       : null,
     want("mockup")
       ? sql<{ mockup_id: string; title: string; summary: string; brief: string; page_id: string | null; page_title: string | null; notes: string | null; text: string | null }>`
-        select * from (
-          select m.mockup_id, m.title, m.summary, v.brief, pg.page_id, pg.title as page_title, pg.notes, ${htmlText(sql`pg.html`)} as text, pg.position
-          from mockups m join mockup_versions v on v.version_id = m.current_version_id
-            left join mockup_pages pg on pg.version_id = v.version_id
-          where m.product_id = ${pid} and m.archived_at is null) x
-        where to_tsvector('simple', x.title || ' ' || x.summary || ' ' || x.brief || ' ' || coalesce(x.page_title, '') || ' ' || coalesce(x.notes, '') || ' ' || coalesce(x.text, '')) @@ ${tsq}
-        order by x.position`.execute(ctx.db)
+        select m.mockup_id, m.title, m.summary, v.brief, pg.page_id, pg.title as page_title, pg.notes, pg.search_text as text
+        from mockups m join mockup_versions v on v.version_id = m.current_version_id
+          left join mockup_pages pg on pg.version_id = v.version_id
+        where m.product_id = ${pid} and m.archived_at is null
+          and (pg.tsv @@ ${tsq} or to_tsvector('simple', m.title || ' ' || m.summary || ' ' || v.brief || ' ' || coalesce(pg.title, '') || ' ' || coalesce(pg.notes, '')) @@ ${tsq})
+        order by pg.position`.execute(ctx.db)
       : null,
     want("story")
-      ? sql<{ page_id: string; title: string; summary: string; text: string }>`
-        select * from (
-          select sp.page_id, sp.title, sp.summary, ${htmlText(sql`v.html`)} as text
-          from story_pages sp join story_versions v on v.version_id = sp.current_version_id
-          where sp.product_id = ${pid} and sp.archived_at is null) x
-        where to_tsvector('simple', x.title || ' ' || x.summary || ' ' || x.text) @@ ${tsq}`.execute(ctx.db)
+      // What a Story page shows: its own words, or those of the mockup page or whole canvas at the
+      // version it points at. Only a canvas's page titles are read, since a reader sees those alone;
+      // a mockup's brief and notes never are.
+      ? sql<{ page_id: string; title: string; summary: string; text: string; mockup: MockupPageRef | null; shown_id: string | null; shown_title: string | null; shown_text: string | null }>`
+        select sp.page_id, sp.title, sp.summary, v.search_text as text, v.mockup, pg.page_id as shown_id, pg.title as shown_title, pg.search_text as shown_text
+        from story_pages sp join story_versions v on v.version_id = sp.current_version_id
+          left join mockup_pages pg on pg.version_id = v.mockup->>'mockup_version_id' and (v.mockup->>'page_id' is null or pg.page_id = v.mockup->>'page_id')
+        where sp.product_id = ${pid} and sp.archived_at is null
+          and (v.tsv @@ ${tsq} or pg.tsv @@ ${tsq} or to_tsvector('simple', sp.title || ' ' || sp.summary || ' ' || case when v.mockup->>'page_id' is null then coalesce(pg.title, '') else '' end) @@ ${tsq})
+        order by pg.position`.execute(ctx.db)
       : null,
     want("idea") ? ctx.db.selectFrom("products").select(["concept"]).where("product_id", "=", pid).executeTakeFirst() : null,
   ]);
@@ -312,28 +320,70 @@ async function smallKinds(ctx: OpContext, p: ParsedFind, i: Input, q: string): P
   for (const a of assumptions?.rows ?? []) push("assumption", a.entry_id, { title: a.statement, body: [shownWords(a.body)] }, { status: a.status });
   for (const o of outcomes?.rows ?? []) push("outcome", o.outcome_id, { title: o.title, body: [shownWords(o.description)] }, {});
   // A mockup is one result; the page that matches best is the one it opens on.
-  const byMockup = new Map<string, NonNullable<typeof mockups>["rows"]>();
-  for (const m of mockups?.rows ?? []) byMockup.set(m.mockup_id, [...(byMockup.get(m.mockup_id) ?? []), m]);
-  for (const [mid, pages] of byMockup) {
-    const first = pages[0]!;
-    const scored = pages.map((pg) => ({ pg, s: scoreDoc({ title: first.title, body: [first.summary, pg.page_title ?? "", shownWords(pg.notes ?? ""), pg.text ?? "", shownWords(first.brief)] }, p) }));
+  const best = (title: string, pages: ShownPage[]) => {
+    const scored = pages.map((pg) => ({ pg, s: scoreDoc({ title, body: pg.body }, p) }));
     scored.sort((a, b) => b.s.score - a.s.score);
     const top = scored[0]!;
     const found = p.terms.map((_, k) => scored.some((x) => x.s.found[k]));
-    out.push({
-      kind: "mockup",
-      id: mid,
-      title: first.title,
-      title_marks: top.s.title.ranges,
-      snippet: top.s.snippet,
-      snippet_marks: top.s.snippet_marks,
-      missing: missingWords(p, found),
-      score: round(top.s.score + (100 * (found.filter(Boolean).length - top.s.found.filter(Boolean).length)) / p.terms.length),
-      // Open on the page only when the words are on it, not just in the mockup's title or brief.
-      meta: { ...(matchText(`${top.pg.page_title ?? ""} ${top.pg.notes ?? ""} ${top.pg.text ?? ""}`, p.terms).found.some(Boolean) ? { page_id: top.pg.page_id, page_title: top.pg.page_title } : {}), pages: pages.length },
-    });
+    return {
+      found,
+      result: {
+        title,
+        title_marks: top.s.title.ranges,
+        snippet: top.s.snippet,
+        snippet_marks: top.s.snippet_marks,
+        missing: missingWords(p, found),
+        score: round(top.s.score + (100 * (found.filter(Boolean).length - top.s.found.filter(Boolean).length)) / p.terms.length),
+      },
+      // Open on the page only when the words are on it, not just in the title, summary or brief.
+      page: matchText(top.pg.onPage, p.terms).found.some(Boolean) ? { page_id: top.pg.page_id, page_title: top.pg.page_title } : {},
+    };
+  };
+  const byMockup = new Map<string, NonNullable<typeof mockups>["rows"]>();
+  for (const m of mockups?.rows ?? []) byMockup.set(m.mockup_id, [...(byMockup.get(m.mockup_id) ?? []), m]);
+  const heldByMockup = new Map<string, { found: boolean[]; result: FindResult }>();
+  for (const [mid, pages] of byMockup) {
+    const first = pages[0]!;
+    const b = best(first.title, pages.map((pg) => ({
+      page_id: pg.page_id,
+      page_title: pg.page_title,
+      body: [first.summary, pg.page_title ?? "", shownWords(pg.notes ?? ""), pg.text ?? "", shownWords(first.brief)],
+      onPage: `${pg.page_title ?? ""} ${pg.notes ?? ""} ${pg.text ?? ""}`,
+    })));
+    const result: FindResult = { kind: "mockup", id: mid, ...b.result, meta: { ...b.page, pages: pages.length } };
+    heldByMockup.set(mid, { found: b.found, result });
+    out.push(result);
   }
-  for (const s of story?.rows ?? []) push("story", s.page_id, { title: s.title, body: [s.summary, s.text] }, {});
+  // One result for each Story page, a whole canvas's pages among them. A page from a mockup is one
+  // thing in two places, so whoever finds the mockup finds it there, in Exploration: the Story page
+  // is listed too only for a word the mockup does not hold, its own title, say, or one the version it
+  // stays on has and the current version does not. A reader is given no mockups, so a reader finds
+  // it on the Story.
+  const byPage = new Map<string, NonNullable<typeof story>["rows"]>();
+  for (const s of story?.rows ?? []) byPage.set(s.page_id, [...(byPage.get(s.page_id) ?? []), s]);
+  // A mockup page with a Story page of its own is found there, not again on a canvas that holds it at the same version.
+  const shownAlone = new Set([...byPage.values()].flatMap(([s]) => (s!.mockup?.page_id ? [`${s!.mockup.mockup_version_id}:${s!.mockup.page_id}`] : [])));
+  for (const [id, rows] of byPage) {
+    const first = rows[0]!;
+    const canvas = first.mockup?.page_id === null;
+    const onCanvas = canvas ? rows.filter((r) => !shownAlone.has(`${first.mockup!.mockup_version_id}:${r.shown_id}`)) : rows;
+    const b = best(first.title, (onCanvas.length ? onCanvas : [{ ...first, shown_id: null, shown_title: null, shown_text: null }]).map((r) => {
+      const words = (first.mockup ? r.shown_text : r.text) ?? "";
+      const named = canvas ? (r.shown_title ?? "") : "";
+      return { page_id: r.shown_id, page_title: r.shown_title, body: [first.summary, named, words], onPage: `${named} ${words}` };
+    }));
+    if (!b.found.some(Boolean)) continue;
+    const held = first.mockup ? heldByMockup.get(first.mockup.mockup_id) : undefined;
+    if (held && b.found.every((f, k) => !f || held.found[k])) {
+      // It ranks and opens as the Story page would have, whose title may be the words searched for.
+      if (b.result.score > held.result.score) {
+        held.result.score = b.result.score;
+        if (first.mockup?.page_id) held.result.meta = { ...held.result.meta, page_id: first.mockup.page_id, page_title: first.shown_title };
+      }
+      continue;
+    }
+    out.push({ kind: "story", id, ...b.result, meta: canvas ? b.page : {} });
+  }
   if (idea?.concept) push("idea", pid, { title: "Product concept", body: [shownWords(idea.concept)] }, {});
   return out;
 }
@@ -345,22 +395,36 @@ async function corrections(ctx: OpContext, p: ParsedFind, found: boolean[], typi
   // or a number is never guessed at: one digit away is another thing.
   const lost = p.terms.map((t, k) => ({ t, k })).filter(({ t, k }) => !found[k] && !t.phrase && !idLike(t.text) && fold(t.text).length >= (typing && k === p.terms.length - 1 ? 3 : 4));
   if (!lost.length) return [];
-  const titles = await sql<{ t: string }>`
+  // A word offered back is a word the product holds, so a reader is offered only what the Story's titles say.
+  const reader = readsOnlyTheStory(ctx.scope.role);
+  const titles = reader
+    ? await sql<{ t: string }>`select title as t from story_pages where product_id = ${pid} and archived_at is null`.execute(ctx.db)
+    : await sql<{ t: string }>`
     select title as t from records where product_id = ${pid} and archived_at is null
     union all select statement from register_entries where product_id = ${pid} and archived_at is null
     union all select title from outcomes where product_id = ${pid}
     union all select title from mockups where product_id = ${pid} and archived_at is null
     union all select title from story_pages where product_id = ${pid} and archived_at is null`.execute(ctx.db);
   const out: { from: string; to: string }[] = [];
-  // Looser than the default 0.6, so a swapped or missing letter in a short word still finds candidates.
+  // Looser than the default 0.6, so a missing letter in a short word still finds candidates. Looser
+  // still would read every chunk with a word sharing its first two letters, in every organization.
   await sql`select set_config('pg_trgm.word_similarity_threshold', '0.4', true)`.execute(ctx.db);
   for (const { t, k } of lost) {
-    const near = await sql<{ text: string }>`
+    const near = reader
+      ? { rows: [] as { text: string }[] }
+      : await sql<{ text: string }>`
       select c.text from text_chunks c join records r on r.record_id = c.record_id
       where r.product_id = ${pid} and r.archived_at is null and ${t.text} <% c.text
       limit 40`.execute(ctx.db);
+    const swaps = swappedLettersTsquery(t.text);
+    const swapped = reader || !swaps
+      ? { rows: [] as { text: string }[] }
+      : await sql<{ text: string }>`
+      select c.text from text_chunks c join records r on r.record_id = c.record_id
+      where r.product_id = ${pid} and r.archived_at is null and c.tsv @@ to_tsquery('simple', ${swaps})
+      limit 10`.execute(ctx.db);
     const last = typing && k === p.terms.length - 1;
-    const to = closestWord(t.text, [...near.rows.map((r) => r.text), ...titles.rows.map((r) => r.t)], last);
+    const to = closestWord(t.text, [...near.rows.map((r) => r.text), ...swapped.rows.map((r) => r.text), ...titles.rows.map((r) => r.t)], last);
     if (to) out.push({ from: t.text, to });
   }
   return out;
@@ -378,7 +442,7 @@ async function run(ctx: OpContext, p: ParsedFind, i: Input) {
 }
 
 export const PLAIN_DESCRIPTION =
-  "mode \"plain\" searches everything in the product the way a person types into a search box, ranked: sources, each with the best places it says the words (its derived text, summary, notes or comments; hits give the field and where the piece starts), how many places in hit_count, and in match_count how many times its derived text says them, as the source's Find in the text in the web app counts them, assumptions, outcomes, mockups, Story pages and the product concept. Words match in any order, each at the start of a word; endings are forgiven (\"pricing\" finds price and priced); the last word is taken as still being typed and matches as a prefix even when short, unless the query ends with a space; \"quoted words\" match as a phrase; an id or a number (CB26-20734, 2026-05-01, 2026) is one word, hyphens and all, matched as written, and one with a letter in it also as its words side by side (q3-planning finds \"Q3 planning\"); small words (the, of, how) are skipped; a word naming a kind (mockups, assumptions, sources, outcomes, story, idea), beside other words, is not searched for but lists that kind's results first, ahead of any that score higher, and `kind_hint` names it; a word that matches nothing is replaced by the closest word the product holds, and `corrections` says so (`strict: true` turns that off), but an id or a number is never corrected. When nothing holds every word, results hold most of them and list the `missing` ones. At most `limit` results come back (60 unless you say), best first; `counts` says how many of each kind matched in all, so say so when more matched than came back. It takes `kind`, `record_id`, `strict` and `limit`, not the date or tag filters or a cursor.";
+  "mode \"plain\" searches everything in the product the way a person types into a search box, ranked: sources, each with the best places it says the words (its derived text, summary, notes or comments; hits give the field and where the piece starts), how many places in hit_count, and in match_count how many times its derived text says them, as the source's Find in the text in the web app counts them, assumptions, outcomes, mockups, Story pages and the product concept. A Story page that shows a mockup page or a whole canvas is searched by what it shows at the version it stays on, and is left out when the mockup is among the results and holds every word it does, so one thing is listed once, as the mockup. A reader (the Story-only role) searches the Story alone: every Story page, by what it shows, and for a whole canvas meta gives the page the words are on; never the mockup's brief or notes. Words match in any order, each at the start of a word; endings are forgiven (\"pricing\" finds price and priced); the last word is taken as still being typed and matches as a prefix even when short, unless the query ends with a space; \"quoted words\" match as a phrase; an id or a number (CB26-20734, 2026-05-01, 2026) is one word, hyphens and all, matched as written, and one with a letter in it also as its words side by side (q3-planning finds \"Q3 planning\"); small words (the, of, how) are skipped; a word naming a kind (mockups, assumptions, sources, outcomes, story, idea), beside other words, is not searched for but lists that kind's results first, ahead of any that score higher, and `kind_hint` names it; a word that matches nothing is replaced by the closest word the product holds, and `corrections` says so (`strict: true` turns that off), but an id or a number is never corrected. When nothing holds every word, results hold most of them and list the `missing` ones. At most `limit` results come back (60 unless you say), best first; `counts` says how many of each kind matched in all, so say so when more matched than came back. It takes `kind`, `record_id`, `strict` and `limit`, not the date or tag filters or a cursor.";
 
 /** At most this many pieces of derived text are read to count matches, so a search for a common word stays quick. */
 const COUNT_PIECES_MAX = 2000;
@@ -409,7 +473,9 @@ async function countMatches(ctx: OpContext, p: ParsedFind, results: FindResult[]
   }
 }
 
-export async function plainSearch(ctx: OpContext, i: PlainInput) {
+export async function plainSearch(ctx: OpContext, asked: PlainInput) {
+  // A reader has only the Story, so nothing else is searched for them.
+  const i = readsOnlyTheStory(ctx.scope.role) ? { ...asked, kind: "story" as const } : asked;
   let p = parseFind(i.query);
   const typing = !/[\s"]$/.test(i.query);
   const empty = { query: i.query, terms: [], ignored: p.ignored, kind_hint: p.kind, corrections: [], partial: false, counts: {}, hits_matched: 0, results: [] };

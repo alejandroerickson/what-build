@@ -40,7 +40,8 @@ are people she invites.
 6. **Web, as Eli.** Sign in through the invitation, or with Eli's address, which accepts it.
    *Expect:* Eli sees the organization and edits its product: add a source with a short synthetic
    text written into the run's folder. As Fay, the product opens on its Story and nothing else.
-7. **Web, as Dana.** Change Eli to a viewer, then take his role away. *Expect:* each change is
+7. **Web, as Dana.** Change Eli to a viewer, then Remove from organization (Remove role would keep
+   him a member). *Expect:* each change is
    listed in the organization's access log, by Dana; as Eli, after a reload, the product is read
    only, then gone. His source stays, with his name on it.
 8. **Web, as Dana.** Invite Gus as an editor, then cancel the invitation before he signs in.

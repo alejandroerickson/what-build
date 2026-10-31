@@ -50,3 +50,16 @@ describe("the count beside each day in Activity", () => {
     expect(render([...day2, ...day1], false)).toEqual(["2 changes", "3 changes"]);
   });
 });
+
+describe("the words a deletion reads as in Activity", () => {
+  it.each([
+    ["note_deleted", "source", "deleted a comment on"],
+    ["deleted", "assumption", "deleted the assumption"],
+    ["deleted", "mockup", "deleted the mockup"],
+    ["deleted", "outcome", "deleted the outcome"],
+    ["deleted", "story_page", "deleted the page"],
+  ])("%s of a %s reads as %s", (action, entity_type, words) => {
+    render([{ ...entry(1, "2026-09-01T12:00:00Z"), action, entity_type } as ActivityItem], false);
+    expect(document.body.textContent).toContain(words);
+  });
+});

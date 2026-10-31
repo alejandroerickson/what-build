@@ -18,8 +18,8 @@ function readSeen(slug: string): boolean {
 /**
  * What every screen of the example organization says above its content. To a guest: that it is a
  * worked example to read, that nothing in it changes, and where their own work goes; in full until
- * they have read it, then as one line that stays. To its own people: that every account reads what
- * they write. It says nothing while it loads, so a screen never waits for it.
+ * they have read it, then as one line that stays. To its own people, who may only read: that every
+ * account reads what its authors write. It says nothing while it loads, so a screen never waits for it.
  */
 export function ExampleBanner({ tenant }: { tenant: { tenant_id: string; slug: string; name: string } }) {
   const me = useMe();
@@ -35,7 +35,7 @@ export function ExampleBanner({ tenant }: { tenant: { tenant_id: string; slug: s
       <p className="canvas-banner example-line">
         <Glyph name="library" size="sm" />
         <span>
-          <b>Example organization.</b> You&rsquo;re an author here: everyone who signs in sees what you change.
+          <b>Example organization.</b> Everyone who signs in sees what its authors change.
         </span>
       </p>
     );
