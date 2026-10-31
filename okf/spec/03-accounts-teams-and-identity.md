@@ -743,7 +743,7 @@ as a guest too, and never waits.
 | Setting (the guests', on `/instance`) | Starts at | What it does |
 |---|---|---|
 | `self_serve` | off | Anyone may sign up as a guest ([§3.2](#32-accounts-and-sign-in)). |
-| `at_once` | 25 | Places: guest accounts in at once. Past it, a guest waits in line and comes in on its own as a place frees, in the order they started waiting while they keep asking (every few seconds, as the web app's waiting page does). 0 lets no guest in. |
+| `at_once` | 25 | Places: guest accounts in at once. Past it, a guest waits in line and comes in when they ask again once a place is free, in the order they started waiting, keeping their place while they ask at least every two minutes (the web app's waiting page asks when they press Try again or come back to the tab; it never asks on a timer). 0 lets no guest in. |
 | `new_per_day` | 50 | Guest accounts coming in for the first time, each UTC day; past it, they come back the next day. |
 | `idle_minutes` | 30 | A place frees after this long without a call. |
 | `minutes_per_day` | 120 | Time in, each guest account a day; past it, back after midnight UTC. |

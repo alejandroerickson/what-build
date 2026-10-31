@@ -39,6 +39,12 @@ export function setUnauthenticatedHandler(fn: () => void) {
   onUnauthenticated = fn;
 }
 
+let onGuestWaiting: ((pass: Record<string, unknown>) => void) | null = null;
+/** Told when a guest account's call is refused because they are not in (`guest_waiting`), with their place as the refusal gives it. */
+export function setGuestWaitingHandler(fn: ((pass: Record<string, unknown>) => void) | null) {
+  onGuestWaiting = fn;
+}
+
 let onChange: ((path: string, operation: string | null) => void) | null = null;
 /** Told of every change the server accepted (any method but GET), with the operation it ran, for counting what people do. */
 export function setChangeListener(fn: (path: string, operation: string | null) => void) {
@@ -69,6 +75,7 @@ export async function api<T = unknown>(method: string, path: string, body?: unkn
   if (!res.ok) {
     const err = (data as { error?: { code?: string; message?: string; details?: Record<string, unknown> } } | null)?.error;
     if (res.status === 401) onUnauthenticated?.();
+    if (err?.code === "guest_waiting" && err.details) onGuestWaiting?.(err.details);
     throw new ApiError(res.status, err?.code ?? "error", err?.message ?? DEFAULT_MESSAGES[res.status] ?? `WhatBuild answered with status ${res.status}.`, err?.details);
   }
   if (method !== "GET") onChange?.(path, res.headers.get("X-WhatBuild-Operation"));

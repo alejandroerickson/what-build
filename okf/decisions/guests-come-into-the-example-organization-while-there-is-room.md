@@ -3,7 +3,7 @@ type: Decision
 title: Guests come into the example organization while there is room, under limits an instance owner sets
 description: An account in no organization is a guest; it may be made by anyone when an instance owner allows it, and holds one of a few places while it reads the example, waiting in line past them.
 tags: [decision, guests, example-organization, sign-up, cost, limits]
-generated: {by: agent:claude, at: 2026-10-26}
+generated: {by: agent:claude, at: 2026-10-28}
 status: stable
 ---
 
@@ -18,7 +18,9 @@ work, and a spike of visitors would cost the most. The maintainer chose on 2026-
 may make an account and explore the example on their own, that how many come in is the
 instance owner's to set and to raise as the deployment grows, and that these accounts are called
 guests. The same day they chose that a guest who wants an organization of their own joins a
-waitlist the instance owner lets people in from.
+waitlist the instance owner lets people in from. On 2026-10-28 they chose that a guest's place is
+decided only when the guest does something, never by the web app asking on a timer, so a tab left
+open neither holds a place nor keeps a database that suspends when idle awake.
 
 ## Decision
 
@@ -27,7 +29,8 @@ waitlist the instance owner lets people in from.
   nothing, and is never offered as a plan.
 - **Making an account is free; coming in is not.** While `self_serve` is on, anyone may make one.
   Each call a guest account makes into the example takes a **place**, held while it calls at least
-  every `idle_minutes`. Past `at_once` places it waits in line and comes in on its own; past
+  every `idle_minutes`. Past `at_once` places it waits in line and comes in when it asks again
+  once a place is free; past
   `new_per_day` first-time guests, or its `minutes_per_day`, it comes back after midnight UTC.
   `at_once` 0 lets no guest in.
 - **Only guest accounts wait.** People in an organization, allowed to start one, or running the
@@ -46,12 +49,14 @@ waitlist the instance owner lets people in from.
 
 - WhatBuild can be tried without anyone being let in, and the cost of trying it is bounded by
   numbers on one page.
-- A guest who leaves the page holds no place for long; one who stays may wait.
+- A guest who stops working holds no place for long, even with the tab open; one who waits asks
+  again by hand.
 
 ## Constrains
 
 - Admission is `enterAsGuest` in `packages/core/src/guests.ts`, under one advisory lock;
   `execute` and `admitRead` call it for a guest account's every call into the example.
-- The web app shows a guest account the waiting page (`GuestGate`) while it is not in.
+- The web app shows a guest account the waiting page (`GuestGate`) while it is not in, and asks
+  for the place only when the guest does something, never on a timer.
 
 Specified in: [§3.2](../spec/03-accounts-teams-and-identity.md#32-accounts-and-sign-in), [§3.10](../spec/03-accounts-teams-and-identity.md#310-the-example-organization), [§9.7](../spec/09-data-lifecycle.md#97-plans-and-limits).
