@@ -1,5 +1,6 @@
 import { MOCKUP_PAGE_SANDBOX } from "@whatbuild/core/page-sandbox";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { flushSync } from "react-dom";
 import { plural } from "../lib/format.ts";
 import { useProduct } from "../lib/session.tsx";
 import { Glyph, Menu, MenuItem, MenuNote, MenuSeparator } from "../ui/index.tsx";
@@ -270,6 +271,8 @@ export function Canvas({ version, pageSrc, selected, onSelect, onKey, canFocus, 
   const pointers = useRef(new Map<number, { x: number; y: number }>());
   const gesture = useRef<Gesture | null>(null);
   const touched = useRef(false);
+  // Where the board's corner was on the screen when it last changed size.
+  const boardAt = useRef<{ left: number; top: number } | null>(null);
   // The page last shown fitted or filling the width, kept so while the window changes until someone moves it.
   const following = useRef<{ id: string; how: PageView } | null>(null);
   const moved = useCallback(() => {
@@ -399,7 +402,8 @@ export function Canvas({ version, pageSrc, selected, onSelect, onKey, canFocus, 
   const fillShown = useCallback(() => showShown("fill"), [showShown]);
 
   // Fit the whole canvas when a version opens, and keep it fitted while the window changes until
-  // someone moves it.
+  // someone moves it. Once they have, the pages stay where they are on the screen when the board's
+  // edges move, as they do when a panel hides or focus mode begins and ends.
   useLayoutEffect(() => {
     touched.current = false;
     following.current = null;
@@ -409,9 +413,14 @@ export function Canvas({ version, pageSrc, selected, onSelect, onKey, canFocus, 
     const vp = viewport.current;
     if (!vp) return;
     const ro = new ResizeObserver(() => {
+      const { left, top } = vp.getBoundingClientRect();
+      const was = boardAt.current;
+      boardAt.current = { left, top };
       const shown = following.current;
       if (shown) (shown.how === "fill" ? fillBox : fitBox)(boxes[shown.id], false);
       else if (!touched.current) fitCanvas(false);
+      // Drawn before this frame paints: a later render would show the pages slid for a frame.
+      else if (was && (was.left !== left || was.top !== top)) flushSync(() => setView((v) => ({ ...v, x: v.x + was.left - left, y: v.y + was.top - top })));
     });
     ro.observe(vp);
     return () => ro.disconnect();
@@ -698,9 +707,11 @@ export function Canvas({ version, pageSrc, selected, onSelect, onKey, canFocus, 
                 data-selected={p.page_id === selected ? "" : undefined}
                 data-narrow={w < 200 ? "" : undefined}
                 data-tiny={w < 72 ? "" : undefined}
+                data-cramped={w < 42 ? "" : undefined}
                 style={{ transform: `translate(${b.left * view.z}px, ${b.top * view.z}px)`, width: Math.max(w, 28) }}
               >
-                <button type="button" className="xc-label-name" onClick={() => onSelect(p.page_id)} aria-pressed={p.page_id === selected} title={`${p.title} · ${p.width} × ${p.height}`}>
+                {/* Named for the page, whatever the zoom leaves room to show. */}
+                <button type="button" className="xc-label-name" onClick={() => onSelect(p.page_id)} aria-label={p.title} aria-pressed={p.page_id === selected} title={`${p.title} · ${p.width} × ${p.height}`}>
                   <span className="xc-label-n num">{i + 1}</span>
                   <span className="xc-label-title ellipsis">{p.title}</span>
                   <span className="xc-label-size num">
@@ -737,61 +748,67 @@ export function Canvas({ version, pageSrc, selected, onSelect, onKey, canFocus, 
           </button>
         </div>
         <span className="xc-tools-rule" aria-hidden="true" />
-        {coarse ? null : (
-          <button type="button" className="xc-tool" onClick={() => zoomAt(0.8, undefined, undefined, true)} disabled={view.z <= MIN_ZOOM} title="Zoom out (−)">
-            <Glyph name="zoom-out" />
-            <span className="visually-hidden">Zoom out</span>
-          </button>
-        )}
-        <Menu
-          label={`Zoom ${pct}%`}
-          triggerClassName="xc-tool xc-zoom num"
-          align="end"
-          side="top"
-          minWidth={200}
-          trigger={<>{pct}%</>}
-        >
-          <MenuItem onSelect={() => { moved(); fitCanvas(); }} kbd={coarse ? undefined : "1"}>Fit the canvas</MenuItem>
-          <MenuItem onSelect={fitShown} kbd={coarse ? undefined : "2"}>{selected ? "Fit the selected page" : "Fit the page in the middle"}</MenuItem>
-          <MenuItem onSelect={fillShown} kbd={coarse ? undefined : "3"}>{selected ? "Fill the width with the selected page" : "Fill the width with the page in the middle"}</MenuItem>
-          <MenuSeparator />
-          {[50, 100, 200].map((n) => (
-            <MenuItem key={n} onSelect={() => zoomAt(n / 100 / view.z, undefined, undefined, true)} kbd={n === 100 && !coarse ? "0" : undefined}>
-              {n}%
-            </MenuItem>
-          ))}
-        </Menu>
-        {coarse ? null : (
-          <button type="button" className="xc-tool" onClick={() => zoomAt(1.25, undefined, undefined, true)} disabled={view.z >= MAX_ZOOM} title="Zoom in (+)">
-            <Glyph name="zoom-in" />
-            <span className="visually-hidden">Zoom in</span>
-          </button>
-        )}
+        <div className="xc-tools-group">
+          {coarse ? null : (
+            <button type="button" className="xc-tool" onClick={() => zoomAt(0.8, undefined, undefined, true)} disabled={view.z <= MIN_ZOOM} title="Zoom out (−)">
+              <Glyph name="zoom-out" />
+              <span className="visually-hidden">Zoom out</span>
+            </button>
+          )}
+          <Menu
+            label={`Zoom ${pct}%`}
+            triggerClassName="xc-tool xc-zoom num"
+            align="end"
+            side="top"
+            minWidth={200}
+            trigger={<>{pct}%</>}
+          >
+            <MenuItem onSelect={() => { moved(); fitCanvas(); }} kbd={coarse ? undefined : "1"}>Fit the canvas</MenuItem>
+            <MenuItem onSelect={fitShown} kbd={coarse ? undefined : "2"}>{selected ? "Fit the selected page" : "Fit the page in the middle"}</MenuItem>
+            <MenuItem onSelect={fillShown} kbd={coarse ? undefined : "3"}>{selected ? "Fill the width with the selected page" : "Fill the width with the page in the middle"}</MenuItem>
+            <MenuSeparator />
+            {[50, 100, 200].map((n) => (
+              <MenuItem key={n} onSelect={() => zoomAt(n / 100 / view.z, undefined, undefined, true)} kbd={n === 100 && !coarse ? "0" : undefined}>
+                {n}%
+              </MenuItem>
+            ))}
+          </Menu>
+          {coarse ? null : (
+            <button type="button" className="xc-tool" onClick={() => zoomAt(1.25, undefined, undefined, true)} disabled={view.z >= MAX_ZOOM} title="Zoom in (+)">
+              <Glyph name="zoom-in" />
+              <span className="visually-hidden">Zoom in</span>
+            </button>
+          )}
+        </div>
         <span className="xc-tools-rule" aria-hidden="true" />
-        {/* Fit and fill show a page now, and are how the arrows show the next one: the one in use is marked. */}
-        <div className="xc-modes" role="radiogroup" aria-label="Show pages">
-          <button type="button" role="radio" aria-checked={pageView === "fit"} className="xc-tool" onClick={fitShown} title={selected ? "Fit the selected page (2)" : "Fit the page in the middle (2)"} aria-keyshortcuts="2">
-            <Glyph name="scan" />
-            <span className="visually-hidden">{selected ? "Fit the selected page" : "Fit the page in the middle"}</span>
-          </button>
-          <button type="button" role="radio" aria-checked={pageView === "fill"} className="xc-tool" onClick={fillShown} title={selected ? "Fill the width with the selected page (3)" : "Fill the width with the page in the middle (3)"} aria-keyshortcuts="3">
-            <Glyph name="move-horizontal" />
-            <span className="visually-hidden">{selected ? "Fill the width with the selected page" : "Fill the width with the page in the middle"}</span>
+        <div className="xc-tools-group">
+          {/* Fit and fill show a page now, and are how the arrows show the next one: the one in use is marked. */}
+          <div className="xc-modes" role="radiogroup" aria-label="Show pages">
+            <button type="button" role="radio" aria-checked={pageView === "fit"} className="xc-tool" onClick={fitShown} title={selected ? "Fit the selected page (2)" : "Fit the page in the middle (2)"} aria-keyshortcuts="2">
+              <Glyph name="scan" />
+              <span className="visually-hidden">{selected ? "Fit the selected page" : "Fit the page in the middle"}</span>
+            </button>
+            <button type="button" role="radio" aria-checked={pageView === "fill"} className="xc-tool" onClick={fillShown} title={selected ? "Fill the width with the selected page (3)" : "Fill the width with the page in the middle (3)"} aria-keyshortcuts="3">
+              <Glyph name="move-horizontal" />
+              <span className="visually-hidden">{selected ? "Fill the width with the selected page" : "Fill the width with the page in the middle"}</span>
+            </button>
+          </div>
+          <button type="button" className="xc-tool" onClick={() => { moved(); fitCanvas(); }} title="Fit the canvas (1)" aria-keyshortcuts="1">
+            <Glyph name="layout-grid" />
+            <span className="visually-hidden">Fit the canvas</span>
           </button>
         </div>
-        <button type="button" className="xc-tool" onClick={() => { moved(); fitCanvas(); }} title="Fit the canvas (1)" aria-keyshortcuts="1">
-          <Glyph name="layout-grid" />
-          <span className="visually-hidden">Fit the canvas</span>
-        </button>
         <span className="xc-tools-rule" aria-hidden="true" />
-        <button type="button" className="xc-tool" onClick={() => step(-1)} disabled={selectedIndex === 0} title="Previous page (←)" aria-keyshortcuts="ArrowLeft">
-          <Glyph name="chevron-left" />
-          <span className="visually-hidden">Previous page</span>
-        </button>
-        <button type="button" className="xc-tool" onClick={() => step(1)} disabled={selectedIndex === version.pages.length - 1} title="Next page (→)" aria-keyshortcuts="ArrowRight">
-          <Glyph name="chevron-right" />
-          <span className="visually-hidden">Next page</span>
-        </button>
+        <div className="xc-tools-group">
+          <button type="button" className="xc-tool" onClick={() => step(-1)} disabled={selectedIndex === 0} title="Previous page (←)" aria-keyshortcuts="ArrowLeft">
+            <Glyph name="chevron-left" />
+            <span className="visually-hidden">Previous page</span>
+          </button>
+          <button type="button" className="xc-tool" onClick={() => step(1)} disabled={selectedIndex === version.pages.length - 1} title="Next page (→)" aria-keyshortcuts="ArrowRight">
+            <Glyph name="chevron-right" />
+            <span className="visually-hidden">Next page</span>
+          </button>
+        </div>
         {coarse ? null : (
           <>
             <span className="xc-tools-rule" aria-hidden="true" />

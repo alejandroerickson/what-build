@@ -1,6 +1,6 @@
 import { sql, type Selectable } from "kysely";
 import { z } from "zod";
-import { checkEtag, keepRevision, productId, recordActivity, tenantId } from "../common.ts";
+import { changedSummary, checkEtag, keepRevision, productId, recordActivity, tenantId } from "../common.ts";
 import { json, type OutcomesTable } from "../db.ts";
 import { checkConfirmation, DELETE_GUIDANCE, deleteGuards, dropRevisions, leaveTombstone, refuseIfDeleted } from "../deletion.ts";
 import { conflict, invalid, notFound } from "../errors.ts";
@@ -226,7 +226,7 @@ export const updateOutcome = defineOperation({
         entity_type: "outcome",
         entity_id: row.outcome_id,
         entity_title: input.title ?? row.title,
-        summary: `Changed ${changed.map((k) => (k === "card_html" ? "front" : k)).join(", ")}`,
+        summary: changedSummary(changed),
       });
     }
     return written(await load(ctx, row.outcome_id), changed.some((k) => k !== "position"));

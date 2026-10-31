@@ -51,6 +51,27 @@ describe("the count beside each day in Activity", () => {
   });
 });
 
+describe("an account's ending in the access log", () => {
+  const sentence = () => document.querySelector(".activity-sentence")?.textContent;
+  const leaver = { account_id: "acc_2", display_name: "Dana Editor", surface: "web", client: null };
+
+  it("says the person deleted their account, and not that they removed their own role", () => {
+    render([{ ...entry(1, "2026-09-01T12:00:00Z"), actor: leaver, action: "account_deleted", entity_type: "membership", entity_id: "acc_2", entity_title: "Dana Editor", summary: "Left Acme (2 roles) by deleting their account" }], false);
+    expect(sentence()).toBe("Dana Editor deleted their account and left the organization");
+    expect(document.querySelector(".activity-sub")?.textContent).toContain("Left Acme (2 roles) by deleting their account");
+  });
+
+  it("says who removed an account, and whose", () => {
+    render([{ ...entry(1, "2026-09-01T12:00:00Z"), actor: { ...leaver, display_name: "Riley Chen" }, action: "account_removed", entity_type: "membership", entity_id: "acc_3", entity_title: "Pete Editor", summary: "Removed from Acme (1 role) with the account, by an owner of this instance" }], false);
+    expect(sentence()).toBe("Riley Chen removed the account of Pete Editor");
+  });
+
+  it("still says a role was removed when one was", () => {
+    render([{ ...entry(1, "2026-09-01T12:00:00Z"), actor: { ...leaver, display_name: "Riley Chen" }, action: "revoked", entity_type: "membership", entity_id: "acc_3", entity_title: "Pete Editor", summary: "Removed editor on product Planner" }], false);
+    expect(sentence()).toBe("Riley Chen removed a role from Pete Editor");
+  });
+});
+
 describe("the words a deletion reads as in Activity", () => {
   it.each([
     ["note_deleted", "source", "deleted a comment on"],

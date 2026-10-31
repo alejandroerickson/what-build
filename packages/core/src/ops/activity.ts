@@ -1,5 +1,6 @@
 import { sql } from "kysely";
 import { z } from "zod";
+import { changedInWords } from "../common.ts";
 import { defineOperation } from "../registry.ts";
 
 /**
@@ -67,7 +68,20 @@ export const listActivity = defineOperation({
 export function summaryAsRead(action: string, summary: string): string {
   if (action === "derived") return withoutParserLabel(summary);
   if (action === "note_archived") return withoutArchiveReason(summary);
+  if (action === "updated" || action === "reordered") return changedInWords(summary);
   return summary;
+}
+
+/**
+ * An access log entry's action as it reads now. An account's ending was once recorded as "revoked",
+ * as if someone had taken a role, so the log said the person removed their own; its summary says
+ * which ending it was.
+ */
+export function actionAsRead(action: string, summary: string): string {
+  if (action !== "revoked") return action;
+  if (/^Left .* \(\d+ roles?\) by deleting their account$/s.test(summary)) return "account_deleted";
+  if (/^Removed from .* \(\d+ roles?\) with the account, by an owner of this instance$/s.test(summary)) return "account_removed";
+  return action;
 }
 
 /**

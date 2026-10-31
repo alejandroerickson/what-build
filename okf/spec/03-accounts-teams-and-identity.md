@@ -3,7 +3,7 @@ type: Specification
 title: Accounts belong to tenants, tenants hold teams, teams run products, and one role check decides every call.
 description: The account → tenant → team → product hierarchy, sign-in, roles and what they grant, plans and their limits, addressing and isolation, moving sources between products, caller identity, attribution, and the example organization every account reads.
 tags: [spec, accounts, tenancy, roles, identity, oauth, isolation, example, limits]
-generated: {by: agent:claude, at: 2026-10-30}
+generated: {by: agent:claude, at: 2026-10-31}
 status: stable
 ---
 
@@ -579,8 +579,9 @@ deleted as `products.delete_tenant` deletes, once `delete_organizations` names e
 organizations by slug; without that it is refused (`409 last_owner`), and the example organization
 is never deleted this way (`409 example_organization`). `products.accounts` marks each such
 organization `only_owner`. In one transaction it ends the
-account's sign-ins as Sign out everywhere does; takes every role it holds, recording `revoked` in
-each organization's access log with the person's name and who ended it; cancels the invitations
+account's sign-ins as Sign out everywhere does; takes every role it holds, recording
+`account_removed` (`account_deleted` when the person ends their own) in each organization's access
+log with the person's name and who ended it; cancels the invitations
 still waiting at its address; removes the address's allowance and its unused sign-in links; deletes
 the person's agent tokens and authorization codes, their counts against limits and against
 feedback, and their counted days of use (`forgetPerson`, `packages/core/src/usage.ts`, also for
