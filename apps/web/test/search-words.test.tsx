@@ -2,7 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router";
-import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 // What the Search screen and the palette say of the words searched: a quoted query keeps its own
 // quotation marks, never doubled inside the app's.
@@ -35,6 +35,65 @@ const found: Record<string, unknown> = {
         kind: "source", id: SOURCE, title: "Yard visit notes", title_marks: [], snippet: null, snippet_marks: [], missing: [], score: 1,
         meta: { date: "2026-09-12", tags: [] }, hit_count: 1,
         hits: [{ field: "text", annotation_id: null, char_start: 0, text: LATE, marks: [[LATE.indexOf("pallet"), LATE.indexOf("pallet") + 6]] }],
+      },
+    ],
+  },
+  // What a page says of markup, as plain search returns it: text that only looks like a tag.
+  "markup": {
+    query: "markup",
+    terms: [{ text: "markup", phrase: false }],
+    ignored: [], kind_hint: null, corrections: [], partial: false, counts: { mockup: 1 },
+    results: [
+      {
+        kind: "mockup", id: "m1", title: "<img src=x onerror=alert(1)> markup", title_marks: [[29, 35]], snippet: "markup < script>alert(1)</ script> <b onclick=alert(1)", snippet_marks: [[0, 6]], missing: [], score: 1,
+        meta: { page_id: "board", page_title: "<svg onload=alert(1)>", pages: 1 },
+      },
+    ],
+  },
+  // A title whose word falls past where its line is cut.
+  "schedulers": {
+    query: "schedulers",
+    terms: [{ text: "schedulers", phrase: false }],
+    ignored: [], kind_hint: null, corrections: [], partial: false, counts: { assumption: 1 },
+    results: [
+      {
+        kind: "assumption", id: "a2", title: "Quarterly planning review of the northern depots and their lead schedulers on call", title_marks: [[64, 74]], snippet: null, snippet_marks: [], missing: [], score: 1,
+        meta: { status: "unreviewed" },
+      },
+    ],
+  },
+  // The same words as a phrase, one mark, and as two words side by side, a mark each.
+  '"lead schedulers"': {
+    query: '"lead schedulers"',
+    terms: [{ text: "lead schedulers", phrase: true }],
+    ignored: [], kind_hint: null, corrections: [], partial: false, counts: { assumption: 1 },
+    results: [
+      {
+        kind: "assumption", id: "a2", title: "Quarterly planning review of the northern depots and their lead schedulers on call", title_marks: [[59, 74]], snippet: null, snippet_marks: [], missing: [], score: 1,
+        meta: { status: "unreviewed" },
+      },
+    ],
+  },
+  "lead schedulers": {
+    query: "lead schedulers",
+    terms: [{ text: "lead", phrase: false }, { text: "schedulers", phrase: false }],
+    ignored: [], kind_hint: null, corrections: [], partial: false, counts: { assumption: 1 },
+    results: [
+      {
+        kind: "assumption", id: "a2", title: "Quarterly planning review of the northern depots and their lead schedulers on call", title_marks: [[59, 63], [64, 74]], snippet: null, snippet_marks: [], missing: [], score: 1,
+        meta: { status: "unreviewed" },
+      },
+    ],
+  },
+  // Two words far apart: the line shows the first, and does not move to reach the second.
+  "planning schedulers": {
+    query: "planning schedulers",
+    terms: [{ text: "planning", phrase: false }, { text: "schedulers", phrase: false }],
+    ignored: [], kind_hint: null, corrections: [], partial: false, counts: { assumption: 1 },
+    results: [
+      {
+        kind: "assumption", id: "a2", title: "Quarterly planning review of the northern depots and their lead schedulers on call", title_marks: [[10, 18], [64, 74]], snippet: null, snippet_marks: [], missing: [], score: 1,
+        meta: { status: "unreviewed" },
       },
     ],
   },
@@ -194,6 +253,112 @@ describe("a palette line on a phone", () => {
 
   it("keeps the excerpt as it came on a wider screen", async () => {
     expect((await line("pallet")).textContent).toBe(`In its text ${LATE}`);
+  });
+});
+
+describe("what a search says of a page, whatever it looks like", () => {
+  const noMarkup = (root: Element) => {
+    for (const made of ["img", "script", "b", "[onerror]", "[onload]", "[onclick]"]) expect(root.querySelector(made), made).toBeNull();
+  };
+
+  it("is drawn as text on the Search screen", async () => {
+    const host = await render(<SearchPage />, `${APP}/search?q=markup`);
+    noMarkup(host);
+    expect(host.textContent).toContain("<img src=x onerror=alert(1)> markup");
+    expect(host.textContent).toContain("markup < script>alert(1)</ script> <b onclick=alert(1)");
+    expect(host.querySelector("mark")?.textContent).toBe("markup");
+  });
+
+  it("is drawn as text in the palette", async () => {
+    await render(
+      <FindProvider app={APP} base={BASE} product={product as never}>
+        <FindLauncher product={product as never} />
+      </FindProvider>,
+      `${APP}/evidence`,
+    );
+    await act(async () => document.querySelector<HTMLButtonElement>(".find-launch")!.click());
+    await act(async () => type(document.querySelector<HTMLInputElement>("dialog.find-pal input")!, "markup"));
+    await act(async () => new Promise((r) => setTimeout(r, 150)));
+    await settle();
+    const row = document.querySelector(".find-pal-opt")!;
+    noMarkup(row);
+    expect(row.textContent).toContain("<img src=x onerror=alert(1)> markup");
+    expect(row.textContent).toContain("< script>alert(1)</ script>");
+    expect(row.textContent).toContain("<svg onload=alert(1)>");
+  });
+});
+
+describe("a palette title cut before the word it matched", () => {
+  const LINE = 20;
+  const ROOM = 30;
+  const drawn = (el: Element): string => {
+    let text = "";
+    for (const node of el.childNodes) {
+      if (node instanceof Text) text += node.data;
+      else if (node instanceof Element && !node.classList.contains("visually-hidden")) text += drawn(node);
+    }
+    return text;
+  };
+  const one = (el: Element) => el.classList.contains("one-line");
+  const layout = {
+    clientHeight: (el: Element) => (one(el) ? LINE : 0),
+    scrollHeight: (el: Element) => (one(el) ? LINE * Math.max(1, Math.ceil((drawn(el).length + (el.hasAttribute("data-cut") ? 1 : 0) + (el.hasAttribute("data-lead") ? 1 : 0)) / ROOM)) : 0),
+  };
+  beforeAll(() => {
+    for (const [name, get] of Object.entries(layout)) Object.defineProperty(HTMLElement.prototype, name, { configurable: true, get(this: HTMLElement) { return get(this); } });
+  });
+  afterAll(() => {
+    for (const name of Object.keys(layout)) delete (HTMLElement.prototype as unknown as Record<string, unknown>)[name];
+  });
+
+  async function title(query: string) {
+    await render(
+      <FindProvider app={APP} base={BASE} product={product as never}>
+        <FindLauncher product={product as never} />
+      </FindProvider>,
+      `${APP}/evidence`,
+    );
+    await act(async () => document.querySelector<HTMLButtonElement>(".find-launch")!.click());
+    await act(async () => type(document.querySelector<HTMLInputElement>("dialog.find-pal input")!, query));
+    await act(async () => new Promise((r) => setTimeout(r, 150)));
+    await settle();
+    return document.querySelector<HTMLElement>(".find-pal-title .one-line")!;
+  }
+
+  it("shows the word, marked, after an ellipsis, with the whole title still read and on hover", async () => {
+    const line = await title("schedulers");
+    const whole = "Quarterly planning review of the northern depots and their lead schedulers on call";
+    expect(line.querySelector("mark")?.textContent).toBe("schedulers");
+    expect(drawn(line).endsWith("schedulers")).toBe(true);
+    expect(line.hasAttribute("data-lead")).toBe(true);
+    expect(line.textContent).toBe(whole);
+    expect(line.getAttribute("title")).toBe(whole);
+  });
+
+  it("shows all of a phrase past the cut, marked, and not only its first word", async () => {
+    const line = await title('"lead schedulers"');
+    expect(line.querySelector("mark")?.textContent).toBe("lead schedulers");
+    expect(drawn(line)).toContain("lead schedulers");
+    expect(line.hasAttribute("data-lead")).toBe(true);
+  });
+
+  it("shows words side by side together too, each marked", async () => {
+    const line = await title("lead schedulers");
+    expect([...line.querySelectorAll("mark")].map((m) => m.textContent)).toEqual(["lead", "schedulers"]);
+    expect(drawn(line)).toContain("lead schedulers");
+  });
+
+  it("stays at its first words for a word they hold, though another falls past the cut", async () => {
+    const line = await title("planning schedulers");
+    expect(line.querySelector("mark")?.textContent).toBe("planning");
+    expect(line.hasAttribute("data-lead")).toBe(false);
+  });
+
+  it("keeps the words a title starts with when the word is among them", async () => {
+    const line = await title("gate codes");
+    expect(line.querySelector("mark")?.textContent).toBe("Gate codes");
+    expect(line.hasAttribute("data-lead")).toBe(false);
+    expect(drawn(line).startsWith("Gate codes")).toBe(true);
   });
 });
 

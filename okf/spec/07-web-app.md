@@ -58,7 +58,9 @@ design system: tokens, type, components and the rules for using them — is docu
   its own direction, and one too long ends in an ellipsis after its last whole word that leaves
   room for it. A title that mixes English and Arabic keeps the words it begins with, where clipping
   it at a pixel would keep the end of the Arabic or cut a letter in half; one in Arabic reads right
-  to left with the ellipsis at its left. It is measured before it is drawn, and again only when
+  to left with the ellipsis at its left. In the search palette, a title whose first marked words, side by
+  side, end past that cut starts at a word nearer them instead, after an ellipsis, so a result always
+  shows the words that found it, as many of them as the line holds. It is measured before it is drawn, and again only when
   its room or the fonts change. The whole title stays in the page for assistive technology and
   shows on hover (the Whole Word Rule in [DESIGN.md](../../apps/web/DESIGN.md)).
 - **Interface text says one thing once.** A heading states the fact, the body adds only what the
