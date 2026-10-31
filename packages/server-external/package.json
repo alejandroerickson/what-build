@@ -7,8 +7,8 @@
     "@azure/communication-email": "^1.1.0",
     "@azure/identity": "^4.14.0",
     "@google-cloud/storage": "^8.4.0",
-    "google-auth-library": "^11.2.0",
-    "nodemailer": "^10.1.6",
+    "google-auth-library": "^11.3.1",
+    "nodemailer": "^10.2.1",
     "pdfjs-dist": "^6.4.299"
   }
 }

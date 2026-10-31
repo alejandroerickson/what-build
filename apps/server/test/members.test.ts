@@ -341,7 +341,8 @@ describe("an address the giver can't already see in the organization", () => {
       expect(many.body).toMatchObject({ granted: 0, invited: 2 });
       expect(shape(many.body.results[0])).toEqual(shape(many.body.results[1]));
 
-      const token = String(known.body.invite_link).split("/invite/")[1];
+      // The newer invitation replaced the older one to the same place, so the latest link is the one that works.
+      const token = String(many.body.results[0].invite_link).split("/invite/")[1];
       expect((await elsewhere.api("POST", "/api/v1/invitations/accept", { token })).status).toBe(200);
       const joined = (await list(alice)).body.members.find((m: { email: string }) => m.email === "otto@example.com");
       expect(joined).toMatchObject({ display_name: "Otto Elsewhere" });

@@ -3,7 +3,7 @@ type: System Concept
 title: WhatBuild keeps each organization's material to its own people, and treats agent-written HTML, uploads and source text as hostile
 description: The threat model: what is protected, who the attackers are, the trust boundaries, and each control with where it lives in code and the decision that governs it.
 tags: [security, threat-model, tenancy, identity, oauth, example, limits, uploads]
-generated: {by: agent:claude, at: 2026-10-27}
+generated: {by: agent:claude, at: 2026-10-31}
 status: draft
 ---
 
@@ -98,8 +98,11 @@ holds each one; the linked decisions say why. Observed in the code on 2026-10-10
 - A write other than GET, HEAD or OPTIONS that carries a `wb_` or `__Host-wb_` cookie is refused
   when its `Origin` is another site (`apps/server/src/app.ts`); REST checks again (`checkOrigin` in
   `rest.ts`), and so does the sign-in link's POST, cookie or none (`isOwnOrigin`, `identity.ts`).
-- Invitations are 256-bit links stored as hashes, for 7 days, accepted only by the account with the
-  invited address. Only instance owners, and addresses they give an allowance, create organizations
+- Invitations are 256-bit links stored as hashes, for 7 days, answered only by the account with the
+  invited address, in a browser's session: signing in accepts nothing, opening a link changes
+  nothing, and no agent can accept or decline one. An invitation is ended by being answered,
+  cancelled or replaced, in one statement that checks it is still open, so no two of these both
+  happen. Only instance owners, and addresses they give an allowance, create organizations
   ([decision](../decisions/only-instance-owners-decide-who-creates-organizations.md)).
 - Only an instance owner lists every account or removes one, and removing is a person's act in the
   web app (`products.remove_account` is web only, with the address typed); an instance owner's

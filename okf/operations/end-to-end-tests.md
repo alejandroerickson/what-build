@@ -3,7 +3,7 @@ type: System Concept
 title: Agent-driven end-to-end tests on a golden master
 description: An agent follows a written test plan through the real web app and the real MCP server, on a local instance reset each time to a golden master made from production's example organization, and reports failures and anomalies.
 tags: [development, testing, qa, e2e, agents, mcp, browser]
-generated: {by: agent:claude, at: 2026-10-30}
+generated: {by: agent:claude, at: 2026-10-31}
 status: draft
 ---
 
@@ -173,8 +173,9 @@ The plans:
   organization they are not in, and removes accounts, the only owner of an organization included,
   through the web, and checks that no agent, the instance owner's included, is offered any of it.
 - `running-an-organization`: an organization's owner starts it on an allowance, fills it to Free's
-  people total (an invitation holds a place, a reader of the Story is free), changes and takes
-  roles, renames and deletes it; someone it no longer holds asks for, and starts, their own.
+  people total (an invitation holds a place, a reader of the Story is free), whose invited people
+  sign in, find the invitation and accept or decline it, changes and takes roles, renames and
+  deletes it; someone it no longer holds asks for, and starts, their own.
 - `exploratory`: open-ended, every screen as each role and as a guest of the example, at phone width and
   in the dark theme.
 

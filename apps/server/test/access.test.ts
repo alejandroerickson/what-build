@@ -84,7 +84,7 @@ describe("roles", () => {
     expect(members.body.members.find((m: { email: string }) => m.email === "vic@example.com").grants).toHaveLength(2);
   });
 
-  it("invites someone without an account, who joins on first sign-in with that address", async () => {
+  it("invites someone without an account, who joins by signing in with that address and accepting", async () => {
     const inv = await alice.api("POST", `/api/v1/tenants/${tenantSlug}/members`, { team: teamSlug, email: "newcomer@example.com", role: "viewer" });
     expect(inv.body.invited).toBe(true);
     expect(h.mailer.sent.at(-1)!.text).toContain("/invite/");
@@ -93,10 +93,10 @@ describe("roles", () => {
     expect(list.body.items.map((i: { path: string }) => i.path)).toContain(path);
   });
 
-  it("accepts an invitation link that signing in already used, for the same person, and refuses it to anyone else", async () => {
+  it("answers an invitation link already accepted as such, for the same person, and refuses it to anyone else", async () => {
     const inv = await alice.api("POST", `/api/v1/tenants/${tenantSlug}/members`, { team: teamSlug, email: "linked@example.com", role: "editor" });
     const token = String(inv.body.invite_link).split("/invite/")[1];
-    // Signing in with the invited address accepts the invitation; the link then lands on /invite/:token.
+    // They accepted from their list on signing in (the harness does, as they would); the link then lands on /invite/:token.
     const linked = await h.signIn("linked@example.com");
     const again = await linked.api("POST", "/api/v1/invitations/accept", { token });
     expect(again.status).toBe(200);
@@ -116,7 +116,7 @@ describe("roles", () => {
     expect(wrong.body.error.code).toBe("invitation_wrong_address");
     expect(wrong.body.error.details.invited).toBe("I••••@Example.com");
     expect(JSON.stringify(wrong.body)).not.toContain("Intended@");
-    // The refusal leaves it unused: the invited person joins on signing in, whatever the letter case, and the link then confirms it.
+    // The refusal leaves it unused: the invited person signs in and accepts, whatever the letter case, and the link then confirms it.
     const intended = await h.signIn("intended@example.com");
     const right = await intended.api("POST", "/api/v1/invitations/accept", { token });
     expect(right.status).toBe(200);

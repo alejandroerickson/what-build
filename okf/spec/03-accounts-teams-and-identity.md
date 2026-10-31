@@ -70,8 +70,8 @@ Sign-in methods, each optional per deployment:
   `test` and `WHATBUILD_DEV_AUTH` is not `0`. Any other `NODE_ENV`, or none, is production
   ([local development](../operations/local-development.md#development-and-production)).
 
-There is no password. First sign-in creates the account; every invitation addressed to that email
-is accepted at once, because the verified address is the proof.
+There is no password. First sign-in creates the account. No method of signing in accepts anything:
+someone invited joins only by choosing to ([below](#invitations)).
 
 Every method returns to `next`, the path the person was on, only when it is a path on this origin:
 one with a scheme or host, a backslash, whitespace or a control character, an encoded slash,
@@ -81,15 +81,6 @@ with `//`, returns to `/` instead (`safeNext`,
 page applies the same function to the `next` it navigates to, so a person already signed in, or
 signing in with the development sign-in, never leaves the origin either. Request bodies to
 `/auth/*` are limited to 64 KB (`413 too_large`).
-
-An invitation link (`/invite/:token`, `POST /api/v1/invitations/accept`) is single-use, lasts
-7 days, and works only for the account whose email is the invited address, ignoring letter case
-(◆ [decision](../decisions/invitations-belong-to-their-address.md)). Opened by any other account it
-answers `403 invitation_wrong_address` with the invited address masked, and stays unused. Because
-signing in with the invited address already accepts it, the link usually arrives accepted by that
-same person: that answers with the invitation's role and `already: true`, not an error. Opened by a
-different account once used, it answers `410 invitation_used`; expired or cancelled,
-`410 invitation_expired`; an unknown token, `404`.
 
 **Invite-only mode.** `WHATBUILD_SIGNUP_ALLOWLIST` (emails and `@domains`) limits who may create an
 account. Without it there is no invite-only mode and anyone may, whatever the guests' `self_serve`
@@ -124,6 +115,41 @@ and asking again keeps their place. `GET /api/v1/me` gives `asked_for_organizati
 owners read the waitlist with `products.tenant_allowances` (`waitlist`: those who asked and have no
 allowance, earliest first) and let someone in by giving their address an allowance of 1, which
 emails them where to start.
+
+### Invitations
+
+An invitation lasts 7 days, and only its person answers it: a person joins an organization only by
+accepting (◆ [decision](../decisions/invitations-belong-to-their-address.md)). An invited address may
+still sign in where the allowlist would stop it. Until they accept, someone invited holds nothing
+in the organization, and someone in no other is a guest account like any other
+(§3.2, above).
+
+| Route (a browser's session only) | What it does |
+|---|---|
+| `GET /api/v1/me/invitations` | The invitations waiting for this account: open (not accepted, cancelled, declined or past their time) and sent to its address, ignoring letter case, newest first, at most 100. Each has `invitation_id`, `tenant`, `scope_type`, `scope`, `role`, `expires_at` and `invited_by`, the inviter's name on one line and in quotation marks, as the email shows it. Never its token. |
+| `POST /api/v1/invitations/read { token }` or `{ invitation_id }` | What opening a link (`/invite/:token`) shows: the same fields and `accepted`. It changes nothing, and carries the token in its body so that no request log keeps it. |
+| `POST /api/v1/invitations/accept { token }` or `{ invitation_id }` | Gives the role; `409 organization_read_only` while the organization is read-only (an invitation says so in `read_only`), and it stays open. A role the person already holds at that place stays, and the answer gives the role they hold. `already: true` when this person accepted it before, from their list or the link, and still holds it. |
+| `POST /api/v1/invitations/decline { token }` or `{ invitation_id }` | Ends the invitation and gives no role. |
+
+All three that name an invitation answer alike when it can't be answered. By its link, for any account
+but the invited address's: `403 invitation_wrong_address`, with the address masked and the
+invitation left open. Accepted by a different account, or by this person whose access was since
+removed, and declining one already accepted: `410 invitation_used`. Past its time, cancelled or
+declined: `410 invitation_expired`. An unknown token: `404`. An `invitation_id` names only the
+person's own, so anyone else's answers `404`. Each answer is one transaction that changes the
+invitation only while it is open and sent to the account's verified address, ignoring letter case
+(`answerInvitation`, [`identity.ts`](../../apps/server/src/auth/identity.ts)), so of answers and
+cancellations sent together only the first counts.
+
+**Declining** ends an invitation as cancelling does: its link stops working and its place among the
+organization's people is free ([§9.7](09-data-lifecycle.md#97-plans-and-limits)). The organization's
+access log records `invitation_declined` with the place and the role, under the name Someone: the
+person never joined, so their name, account and address stay theirs. Whoever invited them sees it
+leave Waiting to join, and the organization's owners and admins see the entry; nobody is mailed.
+The person can be invited again.
+
+**One at a time.** An address has one open invitation to a place: a new one replaces it, giving the
+role at once ends it, and answering one ends any other still open there.
 
 ### Sign-in with Microsoft work accounts
 
@@ -192,8 +218,8 @@ token, an address, a name or any claim's value. The diagnosis changes nothing ab
 accepted. `/signin?error=microsoft_unverified`, which earlier releases sent for both refusals,
 still shows a message. An accepted sign-in then does exactly what the others do:
 admission (invite-only mode, invitations, allowances), `findOrCreateAccount` with the
-address and the `name` claim, acceptance of the invitations addressed to it, a session, and a
-redirect to `next`.
+address and the `name` claim, a session, and a redirect to `next`. Invitations addressed to it wait
+for the person's answer.
 
 **What reports it.** `GET /auth/methods` and the `auth` object of `GET /api/v1/meta` each gain
 `microsoft: boolean`, true when the method is on.
@@ -220,7 +246,7 @@ address in it, and an account in WhatBuild is its address.
 earlier person's account, which is equally true of an email link.
 
 *Accept* (`apps/server/test/microsoft-sign-in.test.ts`): with the token endpoint stubbed, server
-tests show a sign-in creating an account and accepting its invitations; each refusal above (`aud`,
+tests show a sign-in creating an account and leaving its invitations waiting; each refusal above (`aud`,
 `tid`, `iss`, no address, wrong `state`); an address outside the listed domains refused whether
 `xms_edov` is false or absent, taken when it is true, an address in a listed domain taken without
 it, and the user principal name taken only in a listed domain; invite-only mode refusing an
@@ -406,7 +432,7 @@ A product is addressed as `tenant/team/product` (slugs or ids at each level) or 
   owner or change or remove an owner's role. A role is given at once only to someone the giver
   already sees in the organization (everyone in it, to its owners and admins; the people on the
   teams and products they read, to anyone else). Anyone else gets a 7-day invitation, whether or
-  not they have an account, and joins by accepting it, so giving a role never says whether an
+  not they have an account, and joins only by accepting it ([§3.2](#invitations)), so giving a role never says whether an
   address has an account, here or elsewhere, or whose it is
   ([decision](../decisions/a-role-is-given-at-once-only-to-someone-already-seen-in-the-organization.md)).
   An invitation is emailed where mail is configured and always returned to the inviter as a
@@ -423,7 +449,7 @@ A product is addressed as `tenant/team/product` (slugs or ids at each level) or 
   its teams or products. A tenant `member` grant adds nothing to that by itself, and `products.list`
   gives such a person `member` as the tenant's `your_role`. Revoking a person's last grant takes
   them out of the tenant, which the answer (`left_organization`) and the access log say;
-  `members.revoke` with `whole_tenant` removes every grant at once.
+  `members.revoke` with `whole_tenant` removes every grant at once, and ends any invitation still open to their address there, which would undo it. A new invitation replacing one still open at the same place asks what cancelling that one asks, and the access log records it.
 - ◆ Decision: reviewing (confirm, refute) is an editor right; there is no separate reviewer role.
 - ◆ Decision: permanent delete is an admin right; there is no separate delete permission. An
   editor archives ([decision](../decisions/archive-by-default-delete-guarded.md)).

@@ -7,6 +7,7 @@ import { useMe, useSignOut } from "../lib/session.tsx";
 import { Button, Glyph, Loading, Sheet, SheetBody, SheetHeader, StatusBadge } from "../ui/index.tsx";
 import { EntryPage } from "../routes/auth.tsx";
 import { AskForOrganization } from "./ask-for-organization.tsx";
+import { InvitationsSheet } from "./invitations.tsx";
 import "../styles/screens/guests.css";
 
 /** A guest account's place, as `GET /api/v1/me/guest-pass` gives it. */
@@ -40,7 +41,8 @@ const PASS_FRESH_MS = 60_000;
  * (opens the app, moves to another screen, comes back to the tab, or asks again on the waiting
  * page), never on a timer, so an open tab nobody looks at neither holds a place nor keeps the
  * database awake. The server decides the place on every call the guest makes, and a call refused
- * because they are not in brings the waiting page at once. Anyone else goes straight through.
+ * because they are not in brings the waiting page at once. An invitation waiting for them shows on
+ * either, since accepting one ends the wait. Anyone else goes straight through.
  */
 export function GuestGate({ children }: { children: ReactNode }) {
   const me = useMe();
@@ -110,6 +112,7 @@ function WaitingRoom({ pass, asking, askAgain }: { pass: GuestPass; asking: bool
             };
   return (
     <EntryPage title={`${words.title} · WhatBuild`}>
+      <InvitationsSheet />
       <Sheet labelledBy="waiting-title">
         <SheetHeader level={1} id="waiting-title" title={words.title} />
         <SheetBody className="waiting">

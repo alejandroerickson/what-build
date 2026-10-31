@@ -98,6 +98,7 @@ const VERBS: Record<string, string> = {
   "membership:joined": "joined",
   "membership:invited": "invited someone to",
   "membership:invitation_cancelled": "cancelled an invitation",
+  "membership:invitation_declined": "declined an invitation to",
   "tenant:renamed": "renamed the organization to",
   "tenant:slug_changed": "changed the short name in links of",
 };
@@ -134,7 +135,7 @@ function linkFor(app: string, i: ActivityItem): string | null {
     case "product":
       return `${app}/settings`;
     case "membership":
-      return i.action === "invitation_cancelled" ? null : `${app}/settings#people`;
+      return i.action === "invitation_cancelled" || i.action === "invitation_declined" ? null : `${app}/settings#people`;
     default:
       return null;
   }

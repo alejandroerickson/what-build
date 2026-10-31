@@ -7,6 +7,7 @@ import { aRole, formatBytes, formatDate, plural, ROLE_WORD, scopeWords, slugProb
 import { anyPriced, keptLine, totalsInWords, usePlans, type Plan } from "../lib/limits.ts";
 import { useMe, useProducts } from "../lib/session.tsx";
 import { ActivityLog, type ActivityItem } from "../shell/ActivityFeed.tsx";
+import { InvitationsSheet, useInvitations } from "../shell/invitations.tsx";
 import { usePageTitle } from "../shell/slots.tsx";
 import {
   Avatar, Button, ButtonLink, Callout, Dialog, EmptyState, ErrorCallout, FormGrid, Glyph, Loading, Menu, MenuGroup, MenuItem, MenuRadio, MenuSeparator,
@@ -28,6 +29,7 @@ import "../styles/screens/settings.css";
 export function Welcome() {
   const me = useMe();
   const products = useProducts();
+  const invitations = useInvitations();
   const qc = useQueryClient();
   const navigate = useNavigate();
   const [org, setOrg] = useState("");
@@ -49,16 +51,18 @@ export function Welcome() {
   // The example organization is everyone's to read, not one of theirs.
   const hasOrgs = Boolean(products.data?.tenants.some((t) => !t.example));
   const example = products.data?.tenants.find((t) => t.example);
+  const invited = Boolean(invitations.data?.items.length);
   // Nothing here for them to set up: only the people who run this WhatBuild let anyone start an organization.
   if (me.data && allowance?.remaining === 0) {
     return (
       <EntryPage title="Welcome · WhatBuild" wide>
+        <InvitationsSheet />
         <Sheet labelledBy="welcome-title">
           <SheetHeader level={1} id="welcome-title" title={hasOrgs ? "You can’t start another organization" : first ? `Welcome, ${first}` : "Welcome"} />
           <SheetBody className="entry-form">
             {!hasOrgs ? (
               <>
-                <p>You&rsquo;re not in an organization yet. Ask someone who uses WhatBuild to invite you.</p>
+                <p>You&rsquo;re not in an organization yet. {invited ? "Accept an invitation to join one." : "Ask someone who uses WhatBuild to invite you."}</p>
                 <p className="muted">To start an organization of your own, ask this WhatBuild&rsquo;s owners.</p>
               </>
             ) : (
@@ -77,6 +81,7 @@ export function Welcome() {
   }
   return (
     <EntryPage title="Welcome · WhatBuild" wide>
+      <InvitationsSheet />
       <Sheet labelledBy="welcome-title">
         <SheetHeader level={1} id="welcome-title" title={hasOrgs ? "New organization" : first ? `Welcome, ${first}` : "Welcome"} />
         <form
@@ -103,7 +108,8 @@ export function Welcome() {
         </form>
       </Sheet>
       <p className="entry-foot">
-        Have an invitation? Open its link instead.{hasOrgs || example ? <> <Link to="/">Back to {hasOrgs ? "your products" : "the example organization"}</Link></> : null}
+        {invited ? null : <>An invitation sent to {me.data?.email ?? "your email"} shows here. </>}
+        {hasOrgs || example ? <Link to="/">Back to {hasOrgs ? "your products" : "the example organization"}</Link> : null}
       </p>
     </EntryPage>
   );

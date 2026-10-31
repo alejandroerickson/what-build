@@ -3,7 +3,7 @@ type: Decision
 title: A role is given at once only to someone the giver already sees in the organization; anyone else is invited, account or not
 description: Giving a role never says whether an address has an account, here or in another organization, and nobody joins an organization without accepting.
 tags: [decision, roles, invitations, privacy, security]
-generated: {by: agent:claude, at: 2026-10-27}
+generated: {by: agent:claude, at: 2026-10-31}
 status: stable
 ---
 
@@ -23,8 +23,9 @@ model listed this as an accepted trade-off for a clearer message. The maintainer
 - `members.grant` and `members.grant_many` give the role at once only to someone the giver already
   sees in the organization, as `members.list` shows them: anyone in it, to its owners and admins;
   the people on the teams and products they read, to anyone else.
-- Anyone else is invited, whether or not they have an account, and joins by accepting (the link,
-  or signing in with the address). The answer, the email, the people lists and the access log are
+- Anyone else is invited, whether or not they have an account, and joins only by accepting, from
+  their list of invitations or the link
+  ([decision](invitations-belong-to-their-address.md)). The answer, the email, the people lists and the access log are
   the same for an address with an account anywhere and for one with none.
 - Rejected: adding accounts at once and hiding only their names. The person would still appear in
   the organization, and nobody should be put in an organization without accepting.

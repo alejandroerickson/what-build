@@ -76,6 +76,7 @@ const OTHER_CHANGES: [RegExp, string][] = [
   [/^\/auth\/email$/, "sign_in_link"],
   [/^\/auth\/sign-out$/, "sign_out"],
   [/^\/api\/v1\/invitations\/accept$/, "invitation_accept"],
+  [/^\/api\/v1\/invitations\/decline$/, "invitation_decline"],
   [/^\/api\/v1\/me$/, "profile_update"],
   [/^\/api\/v1\/me\/agents\/[^/]+$/, "agent_disconnect"],
 ];
