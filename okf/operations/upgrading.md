@@ -34,7 +34,10 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
   (`derived_write(action="rederive")`, or Read it again in the web app, one attachment at a time) or
   a new version of it arrives; `parser_version` in `derived_read(action="manifest")` says which parser
   made a reading. Then a source whose text still follows that attachment takes the new text and a new
-  etag, and a text someone wrote or edited is left alone; the reading made earlier is kept.
+  etag, and a text someone wrote or edited is left alone; the reading made earlier is kept. Copying a
+  source to another product reads its attachments again, so the copy of a source read earlier takes
+  this parser's text where its text still follows the attachment, though the source it came from
+  keeps its own.
 - **Signing in no longer accepts invitations: a person joins only by choosing to** (`tools_version`
   0.51.0). It asks nothing of a deployment, and adds no migration. People will notice: someone
   invited is not in the organization after signing in, however they sign in. They see each

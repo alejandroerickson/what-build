@@ -122,7 +122,7 @@ running without a compliance program.
 | Read per attachment | 25 MB (`WHATBUILD_PARSE_CAP_BYTES`); a larger attachment is stored, not read | Yes |
 | Memory for reading one attachment | 384 MB of heap (`WHATBUILD_PARSE_MEMORY_MB`), and half as much again for buffers; a parse that needs more is stopped and fails | Yes |
 | Time for reading one attachment | 120 seconds (`WHATBUILD_PARSE_TIMEOUT_SECONDS`); a parse that runs longer is stopped and fails | Yes |
-| Paragraphs read from one attachment | 200,000; a file that would make more is stored, not read (`too_large`) | Yes |
+| Paragraphs read from one attachment | 200,000; a file that would make more is stored, not read (`too_large`), except a PDF whose short lines would, read to its sentences' ends instead ([§5.5](05-derived-layer.md)) | Yes |
 | Pages of a parsed PDF | 2,000; a longer PDF is stored, not read (`too_large`) | Yes |
 | Attachments per source | 50 | Yes — `409 too_many_attachments` |
 | A derived text written whole | 2,000,000 characters; a longer one is uploaded as an attachment and its text taken | Yes — `422 too_long` |

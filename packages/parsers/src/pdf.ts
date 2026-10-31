@@ -1,5 +1,5 @@
 import { layoutPage, pageBlocks, repeatedLines, type PageLayout, type TextRun } from "./pdf-layout.ts";
-import { MAX_SEGMENTS } from "./text.ts";
+import { MAX_SEGMENTS, segmentCount } from "./text.ts";
 import { TooLargeError, type Block, type FormatParser } from "./types.ts";
 
 type TextItem = { str?: string; dir?: string; width?: number; transform?: number[] };
@@ -134,8 +134,9 @@ export const pdfParser: FormatParser = {
       }
     };
     readPages(false);
-    // A file of more short lines than a reading may hold paragraphs reads them run together rather than not at all.
-    if (blocks.length > MAX_SEGMENTS) readPages(true);
+    // A file of more short lines than a reading may hold paragraphs reads them run together rather
+    // than not at all. A long paragraph counts as the pieces it will be split into.
+    if (segmentCount(blocks) > MAX_SEGMENTS) readPages(true);
     // So are the sizes headings are set in. A heading's level follows its size, the same size the
     // same level throughout the file: the largest is level 2, under each page's `# Page N`, the next
     // level 3, and so on to 6.

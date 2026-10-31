@@ -8,7 +8,7 @@ import { layoutPage, pageBlocks, repeatedLines, type TextRun } from "../src/pdf-
 import { atxHeading, MAX_LIST_DEPTH, stripInlineMarkdown } from "../src/plaintext.ts";
 import { speakerLine } from "../src/speakers.ts";
 import { codePointLength, isSpaceUnit, nonSpaceCodePoints } from "../src/text.ts";
-import { makeBlankPdf, makeDocx, makePdf, makePdfOfLines, makeXlsx, utf8 } from "./fixtures.ts";
+import { makeBlankPdf, makeDocx, makePdf, makePdfOfLines, makePdfOfStreams, makeXlsx, utf8 } from "./fixtures.ts";
 
 // Hostile files: each must end in a status (never a crash or a hang) within bounded time and
 // memory. The server parses each file in a worker thread held to a memory and a time limit, so
@@ -519,6 +519,19 @@ describe("PDF pages that would take long to lay out", () => {
     expect(r.segments.length).toBeLessThan(5000);
     const fewer = await derive(makePdfOfLines(30_000, "Short"), "lines.pdf");
     expect(fewer.segments).toHaveLength(30_001);
+  }, 120_000);
+
+  it("counts the pieces a long paragraph is split into, so a file just under the limit in blocks still reads", async () => {
+    // Short lines just under the limit, and a page of long lines with no full stop that split into more than the rest.
+    const short = 199_900;
+    const leading = 780 / short;
+    const shortLines = `BT /F1 ${(leading * 0.6).toFixed(6)} Tf 72 785 Td ${leading.toFixed(6)} TL\n${"(Short) Tj T* ".repeat(short)}ET`;
+    const longLines = `BT /F1 0.05 Tf 10 700 Td 1 TL\n${`(${"word ".repeat(4000)}) Tj T* `.repeat(40)}ET`;
+    const { r } = await measured(makePdfOfStreams([shortLines, longLines]), "lines.pdf");
+    expect(r.status).toBe("ready");
+    // Every word of the long page is kept, read with the short lines to the sentences' ends.
+    expect(r.segments.length).toBeLessThan(5000);
+    expect(r.segments.map((g) => g.text).join(" ").match(/word/g)).toHaveLength(160_000);
   }, 120_000);
 
   it("compares lines repeated up the margin in time linear in their length", () => {

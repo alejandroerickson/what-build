@@ -187,6 +187,8 @@ export interface PdfRun {
   y: number;
   size?: number;
   bold?: boolean;
+  /** Set in Courier, whose every character is 0.6 of an em wide. */
+  mono?: boolean;
   /** Drawn turned a quarter turn, reading up the page. */
   turned?: boolean;
 }
@@ -209,18 +211,19 @@ export function makePdfPages(pages: PdfRun[][], options: { tagged?: boolean } = 
     "",
     "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>",
     "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>",
+    "<< /Type /Font /Subtype /Type1 /BaseFont /Courier /Encoding /WinAnsiEncoding >>",
   ];
   const kids: string[] = [];
   for (const runs of pages) {
     // Marked content parts text as a tagged PDF's cells are parted, however close they stand; without it, pdf.js reads runs less than 0.6 of an em apart as one.
     const stream = runs
       .map((r, n) => {
-        const text = `BT /${r.bold ? "F2" : "F1"} ${r.size ?? 11} Tf ${r.turned ? "0 1 -1 0" : "1 0 0 1"} ${r.x} ${r.y} Tm (${esc(r.text)}) Tj ET`;
+        const text = `BT /${r.mono ? "F3" : r.bold ? "F2" : "F1"} ${r.size ?? 11} Tf ${r.turned ? "0 1 -1 0" : "1 0 0 1"} ${r.x} ${r.y} Tm (${esc(r.text)}) Tj ET`;
         return options.tagged ? `/P <</MCID ${n}>> BDC ${text} EMC` : text;
       })
       .join("\n");
     objects.push(`<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`);
-    objects.push(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents ${objects.length} 0 R >>`);
+    objects.push(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R /F2 4 0 R /F3 5 0 R >> >> /Contents ${objects.length} 0 R >>`);
     kids.push(`${objects.length} 0 R`);
   }
   objects[1] = `<< /Type /Pages /Kids [${kids.join(" ")}] /Count ${pages.length} >>`;
@@ -245,14 +248,19 @@ export function pdfLines(lines: string[], o: { x?: number; top?: number; leading
 /** A one-page PDF of `count` lines of `text`, set small enough that all of them stand on the page. */
 export function makePdfOfLines(count: number, text: string): Uint8Array {
   const leading = 780 / count;
-  const stream = `BT /F1 ${(leading * 0.6).toFixed(6)} Tf 72 785 Td ${leading.toFixed(6)} TL\n${`(${text}) Tj T* `.repeat(count)}ET`;
-  const objects = [
-    "<< /Type /Catalog /Pages 2 0 R >>",
-    "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
-    "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>",
-    `<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`,
-    "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
-  ];
+  return makePdfOfStreams([`BT /F1 ${(leading * 0.6).toFixed(6)} Tf 72 785 Td ${leading.toFixed(6)} TL\n${`(${text}) Tj T* `.repeat(count)}ET`]);
+}
+
+/** A PDF whose pages draw these content streams, each in Helvetica as /F1. */
+export function makePdfOfStreams(streams: string[]): Uint8Array {
+  const objects = ["<< /Type /Catalog /Pages 2 0 R >>", "", "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>"];
+  const kids: string[] = [];
+  for (const stream of streams) {
+    objects.push(`<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`);
+    objects.push(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents ${objects.length} 0 R >>`);
+    kids.push(`${objects.length} 0 R`);
+  }
+  objects[1] = `<< /Type /Pages /Kids [${kids.join(" ")}] /Count ${kids.length} >>`;
   const parts = ["%PDF-1.4\n"];
   let length = parts[0]!.length;
   const offsets: number[] = [];

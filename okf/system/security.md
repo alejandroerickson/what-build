@@ -345,7 +345,8 @@ holds each one; the linked decisions say why. Observed in the code on 2026-10-10
 - Parsers bound what a file can make them do (`packages/parsers/src/`). A file over the parse cap
   (25 MiB) is stored but not read; DOCX, XLSX and DOC packages count the bytes they unpack against
   the cap and stop past it, whatever sizes they declare; a PDF of more than 2,000 pages, and a file
-  that would make more than 200,000 paragraphs, are too large; pdf.js decodes no images; HTML nests
+  that would make more than 200,000 paragraphs, are too large, a PDF first reading its short lines to
+  their sentences' ends rather than stopping there; pdf.js decodes no images; HTML nests
   at most 512 deep and makes elements in proportion to its length; patterns that could backtrack
   are single passes, so text is read in time linear in its length. XML is read with saxes, which
   expands no DTD entities, internal or external. A parser's error becomes a status.

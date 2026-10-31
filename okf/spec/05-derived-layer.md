@@ -216,19 +216,31 @@ order and laid out by where they stand on the page:
 - **Tables set tighter.** pdf.js reads two cells less than 0.6 of the font's height apart as one run
   unless something in the file parts them (a tag, as in a tagged PDF, or a change of font), so such a
   table's rows seem to have fewer cells than it has columns, and which cells run together differs
-  from row to row. Its columns are then the stretches across the page that no row's words cover, a
-  word inside a run standing where its letters put it, near enough. Such a stretch is a gutter when
-  the file parts two words at it on two rows, by a gap at least 0.15 of the font's height wide, or
-  by a number that follows (`12 500`, a number in thousands, being one number); or, once a table has
-  a gutter, on one row where two others have a word end there. A table needs three rows of cells, or
-  two where the file parts every cell. A row with no such gap is one of its rows only where its cells
-  stand within 0.6 of the font's height of their columns' cells, it reaches no more than 3 ems past
-  the table, ends no sentence, and holds at most three words a column; with no number to part it, it
-  also fills every column, so a title above a table or a line of text under it stays out. Lines whose
-  cells wrap onto the next, as prose's do, and single characters set apart, as text written down the
-  page is, make no table. This table replaces one found the first way only where it reads all of
-  that one's lines and reads more rows or more columns, or that one held two cells in one, so a table
-  whose columns are plain to see reads as it did.
+  from row to row. A second search looks for them, and in doubt makes no table. Its columns are
+  stretches across the page that no row's words cover, a word inside a run standing where its letters
+  put it, near enough, and such a stretch is a gutter only where something shows it: two rows have a
+  gap the file shows at it (at least 0.15 of the font's height, and not one character of a fixed-pitch
+  font), with the cells after it on one edge, and the gap's width differs from row to row or is at
+  least 0.7 of the font's height, since a narrower gap of one width is a space between words; or one
+  row has such a gap, the table's other gutters are shown, two other rows have words end at it, and
+  the cells after it stand within 0.6 of the font's height of that row's; or three rows hold a number
+  either side of it (`12 500`, a number in thousands, being one number). Numbers alone show a table
+  only as three columns of them, and the word before the first of them then parts from it if only
+  numbers follow it on every row and they stand in line. A word and the number after it never show a
+  column (`Flat 2`, `Group 1`, `Room 12`), a column whose cell is the same on every row is part of the
+  next (`Group | 1`), and a gap of 0.4 of the font's height left inside a column, or a first row that
+  leaves a column after its first empty, means no table. A table needs three rows of cells. A row with
+  no gap the file shows is one of its rows only where it fills every column, in at most two words a
+  column and ends no sentence, each cell of the kind its column holds (numbers, or words), standing
+  within 0.6 of the font's height of its column's cells, or where the file gives that edge, on it; under the last
+  row the file parts, it must also hold numbers in every column after the first, so a title above a
+  table or a note under it (`Revised 2026`, `See note 3`) stays out. Lines whose cells wrap onto the
+  next, as prose's do, and single characters set apart, as text written down the page is, make no
+  table. This table replaces one found the first way only where it reads all of that one's lines and
+  keeps every column it had, and shows what that one missed: rows of cells it lost, two cells it held
+  in one by reaching across a gutter, a gutter inside one of its columns that the file shows, or, with
+  numbers, one that a first row it left out fills. So a table whose columns are plain to see reads as
+  it did.
 - **Headings.** A line of one cell set clearly larger than its page's text, every run of it at
   least 1.15 times the size most of the page's characters outside its tables are set in, is a
   heading of its own, never run into the text before or after it, with the lines just under it in
@@ -246,12 +258,22 @@ order and laid out by where they stand on the page:
   paragraph breaks only where the next word does not fit. A column's width is the widest of the 12
   lines either side, in the line's size, that start within a quarter of the font's height of where
   it or the next line starts, so a quote set narrower than the text is measured by its own lines.
+  Lines narrower than a text above or below them at their edge, as a column under a line across the
+  page, or lines beside a figure, are, are measured by themselves: at least three lines one after
+  the next, none wider than the line by more than 4 ems or a quarter of its width, one of them going
+  on from the line above (in lower case, or in writing with no lower case). Writing that breaks
+  between any two characters has one character for its next word; Thai, Lao, Khmer and Myanmar set
+  no space between their words, so a line cannot tell how long its next word is, and they part as
+  lines in lower case do, or at white space.
   Under a line that does not go on in lower case, a paragraph also ends at white space more than
   1.25 times the page's usual spacing for that size, at a change of size, under lines no wider in all
-  than 8 ems, under a line wider than any near it shows a column to be, and in rows of a table whose
-  columns could not be found: two lines that each end in a number, or three that hold as many words.
+  than 8 ems, under a line wider than any near it shows a column to be, unless nothing else stands
+  near and it is at least 30 ems wide, and in rows of a table whose columns could not be found: two
+  lines that each end in a number, or three that hold as many words, 8 at most, and a line that opens
+  as the one above did, its first word and a number (`Chapter 1`, `Chapter 2`).
   A line that does go on in lower case reads on unless it stops short of 0.6 of its column's width,
-  or both lines are a single word under those 8 ems; a large figure and the words that go on from it
+  either line holds no word of two letters (`x = 10 + y`), or both lines are a single word under
+  those 8 ems; a large figure and the words that go on from it
   (`87%`, `of the crews`) read on. A line that starts a list stands apart from what came before it,
   and its own wrapped lines stay with it: a bullet always, a dash or a star unless lower case follows
   it on a line that fills its column, and a number or letter (`1.`, `2)`, `(a)`, `iv.`) within a list
@@ -282,6 +304,14 @@ repeat it, so a page's own first line stays.
 columns cannot be found read a line each, their cells kept apart, which reads as the page does
 without claiming a structure the file does not show. Where the words of a run stand is reckoned, not
 read, so it can support a column the file shows, or that numbers show, and never show one alone.
+
+◆ Decision: PDF text is people's evidence, so the search for tables set tight gives way to doubt. A
+value in the wrong cell is the worst a reading can do, because it changes what a reader believes the
+data says; next worst is a table that read correctly and no longer does; a false paragraph break,
+or a line read plainly instead of as a table, is mild. So it looks only where the first search lost
+rows or held cells in one, a column needs evidence the file or a column of numbers gives, and it
+never replaces a table it cannot show to be wrong, even where that leaves a tight table read as lines
+or with cells in one.
 
 ◆ Decision: a line of a PDF that ends no sentence ends its paragraph by where it stops, not by what
 it ends in: running a heading or a list into the text under it misreads the page, where parting a

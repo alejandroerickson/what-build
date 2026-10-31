@@ -1254,6 +1254,88 @@ describe("PDF layout", () => {
       expect(blocksOf([run("Attendees", 72, 700, 0), run("Dana Lee", 72, 686, 0), run("Sam Okafor went home.", 72, 672, 0)])).toEqual(["Attendees Dana Lee Sam Okafor went home."]);
     });
 
+    it("measures a column under a line across the page by its own lines, not by the wider text at its edge", async () => {
+      const across = ["The survey covered every crew in the north region over two seasons, and each of the leads was", "asked in person how the week is planned, who writes the board, and who in the office sees it."];
+      const left = ["The crews plan the week on Friday, in", "the yard, with a paper board that the", "lead fills in by hand before they go,", "and the office hears of it on Monday", "when somebody sends a photo of it to", "the desk, which copies out the plan", "into a sheet that nobody else reads"];
+      const right = ["and that the crews do not trust, since", "it is out of date by the time it has", "been copied, and the board has changed", "again by then, as it does most weeks,", "which the office knows about and has", "said it would like to change one day,", "though nobody has asked the crews yet."];
+      const r = await read([[...pdfLines(across, { top: 720 }), ...pdfLines(left, { top: 690 }), ...pdfLines(right, { x: 320, top: 690 })]]);
+      expect(r.segments.slice(1).map((g) => g.text)).toEqual([across.join(" "), [...left, ...right].join(" ")]);
+    });
+
+    it("reads one paragraph wrapped around a figure as one, its short lines being the figure's", async () => {
+      const lines = [
+        "The survey covered every crew in the north region over two seasons, and each of the leads",
+        "was asked in person how the week is planned, who writes the board, and who in the office",
+        "sees it before the Monday meeting, which",
+        "most of them said they had never been",
+        "to, and which the office said was the",
+        "place where the plan was settled, though",
+        "the crews said it was settled long before",
+        "that, on the Friday, in the yard, with a paper board, when the lead fills it in by hand and the",
+        "crews read it on the way out to the vans, and nobody in the office sees it at all.",
+      ];
+      const r = await read([pdfLines(lines)]);
+      expect(r.segments.slice(1).map((g) => g.text)).toEqual([lines.join(" ")]);
+    });
+
+    it("still ends a paragraph at a short line among lines of its own width, and parts a list of lines alike", async () => {
+      // A short closing line in a column under a wider text stops short of its own column, not only of that text.
+      const across = "The survey covered every crew in the north region over two seasons, and each of the leads was.";
+      const column = ["The crews plan the week on Friday, in", "the yard, with a paper board that the", "lead fills in by hand before they go.", "Observed on site", "The office keeps its own plan in a", "sheet that it updates from the photos."];
+      const r = await read([[...pdfLines([across], { top: 720 }), ...pdfLines(column, { top: 700 })]]);
+      expect(r.segments.slice(1).map((g) => g.text)).toEqual([across, column.slice(0, 3).join(" "), column[3], column.slice(4).join(" ")]);
+      // Lines of one width, each opening with a capital, are no paragraph that wraps.
+      const list = ["Next steps for the crews in the yard", "Who owns the board once the lead goes", "What the office reads on the Monday", "How the sheet is kept from going stale"];
+      const items = await read([[...pdfLines(["The survey covered every crew in the north region over two seasons, and each of the leads."], { top: 720 }), ...pdfLines(list, { top: 700 })]]);
+      expect(items.segments.slice(2).map((g) => g.text)).toEqual(list);
+    });
+
+    it("reads a paragraph of two lines alone on a page whole, whatever starts the second", async () => {
+      const r = await read([pdfLines(["The crews were asked in the yard on a Friday afternoon what they thought of", "Microsoft and its products"])]);
+      expect(r.segments.slice(1).map((g) => g.text)).toEqual(["The crews were asked in the yard on a Friday afternoon what they thought of Microsoft and its products"]);
+      // A short line over another is two lines, as it was.
+      const short = await read([pdfLines(["Attendees", "Microsoft and its products"])]);
+      expect(short.segments.slice(1).map((g) => g.text)).toEqual(["Attendees", "Microsoft and its products"]);
+    });
+
+    it("reads a line each where lines open alike, their first word and then a number", async () => {
+      for (const lines of [
+        ["Chapter 1 Overview of the work", "Chapter 2 Methods", "Chapter 3 Results of the survey", "Chapter 4 Discussion"],
+        ["In 2019 the depot moved to", "In 2020 the depot grew to", "In 2021 the depot closed"],
+      ]) {
+        const r = await read([pdfLines(lines)]);
+        expect(r.segments.slice(1).map((g) => g.text)).toEqual(lines);
+        expect(r.facts).toMatchObject({ table_count: 0 });
+      }
+    });
+
+    it("reads a line each where lines of few words hold as many, but not prose whose lines happen to hold as many", async () => {
+      const rows = ["Dana Lee North yard", "Sam Okafor South gate", "Priya Nair East dock"];
+      expect((await read([pdfLines(rows)])).segments.slice(1).map((g) => g.text)).toEqual(rows);
+      // Each line holds eleven words, and starts with a capital, as a language's nouns may.
+      const prose = ["Die Kolonnen planen am Freitag im Hof die ganze Woche mit", "Tafeln aus Papier, die der Vorarbeiter im Hof von Hand schreibt", "Montag erfaehrt das Buero davon, wenn jemand ihm ein Foto schickt", "Niemand dort hat es bisher gesehen, sagen alle Leute im Hof dazu."];
+      expect((await read([pdfLines(prose)])).segments.slice(1).map((g) => g.text)).toEqual([prose.join(" ")]);
+    });
+
+    it("reads a line each of a listing or a formula, which wraps onto nothing though it starts in lower case", async () => {
+      const lines = ["x = 10 + y", "y = 20 + z", "z = 30 + w", "w = 40 + v"];
+      const r = await read([lines.map((text, i): PdfRun => ({ text, x: 72, y: 700 - i * 14, mono: true }))]);
+      expect(r.segments.slice(1).map((g) => g.text)).toEqual(lines);
+      expect(r.facts).toMatchObject({ table_count: 0 });
+    });
+
+    it("reads ragged Thai, Lao, Khmer and Myanmar as a paragraph, since their next word's length cannot be told", () => {
+      for (const [script, letter] of [["Thai", "ก"], ["Lao", "ກ"], ["Khmer", "ក"], ["Myanmar", "က"]] as const) {
+        const text = (n: number) => letter.repeat(n);
+        // Lines broken where a word ends, each a word's length short of the column's width, as a ragged column is.
+        const lines = [run(text(90), 72, 700, 460), run(text(70), 72, 686, 372), run(text(80), 72, 672, 424), run(text(65), 72, 658, 345), run(text(85), 72, 644, 450)];
+        expect(blocksOf(lines), script).toEqual([[90, 70, 80, 65, 85].map(text).join(" ")]);
+        // A line that stops well short still ends its paragraph, and so does white space.
+        const apart = [run(text(90), 72, 700, 460), run(text(30), 72, 686, 160), run(text(90), 72, 672, 460), run(text(85), 72, 658, 450), run(text(90), 72, 620, 460), run(text(85), 72, 606, 450)];
+        expect(blocksOf(apart), script).toEqual([`${text(90)} ${text(30)}`, `${text(90)} ${text(85)}`, `${text(90)} ${text(85)}`]);
+      }
+    });
+
     it("keeps a word broken at the end of a line with its other half", async () => {
       const r = await read([pdfLines(["Pre-", "fabricated boards are what the crews said they wanted to keep, in the yard."])]);
       expect(r.segments.slice(1)).toHaveLength(1);
@@ -1377,6 +1459,96 @@ describe("PDF layout", () => {
         ],
       ]);
       expect(r.markdown).toBe("# Page 1\n\n| Source | What we heard | Weight |\n| --- | --- | --- |\n| Interview | Pricing came up twice | High |\n| Survey | Mixed | Low |\n");
+    });
+
+    describe("what it leaves alone", () => {
+      const ARM = [["Arm", "Patients", "Events"], ["Group 1", "120", "4"], ["Group 2", "98", "7"], ["Group 3", "110", "5"]];
+      const WHO = [["Who", "Where", "When"], ["Ana", "Room 12", "Monday"], ["Ben", "Room 14", "Friday"], ["Kai", "Room 9", "Sunday"]];
+      const table = (rows: string[][]) => [`| ${rows[0]!.join(" | ")} |`, `| ${rows[0]!.map(() => "---").join(" | ")} |`, ...rows.slice(1).map((row) => `| ${row.join(" | ")} |`)].join("\n");
+
+      it("reads as it did a table whose columns are plain to see, with a number among a cell's words", async () => {
+        for (const gap of [0.7, 0.9, 1, 2]) {
+          expect((await read2([pdfTable(ARM, { gap })])).markdown, `gap ${gap}`).toBe(`# Page 1\n\n${table(ARM)}\n`);
+          if (gap > 0.7) expect((await read2([pdfTable(WHO, { gap })])).markdown, `gap ${gap}`).toBe(`# Page 1\n\n${table(WHO)}\n`);
+          expect((await read2([pdfTable(ARM, { gap })], { tagged: true })).markdown, `tagged, gap ${gap}`).toBe(`# Page 1\n\n${table(ARM)}\n`);
+        }
+      });
+
+      it("reads as it did such a table written from the right", () => {
+        const cell = (text: string, x: number, y: number, width: number, order: number): TextRun => ({ text, x, y, width, size: 11, order, rtl: true });
+        const rows = [["אירועים", "חולים", "קבוצה"], ["4", "120", "קבוצה 1"], ["7", "98", "קבוצה 2"], ["5", "110", "קבוצה 3"]];
+        const runs = rows.flatMap((row, i) => [cell(row[0]!, 300, 700 - i * 14, row[0]!.length * 5.5, i * 3), cell(row[1]!, 400 - row[1]!.length * 5.5, 700 - i * 14, row[1]!.length * 5.5, i * 3 + 1), cell(row[2]!, 500 - row[2]!.length * 5.5, 700 - i * 14, row[2]!.length * 5.5, i * 3 + 2)]);
+        const { blocks } = pageBlocks(layoutPage(runs, [], 0, 792), 1, new Map());
+        const read = blocks.find((b) => b.table)?.table;
+        expect(read?.header).toEqual(rows[0]);
+        expect(read?.rows).toEqual(rows.slice(1));
+      });
+
+      it("takes no list or short lines for a table for the numbers in them", async () => {
+        for (const lines of [
+          ["Flat 2 Oak Road", "Flat 3 Oak Road", "Flat 5 Oak Road", "Flat 9 Oak Road"],
+          ["Chapter 1 Overview of the work", "Chapter 2 Methods", "Chapter 3 Results of the survey", "Chapter 4 Discussion"],
+          ["Monday 9 am briefing", "Tuesday 10 am review", "Friday 11 am closing"],
+          ["In 2019 the depot moved to", "In 2020 the depot grew to", "In 2021 the depot closed"],
+          ["Dana 555 0100", "Sam 555 0101", "Priya 555 0188"],
+        ]) {
+          const r = await read2([pdfLines(lines)]);
+          expect(r.segments.slice(1).map((g) => g.text), lines[0]).toEqual(lines);
+          expect(r.facts, lines[0]).toMatchObject({ table_count: 0 });
+        }
+      });
+
+      it("takes no list for a table where a word set in another font ends where the next word starts, a space's width away", async () => {
+        // Two runs on each line: the gap is the file's, of one width on every row, and only a space between words.
+        const items = [["Chapter 1", "Overview of the work"], ["Chapter 2", "Methods"], ["Chapter 3", "Results of the survey"], ["Chapter 4", "Discussion"]];
+        const runs = items.flatMap(([a, b], i): PdfRun[] => [{ text: a!, x: 72, y: 700 - i * 14, bold: true }, { text: b!, x: 72 + 50.73 + 3, y: 700 - i * 14 }]);
+        const r = await read2([runs]);
+        expect(r.facts).toMatchObject({ table_count: 0 });
+        expect(r.markdown).not.toContain("|");
+      });
+
+      it("takes no list for a table where the same word stands before a number on every row, in two runs", async () => {
+        const lines = ["2 Oak Road", "3 Oak Road", "5 Oak Road", "9 Oak Road"];
+        const runs = lines.flatMap((text, i): PdfRun[] => [{ text: "Flat", x: 72, y: 700 - i * 14, bold: true }, { text, x: 72 + 19.56 + 3, y: 700 - i * 14 }]);
+        const r = await read2([runs]);
+        expect(r.facts).toMatchObject({ table_count: 0 });
+      });
+
+      it("leaves a note under a tight table out of it, though a number in it stands in a column", async () => {
+        const rows = [["Part", "Count", "Samples"], ["Keel", "12", "3.2"], ["Deck", "7", "2.8"], ["Hull", "9", "4.1"]];
+        for (const note of ["Revised 2026", "Based on 36 crews", "See note 3", "Source 2024 survey"]) {
+          const r = await read2([[...pdfTable(rows, { gap: 0.25, top: 700 }), { text: note, x: 72, y: 700 - 3 * 14 - 16 }]]);
+          expect(r.markdown, note).toBe(`# Page 1\n\n${table(rows)}\n\n${note}\n`);
+        }
+        // With row spacing wide enough to take it, and in a table of words.
+        const words = [["Part", "Crew", "Count"], ["Keel", "North", "12"], ["Deck", "South", "7"], ["Hull", "East", "9"]];
+        const under = await read2([[...pdfTable(words, { gap: 0.25, top: 700 }), { text: "See note 3", x: 72, y: 700 - 4 * 14 }]]);
+        expect(under.markdown).toBe(`# Page 1\n\n${table(words)}\n\nSee note 3\n`);
+      });
+
+      it("keeps a number that goes with a word in its cell where nothing shows them apart", async () => {
+        // Each row one run: the numbers show their own columns, and the same word on every row stays with the number after it.
+        const rows = ["Arm Patients Events", "Group 1 120 4.5", "Group 2 98 7.5", "Group 3 110 5.5"];
+        const r = await read2([pdfLines(rows)]);
+        expect(r.markdown).not.toContain("| Group |");
+      });
+
+      it("replaces no table with one of fewer columns", async () => {
+        // A table the first search finds in two of these rows, its columns plain to see, the rest of them read as lines.
+        const rows = [["Rinker", "75", "71.8", "kaillfa"], ["Weker", "45", "11.9", "an"], ["Watmo kail", "195", "186.1", "telrin"], ["Kail", "167", "199.5", "tan"]];
+        const wide = rows[0]!.map((_, j) => Math.max(...rows.map((row) => row[j]!.length * 6.6)));
+        const xs = wide.map((_, j) => 72 + wide.slice(0, j).reduce((a, b) => a + b + 0.45 * 11, 0));
+        const r = await read2([rows.flatMap((row, i) => row.map((text, j): PdfRun => ({ text, x: xs[j]!, y: 700 - i * 14, mono: true })))]);
+        expect(r.markdown).toContain("| Rinker | 75 | 71.8 | kaillfa |\n| --- | --- | --- | --- |\n| Weker | 45 | 11.9 | an |");
+        expect(r.markdown).not.toContain("75 71.8");
+      });
+
+      it("reads a table that the first search read with a cell of it split apart no further", async () => {
+        // The first search holds these; numbers in one cell stay one until a first row of as many cells shows otherwise.
+        const rows = [["Name", "Phone", "Region"], ["Dana", "415 0100", "North"], ["Samir", "650 0101", "South"], ["Priya", "212 0188", "East"]];
+        const r = await read2([pdfTable(rows, { gap: 1 })]);
+        expect(r.markdown).toBe(`# Page 1\n\n${table(rows)}\n`);
+      });
     });
 
     it("reads no table from text written down the page, whose characters stand in columns", () => {
