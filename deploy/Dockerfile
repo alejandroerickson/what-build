@@ -21,10 +21,12 @@ COPY scripts/gen-guide.mjs scripts/
 # The commit being built, recorded in build.json and in the web app, which compares the two to
 # know when a release replaced it; Cloud Build, the Release workflow and the Azure guide pass it.
 ARG WHATBUILD_COMMIT=""
+# npm installs what the server leaves out of its bundle (apps/server/build.mjs). A release must be a
+# week old here too (okf/operations/security-checks.md), and no package runs an install script.
 RUN node scripts/gen-guide.mjs \
  && pnpm --filter @whatbuild/web build \
  && node apps/server/build.mjs \
- && cd apps/server/dist && npm install --omit=dev --no-audit --no-fund
+ && cd apps/server/dist && npm install --omit=dev --no-audit --no-fund --ignore-scripts --min-release-age=7
 
 # ---- 2. Run -------------------------------------------------------------------------------------
 FROM node:24-slim
