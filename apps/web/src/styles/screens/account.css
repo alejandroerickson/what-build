@@ -401,7 +401,28 @@
   margin: 0;
 }
 
+/* Invitations waiting for an answer: above the screen in the shell, in a sheet outside it. */
+.invitation-list {
+  display: grid;
+  gap: var(--s-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.invitation-more {
+  margin-top: var(--s-2);
+}
+
 @media (max-width: 760px) {
+  /* The buttons take a line of their own, under the words, so neither is squeezed. */
+  .invitation-row .callout {
+    grid-template-columns: 16px minmax(0, 1fr);
+  }
+  .invitation-row .callout-action {
+    grid-column: 2;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
   .agents-levels {
     grid-template-columns: minmax(0, 1fr);
   }

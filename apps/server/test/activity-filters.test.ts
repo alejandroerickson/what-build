@@ -53,7 +53,7 @@ beforeAll(async () => {
   expect((await alice.api("PUT", `${P}/story/style`, { house_style: "clear" })).status).toBe(200);
   const page = '<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Board</title></head><body><h1>Board</h1></body></html>';
   expect((await alice.api("POST", `${P}/mockups`, { title: "Board", pages: [{ page_id: "board", title: "Board", html: page }] })).status).toBe(201);
-  // Someone invited to the product joins it by signing in with the address.
+  // Someone invited to the product joins it by signing in with the address and accepting (the harness does, as they would).
   expect((await alice.api("POST", `/api/v1/tenants/${t.body.tenant.slug}/members`, { team: t.body.team.slug, product: "logbook", email: "newcomer@example.com", role: "viewer" })).status).toBe(201);
   await h.signIn("newcomer@example.com", "Nia Newcomer");
   expect((await alice.api("POST", `${P}/exports`, {})).status).toBe(201);

@@ -15,11 +15,12 @@ const state = {
   asked: 0,
   remaining: undefined as number | undefined,
   waitlisted: null as string | null,
+  invitations: [] as unknown[],
 };
 
 vi.mock("../src/lib/api.ts", async (original) => ({
   ...(await original<typeof import("../src/lib/api.ts")>()),
-  api: vi.fn(async () => (state.asked++, state.pass)),
+  api: vi.fn(async (_method: string, path: string) => (path === "/api/v1/me/invitations" ? { items: state.invitations } : (state.asked++, state.pass))),
 }));
 vi.mock("../src/lib/session.tsx", async (original) => ({
   ...(await original<typeof import("../src/lib/session.tsx")>()),
@@ -37,7 +38,7 @@ afterEach(() => {
   unmount?.();
   unmount = null;
   document.body.innerHTML = "";
-  Object.assign(state, { guest: true, pass: { guest: true, status: "in", minutes_left: 100 }, asked: 0, remaining: undefined, waitlisted: null });
+  Object.assign(state, { guest: true, pass: { guest: true, status: "in", minutes_left: 100 }, asked: 0, remaining: undefined, waitlisted: null, invitations: [] });
 });
 
 async function gate() {
@@ -80,6 +81,17 @@ describe("the guest gate", () => {
     expect(text).toContain("25 guests are exploring, the most it lets in at once. Try again in a minute: your place in line is kept for two minutes after you last ask.");
     expect([...host.querySelectorAll("button")].map((b) => b.textContent)).toContain("Try again");
     expect(text).not.toContain("the app");
+  });
+
+  it("shows a waiting guest the invitations waiting for them, since accepting one ends the wait", async () => {
+    state.pass = { guest: true, status: "waiting", reason: "full", position: 3, in_now: 25 };
+    state.invitations = [{ invitation_id: "i", tenant: { slug: "acme", name: "Acme Labs" }, scope_type: "team", scope: "Research", role: "editor", invited_by: '"Riley Chen"', expires_at: "2026-11-07T12:00:00.000Z" }];
+    const host = await gate();
+    await act(() => new Promise((r) => setTimeout(r, 20)));
+    expect(host.textContent).toContain("WhatBuild is full right now");
+    expect(host.textContent).toContain('Join "Acme Labs"?');
+    expect(host.textContent).toContain('"Riley Chen" invited you as an editor on the "Research" team.');
+    expect(host.querySelector(`[aria-label='Accept the invitation to "Acme Labs"']`)).toBeTruthy();
   });
 
   it("offers a waiting guest the waitlist, and once they are on it says since when", async () => {

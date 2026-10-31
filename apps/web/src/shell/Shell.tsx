@@ -9,6 +9,7 @@ import { BrandMark } from "./brand.tsx";
 import { AccountMenu, BrandRow, PlainNav, ProductNav, ProductSwitcher, productSection } from "./panel.tsx";
 import { FindLauncher, FindProvider } from "./find-palette.tsx";
 import { ExampleBanner } from "./ExampleBanner.tsx";
+import { InvitationsBanner } from "./invitations.tsx";
 import { ShellContext, type ShellSlots } from "./slots.tsx";
 
 const NAV_KEY = "whatbuild.nav";
@@ -332,6 +333,7 @@ export function ProductShell({ product, app, children }: { product: Product; app
       title={`${section.label} · ${product.name} · WhatBuild`}
       banner={
         <>
+          <InvitationsBanner />
           {product.tenant.example ? <ExampleBanner tenant={product.tenant} /> : null}
           {product.tenant.read_only ? (
             <div className="canvas-banner">
@@ -405,6 +407,7 @@ export function PlainShell({ children }: { children: ReactNode }) {
       pillName={null}
       section={section}
       title={`${section} · WhatBuild`}
+      banner={<InvitationsBanner />}
       panel={(hide, hideLabel) => (
         <>
           <BrandRow to="/" label="WhatBuild, home" current={isHome} onHide={hide} hideLabel={hideLabel} />

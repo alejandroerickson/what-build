@@ -23,6 +23,23 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
 
 ## Unreleased
 
+- **Signing in no longer accepts invitations: a person joins only by choosing to** (`tools_version`
+  0.51.0). It asks nothing of a deployment, and adds no migration. People will notice: someone
+  invited is not in the organization after signing in, however they sign in. They see each
+  invitation, once signed in, above whichever screen they land on, on `/welcome` and on the guests'
+  waiting page, naming the organization, the role and who invited them, with Accept and Decline,
+  and an invitation's link now asks instead of accepting. Invitations pending when a deployment
+  takes this release were not accepted by anyone and stay as they are: they wait for acceptance,
+  keeping their expiry and their place among the people a plan allows, and their links keep working
+  until then. An address with several open to one place sees each, and one answer ends them all, so
+  for up to 7 days after the upgrade it can accept the higher of two roles it was offered there:
+  cancel the earlier invitation if that matters.
+  Whoever invited someone who then declines sees the invitation leave Waiting to join; an
+  organization's owners and admins see "Someone declined an invitation" in its access log, and the
+  address or name of who declined is never recorded there. An agent reaches an organization once
+  its person has accepted: no tool accepts or declines, and a connected client sees the guide's new
+  words in a new session. A new invitation to an address now replaces the one still open at the
+  same place, whose old link stops working.
 - **An export has a tool of its own, and agents are told more exactly what they may do**
   (`tools_version` 0.50.0). It asks nothing of a deployment; a connected client sees the change in a
   new session. `products_write(action="export")` is now `products_export(action="export")`, marked

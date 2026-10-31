@@ -1,5 +1,5 @@
-import { endSignIns, json, newId, randomToken, sha256Hex, type ConnectionLevel, type Db, type Principal } from "@whatbuild/core";
-import { sql } from "kysely";
+import { collapse, endSignIns, json, newId, randomToken, sha256Hex, type ActorSnapshot, type ConnectionLevel, type Db, type InvitationsTable, type Principal } from "@whatbuild/core";
+import { sql, type Selectable } from "kysely";
 import type { Context } from "hono";
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 import type { ServerConfig } from "../config.ts";
@@ -180,40 +180,108 @@ export async function findOrCreateAccount(db: Db, email: string, displayName?: s
   return { account, created: true };
 }
 
-/** Accept every outstanding invitation addressed to this email: the verified address is the proof. */
-export async function acceptInvitationsForEmail(db: Db, account: AccountRow): Promise<number> {
-  const invites = await db
-    .selectFrom("invitations")
-    .selectAll()
-    .where(sql<boolean>`lower(email) = lower(${account.email})`)
+type InvitationRow = Selectable<InvitationsTable>;
+type Trx = Parameters<Parameters<ReturnType<Db["transaction"]>["execute"]>[0]>[0];
+
+/**
+ * Whoever declined an invitation, as the organization's access log records it. Someone who declined
+ * never joined, and what they call themselves is not the organization's to learn. Only an account can
+ * decline, so an answer does show that the address has one now; it says nothing of whether it had one
+ * when it was invited.
+ */
+const SOMEONE_INVITED: ActorSnapshot = { account_id: "invited", display_name: "Someone", surface: "web", client: null };
+
+/**
+ * Answer one invitation for an account: `changes` is written only while it is open (not accepted,
+ * cancelled, declined or past its time) and sent to this account's verified address, ignoring letter
+ * case. Whichever answer reaches the row first is the only one, so a cancellation and an acceptance
+ * sent together cannot both happen. Undefined when it was not open to this account.
+ */
+async function answerInvitation(trx: Trx, invitationId: string, accountId: string, changes: { accepted_at?: string; accepted_by?: string; expires_at?: string }, now: string): Promise<InvitationRow | undefined> {
+  const inv = await trx
+    .updateTable("invitations")
+    .set(changes)
+    .where("invitation_id", "=", invitationId)
     .where("accepted_at", "is", null)
-    .where("expires_at", ">", new Date().toISOString())
+    .where("expires_at", ">", now)
+    .where(sql<boolean>`EXISTS (SELECT 1 FROM accounts a WHERE a.account_id = ${accountId} AND a.deleted_at IS NULL AND a.email_verified_at IS NOT NULL AND lower(a.email) = lower(invitations.email))`)
+    .returningAll()
+    .executeTakeFirst();
+  if (!inv) return undefined;
+  // One answer settles the place: an invitation sent there before a new one replaced them all ends with it.
+  await trx
+    .updateTable("invitations")
+    .set({ expires_at: now })
+    .where("scope_type", "=", inv.scope_type)
+    .where("scope_id", "=", inv.scope_id)
+    .where(sql<boolean>`lower(email) = lower(${inv.email})`)
+    .where("accepted_at", "is", null)
+    .where("expires_at", ">", now)
     .execute();
-  for (const inv of invites) await acceptInvitation(db, inv.invitation_id, account);
-  return invites.length;
+  await sql`select set_config('app.tenant_id', ${inv.tenant_id}, true)`.execute(trx);
+  return inv;
 }
 
-export async function acceptInvitation(db: Db, invitationId: string, account: AccountRow) {
-  const inv = await db.selectFrom("invitations").selectAll().where("invitation_id", "=", invitationId).executeTakeFirstOrThrow();
-  const actor = { account_id: account.account_id, display_name: account.display_name, surface: "web" as const, client: null };
-  const existing = await db.selectFrom("memberships").select(["membership_id", "role"]).where("scope_type", "=", inv.scope_type).where("scope_id", "=", inv.scope_id).where("account_id", "=", account.account_id).executeTakeFirst();
-  if (!existing)
-    await db
-      .insertInto("memberships")
-      .values({ membership_id: newId(), tenant_id: inv.tenant_id, scope_type: inv.scope_type, scope_id: inv.scope_id, account_id: account.account_id, role: inv.role, created_by: json(inv.created_by) })
-      .execute();
-  await db.updateTable("invitations").set({ accepted_at: new Date().toISOString(), accepted_by: account.account_id }).where("invitation_id", "=", inv.invitation_id).execute();
-  await db.transaction().execute(async (trx) => {
-    await sql`select set_config('app.tenant_id', ${inv.tenant_id}, true)`.execute(trx);
-    const name = account.display_name;
+/**
+ * Accept an invitation: the one way into an organization for someone not already seen in it. A role
+ * they already hold at that place stays. The role they hold there after it, or null when the
+ * invitation was not open to this account.
+ */
+export async function acceptInvitation(db: Db, invitationId: string, account: AccountRow): Promise<{ role: string } | null> {
+  const now = new Date().toISOString();
+  return db.transaction().execute(async (trx) => {
+    const inv = await answerInvitation(trx, invitationId, account.account_id, { accepted_at: now, accepted_by: account.account_id }, now);
+    if (!inv) return null;
+    const held = await trx.selectFrom("memberships").select("role").where("scope_type", "=", inv.scope_type).where("scope_id", "=", inv.scope_id).where("account_id", "=", account.account_id).executeTakeFirst();
+    if (!held)
+      await trx
+        .insertInto("memberships")
+        .values({ membership_id: newId(), tenant_id: inv.tenant_id, scope_type: inv.scope_type, scope_id: inv.scope_id, account_id: account.account_id, role: inv.role, created_by: json(inv.created_by) })
+        .execute();
+    const actor: ActorSnapshot = { account_id: account.account_id, display_name: account.display_name, surface: "web", client: null };
     await trx
       .insertInto("activity")
       .values({
         activity_id: newId(), tenant_id: inv.tenant_id, team_id: inv.scope_type === "team" ? inv.scope_id : null, product_id: inv.scope_type === "product" ? inv.scope_id : null,
-        actor: json({ ...actor, display_name: name }), actor_account_id: account.account_id, channel: "web", action: "joined", entity_type: "membership", entity_id: account.account_id,
-        entity_title: name, summary: `Accepted an invitation as ${inv.role}`,
+        actor: json(actor), actor_account_id: account.account_id, channel: "web", action: "joined", entity_type: "membership", entity_id: account.account_id,
+        entity_title: account.display_name, summary: `Accepted an invitation as ${inv.role}`,
       })
       .execute();
+    return { role: held?.role ?? inv.role };
   });
-  return inv;
+}
+
+/**
+ * Decline an invitation: it ends as a cancelled one does, so its link stops working and its place
+ * among the organization's people is free, and no role is given. The access log says an invitation
+ * was declined and where, under nobody's name. False when it was not open to this account.
+ */
+export async function declineInvitation(db: Db, invitationId: string, account: AccountRow): Promise<boolean> {
+  const now = new Date().toISOString();
+  return db.transaction().execute(async (trx) => {
+    const inv = await answerInvitation(trx, invitationId, account.account_id, { expires_at: now }, now);
+    if (!inv) return false;
+    const { scope } = await invitationPlace(trx, inv);
+    await trx
+      .insertInto("activity")
+      .values({
+        activity_id: newId(), tenant_id: inv.tenant_id, team_id: null, product_id: null,
+        actor: json(SOMEONE_INVITED), actor_account_id: SOMEONE_INVITED.account_id, channel: "web", action: "invitation_declined", entity_type: "membership", entity_id: inv.invitation_id,
+        entity_title: scope ? collapse(scope, 200) : null, summary: `Declined an invitation as ${inv.role}`,
+      })
+      .execute();
+    return true;
+  });
+}
+
+/** The organization an invitation is to, and the name of the place in it. */
+export async function invitationPlace(db: Db | Trx, inv: Pick<InvitationRow, "tenant_id" | "scope_type" | "scope_id">): Promise<{ tenant: { slug: string; name: string; read_only_since: string | null } | undefined; scope: string | null }> {
+  const tenant = await db.selectFrom("tenants").select(["slug", "name", "read_only_since"]).where("tenant_id", "=", inv.tenant_id).executeTakeFirst();
+  const place =
+    inv.scope_type === "team"
+      ? await db.selectFrom("teams").select("name").where("team_id", "=", inv.scope_id).executeTakeFirst()
+      : inv.scope_type === "product"
+        ? await db.selectFrom("products").select("name").where("product_id", "=", inv.scope_id).executeTakeFirst()
+        : tenant;
+  return { tenant, scope: place?.name ?? null };
 }

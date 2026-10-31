@@ -162,8 +162,8 @@ Rules:
    **Planned:** a nightly job reconciling stored bytes against the object store.
 5. Archiving frees nothing: products and sources count against their totals whether archived or
    not, so nobody archives and restores to get round a plan, and storage counts everything kept.
-   Deleting makes room under products, sources and storage; removing someone or cancelling an
-   invitation, under people. The UI says so where it matters.
+   Deleting makes room under products, sources and storage; removing someone, or an invitation
+   cancelled or declined, under people. The UI says so where it matters.
 
 **Abuse limits**, which are not quotas but belong beside them. Built: the sign-in link limit,
 the limits on OAuth client registration and on sign-in and OAuth request bodies
@@ -586,7 +586,8 @@ Rules:
     files of its attachments' every version, the text read from each, the distinct files of its
     mockups' prototypes, and the text it has written as the database stores it (sources' texts,
     notes, comments, Story and mockup pages, assumptions, outcomes and earlier versions), every
-    version kept. A write is checked with the organization locked, so two at once cannot both take
+    version kept. An invitation holds its place until it is accepted, declined, cancelled or runs out.
+    A write is checked with the organization locked, so two at once cannot both take
     the last place: creating a product, adding or copying in sources, and any write whose input
     carries more than 4 KB of text, which meets the storage total; a smaller one (a title, a review,
     a tag) never does. Giving someone a role, or inviting them, is checked against the people total

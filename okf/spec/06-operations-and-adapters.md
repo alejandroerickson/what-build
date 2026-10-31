@@ -608,7 +608,7 @@ Notes on recent actions:
   `story_style` and `mockup` (anything else is `422`).
 - `members.activity` is the organization's access log, for its owners and admins: roles given,
   changed and removed, people removed from the organization, accounts ended there
-  (`account_deleted`, `account_removed`), invitations sent, accepted and cancelled. It takes `actor`, `since`, `limit` and `cursor`, and pages like `activity.list`. A product's
+  (`account_deleted`, `account_removed`), invitations sent, accepted, cancelled and declined. It takes `actor`, `since`, `limit` and `cursor`, and pages like `activity.list`. A product's
   `activity.list` leaves these events out, because they belong to the organization, all but
   someone joining the product through an invitation, which both logs hold.
 
@@ -642,7 +642,9 @@ GET  /api/v1/me/guest-pass                           a guest account's place: le
 POST /api/v1/me/ask-for-organization                 join the waitlist for an organization of one's own (§3.2)
 GET  /api/v1/connect                                 what the Connect page shows
 GET|PATCH /api/v1/me; GET /api/v1/me/agents; PATCH|DELETE /api/v1/me/agents/:family; POST /api/v1/me/sign-out-everywhere
-POST /api/v1/invitations/accept
+GET  /api/v1/me/invitations                          the invitations waiting for this person's answer (§3.2)
+POST /api/v1/invitations/read                        what an invitation's link shows; it changes nothing
+POST /api/v1/invitations/accept|decline              answer an invitation, from its link or the person's list
 /auth/*  /oauth/*  /.well-known/oauth-*              sign-in and OAuth (§6.6)
 /health
 ```

@@ -467,7 +467,7 @@ An append-only event log, written in the same transaction as the mutation that c
   insight or a decision became a source (§4.7), its events were relabelled as the source's. They
   are included in a product export.
 - An event about the organization's people and access (a role given, changed or removed, an
-  invitation sent, accepted or cancelled), and the organization's renaming (`tenant`, `renamed` or
+  invitation sent, accepted, cancelled or declined), and the organization's renaming (`tenant`, `renamed` or
   `slug_changed`, with its name as its title and what it was as its summary), is read by the organization's
   owners and admins with `members.activity`; a product's `activity.list` leaves out the ones that
   belong to no product. An account's ending is `account_deleted` when the person deleted it and

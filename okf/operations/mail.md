@@ -3,7 +3,7 @@ type: System Concept
 title: Mail - what WhatBuild sends, how each deployment sends it, and sending it through Cloudflare Email Sending
 description: The messages the server sends (four while a request waits, and the daily feedback digest), the settings that choose a mailer, which deployments send mail and which never do, setting up Cloudflare Email Sending over SMTP, checking it, rotating its token, changing provider, and what breaks it.
 tags: [operations, mail, smtp, cloudflare, invitations, sign-in, cloud-run, azure, runbook]
-generated: {by: agent:claude, at: 2026-10-27}
+generated: {by: agent:claude, at: 2026-10-31}
 status: stable
 ---
 
@@ -19,7 +19,7 @@ Plain text, one message at a time. Six are sent while the request that causes it
 | Message | Sent when | Code |
 |---|---|---|
 | A sign-in link | someone asks for one on the sign-in page (`POST /auth/email`) for an address that may sign in, at most five per address an hour | `apps/server/src/auth/routes.ts` |
-| An invitation | someone gives a role to an address they don't already see in the organization, whether or not it has an account | `packages/core/src/ops/products.ts` |
+| An invitation | someone gives a role to an address they don't already see in the organization, whether or not it has an account: it names who invited them and the role, says they join only if they accept, and links to where they accept or decline. Declining sends nothing to the inviter. | `packages/core/src/ops/products.ts` |
 | An allowance notice | an instance owner lets an address start organizations, and asks to tell them | `packages/core/src/ops/tenant-allowances.ts` |
 | An account's deletion confirmation | a person deletes their account, or an instance owner removes it: to the address it had, saying who ended it, what was deleted and what is kept, and whom to tell if it was not them (`WHATBUILD_PRIVACY_CONTACT`) | `packages/core/src/ops/accounts.ts` |
 | An organization's read-only notice | an instance owner moves an organization to the starting plan while whoever started it already has one there, which makes it read-only: to each of its owners, saying what they can still do, the day it is kept until, and whom to ask to move it | `packages/core/src/organization-notices.ts`, `packages/core/src/ops/limits.ts` |

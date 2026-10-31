@@ -46,6 +46,19 @@ describe("Google sign-in", () => {
     expect(r.setCookie).toMatch(/wb_session=[^;]+/);
   });
 
+  it("leaves an invitation to the address waiting: signing in accepts nothing", async () => {
+    const owner = await h.signIn("owner@example.com", "Owner");
+    const t = await owner.api("POST", "/api/v1/tenants", { name: "Work" });
+    await owner.api("POST", `/api/v1/tenants/${t.body.tenant.slug}/members`, { team: t.body.team.slug, email: "g-invited@example.com", role: "viewer" });
+    claims = { aud: CLIENT_ID, email: "G-Invited@example.com", email_verified: true, name: "Invited Person" };
+    const r = await signInWithGoogle("/");
+    const session = /((?:__Host-)?wb_session=[^;]+)/.exec(r.setCookie)![1]!;
+    const invitation = await h.db.selectFrom("invitations").select(["accepted_at", "accepted_by"]).where("email", "=", "g-invited@example.com").executeTakeFirstOrThrow();
+    expect(invitation).toEqual({ accepted_at: null, accepted_by: null });
+    const waiting = (await (await fetch(`${h.baseUrl}/api/v1/me/invitations`, { headers: { cookie: session } })).json()) as { items: { role: string }[] };
+    expect(waiting.items.map((i) => i.role)).toEqual(["viewer"]);
+  });
+
   it("refuses an unverified address or another client's token", async () => {
     claims = { aud: CLIENT_ID, email: "g2@example.com", email_verified: false };
     expect((await signInWithGoogle("/")).location).toBe("/signin?error=google_unverified");

@@ -32,7 +32,7 @@ as `leaver-<the run's time>@example.com`.
 3. **Web, as Riley.** Let the leaver's address start one organization (People or Organizations),
    and in the standard organization's Members give it the editor role on a team. *Expect:* an
    invitation waiting, with its link shown.
-4. **Web, as the leaver.** Sign in with the leaver's address. Add a source to a product of the
+4. **Web, as the leaver.** Sign in with the leaver's address, and accept the invitation shown. Add a source to a product of the
    standard organization, with a synthetic text from the run's folder carrying a phrase of its
    own. Start an organization of their own, with a made-up name. Then **MCP, as the leaver**:
    connect and call `products_read(action="list")`. *Expect:* both organizations listed.

@@ -1,12 +1,12 @@
 import { createHash, randomBytes } from "node:crypto";
-import { AppError, enterAsGuest, planName, escapeHtml, gone, invalid, isGuestAccount, isInstanceOwner, readGuests, tenantAllowanceOf, newId, notFound, randomToken, safeNext, sha256Hex, SIGN_IN_LINKS_PER_HOUR, unauthenticated, type Db, type Mailer } from "@whatbuild/core";
+import { AppError, conflict, enterAsGuest, planName, escapeHtml, gone, invalid, isGuestAccount, isInstanceOwner, readGuests, tenantAllowanceOf, newId, notFound, oneLine, quotedName, randomToken, safeNext, sha256Hex, SIGN_IN_LINKS_PER_HOUR, unauthenticated, type Db, type InvitationsTable, type Mailer } from "@whatbuild/core";
 import { Hono, type Context } from "hono";
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
-import { sql } from "kysely";
+import { sql, type Selectable } from "kysely";
 import { z } from "zod";
 import { microsoftSignIn, type ServerConfig } from "../config.ts";
 import { connectorReach } from "./connector-reach.ts";
-import { acceptInvitation, acceptInvitationsForEmail, accountByEmail, clearSessionCookies, createSession, endEverything, findOrCreateAccount, isOwnOrigin, restPrincipal, sessionTokens, setSessionCookie } from "./identity.ts";
+import { acceptInvitation, accountByEmail, clearSessionCookies, createSession, declineInvitation, endEverything, findOrCreateAccount, invitationPlace, isOwnOrigin, restPrincipal, sessionTokens, setSessionCookie } from "./identity.ts";
 import { returnsTo } from "./oauth.ts";
 import { authPage, authPageHeaders } from "./page.ts";
 
@@ -182,7 +182,6 @@ export function authRoutes(deps: { db: Db; config: ServerConfig; mailer: Mailer 
     // What let the address in may have gone since: an invitation can be cancelled while the email is in transit.
     if (!(await mayJoin(row.email))) return c.redirect("/signin?error=invite_only", 303);
     const { account } = await findOrCreateAccount(db, row.email);
-    await acceptInvitationsForEmail(db, account);
     await startSession(c, account.account_id);
     return c.redirect(safeNext(row.redirect), 303);
   });
@@ -202,7 +201,6 @@ export function authRoutes(deps: { db: Db; config: ServerConfig; mailer: Mailer 
       throw new AppError(404, "no_account", `${body.data.email} has no account here, and none was made.`);
     // Development lets any address in.
     const { account, created } = await findOrCreateAccount(db, body.data.email, body.data.display_name);
-    await acceptInvitationsForEmail(db, account);
     await startSession(c, account.account_id);
     return c.json({ signed_in: true, account, created, next: safeNext(body.data.next) });
   });
@@ -308,11 +306,10 @@ export function authRoutes(deps: { db: Db; config: ServerConfig; mailer: Mailer 
     return { saved, idToken: tokens.id_token };
   };
 
-  /** What every method does once it has an address it trusts: admission, the account, its invitations, a session. */
+  /** What every method does once it has an address it trusts: admission, the account, a session. Invitations wait for their person's answer. */
   const completeSignIn = async (c: Context, email: string, name: string | undefined, next: string) => {
     if (!(await mayJoin(email))) return c.redirect("/signin?error=invite_only");
     const { account } = await findOrCreateAccount(db, email, name);
-    await acceptInvitationsForEmail(db, account);
     await startSession(c, account.account_id);
     return c.redirect(next);
   };
@@ -564,35 +561,133 @@ export function authRoutes(deps: { db: Db; config: ServerConfig; mailer: Mailer 
     return c.json({ ...ended, kept_this_session: keep });
   });
 
-  app.post("/api/v1/invitations/accept", async (c) => {
-    const p = await requirePrincipal(c);
-    const body = z.strictObject({ token: z.string().min(10) }).safeParse(await c.req.json().catch(() => ({})));
-    if (!body.success) throw invalid("invalid_input", "Missing invitation token.");
-    const inv = await db.selectFrom("invitations").selectAll().where("token_hash", "=", sha256Hex(body.data.token)).executeTakeFirst();
-    if (!inv) throw notFound("This invitation link isn’t valid. Check that the whole link was copied, or ask for a new one.");
-    const tenant = await db.selectFrom("tenants").select(["slug", "name"]).where("tenant_id", "=", inv.tenant_id).executeTakeFirst();
-    const scope =
-      inv.scope_type === "team"
-        ? await db.selectFrom("teams").select("name").where("team_id", "=", inv.scope_id).executeTakeFirst()
-        : inv.scope_type === "product"
-          ? await db.selectFrom("products").select("name").where("product_id", "=", inv.scope_id).executeTakeFirst()
-          : tenant;
-    const accepted = { tenant, scope_type: inv.scope_type, scope: scope?.name ?? null, role: inv.role };
+  // ---- Invitations: a person joins an organization only by choosing to --------------------------
+
+  type InvitationRow = Selectable<InvitationsTable>;
+  type Person = Awaited<ReturnType<typeof requirePrincipal>>;
+
+  /**
+   * An invitation as the person it was sent to reads it. The names are others' to choose, so each is
+   * on one line, and the inviter's in quotation marks, as the email shows it. Never its token.
+   */
+  const invitationForPerson = async (inv: InvitationRow) => {
+    const { tenant, scope } = await invitationPlace(db, inv);
+    return {
+      invitation_id: inv.invitation_id,
+      tenant: tenant ? { slug: tenant.slug, name: oneLine(tenant.name, 100) } : null,
+      read_only: Boolean(tenant?.read_only_since),
+      scope_type: inv.scope_type,
+      scope: scope ? oneLine(scope, 100) : null,
+      role: inv.role,
+      invited_by: quotedName(inv.created_by.display_name),
+      expires_at: inv.expires_at,
+    };
+  };
+
+  /**
+   * The invitation a request names: by its link's token, which anyone holding the link may send, or
+   * by its id, among the person's own only, so an id says nothing of anyone else's.
+   */
+  const namedInvitation = async (c: Context, p: Person): Promise<InvitationRow> => {
+    const body = z.union([z.strictObject({ token: z.string().min(10) }), z.strictObject({ invitation_id: z.string().min(1) })]).safeParse(await c.req.json().catch(() => ({})));
+    if (!body.success) throw invalid("invalid_input", "Name the invitation: its token or its invitation_id.");
+    const inv =
+      "token" in body.data
+        ? await db.selectFrom("invitations").selectAll().where("token_hash", "=", sha256Hex(body.data.token)).executeTakeFirst()
+        : await db.selectFrom("invitations").selectAll().where("invitation_id", "=", body.data.invitation_id).where(sql<boolean>`lower(email) = lower(${p.email})`).executeTakeFirst();
+    if (!inv) throw notFound("token" in body.data ? "This invitation link isn’t valid. Check that the whole link was copied, or ask for a new one." : "That invitation is no longer waiting for your answer.");
+    return inv;
+  };
+
+  /**
+   * Where an invitation stands for this person: still theirs to answer (`accepted` false), or already
+   * accepted by them, with the role they hold now. Anything else is refused: one accepted by another
+   * account or whose access was since removed (`invitation_used`), one past its time, cancelled or
+   * declined (`invitation_expired`), one sent to another address (`invitation_wrong_address`).
+   */
+  const standingOf = async (inv: InvitationRow, p: Person): Promise<{ accepted: false } | { accepted: true; role: string }> => {
     if (inv.accepted_at) {
-      // Signing in accepts every invitation to that address, so the link often arrives already used by this same person.
       if (inv.accepted_by !== p.account_id) throw gone("invitation_used", "This invitation was accepted by another account. Ask whoever invited you for a new link.");
-      const held = await db.selectFrom("memberships").select("membership_id").where("scope_type", "=", inv.scope_type).where("scope_id", "=", inv.scope_id).where("account_id", "=", p.account_id).executeTakeFirst();
-      if (!held) throw gone("invitation_used", `You accepted this invitation earlier, and that access was removed. Ask an admin of ${tenant?.name ?? "the organization"} to give it back.`);
-      return c.json({ accepted: true, already: true, ...accepted });
+      const held = await db.selectFrom("memberships").select("role").where("scope_type", "=", inv.scope_type).where("scope_id", "=", inv.scope_id).where("account_id", "=", p.account_id).executeTakeFirst();
+      if (!held) {
+        const { tenant } = await invitationPlace(db, inv);
+        throw gone("invitation_used", `You accepted this invitation earlier, and that access was removed. Ask an admin of ${tenant?.name ?? "the organization"} to give it back.`);
+      }
+      return { accepted: true, role: held.role };
     }
-    if (Date.parse(inv.expires_at) < Date.now()) throw gone("invitation_expired", "This invitation expired or was cancelled. Ask whoever invited you for a new link.");
+    if (Date.parse(inv.expires_at) <= Date.now()) throw gone("invitation_expired", "This invitation expired, was cancelled or was declined. Ask whoever invited you for a new link.");
     // An invitation belongs to the address it was sent to: the link is a pointer, not a bearer credential.
     if (inv.email.toLowerCase() !== p.email.toLowerCase())
-      throw new AppError(403, "invitation_wrong_address", `This invitation was sent to ${maskEmail(inv.email)}, and you’re signed in as ${p.email}. Sign in with that email to join.`, {
+      throw new AppError(403, "invitation_wrong_address", `This invitation was sent to ${maskEmail(inv.email)}, and you’re signed in as ${p.email}. Sign in with that email to answer it.`, {
         invited: maskEmail(inv.email),
       });
-    await acceptInvitation(db, inv.invitation_id, { account_id: p.account_id, email: p.email, display_name: p.display_name });
-    return c.json({ accepted: true, already: false, ...accepted });
+    return { accepted: false };
+  };
+
+  /** Where it stands now that another answer got there first: accepted by this person, or refused as `standingOf` refuses. */
+  const standingAfterAnother = async (inv: InvitationRow, p: Person) => {
+    const now = await db.selectFrom("invitations").selectAll().where("invitation_id", "=", inv.invitation_id).executeTakeFirst();
+    // What it was for may have been deleted while they answered.
+    if (!now) throw gone("invitation_expired", "This invitation can’t be answered now. Ask whoever invited you for a new link.");
+    const standing = await standingOf(now, p);
+    if (!standing.accepted) throw gone("invitation_expired", "This invitation can’t be answered now. Ask whoever invited you for a new link.");
+    return standing;
+  };
+
+  /** The invitations waiting for this person's answer, newest first: open, and sent to their address. */
+  app.get("/api/v1/me/invitations", async (c) => {
+    const p = await requirePrincipal(c);
+    const rows = await db
+      .selectFrom("invitations")
+      .selectAll()
+      .where(sql<boolean>`lower(email) = lower(${p.email})`)
+      .where("accepted_at", "is", null)
+      .where("expires_at", ">", new Date().toISOString())
+      .orderBy("created_at", "desc")
+      .limit(100)
+      .execute();
+    return c.json({ items: await Promise.all(rows.map(invitationForPerson)) }, 200, { "Cache-Control": "no-store" });
+  });
+
+  /**
+   * What opening an invitation's link shows: the choice, with who is asking, or why it can't be used.
+   * It changes nothing. The token travels in the body so that no request log keeps it.
+   */
+  app.post("/api/v1/invitations/read", async (c) => {
+    const p = await requirePrincipal(c);
+    const inv = await namedInvitation(c, p);
+    const standing = await standingOf(inv, p);
+    return c.json({ ...(await invitationForPerson(inv)), ...(standing.accepted ? { accepted: true, role: standing.role } : { accepted: false }) });
+  });
+
+  /**
+   * Accept, from the link or the person's list. It answers with the role they hold there;
+   * `already: true` when they had accepted it before, from either, and still hold it.
+   */
+  app.post("/api/v1/invitations/accept", async (c) => {
+    const p = await requirePrincipal(c);
+    const inv = await namedInvitation(c, p);
+    const standing = await standingOf(inv, p);
+    const about = await invitationForPerson(inv);
+    if (standing.accepted) return c.json({ accepted: true, already: true, ...about, role: standing.role });
+    // A read-only organization takes nothing new, a person included; the invitation stays, to answer later or decline.
+    if (about.read_only) throw conflict("organization_read_only", `${about.tenant?.name ?? "This organization"} is read-only right now, so it can’t take anyone new. Your invitation stays open until ${about.expires_at.slice(0, 10)}.`);
+    const done = await acceptInvitation(db, inv.invitation_id, { account_id: p.account_id, email: p.email, display_name: p.display_name });
+    if (done) return c.json({ accepted: true, already: false, ...about, role: done.role });
+    return c.json({ accepted: true, already: true, ...about, role: (await standingAfterAnother(inv, p)).role });
+  });
+
+  /** Decline, from the link or the person's list. It ends the invitation and gives no role. */
+  app.post("/api/v1/invitations/decline", async (c) => {
+    const p = await requirePrincipal(c);
+    const inv = await namedInvitation(c, p);
+    const alreadyAccepted = () => gone("invitation_used", "You’ve already accepted this invitation, so there’s nothing to decline.");
+    if ((await standingOf(inv, p)).accepted) throw alreadyAccepted();
+    if (!(await declineInvitation(db, inv.invitation_id, { account_id: p.account_id, email: p.email, display_name: p.display_name }))) {
+      await standingAfterAnother(inv, p);
+      throw alreadyAccepted();
+    }
+    return c.json({ declined: true, ...(await invitationForPerson(inv)) });
   });
 
   return app;

@@ -1,13 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { safeNext } from "@whatbuild/core/safe-next";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Link, Navigate, useNavigate, useParams, useSearchParams } from "react-router";
-import { api, ApiError } from "../lib/api.ts";
-import { aRole, scopeWords } from "../lib/format.ts";
+import { api, ApiError, retryRead } from "../lib/api.ts";
 import { useMe, useSignOut } from "../lib/session.tsx";
 import { BrandMark } from "../shell/brand.tsx";
+import { InvitationWords, orgOf, roleWords, useInvitationAnswer, type Invitation } from "../shell/invitations.tsx";
 import { usePageTitle } from "../shell/slots.tsx";
-import { Button, ButtonLink, Callout, EmptyState, ErrorCallout, Loading, Sheet, SheetBody, SheetHeader, TextField, useToast } from "../ui/index.tsx";
+import { Button, ButtonLink, Callout, EmptyState, ErrorCallout, Loading, Sheet, SheetBody, SheetHeader, TextField } from "../ui/index.tsx";
 import { PrivacyLink } from "../shell/privacy-link.tsx";
 import "../styles/screens/account.css";
 
@@ -92,9 +92,9 @@ export function SignIn() {
   return (
     <EntryPage title="Sign in · WhatBuild">
       <Sheet labelledBy="signin-title">
-        <SheetHeader level={1} id="signin-title" title={next.startsWith("/invite/") ? "Sign in to accept your invitation" : "Sign in to WhatBuild"} />
+        <SheetHeader level={1} id="signin-title" title={next.startsWith("/invite/") ? "Sign in to see your invitation" : "Sign in to WhatBuild"} />
         <SheetBody className="entry-form">
-          {next.startsWith("/invite/") && !error ? <p className="muted">Use the email your invitation was sent to.</p> : null}
+          {next.startsWith("/invite/") && !error ? <p className="muted">Use the email your invitation was sent to. You’ll choose whether to join once you’ve signed in.</p> : null}
           {error === "link_expired" ? (
             <Callout inset tone="attention" title="That sign-in link has expired">
               Enter your email for a new one.
@@ -201,41 +201,54 @@ export function SignIn() {
   );
 }
 
+/** A link's invitation: its choice, or `accepted` when this person accepted it before and still holds the role. */
+type OpenedInvitation = Invitation & { accepted: boolean };
+
+/**
+ * An invitation's link. Opening it changes nothing: it shows the invitation and asks. Someone who
+ * accepts opens the overview with a toast; someone who declines stays here, told what it did.
+ */
 export function AcceptInvite() {
   const { token = "" } = useParams();
-  const qc = useQueryClient();
-  const navigate = useNavigate();
   const me = useMe();
   const signOut = useSignOut();
-  const toast = useToast();
-  const accept = useMutation({
-    mutationFn: () =>
-      api<{ already: boolean; tenant: { slug: string; name: string } | null; scope_type: "tenant" | "team" | "product"; scope: string | null; role: string }>("POST", "/api/v1/invitations/accept", { token }),
-    onSuccess: async (r) => {
-      await qc.invalidateQueries({ queryKey: ["products"] });
-      const org = r.tenant?.name ?? "the organization";
-      toast(r.scope_type === "tenant" || !r.scope ? `You’re ${aRole(r.role)} of ${org}.` : `You’re in ${org}, as ${aRole(r.role)} on ${scopeWords(r.scope_type, r.scope)}.`);
-      navigate("/", { replace: true });
-    },
+  const opened = useQuery({
+    queryKey: ["invitation", token],
+    queryFn: () => api<OpenedInvitation>("POST", "/api/v1/invitations/read", { token }),
+    retry: retryRead,
+    staleTime: Infinity,
+    gcTime: 0,
+    refetchOnWindowFocus: false,
   });
-  const wrongAddress = accept.error instanceof ApiError && accept.error.code === "invitation_wrong_address";
-  // Once per token, even when a development build mounts the page twice.
-  const sent = useRef<string | null>(null);
-  useEffect(() => {
-    if (sent.current === token) return;
-    sent.current = token;
-    accept.mutate();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token]);
+  const { accept, decline } = useInvitationAnswer();
+  const answerError = accept.error ?? decline.error;
+  const refusal = [answerError, opened.error].find((e) => e instanceof ApiError && e.status !== 0 && e.status < 500) as ApiError | undefined;
+  const wrongAddress = refusal?.code === "invitation_wrong_address";
+  const i = opened.data;
+  const org = i ? orgOf(i) : "the organization";
+  const title = refusal
+    ? wrongAddress
+      ? "This invitation is for another email"
+      : "This invitation can’t be used"
+    : decline.isSuccess
+      ? "You declined this invitation"
+      : i?.accepted
+        ? `You’re already in ${org}`
+        : i
+          ? `Join ${org}?`
+          : opened.isError
+            ? "This invitation didn’t load"
+            : "Your invitation";
+  const pending = accept.isPending || decline.isPending;
   return (
-    <EntryPage title="Accept invitation · WhatBuild">
+    <EntryPage title="Your invitation · WhatBuild">
       <Sheet labelledBy="invite-title">
-        <SheetHeader level={1} id="invite-title" title={accept.isError ? (wrongAddress ? "This invitation is for another email" : "This invitation didn’t work") : "Joining…"} />
+        <SheetHeader level={1} id="invite-title" title={title} />
         <SheetBody className="entry-form">
-          {accept.isError ? (
+          {refusal ? (
             <>
-              <ErrorCallout inset title="" error={accept.error} />
-              {wrongAddress ? null : <p className="muted">An invitation works once, within 7 days, for the email it was sent to.</p>}
+              <ErrorCallout inset title="" error={refusal} />
+              {wrongAddress ? null : <p className="muted">An invitation is for the email it was sent to, and lasts 7 days unless it’s answered or cancelled first.</p>}
               <div className="entry-actions">
                 {wrongAddress ? (
                   <>
@@ -254,11 +267,45 @@ export function AcceptInvite() {
                 )}
               </div>
             </>
+          ) : decline.isSuccess ? (
+            <>
+              <p role="status">You won’t join {org}, and its link no longer works. Its admins will see that an invitation was declined, not your name. If you change your mind, ask whoever invited you for a new one.</p>
+              <div className="entry-actions">
+                <ButtonLink to="/" variant="primary">Go to WhatBuild</ButtonLink>
+              </div>
+            </>
+          ) : i?.accepted ? (
+            <>
+              <p>You accepted this invitation earlier, and you’re {roleWords(i)}.</p>
+              <div className="entry-actions">
+                <ButtonLink to="/" variant="primary">Your products</ButtonLink>
+              </div>
+            </>
+          ) : i ? (
+            <>
+              <p><InvitationWords invitation={i} /></p>
+              <p className="faint">Names in quotation marks are the ones people gave WhatBuild. You join only if you accept.</p>
+              {answerError ? <ErrorCallout inset error={answerError} /> : null}
+              <div className="entry-actions">
+                {i.read_only ? null : (
+                  <Button variant="primary" busy={accept.isPending} busyLabel="Joining…" disabled={decline.isPending} onClick={() => accept.mutate({ token })}>
+                    Accept
+                  </Button>
+                )}
+                <Button busy={decline.isPending} busyLabel="Declining…" disabled={accept.isPending} onClick={() => decline.mutate({ token })}>
+                  Decline
+                </Button>
+                {pending ? null : <ButtonLink to="/" variant="quiet">Not now</ButtonLink>}
+              </div>
+            </>
+          ) : opened.isError ? (
+            <ErrorCallout inset title="" error={opened.error} onRetry={() => opened.refetch()} />
           ) : (
-            <Loading label="Accepting the invitation…" lines={1} variant="lines" />
+            <Loading label="Opening your invitation…" lines={2} variant="lines" />
           )}
         </SheetBody>
       </Sheet>
+      {me.data && !wrongAddress ? <p className="entry-foot">Signed in as {me.data.email}.</p> : null}
     </EntryPage>
   );
 }

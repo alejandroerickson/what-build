@@ -18,7 +18,8 @@ design system: tokens, type, components and the rules for using them — is docu
 - The UI uses only registry operations, through the REST routes of
   [§6.4](06-operations-and-adapters.md) and one small client (`apps/web/src/lib/api.ts`). If the UI
   needs something, it becomes an operation, and agents get it too. The exceptions are the
-  person's own session, connected agents and invitations (`/api/v1/me…`), which are not content.
+  person's own session, connected agents and invitations (`/api/v1/me…`, `/api/v1/invitations/…`),
+  which are not content.
 - **State that matters lives in the URL**: product, screen, filters, search query, selected
   page, a source's section and the words found in its text. Reload and share always work.
 - Every write path handles `409 stale_etag` explicitly: show what changed, keep the person's
@@ -257,7 +258,7 @@ person's organization role is in the account menu, and who has which role is on 
 ## 7.3 Routes
 
 ```
-/signin  /welcome  /invite/:token             sign-in, first run, accepting an invitation
+/signin  /welcome  /invite/:token             sign-in, first run, answering an invitation
 /join/:code                                   → / (the public sandbox's retired invitation links)
 /cookies                                      Cookies: what they are for, and the analytics choice; readable signed out
 /plans                                        Plans: the plans offered side by side, with their prices; readable signed out
@@ -370,8 +371,9 @@ new tab ([§7.8](#78-story), [§6](06-operations-and-adapters.md)).
    it where a plan has a price; a deployment that offers no plans says neither. The same form, titled
    New organization, starts another. An account that may not says so: the people who run the
    instance decide who may, and someone can invite them instead; its link back leads to the
-   example organization for someone with none of their own. A person who was invited follows
-   their invitation link (`/invite/:token`) and lands in the inviter's organization.
+   example organization for someone with none of their own. A person who was invited finds the
+   invitation wherever they land once signed in, here too, or follows its link
+   (`/invite/:token`), and joins by accepting it.
 4. Invite colleagues from the organization's Members or the product's Settings, by email or a
    single-use link.
 5. **Connect an agent** (`/connect`): paste one address into an MCP client and sign in when it asks
@@ -975,12 +977,28 @@ never described as deleting. A list row showing an archived object says *Archive
   the dialog lists its products and counts its sources, files and people, and needs a reason and
   the organization's name typed (§7.10, [§9.5](09-data-lifecycle.md)). It is the only place an
   organization is deleted; afterwards the overview opens.
-- **Invitation** (`/invite/:token`). Accepts the invitation and opens the overview with a toast
-  naming the organization and role. A link already accepted by the same person (signing in accepts
-  it) is the same success. Otherwise it names why the link can't be used and offers signing in
-  with another address, which returns to the link; an invitation for another address makes that
-  the primary action. Signed out, the link opens sign-in titled "Sign in to accept your
-  invitation".
+- **Invitation** (`/invite/:token`). Opening the link changes nothing: it asks "Join <organization>?",
+  naming who invited them (in quotation marks, as the name they gave WhatBuild), the role and where
+  it applies, what the role lets them do and until when it is open, with **Accept** (the primary
+  action), **Decline** and **Not now**. Accepting opens the overview with a toast naming the
+  organization and role. Declining stays here and says what it did: they won't join, the link no
+  longer works, the organization's admins see that an invitation was declined and not by whom, and
+  they can ask for a new one. A link they accepted earlier says they are already in, with their
+  role. Otherwise it names why the link can't be used and offers signing in with another address,
+  which returns to the link; an invitation for another address makes that the primary action. Its
+  loading state names nothing, and a failed load offers Try again. Signed out, the link opens
+  sign-in titled "Sign in to see your invitation". It stands outside the guests' gate, so someone
+  invited takes no guest's place to read it and never waits in line for it.
+- **Invitations waiting** ([§3.2](03-accounts-teams-and-identity.md#invitations)). Once signed in, a
+  person sees the invitations waiting for them wherever they land, without the emailed link: above
+  the content of every screen in the shell, in a sheet titled Invitations for you on the first-run
+  screen (`/welcome`) and on the guests' waiting page, where accepting ends the wait. Each row asks
+  "Join <organization>?" in the same words as the link's page, with **Accept** and **Decline**; a
+  screen shows three, and Show more invitations brings the rest. It says nothing while it loads or
+  when none wait, and a failed load offers Try again. Accepting opens the overview with the same
+  toast. Declining says in a toast what the organization sees, and focus moves to the next row's
+  Accept, or to the screen once none is left. A refusal (cancelled meanwhile, say) says why in a
+  toast, and the list is asked for again. On a phone the buttons take a line under the words.
 - **Connect an agent** (`/connect`, or `…/connect` inside a product). [§6.8](06-operations-and-adapters.md):
   what the agent can reach (one product, one organization, or everything) and the MCP server URL for
   that scope; sign-in; a first request
@@ -1159,7 +1177,7 @@ never described as deleting. A list row showing an archived object says *Archive
   and when they press **Try again**; never on a timer, so a tab left open neither holds a place
   nor keeps the database awake. The server decides the place on every call the guest makes, and a
   call refused with `guest_waiting` brings the waiting page at once, from the refusal's own
-  details. Otherwise one sheet says why, in words: **WhatBuild is full right now**, how many
+  details. Otherwise one sheet says why, under any invitation waiting for them, in words: **WhatBuild is full right now**, how many
   guests are exploring, its place in line with the progress mark, and that its place is kept for
   two minutes after it last asks, with **Try again**; **Today's places for new guests are taken**
   or **You've used today's time**, with when it starts again; or that no guests are let in, with
