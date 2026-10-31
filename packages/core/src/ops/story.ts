@@ -1086,28 +1086,27 @@ async function printPages(ctx: OpContext, versionIds: string[]) {
   for (const slot of order) {
     const r = rows.find((x) => x.page_id === slot.page_id)!;
     const canvas = r.mockup?.page_id === null ? await canvasPrintPages(ctx, r.mockup.mockup_version_id) : null;
-    const frame = r.mockup?.page_id ? await mockupFrameWidth(ctx, r.mockup.mockup_version_id, r.mockup.page_id) : undefined;
-    pages.push({ page_id: r.page_id, title: r.title, version: r.n, published_at: r.created_at, archived: Boolean(r.archived_at), depth: slot.depth, level: slot.level, html: canvas ? "" : await shownHtml(ctx.db, r, ctx.ports.blobs), ...(frame ? { frame_width: frame } : {}), ...(canvas ? { canvas_pages: canvas } : {}) });
+    const frame = r.mockup?.page_id ? await mockupFrame(ctx, r.mockup.mockup_version_id, r.mockup.page_id) : undefined;
+    pages.push({ page_id: r.page_id, title: r.title, version: r.n, published_at: r.created_at, archived: Boolean(r.archived_at), depth: slot.depth, level: slot.level, html: canvas ? "" : await shownHtml(ctx.db, r, ctx.ports.blobs), ...(frame ? { frame } : {}), ...(canvas ? { canvas_pages: canvas } : {}) });
   }
   return pages;
 }
 
 /** A canvas's pages as the print view shows them, in their order on the canvas. */
 async function canvasPrintPages(ctx: OpContext, versionId: string) {
-  const rows = await ctx.db.selectFrom("mockup_pages").select(["page_id", "title", "width"]).where("version_id", "=", versionId).orderBy("position").execute();
+  const rows = await ctx.db.selectFrom("mockup_pages").select(["page_id", "title", "width", "height"]).where("version_id", "=", versionId).orderBy("position").execute();
   const pages = [];
-  for (const p of rows) pages.push({ page_id: p.page_id, title: p.title, frame_width: p.width, html: await mockupPageHtml(ctx.db, versionId, p.page_id, ctx.ports.blobs) });
+  for (const p of rows) pages.push({ page_id: p.page_id, title: p.title, frame: { width: p.width, height: p.height }, html: await mockupPageHtml(ctx.db, versionId, p.page_id, ctx.ports.blobs) });
   return pages;
 }
 
-async function mockupFrameWidth(ctx: OpContext, versionId: string, pageId: string) {
-  const p = await ctx.db.selectFrom("mockup_pages").select("width").where("version_id", "=", versionId).where("page_id", "=", pageId).executeTakeFirst();
-  return p?.width;
+async function mockupFrame(ctx: OpContext, versionId: string, pageId: string) {
+  return ctx.db.selectFrom("mockup_pages").select(["width", "height"]).where("version_id", "=", versionId).where("page_id", "=", pageId).executeTakeFirst();
 }
 
 /** A canvas prints under its own heading, each of its pages a section one level down. */
 function printSections(pages: Awaited<ReturnType<typeof printPages>>) {
-  return pages.flatMap((p) => [p, ...(p.canvas_pages ?? []).map((c) => ({ ...p, page_id: `${p.page_id}.${c.page_id}`, title: c.title, html: c.html, frame_width: c.frame_width, level: p.level + 1, depth: p.depth + 1 }))]);
+  return pages.flatMap((p) => [p, ...(p.canvas_pages ?? []).map((c) => ({ ...p, page_id: `${p.page_id}.${c.page_id}`, title: c.title, html: c.html, frame: c.frame, level: p.level + 1, depth: p.depth + 1 }))]);
 }
 
 function printPath(ctx: OpContext, ids: string[]) {
@@ -1130,7 +1129,7 @@ export const printView = defineOperation({
     const path = printPath(ctx, pages.map((p) => p.page_id));
     return {
       product: { name: ctx.scope.product!.name, path: productPath(ctx) },
-      pages: pages.map(({ html, canvas_pages, frame_width: _frame, ...p }) => ({ ...p, html_chars: html.length, ...(canvas_pages ? { canvas_pages: canvas_pages.map((c) => ({ page_id: c.page_id, title: c.title, html_chars: c.html.length })) } : {}) })),
+      pages: pages.map(({ html, canvas_pages, frame: _frame, ...p }) => ({ ...p, html_chars: html.length, ...(canvas_pages ? { canvas_pages: canvas_pages.map((c) => ({ page_id: c.page_id, title: c.title, html_chars: c.html.length })) } : {}) })),
       path,
       url: `${ctx.ports.config.publicBaseUrl}${path}`,
     };

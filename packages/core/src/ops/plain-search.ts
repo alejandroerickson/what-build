@@ -406,8 +406,9 @@ async function corrections(ctx: OpContext, p: ParsedFind, found: boolean[], typi
     union all select title from mockups where product_id = ${pid} and archived_at is null
     union all select title from story_pages where product_id = ${pid} and archived_at is null`.execute(ctx.db);
   const out: { from: string; to: string }[] = [];
-  // Looser than the default 0.6, so a wrong or missing letter in a short word still finds candidates.
-  await sql`select set_config('pg_trgm.word_similarity_threshold', '0.3', true)`.execute(ctx.db);
+  // Looser than the default 0.6, so a missing letter in a short word still finds candidates. Looser
+  // still would read every chunk with a word sharing its first two letters, in every organization.
+  await sql`select set_config('pg_trgm.word_similarity_threshold', '0.4', true)`.execute(ctx.db);
   for (const { t, k } of lost) {
     const near = reader
       ? { rows: [] as { text: string }[] }

@@ -357,7 +357,7 @@ describe("promoting a mockup page to the Story", () => {
     expect(files["story/pages/phone-2/v1.html"]).toBeUndefined();
     const plan = await alice.api("GET", `${P}/story/print-view?page_ids=phone-2`);
     expect(plan.body.pages[0].html_chars).toBeGreaterThan(0);
-    expect(await (await raw(alice, `${P}/story/print?page_ids=phone-2`)).text()).toMatch(/<div class="print-frame" data-print-frame="\d+" style="width:\d+px;--print-fit:[\d.]+"><div data-print-page="phone-2"/);
+    expect(await (await raw(alice, `${P}/story/print?page_ids=phone-2`)).text()).toMatch(/<div class="print-frame" data-print-frame="\d+" style="width:\d+px;min-height:\d+px;--print-fit:[\d.]+"><div data-print-page="phone-2"/);
   });
 });
 
@@ -653,7 +653,7 @@ describe("pages from a mockup in the Story's tree", () => {
       const html = await doc.text();
       expect(html).toContain(`id="page-${canvas.page_id}.added"`);
       expect(html).toContain("Added");
-      expect(html).toContain(`data-print-frame="1280" style="width:1280px;--print-fit:0.5250"><div data-print-page="${canvas.page_id}.added"`);
+      expect(html).toContain(`data-print-frame="1280" style="width:1280px;min-height:800px;--print-fit:0.5250"><div data-print-page="${canvas.page_id}.added"`);
     });
 
     it("holds the mockup back from deletion while it shows it", async () => {

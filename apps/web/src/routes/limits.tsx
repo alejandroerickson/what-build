@@ -712,7 +712,7 @@ export function InstanceGuestsSheet() {
         </p>
         {q.data?.open_without_allowlist ? (
           <Callout inset tone="attention">
-            This WhatBuild has no sign-up allowlist, so anyone can make an account and come in as a guest, whatever the switch below says. Set <code>WHATBUILD_SIGNUP_ALLOWLIST</code> to close sign-up.
+            This WhatBuild has no sign-up allowlist, so anyone can make an account, whatever the switch below says. Set <code>WHATBUILD_SIGNUP_ALLOWLIST</code> to close sign-up.
           </Callout>
         ) : null}
         {q.data ? (

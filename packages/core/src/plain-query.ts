@@ -420,8 +420,9 @@ export function closestWord(word: string, texts: string[], typing: boolean): str
  * index. Trigrams miss a swap in a short word, which shares almost none with the word meant.
  */
 export function swappedLettersTsquery(word: string): string | null {
-  const w = fold(word);
-  if (!/^[\p{L}\p{N}]+$/u.test(w)) return null;
+  // As the index holds it: lower case, accents kept. No word people mean is this long.
+  const w = word.normalize("NFC").toLocaleLowerCase("en-US");
+  if (w.length > 64 || !/^[\p{L}\p{N}]+$/u.test(w)) return null;
   const swapped = new Set<string>();
   for (let i = 0; i + 1 < w.length; i++) if (w[i] !== w[i + 1]) swapped.add(`${w.slice(0, i)}${w[i + 1]}${w[i]}${w.slice(i + 2)}`);
   return swapped.size ? [...swapped].map((x) => `'${x}'`).join(" | ") : null;

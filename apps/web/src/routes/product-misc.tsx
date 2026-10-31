@@ -119,7 +119,7 @@ export function ProductSettingsPage() {
       <OrganizationSheet />
       {isAdmin && !readOnlyOrganization ? <ArchiveSheet archive={archive} /> : null}
       {/* A live product's delete dialog offers archiving it instead; one already archived has nothing to offer. */}
-      {isAdmin ? <DeleteProductSheet onArchive={product.archived_at ? undefined : () => archive.change.mutate(false)} /> : null}
+      {isAdmin ? <DeleteProductSheet onArchive={product.archived_at || readOnlyOrganization ? undefined : () => archive.change.mutate(false)} /> : null}
       <p className="settings-foot">
         Your display name is in <Link to="/settings">your own settings</Link>.
       </p>
@@ -366,7 +366,7 @@ function PeopleSheet() {
                     </span>
                   </div>
                   <div className="people-end">
-                    {isAdmin && own && !readOnlyOrganization ? (
+                    {isAdmin && own ? (
                       <Menu
                         label={`Product role for ${m.display_name}: ${ROLE_WORD[own.role]}`}
                         triggerClassName="field-button people-role"
@@ -378,14 +378,19 @@ function PeopleSheet() {
                           </>
                         }
                       >
-                        <MenuGroup label={`Role on ${product.name}`}>
-                          {ROLES.map((r) => (
-                            <MenuRadio key={r} checked={own.role === r} meta={ROLE_HINT[r]} onSelect={() => own.role !== r && grant.mutate({ email: m.email, role: r })}>
-                              {ROLE_WORD[r]}
-                            </MenuRadio>
-                          ))}
-                        </MenuGroup>
-                        <MenuSeparator />
+                        {/* A read-only organization changes no roles, but people can still be taken out. */}
+                        {readOnlyOrganization ? null : (
+                          <>
+                            <MenuGroup label={`Role on ${product.name}`}>
+                              {ROLES.map((r) => (
+                                <MenuRadio key={r} checked={own.role === r} meta={ROLE_HINT[r]} onSelect={() => own.role !== r && grant.mutate({ email: m.email, role: r })}>
+                                  {ROLE_WORD[r]}
+                                </MenuRadio>
+                              ))}
+                            </MenuGroup>
+                            <MenuSeparator />
+                          </>
+                        )}
                         <MenuItem icon="x" tone="danger" onSelect={() => revoke.mutate(m)}>
                           Remove from {product.name}
                         </MenuItem>

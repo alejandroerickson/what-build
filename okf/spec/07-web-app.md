@@ -848,9 +848,9 @@ page of a mockup reaches it by promotion, from the mockup (§7.7).
   breakpoint, so a page's narrow layout applies there (grids stack into one column). The print
   view does not pretend the paper is wider: a layout made for 900px would be cramped or clipped
   at 680px, and the narrow layout is the one the page's author made for that width. A mockup page
-  is drawn at one size, so it lays out at its frame's width, with its media queries answered for
-  that width, and is scaled down to the printable width (and on screen, to the window), kept on one
-  sheet where it fits. On any page, what a page fixes to the window stays within that page, so an
+  is drawn at one size, so it lays out in its frame, with what its stylesheet asks of the viewport
+  (width in a media query, `vw` and `vh`) answered for the frame, and is scaled down to the printable
+  width (and on screen, to the window), kept on one sheet where it fits. On any page, what a page fixes to the window stays within that page, so an
   open dialog's backdrop never repeats on every sheet.
 - An empty Story uses the first-use state ([§7.5](#75-idea)): agents write it, so the request to
   copy is the only path. It says pages follow the company's design system or a house style, and

@@ -177,6 +177,10 @@ describe("how plain search reads a query", () => {
     expect(closestWord("tryas", ["the trays"], false)).toBe("trays");
     expect(swappedLettersTsquery("two words")).toBeNull();
     expect(swappedLettersTsquery("aa")).toBeNull();
+    // As the index holds a word, accents kept, and never a query too long for Postgres to take.
+    expect(swappedLettersTsquery("Seañl")).toContain("'señal'");
+    expect(swappedLettersTsquery("\uFB03".repeat(500))).toBeNull();
+    expect(swappedLettersTsquery("a".repeat(65))).toBeNull();
   });
 });
 

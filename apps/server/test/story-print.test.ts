@@ -158,15 +158,26 @@ describe("the composed document", () => {
     expect(prepared.body).toContain(".b { position:absolute }");
   });
 
+  it("survives a stored stylesheet holding the characters its masks are made of", () => {
+    expect(() => prepareStoryPage(page("T", "<style>\u00015\u0001{color:red}\u00005\u0000{color:blue}</style><p>Words.</p>"), "T")).not.toThrow();
+  });
+
   it("answers what a mockup page's media queries ask of the width for its frame, not the paper", () => {
-    expect(scopeStoryCss("@media (max-width: 900px) { .a { order: 1 } }", 1440)).toContain("@media (max-width:0) {");
-    expect(scopeStoryCss("@media (min-width: 900px) { .a { order: 1 } }", 1440)).toContain("@media (min-width:0) {");
-    expect(scopeStoryCss("@media screen and (min-width: 60em) { .a { order: 1 } }", 800)).toContain("@media screen and (max-width:0) {");
-    expect(scopeStoryCss("@media (width <= 48rem) { .a { order: 1 } }", 390)).toContain("@media (min-width:0) {");
-    expect(scopeStoryCss("@media (width > 500px), print { .a { order: 1 } }", 390)).toContain("@media (max-width:0), print {");
+    expect(scopeStoryCss("@media (max-width: 900px) { .a { order: 1 } }", { width: 1440, height: 900 })).toContain("@media (max-width:0) {");
+    expect(scopeStoryCss("@media (min-width: 900px) { .a { order: 1 } }", { width: 1440, height: 900 })).toContain("@media (min-width:0) {");
+    expect(scopeStoryCss("@media screen and (min-width: 60em) { .a { order: 1 } }", { width: 800, height: 600 })).toContain("@media screen and (max-width:0) {");
+    expect(scopeStoryCss("@media (width <= 48rem) { .a { order: 1 } }", { width: 390, height: 844 })).toContain("@media (min-width:0) {");
+    expect(scopeStoryCss("@media (width > 500px), print { .a { order: 1 } }", { width: 390, height: 844 })).toContain("@media (max-width:0), print {");
+    expect(scopeStoryCss("@media (900px <= width) { .a { order: 1 } }", { width: 1440, height: 900 })).toContain("@media (min-width:0) {");
+    expect(scopeStoryCss("@media (600px <= width <= 1000px) { .a { order: 1 } }", { width: 1440, height: 900 })).toContain("@media (max-width:0) {");
+    expect(scopeStoryCss(".a { @media (max-width: 900px) { order: 1 } }", { width: 1440, height: 900 })).toContain("@media (max-width:0)");
+    // The viewport is the frame, in calculations and shorthand too, and only where a number is one.
+    expect(scopeStoryCss(".a { width: 100vw; min-height: 100vh; height: calc(50dvh - 2px); margin: 0 5vw; }", { width: 1000, height: 800 })).toBe(".a { width: 1000px; min-height: 800px; height: calc(400px - 2px); margin: 0 50px; }");
+    expect(scopeStoryCss(".a { color: #100vw; width: 100vw }")).toBe(".a { color: #100vw; width: 100vw }");
+    expect(scopeStoryCss(".a { grid-area: a100vw; width: 1vw }", { width: 1000, height: 800 })).toBe(".a { grid-area: a100vw; width: 10px }");
     // A page with no frame answers to the paper, and a query about anything else is left alone.
     expect(scopeStoryCss("@media (max-width: 900px) { .a { order: 1 } }")).toContain("@media (max-width: 900px)");
-    expect(scopeStoryCss("@media (orientation: landscape) { .a { order: 1 } }", 1440)).toContain("(orientation: landscape)");
+    expect(scopeStoryCss("@media (orientation: landscape) { .a { order: 1 } }", { width: 1440, height: 900 })).toContain("(orientation: landscape)");
   });
 
   it("lays a mockup page out at its frame's width and scales it to the paper, and leaves other pages alone", () => {
@@ -175,14 +186,14 @@ describe("the composed document", () => {
       exportedAt: "2026-09-26T10:00:00.000Z",
       nonce,
       pages: [
-        { page_id: "wide", title: "Wide", version: 1, published_at: "2026-09-20T08:00:00.000Z", level: 1, html: page("Wide", "<p>Wide.</p>"), frame_width: 1280 },
-        { page_id: "phone", title: "Phone", version: 1, published_at: "2026-09-20T08:00:00.000Z", level: 1, html: page("Phone", "<p>Phone.</p>"), frame_width: 390 },
+        { page_id: "wide", title: "Wide", version: 1, published_at: "2026-09-20T08:00:00.000Z", level: 1, html: page("Wide", "<p>Wide.</p>"), frame: { width: 1280, height: 800 } },
+        { page_id: "phone", title: "Phone", version: 1, published_at: "2026-09-20T08:00:00.000Z", level: 1, html: page("Phone", "<p>Phone.</p>"), frame: { width: 390, height: 844 } },
         { page_id: "plain", title: "Plain", version: 1, published_at: "2026-09-20T08:00:00.000Z", level: 1, html: page("Plain", "<p>Plain.</p>") },
       ],
     });
-    expect(framed).toContain('<div class="print-frame" data-print-frame="1280" style="width:1280px;--print-fit:0.5250"><div data-print-page="wide"');
+    expect(framed).toContain('<div class="print-frame" data-print-frame="1280" style="width:1280px;min-height:800px;--print-fit:0.5250"><div data-print-page="wide"');
     // A page narrower than the paper keeps its size.
-    expect(framed).toContain('<div class="print-frame" data-print-frame="390" style="width:390px;--print-fit:1.0000"><div data-print-page="phone"');
+    expect(framed).toContain('<div class="print-frame" data-print-frame="390" style="width:390px;min-height:844px;--print-fit:1.0000"><div data-print-page="phone"');
     expect(framed).toMatch(/<\/p>\n<div data-print-page="plain"/);
   });
 
