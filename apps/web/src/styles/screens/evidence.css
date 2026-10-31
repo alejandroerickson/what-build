@@ -274,7 +274,17 @@
   text-underline-offset: 2px;
 }
 
-/* Text: the source's words, as one document. */
+/* Text: the source's words, as one document. Its head stays in sight, so a find can step through a long text. */
+.source-text-sheet {
+  overflow: clip;
+}
+.source-text-sheet > .sheet-head {
+  position: sticky;
+  /* The canvas's own padding is above where sticky would stop, and rows would show through it. */
+  top: calc(-1 * var(--canvas-pt));
+  z-index: 2;
+  background: var(--panel);
+}
 .text-find-bar {
   display: inline-flex;
   align-items: center;

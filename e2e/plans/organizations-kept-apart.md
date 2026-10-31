@@ -58,9 +58,9 @@ it exists. The example organization is the exception everyone reads.
 11. **MCP, as Sam.** `products_read(action="list")`. *Expect:* `your_role` editor in the example and the
     standard organization, reader for Crewboard. Over the same connection, list sources in a
     standard product (works) and in Crewboard (refused, as a reader's).
-12. **Web, as Morgan.** Open the synthetic organization's activity, then Crewboard's. *Expect:* Casey's
-    source and comment from step 8 are there; nothing from Sam's step 10 in the standard
-    organization is.
+12. **Web, as Morgan.** Open Crewboard's Activity. *Expect:* Casey's source and comment from step 8
+    are there; nothing from Sam's step 10 in the standard organization is. An organization has no
+    activity screen of its own, only Access changes on Members.
 
 ## Look out for
 

@@ -6,6 +6,7 @@ import { api, ApiError } from "../lib/api.ts";
 import { useProduct } from "../lib/session.tsx";
 import { useScheme } from "../shell/theme.ts";
 import { Inspector, usePageTitle } from "../shell/slots.tsx";
+import { deletedSentence } from "../lib/format.ts";
 import { Button, ButtonLink, Callout, Crumbs, EmptyState, ErrorCallout, Loading, Sheet } from "../ui/index.tsx";
 import { FirstUse } from "./first-use.tsx";
 import { Canvas, pageAddress, usePinnedPrototype } from "./mockup-canvas.tsx";
@@ -388,16 +389,21 @@ export function StoryPage() {
   const crumbs = [
     { label: "Story", ...(root && root !== pageId ? { to: `${app}/story/${root}` } : {}) },
     ...(path ?? []).slice(0, -1).map((c) => ({ label: c.title, to: `${app}/story/${c.page_id}` })),
-    { label: page.isError ? "Page not found" : title },
+    { label: page.isError ? (deletedSentence(page.error) ? "Deleted page" : "Page not found") : title },
   ];
 
   if (page.isError) {
     const gone = page.error instanceof ApiError && page.error.isNotFound;
+    const deleted = deletedSentence(page.error);
     return (
       <div className="story-view">
         {tree}
         <Crumbs label="Page location" currentAsHeading items={crumbs} />
-        {gone ? (
+        {deleted ? (
+          <EmptyState title="This page was deleted" action={root ? <ButtonLink to={`${app}/story/${root}`}>Open the Story</ButtonLink> : undefined}>
+            {deleted}
+          </EmptyState>
+        ) : gone ? (
           <EmptyState title="This page isn’t in the Story" action={root ? <ButtonLink to={`${app}/story/${root}`}>Open the Story</ButtonLink> : undefined}>
             The link may be mistyped, or the page was never published here.
           </EmptyState>

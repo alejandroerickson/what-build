@@ -1,4 +1,4 @@
-import { closestWord, excerpt, matchText, parseFind, termTsquery, wordRoot } from "@whatbuild/core";
+import { closestWord, editDistanceWithin, excerpt, matchText, parseFind, swappedLettersTsquery, termTsquery, wordRoot } from "@whatbuild/core";
 import { findCount, findPattern, findWords } from "@whatbuild/core/find-in-text";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { shownWords } from "../../../packages/core/src/ops/plain-search.ts";
@@ -168,6 +168,15 @@ describe("how plain search reads a query", () => {
     expect(closestWord("20735", ["Ticket CB26-20734 and ticket 20733"], false)).toBeNull();
     expect(closestWord("cb27", ["Ticket CB26-20734"], false)).toBeNull();
     expect(closestWord("rout", ["rout1 then the route"], false)).toBe("route");
+    // A whole word one edit away beats a longer word whose start is, however often that one is said.
+    expect(closestWord("treys", ["greyscale greyscale greyscale", "the trays"], true)).toBe("trays");
+    expect(swappedLettersTsquery("tarys")).toContain("'trays'");
+    // Two neighbouring letters swapped are one edit, wherever they are in the word.
+    for (const typo of ["rtays", "tarys", "tryas", "trasy"]) expect(editDistanceWithin(typo, "trays", 1), typo).toBe(true);
+    expect(editDistanceWithin("ytars", "trays", 1)).toBe(false);
+    expect(closestWord("tryas", ["the trays"], false)).toBe("trays");
+    expect(swappedLettersTsquery("two words")).toBeNull();
+    expect(swappedLettersTsquery("aa")).toBeNull();
   });
 });
 

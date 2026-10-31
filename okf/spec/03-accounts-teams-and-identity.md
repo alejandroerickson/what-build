@@ -92,7 +92,8 @@ different account once used, it answers `410 invitation_used`; expired or cancel
 `410 invitation_expired`; an unknown token, `404`.
 
 **Invite-only mode.** `WHATBUILD_SIGNUP_ALLOWLIST` (emails and `@domains`) limits who may create an
-account. Existing accounts, invited addresses, the instance's owners and addresses with an
+account. Without it there is no invite-only mode and anyone may, whatever the guests' `self_serve`
+says, and `/instance` says so. Existing accounts, invited addresses, the instance's owners and addresses with an
 allowance above 0 to create organizations ([§3.3](#33-tenants-and-teams)) always may. Staging runs invite-only until public
 sign-up opens ([§10 Phase 6](10-roadmap.md)). The sign-in form answers every address alike, "if it
 can sign in here, a link is on its way", at the same speed and under the same hourly limit, and

@@ -148,6 +148,23 @@ describe("the composed document", () => {
     expect(html).toContain('data-print-page="overview" lang="en" data-mode="print" class="theme wb"');
   });
 
+  it("lays a mockup page out at its frame's width and scales it to the paper, and leaves other pages alone", () => {
+    const framed = composePrintDocument({
+      productName: "Crewboard",
+      exportedAt: "2026-09-26T10:00:00.000Z",
+      nonce,
+      pages: [
+        { page_id: "wide", title: "Wide", version: 1, published_at: "2026-09-20T08:00:00.000Z", level: 1, html: page("Wide", "<p>Wide.</p>"), frame_width: 1280 },
+        { page_id: "phone", title: "Phone", version: 1, published_at: "2026-09-20T08:00:00.000Z", level: 1, html: page("Phone", "<p>Phone.</p>"), frame_width: 390 },
+        { page_id: "plain", title: "Plain", version: 1, published_at: "2026-09-20T08:00:00.000Z", level: 1, html: page("Plain", "<p>Plain.</p>") },
+      ],
+    });
+    expect(framed).toContain('<div class="print-frame" data-print-frame="1280" style="width:1280px;--print-fit:0.5250"><div data-print-page="wide"');
+    // A page narrower than the paper keeps its size.
+    expect(framed).toContain('<div class="print-frame" data-print-frame="390" style="width:390px;--print-fit:1.0000"><div data-print-page="phone"');
+    expect(framed).toMatch(/<\/p>\n<div data-print-page="plain"/);
+  });
+
   it("runs only the nonce'd print script", () => {
     const scripts = [...html.matchAll(/<script([^>]*)>/g)];
     expect(scripts).toHaveLength(1);

@@ -185,11 +185,11 @@ describe("what a delete dialog counts", () => {
     // A new organization: one team, one product, nothing in it yet, and its owner.
     expect(organizationImpactWords("Acme", { ...none, teams: 1, products: products(1), people: 1 })).toEqual({
       goes: "Everything in Acme goes at once: its team and its product.",
-      people: "1 person loses their roles here. Their accounts, and their roles in other organizations, stay.",
+      people: "1 person loses their roles here. Their account, and their roles in other organizations, stay.",
     });
     expect(organizationImpactWords("Acme", { ...none, teams: 1, sources: 2, people: 1, pending_invitations: 1 })).toEqual({
       goes: "Everything in Acme goes at once: its team, with 2 sources.",
-      people: "1 person loses their roles here, and 1 invitation stops working. Their accounts, and their roles in other organizations, stay.",
+      people: "1 person loses their roles here, and 1 invitation stops working. Their account, and their roles in other organizations, stay.",
     });
     expect(organizationImpactWords("Acme", none)).toEqual({ goes: "Everything in Acme goes at once.", people: null });
     expect(organizationImpactWords("Acme", { ...none, pending_invitations: 3 }).people).toBe("3 invitations stop working.");

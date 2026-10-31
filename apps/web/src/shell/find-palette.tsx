@@ -205,7 +205,15 @@ function Palette({ app, base, product, text, setText, via, onClose }: { app: str
       {!typed && recent.length ? (
         <div className="find-pal-head">
           <span id={`${listId}-h`}>Recent searches</span>
-          <button type="button" className="panel-text-button" onClick={clear}>
+          <button
+            type="button"
+            className="panel-text-button"
+            onClick={() => {
+              // The button goes with the list, so the field takes the focus it would have dropped.
+              clear();
+              input.current?.focus();
+            }}
+          >
             Clear
           </button>
         </div>
@@ -213,7 +221,7 @@ function Palette({ app, base, product, text, setText, via, onClose }: { app: str
       {typed && res.isError && !searching ? <p className="find-pal-empty">{res.error instanceof ApiError ? res.error.message : "Search didn’t finish. Try again."}</p> : null}
       {typed && d && !d.results.length ? (
         <p className="find-pal-empty">
-          Nothing in {product.name} matches “{nestQuotes(text.trim())}”. Try another word.
+          Nothing in {product.your_role === "reader" ? "the Story" : product.name} matches “{nestQuotes(text.trim())}”. Try another word.
         </p>
       ) : null}
       {opts.length ? (

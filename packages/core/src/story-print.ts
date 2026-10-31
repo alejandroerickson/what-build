@@ -416,7 +416,12 @@ export interface PrintPage {
   published_at: string;
   level: number;
   html: string;
+  /** A mockup page's frame width in CSS pixels: it lays out at that width, and is scaled to fit the paper. */
+  frame_width?: number;
 }
+
+/** The narrowest paper a print view fits: A4 less the @page margins (178mm), in CSS pixels. Letter is wider. */
+const PRINTABLE_WIDTH = 672;
 
 export function printCsp(nonce: string): string {
   return (
@@ -462,11 +467,13 @@ body { margin: 0; }
 h2.print-heading { font-size: 24px; } h3.print-heading { font-size: 20px; } h4.print-heading { font-size: 17px; }
 h5.print-heading, h6.print-heading { font-size: 15px; }
 .print-meta { margin: 0 0 16px; font-size: 12px; color: #555555; break-after: avoid; }
+.print-frame { zoom: var(--screen-fit, var(--print-fit)); break-inside: avoid; }
 @page { margin: 18mm 16mm; }
 @media print {
   .print-bar { display: none; }
   .print-doc { max-width: none; padding: 0; }
   .print-section[data-level="1"] { break-before: page; margin-top: 0; }
+  .print-frame { zoom: var(--print-fit); }
 }
 `;
 
@@ -492,11 +499,12 @@ export function composePrintDocument(input: { productName: string; exportedAt: s
       const prepared = prepareStoryPage(p.html, p.title, h);
       const host = prepared.host.map((a) => ` ${a.name}="${escapeHtml(a.value)}"`).join("");
       const styles = prepared.styles.map((s) => `<style>${s.replace(/<\/style/gi, "<\\/style")}</style>`).join("");
+      const shown = `<div data-print-page="${p.page_id}"${host}><template shadowrootmode="open">${styles}${prepared.body}</template></div>`;
       return (
         `<section class="print-section" id="page-${p.page_id}" data-level="${p.level}" aria-labelledby="title-${p.page_id}">\n` +
         `<h${h} class="print-heading" id="title-${p.page_id}">${escapeHtml(p.title)}</h${h}>\n` +
         `<p class="print-meta">Version ${p.version} · published ${dateElement(p.published_at)}</p>\n` +
-        `<div data-print-page="${p.page_id}"${host}><template shadowrootmode="open">${styles}${prepared.body}</template></div>\n` +
+        (p.frame_width ? `<div class="print-frame" data-print-frame="${p.frame_width}" style="width:${p.frame_width}px;--print-fit:${Math.min(1, PRINTABLE_WIDTH / p.frame_width).toFixed(4)}">${shown}</div>\n` : `${shown}\n`) +
         `</section>`
       );
     })
@@ -506,6 +514,9 @@ export function composePrintDocument(input: { productName: string; exportedAt: s
   const script =
     `var local = new Intl.DateTimeFormat("en-GB", ${JSON.stringify(DATE_FORMAT)});` +
     'document.querySelectorAll("time[datetime]").forEach(function (t) { t.textContent = local.format(new Date(t.getAttribute("datetime"))); });' +
+    // On screen a mockup page fits the window; on paper, the width written into its frame.
+    'function fit() { document.querySelectorAll("[data-print-frame]").forEach(function (f) { f.style.setProperty("--screen-fit", String(Math.min(1, f.parentElement.clientWidth / Number(f.dataset.printFrame)))); }); }' +
+    'fit(); window.addEventListener("resize", fit);' +
     'document.getElementById("print-now").addEventListener("click", function () { window.print(); });' +
     'window.addEventListener("load", function () { setTimeout(function () { window.print(); }, 300); });';
   return `<!doctype html>

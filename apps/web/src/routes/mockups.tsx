@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useState } from "react";
 import { Link, Navigate, useNavigate, useParams, useSearchParams } from "react-router";
 import { api, ApiError } from "../lib/api.ts";
-import { attribution, formatBytes, formatDate, formatDateTime, plural, quotedAtEnd } from "../lib/format.ts";
+import { attribution, deletedSentence, formatBytes, formatDate, formatDateTime, plural, quotedAtEnd } from "../lib/format.ts";
 import { Markdown } from "../lib/markdown.tsx";
 import { useProduct } from "../lib/session.tsx";
 import { Inspector, usePageTitle } from "../shell/slots.tsx";
@@ -511,10 +511,15 @@ export function MockupPage() {
     );
   if (e.isError) {
     const gone = e.error instanceof ApiError && e.error.isNotFound;
+    const deleted = deletedSentence(e.error);
     return (
       <div className="mockup-view">
         <Crumbs label="Location" currentAsHeading items={crumbs} />
-        {gone ? (
+        {deleted ? (
+          <EmptyState title="This mockup was deleted" action={<ButtonLink to={`${app}/exploration/mockups`}>Open mockups</ButtonLink>}>
+            {deleted}
+          </EmptyState>
+        ) : gone ? (
           <EmptyState title="This mockup isn’t in this product" action={<ButtonLink to={`${app}/exploration/mockups`}>Open mockups</ButtonLink>}>
             The link may be mistyped, or the mockup belongs to another product.
           </EmptyState>

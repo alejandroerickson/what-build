@@ -20,7 +20,8 @@ as `leaver-<the run's time>@example.com`.
 1. **MCP, as Sam and as Riley, each at `--level admin`.** List the tools, then call
    `products_delete(action="delete_account", email: "<their address>", confirm: "delete permanently")`.
    *Expect:* no `products_` tool offers `delete_account` or `delete_account_impact`; the call
-   answers `unknown_action`; `products_read(action="list")` still works for both.
+   answers `403 web_only`, saying where a person does it and that nothing was changed;
+   `products_read(action="list")` still works for both.
 2. **Web, as Riley.** Open Settings. *Expect:* Delete account is its own section, closed: one line
    and a Delete account… button, which reads as opening the section rather than deleting. Open it.
    *Expect:* what deleting will do, in the future tense, naming the organizations Riley would lose,

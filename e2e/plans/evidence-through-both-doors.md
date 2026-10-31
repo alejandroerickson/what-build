@@ -100,8 +100,8 @@ plans file's Free plan, which the end-to-end instance offers, are tried.
 15. **The Free plan (the example file's), as Riley and then Sam.** As Riley, on Organizations, choose Change plan on the
     standard organization and move it to Free; the dialog says by how much it already holds more
     than Free allows, if it does. As Sam, read `products_read(action="limits")` for it over MCP, then
-    try to add a person as an editor (`members_write(action="grant")`) and a second product, then open
-    Plan from the account menu in the web app. Then sign in to the web app as `guest@example.com`,
+    open Plan from the account menu in the web app. As Riley at `--level admin`, try to add a person
+    as an editor (`members_write(action="grant")`) and a second product. Then sign in to the web app as `guest@example.com`,
     open the account menu, and go to the example organization's `/t/<slug>/plan`. *Expect:* the
     limits say the plan is free and that Sam meets them, with what Sam used today and what the
     organization holds (`holds`); adding a third person or a second product is refused with

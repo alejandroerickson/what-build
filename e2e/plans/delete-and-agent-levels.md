@@ -28,7 +28,7 @@ deletes only what it made itself in the run.
    destructive. `products_read(action="list")` says `connection_level: "editor"`. `products_write`
    offers `update_concept` and `outcomes_read` offers `card_preview`: an editor writes the Idea's
    cards. Preview a concept front with
-   `outcomes_read(action="card_preview", kind="concept")` and open its `url` with its `headers` at 900
+   `outcomes_read(action="card_preview", kind="concept", card_html=<a short front>)` and open its `url` with its `headers` at 900
    and 390 wide. *Expect:* the front with a dashed line at 560px and a note on how tall it is; at
    390, no line, and a note below the front, clear of its last line, that a phone shows the whole
    front.
@@ -81,16 +81,18 @@ deletes only what it made itself in the run.
     whoever runs this WhatBuild reads it with its usage report, never `unknown_action`.
 14. **MCP, as Jordan, on a connector scoped to a product of the standard organization**
     (`--endpoint /mcp/t/<org>/<team>/<product>`). List the tools. *Expect:* `story_read` and
-    `products_read` (with `guide` and `submit_feedback`), and no `story_write`, no `sources_`,
-    `outcomes_` or `members_` tool and no `search`; `sources_read(action="list")` called anyway answers `403`, naming reader and viewer.
+    `products_read` and `search` (with `guide` and `submit_feedback`), and no `story_write`, no
+    `sources_`, `outcomes_` or `members_` tool; `search` takes `plain` mode alone, over the Story;
+    `sources_read(action="list")` called anyway answers `403`, naming reader and viewer.
     Then as Sam on the organization's connector (`--endpoint /mcp/t/<org>`): writes and archives,
     `members_read` `list`, and no `_delete` tool, no `members_write`, no `create_team`.
 15. **MCP, as Jordan and as a guest, on the unscoped connector** (no `--endpoint`, `--level admin`;
     the guest is `guest@example.com`). List the tools. *Expect:* neither may start an organization,
-    so neither is offered `create_tenant`. Jordan, a reader everywhere, is offered `story_read` and
-    `products_read` alone, as in step 14; the guest every read of the example and no write but
-    `submit_feedback`, and `story_read`'s description says nothing of publishing to Jordan. Sam, who may
-    start an organization, is offered everything the level allows.
+    so neither is offered `create_tenant`. Jordan, a reader everywhere, is offered what step 14 lists;
+    the guest every read of the example and no write but `submit_feedback`, and `story_read`'s
+    description says nothing of publishing to Jordan. Casey, who may start an organization (the
+    golden master's sample allowance goes to the synthetic organization's editor), is offered
+    everything the level allows. Sam, who may not, is offered no `create_tenant`.
 
 ## Look out for
 

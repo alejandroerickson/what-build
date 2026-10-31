@@ -2,7 +2,7 @@ import { sql, type RawBuilder } from "kysely";
 import { productId } from "../common.ts";
 import type { MockupPageRef } from "../db.ts";
 import { findCount, findPattern, findWords } from "../find-in-text.ts";
-import { closestWord, excerpt, findTsquery, fold, idLike, matchText, parseFind, termPattern, termTsquery, wordRoot, type FindKind, type FindTerm, type ParsedFind, type TextMatch } from "../plain-query.ts";
+import { closestWord, excerpt, findTsquery, fold, idLike, matchText, parseFind, swappedLettersTsquery, termPattern, termTsquery, wordRoot, type FindKind, type FindTerm, type ParsedFind, type TextMatch } from "../plain-query.ts";
 import { readsOnlyTheStory } from "../policy.ts";
 import type { OpContext } from "../registry.ts";
 
@@ -406,8 +406,8 @@ async function corrections(ctx: OpContext, p: ParsedFind, found: boolean[], typi
     union all select title from mockups where product_id = ${pid} and archived_at is null
     union all select title from story_pages where product_id = ${pid} and archived_at is null`.execute(ctx.db);
   const out: { from: string; to: string }[] = [];
-  // Looser than the default 0.6, so a swapped or missing letter in a short word still finds candidates.
-  await sql`select set_config('pg_trgm.word_similarity_threshold', '0.4', true)`.execute(ctx.db);
+  // Looser than the default 0.6, so a wrong or missing letter in a short word still finds candidates.
+  await sql`select set_config('pg_trgm.word_similarity_threshold', '0.3', true)`.execute(ctx.db);
   for (const { t, k } of lost) {
     const near = reader
       ? { rows: [] as { text: string }[] }
@@ -415,8 +415,15 @@ async function corrections(ctx: OpContext, p: ParsedFind, found: boolean[], typi
       select c.text from text_chunks c join records r on r.record_id = c.record_id
       where r.product_id = ${pid} and r.archived_at is null and ${t.text} <% c.text
       limit 40`.execute(ctx.db);
+    const swaps = swappedLettersTsquery(t.text);
+    const swapped = reader || !swaps
+      ? { rows: [] as { text: string }[] }
+      : await sql<{ text: string }>`
+      select c.text from text_chunks c join records r on r.record_id = c.record_id
+      where r.product_id = ${pid} and r.archived_at is null and c.tsv @@ to_tsquery('simple', ${swaps})
+      limit 10`.execute(ctx.db);
     const last = typing && k === p.terms.length - 1;
-    const to = closestWord(t.text, [...near.rows.map((r) => r.text), ...titles.rows.map((r) => r.t)], last);
+    const to = closestWord(t.text, [...near.rows.map((r) => r.text), ...swapped.rows.map((r) => r.text), ...titles.rows.map((r) => r.t)], last);
     if (to) out.push({ from: t.text, to });
   }
   return out;

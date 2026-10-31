@@ -128,14 +128,14 @@ export function ProductSettingsPage() {
 }
 
 function ProductDetails() {
-  const { product, api: base, isAdmin } = useProduct();
+  const { product, api: base, isAdmin, readOnlyOrganization } = useProduct();
   const qc = useQueryClient();
   const toast = useToast();
   const navigate = useNavigate();
   const [name, setName] = useState(product.name);
   const [slug, setSlug] = useState(product.slug);
   const archived = Boolean(product.archived_at);
-  const editable = isAdmin && !archived;
+  const editable = isAdmin && !archived && !readOnlyOrganization;
   const dirty = name !== product.name || slug !== product.slug;
   const save = useMutation({
     mutationFn: () =>
@@ -277,7 +277,7 @@ function useProductMembers() {
 }
 
 function PeopleSheet() {
-  const { product, isAdmin } = useProduct();
+  const { product, isAdmin, readOnlyOrganization } = useProduct();
   const { q } = useProductMembers();
   const qc = useQueryClient();
   const toast = useToast();
@@ -316,7 +316,7 @@ function PeopleSheet() {
         title="People on this product"
         count={count}
         end={
-          isAdmin ? (
+          isAdmin && !readOnlyOrganization ? (
             <Button icon="user-plus" onClick={() => setAdding(true)}>Add people</Button>
           ) : q.data?.guest ? null : (
             <Link className="quiet-link" to={membersLink}>Organization members</Link>

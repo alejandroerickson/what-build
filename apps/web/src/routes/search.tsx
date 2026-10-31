@@ -109,7 +109,7 @@ export function SearchPage() {
         </Sheet>
       ) : !shown.length ? (
         <Sheet>
-          <EmptyState size="inline" title={`Nothing ${area ? `in ${area.label} ` : ""}matches “${nestQuotes(q.trim())}”`}>
+          <EmptyState size="inline" title={`Nothing ${storyOnly ? "in the Story " : area ? `in ${area.label} ` : ""}matches “${nestQuotes(q.trim())}”`}>
             Try another word, or fewer words.
           </EmptyState>
         </Sheet>
