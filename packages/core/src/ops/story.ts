@@ -11,7 +11,7 @@ import { refuseSwitchedOff } from "../limits.ts";
 import { defineOperation, type OpContext } from "../registry.ts";
 import { expectedEtag, id } from "../schemas.ts";
 import { escapeHtml, inspectStoryCss, inspectStoryHtml, STORY_CSS_MAX, STORY_HTML_MAX, STORY_MAX_SCRIPTS, STORY_SCRIPT_BUDGET } from "../story-html.ts";
-import { composePrintDocument, PRINT_MAX_PAGES, printOrder } from "../story-print.ts";
+import { composePrintDocument, PRINT_MAX_PAGES, PRINT_MAX_SECTIONS, printOrder } from "../story-print.ts";
 import {
   ANTI_PATTERNS, CARRIED_TYPEFACES, catalogue, CHECKLIST, components, COMPOSITIONS, CONTENT_RULES, DESIGN_PASSES, DESIGN_TOOLS, GUIDANCE_VERSION, LINKS_NOTE, linkTemplates,
   SANDBOX_RULES, starterHtml, STYLE_WORKFLOW, TASTE, VOCABULARY, WORKFLOW, WRITING,
@@ -265,22 +265,87 @@ function notesView(p: { agent_notes: string; agent_notes_etag: string; agent_not
   return { content: p.agent_notes, etag: p.agent_notes_etag, updated_at: p.agent_notes_updated_at, updated_by: p.agent_notes_updated_by };
 }
 
+/** What a Story page's version is: a page of its own, one page of a mockup, or a mockup's whole canvas. */
+export type StoryPageKind = "story_page" | "mockup_page" | "canvas";
+
+const kindOf = (mockup: MockupPageRef | null): StoryPageKind => (!mockup ? "story_page" : mockup.page_id === null ? "canvas" : "mockup_page");
+
 /**
  * The HTML a version shows: its own, or the page of a mockup version it points at. Mockup versions
  * are immutable, so the Story holds the reference and never a copy. A mockup page that enters its
  * version's prototype has no HTML of its own: the app frames the entry, and anywhere else that needs
- * HTML gets a notice, with the page's poster when `blobs` is given to read it.
+ * HTML gets a notice, with the page's poster when `blobs` is given to read it. A whole canvas is no
+ * one document: the app draws its pages, and anywhere else gets a notice.
  */
 export async function shownHtml(db: Db, v: { html: string; mockup: MockupPageRef | null }, blobs?: BlobStore): Promise<string> {
   if (!v.mockup) return v.html;
-  const p = await db.selectFrom("mockup_pages").select(["html", "entry", "poster"]).where("version_id", "=", v.mockup.mockup_version_id).where("page_id", "=", v.mockup.page_id).executeTakeFirst();
+  if (v.mockup.page_id === null) {
+    const pages = await db.selectFrom("mockup_pages").select((eb) => eb.fn.countAll<number>().as("n")).where("version_id", "=", v.mockup.mockup_version_id).executeTakeFirst();
+    return canvasNotice(Number(pages?.n ?? 0));
+  }
+  return mockupPageHtml(db, v.mockup.mockup_version_id, v.mockup.page_id, blobs);
+}
+
+async function mockupPageHtml(db: Db, versionId: string, pageId: string, blobs?: BlobStore): Promise<string> {
+  const p = await db.selectFrom("mockup_pages").select(["html", "entry", "poster"]).where("version_id", "=", versionId).where("page_id", "=", pageId).executeTakeFirst();
   if (p && p.html === null) {
     const poster = blobs && p.poster
-      ? await db.selectFrom("mockup_prototype_files").select(["media_type", "blob_key"]).where("version_id", "=", v.mockup.mockup_version_id).where("path", "=", p.poster).executeTakeFirst()
+      ? await db.selectFrom("mockup_prototype_files").select(["media_type", "blob_key"]).where("version_id", "=", versionId).where("path", "=", p.poster).executeTakeFirst()
       : null;
     return prototypeNotice(poster ? { media_type: poster.media_type, data: await blobs!.get(poster.blob_key) } : null);
   }
   return p?.html ?? "";
+}
+
+function canvasNotice(pages: number) {
+  return (
+    '<!doctype html><html lang="en"><head><meta charset="utf-8"><title>A canvas</title>' +
+    "<style>.wb-canvas{font:15px/1.5 system-ui,sans-serif;border:1px solid #ccc;border-radius:8px;padding:16px 20px}</style></head>" +
+    `<body><div class="wb-canvas"><p>This page shows a whole mockup canvas of ${pages} page${pages === 1 ? "" : "s"}. Open it in WhatBuild to see it.</p></div></body></html>`
+  );
+}
+
+/** The hash a version's HTML goes by. A canvas has no one document, so its hash names the mockup version it shows. */
+function shownDigest(v: { mockup: MockupPageRef | null }, html: string) {
+  return sha256Hex(v.mockup?.page_id === null ? `canvas:${v.mockup.mockup_version_id}` : html);
+}
+
+/** Which mockup and version a Story page shows, for the team; a reader is not told. */
+async function mockupOrigin(ctx: OpContext, ref: MockupPageRef) {
+  const m = await ctx.db.selectFrom("mockups").select(["title", "version_count", "archived_at"]).where("product_id", "=", productId(ctx)).where("mockup_id", "=", ref.mockup_id).executeTakeFirst();
+  return {
+    mockup_id: ref.mockup_id,
+    mockup_title: m?.title ?? null,
+    version: ref.version,
+    page_id: ref.page_id,
+    current_version: m?.version_count ?? null,
+    mockup_archived: Boolean(m?.archived_at),
+  };
+}
+
+/**
+ * What a reader needs to draw a whole canvas: the layout, each page's title and size, and for pages
+ * that enter the version's prototype the address their frames open. Each page's HTML comes from the
+ * Story page's own route (`pages/<page_id>/html`). The brief, the notes, the files and every other
+ * version of the mockup stay with the team.
+ */
+async function canvasView(ctx: OpContext, ref: MockupPageRef) {
+  const version = await ctx.db.selectFrom("mockup_versions").select("columns").where("version_id", "=", ref.mockup_version_id).executeTakeFirst();
+  const pages = await ctx.db.selectFrom("mockup_pages").select(["page_id", "title", "width", "height", "entry"]).where("version_id", "=", ref.mockup_version_id).orderBy("position").execute();
+  const address = pages.some((p) => p.entry) ? prototypeAddress(ctx.ports, tenantId(ctx), ref.mockup_version_id, ctx.now) : null;
+  const canvas = {
+    canvas: true as const,
+    columns: version?.columns ?? null,
+    pages: pages.map((p) => ({
+      page_id: p.page_id,
+      title: p.title,
+      width: p.width,
+      height: p.height,
+      ...(address && p.entry ? { entry: p.entry, prototype_url: `${address.base_url}${entryAddress(p.entry)}` } : {}),
+    })),
+    ...(address ? { prototype: address } : {}),
+  };
+  return readsOnlyTheStory(ctx.scope.role) ? canvas : { ...canvas, ...(await mockupOrigin(ctx, ref)) };
 }
 
 /**
@@ -289,6 +354,7 @@ export async function shownHtml(db: Db, v: { html: string; mockup: MockupPageRef
  * prototype is, and nothing else of the mockup. The team also sees which mockup and version it is.
  */
 async function mockupView(ctx: OpContext, ref: MockupPageRef) {
+  if (ref.page_id === null) return canvasView(ctx, ref);
   const page = await ctx.db.selectFrom("mockup_pages").select(["title", "width", "height", "entry"]).where("version_id", "=", ref.mockup_version_id).where("page_id", "=", ref.page_id).executeTakeFirst();
   const address = page?.entry ? prototypeAddress(ctx.ports, tenantId(ctx), ref.mockup_version_id, ctx.now) : null;
   const size = {
@@ -299,17 +365,7 @@ async function mockupView(ctx: OpContext, ref: MockupPageRef) {
       : {}),
   };
   if (readsOnlyTheStory(ctx.scope.role)) return size;
-  const m = await ctx.db.selectFrom("mockups").select(["title", "version_count", "archived_at"]).where("product_id", "=", productId(ctx)).where("mockup_id", "=", ref.mockup_id).executeTakeFirst();
-  return {
-    ...size,
-    mockup_id: ref.mockup_id,
-    mockup_title: m?.title ?? null,
-    version: ref.version,
-    page_id: ref.page_id,
-    page_title: page?.title ?? null,
-    current_version: m?.version_count ?? null,
-    mockup_archived: Boolean(m?.archived_at),
-  };
+  return { ...size, ...(await mockupOrigin(ctx, ref)), page_title: page?.title ?? null };
 }
 
 /** A version as its reader may see it: the page itself, the mockup page it shows, and how it was published. */
@@ -330,7 +386,7 @@ async function versionView(ctx: OpContext, versionId: string, withHtml: boolean)
 
 async function htmlFields(ctx: OpContext, v: { html: string; mockup: MockupPageRef | null }, withHtml: boolean) {
   const html = await shownHtml(ctx.db, v);
-  return { html_sha256: sha256Hex(html), ...(withHtml ? { html } : { html_chars: html.length }) };
+  return { html_sha256: shownDigest(v, html), ...(withHtml ? { html } : { html_chars: html.length }) };
 }
 
 export const getPage = defineOperation({
@@ -368,7 +424,7 @@ export const listVersions = defineOperation({
       .selectFrom("story_versions")
       .select(["version_id", "n", "title", "summary", "created_at", "created_by"])
       .select(
-        sql<string>`encode(sha256(convert_to(coalesce((select mp.html from mockup_pages mp where mp.version_id = story_versions.mockup->>'mockup_version_id' and mp.page_id = story_versions.mockup->>'page_id'), html), 'UTF8')), 'hex')`.as("html_sha256"),
+        sql<string>`encode(sha256(convert_to(coalesce((select mp.html from mockup_pages mp where mp.version_id = story_versions.mockup->>'mockup_version_id' and mp.page_id = story_versions.mockup->>'page_id'), case when mockup is not null and mockup->>'page_id' is null then 'canvas:' || (mockup->>'mockup_version_id') end, html), 'UTF8')), 'hex')`.as("html_sha256"),
       )
       .where("product_id", "=", productId(ctx))
       .where("page_id", "=", input.page_id);
@@ -516,9 +572,9 @@ async function draftVersion(ctx: OpContext, input: PublishInput, opts: { lock: b
   const title = input.title ?? from.title;
   const summary = input.summary ?? from.summary;
   if (from.mockup && (input.patch_html || input.restyle))
-    throw invalid("invalid_input", `Version ${from.n} shows page "${from.mockup.page_id}" of a mockup, so it has no HTML of its own to ${input.patch_html ? "patch" : "restyle"}. Send html or body to replace it, or promote_mockup to show another version of the mockup page.`);
+    throw invalid("invalid_input", `Version ${from.n} shows ${from.mockup.page_id === null ? "the whole canvas" : `page "${from.mockup.page_id}"`} of a mockup, so it has no HTML of its own to ${input.patch_html ? "patch" : "restyle"}. Send html or body to replace it, or promote_mockup to show another version of the mockup.`);
   if (input.restyle && !(await loadStyle(ctx))) throw conflict("no_story_style", "This product has no Story style to restyle the page in. Set one with set_style first.");
-  // A version that shows a mockup page keeps showing it until html or body replaces it.
+  // A version that shows a mockup page or canvas keeps showing it until html or body replaces it.
   const keepsMockup = from.mockup && input.html === undefined && input.body === undefined ? from.mockup : null;
   // A generated title page follows a new title or summary rather than keeping the old one.
   const html = keepsMockup
@@ -627,7 +683,7 @@ export const preview = defineOperation({
       summary: d.summary,
       ...(d.mockup ? { shows_mockup: { mockup_id: d.mockup.mockup_id, version: d.mockup.version, page_id: d.mockup.page_id } } : {}),
       html_chars: shown.length,
-      html_sha256: sha256Hex(shown),
+      html_sha256: shownDigest(d, shown),
       published: false,
       preview: {
         preview_id,
@@ -650,10 +706,9 @@ function flatten(nodes: StoryNode[]): string[] {
   return nodes.flatMap((n) => [n.page_id, ...flatten(n.children)]);
 }
 
-/** Whether a page appears in the navigation: in the tree, or among the Published mockups, where every live page showing a mockup page appears. */
+/** Whether a page has its place in the tree. A page without one reads at the end of the tree until it gets one. */
 async function isPlaced(ctx: OpContext, page: string) {
-  const h = await resolvedHierarchy(ctx);
-  return flatten(h.items).includes(page) || h.mockups.some((m) => m.page_id === page);
+  return flatten((await resolvedHierarchy(ctx)).items).includes(page);
 }
 
 export const getHierarchy = defineOperation({
@@ -661,9 +716,9 @@ export const getHierarchy = defineOperation({
   scope: "product",
   access: "story",
   mutates: false,
-  summary: "The Story's navigation: the page tree, then the Published mockups in order, with its own etag and each page's current title and summary.",
+  summary: "The Story's navigation: one tree of its pages, of every kind, with its own etag and each page's current title, summary and kind.",
   description:
-    "items is the tree as saved, so it round-trips: send it back to set_hierarchy as it is, or with pages added or moved. A stored node whose page is missing, archived or showing a mockup page is skipped and its children promoted into its place. unplaced lists the live pages not yet placed, {page_id, title, description}, overview first then by title; they are never in items, and readers see them at the end of the tree until you place one by adding it to items. mockups is the Published mockups section: every live page whose current version shows a page of a mockup (story_write(action=\"promote_mockup\")), flat, in the order set_hierarchy gave, then any not yet ordered, in the order their current versions were published. Every live page appears exactly once: in items, in unplaced or in mockups. etag is null before the first save.",
+    "items is the tree as saved, so it round-trips: send it back to set_hierarchy as it is, or with pages added or moved. A stored node whose page is missing or archived is skipped and its children promoted into its place. unplaced lists the live pages not yet placed, {page_id, title, description, kind}, overview first then by title; they are never in items, and readers see them at the end of the tree until you place one by adding it to items. kind says what a page's current version shows: story_page (HTML of its own), mockup_page (one page of a mockup) or canvas (a mockup's whole canvas), each from story_write(action=\"promote_mockup\") when it shows a mockup. Every kind is placed, nested and moved alike. Every live page appears exactly once: in items or in unplaced. etag is null before the first save.",
   input: z.strictObject({}),
   rest: { method: "GET", path: "/story/hierarchy" },
   mcp: { tool: "story", action: "get_hierarchy" },
@@ -672,52 +727,43 @@ export const getHierarchy = defineOperation({
   },
 });
 
-/** The product's live pages, and whether each one's current version shows a page of a mockup. */
+/** The product's live pages, and what each one's current version shows. */
 async function livePages(ctx: OpContext) {
   const pages = await ctx.db
     .selectFrom("story_pages as p")
     .innerJoin("story_versions as v", "v.version_id", "p.current_version_id")
-    .select(["p.page_id", "p.title", "p.summary", "v.created_at as published_at", sql<boolean>`v.mockup is not null`.as("shows_mockup")])
+    .select(["p.page_id", "p.title", "p.summary", "v.mockup"])
     .where("p.product_id", "=", productId(ctx))
     .where("p.archived_at", "is", null)
     .execute();
-  return new Map(pages.map((p) => [p.page_id, p]));
+  return new Map(pages.map((p) => [p.page_id, { page_id: p.page_id, title: p.title, summary: p.summary, kind: kindOf(p.mockup) }]));
 }
 
 async function resolvedHierarchy(ctx: OpContext) {
   const h = await storedHierarchy(ctx);
   const live = await livePages(ctx);
   const used = new Set<string>();
-  type Enriched = { page_id: string; title: string; description: string; children: Enriched[] };
-  // A page showing a mockup page belongs to the Published mockups, so the tree skips it as it skips an archived one.
+  type Enriched = { page_id: string; title: string; description: string; kind: StoryPageKind; children: Enriched[] };
   const resolve = (nodes: StoryNode[]): Enriched[] =>
     nodes.flatMap((n) => {
       const p = live.get(n.page_id);
       const kids = resolve(n.children);
-      if (!p || p.shows_mockup || used.has(n.page_id)) return kids;
+      if (!p || used.has(n.page_id)) return kids;
       used.add(n.page_id);
-      return [{ page_id: p.page_id, title: p.title, description: p.summary, children: kids }];
+      return [{ page_id: p.page_id, title: p.title, description: p.summary, kind: p.kind, children: kids }];
     });
   const items = resolve(h?.items ?? []);
   const unplaced = [...live.values()]
-    .filter((p) => !p.shows_mockup && !used.has(p.page_id))
+    .filter((p) => !used.has(p.page_id))
     .sort((a, b) => (a.page_id === "overview" ? -1 : b.page_id === "overview" ? 1 : a.title.localeCompare(b.title) || a.page_id.localeCompare(b.page_id)))
-    .map((p) => ({ page_id: p.page_id, title: p.title, description: p.summary }));
-  const ordered = uniq(h?.mockups ?? []).flatMap((id) => {
-    const p = live.get(id);
-    return p?.shows_mockup ? [p] : [];
-  });
-  const later = [...live.values()]
-    .filter((p) => p.shows_mockup && !ordered.includes(p))
-    .sort((a, b) => a.published_at.localeCompare(b.published_at) || a.page_id.localeCompare(b.page_id));
-  const mockups = [...ordered, ...later].map((p) => ({ page_id: p.page_id, title: p.title, description: p.summary }));
-  return { etag: h?.etag ?? null, items, unplaced, mockups, updated_at: h?.updated_at ?? null };
+    .map((p) => ({ page_id: p.page_id, title: p.title, description: p.summary, kind: p.kind }));
+  return { etag: h?.etag ?? null, items, unplaced, updated_at: h?.updated_at ?? null };
 }
 
-// title and description are accepted so get_hierarchy's items can be sent back as they are; only page_id and children are stored.
-type NodeInput = StoryNode & { title?: string; description?: string };
+// title, description and kind are accepted so get_hierarchy's items can be sent back as they are; only page_id and children are stored.
+type NodeInput = StoryNode & { title?: string; description?: string; kind?: string };
 const nodeSchema: z.ZodType<NodeInput> = z.lazy(() =>
-  z.strictObject({ page_id: pageId, title: z.string().optional(), description: z.string().optional(), children: z.array(nodeSchema).default([]) }),
+  z.strictObject({ page_id: pageId, title: z.string().optional(), description: z.string().optional(), kind: z.string().optional(), children: z.array(nodeSchema).default([]) }),
 ) as z.ZodType<NodeInput>;
 const bareNodes = (nodes: NodeInput[]): StoryNode[] => nodes.map((n) => ({ page_id: n.page_id, children: bareNodes(n.children) }));
 
@@ -726,11 +772,10 @@ export const setHierarchy = defineOperation({
   scope: "product",
   access: "write",
   mutates: true,
-  summary: "Replace the Story's navigation tree, and order its Published mockups. Uses the hierarchy's own etag; never touches page content.",
-  description: `items is the whole tree, not a patch: nodes are {page_id, children}; the title and description get_hierarchy adds are accepted and ignored, so its items can be sent back as they are. Each page at most once, depth at most ${MAX_DEPTH}, every page live and published, and none showing a mockup page: those are always in the Published mockups section, never in the tree. Pages you leave out of items become unplaced; to place an unplaced page, add it to items. mockups orders that section, a flat list of the page ids that show mockup pages; ones you leave out follow in the order their current versions were published, and omitting mockups keeps the order as it is. Pass expected_etag from get_hierarchy; before the first save its etag is null, and expected_etag may be null or left out.`,
+  summary: "Replace the Story's navigation tree. Uses the hierarchy's own etag; never touches page content.",
+  description: `items is the whole tree, not a patch: nodes are {page_id, children}; the title, description and kind get_hierarchy adds are accepted and ignored, so its items can be sent back as they are. Each page at most once, depth at most ${MAX_DEPTH}, every page live and published. A page that shows a mockup page or a whole canvas is placed and nested like any other, and may hold other pages. Pages you leave out of items become unplaced; to place an unplaced page, add it to items. Pass expected_etag from get_hierarchy; before the first save its etag is null, and expected_etag may be null or left out.`,
   input: z.strictObject({
     items: z.array(nodeSchema).max(MAX_PAGES),
-    mockups: z.array(pageId).max(MAX_PAGES).optional().describe("The order of the Published mockups: ids of pages whose current version shows a mockup page. Omit it to keep the order as it is."),
     expected_etag: expectedEtag.nullable().optional().describe("The etag get_hierarchy gave; null, or omitted, before the first save (get_hierarchy then gives etag: null)."),
   }),
   rest: { method: "PUT", path: "/story/hierarchy" },
@@ -743,31 +788,23 @@ export const setHierarchy = defineOperation({
     } else if (input.expected_etag)
       throw conflict("stale_etag", "No hierarchy has been saved yet, so there is no etag to match: get_hierarchy gives etag null. Leave expected_etag out, or pass null, for the first save.", { current_etag: null });
     const ids = flatten(input.items);
-    const order = input.mockups ?? null;
-    const all = [...ids, ...(order ?? [])];
-    const dup = all.find((x, i) => all.indexOf(x) !== i);
+    const dup = ids.find((x, i) => ids.indexOf(x) !== i);
     if (dup) throw invalid("invalid_hierarchy", `Page "${dup}" appears more than once.`);
     const depth = (nodes: StoryNode[]): number => (nodes.length ? 1 + Math.max(...nodes.map((n) => depth(n.children))) : 0);
     if (depth(input.items) > MAX_DEPTH) throw invalid("invalid_hierarchy", `The tree is deeper than ${MAX_DEPTH} levels.`);
-    const pages = all.length ? await ctx.db.selectFrom("story_pages").select(["page_id", "archived_at"]).where("product_id", "=", productId(ctx)).where("page_id", "in", all).execute() : [];
-    const missing = all.filter((x) => !pages.some((p) => p.page_id === x));
+    const pages = ids.length ? await ctx.db.selectFrom("story_pages").select(["page_id", "archived_at"]).where("product_id", "=", productId(ctx)).where("page_id", "in", ids).execute() : [];
+    const missing = ids.filter((x) => !pages.some((p) => p.page_id === x));
     const archived = pages.filter((p) => p.archived_at).map((p) => p.page_id);
     const them = (ids: string[]) => (ids.length === 1 ? "it" : "them");
     if (missing.length)
       throw invalid("invalid_hierarchy", `Unpublished pages: ${missing.join(", ")}. Publish ${them(missing)} first, or leave ${them(missing)} out.`, { unpublished: missing });
     if (archived.length)
       throw invalid("invalid_hierarchy", `Archived pages: ${archived.join(", ")}. Restore ${them(archived)} first (restore_page), or leave ${them(archived)} out.`, { archived });
-    const live = await livePages(ctx);
-    const inTree = ids.filter((x) => live.get(x)?.shows_mockup);
-    if (inTree.length) throw invalid("invalid_hierarchy", `These pages show mockup pages, so they belong in mockups, not items: ${inTree.join(", ")}.`);
-    const notMockups = (order ?? []).filter((x) => !live.get(x)?.shows_mockup);
-    if (notMockups.length) throw invalid("invalid_hierarchy", `These pages don’t show a mockup page, so they belong in items, not mockups: ${notMockups.join(", ")}.`);
     const etag = newEtag();
-    const set = { items: json(bareNodes(input.items)), ...(order ? { mockups: json(order) } : {}), etag };
+    const set = { items: json(bareNodes(input.items)), etag };
     if (h) await ctx.db.updateTable("story_hierarchies").set({ ...set, updated_at: ctx.now, updated_by: json(ctx.actor) }).where("product_id", "=", productId(ctx)).execute();
     else await ctx.db.insertInto("story_hierarchies").values({ product_id: productId(ctx), tenant_id: tenantId(ctx), ...set, updated_by: json(ctx.actor) }).execute();
-    const arranged = `Arranged ${ids.length} page${ids.length === 1 ? "" : "s"} in the navigation`;
-    await recordActivity(ctx, { action: "organized", entity_type: "story_hierarchy", entity_id: null, entity_title: "Story navigation", summary: order ? `${arranged} and ordered ${order.length} published mockup${order.length === 1 ? "" : "s"}` : arranged });
+    await recordActivity(ctx, { action: "organized", entity_type: "story_hierarchy", entity_id: null, entity_title: "Story navigation", summary: `Arranged ${ids.length} page${ids.length === 1 ? "" : "s"} in the navigation` });
     return getHierarchy.handler(ctx, {});
   },
 });
@@ -804,8 +841,7 @@ export const archivePage = defineOperation({
     if (h) {
       const r = removeFromTree(h.items, p.page_id);
       promoted = r.promoted;
-      const mockups = h.mockups.filter((x) => x !== p.page_id);
-      await ctx.db.updateTable("story_hierarchies").set({ items: json(r.nodes), mockups: json(mockups), etag: newEtag(), updated_at: ctx.now, updated_by: json(ctx.actor) }).where("product_id", "=", productId(ctx)).execute();
+      await ctx.db.updateTable("story_hierarchies").set({ items: json(r.nodes), etag: newEtag(), updated_at: ctx.now, updated_by: json(ctx.actor) }).where("product_id", "=", productId(ctx)).execute();
     }
     await ctx.db.updateTable("story_pages").set({ archived_at: ctx.now, etag: newEtag(), updated_at: ctx.now, updated_by: json(ctx.actor) }).where("product_id", "=", productId(ctx)).where("page_id", "=", p.page_id).execute();
     await recordActivity(ctx, { action: "archived", entity_type: "story_page", entity_id: p.page_id, entity_title: p.title, summary: promoted.length ? `Archived the page; promoted ${promoted.length} sub-page${promoted.length === 1 ? "" : "s"}` : "Archived the page" });
@@ -818,7 +854,7 @@ export const restorePage = defineOperation({
   scope: "product",
   access: "write",
   mutates: true,
-  summary: "Restore an archived Story page. It returns unplaced, or at the end of the Published mockups if it shows a mockup page; place it with set_hierarchy.",
+  summary: "Restore an archived Story page. It returns unplaced; place it with set_hierarchy.",
   description: "Pass the page's etag.",
   input: z.strictObject({ page_id: pageId, expected_etag: expectedEtag }),
   rest: { method: "POST", path: "/story/pages/:page_id/restore" },
@@ -871,7 +907,12 @@ export const writeNotes = defineOperation({
 const mockupPageId = z
   .string()
   .regex(/^[a-z0-9][a-z0-9-]{0,79}$/, "a page_id on the mockup's canvas")
-  .describe("The page on the mockup's canvas, by its page_id.");
+  .describe("The page on the mockup's canvas, by its page_id. Omit it to show the whole canvas.");
+
+/** A Story slug from a canvas's title: its letters and digits, lower-case, or "canvas" when it has none. */
+function slugOf(title: string) {
+  return title.toLowerCase().normalize("NFKD").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 80).replace(/-+$/, "") || "canvas";
+}
 
 /** A free Story slug from a mockup page's own: the same, or with -2, -3… when a page already has it. */
 async function freeSlug(ctx: OpContext, want: string) {
@@ -888,17 +929,17 @@ export const promoteMockup = defineOperation({
   scope: "product",
   access: "write",
   mutates: true,
-  summary: "Show one page of a mockup in the Story: a Story page version that points at that page as it is in one mockup version, never a copy.",
+  summary: "Show one page of a mockup, or its whole canvas, in the Story: a Story page version that points at it as it is in one mockup version, never a copy.",
   description:
-    "page_id chooses the Story page. A page_id no page has yet creates the page under that id. The page_id of an existing page, with its etag, publishes that page's next version showing the mockup page, which is how a Story page moves to a newer mockup version: it never follows the mockup by itself. Without page_id, the new page's id is the mockup page's own slug, with -2, -3… if that is taken. A new page is titled with the mockup page's title unless you give one. Name the page_id when you can: if a response is lost, the same call sent again then fails with stale_etag instead of making a second page. version is the mockup version, the current one when omitted. The Story page shows the mockup page at its own size, scaled to fit, in the same sandbox; a Story reader sees it there and nothing else of the mockup. Publishing html or body on the page later replaces it with HTML of its own. The page joins the end of the Story's Published mockups, a section of its own after the navigation tree, where every page showing a mockup page appears and none of them is ever in the tree; reorder the section with set_hierarchy's mockups. Once html or body replaces the mockup page, the page leaves the section and is unplaced.",
+    "mockup_page_id chooses the page on the canvas; omit it to show the whole canvas, which takes one Story page however many pages the canvas has. page_id chooses the Story page. A page_id no page has yet creates the page under that id. The page_id of an existing page, with its etag, publishes that page's next version showing the mockup page or canvas, which is how a Story page moves to a newer mockup version: it never follows the mockup by itself. Without page_id, the new page's id is the mockup page's own slug, or a slug of the mockup's title for a whole canvas, with -2, -3… if that is taken. A new page is titled with the mockup page's title, or the mockup's for a whole canvas, unless you give one. Name the page_id when you can: if a response is lost, the same call sent again then fails with stale_etag instead of making a second page. version is the mockup version, the current one when omitted. The Story page shows a mockup page at its own size, scaled to fit, in the same sandbox, and a whole canvas as the mockup's board, to pan and zoom, with each page's title. A Story reader sees that and nothing else of the mockup: never its brief, notes, files or other versions. Publishing html or body on the page later replaces it with HTML of its own. A new page is unplaced, like any page: it reads at the end of the tree until set_hierarchy places it, and an existing page keeps its place. placed in the result says which.",
   input: z.strictObject({
     mockup_id: id("mockup"),
-    mockup_page_id: mockupPageId,
+    mockup_page_id: mockupPageId.optional(),
     version: z.number().int().min(1).optional().describe("The mockup version; the current one when omitted."),
     page_id: pageId
       .optional()
-      .describe("The Story page. An id no page has yet creates the page under it; an existing page's id, with expected_etag, shows the mockup page there as its next version. Omitted, a new page takes the mockup page's slug (with -2, -3… if taken)."),
-    title: z.string().trim().min(1).max(200).optional().describe("The Story page's title: the mockup page's title for a new page, or the page's own title for an existing one, when omitted."),
+      .describe("The Story page. An id no page has yet creates the page under it; an existing page's id, with expected_etag, shows the mockup page or canvas there as its next version. Omitted, a new page takes the mockup page's slug, or a slug of the mockup's title for a whole canvas (with -2, -3… if taken)."),
+    title: z.string().trim().min(1).max(200).optional().describe("The Story page's title: for a new page the mockup page's title, or the mockup's for a whole canvas; for an existing page its own title, when omitted."),
     summary: z.string().max(2000).optional().describe("A short description of the Story page."),
     expected_etag: expectedEtag.optional(),
   }),
@@ -913,11 +954,12 @@ export const promoteMockup = defineOperation({
     const mv = await vq.executeTakeFirst();
     if (!mv) throw notFound(`Mockup ${m.mockup_id} has no version ${input.version}; its versions run from 1 to ${m.version_count}.`);
     const pages = await ctx.db.selectFrom("mockup_pages").select(["page_id", "title"]).where("version_id", "=", mv.version_id).orderBy("position").execute();
-    const mp = pages.find((p) => p.page_id === input.mockup_page_id);
-    if (!mp) throw notFound(`Version ${mv.n} of the mockup has no page "${input.mockup_page_id}". Its pages: ${pages.map((p) => p.page_id).join(", ")}.`, { pages: pages.map((p) => p.page_id) });
+    // Without a page, the Story page shows the whole canvas.
+    const mp = input.mockup_page_id === undefined ? null : pages.find((p) => p.page_id === input.mockup_page_id);
+    if (mp === undefined) throw notFound(`Version ${mv.n} of the mockup has no page "${input.mockup_page_id}". Its pages: ${pages.map((p) => p.page_id).join(", ")}.`, { pages: pages.map((p) => p.page_id) });
 
-    const ref: MockupPageRef = { mockup_id: m.mockup_id, mockup_version_id: mv.version_id, version: mv.n, page_id: mp.page_id };
-    const what = `"${mp.title}" from the mockup "${m.title}", version ${mv.n}`;
+    const ref: MockupPageRef = { mockup_id: m.mockup_id, mockup_version_id: mv.version_id, version: mv.n, page_id: mp?.page_id ?? null };
+    const what = mp ? `"${mp.title}" from the mockup "${m.title}", version ${mv.n}` : `the whole canvas of the mockup "${m.title}", version ${mv.n}`;
     const existing = input.page_id
       ? await ctx.db.selectFrom("story_pages").selectAll().where("product_id", "=", pid).where("page_id", "=", input.page_id).forUpdate().executeTakeFirst()
       : undefined;
@@ -927,8 +969,8 @@ export const promoteMockup = defineOperation({
       if (input.expected_etag) throw conflict("stale_etag", `Page "${input.page_id}" doesn’t exist yet, so there is no etag to match. Leave expected_etag out to create it.`, { current_etag: null });
       const count = await ctx.db.selectFrom("story_pages").select((eb) => eb.fn.countAll<number>().as("n")).where("product_id", "=", pid).executeTakeFirst();
       if (Number(count?.n ?? 0) >= MAX_PAGES) throw conflict("quota_exceeded", `A product’s Story holds at most ${MAX_PAGES} pages.`, { quota: "story_pages", limit: MAX_PAGES, used: Number(count?.n ?? 0), unit: "pages" });
-      pageIdOut = input.page_id ?? (await freeSlug(ctx, mp.page_id));
-      const title = input.title ?? mp.title;
+      pageIdOut = input.page_id ?? (await freeSlug(ctx, mp?.page_id ?? slugOf(m.title)));
+      const title = input.title ?? mp?.title ?? m.title;
       const summary = input.summary ?? `From the mockup "${m.title}", version ${mv.n}.`;
       await ctx.db
         .insertInto("story_versions")
@@ -971,7 +1013,7 @@ export const promoteMockup = defineOperation({
   },
 });
 
-/** The Story pages whose current version shows a page of this mockup, for the mockup's own view. */
+/** The Story pages whose current version shows a page of this mockup, or its whole canvas (mockup_page_id null), for the mockup's own view. */
 export async function storyPagesShowing(ctx: OpContext, mockupId: string) {
   const rows = await ctx.db
     .selectFrom("story_pages as p")
@@ -1005,7 +1047,19 @@ async function printVersions(ctx: OpContext, ids: string[]): Promise<string[]> {
     .then((rs) => (readsOnlyTheStory(ctx.scope.role) ? rs.filter((r) => !r.archived_at) : rs));
   const missing = wanted.filter((w) => !rows.some((r) => r.page_id === w));
   if (missing.length) throw notFound(`These Story pages have never been published in this product: ${missing.join(", ")}.`, { missing });
-  return wanted.map((w) => rows.find((r) => r.page_id === w)!.current_version_id);
+  const versions = wanted.map((w) => rows.find((r) => r.page_id === w)!.current_version_id);
+  const sections = versions.length + (await canvasPageCount(ctx, versions));
+  if (sections > PRINT_MAX_SECTIONS) throw invalid("print_too_long", `These pages print as ${sections} sections, since a canvas prints page by page; a print view holds at most ${PRINT_MAX_SECTIONS}. Choose fewer pages.`, { sections, limit: PRINT_MAX_SECTIONS });
+  return versions;
+}
+
+/** The pages of the canvases these Story page versions show. */
+async function canvasPageCount(ctx: OpContext, versionIds: string[]) {
+  const shown = await ctx.db.selectFrom("story_versions").select("mockup").where("product_id", "=", productId(ctx)).where("version_id", "in", versionIds).execute();
+  const canvases = shown.flatMap((v) => (v.mockup?.page_id === null ? [v.mockup.mockup_version_id] : []));
+  if (!canvases.length) return 0;
+  const pages = await ctx.db.selectFrom("mockup_pages").select(["version_id", (eb) => eb.fn.countAll<number>().as("n")]).where("version_id", "in", canvases).groupBy("version_id").execute();
+  return canvases.reduce((sum, id) => sum + Number(pages.find((p) => p.version_id === id)?.n ?? 0), 0);
 }
 
 /**
@@ -1026,14 +1080,28 @@ async function printPages(ctx: OpContext, versionIds: string[]) {
     .then((rs) => (readsOnlyTheStory(ctx.scope.role) ? rs.filter((r) => !r.archived_at) : rs));
   if (rows.length !== wanted.length) throw notFound("A page of this print view was deleted or archived since it was opened. Open the print view again.");
   const h = await resolvedHierarchy(ctx);
-  const story = [...h.items, ...[...h.unplaced, ...h.mockups].map((m) => ({ page_id: m.page_id, children: [] }))];
+  const story = [...h.items, ...h.unplaced.map((m) => ({ page_id: m.page_id, children: [] }))];
   const order = printOrder(story, rows.map((r) => ({ page_id: r.page_id, title: r.title })));
   const pages = [];
   for (const slot of order) {
     const r = rows.find((x) => x.page_id === slot.page_id)!;
-    pages.push({ page_id: r.page_id, title: r.title, version: r.n, published_at: r.created_at, archived: Boolean(r.archived_at), depth: slot.depth, level: slot.level, html: await shownHtml(ctx.db, r, ctx.ports.blobs) });
+    const canvas = r.mockup?.page_id === null ? await canvasPrintPages(ctx, r.mockup.mockup_version_id) : null;
+    pages.push({ page_id: r.page_id, title: r.title, version: r.n, published_at: r.created_at, archived: Boolean(r.archived_at), depth: slot.depth, level: slot.level, html: canvas ? "" : await shownHtml(ctx.db, r, ctx.ports.blobs), ...(canvas ? { canvas_pages: canvas } : {}) });
   }
   return pages;
+}
+
+/** A canvas's pages as the print view shows them, in their order on the canvas. */
+async function canvasPrintPages(ctx: OpContext, versionId: string) {
+  const rows = await ctx.db.selectFrom("mockup_pages").select(["page_id", "title"]).where("version_id", "=", versionId).orderBy("position").execute();
+  const pages = [];
+  for (const p of rows) pages.push({ page_id: p.page_id, title: p.title, html: await mockupPageHtml(ctx.db, versionId, p.page_id, ctx.ports.blobs) });
+  return pages;
+}
+
+/** A canvas prints under its own heading, each of its pages a section one level down. */
+function printSections(pages: Awaited<ReturnType<typeof printPages>>) {
+  return pages.flatMap((p) => [p, ...(p.canvas_pages ?? []).map((c) => ({ ...p, page_id: `${p.page_id}.${c.page_id}`, title: c.title, html: c.html, level: p.level + 1, depth: p.depth + 1 }))]);
 }
 
 function printPath(ctx: OpContext, ids: string[]) {
@@ -1047,7 +1115,7 @@ export const printView = defineOperation({
   mutates: false,
   summary: "Plan a print view of chosen Story pages, to save as PDF from a browser: their order, heading levels and the view's address.",
   description:
-    "Includes exactly the pages named, each at its current version, in the Story's order: a depth-first walk of the tree, the pages not yet placed, then the Published mockups in their order; archived pages after, by title; a reader (the Story-only role) is never given an archived page, which is missing for them. level is the page's outline level among the chosen pages: 1 for a page with no chosen ancestor. url opens one HTML document — a title block, contents, then each page — that a person prints to PDF from their browser; page scripts do not run there, so content a page draws with JavaScript is left out. 404 lists pages that have never been published.",
+    `Includes exactly the pages named, each at its current version, in the Story's order: a depth-first walk of the tree, then the pages not yet placed; archived pages after, by title; a reader (the Story-only role) is never given an archived page, which is missing for them. level is the page's outline level among the chosen pages: 1 for a page with no chosen ancestor. A page that shows a whole canvas prints page by page, each under its heading a level down: canvas_pages lists them, and a print view holds at most ${PRINT_MAX_SECTIONS} sections in all (422 print_too_long). url opens one HTML document — a title block, contents, then each page — that a person prints to PDF from their browser; page scripts do not run there, so content a page draws with JavaScript is left out. 404 lists pages that have never been published.`,
   input: printInput,
   rest: { method: "GET", path: "/story/print-view" },
   mcp: { tool: "story", action: "print_view" },
@@ -1056,7 +1124,7 @@ export const printView = defineOperation({
     const path = printPath(ctx, pages.map((p) => p.page_id));
     return {
       product: { name: ctx.scope.product!.name, path: productPath(ctx) },
-      pages: pages.map(({ html, ...p }) => ({ ...p, html_chars: html.length })),
+      pages: pages.map(({ html, canvas_pages, ...p }) => ({ ...p, html_chars: html.length, ...(canvas_pages ? { canvas_pages: canvas_pages.map((c) => ({ page_id: c.page_id, title: c.title, html_chars: c.html.length })) } : {}) })),
       path,
       url: `${ctx.ports.config.publicBaseUrl}${path}`,
     };
@@ -1086,7 +1154,7 @@ export const printDocument = defineOperation({
 export async function printDocumentAt(ctx: OpContext, versionIds: string[]): Promise<{ html: string; nonce: string }> {
   const pages = await printPages(ctx, versionIds);
   const nonce = randomToken(18);
-  return { html: composePrintDocument({ productName: ctx.scope.product!.name, exportedAt: ctx.now, pages, nonce }), nonce };
+  return { html: composePrintDocument({ productName: ctx.scope.product!.name, exportedAt: ctx.now, pages: printSections(pages), nonce }), nonce };
 }
 
 /**
@@ -1103,7 +1171,7 @@ export const printSelection = defineOperation({
 
 /** What deleting a Story page destroys. */
 async function pageDeletion(ctx: OpContext, p: Awaited<ReturnType<typeof loadPage>>) {
-  const h = await ctx.db.selectFrom("story_hierarchies").select(["items", "mockups"]).where("product_id", "=", productId(ctx)).executeTakeFirst();
+  const h = await ctx.db.selectFrom("story_hierarchies").select("items").where("product_id", "=", productId(ctx)).executeTakeFirst();
   const promoted = h ? removeFromTree(h.items, p.page_id).promoted : [];
   const current = await ctx.db.selectFrom("story_versions").select("mockup").where("version_id", "=", p.current_version_id).executeTakeFirst();
   return {
@@ -1159,8 +1227,7 @@ export const deletePage = defineOperation({
     const h = await ctx.db.selectFrom("story_hierarchies").selectAll().where("product_id", "=", productId(ctx)).forUpdate().executeTakeFirst();
     if (h) {
       const r = removeFromTree(h.items, p.page_id);
-      const mockups = h.mockups.filter((x) => x !== p.page_id);
-      await ctx.db.updateTable("story_hierarchies").set({ items: json(r.nodes), mockups: json(mockups), etag: newEtag(), updated_at: ctx.now, updated_by: json(ctx.actor) }).where("product_id", "=", productId(ctx)).execute();
+      await ctx.db.updateTable("story_hierarchies").set({ items: json(r.nodes), etag: newEtag(), updated_at: ctx.now, updated_by: json(ctx.actor) }).where("product_id", "=", productId(ctx)).execute();
     }
     await leaveTombstone(ctx, { object_type: "story_page", object_id: p.page_id, title: p.title, reason: input.reason });
     await ctx.db.deleteFrom("story_versions").where("product_id", "=", productId(ctx)).where("page_id", "=", p.page_id).execute();

@@ -5,7 +5,7 @@ import { isTypingTarget, PHONE_QUERY, useMediaQuery } from "../ui/media.ts";
 
 const FOCUS_KEY = "whatbuild.story.focus";
 
-/** The keys a page's frame passes on: F and Esc for focus mode, the arrows for flipping through published mockups, 2 and 3 to fit or fill one. */
+/** The keys a page's frame passes on: F and Esc for focus mode, the arrows for flipping through mockup pages, 2 and 3 to fit or fill one. */
 export type StoryKey = "f" | "Escape" | "ArrowLeft" | "ArrowRight" | "2" | "3";
 
 function readChoice(): "on" | "off" | null {
@@ -35,7 +35,7 @@ function saveChoice(on: boolean) {
  * - F toggles it and Esc leaves it, from the app or from inside the page (the frame passes the keys
  *   on). Not while typing, with a dialog or menu open, or at phone width, where the panels are
  *   drawers already.
- * - A screen that gains more than the panels' room (a mockup's canvas takes the whole screen) offers
+ * - A screen that gains more than the panels' room (a canvas takes the whole screen) offers
  *   it on a phone too (`onPhone`). There it never turns on by itself, since its hint is about keys,
  *   but the remembered choice holds.
  * - Leaving the Story ends it; the panels come back as they were.

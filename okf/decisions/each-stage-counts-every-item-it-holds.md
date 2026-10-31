@@ -1,9 +1,9 @@
 ---
 type: Decision
 title: Each stage's count is the total of every item the stage holds
-description: The count beside Idea, Evidence, Exploration and Story adds up every kind of item the stage holds, so Exploration counts mockups and assumptions and the Story counts its published mockups too; product reads keep the per-kind counts beside the totals.
+description: The count beside Idea, Evidence, Exploration and Story adds up every kind of item the stage holds, so Exploration counts mockups and assumptions and the Story counts its promoted pages too; product reads keep the per-kind counts beside the totals.
 tags: [decision, web, counts, exploration, story, operations]
-generated: {by: agent:claude, at: 2026-10-10}
+generated: {by: agent:claude, at: 2026-10-30}
 status: stable
 ---
 
@@ -23,7 +23,7 @@ replacing the rule in the web specification that Exploration counts mockups.
   product concept is one field, not an item, so Idea holds one kind); **Evidence** its sources (the
   one kind it holds, since insights and decisions became sources); **Exploration** its mockups plus
   its current (unconfirmed or confirmed) assumptions; **Story** its live pages, which are exactly
-  the pages in its tree, the unplaced ones and the Published mockups a reader sees.
+  the pages in its tree and the unplaced ones a reader sees, of every kind.
 - The server computes the totals: `products.get` and `products.list` return `stage_counts` beside
   `counts`, which keeps one number per kind, so agents see both the breakdown and what the app
   shows. A reader gets the Story's alone.

@@ -23,6 +23,17 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
 
 ## Unreleased
 
+- **A whole mockup canvas can go on the Story, and the Story is one tree** (`tools_version` 0.48.0).
+  It asks nothing of a deployment beyond the release's migration, which moves each product's
+  Published mockups to the end of its Story tree, in their order, and which only a restored database
+  undoes; a connected client sees the change in a new session. People will notice the Published
+  mockups section is gone: its pages are rows of the tree, each with an icon, and can be dragged
+  anywhere in it. `story.set_hierarchy` refuses `mockups`, and `story.get_hierarchy` no longer gives
+  it, so an agent working from an older tool list is told so.
+- **A reader can search the Story, and a page from a mockup is found once** (`tools_version` 0.48.0).
+  It asks nothing of a deployment. A Story-only reader gets the Search field and `search` in plain
+  mode, over the Story alone; everything else stays refused. For everyone else, a Story page that
+  shows a mockup page or canvas no longer appears beside its mockup in results.
 - **Search keeps each page's words beside its HTML, and stops a search that takes too long**
   (`tools_version` 0.47.0). A deployment does nothing beyond its usual migration. The migration,
   `0040_html_pages_keep_their_words.sql`, rewrites `mockup_pages` and `story_versions`, and nothing

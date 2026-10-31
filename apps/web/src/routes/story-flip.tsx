@@ -40,7 +40,7 @@ export function usePageView(key: string, fallback: PageView): [PageView, (v: Pag
 const OWNS_ARROWS = "input, select, textarea, [role=tree], [role=menu], [role=listbox], [role=radiogroup], [role=tablist], [role=slider], [role=grid]";
 
 /**
- * The left and right arrows flip through the Story's published mockups while one is shown, in focus
+ * The left and right arrows flip through the Story's mockup pages while one is shown, in focus
  * mode or not. Not while typing, with a dialog or menu open, or when a control has used the key
  * (the page tree moves through its rows with them). Keys pressed inside the page's frame arrive
  * through the frame instead.
@@ -61,7 +61,7 @@ export function useFlipKeys(onFlip: ((key: FlipKey) => void) | null) {
   }, [onFlip]);
 }
 
-/** 2 fits a published mockup to the screen and 3 fills the screen's width with it; not while typing, or with a dialog or menu open. */
+/** 2 fits a mockup page to the screen and 3 fills the screen's width with it; not while typing, or with a dialog or menu open. */
 export function usePageViewKeys(onView: ((view: PageView) => void) | null) {
   useEffect(() => {
     if (!onView) return;
@@ -77,7 +77,7 @@ export function usePageViewKeys(onView: ((view: PageView) => void) | null) {
   }, [onView]);
 }
 
-/** Fit or fill, beside the crumbs on a published mockup. */
+/** Fit or fill, beside the crumbs on a mockup page. */
 export function PageViewToggle({ view, onView }: { view: PageView; onView: (view: PageView) => void }) {
   return (
     <div className="story-flip story-page-view" role="radiogroup" aria-label="Show the page">
@@ -93,10 +93,10 @@ export function PageViewToggle({ view, onView }: { view: PageView; onView: (view
   );
 }
 
-/** Beside the crumbs on a published mockup: where it stands among them, and the way to the ones either side. */
+/** Beside the crumbs on a mockup page: where it stands among the Story's mockup pages, and the way to the ones either side. */
 export function MockupFlip({ index, count, prev, next, onFlip }: { index: number; count: number; prev: StoryNode | null; next: StoryNode | null; onFlip: (key: FlipKey) => void }) {
   return (
-    <div className="story-flip" role="group" aria-label="Published mockups">
+    <div className="story-flip" role="group" aria-label="Mockup pages">
       <IconButton
         size="sm"
         icon="chevron-left"

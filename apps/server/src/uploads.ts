@@ -73,6 +73,7 @@ const ISSUED_BY: Record<string, string> = {
   [CARD_PREVIEW_PURPOSE]: "outcomes.card_preview",
   export: "products.exports",
   story_page: "story.get_version",
+  story_canvas_page: "story.get_version",
   print: "story.get_version",
   mockup_page: "mockups.get_version",
   specimen: "story.get_style",

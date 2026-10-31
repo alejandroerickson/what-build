@@ -136,7 +136,16 @@ with it (dates, tags, a cursor, `include_archived`, a `scope` other than `source
 
   It searches sources (their title and tags, and the pieces of their summary, derived text, notes
   and comments, archived sources and comments left out), assumptions, outcomes (not archived),
-  mockups (each page's text at the current version), Story pages and the product concept. Of
+  mockups (each page's text at the current version), Story pages (their title, summary and what they
+  show: their own text, or the mockup page or whole canvas, with its pages' titles, at the version
+  they stay on) and the product concept. A Story page that shows a mockup is one thing in two places,
+  so it is left out when the mockup is among the results and holds every word it does, and the
+  mockup takes its score if that is higher ([decision](../decisions/mockups-are-versioned-canvases-in-exploration.md));
+  with `kind: "story"` no mockup is searched, so it is listed. A mockup page with a Story page of its
+  own is not also found on a whole canvas that holds it at the same version. A reader searches the Story alone
+  (`kind` is `story` for them): a result on a whole canvas gives the page the words are on in `meta`,
+  corrections come only from the Story's titles, and any other mode, kind or `record_id` is `403`
+  ([decision](../decisions/a-reader-reads-only-the-story.md)). Of
   an outcome's card and the concept's, it reads the back, the text; a card's front, a picture in
   HTML, is not searched. A source holds every word
   when its title, tags and pieces hold them between them, and is returned once, with the best

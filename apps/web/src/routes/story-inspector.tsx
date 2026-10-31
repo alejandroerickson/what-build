@@ -6,18 +6,18 @@ import { Button, EmptyState, Glyph, Group, KeyValue, Menu, MenuRadio } from "../
 import type { PageActions } from "./story-actions.tsx";
 import type { MockupShown, PageView, VersionItem, VersionView } from "./story-model.ts";
 
-/** A version that shows a mockup page: which page, of which mockup, at which version, and whether a newer one exists. */
+/** A version that shows a mockup page or its whole canvas: which, of which mockup, at which version, and whether a newer one exists. */
 function Shows({ mockup: m }: { mockup: MockupShown }) {
   const { app } = useProduct();
   const newer = m.current_version != null && m.version != null && m.current_version > m.version;
   return (
     <Group title="Shows">
       <p className="story-shows">
-        <Link className="story-ref-link" to={`${app}/exploration/mockups/${m.mockup_id}?v=${m.version}&page=${m.page_id}`}>
-          {m.page_title ?? m.page_id}
+        <Link className="story-ref-link" to={`${app}/exploration/mockups/${m.mockup_id}?v=${m.version}${m.canvas ? "" : `&page=${m.page_id}`}`}>
+          {m.canvas ? "The whole canvas" : (m.page_title ?? m.page_id)}
         </Link>
         <span className="faint">
-          , from the mockup {m.mockup_title ?? "no longer in this product"}, version {m.version}
+          {m.canvas ? " of" : ", from"} the mockup {m.mockup_title ?? "no longer in this product"}, version {m.version}
           {m.mockup_archived ? " (archived)" : ""}
         </span>
       </p>

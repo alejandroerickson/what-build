@@ -35,17 +35,17 @@ describe("stage counts", () => {
     await alice.api("POST", `${P}/assumptions`, { statement: "Crews plan weekly." });
     const old = await alice.api("POST", `${P}/assumptions`, { statement: "Crews plan daily." });
     expect((await alice.api("POST", `${P}/assumptions/${old.body.id}/supersede`, { expected_etag: old.body.etag, note: "Wrong cadence.", statement: "Crews plan on Mondays." })).status).toBe(200);
-    // Story: two pages in the tree, one archived, and a promoted mockup page in the Published mockups.
+    // Story: two pages of its own, one archived, and a promoted mockup page.
     for (const id of ["overview", "plan", "gone"]) expect((await alice.api("POST", `${P}/story/pages/${id}/versions`, { title: id, html: page(id) })).status).toBe(201);
     const gone = await alice.api("GET", `${P}/story/pages/gone`);
     expect((await alice.api("POST", `${P}/story/pages/gone/archive`, { expected_etag: gone.body.etag })).status).toBe(200);
     expect((await alice.api("POST", `${P}/story/promote-mockup`, { mockup_id: m.body.mockup_id, mockup_page_id: "phone" })).status).toBe(201);
 
-    // What a reader sees in the Story: the tree, the pages not yet placed at its end, then the Published mockups.
+    // What a reader sees in the Story: the tree, with the pages not yet placed at its end.
     const tree = await alice.api("GET", `${P}/story/hierarchy`);
     const flat = (nodes: { page_id: string; children: unknown[] }[]): string[] => nodes.flatMap((n) => [n.page_id, ...flat(n.children as never)]);
-    const seen = flat(tree.body.items).length + tree.body.unplaced.length + tree.body.mockups.length;
-    expect(tree.body.mockups.map((x: { page_id: string }) => x.page_id)).toEqual(["phone"]);
+    const seen = flat(tree.body.items).length + tree.body.unplaced.length;
+    expect(tree.body.unplaced.find((x: { page_id: string; kind: string }) => x.kind === "mockup_page").page_id).toBe("phone");
     expect(seen).toBe(3);
 
     const got = (await alice.api("GET", P)).body;

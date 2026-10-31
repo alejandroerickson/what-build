@@ -154,7 +154,7 @@ async function countProducts(db: Db, productIds: string[]): Promise<Map<string, 
 /**
  * Each stage's count is every item the stage holds: Idea its outcomes (the concept is one field, not
  * an item), Evidence its sources, Exploration its mockups and current assumptions, and the Story its
- * live pages, which are the pages in its tree and its Published mockups.
+ * live pages, which are the pages in its tree.
  */
 function stageCounts(c: ProductCounts) {
   return { idea: c.outcomes, evidence: c.sources, exploration: c.mockups + c.assumptions, story: c.story_pages };
@@ -457,7 +457,7 @@ export const getProduct = defineOperation({
   access: "story",
   mutates: false,
   summary: "Read a product: its concept, etag, your role, and counts of what it holds.",
-  description: "concept is the back of the product concept's card, the text agents read; include_card adds card_html, its front, the picture people see first (card_chars says how long it is, 0 when there is none). Read both before changing either. Use the counts to decide where to look first. They leave out archived items, and assumptions count only current (unconfirmed or confirmed) ones, the ones assumptions_read(action=\"list\") returns by default. counts has one number per kind; stage_counts totals them per stage, as the web app shows them: idea (outcomes), evidence (sources), exploration (mockups and current assumptions) and story (Story pages, those in its tree and its Published mockups). The etag guards products_write(action=\"update\") and (action=\"update_concept\"). A reader (the Story-only role) gets no concept, and counts of Story pages only.",
+  description: "concept is the back of the product concept's card, the text agents read; include_card adds card_html, its front, the picture people see first (card_chars says how long it is, 0 when there is none). Read both before changing either. Use the counts to decide where to look first. They leave out archived items, and assumptions count only current (unconfirmed or confirmed) ones, the ones assumptions_read(action=\"list\") returns by default. counts has one number per kind; stage_counts totals them per stage, as the web app shows them: idea (outcomes), evidence (sources), exploration (mockups and current assumptions) and story (Story pages, of every kind). The etag guards products_write(action=\"update\") and (action=\"update_concept\"). A reader (the Story-only role) gets no concept, and counts of Story pages only.",
   input: z.strictObject({
     include_card: z.boolean().default(false).describe("Include card_html, the front of the concept's card."),
   }),

@@ -13,6 +13,8 @@ import { escapeHtml, PERMISSIONS_POLICY } from "./story-html.ts";
  */
 
 export const PRINT_MAX_PAGES = 50;
+/** What one print view holds, once each canvas among its pages counts as its own pages as well. */
+export const PRINT_MAX_SECTIONS = 100;
 
 type Node = {
   nodeName: string;

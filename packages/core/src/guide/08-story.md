@@ -67,15 +67,16 @@ the page sandbox. `?theme=light` and `?theme=dark` choose the theme; desktop and
 
 Publishing never places a page. `story_read(action="get_hierarchy")` lists the tree as `items`, with
 new pages in `unplaced`; `story_write(action="set_hierarchy")` takes the whole tree back with the
-hierarchy's own etag, and nodes may keep the title and description `get_hierarchy` gave them. Pages
-left out of the tree still appear, at its end. `set_hierarchy`'s `mockups` orders the Published
-mockups (see `guide(topic="mockups")`).
+hierarchy's own etag, and nodes may keep the title, description and kind `get_hierarchy` gave them.
+Pages left out of the tree still appear, at its end. One tree holds every kind of page, placed, nested
+and moved alike: `kind` is `story_page`, `mockup_page` (one page of a mockup) or `canvas` (a mockup's
+whole canvas), both of those from `promote_mockup` (see `guide(topic="mockups")`).
 
 ## What people do in the app
 
 The web app shows pages, their versions and their notes, and exports them to PDF. People drag pages
-into place in the tree, reorder the Published mockups, archive, restore and delete pages, and promote
-a mockup page. They cannot write, rename or publish a page, or edit its notes. A person may have moved
+into place in the tree, archive, restore and delete pages, and promote a mockup page or a whole canvas.
+They cannot write, rename or publish a page, or edit its notes. A person may have moved
 pages since the hierarchy was last read: its etag then refuses a stale `set_hierarchy`.
 
 `story_read(action="list_pages")` leaves archived pages out and counts them in `archived_hidden`;

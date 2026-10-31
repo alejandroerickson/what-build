@@ -114,6 +114,11 @@
   flex: none;
   color: var(--faint);
 }
+/* What kind of page a row is: its icon, with a hint on hover. */
+.story-kind {
+  display: inline-flex;
+  flex: none;
+}
 .story-row[data-current] .story-link .glyph,
 .story-row[data-current] .story-caret,
 .story-row[data-current] .story-grip {

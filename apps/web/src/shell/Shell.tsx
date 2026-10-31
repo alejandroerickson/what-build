@@ -363,7 +363,7 @@ export function ProductShell({ product, app, children }: { product: Product; app
           <BrandRow to="/" label="WhatBuild, home" onHide={hide} hideLabel={hideLabel} />
           <nav className="panel-nav" aria-label={product.name}>
             <ProductSwitcher current={product} />
-            {product.your_role !== "reader" ? <FindLauncher product={product} /> : null}
+            <FindLauncher product={product} />
             <ProductNav product={product} app={app} section={section.id} />
           </nav>
         </>

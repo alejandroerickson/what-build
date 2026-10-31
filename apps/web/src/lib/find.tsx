@@ -153,7 +153,7 @@ export function resultHref(app: string, r: FindResult): string {
     case "mockup":
       return `${app}/exploration/mockups/${r.id}${r.meta.page_id ? `?page=${encodeURIComponent(r.meta.page_id)}` : ""}`;
     case "story":
-      return `${app}/story/${r.id}`;
+      return `${app}/story/${r.id}${r.meta.page_id ? `?page=${encodeURIComponent(r.meta.page_id)}` : ""}`;
     case "outcome":
       return `${app}/idea?outcome=${encodeURIComponent(r.id)}`;
     case "idea":
@@ -191,7 +191,7 @@ export function resultMeta(r: FindResult, { status = true }: { status?: boolean 
     if (r.match_count) parts.push(`${r.match_count} ${r.match_count === 1 ? "match" : "matches"}`);
   }
   if (status && r.kind === "assumption" && r.meta.status) parts.push(REVIEW_STATUS[r.meta.status]?.label ?? r.meta.status);
-  if (r.kind === "mockup" && r.meta.page_title) parts.push(`page “${r.meta.page_title}”`);
+  if ((r.kind === "mockup" || r.kind === "story") && r.meta.page_title) parts.push(`page “${r.meta.page_title}”`);
   return parts.join(" · ");
 }
 

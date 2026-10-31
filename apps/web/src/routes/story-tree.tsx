@@ -7,9 +7,16 @@ import { PanelContext, PanelSection } from "../shell/slots.tsx";
 import { Button, Callout, FindField, Glyph, Menu, MenuItem, MenuSeparator, OneLine, useToast, type GlyphName } from "../ui/index.tsx";
 import type { PageActions, PageRef } from "./story-actions.tsx";
 import {
-  applyMove, count, describePosition, filterTree, flatten, keyboardMove, locate, positionOf, refusal, split, toServer, trail,
-  type Arrangement, type ArrowKey, type Hierarchy, type Move, type MoveResult, type StoryNode,
+  applyMove, arrangement, count, describePosition, filterTree, flatten, keyboardMove, locate, positionOf, refusal, toServer, trail,
+  type ArrowKey, type Hierarchy, type Move, type MoveResult, type PageKind, type StoryNode,
 } from "./story-model.ts";
+
+/** How each kind of page looks in the tree, and what the hint over its icon calls it. */
+const PAGE_KINDS: Record<PageKind, { glyph: GlyphName; label: string }> = {
+  story_page: { glyph: "file-text", label: "Story page" },
+  mockup_page: { glyph: "monitor", label: "Mockup page" },
+  canvas: { glyph: "layout-grid", label: "Mockup canvas" },
+};
 
 /** Opens Export to PDF with these pages ticked. */
 export type ExportPages = (pages: string[]) => void;
@@ -28,18 +35,18 @@ class Explained extends Error {}
 export function useArrange(base: string, h: Hierarchy | undefined) {
   const qc = useQueryClient();
   const key = useMemo(() => ["story-tree", base], [base]);
-  const [local, setLocal] = useState<Arrangement | null>(null);
-  const localRef = useRef<Arrangement | null>(null);
+  const [local, setLocal] = useState<StoryNode[] | null>(null);
+  const localRef = useRef<StoryNode[] | null>(null);
   const queue = useRef<Move[]>([]);
   const busy = useRef(false);
   const [problem, setProblem] = useState<string | null>(null);
 
-  const setTree = (t: Arrangement | null) => {
+  const setTree = (t: StoryNode[] | null) => {
     localRef.current = t;
     setLocal(t);
   };
 
-  const put = (t: Arrangement, etag: string | null) => api<Hierarchy>("PUT", `${base}/story/hierarchy`, { ...toServer(t), expected_etag: etag });
+  const put = (t: StoryNode[], etag: string | null) => api<Hierarchy>("PUT", `${base}/story/hierarchy`, { ...toServer(t), expected_etag: etag });
 
   const flush = async () => {
     if (busy.current) return;
@@ -54,7 +61,7 @@ export function useArrange(base: string, h: Hierarchy | undefined) {
         } catch (e) {
           if (!(e instanceof ApiError && e.code === "stale_etag")) throw e;
           const fresh = await api<Hierarchy>("GET", `${base}/story/hierarchy`);
-          let t = split(fresh);
+          let t = arrangement(fresh);
           for (const m of [...batch, ...queue.current.splice(0)]) {
             const r = applyMove(t, m);
             if (!r.ok) {
@@ -85,7 +92,7 @@ export function useArrange(base: string, h: Hierarchy | undefined) {
 
   const move = (m: Move): MoveResult => {
     const known = qc.getQueryData<Hierarchy>(key);
-    const cur = localRef.current ?? (known ? split(known) : null);
+    const cur = localRef.current ?? (known ? arrangement(known) : null);
     if (!cur) return { ok: false, reason: "The Story is still loading." };
     const r = applyMove(cur, m);
     if (!r.ok) return r;
@@ -96,7 +103,7 @@ export function useArrange(base: string, h: Hierarchy | undefined) {
     return r;
   };
 
-  const tree = useMemo(() => local ?? (h ? split(h) : { pages: [], mockups: [] }), [local, h]);
+  const tree = useMemo(() => local ?? (h ? arrangement(h) : []), [local, h]);
   return { tree, move, problem, clearProblem: () => setProblem(null) };
 }
 
@@ -104,13 +111,10 @@ export type Arrange = ReturnType<typeof useArrange>;
 
 // ---- The tree panel -----------------------------------------------------------------------------
 
-/** The two lists a page can be dragged within: the page tree, and the flat Published mockups. */
-type ListKind = "pages" | "mockups";
 type Zone = "before" | "after" | "into" | "end";
 interface Drag {
   page: string;
   title: string;
-  list: ListKind;
   x: number;
   y: number;
   active: boolean;
@@ -179,7 +183,7 @@ export function StoryTree({ arrange, archived, refOf, current, onExport, actions
   // The current page's ancestors are always open.
   useEffect(() => {
     if (!current) return;
-    const path = trail(tree.pages, current);
+    const path = trail(tree, current);
     if (!path) return;
     const shut = path.slice(0, -1).filter((n) => collapsed.has(n.page_id));
     if (!shut.length) return;
@@ -187,10 +191,9 @@ export function StoryTree({ arrange, archived, refOf, current, onExport, actions
     shut.forEach((n) => next.delete(n.page_id));
     saveCollapsed(next);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [current, tree.pages]);
+  }, [current, tree]);
 
-  const pagesShown = useMemo(() => filterTree(tree.pages, query), [tree.pages, query]);
-  const mockupsShown = useMemo(() => filterTree(tree.mockups, query), [tree.mockups, query]);
+  const pagesShown = useMemo(() => filterTree(tree, query), [tree, query]);
   const isOpen = useCallback((id: string) => filtering || !collapsed.has(id), [filtering, collapsed]);
 
   const toggle = (id: string) => {
@@ -205,7 +208,7 @@ export function StoryTree({ arrange, archived, refOf, current, onExport, actions
     requestAnimationFrame(() => setAnnouncement(text));
   };
 
-  const titleOf = (id: string) => locate(tree.pages, id)?.node.title ?? tree.mockups.find((n) => n.page_id === id)?.title ?? id;
+  const titleOf = (id: string) => locate(tree, id)?.node.title ?? id;
 
   /** Applies a move; a drag gets a toast with Undo, a keyboard move is announced. */
   const commit = (m: Move, how: "keyboard" | "pointer") => {
@@ -232,16 +235,13 @@ export function StoryTree({ arrange, archived, refOf, current, onExport, actions
   const zoneAt = (x: number, y: number, d: Drag): Drag["over"] => {
     const el = document.elementFromPoint(x, y)?.closest<HTMLElement>("[data-drop-target]");
     if (!el || !rootRef.current?.contains(el)) return null;
-    if (el.dataset["dropTarget"] === "end") return d.list === "pages" ? { page: null, zone: "end", refused: refusal(tree, d.page, null) } : null;
-    if (el.dataset["dropTarget"] !== d.list) return null;
+    if (el.dataset["dropTarget"] === "end") return { page: null, zone: "end", refused: refusal(tree, d.page, null) };
     const target = el.dataset["row"]!;
     const r = el.getBoundingClientRect();
     const f = (y - r.top) / r.height;
-    // Published mockups have no levels: a drop goes before or after one, never into it.
-    const zone: Zone = d.list === "mockups" ? (f < 0.5 ? "before" : "after") : f < 0.3 ? "before" : f > 0.7 ? "after" : "into";
+    const zone: Zone = f < 0.3 ? "before" : f > 0.7 ? "after" : "into";
     if (target === d.page) return { page: target, zone, refused: "" };
-    if (d.list === "mockups") return { page: target, zone, refused: null };
-    const at = locate(tree.pages, target);
+    const at = locate(tree, target);
     const parent = zone === "into" ? target : (at?.parent?.page_id ?? null);
     return { page: target, zone, refused: refusal(tree, d.page, parent) };
   };
@@ -249,12 +249,7 @@ export function StoryTree({ arrange, archived, refOf, current, onExport, actions
   const moveFor = (d: Drag, over: NonNullable<Drag["over"]>): Move | null => {
     if (over.zone === "end") return { page: d.page, parent: null, before: null };
     if (!over.page) return null;
-    if (d.list === "mockups") {
-      const i = tree.mockups.findIndex((m) => m.page_id === over.page);
-      const next = tree.mockups.slice(i + 1).find((m) => m.page_id !== d.page);
-      return { page: d.page, parent: null, before: over.zone === "before" ? over.page : (next?.page_id ?? null) };
-    }
-    const at = locate(tree.pages, over.page);
+    const at = locate(tree, over.page);
     if (!at) return null;
     const parent = at.parent?.page_id ?? null;
     if (over.zone === "into") return { page: d.page, parent: over.page, before: null };
@@ -268,11 +263,11 @@ export function StoryTree({ arrange, archived, refOf, current, onExport, actions
     setDrag(d);
   };
 
-  const onGripDown = (e: ReactPointerEvent<HTMLElement>, node: StoryNode, list: ListKind) => {
+  const onGripDown = (e: ReactPointerEvent<HTMLElement>, node: StoryNode) => {
     if (e.button !== 0 || !arranging) return;
     e.preventDefault();
     e.currentTarget.setPointerCapture(e.pointerId);
-    setDragState({ page: node.page_id, title: node.title, list, x: e.clientX, y: e.clientY, active: false, over: null });
+    setDragState({ page: node.page_id, title: node.title, x: e.clientX, y: e.clientY, active: false, over: null });
   };
   const onGripMove = (e: ReactPointerEvent<HTMLElement>) => {
     const d = dragRef.current;
@@ -333,12 +328,12 @@ export function StoryTree({ arrange, archived, refOf, current, onExport, actions
 
   /** A page and every page under it, from the whole tree rather than the filtered one. */
   const pagesUnder = (id: string) => {
-    const node = trail(tree.pages, id)?.at(-1) ?? tree.mockups.find((n) => n.page_id === id);
+    const node = trail(tree, id)?.at(-1);
     return node ? flatten([node]).map((x) => x.node.page_id) : [id];
   };
 
   const common = { app, current, query, arranging, drag, isOpen, toggle, focusRequest, onMoveKey, openRowMenu, onGripDown, onGripMove, onGripUp, onExport, pagesUnder, refOf, actions };
-  const total = count(tree.pages) + tree.mockups.length;
+  const total = count(tree);
 
   return (
     <PanelContext label="Story pages">
@@ -353,25 +348,20 @@ export function StoryTree({ arrange, archived, refOf, current, onExport, actions
             </Callout>
           </div>
         ) : null}
-        <PanelSection title="Story pages" end={<span className="num">{count(tree.pages)}</span>}>
+        <PanelSection title="Story pages" end={<span className="num">{total}</span>}>
           {pagesShown.length ? (
-            <TreeList label="Story pages" list="pages" nodes={pagesShown} {...common} />
+            <TreeList label="Story pages" nodes={pagesShown} {...common} />
           ) : filtering ? (
             <p className="story-tree-none">No pages match “{query.trim()}”.</p>
           ) : (
             <p className="story-tree-none">No pages yet.</p>
           )}
-          {drag?.active && drag.list === "pages" ? (
+          {drag?.active ? (
             <div className="story-drop-end" data-drop-target="end" data-drop={drag.over?.zone === "end" ? (drag.over.refused ? "refused" : "end") : undefined}>
               Move to the end of the top level
             </div>
           ) : null}
         </PanelSection>
-        {tree.mockups.length ? (
-          <PanelSection title="Published mockups" end={<span className="num">{tree.mockups.length}</span>}>
-            {mockupsShown.length ? <TreeList label="Published mockups" list="mockups" icon="monitor" nodes={mockupsShown} {...common} /> : <p className="story-tree-none">No published mockups match.</p>}
-          </PanelSection>
-        ) : null}
         {archived.length ? (
           <div className="story-archived">
             <button type="button" className="story-archived-toggle" aria-expanded={archivedOpen} onClick={() => setShowArchived(!archivedOpen)}>
@@ -458,13 +448,10 @@ function PageMenu({ page, archived, subpages, onExport, actions }: {
   );
 }
 
-// ---- One tree (the pages, or the Published mockups) --------------------------------------------
+// ---- The tree ------------------------------------------------------------------------------------
 
 interface ListProps {
   label: string;
-  list: ListKind;
-  /** The rows' glyph: a page, unless said otherwise. */
-  icon?: GlyphName;
   nodes: StoryNode[];
   app: string;
   current: string | undefined;
@@ -476,7 +463,7 @@ interface ListProps {
   focusRequest: MutableRefObject<string | null>;
   onMoveKey: (page: string, key: ArrowKey) => void;
   openRowMenu: (page: string) => void;
-  onGripDown: (e: ReactPointerEvent<HTMLElement>, node: StoryNode, list: ListKind) => void;
+  onGripDown: (e: ReactPointerEvent<HTMLElement>, node: StoryNode) => void;
   onGripMove: (e: ReactPointerEvent<HTMLElement>) => void;
   onGripUp: () => void;
   onExport: ExportPages;
@@ -588,7 +575,8 @@ function Rows(props: RowsProps & { level: number }) {
 }
 
 function Row(props: RowsProps & { node: StoryNode; level: number; pos: number; size: number }) {
-  const { node, level, pos, size, app, current, query, arranging, drag, isOpen, toggle, list } = props;
+  const { node, level, pos, size, app, current, query, arranging, drag, isOpen, toggle } = props;
+  const kind = PAGE_KINDS[node.kind];
   const groupId = useId();
   const kids = node.children.length > 0;
   const open = kids && isOpen(node.page_id);
@@ -599,7 +587,7 @@ function Row(props: RowsProps & { node: StoryNode; level: number; pos: number; s
       <div
         className="story-row"
         data-row={node.page_id}
-        data-drop-target={list}
+        data-drop-target="page"
         data-current={isCurrent || undefined}
         data-dragging={drag?.active && drag.page === node.page_id ? "" : undefined}
         data-drop={dropping}
@@ -610,7 +598,7 @@ function Row(props: RowsProps & { node: StoryNode; level: number; pos: number; s
             className="story-grip"
             aria-hidden="true"
             title="Drag to move"
-            onPointerDown={(e) => props.onGripDown(e, node, list)}
+            onPointerDown={(e) => props.onGripDown(e, node)}
             onPointerMove={props.onGripMove}
             onPointerUp={props.onGripUp}
             onPointerCancel={props.onGripUp}
@@ -628,7 +616,7 @@ function Row(props: RowsProps & { node: StoryNode; level: number; pos: number; s
           to={`${app}/story/${node.page_id}`}
           role="treeitem"
           className="story-link"
-          aria-label={node.title}
+          aria-label={node.kind === "story_page" ? node.title : `${node.title}, ${kind.label.toLowerCase()}`}
           aria-level={level}
           aria-setsize={size}
           aria-posinset={pos}
@@ -640,7 +628,9 @@ function Row(props: RowsProps & { node: StoryNode; level: number; pos: number; s
           onFocus={() => props.onFocusItem(node.page_id)}
           onKeyDown={(e) => props.onKeyDown(e, node.page_id)}
         >
-          <Glyph name={props.icon ?? "file-text"} />
+          <span className="story-kind" title={kind.label}>
+            <Glyph name={kind.glyph} />
+          </span>
           <OneLine text={node.title} render={query.trim() ? (shown) => <Highlight text={shown} query={query} /> : undefined} />
         </Link>
         <PageMenu page={props.refOf(node.page_id) ?? node} subpages={props.pagesUnder(node.page_id)} onExport={props.onExport} actions={props.actions} />

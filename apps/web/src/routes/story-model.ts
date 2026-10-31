@@ -1,3 +1,5 @@
+import type { CanvasPage, PrototypeAddress } from "./mockup-canvas.tsx";
+
 /**
  * The Story tree as data: where a page sits, what the panel shows, and what the tree looks like after
  * a person moves one. Pure functions, so dragging, the keyboard and the retry after a 409 share them.
@@ -7,40 +9,39 @@
 export const MAX_PAGES = 50;
 export const MAX_DEPTH = 6;
 
+/** What a page's current version shows: HTML of its own, one page of a mockup, or a mockup's whole canvas. */
+export type PageKind = "story_page" | "mockup_page" | "canvas";
+
 export interface StoryNode {
   page_id: string;
   title: string;
   description: string;
+  kind: PageKind;
   children: StoryNode[];
 }
 
-/**
- * story.get_hierarchy: `items` is the tree as saved, `unplaced` the pages not yet placed, and
- * `mockups` the Published mockups, the pages showing a mockup page, in order.
- */
+/** story.get_hierarchy: `items` is the tree as saved, and `unplaced` the pages not yet placed. */
 export interface Hierarchy {
   etag: string | null;
   items: StoryNode[];
   unplaced: Omit<StoryNode, "children">[];
-  mockups: Omit<StoryNode, "children">[];
 }
 
-/** The Story the way the panel shows it: the page tree with the pages not yet placed at its end, then the Published mockups. */
-export interface Arrangement {
-  pages: StoryNode[];
-  mockups: StoryNode[];
-}
-
-export function split(h: Hierarchy): Arrangement {
+/** The Story the way the panel shows it: one tree, with the pages not yet placed at its end. */
+export function arrangement(h: Hierarchy): StoryNode[] {
   const leaf = (m: Omit<StoryNode, "children">): StoryNode => ({ ...m, children: [] });
-  return { pages: [...h.items, ...h.unplaced.map(leaf)], mockups: h.mockups.map(leaf) };
+  return [...h.items, ...h.unplaced.map(leaf)];
 }
 
-/** Where a page stands among the Published mockups, and the ones either side, or null when it is not one. */
-export function mockupStop(a: Arrangement, id: string): { index: number; count: number; prev: StoryNode | null; next: StoryNode | null } | null {
-  const index = a.mockups.findIndex((m) => m.page_id === id);
+/**
+ * Where a page showing a mockup page stands among the others in the Story's order, and the ones either
+ * side, or null when it shows anything else. A canvas is no stop, since its arrows are for its own pages.
+ */
+export function mockupStop(tree: StoryNode[], id: string): { index: number; count: number; prev: StoryNode | null; next: StoryNode | null } | null {
+  const stops = flatten(tree).map((r) => r.node).filter((n) => n.kind === "mockup_page");
+  const index = stops.findIndex((m) => m.page_id === id);
   if (index < 0) return null;
-  return { index, count: a.mockups.length, prev: a.mockups[index - 1] ?? null, next: a.mockups[index + 1] ?? null };
+  return { index, count: stops.length, prev: stops[index - 1] ?? null, next: stops[index + 1] ?? null };
 }
 
 export interface Located {
@@ -94,8 +95,7 @@ export function trail(nodes: StoryNode[], id: string, path: StoryNode[] = []): S
 
 /**
  * A move, said in page ids so it can be applied again to a newer tree after a conflict: put `page`
- * under `parent` (null = top level) just before `before` (null = at the end). A published mockup
- * moves only among the Published mockups, which have no levels, so its parent is always null.
+ * under `parent` (null = top level) just before `before` (null = at the end).
  */
 export interface Move {
   page: string;
@@ -103,12 +103,12 @@ export interface Move {
   before: string | null;
 }
 
-export type MoveResult = { ok: true; tree: Arrangement } | { ok: false; reason: string };
+export type MoveResult = { ok: true; tree: StoryNode[] } | { ok: false; reason: string };
 
-/** The arrangement as story.set_hierarchy takes it: the tree, which places every page shown in it, and the mockups' order. */
-export function toServer(a: Arrangement): { items: ServerNode[]; mockups: string[] } {
+/** The tree as story.set_hierarchy takes it, which places every page shown in it. */
+export function toServer(tree: StoryNode[]): { items: ServerNode[] } {
   const bare = (nodes: StoryNode[]): ServerNode[] => nodes.map((n) => ({ page_id: n.page_id, children: bare(n.children) }));
-  return { items: bare(a.pages), mockups: a.mockups.map((m) => m.page_id) };
+  return { items: bare(tree) };
 }
 
 interface ServerNode {
@@ -130,43 +130,31 @@ function insert(nodes: StoryNode[], parent: string | null, before: string | null
   return nodes.map((n) => (n.page_id === parent ? { ...n, children: placeIn(n.children, before, node) } : { ...n, children: insert(n.children, parent, before, node) }));
 }
 
-const isMockup = (a: Arrangement, id: string) => a.mockups.some((m) => m.page_id === id);
-
 /** Why a page can't go under `parent`, in words, or null when it can. */
-export function refusal(tree: Arrangement, page: string, parent: string | null): string | null {
-  if (isMockup(tree, page)) return parent === null ? null : "A published mockup stays among the Published mockups.";
-  const at = locate(tree.pages, page);
+export function refusal(tree: StoryNode[], page: string, parent: string | null): string | null {
+  const at = locate(tree, page);
   if (!at) return "That page is no longer in the Story.";
   if (parent === null) return null;
   if (contains(at.node, parent)) return "A page can’t go inside itself or one of its own subpages.";
-  const target = locate(tree.pages, parent);
+  const target = locate(tree, parent);
   if (!target) return "The page you chose is no longer in the Story.";
   if (target.level + height(at.node) > MAX_DEPTH) return `The Story is at most ${MAX_DEPTH} levels deep, and this would make it deeper.`;
   return null;
 }
 
-export function applyMove(tree: Arrangement, move: Move): MoveResult {
-  const mockup = tree.mockups.find((m) => m.page_id === move.page);
-  if (mockup) {
-    if (move.parent !== null) return { ok: false, reason: "A published mockup stays among the Published mockups." };
-    const i = tree.mockups.indexOf(mockup);
-    // "Just before itself" means staying put: before the mockup that follows it now.
-    const before = move.before === move.page ? (tree.mockups[i + 1]?.page_id ?? null) : move.before;
-    return { ok: true, tree: { pages: tree.pages, mockups: placeIn(tree.mockups.filter((m) => m !== mockup), before, mockup) } };
-  }
-  const at = locate(tree.pages, move.page);
+export function applyMove(tree: StoryNode[], move: Move): MoveResult {
+  const at = locate(tree, move.page);
   if (!at) return { ok: false, reason: "That page is no longer in the Story." };
   const why = refusal(tree, move.page, move.parent);
   if (why) return { ok: false, reason: why };
+  // "Just before itself" means staying put: before the page that follows it now.
   const before = move.before === move.page ? (at.siblings[at.index + 1]?.page_id ?? null) : move.before;
-  return { ok: true, tree: { pages: insert(without(tree.pages, move.page), move.parent, before, at.node), mockups: tree.mockups } };
+  return { ok: true, tree: insert(without(tree, move.page), move.parent, before, at.node) };
 }
 
 /** Where a page is now, as the move that would put it back there; null when it is not in the Story. */
-export function positionOf(tree: Arrangement, page: string): Move | null {
-  const i = tree.mockups.findIndex((m) => m.page_id === page);
-  if (i >= 0) return { page, parent: null, before: tree.mockups[i + 1]?.page_id ?? null };
-  const at = locate(tree.pages, page);
+export function positionOf(tree: StoryNode[], page: string): Move | null {
+  const at = locate(tree, page);
   if (!at) return null;
   return { page, parent: at.parent?.page_id ?? null, before: at.siblings[at.index + 1]?.page_id ?? null };
 }
@@ -175,11 +163,10 @@ export type ArrowKey = "ArrowUp" | "ArrowDown" | "ArrowLeft" | "ArrowRight";
 
 /**
  * Alt+arrow on a page: ↑/↓ swap it with its neighbour, → nests it under the page above, ← moves it
- * out to follow its parent. Published mockups only go up and down.
+ * out to follow its parent.
  */
-export function keyboardMove(tree: Arrangement, page: string, key: ArrowKey): Move | { reason: string } {
-  const m = tree.mockups.findIndex((x) => x.page_id === page);
-  const at = m >= 0 ? { parent: null, siblings: tree.mockups, index: m } : locate(tree.pages, page);
+export function keyboardMove(tree: StoryNode[], page: string, key: ArrowKey): Move | { reason: string } {
+  const at = locate(tree, page);
   if (!at) return { reason: "That page is no longer in the Story." };
   const parent = at.parent?.page_id ?? null;
   const prev = at.siblings[at.index - 1];
@@ -190,22 +177,18 @@ export function keyboardMove(tree: Arrangement, page: string, key: ArrowKey): Mo
     case "ArrowDown":
       return next ? { page, parent, before: at.siblings[at.index + 2]?.page_id ?? null } : { reason: "It is already last at this level." };
     case "ArrowRight":
-      if (m >= 0) return { reason: "Published mockups have no levels." };
       return prev ? { page, parent: prev.page_id, before: null } : { reason: "There is no page above it at this level to nest it under." };
     case "ArrowLeft": {
-      if (m >= 0) return { reason: "Published mockups have no levels." };
       if (!at.parent) return { reason: "It is already at the top level." };
-      const up = locate(tree.pages, at.parent.page_id)!;
+      const up = locate(tree, at.parent.page_id)!;
       return { page, parent: up.parent?.page_id ?? null, before: up.siblings[up.index + 1]?.page_id ?? null };
     }
   }
 }
 
 /** Where a moved page ended up, in words: "under “Overview”, 2 of 3". */
-export function describePosition(tree: Arrangement, page: string): string {
-  const m = tree.mockups.findIndex((x) => x.page_id === page);
-  if (m >= 0) return `among the Published mockups, ${m + 1} of ${tree.mockups.length}`;
-  const at = locate(tree.pages, page);
+export function describePosition(tree: StoryNode[], page: string): string {
+  const at = locate(tree, page);
   if (!at) return "out of the Story";
   const where = at.parent ? `under “${at.parent.title}”` : "at the top level";
   return `${where}, ${at.index + 1} of ${at.siblings.length}`;
@@ -238,14 +221,26 @@ export interface VersionView {
   page_id: string;
   title: string;
   summary: string;
-  /** Set when the version shows one page of a mockup: its size, and for the team which mockup and version. */
+  /** Set when the version shows one page of a mockup, or its whole canvas: what to draw, and for the team which mockup and version. */
   mockup?: MockupShown;
   published_at: string;
   published_by: Actor;
   html?: string;
 }
 
-export interface MockupShown {
+/** Which mockup and version a page shows; only the team is told. */
+interface MockupOrigin {
+  mockup_id?: string;
+  mockup_title?: string | null;
+  version?: number;
+  page_id?: string | null;
+  current_version?: number | null;
+  mockup_archived?: boolean;
+}
+
+/** One page of a mockup: its size. */
+export interface MockupPageShown extends MockupOrigin {
+  canvas?: undefined;
   width: number;
   height: number;
   /** For an entry into the mockup version's prototype: the entry, the frame's address and the sandbox it takes. */
@@ -253,14 +248,18 @@ export interface MockupShown {
   prototype_url?: string;
   prototype_sandbox?: string;
   prototype_expires_at?: string;
-  mockup_id?: string;
-  mockup_title?: string | null;
-  version?: number;
-  page_id?: string;
   page_title?: string | null;
-  current_version?: number | null;
-  mockup_archived?: boolean;
 }
+
+/** A mockup's whole canvas: its layout and pages. */
+export interface CanvasShown extends MockupOrigin {
+  canvas: true;
+  columns: number | null;
+  pages: CanvasPage[];
+  prototype?: PrototypeAddress;
+}
+
+export type MockupShown = MockupPageShown | CanvasShown;
 
 export interface AgentNotes {
   content: string;

@@ -1,6 +1,6 @@
 # Mockups
 
-Mockup canvases: their pages and the rules a page meets, prototypes, shared files, versions, uploads and downloads, limits, and promoting a page to the Story.
+Mockup canvases: their pages and the rules a page meets, prototypes, shared files, versions, uploads and downloads, limits, and promoting a page or a whole canvas to the Story.
 
 ## What a mockup is
 
@@ -115,16 +115,21 @@ gives each page's `html_sha256` and each file's `sha256`: they hash the text as 
 A version holds at most 48 pages and 8,000,000 characters of HTML. A product holds at most 50 mockups,
 archived ones included; `list` gives `quota` with `used` and `limit`.
 
-## Promoting a page to the Story
+## Promoting a page or a whole canvas to the Story
 
 `story_write(action="promote_mockup", params={mockup_id, mockup_page_id})` makes a Story page that shows
 that page as it is in the mockup's current version (or `version: N`), under the `page_id` given, or
-named after the mockup page. Nothing is copied, and the Story page stays on that version: promoting
-again with the Story page's `page_id` and its etag shows a newer version as the page's next version.
-`mockups_read(action="get")` lists the Story pages that show its pages (`story_pages`).
+named after the mockup page. Leave `mockup_page_id` out and the Story page shows the whole canvas, on
+one Story page however many pages it has, named after the mockup. Nothing is copied, and the Story page
+stays on that version: promoting again with the Story page's `page_id` and its etag shows a newer
+version as the page's next version. `mockups_read(action="get")` lists the Story pages that show it
+(`story_pages`, where `mockup_page_id` is null for a whole canvas).
 
-A promoted page joins the end of the Story's **Published mockups**, a section after the page tree where
-readers flip through them in order; it never goes in the tree. A promoted entry shows its prototype,
-and a reader can move through that version's whole prototype from it, but sees nothing else of the
-mockup. `set_hierarchy`'s `mockups`, every promoted page's id in order, reorders the section. People
-can promote a page from the mockup in the web app too.
+A promoted page is a Story page like any other: unplaced at the end of the tree until `set_hierarchy`
+places it, and free to sit under another page or hold others. Its `kind` in the hierarchy says what it
+shows: `mockup_page` or `canvas`. On a mockup page readers flip through the Story's mockup pages, in
+the tree's order, with the arrow keys. On a whole canvas they pan and zoom the board and the arrows
+move between its pages; `get_page` gives its layout and pages under `current.mockup`. A promoted entry
+shows its prototype, and a reader can move through that version's whole prototype from it. A reader
+sees nothing else of the mockup: never its brief, notes, files or other versions. People can promote a
+page or the whole canvas from the mockup in the web app too.

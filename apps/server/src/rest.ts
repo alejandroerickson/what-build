@@ -9,7 +9,7 @@ import { isOwnOrigin, restPrincipal } from "./auth/identity.ts";
 import type { ServerConfig } from "./config.ts";
 import { handOff } from "./content-documents.ts";
 import {
-  bytesAsked, cardFront, findAttachment, findCard, findMockupPage, findSpecimen, findStoryVersion, htmlView, isHtmlAttachment, isPdf, printView, storyHtml, storyTheme, streamFile,
+  bytesAsked, cardFront, findAttachment, findCard, findMockupPage, findSpecimen, findStoryCanvasPage, findStoryVersion, htmlView, isHtmlAttachment, isPdf, printView, storyHtml, storyTheme, streamFile,
 } from "./documents.ts";
 import { logError } from "./telemetry.ts";
 
@@ -229,6 +229,23 @@ export function restRoutes(env: Env & { config: ServerConfig }) {
       // A mockup page carries its own look, so it takes neither the theme nor the carried typefaces,
       // and keeps its own sandbox, which allows forms.
       return storyHtml(c, v.html, v.mockup ? undefined : theme, frame, v.mockup);
+    } catch (e) {
+      return errorResponse(c, toAppError(e, WEB));
+    }
+  });
+
+  // A page of the canvas a Story page's version shows. Unlike the route below, a reader may ask:
+  // the Story page chose to show this canvas, and the address reaches only that version's pages.
+  app.get(`${SCOPE_PREFIX.product}/story/pages/:page_id/versions/:version/pages/:mockup_page_id/html`, async (c) => {
+    try {
+      const { principal, scope, productId } = await scoped(c, "story");
+      const pageId = c.req.param("mockup_page_id")!;
+      const p = await inTenant(scope, (trx) =>
+        findStoryCanvasPage(trx, productId, { pageId: c.req.param("page_id")!, n: Number(c.req.param("version")) }, pageId, readsOnlyTheStory(scope.role)),
+      );
+      if (!p) throw new AppError(404, "not_found", "No such page on this Story page's canvas.");
+      if (site) return handOff(c, env, principal, scope, { purpose: "story_canvas_page", sv: p.version_id, pg: pageId }, "page.html");
+      return storyHtml(c, p.html, undefined, c.req.query("frame") === "1", true);
     } catch (e) {
       return errorResponse(c, toAppError(e, WEB));
     }

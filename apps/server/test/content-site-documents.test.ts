@@ -248,6 +248,9 @@ describe("a document on the content site", () => {
     expect((await open(resigned(story, { purpose: "mockup_page" }))).status).toBe(404);
     expect((await open(resigned(mockup, { purpose: "story_page" }))).status).toBe(404);
     expect((await open(resigned(story, { purpose: "attachment" }))).status).toBe(404);
+    // A canvas page's grant finds nothing through a version that does not show a whole canvas.
+    expect((await open(resigned(story, { purpose: "story_canvas_page", pg: "board" }))).status).toBe(404);
+    expect((await open(resigned(mockup, { purpose: "story_canvas_page" }))).status).toBe(404);
     expect((await open(resigned(story, { sv: claimsOf(mockup)["xv"] }))).status).toBe(404);
     // Grants for anything else are not a document's.
     for (const purpose of ["download", "prototype", "story_preview", "export"]) expect((await open(resigned(story, { purpose }))).status, purpose).toBe(401);

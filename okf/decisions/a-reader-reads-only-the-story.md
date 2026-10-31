@@ -3,7 +3,7 @@ type: Decision
 title: A reader reads only the Story, never the evidence behind it
 description: A team or product role below viewer for stakeholders, enforced by the server: Story pages, their versions and their export, without the notes agents keep on them.
 tags: [decision, access, roles, story, stakeholders]
-generated: {by: agent:claude, at: 2026-10-16}
+generated: {by: agent:claude, at: 2026-10-30}
 status: stable
 ---
 
@@ -35,14 +35,26 @@ product as anyone else does. It revises one consequence of
   Story, is left out of a reader's page list and print view and answers them `404` by its address,
   with its versions and HTML; the team still reads it. The maintainer chose this on 2026-10-10:
   what the team archived is not part of the Story a stakeholder reads.
-- A reader's Story reads leave out the page's notes for agents, and of a page that shows a mockup
-  page everything but its size. Their product reads leave out the product concept and count Story
+- A reader's Story reads leave out the page's notes for agents, of a page that shows a mockup
+  page everything but its size, and of a page that shows a whole canvas everything but its layout and
+  each page's title and size. Their product reads leave out the product concept and count Story
   pages only.
 - A Story page that shows an entry into a mockup's prototype gives a reader that prototype's
   address, which reaches every file of that one mockup version's prototype, since a prototype is
   what its entry opens; nothing else of the mockup (its brief, notes, files, other pages or
   versions) reaches a reader. The maintainer chose this on 2026-10-14
   ([decision](mockups-carry-prototypes-served-from-a-capability-path.md)).
+- A Story page that shows a whole canvas gives a reader that canvas: each page of the one mockup
+  version it points at, through the Story page's own route of access `story`, and that version's
+  prototype when a page enters it. Its brief, notes, files and other versions stay with the team,
+  and the mockup's own routes keep refusing a reader. The maintainer chose to share whole canvases on
+  2026-10-30: a team promotes one when stakeholders should see it, which is the team's choice per
+  mockup.
+- A reader can search the Story, and nothing else: `search` in plain mode, over every Story page by
+  what it shows, mockup pages and whole canvases among them. It reads no source, assumption, outcome
+  or concept, no mockup's brief or notes, and offers back only corrections from the Story's own
+  titles; every other mode, kind or source is refused. The maintainer chose this on 2026-10-30, so a
+  stakeholder can find a page once a Story holds many.
 - The server never changes a page's HTML for a reader. What its author wrote, including mentions
   of the evidence, is the reader's to read; the evidence itself is out of reach.
 - Rejected: hiding the rest only in the web app, since the API and MCP would still serve it;
@@ -61,8 +73,8 @@ product as anyone else does. It revises one consequence of
 
 ## Constrains
 
-- Only Story reads and the product's own name and Story count may declare `story`; a new
-  operation that does needs the same trimming for a reader.
+- Only Story reads, a search of the Story, and the product's own name and Story count may declare
+  `story`; a new operation that does needs the same trimming for a reader.
 - Trimming happens in the handlers through `readsOnlyTheStory` in
   `packages/core/src/policy.ts`, never in the web app alone; whether someone reads only the Story
   in a whole organization is `readsOnlyTheStoryIn` there.

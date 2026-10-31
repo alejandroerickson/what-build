@@ -27,7 +27,7 @@ export function withStoryTheme(html: string, theme: "light" | "dark"): string {
  * page's opaque origin, and does five things:
  *
  * - Passes F and Esc (focus mode), the left and right arrows (flipping through the Story's
- *   published mockups) and 2 and 3 (fitting a mockup page to the screen or filling its width) to the app, since keys pressed inside a frame never reach the page around
+ *   mockup pages) and 2 and 3 (fitting a mockup page to the screen or filling its width) to the app, since keys pressed inside a frame never reach the page around
  *   it. Only the key's name is sent; the app checks the message came from its frame. A key the
  *   page itself handled (its default prevented) is not passed on.
  * - Hands a plain click on a link to another page of the same Story to the app, which shows that

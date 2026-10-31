@@ -154,7 +154,7 @@ const TOOL_TEXT: Record<string, { title: string; parts: [text: string, ...action
     parts: [
       ["Publish pages in the product's Story style, keep each page's notes, and arrange the hierarchy.", "publish", "write_notes", "set_hierarchy"],
       ["Set the Story style: the team's own design system or an adopted house style.", "set_style"],
-      ["Show a mockup's page in the Story.", "promote_mockup"],
+      ["Show a mockup's page, or its whole canvas, in the Story.", "promote_mockup"],
       ["Archive and restore pages.", "archive_page", "restore_page"],
     ],
   },
