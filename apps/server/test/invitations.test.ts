@@ -53,7 +53,7 @@ describe("signing in", () => {
     expect((await row(id)).accepted_at).toBeNull();
   });
 
-  it("is still open to an invited address the allowlist would stop, and it may then decline", async () => {
+  it("is still open to an invited address the allowlist would stop", async () => {
     const closed = await startHarness({ signupAllowlist: ["@listed.example"] });
     try {
       closed.acceptsInvitations = false;
@@ -418,5 +418,57 @@ describe("who may answer", () => {
     expect(mail.text).toMatch(/You join only if you accept/);
     expect(mail.text).toMatch(/Accept or decline/);
     expect(mail.text).not.toMatch(/joins? (on|by|when) sign/i);
+  });
+});
+
+describe("what else an answer meets", () => {
+  it("lets a new invitation replace an open one only for someone who could cancel it, and the log says so", async () => {
+    const admin = await h.signIn("second-admin@example.com", "Ada Admin");
+    const adminInvited = await invite("second-admin@example.com", "admin", {});
+    expect((await admin.api("POST", "/api/v1/invitations/accept", { token: adminInvited.token })).status).toBe(200);
+
+    const forOwner = await invite("future-owner@example.com", "owner", {});
+    const refused = await admin.api("POST", `/api/v1/tenants/${tenant}/members`, { email: "future-owner@example.com", role: "member" });
+    expect(refused.status).toBe(403);
+    expect(Date.parse((await row(forOwner.id)).expires_at)).toBeGreaterThan(Date.now());
+
+    const replacement = await invite("future-owner@example.com", "owner", {});
+    expect(Date.parse((await row(forOwner.id)).expires_at)).toBeLessThanOrEqual(Date.now());
+    expect(replacement.id).not.toBe(forOwner.id);
+    expect((await log()).some((e) => e.action === "invitation_cancelled")).toBe(true);
+    expect((await owner.api("POST", `/api/v1/tenants/${tenant}/invitations/cancel`, { invitation_id: replacement.id })).status).toBe(200);
+  });
+
+  it("refuses accepting into a read-only organization, says so beforehand, and keeps the invitation for later", async () => {
+    const who = await h.signIn("read-only-joiner@example.com", "Rae Joiner");
+    const { id, token } = await invite("read-only-joiner@example.com");
+    await h.db.updateTable("tenants").set({ read_only_since: new Date().toISOString() }).where("slug", "=", tenant).execute();
+    try {
+      const listed = (await who.api("GET", "/api/v1/me/invitations")).body.items.find((i: { invitation_id: string }) => i.invitation_id === id);
+      expect(listed.read_only).toBe(true);
+      const accept = await who.api("POST", "/api/v1/invitations/accept", { token });
+      expect(accept.status).toBe(409);
+      expect(accept.body.error.code).toBe("organization_read_only");
+      expect((await row(id)).accepted_at).toBeNull();
+      expect(await reaches(who)).toBe(false);
+    } finally {
+      await h.db.updateTable("tenants").set({ read_only_since: null }).where("slug", "=", tenant).execute();
+    }
+    expect((await who.api("POST", "/api/v1/invitations/accept", { token })).status).toBe(200);
+    expect(await reaches(who)).toBe(true);
+  });
+
+  it("ends what is still open to someone removed from the organization, so accepting cannot undo it", async () => {
+    const who = await h.signIn("removed-person@example.com", "Rob Removed");
+    // Both while they are outside it, since someone already seen there is given a role at once.
+    const left = await invite("removed-person@example.com", "editor", { team, product: "crewboard" });
+    const onTeam = await invite("removed-person@example.com");
+    expect((await who.api("POST", "/api/v1/invitations/accept", { token: onTeam.token })).status).toBe(200);
+    const account = (await who.api("GET", "/api/v1/me")).body.account_id as string;
+    expect((await owner.api("POST", `/api/v1/tenants/${tenant}/members/revoke`, { account_id: account, whole_tenant: true })).status).toBe(200);
+    expect(await pending(who)).toEqual([]);
+    const late = await who.api("POST", "/api/v1/invitations/accept", { token: left.token });
+    expect(late.status).toBe(410);
+    expect(await reaches(who)).toBe(false);
   });
 });

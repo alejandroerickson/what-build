@@ -498,7 +498,7 @@ export function PeopleEditor({ tenant, orgName, target, title, description, abov
                                   : r.state === "member"
                                     ? "in the organization"
                                     : r.state === "invited"
-                                      ? "invited already; gets a new invitation"
+                                      ? "invited already; a new invitation replaces it, and the earlier link stops working"
                                       : "gets an invitation"}
                             </span>
                           </span>

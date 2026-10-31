@@ -49,8 +49,12 @@ their panel, and be counted and named in it without having been asked. The maint
   returns to the link.
 - Someone invited takes one more step, and until then is a guest account if they are in no
   organization. Their agent reaches the organization only once they have accepted.
-- Whoever invited someone who declines cannot read from the log which address it was, when several
-  are waiting; the invitation leaving Waiting to join says so.
+- Someone who declines is recorded with no name, account or address. An owner or admin who pairs the
+  log's invitation id with the invitation can tell which address declined, as the invitation leaving
+  Waiting to join also shows, and that the address has an account now, since only an account can
+  decline. It says nothing of whether it had one when it was invited.
+- A read-only organization takes nobody new: an invitation to one can be declined, and accepted once
+  the organization is writable again, while it is still open.
 
 ## Constrains
 

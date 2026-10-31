@@ -5,7 +5,7 @@ import { Link, Navigate, useNavigate, useParams, useSearchParams } from "react-r
 import { api, ApiError, retryRead } from "../lib/api.ts";
 import { useMe, useSignOut } from "../lib/session.tsx";
 import { BrandMark } from "../shell/brand.tsx";
-import { InvitationWords, roleWords, useInvitationAnswer, type Invitation } from "../shell/invitations.tsx";
+import { InvitationWords, orgOf, roleWords, useInvitationAnswer, type Invitation } from "../shell/invitations.tsx";
 import { usePageTitle } from "../shell/slots.tsx";
 import { Button, ButtonLink, Callout, EmptyState, ErrorCallout, Loading, Sheet, SheetBody, SheetHeader, TextField } from "../ui/index.tsx";
 import { PrivacyLink } from "../shell/privacy-link.tsx";
@@ -225,7 +225,7 @@ export function AcceptInvite() {
   const refusal = [answerError, opened.error].find((e) => e instanceof ApiError && e.status !== 0 && e.status < 500) as ApiError | undefined;
   const wrongAddress = refusal?.code === "invitation_wrong_address";
   const i = opened.data;
-  const org = i?.tenant?.name ?? "the organization";
+  const org = i ? orgOf(i) : "the organization";
   const title = refusal
     ? wrongAddress
       ? "This invitation is for another email"
@@ -269,7 +269,7 @@ export function AcceptInvite() {
             </>
           ) : decline.isSuccess ? (
             <>
-              <p>You won’t join {org}, and its link no longer works. Its admins will see that an invitation was declined, not your name. If you change your mind, ask whoever invited you for a new one.</p>
+              <p role="status">You won’t join {org}, and its link no longer works. Its admins will see that an invitation was declined, not your name. If you change your mind, ask whoever invited you for a new one.</p>
               <div className="entry-actions">
                 <ButtonLink to="/" variant="primary">Go to WhatBuild</ButtonLink>
               </div>
@@ -284,12 +284,14 @@ export function AcceptInvite() {
           ) : i ? (
             <>
               <p><InvitationWords invitation={i} /></p>
-              <p className="faint">The name in quotation marks is the one the inviter gave WhatBuild. You join only if you accept.</p>
+              <p className="faint">Names in quotation marks are the ones people gave WhatBuild. You join only if you accept.</p>
               {answerError ? <ErrorCallout inset error={answerError} /> : null}
               <div className="entry-actions">
-                <Button variant="primary" busy={accept.isPending} busyLabel="Joining…" disabled={decline.isPending} onClick={() => accept.mutate({ token })}>
-                  Accept
-                </Button>
+                {i.read_only ? null : (
+                  <Button variant="primary" busy={accept.isPending} busyLabel="Joining…" disabled={decline.isPending} onClick={() => accept.mutate({ token })}>
+                    Accept
+                  </Button>
+                )}
                 <Button busy={decline.isPending} busyLabel="Declining…" disabled={accept.isPending} onClick={() => decline.mutate({ token })}>
                   Decline
                 </Button>

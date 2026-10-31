@@ -185,8 +185,9 @@ type Trx = Parameters<Parameters<ReturnType<Db["transaction"]>["execute"]>[0]>[0
 
 /**
  * Whoever declined an invitation, as the organization's access log records it. Someone who declined
- * never joined, and what they call themselves is not the organization's to learn: giving a role
- * tells the giver nothing about an address's account, and neither does an answer to it.
+ * never joined, and what they call themselves is not the organization's to learn. Only an account can
+ * decline, so an answer does show that the address has one now; it says nothing of whether it had one
+ * when it was invited.
  */
 const SOMEONE_INVITED: ActorSnapshot = { account_id: "invited", display_name: "Someone", surface: "web", client: null };
 
@@ -274,8 +275,8 @@ export async function declineInvitation(db: Db, invitationId: string, account: A
 }
 
 /** The organization an invitation is to, and the name of the place in it. */
-export async function invitationPlace(db: Db | Trx, inv: Pick<InvitationRow, "tenant_id" | "scope_type" | "scope_id">): Promise<{ tenant: { slug: string; name: string } | undefined; scope: string | null }> {
-  const tenant = await db.selectFrom("tenants").select(["slug", "name"]).where("tenant_id", "=", inv.tenant_id).executeTakeFirst();
+export async function invitationPlace(db: Db | Trx, inv: Pick<InvitationRow, "tenant_id" | "scope_type" | "scope_id">): Promise<{ tenant: { slug: string; name: string; read_only_since: string | null } | undefined; scope: string | null }> {
+  const tenant = await db.selectFrom("tenants").select(["slug", "name", "read_only_since"]).where("tenant_id", "=", inv.tenant_id).executeTakeFirst();
   const place =
     inv.scope_type === "team"
       ? await db.selectFrom("teams").select("name").where("team_id", "=", inv.scope_id).executeTakeFirst()

@@ -95,9 +95,9 @@ describe("an invitation's link", () => {
 
   it("asks, and opening it answers nothing", async () => {
     const host = await open((_m, path) => (path.endsWith("/read") ? { ...invitation(), accepted: false } : {}));
-    expect(host.querySelector("h1")?.textContent).toBe("Join Acme Labs?");
+    expect(host.querySelector("h1")?.textContent).toBe('Join "Acme Labs"?');
     const text = host.textContent ?? "";
-    expect(text).toContain('"Riley Chen" invited you as an editor on the Research team.');
+    expect(text).toContain('"Riley Chen" invited you as an editor on the "Research" team.');
     expect(text).toContain("add and change");
     expect(text).toContain("You join only if you accept.");
     expect(sent("/api/v1/invitations/read")).toEqual([{ method: "POST", path: "/api/v1/invitations/read", body: { token: "secret-token" } }]);
@@ -127,7 +127,7 @@ describe("an invitation's link", () => {
 
   it("says so when this person has already accepted it", async () => {
     const host = await open(() => ({ ...invitation(), accepted: true }));
-    expect(host.querySelector("h1")?.textContent).toBe("You’re already in Acme Labs");
+    expect(host.querySelector("h1")?.textContent).toBe('You’re already in "Acme Labs"');
     expect(button(host, /^Accept$/)).toBeUndefined();
   });
 
@@ -194,9 +194,9 @@ describe("the invitations waiting for a person", () => {
     const rows = [...host.querySelectorAll("li")];
     expect(rows).toHaveLength(2);
     expect(rows[0]!.textContent).toContain('"Riley Chen" invited you as an admin of the organization.');
-    expect(rows[1]!.textContent).toContain('"Sam" invited you as a reader on Planner.');
-    expect(button(host, /^Accept the invitation to Beta$/)).toBeTruthy();
-    expect(button(host, /^Decline the invitation to Acme Labs$/)).toBeTruthy();
+    expect(rows[1]!.textContent).toContain('"Sam" invited you as a reader on "Planner".');
+    expect(button(host, /^Accept the invitation to "Beta"$/)).toBeTruthy();
+    expect(button(host, /^Decline the invitation to "Acme Labs"$/)).toBeTruthy();
   });
 
   it("are answered by their id, and accepting opens the overview", async () => {
@@ -216,12 +216,12 @@ describe("the invitations waiting for a person", () => {
       return { declined: true, ...invitation() };
     };
     const host = await show(<InvitationsBanner />);
-    const decline = button(host, /^Decline the invitation to Acme Labs$/);
+    const decline = button(host, /^Decline the invitation to "Acme Labs"$/);
     decline!.focus();
     await press(decline);
     await act(() => new Promise((r) => requestAnimationFrame(() => r(undefined))));
     expect(host.querySelectorAll("li")).toHaveLength(1);
-    expect(document.activeElement?.getAttribute("aria-label")).toBe("Accept the invitation to Beta");
+    expect(document.activeElement?.getAttribute("aria-label")).toBe('Accept the invitation to "Beta"');
   });
 
   it("show three, with the rest a press away", async () => {

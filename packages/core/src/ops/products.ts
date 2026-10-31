@@ -829,16 +829,22 @@ function seenByCaller(ctx: OpContext): (accountId: string) => Promise<boolean> {
 async function grantOne(ctx: OpContext, target: GrantTarget, email: string, role: string, seen: (accountId: string) => Promise<boolean>) {
   const tid = ctx.scope.tenant!.tenant_id;
   await checkMembers(ctx.db, ctx.limits ?? null, email, role);
-  // An address has one open invitation to a place: a new one replaces it, and the role itself makes it moot.
-  await ctx.db
-    .updateTable("invitations")
-    .set({ expires_at: ctx.now })
+  // An address has one open invitation to a place: a new one replaces it, and the role itself makes it
+  // moot. Replacing one ends it, so it asks what cancelling it asks, and the access log says so.
+  const replaced = await ctx.db
+    .selectFrom("invitations")
+    .select(["invitation_id", "role"])
     .where("scope_type", "=", target.scope_type)
     .where("scope_id", "=", target.scope_id)
     .where(sql<boolean>`lower(email) = lower(${email})`)
     .where("accepted_at", "is", null)
     .where("expires_at", ">", ctx.now)
     .execute();
+  for (const inv of replaced) {
+    await requireAdminOf(ctx, target, inv.role);
+    await ctx.db.updateTable("invitations").set({ expires_at: ctx.now }).where("invitation_id", "=", inv.invitation_id).execute();
+    await recordActivity(ctx, { action: "invitation_cancelled", entity_type: "membership", entity_id: inv.invitation_id, entity_title: null, summary: "Replaced an invitation with a new one" });
+  }
   const found = await ctx.db.selectFrom("accounts").select(["account_id", "display_name"]).where(sql<boolean>`lower(email) = lower(${email})`).where("deleted_at", "is", null).executeTakeFirst();
   const account = found && (await seen(found.account_id)) ? found : null;
   if (!account) {
@@ -1019,7 +1025,17 @@ export const revokeMember = defineOperation({
         if (owners.length <= 1) throw conflict("last_owner", "An organization keeps at least one owner. Make someone else owner first.");
       }
       await ctx.db.deleteFrom("memberships").where("tenant_id", "=", tid).where("account_id", "=", input.account_id).execute();
-      const acct = await ctx.db.selectFrom("accounts").select("display_name").where("account_id", "=", input.account_id).executeTakeFirst();
+      const acct = await ctx.db.selectFrom("accounts").select(["display_name", "email"]).where("account_id", "=", input.account_id).executeTakeFirst();
+      // An invitation left open would undo the removal the moment they accept it.
+      if (acct)
+        await ctx.db
+          .updateTable("invitations")
+          .set({ expires_at: ctx.now })
+          .where("tenant_id", "=", tid)
+          .where(sql<boolean>`lower(email) = lower(${acct.email})`)
+          .where("accepted_at", "is", null)
+          .where("expires_at", ">", ctx.now)
+          .execute();
       await recordActivity(ctx, { action: "revoked", entity_type: "membership", entity_id: input.account_id, entity_title: acct?.display_name ?? null, summary: `Removed from ${ctx.scope.tenant!.name} (${grants.length} ${grants.length === 1 ? "role" : "roles"})` });
       return { revoked: true, account_id: input.account_id, scope_type: "tenant" as const, scope: ctx.scope.tenant!.name, removed: grants.length };
     }

@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from "node:crypto";
-import { AppError, enterAsGuest, planName, escapeHtml, gone, invalid, isGuestAccount, isInstanceOwner, readGuests, tenantAllowanceOf, newId, notFound, oneLine, quotedName, randomToken, safeNext, sha256Hex, SIGN_IN_LINKS_PER_HOUR, unauthenticated, type Db, type InvitationsTable, type Mailer } from "@whatbuild/core";
+import { AppError, conflict, enterAsGuest, planName, escapeHtml, gone, invalid, isGuestAccount, isInstanceOwner, readGuests, tenantAllowanceOf, newId, notFound, oneLine, quotedName, randomToken, safeNext, sha256Hex, SIGN_IN_LINKS_PER_HOUR, unauthenticated, type Db, type InvitationsTable, type Mailer } from "@whatbuild/core";
 import { Hono, type Context } from "hono";
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 import { sql, type Selectable } from "kysely";
@@ -575,6 +575,7 @@ export function authRoutes(deps: { db: Db; config: ServerConfig; mailer: Mailer 
     return {
       invitation_id: inv.invitation_id,
       tenant: tenant ? { slug: tenant.slug, name: oneLine(tenant.name, 100) } : null,
+      read_only: Boolean(tenant?.read_only_since),
       scope_type: inv.scope_type,
       scope: scope ? oneLine(scope, 100) : null,
       role: inv.role,
@@ -594,7 +595,7 @@ export function authRoutes(deps: { db: Db; config: ServerConfig; mailer: Mailer 
       "token" in body.data
         ? await db.selectFrom("invitations").selectAll().where("token_hash", "=", sha256Hex(body.data.token)).executeTakeFirst()
         : await db.selectFrom("invitations").selectAll().where("invitation_id", "=", body.data.invitation_id).where(sql<boolean>`lower(email) = lower(${p.email})`).executeTakeFirst();
-    if (!inv) throw notFound("This invitation link isn’t valid. Check that the whole link was copied, or ask for a new one.");
+    if (!inv) throw notFound("token" in body.data ? "This invitation link isn’t valid. Check that the whole link was copied, or ask for a new one." : "That invitation is no longer waiting for your answer.");
     return inv;
   };
 
@@ -625,7 +626,9 @@ export function authRoutes(deps: { db: Db; config: ServerConfig; mailer: Mailer 
 
   /** Where it stands now that another answer got there first: accepted by this person, or refused as `standingOf` refuses. */
   const standingAfterAnother = async (inv: InvitationRow, p: Person) => {
-    const now = await db.selectFrom("invitations").selectAll().where("invitation_id", "=", inv.invitation_id).executeTakeFirstOrThrow();
+    const now = await db.selectFrom("invitations").selectAll().where("invitation_id", "=", inv.invitation_id).executeTakeFirst();
+    // What it was for may have been deleted while they answered.
+    if (!now) throw gone("invitation_expired", "This invitation can’t be answered now. Ask whoever invited you for a new link.");
     const standing = await standingOf(now, p);
     if (!standing.accepted) throw gone("invitation_expired", "This invitation can’t be answered now. Ask whoever invited you for a new link.");
     return standing;
@@ -667,6 +670,8 @@ export function authRoutes(deps: { db: Db; config: ServerConfig; mailer: Mailer 
     const standing = await standingOf(inv, p);
     const about = await invitationForPerson(inv);
     if (standing.accepted) return c.json({ accepted: true, already: true, ...about, role: standing.role });
+    // A read-only organization takes nothing new, a person included; the invitation stays, to answer later or decline.
+    if (about.read_only) throw conflict("organization_read_only", `${about.tenant?.name ?? "This organization"} is read-only right now, so it can’t take anyone new. Your invitation stays open until ${about.expires_at.slice(0, 10)}.`);
     const done = await acceptInvitation(db, inv.invitation_id, { account_id: p.account_id, email: p.email, display_name: p.display_name });
     if (done) return c.json({ accepted: true, already: false, ...about, role: done.role });
     return c.json({ accepted: true, already: true, ...about, role: (await standingAfterAnother(inv, p)).role });

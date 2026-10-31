@@ -89,9 +89,9 @@ describe("the guest gate", () => {
     const host = await gate();
     await act(() => new Promise((r) => setTimeout(r, 20)));
     expect(host.textContent).toContain("WhatBuild is full right now");
-    expect(host.textContent).toContain("Join Acme Labs?");
-    expect(host.textContent).toContain('"Riley Chen" invited you as an editor on the Research team.');
-    expect(host.querySelector('[aria-label="Accept the invitation to Acme Labs"]')).toBeTruthy();
+    expect(host.textContent).toContain('Join "Acme Labs"?');
+    expect(host.textContent).toContain('"Riley Chen" invited you as an editor on the "Research" team.');
+    expect(host.querySelector(`[aria-label='Accept the invitation to "Acme Labs"']`)).toBeTruthy();
   });
 
   it("offers a waiting guest the waitlist, and once they are on it says since when", async () => {

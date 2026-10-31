@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useId, useRef, useState } from "react";
 import { useNavigate } from "react-router";
 import { api } from "../lib/api.ts";
-import { aRole, formatDate, plural, scopeWords } from "../lib/format.ts";
+import { aRole, formatDate, plural } from "../lib/format.ts";
 import { useMe } from "../lib/session.tsx";
 import { Button, Callout, ErrorCallout, Sheet, SheetBody, SheetHeader, useToast } from "../ui/index.tsx";
 import "../styles/screens/account.css";
@@ -11,6 +11,8 @@ import "../styles/screens/account.css";
 export interface Invitation {
   invitation_id: string;
   tenant: { slug: string; name: string } | null;
+  /** A read-only organization takes nobody new: it can be declined, not accepted, for now. */
+  read_only?: boolean;
   scope_type: "tenant" | "team" | "product";
   scope: string | null;
   role: string;
@@ -29,6 +31,8 @@ export function useInvitations() {
     queryFn: () => api<{ items: Invitation[] }>("GET", "/api/v1/me/invitations"),
     enabled: Boolean(me.data),
     staleTime: 60_000,
+    // The banner stays on screen from one page to the next, so coming back is what brings a new one.
+    refetchOnWindowFocus: true,
   });
 }
 
@@ -42,18 +46,21 @@ const ROLE_MEANS: Record<string, string> = {
   member: "You’d be in the organization, and its admins give roles on its teams and products.",
 };
 
-const orgOf = (i: Pick<Invitation, "tenant">) => i.tenant?.name ?? "the organization";
+/** Names are others' to choose, so each is in quotation marks and never reads as WhatBuild's own words. */
+const quoted = (name: string) => `"${name}"`;
+
+export const orgOf = (i: Pick<Invitation, "tenant">) => (i.tenant ? quoted(i.tenant.name) : "the organization");
 
 /** The role and where it applies: "an admin of the organization", "an editor on the Core team". */
 export function roleWords(i: Pick<Invitation, "scope_type" | "scope" | "role">): string {
-  return i.scope_type === "tenant" || !i.scope ? `${aRole(i.role)} of the organization` : `${aRole(i.role)} on ${scopeWords(i.scope_type, i.scope)}`;
+  return i.scope_type === "tenant" || !i.scope ? `${aRole(i.role)} of the organization` : `${aRole(i.role)} on ${i.scope_type === "team" ? (/\bteam$/i.test(i.scope.trim()) ? `the ${quoted(i.scope)}` : `the ${quoted(i.scope)} team`) : quoted(i.scope)}`;
 }
 
 /** The choice in words: who asks, for what role and where, what it lets them do, and until when. */
 export function InvitationWords({ invitation: i }: { invitation: Invitation }) {
   return (
     <>
-      {i.invited_by} invited you as {roleWords(i)}. {ROLE_MEANS[i.role] ?? ""} It’s open until {formatDate(i.expires_at)}.
+      {i.invited_by} invited you as {roleWords(i)}. {i.read_only ? "It’s read-only right now, so it can’t take anyone new; you can accept once it can." : (ROLE_MEANS[i.role] ?? "")} It’s open until {formatDate(i.expires_at)}.
     </>
   );
 }
@@ -93,7 +100,8 @@ function InvitationRow({ invitation: i, inset, onAnswered }: { invitation: Invit
   const org = orgOf(i);
   const refused = (e: unknown, what: string) => {
     toast(`Couldn’t ${what} the invitation to ${org}. ${(e as Error).message}`, { tone: "negative" });
-    void qc.invalidateQueries({ queryKey: ["invitations"] });
+    // The row goes once the list is back, so focus moves then.
+    void qc.invalidateQueries({ queryKey: ["invitations"] }).then(onAnswered);
   };
   return (
     <li className="invitation-row" aria-labelledby={titleId}>
@@ -105,6 +113,7 @@ function InvitationRow({ invitation: i, inset, onAnswered }: { invitation: Invit
             <Button
               variant="quiet"
               aria-label={`Decline the invitation to ${org}`}
+              data-invitation-answer={i.read_only ? "" : undefined}
               disabled={accept.isPending}
               busy={decline.isPending}
               busyLabel="Declining…"
@@ -121,16 +130,18 @@ function InvitationRow({ invitation: i, inset, onAnswered }: { invitation: Invit
             >
               Decline
             </Button>
-            <Button
-              aria-label={`Accept the invitation to ${org}`}
-              disabled={decline.isPending}
-              busy={accept.isPending}
-              busyLabel="Joining…"
-              onClick={() => void accept.mutateAsync({ invitation_id: i.invitation_id }).catch((e: unknown) => refused(e, "accept"))}
-              data-invitation-accept=""
-            >
-              Accept
-            </Button>
+            {i.read_only ? null : (
+              <Button
+                aria-label={`Accept the invitation to ${org}`}
+                disabled={decline.isPending}
+                busy={accept.isPending}
+                busyLabel="Joining…"
+                onClick={() => void accept.mutateAsync({ invitation_id: i.invitation_id }).catch((e: unknown) => refused(e, "accept"))}
+                data-invitation-answer=""
+              >
+                Accept
+              </Button>
+            )}
           </>
         }
       >
@@ -146,12 +157,17 @@ const SHOWN = 3;
 function InvitationList({ items, inset }: { items: Invitation[]; inset?: boolean }) {
   const [all, setAll] = useState(false);
   const list = useRef<HTMLUListElement>(null);
-  // The answered row goes: focus moves to the next one's Accept, or to the screen once none is left.
+  // The answered row goes: focus moves to the next one's answer, or to the screen once none is left.
   const moveFocus = () =>
     requestAnimationFrame(() => {
-      const next = list.current?.querySelector<HTMLElement>("[data-invitation-accept]") ?? document.getElementById("main");
+      const next = list.current?.querySelector<HTMLElement>("[data-invitation-answer]") ?? document.getElementById("main");
       next?.focus({ preventScroll: true });
     });
+  // Show more takes its own button away: focus moves to the first of what it brought.
+  const showAll = () => {
+    setAll(true);
+    requestAnimationFrame(() => list.current?.children[SHOWN]?.querySelector<HTMLElement>("[data-invitation-answer]")?.focus({ preventScroll: true }));
+  };
   const shown = all ? items : items.slice(0, SHOWN);
   return (
     <>
@@ -161,7 +177,7 @@ function InvitationList({ items, inset }: { items: Invitation[]; inset?: boolean
         ))}
       </ul>
       {items.length > shown.length ? (
-        <Button size="sm" variant="quiet" className="invitation-more" onClick={() => setAll(true)}>
+        <Button size="sm" variant="quiet" className="invitation-more" onClick={showAll}>
           Show {plural(items.length - shown.length, "more invitation")}
         </Button>
       ) : null}

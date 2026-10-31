@@ -127,8 +127,8 @@ in the organization, and someone in no other is a guest account like any other
 | Route (a browser's session only) | What it does |
 |---|---|
 | `GET /api/v1/me/invitations` | The invitations waiting for this account: open (not accepted, cancelled, declined or past their time) and sent to its address, ignoring letter case, newest first, at most 100. Each has `invitation_id`, `tenant`, `scope_type`, `scope`, `role`, `expires_at` and `invited_by`, the inviter's name on one line and in quotation marks, as the email shows it. Never its token. |
-| `POST /api/v1/invitations/read { token }` | What opening a link (`/invite/:token`) shows: the same fields and `accepted`. It changes nothing, and carries the token in its body so that no request log keeps it. |
-| `POST /api/v1/invitations/accept { token }` or `{ invitation_id }` | Gives the role. A role the person already holds at that place stays, and the answer gives the role they hold. `already: true` when this person accepted it before, from their list or the link, and still holds it. |
+| `POST /api/v1/invitations/read { token }` or `{ invitation_id }` | What opening a link (`/invite/:token`) shows: the same fields and `accepted`. It changes nothing, and carries the token in its body so that no request log keeps it. |
+| `POST /api/v1/invitations/accept { token }` or `{ invitation_id }` | Gives the role; `409 organization_read_only` while the organization is read-only (an invitation says so in `read_only`), and it stays open. A role the person already holds at that place stays, and the answer gives the role they hold. `already: true` when this person accepted it before, from their list or the link, and still holds it. |
 | `POST /api/v1/invitations/decline { token }` or `{ invitation_id }` | Ends the invitation and gives no role. |
 
 All three that name an invitation answer alike when it can't be answered. By its link, for any account
@@ -449,7 +449,7 @@ A product is addressed as `tenant/team/product` (slugs or ids at each level) or 
   its teams or products. A tenant `member` grant adds nothing to that by itself, and `products.list`
   gives such a person `member` as the tenant's `your_role`. Revoking a person's last grant takes
   them out of the tenant, which the answer (`left_organization`) and the access log say;
-  `members.revoke` with `whole_tenant` removes every grant at once.
+  `members.revoke` with `whole_tenant` removes every grant at once, and ends any invitation still open to their address there, which would undo it. A new invitation replacing one still open at the same place asks what cancelling that one asks, and the access log records it.
 - ◆ Decision: reviewing (confirm, refute) is an editor right; there is no separate reviewer role.
 - ◆ Decision: permanent delete is an admin right; there is no separate delete permission. An
   editor archives ([decision](../decisions/archive-by-default-delete-guarded.md)).
