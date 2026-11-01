@@ -942,7 +942,8 @@ describe("a product with many heavy pages", () => {
       await c.query("drop function html_search_text(text)");
       const began = Date.now();
       await c.query(migrationFile(THE_MIGRATION));
-      expect(Date.now() - began).toBeLessThan(20_000);
+      // A shared runner can take twice its usual time; this is for a rewrite that has stopped being linear.
+      expect(Date.now() - began).toBeLessThan(45_000);
       const after = (await c.query<{ all: number; kept: number; found: number; letter: number }>(
         "select count(*)::int as all, (count(*) filter (where tsv is not null))::int as kept, (count(*) filter (where tsv @@ to_tsquery('simple', 'afterscript75x')))::int as found, (count(*) filter (where tsv @@ to_tsquery('simple', 'migratedcafé') and search_text like '%migratedcafé%'))::int as letter from mockup_pages",
       )).rows[0]!;

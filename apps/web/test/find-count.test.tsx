@@ -33,6 +33,32 @@ describe("counting what a find marks", () => {
       }
   });
 
+  describe("what a word marks", () => {
+    const marked = (find: string, text: string) => text.match(findPattern(find)!) ?? [];
+
+    it("marks a word's own forms where its ending doubled a letter, and not what only starts like it", () => {
+      expect(marked("planning", "plan plans planned planning planner plane planet")).toEqual(["plan", "plans", "planned", "planning", "planner"]);
+      expect(marked("better", "better bet bets between beta")).toEqual(["better", "bet", "bets"]);
+      expect(marked("logging", "logged logs login logic logo")).toEqual(["logged", "logs"]);
+      expect(marked("worried", "worry worried work word world")).toEqual(["worry", "worried"]);
+    });
+
+    it("keeps a word whole whose root would be short, whichever its form", () => {
+      expect(marked("note", "note notes noted not nothing")).toEqual(["note", "notes", "noted"]);
+      expect(marked("notes", "note notes noted not nothing")).toEqual(["note", "notes", "noted"]);
+      expect(marked("dates", "date dates data database")).toEqual(["date", "dates"]);
+    });
+
+    it("cuts a word of five letters or more to its root, as search does", () => {
+      expect(marked("pricing", "price prices priced pricing prim")).toEqual(["price", "prices", "priced", "pricing"]);
+      expect(marked("crews", "crew crews crewing")).toEqual(["crew", "crews", "crewing"]);
+    });
+
+    it("takes an id as written", () => {
+      expect(marked("q3-planning", "q3-planning q3-plans q3-planning-notes")).toEqual(["q3-planning", "q3-planning"]);
+    });
+  });
+
   it("takes the words a plain search read, phrases in quotes, as the web app links them", () => {
     expect(findWords([{ text: "crew", phrase: false }, { text: "crew message", phrase: true }])).toBe('crew "crew message"');
   });

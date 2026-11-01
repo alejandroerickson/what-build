@@ -24,12 +24,12 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
 ## Unreleased
 
 - **Someone who reads only the Story in an organization no longer sees its limits or what it holds**
-  (`tools_version` 0.52.0). It asks nothing of a deployment, and adds no migration. `products.limits`
+  (`tools_version` 0.53.0). It asks nothing of a deployment, and adds no migration. `products.limits`
   (`GET /api/v1/tenants/:tenant/limits`, `products_read(action="limits")`) answers them `403` naming
   reader and viewer, as `members.list` does; their agent is no longer offered it, and the app's Plan
   says it isn't shown to Story readers, and links to it no more. Anyone who reads more than the
   Story somewhere in the organization sees what they did.
-- **A reader's `search` speaks only of the Story** (`tools_version` 0.52.0). It asks nothing of a
+- **A reader's `search` speaks only of the Story** (`tools_version` 0.53.0). It asks nothing of a
   deployment. Its description no longer names kinds they cannot search. For them only `story` now
   reads as naming a kind: a word such as `sources` or `assumptions` beside other words is searched
   for in the Story like the rest, where it used to be dropped and returned as `kind_hint`.
@@ -44,6 +44,15 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
   refuses to save it until it fits, on every form with a limit (titles, statements, comments, names
   and the rest). A product's concept, which the web app cut at 2,000 characters when starting a
   product, now takes the 8,000 the server does.
+- **A search result opens at the match its line shows, and a palette title shows the words that
+  found it** (`tools_version` 0.52.0). It asks nothing of a deployment, and adds no migration. People
+  will notice: a source opened from a search stands on the match its line marked, where it stood on
+  the first match of that stretch of text, even one where a searched word only starts like a word on
+  the page; and on a title too long for the palette's line, two words show together where they stand
+  together, though one of them also comes earlier in the title. The find in a source's text now marks
+  the other forms of a word whose ending doubles a letter (`planning` marks `plan` and `plans`), so the
+  "N matches" of a search for such a word, and the find's "… of N", may rise together. Each of plain search's `hits` gains `match_start`, where in its field the first match its
+  excerpt marks starts; `char_start` still says where its piece starts.
 - **A PDF's short lines read as the page does (PDF parser 6).** It asks nothing of a deployment
   beyond the release's rehearsal with hostile files, as for any change to parsing; the list now has
   `short-lines.pdf`. People will notice it in what is read from now on: a line with no full stop that
@@ -69,8 +78,8 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
   or, after five attempts, `the last because the process parsing it was killed`. A reading whose
   process was killed from outside is now tried again rather than recorded at once. A deployment may
   notice a line in its log for each parse, `parse: the process parsing a file …`, which gives the
-  peak of the parse's process and what the server holds. A clean shutdown now puts the job it
-  interrupts back in the queue, with the attempt not spent for a job's first hour, so the next instance takes it at once.
+  peak of the parse's process and what the server holds. A clean shutdown now puts a parse it
+  interrupts back in the queue, where it is tried again shortly as one of its five attempts.
 - **`WHATBUILD_PARSE_MEMORY_MB` now defaults to 288, down from 384**, for whoever has not set it. A
   parse's process now counts beside the server in the instance's memory, and at 384 the two came
   too near 1 GiB; 288 leaves the sixth of it that the [rehearsal](dev-deployment.md#rehearsing-a-release)

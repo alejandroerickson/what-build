@@ -175,7 +175,8 @@ The plans:
 - `running-an-organization`: an organization's owner starts it on an allowance, fills it to Free's
   people total (an invitation holds a place, a reader of the Story is free), whose invited people
   sign in, find the invitation and accept or decline it, changes and takes roles, renames and
-  deletes it; someone it no longer holds asks for, and starts, their own.
+  deletes it; someone it no longer holds asks for, and starts, their own, where archiving makes no
+  room under a total and deleting does.
 - `exploratory`: open-ended, every screen as each role and as a guest of the example, at phone width and
   in the dark theme.
 

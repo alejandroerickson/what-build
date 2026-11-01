@@ -89,12 +89,12 @@ export class TooLargeError extends Error {
 
 /**
  * A parse the server stopped because it is shutting down. It says nothing about the file or the job:
- * the job goes back in the queue with this attempt not spent.
+ * the job goes back in the queue with this attempt spent.
  */
 export class ParseStopped extends Error {
   override name = "ParseStopped";
   constructor() {
-    super("the server is stopping, so reading this file was stopped; it is tried again");
+    super("the server is stopping, so reading this file was stopped");
   }
 }
 
