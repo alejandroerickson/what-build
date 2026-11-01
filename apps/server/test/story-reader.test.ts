@@ -228,6 +228,108 @@ describe("a Story reader", () => {
   });
 });
 
+describe("an organization's plan and what it holds", () => {
+  const LIMITS = () => `/api/v1/tenants/${tenantSlug}/limits`;
+  /** Who is in which role here, each made for this test so the others' roles stay as they are. */
+  const person = async (name: string, grants: Record<string, string>[]) => {
+    const email = `${name}@example.com`;
+    const who = await h.signIn(email, name);
+    for (const g of grants) expect((await alice.api("POST", `/api/v1/tenants/${tenantSlug}/members`, { ...g, email })).status).toBe(201);
+    return who;
+  };
+  const mcp = async (who: Browser, at: string) => {
+    const client = new Client({ name: "reader-agent", version: "1.0.0" });
+    await client.connect(new StreamableHTTPClientTransport(new URL(`${h.baseUrl}${at}`), { requestInit: { headers: { authorization: `Bearer ${await h.connectAgent(who, `Agent at ${at}`, at)}` } } }));
+    return client;
+  };
+  const textOf = (r: unknown) => (r as { content: { text: string }[] }).content[0]!.text;
+  let rhea: Browser; // reads the one product's Story, as the tests above raised Rita above that
+  beforeAll(async () => {
+    rhea = await person("rhea", [{ team: teamSlug, product: "planner", role: "reader" }]);
+  });
+
+  it("are refused to someone who reads only the Story there, through REST, naming both roles and holding nothing of it", async () => {
+    const r = await rhea.api("GET", LIMITS());
+    expect(r.status).toBe(403);
+    expect(r.body.error.details).toMatchObject({ role: "reader", needed: "viewer" });
+    expect(r.body.error.message).toMatch(/read only the Story in Reader Co/);
+    expect(JSON.stringify(r.body)).not.toMatch(/"holds"|members_max|sources_max|storage/);
+  });
+
+  it("are refused through MCP on every connector that answers them", async () => {
+    for (const at of [`/mcp/t/${productPath}`, `/mcp/t/${tenantSlug}`, "/mcp"]) {
+      const client = await mcp(rhea, at);
+      const text = textOf(await client.callTool({ name: "products_read", arguments: { action: "limits", params: { tenant: tenantSlug } } }));
+      expect(text.slice(0, 3), at).toBe("403");
+      expect(text, at).toMatch(/read only the Story in Reader Co/);
+      expect(text, at).not.toMatch(/"holds"|members_max/);
+      await client.close();
+    }
+  });
+
+  it("are refused to a reader of a whole team, and to a member who reads one product, as to a reader of one product", async () => {
+    const team = await person("tess", [{ team: teamSlug, role: "reader" }]);
+    expect((await team.api("GET", LIMITS())).status).toBe(403);
+    const member = await person("mo", [{ role: "member" }, { team: teamSlug, product: "planner", role: "reader" }]);
+    expect((await member.api("GET", LIMITS())).status).toBe(403);
+  });
+
+  it("are given to anyone who reads more than the Story somewhere there, and to an organization's member", async () => {
+    const other = await alice.api("POST", `/api/v1/teams/${tenantSlug}/${teamSlug}/products`, { name: "Second Product" });
+    const both = await person("vera", [{ team: teamSlug, product: "planner", role: "reader" }, { team: teamSlug, product: other.body.slug, role: "viewer" }]);
+    const hers = await both.api("GET", LIMITS());
+    expect(hers.status).toBe(200);
+    expect(hers.body.holds.sources).toBeGreaterThan(0);
+    const member = await person("maya", [{ role: "member" }]);
+    expect((await member.api("GET", LIMITS())).status).toBe(200);
+    expect((await alice.api("GET", LIMITS())).body.holds).toBeDefined();
+  });
+
+  it("stop being refused once the person reads more", async () => {
+    const riser = await person("ravi", [{ team: teamSlug, product: "planner", role: "reader" }]);
+    expect((await riser.api("GET", LIMITS())).status).toBe(403);
+    expect((await alice.api("POST", `/api/v1/tenants/${tenantSlug}/members`, { team: teamSlug, product: "planner", email: "ravi@example.com", role: "viewer" })).status).toBe(201);
+    expect((await riser.api("GET", LIMITS())).status).toBe(200);
+  });
+
+  it("are not given away by what a reader's other reads answer", async () => {
+    const list = await rhea.api("GET", "/api/v1/me/products");
+    const body = JSON.stringify({ ...list.body, items: list.body.items.filter((i: { path: string }) => i.path === productPath) });
+    expect(body).not.toMatch(/"holds"|"sources":|"members":/);
+  });
+});
+
+describe("a reader's search", () => {
+  const S = () => `${P}/search?mode=plain&query=`;
+  let rory: Browser;
+  beforeAll(async () => {
+    rory = await h.signIn("rory@example.com", "Rory Reader");
+    expect((await alice.api("POST", `/api/v1/tenants/${tenantSlug}/members`, { team: teamSlug, product: "planner", email: "rory@example.com", role: "reader" })).status).toBe(201);
+    expect((await alice.api("POST", `${P}/story/pages/assumption-notes/versions`, { title: "Assumption notes", html: html("Assumption notes", "<h1>Assumption notes</h1><p>Our sources and outcomes, quayside.</p>") })).status).toBeLessThan(300);
+  });
+
+  it("reads only the word story as naming a kind, so no answer speaks of another kind, and every other word is searched for", async () => {
+    for (const word of ["sources", "outcomes", "mockups", "assumptions", "idea", "concept", "passages", "quotes"]) {
+      const r = await rory.api("GET", `${S()}${word}%20quayside&strict=true`);
+      expect(r.status, word).toBe(200);
+      expect(r.body.kind_hint, word).toBeNull();
+      expect(r.body.terms.map((t: { text: string }) => t.text), word).toEqual([word, "quayside"]);
+    }
+    const found = await rory.api("GET", `${S()}sources%20quayside%20`);
+    expect(found.body.results.map((x: { id: string }) => x.id)).toEqual(["assumption-notes"]);
+    expect(found.body.partial).toBe(false);
+    const story = await rory.api("GET", `${S()}story%20quayside`);
+    expect(story.body.kind_hint).toBe("story");
+    expect(story.body.terms.map((t: { text: string }) => t.text)).toEqual(["quayside"]);
+  });
+
+  it("leaves every other kind word as it was for someone who reads more", async () => {
+    const r = await alice.api("GET", `${S()}sources%20quayside`);
+    expect(r.body.kind_hint).toBe("source");
+    expect(r.body.terms.map((t: { text: string }) => t.text)).toEqual(["quayside"]);
+  });
+});
+
 describe("reading only the Story in an organization", () => {
   const g = (scope_type: string, role: string, tenant_id = "t1") => ({ tenant_id, scope_type, scope_id: "x", role });
   it("holds for a reader with no higher role there, whatever they hold elsewhere", () => {

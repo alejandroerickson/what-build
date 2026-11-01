@@ -24,7 +24,7 @@ first 200,000 characters of words a page holds. Search is lexical: no mode match
   product concept. It forgives endings and word order, corrects a word that matches nothing
   (`corrections` says so; `strict: true` turns it off), and names `missing` words when nothing holds
   them all. A word naming a kind beside other words (`mockups crew`) is not searched for: that kind
-  comes first, and `kind_hint` says so. An id or a number (`CB26-20734`, `2026-05-01`) is one word,
+  comes first, and `kind_hint` says so; for a reader only `story` is such a word. An id or a number (`CB26-20734`, `2026-05-01`) is one word,
   matched as written and never corrected, and one with a letter in it also as its words side by side
   (`q3-planning` finds "Q3 planning"). The last word matches as a prefix unless the query ends with a
   space. `limit` caps the results (60 by default).
@@ -53,6 +53,9 @@ code-point offsets into that field.
 - In exact search every place the words occur is a hit of its own, and `limit` counts hits: pass
   `next_cursor` back as `cursor` for the rest.
 - With `scope: "all"`, assumptions come on the first page only; later pages hold source hits.
+- In `plain` mode a source's `hits` are its best places: `char_start` says where the piece starts in
+  its field, and `match_start` where the first match the hit's excerpt marks starts, or the piece's
+  start when it marks none. It can fall inside a link's address or title, which the text holds.
 - `derived_read(action="text", offset=…)` reads around a hit in the text.
 - Each text is matched in pieces of about 1,500 characters, so AND, OR and NOT combine terms within
   one piece: terms that sit far apart in a text may not match together.

@@ -6,10 +6,14 @@ import { planWord, usePlans } from "../lib/limits.ts";
 import { useMe } from "../lib/session.tsx";
 import { usePageTitle } from "../shell/slots.tsx";
 import {
-  Button, ButtonLink, ChoiceRow, Dialog, EmptyState, ErrorCallout, ListRow, Loading, Sheet, SheetBody, SheetHeader, StatusBadge, TextField, useToast,
+  Button, ButtonLink, ChoiceRow, Dialog, EmptyState, ErrorCallout, ListRow, Loading, Sheet, SheetBody, SheetHeader, StatusBadge, TextField, useToast, tooLong,
 } from "../ui/index.tsx";
 import { InstanceGuestsSheet, InstanceOrganizationsSheet, InstancePlansSheet } from "./limits.tsx";
 import "../styles/screens/instance.css";
+
+/** The limits the server sets on an allowance's address and note. */
+const EMAIL_MAX = 320;
+const NOTE_MAX = 200;
 
 interface Allowance {
   email: string;
@@ -269,7 +273,7 @@ function AllowanceDialog({ current, onClose }: { current: Allowance | null; onCl
   const [note, setNote] = useState(current?.note ?? "");
   const [notify, setNotify] = useState(true);
   const n = Number(allowed);
-  const valid = /\S+@\S+\.\S+/.test(email.trim()) && Number.isInteger(n) && n >= 0 && n <= 1000;
+  const valid = /\S+@\S+\.\S+/.test(email.trim()) && Number.isInteger(n) && n >= 0 && n <= 1000 && !tooLong(email, EMAIL_MAX) && !tooLong(note, NOTE_MAX);
   const save = useMutation({
     mutationFn: () =>
       api<Allowance & { notified: boolean }>("PUT", A, { email: email.trim(), allowed: n, note: note.trim(), notify, ...(current ? { expected_etag: current.etag } : {}) }),
@@ -305,9 +309,9 @@ function AllowanceDialog({ current, onClose }: { current: Allowance | null; onCl
           if (valid) save.mutate();
         }}
       >
-        {current ? null : <TextField label="Email" type="email" required maxLength={320} value={email} onChange={(e) => setEmail(e.target.value)} hint="The email they sign in with. They don’t need an account yet." />}
+        {current ? null : <TextField label="Email" type="email" required maxLength={EMAIL_MAX} value={email} onChange={(e) => setEmail(e.target.value)} hint="The email they sign in with. They don’t need an account yet." />}
         <TextField label="Organizations they can start" type="number" required min={0} max={1000} step={1} value={allowed} onChange={(e) => setAllowed(e.target.value)} hint={current ? `They’ve started ${current.created}. 0 stops them starting more.` : "0 means none, whatever the default."} />
-        <TextField label="Note" optional maxLength={200} value={note} onChange={(e) => setNote(e.target.value)} hint="Only owners see it." />
+        <TextField label="Note" optional maxLength={NOTE_MAX} value={note} onChange={(e) => setNote(e.target.value)} hint="Only owners see it." />
         <ChoiceRow label="Tell them by email" hint="Sent only when the number goes up and they can still start one." checked={notify} onChange={(e) => setNotify(e.target.checked)} />
         {taken ? <ErrorCallout inset error={new Error("This email already has an allowance. Close this and use Change on its row.")} /> : save.isError ? <ErrorCallout inset error={save.error} /> : null}
       </form>

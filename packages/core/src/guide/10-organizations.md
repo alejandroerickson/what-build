@@ -51,7 +51,9 @@ person is sent a day (attachments, mockup downloads, exports) is capped too.
 lists every limit with its value (null for none) and what is used of it: today's for a daily one, a
 day being a UTC day; what the organization holds for a total, also in `holds`. It compares the plans
 offered in `plans`, empty where there are none. A guest of the example organization meets only the
-guests' limits on calls a minute and downloads a day.
+guests' limits on calls a minute and downloads a day. Someone who reads only the Story everywhere in
+an organization is refused all of this (`403`), as they are its people: it says how many people,
+products and sources it holds.
 
 - A total never stops reading, searching, archiving, restoring, deleting or export.
 - A day's writes never stop reading, searching, export, deleting, removing someone or cancelling an

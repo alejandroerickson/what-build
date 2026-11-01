@@ -25,6 +25,13 @@ design system: tokens, type, components and the rules for using them — is docu
 - Every write path handles `409 stale_etag` explicitly: show what changed, keep the person's
   unsaved text, offer reload-and-reapply. Never discard input; never overwrite silently: a
   teammate or their agent may be editing the same object.
+- **A field's limit never cuts what is typed or pasted.** Past a limit the text stays as it is, the
+  field is invalid and says how many characters are over ("140 characters over the limit of 1,000.
+  Shorten it to save."), and the form refuses to save it, as MCP refuses the same text with an
+  error. All of the text counts, in characters as the server's limits count them, so an emoji is one, and what the server would trim counts too. A screen reader reads it with the field and
+  hears it once typing rests. ◆ Decision: `TextField` and `TextArea` take `maxLength` and never hand
+  it to the browser, which cuts a paste without a word, and a form tests its text with `tooLong`
+  (`apps/web/src/ui/field.tsx`).
 - **A page left open across a release loads the release.** A tab keeps the app it loaded, while
   the server may by then answer in shapes that app does not know. The app knows the commit it was
   built from (`WHATBUILD_COMMIT` at build time) and every response names the server's
@@ -63,7 +70,7 @@ design system: tokens, type, components and the rules for using them — is docu
   in a minute stops being shown, and the screen says why. ◆ Decision: the short page never reloads itself, and only the app
   asks again, a bounded number of times, so no document, ours or a page that says the same, can spend the person's calls in a loop.
 - **No request the app knows will be refused.** Where the app can tell in advance that the server
-  would refuse (a Story-only reader asking for members, a guest of the example organization asking
+  would refuse (a Story-only reader asking for members or the plan, a guest of the example organization asking
   for its people, an address whose id is not an id at all), it says so without asking. Where it cannot, it asks, and
   REST answers honestly: a source, assumption or other object that does not exist answers `404`,
   and its page says it was not found while the browser's console reports the `404` of the request.
@@ -83,9 +90,12 @@ design system: tokens, type, components and the rules for using them — is docu
   its own direction, and one too long ends in an ellipsis after its last whole word that leaves
   room for it. A title that mixes English and Arabic keeps the words it begins with, where clipping
   it at a pixel would keep the end of the Arabic or cut a letter in half; one in Arabic reads right
-  to left with the ellipsis at its left. In the search palette, a title whose first marked words, side by
-  side, end past that cut starts at a word nearer them instead, after an ellipsis, so a result always
-  shows the words that found it, as many of them as the line holds. It is measured before it is drawn, and again only when
+  to left with the ellipsis at its left. In the search palette, a title starts at a word nearer the place that
+  holds the most of the words searched, after an ellipsis, when that place ends past that cut. Of
+  places holding as many, it is the one where they stand closest, the first of equals; words further
+  apart than about 60 characters are not held together, and a word alone keeps its first place. So a
+  result always shows words that found it, as many of them as the line holds, and a word said twice
+  does not hide another that stands by its second. It is measured before it is drawn, and again only when
   its room or the fonts change. The whole title stays in the page for assistive technology and
   shows on hover (the Whole Word Rule in [DESIGN.md](../../apps/web/DESIGN.md)).
 - **Interface text says one thing once.** A heading states the fact, the body adds only what the
@@ -254,7 +264,7 @@ place.
    says so above every screen of its products: that nothing new can be added, what everyone can
    still do there (one sentence the server's refusal shares, `packages/core/src/read-only.ts`:
    read, export and delete what it holds, and take people out, as their roles allow), how long it
-   is kept, and **See plan**. Inside one, as on an archived product, no control offers a change the
+   is kept, and **See plan** for anyone who reads more than the Story there. Inside one, as on an archived product, no control offers a change the
    server would refuse (`409 organization_read_only`), and a screen that would invite one (Add a
    source, a new entry) says why in its place; deleting and export stay. Its Members page says so
    too, and offers only what still works there: removing a role, taking someone out and cancelling
@@ -307,7 +317,7 @@ person's organization role is in the account menu, and who has which role is on 
                       names; both from a link)
   /evidence/new                               intake: describe it, add attachments, create
   /evidence/:record   ?view=text|notes|comments|attachments &find=<words>&at &include_archived
-                      (at: where a search hit's piece of the text starts, so the find starts there;
+                      (at: where the match a search hit's line shows starts, so the find starts there;
                       include_archived: Comments lists the archived comments too)
   /search             ?q&show&record_id&strict
   /exploration                                → …/exploration/mockups
@@ -553,8 +563,17 @@ The sources, and everything for reading them.
     rest of the visit. Its header holds **Find in the text**, which unfolds it, marks the words,
     says "1 of 4" and steps through the matches (the Previous and Next match buttons, or Enter and
     Shift+Enter), the words held in the URL as `?find=`, so a search hit opens here with them
-    marked, from its own match: `&at=` says where the hit's piece of the text starts, and the find
-    starts at the first match there (without it, at the first). A very long text,
+    marked, from the match its line shows: `&at=` says where that match starts (its `match_start`,
+    [§8.2](08-search.md)), and the find starts at the first match it marks from there, counted as
+    they are drawn, so a word in a link's address moves nothing (without it, at the first). The find
+    marks each word with any ending from the root search reads, but narrower where a root alone would
+    mark unrelated words: a word whose ending doubled a letter marks its own forms ("planning" marks
+    "plan", "plans" and "planned", not "plane"), a word of four letters, or one whose root would be
+    shorter, stays whole ("note" and "notes" mark notes, not every word that starts with "not"), and an
+    id is taken as written. What a line marks and the find does not (`data` for `date`, whose root is
+    `dat`; `moving` for `move`; a word that differs by its accents; an id written as its words; a phrase
+    with punctuation or a bold mark between its words; an image's description) has no mark to stand on,
+    and the find starts at the next it marks. A very long text,
     unfolded, shows its first 300,000 characters and "Show all N characters", unless a find is on. Editors get **Edit**, once the text has
     loaded, a dialog holding the Markdown (saving it empty removes the text; it names the etag of
     the text it opened, and when someone changed or removed the text meanwhile it does what the
@@ -1116,7 +1135,7 @@ never described as deleting. A list row showing an archived object says *Archive
   instance (`products.organizations`), under a line saying each is on a plan of its own and what
   plan a new organization starts on here, or, where the deployment offers no plans, that every
   organization is Unlimited, both set where the service is deployed (`WHATBUILD_PLANS` and
-  `WHATBUILD_NEW_ORGANIZATION_PLAN`): each row its name (a link to its Plan page where the instance owner is in it), whether it is
+  `WHATBUILD_NEW_ORGANIZATION_PLAN`): each row its name (a link to its Plan page where the instance owner is in it and reads more than the Story), whether it is
   the example, what it holds (people, with invitations waiting, products, sources and storage), who
   created it and when, how long a read-only one is kept, and today's writes, ending in a Read-only
   badge where it is, "Plan no longer defined" for one on a plan the deployment no longer defines,
@@ -1165,7 +1184,8 @@ never described as deleting. A list row showing an archived object says *Archive
   them off it. Anyone
   else reaching the address is told only instance owners see this.
 - **Plan** (`/t/:tenant/plan`, and `/t/:tenant/limits` as before, in the account menu for every
-  organization the person is in, where the deployment offers plans; `apps/web/src/routes/limits.tsx`). What a person sees is said in
+  organization the person is in, but one where they read only the Story, where the deployment
+  offers plans; `apps/web/src/routes/limits.tsx`). What a person sees is said in
   words, for someone using WhatBuild rather than running it. **Plan**: the plan's name and price,
   what it is for, that everyone in the organization meets its limits, owners and their agents
   included (an unlimited organization has none, and one on a plan the deployment no longer defines
@@ -1196,7 +1216,9 @@ never described as deleting. A list row showing an archived object says *Archive
   dialog on the instance's page, **Limits of the** plan (one row each: what it counts and over
   what, what it allows, what is used, the refusal) and **Limits of this deployment**, with what sets
   each. A guest of the example reaching the address is told its plan sets nothing for them but how
-  often they can call.
+  often they can call. Someone who reads only the Story there reaching the address is told the plan
+  isn't shown to Story readers, with a way back to their products, as Members tells them, and the
+  page never asks for it, since `products.list` marks that organization `story_only`.
 - **The waiting page** (any signed-in address, for a guest account that is not in; `GuestGate` in
   `apps/web/src/shell/guest-gate.tsx`). A guest account sees the app only while it holds a place
   (`GET /api/v1/me/guest-pass`). The app asks only when the guest does something: when it opens,

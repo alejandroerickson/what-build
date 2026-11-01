@@ -103,7 +103,7 @@ that what one door writes the other finds at once, and that a reader searches th
 10. **MCP, as Sam.** Call `search` with `mode: "plain"` for the queries of steps 3 and 6.
     *Expect:* the same results as the web showed, in the same order, with `corrections`,
     `partial`, `missing`, `ignored` and `kind_hint` saying what the web's notes said; a source's
-    `hits` name their `field` and where their piece starts. Then call `search` in the default
+    `hits` name their `field`, where their piece starts and where the match they mark first starts. Then call `search` in the default
     mode with the text word, and read the text around its first hit in `text` with
     `derived_read(action="text")`, from a little before its `char_start`. *Expect:* each hit names its
     `field`, `char_start` and `char_end`; the window holds the word; `coverage` lists what was
@@ -125,8 +125,9 @@ that what one door writes the other finds at once, and that a reader searches th
     the Story, then for a source's title and an assumption's statement, as a palette search and over
     MCP's `search` in `plain` mode. *Expect:* the Story page, and the canvas opening at that page; the
     source and the assumption are never listed and no correction names them, though a Story page
-    that says the same words is found. `search` in another mode, or
-    with `kind: "source"`, is refused with a permission error naming reader and viewer.
+    that says the same words is found. A Story page's word beside `sources` finds a page that says
+    both, with `kind_hint` null, and beside `story` finds it with `kind_hint` `story`. `search` in
+    another mode, or with `kind: "source"`, is refused with a permission error naming reader and viewer.
 14. **Web, as Sam.** Search for a word on a mockup page that is promoted to the Story, and for the
     mockup's title. *Expect:* the mockup is listed once, under Exploration, with no Story result for it.
 15. **Web, as Sam.** At phone width (390 × 844) and in the dark theme, open the palette, search, and
@@ -143,7 +144,8 @@ that what one door writes the other finds at once, and that a reader searches th
     excerpt shows `script` and `< script>` as plain text and nothing runs. `cafe` finds it too;
     `annee` does not, since the index keeps accents.
 17. **Web, as Sam.** Create an assumption whose statement is longer than the palette's line, with a
-    made-up word near its end, and search for that word in the palette, on a desktop and at phone
+    made-up word near its end and the word before it said earlier in the statement too, and search
+    for the made-up word in the palette, on a desktop and at phone
     width. *Expect:* its title starts near the word, after an ellipsis, with the word marked; hovering
     shows the whole statement. Search for the made-up word and the word before it, in quotes and then
     not. *Expect:* each time, both words show, marked. Search for its first word. *Expect:* its title

@@ -1,7 +1,10 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useState, type ReactNode } from "react";
 import { api } from "../lib/api.ts";
-import { Button, Dialog, ErrorCallout, Loading, TextArea, TextField } from "../ui/index.tsx";
+import { Button, Dialog, ErrorCallout, Loading, TextArea, TextField, tooLong } from "../ui/index.tsx";
+
+/** The limit the server sets on why something is deleted. */
+const REASON_MAX = 500;
 
 /** What `confirm` says on every permanent delete; the server refuses anything else. */
 const CONFIRM = "delete permanently";
@@ -73,7 +76,7 @@ export function DeleteDialog<I extends object>({ title, impactPath, etag, delete
               {alternative.label}
             </Button>
           ) : null}
-          <Button variant="danger" disabled={!permitted || !reason.trim() || !named} busy={del.isPending} busyLabel="Deleting…" onClick={() => del.mutate()}>
+          <Button variant="danger" disabled={!permitted || !reason.trim() || tooLong(reason, REASON_MAX) || !named} busy={del.isPending} busyLabel="Deleting…" onClick={() => del.mutate()}>
             Delete permanently
           </Button>
         </>
@@ -87,7 +90,7 @@ export function DeleteDialog<I extends object>({ title, impactPath, etag, delete
         <div className="delete-impact">{renderImpact(ready)}</div>
       ) : null}
       {ready && !permitted ? null : (
-        <TextArea label="Why is it being deleted?" required maxLength={500} value={reason} onChange={(e) => setReason(e.target.value)} hint="Recorded with the deletion." />
+        <TextArea label="Why is it being deleted?" required maxLength={REASON_MAX} value={reason} onChange={(e) => setReason(e.target.value)} hint="Recorded with the deletion." />
       )}
       {typeToConfirm && (!ready || permitted) ? (
         <TextField

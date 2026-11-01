@@ -23,10 +23,12 @@ checked on the way.
    refused (`422`), naming the field, and creates nothing.
 2. **Web, as Riley.** Open Exploration, then assumptions. *Expect:* the new assumption is listed;
    opening it shows the statement, the body, and the agent as its author, and nothing about
-   citations.
+   citations. Press New assumption and paste a statement of more than 1,000 characters. *Expect:*
+   all of it stays in the field, which says how many characters are over, and it can't be saved.
+   Leave the form without saving.
 3. **Web, as Riley.** Search for a few of the words Sam used. *Expect:* the search finds the
    source, saying where they are, and opening the hit shows the source's Text with the words
-   marked.
+   marked, standing on the place the hit showed.
 4. **Web, as Riley.** Review the assumption: mark it confirmed (or whatever review the screen
    offers), with a short note. *Expect:* its status changes, and the review is attributed to Riley
    on the web.

@@ -20,6 +20,14 @@ step("opened the sample product's Idea from the overview");
 const app = page.url().replace(/\/idea.*$/, "");
 
 await page.goto(`${app}/evidence/new`);
+const pasted = "Dispatcher interview. ".repeat(20);
+await page.getByLabel("Title").focus();
+await page.keyboard.insertText(pasted);
+if ((await page.getByLabel("Title").inputValue()).length !== pasted.length) throw new Error("A title past its limit was cut");
+await page.getByText(/characters? over the limit of 300/).waitFor();
+await page.getByRole("button", { name: "Continue" }).click();
+await page.getByRole("heading", { name: "Describe it" }).waitFor();
+step("a title past its limit stays whole, says how much is over, and goes no further");
 await page.getByLabel("Title").fill("Dispatcher interview — Brightway Cleaning, Sep 2026");
 await page.getByLabel(/^Date/).fill("2026-09-10");
 await page.getByRole("textbox", { name: /^Tags/ }).fill("brightway cleaning");

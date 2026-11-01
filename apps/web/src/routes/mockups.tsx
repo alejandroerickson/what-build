@@ -6,13 +6,16 @@ import { attribution, deletedSentence, formatBytes, formatDate, formatDateTime, 
 import { Markdown } from "../lib/markdown.tsx";
 import { useProduct } from "../lib/session.tsx";
 import { Inspector, usePageTitle } from "../shell/slots.tsx";
-import { Button, ButtonLink, Callout, Crumbs, Dialog, EmptyState, ErrorCallout, Glyph, Group, KeyValue, Loading, Menu, MenuRadio, OneLine, TextField, useToast } from "../ui/index.tsx";
+import { Button, ButtonLink, Callout, Crumbs, Dialog, EmptyState, ErrorCallout, Glyph, Group, KeyValue, Loading, Menu, MenuRadio, OneLine, TextField, useToast, tooLong } from "../ui/index.tsx";
 import { DeleteDialog } from "./delete-dialog.tsx";
 import { FirstUse } from "./first-use.tsx";
 import { Canvas, pageAddress, usePinnedPrototype, type CanvasPage, type CanvasVersion, type PrototypeAddress } from "./mockup-canvas.tsx";
 import { usePageView, type PageView } from "./story-flip.tsx";
 import { FocusToggle, useStoryFocus } from "./story-focus.tsx";
 import type { Actor } from "./story-model.ts";
+
+/** The limit the server sets on a Story page's title. */
+const STORY_TITLE_MAX = 200;
 
 /**
  * Mockups: canvases of agent-made HTML pages in Exploration. The panel lists them; one opens as
@@ -416,13 +419,13 @@ function OnTheStory({ mockup, shown, page }: { mockup: MockupView; shown: Mockup
               <Button onClick={() => setAsking(null)} disabled={promote.isPending}>
                 Cancel
               </Button>
-              <Button variant="primary" busy={promote.isPending} busyLabel="Promoting…" onClick={() => promote.mutate(asking)}>
+              <Button variant="primary" busy={promote.isPending} busyLabel="Promoting…" disabled={asking === "new" && tooLong(title, STORY_TITLE_MAX)} onClick={() => promote.mutate(asking)}>
                 {asking === "new" ? "Promote" : `Show version ${shown.version}`}
               </Button>
             </>
           }
         >
-          {asking === "new" ? <TextField label="Title on the Story" maxLength={200} value={title} onChange={(ev) => setTitle(ev.target.value)} /> : null}
+          {asking === "new" ? <TextField label="Title on the Story" maxLength={STORY_TITLE_MAX} value={title} onChange={(ev) => setTitle(ev.target.value)} /> : null}
           {promote.isError ? <ErrorCallout inset error={promote.error} /> : null}
         </Dialog>
       ) : null}

@@ -7,12 +7,18 @@ import { seed } from "../src/seed.ts";
 import { startHarness, type Browser, type Harness } from "./harness.ts";
 
 describe("how plain search reads a query", () => {
+  it("marks every ending of a word whose ending doubles a letter, as search reads it", () => {
+    expect("Plan, plans, planned, planning, and a bell ringing and filling".match(findPattern("planning")!)).toEqual(["Plan", "plans", "planned", "planning"]);
+    expect("The Filling was filled and the fill was full".match(findPattern("filling")!)).toEqual(["Filling", "filled", "fill"]);
+    // A word of four letters keeps its final e in a find: note marks notes, not every word that starts with not.
+    expect("Nothing was noted in the notes".match(findPattern("note")!)).toEqual(["noted", "notes"]);
+  });
+
   it("reads the pieces a find may mark from a root that starts each root the find marks from", () => {
     // Counting a source's matches reads the pieces its terms match as prefixes, so every place the
     // find marks is in one of them: the find's root of a word starts with search's.
     for (const w of ["pricing", "prices", "price", "planning", "planned", "note", "notes", "lies", "crew", "crews", "messages", "message", "ux", "scheduling", "quotes", "cb26-20734", "2026"]) {
-      const marked = /\(\?:(.*)\[\\p\{L\}\\p\{N\}\]\*\)$/.exec(findPattern(w)!.source)![1]!.replace(/\\/g, "");
-      expect(marked.startsWith(wordRoot(w)), `${w}: ${marked} from ${wordRoot(w)}`).toBe(true);
+      for (const marked of /\(\?:(.*)\)$/.exec(findPattern(w)!.source)![1]!.replace(/\\/g, "").split("|")) expect(marked.startsWith(wordRoot(w)), `${w}: ${marked} from ${wordRoot(w)}`).toBe(true);
     }
   });
 
@@ -29,6 +35,8 @@ describe("how plain search reads a query", () => {
   });
 
   it("matches the word being typed as a prefix, skips small words, and takes a kind as a hint", () => {
+    // A word that names something every object has is still a word searched for.
+    expect(parseFind("constructor crew ")).toMatchObject({ terms: [{ text: "constructor" }, { text: "crew" }], kind: null });
     expect(parseFind("how do crews plan the wee")).toMatchObject({
       terms: [
         { text: "crews", root: "crew", prefix: true },
@@ -87,6 +95,15 @@ describe("how plain search reads a query", () => {
     const e = excerpt(long, matchText(long, parseFind("crew office ").terms), 120);
     expect(e.text.startsWith("…")).toBe(true);
     expect(e.marks.map(([a, b]) => e.text.slice(a, b))).toEqual(["crew", "office"]);
+  });
+
+  it("says where in its text the first match an excerpt marks starts", () => {
+    const place = (query: string, text: string, width = 120) => excerpt(text, matchText(text, parseFind(query).terms), width).first;
+    const long = `The crew ${"filler words here ".repeat(30)}the crew lead texts the office ${"more filler ".repeat(30)}`;
+    // Not the crew at the start, which it leaves out, and counted in the text it was given, spaces and all.
+    expect(place("crew office ", long)).toBe(long.indexOf("crew lead"));
+    expect(place("crew ", "  Two   spaces,  then the crew.")).toBe("  Two   spaces,  then the ".length);
+    expect(place("mower ", long)).toBeNull();
   });
 
   /** An excerpt of `text` for `query`, with what each mark covers. */
@@ -436,6 +453,54 @@ describe("plain search's excerpts", () => {
     expect(phrase.results[0]).toMatchObject({ id: rota.body.record_id, match_count: 1 });
     const yard = (await lee.api("GET", `${L}/search?mode=plain&query=crew&record_id=${note}`)).body;
     expect(yard.results[0].match_count).toBe(findCount(YARD, findPattern("crew")!));
+  });
+
+  describe("where a hit's match starts", () => {
+    async function hitFor(title: string, content: string, query: string) {
+      const source = await lee.api("POST", `${L}/sources`, { title, tags: [] });
+      expect((await lee.api("PUT", `${L}/sources/${source.body.record_id}/derived/text`, { content })).status).toBe(200);
+      const r = (await lee.api("GET", `${L}/search?mode=plain&query=${encodeURIComponent(query)}&record_id=${source.body.record_id}`)).body;
+      const hit = r.results[0].hits[0];
+      const from = async (offset: number) => (await lee.api("GET", `${L}/sources/${source.body.record_id}/derived/text?offset=${offset}&limit=30`)).body.text as string;
+      return { hit, marked: hit.marks.map(([a, b]: [number, number]) => hit.text.slice(a, b)) as string[], from };
+    }
+
+    it("is the first the excerpt marks, past an earlier match in its piece that the excerpt leaves out", async () => {
+      const rows = Array.from({ length: 12 }, (_, i) => `| crew ${i} | hedges and borders along the drive |`).join("\n");
+      const content = `| crew | spare_flailmower |\n|---|---|\n${rows}\n| crew 20 | flailmower only |\n| crew 21 | flailmower only |\n| crew 22 | flailmower only |\n`;
+      const { hit, marked, from } = await hitFor("Flail survey — Example Co", content, "flailmower");
+      expect(hit.char_start).toBe(0);
+      expect(marked[0]).toBe("flailmower");
+      expect(hit.text).not.toContain("spare_");
+      expect(hit.match_start).toBe(content.indexOf("flailmower only"));
+      expect((await from(hit.match_start)).startsWith("flailmower only")).toBe(true);
+    });
+
+    it("is the word searched, not an earlier one that only starts like it, in a piece that starts later", async () => {
+      const first = "The hut opens at six and the crews come in one by one. ".repeat(30).trim();
+      const content = `${first}\n\nNothing is settled and the notes are thin. ${"Words go by here. ".repeat(14)}\nThe lead would not trust a thornrota that changes daily.\n`;
+      const { hit, marked, from } = await hitFor("Thorn rota — Example Co", content, "would not trust a thornrota");
+      expect(hit.char_start).toBeGreaterThan(first.length);
+      expect(hit.match_start).toBeGreaterThan(hit.char_start);
+      expect(marked).toEqual(["not", "trust", "thornrota"]);
+      expect((await from(hit.match_start)).startsWith("not trust a thornrota")).toBe(true);
+    });
+
+    it("is counted in code points in the text as written, whatever Markdown its excerpt leaves out", async () => {
+      const content = "# 😀 Heading\n\n**Bold** and *italic*, \\*escaped\\*, `code`, [a link](https://example.com/sloeberry/x) and ![a picture](sloeberry.png), then:\n\n- the sloeberry jam\n";
+      const { hit, marked, from } = await hitFor("Sloe notes — Example Co", content, "sloeberry");
+      expect(hit.text).toContain("Bold and italic, *escaped*, code, a link and a picture");
+      expect(marked).toEqual(["sloeberry"]);
+      expect(hit.match_start).toBe([...content.slice(0, content.indexOf("sloeberry jam"))].length);
+      expect((await from(hit.match_start)).startsWith("sloeberry jam")).toBe(true);
+    });
+
+    it("is where its piece starts when the excerpt marks nothing, the words being only in what is not shown", async () => {
+      const content = "See [the guide](quincepress) for more.\n";
+      const { hit, marked } = await hitFor("Quince guide — Example Co", content, "quincepress");
+      expect(marked).toEqual([]);
+      expect(hit.match_start).toBe(hit.char_start);
+    });
   });
 
   it("centres a phrase's hit on the phrase, marked, in a text with an ellipsis before it", async () => {

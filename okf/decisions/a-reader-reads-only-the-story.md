@@ -31,6 +31,10 @@ product as anyone else does. It revises one consequence of
   role but member) is refused its members and invitations (`members.list`, `403`), and the app
   leaves its Members out for them. The maintainer chose this on 2026-10-10: a Story is often read
   outside the team, and who works on it stays with the team.
+- That includes what the organization holds. The same person is refused its plan's limits and its
+  totals (`products.limits`, `403`), and the app's Plan says it isn't shown to them: how many people,
+  products and sources it holds stays with the team, as a reader's product reads count Story pages
+  only.
 - A reader is given only the Story's live pages. An archived page, one the team took out of the
   Story, is left out of a reader's page list and print view and answers them `404` by its address,
   with its versions and HTML; the team still reads it. The maintainer chose this on 2026-10-10:
@@ -55,7 +59,8 @@ product as anyone else does. It revises one consequence of
   or concept, no mockup's brief or notes, and offers back only corrections from the Story's own
   titles; every other mode, kind or source is refused. The maintainer chose this on 2026-10-30, so a
   stakeholder can find a page once a Story holds many. Their agent's tool list says only this of
-  `search`.
+  `search`, and for them only the word `story` reads as naming a kind: any other is searched for
+  in the Story like the rest.
 - The server never changes a page's HTML for a reader. What its author wrote, including mentions
   of the evidence, is the reader's to read; the evidence itself is out of reach.
 - Rejected: hiding the rest only in the web app, since the API and MCP would still serve it;

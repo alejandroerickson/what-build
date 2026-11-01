@@ -11,13 +11,18 @@ import type { RegisterEntry, RegisterSummary } from "../lib/types.ts";
 import { usePageTitle } from "../shell/slots.tsx";
 import {
   Button, ButtonLink, Callout, ChoiceRow, EmptyState, ErrorCallout, FiltersInUse, FormGrid, Glyph, ListRow, Loading, Menu, MenuItem, MenuNote, MenuSeparator, PageHeader, SelectField, Sheet,
-  SheetBody, SheetHeader, StatusBadge, Tag, TextArea, useToast,
+  SheetBody, SheetHeader, StatusBadge, Tag, TextArea, useToast, tooLong,
 } from "../ui/index.tsx";
 import { DeleteDialog, listed } from "./delete-dialog.tsx";
 import { Byline, searchWith, useCopyLink } from "./exploration-common.tsx";
 import { FirstUse } from "./first-use.tsx";
 import { entryViews, Marked, TitleFind, useEntryList } from "./exploration-panel.tsx";
 import "../styles/screens/exploration.css";
+
+/** The limits the server sets on what these forms write. */
+const STATEMENT_MAX = 1000;
+const WHY_MAX = 10_000;
+const NOTE_MAX = 2000;
 
 /** The register a product keeps. */
 type Kind = "assumptions";
@@ -216,7 +221,7 @@ function ReviewForm({ entry, kind, onSaved }: { entry: RegisterEntry; kind: Kind
       className="register-review-form"
       onSubmit={(ev) => {
         ev.preventDefault();
-        review.mutate();
+        if (note.trim() && !tooLong(note, NOTE_MAX)) review.mutate();
       }}
     >
       <FormGrid>
@@ -232,7 +237,7 @@ function ReviewForm({ entry, kind, onSaved }: { entry: RegisterEntry; kind: Kind
           <option value="medium">Medium: usable with stated caveats</option>
           <option value="high">High: ready within its scope</option>
         </SelectField>
-        <TextArea label="Why" required maxLength={2000} rows={3} value={note} onChange={(ev) => setNote(ev.target.value)} />
+        <TextArea label="Why" required maxLength={NOTE_MAX} rows={3} value={note} onChange={(ev) => setNote(ev.target.value)} />
       </FormGrid>
       {stale ? (
         <Callout
@@ -261,7 +266,7 @@ function ReviewForm({ entry, kind, onSaved }: { entry: RegisterEntry; kind: Kind
       ) : null}
       <p className="small muted register-freeze-note">{entry.frozen ? "Reviews can’t be edited." : "Saving freezes the wording. Reviews can’t be edited."}</p>
       <div className="register-form-actions">
-        <Button type="submit" variant="primary" disabled={!note.trim()} busy={review.isPending} busyLabel="Saving…">
+        <Button type="submit" variant="primary" disabled={!note.trim() || tooLong(note, NOTE_MAX)} busy={review.isPending} busyLabel="Saving…">
           Save review
         </Button>
       </div>
@@ -612,11 +617,12 @@ function EntryForm({ kind, crumbs, heading, initial, outcomes, preselect, onSave
   const stale = save.error instanceof ApiError && save.error.code === "stale_etag";
   const frozenNow = theirs?.frozen;
   const one = ONE[kind].toLowerCase();
+  const ready = Boolean(statement.trim()) && !frozenNow && !tooLong(statement, STATEMENT_MAX) && !tooLong(body, WHY_MAX);
   return (
     <form
       onSubmit={(e) => {
         e.preventDefault();
-        save.mutate();
+        if (ready) save.mutate();
       }}
     >
       <PageHeader crumbs={crumbs} title={heading} description={MEANING[kind]} />
@@ -625,7 +631,7 @@ function EntryForm({ kind, crumbs, heading, initial, outcomes, preselect, onSave
           <TextArea
             label="Statement"
             required
-            maxLength={1000}
+            maxLength={STATEMENT_MAX}
             rows={2}
             className="entry-statement"
             value={statement}
@@ -633,7 +639,7 @@ function EntryForm({ kind, crumbs, heading, initial, outcomes, preselect, onSave
             autoFocus={!initial}
             hint={`The ${one} in one sentence.`}
           />
-          <TextArea label="Why" optional maxLength={10_000} rows={6} value={body} onChange={(e) => setBody(e.target.value)} hint={WHY_HINT[kind]} />
+          <TextArea label="Why" optional maxLength={WHY_MAX} rows={6} value={body} onChange={(e) => setBody(e.target.value)} hint={WHY_HINT[kind]} />
           <div className="field" role="group" aria-labelledby="entry-outcomes">
             <span className="field-label" id="entry-outcomes">
               Outcomes it bears on
@@ -672,7 +678,7 @@ function EntryForm({ kind, crumbs, heading, initial, outcomes, preselect, onSave
           </div>
         ) : null}
         <div className="entry-form-actions">
-          <Button type="submit" variant="primary" disabled={!statement.trim() || Boolean(frozenNow)} busy={save.isPending} busyLabel="Saving…">
+          <Button type="submit" variant="primary" disabled={!ready} busy={save.isPending} busyLabel="Saving…">
             {stale && theirs ? "Save mine over theirs" : initial ? "Save changes" : `Save ${one}`}
           </Button>
           <ButtonLink to={initial ? `${app}/exploration/${kind}/${initial.id}` : `${app}/exploration/${kind}`}>Cancel</ButtonLink>

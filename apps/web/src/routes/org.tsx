@@ -11,7 +11,7 @@ import { InvitationsSheet, useInvitations } from "../shell/invitations.tsx";
 import { usePageTitle } from "../shell/slots.tsx";
 import {
   Avatar, Button, ButtonLink, Callout, Dialog, EmptyState, ErrorCallout, FormGrid, Glyph, Loading, Menu, MenuGroup, MenuItem, MenuRadio, MenuSeparator,
-  SelectField, Sheet, SheetBody, SheetHeader, StatusBadge, TextArea, TextField, useToast,
+  SelectField, Sheet, SheetBody, SheetHeader, StatusBadge, TextArea, TextField, useToast, tooLong,
 } from "../ui/index.tsx";
 import { EntryPage, NotVisible } from "./auth.tsx";
 import { DeleteDialog, listed } from "./delete-dialog.tsx";
@@ -21,6 +21,10 @@ import "../styles/screens/account.css";
 import "../styles/screens/activity.css";
 import "../styles/screens/org.css";
 import "../styles/screens/settings.css";
+
+/** The limits the server sets on a name and a product's concept. */
+const NAME_MAX = 100;
+const CONCEPT_MAX = 8000;
 
 
 
@@ -35,6 +39,7 @@ export function Welcome() {
   const [org, setOrg] = useState("");
   const [product, setProduct] = useState("");
   const [concept, setConcept] = useState("");
+  const ready = Boolean(org.trim()) && Boolean(product.trim()) && !tooLong(org, NAME_MAX) && !tooLong(product, NAME_MAX) && !tooLong(concept, CONCEPT_MAX);
   const create = useMutation({
     mutationFn: async () => {
       const t = await api<{ tenant: { slug: string }; team: { slug: string } }>("POST", "/api/v1/tenants", { name: org.trim() });
@@ -88,7 +93,7 @@ export function Welcome() {
           className="sheet-body entry-form"
           onSubmit={(e) => {
             e.preventDefault();
-            if (org.trim() && product.trim()) create.mutate();
+            if (ready) create.mutate();
           }}
         >
           <p className="muted">
@@ -98,11 +103,11 @@ export function Welcome() {
               : ""}
           </p>
           <NewOrganizationPlan plan={me.data?.new_organization_plan ?? "unlimited"} operator={Boolean(me.data?.tenant_allowance.instance_owner)} />
-          <TextField label="Organization" hint="Your company or group." required maxLength={100} value={org} onChange={(e) => setOrg(e.target.value)} />
-          <TextField label="Product" hint="What this discovery is about." required maxLength={100} value={product} onChange={(e) => setProduct(e.target.value)} />
-          <TextArea label="Product concept" optional hint="Who it’s for, their problem, and how the product solves it." maxLength={2000} rows={3} value={concept} onChange={(e) => setConcept(e.target.value)} />
+          <TextField label="Organization" hint="Your company or group." required maxLength={NAME_MAX} value={org} onChange={(e) => setOrg(e.target.value)} />
+          <TextField label="Product" hint="What this discovery is about." required maxLength={NAME_MAX} value={product} onChange={(e) => setProduct(e.target.value)} />
+          <TextArea label="Product concept" optional hint="Who it’s for, their problem, and how the product solves it." maxLength={CONCEPT_MAX} rows={3} value={concept} onChange={(e) => setConcept(e.target.value)} />
           {create.isError ? <ErrorCallout inset error={create.error} /> : null}
-          <Button type="submit" variant="primary" busy={create.isPending} busyLabel="Starting…" disabled={!org.trim() || !product.trim()}>
+          <Button type="submit" variant="primary" busy={create.isPending} busyLabel="Starting…" disabled={!ready}>
             Start organization
           </Button>
         </form>
@@ -548,7 +553,7 @@ function OrganizationNameSheet({ slug, name, etag, owner: isOwner, readOnly }: {
   const renamed = draft.trim() !== name;
   const moved = draftSlug !== slug;
   const slugError = moved ? slugProblem(draftSlug) : null;
-  const valid = (renamed || moved) && Boolean(draft.trim()) && !slugError;
+  const valid = (renamed || moved) && Boolean(draft.trim()) && !slugError && !tooLong(draft, NAME_MAX);
   const save = useMutation({
     mutationFn: () =>
       api<{ name: string; slug: string }>("PATCH", `/api/v1/tenants/${slug}`, { ...(renamed ? { name: draft.trim() } : {}), ...(moved ? { slug: draftSlug } : {}), expected_etag: etag }),
@@ -580,7 +585,7 @@ function OrganizationNameSheet({ slug, name, etag, owner: isOwner, readOnly }: {
         }}
       >
         <FormGrid className="settings-form">
-          <TextField label="Name" value={draft} onChange={(e) => setDraft(e.target.value)} readOnly={!owner} maxLength={100} required />
+          <TextField label="Name" value={draft} onChange={(e) => setDraft(e.target.value)} readOnly={!owner} maxLength={NAME_MAX} required />
           <TextField
             label="Short name in links"
             value={draftSlug}

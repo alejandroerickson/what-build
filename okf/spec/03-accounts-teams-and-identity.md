@@ -333,8 +333,8 @@ everyone in the tenant meets its limits, its owners included; on unlimited nobod
 does anyone in a tenant left on a plan the deployment no longer defines (`undefined_plan`), until
 it moves. The limits and their refusals are in [§9.7](09-data-lifecycle.md).
 
-- Every member reads the tenant's plan and limits with `products.limits` (scope `tenant`, access
-  `any`): each limit with what is used of it (today's for a daily one, counted on every plan; what
+- Everyone in the tenant, but someone who reads only the Story everywhere in it ([§3.5](#35-roles)),
+  reads its plan and limits with `products.limits` (scope `tenant`, access `any`): each limit with what is used of it (today's for a daily one, counted on every plan; what
   the tenant holds for a total, also given as `holds`), and the plans offered side by side
   (`plans`). Anyone, signed in or not, reads the plans offered at `GET /api/v1/plans`, with each
   one's price as the deployment set it (a plan without one shows none), `starting_plan`, whether
@@ -410,8 +410,9 @@ A product is addressed as `tenant/team/product` (slugs or ids at each level) or 
   routes, so a reader sees that and nothing else of the mockup ([§4.11](04-data-model.md)).
   Someone who reads only the Story everywhere in an organization (a reader on its teams or
   products, with nothing higher there and no organization role but member) sees none of its
-  people: `members.list` answers `403`, and `products.list` marks that organization
-  `story_only`. A reader writes nothing: the upload relay checks the role of whoever requested a grant again
+  people, nor its plan's limits and what it holds: `members.list` and `products.limits` answer `403`
+  naming both roles, and `products.list` marks that organization `story_only`, as it gives them the
+  plan's name and whether the organization is read-only, which its banner says. A reader writes nothing: the upload relay checks the role of whoever requested a grant again
   when the bytes arrive, so a grant given to an editor stores nothing once they are a reader.
 - **Viewer** reads everything in the product. **Editor** also writes: sources, their attachments
   and text, comments, outcomes, assumptions and reviews, mockups, the Story, and archives any of them. **Admin** also
@@ -436,9 +437,11 @@ A product is addressed as `tenant/team/product` (slugs or ids at each level) or 
   address has an account, here or elsewhere, or whose it is
   ([decision](../decisions/a-role-is-given-at-once-only-to-someone-already-seen-in-the-organization.md)).
   An invitation is emailed where mail is configured and always returned to the inviter as a
-  single-use link. The email shows the inviter's display name on one line, without control or
-  direction-changing characters, at most 60 characters and in quotation marks, and says it is the
-  name they gave WhatBuild. A tenant keeps at least one owner (`409 last_owner`).
+  single-use link. The email names the inviter, the organization, and the team or product in it.
+  Each is a name someone gave WhatBuild, so each is shown on one line, without control or
+  direction-changing characters, in quotation marks it cannot close, at most 60 characters for the
+  inviter's display name and 100 for the others, and the email says they are names people gave
+  WhatBuild. A tenant keeps at least one owner (`409 last_owner`).
 - **Who sees whom.** The tenant's owners and admins see all its people, their grants and its
   invitations. Anyone else, with a viewer role or above somewhere in it, sees only the people on
   the teams and products they read, with only those grants and their tenant role, and only the

@@ -479,7 +479,8 @@ which plan an organization is on (`tenants.plan`, any such id), so an organizati
 plan the deployment no longer defines: it meets no limit until an instance owner moves it, and
 `products.limits` and `products.organizations` mark it `undefined_plan`.
 
-`products.limits` gives every member each limit of the organization's plan with its value (null
+`products.limits` gives everyone in the organization, but someone who reads only the Story everywhere
+in it ([§3.5](03-accounts-teams-and-identity.md#35-roles)), each limit of its plan with its value (null
 for none), what it is counted over, its refusal and what is used of it: for a daily one what the
 caller and everyone together used today (on every plan, rule 10), for a total what the organization
 holds; the plans offered side by side; and the deployment's own limits, each with a key that stays

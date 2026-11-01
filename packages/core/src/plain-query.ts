@@ -12,7 +12,8 @@
  *   found written as its words side by side: q3-planning in "Q3 planning", covid-19 in "COVID 19".
  * - Small words (the, of, how…) are left out when other words remain.
  * - A word naming a kind of thing ("mockups", "assumptions") brings that kind first instead of
- *   being searched for, when other words remain.
+ *   being searched for, when other words remain. Someone who can search only one kind has only that
+ *   kind's word read this way: any other is a word like the rest.
  * - Case is ignored, and so are accents when a match is marked and scored; the search vectors keep
  *   them, so a word finds what its root starts as written (cafe finds café, resume not résumé).
  */
@@ -113,7 +114,11 @@ export function queryWords(text: string): string[] {
   return out;
 }
 
-export function parseFind(raw: string): ParsedFind {
+export function parseFind(raw: string, onlyKind?: FindKind): ParsedFind {
+  const kindNamed = (word: string) => {
+    const k = Object.hasOwn(KIND_WORDS, word) ? KIND_WORDS[word] : undefined;
+    return k && (!onlyKind || k === onlyKind) ? k : null;
+  };
   const text = raw.normalize("NFC");
   const typing = !/[\s"]$/.test(text);
   const phrases: string[] = [];
@@ -126,13 +131,14 @@ export function parseFind(raw: string): ParsedFind {
   const terms: FindTerm[] = [];
   const ignored: string[] = [];
   let kind: FindKind | null = null;
-  const keep = words.filter((w) => !STOP.has(fold(w)) && !KIND_WORDS[fold(w)]);
+  const keep = words.filter((w) => !STOP.has(fold(w)) && !kindNamed(fold(w)));
   const anyOther = keep.length + phrases.length > 0;
   words.forEach((w, i) => {
     const f = fold(w);
     const last = i === words.length - 1 && typing && !phrases.length;
-    if (anyOther && KIND_WORDS[f] && !kind) {
-      kind = KIND_WORDS[f]!;
+    const named = kindNamed(f);
+    if (anyOther && named && !kind) {
+      kind = named;
       return;
     }
     if (anyOther && STOP.has(f)) {
@@ -280,9 +286,10 @@ const isLow = (c: number) => c >= 0xdc00 && c <= 0xdfff;
  * phrase or a word that occurs late is in it rather than an earlier occurrence of one of its
  * words. It starts and ends at word boundaries, unless that would leave out a mark it was chosen
  * for, and never inside a character. A match it cuts is marked as far as it goes, so an excerpt
- * of a text that holds a match always holds a mark.
+ * of a text that holds a match always holds a mark. `first` is where in `text` the first match it
+ * marks starts, or null when it marks none.
  */
-export function excerpt(text: string, match: Pick<TextMatch, "ranges" | "spans">, width = 220): { text: string; marks: [number, number][] } {
+export function excerpt(text: string, match: Pick<TextMatch, "ranges" | "spans">, width = 220): { text: string; marks: [number, number][]; first: number | null } {
   const clean = text.replace(/\s+/g, " ").trim();
   // Collapsing whitespace moves offsets; find the matches again in the cleaned text by mapping.
   const map: number[] = [];
@@ -307,8 +314,8 @@ export function excerpt(text: string, match: Pick<TextMatch, "ranges" | "spans">
     map.push(j);
   }
   const at = (o: number) => Math.min(map[o] ?? clean.length, clean.length);
-  const rs = match.ranges.map(([s, e]) => [at(s), at(e)] as [number, number]).filter(([s, e]) => e > s);
-  if (clean.length <= width) return { text: clean, marks: rs };
+  const rs = match.ranges.map(([s, e]) => [at(s), at(e), s] as const).filter(([s, e]) => e > s);
+  if (clean.length <= width) return { text: clean, marks: rs.map(([a, b]) => [a, b]), first: rs[0]?.[2] ?? null };
   const spans = match.spans.map(([s, e, k]) => [at(s), at(e), k] as const).filter(([s, e]) => e > s);
   // The place where the most terms occur within one width, then the most matches, the first of equals.
   let best: { from: number; to: number; terms: number; count: number } | null = null;
@@ -355,10 +362,9 @@ export function excerpt(text: string, match: Pick<TextMatch, "ranges" | "spans">
   end = start + shown.length;
   const pre = start > 0 ? "…" : "";
   const post = end < clean.length ? "…" : "";
-  const marks = rs
-    .filter(([a, b]) => b > start && a < end)
-    .map(([a, b]) => [Math.max(a, start) - start + pre.length, Math.min(b, end) - start + pre.length] as [number, number]);
-  return { text: pre + shown + post, marks };
+  const kept = rs.filter(([a, b]) => b > start && a < end);
+  const marks = kept.map(([a, b]) => [Math.max(a, start) - start + pre.length, Math.min(b, end) - start + pre.length] as [number, number]);
+  return { text: pre + shown + post, marks, first: kept[0]?.[2] ?? null };
 }
 
 /** Levenshtein distance, giving up once it passes `max`. */

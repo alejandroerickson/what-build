@@ -47,7 +47,7 @@ const ROLE_MEANS: Record<string, string> = {
 };
 
 /** Names are others' to choose, so each is in quotation marks and never reads as WhatBuild's own words. */
-const quoted = (name: string) => `"${name}"`;
+const quoted = (name: string) => `"${name.replace(/["“”„‟＂]/g, "'")}"`;
 
 export const orgOf = (i: Pick<Invitation, "tenant">) => (i.tenant ? quoted(i.tenant.name) : "the organization");
 
