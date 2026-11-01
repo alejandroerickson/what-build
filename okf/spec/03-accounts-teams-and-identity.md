@@ -778,7 +778,7 @@ as a guest too, and never waits.
 | `new_per_day` | 50 | Guest accounts coming in for the first time, each UTC day; past it, they come back the next day. |
 | `idle_minutes` | 30 | A place frees after this long without a call. |
 | `minutes_per_day` | 120 | Time in, each guest account a day; past it, back after midnight UTC. |
-| `requests_per_minute` | 50 | Calls a minute, every guest of the example. |
+| `requests_per_minute` | 120 | Calls a minute, every guest of the example. A mockup's page counts as one call, so opening a canvas of many pages takes that many. |
 | `sent_bytes_per_day` | 10 MB | Attachments and mockup downloads, every guest of the example, a day. |
 
 A call while not in is refused `429 guest_waiting` with `details` saying why (`full`, with
