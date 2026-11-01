@@ -5,7 +5,7 @@ import { useSearchParams } from "react-router";
 import { api, ApiError, qs } from "../lib/api.ts";
 import { attribution, plural, quotedAtEnd, relativeTime } from "../lib/format.ts";
 import { Markdown } from "../lib/markdown.tsx";
-import { useRefusedFrame } from "../lib/minute.ts";
+import { useFrameReturn } from "../lib/minute.ts";
 import { useProduct } from "../lib/session.tsx";
 import { PanelContext, PanelFilter, PanelSection } from "../shell/slots.tsx";
 import { useScheme } from "../shell/theme.ts";
@@ -53,7 +53,7 @@ function CardFront({ src, title, onHeight }: { src: string; title: string; onHei
   const frame = useRef<HTMLIFrameElement>(null);
   const [loaded, setLoaded] = useState(false);
   const [reloads, setReloads] = useState(0);
-  const refusal = useRefusedFrame(frame, () => {
+  const refusal = useFrameReturn(frame, () => {
     setLoaded(false);
     setReloads((n) => n + 1);
   });

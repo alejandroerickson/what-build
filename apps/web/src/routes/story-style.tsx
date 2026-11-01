@@ -3,7 +3,7 @@ import { STORY_PAGE_SANDBOX } from "@whatbuild/core/page-sandbox";
 import { useEffect, useRef, useState } from "react";
 import { api } from "../lib/api.ts";
 import { attribution, relativeTime } from "../lib/format.ts";
-import { useRefusedFrame } from "../lib/minute.ts";
+import { useFrameReturn } from "../lib/minute.ts";
 import { useProduct } from "../lib/session.tsx";
 import { Button, CopyField, Dialog, FrameStopped, Glyph, Loading, Segmented } from "../ui/index.tsx";
 import type { Actor } from "./story-model.ts";
@@ -59,7 +59,7 @@ function Specimen({ src, title, phone }: { src: string; title: string; phone: bo
   const [loaded, setLoaded] = useState(false);
   const frame = useRef<HTMLIFrameElement>(null);
   const [reloads, setReloads] = useState(0);
-  const refusal = useRefusedFrame(frame, () => {
+  const refusal = useFrameReturn(frame, () => {
     setLoaded(false);
     setReloads((n) => n + 1);
   });

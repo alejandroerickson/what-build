@@ -102,7 +102,9 @@ export function useDebounced<T>(value: T, ms: number): T {
 /**
  * Find as you type: the last answer stays on screen while the next one loads. A search typed past
  * is cancelled, on the server too, and one that fails is not asked again by itself: the next word
- * typed asks anew. One refused for the minute's calls is the exception, and waits for the next minute.
+ * typed asks anew. One refused for the minute's calls is the exception, and waits for the next
+ * minute. That can be a long while, so a screen says so (waitsForMinute) and stops showing an answer
+ * to other words as if it were this one's (isPlaceholderData).
  */
 export function useFind(base: string, query: string, opts: { kind?: string; recordId?: string; strict?: boolean } = {}) {
   const q = query.trim();

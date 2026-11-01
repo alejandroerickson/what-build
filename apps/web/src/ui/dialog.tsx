@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, type ReactNode } from "react";
 import { IconButton } from "./button.tsx";
+import { MinuteAnnouncer } from "./feedback.tsx";
 
 /**
  * A native modal dialog: the browser traps and restores focus. Escape and a click on the backdrop
@@ -61,6 +62,8 @@ export function Dialog({ open, onClose, title, description, children, footer, di
       ) : null}
       <div className="dialog-body">{children}</div>
       {footer ? <div className="dialog-foot">{footer}</div> : null}
+      {/* What is outside a modal dialog is inert, so the app's own region is not heard from here. */}
+      {open ? <MinuteAnnouncer /> : null}
     </dialog>
   );
 }

@@ -3,12 +3,12 @@ import { MOCKUP_PAGE_SANDBOX, STORY_PAGE_SANDBOX } from "@whatbuild/core/page-sa
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Navigate, useNavigate, useParams, useSearchParams } from "react-router";
 import { api, ApiError } from "../lib/api.ts";
-import { usePutBacks, useRefusedFrame } from "../lib/minute.ts";
+import { useFrameReturn } from "../lib/minute.ts";
 import { useProduct } from "../lib/session.tsx";
 import { useScheme } from "../shell/theme.ts";
 import { Inspector, usePageTitle } from "../shell/slots.tsx";
 import { deletedSentence } from "../lib/format.ts";
-import { Button, ButtonLink, Callout, Crumbs, EmptyState, ErrorCallout, FrameStopped, Loading, Sheet } from "../ui/index.tsx";
+import { Button, ButtonLink, Callout, Crumbs, EmptyState, ErrorCallout, FrameReloading, FrameStopped, Loading, Sheet } from "../ui/index.tsx";
 import { FirstUse } from "./first-use.tsx";
 import { Canvas, pageAddress, usePinnedPrototype } from "./mockup-canvas.tsx";
 import { DeletePage, useArchiveActions, type PageActions, type PageRef } from "./story-actions.tsx";
@@ -34,8 +34,9 @@ import "../styles/screens/story.css";
  * another address in its place (a script, a refresh) is put back, and the reader is told, so the
  * app never shows someone else's page inside its own frame. A page refused for the minute's calls
  * gets a short document that says so and tells the app, and comes back the same way, as a new frame
- * whose first load is its first (useRefusedFrame). Each new frame is a call, so a page put back again
- * and again stops being shown (usePutBacks).
+ * whose first load is its first. Each new frame is a call, so a page that keeps being replaced waits
+ * for the next minute with no frame on show, and in time stops until the person says to
+ * (useFrameReturn). A prototype's frames cost no calls, and meet none of that.
  *
  * storyBase is the address this Story's pages live under. The frame is told it once its document
  * has loaded; all it ever sends back is a page's slug, which is checked again here. home is the
@@ -90,7 +91,6 @@ export function StoryFrame({
   }, [size]);
   const scale = size && room.width ? Math.min(1, room.width / size.width, fitted && room.height ? room.height / size.height : 1) : 1;
   const [reloads, setReloads] = useState(0);
-  const [replaced, setReplaced] = useState(false);
   const loads = useRef(0);
   const ready = useRef(false);
   const waiting = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -108,14 +108,8 @@ export function StoryFrame({
     setLoaded(false);
     setReloads((n) => n + 1);
   };
-  const mayPutBack = usePutBacks();
-  const [givenUp, setGivenUp] = useState(false);
-  const putBack = () => {
-    setReplaced(true);
-    if (mayPutBack()) newFrame();
-    else setGivenUp(true);
-  };
-  const refusal = useRefusedFrame(frame, newFrame, !prototype);
+  const comes = useFrameReturn(frame, newFrame, !prototype);
+  const putBack = comes.replaced;
   useEffect(() => () => {
     if (waiting.current) clearTimeout(waiting.current);
   }, []);
@@ -173,25 +167,24 @@ export function StoryFrame({
     />
   );
 
-  if (givenUp)
+  // One element through every state, so what was focused in it stays when its contents change.
+  if (comes.reloading)
     return (
       <div className="story-frame-wrap story-frame-stopped">
-        <Callout tone="attention" inset title="This page keeps trying to open another address in its place">
-          WhatBuild stopped showing it.
-        </Callout>
+        <FrameReloading state={comes.reloading} tryAgain={comes.tryAgain} />
       </div>
     );
 
-  if (refusal.stopped)
+  if (comes.stopped)
     return (
       <div className="story-frame-wrap story-frame-stopped">
-        <FrameStopped what="This page" refusal={refusal} />
+        <FrameStopped what="This page" refusal={comes} />
       </div>
     );
 
   return (
     <div className="story-frame-wrap" ref={wrap} data-fit={fitted ? "" : undefined}>
-      {replaced ? (
+      {comes.wasReplaced ? (
         <Callout tone="attention" title="This page tried to open another address in its place">
           WhatBuild put the page back.
         </Callout>

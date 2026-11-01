@@ -705,8 +705,8 @@ h1[tabindex="-1"]:focus {
   padding: 0 var(--s-3h) 0 var(--sheet-px);
   border-bottom: 1px solid var(--line);
 }
-/* With nothing typed and nothing recent, the palette is the field alone. */
-.find-pal-field:only-child {
+/* With nothing typed and nothing recent, the palette is the field alone, and the region that says what a search waits for, which is empty. */
+.find-pal-field:has(+ .find-pal-wait:empty:last-child) {
   border-bottom: 0;
 }
 /* Every result is a control, not a result: a button at the field's end, with its shortcut. */
@@ -732,6 +732,12 @@ h1[tabindex="-1"]:focus {
 }
 .find-pal-field input::placeholder {
   color: var(--faint);
+}
+.find-pal-wait {
+  flex: none;
+}
+.find-pal-wait .loading-minute {
+  padding: var(--s-3) var(--sheet-px) var(--s-1h);
 }
 .find-pal-note {
   flex: none;

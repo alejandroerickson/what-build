@@ -35,7 +35,7 @@ import { MockupPage, MockupsIndex } from "./routes/mockups.tsx";
 import { CookieNotice } from "./shell/CookieNotice.tsx";
 import { PlainShell, ProductShell } from "./shell/Shell.tsx";
 import { usePageTitle } from "./shell/slots.tsx";
-import { Button, ButtonLink, EmptyState, Sheet, SheetHeader, ToastProvider, useToast } from "./ui/index.tsx";
+import { Button, ButtonLink, EmptyState, MinuteAnnouncer, Sheet, SheetHeader, ToastProvider, useToast } from "./ui/index.tsx";
 
 const queryClient: QueryClient = new QueryClient({
   defaultOptions: {
@@ -179,6 +179,7 @@ function Root() {
     <>
       <Outlet />
       <CookieNotice />
+      <MinuteAnnouncer />
     </>
   );
 }

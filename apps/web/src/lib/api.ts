@@ -58,6 +58,11 @@ export function readRetryDelay(failures: number, error: unknown): number {
   return Math.min(1000 * 2 ** failures, 30_000);
 }
 
+/** Whether a read is waiting for the next minute now: refused, and going to ask again. */
+export function waitsForMinute(q: { fetchStatus: string; failureReason: unknown }): boolean {
+  return q.fetchStatus !== "idle" && isMinuteRefusal(q.failureReason);
+}
+
 /** How every read asks again, unless it says otherwise. */
 export const readDefaults = { retry: retryRead, retryDelay: readRetryDelay };
 
@@ -105,7 +110,7 @@ export async function api<T = unknown>(method: string, path: string, body?: unkn
     if (err?.code === "guest_waiting" && err.details) onGuestWaiting?.(err.details);
     const refusal = new ApiError(res.status, err?.code ?? "error", err?.message ?? DEFAULT_MESSAGES[res.status] ?? `WhatBuild answered with status ${res.status}.`, err?.details);
     // A write can be refused while reads go on: only a refused read says the minute's calls are used up.
-    if (method === "GET" && isMinuteRefusal(refusal)) minuteRefused(refusal.details!["retry_after_seconds"] as number, refusal.details!["limit"] as number | undefined);
+    if (method === "GET" && isMinuteRefusal(refusal)) minuteRefused(refusal.details!["retry_after_seconds"] as number);
     throw refusal;
   }
   if (method !== "GET") onChange?.(path, res.headers.get("X-WhatBuild-Operation"));

@@ -733,7 +733,7 @@ the JSON, when the frame's address says `?frame=1` or the browser says `Sec-Fetc
 no script can set (`refusedFrame` in `apps/server/src/documents.ts`). An agent, an API caller or a
 tab says neither and gets the JSON at the same address, and an image, a video or a download of an
 attachment does too. Every other failure is the JSON it always was. The page holds WhatBuild's own
-words and one script, which posts `{ whatbuild: "frame-refused", retry_after_seconds, limit }` to
+words and one script, which posts `{ whatbuild: "frame-refused", retry_after_seconds }` to
 its parent; it loads nothing, navigates nowhere and never asks again by itself
 ([§7.1](07-web-app.md)). It takes `?theme=` when that is `light` or `dark`. It is served with the
 headers of a page, with `no-store`, in the narrowest sandbox a frame takes (`sandbox allow-scripts`,

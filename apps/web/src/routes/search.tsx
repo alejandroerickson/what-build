@@ -1,13 +1,14 @@
 import { useEffect, useRef, useState, type MouseEvent } from "react";
 import { Link, useSearchParams } from "react-router";
 import { track } from "../lib/analytics.ts";
+import { waitsForMinute } from "../lib/api.ts";
 import { nestQuotes } from "../lib/format.ts";
 import { byArea, FIND_AREAS, findWords, hitHref, hitMeta, kindOf, Marked, matchedCount, resultHref, resultMeta, useDebounced, useFind, useRecentSearches, type FindResponse, type FindResult } from "../lib/find.tsx";
 import { useProduct } from "../lib/session.tsx";
 import { REVIEW_STATUS } from "../lib/status.ts";
 import { searchLabel, understood } from "../shell/find-palette.tsx";
 import { PanelContext, PanelFilter, PanelSection, usePageTitle } from "../shell/slots.tsx";
-import { EmptyState, ErrorCallout, FindField, Glyph, Loading, OneLine, Sheet, SheetHeader, StatusBadge, useMeasure } from "../ui/index.tsx";
+import { EmptyState, ErrorCallout, FindField, Glyph, Loading, MinuteWaitWords, OneLine, Sheet, SheetHeader, StatusBadge, useMeasure } from "../ui/index.tsx";
 import { shortcutLabel } from "../ui/media.ts";
 import "../styles/screens/search.css";
 
@@ -56,7 +57,9 @@ export function SearchPage() {
     if (a.dataset["kind"]) track({ name: "search_result_open", kind: a.dataset["kind"], from: "screen", ...(a.dataset["rank"] ? { rank: Number(a.dataset["rank"]) } : {}) });
   };
   const res = useFind(base, q, { recordId, strict });
-  const d = q.trim() ? res.data : undefined;
+  const waits = Boolean(q.trim()) && waitsForMinute(res);
+  // What the words before these found is no answer to them: until they have their own, Loading says what they wait for.
+  const d = q.trim() && !(waits && res.isPlaceholderData) ? res.data : undefined;
   const link = (patch: Record<string, string>) => {
     const next = new URLSearchParams(params);
     for (const [k, v] of Object.entries(patch)) (v ? next.set(k, v) : next.delete(k));
@@ -89,8 +92,11 @@ export function SearchPage() {
             enterKeyHint="search"
             spellCheck={false}
           />
-          {busy && q ? <Glyph name="loader" className="spin find-busy" /> : null}
+          {/* Waiting for the next minute has words and a mark of its own, for longer than this sits over the field's clear button. */}
+          {busy && q && !waits ? <Glyph name="loader" className="spin find-busy" /> : null}
         </div>
+        {/* These words' own answer, read again and refused: it stands, and this says why it is not new. */}
+        {waits && d ? <MinuteWaitWords /> : null}
         {d ? <Understood d={d} retry={link({ strict: "1" })} /> : null}
         {recordId ? <SearchIn title={source?.title ?? "one source"} to={`${app}/evidence/${recordId}`} all={link({ record_id: "" })} /> : null}
       </Sheet>

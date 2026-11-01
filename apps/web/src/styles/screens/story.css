@@ -380,7 +380,7 @@
   flex: 1 0 auto;
   flex-direction: column;
 }
-/* A page refused until the person says to try again, in place of its frame. */
+/* A page waiting to come back, or until the person says to try again, in place of its frame. */
 .story-frame-stopped {
   padding: var(--s-6);
 }

@@ -188,7 +188,7 @@
   box-shadow: var(--shadow);
 }
 
-/* A page refused until the person says to try again, in place of its frame. */
+/* A page waiting to come back, or until the person says to try again, in place of its frame. */
 .xc-refused {
   display: grid;
   place-items: center;
@@ -199,9 +199,11 @@
   color: var(--muted);
   text-align: center;
 }
-/* What the board says of pages refused for the minute's calls: screen size, whatever the zoom, and
-   clear of the toolbar along the bottom edge. */
+/* What the board says of pages waiting or stopped: screen size, whatever the zoom, and clear of the
+   toolbar along the bottom edge. */
 .xc-note {
+  display: grid;
+  gap: var(--s-2);
   position: absolute;
   top: var(--s-3);
   right: 0;

@@ -6,7 +6,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api, ApiError, isMinuteRefusal, readDefaults, readRetryDelay, retryRead, retryRefusedRead } from "../src/lib/api.ts";
 import { forgetMinute } from "../src/lib/minute.ts";
 import { ProductProvider, type Product } from "../src/lib/session.tsx";
-import { Loading } from "../src/ui/index.tsx";
+import { useSourceTitles } from "../src/lib/source-titles.ts";
+import { Dialog, Loading, MinuteAnnouncer } from "../src/ui/index.tsx";
 
 // A read refused because the person's calls a minute ran out comes back by itself once it may
 // succeed, a bounded number of times and not all at once, and says so meanwhile. A product the app
@@ -184,7 +185,6 @@ describe("a read refused for the minute's calls", () => {
     await advance(1000);
     expect(host.textContent).toContain("Waiting for the next minute");
     expect(host.textContent).toContain("this minute’s calls");
-    expect(host.querySelector('[role="status"]')).not.toBeNull();
     expect(host.textContent).not.toContain("failed");
     expect(host.textContent).not.toContain("rate_limited");
     pending = false;
@@ -211,6 +211,75 @@ describe("a read refused for the minute's calls", () => {
     const root = createRoot(host);
     await act(async () => root.render(<Loading label="Loading sources…" />));
     expect(host.textContent).not.toContain("Waiting for the next minute");
+    await act(async () => root.unmount());
+  });
+});
+
+describe("a source's title on a chip", () => {
+  async function chip(fetch: ReturnType<typeof vi.fn>) {
+    vi.stubGlobal("fetch", fetch);
+    let seen: Record<string, string | undefined> = {};
+    function Chip() {
+      seen = useSourceTitles("/api/v1/p/a/b/c", ["s1"]);
+      return null;
+    }
+    const root = createRoot(document.createElement("div"));
+    await act(async () => root.render(<QueryClientProvider client={client()}><Chip /></QueryClientProvider>));
+    return { title: () => seen["s1"], close: () => act(async () => root.unmount()) };
+  }
+
+  it("waits for the next minute when refused, and arrives by itself", async () => {
+    const fetch = vi.fn(async () => (fetch.mock.calls.length === 1 ? refused(20) : answer({ title: "Yard visit notes" })));
+    const c = await chip(fetch);
+    await advance(1000);
+    expect(c.title()).toBeUndefined();
+    await advance(25_000);
+    expect(fetch).toHaveBeenCalledTimes(2);
+    expect(c.title()).toBe("Yard visit notes");
+    await c.close();
+  });
+
+  it("asks once, as before, for anything else", async () => {
+    const fetch = vi.fn(async () => answer({ error: { code: "internal", message: "WhatBuild ran into a problem." } }, 500));
+    const c = await chip(fetch);
+    await advance(5 * 60_000);
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(c.title()).toBeUndefined();
+    await c.close();
+  });
+});
+
+describe("the region that says so", () => {
+  it("is in a modal dialog too, whose words the app's own would not reach", async () => {
+    HTMLDialogElement.prototype.showModal ??= function (this: HTMLDialogElement) {
+      this.setAttribute("open", "");
+    };
+    HTMLDialogElement.prototype.close ??= function (this: HTMLDialogElement) {
+      this.removeAttribute("open");
+    };
+    const host = document.createElement("div");
+    document.body.append(host);
+    const root = createRoot(host);
+    await act(async () => root.render(<Dialog open onClose={() => {}} title="Story style">A preview</Dialog>));
+    const region = host.querySelector("dialog [data-minute-announcer]")!;
+    expect(region.textContent).toBe("");
+    vi.stubGlobal("fetch", vi.fn(async () => refused(20)));
+    await api("GET", "/api/v1/p/a/b/c/sources").catch(() => {});
+    await advance(200);
+    expect(host.querySelector("dialog [data-minute-announcer]")).toBe(region);
+    expect(region.textContent).toContain("Waiting for the next minute");
+    await act(async () => root.unmount());
+  });
+
+  it("is mounted empty, and says nothing of a refused write", async () => {
+    const host = document.createElement("div");
+    document.body.append(host);
+    const root = createRoot(host);
+    await act(async () => root.render(<MinuteAnnouncer />));
+    vi.stubGlobal("fetch", vi.fn(async () => refused(20)));
+    await api("POST", "/api/v1/p/a/b/c/outcomes", { title: "x" }).catch(() => {});
+    await advance(200);
+    expect(host.textContent).toBe("");
     await act(async () => root.unmount());
   });
 });
@@ -291,6 +360,19 @@ describe("a product the app already holds", () => {
     expect(s.host.textContent).toBe("Couldn’t load: No such product is visible to you.");
     await s.close();
   });
+
+  for (const [what, error] of [
+    ["another code", { code: "too_busy", message: "Too busy.", details: { retry_after_seconds: 20 } }],
+    ["no wait", { code: "rate_limited", message: "Too many requests right now." }],
+    ["a wait longer than a minute", { code: "rate_limited", message: "Not until tomorrow.", details: { retry_after_seconds: 3600 } }],
+  ] as const)
+    it(`gives way to a 429 with ${what}: only a refusal for the minute's calls leaves it standing`, async () => {
+      vi.stubGlobal("fetch", vi.fn(async () => answer({ error }, 429)));
+      const s = await productScreen({ held: true });
+      await advance(1000);
+      expect(s.host.textContent).toBe(`Couldn’t load: ${error.message}`);
+      await s.close();
+    });
 
   it("gives way to the failure, as before, on an answer that is not a refusal", async () => {
     vi.useRealTimers();

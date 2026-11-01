@@ -60,15 +60,24 @@ design system: tokens, type, components and the rules for using them — is docu
   in place of the JSON ([§6.4](06-operations-and-adapters.md#routes-outside-the-registry)), which also tells the app, and the
   app asks again by making a new frame at the page's own address. That is how a page replaced in its frame is
   put back too, so a second load of one frame is never let through, whatever a page says of itself. Frames take
-  turns after the minute has turned and the screen's reads have had theirs, at a pace that
-  leaves half the minute's calls for what the person does next, stop when one is refused again, and wait while the tab
-  is hidden. Each is asked for three times at most, then **Try again** stands in its place; on a canvas, the board
+  turns after the minute has turned and the screen's reads have had theirs, one every 2.4 seconds, half of a 50-call
+  minute. No message changes that pace: a deployment with a much lower limit gets refused again, and one refused again stops the turns until
+  the next minute. Nothing takes a turn while the tab is hidden; it takes them up at the same pace when visible. Each refused frame is
+  asked for three times at most, then **Try again** stands in its place; on a canvas, the board
   says so above the pages at screen size, whatever the zoom. An attachment's preview runs no script to say so, so its short
-  page asks the person to close and open it again. A frame opening a prototype takes no such word from what is in it: a
-  prototype's route meets no limit. A page's own reload reaches the server without the session, since a sandboxed
-  document has an opaque origin, and spends nothing; putting a page back does spend a call, so a page put back three times
-  in a minute stops being shown, and the screen says why. ◆ Decision: the short page never reloads itself, and only the app
-  asks again, a bounded number of times, so no document, ours or a page that says the same, can spend the person's calls in a loop.
+  page asks the person to close and open it again.
+- **A page that keeps reloading costs a bounded number of calls, and is never gone for good.** A page's own reload
+  reaches the server without the session, since a sandboxed document has an opaque origin, and spends nothing; putting the page back
+  does spend a call. A screen puts back at most 10 frames a minute in all, and any one page at most 3. Past either, the page waits with
+  a short note and no frame, what took its place gone at once, and then comes back. After 3 such waits in a row without settling (staying in its frame for a minute)
+  it stops, saying *This page keeps reloading*, which blames no one, since a person's own button can do it, and offers **Try again**, which starts it
+  afresh; so does leaving the screen. Nothing is put back while the tab is hidden: it takes turns when visible, at the pace of frames, not all at once.
+  A prototype's route meets no limit, so a prototype's frames cost no calls: they take none of this budget, take no word of a refusal from
+  what is in them, and are put back at once, always, as a link to a missing file inside one needs.
+  ◆ Decision: the short page never reloads itself, and only the app asks again. A document can still spend the person's calls by reloading itself,
+  within these bounds. While the screen stays visible and it stays unsettled, that costs at most 10 calls a minute on a screen, and one page
+  makes at most 10 new frames before it stops (3 in each of three minutes, and the one after the last wait). Within the bounds it never waits, so it never stops: a single page reloading
+  slower than 3 times a minute goes on costing that for as long as the screen stays visible. The person can leave it, and a person's calls a minute start again each minute.
 - **No request the app knows will be refused.** Where the app can tell in advance that the server
   would refuse (a Story-only reader asking for members or the plan, a guest of the example organization asking
   for its people, an address whose id is not an id at all), it says so without asking. Where it cannot, it asks, and
@@ -800,7 +809,7 @@ page of a mockup reaches it by promotion, from the mockup (§7.7).
   the page only for a state the reader must know: the page is archived (with **Restore** for an
   editor), an earlier version is
   shown (with **Show the current version**), or the page tried to open another address in its
-  place, and was put back (three times in a minute, and it stops being shown).
+  place, and was put back (past what a minute allows, it waits for the next, §7.1).
 - **A page from a mockup** ([§4.11](04-data-model.md)) is shown at its own size, scaled down and
   never up, on paper as on the canvas, without the app's theme. Content taller than the page's
   height scrolls inside its frame, scaled with it. A control beside the crumbs, and `2` and `3` (from inside the page too), choose between

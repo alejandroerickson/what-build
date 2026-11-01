@@ -189,7 +189,7 @@ const REFUSED_FRAME_STYLE =
 export function refusedFrame(c: Context, refusal: AppError, comesBack = true) {
   const seconds = Math.max(1, Math.ceil(Number(refusal.details?.["retry_after_seconds"]) || 60));
   const theme = c.req.query("theme");
-  const told = JSON.stringify({ whatbuild: "frame-refused", retry_after_seconds: seconds, limit: Number(refusal.details?.["limit"]) || 0 });
+  const told = JSON.stringify({ whatbuild: "frame-refused", retry_after_seconds: seconds });
   const html =
     `<!doctype html><html lang="en"${theme === "light" || theme === "dark" ? ` ${THEME_ATTRIBUTE}="${theme}"` : ""}><head><meta charset="utf-8"><title>Waiting for the next minute</title>` +
     `<style>${REFUSED_FRAME_STYLE}</style></head><body><main><h1>Waiting for the next minute</h1>` +

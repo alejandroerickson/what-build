@@ -183,7 +183,7 @@ describe("a frame refused for the minute's calls", () => {
   function toldToTheApp(html: string) {
     const told = /postMessage\((\{.*?\}),"\*"\)/.exec(html);
     expect(told, html).not.toBeNull();
-    return JSON.parse(told![1]!) as { whatbuild: string; retry_after_seconds: number; limit: number };
+    return JSON.parse(told![1]!) as { whatbuild: string; retry_after_seconds: number };
   }
 
   it("answers a short page in the product's words, with the refusal's status and wait, and never the JSON", async () => {
@@ -200,8 +200,8 @@ describe("a frame refused for the minute's calls", () => {
         expect(html, what).toContain("this minute’s calls");
         for (const inner of ["rate_limited", "\"error\"", "requests_per_minute"]) expect(html, what).not.toContain(inner);
         const told = toldToTheApp(html);
-        expect(told, what).toMatchObject({ whatbuild: "frame-refused", limit: 0 });
-        expect(told.retry_after_seconds, what).toBe(Number(r.headers.get("retry-after")));
+        // Its wait and nothing else: the pace of frames is the app's, and no message sets it.
+        expect(told, what).toEqual({ whatbuild: "frame-refused", retry_after_seconds: Number(r.headers.get("retry-after")) });
       }
     } finally {
       reset();
@@ -314,6 +314,13 @@ describe("a frame refused for the minute's calls", () => {
         // An image, a video or a download keeps the JSON, as an API caller's does.
         const asImage = await ned.api("GET", `${P}/sources/${seeded}/${route}?path=notes.pdf`, undefined, { "sec-fetch-dest": "image" });
         expect(asImage.headers.get("content-type"), route).toMatch(/^application\/json/);
+        // Its address says nothing here, since a link to an attachment can hold any query: only the browser's word counts.
+        for (const headers of [{}, { accept: "text/html" }, { "sec-fetch-dest": "document", accept: "text/html" }] as Record<string, string>[]) {
+          const named = await ned.api("GET", `${P}/sources/${seeded}/${route}?path=notes.pdf&frame=1`, undefined, headers);
+          expect(named.status, route).toBe(429);
+          expect(named.headers.get("content-type"), route).toMatch(/^application\/json/);
+          expect(named.body.error.code, route).toBe("rate_limited");
+        }
       }
     } finally {
       reset();
