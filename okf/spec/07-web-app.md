@@ -534,10 +534,14 @@ The sources, and everything for reading them.
     marked, from the match its line shows: `&at=` says where that match starts (its `match_start`,
     [§8.2](08-search.md)), and the find starts at the first match it marks from there, counted as
     they are drawn, so a word in a link's address moves nothing (without it, at the first). The find
-    marks each word with any ending from the root search reads, and keeps a word of four letters
-    whole ("note" marks notes, not every word that starts with "not"). What a line marks and the find
-    does not (`data` for `date`, whose root is `dat`; a word that differs by its accents; an id
-    written as its words) has no mark to stand on, and the find starts at the next it marks. A very long text,
+    marks each word with any ending from the root search reads, but narrower where a root alone would
+    mark unrelated words: a word whose ending doubled a letter marks its own forms ("planning" marks
+    "plan", "plans" and "planned", not "plane"), a word of four letters, or one whose root would be
+    shorter, stays whole ("note" and "notes" mark notes, not every word that starts with "not"), and an
+    id is taken as written. What a line marks and the find does not (`data` for `date`, whose root is
+    `dat`; `moving` for `move`; a word that differs by its accents; an id written as its words; a phrase
+    with punctuation or a bold mark between its words; an image's description) has no mark to stand on,
+    and the find starts at the next it marks. A very long text,
     unfolded, shows its first 300,000 characters and "Show all N characters", unless a find is on. Editors get **Edit**, once the text has
     loaded, a dialog holding the Markdown (saving it empty removes the text; it names the etag of
     the text it opened, and when someone changed or removed the text meanwhile it does what the

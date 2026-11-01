@@ -18,8 +18,7 @@ describe("how plain search reads a query", () => {
     // Counting a source's matches reads the pieces its terms match as prefixes, so every place the
     // find marks is in one of them: the find's root of a word starts with search's.
     for (const w of ["pricing", "prices", "price", "planning", "planned", "note", "notes", "lies", "crew", "crews", "messages", "message", "ux", "scheduling", "quotes", "cb26-20734", "2026"]) {
-      const marked = /\(\?:(.*)\[\\p\{L\}\\p\{N\}\]\*\)$/.exec(findPattern(w)!.source)![1]!.replace(/\\/g, "");
-      expect(marked.startsWith(wordRoot(w)), `${w}: ${marked} from ${wordRoot(w)}`).toBe(true);
+      for (const marked of /\(\?:(.*)\)$/.exec(findPattern(w)!.source)![1]!.replace(/\\/g, "").split("|")) expect(marked.startsWith(wordRoot(w)), `${w}: ${marked} from ${wordRoot(w)}`).toBe(true);
     }
   });
 

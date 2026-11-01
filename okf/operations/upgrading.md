@@ -29,9 +29,8 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
   the first match of that stretch of text, even one where a searched word only starts like a word on
   the page; and on a title too long for the palette's line, two words show together where they stand
   together, though one of them also comes earlier in the title. The find in a source's text now marks
-  the other forms of a word whose ending doubles a letter, as search reads it (`planning` marks
-  `plans`), so the "N matches" of a search for such a word, and the find's "… of N", may rise
-  together. Each of plain search's `hits` gains `match_start`, where in its field the first match its
+  the other forms of a word whose ending doubles a letter (`planning` marks `plan` and `plans`), so the
+  "N matches" of a search for such a word, and the find's "… of N", may rise together. Each of plain search's `hits` gains `match_start`, where in its field the first match its
   excerpt marks starts; `char_start` still says where its piece starts.
 - **A PDF's short lines read as the page does (PDF parser 6).** It asks nothing of a deployment
   beyond the release's rehearsal with hostile files, as for any change to parsing; the list now has

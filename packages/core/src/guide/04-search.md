@@ -54,7 +54,8 @@ code-point offsets into that field.
   `next_cursor` back as `cursor` for the rest.
 - With `scope: "all"`, assumptions come on the first page only; later pages hold source hits.
 - In `plain` mode a source's `hits` are its best places: `char_start` says where the piece starts in
-  its field, and `match_start` where the first match the hit's excerpt marks starts.
+  its field, and `match_start` where the first match the hit's excerpt marks starts, or the piece's
+  start when it marks none. It can fall inside a link's address or title, which the text holds.
 - `derived_read(action="text", offset=…)` reads around a hit in the text.
 - Each text is matched in pieces of about 1,500 characters, so AND, OR and NOT combine terms within
   one piece: terms that sit far apart in a text may not match together.
