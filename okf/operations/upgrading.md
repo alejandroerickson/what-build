@@ -57,8 +57,8 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
   or, after five attempts, `the last because the process parsing it was killed`. A reading whose
   process was killed from outside is now tried again rather than recorded at once. A deployment may
   notice a line in its log for each parse, `parse: the process parsing a file …`, which gives the
-  peak of the parse's process and what the server holds. A clean shutdown now puts the job it
-  interrupts back in the queue, with the attempt not spent for a job's first hour, so the next instance takes it at once.
+  peak of the parse's process and what the server holds. A clean shutdown now puts a parse it
+  interrupts back in the queue, where it is tried again shortly as one of its five attempts.
 - **`WHATBUILD_PARSE_MEMORY_MB` now defaults to 288, down from 384**, for whoever has not set it. A
   parse's process now counts beside the server in the instance's memory, and at 384 the two came
   too near 1 GiB; 288 leaves the sixth of it that the [rehearsal](dev-deployment.md#rehearsing-a-release)
