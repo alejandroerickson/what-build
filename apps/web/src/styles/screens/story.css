@@ -380,6 +380,10 @@
   flex: 1 0 auto;
   flex-direction: column;
 }
+/* A page waiting to come back, or until the person says to try again, in place of its frame. */
+.story-frame-stopped {
+  padding: var(--s-6);
+}
 /* A mockup page fitted to the screen: the wrap takes the room left under the crumbs whatever the
    page's size, so the page can be scaled to it, and the canvas does not scroll. */
 .story-frame-wrap[data-fit] {

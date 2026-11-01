@@ -833,6 +833,17 @@ a.chip:hover {
   gap: var(--s-2h);
   padding: var(--s-2) 0;
 }
+/* Refused for the minute's calls: what a loading place waits for, in words, above its skeleton. */
+.loading-minute {
+  display: grid;
+  gap: var(--s-0);
+  padding: var(--s-2) var(--sheet-px);
+}
+.loading-minute p {
+  margin: 0;
+  max-width: 68ch;
+  color: var(--muted);
+}
 .skeleton {
   display: block;
   height: 10px;

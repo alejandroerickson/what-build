@@ -7,7 +7,7 @@ import { MutationCache, QueryClient, QueryClientProvider } from "@tanstack/react
 import { StrictMode, useEffect, useRef } from "react";
 import { createRoot } from "react-dom/client";
 import { createBrowserRouter, Navigate, Outlet, RouterProvider, useLocation, useNavigate, useParams, useRouteError } from "react-router";
-import { ApiError, retryRead, setUnauthenticatedHandler } from "./lib/api.ts";
+import { ApiError, isMinuteRefusal, readDefaults, setUnauthenticatedHandler } from "./lib/api.ts";
 import { loadNewRelease, releasedSinceLoad } from "./lib/new-release.ts";
 import { CurrentTenantAddress, productHome, ProductProvider, RequireSession, useProduct } from "./lib/session.tsx";
 import { ConnectPage } from "./routes/connect.tsx";
@@ -35,11 +35,11 @@ import { MockupPage, MockupsIndex } from "./routes/mockups.tsx";
 import { CookieNotice } from "./shell/CookieNotice.tsx";
 import { PlainShell, ProductShell } from "./shell/Shell.tsx";
 import { usePageTitle } from "./shell/slots.tsx";
-import { Button, ButtonLink, EmptyState, Sheet, SheetHeader, ToastProvider, useToast } from "./ui/index.tsx";
+import { Button, ButtonLink, EmptyState, MinuteAnnouncer, Sheet, SheetHeader, ToastProvider, useToast } from "./ui/index.tsx";
 
 const queryClient: QueryClient = new QueryClient({
   defaultOptions: {
-    queries: { retry: retryRead, staleTime: 10_000, refetchOnWindowFocus: false },
+    queries: { ...readDefaults, staleTime: 10_000, refetchOnWindowFocus: false },
   },
   // Every write counts toward the day's allowances, so what the organization's limits say used is read again after one.
   mutationCache: new MutationCache({ onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["limits"] }) }),
@@ -84,16 +84,25 @@ const devRoutes = import.meta.env.DEV
   ? [{ element: <PlainShell><Outlet /></PlainShell>, children: [{ path: "/_system", lazy: async () => ({ Component: (await import("./system/SystemPage.tsx")).SystemPage }) }] }]
   : [];
 
-function ProductNotFound({ error }: { error: unknown }) {
-  return <PlainShell>{error instanceof ApiError && error.status === 404 ? <NotVisible what="product" /> : <ProductNotLoaded error={error} />}</PlainShell>;
+function ProductNotFound({ error, retry }: { error: unknown; retry: () => void }) {
+  return <PlainShell>{error instanceof ApiError && error.status === 404 ? <NotVisible what="product" /> : <ProductNotLoaded error={error} retry={retry} />}</PlainShell>;
 }
 
-function ProductNotLoaded({ error }: { error: unknown }) {
+function ProductNotLoaded({ error, retry }: { error: unknown; retry: () => void }) {
   usePageTitle("Product not loaded");
   return (
     <Sheet labelledBy="product-missing-title">
       <SheetHeader level={1} id="product-missing-title" title="This product couldn’t be loaded" />
-      <EmptyState size="inline" action={<ButtonLink to="/">Your products</ButtonLink>}>
+      <EmptyState
+        size="inline"
+        action={
+          <>
+            {/* Refused for the minute's calls past what the app asks by itself: nothing is wrong that asking again won't mend. */}
+            {isMinuteRefusal(error) ? <Button variant="primary" onClick={retry}>Try again</Button> : null}
+            <ButtonLink to="/">Your products</ButtonLink>
+          </>
+        }
+      >
         {error instanceof Error ? error.message : "Reload the page to try again."}
       </EmptyState>
     </Sheet>
@@ -170,6 +179,7 @@ function Root() {
     <>
       <Outlet />
       <CookieNotice />
+      <MinuteAnnouncer />
     </>
   );
 }
@@ -210,7 +220,7 @@ const router = createBrowserRouter([{ element: <Root />, errorElement: <RouteErr
         path: "/t/:tenant/:team/:product",
         element: (
           <CurrentTenantAddress>
-            <ProductProvider fallback={(e) => <ProductNotFound error={e} />}>
+            <ProductProvider fallback={(e, retry) => <ProductNotFound error={e} retry={retry} />}>
               {(ctx) => (
                 <ProductShell product={ctx.product} app={ctx.app}>
                   <Outlet />

@@ -21,3 +21,10 @@ export const MOCKUP_PAGE_SANDBOX = "allow-scripts allow-forms allow-popups allow
  * script, by its nonce. No popups and no forms: a card is a picture.
  */
 export const IDEA_CARD_SANDBOX = "allow-scripts";
+
+/**
+ * What a frame is answered when its call is refused for the minute's calls: WhatBuild's own few words
+ * and the one script that tells the app. No popups and no forms, so nothing about it is wider than
+ * any frame it lands in. A preview's frame, which runs no script, gets the same words with none.
+ */
+export const REFUSED_FRAME_SANDBOX = "allow-scripts";

@@ -3,8 +3,9 @@ import { STORY_PAGE_SANDBOX } from "@whatbuild/core/page-sandbox";
 import { useEffect, useRef, useState } from "react";
 import { api } from "../lib/api.ts";
 import { attribution, relativeTime } from "../lib/format.ts";
+import { useFrameReturn } from "../lib/minute.ts";
 import { useProduct } from "../lib/session.tsx";
-import { Button, CopyField, Dialog, Glyph, Loading, Segmented } from "../ui/index.tsx";
+import { Button, CopyField, Dialog, FrameStopped, Glyph, Loading, Segmented } from "../ui/index.tsx";
 import type { Actor } from "./story-model.ts";
 
 /** A house style as story.get_style lists it. */
@@ -56,6 +57,12 @@ function Specimen({ src, title, phone }: { src: string; title: string; phone: bo
   const box = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(0);
   const [loaded, setLoaded] = useState(false);
+  const frame = useRef<HTMLIFrameElement>(null);
+  const [reloads, setReloads] = useState(0);
+  const refusal = useFrameReturn(frame, () => {
+    setLoaded(false);
+    setReloads((n) => n + 1);
+  });
   useEffect(() => setLoaded(false), [src, phone]);
   useEffect(() => {
     const el = box.current;
@@ -68,9 +75,12 @@ function Specimen({ src, title, phone }: { src: string; title: string; phone: bo
   const frameStyle = phone && width > PHONE_WIDTH ? { width: PHONE_WIDTH } : scale < 1 ? { width: PREVIEW_WIDTH, height: `${100 / scale}%`, transform: `scale(${scale})` } : undefined;
   return (
     <div ref={box} className={`style-specimen${phone ? " style-specimen-phone" : ""}`}>
-      {width ? (
+      {refusal.stopped ? (
+        <FrameStopped what="This preview" refusal={refusal} />
+      ) : width ? (
         <iframe
-          key={`${src}|${phone ? "phone" : "desktop"}`}
+          key={`${src}|${phone ? "phone" : "desktop"}|${reloads}`}
+          ref={frame}
           title={title}
           className="style-specimen-frame"
           sandbox={STORY_PAGE_SANDBOX}
@@ -80,7 +90,7 @@ function Specimen({ src, title, phone }: { src: string; title: string; phone: bo
           style={frameStyle}
         />
       ) : null}
-      {loaded ? null : (
+      {loaded || refusal.stopped ? null : (
         <div className="style-specimen-status">
           <Loading variant="lines" lines={5} label="Loading the preview…" />
         </div>
@@ -143,7 +153,7 @@ export function StyleDialog({ view, scheme, onClose }: { view: StyleView; scheme
             <Segmented label="Preview scheme" value={previewScheme} onChange={(id) => setPreviewScheme(id as "light" | "dark")} items={[{ id: "light", label: "Light" }, { id: "dark", label: "Dark" }]} />
             <Segmented label="Preview size" value={device} onChange={(id) => setDevice(id as "desktop" | "phone")} items={[{ id: "desktop", label: "Desktop" }, { id: "phone", label: "Phone" }]} />
           </div>
-          <Specimen src={src} title={`${title}, a sample Story page`} phone={device === "phone"} />
+          <Specimen key={src} src={src} title={`${title}, a sample Story page`} phone={device === "phone"} />
           <div className="style-about">
             {picked === "current" && current ? (
               <p className="small muted">

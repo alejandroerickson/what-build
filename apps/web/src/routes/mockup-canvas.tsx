@@ -1,9 +1,10 @@
 import { MOCKUP_PAGE_SANDBOX } from "@whatbuild/core/page-sandbox";
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type RefObject } from "react";
 import { flushSync } from "react-dom";
 import { plural } from "../lib/format.ts";
+import { tryStoppedFramesAgain, useFrameReturn, useMinuteWait } from "../lib/minute.ts";
 import { useProduct } from "../lib/session.tsx";
-import { Glyph, Menu, MenuItem, MenuNote, MenuSeparator } from "../ui/index.tsx";
+import { Button, Callout, Glyph, keepFocusAt, Menu, MenuItem, MenuNote, MenuSeparator } from "../ui/index.tsx";
 import { COARSE_POINTER_QUERY, isTypingTarget, useMediaQuery } from "../ui/media.ts";
 import { wheelZoomFactor } from "./mockup-wheel-zoom.ts";
 import type { PageView } from "./story-flip.tsx";
@@ -112,6 +113,13 @@ type FrameSignal =
 /** The keys a page's frame passes on to the canvas: focus mode's, the arrows, and the canvas's own. */
 const FRAME_KEYS = new Set(["f", "Escape", "ArrowLeft", "ArrowRight", " ", "h", "H", "v", "V", "0", "1", "2", "3", "+", "=", "-", "_"]);
 
+/** What a page says in place of its frame while it comes back, waits, or has stopped reloading. */
+const HELD_WORDS = {
+  coming: "This page is coming back.",
+  reloading: "This page keeps reloading. It comes back with the next minute.",
+  "reloading-stopped": "This page keeps reloading, so WhatBuild stopped bringing it back.",
+};
+
 /**
  * One page in its sandbox, at its own size. The frame is the Story's: the same sandbox, and the
  * frame script that opens links in a new tab. Told it is on a canvas, the script passes on the
@@ -123,6 +131,12 @@ const FRAME_KEYS = new Set(["f", "Escape", "ArrowLeft", "ArrowRight", " ", "h", 
  * second load is not a replacement: each of the prototype's documents says it has loaded
  * (frame-ready, from the frame script the prototype route adds), and a load that does not say so
  * within a moment is put back.
+ *
+ * A page refused for the minute's calls gets a short document that says so and tells the canvas,
+ * and comes back the way a page is put back: as a new frame, whose first load is its first. A second
+ * load of one frame is never let through, whatever a page says of itself. Each new frame is a call,
+ * so a page that keeps being replaced waits for the next minute with no frame on show, and in time
+ * stops until the person says to (useFrameReturn). A prototype's frames cost no calls, and meet none of that.
  */
 function PageFrame({ page, src, title, selected, onSignal, frameRef, prototype }: {
   page: CanvasPage;
@@ -140,18 +154,17 @@ function PageFrame({ page, src, title, selected, onSignal, frameRef, prototype }
   const ready = useRef(false);
   const waiting = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [reloads, setReloads] = useState(0);
-  const [replaced, setReplaced] = useState(false);
   // The sandboxed page has an opaque origin, so the message cannot be addressed to one.
   const hello = useCallback(() => {
     frame.current?.contentWindow?.postMessage({ whatbuild: "canvas-host" }, "*");
     frame.current?.contentWindow?.postMessage({ whatbuild: "app-home", home: `${window.location.origin}${app}` }, "*");
   }, [app]);
-  const putBack = useCallback(() => {
+  const newFrame = useCallback(() => {
     ready.current = false;
     loads.current = 0;
-    setReplaced(true);
     setReloads((n) => n + 1);
   }, []);
+  const { stopped, asking, reloading, wasReplaced, replaced: putBack } = useFrameReturn(frame, newFrame, !prototype);
   useEffect(() => () => {
     if (waiting.current) clearTimeout(waiting.current);
   }, []);
@@ -183,37 +196,81 @@ function PageFrame({ page, src, title, selected, onSignal, frameRef, prototype }
   }, [onSignal, page.page_id, page.width, prototype, hello]);
   return (
     <div ref={frameRef} className="xc-frame" data-page={page.page_id} data-selected={selected ? "" : undefined} style={{ width: page.width, height: page.height }}>
-      <iframe
-        key={reloads}
-        ref={frame}
-        title={title}
-        width={page.width}
-        height={page.height}
-        loading="lazy"
-        sandbox={prototype?.sandbox ?? MOCKUP_PAGE_SANDBOX}
-        referrerPolicy="no-referrer"
-        src={prototype ? src : `${src}?frame=1`}
-        onLoad={() => {
-          if (prototype) {
-            // One of the prototype's own documents has said so already, or will in a moment.
-            if (ready.current) {
-              ready.current = false;
-              hello();
-            } else waiting.current = setTimeout(() => {
-              waiting.current = null;
+      {stopped || reloading ? (
+        // At the page's own scale, so it still reads with the canvas zoomed out. Try again is above the board at screen size.
+        <p className="xc-refused" style={{ fontSize: Math.max(20, page.width * 0.032) }}>
+          {asking ? HELD_WORDS.coming : reloading ? HELD_WORDS[reloading] : "This page didn’t come back."}
+        </p>
+      ) : (
+        <iframe
+          key={reloads}
+          ref={frame}
+          title={title}
+          width={page.width}
+          height={page.height}
+          loading="lazy"
+          sandbox={prototype?.sandbox ?? MOCKUP_PAGE_SANDBOX}
+          referrerPolicy="no-referrer"
+          src={prototype ? src : `${src}?frame=1`}
+          onLoad={() => {
+            if (prototype) {
+              // One of the prototype's own documents has said so already, or will in a moment.
+              if (ready.current) {
+                ready.current = false;
+                hello();
+              } else waiting.current = setTimeout(() => {
+                waiting.current = null;
+                putBack();
+              }, 1500);
+              return;
+            }
+            loads.current += 1;
+            if (loads.current > 1) {
               putBack();
-            }, 1500);
-            return;
-          }
-          loads.current += 1;
-          if (loads.current > 1) {
-            putBack();
-            return;
-          }
-          hello();
-        }}
-      />
-      {replaced ? <p className="xc-replaced">This page tried to open another address in its place. WhatBuild put it back.</p> : null}
+              return;
+            }
+            hello();
+          }}
+        />
+      )}
+      {wasReplaced && !reloading ? <p className="xc-replaced">This page tried to open another address in its place. WhatBuild put it back.</p> : null}
+    </div>
+  );
+}
+
+/**
+ * What the board says of pages waiting or stopped, at screen size above them, however far the canvas
+ * is zoomed out: refused for the minute's calls, or reloading too often to bring back at once. Try
+ * again goes with the note when it is pressed, so focus stays with the board the pages come back to.
+ * A region mounted with the app announces all of it (MinuteAnnouncer), since this comes and goes with its words.
+ */
+function PagesNote({ board }: { board: RefObject<HTMLElement | null> }) {
+  const wait = useMinuteWait();
+  if (!wait.frames && !wait.stopped && !wait.reloading && !wait.reloadingStopped) return null;
+  const tryAgain = () => {
+    keepFocusAt(board.current);
+    tryStoppedFramesAgain();
+  };
+  const action = <Button size="sm" onClick={tryAgain}>Try again</Button>;
+  const keep = (n: number) => `${plural(n, "page")} keep${n === 1 ? "s" : ""} reloading`;
+  return (
+    <div className="xc-note">
+      {wait.stopped ? (
+        <Callout tone="attention" title={`${plural(wait.stopped, "page")} didn’t come back`} action={action}>
+          Your calls a minute keep running out, so WhatBuild stopped asking.
+        </Callout>
+      ) : wait.frames && wait.waiting ? (
+        <Callout title="Waiting for the next minute">You’ve used this minute’s calls. These pages come back by themselves.</Callout>
+      ) : wait.frames ? (
+        <Callout title="Bringing these pages back">A few at a time, so this minute’s calls last.</Callout>
+      ) : null}
+      {wait.reloadingStopped ? (
+        <Callout tone="attention" title={keep(wait.reloadingStopped)} action={wait.stopped ? undefined : action}>
+          Each time costs one of your calls a minute, so WhatBuild stopped bringing {wait.reloadingStopped === 1 ? "it" : "them"} back.
+        </Callout>
+      ) : wait.reloading ? (
+        <Callout title={keep(wait.reloading)}>{wait.reloading === 1 ? "It comes" : "They come"} back with the next minute.</Callout>
+      ) : null}
     </div>
   );
 }
@@ -740,6 +797,7 @@ export function Canvas({ version, pageSrc, selected, onSelect, onKey, canFocus, 
         </ol>
       </div>
 
+      <PagesNote board={viewport} />
       <div className="xc-tools" role="toolbar" aria-label="Canvas">
         <div className="xc-modes" role="radiogroup" aria-label="Mode">
           <button type="button" role="radio" aria-checked={mode === "pan"} className="xc-tool" onClick={() => setMode("pan")} title="Pan (H)">

@@ -23,6 +23,16 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
 
 ## Unreleased
 
+- **When someone's calls a minute run out, the web app waits and comes back by itself.** It asks
+  nothing of a deployment and changes no limit. People will notice it: a read refused with
+  `429 rate_limited` asks again once it may succeed, up to three times, and whatever is loading says it is waiting
+  for the next minute where a screen used to fail; a product they already hold stays on screen through a refused
+  re-check, and a `403` or a `404` still takes it away; a refused Story page, canvas page, Idea card or style preview
+  answers a short page in the app's words in place of JSON, and comes back without a reload, one every 2.4 seconds
+  and at most three times before it offers Try again. Search says the same and stops showing what other words found. A page that keeps
+  reloading is put back at most 3 times a minute, and 10 in all on a screen; past that it waits for the next minute with a short
+  note, and after 3 waits in a row offers Try again. Prototypes meet none of this. Agents and API callers still get the same JSON refusal at the same
+  addresses, and every frame still counts as a call.
 - **A guest of the example organization may make 120 calls a minute, up from 50.** It asks nothing of a
   deployment, and only concerns one with an example organization. Opening a mockup canvas takes a
   call for each of its pages, so someone reading at an ordinary pace could reach 50. Each guest may

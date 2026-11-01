@@ -1,12 +1,12 @@
 import { createContext, useCallback, useContext, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import { useLocation, useNavigate } from "react-router";
 import { track } from "../lib/analytics.ts";
-import { ApiError } from "../lib/api.ts";
+import { ApiError, waitsForMinute } from "../lib/api.ts";
 import { nestQuotes } from "../lib/format.ts";
 import { findPattern } from "@whatbuild/core/find-in-text";
 import { findWords, hitHref, hitMeta, kindOf, leadTo, Marked, matchedCount, resultHref, resultMeta, useDebounced, useFind, useRecentSearches, type FindResponse, type Marks } from "../lib/find.tsx";
 import type { Product } from "../lib/session.tsx";
-import { Glyph, OneLine, type GlyphName } from "../ui/index.tsx";
+import { Glyph, MinuteWaitWords, OneLine, type GlyphName } from "../ui/index.tsx";
 import { isTypingTarget, PHONE_QUERY, shortcutLabel, useMediaQuery } from "../ui/media.ts";
 
 /**
@@ -129,7 +129,9 @@ function Palette({ app, base, product, text, setText, via, onClose }: { app: str
   const q = useDebounced(text, 90);
   const res = useFind(base, q);
   const typed = Boolean(text.trim());
-  const d = typed ? res.data : undefined;
+  const waits = typed && waitsForMinute(res);
+  // What the words before these found is no answer to them, and nothing to choose from a minute on.
+  const d = typed && !(waits && res.isPlaceholderData) ? res.data : undefined;
   const phone = useMediaQuery(PHONE_QUERY);
   const opts = useMemo<Option[]>(
     () => (typed ? options(app, d, phone) : recent.map((r) => ({ key: `recent:${r}`, fill: r, glyph: "clock", title: r }))),
@@ -181,7 +183,7 @@ function Palette({ app, base, product, text, setText, via, onClose }: { app: str
     onClose();
     navigate(`${app}/search?q=${encodeURIComponent(words)}`);
   };
-  const searching = typed && (res.isPending || q !== text);
+  const searching = typed && (res.isPending || waits || q !== text);
   const note = d ? understood(d) : null;
   // Every match, not only the best 60 the screen lists.
   const total = d ? matchedCount(d) : undefined;
@@ -238,6 +240,10 @@ function Palette({ app, base, product, text, setText, via, onClose }: { app: str
             <kbd>{shortcutLabel("↵")}</kbd>
           </button>
         ) : null}
+      </div>
+      {/* Mounted before it has anything to say, so it is heard: outside a modal dialog nothing is. */}
+      <div className="find-pal-wait" role="status">
+        {waits ? <MinuteWaitWords /> : null}
       </div>
       {note ? <p className="find-pal-note">{note}</p> : null}
       {!typed && recent.length ? (

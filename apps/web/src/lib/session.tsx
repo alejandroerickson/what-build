@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createContext, useContext, type ReactNode } from "react";
 import { Navigate, useLocation, useParams } from "react-router";
 import { Loading } from "../ui/index.tsx";
-import { api, ApiError } from "./api.ts";
+import { api, ApiError, isMinuteRefusal } from "./api.ts";
 import type { ReadOnly } from "./limits.ts";
 import { forgetPersonalState } from "./local-state.ts";
 
@@ -193,20 +193,24 @@ export function useProductParams() {
   return { tenant, team, product, path: `${tenant}/${team}/${product}` };
 }
 
-export function ProductProvider({ children, fallback }: { children: (ctx: ProductCtx) => ReactNode; fallback: (error: unknown) => ReactNode }) {
+export function ProductProvider({ children, fallback }: { children: (ctx: ProductCtx) => ReactNode; fallback: (error: unknown, retry: () => void) => ReactNode }) {
   const { path } = useProductParams();
   const q = useQuery({ queryKey: ["product", path], queryFn: () => api<Product>("GET", `/api/v1/p/${path}`) });
   if (q.isPending) return <div className="center-page"><Loading /></div>;
-  if (q.isError) return <>{fallback(q.error)}</>;
+  // A re-check refused for the minute's calls says nothing of the person's access, so the product the
+  // app holds stays; everything in it is read with the same check, and refused the same. Any other
+  // failure stands, a 403 or a 404 above all: someone whose access was removed does not keep it.
+  const product = q.data;
+  if (!product || (q.isError && !isMinuteRefusal(q.error))) return <>{fallback(q.error, () => void q.refetch())}</>;
   const ctx: ProductCtx = {
-    product: q.data,
+    product,
     api: `/api/v1/p/${path}`,
     app: `/t/${path}`,
-    canWrite: (q.data.your_role === "editor" || q.data.your_role === "admin") && !q.data.archived_at && !q.data.tenant.read_only,
-    readOnlyOrganization: Boolean(q.data.tenant.read_only),
-    isAdmin: q.data.your_role === "admin",
-    canDelete: q.data.your_role === "admin" && !q.data.archived_at,
-    storyOnly: q.data.your_role === "reader",
+    canWrite: (product.your_role === "editor" || product.your_role === "admin") && !product.archived_at && !product.tenant.read_only,
+    readOnlyOrganization: Boolean(product.tenant.read_only),
+    isAdmin: product.your_role === "admin",
+    canDelete: product.your_role === "admin" && !product.archived_at,
+    storyOnly: product.your_role === "reader",
   };
   try {
     localStorage.setItem("whatbuild.last-product", path);
