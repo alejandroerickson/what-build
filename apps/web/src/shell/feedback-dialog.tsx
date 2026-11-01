@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { useLocation } from "react-router";
 import { api } from "../lib/api.ts";
 import { useMe } from "../lib/session.tsx";
-import { Button, ChoiceRow, Dialog, ErrorCallout, Segmented, TextArea, tooLong, useToast } from "../ui/index.tsx";
+import { Button, characters, ChoiceRow, Dialog, ErrorCallout, Segmented, TextArea, tooLong, useToast } from "../ui/index.tsx";
 import { productSection } from "./panel.tsx";
 import { releaseView, useRelease, type Release } from "./release.tsx";
 
@@ -83,8 +83,8 @@ export function FeedbackDialog({ open, onClose }: { open: boolean; onClose: () =
     },
   });
   const busy = send.isPending;
-  const chars = message.trim().length;
-  const ready = chars > 0 && !tooLong(message, MAX) && !busy;
+  const chars = characters(message);
+  const ready = Boolean(message.trim()) && !tooLong(message, MAX) && !busy;
 
   // The message takes focus once the dialog is open (its own effect has opened it by now).
   useEffect(() => {

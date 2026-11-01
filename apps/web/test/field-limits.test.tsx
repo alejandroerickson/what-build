@@ -5,7 +5,7 @@ import { act, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { MemoryRouter, Route, Routes } from "react-router";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
-import { TextArea, TextField, tooLong } from "../src/ui/field.tsx";
+import { characters, TextArea, TextField, tooLong } from "../src/ui/field.tsx";
 
 // A limit on a field is never the browser's, which cuts what is pasted without a word. Text past a
 // limit stays as typed, the field says how much is over, and the form refuses to save it.
@@ -147,11 +147,9 @@ describe.each([
     expect(live.textContent).toBe("Within the limit now.");
   });
 
-  it("says nothing at the limit, and counts one character over as one, not as what is trimmed", async () => {
+  it("says nothing at the limit, and counts one character over as one", async () => {
     const host = await mount(<Field as={Control} limit={10} start="" />);
     await act(async () => paste(field(host), words(10)));
-    expect(host.querySelector(".field-error")).toBeNull();
-    await act(async () => paste(field(host), `  ${words(10)}\n`));
     expect(host.querySelector(".field-error")).toBeNull();
     await act(async () => paste(field(host), words(11)));
     expect(host.querySelector(".field-error")?.textContent).toBe("1 character over the limit of 10. Shorten it to save.");
@@ -165,10 +163,15 @@ describe.each([
 });
 
 describe("tooLong", () => {
-  it("counts as the server does, without what is trimmed", () => {
+  it("counts all of the text in characters, as the server's limits do", () => {
     expect(tooLong("x".repeat(300), 300)).toBe(false);
-    expect(tooLong(`${"x".repeat(300)}\n`, 300)).toBe(false);
     expect(tooLong("x".repeat(301), 300)).toBe(true);
+    // The server trims only some of what it is sent, so what is at the edges counts everywhere.
+    expect(tooLong(`${"x".repeat(300)}\n`, 300)).toBe(true);
+    expect(tooLong("😀".repeat(150), 150)).toBe(false);
+    expect(tooLong("😀".repeat(151), 150)).toBe(true);
+    expect(tooLong("\ud83d".repeat(150), 150)).toBe(false);
+    expect(characters("a😀b")).toBe(3);
   });
 });
 
@@ -258,7 +261,7 @@ describe("submitting feedback", () => {
     expect(message.value).toHaveLength(4001);
     expect(document.querySelector("dialog .field-error")?.textContent).toBe("1 character over the limit of 4,000. Shorten it to save.");
     expect(document.querySelector("dialog .field-hint")?.textContent).toBe("4,001 of 4,000 characters");
-    await act(async () => paste(message, `${words(4000)} \n`));
+    await act(async () => paste(message, words(4000)));
     expect(document.querySelector("dialog .field-error")).toBeNull();
     expect(document.querySelector("dialog .field-hint")?.textContent).toBe("4,000 of 4,000 characters");
     await act(async () => paste(message, words(4001)));
@@ -276,16 +279,29 @@ describe("every form with a limit", () => {
   const sources = files(SRC).map((path) => ({ path: path.slice(SRC.length + 1), text: readFileSync(path, "utf8") }));
 
   it("sets it on the app's field, never on the browser's", () => {
-    for (const { path, text } of sources) expect(text.match(/<(input|textarea)\b[^>]*?\bmaxLength=/g) ?? [], path).toEqual([]);
+    for (const { path, text } of sources) expect(text.match(/<(?:input|textarea)\b(?:[^>]|=>)*?\bmaxLength=/g) ?? [], path).toEqual([]);
   });
 
   it("refuses to save past it, as its field says it does", () => {
     const limited = sources.filter(({ path, text }) => !path.startsWith("ui/") && /\bmaxLength=\{/.test(text));
     expect(limited.length).toBeGreaterThan(10);
     for (const { path, text } of limited) {
-      const limits = new Set([...text.matchAll(/\bmaxLength=\{([A-Z_]+)\}/g)].map((m) => m[1]!));
-      // Slugs are refused by their own check, and any other limit is a named constant the form tests.
-      for (const limit of limits) expect(text, `${path}: ${limit}`).toMatch(new RegExp(`tooLong\\([^)]*\\b${limit}\\)`));
+      const limits = [...text.matchAll(/\bmaxLength=\{([^}]+)\}/g)].map((m) => m[1]!);
+      // Slugs are refused by their own check, and any other limit is a named constant each of its fields' forms tests.
+      for (const limit of new Set(limits)) {
+        if (/^\d+$/.test(limit)) {
+          expect(text, `${path}: a limit of ${limit} with no check of its own`).toContain("slugProblem");
+          continue;
+        }
+        expect(limit, path).toMatch(/^[A-Z_]+$/);
+        const checks = text.match(new RegExp(`tooLong\\((?:[^()]|\\([^()]*\\))*\\b${limit}\\)`, "g")) ?? [];
+        expect(checks.length, `${path}: ${limit}`).toBeGreaterThanOrEqual(limits.filter((l) => l === limit).length);
+      }
     }
+  });
+
+  it("holds a product's concept to what the server holds it to", () => {
+    const server = readFileSync(join(SRC, "../../../packages/core/src/ops/products.ts"), "utf8").match(/const CONCEPT_MAX = ([\d_]+)/)![1];
+    for (const form of ["routes/org.tsx", "routes/new-product.tsx"]) expect(sources.find((s) => s.path === form)!.text, form).toContain(`const CONCEPT_MAX = ${server};`);
   });
 });

@@ -258,7 +258,7 @@ being changed inside the handler.
 | `products` | `set_tenant_allowance` | `PUT /api/v1/tenant-allowances` | instance owner, in the web app only |
 | `products` | `remove_tenant_allowance` | `POST /api/v1/tenant-allowances/remove` | instance owner, in the web app only |
 | `products` | `usage` | `GET /api/v1/usage` | instance owner, in the web app only |
-| `products` | `limits` | `GET /api/v1/tenants/:tenant/limits` | anyone in the tenant, or a guest of the example organization; someone who reads only the Story everywhere in it is `403`, naming both roles, and is not offered it |
+| `products` | `limits` | `GET /api/v1/tenants/:tenant/limits` | anyone in the tenant, or a guest of the example organization; someone who reads only the Story everywhere in it is `403`, naming both roles; a connection's tool list offers it only to someone with at least viewer somewhere it reaches, so a member with no role can ask for it without being offered it |
 | `products` | `organizations` | `GET /api/v1/organizations` | instance owner, in the web app only |
 | `products` | `set_plan` | `PATCH /api/v1/organizations/plan` | instance owner, in the web app only; a plan the deployment does not define is refused `422 unknown_plan` |
 | `products` | `set_plan_limits` | `PATCH /api/v1/plans` | instance owner, in the web app only; a plan the deployment does not define is refused `422 unknown_plan` |

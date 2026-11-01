@@ -28,7 +28,7 @@ design system: tokens, type, components and the rules for using them — is docu
 - **A field's limit never cuts what is typed or pasted.** Past a limit the text stays as it is, the
   field is invalid and says how many characters are over ("140 characters over the limit of 1,000.
   Shorten it to save."), and the form refuses to save it, as MCP refuses the same text with an
-  error. What is trimmed before saving is not counted. A screen reader reads it with the field and
+  error. All of the text counts, in characters as the server's limits count them, so an emoji is one, and what the server would trim counts too. A screen reader reads it with the field and
   hears it once typing rests. ◆ Decision: `TextField` and `TextArea` take `maxLength` and never hand
   it to the browser, which cuts a paste without a word, and a form tests its text with `tooLong`
   (`apps/web/src/ui/field.tsx`).

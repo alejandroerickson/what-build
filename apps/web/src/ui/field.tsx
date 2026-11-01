@@ -11,9 +11,24 @@ interface FieldShell {
 /** How long typing rests before a screen reader is told where the text stands against its limit. */
 const SAY_AFTER_MS = 800;
 
-/** How far a text is over a limit, counted as the server counts it: what is saved is trimmed. */
+/** How many characters a text holds as the server's limits count them, where an emoji is one and not two. */
+export function characters(text: string): number {
+  let n = text.length;
+  for (let i = 0; i < text.length - 1; i++) {
+    const unit = text.charCodeAt(i);
+    if (unit < 0xd800 || unit > 0xdbff) continue;
+    const next = text.charCodeAt(i + 1);
+    if (next >= 0xdc00 && next <= 0xdfff) {
+      n--;
+      i++;
+    }
+  }
+  return n;
+}
+
+/** How far a text is over a limit. All of it counts, since the server trims only some of what it is sent. */
 function charactersOver(text: string, limit: number): number {
-  return Math.max(0, text.trim().length - limit);
+  return text.length <= limit ? 0 : Math.max(0, characters(text) - limit);
 }
 
 /** Whether a field's text is over its limit, so the form it is in refuses to save it. */

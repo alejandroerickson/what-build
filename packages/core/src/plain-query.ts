@@ -116,7 +116,7 @@ export function queryWords(text: string): string[] {
 
 export function parseFind(raw: string, onlyKind?: FindKind): ParsedFind {
   const kindNamed = (word: string) => {
-    const k = KIND_WORDS[word];
+    const k = Object.hasOwn(KIND_WORDS, word) ? KIND_WORDS[word] : undefined;
     return k && (!onlyKind || k === onlyKind) ? k : null;
   };
   const text = raw.normalize("NFC");

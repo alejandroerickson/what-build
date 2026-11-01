@@ -57,7 +57,7 @@ export function oneLine(text: string, max: number): string {
 
 /** A chosen name as an email shows it: on one line, at most `max` characters, in quotation marks it cannot close. */
 export function quotedName(name: string, max = 60, unnamed = "Someone"): string {
-  return `"${oneLine(name.replace(/["“”„‟]/g, "'"), max) || unnamed}"`;
+  return `"${oneLine(name.replace(/["“”„‟＂]/g, "'"), max) || unnamed}"`;
 }
 
 export function randomToken(bytes = 32): string {
