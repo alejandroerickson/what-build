@@ -3,7 +3,7 @@ type: Process
 title: What a deployment must do when it takes a release
 description: The changes a release asks of the people who run a deployment (settings, app registrations, behaviour they will notice), kept per release, with the unreleased ones on top until the next release carries them into its notes.
 tags: [operations, releases, upgrading, self-hosting, configuration]
-generated: {by: agent:claude, at: 2026-10-31}
+generated: {by: agent:claude, at: 2026-11-01}
 status: stable
 ---
 
@@ -22,6 +22,10 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
   upgrading.
 
 ## Unreleased
+
+Nothing yet.
+
+## v0.29.0
 
 - **When someone's calls a minute run out, the web app waits and comes back by itself.** It asks
   nothing of a deployment and changes no limit. People will notice it: a read refused with
