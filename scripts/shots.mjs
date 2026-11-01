@@ -74,6 +74,15 @@ async function capture(page, file, { full = true } = {}) {
 
 const wanted = (screen) => !only.length || only.includes(screen);
 
+/** The Story opens with its panels hidden until someone shows them. */
+async function showPanels(page) {
+  const show = page.getByRole("button", { name: /Show panels/ });
+  if (await show.isVisible()) {
+    await show.click();
+    await page.waitForTimeout(500);
+  }
+}
+
 /** Resolve the sample product's ids through the API, with the signed-in session. */
 async function sample(page) {
   const get = async (url) => (await page.request.get(url)).json();
@@ -120,11 +129,12 @@ for (const device of ["desktop", "phone"]) {
     if (wanted("export-dialog")) {
       await page.goto(`${s.app}/story/overview`);
       await settle(page);
-      if (device === "phone") {
+      await showPanels(page);
+      if (device === "phone" && (await page.locator(".show-pill").isVisible())) {
         await page.locator(".show-pill").click();
         await page.waitForTimeout(300);
       }
-      await page.getByRole("button", { name: "Export “Where Crewboard's discovery stands”" }).click();
+      await page.getByRole("button", { name: "Actions for “Where Crewboard's discovery stands”" }).click();
       await page.getByRole("menuitem", { name: /Export with its subpages/ }).click();
       await page.getByRole("dialog", { name: "Export to PDF" }).waitFor();
       await page.waitForTimeout(300);
@@ -134,6 +144,7 @@ for (const device of ["desktop", "phone"]) {
       // The inspector scrolled to "Notes for agents", which people read and agents write.
       await page.goto(`${s.app}/story/overview`);
       await settle(page);
+      await showPanels(page);
       const toggle = page.locator(".show-ins");
       if (await toggle.isVisible()) {
         await toggle.click();
