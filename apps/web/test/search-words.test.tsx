@@ -34,7 +34,7 @@ const found: Record<string, unknown> = {
       {
         kind: "source", id: SOURCE, title: "Yard visit notes", title_marks: [], snippet: null, snippet_marks: [], missing: [], score: 1,
         meta: { date: "2026-09-12", tags: [] }, hit_count: 1,
-        hits: [{ field: "text", annotation_id: null, char_start: 0, text: LATE, marks: [[LATE.indexOf("pallet"), LATE.indexOf("pallet") + 6]] }],
+        hits: [{ field: "text", annotation_id: null, char_start: 0, match_start: 160, text: LATE, marks: [[LATE.indexOf("pallet"), LATE.indexOf("pallet") + 6]] }],
       },
     ],
   },
@@ -97,6 +97,30 @@ const found: Record<string, unknown> = {
       },
     ],
   },
+  // A title that says one of the words early, and both together late, with its marks as search gives them.
+  ...Object.fromEntries(
+    (
+      [
+        ["common mowerlog", "Yard leads across the northern depots keep one common rota for each crew they run, and each common mowerlog"],
+        ["shared depotlog", "One shared rota for each crew and each shared depotlog is signed off at the end of a long hard week"],
+        ["common weekly", "Yard leads across the northern depots keep one common rota for each crew they run, and a common and weekly log"],
+        ["plan board", "Plans planning across the northern depots, then a long review of each plan and the board"],
+        ["common", "Yard leads across the northern depots keep one common rota for each crew they run, and each common log"],
+      ] as const
+    ).map(([query, title]) => {
+      const words = query.trim().split(" ");
+      const title_marks = [...title.matchAll(new RegExp(`\\b(?:${words.join("|")})\\w*`, "gi"))].map((m) => [m.index, m.index + m[0].length]);
+      return [
+        query,
+        {
+          query,
+          terms: words.map((text) => ({ text, phrase: false })),
+          ignored: [], kind_hint: null, corrections: [], partial: false, counts: { assumption: 1 },
+          results: [{ kind: "assumption", id: "a3", title, title_marks, snippet: null, snippet_marks: [], missing: [], score: 1, meta: { status: "unreviewed" } }],
+        },
+      ];
+    }),
+  ),
   "gate codes": {
     query: "gate codes",
     terms: [{ text: "gate", phrase: false }, { text: "codes", phrase: false }],
@@ -106,8 +130,8 @@ const found: Record<string, unknown> = {
         kind: "source", id: SOURCE, title: "Gate codes — crew lead interview", title_marks: [[0, 10]], snippet: null, snippet_marks: [], missing: [], score: 1,
         meta: { date: "2026-09-10", tags: [] }, hit_count: 3,
         hits: [
-          { field: "text", annotation_id: null, char_start: 412, text: "the gate codes in the text are old", marks: [[4, 14]] },
-          { field: "text", annotation_id: null, char_start: 980, text: "new gate codes every week", marks: [[4, 14]] },
+          { field: "text", annotation_id: null, char_start: 412, match_start: 530, text: "the gate codes in the text are old", marks: [[4, 14]] },
+          { field: "text", annotation_id: null, char_start: 980, match_start: 984, text: "new gate codes every week", marks: [[4, 14]] },
         ],
       },
     ],
@@ -354,6 +378,42 @@ describe("a palette title cut before the word it matched", () => {
     expect(line.hasAttribute("data-lead")).toBe(false);
   });
 
+  const marked = (line: Element) => [...line.querySelectorAll("mark")].map((m) => m.textContent);
+
+  it("shows two words where they stand together, though one of them also comes earlier in the title", async () => {
+    const line = await title("common mowerlog");
+    expect(marked(line)).toEqual(["common", "mowerlog"]);
+    expect(drawn(line)).toContain("common mowerlog");
+    expect(line.hasAttribute("data-lead")).toBe(true);
+    // The whole title is still read, and shown on hover.
+    expect(line.textContent).toContain("keep one common rota");
+    expect(line.getAttribute("title")).toContain("keep one common rota");
+  });
+
+  it("prefers the place where they stand closest, when the earlier place is near enough to hold them both on a wider line", async () => {
+    const line = await title("shared depotlog");
+    expect(marked(line)).toEqual(["shared", "depotlog"]);
+    expect(drawn(line)).toContain("shared depotlog");
+  });
+
+  it("shows two words with a word between them, where one of them also comes earlier", async () => {
+    const line = await title("common weekly");
+    expect(marked(line)).toEqual(["common", "weekly"]);
+    expect(drawn(line)).toContain("common and weekly");
+  });
+
+  it("does not take two forms of one word for two words", async () => {
+    const line = await title("plan board");
+    expect(marked(line)).toEqual(["plan", "board"]);
+    expect(drawn(line)).toContain("plan and the board");
+  });
+
+  it("starts at a single word's first place, however often the title says it", async () => {
+    const line = await title("common");
+    expect(marked(line)).toEqual(["common"]);
+    expect(drawn(line)).toContain("keep one common");
+  });
+
   it("keeps the words a title starts with when the word is among them", async () => {
     const line = await title("gate codes");
     expect(line.querySelector("mark")?.textContent).toBe("Gate codes");
@@ -388,8 +448,8 @@ describe("following a source in the palette", () => {
     expect(where.pathname).toBe(`${APP}/evidence/${SOURCE}`);
     expect(where.searchParams.get("view")).toBe("text");
     expect(where.searchParams.get("find")).toBe("gate codes");
-    // At the match the line shows.
-    expect(where.searchParams.get("at")).toBe("412");
+    // At the match the line shows, past where its piece starts.
+    expect(where.searchParams.get("at")).toBe("530");
   });
 });
 

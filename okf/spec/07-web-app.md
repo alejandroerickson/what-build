@@ -58,9 +58,12 @@ design system: tokens, type, components and the rules for using them — is docu
   its own direction, and one too long ends in an ellipsis after its last whole word that leaves
   room for it. A title that mixes English and Arabic keeps the words it begins with, where clipping
   it at a pixel would keep the end of the Arabic or cut a letter in half; one in Arabic reads right
-  to left with the ellipsis at its left. In the search palette, a title whose first marked words, side by
-  side, end past that cut starts at a word nearer them instead, after an ellipsis, so a result always
-  shows the words that found it, as many of them as the line holds. It is measured before it is drawn, and again only when
+  to left with the ellipsis at its left. In the search palette, a title starts at a word nearer the place that
+  holds the most of the words searched, after an ellipsis, when that place ends past that cut. Of
+  places holding as many, it is the one where they stand closest, the first of equals; words further
+  apart than about 60 characters are not held together, and a word alone keeps its first place. So a
+  result always shows words that found it, as many of them as the line holds, and a word said twice
+  does not hide another that stands by its second. It is measured before it is drawn, and again only when
   its room or the fonts change. The whole title stays in the page for assistive technology and
   shows on hover (the Whole Word Rule in [DESIGN.md](../../apps/web/DESIGN.md)).
 - **Interface text says one thing once.** A heading states the fact, the body adds only what the
@@ -282,7 +285,7 @@ person's organization role is in the account menu, and who has which role is on 
                       names; both from a link)
   /evidence/new                               intake: describe it, add attachments, create
   /evidence/:record   ?view=text|notes|comments|attachments &find=<words>&at &include_archived
-                      (at: where a search hit's piece of the text starts, so the find starts there;
+                      (at: where the match a search hit's line shows starts, so the find starts there;
                       include_archived: Comments lists the archived comments too)
   /search             ?q&show&record_id&strict
   /exploration                                → …/exploration/mockups
@@ -528,8 +531,17 @@ The sources, and everything for reading them.
     rest of the visit. Its header holds **Find in the text**, which unfolds it, marks the words,
     says "1 of 4" and steps through the matches (the Previous and Next match buttons, or Enter and
     Shift+Enter), the words held in the URL as `?find=`, so a search hit opens here with them
-    marked, from its own match: `&at=` says where the hit's piece of the text starts, and the find
-    starts at the first match there (without it, at the first). A very long text,
+    marked, from the match its line shows: `&at=` says where that match starts (its `match_start`,
+    [§8.2](08-search.md)), and the find starts at the first match it marks from there, counted as
+    they are drawn, so a word in a link's address moves nothing (without it, at the first). The find
+    marks each word with any ending from the root search reads, but narrower where a root alone would
+    mark unrelated words: a word whose ending doubled a letter marks its own forms ("planning" marks
+    "plan", "plans" and "planned", not "plane"), a word of four letters, or one whose root would be
+    shorter, stays whole ("note" and "notes" mark notes, not every word that starts with "not"), and an
+    id is taken as written. What a line marks and the find does not (`data` for `date`, whose root is
+    `dat`; `moving` for `move`; a word that differs by its accents; an id written as its words; a phrase
+    with punctuation or a bold mark between its words; an image's description) has no mark to stand on,
+    and the find starts at the next it marks. A very long text,
     unfolded, shows its first 300,000 characters and "Show all N characters", unless a find is on. Editors get **Edit**, once the text has
     loaded, a dialog holding the Markdown (saving it empty removes the text; it names the etag of
     the text it opened, and when someone changed or removed the text meanwhile it does what the

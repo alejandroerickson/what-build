@@ -1,4 +1,5 @@
 import { Lexer, type Token, type Tokens } from "marked";
+import { idLike, wordRoot } from "./plain-query.ts";
 
 /**
  * Finding words in a source's derived text, as its Find in the text does in the web app
@@ -7,22 +8,32 @@ import { Lexer, type Token, type Tokens } from "marked";
  * imports it as `@whatbuild/core/find-in-text`.
  */
 
-const SUFFIXES = ["ations", "ation", "ments", "ment", "ings", "ing", "ers", "er", "ies", "ied", "ed", "es", "ly", "s"];
-
-/** A word's root, so a find also marks its other endings, as search reads words ("pricing" marks "priced"). */
-function root(word: string): string {
-  const w = word.toLowerCase();
-  for (const s of SUFFIXES) if (w.endsWith(s) && w.length - s.length >= 4) return w.slice(0, -s.length).replace(/e$/, "");
-  return w.length > 4 ? w.replace(/e$/, "") : w;
-}
-
 const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+const ANY_ENDING = "[\\p{L}\\p{N}]*";
+
+/**
+ * What a find marks for a word: its root, as search reads words ("pricing" marks "priced"), with any
+ * ending. It stays narrower than search where a root alone would mark unrelated words. A word whose
+ * ending doubled a letter marks its own forms ("planning" marks "plan", "plans" and "planned"; not
+ * "plane", nor, for "better", "between"). A word of four letters, and one whose root would be shorter,
+ * stays whole, so "note" and "notes" mark notes, and not every word that starts with "not". An id or a
+ * number is taken as written, as search takes it.
+ */
+function wordPattern(word: string): string {
+  const w = word.toLowerCase();
+  if (w.length <= 4 || idLike(w)) return `${escape(w)}${ANY_ENDING}`;
+  const root = wordRoot(w);
+  if (w.startsWith(root + root.at(-1))) return `${escape(root + root.at(-1))}${ANY_ENDING}|${escape(root)}(?:e?s)?(?![\\p{L}\\p{N}])`;
+  if (root.length < 4) return `${escape(w.replace(/s$/, ""))}${ANY_ENDING}`;
+  return `${escape(root)}${ANY_ENDING}`;
+}
 
 /** What a find marks: each word at the start of a word, with any ending, and each "quoted phrase" as written. */
 export function findPattern(find: string): RegExp | undefined {
   const parts = [...find.matchAll(/"([^"]+)"|(\S+)/g)]
-    .map((m) => (m[1] !== undefined ? escape(m[1].trim()).replace(/\s+/g, "\\s+") : `${escape(root(m[2]!))}[\\p{L}\\p{N}]*`))
-    .filter((p) => p && p !== "[\\p{L}\\p{N}]*");
+    .map((m) => (m[1] !== undefined ? escape(m[1].trim()).replace(/\s+/g, "\\s+") : wordPattern(m[2]!)))
+    .filter((p) => p && p !== ANY_ENDING);
   if (!parts.length) return undefined;
   return new RegExp(`(?<![\\p{L}\\p{N}])(?:${parts.join("|")})`, "giu");
 }

@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from "react-router";
 import { track } from "../lib/analytics.ts";
 import { ApiError } from "../lib/api.ts";
 import { nestQuotes } from "../lib/format.ts";
+import { findPattern } from "@whatbuild/core/find-in-text";
 import { findWords, hitHref, hitMeta, kindOf, leadTo, Marked, matchedCount, resultHref, resultMeta, useDebounced, useFind, useRecentSearches, type FindResponse, type Marks } from "../lib/find.tsx";
 import type { Product } from "../lib/session.tsx";
 import { Glyph, OneLine, type GlyphName } from "../ui/index.tsx";
@@ -33,6 +34,8 @@ interface Option {
   title: string;
   /** The words matched in the title. */
   marks?: Marks;
+  /** Where the part of the title a cut line must show starts and ends. */
+  keep?: readonly [number, number] | undefined;
   meta?: ReactNode;
   line?: ReactNode;
 }
@@ -43,16 +46,37 @@ const SHOWN = 8;
 const marksIn = (marks: Marks, from: number, length: number): Marks =>
   marks.filter(([s, e]) => e > from && s < from + length).map(([s, e]) => [Math.max(s, from) - from, Math.min(e, from + length) - from]);
 
-/** What a cut line must show of a title: its first mark, with the marks after it that no word separates, so words side by side stay together. */
-function firstMarked(title: string, marks: Marks | undefined): [number, number] | undefined {
-  if (!marks?.length) return undefined;
-  const [start, firstEnd] = marks[0]!;
-  let end = firstEnd;
-  for (const [s, e] of marks.slice(1)) {
-    if (/[\p{L}\p{N}]/u.test(title.slice(end, s))) break;
-    end = e;
-  }
-  return [start, end];
+/** Marked words further apart than about this, in characters, would not share a palette's line, so a place does not hold them together. */
+const LINE_HOLDS = 60;
+
+/**
+ * What a cut line must show of a title: the place that holds the most of the words searched, and of
+ * those where they stand closest, the first of equals. So a word said twice does not hold the line at
+ * its first place when another word searched stands by its second, and a word alone keeps its first
+ * place, with what stands beside it. A word's other forms count as that word.
+ */
+function placeToKeep(title: string, marks: Marks, terms: FindResponse["terms"]): [number, number] | undefined {
+  const patterns = terms.map((t) => findPattern(findWords({ terms: [t] })));
+  const words = marks.map(([s, e]) => {
+    const text = title.slice(s, e);
+    const k = patterns.findIndex((p) => p && text.search(p) === 0);
+    return k < 0 ? text.toLowerCase() : k;
+  });
+  let best: { from: number; to: number; holds: number } | undefined;
+  marks.forEach(([from, firstEnd], a) => {
+    const held = new Set([words[a]]);
+    let to = firstEnd;
+    for (let b = a + 1; b < marks.length; b++) {
+      const [s, e] = marks[b]!;
+      const beside = !/[\p{L}\p{N}]/u.test(title.slice(to, s));
+      if (!beside && e - from > LINE_HOLDS) break;
+      if (beside || !held.has(words[b])) to = e;
+      held.add(words[b]);
+    }
+    const holds = held.size;
+    if (!best || holds > best.holds || (holds === best.holds && holds > 1 && to - from < best.to - best.from)) best = { from, to, holds };
+  });
+  return best && [best.from, best.to];
 }
 
 /**
@@ -79,6 +103,7 @@ function options(app: string, d: FindResponse | undefined, phone: boolean): Opti
       glyph: kindOf(r.kind).glyph,
       title: r.title,
       marks: r.title_marks,
+      keep: d ? placeToKeep(r.title, r.title_marks, d.terms) : undefined,
       meta: resultMeta(r),
       line: hit ? (
         <>
@@ -259,7 +284,7 @@ function Palette({ app, base, product, text, setText, via, onClose }: { app: str
               <Glyph name={o.glyph} />
               <span className="find-pal-main">
                 <span className="find-pal-title">
-                  <OneLine text={o.title} keep={firstMarked(o.title, o.marks)} render={o.marks?.length ? (shown, from) => <Marked text={shown} marks={marksIn(o.marks!, from, shown.length)} /> : undefined} />
+                  <OneLine text={o.title} keep={o.keep} render={o.marks?.length ? (shown, from) => <Marked text={shown} marks={marksIn(o.marks!, from, shown.length)} /> : undefined} />
                   {o.meta ? <span className="find-pal-meta">{o.meta}</span> : null}
                 </span>
                 {o.line ? <span className="find-pal-line">{o.line}</span> : null}
