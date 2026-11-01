@@ -47,8 +47,12 @@ error then ends only itself, and its costs, set out below, are worth that.
   its end of a pipe closes and the child's event loop is free to see it, and shortly after its time
   limit if the server has not ended it, with a signal of its own that reads as that limit.
 - A shutdown (`FileParser.stop`) rejects the parse running with `ParseStopped`, and the worker puts
-  its job back: the lock cleared, the attempt not spent for the job's first hour, nothing recorded against the file. The
-  database ends only after that (`apps/server/src/shutdown.ts`), within the platform's stop window.
+  its job back: the lock cleared, the attempt spent, the wait a failed attempt has, nothing recorded
+  against the file. The database ends only after that (`apps/server/src/shutdown.ts`), within the
+  platform's stop window. Rejected: giving the attempt back, so that a deployment costs a job nothing.
+  A stop does not say why it came, and an attempt given back each time would start a job the instance
+  keeps stopping for again and again, ahead of the jobs behind it. Five attempts leave plenty for
+  deployments.
 - On Linux the child raises its own `oom_score_adj`. That asks the kernel to choose it before the
   server where the kernel ends one process at a time (plain Docker on Linux, say). It is no protection
   where the platform ends the whole container: Cloud Run terminates an instance over its limit, and

@@ -190,8 +190,8 @@ gcloud run services update whatbuild --project $P --region $R --update-env-vars 
 while sleep 0.2; do curl -s -o /dev/null -w '%{http_code} %{time_total}\n' "$DEV_URL/api/v1/meta"; done > traffic.txt &
 T=$!
 # Upload every hostile file again, as above, and wait for each to end. At the first death of the
-# whole instance, stop and put the value back: its job's lock holds for 10 minutes and it is then
-# tried again, which at a raised limit only repeats the death and spoils the numbers.
+# whole instance, its job waits and is tried again, up to five attempts in all: let that run its
+# course, which should take a few minutes, then put the value back.
 kill $T
 sort -k2 -n traffic.txt | awk '{ t[NR] = $2; if ($1 == 0 || $1 >= 500) bad++ } END { print NR " requests, p95 " t[int(NR * 0.95)] " s, " bad + 0 " failed" }'
 ```
@@ -205,8 +205,9 @@ Then read the lines of step 4's first command, with their instances:
 
 Record, for each step, the peaks, which of those happened, the requests' p95 and how many failed,
 and whether `put back in the queue` came just before `Memory limit`: if the platform stops an instance
-over its limit with a signal, such a job is put back rather than spending an attempt for its first
-hour. On Linux a child's reported peak can start at the server's own size, because a process carries
+over its limit with a signal, such a job is put back with its attempt spent, whichever way it ends. So
+check too that it is given up at its fifth attempt, as a `failed` reading saying the server stopped
+that many times, and that the jobs behind it were read meanwhile. On Linux a child's reported peak can start at the server's own size, because a process carries
 it across exec, so a small parse reads high; the heaviest parses' peaks are right.
 Afterwards put the value back (`--update-env-vars WHATBUILD_PARSE_MEMORY_MB=<the value before>`, or
 `--remove-env-vars WHATBUILD_PARSE_MEMORY_MB` if it had none), and delete `traffic.txt`.

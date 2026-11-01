@@ -85,7 +85,7 @@ export class Worker {
 
   /**
    * Takes no more jobs, and resolves once the one running, if any, has ended. The server's shutdown
-   * stops its parse, if it is one, and that job goes back in the queue, with this attempt not spent in its first hour;
+   * stops its parse, if it is one, and that job goes back in the queue with this attempt spent;
    * it waits for this before the database goes, since that takes the database.
    */
   stop(): Promise<unknown> {
@@ -187,7 +187,7 @@ export class Worker {
           const job = await this.claim();
           if (!job) break;
           if (this.stopped) {
-            await this.putBack(job);
+            await this.giveBack(job);
             break;
           }
           await this.run(job);
@@ -385,7 +385,7 @@ export class Worker {
         await trx.updateTable("jobs").set({ done_at: new Date().toISOString(), error: null }).where("job_id", "=", job.job_id).execute();
       });
     } catch (e) {
-      // Says nothing of the job or its file: nothing is recorded, and the next instance takes it at once.
+      // Says nothing of its file, so nothing is recorded against it; the attempt stays spent.
       if (e instanceof ParseStopped) return this.putBack(job);
       span.setStatus({ code: SpanStatusCode.ERROR });
       span.setAttribute("error.type", errorType(e));
@@ -401,14 +401,24 @@ export class Worker {
     }
   }
 
+  /** Gives back a job this worker claimed and never began, since a stop crossed with the claim: its lock, and the attempt it counted. */
+  private async giveBack(job: Job): Promise<void> {
+    await sql`
+      update jobs set locked_at = null, locked_by = null, attempts = attempts - 1
+      where job_id = ${job.job_id} and done_at is null and locked_by = ${this.id}`.execute(this.env.db);
+    this.log(`job ${job.job_id} ${job.kind} put back in the queue: the server is stopping`);
+  }
+
   /**
-   * Gives back a job this worker claimed and is not going to finish since it was stopped: its lock,
-   * and for its first hour the attempt it counted. After that a stop spends one, so that stops alone
-   * cannot put a job back without end, and a job the instance keeps stopping for still gets given up.
+   * Puts back a job that a stop ended while it ran: its lock, with the attempt spent and the wait a
+   * failed attempt has. A stop says nothing of why it came. It may be a new version's deployment,
+   * or the job's own doing, and giving back the attempt would start such a job again each time, ahead
+   * of those behind it, however often it happened. So a job the instance keeps stopping for is given up
+   * at its last attempt, by `giveUpAbandoned`, and meanwhile the others are read.
    */
   private async putBack(job: Job): Promise<void> {
     await sql`
-      update jobs set locked_at = null, locked_by = null, attempts = attempts - (created_at > now() - interval '1 hour')::int
+      update jobs set locked_at = null, locked_by = null, run_after = now() + make_interval(secs => ${2 ** job.attempts * 5})
       where job_id = ${job.job_id} and done_at is null and locked_by = ${this.id}`.execute(this.env.db);
     this.log(`job ${job.job_id} ${job.kind} put back in the queue: the server is stopping`);
   }
