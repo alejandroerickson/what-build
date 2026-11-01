@@ -153,7 +153,7 @@ export function StyleDialog({ view, scheme, onClose }: { view: StyleView; scheme
             <Segmented label="Preview scheme" value={previewScheme} onChange={(id) => setPreviewScheme(id as "light" | "dark")} items={[{ id: "light", label: "Light" }, { id: "dark", label: "Dark" }]} />
             <Segmented label="Preview size" value={device} onChange={(id) => setDevice(id as "desktop" | "phone")} items={[{ id: "desktop", label: "Desktop" }, { id: "phone", label: "Phone" }]} />
           </div>
-          <Specimen src={src} title={`${title}, a sample Story page`} phone={device === "phone"} />
+          <Specimen key={src} src={src} title={`${title}, a sample Story page`} phone={device === "phone"} />
           <div className="style-about">
             {picked === "current" && current ? (
               <p className="small muted">

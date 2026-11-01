@@ -234,6 +234,25 @@ describe("a page on a canvas, refused", () => {
     status.stop();
   });
 
+  it("cannot hold the rest back without end by saying it was refused and then reloading itself", async () => {
+    showCanvas(2);
+    frames().forEach(loaded);
+    const honest = frameOf(1)!;
+    refuse(honest, 1);
+    for (let i = 0; i < 40; i++) {
+      const page = frameOf(0);
+      if (page) {
+        refuse(page, 60);
+        reloadsItself(page);
+      }
+      await advance(30_000);
+    }
+    expect(frameOf(1)).not.toBe(honest);
+    expect(frameOf(1)).not.toBeNull();
+    expect(frameOf(0)).toBeNull();
+    expect(tryAgain()).toBeDefined();
+  });
+
   it("is asked for at most a few times, however often it says it was refused, then waits for the person", async () => {
     showCanvas(1);
     let reloads = 0;

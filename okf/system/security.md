@@ -274,15 +274,16 @@ holds each one; the linked decisions say why. Observed in the code on 2026-10-10
   ([§6.4](../spec/06-operations-and-adapters.md#routes-outside-the-registry)). A page can post the same
   message. It counts only from the frame's own window and only while that frame is on show, and the app
   takes only the wait from it, held to 1 to 60 seconds (`useFrameReturn` in `apps/web/src/lib/minute.ts`). What that
-  gains the page: a new frame at its own address, in turn, three times at most until the person says to; its own
-  frame replaced by a note that it didn't come back, with Try again; and that wait, during which `Loading` anywhere in the
+  gains the page: a new frame at its own address, in turn, three times at most until the person says to, however many frames
+  it is put back into meanwhile; its own frame replaced by a note that it didn't come back, with Try again; and that wait, during which `Loading` anywhere in the
   tab says the minute's calls are used, and refused frames and pages waiting to be put back take no turn until it and the reads'
-  five seconds are over. Each ask can name that wait again, so a canvas of such pages can hold the others' turns back for as long as its asks last, and no longer.
+  five seconds are over. Each of its four asks can name that wait again, so a canvas of such pages can hold the others' turns back for about four minutes each, and then stops asking.
   It cannot change the pace of frames, which is fixed, stop another frame for good, hold back a read, or get past the
   check that puts back a page replaced in its frame, since a second load of one frame is never let through.
   Putting a page back costs a call too, so a screen puts back at most 10 a minute and a page at most 3. Past either the page waits
   with no frame on show, and after 3 such waits in a row it stops until the person says to or leaves the screen, so a page reloading itself
-  spends those at most ([§7.1](../spec/07-web-app.md)); a prototype's route meets no limit, so its frames are outside this.
+  spends those at most ([§7.1](../spec/07-web-app.md)); a page's own asks after a refusal come on top, three each until the person says to, since a refusal it names cannot be told from one it got. A prototype's route meets no limit, so its frames are outside this.
+  A Story page can also ask the app to open another of the Story's pages, as a link in it does, and each page opened costs a call. Nothing bounds how often it asks but the person's calls a minute, which it can use up while the screen stays open.
 - The app frames pages with `<iframe sandbox>` and takes only a key name, a page slug or that a frame
   was refused from the frame it made (`apps/web/src/routes/story.tsx`), by `e.source`, never by `e.origin`, which is
   `null` for a sandboxed document wherever it is served. App pages send `Cross-Origin-Opener-Policy:

@@ -25,10 +25,11 @@ import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type Re
  *
  * A page can send the message the refused page sends. It is heard only from the frame's own window
  * and only while that frame is on show, and what it gains is listed here and in okf/system/security.md:
- * a new frame at its own address, in turn, FRAME_RELOADS times at most until the person says to; a
- * stop in place of its own frame; and the wait it names, held to 1 to 60 seconds. For that wait
- * Loading says the minute's calls are used, and frames' turns hold back until the wait and the
- * reads' spread are over. It takes nothing else from the message, the pace above least of all.
+ * a new frame at its own address, in turn, FRAME_RELOADS times at most until the person says to,
+ * however many frames it is put back into meanwhile; a stop in place of its own frame; and the wait it
+ * names, held to 1 to 60 seconds. For that wait Loading says the minute's calls are used, and frames'
+ * turns hold back until the wait and the reads' spread are over. It takes nothing else from the
+ * message, the pace above least of all.
  */
 
 /** What a refusal says that is taken at its word: a minute's calls start again within a minute. */
@@ -148,7 +149,7 @@ function comeBack(frame: WaitingFrame, now: number) {
   if (frame.why === "replaced") {
     frame.putBacks.push(now);
     screenPutBacks.push(now);
-  } else frame.reloads += 1;
+  }
   frame.state = "shown";
   frame.cameBack = now;
   frame.back();
@@ -202,7 +203,8 @@ export function useMinuteWait(): MinuteWait {
 function ask(frame: WaitingFrame) {
   stopped.delete(frame);
   frame.state = "queued";
-  frame.reloads = 0;
+  // The person's asking is the first of as many asks again.
+  frame.reloads = frame.why === "refused" ? 1 : 0;
   frame.putBacks = [];
   frame.waitsUntil = 0;
   frame.waits = 0;
@@ -219,6 +221,7 @@ export function tryStoppedFramesAgain(): void {
 /** A second load in a frame: something took the page's place, so that goes at once, and the page comes back when it may. */
 function frameReplaced(frame: WaitingFrame) {
   const now = Date.now();
+  stopped.delete(frame);
   if (now - frame.cameBack >= SETTLES_AFTER_MS) frame.waits = 0;
   const queued = queue.indexOf(frame);
   if (queued >= 0) queue.splice(queued, 1);
@@ -285,11 +288,13 @@ export function useFrameReturn(frame: RefObject<HTMLIFrameElement | null>, reloa
       const seconds = data?.whatbuild === "frame-refused" ? frameWait(data.retry_after_seconds) : null;
       if (seconds === null) return;
       me.why = "refused";
+      // Counted as it is heard, across every frame put back at this place: a new frame gets no new asks.
       if (me.reloads >= FRAME_RELOADS) {
         me.state = "stopped";
         stopped.add(me);
         me.hold("refused");
       } else {
+        me.reloads += 1;
         me.state = "queued";
         queue.push(me);
       }
