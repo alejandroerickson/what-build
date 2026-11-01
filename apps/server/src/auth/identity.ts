@@ -196,8 +196,14 @@ const SOMEONE_INVITED: ActorSnapshot = { account_id: "invited", display_name: "S
  * cancelled, declined or past its time) and sent to this account's verified address, ignoring letter
  * case. Whichever answer reaches the row first is the only one, so a cancellation and an acceptance
  * sent together cannot both happen. Undefined when it was not open to this account.
+ *
+ * The time it is checked against is read after the row is held. A cancellation ends an invitation by
+ * writing its own clock's time, so an answer holding a time read before that write could still find
+ * the invitation open, and both would happen.
  */
-async function answerInvitation(trx: Trx, invitationId: string, accountId: string, changes: { accepted_at?: string; accepted_by?: string; expires_at?: string }, now: string): Promise<InvitationRow | undefined> {
+async function answerInvitation(trx: Trx, invitationId: string, accountId: string, changes: { accepted_at?: string; accepted_by?: string; expires_at?: string }): Promise<InvitationRow | undefined> {
+  await trx.selectFrom("invitations").select("invitation_id").where("invitation_id", "=", invitationId).forUpdate().execute();
+  const now = new Date().toISOString();
   const inv = await trx
     .updateTable("invitations")
     .set(changes)
@@ -230,7 +236,7 @@ async function answerInvitation(trx: Trx, invitationId: string, accountId: strin
 export async function acceptInvitation(db: Db, invitationId: string, account: AccountRow): Promise<{ role: string } | null> {
   const now = new Date().toISOString();
   return db.transaction().execute(async (trx) => {
-    const inv = await answerInvitation(trx, invitationId, account.account_id, { accepted_at: now, accepted_by: account.account_id }, now);
+    const inv = await answerInvitation(trx, invitationId, account.account_id, { accepted_at: now, accepted_by: account.account_id });
     if (!inv) return null;
     const held = await trx.selectFrom("memberships").select("role").where("scope_type", "=", inv.scope_type).where("scope_id", "=", inv.scope_id).where("account_id", "=", account.account_id).executeTakeFirst();
     if (!held)
@@ -259,7 +265,7 @@ export async function acceptInvitation(db: Db, invitationId: string, account: Ac
 export async function declineInvitation(db: Db, invitationId: string, account: AccountRow): Promise<boolean> {
   const now = new Date().toISOString();
   return db.transaction().execute(async (trx) => {
-    const inv = await answerInvitation(trx, invitationId, account.account_id, { expires_at: now }, now);
+    const inv = await answerInvitation(trx, invitationId, account.account_id, { expires_at: now });
     if (!inv) return false;
     const { scope } = await invitationPlace(trx, inv);
     await trx

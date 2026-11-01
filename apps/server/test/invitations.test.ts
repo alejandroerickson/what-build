@@ -226,6 +226,20 @@ describe("accepting", () => {
     }
   });
 
+  it("is refused when a cancellation holds the row, even one whose clock read later", async () => {
+    const { id, token } = await invite("overtaken@example.com");
+    const overtaken = await h.signIn("overtaken@example.com");
+    // Wrapped, so the transaction commits without waiting for the answer that is waiting for it.
+    const { answer } = await h.db.transaction().execute(async (trx) => {
+      await trx.updateTable("invitations").set({ expires_at: new Date(Date.now() + 300).toISOString() }).where("invitation_id", "=", id).execute();
+      const answer = overtaken.api("POST", "/api/v1/invitations/accept", { token });
+      await new Promise((r) => setTimeout(r, 600));
+      return { answer };
+    });
+    expect((await answer).body.error?.code).toBe("invitation_expired");
+    expect(await reaches(overtaken)).toBe(false);
+  });
+
   it("can't be undone by cancelling it afterwards", async () => {
     const { id, token } = await invite("settled@example.com");
     const settled = await h.signIn("settled@example.com");
