@@ -280,9 +280,10 @@ const isLow = (c: number) => c >= 0xdc00 && c <= 0xdfff;
  * phrase or a word that occurs late is in it rather than an earlier occurrence of one of its
  * words. It starts and ends at word boundaries, unless that would leave out a mark it was chosen
  * for, and never inside a character. A match it cuts is marked as far as it goes, so an excerpt
- * of a text that holds a match always holds a mark.
+ * of a text that holds a match always holds a mark. `first` is where in `text` the first match it
+ * marks starts, or null when it marks none.
  */
-export function excerpt(text: string, match: Pick<TextMatch, "ranges" | "spans">, width = 220): { text: string; marks: [number, number][] } {
+export function excerpt(text: string, match: Pick<TextMatch, "ranges" | "spans">, width = 220): { text: string; marks: [number, number][]; first: number | null } {
   const clean = text.replace(/\s+/g, " ").trim();
   // Collapsing whitespace moves offsets; find the matches again in the cleaned text by mapping.
   const map: number[] = [];
@@ -307,8 +308,8 @@ export function excerpt(text: string, match: Pick<TextMatch, "ranges" | "spans">
     map.push(j);
   }
   const at = (o: number) => Math.min(map[o] ?? clean.length, clean.length);
-  const rs = match.ranges.map(([s, e]) => [at(s), at(e)] as [number, number]).filter(([s, e]) => e > s);
-  if (clean.length <= width) return { text: clean, marks: rs };
+  const rs = match.ranges.map(([s, e]) => [at(s), at(e), s] as const).filter(([s, e]) => e > s);
+  if (clean.length <= width) return { text: clean, marks: rs.map(([a, b]) => [a, b]), first: rs[0]?.[2] ?? null };
   const spans = match.spans.map(([s, e, k]) => [at(s), at(e), k] as const).filter(([s, e]) => e > s);
   // The place where the most terms occur within one width, then the most matches, the first of equals.
   let best: { from: number; to: number; terms: number; count: number } | null = null;
@@ -355,10 +356,9 @@ export function excerpt(text: string, match: Pick<TextMatch, "ranges" | "spans">
   end = start + shown.length;
   const pre = start > 0 ? "…" : "";
   const post = end < clean.length ? "…" : "";
-  const marks = rs
-    .filter(([a, b]) => b > start && a < end)
-    .map(([a, b]) => [Math.max(a, start) - start + pre.length, Math.min(b, end) - start + pre.length] as [number, number]);
-  return { text: pre + shown + post, marks };
+  const kept = rs.filter(([a, b]) => b > start && a < end);
+  const marks = kept.map(([a, b]) => [Math.max(a, start) - start + pre.length, Math.min(b, end) - start + pre.length] as [number, number]);
+  return { text: pre + shown + post, marks, first: kept[0]?.[2] ?? null };
 }
 
 /** Levenshtein distance, giving up once it passes `max`. */

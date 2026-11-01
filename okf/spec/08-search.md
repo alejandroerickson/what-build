@@ -175,11 +175,17 @@ with it (dates, tags, a cursor, `include_archived`, a `scope` other than `source
   so the result's "N matches" and the find's "… of N" agree. Only the derived text is counted,
   because only it is marked by the find. The count reads the pieces of the returned sources'
   derived texts that may hold a match, in the results' order, at most 2,000 of them in a search:
-  a source past that has no `match_count` rather than one too small. A hit is `{ field, annotation_id, char_start, text, marks }`: `field` is
+  a source past that has no `match_count` rather than one too small. A hit is `{ field, annotation_id, char_start, match_start, text, marks }`: `field` is
   `text`, `summary`, `notes` or `comment` (with the comment's `annotation_id`, null otherwise),
-  `char_start` is where the piece starts in its field, in code points, and `text` an excerpt of up
+  `char_start` is where the piece starts in its field, in code points, `match_start` where in its
+  field, in code points, the first match its excerpt marks starts (where the piece starts when it
+  marks none, the words being only in what is not shown, such as a link's address), so a hit opens
+  at the match its line shows ([§7](07-web-app.md)), and `text` an excerpt of up
   to 240 characters with the matched stretches as `[start, end]` `marks`; among equal hits the
-  derived text comes first. An excerpt, a hit's or a result's `snippet`, is centred on the place
+  derived text comes first.
+  ◆ Decision: a field of its own rather than a new meaning for `char_start`, which callers read a
+  piece from.
+  An excerpt, a hit's or a result's `snippet`, is centred on the place
   where the most of the words occur within it, then the most matches, so a quoted phrase is shown
   where the phrase is rather than where its first word comes earlier; it starts and ends at word
   boundaries unless that would leave out a mark it was chosen for, never inside a character, and
@@ -191,8 +197,8 @@ with it (dates, tags, a cursor, `include_archived`, a `scope` other than `source
   of bold, italics (`*words*`, `_words_`, never inside a word, so `snake_case` stays) and a code
   span, whose words show as written; a link or an image shows as its text, without its address,
   and an escaped character (`\[`, `\*`) as itself, without its backslash, never read as markup
-  (`shownWords`). The marks are made on the words shown, and a hit's `char_start` is still where
-  its piece starts in the text as written. Results are scored by how many of the words they hold, in the title
+  (`shownWords`). The marks are made on the words shown, and a hit's `char_start` and `match_start`
+  are still counted in the text as written. Results are scored by how many of the words they hold, in the title
   above the body, with exact words, words side by side and a title equal to the query ranked
   higher. When anything holds every word, only those are returned; otherwise the ones holding the
   most, with `partial: true` and each result's `missing` words. At most `limit` results (60 unless

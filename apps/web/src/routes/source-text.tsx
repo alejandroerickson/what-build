@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router";
-import { findPattern } from "@whatbuild/core/find-in-text";
+import { findCount, findPattern } from "@whatbuild/core/find-in-text";
 import { api, ApiError } from "../lib/api.ts";
 import { attribution, relativeTime } from "../lib/format.ts";
 import { Markdown } from "../lib/markdown.tsx";
@@ -81,22 +81,16 @@ export function ChangedMeanwhile({ noun, theirs, onLoad, rows = 8, className }: 
 export { findPattern };
 
 /**
- * Which match of a find to start at: the first at or after a place in the text, such as where the
- * piece of text a search hit is in starts (`at`, in code points, as search counts them), or the
- * last when none follows. Matches are counted in the text as written and marks in the text as
- * drawn, so the two agree but where the words fall inside Markdown that is not drawn as words,
- * such as a link's address.
+ * Which match of a find to start at: the first at or after a place in the text, such as the match a
+ * search hit's line shows (`at`, in code points, as search counts them), or the last when none
+ * follows. The marks are counted as they are drawn, as the text up to that place draws them, so a
+ * word in Markdown that is not drawn as words, such as a link's address, moves nothing.
  */
 export function matchFrom(text: string, pattern: RegExp, at: number): number {
   // Code points to the string's own units, which a character outside the basic plane takes two of.
   let place = 0;
   for (let n = 0; n < at && place < text.length; n++) place += text.codePointAt(place)! > 0xffff ? 2 : 1;
-  let i = 0;
-  for (const m of text.matchAll(pattern)) {
-    if (m.index >= place) return i;
-    i++;
-  }
-  return Math.max(i - 1, 0);
+  return Math.min(findCount(text.slice(0, place), pattern), Math.max(findCount(text, pattern) - 1, 0));
 }
 
 /** The first part of a long text, ending at a paragraph. */
@@ -116,7 +110,7 @@ export function TextView({ record, onAddAttachments }: { record: RecordFull; onA
   const { api: base, canWrite } = useProduct();
   const [params, setParams] = useSearchParams();
   const find = params.get("find") ?? "";
-  // Where the piece of text a search hit is in starts: the find starts at its first match there.
+  // Where the match a search hit's line shows starts: the find starts there.
   const near = params.get("at");
   const [typed, setTyped] = useState(find);
   const [all, setAll] = useState(false);

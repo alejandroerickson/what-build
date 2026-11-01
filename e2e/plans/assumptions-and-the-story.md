@@ -26,7 +26,7 @@ checked on the way.
    citations.
 3. **Web, as Riley.** Search for a few of the words Sam used. *Expect:* the search finds the
    source, saying where they are, and opening the hit shows the source's Text with the words
-   marked.
+   marked, standing on the place the hit showed.
 4. **Web, as Riley.** Review the assumption: mark it confirmed (or whatever review the screen
    offers), with a short note. *Expect:* its status changes, and the review is attributed to Riley
    on the web.

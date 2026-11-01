@@ -53,6 +53,8 @@ code-point offsets into that field.
 - In exact search every place the words occur is a hit of its own, and `limit` counts hits: pass
   `next_cursor` back as `cursor` for the rest.
 - With `scope: "all"`, assumptions come on the first page only; later pages hold source hits.
+- In `plain` mode a source's `hits` are its best places: `char_start` says where the piece starts in
+  its field, and `match_start` where the first match the hit's excerpt marks starts.
 - `derived_read(action="text", offset=…)` reads around a hit in the text.
 - Each text is matched in pieces of about 1,500 characters, so AND, OR and NOT combine terms within
   one piece: terms that sit far apart in a text may not match together.

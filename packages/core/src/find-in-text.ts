@@ -1,4 +1,5 @@
 import { Lexer, type Token, type Tokens } from "marked";
+import { wordRoot } from "./plain-query.ts";
 
 /**
  * Finding words in a source's derived text, as its Find in the text does in the web app
@@ -7,13 +8,14 @@ import { Lexer, type Token, type Tokens } from "marked";
  * imports it as `@whatbuild/core/find-in-text`.
  */
 
-const SUFFIXES = ["ations", "ation", "ments", "ment", "ings", "ing", "ers", "er", "ies", "ied", "ed", "es", "ly", "s"];
-
-/** A word's root, so a find also marks its other endings, as search reads words ("pricing" marks "priced"). */
+/**
+ * A word's root, so a find also marks its other endings, as search reads words ("pricing" marks
+ * "priced", "planning" marks "plans"). A word of four letters stays whole, final e and all, so a
+ * person's find for "note" marks notes, and not every word that starts with "not".
+ */
 function root(word: string): string {
   const w = word.toLowerCase();
-  for (const s of SUFFIXES) if (w.endsWith(s) && w.length - s.length >= 4) return w.slice(0, -s.length).replace(/e$/, "");
-  return w.length > 4 ? w.replace(/e$/, "") : w;
+  return w.length > 4 ? wordRoot(w) : w;
 }
 
 const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");

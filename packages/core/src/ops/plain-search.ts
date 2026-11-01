@@ -42,6 +42,8 @@ interface Hit {
   annotation_id: string | null;
   /** Where the piece starts in its field, in code points. */
   char_start: number;
+  /** Where the first match the excerpt marks starts in its field, in code points: where the piece starts when it marks none. */
+  match_start: number;
   text: string;
   marks: Marks;
   found: number;
@@ -114,6 +116,19 @@ export function shownWords(md: string): string {
     .replace(STAR_EM, "$1")
     .replace(UNDERSCORE_EM, "$1");
   return held.length ? shown.replace(HELD, (_m, i: string) => held[Number(i)] ?? "") : shown;
+}
+
+/**
+ * Where a place in `shownWords(written)` stands in `written`, in code points. Showing a text's words
+ * only takes characters out, so what is shown is what is written with some left out, in order, and
+ * walking the two together finds the place. A character left out that happens to be the next one
+ * shown (in a link's address, say) is taken for it only until the next that the rest does not hold,
+ * such as a space, so a place can fall short only within what is not shown.
+ */
+function writtenOffset(written: string, shown: string, at: number): number {
+  let w = 0;
+  for (let s = 0; s <= at; s++, w++) while (w < written.length && written[w] !== shown[s]) w++;
+  return [...written.slice(0, w - 1)].length;
 }
 
 /** The terms, in the order typed and next to each other: a strong sign the text is about them. */
@@ -208,7 +223,8 @@ async function sources(ctx: OpContext, p: ParsedFind, i: Input, q: string): Prom
     const shown = shownWords(h.text);
     const m = matchText(shown, p.terms);
     const ex = excerpt(shown, m, 240);
-    const hit: Hit = { field: h.field, annotation_id: h.field === "comment" ? h.ref : null, char_start: h.char_start, text: ex.text, marks: ex.marks, found: m.found.filter(Boolean).length };
+    const match_start = h.char_start + (ex.first === null ? 0 : writtenOffset(h.text, shown, ex.first));
+    const hit: Hit = { field: h.field, annotation_id: h.field === "comment" ? h.ref : null, char_start: h.char_start, match_start, text: ex.text, marks: ex.marks, found: m.found.filter(Boolean).length };
     byRecord.set(h.record_id, [...(byRecord.get(h.record_id) ?? []), { hit, m }]);
   }
   const n = p.terms.length;
@@ -466,7 +482,7 @@ const PLAIN_WORDS =
 const PARTIAL_RESULTS = "When nothing holds every word, results hold most of them and list the `missing` ones.";
 
 export const PLAIN_DESCRIPTION =
-  "mode \"plain\" searches everything in the product the way a person types into a search box, ranked: sources, each with the best places it says the words (its derived text, summary, notes or comments; hits give the field and where the piece starts), how many places in hit_count, and in match_count how many times its derived text says them, as the source's Find in the text in the web app counts them, assumptions, outcomes, mockups, Story pages and the product concept. A Story page that shows a mockup page or a whole canvas is searched by what it shows at the version it stays on, and is left out when the mockup is among the results and holds every word it does, so one thing is listed once, as the mockup. A reader (the Story-only role) searches the Story alone: every Story page, by what it shows, and for a whole canvas meta gives the page the words are on; never the mockup's brief or notes. " +
+  "mode \"plain\" searches everything in the product the way a person types into a search box, ranked: sources, each with the best places it says the words (its derived text, summary, notes or comments; hits give the field, where the piece starts in char_start and where the first match its excerpt marks starts in match_start), how many places in hit_count, and in match_count how many times its derived text says them, as the source's Find in the text in the web app counts them, assumptions, outcomes, mockups, Story pages and the product concept. A Story page that shows a mockup page or a whole canvas is searched by what it shows at the version it stays on, and is left out when the mockup is among the results and holds every word it does, so one thing is listed once, as the mockup. A reader (the Story-only role) searches the Story alone: every Story page, by what it shows, and for a whole canvas meta gives the page the words are on; never the mockup's brief or notes. " +
   PLAIN_WORDS +
   " a word naming a kind (mockups, assumptions, sources, outcomes, story, idea), beside other words, is not searched for but lists that kind's results first, ahead of any that score higher, and `kind_hint` names it; a word that matches nothing is replaced by the closest word the product holds, and `corrections` says so (`strict: true` turns that off), but an id or a number is never corrected. " +
   PARTIAL_RESULTS +

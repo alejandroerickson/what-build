@@ -14,7 +14,10 @@ export type Marks = [number, number][];
 export interface FindHit {
   field: "text" | "summary" | "notes" | "comment";
   annotation_id: string | null;
+  /** Where the piece the hit is in starts in its field. */
   char_start: number;
+  /** Where the first match its excerpt marks starts in its field. */
+  match_start: number;
   text: string;
   marks: Marks;
 }
@@ -171,11 +174,11 @@ export function findWords(d: Pick<FindResponse, "terms">): string {
 
 /**
  * Where a hit opens: its source, at the section it is in, with the words found marked in the text
- * and, with `at` (where the hit's piece of the text starts), the find starting at its own match.
+ * and, with `at`, the find starting at the match its line shows.
  */
 export function hitHref(app: string, recordId: string, h: FindHit, find: string): string {
   const view = HIT_VIEW[h.field];
-  return `${app}/evidence/${recordId}?view=${view}${view === "text" && h.field === "text" && find ? `&find=${encodeURIComponent(find)}&at=${h.char_start}` : ""}`;
+  return `${app}/evidence/${recordId}?view=${view}${view === "text" && h.field === "text" && find ? `&find=${encodeURIComponent(find)}&at=${h.match_start}` : ""}`;
 }
 
 /**
