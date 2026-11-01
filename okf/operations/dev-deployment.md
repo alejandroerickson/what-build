@@ -123,7 +123,11 @@ H=$(mktemp -d); node scripts/hostile-files.mjs "$H"
 The script prints what each file is and what WhatBuild should record for it at the default
 limits: too large, failed for memory, or ready. Signed in to dev, upload each through the app as
 the one attachment of a source of its own, in a product of an organization on the unlimited plan
-made for the rehearsal; a plan with limits refuses files over its `file_max_bytes`. Then check:
+made for the rehearsal; a plan with limits refuses files over its `file_max_bytes`. An agent has no
+browser session on dev, whose one sign-in is Google's: it connects as an MCP client, the maintainer
+choosing Allow on the consent page, and uploads with `attachments_write(action="create_upload")` and
+a PUT of the bytes to the grant. It deletes what it uploaded only if the connection's level is Admin;
+otherwise [putting dev back](#putting-it-back) removes them. Then check:
 
 - Each source ends in the status the script printed (its Text and Attachments say it), within a
   couple of minutes, and no job is left waiting.
