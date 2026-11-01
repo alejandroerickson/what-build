@@ -29,7 +29,8 @@ are people she invites.
    Free; the panel shows it and its product; its Plan page says Free, "1 of 2" people.
 3. **Web, as Dana.** On the organization's Members, invite Eli as an editor of its team. *Expect:*
    the invitation is listed as waiting, and the Plan page now says "2 of 2" people: an invitation
-   holds a place.
+   holds a place. The server's log prints the email: its subject and first line name Dana, the team
+   and the organization, each in quotation marks.
 4. **Web, as Dana.** Invite Fay as an editor too. *Expect:* refused: the organization holds all
    the people Free allows, and the message says what makes room (removing someone or cancelling an
    invitation) or that a larger plan would. Nothing is added.
@@ -45,7 +46,8 @@ are people she invites.
    source with a short synthetic text written into the run's folder. **As Fay,** open the invitation's
    link and sign in. *Expect:* the page asks, and opening it changed nothing, as Dana's Members page
    shows. Accept. *Expect:* the product opens on its Story and nothing else. Open the link again.
-   *Expect:* it says Fay is already in. **As Morgan,** sign in, find the invitation among Morgan's
+   *Expect:* it says Fay is already in. Open `/t/<org>/plan`. *Expect:* the plan isn't shown to Story
+   readers, with nothing of what the organization holds. **As Morgan,** sign in, find the invitation among Morgan's
    own organization's screens, and press Decline. *Expect:* it leaves without a reload, and focus
    stays on the page. **As Dana:** Morgan's address has left Waiting to join, and the access log says
    Someone declined an invitation to the product, with no name or address. Opening its link as

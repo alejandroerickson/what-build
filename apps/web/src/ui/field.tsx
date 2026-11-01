@@ -1,4 +1,4 @@
-import { useId, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes, type TextareaHTMLAttributes } from "react";
+import { useEffect, useId, useState, type ComponentProps, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes } from "react";
 import { Glyph } from "./glyph.tsx";
 
 interface FieldShell {
@@ -8,11 +8,43 @@ interface FieldShell {
   optional?: boolean;
 }
 
+/** How long typing rests before a screen reader is told where the text stands against its limit. */
+const SAY_AFTER_MS = 800;
+
+/** How far a text is over a limit, counted as the server counts it: what is saved is trimmed. */
+function charactersOver(text: string, limit: number): number {
+  return Math.max(0, text.trim().length - limit);
+}
+
+/** Whether a field's text is over its limit, so the form it is in refuses to save it. */
+export function tooLong(text: string, limit: number): boolean {
+  return charactersOver(text, limit) > 0;
+}
+
+/**
+ * What a field with `maxLength` says of its text. The limit is never given to the browser, which
+ * cuts what is pasted without a word: the text stays as typed, its field says how much is over, and
+ * the form refuses to save it (`tooLong`). A read-only field holds what was saved, so says nothing.
+ */
+function useLimit(value: unknown, limit: number | undefined, readOnly: unknown) {
+  const over = typeof value === "string" && limit !== undefined && !readOnly ? charactersOver(value, limit) : 0;
+  const problem = over ? `${over.toLocaleString()} ${over === 1 ? "character" : "characters"} over the limit of ${limit!.toLocaleString()}. Shorten it to save.` : null;
+  const [said, setSaid] = useState("");
+  useEffect(() => {
+    if (!problem && !said) return;
+    const wait = setTimeout(() => setSaid(problem ?? "Within the limit now."), SAY_AFTER_MS);
+    return () => clearTimeout(wait);
+    // Said for each new state of the text, never again for having been said.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [problem]);
+  return { problem, said: limit === undefined ? null : said };
+}
+
 function describedBy(id: string, hint: unknown, error: unknown) {
   return [hint ? `${id}-hint` : "", error ? `${id}-error` : ""].filter(Boolean).join(" ") || undefined;
 }
 
-function FieldFrame({ id, label, hint, error, optional, children }: FieldShell & { id: string; children: ReactNode }) {
+function FieldFrame({ id, label, hint, error, optional, said, children }: FieldShell & { id: string; said?: string | null; children: ReactNode }) {
   return (
     <div className={`field${error ? " field-invalid" : ""}`}>
       <label htmlFor={id} className="field-label">
@@ -32,26 +64,35 @@ function FieldFrame({ id, label, hint, error, optional, children }: FieldShell &
             <span>{error}</span>
           </div>
         ) : null}
+        {said === null || said === undefined ? null : (
+          <div className="visually-hidden" aria-live="polite">
+            {said}
+          </div>
+        )}
       </div>
     </div>
   );
 }
 
 /** A labelled text input. Read-only inputs look read-only (no border, no fill). */
-export function TextField({ label, hint, error, optional, className = "", ...rest }: FieldShell & InputHTMLAttributes<HTMLInputElement>) {
+export function TextField({ label, hint, error, optional, className = "", maxLength, ...rest }: FieldShell & ComponentProps<"input">) {
   const id = useId();
+  const { problem, said } = useLimit(rest.value, maxLength, rest.readOnly);
+  const shown = problem ?? error;
   return (
-    <FieldFrame id={id} label={label} hint={hint} error={error} optional={optional}>
-      <input id={id} className={`input ${className}`} aria-invalid={error ? true : undefined} aria-describedby={describedBy(id, hint, error)} {...rest} />
+    <FieldFrame id={id} label={label} hint={hint} error={shown} optional={optional} said={said}>
+      <input id={id} className={`input ${className}`} aria-invalid={shown ? true : undefined} aria-describedby={describedBy(id, hint, shown)} {...rest} />
     </FieldFrame>
   );
 }
 
-export function TextArea({ label, hint, error, optional, className = "", ...rest }: FieldShell & TextareaHTMLAttributes<HTMLTextAreaElement>) {
+export function TextArea({ label, hint, error, optional, className = "", maxLength, ...rest }: FieldShell & ComponentProps<"textarea">) {
   const id = useId();
+  const { problem, said } = useLimit(rest.value, maxLength, rest.readOnly);
+  const shown = problem ?? error;
   return (
-    <FieldFrame id={id} label={label} hint={hint} error={error} optional={optional}>
-      <textarea id={id} className={`input textarea ${className}`} aria-invalid={error ? true : undefined} aria-describedby={describedBy(id, hint, error)} {...rest} />
+    <FieldFrame id={id} label={label} hint={hint} error={shown} optional={optional} said={said}>
+      <textarea id={id} className={`input textarea ${className}`} aria-invalid={shown ? true : undefined} aria-describedby={describedBy(id, hint, shown)} {...rest} />
     </FieldFrame>
   );
 }

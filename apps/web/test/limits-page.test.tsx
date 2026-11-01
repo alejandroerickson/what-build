@@ -17,8 +17,13 @@ const FRESH = {
   meets: true as boolean | "calls_per_minute_only",
   contact: null as string | null,
   holds: { members: 2, invited: 0, products: 1, sources: 41, storage: { files: 30 * MB, text: 4 * MB, total: 34 * MB } },
+  /** What the person's list of products says of the organization. */
+  storyOnly: false,
+  /** The server refuses the person, whatever their list says. */
+  refused: false,
 };
 const state = { ...FRESH };
+const asked: string[] = [];
 
 const FREE = {
   requests_per_minute: 50, writes_per_day: 150, sources_per_day: 10, exports_per_day: 3, sent_bytes_per_day: 300 * MB, org_writes_per_day: 300,
@@ -56,6 +61,9 @@ const plans = () => [
 vi.mock("../src/lib/api.ts", async (original) => ({
   ...(await original<typeof import("../src/lib/api.ts")>()),
   api: vi.fn(async (_method: string, path: string) => {
+    asked.push(path);
+    if (path === "/api/v1/me/products") return { items: [], tenants: [{ slug: "acme", name: "Acme", plan: state.plan, ...(state.storyOnly ? { story_only: true } : {}) }] };
+    if (state.refused && path.endsWith("/limits")) throw new (await original<typeof import("../src/lib/api.ts")>()).ApiError(403, "forbidden", "You read only the Story in Acme.");
     if (path === "/api/v1/plans") return { plans: plans(), starting_plan: "free", limits: info, file_max_bytes: 100 * MB, contact: state.contact };
     const guest = state.meets === "calls_per_minute_only";
     const values = state.plan === "free" ? FREE : state.plan === "pro" ? PRO : null;
@@ -88,7 +96,11 @@ vi.mock("../src/lib/session.tsx", async (original) => ({
   useMe: () => ({ isPending: false, data: { tenant_allowance: { instance_owner: state.instanceOwner } } }),
 }));
 
+// Asked as the shell's modules load; jsdom has no media queries.
+window.matchMedia ??= (query: string) => ({ matches: false, media: query, onchange: null, addListener() {}, removeListener() {}, addEventListener() {}, removeEventListener() {}, dispatchEvent: () => false }) as MediaQueryList;
+
 const { PlanPage } = await import("../src/routes/limits.tsx");
+const { ReadOnlyBanner } = await import("../src/shell/Shell.tsx");
 const { ShellContext } = await import("../src/shell/slots.tsx");
 
 const slots = {
@@ -102,6 +114,7 @@ afterEach(() => {
   unmount = null;
   document.body.innerHTML = "";
   Object.assign(state, FRESH);
+  asked.length = 0;
 });
 
 async function page() {
@@ -133,6 +146,65 @@ const rows = (host: HTMLElement, sheet: string) =>
   [...(host.querySelector(`[aria-labelledby="${sheet}"]`)?.querySelectorAll(".limits-allowance") ?? [])].map((li) => li.textContent);
 
 const INTERNALS = ["WHATBUILD_", "rate_limited", "quota_exceeded", "Memory for reading", "Limits of this deployment"];
+
+describe("Plan, for someone who reads only the Story in the organization", () => {
+  const TOTALS = ["41 of 50", "2 of 2", "Everyone in Acme", "What it holds", "Today"];
+
+  it("says it isn't shown, without asking the server or drawing anything of the organization", async () => {
+    state.storyOnly = true;
+    const host = await page();
+    expect(host.querySelector("h1")?.textContent).toContain("Plan");
+    expect(host.textContent).toContain("The plan isn’t shown to Story readers");
+    expect(host.textContent).toContain("An admin of one of its products can give you more access.");
+    expect(host.querySelector('a[href="/"]')?.textContent).toBe("Go to your products");
+    for (const words of TOTALS) expect(host.textContent, words).not.toContain(words);
+    expect(asked.filter((p) => p.endsWith("/limits"))).toEqual([]);
+  });
+
+  it("says the same when the server refuses them", async () => {
+    state.refused = true;
+    const host = await page();
+    expect(host.textContent).toContain("The plan isn’t shown to Story readers");
+    for (const words of TOTALS) expect(host.textContent, words).not.toContain(words);
+  });
+
+  it("still shows the plan to anyone who reads more", async () => {
+    const host = await page();
+    expect(host.textContent).not.toContain("isn’t shown");
+    expect(rows(host, "holds-title").join(" ")).toContain("41 of 50");
+  });
+
+  async function banner() {
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const host = document.createElement("div");
+    document.body.append(host);
+    const root = createRoot(host);
+    unmount = () => act(() => root.unmount());
+    await act(async () => {
+      root.render(
+        <QueryClientProvider client={qc}>
+          <MemoryRouter>
+            <ReadOnlyBanner tenant={{ name: "Acme", slug: "acme" }} readOnly={{ since: "2026-10-01T00:00:00.000Z", kept_until: "2027-10-01T00:00:00.000Z" }} />
+          </MemoryRouter>
+        </QueryClientProvider>,
+      );
+    });
+    await act(() => new Promise((r) => setTimeout(r, 10)));
+    return host;
+  }
+
+  it("says a read-only organization is read-only, with no way to a plan they can't see", async () => {
+    state.storyOnly = true;
+    const host = await banner();
+    expect(host.textContent).toContain("Acme is read-only");
+    expect(host.querySelector('a[href="/t/acme/plan"]')).toBeNull();
+  });
+
+  it("offers the plan from that banner to anyone who reads more", async () => {
+    const host = await banner();
+    expect(host.querySelector('a[href="/t/acme/plan"]')?.textContent).toBe("See plan");
+  });
+});
 
 describe("Plan", () => {
   it("tells a person on the free plan what the organization holds, what they used today, and how to move to another plan, in words", async () => {

@@ -10,12 +10,16 @@ import {
 } from "../lib/limits.ts";
 import { useMe, useProducts } from "../lib/session.tsx";
 import { usePageTitle } from "../shell/slots.tsx";
-import { Button, ButtonLink, Callout, ChoiceRow, Dialog, EmptyState, ErrorCallout, Glyph, ListRow, Loading, Sheet, SheetBody, SheetHeader, StatusBadge, TextField, useToast } from "../ui/index.tsx";
+import { Button, ButtonLink, Callout, ChoiceRow, Dialog, EmptyState, ErrorCallout, Glyph, ListRow, Loading, Sheet, SheetBody, SheetHeader, StatusBadge, TextField, useToast, tooLong } from "../ui/index.tsx";
 import { NotVisible } from "./auth.tsx";
 import { OrganizationDeleteDialog } from "./org.tsx";
 import { PlanComparison } from "./plan-comparison.tsx";
 import { PrivacyLink } from "../shell/privacy-link.tsx";
 import "../styles/screens/limits.css";
+
+/** The limits the server sets on a plan's price and an organization's name. */
+const PRICE_MAX = 60;
+const NAME_MAX = 100;
 
 // ---- /t/:tenant/plan ------------------------------------------------------------------------------
 
@@ -28,11 +32,27 @@ import "../styles/screens/limits.css";
 export function PlanPage() {
   const { tenant = "" } = useParams();
   const me = useMe();
-  const q = useOrganizationLimits(tenant);
+  const products = useProducts();
+  const here = products.data?.tenants.find((t) => t.slug === tenant);
+  // Asked only once the products say whether this person may see it, so someone who reads only the
+  // Story is never refused (and their browser logs no refusal).
+  const q = useOrganizationLimits(tenant, !products.isPending && !here?.story_only);
+  const storyOnly = Boolean(here?.story_only) || (q.error instanceof ApiError && q.error.status === 403);
   // An organization the person can't see answers as one that doesn't exist, and so does this page.
   const notVisible = q.error instanceof ApiError && q.error.status === 404;
   usePageTitle(notVisible ? null : "Plan");
   if (notVisible) return <NotVisible what="organization" />;
+  if (storyOnly)
+    return (
+      <Sheet labelledBy="plan-title">
+        <SheetHeader level={1} id="plan-title" title="Plan" />
+        <SheetBody>
+          <EmptyState title="The plan isn’t shown to Story readers" action={<ButtonLink to="/">Go to your products</ButtonLink>}>
+            An admin of one of its products can give you more access.
+          </EmptyState>
+        </SheetBody>
+      </Sheet>
+    );
   if (q.isPending || me.isPending)
     return (
       <Sheet label="Loading the plan">
@@ -378,8 +398,8 @@ function heldLine(h: Holdings) {
  */
 export function InstanceOrganizationsSheet() {
   const q = useQuery({ queryKey: ["instance-organizations"], queryFn: () => api<InstanceOrganizations>("GET", ORGS) });
-  // Its Plan page opens only for its own people: the others' names link nowhere.
-  const mine = new Set(useProducts().data?.tenants.map((t) => t.slug));
+  // Its Plan page opens only for its own people, past reading the Story: the others' names link nowhere.
+  const mine = new Set(useProducts().data?.tenants.filter((t) => !t.story_only).map((t) => t.slug));
   const [params, setParams] = useSearchParams();
   const [renamingSlug, setRenamingSlug] = useState<string | null>(null);
   const [deletingSlug, setDeletingSlug] = useState<string | null>(null);
@@ -588,7 +608,7 @@ function PlanLimitsDialog({ plan, all, onClose }: { plan: string; all: InstanceO
   const [price, setPrice] = useState(entry.price ?? "");
   const value = (k: string): Amount => (k in draft ? draft[k]! : (entry.limits[k] ?? null));
   const changed = Object.keys(draft).filter((k) => draft[k] !== entry.limits[k]);
-  const invalid = changed.some((k) => !valid(draft[k]!));
+  const invalid = changed.some((k) => !valid(draft[k]!)) || tooLong(price, PRICE_MAX);
   const priceChanged = price.trim() !== (entry.price ?? "");
   const dirty = changed.length > 0 || priceChanged;
   const onPlan = all.items.filter((o) => o.plan === plan).length;
@@ -636,7 +656,7 @@ function PlanLimitsDialog({ plan, all, onClose }: { plan: string; all: InstanceO
           if (dirty && !invalid) submit();
         }}
       >
-        <TextField label="Price" optional maxLength={60} value={price} onChange={(e) => setPrice(e.target.value)} hint="As people read it on the plans pages, such as “$20 a month”. Empty shows none. Nothing takes payment." />
+        <TextField label="Price" optional maxLength={PRICE_MAX} value={price} onChange={(e) => setPrice(e.target.value)} hint="As people read it on the plans pages, such as “$20 a month”. Empty shows none. Nothing takes payment." />
         <div className="limits-scroll">
           <Table className="limits-edit" head={["Limit", "Counted over", "Value", "Default"]}>
             {all.limits.map((l) => (
@@ -811,7 +831,7 @@ function RenameDialog({ org, onClose }: { org: InstanceOrganization; onClose: ()
   const renamed = name.trim() !== org.name;
   const moved = slug !== org.slug;
   const slugError = moved ? slugProblem(slug) : null;
-  const valid = (renamed || moved) && Boolean(name.trim()) && !slugError;
+  const valid = (renamed || moved) && Boolean(name.trim()) && !slugError && !tooLong(name, NAME_MAX);
   const save = useMutation({
     mutationFn: () =>
       api<{ name: string; slug: string }>("PATCH", `/api/v1/tenants/${encodeURIComponent(org.slug)}`, {
@@ -852,7 +872,7 @@ function RenameDialog({ org, onClose }: { org: InstanceOrganization; onClose: ()
           if (valid) save.mutate();
         }}
       >
-        <TextField label="Name" required maxLength={100} value={name} onChange={(e) => setName(e.target.value)} />
+        <TextField label="Name" required maxLength={NAME_MAX} value={name} onChange={(e) => setName(e.target.value)} />
         <TextField
           label="Short name in links"
           required

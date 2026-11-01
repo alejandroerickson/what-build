@@ -8,7 +8,7 @@ import { capRole, defineOperation, type OpContext, type ProductRole, type Report
 import { checkMembers, type Plan } from "../limits.ts";
 import { isInstanceOwner, requireTenantAllowance } from "../tenant-allowance.ts";
 import { expectedEtag, slug } from "../schemas.ts";
-import { newEtag, newId, oneLine, quotedName, randomToken, sha256Hex, slugify } from "../util.ts";
+import { newEtag, newId, quotedName, randomToken, sha256Hex, slugify } from "../util.ts";
 import { adviseIdeaCard, CARD_HTML_MAX, checkCardSides, checkIdeaCard } from "../idea-card.ts";
 import { actionAsRead } from "./activity.ts";
 
@@ -819,6 +819,19 @@ function seenByCaller(ctx: OpContext): (accountId: string) => Promise<boolean> {
 }
 
 /**
+ * Where an invitation's email says it leads, as the invitation's screens say it: the organization
+ * by name, always, and the team or product in it. Each name was chosen by someone, so each is
+ * quoted, and none reads as WhatBuild's own words.
+ */
+function invitedTo(target: GrantTarget, organization: string): string {
+  const named = (name: string) => quotedName(name, 100, "unnamed");
+  const org = `the organization ${named(organization)}`;
+  if (target.scope_type === "tenant") return org;
+  if (target.scope_type === "team") return `the ${named(target.name)}${/\bteam$/i.test(target.name.trim()) ? "" : " team"} in ${org}`;
+  return `${named(target.name)} in ${org}`;
+}
+
+/**
  * Give one person a role where `target` is, after the caller's standing there was checked. Someone
  * the caller already sees in the organization gets the role at once (replacing the one they hold
  * there). Anyone else gets an invitation by email, whether or not they have an account, so the
@@ -858,7 +871,7 @@ async function grantOne(ctx: OpContext, target: GrantTarget, email: string, role
     const link = `${ctx.ports.config.publicBaseUrl}/invite/${token}`;
     // The inviter's name is theirs to choose: in the email it is one line, quoted and bounded, so it never reads as WhatBuild's own words.
     const who = quotedName(ctx.actor.display_name);
-    const where = oneLine(target.name, 100);
+    const where = invitedTo(target, ctx.scope.tenant!.name);
     const mail: Mail = {
       to: email,
       subject: `${who} invited you to ${where} on WhatBuild`,
@@ -866,7 +879,7 @@ async function grantOne(ctx: OpContext, target: GrantTarget, email: string, role
         `${who} invited you to ${where} on WhatBuild, as ${/^[aeiou]/.test(role) ? "an" : "a"} ${role}.\n\n` +
         `You join only if you accept. Accept or decline it here:\n${link}\n\n` +
         `The link works within 7 days, when you sign in with this email. The invitation also waits for you there whenever you sign in.\n` +
-        `The name in quotation marks is the one the inviter gave WhatBuild.\n`,
+        `The names in quotation marks are the ones people gave WhatBuild.\n`,
     };
     await recordActivity(ctx, { action: "invited", entity_type: "membership", entity_id: invitation_id, entity_title: target.name, summary: `Invited someone as ${role}` });
     // The link is returned to the inviter too, so an invitation works even where no email is sent.

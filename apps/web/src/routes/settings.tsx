@@ -7,9 +7,12 @@ import { forgetPersonalState } from "../lib/local-state.ts";
 import { useHideExample, useMe, useProducts } from "../lib/session.tsx";
 import { usePageTitle } from "../shell/slots.tsx";
 import { DeleteAccount } from "./delete-account.tsx";
-import { Button, ChoiceRow, Dialog, ErrorCallout, FormGrid, Sheet, SheetBody, SheetHeader, TextField, useToast } from "../ui/index.tsx";
+import { Button, ChoiceRow, Dialog, ErrorCallout, FormGrid, Sheet, SheetBody, SheetHeader, TextField, useToast, tooLong } from "../ui/index.tsx";
 import { PrivacyLink } from "../shell/privacy-link.tsx";
 import "../styles/screens/account.css";
+
+/** The limit the server sets on a person's name. */
+const NAME_MAX = 100;
 
 /** `/settings`: the person's own settings, reached from the account menu. */
 export function SettingsPage() {
@@ -38,7 +41,7 @@ export function SettingsPage() {
         <form
           onSubmit={(e) => {
             e.preventDefault();
-            if (dirty && name.trim()) save.mutate();
+            if (dirty && name.trim() && !tooLong(name, NAME_MAX)) save.mutate();
           }}
         >
           <FormGrid className="account-form">
@@ -47,7 +50,7 @@ export function SettingsPage() {
               hint="Shown beside what you and your agents write."
               value={name}
               onChange={(e) => setName(e.target.value)}
-              maxLength={100}
+              maxLength={NAME_MAX}
               required
             />
             <TextField label="Email" value={me.data?.email ?? ""} readOnly />
@@ -58,7 +61,7 @@ export function SettingsPage() {
             </div>
           ) : null}
           <div className="account-actions">
-            <Button type="submit" variant="primary" busy={save.isPending} busyLabel="Saving…" disabled={!dirty || !name.trim()}>
+            <Button type="submit" variant="primary" busy={save.isPending} busyLabel="Saving…" disabled={!dirty || !name.trim() || tooLong(name, NAME_MAX)}>
               Save changes
             </Button>
           </div>

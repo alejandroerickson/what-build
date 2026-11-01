@@ -25,6 +25,13 @@ design system: tokens, type, components and the rules for using them — is docu
 - Every write path handles `409 stale_etag` explicitly: show what changed, keep the person's
   unsaved text, offer reload-and-reapply. Never discard input; never overwrite silently: a
   teammate or their agent may be editing the same object.
+- **A field's limit never cuts what is typed or pasted.** Past a limit the text stays as it is, the
+  field is invalid and says how many characters are over ("140 characters over the limit of 1,000.
+  Shorten it to save."), and the form refuses to save it, as MCP refuses the same text with an
+  error. What is trimmed before saving is not counted. A screen reader reads it with the field and
+  hears it once typing rests. ◆ Decision: `TextField` and `TextArea` take `maxLength` and never hand
+  it to the browser, which cuts a paste without a word, and a form tests its text with `tooLong`
+  (`apps/web/src/ui/field.tsx`).
 - **A page left open across a release loads the release.** A tab keeps the app it loaded, while
   the server may by then answer in shapes that app does not know. The app knows the commit it was
   built from (`WHATBUILD_COMMIT` at build time) and every response names the server's
@@ -38,7 +45,7 @@ design system: tokens, type, components and the rules for using them — is docu
   person. (Enforced today: Story pages and mockups per product, [§9.2](09-data-lifecycle.md), and the
   daily allowances of a plan the deployment defines, [§9.7](09-data-lifecycle.md).)
 - **No request the app knows will be refused.** Where the app can tell in advance that the server
-  would refuse (a Story-only reader asking for members, a guest of the example organization asking
+  would refuse (a Story-only reader asking for members or the plan, a guest of the example organization asking
   for its people, an address whose id is not an id at all), it says so without asking. Where it cannot, it asks, and
   REST answers honestly: a source, assumption or other object that does not exist answers `404`,
   and its page says it was not found while the browser's console reports the `404` of the request.
@@ -229,7 +236,7 @@ place.
    says so above every screen of its products: that nothing new can be added, what everyone can
    still do there (one sentence the server's refusal shares, `packages/core/src/read-only.ts`:
    read, export and delete what it holds, and take people out, as their roles allow), how long it
-   is kept, and **See plan**. Inside one, as on an archived product, no control offers a change the
+   is kept, and **See plan** for anyone who reads more than the Story there. Inside one, as on an archived product, no control offers a change the
    server would refuse (`409 organization_read_only`), and a screen that would invite one (Add a
    source, a new entry) says why in its place; deleting and export stay. Its Members page says so
    too, and offers only what still works there: removing a role, taking someone out and cancelling
@@ -1091,7 +1098,7 @@ never described as deleting. A list row showing an archived object says *Archive
   instance (`products.organizations`), under a line saying each is on a plan of its own and what
   plan a new organization starts on here, or, where the deployment offers no plans, that every
   organization is Unlimited, both set where the service is deployed (`WHATBUILD_PLANS` and
-  `WHATBUILD_NEW_ORGANIZATION_PLAN`): each row its name (a link to its Plan page where the instance owner is in it), whether it is
+  `WHATBUILD_NEW_ORGANIZATION_PLAN`): each row its name (a link to its Plan page where the instance owner is in it and reads more than the Story), whether it is
   the example, what it holds (people, with invitations waiting, products, sources and storage), who
   created it and when, how long a read-only one is kept, and today's writes, ending in a Read-only
   badge where it is, "Plan no longer defined" for one on a plan the deployment no longer defines,
@@ -1140,7 +1147,8 @@ never described as deleting. A list row showing an archived object says *Archive
   them off it. Anyone
   else reaching the address is told only instance owners see this.
 - **Plan** (`/t/:tenant/plan`, and `/t/:tenant/limits` as before, in the account menu for every
-  organization the person is in, where the deployment offers plans; `apps/web/src/routes/limits.tsx`). What a person sees is said in
+  organization the person is in, but one where they read only the Story, where the deployment
+  offers plans; `apps/web/src/routes/limits.tsx`). What a person sees is said in
   words, for someone using WhatBuild rather than running it. **Plan**: the plan's name and price,
   what it is for, that everyone in the organization meets its limits, owners and their agents
   included (an unlimited organization has none, and one on a plan the deployment no longer defines
@@ -1171,7 +1179,9 @@ never described as deleting. A list row showing an archived object says *Archive
   dialog on the instance's page, **Limits of the** plan (one row each: what it counts and over
   what, what it allows, what is used, the refusal) and **Limits of this deployment**, with what sets
   each. A guest of the example reaching the address is told its plan sets nothing for them but how
-  often they can call.
+  often they can call. Someone who reads only the Story there reaching the address is told the plan
+  isn't shown to Story readers, with a way back to their products, as Members tells them, and the
+  page never asks for it, since `products.list` marks that organization `story_only`.
 - **The waiting page** (any signed-in address, for a guest account that is not in; `GuestGate` in
   `apps/web/src/shell/guest-gate.tsx`). A guest account sees the app only while it holds a place
   (`GET /api/v1/me/guest-pass`). The app asks only when the guest does something: when it opens,

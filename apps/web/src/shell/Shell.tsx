@@ -1,8 +1,8 @@
 import { READ_ONLY_ALLOWS } from "@whatbuild/core/read-only";
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import { useLocation } from "react-router";
-import { keptLine } from "../lib/limits.ts";
-import type { Product } from "../lib/session.tsx";
+import { keptLine, type ReadOnly } from "../lib/limits.ts";
+import { useProducts, type Product } from "../lib/session.tsx";
 import { ButtonLink, Callout, Glyph } from "../ui/index.tsx";
 import { isTypingTarget, NARROW_QUERY, PHONE_QUERY, shortcutLabel, useMediaQuery } from "../ui/media.ts";
 import { BrandMark } from "./brand.tsx";
@@ -319,6 +319,28 @@ function Stage({ variant, panel, panelFoot, pillName, section, title, banner, ch
   );
 }
 
+/** That the organization is read-only, and what that means. Whoever reads only the Story in it has no Plan page to go to. */
+export function ReadOnlyBanner({ tenant, readOnly }: { tenant: Pick<Product["tenant"], "name" | "slug">; readOnly: ReadOnly }) {
+  const storyOnly = useProducts().data?.tenants.find((t) => t.slug === tenant.slug)?.story_only;
+  return (
+    <div className="canvas-banner">
+      <Callout
+        tone="attention"
+        title={`${tenant.name} is read-only`}
+        action={
+          storyOnly ? null : (
+            <ButtonLink to={`/t/${tenant.slug}/plan`} size="sm">
+              See plan
+            </ButtonLink>
+          )
+        }
+      >
+        It went back to the plan new organizations start on while whoever started it already has one there, so nothing new can be added. {READ_ONLY_ALLOWS} {keptLine(readOnly)}.
+      </Callout>
+    </div>
+  );
+}
+
 /** Every screen inside a product: L1, the quiet group, the context slot, the account menu. */
 export function ProductShell({ product, app, children }: { product: Product; app: string; children: ReactNode }) {
   const loc = useLocation();
@@ -335,22 +357,7 @@ export function ProductShell({ product, app, children }: { product: Product; app
         <>
           <InvitationsBanner />
           {product.tenant.example ? <ExampleBanner tenant={product.tenant} /> : null}
-          {product.tenant.read_only ? (
-            <div className="canvas-banner">
-              <Callout
-                tone="attention"
-                title={`${product.tenant.name} is read-only`}
-                action={
-                  <ButtonLink to={`/t/${product.tenant.slug}/plan`} size="sm">
-                    See plan
-                  </ButtonLink>
-                }
-              >
-                It went back to the plan new organizations start on while whoever started it already has one there, so nothing new can be added. {READ_ONLY_ALLOWS}{" "}
-                {keptLine(product.tenant.read_only)}.
-              </Callout>
-            </div>
-          ) : null}
+          {product.tenant.read_only ? <ReadOnlyBanner tenant={product.tenant} readOnly={product.tenant.read_only} /> : null}
           {product.archived_at ? (
             <div className="canvas-banner">
               <Callout tone="attention" title="This product is archived">

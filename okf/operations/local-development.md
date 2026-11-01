@@ -192,8 +192,8 @@ its tag and so starts the same workflow; [releasing](releasing.md) is how to mak
 
 ## In the browser
 
-- `node scripts/e2e.mjs [baseUrl]` drives a real Chrome through sign-in, intake with an
-  attachment until its text is read, an edit to the source's text, its summary and a comment,
+- `node scripts/e2e.mjs [baseUrl]` drives a real Chrome through sign-in, a title past its limit
+  that stays whole and is refused, intake with an attachment until its text is read, an edit to the source's text, its summary and a comment,
   search and a hit that opens the text with the words marked, activity, a mockup canvas (focus mode
   leaves one placed by hand where it is, and its toolbar stays inside the board in a narrow window)
   and export against a running `pnpm dev`. It creates data, so run it on a database you don't mind

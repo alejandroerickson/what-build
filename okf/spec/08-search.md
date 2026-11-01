@@ -130,7 +130,9 @@ with it (dates, tags, a cursor, `include_archived`, a `scope` other than `source
     that kind's results first, ahead of any that score higher, then the rest, each best first,
     and is returned as `kind_hint`; "passage", "passages", "quote" and "quotes" hint `source`. The order
     is the operation's, so the palette, the Search screen and an agent see the hinted kind first
-    alike, and a result's `score` does not count the hint;
+    alike, and a result's `score` does not count the hint. For a reader only `story` is a kind
+    word: any other is searched for in the Story like the rest, so `kind_hint` never names what
+    they cannot search;
   - a word that matches nothing is replaced by the closest word the product holds (at most one
     edit, two for words of six letters or more, a transposition counting as one), taken from
     titles and from what the product's live sources say alike, by trigram; `corrections` lists

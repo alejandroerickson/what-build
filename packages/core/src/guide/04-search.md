@@ -24,7 +24,7 @@ first 200,000 characters of words a page holds. Search is lexical: no mode match
   product concept. It forgives endings and word order, corrects a word that matches nothing
   (`corrections` says so; `strict: true` turns it off), and names `missing` words when nothing holds
   them all. A word naming a kind beside other words (`mockups crew`) is not searched for: that kind
-  comes first, and `kind_hint` says so. An id or a number (`CB26-20734`, `2026-05-01`) is one word,
+  comes first, and `kind_hint` says so; for a reader only `story` is such a word. An id or a number (`CB26-20734`, `2026-05-01`) is one word,
   matched as written and never corrected, and one with a letter in it also as its words side by side
   (`q3-planning` finds "Q3 planning"). The last word matches as a prefix unless the query ends with a
   space. `limit` caps the results (60 by default).

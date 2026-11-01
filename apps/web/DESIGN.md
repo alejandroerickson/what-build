@@ -580,6 +580,7 @@ Compact and calm. Default buttons read as white tiles with a hairline, not as fi
 
 ### Inputs / Fields
 - **Input:** 28px, 6px corners, Line Strong border on panel fill; the border darkens to Muted on hover. Focus sets an accent border plus the 2px accent ring. Invalid fields turn the border and ring red, with an 11.5px error line and alert glyph below. Readonly fields are borderless on Hover fill.
+- **A field's limit:** it never cuts what is typed or pasted. Past it the field turns invalid, its error line says how many characters are over, and the form's commit is off until the text fits. A screen reader reads the line with the field and hears it in a polite live region once typing rests.
 - **Find field:** a fill-only search on Hover (Hover Strong on hover) with a faint leading search glyph, used for the Search screen, the tree filter and in-sheet search. On focus it turns panel white with the accent ring.
 - **Labels:** muted 500 above the control. Hints are faint 11.5px, capped at the 68ch measure.
 
@@ -691,6 +692,7 @@ The kit's pictograms are Lucide, a fixed set generated from lucide-react. A fron
 - **Do** pair every status with its shaped 7px mark and a word.
 - **Do** animate with the one ease (`cubic-bezier(0.2, 0.8, 0.2, 1)`) at 120ms for small state changes, 160ms for toasts and dialogs, 200ms for panels, the inspector and the canvas. Layout that moves what is below it (an Idea card's text unfolding) takes 320ms (`--dur-4`) on the fold ease (`--ease-fold`, `cubic-bezier(0.2, 0, 0, 1)`), which starts gently so the move reads rather than jumps, and folds back in 200ms. Honour reduced motion.
 - **Do** show focus with the 2px accent outline at 1px offset. Rows inside sheets inset it (-2px).
+- **Do** give a text field its limit with `maxLength` on `TextField` or `TextArea` and test it with `tooLong` before saving, never on a bare `input` or `textarea`, where the browser cuts a paste without a word.
 - **Do** keep a title to one line with `OneLine` (`src/ui/one-line.tsx`), which cuts it by the Whole Word Rule, never with `text-overflow: ellipsis`, which clips it at a pixel, in a title that mixes directions at the wrong words.
 - **Do** keep Story pages out of Studio: the Story guidance and house styles never copy the app's tokens.
 - **Do** give every card kit colour in both themes. A diagram the kit lacks is drawn with the kit's variables (`currentColor`, the hue's ink and line, muted), never fixed colours.

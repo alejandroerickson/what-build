@@ -1,9 +1,9 @@
 import { useMutation } from "@tanstack/react-query";
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useLocation } from "react-router";
 import { api } from "../lib/api.ts";
 import { useMe } from "../lib/session.tsx";
-import { Button, ChoiceRow, Dialog, ErrorCallout, Segmented, useToast } from "../ui/index.tsx";
+import { Button, ChoiceRow, Dialog, ErrorCallout, Segmented, TextArea, tooLong, useToast } from "../ui/index.tsx";
 import { productSection } from "./panel.tsx";
 import { releaseView, useRelease, type Release } from "./release.tsx";
 
@@ -69,7 +69,6 @@ export function FeedbackDialog({ open, onClose }: { open: boolean; onClose: () =
   const [message, setMessage] = useState("");
   const [reply, setReply] = useState(false);
   const area = useRef<HTMLTextAreaElement>(null);
-  const fieldId = useId();
   const screen = screenOf(pathname);
   const asked = KINDS.find((k) => k.id === kind) ?? NONE;
   const email = me.data?.email ?? "";
@@ -84,7 +83,8 @@ export function FeedbackDialog({ open, onClose }: { open: boolean; onClose: () =
     },
   });
   const busy = send.isPending;
-  const ready = message.trim().length > 0 && !busy;
+  const chars = message.trim().length;
+  const ready = chars > 0 && !tooLong(message, MAX) && !busy;
 
   // The message takes focus once the dialog is open (its own effect has opened it by now).
   useEffect(() => {
@@ -122,34 +122,22 @@ export function FeedbackDialog({ open, onClose }: { open: boolean; onClose: () =
         value={kind ?? ""}
         onChange={(id) => setKind((now) => (now === id ? null : (id as Kind)))}
       />
-      <div className="field">
-        <label htmlFor={fieldId} className="field-label">
-          {asked.ask}
-        </label>
-        <div className="field-control">
-          <textarea
-            ref={area}
-            id={fieldId}
-            className="input textarea feedback-message"
-            value={message}
-            maxLength={MAX}
-            placeholder={asked.prompt}
-            aria-describedby={message.length >= COUNT_FROM ? `${fieldId}-count` : undefined}
-            onChange={(e) => setMessage(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && (e.metaKey || e.ctrlKey) && ready) {
-                e.preventDefault();
-                send.mutate();
-              }
-            }}
-          />
-          {message.length >= COUNT_FROM ? (
-            <div className="field-hint num" id={`${fieldId}-count`}>
-              {message.length.toLocaleString()} of {MAX.toLocaleString()} characters
-            </div>
-          ) : null}
-        </div>
-      </div>
+      <TextArea
+        ref={area}
+        label={asked.ask}
+        className="feedback-message"
+        value={message}
+        maxLength={MAX}
+        placeholder={asked.prompt}
+        hint={chars >= COUNT_FROM ? <span className="num">{chars.toLocaleString()} of {MAX.toLocaleString()} characters</span> : null}
+        onChange={(e) => setMessage(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" && (e.metaKey || e.ctrlKey) && ready) {
+            e.preventDefault();
+            send.mutate();
+          }
+        }}
+      />
       <section className="feedback-sent" aria-label="What is sent">
         <dl className="kv">
           <div className="kv-row">

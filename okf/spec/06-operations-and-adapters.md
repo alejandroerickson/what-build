@@ -258,7 +258,7 @@ being changed inside the handler.
 | `products` | `set_tenant_allowance` | `PUT /api/v1/tenant-allowances` | instance owner, in the web app only |
 | `products` | `remove_tenant_allowance` | `POST /api/v1/tenant-allowances/remove` | instance owner, in the web app only |
 | `products` | `usage` | `GET /api/v1/usage` | instance owner, in the web app only |
-| `products` | `limits` | `GET /api/v1/tenants/:tenant/limits` | tenant member, or a guest of the example organization |
+| `products` | `limits` | `GET /api/v1/tenants/:tenant/limits` | anyone in the tenant, or a guest of the example organization; someone who reads only the Story everywhere in it is `403`, naming both roles, and is not offered it |
 | `products` | `organizations` | `GET /api/v1/organizations` | instance owner, in the web app only |
 | `products` | `set_plan` | `PATCH /api/v1/organizations/plan` | instance owner, in the web app only; a plan the deployment does not define is refused `422 unknown_plan` |
 | `products` | `set_plan_limits` | `PATCH /api/v1/plans` | instance owner, in the web app only; a plan the deployment does not define is refused `422 unknown_plan` |
@@ -883,7 +883,8 @@ Rules:
   `products_write` speaks of starting an organization only to someone offered `create_tenant`.
   `search` shows someone who reads only the Story (the list offers them nothing that needs viewer)
   what it does for them, in plain mode over the Story, with a schema that asks for that mode
-  (`forStoryReader` in `registry.ts`); what a call is checked against stays the same. Called with `action` and `describe: true` (and no
+  (`forStoryReader` in `registry.ts`), and of the words that name a kind only the word `story`, the
+  one it reads as a kind for them; what a call is checked against stays the same. Called with `action` and `describe: true` (and no
   `params`), it returns that action's scope, access, whether it mutates, its guidance and its
   exact JSON Schema — without executing.
 - **Strict.** Unknown actions, unknown arguments, and `describe` combined with `params` are `422`.

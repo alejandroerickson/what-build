@@ -129,10 +129,46 @@ describe("an invitation email", () => {
     const mail = h.mailer.sent.at(-1)!;
     expect(mail.to).toBe("newcomer@example.com");
     expect(mail.subject).not.toMatch(/[\r\n‮]/);
-    expect(mail.subject).toMatch(/^"Mallory Bcc: everyone@example\.com WhatBuild Secu[^"]*…" invited you to Planner on WhatBuild$/);
+    expect(mail.subject).toMatch(/^"Mallory Bcc: everyone@example\.com WhatBuild Secu[^"]*…" invited you to "Planner" in the organization "Acme Labs" on WhatBuild$/);
     const [first] = mail.text.split("\n");
-    expect(first).toMatch(/^"Mallory Bcc: [^"]*…" invited you to Planner on WhatBuild, as a viewer\.$/);
+    expect(first).toMatch(/^"Mallory Bcc: [^"]*…" invited you to "Planner" in the organization "Acme Labs" on WhatBuild, as a viewer\.$/);
     expect(mail.text).toContain("/invite/");
+    expect(mail.text).toContain("The names in quotation marks are the ones people gave WhatBuild.");
+  });
+
+  it("names the organization, whichever part of it the invitation is to", async () => {
+    const sentTo = (email: string) => h.mailer.sent.filter((m) => m.to === email).at(-1)!;
+    // An organization of its own, so the access log the next tests read stays as it is.
+    const owner = await h.signIn("nia@example.com", "Nia Owner");
+    const t = await owner.api("POST", "/api/v1/tenants", { name: "Harbor Works" });
+    const org = t.body.tenant.slug;
+    const invite = (body: Record<string, string>) => owner.api("POST", `/api/v1/tenants/${org}/members`, body);
+    const product = await owner.api("POST", `/api/v1/teams/${org}/${t.body.team.slug}/products`, { name: "Tide Log" });
+    expect((await invite({ email: "joins-org@example.com", role: "admin" })).status).toBe(201);
+    expect(sentTo("joins-org@example.com").subject).toBe('"Nia Owner" invited you to the organization "Harbor Works" on WhatBuild');
+    expect(sentTo("joins-org@example.com").text.split("\n")[0]).toBe('"Nia Owner" invited you to the organization "Harbor Works" on WhatBuild, as an admin.');
+    // The team every organization starts with is named Product team, and reads as the screens read it.
+    expect((await invite({ team: t.body.team.slug, email: "joins-team@example.com", role: "editor" })).status).toBe(201);
+    expect(sentTo("joins-team@example.com").subject).toBe('"Nia Owner" invited you to the "Product team" in the organization "Harbor Works" on WhatBuild');
+    const other = await owner.api("POST", `/api/v1/tenants/${org}/teams`, { name: "Insights" });
+    expect((await invite({ team: other.body.slug, email: "joins-insights@example.com", role: "viewer" })).status).toBe(201);
+    expect(sentTo("joins-insights@example.com").subject).toBe('"Nia Owner" invited you to the "Insights" team in the organization "Harbor Works" on WhatBuild');
+    expect((await invite({ team: t.body.team.slug, product: product.body.slug, email: "joins-product@example.com", role: "reader" })).status).toBe(201);
+    expect(sentTo("joins-product@example.com").text.split("\n")[0]).toBe('"Nia Owner" invited you to "Tide Log" in the organization "Harbor Works" on WhatBuild, as a reader.');
+  });
+
+  it("shows the organization's and the product's names on one line, quoted and bounded, whatever they chose", async () => {
+    const owner = await h.signIn("orla@example.com", "Orla");
+    // Names a person chose, trying to read as WhatBuild's own words, to close the quotation or to reach another header.
+    const t = await owner.api("POST", "/api/v1/tenants", { name: 'Acme" on WhatBuild. Reset your account\r\nBcc: everyone@example.com‮ now' });
+    expect(t.status, JSON.stringify(t.body)).toBe(201);
+    const p = await owner.api("POST", `/api/v1/teams/${t.body.tenant.slug}/${t.body.team.slug}/products`, { name: 'Tide"\u202e Log' });
+    expect(p.status, JSON.stringify(p.body)).toBe(201);
+    expect((await owner.api("POST", `/api/v1/tenants/${t.body.tenant.slug}/members`, { team: t.body.team.slug, product: p.body.slug, email: "wary@example.com", role: "viewer" })).status).toBe(201);
+    const mail = h.mailer.sent.filter((m) => m.to === "wary@example.com").at(-1)!;
+    expect(mail.subject).not.toMatch(/[\r\n\u202e]/);
+    expect(mail.subject).toBe(`"Orla" invited you to "Tide' Log" in the organization "Acme' on WhatBuild. Reset your account Bcc: everyone@example.com now" on WhatBuild`);
+    expect(mail.text.split("\n")[0]).toBe(`"Orla" invited you to "Tide' Log" in the organization "Acme' on WhatBuild. Reset your account Bcc: everyone@example.com now" on WhatBuild, as a viewer.`);
   });
 });
 
