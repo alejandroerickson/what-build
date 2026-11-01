@@ -441,7 +441,6 @@ export function MockupPage() {
 
   const e = useQuery({
     queryKey: ["mockup", base, mockupId],
-    retry: (n, err) => !(err instanceof ApiError && err.isNotFound) && n < 2,
     queryFn: () => api<MockupView>("GET", `${base}/mockups/${mockupId}`),
   });
   const versions = useQuery({
@@ -453,7 +452,6 @@ export function MockupPage() {
   const old = useQuery({
     queryKey: ["mockup-version", base, mockupId, asked],
     enabled: wantsOld,
-    retry: (n, err) => !(err instanceof ApiError && err.isNotFound) && n < 2,
     queryFn: () => api<MockupVersion>("GET", `${base}/mockups/${mockupId}/versions/${asked}`),
   });
   // On a phone too: the board gains the whole screen.

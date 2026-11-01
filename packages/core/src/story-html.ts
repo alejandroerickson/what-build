@@ -3,7 +3,7 @@ import { EXTERNAL_URL, MOCKUP_PAGE_RULES, STORY_PAGE_RULES, type PageRules } fro
 // A page's rules, for a Story page and a mockup page, live in html-rules.ts, and the sandbox each is
 // shown in in page-sandbox.ts; this module keeps the Story's stylesheet rules and the headers every
 // page is served with.
-export { MOCKUP_PAGE_SANDBOX, STORY_PAGE_SANDBOX } from "./page-sandbox.ts";
+export { MOCKUP_PAGE_SANDBOX, REFUSED_FRAME_SANDBOX, STORY_PAGE_SANDBOX } from "./page-sandbox.ts";
 export { inspectMockupHtml, inspectPageHtml, inspectStoryHtml, MOCKUP_PAGE_RULES, STORY_HTML_MAX, STORY_MAX_SCRIPTS, STORY_PAGE_RULES, STORY_SCRIPT_BUDGET, type PageRules } from "./html-rules.ts";
 
 export const STORY_CSS_MAX = 200_000;

@@ -164,6 +164,163 @@ describe("an organization's plan", () => {
   });
 });
 
+describe("a frame refused for the minute's calls", () => {
+  // Refused before anything is looked up, so no page need exist at these addresses.
+  const PAGES = [
+    ["a Story page", () => `${P}/story/pages/overview/versions/1/html`],
+    ["a page of a canvas on the Story", () => `${P}/story/pages/overview/versions/1/pages/board/html`],
+    ["a mockup page", () => `${P}/mockups/01ARZ3NDEKTSV4RRFFQ69G5FAV/versions/1/pages/board/html`],
+  ] as const;
+  const OTHER_FRAMES = [
+    ["the product concept's card", () => `${P}/idea/concept/card`],
+    ["an outcome's card", () => `${P}/outcomes/01ARZ3NDEKTSV4RRFFQ69G5FAV/card`],
+    ["the Story style's specimen", () => `${P}/story/style/specimen`],
+    ["a house style's specimen", () => `${P}/story/house-styles/clear/specimen`],
+  ] as const;
+  const FRAME = { "sec-fetch-dest": "iframe", accept: "text/html" };
+
+  /** The refusal's own fields, read from what the document's script tells the app. */
+  function toldToTheApp(html: string) {
+    const told = /postMessage\((\{.*?\}),"\*"\)/.exec(html);
+    expect(told, html).not.toBeNull();
+    return JSON.parse(told![1]!) as { whatbuild: string; retry_after_seconds: number; limit: number };
+  }
+
+  it("answers a short page in the product's words, with the refusal's status and wait, and never the JSON", async () => {
+    tweak({ requests_per_minute: 0 });
+    try {
+      for (const [what, path] of PAGES) {
+        const r = await ned.api("GET", `${path()}?frame=1`);
+        expect(r.status, what).toBe(429);
+        expect(r.headers.get("content-type"), what).toMatch(/^text\/html/);
+        expect(Number(r.headers.get("retry-after")), what).toBeGreaterThan(0);
+        const html = r.body as unknown as string;
+        expect(html, what).toMatch(/^<!doctype html>/i);
+        expect(html, what).toContain("Waiting for the next minute");
+        expect(html, what).toContain("this minute’s calls");
+        for (const inner of ["rate_limited", "\"error\"", "requests_per_minute"]) expect(html, what).not.toContain(inner);
+        const told = toldToTheApp(html);
+        expect(told, what).toMatchObject({ whatbuild: "frame-refused", limit: 0 });
+        expect(told.retry_after_seconds, what).toBe(Number(r.headers.get("retry-after")));
+      }
+    } finally {
+      reset();
+    }
+  });
+
+  it("holds nothing that loads, navigates or reloads, and runs in a sandbox as narrow as any frame's", async () => {
+    tweak({ requests_per_minute: 0 });
+    try {
+      const { body, headers } = await ned.api("GET", `${P}/story/pages/overview/versions/1/html?frame=1&theme=dark`);
+      const html = body as unknown as string;
+      // The document never asks again by itself: only the app that framed it may, a bounded number of times.
+      for (const way of ["location", "reload", "http-equiv", "setTimeout", "setInterval", "fetch(", "<a ", "<form", "<img", "src=", "href="]) expect(html).not.toContain(way);
+      expect(html).toContain('data-wb-theme="dark"');
+      const csp = headers.get("content-security-policy")!;
+      expect(csp).toMatch(/^sandbox allow-scripts; default-src 'none';/);
+      expect(csp).toContain("frame-ancestors 'self'");
+      expect(csp).toContain("connect-src 'none'");
+      expect(csp).toContain("form-action 'none'");
+      expect(csp).toContain("base-uri 'none'");
+      expect(headers.get("cross-origin-embedder-policy")).toBe("credentialless");
+      expect(headers.get("cache-control")).toBe("no-store");
+      expect(headers.get("x-content-type-options")).toBe("nosniff");
+      expect(headers.get("referrer-policy")).toBe("no-referrer");
+    } finally {
+      reset();
+    }
+  });
+
+  it("takes only light or dark from the address", async () => {
+    tweak({ requests_per_minute: 0 });
+    try {
+      const html = (await ned.api("GET", `${P}/story/pages/overview/versions/1/html?frame=1&theme=${encodeURIComponent('"><script>x</script>')}`)).body as unknown as string;
+      expect(html).not.toContain("<script>x");
+      expect(html).toContain('<html lang="en"><head>');
+    } finally {
+      reset();
+    }
+  });
+
+  it("is told apart by the browser where the frame's address does not say", async () => {
+    tweak({ requests_per_minute: 0 });
+    try {
+      for (const [what, path] of [...PAGES, ...OTHER_FRAMES]) {
+        const r = await ned.api("GET", path(), undefined, FRAME);
+        expect(r.status, what).toBe(429);
+        expect(r.headers.get("content-type"), what).toMatch(/^text\/html/);
+        expect(toldToTheApp(r.body as unknown as string).whatbuild, what).toBe("frame-refused");
+      }
+    } finally {
+      reset();
+    }
+  });
+
+  it("still gives agents and API callers the JSON error, at the same addresses", async () => {
+    tweak({ requests_per_minute: 0 });
+    try {
+      for (const [what, path] of [...PAGES, ...OTHER_FRAMES]) {
+        for (const headers of [{}, { accept: "application/json" }, { accept: "text/html" }, { "sec-fetch-dest": "document", accept: "text/html" }, { "sec-fetch-dest": "empty" }] as Record<string, string>[]) {
+          const r = await ned.api("GET", path(), undefined, headers);
+          expect(r.status, what).toBe(429);
+          expect(r.headers.get("content-type"), what).toMatch(/^application\/json/);
+          expect(r.body.error, what).toMatchObject({ code: "rate_limited", details: { limit: 0, per: "minute" } });
+          expect(r.body.error.details.retry_after_seconds, what).toBeGreaterThan(0);
+          expect(Number(r.headers.get("retry-after")), what).toBeGreaterThan(0);
+        }
+      }
+      // An operation's refusal is JSON whatever the request says of itself.
+      const op = await ned.api("GET", `${P}/outcomes?frame=1`, undefined, FRAME);
+      expect(op.headers.get("content-type")).toMatch(/^application\/json/);
+      expect(op.body.error.code).toBe("rate_limited");
+    } finally {
+      reset();
+    }
+  });
+
+  it("changes no other answer a frame gets, and spares a frame nothing: its call counts and is refused like any other", async () => {
+    const missing = await ned.api("GET", `${P}/story/pages/no-such-page/versions/1/html?frame=1`, undefined, FRAME);
+    expect(missing.status).toBe(404);
+    expect(missing.headers.get("content-type")).toMatch(/^application\/json/);
+    const stranger = await root.api("GET", `${P}/story/pages/overview/versions/1/html?frame=1`, undefined, FRAME);
+    expect(stranger.status).toBe(404);
+    expect(stranger.headers.get("content-type")).toMatch(/^application\/json/);
+    // What frames spend leaves that much less for reads.
+    tweak({ requests_per_minute: 3 });
+    try {
+      const framesThenARead = async () => {
+        for (let i = 0; i < 3; i++) await ned.api("GET", `${P}/story/pages/overview/versions/1/html?frame=1`);
+        return (await ned.api("GET", `${P}/outcomes`)).status;
+      };
+      // A minute may turn over during the run, so a second go is allowed for.
+      const first = await framesThenARead();
+      expect(first === 429 ? first : await framesThenARead()).toBe(429);
+    } finally {
+      reset();
+    }
+  });
+
+  it("in an attachment's preview, says what to do, since no script runs there to bring it back", async () => {
+    tweak({ requests_per_minute: 0 });
+    try {
+      for (const route of ["attachment", "attachment/view"]) {
+        const r = await ned.api("GET", `${P}/sources/${seeded}/${route}?path=notes.pdf`, undefined, FRAME);
+        expect(r.status, route).toBe(429);
+        expect(r.headers.get("content-type"), route).toMatch(/^text\/html/);
+        const html = r.body as unknown as string;
+        expect(html, route).toContain("Close this preview");
+        expect(html, route).not.toContain("<script");
+        expect(r.headers.get("content-security-policy"), route).toMatch(/^sandbox ?; default-src 'none';/);
+        // An image, a video or a download keeps the JSON, as an API caller's does.
+        const asImage = await ned.api("GET", `${P}/sources/${seeded}/${route}?path=notes.pdf`, undefined, { "sec-fetch-dest": "image" });
+        expect(asImage.headers.get("content-type"), route).toMatch(/^application\/json/);
+      }
+    } finally {
+      reset();
+    }
+  });
+});
+
 describe("the free plan's limits", () => {
   it("count writes by the minute for everyone, its owner included, leave reads alone, and say when to come back", async () => {
     tweak({ writes_per_minute: 2 });

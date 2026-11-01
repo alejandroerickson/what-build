@@ -267,8 +267,19 @@ holds each one; the linked decisions say why. Observed in the code on 2026-10-10
   document opens only under a download grant of its own purpose (`story_preview`), never with a
   session, lives no longer than the grant, and is served from the content site when there is one
   ([decision](../decisions/a-story-preview-is-the-document-publish-would-store.md)).
-- The app frames pages with `<iframe sandbox>` and takes only a key name or a page slug from the
-  frame it made (`apps/web/src/routes/story.tsx`), by `e.source`, never by `e.origin`, which is
+- A frame refused for the minute's calls is answered by `refusedFrame` (`apps/server/src/documents.ts`):
+  a fixed page of WhatBuild's own, holding nothing of anyone's, with a page's headers in the narrowest
+  sandbox a frame takes, framed only by the app's origin and kept by no cache. It never asks again by
+  itself. No frame is exempt from the limit, and an agent or an API caller still gets the JSON
+  ([§6.4](../spec/06-operations-and-adapters.md#routes-outside-the-registry)). A page can say the same of
+  itself; that gains it only what the app does for a refused frame: a new frame at the page's own
+  address, three times at most until the person says to, so a page spends a bounded number of the
+  person's calls this way, and the check that puts back a page replaced in its frame is unchanged, since a
+  second load of one frame is never let through (`useRefusedFrame` in `apps/web/src/lib/minute.ts`). Putting a page back
+  costs a call too, so a page put back three times in a minute stops being shown (`usePutBacks`), rather
+  than spend each minute's calls by reloading itself.
+- The app frames pages with `<iframe sandbox>` and takes only a key name, a page slug or that a frame
+  was refused from the frame it made (`apps/web/src/routes/story.tsx`), by `e.source`, never by `e.origin`, which is
   `null` for a sandboxed document wherever it is served. App pages send `Cross-Origin-Opener-Policy:
   same-origin`, `X-Frame-Options: DENY`, `frame-ancestors 'none'`, `script-src 'self'` and a
   `style-src` without `'unsafe-inline'`, and frame only their own origin and the content site's

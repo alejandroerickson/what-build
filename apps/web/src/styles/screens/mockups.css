@@ -188,6 +188,30 @@
   box-shadow: var(--shadow);
 }
 
+/* A page refused until the person says to try again, in place of its frame. */
+.xc-refused {
+  display: grid;
+  place-items: center;
+  height: 100%;
+  margin: 0;
+  padding: 1em;
+  background: var(--panel);
+  color: var(--muted);
+  text-align: center;
+}
+/* What the board says of pages refused for the minute's calls: screen size, whatever the zoom, and
+   clear of the toolbar along the bottom edge. */
+.xc-note {
+  position: absolute;
+  top: var(--s-3);
+  right: 0;
+  left: 0;
+  z-index: 1;
+  width: fit-content;
+  max-width: min(480px, calc(100% - 2 * var(--s-3)));
+  margin-inline: auto;
+}
+
 /* ---- Labels: screen size, above each page ---------------------------------------------------- */
 
 /* The labels move as one layer, translated by the view; each sits at its page's place at the zoom.

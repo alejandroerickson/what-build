@@ -1,3 +1,4 @@
+import { isMinuteWait, minuteRefused, READ_SPREAD_MS } from "./minute.ts";
 import { noteServerCommit } from "./new-release.ts";
 
 /** The one HTTP client. The web app uses only operations the agents also have. */
@@ -29,10 +30,36 @@ const DEFAULT_MESSAGES: Record<number, string> = {
   500: "WhatBuild ran into a problem. Try again in a moment.",
 };
 
-/** Whether a read asks again after failing: twice at most, and never after an answer that won't change (a 4xx). */
+/** How many times a read refused for the minute's calls asks again: as many next minutes, then the person decides. */
+const REFUSED_READ_RETRIES = 3;
+
+/** A refusal because the person's calls a minute ran out, which says how long is left. Anything else that says rate_limited waits longer, or for something else. */
+export function isMinuteRefusal(error: unknown): error is ApiError {
+  return error instanceof ApiError && error.code === "rate_limited" && isMinuteWait(error.details?.["retry_after_seconds"]);
+}
+
+/** Whether a read asks again when refused for the minute's calls, and only then: for a read that otherwise asks anew when the person does. */
+export function retryRefusedRead(failures: number, error: unknown): boolean {
+  return isMinuteRefusal(error) && failures < REFUSED_READ_RETRIES;
+}
+
+/**
+ * Whether a read asks again after failing: when refused for the minute's calls, once it may succeed
+ * and a few times at most; otherwise twice at most, and never after an answer that won't change (a 4xx).
+ */
 export function retryRead(failures: number, error: unknown): boolean {
+  if (isMinuteRefusal(error)) return retryRefusedRead(failures, error);
   return failures < 2 && !(error instanceof ApiError && error.status < 500 && error.status !== 0);
 }
+
+/** How long before a read asks again: for a refusal, its wait and a moment more, a different moment for each read, so that no storm follows the new minute. */
+export function readRetryDelay(failures: number, error: unknown): number {
+  if (isMinuteRefusal(error)) return (error.details!["retry_after_seconds"] as number) * 1000 + Math.random() * READ_SPREAD_MS;
+  return Math.min(1000 * 2 ** failures, 30_000);
+}
+
+/** How every read asks again, unless it says otherwise. */
+export const readDefaults = { retry: retryRead, retryDelay: readRetryDelay };
 
 let onUnauthenticated: (() => void) | null = null;
 export function setUnauthenticatedHandler(fn: () => void) {
@@ -76,7 +103,10 @@ export async function api<T = unknown>(method: string, path: string, body?: unkn
     const err = (data as { error?: { code?: string; message?: string; details?: Record<string, unknown> } } | null)?.error;
     if (res.status === 401) onUnauthenticated?.();
     if (err?.code === "guest_waiting" && err.details) onGuestWaiting?.(err.details);
-    throw new ApiError(res.status, err?.code ?? "error", err?.message ?? DEFAULT_MESSAGES[res.status] ?? `WhatBuild answered with status ${res.status}.`, err?.details);
+    const refusal = new ApiError(res.status, err?.code ?? "error", err?.message ?? DEFAULT_MESSAGES[res.status] ?? `WhatBuild answered with status ${res.status}.`, err?.details);
+    // A write can be refused while reads go on: only a refused read says the minute's calls are used up.
+    if (method === "GET" && isMinuteRefusal(refusal)) minuteRefused(refusal.details!["retry_after_seconds"] as number, refusal.details!["limit"] as number | undefined);
+    throw refusal;
   }
   if (method !== "GET") onChange?.(path, res.headers.get("X-WhatBuild-Operation"));
   return data as T;

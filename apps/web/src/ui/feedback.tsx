@@ -2,6 +2,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { Link } from "react-router";
 import { ApiError } from "../lib/api.ts";
 import { formatDateTime } from "../lib/format.ts";
+import { useMinuteWait } from "../lib/minute.ts";
 import { Button } from "./button.tsx";
 import { Glyph, type GlyphName } from "./glyph.tsx";
 
@@ -111,16 +112,41 @@ export function EmptyState({ title, children, action, size = "block" }: { title?
   );
 }
 
-/** Skeleton rows that appear only when loading takes long enough to notice (250ms). */
+/**
+ * A frame WhatBuild has stopped asking for after being refused again and again, in place of the
+ * frame: the person decides. Once they ask, it loads as anything does, or says what it waits for.
+ */
+export function FrameStopped({ what, refusal }: { what: string; refusal: { asking: boolean; tryAgain: () => void } }) {
+  if (refusal.asking) return <Loading variant="lines" lines={3} />;
+  return (
+    <Callout tone="attention" inset title={`${what} didn’t come back`} action={<Button size="sm" onClick={refusal.tryAgain}>Try again</Button>}>
+      Your calls a minute keep running out, so WhatBuild stopped asking for it.
+    </Callout>
+  );
+}
+
+/**
+ * Skeleton rows that appear only when loading takes long enough to notice (250ms). While the
+ * person's calls a minute are used up, what it waits for is the next minute, and it says so; that
+ * comes back by itself, so it reads as waiting and never as a failure.
+ */
 export function Loading({ label = "Loading…", lines = 3, variant = "rows" }: { label?: string; lines?: number; variant?: "rows" | "lines" }) {
   const [show, setShow] = useState(false);
+  const { waiting } = useMinuteWait();
   useEffect(() => {
     const t = setTimeout(() => setShow(true), 250);
     return () => clearTimeout(t);
   }, []);
   return (
     <div className={`loading loading-${variant}`} aria-busy="true" role="status">
-      <span className="visually-hidden">{label}</span>
+      {waiting ? (
+        <div className="loading-minute">
+          <StatusBadge tone="progress">Waiting for the next minute</StatusBadge>
+          <p>You’ve used this minute’s calls. WhatBuild carries on by itself.</p>
+        </div>
+      ) : (
+        <span className="visually-hidden">{label}</span>
+      )}
       {show
         ? Array.from({ length: lines }, (_, i) =>
             variant === "rows" ? (

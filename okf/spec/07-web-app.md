@@ -37,6 +37,31 @@ design system: tokens, type, components and the rules for using them — is docu
 - `409 quota_exceeded` is shown as a fact with a number and a next step, never as a failure of the
   person. (Enforced today: Story pages and mockups per product, [§9.2](09-data-lifecycle.md), and the
   daily allowances of a plan the deployment defines, [§9.7](09-data-lifecycle.md).)
+- **Calls a minute running out is a wait, not a failure.** A read refused for them
+  (`429 rate_limited` with `retry_after_seconds`, [§9.7](09-data-lifecycle.md)) asks again once it
+  may succeed, each read at a moment of its own within five seconds of that, three times at most, and only
+  then shows the refusal with **Try again** (`retryRead`, `readRetryDelay` in `apps/web/src/lib/api.ts`). Meanwhile
+  whatever is loading says *Waiting for the next minute* and that WhatBuild carries on by itself. A read that
+  otherwise asks only when the person does, search as you type and a source's title on a chip, asks
+  again for this alone. A hidden tab, or a screen the person has left, asks nothing. A write
+  refused is never asked again: it shows the refusal, and what they typed stays.
+  A product the app holds stays on screen while a re-check of it is refused, since that says nothing of the person's
+  access; every other answer to the re-check stands, and a `403` or a `404` takes the product away at once, the one after a refusal too.
+  One the app does not hold waits, then past the bound says it couldn't be loaded, with **Try again**.
+- **A frame refused for its call comes back by itself too** (the frames of a Story page, a canvas's pages, an
+  Idea card and a style's specimen; `apps/web/src/lib/minute.ts`). The server answers a short page saying so
+  in place of the JSON ([§6.4](06-operations-and-adapters.md#routes-outside-the-registry)), which also tells the app, and the
+  app asks again by making a new frame at the page's own address. That is how a page replaced in its frame is
+  put back too, so a second load of one frame is never let through, whatever a page says of itself. Frames take
+  turns after the minute has turned and the screen's reads have had theirs, at a pace that
+  leaves half the minute's calls for what the person does next, stop when one is refused again, and wait while the tab
+  is hidden. Each is asked for three times at most, then **Try again** stands in its place; on a canvas, the board
+  says so above the pages at screen size, whatever the zoom. An attachment's preview runs no script to say so, so its short
+  page asks the person to close and open it again. A frame opening a prototype takes no such word from what is in it: a
+  prototype's route meets no limit. A page's own reload reaches the server without the session, since a sandboxed
+  document has an opaque origin, and spends nothing; putting a page back does spend a call, so a page put back three times
+  in a minute stops being shown, and the screen says why. ◆ Decision: the short page never reloads itself, and only the app
+  asks again, a bounded number of times, so no document, ours or a page that says the same, can spend the person's calls in a loop.
 - **No request the app knows will be refused.** Where the app can tell in advance that the server
   would refuse (a Story-only reader asking for members, a guest of the example organization asking
   for its people, an address whose id is not an id at all), it says so without asking. Where it cannot, it asks, and
@@ -756,7 +781,7 @@ page of a mockup reaches it by promotion, from the mockup (§7.7).
   the page only for a state the reader must know: the page is archived (with **Restore** for an
   editor), an earlier version is
   shown (with **Show the current version**), or the page tried to open another address in its
-  place, and was put back.
+  place, and was put back (three times in a minute, and it stops being shown).
 - **A page from a mockup** ([§4.11](04-data-model.md)) is shown at its own size, scaled down and
   never up, on paper as on the canvas, without the app's theme. Content taller than the page's
   height scrolls inside its frame, scaled with it. A control beside the crumbs, and `2` and `3` (from inside the page too), choose between

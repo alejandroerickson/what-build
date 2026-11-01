@@ -3,11 +3,12 @@ import { MOCKUP_PAGE_SANDBOX, STORY_PAGE_SANDBOX } from "@whatbuild/core/page-sa
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Navigate, useNavigate, useParams, useSearchParams } from "react-router";
 import { api, ApiError } from "../lib/api.ts";
+import { usePutBacks, useRefusedFrame } from "../lib/minute.ts";
 import { useProduct } from "../lib/session.tsx";
 import { useScheme } from "../shell/theme.ts";
 import { Inspector, usePageTitle } from "../shell/slots.tsx";
 import { deletedSentence } from "../lib/format.ts";
-import { Button, ButtonLink, Callout, Crumbs, EmptyState, ErrorCallout, Loading, Sheet } from "../ui/index.tsx";
+import { Button, ButtonLink, Callout, Crumbs, EmptyState, ErrorCallout, FrameStopped, Loading, Sheet } from "../ui/index.tsx";
 import { FirstUse } from "./first-use.tsx";
 import { Canvas, pageAddress, usePinnedPrototype } from "./mockup-canvas.tsx";
 import { DeletePage, useArchiveActions, type PageActions, type PageRef } from "./story-actions.tsx";
@@ -31,7 +32,10 @@ import "../styles/screens/story.css";
  * F and Esc on (keys pressed in a frame never reach the app), hands a link to another page of this
  * Story to the app, and opens every other link in a new tab. A page that still manages to load
  * another address in its place (a script, a refresh) is put back, and the reader is told, so the
- * app never shows someone else's page inside its own frame.
+ * app never shows someone else's page inside its own frame. A page refused for the minute's calls
+ * gets a short document that says so and tells the app, and comes back the same way, as a new frame
+ * whose first load is its first (useRefusedFrame). Each new frame is a call, so a page put back again
+ * and again stops being shown (usePutBacks).
  *
  * storyBase is the address this Story's pages live under. The frame is told it once its document
  * has loaded; all it ever sends back is a page's slug, which is checked again here. home is the
@@ -98,12 +102,20 @@ export function StoryFrame({
   };
   const helloRef = useRef(hello);
   helloRef.current = hello;
-  const putBack = () => {
+  const newFrame = () => {
     ready.current = false;
     loads.current = 0;
-    setReplaced(true);
+    setLoaded(false);
     setReloads((n) => n + 1);
   };
+  const mayPutBack = usePutBacks();
+  const [givenUp, setGivenUp] = useState(false);
+  const putBack = () => {
+    setReplaced(true);
+    if (mayPutBack()) newFrame();
+    else setGivenUp(true);
+  };
+  const refusal = useRefusedFrame(frame, newFrame, !prototype);
   useEffect(() => () => {
     if (waiting.current) clearTimeout(waiting.current);
   }, []);
@@ -160,6 +172,22 @@ export function StoryFrame({
       }}
     />
   );
+
+  if (givenUp)
+    return (
+      <div className="story-frame-wrap story-frame-stopped">
+        <Callout tone="attention" inset title="This page keeps trying to open another address in its place">
+          WhatBuild stopped showing it.
+        </Callout>
+      </div>
+    );
+
+  if (refusal.stopped)
+    return (
+      <div className="story-frame-wrap story-frame-stopped">
+        <FrameStopped what="This page" refusal={refusal} />
+      </div>
+    );
 
   return (
     <div className="story-frame-wrap" ref={wrap} data-fit={fitted ? "" : undefined}>
@@ -251,7 +279,6 @@ export function StoryPage() {
   const page = useQuery({
     queryKey: ["story-page", base, pageId],
     enabled: Boolean(pageId),
-    retry: (n, e) => !(e instanceof ApiError && e.isNotFound) && n < 2,
     queryFn: () => api<PageView>("GET", `${base}/story/pages/${pageId}?include_html=false`),
   });
   const versions = useQuery({
@@ -263,7 +290,6 @@ export function StoryPage() {
   const old = useQuery({
     queryKey: ["story-version", base, pageId, asked],
     enabled: wantsOld,
-    retry: (n, e) => !(e instanceof ApiError && e.isNotFound) && n < 2,
     queryFn: () => api<VersionView>("GET", `${base}/story/pages/${pageId}/versions/${asked}?include_html=false`),
   });
 

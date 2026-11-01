@@ -553,7 +553,9 @@ Rules:
    HTML are served outside the registry ([§6.4](06-operations-and-adapters.md)); each counts as a
    call against `requests_per_minute` for whoever requested its grant. On a deployment with a
    content site, a document the app's route hands off there counts once, at the app's route; its
-   address on the content site counts nothing more.
+   address on the content site counts nothing more. No frame is exempt. One the web app opens is
+   told apart only in how it is refused: a short page rather than the JSON, which it brings back by
+   itself within bounds ([§7.1](07-web-app.md)); an agent or an API caller gets the JSON.
 7. **A limit of 0 refuses everything it counts**, and never what rule 4 says it does not stop. A daily allowance a plan sets to 0
    (`writes_per_day`, `org_writes_per_day`, `sources_per_day`, `exports_per_day`, `bytes_per_day`,
    `org_bytes_per_day`) is switched off rather than used up: the call is refused, before its

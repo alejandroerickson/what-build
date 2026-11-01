@@ -726,6 +726,22 @@ sandbox (a mockup page's when the preview keeps showing one), `?theme` and the c
 included, to whoever holds its grant (`X-WhatBuild-Download-Grant`): no session opens it, and an
 expired or dropped preview is `404`.
 
+**A frame refused for the minute's calls.** The routes that answer a frame of the web app (a Story
+page's HTML, a canvas page's, a mockup page's, an Idea card's front and a style's specimen) answer
+a refusal for calls a minute with `429` and the same `Retry-After`, as a short HTML page in place of
+the JSON, when the frame's address says `?frame=1` or the browser says `Sec-Fetch-Dest: iframe`, which
+no script can set (`refusedFrame` in `apps/server/src/documents.ts`). An agent, an API caller or a
+tab says neither and gets the JSON at the same address, and an image, a video or a download of an
+attachment does too. Every other failure is the JSON it always was. The page holds WhatBuild's own
+words and one script, which posts `{ whatbuild: "frame-refused", retry_after_seconds, limit }` to
+its parent; it loads nothing, navigates nowhere and never asks again by itself
+([§7.1](07-web-app.md)). It takes `?theme=` when that is `light` or `dark`. It is served with the
+headers of a page, with `no-store`, in the narrowest sandbox a frame takes (`sandbox allow-scripts`,
+`REFUSED_FRAME_SANDBOX`), from the app's origin with or without a content site, since the route
+refuses before any hand-off, and only the app may frame it. An attachment's preview (`attachment`
+and `attachment/view`, asked by `Sec-Fetch-Dest: iframe` alone) gets the same page with no script and
+an empty `sandbox`, which asks the person to close it and open it again.
+
 ### The Story print view
 
 `story.print_view { page_ids }` (1–50 page ids, comma-separated in a query string) plans a print

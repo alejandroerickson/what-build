@@ -2,8 +2,9 @@ import { MOCKUP_PAGE_SANDBOX } from "@whatbuild/core/page-sandbox";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { flushSync } from "react-dom";
 import { plural } from "../lib/format.ts";
+import { tryStoppedFramesAgain, useMinuteWait, usePutBacks, useRefusedFrame } from "../lib/minute.ts";
 import { useProduct } from "../lib/session.tsx";
-import { Glyph, Menu, MenuItem, MenuNote, MenuSeparator } from "../ui/index.tsx";
+import { Button, Callout, Glyph, Menu, MenuItem, MenuNote, MenuSeparator } from "../ui/index.tsx";
 import { COARSE_POINTER_QUERY, isTypingTarget, useMediaQuery } from "../ui/media.ts";
 import { wheelZoomFactor } from "./mockup-wheel-zoom.ts";
 import type { PageView } from "./story-flip.tsx";
@@ -123,6 +124,11 @@ const FRAME_KEYS = new Set(["f", "Escape", "ArrowLeft", "ArrowRight", " ", "h", 
  * second load is not a replacement: each of the prototype's documents says it has loaded
  * (frame-ready, from the frame script the prototype route adds), and a load that does not say so
  * within a moment is put back.
+ *
+ * A page refused for the minute's calls gets a short document that says so and tells the canvas,
+ * and comes back the way a page is put back: as a new frame, whose first load is its first. A second
+ * load of one frame is never let through, whatever a page says of itself (useRefusedFrame). Each new
+ * frame is a call, so a page put back again and again stops being shown (usePutBacks).
  */
 function PageFrame({ page, src, title, selected, onSignal, frameRef, prototype }: {
   page: CanvasPage;
@@ -146,12 +152,19 @@ function PageFrame({ page, src, title, selected, onSignal, frameRef, prototype }
     frame.current?.contentWindow?.postMessage({ whatbuild: "canvas-host" }, "*");
     frame.current?.contentWindow?.postMessage({ whatbuild: "app-home", home: `${window.location.origin}${app}` }, "*");
   }, [app]);
-  const putBack = useCallback(() => {
+  const newFrame = useCallback(() => {
     ready.current = false;
     loads.current = 0;
-    setReplaced(true);
     setReloads((n) => n + 1);
   }, []);
+  const mayPutBack = usePutBacks();
+  const [givenUp, setGivenUp] = useState(false);
+  const putBack = useCallback(() => {
+    setReplaced(true);
+    if (mayPutBack()) newFrame();
+    else setGivenUp(true);
+  }, [newFrame, mayPutBack]);
+  const { stopped } = useRefusedFrame(frame, newFrame, !prototype);
   useEffect(() => () => {
     if (waiting.current) clearTimeout(waiting.current);
   }, []);
@@ -183,37 +196,66 @@ function PageFrame({ page, src, title, selected, onSignal, frameRef, prototype }
   }, [onSignal, page.page_id, page.width, prototype, hello]);
   return (
     <div ref={frameRef} className="xc-frame" data-page={page.page_id} data-selected={selected ? "" : undefined} style={{ width: page.width, height: page.height }}>
-      <iframe
-        key={reloads}
-        ref={frame}
-        title={title}
-        width={page.width}
-        height={page.height}
-        loading="lazy"
-        sandbox={prototype?.sandbox ?? MOCKUP_PAGE_SANDBOX}
-        referrerPolicy="no-referrer"
-        src={prototype ? src : `${src}?frame=1`}
-        onLoad={() => {
-          if (prototype) {
-            // One of the prototype's own documents has said so already, or will in a moment.
-            if (ready.current) {
-              ready.current = false;
-              hello();
-            } else waiting.current = setTimeout(() => {
-              waiting.current = null;
+      {givenUp || stopped ? (
+        // At the page's own scale, so it still reads with the canvas zoomed out. Try again, for a refused page, is above the board at screen size.
+        <p className="xc-refused" style={{ fontSize: Math.max(20, page.width * 0.032) }}>
+          {givenUp ? "This page keeps trying to open another address in its place, so WhatBuild stopped showing it." : "This page didn’t come back."}
+        </p>
+      ) : (
+        <iframe
+          key={reloads}
+          ref={frame}
+          title={title}
+          width={page.width}
+          height={page.height}
+          loading="lazy"
+          sandbox={prototype?.sandbox ?? MOCKUP_PAGE_SANDBOX}
+          referrerPolicy="no-referrer"
+          src={prototype ? src : `${src}?frame=1`}
+          onLoad={() => {
+            if (prototype) {
+              // One of the prototype's own documents has said so already, or will in a moment.
+              if (ready.current) {
+                ready.current = false;
+                hello();
+              } else waiting.current = setTimeout(() => {
+                waiting.current = null;
+                putBack();
+              }, 1500);
+              return;
+            }
+            loads.current += 1;
+            if (loads.current > 1) {
               putBack();
-            }, 1500);
-            return;
-          }
-          loads.current += 1;
-          if (loads.current > 1) {
-            putBack();
-            return;
-          }
-          hello();
-        }}
-      />
-      {replaced ? <p className="xc-replaced">This page tried to open another address in its place. WhatBuild put it back.</p> : null}
+              return;
+            }
+            hello();
+          }}
+        />
+      )}
+      {replaced && !givenUp ? <p className="xc-replaced">This page tried to open another address in its place. WhatBuild put it back.</p> : null}
+    </div>
+  );
+}
+
+/**
+ * What the board says of pages refused for the minute's calls, at screen size above them, however far
+ * the canvas is zoomed out: that they are waiting or coming back, or that WhatBuild stopped asking.
+ */
+function RefusedPagesNote() {
+  const wait = useMinuteWait();
+  if (!wait.frames && !wait.stopped) return null;
+  return (
+    <div className="xc-note" role="status">
+      {wait.stopped ? (
+        <Callout tone="attention" title={`${plural(wait.stopped, "page")} didn’t come back`} action={<Button size="sm" onClick={tryStoppedFramesAgain}>Try again</Button>}>
+          Your calls a minute keep running out, so WhatBuild stopped asking.
+        </Callout>
+      ) : wait.waiting ? (
+        <Callout title="Waiting for the next minute">You’ve used this minute’s calls. These pages come back by themselves.</Callout>
+      ) : (
+        <Callout title="Bringing these pages back">A few at a time, so this minute’s calls last.</Callout>
+      )}
     </div>
   );
 }
@@ -740,6 +782,7 @@ export function Canvas({ version, pageSrc, selected, onSelect, onKey, canFocus, 
         </ol>
       </div>
 
+      <RefusedPagesNote />
       <div className="xc-tools" role="toolbar" aria-label="Canvas">
         <div className="xc-modes" role="radiogroup" aria-label="Mode">
           <button type="button" role="radio" aria-checked={mode === "pan"} className="xc-tool" onClick={() => setMode("pan")} title="Pan (H)">

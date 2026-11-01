@@ -5,10 +5,11 @@ import { useSearchParams } from "react-router";
 import { api, ApiError, qs } from "../lib/api.ts";
 import { attribution, plural, quotedAtEnd, relativeTime } from "../lib/format.ts";
 import { Markdown } from "../lib/markdown.tsx";
+import { useRefusedFrame } from "../lib/minute.ts";
 import { useProduct } from "../lib/session.tsx";
 import { PanelContext, PanelFilter, PanelSection } from "../shell/slots.tsx";
 import { useScheme } from "../shell/theme.ts";
-import { Button, ButtonLink, EmptyState, ErrorCallout, Glyph, Loading, Menu, MenuItem, MenuSeparator, StatusBadge, useToast } from "../ui/index.tsx";
+import { Button, ButtonLink, EmptyState, ErrorCallout, FrameStopped, Glyph, Loading, Menu, MenuItem, MenuSeparator, StatusBadge, useToast } from "../ui/index.tsx";
 import { DeleteDialog } from "./delete-dialog.tsx";
 import { FirstUse } from "./first-use.tsx";
 import { PHONE_QUERY, useMediaQuery } from "../ui/media.ts";
@@ -51,6 +52,11 @@ const ROOM = {
 function CardFront({ src, title, onHeight }: { src: string; title: string; onHeight: (h: number) => void }) {
   const frame = useRef<HTMLIFrameElement>(null);
   const [loaded, setLoaded] = useState(false);
+  const [reloads, setReloads] = useState(0);
+  const refusal = useRefusedFrame(frame, () => {
+    setLoaded(false);
+    setReloads((n) => n + 1);
+  });
   const report = useRef(onHeight);
   report.current = onHeight;
   useEffect(() => {
@@ -62,9 +68,11 @@ function CardFront({ src, title, onHeight }: { src: string; title: string; onHei
     window.addEventListener("message", handle);
     return () => window.removeEventListener("message", handle);
   }, []);
+  if (refusal.stopped) return <FrameStopped what="This picture" refusal={refusal} />;
   return (
     <>
       <iframe
+        key={reloads}
         ref={frame}
         className="idea-card-frame"
         title={`Picture: ${title}`}
@@ -213,7 +221,7 @@ function IdeaCard({
       </div>
       {front ? (
         <div className="idea-card-body" style={{ height: body }}>
-          <CardFront src={front} title={title} onHeight={setHeight} />
+          <CardFront key={front} src={front} title={title} onHeight={setHeight} />
         </div>
       ) : (
         <NoFront ask={ask} />

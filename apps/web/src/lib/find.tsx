@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { findWords as wordsToFind } from "@whatbuild/core/find-in-text";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import type { GlyphName } from "../ui/index.tsx";
-import { api, qs } from "./api.ts";
+import { api, qs, retryRefusedRead } from "./api.ts";
 import { formatDate } from "./format.ts";
 import { REVIEW_STATUS } from "./status.ts";
 
@@ -99,7 +99,7 @@ export function useDebounced<T>(value: T, ms: number): T {
 /**
  * Find as you type: the last answer stays on screen while the next one loads. A search typed past
  * is cancelled, on the server too, and one that fails is not asked again by itself: the next word
- * typed asks anew.
+ * typed asks anew. One refused for the minute's calls is the exception, and waits for the next minute.
  */
 export function useFind(base: string, query: string, opts: { kind?: string; recordId?: string; strict?: boolean } = {}) {
   const q = query.trim();
@@ -107,7 +107,7 @@ export function useFind(base: string, query: string, opts: { kind?: string; reco
     queryKey: ["find", base, q, opts.kind ?? "", opts.recordId ?? "", Boolean(opts.strict)],
     queryFn: ({ signal }) => api<FindResponse>("GET", `${base}/search${qs({ mode: "plain", query: q, kind: opts.kind, record_id: opts.recordId, strict: opts.strict ? "true" : "" })}`, undefined, { signal }),
     enabled: q.length > 0,
-    retry: false,
+    retry: retryRefusedRead,
     placeholderData: (prev) => (q ? prev : undefined),
     staleTime: 30_000,
   });

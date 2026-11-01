@@ -9,7 +9,7 @@ import { isOwnOrigin, restPrincipal } from "./auth/identity.ts";
 import type { ServerConfig } from "./config.ts";
 import { handOff } from "./content-documents.ts";
 import {
-  bytesAsked, cardFront, findAttachment, findCard, findMockupPage, findSpecimen, findStoryCanvasPage, findStoryVersion, htmlView, isHtmlAttachment, isPdf, printView, storyHtml, storyTheme, streamFile,
+  bytesAsked, cardFront, findAttachment, findCard, findMockupPage, findSpecimen, findStoryCanvasPage, findStoryVersion, htmlView, isHtmlAttachment, isPdf, printView, refusedFrame, storyHtml, storyTheme, streamFile,
 } from "./documents.ts";
 import { logError } from "./telemetry.ts";
 
@@ -62,6 +62,17 @@ function errorResponse(c: Context, e: AppError) {
   const retry = e.status === 429 || e.status === 503 ? e.details?.["retry_after_seconds"] : undefined;
   if (typeof retry === "number") c.header("Retry-After", String(Math.max(1, Math.ceil(retry))));
   return c.json({ error: e.toJSON() }, e.status as 400);
+}
+
+/**
+ * The answer to a document's route when a frame of the app asked and the minute's calls are used up,
+ * and otherwise the JSON every caller gets. The frame says so in its address (`?frame=1`), or the
+ * browser does for it (`Sec-Fetch-Dest`, which no script can set); an API caller or an agent says neither.
+ */
+function documentFailure(c: Context, e: unknown, comesBack = true) {
+  const err = toAppError(e, WEB);
+  const framed = (comesBack && c.req.query("frame") === "1") || c.req.header("sec-fetch-dest") === "iframe";
+  return err.code === "rate_limited" && framed ? refusedFrame(c, err, comesBack) : errorResponse(c, err);
 }
 
 /** The last part of an attachment's path, which names it in an address. */
@@ -158,7 +169,7 @@ export function restRoutes(env: Env & { config: ServerConfig }) {
       if (site && !download && isPdf(found.v.media_type)) return handOff(c, env, principal, scope, { purpose: "attachment", fv: found.v.file_version_id }, nameOf(path));
       return streamFile(c, env, found.v, path, download);
     } catch (e) {
-      return errorResponse(c, toAppError(e, WEB));
+      return documentFailure(c, e, false);
     }
   });
 
@@ -173,7 +184,7 @@ export function restRoutes(env: Env & { config: ServerConfig }) {
       if (site) return handOff(c, env, principal, scope, { purpose: "attachment", fv: found.v.file_version_id }, nameOf(path));
       return await htmlView(c, env, found.v);
     } catch (e) {
-      return errorResponse(c, toAppError(e, WEB));
+      return documentFailure(c, e, false);
     }
   });
 
@@ -230,7 +241,7 @@ export function restRoutes(env: Env & { config: ServerConfig }) {
       // and keeps its own sandbox, which allows forms.
       return storyHtml(c, v.html, v.mockup ? undefined : theme, frame, v.mockup);
     } catch (e) {
-      return errorResponse(c, toAppError(e, WEB));
+      return documentFailure(c, e);
     }
   });
 
@@ -247,7 +258,7 @@ export function restRoutes(env: Env & { config: ServerConfig }) {
       if (site) return handOff(c, env, principal, scope, { purpose: "story_canvas_page", sv: p.version_id, pg: pageId }, "page.html");
       return storyHtml(c, p.html, undefined, c.req.query("frame") === "1", true);
     } catch (e) {
-      return errorResponse(c, toAppError(e, WEB));
+      return documentFailure(c, e);
     }
   });
 
@@ -263,7 +274,7 @@ export function restRoutes(env: Env & { config: ServerConfig }) {
       if (site) return handOff(c, env, principal, scope, { purpose: "mockup_page", xv: p.version_id, pg: pageId }, "page.html");
       return storyHtml(c, p.html, undefined, c.req.query("frame") === "1", true);
     } catch (e) {
-      return errorResponse(c, toAppError(e, WEB));
+      return documentFailure(c, e);
     }
   });
 
@@ -281,14 +292,14 @@ export function restRoutes(env: Env & { config: ServerConfig }) {
     try {
       return await card(c, null);
     } catch (e) {
-      return errorResponse(c, toAppError(e, WEB));
+      return documentFailure(c, e);
     }
   });
   app.get(`${SCOPE_PREFIX.product}/outcomes/:outcome_id/card`, async (c) => {
     try {
       return await card(c, c.req.param("outcome_id")!);
     } catch (e) {
-      return errorResponse(c, toAppError(e, WEB));
+      return documentFailure(c, e);
     }
   });
 
@@ -307,14 +318,14 @@ export function restRoutes(env: Env & { config: ServerConfig }) {
     try {
       return await specimen(c, null);
     } catch (e) {
-      return errorResponse(c, toAppError(e, WEB));
+      return documentFailure(c, e);
     }
   });
   app.get(`${SCOPE_PREFIX.product}/story/house-styles/:style/specimen`, async (c) => {
     try {
       return await specimen(c, c.req.param("style")!);
     } catch (e) {
-      return errorResponse(c, toAppError(e, WEB));
+      return documentFailure(c, e);
     }
   });
 

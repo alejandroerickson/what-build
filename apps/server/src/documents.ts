@@ -1,6 +1,6 @@
 import {
-  AppError, houseSpecimen, houseStyle, ideaCardDocument, ideaCardResponseHeaders, MOCKUP_PAGE_RULES, pageResponseHeaders, printResponseHeaders, prototypeNotice, shownHtml, STORY_PAGE_RULES, styleSpecimen,
-  withStoryFonts, withStoryFrame, withStoryTheme, type Env, type FileVersionsTable, type Tx,
+  AppError, houseSpecimen, houseStyle, ideaCardDocument, ideaCardResponseHeaders, MOCKUP_PAGE_RULES, pageResponseHeaders, printResponseHeaders, prototypeNotice, REFUSED_FRAME_SANDBOX, shownHtml, STORY_PAGE_RULES, styleSpecimen,
+  THEME_ATTRIBUTE, withStoryFonts, withStoryFrame, withStoryTheme, type Env, type FileVersionsTable, type Tx,
 } from "@whatbuild/core";
 import type { Context } from "hono";
 import { randomBytes } from "node:crypto";
@@ -165,6 +165,37 @@ export function cardFront(c: Context, front: string, title: string, theme: "ligh
   const nonce = randomBytes(16).toString("base64");
   for (const [k, val] of Object.entries(served(ideaCardResponseHeaders(nonce, ancestorOf(site)), site))) c.header(k, val);
   return c.body(ideaCardDocument(front, { title, theme, nonce, ...(limit ? { limit } : {}) }));
+}
+
+const REFUSED_FRAME_STYLE =
+  ":root{color-scheme:light;--panel:#fff;--text:#1e1e1e;--muted:#555}" +
+  "@media (prefers-color-scheme:dark){:root:not([data-wb-theme=light]){color-scheme:dark;--panel:#2a2a2a;--text:#ededed;--muted:#bdbdbd}}" +
+  ":root[data-wb-theme=dark]{color-scheme:dark;--panel:#2a2a2a;--text:#ededed;--muted:#bdbdbd}" +
+  "html,body{height:100%;margin:0}" +
+  'body{display:grid;place-items:center;background:var(--panel);color:var(--text);font-family:system-ui,-apple-system,"Segoe UI",sans-serif;line-height:1.45}' +
+  "main{max-width:44ch;padding:1em;text-align:center;font-size:clamp(13px,2.4vw,40px)}" +
+  "h1{margin:0 0 .35em;font-size:1.15em;font-weight:600}" +
+  "p{margin:0;color:var(--muted)}";
+
+/**
+ * What a frame of the app is answered when its call is refused for the minute's calls, in place of
+ * the JSON an API caller gets, with the same status and wait: a few words of WhatBuild's own, and
+ * one script that tells the app so. The document holds nothing of anyone's and never asks again by
+ * itself: only the app that framed it does, a bounded number of times, so it cannot spend the person's
+ * calls in a loop. `comesBack` false is for a frame the app cannot hear from, which runs no script.
+ * It is served from the app's own origin, content site or not, since the route refused it before any
+ * hand-off, and only the app may frame it.
+ */
+export function refusedFrame(c: Context, refusal: AppError, comesBack = true) {
+  const seconds = Math.max(1, Math.ceil(Number(refusal.details?.["retry_after_seconds"]) || 60));
+  const theme = c.req.query("theme");
+  const told = JSON.stringify({ whatbuild: "frame-refused", retry_after_seconds: seconds, limit: Number(refusal.details?.["limit"]) || 0 });
+  const html =
+    `<!doctype html><html lang="en"${theme === "light" || theme === "dark" ? ` ${THEME_ATTRIBUTE}="${theme}"` : ""}><head><meta charset="utf-8"><title>Waiting for the next minute</title>` +
+    `<style>${REFUSED_FRAME_STYLE}</style></head><body><main><h1>Waiting for the next minute</h1>` +
+    `<p>You’ve used this minute’s calls. ${comesBack ? "This comes back by itself." : "Close this preview and open it again in a moment."}</p></main>` +
+    `${comesBack ? `<script>parent.postMessage(${told},"*")</script>` : ""}</body></html>`;
+  return c.body(html, 429, { ...pageResponseHeaders({ sandbox: comesBack ? REFUSED_FRAME_SANDBOX : "" }), "Retry-After": String(seconds) });
 }
 
 /** The Story print view: opened at the top level, never framed, running only its nonce'd print script. */
