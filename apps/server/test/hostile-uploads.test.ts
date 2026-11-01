@@ -3,7 +3,7 @@ import { connect, type Socket } from "node:net";
 import { constants, deflateRawSync, deflateSync } from "node:zlib";
 import { MAX_PDF_PAGES, MAX_SEGMENTS } from "@whatbuild/parsers";
 import { sql } from "kysely";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import type { ServerConfig } from "../src/config.ts";
 import { startHarness, type Browser, type Harness } from "./harness.ts";
 
@@ -426,6 +426,23 @@ describe("a job that keeps stopping the worker", () => {
   const job = async (recordId: string) =>
     (await sql<{ done_at: string | null; error: string | null; attempts: number }>`select done_at, error, attempts from jobs where kind = 'derive' and payload->>'record_id' = ${recordId}`.execute(h.db)).rows[0]!;
 
+  it("gives up nothing when what records it fails, and tries again once its lock is stale", async () => {
+    const recordId = await abandoned(5);
+    const put = vi.spyOn(h.ports.blobs, "put").mockRejectedValueOnce(new Error("the store refused it"));
+    await h.worker.drain();
+    expect(put).toHaveBeenCalled();
+    put.mockRestore();
+    expect(await job(recordId)).toMatchObject({ done_at: null, attempts: 5 });
+    expect((await alice.api("GET", `${P}/sources/${recordId}/derivations`)).body.items).toEqual([]);
+    // It waits, rather than failing again each time the worker looks.
+    await h.worker.drain();
+    expect(await job(recordId)).toMatchObject({ done_at: null, attempts: 5 });
+    await sql`update jobs set locked_at = now() - interval '11 minutes' where kind = 'derive' and payload->>'record_id' = ${recordId}`.execute(h.db);
+    await h.worker.drain();
+    expect((await job(recordId)).done_at).not.toBeNull();
+    expect(await derivation(recordId)).toMatchObject({ status: "failed", parser: "none" });
+  });
+
   it("gives it up after five attempts that never finished, records the derivation as failed, and parses nothing", async () => {
     const recordId = await abandoned(5);
     await h.worker.drain();
@@ -436,7 +453,7 @@ describe("a job that keeps stopping the worker", () => {
     const d = await derivation(recordId);
     expect(d.status).toBe("failed");
     expect(d.parser).toBe("none");
-    expect(d.status_detail).toContain("stopped the server 5 times");
+    expect(d.status_detail).toContain("did not finish in 5 attempts, the last because the server stopped");
     expect((await alice.api("GET", `${P}/sources/${recordId}`)).body).toMatchObject({ derived_status: "failed", status_detail: d.status_detail });
     // Rederive asks for one more try, and the text read becomes the source's.
     expect((await alice.api("POST", `${P}/sources/${recordId}/rederive`, {})).status).toBe(200);

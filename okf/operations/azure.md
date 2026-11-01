@@ -781,9 +781,11 @@ az containerapp replica list --subscription "$AZ_SUBSCRIPTION" -g "$AZ_RG" -n "$
   died alone. A new `listening on`, a higher restart count or an `OOMKilled` in the system log means
   the whole container ended. At the first such end, let its job run its course: it waits and is tried
   again, up to five attempts in all, and should then be a `failed` reading saying the server stopped
-  that many times, with the jobs behind it read meanwhile. Keep requests going throughout, as the Cloud
-  Run rehearsal's traffic loop does, and record their p95, how many failed, and whether `put back in
-  the queue` came just before the end. Put the value back afterwards.
+  during its last, with the jobs behind it read meanwhile. That takes a few minutes where the log shows
+  `put back in the queue`, and about 50 where it does not, since each attempt then waits for its lock to
+  be ten minutes old. Keep requests going throughout, as the Cloud Run rehearsal's traffic loop does,
+  and record their p95, how many failed, and whether `put back in the queue` came just before the end.
+  Put the value back afterwards.
 
 ## Variations
 

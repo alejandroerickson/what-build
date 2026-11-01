@@ -626,7 +626,11 @@ describe("through the server", () => {
     expect(await job(running)).toMatchObject({ attempts: 1, done_at: null, locked_at: null, error: null });
     expect(await job(waiting)).toMatchObject({ attempts: 0, done_at: null, locked_at: null });
     expect(parseChildren()).toEqual([]);
-    // It waits as a failed attempt does, and what is behind it does not.
+    // It waits as a failed attempt does, ten seconds after its first, and what is behind it does not.
+    const wait = Number((await sql<{ s: string }>`select extract(epoch from run_after - now()) as s from jobs where kind = 'derive' and payload->>'record_id' = ${running}`.execute(h.db)).rows[0]!.s);
+    expect(wait).toBeGreaterThan(0);
+    expect(wait).toBeLessThanOrEqual(10);
+    await sql`update jobs set run_after = now() + interval '1 hour' where kind = 'derive' and payload->>'record_id' = ${running}`.execute(h.db);
     await h.worker.drain();
     expect(await reading(waiting)).toMatchObject({ status: "ready" });
     expect(await job(running)).toMatchObject({ attempts: 1, done_at: null });
@@ -652,7 +656,7 @@ describe("through the server", () => {
     }
     await h.worker.drain();
     expect(await job(running)).toMatchObject({ attempts: 5, done_at: expect.any(String) });
-    expect(await reading(running)).toMatchObject({ status: "failed", status_detail: expect.stringContaining("stopped the server 5 times") });
+    expect(await reading(running)).toMatchObject({ status: "failed", status_detail: expect.stringContaining("the last because the server stopped") });
   });
 
   it("a shutdown at a job's last attempt records nothing itself, and the next worker gives it up", async () => {
@@ -668,7 +672,25 @@ describe("through the server", () => {
     expect((await owner.api("GET", `${P}/sources/${running}/derivations`)).body.items).toEqual([]);
     expect(await job(running)).toMatchObject({ attempts: 5, done_at: null, locked_at: null });
     await h.worker.drain();
-    expect(await reading(running)).toMatchObject({ status: "failed", status_detail: expect.stringContaining("stopped the server 5 times") });
+    expect(await reading(running)).toMatchObject({ status: "failed", status_detail: expect.stringContaining("the last because the server stopped") });
+  });
+
+  it("a stop leaves a job another worker has taken over as that worker holds it", async () => {
+    const running = await upload("spins.txt");
+    const parser = processParser(LIMITS, { thread: THREAD });
+    const worker = aWorker(parser);
+    const drained = worker.drain();
+    await until(() => parseChildren().length === 1, 15_000, "the parse to start");
+    await sql`update jobs set locked_by = 'another worker' where kind = 'derive' and payload->>'record_id' = ${running}`.execute(h.db);
+    void worker.stop();
+    parser.stop();
+    await drained;
+    expect(await job(running)).toMatchObject({ attempts: 1, done_at: null, locked_at: expect.anything() });
+    const held = (await sql<{ locked_by: string; due: boolean }>`select locked_by, run_after <= now() as due from jobs where kind = 'derive' and payload->>'record_id' = ${running}`.execute(h.db)).rows[0]!;
+    expect(held).toEqual({ locked_by: "another worker", due: true });
+    await sql`update jobs set locked_at = null, locked_by = null where kind = 'derive' and payload->>'record_id' = ${running}`.execute(h.db);
+    await h.worker.drain();
+    expect(await reading(running)).toMatchObject({ status: "ready" });
   });
 
   it("a stop during the housekeeping before a claim claims nothing", async () => {

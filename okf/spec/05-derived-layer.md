@@ -61,7 +61,7 @@ tried again instead: a process that could not start, that ended before its threa
 that was killed from outside. A parse the server's own shutdown stops records nothing against the
 file, its job goes back in the queue, with that attempt spent and the wait a failed attempt has. A job is tried at most five
 times, counting the times the server died while running it. A reading whose job failed all five times is given up and recorded as
-`failed` with parser `none`, its `status_detail` saying why: the job stopped the server each time,
+`failed` with parser `none`, its `status_detail` saying why: the server stopped during its last attempt,
 its process was killed (`reading it failed 5 times, the last because the process parsing it was
 killed`), or it failed with an error (the store or the database refusing what it read, say), which
 until then left the attachment `pending` for good. After an error, the reading, which says that the file could
