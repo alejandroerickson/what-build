@@ -49,7 +49,7 @@ export interface UrlFetcher {
  * parse that needs more, or ends in a fatal error, ends only itself, as a failed derivation. Never
  * rejects for a bad file: every outcome is a status. It rejects when the parse could not finish for
  * a reason that need not be the file's, so that the job is tried again (`ParseInterrupted`, or any
- * other error), and with `ParseStopped` when the server is stopping, which spends no attempt.
+ * other error), and with `ParseStopped` when the server is stopping, which records nothing against the file.
  */
 export interface FileParser {
   parse(bytes: Uint8Array, fileName: string, options: { mediaType: string | null; parseCapBytes: number }): Promise<ParsedFile>;

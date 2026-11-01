@@ -85,7 +85,7 @@ export class Worker {
 
   /**
    * Takes no more jobs, and resolves once the one running, if any, has ended. The server's shutdown
-   * stops its parse, if it is one, and that job goes back in the queue, with this attempt not spent in its first hour;
+   * stops its parse, if it is one, and that job goes back in the queue with this attempt spent;
    * it waits for this before the database goes, since that takes the database.
    */
   stop(): Promise<unknown> {
@@ -187,7 +187,7 @@ export class Worker {
           const job = await this.claim();
           if (!job) break;
           if (this.stopped) {
-            await this.putBack(job);
+            await this.giveBack(job);
             break;
           }
           await this.run(job);
@@ -305,40 +305,49 @@ export class Worker {
 
   /**
    * Give up the jobs that used every attempt without finishing. A job that fails is given up in
-   * `run`, by `giveUp`; these are the ones the process stopped during, every time, most likely
-   * because the job itself took it down (an export, or a parse past what the instance has left,
-   * needing more memory than it holds). Claiming one again could take the server down again, so it
-   * is marked done, and a derivation or an export records that it failed.
+   * `run`, by `giveUp`; these are the ones the process stopped during, on their last attempt at
+   * least, often because the job itself took it down (an export, or a parse past what the instance
+   * has left, needing more memory than it holds). Claiming one again could take the server down again,
+   * so it is marked done, and a derivation or an export records that it failed, in one transaction, so
+   * that neither happens without the other. Should that fail, nothing changes but its lock, and it is
+   * tried again once that is ten minutes old.
    */
   private async giveUpAbandoned(): Promise<void> {
     const reason = `the server stopped while running this ${MAX_ATTEMPTS} times, most likely for lack of memory or time, so WhatBuild gave it up`;
     const abandoned = await sql<Job>`
-      update jobs set done_at = now(), locked_at = null, locked_by = null, error = ${reason}
-      where job_id in (
-        select job_id from jobs
-        where done_at is null and attempts >= ${MAX_ATTEMPTS} and (locked_at is null or locked_at < now() - make_interval(mins => ${STALE_LOCK_MINUTES}::int))
-          and kind = any(${[...JOB_KINDS]}::text[])
-          and not exists (select 1 from schema_migrations where name <> all(${this.migrations}::text[]))
-        order by job_id for update skip locked limit 20)
-      returning job_id, tenant_id, kind, payload, attempts`.execute(this.env.db);
+      select job_id, tenant_id, kind, payload, attempts from jobs
+      where done_at is null and attempts >= ${MAX_ATTEMPTS} and (locked_at is null or locked_at < now() - make_interval(mins => ${STALE_LOCK_MINUTES}::int))
+        and kind = any(${[...JOB_KINDS]}::text[])
+        and not exists (select 1 from schema_migrations where name <> all(${this.migrations}::text[]))
+      order by job_id limit 20`.execute(this.env.db);
     for (const job of abandoned.rows) {
-      this.log(`job ${job.job_id} ${job.kind} given up after ${job.attempts} attempts that never finished`);
-      if (job.kind !== "derive" && job.kind !== "export") continue;
       await this.env.db
         .transaction()
         .execute(async (trx) => {
           await sql`select set_config('app.tenant_id', ${job.tenant_id}, true)`.execute(trx);
-          if (job.kind === "export") return markExportFailed(trx, String(job.payload["export_id"]), reason);
-          await runDerivation(trx, this.env.ports, {
-            tenant_id: job.tenant_id,
-            record_id: String(job.payload["record_id"]),
-            file_version_id: String(job.payload["file_version_id"]),
-            force: Boolean(job.payload["force"]),
-            quiet: Boolean(job.payload["quiet"]),
-            failed: `reading this file stopped the server ${MAX_ATTEMPTS} times, so it was given up; the file is stored, and rederive tries again`,
-          });
+          const given = await sql`
+            update jobs set done_at = now(), locked_at = null, locked_by = null, error = ${reason}
+            where job_id = ${job.job_id} and done_at is null and attempts >= ${MAX_ATTEMPTS} and (locked_at is null or locked_at < now() - make_interval(mins => ${STALE_LOCK_MINUTES}::int))
+              and not exists (select 1 from schema_migrations where name <> all(${this.migrations}::text[]))
+            returning job_id`.execute(trx);
+          // Another worker has given it up, or a later version's migration has arrived since the list was read.
+          if (!given.rows.length) return;
+          if (job.kind === "export") await markExportFailed(trx, String(job.payload["export_id"]), reason);
+          else if (job.kind === "derive")
+            await runDerivation(trx, this.env.ports, {
+              tenant_id: job.tenant_id,
+              record_id: String(job.payload["record_id"]),
+              file_version_id: String(job.payload["file_version_id"]),
+              force: Boolean(job.payload["force"]),
+              quiet: Boolean(job.payload["quiet"]),
+              failed: `reading this file did not finish in ${MAX_ATTEMPTS} attempts, the last because the server stopped while it ran, so it was given up; the file is stored, and rederive tries again`,
+            });
+          this.log(`job ${job.job_id} ${job.kind} given up after ${job.attempts} attempts that never finished`);
         })
-        .catch((e) => this.log(`job ${job.job_id}: recording that it was given up failed: ${(e as Error).message}`));
+        .catch(async (e: Error) => {
+          this.log(`job ${job.job_id}: giving it up failed (${e.message}), so it waits until its lock is ten minutes old`);
+          await sql`update jobs set locked_at = now(), locked_by = ${this.id} where job_id = ${job.job_id} and done_at is null`.execute(this.env.db);
+        });
     }
   }
 
@@ -385,7 +394,7 @@ export class Worker {
         await trx.updateTable("jobs").set({ done_at: new Date().toISOString(), error: null }).where("job_id", "=", job.job_id).execute();
       });
     } catch (e) {
-      // Says nothing of the job or its file: nothing is recorded, and the next instance takes it at once.
+      // Says nothing of its file, so nothing is recorded against it; the attempt stays spent.
       if (e instanceof ParseStopped) return this.putBack(job);
       span.setStatus({ code: SpanStatusCode.ERROR });
       span.setAttribute("error.type", errorType(e));
@@ -401,14 +410,24 @@ export class Worker {
     }
   }
 
+  /** Gives back a job this worker claimed and never began, since a stop crossed with the claim: its lock, and the attempt it counted. */
+  private async giveBack(job: Job): Promise<void> {
+    await sql`
+      update jobs set locked_at = null, locked_by = null, attempts = attempts - 1
+      where job_id = ${job.job_id} and done_at is null and locked_by = ${this.id}`.execute(this.env.db);
+    this.log(`job ${job.job_id} ${job.kind} put back in the queue: the server is stopping`);
+  }
+
   /**
-   * Gives back a job this worker claimed and is not going to finish since it was stopped: its lock,
-   * and for its first hour the attempt it counted. After that a stop spends one, so that stops alone
-   * cannot put a job back without end, and a job the instance keeps stopping for still gets given up.
+   * Puts back a job that a stop ended while it ran: its lock, with the attempt spent and the wait a
+   * failed attempt has. A stop says nothing of why it came. It may be a new version's deployment,
+   * or the job's own doing, and giving back the attempt would start such a job again each time, ahead
+   * of those behind it, however often it happened. So a job the instance keeps stopping for is given up
+   * at its last attempt, by `giveUpAbandoned`, and meanwhile the others are read.
    */
   private async putBack(job: Job): Promise<void> {
     await sql`
-      update jobs set locked_at = null, locked_by = null, attempts = attempts - (created_at > now() - interval '1 hour')::int
+      update jobs set locked_at = null, locked_by = null, run_after = now() + make_interval(secs => ${2 ** job.attempts * 5})
       where job_id = ${job.job_id} and done_at is null and locked_by = ${this.id}`.execute(this.env.db);
     this.log(`job ${job.job_id} ${job.kind} put back in the queue: the server is stopping`);
   }
