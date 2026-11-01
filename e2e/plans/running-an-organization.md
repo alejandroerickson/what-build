@@ -72,6 +72,13 @@ are people she invites.
     find Ask for your own organization on the overview. Ask. **As Riley,** let Eli start one from
     the Waitlist. **As Eli,** start an organization. *Expect:* Eli owns his own Free organization;
     being invited elsewhere earlier never counted against him.
+    **MCP, as Eli, at the admin level.** Add a source to his product, archive it, and read
+    `products_read(action="limits")`. *Expect:* `holds.sources` still counts it. Archive the product
+    and try to create a second (`products_write(action="create")`). *Expect:* `409 quota_exceeded`
+    with `quota` `products_max`, saying archived ones are included and that deleting makes room, and
+    `holds.products` is unchanged. Restore the product. *Expect:* it is not refused. Delete it
+    (`products_read(action="delete_impact")`, then `products_delete(action="delete")`) and create
+    another. *Expect:* it is created.
 12. **Web, as Morgan.** Morgan owns the synthetic organization and has no allowance. *Expect:* no
     way to start a second organization on the web; over MCP, `products_write(action="create_tenant")` is
     not offered, or is refused with `403 tenant_allowance` saying who decides.
@@ -87,6 +94,7 @@ are people she invites.
 ## Look out for
 
 - The people total counting a reader of the Story, or not counting a waiting invitation.
+- Archiving or restoring that makes room under a total, where only deleting does.
 - Anyone in an organization they did not accept: after signing in, after opening a link, or after
   declining. An invitation shown to the wrong account, or one cancelled or expired still offered.
 - A decline that names who declined anywhere the inviter reads, or keeps its place in the people total.
