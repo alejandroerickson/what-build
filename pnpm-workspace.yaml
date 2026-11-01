@@ -4,5 +4,6 @@ packages:
 
 # A release must be a week old before pnpm will resolve it into the lockfile, as Dependabot's cooldown
 # waits: time for a hijacked release to be found and pulled. A frozen install, or a deploy, does not
-# ask again (okf/operations/security-checks.md).
+# ask again. A fix for a vulnerability WhatBuild reaches, or one being exploited, does not wait: its
+# exact version goes in minimumReleaseAgeExclude, with a comment (okf/operations/security-checks.md).
 minimumReleaseAge: 10080

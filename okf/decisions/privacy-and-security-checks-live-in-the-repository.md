@@ -3,7 +3,7 @@ type: Decision
 title: Checks that keep private material out and find known vulnerabilities live in the repository, with pinned tools, and no separate service
 description: Git hooks and CI run one publishable check; pinned scanners and GitHub's own features find vulnerabilities; nothing else is hosted or installed.
 tags: [decision, security, public, privacy, ci, agents, process]
-generated: {by: agent:claude, at: 2026-10-31}
+generated: {by: agent:claude, at: 2026-11-01}
 status: stable
 ---
 
@@ -41,15 +41,20 @@ install, and so that it runs well before the repository becomes public.
   Nothing checks an entry's age once it is in the file, so one that arrives another way (a security
   update, a hand edit) is for its reviewer to judge. Every package the image installs from the
   workspace takes what that file says and resolves nothing, and pnpm itself is pinned by version in
-  `deploy/Dockerfile` ([decision](one-stateless-image.md)).
+  `deploy/Dockerfile` ([decision](one-stateless-image.md)). The wait is for routine upgrades and
+  for a vulnerability WhatBuild cannot reach. One it reaches, or one being exploited, is fixed the
+  day it is found, with the fix's exact version named in `minimumReleaseAgeExclude`: there, an
+  attacker who knows the flaw is the nearer risk. The maintainer chose this on 2026-11-01.
 - **GitHub's own features** do the rest: Dependabot alerts, security updates and weekly grouped
   updates; CodeQL, and secret scanning with push protection, once the
   repository is public. An OWASP ZAP baseline scans the app, built as in production, weekly in CI.
 - **What is waiting reaches the maintainer through agents.** `pnpm attention` lists Dependabot's
-  pull requests and the alerts nobody has accepted, failed runs, accepted vulnerabilities near expiry and changes
-  production lacks, and `AGENTS.md` has every agent run it at the start of a session and say what
-  it found. The maintainer chose this on 2026-10-10, so that nothing depends on anyone
-  remembering a project's chores.
+  pull requests and the alerts nobody has accepted, failed runs, accepted vulnerabilities that are
+  due and changes production lacks, and `AGENTS.md` has every agent run it at the start of a session
+  and say what it found. The maintainer chose this on 2026-10-10, so that nothing depends on anyone
+  remembering a project's chores. It prints only what a session can act on: an accepted
+  vulnerability stays silent until its fix can be made, because every session raising it before
+  then is noise (2026-11-01).
 - Rejected: a hosted scanning service or a dependency-tracking server, which would be another
   account and another thing to run; a git-hook framework, which `core.hooksPath` makes needless;
   and rewriting published history for what is no secret (an author's address, a session link),
