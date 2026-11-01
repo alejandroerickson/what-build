@@ -55,11 +55,16 @@ function acceptances() {
   });
 }
 
-// Local: accepted vulnerabilities whose time is up or nearly up, one line for those accepted together
-// (the same day and reason). The reason shows that the finding is in hand, and when it can be fixed.
+// How many days before an acceptance ends it is reported. Until then it is in hand, and silent: a
+// session cannot act on it, so saying it would only be noise. An acceptance that waits for a fix to
+// be a week old ends this many days after the fix's day, so its line first prints on that day.
+const DUE_WITHIN_DAYS = 3;
+
+// Local: accepted vulnerabilities that are due, one line for those accepted together (the same day
+// and reason). The reason says what fixes the finding.
 function accepted() {
   const groups = new Map();
-  for (const a of acceptances().filter((a) => a.left <= 30)) {
+  for (const a of acceptances().filter((a) => a.left <= DUE_WITHIN_DAYS)) {
     const key = `${a.until}\n${a.reason}`;
     groups.set(key, [...(groups.get(key) ?? []), a]);
   }
@@ -70,7 +75,7 @@ function accepted() {
     const what = `the accepted vulnerabilit${one ? "y" : "ies"} ${ids}`;
     say(
       left > 0
-        ? `${what} expire${one ? "s" : ""} on ${until}, in ${left} day${left === 1 ? "" : "s"}${reason ? `. Accepted because: ${reason}` : ""}`
+        ? `${what} ${one ? "is" : "are"} due: the acceptance ends on ${until}, in ${left} day${left === 1 ? "" : "s"}${reason ? `. Accepted because: ${reason}` : ""}`
         : `${what} expired on ${until}: fix ${one ? "it" : "them"} or look at ${one ? "it" : "them"} again${reason ? `. Accepted because: ${reason}` : ""}`,
       "triage-security-findings",
     );
@@ -157,7 +162,7 @@ async function github() {
 
   for (const p of prs ?? []) say(`Dependabot's pull request #${p.number}, ${p.title}, opened ${ago(p.createdAt)}`, "triage-security-findings");
   // An alert whose advisory is accepted in .github/osv-scanner.toml has been looked at; it stays open
-  // on GitHub until the fix reaches main, and accepted() reports it again when its time is nearly up.
+  // on GitHub until the fix reaches main, and accepted() reports it when it is due.
   const settled = new Set(acceptances().filter((a) => a.left > 0).map((a) => a.id));
   const advisories = (a) => [a.security_advisory?.ghsa_id, ...(a.security_advisory?.identifiers ?? []).map((i) => i.value)];
   const alerts = (dependabot ?? []).filter((a) => !advisories(a).some((id) => settled.has(id)));
