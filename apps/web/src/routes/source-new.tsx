@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useRef, useState } from "react";
+import { useRef, useState, type Ref } from "react";
 import { useNavigate } from "react-router";
 import { api, putWithProgress } from "../lib/api.ts";
 import { formatBytes, formatDate, plural } from "../lib/format.ts";
@@ -7,7 +7,7 @@ import { cannotWriteReason, useProduct } from "../lib/session.tsx";
 import { usePageTitle } from "../shell/slots.tsx";
 import {
   Button, ButtonLink, Callout, EmptyState, ErrorCallout, FormGrid, Glyph, IconButton, KeyValue, PageHeader, Sheet, SheetBody, SheetHeader,
-  StatusBadge, TextField,
+  StatusBadge, TextField, tooLong,
 } from "../ui/index.tsx";
 import { splitTags, TagSuggestions } from "./evidence.tsx";
 import "../styles/screens/evidence.css";
@@ -102,6 +102,9 @@ function FileRow({ item, onRemove, status }: { item: Item; onRemove?: () => void
 
 const STEPS = ["Describe it", "Add attachments", "Create"];
 
+/** The limit the server sets on a source's title. */
+const TITLE_MAX = 300;
+
 export function SourceNewPage() {
   const ctx = useProduct();
   const { api: base, app, canWrite } = ctx;
@@ -116,7 +119,8 @@ export function SourceNewPage() {
   const [items, setItems] = useState<Item[]>([]);
   const [recordId, setRecordId] = useState<string | null>(null);
   const errors = { title: !title.trim() ? "Give the source a title." : null };
-  const describeOk = !errors.title;
+  const describeOk = !errors.title && !tooLong(title, TITLE_MAX);
+  const titleField = useRef<HTMLInputElement>(null);
   const update = (i: number, patch: Partial<Item>) => setItems((all) => all.map((x, j) => (j === i ? { ...x, ...patch } : x)));
   const run = useMutation({
     mutationFn: async () => {
@@ -178,6 +182,7 @@ export function SourceNewPage() {
           <DescribeForm
             touched={touched}
             errors={errors}
+            titleRef={titleField}
             fields={{ title, date, tags }}
             set={{ title: setTitle, date: setDate, tags: setTags }}
           />
@@ -193,6 +198,7 @@ export function SourceNewPage() {
                 e.preventDefault();
                 setTouched(true);
                 if (describeOk) setStep(1);
+                else titleField.current?.focus();
               }}
             >
               Continue
@@ -295,16 +301,17 @@ export function SourceNewPage() {
 
 type Fields = { title: string; date: string; tags: string };
 
-function DescribeForm({ touched, errors, fields: v, set }: {
+function DescribeForm({ touched, errors, titleRef, fields: v, set }: {
   touched: boolean;
   errors: { title: string | null };
+  titleRef: Ref<HTMLInputElement>;
   fields: Fields;
   set: { [K in keyof Fields]: (value: string) => void };
 }) {
   return (
     <div className="intake-describe">
       <FormGrid>
-        <TextField label="Title" required maxLength={300} value={v.title} onChange={(e) => set.title(e.target.value)} error={touched ? errors.title : null} autoFocus />
+        <TextField ref={titleRef} label="Title" required maxLength={TITLE_MAX} value={v.title} onChange={(e) => set.title(e.target.value)} error={touched ? errors.title : null} autoFocus />
         <TextField label="Date captured" type="date" hint="When the meeting happened or the document is dated, not today." optional value={v.date} onChange={(e) => set.date(e.target.value)} />
         <TextField label="Tags" optional hint="Comma-separated: what it is, whom it concerns, what it bears on." value={v.tags} onChange={(e) => set.tags(e.target.value)} />
         <TagSuggestions value={v.tags} onChange={set.tags} />

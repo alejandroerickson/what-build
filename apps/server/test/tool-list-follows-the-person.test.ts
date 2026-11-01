@@ -166,7 +166,7 @@ describe("a connector scoped to a product", () => {
     expect(actions).toEqual(expect.arrayContaining(["story.list_pages", "story.get_page"]));
     // Search is listed: for a reader it reads only the Story.
     expect(actions).toContain("search");
-    for (const a of ["sources.list", "outcomes.list", "assumptions.list", "mockups.list", "story.guidance", "activity.list"]) expect(actions, a).not.toContain(a);
+    for (const a of ["sources.list", "outcomes.list", "assumptions.list", "mockups.list", "story.guidance", "activity.list", "products.limits"]) expect(actions, a).not.toContain(a);
   });
 
   it("lists an admin what the connection's level allows", async () => {
@@ -206,10 +206,13 @@ describe("a connector scoped to an organization", () => {
     for (const a of ["products.create", "products.create_team", "members.activity"]) expect(actions, a).not.toContain(a);
   });
 
-  it("lists a reader none of the organization's people", async () => {
+  it("lists a reader none of the organization's people, nor its plan and what it holds", async () => {
     const actions = await offeredAt(rita, `/mcp/t/${org}`);
-    expect(actions).toEqual(expect.arrayContaining(["story.list_pages", "products.limits"]));
-    for (const a of ["members.list", "sources.list"]) expect(actions, a).not.toContain(a);
+    expect(actions).toEqual(expect.arrayContaining(["story.list_pages"]));
+    for (const a of ["members.list", "sources.list", "products.limits"]) expect(actions, a).not.toContain(a);
+    // Anyone who reads more than the Story there still has it.
+    expect(await offeredAt(vic, `/mcp/t/${org}`)).toContain("products.limits");
+    expect(await offeredAt(eddie, `/mcp/t/${org}`)).toContain("products.limits");
   });
 
   it("lists an instance owner none of their own actions, and refuses them with where they are", async () => {
@@ -231,13 +234,13 @@ describe("the unscoped connector, for someone who may start no organization", ()
 
   it("lists a reader everywhere the Story and the account's own reads", async () => {
     const actions = await offeredAt(rita, "/mcp");
-    expect(actions).toEqual(expect.arrayContaining(["story.list_pages", "story.get_page", "story.get_hierarchy", "products.list", "products.get", "products.limits", "guide"]));
-    for (const a of ["sources.list", "outcomes.list", "mockups.list", "members.list", "story.guidance", "products.update_concept", "products.create_tenant", "products.create", "sources.create"])
+    expect(actions).toEqual(expect.arrayContaining(["story.list_pages", "story.get_page", "story.get_hierarchy", "products.list", "products.get", "guide"]));
+    for (const a of ["sources.list", "outcomes.list", "mockups.list", "members.list", "story.guidance", "products.update_concept", "products.create_tenant", "products.create", "sources.create", "products.limits"])
       expect(actions, a).not.toContain(a);
-    // Only the Story's reads, the account's own reads (and its feedback), and the organization's limits.
+    // Only the Story's reads, and the account's own reads (and its feedback).
     for (const a of actions) {
       const op = operationOf(a);
-      expect(op.access === "story" || (op.scope === "account" && (!op.mutates || op.name === "submit_feedback")) || op.name === "products.limits", a).toBe(true);
+      expect(op.access === "story" || (op.scope === "account" && (!op.mutates || op.name === "submit_feedback")), a).toBe(true);
     }
   });
 
@@ -364,6 +367,9 @@ describe("search, for someone who reads only the Story", () => {
     expect(tool.description).toMatch(/^Search this product's Story pages\./);
     expect(tool.description).toMatch(/It takes mode "plain".*any other is refused with 403/);
     expect(tool.description).not.toMatch(/what a product's sources say|derived|record_id|attachment|assumptions come/i);
+    // Nor does it name a kind of thing they cannot search, among the words it reads differently.
+    expect(tool.description).not.toMatch(/\b(sources?|assumptions?|outcomes?|mockups?|ideas?|concepts?|passages?|quotes?)\b/i);
+    expect(tool.description).toMatch(/the word story, beside other words, is not searched for/);
     // Its schema is what a call that works takes, so mode is asked for rather than left to a default it would refuse.
     const fields = tool.inputSchema.properties as Record<string, { const?: string }>;
     expect(Object.keys(fields).sort()).toEqual(["kind", "limit", "mode", "product", "query", "strict"]);

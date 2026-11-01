@@ -125,8 +125,9 @@ that what one door writes the other finds at once, and that a reader searches th
     the Story, then for a source's title and an assumption's statement, as a palette search and over
     MCP's `search` in `plain` mode. *Expect:* the Story page, and the canvas opening at that page; the
     source and the assumption are never listed and no correction names them, though a Story page
-    that says the same words is found. `search` in another mode, or
-    with `kind: "source"`, is refused with a permission error naming reader and viewer.
+    that says the same words is found. A Story page's word beside `sources` finds a page that says
+    both, with `kind_hint` null, and beside `story` finds it with `kind_hint` `story`. `search` in
+    another mode, or with `kind: "source"`, is refused with a permission error naming reader and viewer.
 14. **Web, as Sam.** Search for a word on a mockup page that is promoted to the Story, and for the
     mockup's title. *Expect:* the mockup is listed once, under Exploration, with no Story result for it.
 15. **Web, as Sam.** At phone width (390 × 844) and in the dark theme, open the palette, search, and

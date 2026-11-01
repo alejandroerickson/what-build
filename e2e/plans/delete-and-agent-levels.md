@@ -82,9 +82,10 @@ deletes only what it made itself in the run.
 14. **MCP, as Jordan, on a connector scoped to a product of the standard organization**
     (`--endpoint /mcp/t/<org>/<team>/<product>`). List the tools. *Expect:* `story_read` and
     `products_read` and `search` (with `guide` and `submit_feedback`), and no `story_write`, no
-    `sources_`, `outcomes_` or `members_` tool; `search` takes `plain` mode alone, over the Story, and
-    its description and schema say nothing of sources;
-    `sources_read(action="list")` called anyway answers `403`, naming reader and viewer.
+    `sources_`, `outcomes_` or `members_` tool, and `products_read` has no `limits` action; `search`
+    takes `plain` mode alone, over the Story, and its description and schema say nothing of sources;
+    `sources_read(action="list")` and `products_read(action="limits")` called anyway each answer
+    `403`, naming reader and viewer.
     Then as Sam on the organization's connector (`--endpoint /mcp/t/<org>`): writes and archives,
     `members_read` `list`, and no `_delete` tool, no `members_write`, no `create_team`.
 15. **MCP, as Jordan and as a guest, on the unscoped connector** (no `--endpoint`, `--level admin`;

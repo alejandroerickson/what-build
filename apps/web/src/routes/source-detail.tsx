@@ -9,13 +9,18 @@ import type { Actor, RecordFull } from "../lib/types.ts";
 import { Inspector, ShellContext, usePageTitle } from "../shell/slots.tsx";
 import {
   Button, ButtonLink, Callout, Dialog, EmptyState, ErrorCallout, Glyph, Group, KeyValue, Loading, Menu, MenuItem,
-  MenuSeparator, PageHeader, Segmented, Sheet, SheetHeader, TextArea, TextField, useToast,
+  MenuSeparator, PageHeader, Segmented, Sheet, SheetHeader, TextArea, TextField, useToast, tooLong,
 } from "../ui/index.tsx";
 import "../styles/screens/evidence.css";
 import { AddAttachments, AttachmentsView, SourceImages } from "./source-attachments.tsx";
 import { CommentsView } from "./source-comments.tsx";
 import { ChangedMeanwhile, TextView, type Theirs } from "./source-text.tsx";
 import { EvidenceFilters, splitTags, TagSuggestions } from "./evidence.tsx";
+
+/** The limits the server sets on what these forms write. */
+const TITLE_MAX = 300;
+const NOTE_MAX = 100_000;
+const REASON_MAX = 500;
 
 type View = "text" | "notes" | "comments" | "attachments";
 const VIEWS: View[] = ["text", "notes", "comments", "attachments"];
@@ -288,7 +293,7 @@ function NoteDialog({ record, kind, note, onClose }: { record: SourceRecord; kin
             variant="primary"
             busy={save.isPending}
             busyLabel="Saving…"
-            disabled={(!theirs && content === start.content) || theirs?.state === "loading"}
+            disabled={(!theirs && content === start.content) || theirs?.state === "loading" || tooLong(content, NOTE_MAX)}
             onClick={() => save.mutate()}
           >
             {theirs?.state === "changed" ? "Save mine over theirs" : "Save"}
@@ -296,7 +301,7 @@ function NoteDialog({ record, kind, note, onClose }: { record: SourceRecord; kin
         </>
       }
     >
-      <TextArea label={words.label} hint={words.hint} rows={kind === "summary" ? 6 : 14} maxLength={100_000} value={content} onChange={(e) => setContent(e.target.value)} autoFocus />
+      <TextArea label={words.label} hint={words.hint} rows={kind === "summary" ? 6 : 14} maxLength={NOTE_MAX} value={content} onChange={(e) => setContent(e.target.value)} autoFocus />
       {theirs ? <ChangedMeanwhile noun={words.title.toLowerCase()} theirs={theirs} onLoad={() => void loadTheirs()} rows={kind === "summary" ? 4 : 8} /> : null}
       {save.isError && !stale ? <ErrorCallout inset error={save.error} /> : null}
     </Dialog>
@@ -511,7 +516,7 @@ function NotesView({ record, note, loading }: { record: SourceRecord; note: Agen
 
 // ---- Dialogs ------------------------------------------------------------------------------------
 
-function EditDetails({ record, onClose, onReload }: { record: SourceRecord; onClose: () => void; onReload: () => void }) {
+export function EditDetails({ record, onClose, onReload }: { record: SourceRecord; onClose: () => void; onReload: () => void }) {
   const { base, key } = useSourceKey();
   const qc = useQueryClient();
   const toast = useToast();
@@ -547,13 +552,13 @@ function EditDetails({ record, onClose, onReload }: { record: SourceRecord; onCl
           <Button onClick={onClose} disabled={save.isPending}>
             Cancel
           </Button>
-          <Button variant="primary" busy={save.isPending} busyLabel="Saving…" disabled={!f.title.trim()} onClick={() => save.mutate()}>
+          <Button variant="primary" busy={save.isPending} busyLabel="Saving…" disabled={!f.title.trim() || tooLong(f.title, TITLE_MAX)} onClick={() => save.mutate()}>
             Save
           </Button>
         </>
       }
     >
-      <TextField label="Title" value={f.title} onChange={set("title")} required maxLength={300} />
+      <TextField label="Title" value={f.title} onChange={set("title")} required maxLength={TITLE_MAX} />
       <TextField label="Date captured" type="date" hint="When the meeting happened, or the document is dated." value={f.date} onChange={set("date")} optional />
       <TextField label="Tags" value={f.tags} onChange={set("tags")} optional hint="Comma-separated." />
       <TagSuggestions value={f.tags} onChange={(tags) => setF({ ...f, tags })} />
@@ -641,7 +646,7 @@ function DeleteSource({ record, onClose }: { record: SourceRecord; onClose: () =
               Archive instead
             </Button>
           )}
-          <Button variant="danger" disabled={!i || !reason.trim() || typed !== record.title} busy={del.isPending} busyLabel="Deleting…" onClick={() => del.mutate()}>
+          <Button variant="danger" disabled={!i || !reason.trim() || tooLong(reason, REASON_MAX) || typed !== record.title} busy={del.isPending} busyLabel="Deleting…" onClick={() => del.mutate()}>
             Delete permanently
           </Button>
         </>
@@ -657,7 +662,7 @@ function DeleteSource({ record, onClose }: { record: SourceRecord; onClose: () =
           <p>Links to it from Story pages, mockups and notes will open a record of the deletion instead.</p>
         </div>
       ) : null}
-      <TextArea label="Why is it being deleted?" required maxLength={500} value={reason} onChange={(e) => setReason(e.target.value)} hint="Recorded with the deletion." />
+      <TextArea label="Why is it being deleted?" required maxLength={REASON_MAX} value={reason} onChange={(e) => setReason(e.target.value)} hint="Recorded with the deletion." />
       <TextField label={`Type the title to confirm: ${record.title}`} value={typed} onChange={(e) => setTyped(e.target.value)} autoComplete="off" />
       {del.isError ? <ErrorCallout inset error={del.error} /> : null}
     </Dialog>

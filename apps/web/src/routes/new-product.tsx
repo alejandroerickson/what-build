@@ -4,7 +4,11 @@ import { Link, useNavigate } from "react-router";
 import { api } from "../lib/api.ts";
 import { useOrganizationLimits } from "../lib/limits.ts";
 import { useMe, type ProductsResponse } from "../lib/session.tsx";
-import { Button, Callout, Dialog, ErrorCallout, SelectField, TextArea, TextField } from "../ui/index.tsx";
+import { Button, Callout, Dialog, ErrorCallout, SelectField, TextArea, TextField, tooLong } from "../ui/index.tsx";
+
+/** The limits the server sets on a product. */
+const NAME_MAX = 100;
+const CONCEPT_MAX = 8000;
 
 /**
  * New product, opened in place from the overview or the product switch, so cancelling leaves the
@@ -26,6 +30,7 @@ export function CreateProductDialog({ onClose, tenants }: { onClose: () => void;
   const cap = limits.data?.limits.find((l) => l.key === "products_max")?.value;
   const held = limits.data?.holds?.products ?? 0;
   const full = typeof cap === "number" && held >= cap;
+  const ready = Boolean(team) && Boolean(name.trim()) && !full && !tooLong(name, NAME_MAX) && !tooLong(concept, CONCEPT_MAX);
   const create = useMutation({
     mutationFn: () => api<{ path: string }>("POST", `/api/v1/teams/${team}/products`, { name: name.trim(), concept }),
     onSuccess: async (p) => {
@@ -45,7 +50,7 @@ export function CreateProductDialog({ onClose, tenants }: { onClose: () => void;
             <Button onClick={onClose} disabled={create.isPending}>
               Cancel
             </Button>
-            <Button variant="primary" busy={create.isPending} busyLabel="Creating…" disabled={!team || !name.trim() || full} onClick={() => create.mutate()}>
+            <Button variant="primary" busy={create.isPending} busyLabel="Creating…" disabled={!ready} onClick={() => create.mutate()}>
               Create product
             </Button>
           </>
@@ -59,7 +64,7 @@ export function CreateProductDialog({ onClose, tenants }: { onClose: () => void;
           className="stack"
           onSubmit={(e) => {
             e.preventDefault();
-            if (team && name.trim() && !full) create.mutate();
+            if (ready) create.mutate();
           }}
         >
           {teams.length > 1 ? (
@@ -77,8 +82,8 @@ export function CreateProductDialog({ onClose, tenants }: { onClose: () => void;
               can delete it in its Settings to make room, or ask whoever runs this WhatBuild to move the organization to a larger plan.
             </Callout>
           ) : null}
-          <TextField label="Name" required maxLength={100} value={name} onChange={(e) => setName(e.target.value)} />
-          <TextArea label="Product concept" optional rows={3} maxLength={2000} value={concept} onChange={(e) => setConcept(e.target.value)} hint="Who it’s for, their problem, and how the product solves it." />
+          <TextField label="Name" required maxLength={NAME_MAX} value={name} onChange={(e) => setName(e.target.value)} />
+          <TextArea label="Product concept" optional rows={3} maxLength={CONCEPT_MAX} value={concept} onChange={(e) => setConcept(e.target.value)} hint="Who it’s for, their problem, and how the product solves it." />
           {create.isError ? <ErrorCallout inset error={create.error} /> : null}
         </form>
       ) : (

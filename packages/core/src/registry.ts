@@ -166,8 +166,9 @@ export interface OperationDef<I extends z.ZodType = z.ZodType, O = unknown, P = 
   /**
    * For an organization's operation anyone in it may call (`access: "any"`) whose handler checks a
    * role where the call points: the least role it needs, which the caller must hold somewhere in
-   * the organization. Seeing its people needs viewer, managing them admin. A connector scoped to
-   * the organization lists it only to someone who holds that role there.
+   * the organization. Seeing its people, or its limits and what it holds, needs viewer, managing
+   * them admin. A connector scoped to the organization lists it only to someone who holds that
+   * role there.
    */
   needsSomewhere?: ProductRole;
   /**

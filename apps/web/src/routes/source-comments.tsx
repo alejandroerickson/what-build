@@ -7,10 +7,14 @@ import { Markdown, markdownText } from "../lib/markdown.tsx";
 import { useProduct } from "../lib/session.tsx";
 import type { Annotation, RecordFull } from "../lib/types.ts";
 import {
-  Button, Dialog, EmptyState, ErrorCallout, Glyph, Menu, MenuItem, MenuSeparator, Sheet, SheetHeader, StatusBadge, Tag, TextArea, TextField, useToast,
+  Button, Dialog, EmptyState, ErrorCallout, Glyph, Menu, MenuItem, MenuSeparator, Sheet, SheetHeader, StatusBadge, Tag, TextArea, TextField, useToast, tooLong,
 } from "../ui/index.tsx";
 import { DeleteDialog } from "./delete-dialog.tsx";
 import "../styles/screens/evidence.css";
+
+/** The limits the server sets on a comment, and on why it is archived. */
+const COMMENT_MAX = 2000;
+const REASON_MAX = 500;
 
 /** Every comment on a source, archived ones too, newest first, as sources.list_annotations pages them. */
 async function everyComment(base: string, recordId: string): Promise<Annotation[]> {
@@ -272,6 +276,7 @@ function ArchiveComment({ annotation: a, onClose }: { annotation: Annotation; on
             icon="archive"
             busy={archive.isPending}
             busyLabel="Archiving…"
+            disabled={tooLong(reason, REASON_MAX)}
             onClick={() => archive.mutate({ archived: true, etag: a.etag, reason: reason.trim() }, { onSuccess: onClose })}
           >
             Archive
@@ -282,7 +287,7 @@ function ArchiveComment({ annotation: a, onClose }: { annotation: Annotation; on
       <TextArea
         label="Why is it being archived?"
         optional
-        maxLength={500}
+        maxLength={REASON_MAX}
         rows={3}
         value={reason}
         onChange={(e) => setReason(e.target.value)}
@@ -317,14 +322,14 @@ function CommentForm({ recordId, onDone }: { recordId: string; onDone: () => voi
       className="comment-form"
       onSubmit={(e) => {
         e.preventDefault();
-        save.mutate();
+        if (note.trim() && !tooLong(note, COMMENT_MAX)) save.mutate();
       }}
     >
-      <TextArea label="Comment" required maxLength={2000} rows={3} value={note} onChange={(e) => setNote(e.target.value)} autoFocus />
+      <TextArea label="Comment" required maxLength={COMMENT_MAX} rows={3} value={note} onChange={(e) => setNote(e.target.value)} autoFocus />
       <TextField label="Tags" optional hint="Comma-separated." value={tags} onChange={(e) => setTags(e.target.value)} />
       {save.isError ? <ErrorCallout inset error={save.error} /> : null}
       <div className="row">
-        <Button type="submit" size="sm" variant="primary" busy={save.isPending} busyLabel="Saving…" disabled={!note.trim()}>
+        <Button type="submit" size="sm" variant="primary" busy={save.isPending} busyLabel="Saving…" disabled={!note.trim() || tooLong(note, COMMENT_MAX)}>
           Save comment
         </Button>
         <Button size="sm" onClick={onDone} disabled={save.isPending}>

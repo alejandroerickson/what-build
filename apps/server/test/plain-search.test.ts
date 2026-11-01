@@ -35,6 +35,8 @@ describe("how plain search reads a query", () => {
   });
 
   it("matches the word being typed as a prefix, skips small words, and takes a kind as a hint", () => {
+    // A word that names something every object has is still a word searched for.
+    expect(parseFind("constructor crew ")).toMatchObject({ terms: [{ text: "constructor" }, { text: "crew" }], kind: null });
     expect(parseFind("how do crews plan the wee")).toMatchObject({
       terms: [
         { text: "crews", root: "crew", prefix: true },

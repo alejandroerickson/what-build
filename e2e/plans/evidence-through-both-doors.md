@@ -74,8 +74,10 @@ plans file's Free plan, which the end-to-end instance offers, are tried.
    with `409 stale_etag` and `current_etag`, the first saying to read the summary and pass its
    etag, the second that it is the source's etag; the third answers with a new etag, and the web
    shows the new summary under the title.
-9. **Web, as Sam.** Create a second source through the upload flow on the web, with a title and
-   tags, and a short synthetic file in its one drop zone for attachments. *Expect:* it is created
+9. **Web, as Sam.** Start a second source through the upload flow on the web, and paste a title of
+   more than 300 characters. *Expect:* all of it stays in the field, which says how many characters
+   are over, and Continue goes no further and returns to the field. Shorten it, and create the
+   source, with a title and tags, and a short synthetic file in its one drop zone for attachments. *Expect:* it is created
    with no role to choose, read and listed, and its Text shows the file's words.
 10. **MCP, as Sam.** Search for a phrase from that file. *Expect:* found, in the right source, in
     field `text`.

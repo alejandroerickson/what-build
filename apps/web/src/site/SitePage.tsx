@@ -6,12 +6,17 @@ import { CookieChoice } from "../shell/CookieChoice.tsx";
 import { Journey } from "../shell/journey.tsx";
 import { Button, buttonClass } from "../ui/button.tsx";
 import { Callout, ErrorCallout } from "../ui/feedback.tsx";
-import { FormGrid, TextArea, TextField } from "../ui/field.tsx";
+import { FormGrid, TextArea, TextField, tooLong } from "../ui/field.tsx";
 import { Glyph } from "../ui/glyph.tsx";
 import { Sheet, SheetBody, SheetHeader } from "../ui/layout.tsx";
 import { LIMITS } from "@whatbuild/core/plans";
 import type { PlansCatalogue } from "../lib/limits.ts";
 import { PlanComparison } from "../routes/plan-comparison.tsx";
+
+/** The limits the server sets on what someone leaves here. */
+const EMAIL_MAX = 320;
+const WORDS_MAX = 200;
+const NOTE_MAX = 2000;
 
 const EMPTY = { email: "", name: "", organization: "", note: "", website: "" };
 
@@ -137,8 +142,10 @@ export function SitePage() {
   const [state, setState] = useState<{ status: "idle" | "sending" | "sent" } | { status: "error"; error: unknown }>({ status: "idle" });
   const set = (key: keyof typeof EMPTY) => (e: { target: { value: string } }) => setForm((f) => ({ ...f, [key]: e.target.value }));
 
+  const fits = !tooLong(form.email, EMAIL_MAX) && !tooLong(form.name, WORDS_MAX) && !tooLong(form.organization, WORDS_MAX) && !tooLong(form.note, NOTE_MAX);
   const submit = async (e: FormEvent) => {
     e.preventDefault();
+    if (!fits) return;
     setState({ status: "sending" });
     try {
       await api("POST", "/api/v1/interest", form);
@@ -200,10 +207,10 @@ export function SitePage() {
                     : "Leave your email and we’ll write when your team can start. We use it for nothing else."}
                 </p>
                 <FormGrid>
-                  <TextField label="Email" type="email" autoComplete="email" required maxLength={320} value={form.email} onChange={set("email")} />
-                  <TextField label="Name" optional autoComplete="name" maxLength={200} value={form.name} onChange={set("name")} />
-                  <TextField label="Team or company" optional autoComplete="organization" maxLength={200} value={form.organization} onChange={set("organization")} />
-                  <TextArea label="What are you deciding?" optional rows={3} maxLength={2000} value={form.note} onChange={set("note")} />
+                  <TextField label="Email" type="email" autoComplete="email" required maxLength={EMAIL_MAX} value={form.email} onChange={set("email")} />
+                  <TextField label="Name" optional autoComplete="name" maxLength={WORDS_MAX} value={form.name} onChange={set("name")} />
+                  <TextField label="Team or company" optional autoComplete="organization" maxLength={WORDS_MAX} value={form.organization} onChange={set("organization")} />
+                  <TextArea label="What are you deciding?" optional rows={3} maxLength={NOTE_MAX} value={form.note} onChange={set("note")} />
                 </FormGrid>
                 {/* People never see this field; bots fill it in and are ignored. */}
                 <div className="site-trap" aria-hidden="true">
@@ -214,7 +221,7 @@ export function SitePage() {
                 </div>
                 {state.status === "error" ? <ErrorCallout inset error={state.error} /> : null}
                 <div className="site-actions">
-                  <Button type="submit" variant="primary" busy={state.status === "sending"} busyLabel="Sending…">
+                  <Button type="submit" variant="primary" busy={state.status === "sending"} busyLabel="Sending…" disabled={!fits}>
                     Keep me posted
                   </Button>
                 </div>

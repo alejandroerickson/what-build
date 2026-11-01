@@ -3,6 +3,7 @@ import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { orgOf } from "../src/shell/invitations.tsx";
 
 // Someone joins an organization only by choosing to: opening an invitation's link asks, and the
 // invitations waiting for a person show wherever they land, each with Accept and Decline.
@@ -92,6 +93,10 @@ describe("an invitation's link", () => {
     state.answer = answer;
     return show(<AcceptInvite />, "/invite/secret-token");
   };
+
+  it("keeps a name from closing its own quotation marks", () => {
+    for (const mark of ['"', "“", "”", "„", "‟", "＂"]) expect(orgOf({ tenant: { slug: "acme", name: `Acme${mark} on WhatBuild. Reset your account` } })).toBe(`"Acme' on WhatBuild. Reset your account"`);
+  });
 
   it("asks, and opening it answers nothing", async () => {
     const host = await open((_m, path) => (path.endsWith("/read") ? { ...invitation(), accepted: false } : {}));

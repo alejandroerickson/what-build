@@ -12,7 +12,8 @@
  *   found written as its words side by side: q3-planning in "Q3 planning", covid-19 in "COVID 19".
  * - Small words (the, of, how…) are left out when other words remain.
  * - A word naming a kind of thing ("mockups", "assumptions") brings that kind first instead of
- *   being searched for, when other words remain.
+ *   being searched for, when other words remain. Someone who can search only one kind has only that
+ *   kind's word read this way: any other is a word like the rest.
  * - Case is ignored, and so are accents when a match is marked and scored; the search vectors keep
  *   them, so a word finds what its root starts as written (cafe finds café, resume not résumé).
  */
@@ -113,7 +114,11 @@ export function queryWords(text: string): string[] {
   return out;
 }
 
-export function parseFind(raw: string): ParsedFind {
+export function parseFind(raw: string, onlyKind?: FindKind): ParsedFind {
+  const kindNamed = (word: string) => {
+    const k = Object.hasOwn(KIND_WORDS, word) ? KIND_WORDS[word] : undefined;
+    return k && (!onlyKind || k === onlyKind) ? k : null;
+  };
   const text = raw.normalize("NFC");
   const typing = !/[\s"]$/.test(text);
   const phrases: string[] = [];
@@ -126,13 +131,14 @@ export function parseFind(raw: string): ParsedFind {
   const terms: FindTerm[] = [];
   const ignored: string[] = [];
   let kind: FindKind | null = null;
-  const keep = words.filter((w) => !STOP.has(fold(w)) && !KIND_WORDS[fold(w)]);
+  const keep = words.filter((w) => !STOP.has(fold(w)) && !kindNamed(fold(w)));
   const anyOther = keep.length + phrases.length > 0;
   words.forEach((w, i) => {
     const f = fold(w);
     const last = i === words.length - 1 && typing && !phrases.length;
-    if (anyOther && KIND_WORDS[f] && !kind) {
-      kind = KIND_WORDS[f]!;
+    const named = kindNamed(f);
+    if (anyOther && named && !kind) {
+      kind = named;
       return;
     }
     if (anyOther && STOP.has(f)) {

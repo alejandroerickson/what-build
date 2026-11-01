@@ -492,7 +492,7 @@ export const PLAIN_DESCRIPTION =
 export const PLAIN_STORY_DESCRIPTION =
   "It reads every Story page, by what it shows, and takes words the way a person types them into a search box, best matches first; on a whole canvas, meta gives the page the words are on. It takes mode \"plain\", the one mode it answers here (any other is refused with 403), `kind` \"story\" or none, `strict` and `limit`. " +
   PLAIN_WORDS +
-  " a word naming a kind (mockups, assumptions, sources, outcomes, story, idea), beside other words, is not searched for, and `kind_hint` names it; a word that matches nothing is replaced by the closest word in the Story pages' titles, and `corrections` says so (`strict: true` turns that off), but an id or a number is never corrected. " +
+  " the word story, beside other words, is not searched for, and `kind_hint` names it; a word that matches nothing is replaced by the closest word in the Story pages' titles, and `corrections` says so (`strict: true` turns that off), but an id or a number is never corrected. " +
   PARTIAL_RESULTS +
   " At most `limit` results come back (60 unless you say), best first; `counts` says how many matched in all, so say so when more matched than came back.";
 
@@ -526,9 +526,10 @@ async function countMatches(ctx: OpContext, p: ParsedFind, results: FindResult[]
 }
 
 export async function plainSearch(ctx: OpContext, asked: PlainInput) {
-  // A reader has only the Story, so nothing else is searched for them.
-  const i = readsOnlyTheStory(ctx.scope.role) ? { ...asked, kind: "story" as const } : asked;
-  let p = parseFind(i.query);
+  // A reader has only the Story, so nothing else is searched for them, and only its word names a kind.
+  const reader = readsOnlyTheStory(ctx.scope.role);
+  const i = reader ? { ...asked, kind: "story" as const } : asked;
+  let p = parseFind(i.query, reader ? "story" : undefined);
   const typing = !/[\s"]$/.test(i.query);
   const empty = { query: i.query, terms: [], ignored: p.ignored, kind_hint: p.kind, corrections: [], partial: false, counts: {}, hits_matched: 0, results: [] };
   if (!p.terms.length) return empty;

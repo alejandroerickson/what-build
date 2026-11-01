@@ -9,12 +9,15 @@ import { ActivityFeed, ENTITY_LABEL, useActivity, type ActivityFilter } from "..
 import { usePageTitle } from "../shell/slots.tsx";
 import {
   Avatar, Button, Callout, Dialog, ErrorCallout, FormGrid, Glyph, Loading, Menu, MenuGroup, MenuItem, MenuRadio,
-  MenuSeparator, Sheet, SheetBody, SheetHeader, StatusBadge, TextField, useToast,
+  MenuSeparator, Sheet, SheetBody, SheetHeader, StatusBadge, TextField, useToast, tooLong,
 } from "../ui/index.tsx";
 import { DeleteDialog, listed } from "./delete-dialog.tsx";
 import { PeopleEditor, type OrgPerson, type PendingInvitation } from "./people-editor.tsx";
 import "../styles/screens/activity.css";
 import "../styles/screens/settings.css";
+
+/** The limit the server sets on a product's name. */
+const NAME_MAX = 100;
 
 // ---- Activity -----------------------------------------------------------------------------------
 
@@ -158,7 +161,7 @@ function ProductDetails() {
       <form
         onSubmit={(e) => {
           e.preventDefault();
-          if (editable && dirty && name.trim() && !slugError) save.mutate();
+          if (editable && dirty && name.trim() && !tooLong(name, NAME_MAX) && !slugError) save.mutate();
         }}
       >
       {!isAdmin ? (
@@ -173,7 +176,7 @@ function ProductDetails() {
         </div>
       ) : null}
       <FormGrid className="settings-form">
-        <TextField label="Product name" value={name} onChange={(e) => setName(e.target.value)} readOnly={!editable} maxLength={100} required />
+        <TextField label="Product name" value={name} onChange={(e) => setName(e.target.value)} readOnly={!editable} maxLength={NAME_MAX} required />
         <TextField
           label="Short name in links"
           hint={editable ? "Changing it changes every link to this product." : undefined}
@@ -197,7 +200,7 @@ function ProductDetails() {
             variant="primary"
             busy={save.isPending}
             busyLabel="Saving…"
-            disabled={!dirty || !name.trim() || Boolean(slugError)}
+            disabled={!dirty || !name.trim() || tooLong(name, NAME_MAX) || Boolean(slugError)}
           >
             Save changes
           </Button>
