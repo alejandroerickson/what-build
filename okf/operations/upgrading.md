@@ -32,6 +32,12 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
   time and at most three times before it offers Try again. A page put back three times in a minute for replacing itself stops being
   shown, and the screen says why. Agents and API callers still get the same JSON refusal at the same
   addresses, and every frame still counts as a call.
+- **A guest of the example organization may make 120 calls a minute, up from 50.** It asks nothing of a
+  deployment, and only concerns one with an example organization. Opening a mockup canvas takes a
+  call for each of its pages, so someone reading at an ordinary pace could reach 50. Each guest may
+  now use more of the service at once, up to 120 calls a minute times the guests in at once. A
+  deployment that chose its own number on the instance's page (Organizations, Guests) keeps it, and
+  can change it there.
 - **Someone who reads only the Story in an organization no longer sees its limits or what it holds**
   (`tools_version` 0.53.0). It asks nothing of a deployment, and adds no migration. `products.limits`
   (`GET /api/v1/tenants/:tenant/limits`, `products_read(action="limits")`) answers them `403` naming

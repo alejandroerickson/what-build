@@ -141,7 +141,7 @@ export const GUEST_DEFAULTS: GuestSettings = {
   new_per_day: 50,
   idle_minutes: 30,
   minutes_per_day: 120,
-  requests_per_minute: 50,
+  requests_per_minute: 120,
   sent_bytes_per_day: 10 * MiB,
 };
 
