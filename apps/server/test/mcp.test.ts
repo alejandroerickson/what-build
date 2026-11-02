@@ -41,9 +41,9 @@ describe("adapter parity", () => {
     for (const [, ops] of groups) for (const o of ops) viaMcp.add(o.name);
     for (const [, o] of standalone) viaMcp.add(o.name);
     expect([...viaMcp].sort()).toEqual(OPERATIONS.filter((o) => !o.webOnly).map((o) => o.name).sort());
-    // Closing an organization or an account, renaming an organization or a product, and running the instance, are what an agent is never offered.
+    // Closing an organization or an account, renaming an organization or a product, running the instance, and a person's browser giving a picture, are what an agent is never offered.
     expect(OPERATIONS.filter((o) => o.webOnly).map((o) => o.name).sort()).toEqual([
-      "products.accounts", "products.delete_account", "products.delete_account_impact", "products.delete_tenant", "products.delete_tenant_impact", "products.guests", "products.organizations",
+      "attachments.give_picture", "products.accounts", "products.delete_account", "products.delete_account_impact", "products.delete_tenant", "products.delete_tenant_impact", "products.guests", "products.organizations",
       "products.remove_account", "products.remove_tenant_allowance", "products.rename_tenant", "products.set_guests", "products.set_plan", "products.set_plan_limits", "products.set_tenant_allowance",
       "products.tenant_allowances", "products.update", "products.usage",
     ]);

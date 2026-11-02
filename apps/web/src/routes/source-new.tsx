@@ -25,6 +25,14 @@ type Item = UploadItem;
 
 const RECORDING = /^(audio|video)\//;
 
+/** Where a file's bytes go: the server's own route, and, for a file that may not fit it, straight to the store. */
+interface UploadGrant {
+  url: string;
+  headers: Record<string, string>;
+  max_bytes: number;
+  direct?: { url: string; headers: Record<string, string>; max_bytes: number };
+}
+
 /**
  * Upload files to a source as attachments, one after another in the order given, through grants —
  * the same path agents use. Resolves true when every file is in, so callers move on without reading
@@ -36,12 +44,19 @@ export async function uploadFiles(base: string, recordId: string, items: Item[],
     if (it.state === "done") continue;
     update(i, { state: "uploading", loaded: 0, error: undefined });
     try {
-      const grant = await api<{ url: string; headers: Record<string, string>; max_bytes: number }>("POST", `${base}/sources/${recordId}/uploads`, {
+      const grant = await api<UploadGrant>("POST", `${base}/sources/${recordId}/uploads`, {
         path: it.file.name,
         size: it.file.size,
         ...(it.file.type ? { media_type: it.file.type } : {}),
       });
-      await putWithProgress(grant.url, grant.headers, it.file, (loaded) => update(i, { loaded }));
+      const onProgress = (loaded: number) => update(i, { loaded });
+      // A file past what the server's own route takes goes straight to the store, and the server is then told to add it. The server offers that only for such a file.
+      if (grant.direct) {
+        await putWithProgress(grant.direct.url, grant.direct.headers, it.file, onProgress);
+        await api("POST", `${base}/sources/${recordId}/uploads/complete`, { path: it.file.name });
+      } else {
+        await putWithProgress(grant.url, grant.headers, it.file, onProgress);
+      }
       update(i, { state: "done", loaded: it.file.size });
       // What the server can't draw is drawn here, from the file on the person's own machine.
       const picture = it.file.type.startsWith("video/") ? frameOfFile(it.file) : /\.html?$/i.test(it.file.name) ? it.file.text().then(pictureOfHtml) : null;

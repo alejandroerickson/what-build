@@ -1,4 +1,4 @@
-import { CONTENT_TABLES, dayOf, definedPlans, LIMITS, OTHER_TENANT_TABLES, type Limits } from "@whatbuild/core";
+import { CONTENT_TABLES, dayOf, definedPlans, LIMITS, OTHER_TENANT_TABLES, type BlobStore, type Limits } from "@whatbuild/core";
 import { plansFrom } from "../src/plans-config.ts";
 import { sql } from "kysely";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -505,8 +505,36 @@ describe("the free plan's limits", () => {
     const none = await ned.api("POST", `${P}/sources/${seeded}/uploads`, { path: "none.md" });
     expect(none.status).toBe(409);
     expect(none.body.error.details).toMatchObject({ quota: "bytes_per_day", limit: bytes, used: bytes, unit: "bytes" });
-    // In an unlimited organization a grant may go straight to the store when it can.
     reset();
+  });
+
+  it("offer a direct upload on a plan whose files may not fit the relay, signed for what the plan takes", async () => {
+    const signed: number[] = [];
+    const blobs = h.blobs as BlobStore;
+    blobs.signedUploadUrl = async (key, contentType, _expiresAt, maxBytes) => {
+      signed.push(maxBytes);
+      return { url: `https://storage.example/${key}`, headers: { "Content-Type": contentType } };
+    };
+    try {
+      // A plan whose files fit the relay never goes past it.
+      tweak({ file_max_bytes: h.config.relayMaxBytes });
+      expect((await ned.api("POST", `${P}/sources/${seeded}/uploads`, { path: "fits.md" })).body.direct).toBeUndefined();
+      expect(signed).toEqual([]);
+
+      const planned = h.config.relayMaxBytes + 1000;
+      tweak({ file_max_bytes: planned, bytes_per_day: planned * 2, org_bytes_per_day: planned * 2, storage_max_bytes: planned * 10 });
+      const past = await ned.api("POST", `${P}/sources/${seeded}/uploads`, { path: "past.md", size: h.config.relayMaxBytes + 1 });
+      expect(past.status, JSON.stringify(past.body)).toBe(201);
+      expect(past.body).toMatchObject({ max_bytes: h.config.relayMaxBytes, direct: { max_bytes: planned } });
+      expect(signed).toEqual([planned]);
+      // Past what the plan takes, it is refused as it always was.
+      expect((await ned.api("POST", `${P}/sources/${seeded}/uploads`, { path: "over.md", size: planned + 1 })).status).toBe(413);
+      // A file that fits the relay goes there on any plan.
+      expect((await ned.api("POST", `${P}/sources/${seeded}/uploads`, { path: "small.md", size: 100 })).body.direct).toBeUndefined();
+    } finally {
+      delete blobs.signedUploadUrl;
+      reset();
+    }
   });
 
   it("meet, after a move to the free plan during a day, what was used that day while the organization was unlimited", async () => {
@@ -576,7 +604,8 @@ describe("the plans offered", () => {
       expect.objectContaining({ id: "pro", name: "Pro", price: "$49 a month", limits: PRO_AS_SHIPPED }),
     ]);
     expect(body.limits.map((l) => l.key)).toEqual(LIMITS.map((l) => l.key));
-    expect(body.file_max_bytes).toBe(h.config.fileMaxBytes);
+    // What can be uploaded here: this store signs no direct uploads, so the relay's limit stands.
+    expect(body.file_max_bytes).toBe(Math.min(h.config.fileMaxBytes, h.config.relayMaxBytes));
   });
 
   it("are changed by an instance owner alone, for every organization on a plan, under the plan's etag", async () => {

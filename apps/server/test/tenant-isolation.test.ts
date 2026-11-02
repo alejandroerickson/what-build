@@ -122,6 +122,7 @@ const SCOPED: Record<string, Probe> = {
   "sources.delete": { input: (a) => ({ record_id: a.source.id, expected_etag: a.source.etag, reason: "Removed by an outsider", confirm: "delete permanently" }) },
   "attachments.request_upload": { input: (a) => ({ record_id: a.source.id, path: "planted.md" }) },
   "attachments.set_frame": { input: (a) => ({ record_id: a.source.id, path: "planted.md", image_base64: "AAAA" }) },
+  "attachments.give_picture": { input: (a) => ({ record_id: a.source.id, path: "planted.md", image_base64: "AAAA" }) },
   "attachments.create_upload": { input: () => ({ title: "Planted upload", path: "planted.md" }) },
   "attachments.create_uploads": { input: () => ({ sources: [{ title: "Planted upload", path: "planted.md" }] }) },
   "attachments.complete_upload": { input: (a) => ({ record_id: a.source.id, path: a.source.path }) },

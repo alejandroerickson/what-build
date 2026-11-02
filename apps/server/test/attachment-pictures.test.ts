@@ -5,6 +5,7 @@ import { sql } from "kysely";
 import sharp from "sharp";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { PICTURE_ATTEMPTS } from "@whatbuild/core";
+import { syncExampleTenant } from "../src/example-organization.ts";
 import { PICTURE_LIMITS, processPictureMaker } from "../src/picture-process.ts";
 import { startHarness, type Browser, type Harness } from "./harness.ts";
 
@@ -275,6 +276,59 @@ trailer << /Root 1 0 R >>
 
 describe("a video's frame", () => {
   const frame = async () => (await sharp({ create: { width: 640, height: 360, channels: 3, background: "#884400" } }).jpeg().toBuffer()).toString("base64");
+
+  it("comes first from whoever can read the source, in the web app; only someone who can write replaces it", async () => {
+    const vera = await h.signIn("vera@example.com", "Vera Viewer");
+    const rae = await h.signIn("rae@example.com", "Rae Reader");
+    const [team, product] = P.replace("/api/v1/p/", "").split("/").slice(1) as [string, string];
+    for (const [email, role] of [["vera@example.com", "viewer"], ["rae@example.com", "reader"]] as const) {
+      const invited = await alice.api("POST", `/api/v1/tenants/${TENANT}/members`, { team, product, email, role });
+      expect(invited.status, JSON.stringify(invited.body)).toBeLessThan(300);
+    }
+    const id = await attach("walked.mp4", new Uint8Array(4096), "video/mp4");
+    const path = "walked.mp4";
+    const give = (who: Browser, extra = {}) => frame().then((image_base64) => who.api("POST", `${P}/sources/${id}/first-picture`, { path, image_base64, ...extra }));
+
+    expect((await give(rae)).status).toBe(403);
+    expect((await give(bob)).status).toBe(404);
+    expect((await vera.api("POST", `${P}/sources/${id}/frame`, { path, image_base64: await frame() })).status).toBe(403);
+    // It never replaces one, whoever sends it.
+    expect((await give(vera, { replace: true })).status).toBe(422);
+
+    const first = await give(vera);
+    expect(first.status, JSON.stringify(first.body)).toBe(200);
+    expect(first.body.made).toBe(true);
+    await h.worker.drain();
+    const pic = (await listed(id)).attachments[0]!.picture!;
+    expect(pic.thumb_url).toBeTruthy();
+
+    // Once it has one it stays, until someone who can write replaces it.
+    expect((await give(vera)).body.made).toBe(false);
+    expect((await give(alice)).body.made).toBe(false);
+    expect((await alice.api("POST", `${P}/sources/${id}/frame`, { path, image_base64: await frame(), replace: true })).body.made).toBe(true);
+    await h.worker.drain();
+    expect((await listed(id)).attachments[0]!.picture!.thumb_url).not.toBe(pic.thumb_url);
+  });
+
+  it("is not given by a guest of the example organization, who changes nothing there", async () => {
+    const example = await startHarness({ instanceOwners: ["owner@example.com"] });
+    try {
+      const owner = await example.signIn("owner@example.com", "Olive Owner");
+      const t = await owner.api("POST", "/api/v1/tenants", { name: "Example Co" });
+      const p = await owner.api("POST", `/api/v1/teams/${t.body.tenant.slug}/${t.body.team.slug}/products`, { name: "Sample" });
+      const base = `/api/v1/p/${p.body.path}`;
+      const made = await owner.api("POST", `${base}/sources/with-upload`, { title: "A walk-round", path: "round.mp4", media_type: "video/mp4" });
+      const upload = made.body.upload as { url: string; headers: Record<string, string> };
+      expect((await fetch(upload.url, { method: "PUT", headers: upload.headers, body: new Uint8Array(4096) })).status).toBe(201);
+      await example.worker.drain();
+      await syncExampleTenant(example.db, t.body.tenant.slug, () => {});
+      const guest = await example.signIn("gale@guest.example", "Gale Guest");
+      const refused = await guest.api("POST", `${base}/sources/${made.body.record.record_id}/first-picture`, { path: "round.mp4", image_base64: await frame() });
+      expect(refused.status, JSON.stringify(refused.body)).toBe(403);
+    } finally {
+      await example.close();
+    }
+  });
 
   it("comes from whoever can write, is made small by the worker, and is kept unless replaced", async () => {
     const id = await attach("walkround.mp4", new Uint8Array(4096), "video/mp4");

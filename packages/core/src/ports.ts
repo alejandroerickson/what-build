@@ -29,6 +29,8 @@ export interface BlobStore {
   delete(key: string): Promise<void>;
   /** A short-lived URL that PUTs one new object of at most `maxBytes` directly to the store, when the store offers it. */
   signedUploadUrl?(key: string, contentType: string, expiresAt: Date, maxBytes: number): Promise<{ url: string; headers: Record<string, string> }>;
+  /** Where those URLs point, as a page's connect-src names it, so a browser may PUT there. */
+  directUploadSource?: string;
   /** A short-lived URL that GETs one object directly from the store, when the store offers it. */
   signedDownloadUrl?(key: string, fileName: string, contentType: string, expiresAt: Date): Promise<string>;
 }

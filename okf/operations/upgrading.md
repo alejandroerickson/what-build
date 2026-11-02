@@ -3,7 +3,7 @@ type: Process
 title: What a deployment must do when it takes a release
 description: The changes a release asks of the people who run a deployment (settings, app registrations, behaviour they will notice), kept per release, with the unreleased ones on top until the next release carries them into its notes.
 tags: [operations, releases, upgrading, self-hosting, configuration]
-generated: {by: agent:claude, at: 2026-11-01}
+generated: {by: agent:claude, at: 2026-11-02}
 status: stable
 ---
 
@@ -23,7 +23,24 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
 
 ## Unreleased
 
-Nothing yet.
+- **A plan's file limit past 25 MB needs direct uploads.** A deployment on Cloud Run that promises
+  more (the example plans' Pro, 100 MB) does the steps under **Large uploads** in
+  [Cloud Run](cloud-run.md) before taking this release: the runtime identity may sign, the bucket
+  lets the app's origin `PUT`, and `WHATBUILD_GCS_SIGNED_URLS=1`. They are safe to do first, since an
+  older release ignores them. Without them nothing past 25 MB can be uploaded, as before, and from
+  this release the plans table, the site and an organization's limits say 25 MB, where they used to
+  promise the plan's figure. A self-hosted deployment on Azure takes files up to its relay's limit,
+  100 MB, and changes nothing.
+- **People will notice:** a file past 25 MB uploads from the web app, on a plan that allows it. Past
+  the read limit (25 MB) it is kept and shown but not read, and gets no picture from the worker. A
+  grant for such a file carries `direct` on plans with limits too, so connected agents can send it.
+- **Anyone who can read a source now gives a video or a web page its first picture**, by stopping on
+  it, where it used to take someone who can write. A viewer can therefore choose such an attachment's
+  picture until someone who can write replaces it. The web app sends it with the new
+  `attachments.give_picture`, which agents are not offered; `attachments.set_frame` still needs an
+  editor. Connected agents are asked to update their tools.
+- **Bytes of a direct upload nobody completed are now deleted**, a day after their grant expires. A
+  deployment does nothing. Bytes left by an upload whose grant has already gone stay in the bucket.
 
 ## v0.30.0
 

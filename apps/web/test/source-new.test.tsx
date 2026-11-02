@@ -7,12 +7,26 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
 const calls: { method: string; path: string }[] = [];
+const puts: { url: string; headers: Record<string, string> }[] = [];
+const completed: unknown[] = [];
+let grant: unknown = null;
+let refuseComplete = false;
 vi.mock("../src/lib/api.ts", async (original) => ({
   ...(await original<typeof import("../src/lib/api.ts")>()),
-  api: vi.fn(async (method: string, path: string) => {
+  api: vi.fn(async (method: string, path: string, body?: unknown) => {
     calls.push({ method, path });
     if (method === "POST" && path.endsWith("/sources")) return { record_id: "rec_1" };
+    if (path.endsWith("/uploads")) return grant;
+    if (path.endsWith("/uploads/complete")) {
+      if (refuseComplete) throw new Error("Not added.");
+      completed.push(body);
+      return {};
+    }
     return { records: [], tags: [], added_by: [], sources: 0 };
+  }),
+  putWithProgress: vi.fn(async (url: string, headers: Record<string, string>, file: File, onProgress: (loaded: number) => void) => {
+    puts.push({ url, headers });
+    onProgress(file.size);
   }),
 }));
 const product = { readOnlyOrganization: false };
@@ -27,7 +41,8 @@ vi.mock("../src/lib/session.tsx", async (original) => ({
   }),
 }));
 
-const { SourceNewPage } = await import("../src/routes/source-new.tsx");
+const { SourceNewPage, uploadFiles } = await import("../src/routes/source-new.tsx");
+type UploadItem = import("../src/routes/source-new.tsx").UploadItem;
 
 function Where() {
   const loc = useLocation();
@@ -40,6 +55,9 @@ afterEach(() => {
   unmount = null;
   document.body.innerHTML = "";
   calls.length = 0;
+  puts.length = 0;
+  completed.length = 0;
+  refuseComplete = false;
   product.readOnlyOrganization = false;
   vi.restoreAllMocks();
 });
@@ -54,6 +72,37 @@ function button(host: HTMLElement, label: string): HTMLButtonElement {
   if (!b) throw new Error(`No button “${label}”`);
   return b;
 }
+
+describe("uploading a file", () => {
+  const relay = { url: "/api/v1/uploads/g1", headers: { "X-WhatBuild-Upload-Grant": "t" }, max_bytes: 100 };
+  const direct = { url: "https://storage.example/k", headers: { "x-goog-content-length-range": "0,1000" }, max_bytes: 1000 };
+  const item = (size: number): UploadItem => ({ file: new File([new Uint8Array(size)], "deck.pptx"), state: "waiting", loaded: 0 });
+
+  it("sends a file through the server's own route, with nothing more to call", async () => {
+    grant = relay;
+    const updates: Partial<UploadItem>[] = [];
+    expect(await uploadFiles("/api/v1/p/a", "rec_1", [item(50)], (_i, patch) => updates.push(patch))).toBe(true);
+    expect(puts).toEqual([{ url: relay.url, headers: relay.headers }]);
+    expect(calls.map((c) => c.path)).toEqual(["/api/v1/p/a/sources/rec_1/uploads"]);
+    expect(updates.at(-1)).toMatchObject({ state: "done", loaded: 50 });
+  });
+
+  it("sends a file past that route straight to the store, then tells the server to add it", async () => {
+    grant = { ...relay, direct };
+    expect(await uploadFiles("/api/v1/p/a", "rec_1", [item(500)], () => {})).toBe(true);
+    expect(puts).toEqual([{ url: direct.url, headers: direct.headers }]);
+    expect(calls.map((c) => `${c.method} ${c.path}`)).toEqual(["POST /api/v1/p/a/sources/rec_1/uploads", "POST /api/v1/p/a/sources/rec_1/uploads/complete"]);
+    expect(completed).toEqual([{ path: "deck.pptx" }]);
+  });
+
+  it("says a failure of either step, and does not call the file uploaded", async () => {
+    grant = { ...relay, direct };
+    refuseComplete = true;
+    const updates: Partial<UploadItem>[] = [];
+    expect(await uploadFiles("/api/v1/p/a", "rec_1", [item(500)], (_i, patch) => updates.push(patch))).toBe(false);
+    expect(updates.at(-1)).toMatchObject({ state: "failed", error: "Not added." });
+  });
+});
 
 describe("adding a source in the app", () => {
   it("opens the new source once it is created, without updating the router while the page renders", async () => {

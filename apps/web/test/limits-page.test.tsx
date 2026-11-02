@@ -84,6 +84,7 @@ vi.mock("../src/lib/api.ts", async (original) => ({
       deployment_limits: [
         { key: "file_max_bytes", label: "File size", value: 100 * MB, unit: "bytes", set_by: "WHATBUILD_FILE_MAX_BYTES" },
         { key: "relay_max_bytes", label: "File size through the upload relay", value: 25 * MB, unit: "bytes", set_by: "WHATBUILD_RELAY_MAX_BYTES" },
+        { key: "upload_max_bytes", label: "Largest file that can be uploaded", value: 25 * MB, unit: "bytes", set_by: null },
         { key: "parse_cap_bytes", label: "Read per attachment", value: 20 * MB, unit: "bytes", set_by: "WHATBUILD_PARSE_CAP_BYTES" },
         { key: "parse_memory_bytes", label: "Memory for reading one attachment", value: 384 * MB, unit: "bytes", set_by: "WHATBUILD_PARSE_MEMORY_MB" },
         { key: "attachments_per_source", label: "Attachments on a source", value: 50, unit: "attachments", set_by: null },

@@ -317,7 +317,7 @@ export function createApp(deps: { db: Db; ports: Ports; config: ServerConfig; re
   app.route("/", restRoutes(env));
 
   app.all("/api/*", (c) => c.json({ error: { code: "not_found", status: 404, message: `No route ${c.req.method} ${c.req.path}.` } }, 404));
-  if (deps.config.webDist) app.route("/", staticRoutes(deps.config.webDist, { analytics: Boolean(deps.config.analyticsId), contentUrl: deps.config.contentUrl }));
+  if (deps.config.webDist) app.route("/", staticRoutes(deps.config.webDist, { analytics: Boolean(deps.config.analyticsId), contentUrl: deps.config.contentUrl, uploadsTo: deps.ports.blobs.directUploadSource ?? null }));
 
   app.onError((err, c) => {
     if (err instanceof AppError) return c.json({ error: err.toJSON() }, err.status as 400);

@@ -279,13 +279,13 @@ function Today({ l }: { l: OrganizationLimits }) {
 
 /**
  * The limits on what someone adds that they can run into, said as sentences. A file's size is the
- * most the web app takes: it uploads through the relay, so the relay's limit applies too.
+ * most that can be uploaded here, which the deployment says, and the plan's.
  */
 function WhatYouAdd({ l }: { l: OrganizationLimits }) {
   const meets = l.you_meet_them === true;
   const deployment = (k: string) => l.deployment_limits.find((x) => x.key === k)?.value;
   const planned = (k: string) => (meets ? l.limits.find((x) => x.key === k)?.value : undefined);
-  const fileMax = Math.min(...[deployment("file_max_bytes"), deployment("relay_max_bytes"), planned("file_max_bytes")].filter((v): v is number => typeof v === "number"));
+  const fileMax = Math.min(...[deployment("upload_max_bytes"), planned("file_max_bytes")].filter((v): v is number => typeof v === "number"));
   const readCap = deployment("parse_cap_bytes");
   const attachments = deployment("attachments_per_source");
   const mockups = deployment("mockups_per_product");

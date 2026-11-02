@@ -31,10 +31,16 @@ const sources = [
 ];
 
 const calls: string[] = [];
+const who = { canGivePicture: false };
+const sent: unknown[] = [];
 vi.mock("../src/lib/api.ts", async (original) => ({
   ...(await original<typeof import("../src/lib/api.ts")>()),
-  api: vi.fn(async (_method: string, path: string) => {
+  api: vi.fn(async (_method: string, path: string, body?: unknown) => {
     calls.push(path);
+    if (path.endsWith("/first-picture")) {
+      sent.push(body);
+      return { made: true };
+    }
     if (path.startsWith(`${BASE}/sources/facets`)) return { sources: 3, tags: [], tags_truncated: false, added_by: [] };
     if (path.includes("/derived/text")) return { text: "# Notes\n\nThe whole of what was read.", truncated: false, total_chars: 30 };
     return { records: sources, next_cursor: null };
@@ -42,8 +48,9 @@ vi.mock("../src/lib/api.ts", async (original) => ({
 }));
 vi.mock("../src/lib/session.tsx", async (original) => ({
   ...(await original<typeof import("../src/lib/session.tsx")>()),
-  useProduct: () => ({ api: BASE, app: APP, product, canWrite: false, canDelete: false }),
+  useProduct: () => ({ api: BASE, app: APP, product, canWrite: false, canDelete: false, canGivePicture: who.canGivePicture }),
 }));
+vi.mock("../src/lib/html-picture.ts", () => ({ pictureOfHtml: vi.fn(async () => "drawn") }));
 
 const { EvidencePage } = await import("../src/routes/evidence.tsx");
 const { ShellContext } = await import("../src/shell/slots.tsx");
@@ -55,6 +62,8 @@ afterEach(() => {
   unmount = null;
   document.body.innerHTML = "";
   calls.length = 0;
+  sent.length = 0;
+  who.canGivePicture = false;
 });
 
 const panel = document.createElement("div");
@@ -252,5 +261,34 @@ describe("the keys", () => {
     expect(document.querySelector("[aria-current='true'][data-source]")).toBeNull();
     await press("ArrowDown", { metaKey: true });
     expect(document.querySelector("[aria-current='true'][data-source]")).toBeNull();
+  });
+});
+
+describe("a web page with no picture yet", () => {
+  const page = { path: "report.html", media_type: "text/html", size: 900, text: { status: "ready", chars: 20, duration_ms: null }, picture: null };
+  /** Stop on the page, as the preview waits to before it asks for anything. A version is drawn once in a tab, so each test has its own. */
+  async function stopOnIt(file_version_id: string) {
+    sources.push({ ...base, record_id: "S4", title: "Crew report", attachment_count: 1, text_from: "report.html", summary: null, first_lines: null, attachments: [{ ...page, file_version_id }] } as never);
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("<h1>Crew report</h1>")));
+    try {
+      await open("?source=S4&page=1");
+      await act(async () => {
+        await new Promise((r) => setTimeout(r, 400));
+      });
+    } finally {
+      vi.unstubAllGlobals();
+      sources.pop();
+    }
+  }
+
+  it("gets its picture from anyone who may give one, a viewer among them", async () => {
+    who.canGivePicture = true;
+    await stopOnIt("v5");
+    expect(sent).toEqual([{ path: "report.html", image_base64: "drawn" }]);
+  });
+
+  it("is left alone by a guest of the example organization, and in a read-only organization", async () => {
+    await stopOnIt("v6");
+    expect(sent).toEqual([]);
   });
 });

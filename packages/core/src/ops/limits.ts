@@ -10,7 +10,7 @@ import {
   type Holdings, type LimitKey, type LimitState, type Plan,
 } from "../limits.ts";
 import { readGuests, readPlans, saveSetting, settingRecord } from "../settings.ts";
-import { REST_BODY_MAX_BYTES, SIGN_IN_LINKS_PER_HOUR, type CoreConfig } from "../ports.ts";
+import { REST_BODY_MAX_BYTES, SIGN_IN_LINKS_PER_HOUR, type Ports } from "../ports.ts";
 import { membershipsFor, readsOnlyTheStoryIn, tenantNamed } from "../policy.ts";
 import { defineOperation, type OpContext } from "../registry.ts";
 import { expectedEtag } from "../schemas.ts";
@@ -18,7 +18,7 @@ import { isInstanceOwner, tenantAllowanceOf } from "../tenant-allowance.ts";
 import { STORY_HTML_MAX } from "../story-html.ts";
 import { newEtag } from "../util.ts";
 import { ownerAddresses, tellOwnersReadOnly } from "../organization-notices.ts";
-import { MAX_ATTACHMENTS } from "./attachments.ts";
+import { MAX_ATTACHMENTS, uploadMaxBytes } from "./attachments.ts";
 import { MAX_MOCKUPS, MOCKUP_HTML_TOTAL, MOCKUP_PAGE_MAX } from "./mockups.ts";
 import { MAX_BATCH } from "./sources.ts";
 import { MAX_PAGES } from "./story.ts";
@@ -97,10 +97,12 @@ function requireInstanceOwner(ctx: OpContext) {
 }
 
 /** The limits every organization on this deployment has, whatever its plan, set where the service is deployed. */
-function deploymentLimits(cfg: CoreConfig) {
+function deploymentLimits(ports: Pick<Ports, "blobs" | "config">) {
+  const cfg = ports.config;
   return [
     { key: "file_max_bytes", label: "File size", value: cfg.fileMaxBytes, unit: "bytes", set_by: "WHATBUILD_FILE_MAX_BYTES" },
     { key: "relay_max_bytes", label: "File size through the upload relay", value: cfg.relayMaxBytes, unit: "bytes", set_by: "WHATBUILD_RELAY_MAX_BYTES" },
+    { key: "upload_max_bytes", label: "Largest file that can be uploaded", value: uploadMaxBytes(ports), unit: "bytes", set_by: null },
     { key: "parse_cap_bytes", label: "Read per attachment", value: cfg.parseCapBytes, unit: "bytes", set_by: "WHATBUILD_PARSE_CAP_BYTES" },
     { key: "parse_memory_bytes", label: "Memory for reading one attachment", value: cfg.parseMemoryMb * 1024 * 1024, unit: "bytes", set_by: "WHATBUILD_PARSE_MEMORY_MB" },
     { key: "parse_timeout_seconds", label: "Time for reading one attachment", value: cfg.parseTimeoutSeconds, unit: "seconds", set_by: "WHATBUILD_PARSE_TIMEOUT_SECONDS" },
@@ -175,7 +177,7 @@ export const organizationLimits = defineOperation({
       limits: await limitsView(ctx.db, state, guest ? null : ctx.principal.account_id, holdings),
       allowances_restart_at: state.day_end,
       plans: planCatalogue(await readPlans(ctx.db)),
-      deployment_limits: deploymentLimits(ctx.ports.config),
+      deployment_limits: deploymentLimits(ctx.ports),
     };
   },
 });

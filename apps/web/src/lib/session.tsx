@@ -177,6 +177,8 @@ interface ProductCtx {
   /** Web base for this product's screens. */
   app: string;
   canWrite: boolean;
+  /** May give a video or a web page its first picture: anyone who reads the sources, but not a guest of the example organization, who changes nothing there. */
+  canGivePicture: boolean;
   /** The organization is read-only: nothing can be added or changed, whatever the role, but deletes still work. */
   readOnlyOrganization: boolean;
   isAdmin: boolean;
@@ -207,6 +209,7 @@ export function ProductProvider({ children, fallback }: { children: (ctx: Produc
     api: `/api/v1/p/${path}`,
     app: `/t/${path}`,
     canWrite: (product.your_role === "editor" || product.your_role === "admin") && !product.archived_at && !product.tenant.read_only,
+    canGivePicture: (product.your_role === "viewer" || product.your_role === "editor" || product.your_role === "admin") && !product.archived_at && !product.tenant.read_only,
     readOnlyOrganization: Boolean(product.tenant.read_only),
     isAdmin: product.your_role === "admin",
     canDelete: product.your_role === "admin" && !product.archived_at,

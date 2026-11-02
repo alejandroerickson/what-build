@@ -1,8 +1,8 @@
 ---
 title: Real files look like themselves in the list of sources and its preview, and an HTML attachment can do nothing
 organizations: [standard]
-people: [sam]
-surfaces: [web]
+people: [sam, riley]
+surfaces: [web, mcp]
 ---
 
 # Attachment previews
@@ -52,12 +52,12 @@ plans: move the organization to Pro first, so that images and recordings are all
    preview says it can't show this format, with a download. Pressing an image opens its original.
 4. **Recordings.** Stop on a video in the preview. *Expect:* no request for it in the network panel
    until Play is pressed. Press Play: *expect* it to play, the requests to be for pieces of at most
-   8 MiB, and, for someone who can write, the row to get a frame soon after. Seek twice, then read the
+   8 MiB, and, for anyone but a guest of the example organization, the row to get a frame soon after. Seek twice, then read the
    organization's limits: *expect* the day's data sent to have grown by about what played, never the
    file again for each seek. A file the browser can't play (ProRes, say) says so, with a download,
    even where its sound would play.
 5. **Web pages.** *Expect:* each shows in a sandboxed frame, with a line saying it runs no scripts and
-   loads nothing from elsewhere, and once someone who can write has stopped on it, or uploaded it,
+   loads nothing from elsewhere, and once someone has stopped on it, or uploaded it,
    its row shows a picture of it. A page that relies on what it loads shows plain, and stays a small
    page of words if it draws blank.
 6. **A hostile page.** Attach `e2e/hostile-page.html` and stop on it in the preview, with the network
@@ -69,7 +69,19 @@ plans: move the organization to Pro first, so that images and recordings are all
    for sources passed through, and the pictures served with no call counted (`/api/v1/pictures/…`, from
    the browser's cache on a second pass).
 
+8. **A page and a video an agent attached, seen by someone who can only read.** As Sam, over MCP,
+   attach a web page and a video to a new source of this product, and send neither a picture. As
+   Riley, make `viewer@example.com` a viewer of the product. *Expect:* signed in as that person, both
+   rows show no picture until they stop on the page and play the video, and then each row gets one,
+   which Sam sees too. Sign in as a guest and stop on another page with no picture in the example
+   organization: *expect* nothing sent, and no refusal in the page.
+9. **A large file.** This instance's store signs no direct uploads. As Sam, in the web app, add a
+   file over the 25 MB relay limit. *Expect:* it is refused at once, with the most this deployment
+   takes, before any bytes move, and the plan table and the organization's limits both say 25 MB.
+
 ## Not covered here
 
 The limits a picture is made within, and hostile images and PDFs, are in
-`apps/server/test/attachment-pictures.test.ts` and `apps/server/test/hostile-uploads.test.ts`.
+`apps/server/test/attachment-pictures.test.ts` and `apps/server/test/hostile-uploads.test.ts`. A file
+sent straight to a bucket needs a bucket: `apps/server/test/direct-uploads.test.ts` holds what the
+server does, and a rehearsal on the dev deployment what the bucket does.

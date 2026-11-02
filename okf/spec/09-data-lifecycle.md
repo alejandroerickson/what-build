@@ -3,7 +3,7 @@ type: Specification
 title: Nothing is ever trapped - say what we promise, keep export open, and never let a limit block a read.
 description: What we tell people, limits and quotas (enforced and planned), backups and in-product versioning, export, archive and permanent delete of everything archivable and of an organization, the operator runbooks, plans and their limits, and how retired insights and decisions became sources.
 tags: [spec, lifecycle, quotas, backups, export, archive, delete, limits, plans]
-generated: {by: agent:claude, at: 2026-10-31}
+generated: {by: agent:claude, at: 2026-11-02}
 status: stable
 ---
 
@@ -118,7 +118,7 @@ running without a compliance program.
 | Limit | Value | Enforced today |
 |---|---|---|
 | Per attachment | 100 MB (`WHATBUILD_FILE_MAX_BYTES`) | Yes — `413 too_large` |
-| Through the upload relay | 25 MB (`WHATBUILD_RELAY_MAX_BYTES`); larger files need direct upload URLs | Yes — `413 too_large` |
+| Through the upload relay | 25 MB (`WHATBUILD_RELAY_MAX_BYTES`); larger files need direct upload URLs (`WHATBUILD_GCS_SIGNED_URLS=1`), and without them are refused however large the per-attachment limit | Yes — `413 too_large` |
 | Read per attachment | 25 MB (`WHATBUILD_PARSE_CAP_BYTES`); a larger attachment is stored, not read | Yes |
 | Memory for reading one attachment | 288 MB of heap (`WHATBUILD_PARSE_MEMORY_MB`), and half as much again for buffers, the text it returns among them; a parse that needs more is stopped and fails. The process it runs in costs more than these: about 70 MiB before it starts, and at its peak more than twice the heap's limit, about 660 MiB at the default in the heaviest case measured and occasionally more, beside what the server holds in the same instance | Yes |
 | Time for reading one attachment | 120 seconds (`WHATBUILD_PARSE_TIMEOUT_SECONDS`), counted from when its process starts; a parse that runs longer is stopped and fails | Yes |
@@ -484,7 +484,7 @@ in it ([§3.5](03-accounts-teams-and-identity.md#35-roles)), each limit of its p
 for none), what it is counted over, its refusal and what is used of it: for a daily one what the
 caller and everyone together used today (on every plan, rule 10), for a total what the organization
 holds; the plans offered side by side; and the deployment's own limits, each with a key that stays
-the same (`file_max_bytes`, `relay_max_bytes`, `attachments_per_source`, …) and, where one does, the
+the same (`file_max_bytes`, `relay_max_bytes`, `upload_max_bytes`, `attachments_per_source`, …) and, where one does, the
 setting that changes it. The web app shows a person what they can run into, and an instance owner
 all of it. `GET /api/v1/plans`, public, gives the plans offered with every limit and each one's
 price (none on a deployment that offers no plans), `starting_plan`, whether the deployment has an
@@ -544,9 +544,12 @@ Rules:
    the day's writes, or writing being off (a limit of 0), never stop them, so one person's clearing up
    takes nothing from anyone's day. Archiving and restoring are writes they do stop: archiving makes
    no room, and one operation may do both. Calls and writes a minute pace all of them.
-5. **On a plan with limits an upload goes through the relay only**, where the size is enforced as
-   the bytes arrive; no direct-to-store URL is issued. A grant's `max_bytes` is the lowest of the
-   file limits, what is left of the day's bytes and what is left of the storage. Bytes are counted
+5. **On a plan with limits an upload meets them whichever way its bytes go.** What a grant takes is
+   the lowest of the file limits, what is left of the day's bytes and what is left of the storage.
+   Up to the relay's limit a file goes through the relay, where the size is enforced as the bytes
+   arrive. Past it, where the store signs direct uploads, the grant's `direct` address is signed for
+   what the grant takes, so the bucket refuses more
+   ([decision](../decisions/a-file-past-the-relay-goes-straight-to-the-bucket-from-the-web-app-too.md)). Bytes are counted
    when the file is attached, against whoever asked for the grant. A mockup canvas is not uploaded
    as a ZIP (`403 plan_restricted`): its text is capped field by field, so its pages go in the
    call, and a prototype, which comes only in a canvas's ZIP, never reaches such an organization.

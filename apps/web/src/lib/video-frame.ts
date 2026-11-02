@@ -55,5 +55,5 @@ export function frameOfFile(file: File): Promise<string | null> {
  * thing it has, so a failure here says nothing to anyone.
  */
 export async function sendFrame(base: string, recordId: string, path: string, frame: string): Promise<void> {
-  await api("POST", `${base}/sources/${recordId}/frame`, { path, image_base64: frame }).catch(() => undefined);
+  await api("POST", `${base}/sources/${recordId}/first-picture`, { path, image_base64: frame }).catch(() => undefined);
 }

@@ -3,7 +3,7 @@ type: System Concept
 title: WhatBuild runs as one stateless Cloud Run service with Postgres and a Cloud Storage bucket.
 description: What a deployment on Cloud Run is made of, how deploy/cloud-run/setup.sh creates it, sign-in, deploying and restore points before migrating, its alerts and traces, cost, names, and useful commands; backups and the dev deployment have guides of their own.
 tags: [operations, deployment, cloud-run, gcp]
-generated: {by: agent:claude, at: 2026-11-01}
+generated: {by: agent:claude, at: 2026-11-02}
 status: stable
 ---
 
@@ -72,10 +72,27 @@ prints its URL. See the header of [`setup.sh`](../../deploy/cloud-run/setup.sh) 
 In a project created minutes before, the first build can be refused with `PERMISSION_DENIED`
 while the project's new permissions spread; run the script again.
 
-**Large uploads.** Agents upload through the service's own relay, which takes at most 25 MB per
-file (Cloud Run refuses bodies over 32 MiB). `SIGNED_URLS=1` also hands agents direct-to-bucket
-upload URLs for larger files, up to the 100 MB per-file limit; it grants the runtime identity the
-right to sign as itself.
+**Large uploads.** People and agents upload through the service's own relay, which takes at most 25 MB per
+file (Cloud Run refuses bodies over 32 MiB). `SIGNED_URLS=1` hands both direct-to-bucket
+upload URLs for larger files, up to the 100 MB per-file limit, or what a plan takes; it grants the
+runtime identity the right to sign as itself, and lets the app's origin `PUT` to the bucket. Without it,
+25 MB is the most this deployment takes, and its plans and limits say so whatever `file_max_bytes`
+a plan sets. Cloud Run also refuses a response over 32 MiB unless it is chunked or streamed, so a larger file is
+answered in chunks. Run `setup.sh` again with it when the app's address changes, since the bucket names the
+origin. On a running deployment, without building anything:
+
+```bash
+RUNTIME_SA=<the service's runtime identity>   # gcloud run services describe whatbuild --format='value(spec.template.spec.serviceAccountName)'
+gcloud iam service-accounts add-iam-policy-binding "$RUNTIME_SA" --project "$PROJECT_ID" \
+  --member "serviceAccount:$RUNTIME_SA" --role roles/iam.serviceAccountTokenCreator
+cat > /tmp/cors.json <<JSON
+[{"origin": ["<the app's origin>"], "method": ["PUT"],
+  "responseHeader": ["Content-Type", "x-goog-content-length-range", "x-goog-if-generation-match"],
+  "maxAgeSeconds": 3600}]
+JSON
+gcloud storage buckets update "gs://$BUCKET" --project "$PROJECT_ID" --cors-file /tmp/cors.json
+gcloud run services update whatbuild --project "$PROJECT_ID" --region "$REGION" --update-env-vars WHATBUILD_GCS_SIGNED_URLS=1
+```
 
 **Pictures.** The worker makes each attachment's picture in a process of its own, held to 384 MB and
 20 seconds, with two tries; one that needs more goes without, and the source shows the next thing it has

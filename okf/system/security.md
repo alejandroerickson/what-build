@@ -3,7 +3,7 @@ type: System Concept
 title: WhatBuild keeps each organization's material to its own people, and treats agent-written HTML, uploads and source text as hostile
 description: The threat model: what is protected, who the attackers are, the trust boundaries, and each control with where it lives in code and the decision that governs it.
 tags: [security, threat-model, tenancy, identity, oauth, example, limits, uploads]
-generated: {by: agent:claude, at: 2026-11-01}
+generated: {by: agent:claude, at: 2026-11-02}
 status: draft
 ---
 
@@ -358,7 +358,15 @@ Four things keep a tab from hearing what it may not know, each holding if anothe
   calls a minute where they meet one (`requesterMayRead` in `apps/server/src/uploads.ts`). A direct-to-bucket URL is signed for at most the grant's
   size (`x-goog-content-length-range`, `directUploadSigning` in `blobs-gcs.ts`), and
   `attachments.complete_upload` reads the object's size before its bytes, discards one over the grant
-  with `413`, and hashes the bytes as it streams them.
+  with `413`, and hashes the bytes as it streams them. The bucket takes a browser's `PUT` from the
+  app's origin alone, and the app's pages may connect to that one bucket (`directUploadSource`), so a
+  script that got into a page could not send anything to another. Bytes nobody completes go with
+  their grant, a day after it expires, and until then count against no allowance.
+- `attachments.give_picture` lets someone who can read a source give a video or a web page its first
+  picture, so a viewer can choose what such an attachment shows until someone who can write replaces
+  it with `attachments.set_frame`. It is the web app's alone. The worker makes its own copies from what
+  is sent, and the picture is seen only by those who can read the source. A guest of the example
+  organization, an agent and a reader of the Story cannot send one.
 - A mockup canvas uploaded as a ZIP comes through the relay only, under a grant of its own purpose
   (`mockup_upload`), and is refused on a plan with limits, whose text is capped field by field. Publish unpacks it with the parsers' `zipEntries`, which stops at 96 MB unpacked
   however the archive claims its sizes and refuses more than 2,148 entries before inflating any;

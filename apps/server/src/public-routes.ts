@@ -20,7 +20,8 @@ export async function siteCatalogue(db: Db, config: ServerConfig) {
     // Whether the deployment has an example organization, so whether guests can come in at all.
     example: Boolean(config.exampleTenant),
     limits: LIMITS,
-    file_max_bytes: config.fileMaxBytes,
+    // What can be uploaded here: past the relay's limit, only through the addresses a bucket signs.
+    file_max_bytes: config.blobStore === "gcs" && config.gcsSignedUrls ? config.fileMaxBytes : Math.min(config.fileMaxBytes, config.relayMaxBytes),
     contact: config.privacyContact,
     guests: { self_serve: guests.self_serve, open: guests.at_once > 0 },
     // What the site's privacy page says that only the deployment knows.
@@ -113,17 +114,19 @@ const ANALYTICS_SOURCES = {
 };
 
 /**
- * PAGE_SECURITY_HEADERS, letting Google Analytics in when the deployment uses it, and letting the
+ * PAGE_SECURITY_HEADERS, letting Google Analytics in when the deployment uses it, letting the
  * app frame what the content site serves when it has one: prototypes, and the documents the app's
  * own routes hand off to it (content-documents.ts). After a redirect a browser matches a source by
- * its host alone, and the content site serves nothing else.
+ * its host alone, and the content site serves nothing else. A store that signs direct uploads gets
+ * the app's PUTs of files past the relay, to that store's own bucket and no other.
  */
-export function pageHeaders(analytics: boolean, contentUrl: string | null = null) {
-  if (!analytics && !contentUrl) return PAGE_SECURITY_HEADERS;
+export function pageHeaders(analytics: boolean, contentUrl: string | null = null, uploadsTo: string | null = null) {
+  if (!analytics && !contentUrl && !uploadsTo) return PAGE_SECURITY_HEADERS;
   const csp = PAGE_SECURITY_HEADERS["Content-Security-Policy"].split("; ").map((d) => {
     const directive = d.split(" ")[0]!;
     const name = directive as keyof typeof ANALYTICS_SOURCES;
     const withAnalytics = analytics && ANALYTICS_SOURCES[name] ? `${d} ${ANALYTICS_SOURCES[name]}` : d;
+    if (uploadsTo && directive === "connect-src") return `${withAnalytics} ${uploadsTo}`;
     return contentUrl && directive === "frame-src" ? `${withAnalytics} ${contentUrl}/prototypes/ ${contentUrl}${DOCUMENT_ROUTE}/` : withAnalytics;
   });
   return { ...PAGE_SECURITY_HEADERS, "Content-Security-Policy": csp.join("; ") };
@@ -153,8 +156,8 @@ function readFileIfAny(file: string) {
   }
 }
 
-export function staticRoutes(dist: string, opts: { analytics?: boolean; contentUrl?: string | null } = {}) {
-  const headers = pageHeaders(Boolean(opts.analytics), opts.contentUrl ?? null);
+export function staticRoutes(dist: string, opts: { analytics?: boolean; contentUrl?: string | null; uploadsTo?: string | null } = {}) {
+  const headers = pageHeaders(Boolean(opts.analytics), opts.contentUrl ?? null, opts.uploadsTo ?? null);
   const root = resolve(dist);
   const app = new Hono();
   const indexPath = join(root, "index.html");

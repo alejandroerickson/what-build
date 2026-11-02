@@ -257,8 +257,8 @@ export class Worker {
           .returning(["blob_key", "uploaded_at"])
           .execute();
       });
-      // Bytes that arrived but were never attached (a direct upload nobody completed).
-      for (const g of stale) if (g.uploaded_at && g.blob_key) await this.env.ports.blobs.delete(g.blob_key).catch(() => undefined);
+      // Bytes that arrived but were never attached. A direct upload nobody completed reached the store without the server hearing of it, so its grant says nothing either way: where the store signs them, look.
+      for (const g of stale) if (g.blob_key && (g.uploaded_at || this.env.ports.blobs.signedUploadUrl)) await this.env.ports.blobs.delete(g.blob_key).catch(() => undefined);
       // A canvas's ZIP: one never published goes a day after its grant expired; a published one's
       // bytes went when it was published, and its row a week later.
       const canvases = await this.env.db.transaction().execute(async (trx) => {
