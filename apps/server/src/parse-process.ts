@@ -75,7 +75,7 @@ const asMiB = (bytes: number) => Math.round(bytes / MiB);
  * the image, normally none, and the rehearsal reads it for a process left behind. Null where it
  * cannot be told without running something (`/proc` is Linux's).
  */
-function otherProcesses(parsesRunning: number): number | null {
+export function otherProcesses(parsesRunning: number): number | null {
   if (process.platform !== "linux") return null;
   try {
     return readdirSync("/proc").filter((name) => /^\d+$/.test(name)).length - 1 - parsesRunning;

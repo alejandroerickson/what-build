@@ -76,6 +76,25 @@ export async function picturePrefixes(db: Tx, where: { record_ids: string[] } | 
   return (await q.execute()).map((r) => r.blob_prefix!);
 }
 
+/**
+ * How many times a job may try to make a picture. A job that ends the instance it runs on ends every
+ * request with it, and a job is otherwise tried five times; a picture is not worth more than this, and
+ * a source without one shows the next thing it has.
+ */
+export const PICTURE_ATTEMPTS = 2;
+
+/** Records that a picture was given up on after `PICTURE_ATTEMPTS`, so it is not looked for again. */
+export async function pictureGivenUp(db: Tx, job: PictureJob): Promise<void> {
+  const version = await db.selectFrom("file_versions as v").innerJoin("files as f", "f.file_id", "v.file_id").select(["v.media_type", "f.path"]).where("v.file_version_id", "=", job.file_version_id).executeTakeFirst();
+  if (!version) return;
+  const madeFrom: AttachmentPicturesTable["made_from"] = job.frame_key ? "frame" : (pictureSource(version.path, version.media_type) ?? "image");
+  await db
+    .insertInto("attachment_pictures")
+    .values({ file_version_id: job.file_version_id, tenant_id: job.tenant_id, record_id: job.record_id, status: "failed", detail: `making its picture did not finish in ${PICTURE_ATTEMPTS} attempts, so it was given up`, made_from: madeFrom })
+    .onConflict((c) => c.doNothing())
+    .execute();
+}
+
 /** What a `make_picture` job says. `frame_key` is a frame someone sent, to use for this video. */
 export interface PictureJob {
   tenant_id: string;

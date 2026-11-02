@@ -78,7 +78,7 @@ upload URLs for larger files, up to the 100 MB per-file limit; it grants the run
 right to sign as itself.
 
 **Pictures.** The worker makes each attachment's picture in a process of its own, held to 384 MB and
-20 seconds; one that needs more goes without, and the source shows the next thing it has
+20 seconds, with two tries; one that needs more goes without, and the source shows the next thing it has
 ([decision](../decisions/attachments-pictures-are-made-by-the-worker-and-reached-by-signed-addresses.md)).
 Nothing needs setting.
 

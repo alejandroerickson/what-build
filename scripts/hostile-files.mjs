@@ -8,7 +8,7 @@
 //
 //   node scripts/hostile-files.mjs <folder>
 //
-// Writes the files into <folder>, about 47 MB in all, and prints, for each, what it is and what
+// Writes the files into <folder>, about 68 MB in all, and prints, for each, what it is and what
 // WhatBuild should record for it at the default limits (WHATBUILD_PARSE_MEMORY_MB=288,
 // WHATBUILD_PARSE_TIMEOUT_SECONDS=120, WHATBUILD_PARSE_CAP_BYTES of 25 MiB). With other limits a
 // file may end otherwise: lower memory turns more of them into failures for memory.
@@ -98,6 +98,15 @@ function docxBomb(mib, declared = 4096) {
 
 /** The files, in the order they are written: a name, what it is, what WhatBuild should record, and the bytes. */
 export const HOSTILE_FILES = [
+  {
+    name: "heavy-to-draw.pdf",
+    what: "a PDF of about 20 MB whose one page is 2.2 million lines: nothing to read, and heavy to draw, which tests its picture",
+    expect: "not read as text, and no picture: the log's picture line says it answered failed, with the instance untouched and its peak near 400 MiB",
+    make: () => {
+      const stream = `q 0 0 m ${"100 100 l 200 50 l ".repeat(1_100_000)} S Q`;
+      return Buffer.from(`%PDF-1.4\n1 0 obj << /Type /Catalog /Pages 2 0 R >> endobj\n2 0 obj << /Type /Pages /Kids [3 0 R] /Count 1 >> endobj\n3 0 obj << /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 5 0 R >> endobj\n5 0 obj << /Length ${stream.length} >> stream\n${stream}\nendstream endobj\ntrailer << /Root 1 0 R >>\n%%EOF\n`);
+    },
+  },
   {
     name: "inflating.pdf",
     what: "a PDF of about 130 KB whose one content stream inflates to 64 MB of text to draw",

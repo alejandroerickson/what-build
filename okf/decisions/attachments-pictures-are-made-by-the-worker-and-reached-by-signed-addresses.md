@@ -24,8 +24,12 @@ the worker, on as little as one CPU and 1 GiB.
   prefix. Versions are immutable, so a picture never goes stale.
 - **In a child process, as a parse is.** `make_picture` jobs run `apps/server/src/picture-child.ts`
   with Sharp and, for a PDF's first page, pdf.js on `@napi-rs/canvas`, held to a memory and a time
-  limit, with a limit on the pixels an image may claim. A file whose reading failed gets no picture.
-  A picture that cannot be made is recorded, and the app shows the next thing it has.
+  limit, with a limit on the pixels an image may claim. The work runs in a worker thread with a hard
+  limit on its heap, while the child's other thread, which the work never holds up, reads all the
+  process holds and stops it. A rehearsal showed why: with one thread, a PDF heavy to draw held up the
+  check that would have stopped it, took the instance past its memory, and did so again at every
+  retry. A job gets two tries for the same reason. A file whose reading failed gets no picture. A
+  picture that cannot be made is recorded, and the app shows the next thing it has.
 - **Decks.** A deck's embedded preview is used unless it is blank, as those written by libraries
   are; otherwise the app draws a card from slide one's title and the theme's colour.
 - **Every deployment fills itself in.** The migration queues what is already there. Nothing is

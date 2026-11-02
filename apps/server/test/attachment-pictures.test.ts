@@ -3,7 +3,9 @@ import { deckFacts } from "@whatbuild/parsers";
 import { strToU8, zipSync } from "fflate";
 import { sql } from "kysely";
 import sharp from "sharp";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { PICTURE_ATTEMPTS } from "@whatbuild/core";
+import { PICTURE_LIMITS, processPictureMaker } from "../src/picture-process.ts";
 import { startHarness, type Browser, type Harness } from "./harness.ts";
 
 // An attachment's picture: made by the worker from an image, a PDF's first page or a deck, listed
@@ -209,6 +211,65 @@ describe("an attachment's picture", () => {
     expect(del.status, JSON.stringify(del.body)).toBe(200);
     await h.worker.drain();
     expect((await fetch(`${h.baseUrl}${url}`)).status).toBe(404);
+  });
+});
+
+describe("a picture past its limits", () => {
+  /** A page whose one stream is millions of lines to draw: light to read, and heavy to draw. */
+  const heavy = (lines: number) => {
+    const stream = `q 0 0 m ${"100 100 l 200 50 l ".repeat(lines)} S Q`;
+    return new TextEncoder().encode(`%PDF-1.4
+1 0 obj << /Type /Catalog /Pages 2 0 R >> endobj
+2 0 obj << /Type /Pages /Kids [3 0 R] /Count 1 >> endobj
+3 0 obj << /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 5 0 R >> endobj
+5 0 obj << /Length ${stream.length} >> stream
+${stream}
+endstream endobj
+trailer << /Root 1 0 R >>
+%%EOF
+`);
+  };
+
+  it("stops at the process's memory limit when a page is too heavy to draw, and the process never passes it by much", async () => {
+    const said = vi.spyOn(console, "log");
+    const maker = processPictureMaker(PICTURE_LIMITS);
+    const made = await maker.make(heavy(1_100_000), "pdf");
+    expect(made.status).toBe("failed");
+    expect(made.detail).toMatch(/more than the 384 MB of memory/);
+    const line = said.mock.calls.map((c) => String(c[0])).find((l) => l.startsWith("picture: the process making a picture answered failed"))!;
+    expect(line).toBeTruthy();
+    const peak = Number(/its peak (\d+) MiB/.exec(line)![1]);
+    // What a tick of the watch may let by, on top of the limit. The instance holds 1 GiB.
+    expect(peak).toBeLessThan(520);
+    said.mockRestore();
+  }, 60_000);
+
+  it("gives up after two tries, should a job keep ending the instance, without trying again", async () => {
+    const id = await attach("keeps-failing.pdf", PDF);
+    let attempts = 0;
+    const version = await h.db.transaction().execute(async (trx) => {
+      await sql`select set_config('app.tenant_id', ${TENANT_ID}, true)`.execute(trx);
+      const v = await trx.selectFrom("file_versions").select("file_version_id").where("record_id", "=", id).executeTakeFirstOrThrow();
+      await trx.deleteFrom("attachment_pictures").where("file_version_id", "=", v.file_version_id).execute();
+      // It has been tried twice already, each ending with the instance.
+      await sql`insert into jobs (tenant_id, kind, payload, attempts) values (${TENANT_ID}, 'make_picture', ${JSON.stringify({ record_id: id, file_version_id: v.file_version_id })}::jsonb, ${PICTURE_ATTEMPTS})`.execute(trx);
+      return v.file_version_id;
+    });
+    const maker = h.ports.pictures!;
+    const make = vi.spyOn(maker, "make").mockImplementation(async () => {
+      attempts++;
+      throw new Error("should not be tried");
+    });
+    await h.worker.drain();
+    make.mockRestore();
+    expect(attempts).toBe(0);
+    const row = await h.db.transaction().execute(async (trx) => {
+      await sql`select set_config('app.tenant_id', ${TENANT_ID}, true)`.execute(trx);
+      return trx.selectFrom("attachment_pictures").select(["status", "detail"]).where("file_version_id", "=", version).executeTakeFirstOrThrow();
+    });
+    expect(row.status).toBe("failed");
+    expect(row.detail).toMatch(/2 attempts/);
+    expect((await listed(id)).attachments[0]!.picture).toBeNull();
   });
 });
 

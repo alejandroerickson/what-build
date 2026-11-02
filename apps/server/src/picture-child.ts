@@ -1,24 +1,23 @@
 // The entry of the process one picture is made in (picture-process.ts starts it, and is the only
-// thing that talks to it). It reads a job and the file's bytes from fd 0 and writes to fd 3 four
-// bytes giving the length of a JSON answer, that answer, then the two copies. It imports nothing of
-// the server, and Node loads it as it is, stripping its types, so it keeps to syntax that erases.
-// It runs on until the server ends it with SIGKILL; it ends itself only if the server is gone or
-// its memory passes the limit.
-import { writeSync } from "node:fs";
-import { createRequire } from "node:module";
-import { dirname, join } from "node:path";
-import { deckFacts } from "@whatbuild/parsers";
-import sharp from "sharp";
+// thing that talks to it). It reads a job and the file's bytes from fd 0, makes the picture in a
+// worker thread (picture-worker.ts) and writes to fd 3 four bytes giving the length of a JSON answer,
+// that answer, then the two copies. It imports nothing of the server, and Node loads it as it is,
+// stripping its types, so it keeps to syntax that erases. It runs on until the server ends it with
+// SIGKILL; it ends itself only if the server is gone or its memory passes the limit.
+//
+// The thread is what makes the limit hold. Drawing a PDF is one long stretch of work that lets
+// nothing else run on its thread, so a check of memory beside it would never get its turn, and a page
+// built to be heavy could take the whole instance past its memory. Here the thread's JavaScript heap
+// has a hard limit of its own, and this thread stays free to read what the process holds in all,
+// Sharp's and the canvas's memory outside the heap included, and to stop it.
+import { writeFileSync, writeSync } from "node:fs";
+import { Worker } from "node:worker_threads";
 
-const THUMB = { width: 240, height: 180, quality: 62 };
-const PREVIEW = { longest: 1600, quality: 75 };
-/** A picture past this many pixels is refused unread: decoding one holds it all in memory. */
-const MAX_INPUT_PIXELS = 100_000_000;
-/** How large a PDF's first page is drawn, at most. */
-const PAGE = { width: 1200, height: 2400 };
-/** Below this much variation in every channel, a deck's embedded preview is blank: libraries that write decks carry a white one. */
-const BLANK_STDEV = 4;
 const WATCH_MS = 50;
+/** How much of the process's memory limit the thread's JavaScript heap may take; the rest is for the bytes, Sharp and the canvas. */
+const HEAP_SHARE = 2 / 3;
+
+const THREAD = new URL(import.meta.url.endsWith(".ts") ? "./picture-worker.ts" : "./picture-worker.js", import.meta.url);
 
 interface Job {
   as: "image" | "pdf" | "deck";
@@ -26,8 +25,8 @@ interface Job {
   memoryMb: number;
 }
 interface Copies {
-  thumb: Buffer;
-  preview: Buffer;
+  thumb: Uint8Array;
+  preview: Uint8Array;
   width: number;
   height: number;
 }
@@ -36,11 +35,22 @@ const end = () => process.kill(process.pid, "SIGKILL");
 // The server stops this process with SIGKILL; a signal to everything on an instance is the server's to act on.
 for (const signal of ["SIGINT", "SIGTERM", "SIGHUP"] as const) process.on(signal, () => undefined);
 
+// Where the kernel ends one process at a time for want of memory, this asks it to choose this one
+// before the server. A platform that ends the whole container ends both, which is why the limits below are what count.
+if (process.platform === "linux") {
+  try {
+    writeFileSync("/proc/self/oom_score_adj", "1000");
+  } catch {
+    // Another way of running Linux may not allow it.
+  }
+}
+
 let answered = false;
+/** Says what came of it, once, and is the last thing said. */
 function answer(head: Record<string, unknown>, copies?: Copies) {
   if (answered) return;
   answered = true;
-  const json = Buffer.from(JSON.stringify({ ...head, ...(copies ? { width: copies.width, height: copies.height, thumb_bytes: copies.thumb.length, preview_bytes: copies.preview.length } : {}) }));
+  const json = Buffer.from(JSON.stringify({ ...head, peak_kb: process.resourceUsage().maxRSS, ...(copies ? { width: copies.width, height: copies.height, thumb_bytes: copies.thumb.length, preview_bytes: copies.preview.length } : {}) }));
   const length = Buffer.alloc(4);
   length.writeUInt32LE(json.length);
   for (const part of [length, json, ...(copies ? [copies.thumb, copies.preview] : [])]) {
@@ -48,108 +58,46 @@ function answer(head: Record<string, unknown>, copies?: Copies) {
     while (at < part.length) at += writeSync(3, part, at);
   }
 }
-const failed = (detail: string) => answer({ status: "failed", detail });
 
-/** What shows either side of a slide, or above and below it, in a thumbnail. */
-const BESIDE_A_SLIDE = { r: 233, g: 233, b: 230 };
-
-async function copiesOf(input: Buffer, opts: { slide?: boolean } = {}): Promise<Copies> {
-  const size = await sharp(input, { limitInputPixels: MAX_INPUT_PIXELS, failOn: "error" }).metadata();
-  // An animation often starts on a blank frame, so its middle stands for it.
-  const open = () => sharp(input, { limitInputPixels: MAX_INPUT_PIXELS, failOn: "error", page: Math.floor((size.pages ?? 1) / 2) }).rotate();
-  const upright = (size.orientation ?? 1) >= 5;
-  const w = (upright ? size.height : size.width) ?? 1;
-  const h = (upright ? size.width : size.height) ?? 1;
-  // A slide is shown whole, since its words run to its edges. A page or a phone's screenshot starts
-  // at its top; a photo's subject is usually in its middle.
-  const shape = opts.slide && w >= h ? ({ fit: "contain", background: BESIDE_A_SLIDE } as const) : ({ fit: "cover", position: h > w * 1.2 ? "top" : "centre" } as const);
-  const thumb = await open().resize({ width: THUMB.width, height: THUMB.height, ...shape }).webp({ quality: THUMB.quality }).toBuffer();
-  const { data, info } = await open()
-    .resize({ width: PREVIEW.longest, height: PREVIEW.longest, fit: "inside", withoutEnlargement: true })
-    .webp({ quality: PREVIEW.quality })
-    .toBuffer({ resolveWithObject: true });
-  return { thumb, preview: data, width: info.width, height: info.height };
-}
-
-async function fromPdf(bytes: Uint8Array) {
-  const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
-  const root = join(dirname(createRequire(import.meta.url).resolve("pdfjs-dist/legacy/build/pdf.mjs")), "../..");
-  const doc = await pdfjs.getDocument({
-    data: new Uint8Array(bytes),
-    useSystemFonts: false,
-    disableFontFace: true,
-    enableXfa: false,
-    maxImageSize: MAX_INPUT_PIXELS,
-    standardFontDataUrl: `${join(root, "standard_fonts")}/`,
-    cMapUrl: `${join(root, "cmaps")}/`,
-    cMapPacked: true,
-    wasmUrl: `${join(root, "wasm")}/`,
-    verbosity: 0,
-  }).promise;
-  const page = await doc.getPage(1);
-  const natural = page.getViewport({ scale: 1 });
-  const viewport = page.getViewport({ scale: Math.min(PAGE.width / natural.width, PAGE.height / natural.height) });
-  type RenderOptions = Parameters<typeof page.render>[0];
-  const factory = doc.canvasFactory as { create(width: number, height: number): { canvas: RenderOptions["canvas"] & { toBuffer(type: string): Buffer }; context: RenderOptions["canvasContext"] } };
-  const made = factory.create(Math.round(viewport.width), Math.round(viewport.height));
-  await page.render({ canvas: made.canvas, canvasContext: made.context, viewport }).promise;
-  const png = made.canvas.toBuffer("image/png");
-  // A landscape page is a slide, as a deck exported to PDF is.
-  return { copies: await copiesOf(png, { slide: true }), pages: doc.numPages };
-}
-
-async function isBlank(picture: Uint8Array) {
-  const { channels } = await sharp(picture, { limitInputPixels: MAX_INPUT_PIXELS }).stats();
-  return channels.slice(0, 3).every((c) => c.stdev < BLANK_STDEV);
-}
-
-async function run(job: Job, bytes: Buffer) {
-  sharp.concurrency(1);
-  sharp.cache(false);
-  try {
-    if (job.as === "image") return answer({ status: "ready", detail: null }, await copiesOf(bytes));
-    if (job.as === "pdf") {
-      const { copies, pages } = await fromPdf(bytes);
-      return answer({ status: "ready", detail: null, pages }, copies);
-    }
-    const deck = deckFacts(bytes);
-    const card = deck.title ? { title: deck.title, colour: deck.colour } : null;
-    const picture = deck.thumbnail && !(await isBlank(deck.thumbnail).catch(() => true)) ? await copiesOf(Buffer.from(deck.thumbnail), { slide: true }) : null;
-    if (picture) return answer({ status: "ready", detail: null, pages: deck.slides, card }, picture);
-    return answer({ status: "none", detail: "the deck carries no picture of itself", pages: deck.slides, card });
-  } catch (e) {
-    failed(String((e as Error)?.message ?? e).replace(/\s+/g, " ").slice(0, 200));
-  }
+function make(job: Job, bytes: Buffer) {
+  const tooMuch = `making its picture needed more than the ${job.memoryMb} MB of memory this server gives one, so it was stopped`;
+  setInterval(() => {
+    if (process.memoryUsage.rss() <= job.memoryMb * 1024 * 1024) return;
+    answer({ status: "failed", detail: tooMuch });
+    end();
+  }, WATCH_MS);
+  const worker = new Worker(THREAD, {
+    name: "picture",
+    workerData: { as: job.as, bytes },
+    transferList: [bytes.buffer as ArrayBuffer],
+    resourceLimits: { maxOldGenerationSizeMb: Math.floor(job.memoryMb * HEAP_SHARE) },
+    env: {},
+  });
+  worker.once("message", ({ head, copies }: { head: Record<string, unknown>; copies?: Copies }) => answer(head, copies));
+  worker.once("error", (e: Error & { code?: string }) => answer({ status: "failed", detail: e.code === "ERR_WORKER_OUT_OF_MEMORY" ? tooMuch : `${e.name}: ${e.message}`.replace(/\s+/g, " ").slice(0, 200) }));
+  worker.once("exit", () => answer({ status: "failed", detail: "the thread making its picture stopped before it finished" }));
 }
 
 // A killed server sends no signal, but its end of this pipe closes with it.
-const chunks: Buffer[] = [];
-let held = 0;
+let head: Buffer = Buffer.alloc(0);
 let job: Job | null = null;
-let started = false;
-process.stdin.on("data", (d: Buffer) => {
-  chunks.push(d);
-  held += d.length;
+let bytes: Buffer = head;
+let filled = 0;
+process.stdin.on("data", (chunk: Buffer) => {
+  let rest = chunk;
   if (!job) {
-    const all = Buffer.concat(chunks);
-    if (all.length < 4) return;
-    const n = all.readUInt32LE(0);
-    if (all.length < 4 + n) return;
-    job = JSON.parse(all.subarray(4, 4 + n).toString()) as Job;
-    chunks.length = 0;
-    chunks.push(all.subarray(4 + n));
-    held = all.length - 4 - n;
-    const limit = job.memoryMb * 1024 * 1024;
-    setInterval(() => {
-      if (process.memoryUsage.rss() <= limit) return;
-      answer({ status: "failed", detail: `making its picture needed more than ${job!.memoryMb} MB of memory, so it was stopped` });
-      end();
-    }, WATCH_MS);
+    head = Buffer.concat([head, chunk]);
+    if (head.length < 4 || head.length < 4 + head.readUInt32LE(0)) return;
+    const headEnd = 4 + head.readUInt32LE(0);
+    job = JSON.parse(head.toString("utf8", 4, headEnd)) as Job;
+    // A buffer of its own, not one of the pool's, so the thread takes it without a copy.
+    bytes = Buffer.allocUnsafeSlow(job.size);
+    rest = head.subarray(headEnd);
+    if (job.size === 0) return make(job, bytes);
   }
-  if (job && !started && held >= job.size) {
-    started = true;
-    void run(job, Buffer.concat(chunks));
-  }
+  if (filled === job.size) return;
+  filled += rest.copy(bytes, filled);
+  if (filled === job.size) make(job, bytes);
 });
 process.stdin.on("end", end);
 process.stdin.on("close", end);
