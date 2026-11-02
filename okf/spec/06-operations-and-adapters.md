@@ -553,11 +553,11 @@ Notes on recent actions:
   front, for an editor or above) and `products.get` (for a product admin, when the concept has
   none). A write that touches a card returns `card_advice`, a list of what the guidance asks that
   WhatBuild can check and the card misses (more words than a front holds, the outcome's title
-  repeated, no kit part, more than one hue, fixed colours, no pitch on the concept, an empty back);
+  repeated, more than one hue, fixed colours, an empty back);
   it never refuses the write. `outcomes.list` gives `card_chars`, the front's length, in its
   place; `outcomes.get` gives the front; `products.get` gives `card_chars` and, with
   `include_card`, `card_html`. `outcomes.card_guidance` gives the guidance agents draw from (how to
-  choose what a front shows, the kit's parts with examples, how to write the back, a check before
+  draw what a front shows, with worked examples, the kit's parts, how to write the back, a check before
   sending), the pictogram names, the widths and most height a front shows at, and its most
   characters. `restore_revision` brings back
   both sides; a revision kept before cards had fronts brings back its title and back and keeps the

@@ -1,9 +1,9 @@
 ---
 type: Decision
 title: The product concept and each outcome is a card with a front for people and a back for agents, and agents write both
-description: Idea shows each idea as a card, an agent-drawn picture in WhatBuild's card kit on the front and the deep text agents read on the back, which More info opens above the picture; the two sides change together and the web app edits neither.
+description: Idea shows each idea as a card, an agent-drawn picture on the front, in the colours and type of WhatBuild's card kit, and the deep text agents read on the back, which More info opens above the picture; the two sides change together and the web app edits neither.
 tags: [decision, product, idea, outcomes, agents, design-system]
-generated: {by: agent:claude, at: 2026-10-26}
+generated: {by: agent:claude, at: 2026-11-01}
 status: stable
 ---
 
@@ -39,18 +39,22 @@ person's edit skips. The maintainer chose this model on 2026-10-24.
   write ([decision](agents-write-the-story-people-arrange-it.md)). Earlier versions are kept for
   agents to read and restore; the screen does not offer them. People still give a new product its
   first concept when they create it.
-- **A front is drawn in the card kit**, WhatBuild's own: the app's type and greys, a palette of
-  seven hues for diagrams, Lucide pictograms, and parts for what an idea needs to show (a pitch,
-  who it is for, a flow, before and after, a measure, a spectrum, a loop, a timeline, a
-  comparison, a voice, chips, notes). Unlike a Story page, which follows the team's own design
-  system because it is read outside the team ([decision](story-pages-follow-the-teams-design-system.md)),
-  a card is read inside WhatBuild, so it looks like WhatBuild. `outcomes_read(action="card_guidance")`
-  gives agents how to choose what a front shows, the kit's reference with examples, the
-  pictograms, the room a front has, how to write the back, and a check before sending; a write
-  that touches a card returns `card_advice` on what WhatBuild can check of that guidance, without
-  refusing the write. WhatBuild cannot measure a front itself, so `outcomes_read(action="card_preview")`
-  gives an agent the front as the Idea screen shows it, with the height a desktop shows marked, to
-  look at in a browser before writing it, as `story_read(action="preview")` does for a Story page.
+- **A front draws what the idea looks like, in the card kit's colours and type.** It may be any
+  still picture HTML, CSS and inline SVG can make. The card kit is WhatBuild's own: the app's type
+  and greys, a palette of seven hues for diagrams, Lucide pictograms, and parts for common pictures
+  (a pitch, who it is for, a flow, before and after, a measure, a spectrum, a loop, a timeline, a
+  comparison, a voice, chips, notes). The parts are shortcuts: guidance never asks for one, and
+  neither does `card_advice`. Unlike a Story page, which follows the team's own design system because
+  it is read outside the team ([decision](story-pages-follow-the-teams-design-system.md)), a card is
+  read inside WhatBuild, so its colours and type are WhatBuild's. `outcomes_read(action="card_guidance")`
+  gives agents how to find a picture that argues the card's one sentence with its words covered, to
+  criticise and redraw it, how to make a drawing hold at both widths and in both themes, drawn fronts
+  as worked examples, the kit's reference, the pictograms, the room a front
+  has, how to write the back, and a check before sending; a write that touches a card returns
+  `card_advice` on what WhatBuild can check of that guidance, without refusing the write. WhatBuild
+  cannot measure a front itself, so `outcomes_read(action="card_preview")` gives an agent the front as
+  the Idea screen shows it, with the height a desktop shows marked, to look at in a browser before
+  writing it, as `story_read(action="preview")` does for a Story page.
 - **Editors write both cards.** The concept's card is written with `products_write(action="update_concept")`
   by editors as well as admins, as an outcome's is, since agents connected at Edit write the Idea;
   renaming a product and changing its slug stay with admins.
@@ -64,7 +68,11 @@ person's edit skips. The maintainer chose this model on 2026-10-24.
   hid one side while showing the other, so no one could read the text against the picture, and it
   labelled each side by who it was for. Rejected: fronts as structured blocks the app draws itself. They would be consistent, but an
   agent could draw nothing the blocks lack, and an idea's picture varies more than a fixed set of
-  blocks allows. Rejected: notes for agents beside the cards in the inspector, as a Story page has,
+  blocks allows. Rejected after trying it: guidance that had agents choose a kit part from a table
+  of what a card says, with a set recipe for the concept and advice against a front with no part.
+  It rebuilt those fixed blocks in practice: every product's cards came out as the same few
+  pictures, as a fixed set of recipes once did for Story pages. The maintainer chose this on
+  2026-11-01. Rejected: notes for agents beside the cards in the inspector, as a Story page has,
   since with several cards on the screen it would be unclear which card the notes belong to.
 
 ## Consequences
@@ -76,6 +84,8 @@ person's edit skips. The maintainer chose this model on 2026-10-24.
   stand one under another, each as wide as the concept: side by side, a shorter card left a gap
   beside it. Every card has the same width and the same most height, so neither says anything about
   an outcome's weight.
+- Fronts vary more in shape and in quality, since the kit no longer sets what a card looks like. The
+  preview and the check before sending are what stand against a poor drawing.
 - Every card's front carries the app's typeface (about 64 KB) in its response, since a sandboxed
   card loads nothing from elsewhere.
 - A person who wants a card changed asks an agent; the screen says that agents write both sides.
@@ -84,8 +94,8 @@ person's edit skips. The maintainer chose this model on 2026-10-24.
 
 - `outcomes.create`, `outcomes.update`, `products.create` and `products.update_concept` check a front
   against `IDEA_CARD_RULES` (`packages/core/src/html-rules.ts`) and the two-sides rule
-  (`checkCardSides` in `packages/core/src/idea-card.ts`); the card kit, its guidance and the
-  document a front is served in live together in `idea-card.ts`, so they never drift apart. A
+  (`checkCardSides` in `packages/core/src/idea-card.ts`); the card kit, its guidance, its drawn
+  examples and the document a front is served in live together in `idea-card.ts`, so they never drift apart. A
   front is served from the content site when the deployment has one, under an address naming the
   digest of the front it was issued for ([decision](with-a-content-site-every-page-and-inline-file-is-served-from-it.md)).
 - The web app's Idea screen (`apps/web/src/routes/idea.tsx`) offers no editor for the concept or an

@@ -110,7 +110,7 @@ the evidence, assumptions, mockups and Story are read against
 | `outcome_id` | |
 | `title` | 1–200 chars. What the users achieve. |
 | `description` | Markdown, 0–6,000 chars. The back of the outcome's card, which agents read first and people open with More info: what success looks like for the users, in depth. |
-| `card_html` | 0–40,000 chars, empty until an agent draws it. The front of the card, the picture people see first: the markup inside the card, in the card kit (§4.2.1). |
+| `card_html` | 0–40,000 chars, empty until an agent draws it. The front of the card, the picture people see first: the markup inside the card, served with the card kit (§4.2.1). |
 | `archived_at` | Null while the outcome is current. An outcome is current or archived; it has no other state. |
 | `position` | Ordering key within the product. `create` takes one to place a new outcome (a value between two others' positions puts it between them); omitted, it goes last. Reorder is an update. |
 
@@ -126,7 +126,7 @@ the ones `assumptions.list` returns without a status.
 The product concept and each outcome is a card with two sides
 ([decision](../decisions/idea-cards-have-a-front-for-people-and-a-back-for-agents.md)). The front
 (`card_html`) is a picture of the idea that people see first: agent-written HTML, only the markup
-inside the card, drawn with the card kit (`packages/core/src/idea-card.ts`). The back is the text
+inside the card, served with the card kit (`packages/core/src/idea-card.ts`), whose colours it draws in and whose parts it may use. The back is the text
 (the product's `concept`, the outcome's `description`), which agents read first and people open
 under the card's title with More info. Only agents write either side in practice; the web app
 offers no editor.

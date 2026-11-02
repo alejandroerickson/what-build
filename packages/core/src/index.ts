@@ -38,7 +38,7 @@ export { endSignIns } from "./accounts.ts";
 export { CONTENT_TABLES, OTHER_TENANT_TABLES } from "./tenant-tables.ts";
 export * from "./schemas.ts";
 export * from "./story-html.ts";
-export { CARD_FRAMES, CARD_GUIDANCE, CARD_KIT_CSS, ideaCardDocument, ideaCardResponseHeaders, inspectIdeaCard } from "./idea-card.ts";
+export { adviseIdeaCard, CARD_DRAWN_EXAMPLES, CARD_FRAMES, CARD_GUIDANCE, CARD_KIT_CSS, ideaCardDocument, ideaCardResponseHeaders, inspectIdeaCard } from "./idea-card.ts";
 export * from "./prototype.ts";
 export * from "./content-address.ts";
 export * from "./story-print.ts";

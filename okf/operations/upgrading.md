@@ -23,7 +23,12 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
 
 ## Unreleased
 
-Nothing yet.
+- **Idea cards may start to look different from one another.** It asks nothing of a deployment.
+  `outcomes_read(action="card_guidance")` now tells agents to find a picture that argues the card's
+  one sentence with its words covered, to criticise it and draw it again, and to draw with HTML, CSS
+  and SVG, with the card kit's parts as shortcuts. `card_advice` no longer asks for a kit part or for
+  a pitch on the concept. Cards already written stay as they are until an agent redraws them. The
+  tools' version is 0.54.0.
 
 ## v0.29.0
 

@@ -118,9 +118,6 @@ export function adviseIdeaCard(card: { kind: "concept" | "outcome"; front: strin
     advice.push(`The front has ${words} words, which people read as a paragraph rather than take in at a glance; ${kind === "concept" ? "the concept's" : "an outcome's"} front holds about ${most}. Keep labels to two to five words and move the rest to the back.`);
   if (kind === "outcome" && card.title && loose(card.title).length >= 12 && loose(frontWords(front).join(" ")).includes(loose(card.title)))
     advice.push("The front repeats the outcome's title, which the card's head already shows. Use the room for the picture.");
-  if (!/class\s*=\s*["'][^"']*\bwb-/i.test(front))
-    advice.push("The front uses none of the kit's parts (wb-…), so it does not look like the other cards. Draw it with them; card_guidance lists them.");
-  if (kind === "concept" && !/\bwb-pitch\b/.test(front)) advice.push("The concept's front has no wb-pitch: lead with the product's promise in one line.");
   const hues = new Set([...front.matchAll(/data-hue\s*=\s*["']?([a-z]+)/gi)].map((m) => m[1]!.toLowerCase()).filter((h) => h !== "slate" && h !== "rose"));
   if (hues.size > 1)
     advice.push(`The front uses ${hues.size} hues (${[...hues].join(", ")}). Keep to one for the product's way, with slate for today and rose only for what hurts.`);
@@ -505,6 +502,87 @@ export function ideaCardResponseHeaders(nonce: string, ancestor = "'self'"): Rec
 
 /* ---- What agents are told ---------------------------------------------------------------------- */
 
+/**
+ * Fronts drawn without the kit's parts, which the guidance shows whole. They are checked like any
+ * front, so an example never teaches what a write would refuse or advise against.
+ */
+export const CARD_DRAWN_EXAMPLES = {
+  routes: `<style>
+.routes{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,230px),1fr));gap:var(--gap)}
+.routes svg{display:block;width:100%;height:auto}
+.routes figcaption{margin-top:6px;font-weight:600}
+.routes .today figcaption{color:var(--muted)}
+.routes .after figcaption{color:var(--hue-ink)}
+</style>
+<div class="routes" data-hue="green">
+  <figure class="today">
+    <svg viewBox="0 0 400 180" aria-hidden="true" fill="none">
+      <path d="M30 150 340 40 90 40 360 140 180 90 240 150 60 90 300 90" stroke="var(--slate-solid)" stroke-width="2" stroke-dasharray="5 5"/>
+      <g fill="var(--slate-solid)"><circle cx="30" cy="150" r="6"/><circle cx="90" cy="40" r="6"/><circle cx="60" cy="90" r="6"/><circle cx="180" cy="90" r="6"/><circle cx="240" cy="150" r="6"/><circle cx="300" cy="90" r="6"/><circle cx="340" cy="40" r="6"/><circle cx="360" cy="140" r="6"/></g>
+    </svg>
+    <figcaption>In the order jobs were booked</figcaption>
+  </figure>
+  <figure class="after">
+    <svg viewBox="0 0 400 180" aria-hidden="true" fill="none">
+      <path d="M30 150 60 90 90 40 180 90 240 150 300 90 340 40 360 140" stroke="var(--hue-solid)" stroke-width="3" stroke-linejoin="round"/>
+      <g fill="var(--hue-solid)"><circle cx="30" cy="150" r="6"/><circle cx="90" cy="40" r="6"/><circle cx="60" cy="90" r="6"/><circle cx="180" cy="90" r="6"/><circle cx="240" cy="150" r="6"/><circle cx="300" cy="90" r="6"/><circle cx="340" cy="40" r="6"/><circle cx="360" cy="140" r="6"/></g>
+    </svg>
+    <figcaption>In the order the streets run</figcaption>
+  </figure>
+</div>`,
+  sheets: `<style>
+.weeks b{display:block;margin-bottom:8px;font-size:14px;font-weight:600}
+.weeks .was{color:var(--muted)}
+.weeks .is{margin-top:20px;color:var(--hue-ink)}
+.sheets{display:flex;justify-content:space-between;padding-right:8px}
+.sheets i{width:64px;height:44px;padding:8px;border:1.5px solid var(--slate-solid);border-radius:3px;background:repeating-linear-gradient(var(--slate-solid) 0 2px,transparent 2px 8px) content-box;box-shadow:4px -4px 0 -1px var(--bg),4px -4px 0 0 var(--slate-line),8px -8px 0 -1px var(--bg),8px -8px 0 0 var(--slate-line)}
+.sheets i:nth-child(1){opacity:.3}
+.sheets i:nth-child(2){opacity:.4}
+.sheets i:nth-child(3){opacity:.55}
+.sheets i:nth-child(4){opacity:.75}
+.plan{display:grid;gap:8px;padding:14px;border:2px solid var(--hue-solid);border-radius:8px;background:var(--hue-fill)}
+.plan i{height:4px;border-radius:2px;background:var(--hue-solid)}
+@media (max-width:520px){.sheets i:nth-child(-n+2){display:none}}
+</style>
+<div class="weeks" data-hue="teal" role="img" aria-label="Five spreadsheets, one a week, fading with age, above one plan that grows every week">
+  <b class="was">A new spreadsheet every Friday</b>
+  <div class="sheets"><i></i><i></i><i></i><i></i><i></i></div>
+  <b class="is">One plan, carried forward</b>
+  <div class="plan"><i></i><i></i><i style="margin-left:20%"></i><i style="margin-left:40%"></i><i style="margin-left:60%"></i><i style="margin-left:80%"></i></div>
+</div>`,
+  slice: `<style>
+.slice{position:relative;display:grid;place-items:center;min-height:270px;padding:28px 0}
+.slice::before{content:"";position:absolute;inset:0;background:repeating-linear-gradient(90deg,var(--bg) 0 8px,transparent 8px 71px,var(--bg) 71px 77px,transparent 77px 118px),repeating-linear-gradient(var(--line-2) 0 3px,transparent 3px 14px)}
+.slice>span{position:absolute;left:0;top:0;padding:0 8px 2px 0;background:var(--bg);color:var(--muted);font-size:12.5px}
+.day{position:relative;width:min(100%,280px);padding:16px;border:2px solid var(--hue-solid);border-radius:10px;background:var(--bg)}
+.day b{display:block;margin-bottom:10px;color:var(--hue-ink);font-size:15px;font-weight:600}
+.day p{display:flex;gap:12px;padding:8px 0;border-top:1px solid var(--hue-line)}
+.day time{width:44px;font-weight:600;font-variant-numeric:tabular-nums}
+</style>
+<div class="slice" data-hue="amber">
+  <span>Every crew, every job</span>
+  <div class="day"><b>North crew, Monday</b><p><time>7:00</time>Oak St hedge</p><p><time>10:30</time>Mill Rd lawns</p><p><time>14:00</time>School grounds</p></div>
+</div>`,
+  gathering: `<style>
+.gather{display:grid;grid-template-columns:auto minmax(22px,1fr) auto minmax(22px,1fr) auto;font-size:13.5px}
+.gather ul{list-style:none;padding:0;display:grid;grid-auto-rows:1fr}
+.gather li{margin:0;display:flex;align-items:center;min-height:44px;padding:0 8px 0 0}
+.gather svg+div+svg+ul li{padding:0 0 0 8px}
+.gather svg{width:100%;height:100%;display:block}
+.gather .plan{align-self:center;display:grid;padding:14px 18px;border-radius:8px;background:var(--hue-solid);color:var(--on-solid);line-height:1.25}
+.gather .plan b{font-size:15px}
+@media (max-width:520px){.gather{font-size:12.5px}.gather .plan{padding:8px}}
+</style>
+<p class="wb-pitch">Crewboard gives crew leads their <em>Friday afternoon</em> back.</p>
+<div class="gather" data-hue="indigo">
+  <ul><li>Repeat jobs</li><li>New bookings</li><li>Time off</li></ul>
+  <svg viewBox="0 0 100 90" preserveAspectRatio="none" fill="none" stroke="var(--hue-solid)" stroke-width="1.5" aria-hidden="true"><path vector-effect="non-scaling-stroke" d="M0 15C50 15 50 45 100 45M0 45H100M0 75C50 75 50 45 100 45"/></svg>
+  <div class="plan"><b>One plan</b>the whole week</div>
+  <svg viewBox="0 0 100 90" preserveAspectRatio="none" fill="none" stroke="var(--hue-solid)" stroke-width="1.5" aria-hidden="true"><path vector-effect="non-scaling-stroke" d="M0 45C50 45 50 15 100 15M0 45H100M0 45C50 45 50 75 100 75"/></svg>
+  <ul><li>North crew</li><li>South crew</li><li>East crew</li></ul>
+</div>`,
+} as const;
+
 /** The card kit's reference, as outcomes_read(action="card_guidance") gives it. */
 export const CARD_GUIDANCE = `# Drawing an Idea card
 
@@ -517,55 +595,78 @@ The two sides change together. A call that changes one sends the other too, unch
 
 ## How to draw a card
 
-1. **Read the back first,** and for an outcome the product concept's too. The front draws what the back says, and nothing else.
-2. **Say in one sentence the one thing the card must make obvious.** The concept: the promise, and to whom. An outcome: what the users can do afterwards that they cannot today, and how anyone would know.
-3. **Pick one main part that shows that sentence** (the table below), and at most one or two that support it: a lede, a note, chips, a zone stating the success.
-4. **Pick one hue** for the card with \`data-hue\`; slate is for how things are today.
-5. **Write the words last, and few:** labels of two to five words, and no sentence that says what the picture already shows.
-6. **Look at it before you write it.** \`outcomes_read(action="card_preview")\` (with \`kind="concept"\` for the concept) makes every check the write makes and gives you a short-lived link to the front exactly as the Idea screen shows it, with a dashed line where a desktop stops showing it and a note saying how tall it is. Open it at ${CARD_FRAMES.outcome.width} and 390 wide, light and dark: nothing below the line at ${CARD_FRAMES.outcome.width}, nothing running into anything else at either width. Fix and preview again until it fits.
-7. **Check it against the list at the end,** and send both sides. If the response carries \`card_advice\`, fix what it names with an update.
+1. **Read the back first,** and for an outcome the product concept's too. The front draws what the backs say, and claims nothing else.
+2. **Say in one sentence the one thing the card must make obvious.** The concept: the promise, and to whom. An outcome: what the users have afterwards that they lack today, and how anyone would know. Say the value, not the workflow: what someone asks, reviews or reads on the way is rarely the point, and neither is a list of everything it covers. If the sentence would fit another product, sharpen it before you draw. This sentence is most of the work.
+3. **Find the picture that argues it, and think of three before you draw one.** A strong front has a contrast the eye gets before any word is read: many against one, a tangle against a line, fading against growing, one bright piece of a grey mass, one block that everything else hangs from, sizes to scale, something travelling from here to there. Choose the picture that would still say the sentence with its words covered. Read the product's other fronts, and give this one a different shape unless it says the same kind of thing.
+4. **Be wary of the screen and the diagram.** A miniature of a screen is the easiest picture to reach for and usually the weakest: it shows the feature, not what changes, and with its words covered it is a form. Draw one only when seeing the thing itself is the argument, and fill it with believable content, never labels where values would be. A kit part is a shortcut for a common picture, and a card may use none: agents who start from the parts draw the same few cards for every product.
+5. **Pick one hue** for the card with \`data-hue\`; slate is for how things are today.
+6. **Write the words last, and few:** labels of two to five words, and no sentence that says what the picture already shows.
+7. **Look at it before you write it.** \`outcomes_read(action="card_preview")\` (with \`kind="concept"\` for the concept) makes every check the write makes and gives you a short-lived link to the front exactly as the Idea screen shows it, with a dashed line where a desktop stops showing it and a note saying how tall it is. Open it at ${CARD_FRAMES.outcome.width} and 390 wide, light and dark: nothing below the line at ${CARD_FRAMES.outcome.width}, nothing running into anything else at either width. Fix and preview again until it fits. With no browser to hand, fetch it and screenshot it with any headless browser; if you cannot see it at all, say so rather than say you checked it.
+8. **Criticise it, and draw it again.** Cover the words: does the picture alone still say your sentence? Would someone new guess it? Does it read as a form, a slide, or the back drawn as boxes? Is anything an empty box or a placeholder? Is there a sentence under the picture explaining it? Does it use the width of the card, or sit small in a corner? Expect to throw away your first drawing: the first picture that works is rarely the good one.
+9. **Check it against the list at the end,** and send both sides. If the response carries \`card_advice\`, fix what it names with an update.
 
-## Choose the main part from what the card says
+## Drawing what the kit does not have
 
-| When the card says… | Draw it with |
-|---|---|
-| a promise to someone (the concept) | \`wb-pitch\` and a \`wb-lede\`, then \`wb-shift\` (today, and with the product) and \`wb-who\` |
-| who it is for, and what each needs | \`wb-who\` |
-| steps are removed, merged or done for them | \`wb-flow\`, with \`is-pain\` on what hurts and \`is-new\` on what the product brings; or two flows in a \`wb-shift\` |
-| something gets faster, cheaper or rarer | \`wb-measure\`: today's bar (\`is-from\`) and success's, on one scale |
-| a moment in the day or week changes | \`wb-timeline\` |
-| a rhythm that repeats | \`wb-loop\` |
-| it is chosen over the alternatives | \`wb-compare\` (a few rows), or \`wb-spectrum\` (one axis) |
-| the problem, in the users' words | \`wb-quote\`, unattributed |
-| a few qualities or kinds | \`wb-chips\` |
+A front may be any still picture that HTML, CSS and inline SVG can make. The kit's parts restack on a phone and follow the theme by themselves; a drawing has to do both, in these ways:
+
+- **Colour comes from the kit's variables,** which follow the reader's light or dark theme: \`var(--bg)\`, \`--ink\`, \`--muted\`, \`--faint\`, \`--line\`, \`--line-2\`, \`--wash\` and \`--on-solid\`; \`--hue-fill\`, \`--hue-ink\`, \`--hue-line\` and \`--hue-solid\` for the hue \`data-hue\` sets; and \`--<hue>-fill\`, \`-ink\`, \`-line\` and \`-solid\` for a hue by name, as in \`--slate-solid\`. \`data-hue\` on any element re-points the \`--hue-\` variables inside it, so a \`wb-pitch\` outside your drawing needs its own. SVG takes them too: \`stroke="var(--hue-solid)"\`.
+- **HTML and CSS draw too.** Gradients, box shadows and grids make sheets, stacks and fields of marks that fit any width by themselves, in a fraction of the markup of an SVG.
+- **Words stay out of a scaled drawing.** A \`viewBox\` scales all it holds, so text that reads well at ${CARD_FRAMES.outcome.width}px is a third of the size on a phone. Put words in HTML beside or under the drawing, and keep lines and shapes in the SVG.
+- **A \`<style>\` block is yours,** with class names of your own. \`@media (max-width:520px)\` sees the card's width, so a drawing can change its layout when the card is narrow.
+- **Lines that join HTML** go in an SVG in a grid cell, with \`preserveAspectRatio="none"\` on the SVG and \`vector-effect="non-scaling-stroke"\` on the path, so they stretch with the cell and keep their weight. Give the SVG \`height:100%\` only where something else sets the row's height, or set one, since an SVG in an unsized row grows to hundreds of pixels.
+- **A drawing is described once.** An SVG whose words sit beside it takes \`aria-hidden="true"\`; a picture with no words anywhere takes \`role="img"\` and an \`aria-label\`. Real words in HTML need neither.
+
+Check the drawing in the preview, at both widths and in both themes: nothing else will tell you it fails. A narrow card can drop part of a picture (the older sheets, say) rather than shrink all of it.
+
+### Four drawn fronts
+
+Read these for how a picture argues, then draw your own: copying one of them makes your card as alike as the kit's parts would. Their content is sample content, so it is plain to see what each is.
+
+**A tangle against a line** ("Crews drive less"): the same stops twice, so the eye does the comparing. No words in the SVG, and no figure nobody gave.
+\`\`\`html
+${CARD_DRAWN_EXAMPLES.routes}
+\`\`\`
+
+**Fading against growing** ("One plan that carries over"): many sheets losing their worth, against one thing that gains from every week. CSS alone, and a phone drops the two oldest sheets.
+\`\`\`html
+${CARD_DRAWN_EXAMPLES.sheets}
+\`\`\`
+
+**One bright piece of a grey mass** ("Each crew sees only its own day"): the mass needs no reading, and the piece is believable down to its times.
+\`\`\`html
+${CARD_DRAWN_EXAMPLES.slice}
+\`\`\`
+
+**Where things go** (a product concept): what comes in, the one thing it becomes, who it reaches. Words in HTML, the lines in stretching SVGs.
+\`\`\`html
+${CARD_DRAWN_EXAMPLES.gathering}
+\`\`\`
 
 ## The room a front has
 
 - The cards stand one under another, each as wide as the page's content: ${CARD_FRAMES.concept.width}px on a desktop. Every front, the concept's and each outcome's, shows up to ${CARD_FRAMES.outcome.max_height}px tall. Take only the room the idea needs: a picture reads faster short, and a card that is mostly empty space reads as unfinished. A taller front scrolls inside its card on a desktop, which a picture should never need: fit it at ${CARD_FRAMES.outcome.width}px, and check with a preview.
 - On a phone a card is about ${CARD_FRAMES.outcome.min_width}px wide and shows its whole front, with no height limit: the parts restack (a flow, a shift and a timeline turn vertical), and the front only has to read well. Widths answer to the card, not the window, so a media query in a \`<style>\` block sees the card's width. A timeline whose times would run into each other at some width runs down instead, by itself.
-- As a rule of thumb, an outcome's front holds one main part and one supporting part; the concept's a pitch, a lede, one main part and \`wb-who\`.
 
 ## What a front is
 
-Only the markup inside the card. WhatBuild wraps it in a document with this kit (the app's type, greys and a diagram palette), in the reader's light or dark theme, inside a sandbox. Up to ${CARD_HTML_MAX.toLocaleString("en-US")} characters; aim for under 6,000.
+Only the markup inside the card. WhatBuild wraps it in a document with this kit (the app's type, greys and a diagram palette), in the reader's light or dark theme, inside a sandbox. Up to ${CARD_HTML_MAX.toLocaleString("en-US")} characters.
 
 - The card's head already shows the outcome's title, or "Product concept": never repeat it on the front, and put no heading over the first part.
-- Draw with the kit's parts below. A diagram the kit lacks may be inline SVG, coloured with the kit's variables (\`currentColor\`, \`var(--hue-ink)\`, \`var(--hue-line)\`, \`var(--muted)\`), never fixed colours, so it reads in both themes.
-- A \`<style>\` block may adjust spacing or a part's size, with the kit's variables. Keep it small.
+- Draw it however the idea needs: the kit's parts, HTML, CSS in a \`<style>\` block, inline SVG, or any mix.
 - No scripts, event handlers, links, forms, or anything loaded from elsewhere (images and fonts only as data: URIs). Each refusal (\`invalid_card\`) names what to change, and lists every problem at once.
 
 ## Taste
 
-- **One idea per card, said with a picture.** A front that needs its back to make sense is not done.
-- **Few words.** About ${FRONT_WORDS.concept} words of text on the concept's front, ${FRONT_WORDS.outcome} on an outcome's; labels of two to five words.
+- **One idea per card, said with a picture.** A front that needs its back, or a sentence under the picture, to make sense is not done.
+- **Few words,** the pitch and those inside a drawing included. About ${FRONT_WORDS.concept} words of text on the concept's front, ${FRONT_WORDS.outcome} on an outcome's; labels of two to five words.
 - **One hue for the product's way, slate for today.** Pick the card's hue with \`data-hue\` and keep to it; rose only for what hurts, sparingly. Never a rainbow. Different outcomes may take different hues.
-- **No invented numbers.** A measure shows the success the back states, and where things stand as the back states it; never a figure nobody gave. Without a figure, draw the change (a flow, a timeline) rather than a scale.
+- **No invented results.** A figure that claims how the product performs or where things stand comes from the back, never from you; without one, draw the change rather than a scale. Sample content inside a picture is different: a job, a street, a time on a board shows what the thing is like, so make it believable, and name no real person or customer.
 - **No cited evidence on an outcome.** As on its back: no sources, quotes from named people, calls or dates. The concept's front may give the users' problem in their own words, unattributed (\`wb-quote\` with a role, not a name).
-- **No decoration.** No pictogram without meaning, no section numbers, no labels above titles, no rows of identical tiles.
+- **No decoration.** No pictogram without meaning, no section numbers, no labels above titles, no rows of identical tiles. A \`wb-pitch\` wraps at about 26 characters, so keep it to a handful of words.
 
-## The parts
+## The kit's parts
 
-Every part is a class on ordinary elements. \`data-hue\` on any element (indigo, teal, amber, rose, green, sky, slate; indigo by default) sets the hue it and what it holds are drawn in. \`data-icon\` names a pictogram (the names are listed after the parts), which \`wb-icon\` draws and the parts with a node draw on their own.
+Shortcuts for common pictures, not a menu to choose from. Every part is a class on ordinary elements. \`data-hue\` on any element (indigo, teal, amber, rose, green, sky, slate; indigo by default) sets the hue it and what it holds are drawn in. \`data-icon\` names a pictogram (the names are listed after the parts), which \`wb-icon\` draws and the parts with a node draw on their own.
 
 **Words**
 - \`<p class="wb-pitch">Crewboard gives crew leads their <em>Friday afternoon</em> back.</p>\` — the promise, large; \`em\` marks the words that matter, in the hue.
@@ -648,43 +749,6 @@ Every part is a class on ordinary elements. \`data-hue\` on any element (indigo,
 
 ${[...CARD_ICON_NAMES].join(", ")}.
 
-## Examples
-
-**A concept's front:** the promise, one line under it, today and with the product, and who it is for.
-\`\`\`html
-<p class="wb-pitch">Crewboard gives crew leads their <em>Friday afternoon</em> back.</p>
-<p class="wb-lede">A week planner for small field-service crews that starts from the jobs, not the calendar.</p>
-<div class="wb-shift">
-  <div class="wb-before"><h3>Today</h3><ul><li data-icon="sheet">Next week rebuilt by hand in a spreadsheet</li><li data-icon="message-square">Every crew's texts typed one by one</li></ul></div>
-  <div class="wb-after"><h3>With Crewboard</h3><ul><li>Jobs carried forward, matched to crews</li><li>Each crew's week sent from the plan</li></ul></div>
-</div>
-<ul class="wb-who"><li data-icon="user"><b>Crew leads</b>who plan the week</li><li data-icon="users"><b>Crews</b>who need it by Monday</li></ul>
-\`\`\`
-
-**An outcome that makes something faster** ("Plan next week in minutes, not an afternoon"; its back states the success, under half an hour): the measure, then the steps that make it so.
-\`\`\`html
-<figure class="wb-measure" style="--max:240">
-  <figcaption>Time to plan next week</figcaption>
-  <div class="wb-bar is-from" style="--v:240"><span>Today</span><b>an afternoon</b></div>
-  <div class="wb-bar" style="--v:30"><span>Success</span><b>under 30 min</b></div>
-</figure>
-<ol class="wb-flow">
-  <li data-icon="repeat"><b>Repeat jobs</b>already in place</li>
-  <li data-icon="users"><b>Crews</b>matched per job</li>
-  <li data-icon="calendar-check" class="is-new"><b>The week</b>ready to send</li>
-</ol>
-\`\`\`
-
-**An outcome that changes a moment** ("Send every crew the right week, with no mix-ups"): when things happen, and the sign of success in a zone.
-\`\`\`html
-<ol class="wb-timeline" data-hue="teal">
-  <li><time>Friday</time>The week is planned</li>
-  <li class="is-new"><time>Before Monday</time>Clashes and gaps flagged, then fixed</li>
-  <li class="is-us"><time>Monday, 7 am</time>Each crew has its jobs, times and addresses</li>
-</ol>
-<div class="wb-zone" data-hue="teal"><p>Success: a week with <b>no job missed or double-booked</b>.</p></div>
-\`\`\`
-
 ## Writing the back
 
 Markdown, read by every agent that works in the product and by anyone who opens More info. Open with the whole idea in one or two sentences, then short paragraphs led by a bold phrase, or \`##\` sections when it runs long.
@@ -702,12 +766,14 @@ Markdown, read by every agent that works in the product and by anyone who opens 
 ## Before you send
 
 - Someone new takes in the front in five seconds, without opening More info.
+- With its words covered, the picture still says the card's one sentence.
+- Nothing is a placeholder, and no sentence explains the picture.
 - It does not repeat the title, and has no heading over its first part.
 - About ${FRONT_WORDS.outcome} words of text on an outcome's front, ${FRONT_WORDS.concept} on the concept's; labels of two to five words.
 - One hue, with slate for today; rose only for what hurts.
-- Every number on the front is one the back states.
+- Every figure that claims a result is one the back states.
 - Its preview at ${CARD_FRAMES.outcome.width}px ends above the dashed line, and at 390px nothing runs into anything else.
 - The back says everything the front shows, and more.
 
-A write that succeeds carries \`card_advice\` when one of these that WhatBuild can check fails: too many words, the title repeated, no kit parts, more than one hue, fixed colours, no pitch on the concept, an empty back. It is advice, not a refusal: fix what it names with an update.
+A write that succeeds carries \`card_advice\` when one of these that WhatBuild can check fails: too many words, the title repeated, more than one hue, fixed colours, an empty back. It is advice, not a refusal: fix what it names with an update.
 `;
