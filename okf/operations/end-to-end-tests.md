@@ -163,9 +163,8 @@ The plans:
   it; afterwards they are signed out everywhere, what they wrote keeps their name, a record is
   mailed, and the address comes back only as a new, empty account.
 - `attachment-previews`: real files (decks saved by PowerPoint, scans, phone photos, recordings, web
-  pages), fetched with `node scripts/fetch-test-attachments.mjs` from the public addresses in
-  `e2e/test-attachments.json`, look like themselves in the list of sources and its preview, and
-  `e2e/hostile-page.html` can do nothing there.
+  pages) look like themselves in the list of sources and its preview, and `e2e/hostile-page.html` can
+  do nothing there. It says when to run it, which is seldom: see "Real files" below.
 - `assumptions-and-the-story`: an agent's assumption is reviewed by a person; a Story page
   is published and read by a reader, who is refused everything else.
 - `search`: the palette and the Search screen find every kind of thing by plain words, read as the
@@ -183,6 +182,26 @@ The plans:
   room under a total and deleting does.
 - `exploratory`: open-ended, every screen as each role and as a guest of the example, at phone width and
   in the dark theme.
+
+## Real files
+
+WhatBuild's tests make their files from nothing, which can't show what real software writes. 84 public
+files can, named with their checksums, licences and what each should come to in
+`e2e/test-attachments.json`. None is committed, and nothing uses them by itself: not `pnpm test`, not
+CI, not a release.
+
+```sh
+node scripts/fetch-test-attachments.mjs     # once; one download serves every worktree
+corepack pnpm check:attachments             # all of them, under a minute on a laptop
+corepack pnpm check:attachments --only pptx,pdf --sheet /tmp/sheet.png
+```
+
+`check:attachments` puts each through the real parser and picture processes at a deployment's limits,
+and fails on any that no longer comes to what the list says. `--sheet` draws every picture made onto
+one image, to look at. Run it when a change touches how a file is read or pictured, or upgrades
+Sharp, pdf.js or the canvas. A change that alters what a file should come to, on purpose, updates
+the list in the same change. `--record` writes what it found into the list, for that. The browser
+half is the `attachment-previews` plan.
 
 ## The browser driver
 

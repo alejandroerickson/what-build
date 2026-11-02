@@ -20,7 +20,7 @@ import { mcpRoutes } from "./mcp.ts";
 import { refuseNullCharacters } from "./null-characters.ts";
 import { processParser } from "./parse-process.ts";
 import { pictureRoutes } from "./pictures.ts";
-import { processPictureMaker } from "./picture-process.ts";
+import { PICTURE_LIMITS, processPictureMaker } from "./picture-process.ts";
 import { prototypeRoutes } from "./prototype.ts";
 import { publicRoutes, staticRoutes } from "./public-routes.ts";
 import { OPERATION_HEADER, restRoutes } from "./rest.ts";
@@ -58,12 +58,6 @@ export const RESPONSE_HEADERS: Record<string, string> = {
 export { FALLBACK_HTML_POLICY };
 
 /** What a content site answers: prototypes, documents, agents' previews, and the health check. */
-/**
- * What one attachment's picture may use. A 48-megapixel photo takes about 120 MB and half a second, a
- * heavy PDF page more; a parse may use about this much too, and the worker runs one job at a time.
- */
-const PICTURE_MEMORY_MB = 384;
-const PICTURE_TIMEOUT_SECONDS = 20;
 const CONTENT_SITE_PATHS = /^\/(prototypes\/|documents\/|api\/v1\/downloads\/(story|card)-preview\/|health$)/;
 
 /** The paths whose responses carry people's material, their identity or credentials, which no cache, the browser's included, may keep. */
@@ -158,7 +152,7 @@ export function createPorts(config: ServerConfig, blobs: BlobStore, mailer: Mail
     blobs,
     grants: new HmacGrantSigner(config.grantKey),
     parser: processParser({ memoryMb: config.parseMemoryMb, timeoutSeconds: config.parseTimeoutSeconds }),
-    pictures: processPictureMaker({ memoryMb: PICTURE_MEMORY_MB, timeoutSeconds: PICTURE_TIMEOUT_SECONDS }),
+    pictures: processPictureMaker(PICTURE_LIMITS),
     mailer,
     fetcher: new SafeUrlFetcher(),
     notifyJobs,

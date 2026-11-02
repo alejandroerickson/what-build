@@ -9,14 +9,29 @@ surfaces: [web]
 
 Sources are known by what they look like. This plan checks that on real files, which the tests,
 making theirs from nothing, can't: decks saved by PowerPoint, scans, phone photos, recordings and
-web pages. Get them first, on the machine running the browser:
+web pages.
+
+## When to run this
+
+Nothing runs these files by itself: not `pnpm test`, not CI, not a release. Use the smallest thing
+that covers what changed:
+
+| What changed | Run |
+|---|---|
+| Anything that doesn't touch attachments | Nothing |
+| How a file is read or pictured (`packages/parsers/`, `picture-child.ts`, `picture-process.ts`, `packages/core/src/pictures.ts`), or an upgrade of Sharp, pdf.js or the canvas | `corepack pnpm check:attachments`, with `--only <kinds>` for one format. Under a minute, no browser, and no network once the files are here |
+| The list or preview's screens, or how HTML or a recording is served | Only the step below for what changed |
+| A rehearsal of a release that changed several of these, or when asked | This whole plan |
+
+## Getting the files
 
 ```sh
 node scripts/fetch-test-attachments.mjs
 ```
 
-`e2e/test-attachments.json` says what each file exercises. A file whose address has stopped working
-is left out of the run, and the report says so. Upload them to one product of the standard
+One download serves every worktree, and what is already there is never fetched again.
+`e2e/test-attachments.json` says what each file exercises and what it should come to. A file whose
+address has stopped working is left out of the run, and the report says so. Upload them to one product of the standard
 organization as Sam, one source each, as the file names suggest, through the web app (so that a video
 and a web page get their pictures), then wait for the worker. The plan offers the example file's
 plans: move the organization to Pro first, so that images and recordings are allowed.

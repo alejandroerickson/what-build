@@ -11,6 +11,12 @@ export interface PictureLimits {
   timeoutSeconds: number;
 }
 
+/**
+ * What a deployment gives one picture. A 48-megapixel photo takes about 120 MB and half a second, a
+ * heavy PDF page more; a parse may use about this much too, and the worker runs one job at a time.
+ */
+export const PICTURE_LIMITS: PictureLimits = { memoryMb: 384, timeoutSeconds: 20 };
+
 const MiB = 1024 * 1024;
 /** The largest a child may say its copies are, and all it may write. Far past what the sizes it makes come to. */
 const THUMB_MAX_BYTES = 512 * 1024;
@@ -140,7 +146,7 @@ export function processPictureMaker(limits: PictureLimits): PictureMaker {
 
 /** Makes a small picture of an image and of a PDF's first page, for the image to do as it is built: one that cannot run these fails there, and not at the first upload. */
 export async function checkPictures(): Promise<void> {
-  const maker = processPictureMaker({ memoryMb: 384, timeoutSeconds: 60 });
+  const maker = processPictureMaker({ ...PICTURE_LIMITS, timeoutSeconds: 60 });
   const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==", "base64");
   const stream = "BT /F1 12 Tf 72 720 Td (Crews plan the week on Friday.) Tj ET";
   const pdf = `%PDF-1.4

@@ -6,20 +6,24 @@
 //
 //   node scripts/fetch-test-attachments.mjs [folder] [--only <kind,kind>]
 //
-// Downloads what the folder lacks (.what-build/test-attachments by default, about 300 MB in all),
-// checks each against its checksum, and prints what it could not get: an address can stop working,
-// and the plan (e2e/plans/attachment-previews.md) says what each kind should do. They are only ever
-// read as data here, and never opened in an application.
+// Downloads what the folder lacks, about 300 MB at most, checks each against its checksum, and prints
+// what it could not get, since an address can stop working. The folder is by default
+// .what-build/test-attachments in the main checkout, so every worktree shares one download, and a file
+// already there is never fetched again. `corepack pnpm check:attachments` puts them through the
+// parsers and the picture maker; e2e/plans/attachment-previews.md says when to use which. They are
+// only ever read as data here, and never opened in an application.
+import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const args = process.argv.slice(2);
 const at = args.indexOf("--only");
 const only = at >= 0 ? new Set(args[at + 1].split(",")) : null;
-const folder = args.find((a, i) => !a.startsWith("--") && (at < 0 || i !== at + 1)) ?? join(here, "../.what-build/test-attachments");
+const mainCheckout = resolve(execFileSync("git", ["rev-parse", "--path-format=absolute", "--git-common-dir"], { cwd: here, encoding: "utf8" }).trim(), "..");
+const folder = args.find((a, i) => !a.startsWith("--") && (at < 0 || i !== at + 1)) ?? join(mainCheckout, ".what-build/test-attachments");
 mkdirSync(folder, { recursive: true });
 
 const sha256 = (bytes) => createHash("sha256").update(bytes).digest("hex");

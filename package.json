@@ -27,6 +27,7 @@
     "gen:guide": "node scripts/gen-guide.mjs",
     "security": "node scripts/security.mjs",
     "check:publishable": "node scripts/check-publishable.mjs",
+    "check:attachments": "tsx apps/server/src/check-attachments.ts",
     "attention": "node scripts/attention.mjs",
     "prepare": "git rev-parse --git-dir >/dev/null 2>&1 && git config extensions.worktreeConfig true && git config --worktree core.hooksPath scripts/githooks || true"
   },
