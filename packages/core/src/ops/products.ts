@@ -59,7 +59,7 @@ const CONCEPT_MAX = 8000;
 
 /** What a product concept is, said once for every operation that writes one. */
 const WHAT_A_CONCEPT_IS =
-  "The product concept is a card at the head of the Idea screen, with two sides you write together. card_html is the front, which people see first: a picture of the product's promise, to whom, and what changes for them, that someone new to the team takes in at a glance, drawn with the card kit; call outcomes_read(action=\"card_guidance\") before drawing one, and outcomes_read(action=\"card_preview\", kind=\"concept\") to look at it before writing it. " +
+  "The product concept is a card at the head of the Idea screen, with two sides you write together. card_html is the front, which people see first: a picture of the product's promise, to whom, and what changes for them, that someone new to the team takes in at a glance; call outcomes_read(action=\"card_guidance\") before drawing one, and outcomes_read(action=\"card_preview\", kind=\"concept\") to look at it before writing it. " +
   "concept is the back: who the product is for, the problem they have, and how the product solves it, in depth (Markdown, up to 8,000 characters), which agents read first and people open with More info. " +
   "A call that changes one side sends the other too, unchanged if it still agrees; one that sends only one side is refused with card_sides_together.";
 
@@ -424,7 +424,7 @@ export const createProduct = defineOperation({
     name: z.string().trim().min(1).max(100),
     slug: slug.optional(),
     concept: z.string().max(CONCEPT_MAX).default("").describe("The back of the concept's card, which agents read first: Markdown."),
-    card_html: z.string().max(CARD_HTML_MAX).default("").describe("The front of the concept's card, the picture people see first: HTML in the card kit (outcomes_read(action=\"card_guidance\"))."),
+    card_html: z.string().max(CARD_HTML_MAX).default("").describe("The front of the concept's card, the picture people see first: HTML, drawn however the idea needs (outcomes_read(action=\"card_guidance\"))."),
   }),
   rest: { method: "POST", path: "/products" },
   mcp: { tool: "products", action: "create" },
@@ -527,7 +527,7 @@ export const updateConcept = defineOperation({
   input: z.strictObject({
     expected_etag: expectedEtag,
     concept: z.string().max(CONCEPT_MAX).optional().describe("The back of the concept's card, which agents read first: Markdown. Send card_html with it."),
-    card_html: z.string().trim().min(1, "The concept's front cannot be emptied; send a new one.").max(CARD_HTML_MAX).optional().describe("The front of the concept's card, the picture people see first: HTML in the card kit. Send concept with it."),
+    card_html: z.string().trim().min(1, "The concept's front cannot be emptied; send a new one.").max(CARD_HTML_MAX).optional().describe("The front of the concept's card, the picture people see first: HTML. Send concept with it."),
   }),
   rest: { method: "PATCH", path: "/idea/concept" },
   mcp: { tool: "products", action: "update_concept" },

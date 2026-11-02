@@ -29,11 +29,11 @@ More info opens its back, between the card's title and the front. People read bo
 archive outcomes, and restore earlier versions, but write neither side in the app: only agents write
 cards, with the editor role.
 
-- **The front** (`card_html`) is a picture of the idea drawn with WhatBuild's card kit (a pitch,
-  people, flows, before and after, measures, timelines, loops, comparisons, pictograms).
-  `outcomes_read(action="card_guidance")` gives the kit's parts with examples, the pictogram names
-  `data-icon` accepts, the widths and most height a front is shown at, the longest front
-  (`max_chars`), and the checks it advises.
+- **The front** (`card_html`) is a picture of the idea: any still picture HTML, CSS and inline SVG
+  can make, in the colours of WhatBuild's card kit, which also has parts for common pictures.
+  `outcomes_read(action="card_guidance")` gives how to draw one with worked examples, the kit's
+  parts, the pictogram names `data-icon` accepts, the widths and most height a front is shown at,
+  the longest front (`max_chars`), and the checks it advises.
 - **The back** (the product's `concept`, an outcome's `description`; Markdown) is the same idea as
   text. It is what agents read, and what a person opens More info to see.
 - **Both sides change together.** A call that changes one side sends the other in the same call;

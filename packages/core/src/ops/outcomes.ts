@@ -24,7 +24,7 @@ const outcomeId = id("outcome").describe("The outcome id. id is accepted as anot
 const WHAT_AN_OUTCOME_IS =
   "An outcome is what the product's users should be able to achieve with it: the compass the evidence, assumptions, mockups and Story are read against, so write it to last. " +
   "Each outcome is a card on the Idea screen. Title: what the user achieves, from their side (\"The crew lead plans next week in minutes\"), shown in the card's head. " +
-  "card_html is the front, which people see first: a picture of the outcome that someone new to the team takes in at a glance, drawn with the card kit; call outcomes_read(action=\"card_guidance\") before drawing one, and outcomes_read(action=\"card_preview\") to look at it before writing it. " +
+  "card_html is the front, which people see first: a picture of the outcome that someone new to the team takes in at a glance; call outcomes_read(action=\"card_guidance\") before drawing one, and outcomes_read(action=\"card_preview\") to look at it before writing it. " +
   "description is the back: what success looks like for the users and what it means, in depth (Markdown, up to 6,000 characters), which agents read first and people open with More info. " +
   "The two sides say the same thing and change together: a call that changes one sends the other too, unchanged if it still agrees, and one that sends only one side is refused with card_sides_together. " +
   "Neither side cites or retells evidence: no sources, quotes, calls, emails, dates, named customers or people who asked, journeys, assumptions or mockups. " +
@@ -157,7 +157,7 @@ export const createOutcome = defineOperation({
   input: z.strictObject({
     title: z.string().trim().min(1).max(200),
     description: z.string().max(DESCRIPTION_MAX).default("").describe("The back of the card, which agents read first: Markdown, up to 6,000 characters, on what success looks like for the users."),
-    card_html: z.string().max(CARD_HTML_MAX).default("").describe("The front of the card, the picture people see first: HTML in the card kit (outcomes_read(action=\"card_guidance\")). Draw it with the description: without it, people see only text."),
+    card_html: z.string().max(CARD_HTML_MAX).default("").describe("The front of the card, the picture people see first: HTML, drawn however the idea needs (outcomes_read(action=\"card_guidance\")). Draw it with the description: without it, people see only text."),
     position: z.number().optional().describe("Ordering key, as on update: to place the outcome between two others, use a value between their positions. Omit to put it last."),
   }),
   rest: { method: "POST", path: "/outcomes" },
@@ -193,7 +193,7 @@ export const updateOutcome = defineOperation({
     expected_etag: expectedEtag,
     title: z.string().trim().min(1).max(200).optional(),
     description: z.string().max(DESCRIPTION_MAX).optional().describe("The back of the card, which agents read first: Markdown. Send card_html with it."),
-    card_html: z.string().trim().min(1, "An outcome's front cannot be emptied; send a new one.").max(CARD_HTML_MAX).optional().describe("The front of the card, the picture people see first: HTML in the card kit. Send description with it."),
+    card_html: z.string().trim().min(1, "An outcome's front cannot be emptied; send a new one.").max(CARD_HTML_MAX).optional().describe("The front of the card, the picture people see first: HTML. Send description with it."),
     position: z.number().optional().describe("Ordering key; to move between two outcomes, use a value between their positions."),
   }),
   rest: { method: "PATCH", path: "/outcomes/:outcome_id" },
@@ -238,7 +238,7 @@ export const outcomeCardGuidance = defineOperation({
   scope: "product",
   access: "read",
   mutates: false,
-  summary: "How to draw an Idea card, an outcome's or the product concept's: how to choose what the front shows, the card kit's parts with examples, its pictograms, the room a front has, how to write the back, and a check before sending.",
+  summary: "How to draw an Idea card, an outcome's or the product concept's: how to draw what the front shows, with worked examples, the card kit's parts and pictograms, the room a front has, how to write the back, and a check before sending.",
   description:
     "Read it before writing card_html with outcomes_write(action=\"create\") or (action=\"update\"), or products_write(action=\"create\") or (action=\"update_concept\"). The same for every product: guidance is the reference as Markdown, icons the pictogram names data-icon accepts, frames the widths and most height each front is shown at, and max_chars the longest front. outcomes_read(action=\"card_preview\") shows a front as the Idea screen will, with its height limit marked, before you write it. A write that touches a card returns card_advice when the card misses something this guidance asks.",
   input: z.strictObject({}),
@@ -433,7 +433,7 @@ export const outcomeCardPreview = defineOperation({
         headers: { [DOWNLOAD_GRANT_HEADER]: token },
         expires_at: expiresAt.toISOString(),
       },
-      next: `GET url with these headers in a browser ${frame.width} and 390 wide, adding ?theme=light and ?theme=dark: at ${frame.width} the front ends above the dashed line, and nothing runs into anything else at either width. Then write it, with its back. Keep the grant header out of reports and logs.`,
+      next: `GET url with these headers in a browser ${frame.width} and 390 wide, adding ?theme=light and ?theme=dark: at ${frame.width} the front ends above the dashed line, and nothing runs into anything else at either width. Cover the words: if the picture alone no longer says what the card must, draw it again. Then write it, with its back. Keep the grant header out of reports and logs.`,
     };
   },
 });

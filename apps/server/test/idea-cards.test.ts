@@ -1,5 +1,6 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
+import { adviseIdeaCard, CARD_DRAWN_EXAMPLES, inspectIdeaCard } from "@whatbuild/core";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { startHarness, type Browser, type Harness } from "./harness.ts";
 
@@ -115,16 +116,32 @@ describe("an outcome's card", () => {
     expect((await alice.api("GET", `${P}/outcomes/${bare.outcome_id}/card`)).status).toBe(404);
   });
 
-  it("is explained by card_guidance: how to choose a part, the kit, its pictograms, the room a front has and a check", async () => {
+  it("is explained by card_guidance: how to draw a front, the kit, its pictograms, the room a front has and a check", async () => {
     const g = (await alice.api("GET", `${P}/idea/card-guidance`)).body;
     expect(g.guidance).toContain("How to draw a card");
-    expect(g.guidance).toContain("Choose the main part");
+    expect(g.guidance).toContain("Drawing what the kit does not have");
+    expect(g.guidance).toContain("Cover the words");
+    expect(g.guidance).not.toContain("Choose the main part");
     expect(g.guidance).toContain("Writing the back");
     expect(g.guidance).toContain("card_advice");
     expect(g.guidance).toContain("wb-flow");
     expect(g.icons).toContain("clipboard-list");
     expect(g.frames.outcome.max_height).toBeGreaterThan(0);
     expect(g.frames.outcome.min_width).toBeLessThan(g.frames.outcome.width);
+  });
+
+  it("takes a front drawn without the kit's parts, with no advice to use them, and every drawn example in the guidance passes", async () => {
+    const drawn = '<svg viewBox="0 0 40 20" role="img" aria-label="A line" fill="none"><path d="M0 10H40" stroke="var(--hue-solid)"/></svg>';
+    const outcome = await eddie.api("POST", `${P}/idea/card-preview`, { card_html: drawn, back: "A line." });
+    expect(outcome.status).toBe(200);
+    expect(outcome.body.card_advice).toEqual([]);
+    const concept = await eddie.api("POST", `${P}/idea/card-preview`, { kind: "concept", card_html: drawn, back: "A line." });
+    expect(concept.body.card_advice).toEqual([]);
+    for (const [name, front] of Object.entries(CARD_DRAWN_EXAMPLES)) {
+      const kind = name === "gathering" ? "concept" : "outcome";
+      expect(inspectIdeaCard(front), name).toEqual([]);
+      expect(adviseIdeaCard({ kind, front, back: "In depth." }), name).toEqual([]);
+    }
   });
 
   it("advises on a written card what the guidance asks and it misses, without refusing it", async () => {
@@ -235,8 +252,8 @@ describe("a card's preview", () => {
     expect(html).toMatch(/@media \(max-width:520px\)\{\.wb-limit\{position:static;/);
     // Without the grant, or with another preview's, nothing.
     expect((await fetch(url)).status).toBe(401);
-    const concept = await eddie.api("POST", `${P}/idea/card-preview`, { kind: "concept", card_html: "<p class=\"wb-lede\">No pitch here.</p>" });
-    expect(concept.body.card_advice.some((a: string) => a.includes("wb-pitch"))).toBe(true);
+    const concept = await eddie.api("POST", `${P}/idea/card-preview`, { kind: "concept", card_html: "<p style=\"color:#c00\">A fixed colour.</p>" });
+    expect(concept.body.card_advice.some((a: string) => a.includes("fixed colours"))).toBe(true);
     expect((await fetch(concept.body.preview.url, { headers: r.body.preview.headers })).status).toBe(401);
     // A reader writes no cards, so previews none.
     expect((await rita.api("POST", `${P}/idea/card-preview`, { card_html: FRONT })).status).toBe(403);
