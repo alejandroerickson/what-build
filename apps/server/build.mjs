@@ -3,7 +3,8 @@
 // the server) into dist/parse-child.js beside it, where src/parse-process.ts looks for it; and the
 // entry of the worker thread that process parses in (src/parse-worker.ts, the parsers alone) into
 // dist/parse-worker.js, where src/parse-child.ts looks for it; the entry of the child process each
-// attachment's picture is made in (src/picture-child.ts) into dist/picture-child.js; with the few
+// attachment's picture is made in (src/picture-child.ts) and of the worker thread that process makes it
+// in (src/picture-worker.ts), each beside the others; with the few
 // npm packages that do not bundle cleanly left external. packages/server-external lists them, so
 // that pnpm-lock.yaml holds what the image installs beside the bundle (deploy/Dockerfile).
 // Migrations are copied beside the bundle, where the migration runner looks for them, and
@@ -28,7 +29,7 @@ const EXTERNAL = [...SHIPPED, "pg-native"];
 rmSync(dist, { recursive: true, force: true });
 mkdirSync(dist, { recursive: true });
 await build({
-  entryPoints: { main: join(here, "src/main.ts"), "parse-child": join(here, "src/parse-child.ts"), "parse-worker": join(here, "src/parse-worker.ts"), "picture-child": join(here, "src/picture-child.ts") },
+  entryPoints: { main: join(here, "src/main.ts"), "parse-child": join(here, "src/parse-child.ts"), "parse-worker": join(here, "src/parse-worker.ts"), "picture-child": join(here, "src/picture-child.ts"), "picture-worker": join(here, "src/picture-worker.ts") },
   outdir: dist,
   bundle: true,
   platform: "node",

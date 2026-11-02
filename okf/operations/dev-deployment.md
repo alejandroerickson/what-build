@@ -113,8 +113,8 @@ rm -rf "$S"
   (`gcloud run services logs read whatbuild --project $P --region $R --limit 100`) has no 500s.
 
 **4. Hostile files**, when the release changes parsing (`packages/parsers/`,
-`apps/server/src/parse-process.ts`, `parse-child.ts` or `parse-worker.ts`), the parse limits (`WHATBUILD_PARSE_*`) or
-the image's memory. Make them on your machine; none is committed:
+`apps/server/src/parse-process.ts`, `parse-child.ts` or `parse-worker.ts`), making pictures (`picture-process.ts`,
+`picture-child.ts` or `picture-worker.ts`), the parse limits (`WHATBUILD_PARSE_*`) or the image's memory. Make them on your machine; none is committed:
 
 ```bash
 H=$(mktemp -d); node scripts/hostile-files.mjs "$H"
@@ -137,7 +137,7 @@ otherwise [putting dev back](#putting-it-back) removes them. Then check:
   instance each came from:
 
   ```bash
-  gcloud logging read 'resource.type="cloud_run_revision" AND resource.labels.service_name="whatbuild" AND textPayload:("parse: the process" OR "listening on" OR "Memory limit" OR "put back in the queue")' \
+  gcloud logging read 'resource.type="cloud_run_revision" AND resource.labels.service_name="whatbuild" AND textPayload:("parse: the process" OR "picture: the process" OR "listening on" OR "Memory limit" OR "put back in the queue")' \
     --project $P --freshness 1h --format='value(timestamp,labels.instanceId,textPayload)'
   ```
 

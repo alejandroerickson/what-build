@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import type { MadePicture, PictureMaker, PictureSource } from "@whatbuild/core";
 import { ParseInterrupted, ParseStopped } from "@whatbuild/parsers";
 import { z } from "zod";
+import { otherProcesses } from "./parse-process.ts";
 
 /** What one picture may use. */
 export interface PictureLimits {
@@ -37,17 +38,20 @@ const Head = z.strictObject({
   height: z.int().min(1).max(4000).optional(),
   thumb_bytes: z.int().min(1).max(THUMB_MAX_BYTES).optional(),
   preview_bytes: z.int().min(1).max(PREVIEW_MAX_BYTES).optional(),
+  peak_kb: z.int().nonnegative().optional(),
 });
 
 const nothing = { thumb: null, preview: null, width: null, height: null, pages: null, card: null };
 const failed = (detail: string): MadePicture => ({ status: "failed", detail, ...nothing });
 
 /**
- * Makes each picture in a child process of its own (picture-child.ts), as `processParser` parses
- * each file and for the same reasons: an image, a PDF or a deck is whatever someone uploaded, and
- * one that ends the process, or takes too long, ends only that. The child starts with none of the
- * server's variables or flags. Sharp's memory is outside the JavaScript heap, so the child reads its
- * own every 50 ms and stops itself past the limit. A boundary for crashes and not for privilege.
+ * Makes each picture in a child process of its own (picture-child.ts), in a worker thread there
+ * (picture-worker.ts), as `processParser` parses each file and for the same reasons: an image, a PDF
+ * or a deck is whatever someone uploaded, and one that ends the process, or takes too long, ends only
+ * that. The child starts with none of the server's variables or flags. The thread's heap has a hard
+ * limit, and the child's other thread, which the work never holds up, reads all the process holds
+ * every 50 ms and stops it past the limit. A boundary for crashes and not for privilege. One line in
+ * the log says how each ended and its peak, which a rehearsal reads (okf/operations/dev-deployment.md).
  */
 export function processPictureMaker(limits: PictureLimits): PictureMaker {
   const running = new Set<() => void>();
@@ -75,9 +79,17 @@ export function processPictureMaker(limits: PictureLimits): PictureMaker {
           for (const stream of child.stdio ?? []) stream?.destroy();
           outcome();
         };
+        /** One line per picture, for whoever runs the deployment: without the file's name, and with the memory a rehearsal reads. */
+        const report = (how: string, peakKb?: number) => {
+          const others = otherProcesses(running.size);
+          console.log(`picture: the process making a picture ${how} (its peak ${peakKb === undefined ? "not said" : `${Math.round(peakKb / 1024)} MiB`}, the server now ${Math.round(process.memoryUsage.rss() / MiB)} MiB${others === null ? "" : `, ${others} other processes`})`);
+        };
         const stop = () => settle(() => reject(new ParseStopped()));
         running.add(stop);
-        const timer = setTimeout(() => settle(() => resolve(failed(`making its picture took longer than the ${limits.timeoutSeconds} seconds this server gives one, so it was stopped`))), limits.timeoutSeconds * 1000);
+        const timer = setTimeout(() => {
+          report("was stopped at the time limit");
+          settle(() => resolve(failed(`making its picture took longer than the ${limits.timeoutSeconds} seconds this server gives one, so it was stopped`)));
+        }, limits.timeoutSeconds * 1000);
         child.on("error", (e) => settle(() => reject(e)));
         if (child.pid === undefined) return;
 
@@ -100,6 +112,7 @@ export function processPictureMaker(limits: PictureLimits): PictureMaker {
           if (all.length < 4 + n + thumbBytes + previewBytes) return "more";
           if (head.status === "ready" && (!thumbBytes || !previewBytes)) return "bad";
           const at = 4 + n;
+          report(`answered ${head.status}`, head.peak_kb);
           return {
             status: head.status,
             detail: head.detail,
@@ -122,6 +135,7 @@ export function processPictureMaker(limits: PictureLimits): PictureMaker {
         const ended = (code: number | null, signal: NodeJS.Signals | null) => {
           if (settled) return;
           // From outside, and it may have been ended for what something else on the instance used.
+          report(`ended by ${signal ?? `exit code ${code}`} without an answer`);
           if (signal === "SIGKILL") return settle(() => reject(new ParseInterrupted("the process making its picture was killed, most likely for lack of memory")));
           settle(() => resolve(failed(`the process making its picture ended by ${signal ?? `exit code ${code}`} before it finished`)));
         };

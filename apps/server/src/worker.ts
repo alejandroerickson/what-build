@@ -2,7 +2,7 @@ import { hostname } from "node:os";
 import { SpanKind, SpanStatusCode, type Span } from "@opentelemetry/api";
 import { ParseInterrupted, ParseStopped } from "@whatbuild/parsers";
 import {
-  indexSources, markExportFailed, PICTURE_FILES, pruneFeedbackCounts, pruneUsage, runDerivation, runEvidenceMove, runExport, runPicture, sendFeedbackDigest, stagedPrototypeKeys, type Env,
+  indexSources, markExportFailed, PICTURE_ATTEMPTS, PICTURE_FILES, pictureGivenUp, pruneFeedbackCounts, pruneUsage, runDerivation, runEvidenceMove, runExport, runPicture, sendFeedbackDigest, stagedPrototypeKeys, type Env,
 } from "@whatbuild/core";
 import { sql } from "kysely";
 import { CONNECTION_NOTICE_JOB, sendConnectionNotice, type ConnectionNoticeJob } from "./auth/connection-notice.ts";
@@ -378,7 +378,9 @@ export class Worker {
         } else if (job.kind === "make_picture") {
           const recordId = String(job.payload["record_id"]);
           const frameKey = job.payload["frame_key"] ? String(job.payload["frame_key"]) : undefined;
-          const out = await runPicture(trx, this.env.ports, { tenant_id: job.tenant_id, record_id: recordId, file_version_id: String(job.payload["file_version_id"]), frame_key: frameKey });
+          const picture = { tenant_id: job.tenant_id, record_id: recordId, file_version_id: String(job.payload["file_version_id"]), frame_key: frameKey };
+          // Past its attempts, the last of them most likely ended the instance: it is not tried again.
+          const out = job.attempts > PICTURE_ATTEMPTS ? (await pictureGivenUp(trx, picture), "given up" as const) : await runPicture(trx, this.env.ports, picture);
           this.log(`job ${job.job_id} make_picture ${recordId}: ${out ?? "skipped"} in ${Date.now() - started} ms`);
           // A frame someone sent has done its work, whatever came of it.
           if (frameKey) await this.env.ports.blobs.delete(frameKey).catch(() => undefined);
