@@ -526,7 +526,8 @@ The sources, and everything for reading them.
   **Describe it** asks for the title, the **date captured** (optional, with help text
   distinguishing it from today) and tags, offering the product's most used tags to add with one
   click ([§4.4](04-data-model.md)), and nothing else. **Add attachments** is one drop zone, optional,
-  that takes any number of files, with no role to choose; it says that they are read in the order
+  that takes any number of files, with no role to choose, and keeps out one past the largest file
+  that can be uploaded, saying so as it is picked, so that no source is made for it; it says that they are read in the order
   listed and the first in which WhatBuild finds text becomes the source's text, which search reads
   ([§5.4](05-derived-layer.md)), which formats it reads, that a recording needs its transcript too,
   and that no words are read from images or scanned pages. **Create** makes the source and uploads each

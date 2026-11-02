@@ -126,14 +126,16 @@ function deploymentLimits(ports: Pick<Ports, "blobs" | "config">) {
  * is used of it: today's for the daily ones, counted on every plan; what the organization holds for
  * its totals.
  */
-async function limitsView(db: Db, state: LimitState, accountId: string | null, holdings: Holdings | null) {
+async function limitsView(ports: Pick<Ports, "blobs" | "config">, db: Db, state: LimitState, accountId: string | null, holdings: Holdings | null) {
   const used = accountId ? await usageToday(db, state, accountId) : null;
   const usedOf: Partial<Record<LimitKey, number>> = used
     ? { writes_per_day: used.writes, sources_per_day: used.sources, exports_per_day: used.exports, bytes_per_day: used.bytes, sent_bytes_per_day: used.sent, org_writes_per_day: used.org_writes, org_bytes_per_day: used.org_bytes }
     : {};
   if (holdings) for (const [k, f] of Object.entries(HELD)) usedOf[k as LimitKey] = f(holdings);
   return LIMITS.map((l) => {
-    const value = state.limits ? state.limits[l.key] : null;
+    const planned = state.limits ? state.limits[l.key] : null;
+    // A plan takes no larger a file than the deployment can.
+    const value = l.key === "file_max_bytes" && typeof planned === "number" ? Math.min(planned, uploadMaxBytes(ports)) : planned;
     return {
       ...l,
       value,
@@ -152,7 +154,7 @@ export const organizationLimits = defineOperation({
   mutates: false,
   summary: "An organization's plan, the limits it sets, what the organization holds against them, and what you have used of each today.",
   description:
-    "plan is the organization's plan, one this WhatBuild defines (plans lists them) or unlimited, and an organization is on one plan of its own. On a defined plan everyone in the organization meets the plan's limits, its owners included: limits lists each with its value (null for no limit), what it is counted over, the error a call over it receives and what is used of it (used): what you, or everyone together, used today for a daily one, a day being a UTC day that starts again at allowances_restart_at; what the organization holds for a total (people, products and sources, archived ones included, storage in bytes). holds gives the totals, with storage split into files (attachments, the text read from each attachment, which is kept as a file of its own, and prototypes' files) and text (what is written in WhatBuild itself: derived texts, notes, comments, Story and mockup pages, entries, outcomes and their earlier versions); what is archived still counts under products, sources and storage, and only deleting makes room under them. On the unlimited plan nobody meets them, and you_meet_them is false; so does an organization on a plan this WhatBuild no longer defines (undefined_plan), until it is moved. read_only, when present, means the organization went back to the plan new organizations start on while whoever started it already had one there: everyone in it may read, export, delete and take people out, as their roles allow, every other write is refused (409 organization_read_only), and it is kept until kept_until. In the example organization a guest meets only the guests' limits on calls a minute and bytes downloaded a day. deployment_limits are the ones every organization has, whatever its plan. plans compares the plans this WhatBuild offers. Only an instance owner moves an organization to another plan; tell the person to ask whoever runs this WhatBuild. Someone who reads only the Story everywhere in the organization (a reader on its teams or products and nothing more) reads none of this: 403.",
+    "plan is the organization's plan, one this WhatBuild defines (plans lists them) or unlimited, and an organization is on one plan of its own. On a defined plan everyone in the organization meets the plan's limits, its owners included: limits lists each with its value (null for no limit), what it is counted over, the error a call over it receives and what is used of it (used): what you, or everyone together, used today for a daily one, a day being a UTC day that starts again at allowances_restart_at; what the organization holds for a total (people, products and sources, archived ones included, storage in bytes). holds gives the totals, with storage split into files (attachments, the text read from each attachment, which is kept as a file of its own, and prototypes' files) and text (what is written in WhatBuild itself: derived texts, notes, comments, Story and mockup pages, entries, outcomes and their earlier versions); what is archived still counts under products, sources and storage, and only deleting makes room under them. On the unlimited plan nobody meets them, and you_meet_them is false; so does an organization on a plan this WhatBuild no longer defines (undefined_plan), until it is moved. read_only, when present, means the organization went back to the plan new organizations start on while whoever started it already had one there: everyone in it may read, export, delete and take people out, as their roles allow, every other write is refused (409 organization_read_only), and it is kept until kept_until. In the example organization a guest meets only the guests' limits on calls a minute and bytes downloaded a day. deployment_limits are the ones every organization has, whatever its plan; file_max_bytes, in limits and in plans, is never more than the upload_max_bytes among them, the largest file this deployment can take. plans compares the plans this WhatBuild offers. Only an instance owner moves an organization to another plan; tell the person to ask whoever runs this WhatBuild. Someone who reads only the Story everywhere in the organization (a reader on its teams or products and nothing more) reads none of this: 403.",
   input: z.strictObject({ tenant }),
   rest: { method: "GET", path: "/limits" },
   mcp: { tool: "products", action: "limits" },
@@ -174,9 +176,9 @@ export const organizationLimits = defineOperation({
       ...(ctx.scope.tenant!.read_only ? { read_only: ctx.scope.tenant!.read_only } : {}),
       you_meet_them: meets ? (guest ? "calls_per_minute_only" : true) : false,
       ...(holdings ? { holds: holdings } : {}),
-      limits: await limitsView(ctx.db, state, guest ? null : ctx.principal.account_id, holdings),
+      limits: await limitsView(ctx.ports, ctx.db, state, guest ? null : ctx.principal.account_id, holdings),
       allowances_restart_at: state.day_end,
-      plans: planCatalogue(await readPlans(ctx.db)),
+      plans: planCatalogue(await readPlans(ctx.db)).map((p) => ({ ...p, limits: { ...p.limits, file_max_bytes: Math.min(p.limits.file_max_bytes, uploadMaxBytes(ctx.ports)) } })),
       deployment_limits: deploymentLimits(ctx.ports),
     };
   },
@@ -317,7 +319,7 @@ export const setOrganizationPlan = defineOperation({
       owners_notified,
       etag: after.etag,
       holds,
-      limits: await limitsView(ctx.db, after, null, holds),
+      limits: await limitsView(ctx.ports, ctx.db, after, null, holds),
     };
   },
 });

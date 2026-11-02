@@ -26,7 +26,8 @@ not upload a file the plan said it took.
   the grant is issued. Bytes are counted when they are attached, as the relay's are.
 - **A deployment asks for it.** `SIGNED_URLS=1` lets the runtime identity sign, lets the app's origin
   `PUT` to the bucket and names the bucket in the app's `connect-src`. Without it the most a deployment
-  takes is the relay's limit, and its plans table, site and limits say so rather than promise more. A
+  takes is the relay's limit, and its plans table, site and limits say so rather than promise more. The web app refuses a
+  larger file as it is picked. A
   deployment whose service takes larger requests, as Azure's does, raises the relay's limit instead.
 - **It comes back in chunks.** Downloads stay on the service's own route, where they are checked and
   counted. Cloud Run refuses a response past 32 MiB unless it is chunked or streamed, so past that a

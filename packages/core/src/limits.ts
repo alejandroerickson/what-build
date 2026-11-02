@@ -321,6 +321,13 @@ async function pastTheDay(trx: Db, lc: LimitContext, op: Pick<OperationDef, "nam
   return conflict("quota_exceeded", `${total.message} Today's allowance is used up too. ${day.allows} It starts again at ${lc.day_end}.`, { ...total.details, also: day.details });
 }
 
+/** A size as a person reads it, in the units limits are set in: 25 MB, 1.5 GB. A refusal also gives the exact figure, as `limit`. */
+export function sizeInWords(bytes: number): string {
+  for (const [unit, of] of [["GB", 1024 ** 3], ["MB", 1024 ** 2], ["KB", 1024]] as const)
+    if (bytes >= of) return `${Number((bytes / of).toFixed(2))} ${unit}`;
+  return `${bytes} bytes`;
+}
+
 /**
  * What an upload may be, decided before a grant is issued: the type, the size of the one file, and
  * the bytes left in today's allowances. Returns the most bytes the grant may take.
@@ -341,10 +348,10 @@ export async function uploadLimit(trx: Db, lc: LimitContext, accountId: string, 
   if (file.size !== undefined && file.size > limit)
     throw tooLarge(
       file.size > Math.min(fileMaxBytes, s.file_max_bytes)
-        ? `The file is ${file.size} bytes; this organization's plan takes files of at most ${Math.min(fileMaxBytes, s.file_max_bytes)} bytes.`
+        ? `The file is ${sizeInWords(file.size)}; this organization's plan takes files of at most ${sizeInWords(Math.min(fileMaxBytes, s.file_max_bytes))}.`
         : left < daily
-          ? `The file is ${file.size} bytes, and the organization's plan has ${left} bytes of storage left. ${ROOM.storage_max_bytes}.`
-          : `The file is ${file.size} bytes, and ${limit} bytes are left in today's upload allowance, which starts again at ${lc.day_end}.`,
+          ? `The file is ${sizeInWords(file.size)}, and the organization's plan has ${sizeInWords(left)} of storage left. ${ROOM.storage_max_bytes}.`
+          : `The file is ${sizeInWords(file.size)}, and ${sizeInWords(limit)} are left in today's upload allowance, which starts again at ${lc.day_end}.`,
       { limit },
     );
   return limit;

@@ -5,7 +5,7 @@ import { Link, useParams, useSearchParams } from "react-router";
 import { api, ApiError } from "../lib/api.ts";
 import { formatBytes, formatDate, formatDateTime, plural, slugProblem, untilTime } from "../lib/format.ts";
 import {
-  amount, anyPriced, fullness, keptLine, planWord, size, totalsInWords, useOrganizationLimits, usePlans,
+  amount, anyPriced, fullness, keptLine, largestFile, planWord, size, totalsInWords, useOrganizationLimits, usePlans,
   type Amount, type DeploymentLimit, type Holdings, type InstanceOrganization, type InstanceOrganizations, type LimitValue, type OrganizationLimits, type Plan, type PlanEntry, type ReadOnly,
 } from "../lib/limits.ts";
 import { useMe, useProducts } from "../lib/session.tsx";
@@ -285,7 +285,7 @@ function WhatYouAdd({ l }: { l: OrganizationLimits }) {
   const meets = l.you_meet_them === true;
   const deployment = (k: string) => l.deployment_limits.find((x) => x.key === k)?.value;
   const planned = (k: string) => (meets ? l.limits.find((x) => x.key === k)?.value : undefined);
-  const fileMax = Math.min(...[deployment("upload_max_bytes"), planned("file_max_bytes")].filter((v): v is number => typeof v === "number"));
+  const fileMax = largestFile(l);
   const readCap = deployment("parse_cap_bytes");
   const attachments = deployment("attachments_per_source");
   const mockups = deployment("mockups_per_product");

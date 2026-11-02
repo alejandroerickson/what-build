@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
+const MiB = 1024 * 1024;
 const calls: { method: string; path: string }[] = [];
 const puts: { url: string; headers: Record<string, string> }[] = [];
 const completed: unknown[] = [];
@@ -16,6 +17,12 @@ vi.mock("../src/lib/api.ts", async (original) => ({
   api: vi.fn(async (method: string, path: string, body?: unknown) => {
     calls.push({ method, path });
     if (method === "POST" && path.endsWith("/sources")) return { record_id: "rec_1" };
+    if (path.endsWith("/limits"))
+      return {
+        you_meet_them: true,
+        limits: [{ key: "file_max_bytes", value: 100 * MiB }],
+        deployment_limits: [{ key: "upload_max_bytes", value: MiB }],
+      };
     if (path.endsWith("/uploads")) return grant;
     if (path.endsWith("/uploads/complete")) {
       if (refuseComplete) throw new Error("Not added.");
@@ -37,7 +44,7 @@ vi.mock("../src/lib/session.tsx", async (original) => ({
     app: "/t/acme/core/app",
     canWrite: !product.readOnlyOrganization,
     readOnlyOrganization: product.readOnlyOrganization,
-    product: { archived_at: null, tenant: { name: "Acme" } },
+    product: { archived_at: null, tenant: { slug: "acme", name: "Acme" } },
   }),
 }));
 
@@ -131,6 +138,48 @@ describe("adding a source in the app", () => {
     expect(calls).toContainEqual({ method: "POST", path: "/api/v1/products/p/sources" });
     expect(host.querySelector("output")?.textContent).toBe("/t/acme/core/app/evidence/rec_1");
     expect(errors.mock.calls.map((c) => String(c[0])).filter((m) => m.includes("Cannot update a component"))).toEqual([]);
+  });
+
+  it("refuses a file past what the organization takes as it is picked, with no source made and no bytes sent", async () => {
+    grant = { url: "/api/v1/uploads/g1", headers: {}, max_bytes: MiB };
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const host = document.createElement("div");
+    document.body.append(host);
+    const root = createRoot(host);
+    unmount = () => act(() => root.unmount());
+    await act(async () => {
+      root.render(
+        <QueryClientProvider client={qc}>
+          <MemoryRouter initialEntries={["/t/acme/core/app/evidence/new"]}>
+            <Routes>
+              <Route path="/t/acme/core/app/evidence/new" element={<SourceNewPage />} />
+              <Route path="*" element={<Where />} />
+            </Routes>
+          </MemoryRouter>
+        </QueryClientProvider>,
+      );
+    });
+    const pick = async (...files: File[]) => {
+      const input = host.querySelector<HTMLInputElement>('input[type="file"]')!;
+      Object.defineProperty(input, "files", { value: files, configurable: true });
+      await act(async () => input.dispatchEvent(new Event("change", { bubbles: true })));
+    };
+    await act(async () => type(host.querySelector("input")!, "Workshop notes"));
+    await act(async () => button(host, "Continue").click());
+
+    await pick(new File([new Uint8Array(MiB + 1)], "too-big.bin"), new File([new Uint8Array(MiB + 1)], "too-big-too.bin"));
+    expect(host.querySelector('[role="alert"]')?.textContent).toBe("too-big.bin, too-big-too.bin are over the 1 MB a file can be here, so they weren’t added.");
+    expect(host.querySelector(".intake-file-list")).toBeNull();
+    button(host, "Continue without attachments");
+
+    await pick(new File([new Uint8Array(MiB + 1)], "too-big.bin"), new File([new Uint8Array(MiB)], "fits.txt"));
+    expect(host.querySelector('[role="alert"]')?.textContent).toBe("too-big.bin is over the 1 MB a file can be here, so it wasn’t added.");
+    expect(host.querySelector(".intake-file-list")?.textContent).toContain("fits.txt");
+    expect(host.querySelector(".intake-file-list")?.textContent).not.toContain("too-big.bin");
+    expect(calls.filter((c) => c.method !== "GET")).toEqual([]);
+
+    await pick(new File(["x"], "also-fits.txt"));
+    expect(host.querySelector('[role="alert"]')).toBeNull();
   });
 
   it("says why there is no form in a read-only organization, rather than refusing at Create", async () => {

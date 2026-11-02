@@ -152,6 +152,7 @@ describe("a deployment whose store signs no uploads", () => {
     const past = await carol.api("POST", `${path}/sources/with-upload`, { tags: ["report"], title: "Past the relay — Example Co", path: "big.txt", size: 501 });
     expect(past.status).toBe(413);
     expect(past.body.error.details).toMatchObject({ limit: 500 });
+    expect(past.body.error.message).toBe("The file is 501 bytes; files here are limited to 500 bytes.");
     const limits = await carol.api("GET", `/api/v1/tenants/${t.body.tenant.slug}/limits`);
     expect(limits.body.deployment_limits.find((l: { key: string }) => l.key === "upload_max_bytes").value).toBe(500);
     expect(((await (await fetch(`${plain.baseUrl}/api/v1/plans`)).json()) as { file_max_bytes: number }).file_max_bytes).toBe(500);

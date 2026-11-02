@@ -1,6 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act } from "react";
 import { createRoot } from "react-dom/client";
+import { renderToStaticMarkup } from "react-dom/server";
 import { MemoryRouter, Route, Routes } from "react-router";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -275,5 +276,18 @@ describe("Plan", () => {
     expect(text).toContain("Limits of this deployment");
     expect(text).toContain("WHATBUILD_PARSE_MEMORY_MB");
     expect([...host.querySelectorAll("th[role=columnheader]")].map((th) => th.textContent)).toContain("Used");
+  });
+});
+
+describe("the plans side by side", () => {
+  it("never says a plan takes a larger file than the deployment can, in every limit either", async () => {
+    const { PlanComparison } = await import("../src/routes/plan-comparison.tsx");
+    const file = { key: "file_max_bytes", group: "size", label: "File size", unit: "bytes", per: "Each file", refusal: "413 too_large", help: "" };
+    const limits = { file_max_bytes: 100 * MB };
+    const html = renderToStaticMarkup(
+      <PlanComparison plans={[{ id: "pro", name: "Pro", about: "", price: null, limits }]} limits={[file] as never} fileMaxBytes={25 * MB} every="open" />,
+    );
+    expect(html).toContain("25 MB");
+    expect(html).not.toContain("100 MB");
   });
 });

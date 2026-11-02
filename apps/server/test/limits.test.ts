@@ -508,6 +508,37 @@ describe("the free plan's limits", () => {
     reset();
   });
 
+  it("say a plan takes no larger a file than the deployment can, and refuse in words", async () => {
+    const MiB = 1024 * 1024;
+    const planned = h.config.relayMaxBytes + MiB;
+    tweak({ file_max_bytes: planned, bytes_per_day: planned * 2, org_bytes_per_day: planned * 2, storage_max_bytes: planned * 10 });
+    const file = (l: { limits: { key: string; value: number }[] }) => l.limits.find((x) => x.key === "file_max_bytes")!.value;
+
+    // This store signs nothing, so the relay's limit is the most a file can be, whatever the plan says.
+    let limits = await limitsOf(ned);
+    expect(file(limits)).toBe(h.config.relayMaxBytes);
+    expect(limits.plans.find((p: { id: string }) => p.id === "free").limits.file_max_bytes).toBe(h.config.relayMaxBytes);
+    const past = await ned.api("POST", `${P}/sources/${seeded}/uploads`, { path: "past.md", size: h.config.relayMaxBytes + MiB });
+    expect(past.status).toBe(413);
+    expect(past.body.error.message).toBe(`The file is ${h.config.relayMaxBytes / MiB + 1} MB; files here are limited to ${h.config.relayMaxBytes / MiB} MB.`);
+    expect(past.body.error.details).toMatchObject({ limit: h.config.relayMaxBytes });
+
+    // What an instance owner set for the plan is kept, and shows once the store signs.
+    const blobs = h.blobs as BlobStore;
+    blobs.signedUploadUrl = async (key, contentType) => ({ url: `https://storage.example/${key}`, headers: { "Content-Type": contentType } });
+    try {
+      limits = await limitsOf(ned);
+      expect(file(limits)).toBe(planned);
+    } finally {
+      delete blobs.signedUploadUrl;
+    }
+
+    tweak({ file_max_bytes: 2 * MiB });
+    const overPlan = await ned.api("POST", `${P}/sources/${seeded}/uploads`, { path: "over.md", size: 3 * MiB });
+    expect(overPlan.body.error.message).toBe("The file is 3 MB; this organization's plan takes files of at most 2 MB.");
+    reset();
+  });
+
   it("offer a direct upload on a plan whose files may not fit the relay, signed for what the plan takes", async () => {
     const signed: number[] = [];
     const blobs = h.blobs as BlobStore;

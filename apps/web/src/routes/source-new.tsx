@@ -3,6 +3,7 @@ import { useRef, useState, type Ref } from "react";
 import { useNavigate } from "react-router";
 import { api, putWithProgress } from "../lib/api.ts";
 import { formatBytes, formatDate, plural } from "../lib/format.ts";
+import { largestFile, size, useOrganizationLimits } from "../lib/limits.ts";
 import { cannotWriteReason, useProduct } from "../lib/session.tsx";
 import { pictureOfHtml } from "../lib/html-picture.ts";
 import { frameOfFile, sendFrame } from "../lib/video-frame.ts";
@@ -69,6 +70,24 @@ export async function uploadFiles(base: string, recordId: string, items: Item[],
   return allDone;
 }
 
+/**
+ * Keeps what is past the largest file this organization takes out of a list as it is picked, so no
+ * source is made for a file that could not arrive. Until the limits are read, or where they can't
+ * be, the server refuses such a file when asked for its grant.
+ */
+export function useFilesThatFit() {
+  const { product, canWrite } = useProduct();
+  const limits = useOrganizationLimits(product.tenant.slug, canWrite);
+  const [refused, setRefused] = useState<string | null>(null);
+  const largest = limits.data ? largestFile(limits.data) : Number.POSITIVE_INFINITY;
+  const fitting = (files: File[]) => {
+    const over = files.filter((f) => f.size > largest).map((f) => f.name);
+    const one = over.length === 1;
+    setRefused(over.length ? `${over.join(", ")} ${one ? "is" : "are"} over the ${size(largest)} a file can be here, so ${one ? "it wasn’t" : "they weren’t"} added.` : null);
+    return files.filter((f) => f.size <= largest);
+  };
+  return { fitting, refused };
+}
 
 function DropZone({ label, hint, multiple, onFiles }: { label: string; hint: string; multiple: boolean; onFiles: (files: File[]) => void }) {
   const input = useRef<HTMLInputElement>(null);
@@ -141,6 +160,7 @@ export function SourceNewPage() {
   const errors = { title: !title.trim() ? "Give the source a title." : null };
   const describeOk = !errors.title && !tooLong(title, TITLE_MAX);
   const titleField = useRef<HTMLInputElement>(null);
+  const { fitting, refused } = useFilesThatFit();
   const update = (i: number, patch: Partial<Item>) => setItems((all) => all.map((x, j) => (j === i ? { ...x, ...patch } : x)));
   const run = useMutation({
     mutationFn: async () => {
@@ -235,8 +255,9 @@ export function SourceNewPage() {
               label="Attachments"
               hint="They’re read in the order listed, and the first in which WhatBuild finds text becomes the source’s text, which search reads. It reads text, Markdown, transcripts (VTT, SRT), Word, PDF, spreadsheets and HTML, but no words in images or scanned pages, and it doesn’t transcribe recordings: add a recording’s transcript too."
               multiple
-              onFiles={(f) => setItems([...items, ...f.filter((file) => !items.some((i) => i.file.name === file.name)).map((file) => ({ file, state: "waiting" as const, loaded: 0 }))])}
+              onFiles={(f) => setItems([...items, ...fitting(f).filter((file) => !items.some((i) => i.file.name === file.name)).map((file) => ({ file, state: "waiting" as const, loaded: 0 }))])}
             />
+            {refused ? <p className="field-error" role="alert">{refused}</p> : null}
             {items.length ? (
               <ul className="intake-file-list">
                 {items.map((i) => (

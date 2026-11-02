@@ -177,6 +177,13 @@ export function usePlansOffered(): boolean | undefined {
 /** A size as a person reads it: 10 MB, not 10.0 MB, and nothing as 0 MB. */
 export const size = (n: number) => (n === 0 ? "0 MB" : formatBytes(n).replace(/\.0+ /, " "));
 
+/** The largest file that can be uploaded here: what the deployment can take, and the plan's for someone who meets it. */
+export function largestFile(l: OrganizationLimits): number {
+  const deployment = l.deployment_limits.find((x) => x.key === "upload_max_bytes")?.value;
+  const planned = l.you_meet_them === true ? l.limits.find((x) => x.key === "file_max_bytes")?.value : undefined;
+  return Math.min(...[deployment, planned].filter((v): v is number => typeof v === "number"));
+}
+
 /** A limit's value as a person reads it: bytes as a size, a switch as on or off, null as no limit, 0 as off. */
 export function amount(value: Amount, unit: string): string {
   if (value === null) return "No limit";

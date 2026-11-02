@@ -52,7 +52,8 @@ plans: move the organization to Pro first, so that images and recordings are all
    preview says it can't show this format, with a download. Pressing an image opens its original.
 4. **Recordings.** Stop on a video in the preview. *Expect:* no request for it in the network panel
    until Play is pressed. Press Play: *expect* it to play, the requests to be for pieces of at most
-   8 MiB, and, for anyone but a guest of the example organization, the row to get a frame soon after. Seek twice, then read the
+   8 MiB, and, for anyone but a guest of the example organization, the row to get a frame soon after, on a video an
+   agent attached (one uploaded through the web app already has its own). Seek twice, then read the
    organization's limits: *expect* the day's data sent to have grown by about what played, never the
    file again for each seek. A file the browser can't play (ProRes, say) says so, with a download,
    even where its sound would play.
@@ -70,14 +71,15 @@ plans: move the organization to Pro first, so that images and recordings are all
    the browser's cache on a second pass).
 
 8. **A page and a video an agent attached, seen by someone who can only read.** As Sam, over MCP,
-   attach a web page and a video to a new source of this product, and send neither a picture. As
-   Riley, make `viewer@example.com` a viewer of the product. *Expect:* signed in as that person, both
+   attach a web page to one new source of this product and a video to another, and send neither a
+   picture. As Riley, invite `viewer@example.com` as a viewer of the product, and accept as them. *Expect:* signed in as that person, both
    rows show no picture until they stop on the page and play the video, and then each row gets one,
    which Sam sees too. Sign in as a guest and stop on another page with no picture in the example
    organization: *expect* nothing sent, and no refusal in the page.
 9. **A large file.** This instance's store signs no direct uploads. As Sam, in the web app, add a
-   file over the 25 MB relay limit. *Expect:* it is refused at once, with the most this deployment
-   takes, before any bytes move, and the plan table and the organization's limits both say 25 MB.
+   file over the 25 MB relay limit. *Expect:* it is refused as it is picked, with the most this
+   deployment takes, before any bytes move and with no source made. The plan table, every limit
+   beneath it and the organization's limits all say 25 MB, and so does `products_read(limits)`.
 
 ## Not covered here
 

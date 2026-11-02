@@ -6,7 +6,7 @@ import { AppError, conflict, invalid, notFound, rateLimited, tooLarge } from "..
 import { extensionForMediaType, extensionOf, mediaTypeFor, validFilePath } from "../media.ts";
 import { pictureSource } from "../pictures.ts";
 import { defineOperation, type OpContext, type Principal, type PrepareContext } from "../registry.ts";
-import { countBytes, mayFetchUrl, tallyOf, uploadLimit } from "../limits.ts";
+import { countBytes, mayFetchUrl, sizeInWords, tallyOf, uploadLimit } from "../limits.ts";
 import type { Ports } from "../ports.ts";
 import { id } from "../schemas.ts";
 import { newEtag, newId, sha256OfStream } from "../util.ts";
@@ -85,7 +85,7 @@ async function issueGrant(
   const maxBytes = limited ? await uploadLimit(ctx.db, limited, ctx.principal.account_id, input, cfg.fileMaxBytes) : cfg.fileMaxBytes;
   // Past the relay a file needs a store that signs direct uploads, so without one it is refused before any bytes move.
   const takes = Math.min(maxBytes, uploadMaxBytes(ctx.ports));
-  if (input.size !== undefined && input.size > takes) throw tooLarge(`Files here are limited to ${takes} bytes.`, { limit: takes });
+  if (input.size !== undefined && input.size > takes) throw tooLarge(`The file is ${sizeInWords(input.size)}; files here are limited to ${sizeInWords(takes)}.`, { limit: takes });
   const grant_id = newId();
   const file_version_id = newId();
   const blob_key = blobKeyFor(tenantId(ctx), recordId, file_version_id);
