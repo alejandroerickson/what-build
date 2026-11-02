@@ -1,6 +1,7 @@
 import { crc32, deflateSync } from "node:zlib";
 import { deckFacts } from "@whatbuild/parsers";
 import { strToU8, zipSync } from "fflate";
+import { sql } from "kysely";
 import sharp from "sharp";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { startHarness, type Browser, type Harness } from "./harness.ts";
@@ -14,6 +15,7 @@ let alice: Browser;
 let bob: Browser;
 let P: string;
 let TENANT: string;
+let TENANT_ID: string;
 
 beforeAll(async () => {
   h = await startHarness({});
@@ -21,6 +23,7 @@ beforeAll(async () => {
   bob = await h.signIn("bob@example.com", "Bob Example");
   const t = await alice.api("POST", "/api/v1/tenants", { name: "Pictures Co" });
   TENANT = t.body.tenant.slug as string;
+  TENANT_ID = t.body.tenant.tenant_id as string;
   const p = await alice.api("POST", `/api/v1/teams/${t.body.tenant.slug}/${t.body.team.slug}/products`, { name: "Gallery" });
   P = `/api/v1/p/${p.body.path}`;
 });
@@ -136,6 +139,26 @@ describe("an attachment's picture", () => {
     const { channels } = await sharp(Buffer.from(await page.arrayBuffer())).stats();
     // Words drawn on a white page: not one colour.
     expect(channels[0]!.stdev).toBeGreaterThan(1);
+  });
+
+  it("is made of a scan an older reading recorded as failed, and of nothing whose reading did fail", async () => {
+    const remake = async (recordId: string, status: string, detail: string) => {
+      await h.db.transaction().execute(async (trx) => {
+        await sql`select set_config('app.tenant_id', ${TENANT_ID}, true)`.execute(trx);
+        const v = await trx.selectFrom("file_versions").select("file_version_id").where("record_id", "=", recordId).executeTakeFirstOrThrow();
+        await trx.deleteFrom("attachment_pictures").where("file_version_id", "=", v.file_version_id).execute();
+        await trx.updateTable("derivations").set({ status, status_detail: detail }).where("file_version_id", "=", v.file_version_id).execute();
+        await sql`insert into jobs (tenant_id, kind, payload) values (${TENANT_ID}, 'make_picture', ${JSON.stringify({ record_id: recordId, file_version_id: v.file_version_id, quiet: true })}::jsonb)`.execute(trx);
+      });
+      await h.worker.drain();
+    };
+    const scan = await attach("old-scan.pdf", PDF);
+    await remake(scan, "failed", "the PDF has no text layer (a scan?); no OCR is performed");
+    expect((await listed(scan)).attachments[0]!.picture?.preview_url).toBeTruthy();
+
+    const broken = await attach("really-broken.pdf", PDF);
+    await remake(broken, "failed", "Error: this file could not be opened");
+    expect((await listed(broken)).attachments[0]!.picture).toBeNull();
   });
 
   it("uses a deck's own picture when it has one, and keeps a card with its title when that is blank", async () => {

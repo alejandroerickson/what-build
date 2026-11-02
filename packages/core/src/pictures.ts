@@ -1,4 +1,4 @@
-import { extensionOf, isImage } from "@whatbuild/parsers";
+import { currentReading, extensionOf, isImage } from "@whatbuild/parsers";
 import { sql } from "kysely";
 import type { AttachmentPicturesTable, Tx } from "./db.ts";
 import type { Ports, PictureSource } from "./ports.ts";
@@ -105,9 +105,11 @@ export async function runPicture(db: Tx, ports: Pick<Ports, "blobs" | "pictures"
   const source = job.frame_key ? "image" : pictureSource(version.path, version.media_type);
   if (!source) return null;
   // A file that was too much to read is too much to draw: reading a PDF is the cheaper of the two.
+  // Said as a reading made now would say it: older readings recorded a scan as failed, and a scan is
+  // where a picture matters most.
   if (!job.frame_key) {
-    const reading = await db.selectFrom("derivations").select("status").where("file_version_id", "=", job.file_version_id).orderBy("derivation_id", "desc").limit(1).executeTakeFirst();
-    if (reading?.status === "failed") {
+    const reading = await db.selectFrom("derivations").select(["status", "status_detail"]).where("file_version_id", "=", job.file_version_id).orderBy("derivation_id", "desc").limit(1).executeTakeFirst();
+    if (reading && currentReading(reading.status, reading.status_detail).status === "failed") {
       await db.insertInto("attachment_pictures").values({ file_version_id: job.file_version_id, tenant_id: job.tenant_id, record_id: job.record_id, status: "none", detail: "reading the file failed, so no picture was made of it", made_from: source }).onConflict((c) => c.doNothing()).execute();
       return "none";
     }
