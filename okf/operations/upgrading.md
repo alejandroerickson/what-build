@@ -23,6 +23,10 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
 
 ## Unreleased
 
+Nothing yet.
+
+## v0.30.0
+
 - **Idea cards may start to look different from one another.** It asks nothing of a deployment.
   `outcomes_read(action="card_guidance")` now tells agents to find a picture that argues the card's
   one sentence with its words covered, to criticise it and draw it again, and to draw with HTML, CSS
