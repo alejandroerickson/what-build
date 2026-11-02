@@ -1,11 +1,13 @@
 import { usePlansOffered } from "../lib/limits.ts";
 import { useState } from "react";
 import { Link, NavLink, useLocation, useNavigate } from "react-router";
+import { useHasNoAgent } from "../lib/agents.ts";
 import { ROLE_WORD } from "../lib/format.ts";
 import { lastProduct, ownFirst, productHome, useHideExample, useMe, useProducts, useSignOut, type Product } from "../lib/session.tsx";
 import { Avatar, Glyph, IconButton, Menu, MenuGroup, MenuItem, MenuLabel, MenuRadio, MenuSeparator, OneLine, type GlyphName } from "../ui/index.tsx";
 import { shortcutLabel } from "../ui/media.ts";
 import { CreateProductDialog } from "../routes/new-product.tsx";
+import { AgentSeat } from "./agent-seat.tsx";
 import { BrandMark } from "./brand.tsx";
 import { FeedbackDialog } from "./feedback-dialog.tsx";
 import { ReleaseItem, useRelease } from "./release.tsx";
@@ -120,12 +122,23 @@ function NavNode({ to, icon, label, count, quiet, current }: { to: string; icon:
 }
 
 export function ProductNav({ product, app, section }: { product: Product; app: string; section: string }) {
-  // A reader has only the Story: no other stage, and nothing in the quiet group.
+  // Until the person has an agent connected, Connect an agent's row is the empty seat, in its place;
+  // on Connect an agent itself the row stays, marked current.
+  const seat = useHasNoAgent() && section !== "connect";
+  // A reader has only the Story: no other stage, and nothing in the quiet group but the seat, which
+  // opens Connect an agent outside the product, since every other product screen sends them back.
   if (product.your_role === "reader")
     return (
-      <div className="nav-l1">
-        <NavNode to={`${app}/story`} icon="book-open" label="Story" count={product.stage_counts.story} current={section === "story"} />
-      </div>
+      <>
+        <div className="nav-l1">
+          <NavNode to={`${app}/story`} icon="book-open" label="Story" count={product.stage_counts.story} current={section === "story"} />
+        </div>
+        {seat ? (
+          <div className="nav-quiet">
+            <AgentSeat to="/connect" />
+          </div>
+        ) : null}
+      </>
     );
   return (
     <>
@@ -135,7 +148,7 @@ export function ProductNav({ product, app, section }: { product: Product; app: s
         ))}
       </div>
       <div className="nav-quiet">
-        <NavNode to={`${app}/connect`} icon="bot" label="Connect an agent" quiet current={section === "connect"} />
+        {seat ? <AgentSeat to={`${app}/connect`} /> : <NavNode to={`${app}/connect`} icon="bot" label="Connect an agent" quiet current={section === "connect"} />}
         <NavNode to={`${app}/activity`} icon="activity" label="Activity" quiet current={section === "activity"} />
         <NavNode to={`${app}/settings`} icon="settings" label="Settings" quiet current={section === "settings"} />
       </div>
@@ -146,14 +159,15 @@ export function ProductNav({ product, app, section }: { product: Product; app: s
 /**
  * The panel outside a product (the overview, Connect an agent, members, settings). It is the same on
  * every one of these screens, so it never depends on where the person came from: each organization's
- * name, headed "Products" over its products, then Connect an agent, and for an owner of the instance
- * its Organizations and People. The example organization comes last, headed as the example, and a
+ * name, headed "Products" over its products, then Connect an agent (the empty seat until an agent is
+ * connected), and for an owner of the instance its Organizations and People. The example organization comes last, headed as the example, and a
  * guest may hide it here; the overview still shows it.
  */
 export function PlainNav({ section }: { section: string }) {
   const products = useProducts();
   const me = useMe();
   const hide = useHideExample();
+  const seat = useHasNoAgent() && section !== "connect";
   const instanceOwner = Boolean(me.data?.tenant_allowance.instance_owner);
   const items = products.data?.items ?? [];
   const tenants = ownFirst(products.data?.tenants ?? []).filter((t) => !(t.example && t.your_role === "guest" && me.data?.hide_example));
@@ -192,7 +206,7 @@ export function PlainNav({ section }: { section: string }) {
         );
       })}
       <div className="nav-quiet">
-        <NavNode to="/connect" icon="bot" label="Connect an agent" quiet current={section === "connect"} />
+        {seat ? <AgentSeat to="/connect" /> : <NavNode to="/connect" icon="bot" label="Connect an agent" quiet current={section === "connect"} />}
         {instanceOwner ? (
           <>
             <NavNode to="/instance" icon="building" label="Organizations" quiet current={section === "instance"} />

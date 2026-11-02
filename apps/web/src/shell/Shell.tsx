@@ -1,6 +1,7 @@
 import { READ_ONLY_ALLOWS } from "@whatbuild/core/read-only";
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import { useLocation } from "react-router";
+import { useHasNoAgent } from "../lib/agents.ts";
 import { keptLine, type ReadOnly } from "../lib/limits.ts";
 import { useProducts, type Product } from "../lib/session.tsx";
 import { ButtonLink, Callout, Glyph } from "../ui/index.tsx";
@@ -14,6 +15,8 @@ import { ShellContext, type ShellSlots } from "./slots.tsx";
 
 const NAV_KEY = "whatbuild.nav";
 const INS_KEY = "whatbuild.inspector";
+/** This visit has shown the empty seat once; per tab, so a hidden panel is opened for it once a visit. */
+const SEAT_KEY = "whatbuild.seat";
 
 function readHidden(key: string): boolean {
   try {
@@ -49,6 +52,9 @@ function saveHidden(key: string, hidden: boolean) {
  *   announced politely.
  * - A screen may turn on focus mode (the Story does): both panels and their show buttons go, and the
  *   canvas takes the window. Turning it off, or either panel shortcut, restores the panels as they were.
+ * - While the person has no agent connected the panel holds the empty seat (`AgentSeat`): a hidden
+ *   panel is shown for it once a visit, never on a phone, where the drawer opens only by hand, and
+ *   the pill carries a mark with the same words while the panel is away.
  */
 function Stage({ variant, panel, panelFoot, pillName, section, title, banner, children }: {
   variant: "product" | "plain";
@@ -85,6 +91,26 @@ function Stage({ variant, panel, panelFoot, pillName, section, title, banner, ch
   const insShowRef = useRef<HTMLButtonElement>(null);
 
   const navOpen = !focus && (isPhone ? drawerOpen : !navHidden);
+  const noAgent = useHasNoAgent();
+
+  // The first time a visit learns there is no agent connected, a hidden panel is shown, so the seat is
+  // seen; after that the person's choice stands, and the pill carries the mark instead.
+  useEffect(() => {
+    // In focus mode the panels are away by choice, so the once a visit waits until it ends.
+    if (!noAgent || focus) return;
+    let seen = true;
+    try {
+      seen = sessionStorage.getItem(SEAT_KEY) === "shown";
+      sessionStorage.setItem(SEAT_KEY, "shown");
+    } catch {
+      // Storage may be blocked; then the panel stays as it is.
+    }
+    if (seen || window.matchMedia(PHONE_QUERY).matches) return;
+    setNavHidden((h) => {
+      if (h) saveHidden(NAV_KEY, false);
+      return false;
+    });
+  }, [noAgent, focus]);
   const hasInspector = inspectorCount > 0;
   const inspectorOpen = !focus && hasInspector && (isNarrow ? insSmallOpen : !insHidden);
   const insState = !hasInspector ? "none" : !inspectorOpen ? "closed" : isPhone ? "drawer" : "docked";
@@ -266,6 +292,11 @@ function Stage({ variant, panel, panelFoot, pillName, section, title, banner, ch
           <BrandMark size={18} />
           <span className="visually-hidden">Show panel: {pillName ? `${pillName}, ` : ""}{section}</span>
           <Glyph name="panel-left-open" />
+          {noAgent ? (
+            <span className="seat-mark">
+              <span className="visually-hidden">No agent connected</span>
+            </span>
+          ) : null}
         </button>
         <button
           ref={insShowRef}

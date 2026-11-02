@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState, type ReactNode } from "react";
 import { Link, useParams, useSearchParams } from "react-router";
+import { AGENTS_KEY } from "../lib/agents.ts";
 import { api } from "../lib/api.ts";
 import { formatDate, relativeTime } from "../lib/format.ts";
 import { useProducts } from "../lib/session.tsx";
@@ -322,14 +323,14 @@ function DisconnectDialog({ name, onConfirm, onClose, busy, error }: { name: str
 
 /** Agents signed in with OAuth, account-wide: what each may reach and do, whether it may submit feedback, and disconnecting it. */
 function ConnectedSheet() {
-  const q = useQuery({ queryKey: ["agents"], queryFn: () => api<{ items: ConnectedAgent[] }>("GET", "/api/v1/me/agents") });
+  const q = useQuery({ queryKey: AGENTS_KEY, queryFn: () => api<{ items: ConnectedAgent[] }>("GET", "/api/v1/me/agents") });
   const qc = useQueryClient();
   const toast = useToast();
   const [target, setTarget] = useState<{ family_id: string; client_name: string } | null>(null);
   const setLevel = useMutation({
     mutationFn: (v: { agent: ConnectedAgent; level: Level }) => api("PATCH", `/api/v1/me/agents/${v.agent.family_id}`, { level: v.level }),
     onSuccess: (_r, { agent, level }) => {
-      void qc.invalidateQueries({ queryKey: ["agents"] });
+      void qc.invalidateQueries({ queryKey: AGENTS_KEY });
       toast(`${agent.client_name} is set to ${LEVELS.find((l) => l.level === level)!.name}.`, {
         action: { label: "Undo", onClick: () => setLevel.mutate({ agent: { ...agent, level }, level: agent.level }) },
       });
@@ -339,7 +340,7 @@ function ConnectedSheet() {
   const setFeedback = useMutation({
     mutationFn: (v: { agent: ConnectedAgent; feedback: boolean }) => api("PATCH", `/api/v1/me/agents/${v.agent.family_id}`, { feedback: v.feedback }),
     onSuccess: (_r, { agent, feedback }) => {
-      void qc.invalidateQueries({ queryKey: ["agents"] });
+      void qc.invalidateQueries({ queryKey: AGENTS_KEY });
       toast(feedback ? `${agent.client_name} can submit feedback.` : `${agent.client_name} can no longer submit feedback.`, {
         action: { label: "Undo", onClick: () => setFeedback.mutate({ agent: { ...agent, feedback }, feedback: !feedback }) },
       });
@@ -351,7 +352,7 @@ function ConnectedSheet() {
     onSuccess: () => {
       toast(`${target?.client_name ?? "The agent"} is disconnected.`);
       setTarget(null);
-      void qc.invalidateQueries({ queryKey: ["agents"] });
+      void qc.invalidateQueries({ queryKey: AGENTS_KEY });
     },
   });
   const agents = q.data?.items ?? [];

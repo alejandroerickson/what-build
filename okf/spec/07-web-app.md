@@ -3,7 +3,7 @@ type: Specification
 title: The web app is a person's way to run the same operations an agent runs, one screen at a time.
 description: Principles, the shell and product switching, the overview, routes, first run, and the behavior of every screen (Idea, Evidence, Exploration, Story, Activity, archive and delete, organization and account screens).
 tags: [spec, web, ui, routes, shell]
-generated: {by: agent:claude, at: 2026-10-31}
+generated: {by: agent:claude, at: 2026-11-01}
 status: stable
 ---
 
@@ -136,6 +136,15 @@ the browser's back button and "open in new tab" both work.
   [decision](../decisions/each-stage-counts-every-item-it-holds.md)). Idea counts outcomes, Evidence
   sources, Exploration mockups and current assumptions together, and Story its pages, of every kind.
   Below them, quieter: **Connect an agent**, **Activity** (§7.9) and the product's **Settings**.
+  Until the person has an agent connected, Connect an agent's row is the **empty seat**
+  ([decision](../decisions/the-panel-keeps-an-empty-seat-until-an-agent-is-connected.md)): a card in
+  the row's place, for everyone, saying "No agent connected", what an agent does here in a line, and
+  Connect an agent as the panel's one accent button. Nothing dismisses it; it goes once an agent is
+  connected (the account-wide list, `GET /api/v1/me/agents`, which while empty is read again when the
+  person comes back to the tab, with no polling), and the row returns. On Connect an agent itself the
+  row stays, marked current. A hidden panel is shown for the seat once a visit,
+  never on a phone, where the drawer opens only by hand; while the panel is away the pill carries a
+  mark with the same words.
   Exploration opens on its mockups; the mockups, then the assumptions, are listed in its panel. The app's URLs follow the areas
   (`/evidence`, `/exploration/…`); REST and MCP name the objects (`sources`, `mockups`).
   Exploration was called Synthesis, and a link to `/synthesis/…` opens the same path under
@@ -184,7 +193,8 @@ the browser's back button and "open in new tab" both work.
   every match. Nothing holding the words says "Nothing matches" and suggests another word or fewer
   words. An outcome found opens Idea scrolled to it and marked (`?outcome`). A reader searches the Story alone ([§8.2](08-search.md)).
 - **A reader** ([§3.5](03-accounts-teams-and-identity.md)) has only the Story: L1 is **Story**
-  alone with its count, and the quiet group is gone. The product opens on the Story, and any other
+  alone with its count, and the quiet group is gone, but for the empty seat under the Story until
+  they have an agent connected, which opens Connect an agent outside the product. The product opens on the Story, and any other
   product screen, opened by a link or typed, takes a reader to the Story, with a toast saying they
   can read only this product's Story.
 - **A context slot** under the navigation, which the screen fills: the page tree on Story, the
@@ -235,7 +245,8 @@ the browser's back button and "open in new tab" both work.
   organization's name, over the label "Products" and then its products (a long name ends in an
   ellipsis after a whole word, §7.1); the example organization last, headed **Example organization** with the library glyph,
   on a neutral wash, over its name and "read only" (to its authors, "you're an author"), with a ×
-  that hides it from the panel for a guest; then a quiet link to Connect an agent and, for an owner of the instance, to
+  that hides it from the panel for a guest; then a quiet link to Connect an agent (the empty seat
+  until an agent is connected) and, for an owner of the instance, to
   **Organizations** and **People**, with the current screen marked. It never offers a way "back" to a product, because it cannot know the person came
   from one; the product is in the list.
 - **The panel changes only on entering or leaving a product.** Connect an agent is in both panels,
