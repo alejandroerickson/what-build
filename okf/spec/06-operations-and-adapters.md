@@ -1,7 +1,7 @@
 ---
 type: Specification
 title: Every capability is one registered operation, reached identically over REST and MCP.
-description: The operation registry, the error model and bounds, the full catalogue of 118 operations with their REST routes and MCP tools, authorization and agent connection levels, upload flows, the guide and the Connect page.
+description: The operation registry, the error model and bounds, the full catalogue of 119 operations with their REST routes and MCP tools, authorization and agent connection levels, upload flows, the guide and the Connect page.
 tags: [spec, operations, rest, mcp, registry, uploads, guide]
 generated: {by: agent:claude, at: 2026-11-01}
 status: stable
@@ -36,7 +36,7 @@ defineOperation({
 });
 ```
 
-`OPERATIONS` in `packages/core/src/index.ts` lists all 118. From that list, and from nothing else,
+`OPERATIONS` in `packages/core/src/index.ts` lists all 119. From that list, and from nothing else,
 the server builds the REST routes, the MCP tools with their `action` enums and JSON Schemas (via
 `z.toJSONSchema`), and the `describe` responses. The web app calls the same REST routes through
 one small hand-written client (`apps/web/src/lib/api.ts`); there is no generated client and no
@@ -245,7 +245,7 @@ it always has.
 
 ### The operation catalogue
 
-All 118 operations, generated from `OPERATIONS`. The MCP tool is the operation name's first half;
+All 119 operations, generated from `OPERATIONS`. The MCP tool is the operation name's first half;
 standalone tools (—) take their fields directly. "Needs" is the minimum role
 ([§3.5](03-accounts-teams-and-identity.md)); `members` write actions check admin at the level
 being changed inside the handler.
@@ -322,6 +322,7 @@ being changed inside the handler.
 | `attachments` | `complete_upload` | `POST P/sources/:record_id/uploads/complete` | editor |
 | `attachments` | `fetch_url` | `POST P/sources/:record_id/fetch` | editor |
 | `attachments` | `get_download` | `POST P/sources/:record_id/downloads` | viewer |
+| `attachments` | `set_frame` | `POST P/sources/:record_id/frame` | editor |
 | `derived` | `manifest` | `GET P/sources/:record_id/derived/manifest` | viewer |
 | `derived` | `text` | `GET P/sources/:record_id/derived/text` | viewer |
 | `derived` | `write_text` | `PUT P/sources/:record_id/derived/text` | editor |
@@ -672,6 +673,22 @@ uploaded HTML page's preview has a route of its own, `…/attachment/view`: an H
 `sandbox; default-src 'none'; style-src 'unsafe-inline'; img-src data:; font-src data:; base-uri 'none'; form-action 'none'; frame-ancestors 'self'`,
 which runs no script and loads nothing it does not carry; `415 not_html` for any other
 attachment, `413` past 4 MB.
+
+**A recording is answered in pieces.** A range request for an audio or video attachment is
+answered with at most 8 MiB (`RECORDING_PIECE_BYTES`), however much it asked for, and a person's
+day counts what the answer holds. A media player asks for everything from where it is to the end
+of the file, reads what it needs and hangs up, and asks again when it seeks; it asks for the next
+piece by itself. A request with no range, a download, is the whole file. Other files' ranges are
+answered as asked. WhatBuild converts no recording: what plays depends on the browser
+([§7](07-web-app.md)).
+
+**An attachment's picture has an address of its own.** `sources.list` with `include_preview` gives
+`/api/v1/pictures/<grant>` for each copy of a picture: a grant for that one copy, naming nobody,
+its expiry three to four hours off and rounded up to the hour so that the address stays the same.
+The route reads no cookie and no database, and counts no call and no bytes
+([decision](../decisions/attachments-pictures-are-made-by-the-worker-and-reached-by-signed-addresses.md)).
+It answers WebP with `nosniff`, `private, max-age=<what is left>, immutable` and a sandboxing policy;
+`401` for a grant it did not give, for anything else or that has expired, `404` for a picture gone.
 
 **With a content site, the app's addresses hand off.** When `WHATBUILD_CONTENT_URL` is set, each
 route that would answer with a document of people's or agents' HTML or with a PDF to show inline

@@ -4,6 +4,7 @@ import { loadConfig } from "./config.ts";
 import { checkRowSecurity, createDb, migrate, watchPool } from "./database.ts";
 import { syncExampleTenant } from "./example-organization.ts";
 import { checkParsing } from "./parse-process.ts";
+import { checkPictures } from "./picture-process.ts";
 import { seed } from "./seed.ts";
 import { SHUTDOWN_LIMIT_MS, shutDown } from "./shutdown.ts";
 import { startTracing } from "./telemetry.ts";
@@ -22,11 +23,14 @@ const WORKER_IDLE_MS = 60_000;
  *   worker    the job worker only
  *   migrate   apply database migrations, then exit
  *   seed      create the synthetic sample product and three accounts, then exit
- *   check-parsing   parse a small file of each kind a package is needed for, then exit; needs no database
+ *   check-parsing   parse, and make a picture of, a small file of each kind a package is needed for, then exit; needs no database
  */
 async function main() {
   const command = process.argv[2] ?? "serve";
-  if (command === "check-parsing") return checkParsing();
+  if (command === "check-parsing") {
+    await checkParsing();
+    return checkPictures();
+  }
   const config = loadConfig();
   if (!config.databaseUrl) throw new Error("DATABASE_URL is not set. For local development run `pnpm dev`, which starts a database for you.");
   const { db, pool } = createDb(config.databaseUrl);
@@ -68,7 +72,7 @@ async function main() {
       if (stopping) return;
       stopping = true;
       setTimeout(() => process.exit(0), SHUTDOWN_LIMIT_MS).unref();
-      void shutDown({ worker: worker!, parser: ports.parser, pool, tracing, ...(ports.live ? { live: ports.live } : {}), ...(server ? { server } : {}) })
+      void shutDown({ worker: worker!, parser: ports.parser, pictures: ports.pictures, pool, tracing, ...(ports.live ? { live: ports.live } : {}), ...(server ? { server } : {}) })
         .catch((e: Error) => console.error(`shutdown: ${e.message}`))
         .finally(() => process.exit(0));
     };

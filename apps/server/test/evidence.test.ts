@@ -69,15 +69,15 @@ describe("what upload, read and search say about a source", () => {
     expect(rec.completed.note).toMatch(/Add its transcript as another attachment\./);
     expect(rec.completed.note).not.toMatch(/becomes the source's derived text/);
     expect((await alice.api("GET", `${P}/sources/${rec.recordId}`)).body).toMatchObject({ derived_status: "needs_transcript", status_detail: RECORDING_DETAIL });
-    const deck = await upload("document", "readout.pptx", new Uint8Array([80, 75, 3, 4]));
-    expect(deck.completed.text).toMatchObject({ status: "unsupported", status_detail: "no parser reads .pptx files" });
-    expect(deck.completed.note).toMatch(/^No parser reads \.pptx files, so readout\.pptx is stored and downloadable but has no text\./);
+    const deck = await upload("document", "readout.key", new Uint8Array([80, 75, 3, 4]));
+    expect(deck.completed.text).toMatchObject({ status: "unsupported", status_detail: "no parser reads .key files" });
+    expect(deck.completed.note).toMatch(/^No parser reads \.key files, so readout\.key is stored and downloadable but has no text\./);
     expect(deck.completed.note).toMatch(/\.docx/);
     expect((await alice.api("GET", `${P}/sources/${deck.recordId}`)).body).toMatchObject({ derived_status: "unsupported" });
     await h.worker.drain();
     // Read, it says the same.
-    const done = await alice.api("POST", `${P}/sources/${deck.recordId}/uploads/complete`, { record_id: deck.recordId, path: "readout.pptx" });
-    expect(done.body.text).toMatchObject({ status: "unsupported", status_detail: "no parser reads .pptx files", derivation_id: expect.any(String) });
+    const done = await alice.api("POST", `${P}/sources/${deck.recordId}/uploads/complete`, { record_id: deck.recordId, path: "readout.key" });
+    expect(done.body.text).toMatchObject({ status: "unsupported", status_detail: "no parser reads .key files", derivation_id: expect.any(String) });
     expect(done.body.note).toBe(deck.completed.note);
     const recorded = await alice.api("GET", `${P}/sources/${rec.recordId}`);
     expect(recorded.body).toMatchObject({ derived_status: "needs_transcript", text_chars: 0, status_detail: RECORDING_DETAIL });
@@ -278,7 +278,7 @@ describe("listing sources in order", () => {
     expect(first.body.records[0].updated_at).toBe(edited.body.updated_at);
 
     // query matches attachment names; text_from names the attachment the derived text is from.
-    const { recordId } = await upload("document", "sortable-deck.pptx", new Uint8Array([80, 75, 3, 4]));
+    const { recordId } = await upload("document", "sortable-deck.key", new Uint8Array([80, 75, 3, 4]));
     const notes = await upload("notes", "sortable-notes.md", "# Notes\n\nCrews plan by the week.\n");
     await alice.api("PATCH", `${P}/sources/${notes.recordId}`, { expected_etag: notes.completed.record_etag, title: "Planning notes" });
     await h.worker.drain();

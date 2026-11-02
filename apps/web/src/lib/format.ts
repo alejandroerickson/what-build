@@ -191,6 +191,15 @@ export function fileTypeName(mediaType: string | null | undefined, path?: string
   return t || "Unknown type";
 }
 
+/** A recording's length as a clock: "2:27", or "1:02:05" past an hour. */
+export function clockLength(ms: number) {
+  const s = Math.round(ms / 1000);
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const ss = String(s % 60).padStart(2, "0");
+  return h ? `${h}:${String(m).padStart(2, "0")}:${ss}` : `${m}:${ss}`;
+}
+
 /** What a read of something deleted permanently answers (410): who, when and why. Null for any other failure. */
 export function deletedSentence(error: unknown): string | null {
   const e = error as { status?: number; details?: Record<string, unknown> | null } | null;

@@ -38,20 +38,20 @@ async function attach(recordId: string, path: string, body: string | Uint8Array)
 
 describe("intake warnings", () => {
   it("warns, without refusing, when an attachment's format has no parser", async () => {
-    const deck = await alice.api("POST", `${P}/sources/with-upload`, { title: "Quarterly readout deck — Example Co, Sep 2026", path: "readout.pptx" });
+    const deck = await alice.api("POST", `${P}/sources/with-upload`, { title: "Quarterly readout deck — Example Co, Sep 2026", path: "readout.key" });
     expect(deck.status).toBe(201);
     expect(deck.body.upload.url).toBeTruthy();
     expect(deck.body.warnings).toHaveLength(1);
-    expect(deck.body.warnings[0]).toMatch(/No parser reads \.pptx files/);
+    expect(deck.body.warnings[0]).toMatch(/No parser reads \.key files/);
     expect(deck.body.warnings[0]).toMatch(/cannot become the source's derived text/);
     expect(deck.body.warnings[0]).toMatch(/add an export in a format WhatBuild reads \(.*\.pdf.*\) as well/);
 
     const pdf = await alice.api("POST", `${P}/sources/with-upload`, { title: "Quarterly readout — Example Co, Sep 2026", path: "readout.pdf" });
     expect(pdf.body.warnings).toEqual([]);
     // A second attachment no parser reads is kept beside it, and says so too.
-    const deckBeside = await alice.api("POST", `${P}/sources/${pdf.body.record.record_id}/uploads`, { record_id: pdf.body.record.record_id, path: "readout.pptx" });
+    const deckBeside = await alice.api("POST", `${P}/sources/${pdf.body.record.record_id}/uploads`, { record_id: pdf.body.record.record_id, path: "readout.key" });
     expect(deckBeside.status).toBe(201);
-    expect(deckBeside.body.warnings[0]).toMatch(/No parser reads \.pptx files/);
+    expect(deckBeside.body.warnings[0]).toMatch(/No parser reads \.key files/);
 
     const empty = await alice.api("POST", `${P}/sources`, { title: "Slide notes — Example Co, Sep 2026" });
     const grant = await alice.api("POST", `${P}/sources/${empty.body.record_id}/uploads`, { record_id: empty.body.record_id, path: "notes.key" });
@@ -73,14 +73,14 @@ describe("intake warnings", () => {
   });
 
   it("says what becomes of an attachment no parser reads, and takes the text of the next one that can be read", async () => {
-    const created = await alice.api("POST", `${P}/sources/with-upload`, { tags: ["manual"], title: "Field manual — Example Co, 2026", path: "manual.pptx" });
-    expect(created.body.warnings[0]).toMatch(/No parser reads \.pptx files/);
+    const created = await alice.api("POST", `${P}/sources/with-upload`, { tags: ["manual"], title: "Field manual — Example Co, 2026", path: "manual.key" });
+    expect(created.body.warnings[0]).toMatch(/No parser reads \.key files/);
     const recordId: string = created.body.record.record_id;
     await put(created.body.upload, new Uint8Array([80, 75, 3, 4]));
-    const done = await alice.api("POST", `${P}/sources/${recordId}/uploads/complete`, { record_id: recordId, path: "manual.pptx" });
+    const done = await alice.api("POST", `${P}/sources/${recordId}/uploads/complete`, { record_id: recordId, path: "manual.key" });
     expect(done.status).toBe(200);
     expect(done.body.warnings).toEqual([]);
-    expect(done.body.note).toMatch(/^No parser reads \.pptx files, so manual\.pptx is stored and downloadable but has no text\./);
+    expect(done.body.note).toMatch(/^No parser reads \.key files, so manual\.key is stored and downloadable but has no text\./);
     expect(done.body.note).toMatch(/never searched/);
     await h.worker.drain();
     const got = await alice.api("GET", `${P}/sources/${recordId}`);

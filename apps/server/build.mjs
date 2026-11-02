@@ -2,7 +2,8 @@
 // the entry of the child process each file is parsed in (src/parse-child.ts, which holds nothing of
 // the server) into dist/parse-child.js beside it, where src/parse-process.ts looks for it; and the
 // entry of the worker thread that process parses in (src/parse-worker.ts, the parsers alone) into
-// dist/parse-worker.js, where src/parse-child.ts looks for it; with the few
+// dist/parse-worker.js, where src/parse-child.ts looks for it; the entry of the child process each
+// attachment's picture is made in (src/picture-child.ts) into dist/picture-child.js; with the few
 // npm packages that do not bundle cleanly left external. packages/server-external lists them, so
 // that pnpm-lock.yaml holds what the image installs beside the bundle (deploy/Dockerfile).
 // Migrations are copied beside the bundle, where the migration runner looks for them, and
@@ -18,7 +19,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 const dist = join(here, "dist");
 const root = join(here, "../..");
 const manifestOf = (dir) => JSON.parse(readFileSync(join(root, dir, "package.json"), "utf8"));
-// pdfjs loads its worker by relative path; the cloud clients (and Google's sign-in for sending
+// pdfjs loads its worker by relative path; Sharp and the canvas pdfjs draws on load native code; the cloud clients (and Google's sign-in for sending
 // traces) and nodemailer are large and load lazily. pg-native is an optional part of pg that nothing
 // installs.
 const SHIPPED = Object.keys(manifestOf("packages/server-external").dependencies);
@@ -27,7 +28,7 @@ const EXTERNAL = [...SHIPPED, "pg-native"];
 rmSync(dist, { recursive: true, force: true });
 mkdirSync(dist, { recursive: true });
 await build({
-  entryPoints: { main: join(here, "src/main.ts"), "parse-child": join(here, "src/parse-child.ts"), "parse-worker": join(here, "src/parse-worker.ts") },
+  entryPoints: { main: join(here, "src/main.ts"), "parse-child": join(here, "src/parse-child.ts"), "parse-worker": join(here, "src/parse-worker.ts"), "picture-child": join(here, "src/picture-child.ts") },
   outdir: dist,
   bundle: true,
   platform: "node",

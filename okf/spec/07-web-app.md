@@ -153,7 +153,7 @@ the browser's back button and "open in new tab" both work.
   Below them, quieter: **Connect an agent**, **Activity** (§7.9) and the product's **Settings**.
   Until the person has an agent connected, Connect an agent's row is the **empty seat**
   ([decision](../decisions/the-panel-keeps-an-empty-seat-until-an-agent-is-connected.md)): a card in
-  the row's place, for everyone, saying "No agent connected", what an agent does here in a line, and
+  the row's place, for everyone, saying "No agent connected", that without one a person sees less than half of WhatBuild, and
   Connect an agent as the panel's one accent button. Nothing dismisses it; it goes once an agent is
   connected (the account-wide list, `GET /api/v1/me/agents`, which while empty is read again when the
   person comes back to the tab, with no polling), and the row returns. On Connect an agent itself the
@@ -552,22 +552,45 @@ The sources, and everything for reading them.
   a segmented control in the header order the list by date captured (the default, undated last),
   date added, details updated or title (`?sort=date|added|updated|title`). A small triangle beside the current order shows its
   direction; choosing it again reverses it (`?order=asc|desc`; dates start newest first, title A
-  to Z). When the sheet is narrower than 680px the same choices sit in a menu. Each row shows its
-  tags under the title, and at its end a paperclip with its number of attachments and one date:
-  the one the list is ordered by. That is the date captured ("No date" when it has none), or
-  "2 h ago" when ordered by date added or details updated, with who did it and the full time in its
-  tooltip; ordered by title, it is the date added. A row whose source has a summary leads with a chevron that unfolds the
-  summary's first three lines, as plain words, under the tags
-  ([decision](../decisions/a-source-carries-a-summary-notes-and-whole-source-comments.md)); the
-  whole row stays a link to the source. **Show summaries** in the header unfolds every row (and
-  **Hide summaries** folds them), a choice the browser keeps for the person
-  (`whatbuild.sources.summaries`, forgotten at sign-out). The header
+  to Z). When the sheet is narrower than 680px the same choices sit in a menu. Each row shows what
+  the source looks like (below), its title, its tags under the title, and at its end a paperclip
+  with its number of attachments and one date: the one the list is ordered by. That is the date
+  captured ("No date" when it has none), or "2 h ago" when ordered by date added or details updated,
+  with who did it and the full time in its tooltip; ordered by title, it is the date added. The list
+  loads a page at a time as its end comes near. The header
   counts the sources listed, with "of N" live sources while filters narrow the list (left out once archived
   sources are included). While more pages wait to load, the count is still exact when
   `sources.facets` knows it: with no filter, one tag or one person; only otherwise is it the rows
-  loaded so far with a plus ("50+"). Archived rows are muted and marked Archived. Rows whose titles match
+  loaded so far with a plus ("50+"). Archived rows are muted and marked Archived; a row says
+  Reading while its text is read and Couldn't be read when that failed, and otherwise nothing of
+  its text, whose status its source's page explains. Rows whose titles match
   another listed row also name the attachment their text was read from (or how many attachments
   they have, or none yet), so the twins can be told apart.
+- **A source's face** in a row ([decision](../decisions/evidence-is-a-list-of-what-sources-look-like-with-a-preview-beside-it.md)):
+  the first it can show of its first image's picture, then a PDF's first page, a deck's own picture
+  or a picture of a video or an HTML page; a deck's card, drawn from slide one's title and its theme's colour; a small
+  page of its own words; and an icon of what it holds. A recording's length, or a label such as
+  "VTT" for words read from anything but a page of text, marks the corner. A face is paper in dark
+  mode too.
+- **The preview beside the list.** The list opens alone. A click on a row opens the preview beside
+  it, and a click that opens a new tab, **Open source** and Enter go to the source's page. The
+  address holds what it shows (`?source=<id>&page=<n>`); a source further down than what has loaded
+  is loaded on to, and one not in this list is said to be. Beside a preview a row keeps only its
+  face, title and date, the sort is a menu and each column scrolls its own. On a phone the preview
+  takes the screen, with a button back to the list. Up and down arrows (and J and K) move through
+  sources, with the preview open or not; left and right through its pages; Space opens and closes
+  it; Esc closes it. Keys leave a field, a menu, a dialog and a player alone.
+  Its pages are the summary, whole; the source's own text when it is no attachment's; and each
+  attachment, with its name, type and a download. An image shows its preview copy, and opens the
+  image viewer on its original. A PDF shows page one and **Show all N pages**. A deck shows its
+  picture or card above its slides' text. A Word document, a workbook, a transcript and a text show
+  the words read from them. An HTML page is framed from its own route, with no scripts and nothing
+  from elsewhere, which the preview says; past 4 MB it is treated as any other file. A recording plays in the
+  browser's own player, which fetches nothing until someone presses play, and says when it can't
+  play here, with a download. Anything else is an icon, its name, what WhatBuild can and can't do
+  with it, and a download. A thumbnail for each page runs along the foot when there is more than one.
+  Moving through sources costs no call: `sources.list` with `include_preview` holds what shows
+  first, and what needs a call waits until someone has stopped on it for a moment.
 - **Source page.** A source is the busiest object in the app, so the page is dense on purpose.
   - **Header:** the title and the actions menu, nothing else; every property is in the inspector.
     Below it the **summary** ([§4.6](04-data-model.md)), whole: rendered Markdown, attributed to

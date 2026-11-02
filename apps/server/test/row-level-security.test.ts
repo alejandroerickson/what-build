@@ -78,6 +78,12 @@ const TENANT_PREDICATE = /^\(tenant_id = current_setting\('app\.tenant_id'::text
 beforeAll(async () => {
   h = await startHarness();
   org = await buildOrganization(h, await h.signIn("rls-owner@example.com", "Rowan"), "Larkspur Holdings", "LARKSPUR9");
+  // Made by the worker from an image, which the organization holds none of.
+  await h.db.transaction().execute(async (trx) => {
+    await sql`select set_config('app.tenant_id', ${org.tenant.id}, true)`.execute(trx);
+    const v = await trx.selectFrom("file_versions").select(["file_version_id", "record_id"]).executeTakeFirstOrThrow();
+    await trx.insertInto("attachment_pictures").values({ file_version_id: v.file_version_id, tenant_id: org.tenant.id, record_id: v.record_id, status: "none", made_from: "image" }).execute();
+  });
   appRole = (await sql<{ u: string }>`select current_user as u`.execute(h.db)).rows[0]!.u;
   tables = (
     await sql<TableRow>`

@@ -224,13 +224,28 @@ export async function htmlView(c: Context, env: Env, v: FileVersion, site: strin
   });
 }
 
-/** How many of a file's bytes a request asks for: the range it names, or the whole file. */
-export function bytesAsked(c: Context, size: number): number {
+/**
+ * The most one answer to a range request for a recording holds. A media player asks for everything
+ * from where it is to the end of the file, reads what it needs and hangs up, and asks again when it
+ * seeks. Answering in pieces, as a range request may be answered, means an answer holds a connection
+ * only briefly and a person's day is counted about what they watched, never the whole file again for
+ * each seek. Players ask for the next piece by themselves.
+ */
+export const RECORDING_PIECE_BYTES = 8 * 1024 * 1024;
+
+/** Where a range request's answer ends: within the file, and within a piece for a recording. */
+function rangeEnd(start: number, asked: string | undefined, v: { size: number; media_type: string }): number {
+  const end = asked ? Math.min(Number(asked), v.size - 1) : v.size - 1;
+  return /^(audio|video)\//.test(v.media_type) ? Math.min(end, start + RECORDING_PIECE_BYTES - 1) : end;
+}
+
+/** How many of a file's bytes a request's answer holds: the range it names, up to a piece of a recording, or the whole file. */
+export function bytesAsked(c: Context, v: { size: number; media_type: string }): number {
   const m = /^bytes=(\d+)-(\d*)$/.exec(c.req.header("range") ?? "");
-  if (!m) return size;
+  if (!m) return v.size;
   const start = Number(m[1]);
-  const end = m[2] ? Math.min(Number(m[2]), size - 1) : size - 1;
-  return start >= size || start > end ? 0 : end - start + 1;
+  const end = rangeEnd(start, m[2], v);
+  return start >= v.size || start > end ? 0 : end - start + 1;
 }
 
 /**
@@ -259,7 +274,7 @@ export async function streamFile(c: Context, env: Env, v: FileVersion, path: str
   const m = range ? /^bytes=(\d+)-(\d*)$/.exec(range) : null;
   if (m) {
     const start = Number(m[1]);
-    const end = m[2] ? Math.min(Number(m[2]), v.size - 1) : v.size - 1;
+    const end = rangeEnd(start, m[2], v);
     if (start >= v.size || start > end) return c.body(null, 416, { "Content-Range": `bytes */${v.size}` });
     const body = await env.ports.blobs.getStream(v.blob_key, { start, end });
     return c.body(body, 206, { ...headers, "Content-Range": `bytes ${start}-${end}/${v.size}`, "Content-Length": String(end - start + 1) });

@@ -401,7 +401,7 @@ deployment is involved
 
 ```
 packages/
-  parsers/          text, md, vtt, srt, html, docx, doc, pdf, xlsx, csv → readable Markdown (pure: bytes in, text out)
+  parsers/          text, md, vtt, srt, html, docx, doc, pdf, xlsx, pptx, csv → readable Markdown (pure: bytes in, text out)
   core/             operation registry and every operation, policy, ports, Kysely table
                     types, Story guidance and print view, the guide agents read (src/guide/)
 apps/

@@ -10,12 +10,14 @@ import { markdownParser, plaintextParser } from "./plaintext.ts";
 import { extensionOf, SCAN_DETAIL, settle } from "./statuses.ts";
 import { assemble, decodeText, nonSpaceCodePoints } from "./text.ts";
 import { DEFAULT_PARSE_CAP_BYTES, READING_LIMITS, TooLargeError, type DerivationStatus, type FormatParse, type FormatParser, type ParseResult, type Segment, type TableRef } from "./types.ts";
+import { pptxParser } from "./pptx.ts";
 import { xlsxParser } from "./xlsx.ts";
 
 export type { Block, DerivationStatus, FormatParse, ParsedFile, ParseResult, Segment, TableRef } from "./types.ts";
 export { codePointLength, sliceCodePoints, splitLong, MAX_SEGMENT_CHARS, MAX_SEGMENTS, toParsedFile } from "./text.ts";
 export { clock, markdownAsIs, renderMarkdown, tableMarkdown, TURN_CHARS } from "./markdown.ts";
 export { MAX_PDF_PAGES } from "./pdf.ts";
+export { deckFacts } from "./pptx.ts";
 export { recordingDurationMs, type ByteReader } from "./media.ts";
 export { DEFAULT_PARSE_CAP_BYTES, ParseInterrupted, ParseStopped, READING_LIMITS, TooLargeError } from "./types.ts";
 export { HtmlLimitError, MAX_HTML_DEPTH, parseHtml } from "./html.ts";
@@ -37,6 +39,7 @@ const PARSERS: Record<string, FormatParser> = {
   ".doc": docParser,
   ".pdf": pdfParser,
   ".xlsx": xlsxParser,
+  ".pptx": pptxParser,
   ".csv": csvParser,
   ".tsv": csvParser,
 };
@@ -58,6 +61,7 @@ const MEDIA_TYPE_EXTENSIONS: Record<string, string> = {
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document": ".docx",
   "application/msword": ".doc",
   "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": ".xlsx",
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation": ".pptx",
 };
 
 /** Pick the parser by extension, falling back to the media type when the name has no known extension. */

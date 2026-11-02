@@ -3,6 +3,7 @@ import { z } from "zod";
 import { checkEtag, productId, recordActivity, tenantId } from "../common.ts";
 import { checkConfirmation, DELETE_CONFIRMATION, DELETE_GUIDANCE, deleteGuards, leaveTombstone } from "../deletion.ts";
 import { conflict, invalid } from "../errors.ts";
+import { picturePrefixes } from "../pictures.ts";
 import { CONTENT_TABLES } from "../tenant-tables.ts";
 import { defineOperation, type OpContext } from "../registry.ts";
 import { ownerAddresses, tellOwnersDeleted } from "../organization-notices.ts";
@@ -122,6 +123,7 @@ export const deleteProduct = defineOperation({
     const versions = records.length ? await db.selectFrom("file_versions").select("blob_key").where("record_id", "in", records).execute() : [];
     const grants = records.length ? await db.selectFrom("upload_grants").select("blob_key").where("record_id", "in", records).where("uploaded_at", "is not", null).execute() : [];
     const derivations = records.length ? await db.selectFrom("derivations").select("blob_prefix").where("record_id", "in", records).execute() : [];
+    const pictures = await picturePrefixes(db, { record_ids: records });
     const exports = await db.selectFrom("exports").select(["export_id", "blob_key"]).where("product_id", "=", pid).execute();
     const canvases = await db.selectFrom("mockup_uploads").select("blob_key").where("product_id", "=", pid).where("uploaded_at", "is not", null).where("used_at", "is", null).execute();
     const prototypes = await db.selectFrom("mockup_prototype_files").select("blob_key").distinct().where("product_id", "=", pid).execute();
@@ -150,7 +152,7 @@ export const deleteProduct = defineOperation({
 
     // A copy of a source in another product shares its bytes, which stay while it does.
     const stillUsed = keys.length ? new Set((await db.selectFrom("file_versions").select("blob_key").where("blob_key", "in", keys).execute()).map((r) => r.blob_key)) : new Set<string>();
-    await dropBlobs(ctx, keys.filter((k) => !stillUsed.has(k)), derivations.map((d) => d.blob_prefix));
+    await dropBlobs(ctx, keys.filter((k) => !stillUsed.has(k)), [...derivations.map((d) => d.blob_prefix), ...pictures]);
 
     await leaveTombstone(ctx, { object_type: "product", object_id: pid, title: p.name, reason: input.reason });
     // Recorded on the team, since the product's own log is gone with it.
@@ -264,6 +266,7 @@ export async function destroyOrganization(ctx: OpContext, tid: string): Promise<
   const canvases = await db.selectFrom("mockup_uploads").select("blob_key").where("tenant_id", "=", tid).where("uploaded_at", "is not", null).where("used_at", "is", null).execute();
   const prototypes = await db.selectFrom("mockup_prototype_files").select("blob_key").distinct().where("tenant_id", "=", tid).execute();
   const derivations = await db.selectFrom("derivations").select("blob_prefix").where("tenant_id", "=", tid).execute();
+  const pictures = await picturePrefixes(db, { tenant_id: tid });
   const keys = [...new Set([...versions, ...grants, ...exports, ...canvases, ...prototypes].map((r) => r.blob_key).filter((k): k is string => Boolean(k)))];
 
   for (const table of ORGANIZATION_TABLES) await sql`delete from ${sql.table(table)} where tenant_id = ${tid}`.execute(db);
@@ -274,7 +277,7 @@ export async function destroyOrganization(ctx: OpContext, tid: string): Promise<
   await db.deleteFrom("tenants").where("tenant_id", "=", tid).execute();
 
   // The bytes go after the rows, on jobs that outlive the organization.
-  await dropBlobs(ctx, keys, derivations.map((d) => d.blob_prefix));
+  await dropBlobs(ctx, keys, [...derivations.map((d) => d.blob_prefix), ...pictures]);
 }
 
 export const deleteOps = [productDeleteImpact, deleteProduct, organizationDeleteImpact, deleteOrganization];

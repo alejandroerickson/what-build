@@ -77,6 +77,11 @@ file (Cloud Run refuses bodies over 32 MiB). `SIGNED_URLS=1` also hands agents d
 upload URLs for larger files, up to the 100 MB per-file limit; it grants the runtime identity the
 right to sign as itself.
 
+**Pictures.** The worker makes each attachment's picture in a process of its own, held to 384 MB and
+20 seconds; one that needs more goes without, and the source shows the next thing it has
+([decision](../decisions/attachments-pictures-are-made-by-the-worker-and-reached-by-signed-addresses.md)).
+Nothing needs setting.
+
 **Parsing.** The worker parses each file in a process of its own, held to 288 MB of heap, half as
 much again for buffers, and 120 seconds; a file that needs more is recorded as failed, and the
 service keeps answering meanwhile ([§5.1](../spec/05-derived-layer.md#51-reading-an-attachment)). The

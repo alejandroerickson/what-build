@@ -162,6 +162,10 @@ The plans:
   agent; what blocks it (owning the instance, being an organization's only owner) says how to clear
   it; afterwards they are signed out everywhere, what they wrote keeps their name, a record is
   mailed, and the address comes back only as a new, empty account.
+- `attachment-previews`: real files (decks saved by PowerPoint, scans, phone photos, recordings, web
+  pages), fetched with `node scripts/fetch-test-attachments.mjs` from the public addresses in
+  `e2e/test-attachments.json`, look like themselves in the list of sources and its preview, and
+  `e2e/hostile-page.html` can do nothing there.
 - `assumptions-and-the-story`: an agent's assumption is reviewed by a person; a Story page
   is published and read by a reader, who is refused everything else.
 - `search`: the palette and the Search screen find every kind of thing by plain words, read as the

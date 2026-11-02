@@ -531,7 +531,7 @@ Responsive behaviour:
 - **760px and below:** the panel becomes a flush overlay drawer (min(320px, 86vw)) with square corners over a dimmed scrim. The inspector becomes the same kind of drawer, flush on the right; only one drawer is open at a time. Sheets and Idea cards run edge to edge with square corners, and the canvas pads 56px top, 12px sides and 60px bottom.
 
 ### Named Rules
-**The One Scroller Rule.** The canvas scrolls the page. Only the panel's context slot, the inspector body, menus, dialogs and an Idea card's back (and a front taller than its frame) scroll on their own.
+**The One Scroller Rule.** The canvas scrolls the page. Only the panel's context slot, the inspector body, menus, dialogs and an Idea card's back (and a front taller than its frame) scroll on their own, and the Evidence list and its preview while a preview is open: those two fill the window side by side, past the content measure, because a page of a PDF needs the room and the list has to stay beside it.
 
 **The Float Inset Rule.** Floating surfaces sit exactly 10px from the window edge. On phones they go flush, never partially inset.
 
@@ -543,7 +543,7 @@ Depth is tonal layering plus two shadows. White surfaces lift off the grey canva
 - **Resting** (`--shadow`: `0 2px 5px rgb(0 0 0 / 0.08), 0 0 0 0.5px rgb(0 0 0 / 0.12)`): panels, sheets, the pill, callouts, and the current segmented item.
 - **Lifted** (`--shadow-2`: `0 10px 28px rgb(0 0 0 / 0.16), 0 0 0 0.5px rgb(0 0 0 / 0.14)`): menus, dialogs, toasts, the skip link, the panel or inspector once it becomes a phone drawer, and an outcome's card while it is dragged or picked up.
 - **Flash** (`--shadow-flash`: `0 0 0 1px rgb(255 255 255 / 0.9), 0 0 0 7px rgb(255 255 255 / 0.45), 0 0 90px 28px rgb(255 255 255 / 0.6)`): the search palette alone, for a moment, when it has been left untouched for three seconds; it fades back to Lifted.
-- **Paper** (`--shadow-paper`: `0 0 0 1px rgb(0 0 0 / 0.06), 0 1px 3px rgb(0 0 0 / 0.06)`): the preview frame for an attachment, which draws as light paper in both themes.
+- **Paper** (`--shadow-paper`: `0 0 0 1px rgb(0 0 0 / 0.06), 0 1px 3px rgb(0 0 0 / 0.06)`): the preview frame for an attachment, and a source's face in the list of sources (a picture, or a small page of its words), each of which draws as light paper in both themes.
 
 ### Named Rules
 **The Two Heights Rule.** A surface either rests in the layout or lifts above it. Use no other shadow values, and use no offset or coloured shadows. The one exception is the search palette's passing flash.

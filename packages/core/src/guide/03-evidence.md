@@ -67,7 +67,12 @@ text, the summary or the notes, and `sources_read(action="get")` names such an a
   it: its status is `unsupported`, and reading it again changes nothing. Its words can be written as
   the derived text with `write_text`.
 - Over 25 MB an attachment is stored but not read.
-- No parser reads .pptx or .key; a deck reads as its PDF export.
+- People see each source in their list by its picture: the worker makes one from an image, a PDF's
+  first page or a deck's own preview, and a source with none shows a small page of its text, or an
+  icon. WhatBuild neither plays videos nor draws web pages, so a video or an HTML page goes without
+  until it is given a picture: a person who plays or opens it sends one, and
+  `attachments_write(action="set_frame")` takes one an agent has.
+- A PowerPoint deck (.pptx) reads as its slides' words and speaker notes, never its pictures. No parser reads .ppt or .key; such a deck reads as its PDF export.
 
 ## The derived text
 
@@ -95,6 +100,8 @@ by code-point `offset` and `limit` (`total_chars` and `truncated` say how much t
   `**Dana** (14:02 UTC):`), at least four of them, most by names that speak more than once. A Word
   file takes no such labels.
 - A Markdown attachment is kept as written.
+- A PowerPoint deck reads as a `## Slide N: Title` heading for each slide in the order it shows them,
+  then what the slide says, its tables, and its speaker notes as `Notes: …`.
 
 The derived text **follows its attachment**: a new version of that attachment replaces it, until
 someone writes or edits it. From then it is theirs, and new readings never touch it.

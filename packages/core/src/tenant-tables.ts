@@ -5,7 +5,7 @@
  */
 export const CONTENT_TABLES = [
   "teams", "products",
-  "records", "files", "file_versions", "derivations", "source_texts", "annotations", "agent_notes",
+  "records", "files", "file_versions", "attachment_pictures", "derivations", "source_texts", "annotations", "agent_notes",
   "outcomes", "insights", "revisions", "register_entries", "reviews",
   "story_pages", "story_versions", "story_hierarchies", "story_styles",
   "mockups", "mockup_versions", "mockup_pages", "mockup_files", "mockup_prototype_files",

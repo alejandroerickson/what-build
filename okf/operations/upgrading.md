@@ -23,7 +23,22 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
 
 ## Unreleased
 
-Nothing yet.
+- **Migration `0042_attachment_pictures`.** It adds a table, and queues a job for every image, PDF
+  and PowerPoint deck already held, and a fresh reading of each deck. A deployment does nothing:
+  the worker fills them in, one at a time, while the instance is up. Until it has, those sources
+  show a small page of their words or an icon. Rehearse it as any release that migrates.
+- **The image grows by about 60 MB**, for Sharp and the canvas pdf.js draws on, and the build's
+  `check-parsing` now makes a picture too.
+- **PowerPoint decks are read.** A plan that limits uploads to the formats WhatBuild reads
+  (`documents_only`) now takes `.pptx`. A source whose only attachment was a deck gets its text.
+- **People will notice:** the Evidence list shows what each source looks like, and a click opens a
+  preview beside the list instead of the source's page. **Open source**, Enter, and a click that
+  opens a new tab go to the page. The summary toggle has gone: the summary is the preview's first
+  page. A row no longer says Needs transcript or Not read as text. `sources.list` takes
+  `include_preview`, and `attachments.set_frame` is new; connected agents are asked to update their
+  tools.
+- **A recording is answered in pieces of at most 8 MiB**, and a person's day counts what each holds,
+  where it used to count the whole file for each open and seek.
 
 ## v0.30.0
 

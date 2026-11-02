@@ -1,7 +1,7 @@
 ---
 type: Decision
 title: The panel keeps an empty seat for an agent until one is connected
-description: Until a person has an agent connected, Connect an agent's row in the panel is a card that says so and what an agent does here, for every role, with no dismissal, because most of WhatBuild happens through an agent.
+description: Until a person has an agent connected, Connect an agent's row in the panel is a card that says so and what a person misses without one, for every role, with no dismissal, because most of WhatBuild happens through an agent.
 tags: [decision, web, design, onboarding, agents]
 generated: {by: agent:claude, at: 2026-11-01}
 status: stable
@@ -25,8 +25,8 @@ dismissal.
 
 - While the person's account-wide list of connected agents is empty, Connect an agent's row in
   the panel is the **empty seat** (`AgentSeat` in `apps/web/src/shell/agent-seat.tsx`): a card in
-  the row's own place in the quiet group, saying "No agent connected", one line on what an agent
-  does here, and Connect an agent as the panel's one accent button.
+  the row's own place in the quiet group, saying "No agent connected", that without one a person sees
+  less than half of WhatBuild, and Connect an agent as the panel's one accent button.
 - It shows for **every role**, a reader included (under the Story, opening Connect an agent
   outside the product), and in the panel outside a product. On Connect an agent itself the plain
   row stays, marked current.

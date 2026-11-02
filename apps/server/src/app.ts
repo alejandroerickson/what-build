@@ -1,6 +1,6 @@
 import { createHmac } from "node:crypto";
 import { readFileSync } from "node:fs";
-import { AppError, configurePlans, PERMISSIONS_POLICY, REST_BODY_MAX_BYTES, SearchGate, TOOLS_VERSION, type BlobStore, type Db, type Env, type Mailer, type Ports } from "@whatbuild/core";
+import { AppError, configurePlans, PERMISSIONS_POLICY, PICTURE_ROUTE, REST_BODY_MAX_BYTES, SearchGate, TOOLS_VERSION, type BlobStore, type Db, type Env, type Mailer, type Ports } from "@whatbuild/core";
 import { SpanKind, SpanStatusCode, type Span } from "@opentelemetry/api";
 import { Hono } from "hono";
 import { bodyLimit } from "hono/body-limit";
@@ -19,6 +19,8 @@ import type { ServerConfig } from "./config.ts";
 import { mcpRoutes } from "./mcp.ts";
 import { refuseNullCharacters } from "./null-characters.ts";
 import { processParser } from "./parse-process.ts";
+import { pictureRoutes } from "./pictures.ts";
+import { processPictureMaker } from "./picture-process.ts";
 import { prototypeRoutes } from "./prototype.ts";
 import { publicRoutes, staticRoutes } from "./public-routes.ts";
 import { OPERATION_HEADER, restRoutes } from "./rest.ts";
@@ -56,6 +58,12 @@ export const RESPONSE_HEADERS: Record<string, string> = {
 export { FALLBACK_HTML_POLICY };
 
 /** What a content site answers: prototypes, documents, agents' previews, and the health check. */
+/**
+ * What one attachment's picture may use. A 48-megapixel photo takes about 120 MB and half a second, a
+ * heavy PDF page more; a parse may use about this much too, and the worker runs one job at a time.
+ */
+const PICTURE_MEMORY_MB = 384;
+const PICTURE_TIMEOUT_SECONDS = 20;
 const CONTENT_SITE_PATHS = /^\/(prototypes\/|documents\/|api\/v1\/downloads\/(story|card)-preview\/|health$)/;
 
 /** The paths whose responses carry people's material, their identity or credentials, which no cache, the browser's included, may keep. */
@@ -82,6 +90,7 @@ const ORG_SCREENS = new Set(["members", "limits"]);
 export function loggedPath(path: string): string {
   if (/^\/prototypes(\/|$)/.test(path)) return "/prototypes/:grant/…";
   if (/^\/documents(\/|$)/.test(path)) return "/documents/:grant/…";
+  if (path.startsWith(`${PICTURE_ROUTE}/`)) return `${PICTURE_ROUTE}/:grant`;
   return path
     .replace(/^\/invite\/[^/]+/, "/invite/:token")
     .replace(/^\/join\/[^/]+/, "/join/:code")
@@ -149,6 +158,7 @@ export function createPorts(config: ServerConfig, blobs: BlobStore, mailer: Mail
     blobs,
     grants: new HmacGrantSigner(config.grantKey),
     parser: processParser({ memoryMb: config.parseMemoryMb, timeoutSeconds: config.parseTimeoutSeconds }),
+    pictures: processPictureMaker({ memoryMb: PICTURE_MEMORY_MB, timeoutSeconds: PICTURE_TIMEOUT_SECONDS }),
     mailer,
     fetcher: new SafeUrlFetcher(),
     notifyJobs,
@@ -202,7 +212,7 @@ export function createApp(deps: { db: Db; ports: Ports; config: ServerConfig; re
     // Operational telemetry only: never content, email addresses or tokens (telemetry.ts). A
     // prototype's files and the content site's documents, like the app's assets, are logged only
     // when one fails, and never traced; nor is the health check.
-    const capability = c.req.path.startsWith("/prototypes/") || c.req.path.startsWith("/documents/");
+    const capability = c.req.path.startsWith("/prototypes/") || c.req.path.startsWith("/documents/") || c.req.path.startsWith(`${PICTURE_ROUTE}/`);
     const quiet = c.req.path.startsWith("/assets/") || capability || c.req.path === "/health";
     const respond = async (span?: Span) => {
       const id = requestIdOf(span);
@@ -302,6 +312,7 @@ export function createApp(deps: { db: Db; ports: Ports; config: ServerConfig; re
   // First, so the public site's host never reaches the app's routes.
   app.route("/", siteRoutes({ db: deps.db, config: deps.config }));
   app.route("/", prototypeRoutes(env));
+  app.route("/", pictureRoutes(env));
   app.route("/", contentDocumentRoutes(env));
   app.route("/", publicRoutes({ db: deps.db, config: deps.config, release }));
   app.route("/", oauthRoutes({ db: deps.db, config: deps.config, notifyJobs: () => deps.ports.notifyJobs?.() }));
