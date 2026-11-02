@@ -3,7 +3,7 @@ type: Decision
 title: One stateless container image serves everything and runs the worker
 description: The web app, REST, MCP, OAuth, the upload relay and the job worker ship in one image on Cloud Run.
 tags: [decision, architecture, deployment]
-generated: {by: agent:claude, at: 2026-10-31}
+generated: {by: agent:claude, at: 2026-11-01}
 status: stable
 ---
 
@@ -20,6 +20,8 @@ A side project on near-free infrastructure benefits from the fewest moving servi
   that ends in a fatal error ends only itself, and holds that process to a memory and a time limit
   ([decision](each-file-is-parsed-in-a-process-of-its-own-so-a-parse-that-ends-in-a-fatal-error-ends-only-itself.md)).
 - It is stateless: no module-level mutable state, no in-process caches of tenant data, MCP without session affinity.
+  The one exception is which tabs are listening for changes, which holds no tenant's data and loses
+  nothing when it goes ([decision](open-tabs-hear-of-changes-through-a-stream-the-server-itself-serves.md)).
 - Uploads go straight to object storage through signed grants; the application registers the stored object afterwards.
 - Migrations run as a separate job before a new revision serves traffic.
 - What the server leaves out of its bundle comes from `pnpm-lock.yaml`, with everything beneath it.
@@ -32,7 +34,7 @@ A side project on near-free infrastructure benefits from the fewest moving servi
 
 ## Consequences
 
-- Any instance can serve any request.
+- Any instance can serve any request, but for a tab listening for changes, which hears only of those made on its own instance.
 - `pnpm deploy` asks for `inject-workspace-packages` to deploy from the shared lockfile. The image's
   build passes it to that one command, and the package has no workspace dependencies for it to
   change; the workspace's own layout and lockfile stay as they are.

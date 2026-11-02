@@ -4,6 +4,7 @@ import { Link, useNavigate, useParams, useSearchParams } from "react-router";
 import { api, ApiError, qs } from "../lib/api.ts";
 import { attribution, deletedSentence, plural, quotedAtEnd, relativeTime } from "../lib/format.ts";
 import { findByTitle } from "../lib/fuzzy.ts";
+import { useHoldRefresh } from "../lib/live.tsx";
 import { Markdown } from "../lib/markdown.tsx";
 import { cannotWriteReason, useProduct } from "../lib/session.tsx";
 import { REVIEW_STATUS } from "../lib/status.ts";
@@ -193,6 +194,7 @@ const LINK_WORD: Record<string, [string, string]> = {
 
 function ReviewForm({ entry, kind, onSaved }: { entry: RegisterEntry; kind: Kind; onSaved: (e: RegisterEntry) => void }) {
   const { api: base } = useProduct();
+  useHoldRefresh();
   const [status, setStatus] = useState<string>(entry.status);
   const [confidence, setConfidence] = useState("");
   const [note, setNote] = useState("");
@@ -595,6 +597,7 @@ function EntryForm({ kind, crumbs, heading, initial, outcomes, preselect, onSave
   onSaved: (id: string) => void;
 }) {
   const { api: base, app } = useProduct();
+  useHoldRefresh();
   const [statement, setStatement] = useState(initial?.statement ?? "");
   const [body, setBody] = useState(initial?.body ?? "");
   const [objs, setObjs] = useState<string[]>(initial?.outcome_ids ?? (preselect ? [preselect] : []));

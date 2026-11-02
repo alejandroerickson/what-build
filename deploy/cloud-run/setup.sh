@@ -37,6 +37,8 @@
 #                       account running this script. Both lists are stored with semicolons for
 #                       commas, since gcloud separates variables with commas; the server reads either.
 #   TENANT_ALLOWANCE    how many organizations any other address may create (optional; default 0)
+#   LIVE_UPDATES=0      open tabs do not hear of changes, and people refresh to see them (optional;
+#                       on by default, and it keeps an instance awake while anyone is working)
 #   SMTP_URL            smtp(s)://user:pass@host:port for sign-in links and invitations (optional)
 #   MAIL_FROM           e.g. "WhatBuild <hello@what-build.com>"
 #   FEEDBACK_EMAIL      the address that gets the daily digest of people's and agents' feedback
@@ -196,6 +198,9 @@ $G builds submit --region "$REGION" --tag "$IMAGE" .
 ALLOW="${SIGNUP_ALLOWLIST:-$(gcloud config get-value account 2>/dev/null)}"
 OWNERS="${INSTANCE_OWNERS:-$(gcloud config get-value account 2>/dev/null)}"
 ENV_VARS="WHATBUILD_GCS_BUCKET=$BUCKET,WHATBUILD_SIGNUP_ALLOWLIST=${ALLOW//,/;},WHATBUILD_INSTANCE_OWNERS=${OWNERS//,/;}"
+# Room for the tabs listening for changes, which --concurrency below makes room for beside ordinary requests.
+ENV_VARS="$ENV_VARS,WHATBUILD_LIVE_MAX_STREAMS=100,WHATBUILD_LIVE_STREAM_MINUTES=50"
+[ -n "${LIVE_UPDATES:-}" ] && ENV_VARS="$ENV_VARS,WHATBUILD_LIVE_UPDATES=$LIVE_UPDATES"
 [ -n "${TENANT_ALLOWANCE:-}" ] && ENV_VARS="$ENV_VARS,WHATBUILD_TENANT_ALLOWANCE=$TENANT_ALLOWANCE"
 [ -n "${MAIL_FROM:-}" ] && ENV_VARS="$ENV_VARS,WHATBUILD_MAIL_FROM=$MAIL_FROM"
 [ -n "${FEEDBACK_EMAIL:-}" ] && ENV_VARS="$ENV_VARS,WHATBUILD_FEEDBACK_EMAIL=$FEEDBACK_EMAIL"
@@ -235,9 +240,12 @@ step "Service $SERVICE"
 # CPU stays allocated so the in-process worker parses uploads after the response returns;
 # with min-instances 0 an idle service still scales to nothing and costs nothing. Public again with
 # each run (--allow-unauthenticated): a service the kill switch closed is opened by it.
+# --timeout is an hour and --concurrency 140 for the tabs listening for changes, each of which holds
+# one request open: 100 of them beside the 40 ordinary requests the service has always had room for.
+# The server ends any other request that takes over five minutes by itself (apps/server/src/app.ts).
 $G run deploy "$SERVICE" --region "$REGION" --image "$IMAGE" --service-account "$RUNTIME_SA" \
   --allow-unauthenticated --no-cpu-throttling --min-instances 0 --max-instances "${MAX_INSTANCES:-1}" --memory 1Gi --cpu 1 \
-  --concurrency 40 --timeout 300 --set-secrets "$SECRETS" --set-env-vars "$ENV_ARG" ${CLOUDSQL_FLAGS[@]+"${CLOUDSQL_FLAGS[@]}"}
+  --concurrency 140 --timeout 3600 --set-secrets "$SECRETS" --set-env-vars "$ENV_ARG" ${CLOUDSQL_FLAGS[@]+"${CLOUDSQL_FLAGS[@]}"}
 # The stable run.app address, named by project number (status.url is the older, hashed one).
 URL="${PUBLIC_URL:-https://$SERVICE-$PROJECT_NUMBER.$REGION.run.app}"
 $G run services update "$SERVICE" --region "$REGION" --update-env-vars "WHATBUILD_PUBLIC_URL=$URL" >/dev/null

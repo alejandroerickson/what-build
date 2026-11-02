@@ -50,6 +50,10 @@ export function withStoryTheme(html: string, theme: "light" | "dark"): string {
  * target opens in the frame too, since a prototype's document is never served at the top level
  * there. Each document says it has loaded (frame-ready), so the app tells its own documents from
  * an address that replaced them.
+ *
+ * Says, at most every half minute, that someone is using the frame (frame-active): a page they read
+ * or press in a frame shows the app nothing, and a tab no one is using stops listening for changes
+ * (apps/web/src/lib/live.tsx).
  */
 export function frameScript(prototype?: { base: string; inPlace: boolean }): string {
   const proto = prototype ? JSON.stringify(prototype.base).replace(/</g, "\\u003c") : "null";
@@ -58,6 +62,8 @@ export function frameScript(prototype?: { base: string; inPlace: boolean }): str
   `var story=null,canvas=false,home=null,proto=${proto},inPlace=${prototype?.inPlace ? "true" : "false"};` +
   "function typing(t){return t&&(t.isContentEditable||/^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName));}" +
   'function send(m){parent.postMessage(m,"*");}' +
+  'var used=0;function using(){var n=Date.now();if(n-used<30000)return;used=n;send({whatbuild:"frame-active"});}' +
+  '["pointerdown","keydown","wheel","touchstart","scroll"].forEach(function(t){addEventListener(t,using,{capture:true,passive:true});});' +
   'addEventListener("message",function(e){' +
   "if(e.source!==parent||!e.data)return;" +
   'if(e.data.whatbuild==="story-base"&&typeof e.data.base==="string")story=e.data.base;' +

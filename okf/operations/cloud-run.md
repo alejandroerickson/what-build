@@ -3,7 +3,7 @@ type: System Concept
 title: WhatBuild runs as one stateless Cloud Run service with Postgres and a Cloud Storage bucket.
 description: What a deployment on Cloud Run is made of, how deploy/cloud-run/setup.sh creates it, sign-in, deploying and restore points before migrating, its alerts and traces, cost, names, and useful commands; backups and the dev deployment have guides of their own.
 tags: [operations, deployment, cloud-run, gcp]
-generated: {by: agent:claude, at: 2026-10-31}
+generated: {by: agent:claude, at: 2026-11-01}
 status: stable
 ---
 
@@ -448,7 +448,7 @@ account running it); `setup.sh` runs it. They read only what Cloud Run measures 
 
 | Policy | Mails when | Look first at |
 |---|---|---|
-| `whatbuild: server errors` | a 5xx response in five minutes | the service's error lines, below; a 503 or 504 with none means no instance could serve, or a request ran past the 300-second timeout |
+| `whatbuild: server errors` | a 5xx response in five minutes | the service's error lines, below; a 503 or 504 with none means no instance could serve, or a request ran past the server's five-minute limit (`timed_out`), or a stream past the service's `--timeout`, when `WHATBUILD_LIVE_STREAM_MINUTES` is not below it |
 | `whatbuild: errors in the log` | a line of severity ERROR from the service (Cloud Run's request log aside), at most one mail an hour | the line itself: an unexpected error names its request, `request_id`; `Memory limit … exceeded` |
 | `whatbuild: memory` | an instance above 85% of its memory for five minutes | the worker's log lines for the file being read; [Parsing](#setting-it-up) for the limits and the service's memory |
 | `whatbuild: a job failed` | a failed run of `whatbuild-backup` or `whatbuild-migrate` | `gcloud run jobs executions list --job <job>`; [Backups](backups.md) or [Recovering](recovering-from-a-bad-release.md) |
@@ -585,6 +585,40 @@ Cloudflare Email Sending needs the Workers Paid plan, which includes 3,000 messa
 ([Mail](mail.md)). The alert policies cost about US$0.10 each a month; their mail costs
 nothing. Traces are billed by the million spans ingested, and a few thousand requests a day make
 well under a million a month.
+
+### Live updates
+
+Open tabs hear of changes from a stream ([decision](../decisions/open-tabs-hear-of-changes-through-a-stream-the-server-itself-serves.md)),
+and while one is open the instance stays up and is billed, at the price above. A tab holds one only
+while it is in view and used in the last ten minutes, so what this adds grows with the hours people
+work, not with the tabs they leave open, and with `MAX_INSTANCES` at 1 it cannot pass one instance however
+many work at once. The database stays asleep while streams are quiet. Opening one reads it, which can
+wake one that suspends, about once in fifty minutes for each person working, and it then stays up for
+its idle time; on Neon's smallest size that is some minutes of 0.25 CU each time.
+
+The service log says what it is doing, with nothing of anyone's: a `live_stream_ended` line for each
+stream, with its `reason`, how many `seconds` it lasted and how many stay `open`. Many ending within a minute
+means something between is cutting them. `WHATBUILD_LIVE_MAX_STREAMS` is how many may be open, past
+which a tab goes without and tries again in five minutes. It fits inside `--concurrency`, with room for
+ordinary requests. `WHATBUILD_LIVE_STREAM_MINUTES` is how long a stream lasts, and stays below
+`--timeout`, past which Cloud Run cuts it and logs a 504.
+
+A deploy leaves streams on the old revision, which goes on being billed until they end. A tab moves
+to the new one at its next answer from it, and one nobody is using stops within ten minutes, so the
+overlap is usually minutes, and at most `WHATBUILD_LIVE_STREAM_MINUTES`.
+
+Turn it off, or back on, with a new revision and no release. Open streams end with the old revision,
+and tabs told it is off stop asking until they are next loaded:
+
+```sh
+gcloud run services update "$SERVICE" --region "$REGION" --update-env-vars WHATBUILD_LIVE_UPDATES=0
+```
+
+To see it working on a deployment, sign in to a product in one tab and change something there through an agent
+or another tab: the Evidence list follows within about half a minute, and a Story page shows its toast.
+In the browser's network panel, `live` stays open and receives a line every 25 seconds. If it keeps
+ending within a minute or two, or receives nothing, something between is holding streams back; the tab
+gives up after six tries, until it is next loaded, and the Worker's and Cloud Run's settings are the place to look.
 
 ## A hard limit on the bill
 

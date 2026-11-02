@@ -77,9 +77,34 @@ function principalFor(a: AccountRow, auth_kind: Principal["auth_kind"], surface:
   return { account_id: a.account_id, email: a.email, display_name: a.display_name, auth_kind, surface, client };
 }
 
+/**
+ * The session a response that outlasts its request goes on serving (a live stream, `live.ts`), to ask
+ * again whether it is still good: which it is, as `sessionAccount` chooses, by its hash, so that no
+ * token stays in memory for as long as the response does.
+ */
+export interface HeldSession {
+  hash: string;
+  legacyCookie: boolean;
+}
+
+export function heldSession(c: Context, secure: boolean): HeldSession | null {
+  const current = getCookie(c, sessionCookieName(secure));
+  if (current) return { hash: sha256Hex(current), legacyCookie: false };
+  const old = secure ? getCookie(c, SESSION_COOKIE) : undefined;
+  return old ? { hash: sha256Hex(old), legacyCookie: true } : null;
+}
+
+/** The account of a held session while it is good: not signed out, not expired, its account not deleted. */
+export function accountOfHeldSession(db: Db, held: HeldSession): Promise<AccountRow | null> {
+  return accountBySessionHash(db, held.hash, { legacyCookie: held.legacyCookie });
+}
+
 /** The account behind a session token, and when the session signed in; with `legacyCookie`, only for a session issued under the cookie's old name. */
-async function accountBySession(db: Db, token: string, opts: { legacyCookie?: boolean } = {}): Promise<(AccountRow & { expires_at: string; signed_in_at: string }) | null> {
-  const hash = sha256Hex(token);
+function accountBySession(db: Db, token: string, opts: { legacyCookie?: boolean } = {}) {
+  return accountBySessionHash(db, sha256Hex(token), opts);
+}
+
+async function accountBySessionHash(db: Db, hash: string, opts: { legacyCookie?: boolean } = {}): Promise<(AccountRow & { expires_at: string; signed_in_at: string }) | null> {
   const row = await db
     .selectFrom("sessions as s")
     .innerJoin("accounts as a", "a.account_id", "s.account_id")

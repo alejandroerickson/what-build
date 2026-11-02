@@ -57,7 +57,7 @@ export function coerceQuery(op: OperationDef, query: Record<string, string>): Re
   return out;
 }
 
-function errorResponse(c: Context, e: AppError) {
+export function errorResponse(c: Context, e: AppError) {
   if (e.status === 401) c.header("WWW-Authenticate", 'Bearer realm="whatbuild"');
   const retry = e.status === 429 || e.status === 503 ? e.details?.["retry_after_seconds"] : undefined;
   if (typeof retry === "number") c.header("Retry-After", String(Math.max(1, Math.ceil(retry))));

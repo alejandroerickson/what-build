@@ -5,7 +5,7 @@ import { useTheme, type ThemeChoice } from "../shell/theme.ts";
 import {
   AgentFace, Avatar, Button, ButtonLink, Callout, Chip, ChoiceRow, CopyField, Crumbs, Dialog, EmptyState, ErrorCallout, FindField, FormGrid, Glyph,
   Group, IconButton, KeyValue, ListRow, Loading, Menu, MenuCheckbox, MenuGroup, MenuItem, MenuLabel, MenuNote, MenuRadio, MenuSeparator, PageHeader,
-  Segmented, SelectField, Sheet, SheetBody, SheetHeader, StatusBadge, Tag, TextArea, TextField, useToast,
+  Segmented, SelectField, Sheet, SheetBody, SheetHeader, StatusBadge, Tag, TextArea, TextField, useStandingToast, useToast,
 } from "../ui/index.tsx";
 import "./system.css";
 
@@ -142,6 +142,8 @@ const SPACE = ["s-0", "s-1", "s-1h", "s-2", "s-2h", "s-3", "s-3h", "s-4", "s-5",
 
 function Specimen() {
   const toast = useToast();
+  const [standing, setStanding] = useState(false);
+  useStandingToast(standing ? { message: "This page was updated. Refresh to see the latest.", action: { label: "Refresh", onClick: () => setStanding(false) }, onClose: () => setStanding(false) } : null);
   const [dialog, setDialog] = useState(false);
   const [seg, setSeg] = useState("all");
   const [check, setCheck] = useState(true);
@@ -405,6 +407,7 @@ function Specimen() {
             <Button onClick={() => toast("Note added.")}>Show a toast</Button>
             <Button onClick={() => toast("Archived.", { action: { label: "Undo", onClick: () => toast("Restored.") } })}>With Undo</Button>
             <Button onClick={() => toast("The upload failed. Try again.", { tone: "negative" })}>An error</Button>
+            <Button onClick={() => setStanding(true)}>One that stays</Button>
             <Button onClick={() => setDialog(true)}>Open a dialog</Button>
           </div>
         </SheetBody>

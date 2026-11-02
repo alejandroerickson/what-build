@@ -4,6 +4,7 @@ import { Link, Navigate, useNavigate, useParams, useSearchParams } from "react-r
 import { api, ApiError } from "../lib/api.ts";
 import { attribution, deletedSentence, formatBytes, formatDate, formatDateTime, plural, quotedAtEnd } from "../lib/format.ts";
 import { Markdown } from "../lib/markdown.tsx";
+import { useHeldUpdate } from "../lib/live.tsx";
 import { useProduct } from "../lib/session.tsx";
 import { Inspector, usePageTitle } from "../shell/slots.tsx";
 import { Button, ButtonLink, Callout, Crumbs, Dialog, EmptyState, ErrorCallout, Glyph, Group, KeyValue, Loading, Menu, MenuRadio, OneLine, TextField, useToast, tooLong } from "../ui/index.tsx";
@@ -435,6 +436,9 @@ function OnTheStory({ mockup, shown, page }: { mockup: MockupView; shown: Mockup
 
 // ---- The screen ---------------------------------------------------------------------------------
 
+/** A mockup as its screen shows it, in a string that changes when any of that does. */
+const mockupPrint = (m: MockupView) => JSON.stringify([m.current_version, m.title, m.archived_at]);
+
 export function MockupPage() {
   const { mockupId } = useParams();
   const { api: base, app, product, canWrite } = useProduct();
@@ -480,6 +484,17 @@ export function MockupPage() {
   const pinned = usePinnedPrototype(shown, () => {
     void e.refetch();
     if (wantsOld) void old.refetch();
+  });
+  const qc = useQueryClient();
+  // The list of mockups follows by itself; this one stays until the person says, since a new version would replace what they are doing in its pages.
+  useHeldUpdate({
+    area: "exploration",
+    shown: e.data ? mockupPrint(e.data) : null,
+    peek: () => api<MockupView>("GET", `${base}/mockups/${mockupId}`).then(mockupPrint),
+    refresh: () => {
+      for (const name of ["mockup", "mockup-versions", "mockup-version"]) void qc.invalidateQueries({ queryKey: [name, base, mockupId] });
+    },
+    message: "This mockup was updated. Refresh to see the latest.",
   });
 
   useEffect(() => {

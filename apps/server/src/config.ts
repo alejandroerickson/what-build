@@ -64,6 +64,26 @@ export interface ServerConfig {
   microsoftDomains: string[];
   webDist: string | null;
   runWorker: boolean;
+  /**
+   * Whether open tabs hear when a product changes (live.ts). On unless WHATBUILD_LIVE_UPDATES is 0:
+   * then the server publishes nothing and refuses every stream, tabs stop asking, and people refresh
+   * to see a change, as they did before it.
+   */
+  liveUpdates: boolean;
+  /**
+   * How many tabs may listen at once (WHATBUILD_LIVE_MAX_STREAMS, 25 by default), past which a tab goes
+   * without. Every one holds a request open, so this and the requests served meanwhile must fit within
+   * what the platform allows an instance at once: 25 of Cloud Run's 40 by default, so a deployment
+   * that has not changed that setting still has room for its ordinary requests.
+   */
+  liveMaxStreams: number;
+  /**
+   * How long a stream lasts before the tab opens another (WHATBUILD_LIVE_STREAM_MINUTES, 4 by default),
+   * which should end before the platform's limit on a request does, since that reads as a failed
+   * request. The default fits the five minutes a deployment may still have, and every reconnect can
+   * wake a database that suspends, so a deployment that allows longer says so.
+   */
+  liveStreamMinutes: number;
   /** When set, only these emails (or @domains) may create an account; invited people always may. */
   signupAllowlist: string[] | null;
   /** Addresses that run this instance: they create any number of organizations and give others an allowance. */
@@ -241,6 +261,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
     microsoftDomains: domainList(env["WHATBUILD_MICROSOFT_DOMAINS"]),
     webDist: env["WHATBUILD_WEB_DIST"] ?? null,
     runWorker: env["WHATBUILD_WORKER"] !== "0",
+    liveUpdates: env["WHATBUILD_LIVE_UPDATES"]?.trim() !== "0",
+    liveMaxStreams: Math.max(1, Math.floor(num(env["WHATBUILD_LIVE_MAX_STREAMS"], 25))),
+    liveStreamMinutes: Math.max(1, num(env["WHATBUILD_LIVE_STREAM_MINUTES"], 4)),
     signupAllowlist: env["WHATBUILD_SIGNUP_ALLOWLIST"] ? listOf(env["WHATBUILD_SIGNUP_ALLOWLIST"]) : null,
     instanceOwners: instanceOwnersFrom(env["WHATBUILD_INSTANCE_OWNERS"]),
     defaultTenantAllowance: Math.max(0, Math.floor(num(env["WHATBUILD_TENANT_ALLOWANCE"], 0))),

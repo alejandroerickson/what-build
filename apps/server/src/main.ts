@@ -68,7 +68,7 @@ async function main() {
       if (stopping) return;
       stopping = true;
       setTimeout(() => process.exit(0), SHUTDOWN_LIMIT_MS).unref();
-      void shutDown({ worker: worker!, parser: ports.parser, pool, tracing, ...(server ? { server } : {}) })
+      void shutDown({ worker: worker!, parser: ports.parser, pool, tracing, ...(ports.live ? { live: ports.live } : {}), ...(server ? { server } : {}) })
         .catch((e: Error) => console.error(`shutdown: ${e.message}`))
         .finally(() => process.exit(0));
     };

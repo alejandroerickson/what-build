@@ -184,6 +184,7 @@ export function uploadRoutes(env: Env & { config: ServerConfig }) {
         return completeGrant(ctx, grant.grant_id);
       });
       if (enqueued.value) env.ports.notifyJobs?.();
+      env.ports.live?.changed(grant.product_id, "evidence");
       return c.json({ uploaded: true, size: stored.size, sha256: stored.sha256, attachment: entry, next: "Added: attachment.note says what becomes of its text. No complete_upload is needed." }, 201);
     } catch (e) {
       return fail(c, e);

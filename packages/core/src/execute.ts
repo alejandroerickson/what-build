@@ -6,6 +6,7 @@ import { boundedSearch } from "./bounded-search.ts";
 import { checkConnectorScope, type ConnectorScope } from "./connector-scope.ts";
 import { AppError, conflict, invalid } from "./errors.ts";
 import { resolveAliases, wrongFieldHint } from "./field-aliases.ts";
+import { liveArea } from "./live.ts";
 import { exampleReadOnly, isGuest, resolveScope, type ScopeRef } from "./policy.ts";
 import type { Ports } from "./ports.ts";
 import { callName, capRole, connectionNeeds, LEVEL_NAMES, levelAllows, type OpContext, type OperationDef, type Principal, type Scope } from "./registry.ts";
@@ -290,6 +291,8 @@ async function run(
       )
     : await inTransaction(handle, "call");
   if (enqueued) env.ports.notifyJobs?.();
+  // Past the commit, so nobody hears of a change that did not happen. An export changes nothing the team has.
+  if (op.mutates && !op.copiesOut && scope.product) env.ports.live?.changed(scope.product.product_id, liveArea(op));
   return { result, scope };
 }
 

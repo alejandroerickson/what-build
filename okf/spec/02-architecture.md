@@ -3,7 +3,7 @@ type: Specification
 title: WhatBuild is one TypeScript application image over Postgres and an object store, and the same code runs on a laptop with only Node.
 description: The requirements behind the stack, the stack itself, the deployment shape, ports and adapters, the operation protocol, the local development contract, cross-cutting rules, and the repository layout.
 tags: [spec, architecture, stack, development, deployment]
-generated: {by: agent:claude, at: 2026-10-31}
+generated: {by: agent:claude, at: 2026-11-01}
 status: stable
 ---
 
@@ -81,12 +81,27 @@ before the service moves to it, Cloud Storage for blobs, Secret Manager for secr
 
 - **Stateless.** Any replica serves any request. Storage clients are constructed at startup and
   carried on application context, never at module scope. No module-level mutable state and no
-  in-process caches of tenant data. MCP runs in stateless mode with no session affinity.
+  in-process caches of tenant data. MCP runs in stateless mode with no session affinity. The one
+  exception is the list of tabs listening for changes, below.
+- **Open tabs hear of changes** from a stream the same process serves (`GET P/live`,
+  `apps/server/src/live.ts`), which says only which part of a product changed (`story`, `idea`,
+  `evidence`, `exploration` or `other`). A tab then reads what changed through the same operations as
+  any other read, and tabs never poll
+  ([decision](../decisions/open-tabs-hear-of-changes-through-a-stream-the-server-itself-serves.md)).
+  `execute` tells the port `LiveChanges` after a commit, as the upload relay and the worker do for
+  what they change. A stream asks the database nothing until a write comes, so it cannot keep one
+  that suspends awake, though it keeps the instance up. Each stream holds a request open, so
+  `WHATBUILD_LIVE_MAX_STREAMS` (25 by default, 100 from `deploy/cloud-run/setup.sh`) and the requests
+  served meanwhile must fit what the platform allows an instance. `WHATBUILD_LIVE_STREAM_MINUTES` (4
+  by default, 50 from the script) ends a stream before the platform's request limit does, which would
+  read as a failed request (Cloud Run's is an hour from the script). The server ends any other
+  request that takes over five minutes by itself. With more than one instance, a tab hears only of changes
+  made on its own. `WHATBUILD_LIVE_UPDATES=0` turns it all off.
 - **The worker ships in the same image** and polls the Postgres queue; a commit that enqueues work
   also wakes it. `serve` runs HTTP and the worker in one process unless `WHATBUILD_WORKER=0`;
   `worker` runs the worker alone. Under `serve` the worker sleeps a minute after the last request
-  someone signed in made to the API, MCP or sign-in (one with a good session or access token), or
-  the last job: it stops polling, so a database that suspends when no query comes can while the
+  someone signed in made to the API, MCP or sign-in (one with a good session or access token, and
+  not a tab starting to listen for changes), or the last job: it stops polling, so a database that suspends when no query comes can while the
   instance stays up, and looks again at the next such request, at a commit that enqueues work, and
   when the next job it could take falls due (a retry's `run_after`, or a lock gone stale), or, if no
   instance is up then, at the next request. A request from nobody signed in never wakes it.
@@ -180,6 +195,7 @@ interfaces; adapters live in [`apps/server/src/adapters`](../../apps/server/src/
 | `Mailer` | Sign-in links, invitations, allowance notices, an account's deletion confirmation, an organization's read-only and deletion notices to its owners, a new agent connection's notice and the daily feedback digest | SMTP, ACS with managed identity, or none (email links then off) | printed to the terminal | captured in memory |
 | `UrlFetcher` | Size-capped, SSRF-safe HTTPS fetch for `attachments.fetch_url` | yes | yes | yes |
 | `FileParser` | Parse one attachment's bytes into its readable Markdown, away from the requests | a child process per file, parsing in a worker thread, with memory and time limits | the same | the same |
+| `LiveChanges` | Tell the tabs open on a product that part of it changed: a product and an area, and nothing more | a hub in the serving process (`apps/server/src/live.ts`); absent with `WHATBUILD_LIVE_UPDATES=0` | the same | the same |
 
 ◆ Decision: ACS mail uses the official Azure Email and Identity SDKs behind `Mailer`, with
 `ManagedIdentityCredential` and an optional user-assigned identity client ID. This lets Azure

@@ -29,6 +29,29 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
   goes when they come back to the tab having connected one. The first time a visit finds no agent, a hidden panel is shown
   once (never a phone's drawer); while the panel is hidden, the pill that brings it back carries a
   small mark.
+- **Open tabs hear of changes, and a deployment on Cloud Run changes its settings to take this
+  well.** It is on by default, and needs no migration. People will notice it: Idea, Evidence with a
+  search's results, a source, assumptions, the list of mockups, the Story's tree and activity follow what
+  someone else or an agent changes, within about half a minute and never under someone typing; a Story page or a mockup's canvas stays
+  as it is, with a toast offering Refresh.
+  - **On Cloud Run,** run this before or just after taking the release, since a deploy keeps a service's
+    settings. Each tab listening holds one request open, and `deploy/cloud-run/setup.sh` now sets these for a new deployment:
+    ```sh
+    gcloud run services update "$SERVICE" --region "$REGION" --timeout 3600 --concurrency 140 --update-env-vars WHATBUILD_LIVE_MAX_STREAMS=100,WHATBUILD_LIVE_STREAM_MINUTES=50
+    ```
+    Without it, the service still works: at most 25 tabs listen, each stream ends every four minutes, and
+    each tab that reconnects can wake a database that suspends when idle, every four minutes
+    while someone is working, in place of about once in fifty. Raise `--timeout` before the minutes, or a stream
+    will run into the old limit and show as a 504.
+  - **What it costs:** an instance stays up while anyone is working in a tab, in view, which it was
+    not between their requests ([Cloud Run](cloud-run.md#what-it-costs), [Azure](azure.md#what-it-costs)).
+  - **To go without,** set `WHATBUILD_LIVE_UPDATES=0` at any time, with no release: tabs stop asking, and people refresh to
+    see a change, as before.
+  - **With more than one instance or replica,** a tab hears only of changes made on its own, and people
+    refresh to see the rest.
+  - **Behind a proxy of your own,** it must pass a streamed response on as it arrives. Nginx does for this
+    response, which says `X-Accel-Buffering: no`; one that holds responses back costs a tab six tries, and then
+    it goes without until the page is loaded again.
 
 ## v0.30.0
 

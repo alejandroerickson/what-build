@@ -81,4 +81,25 @@ describe("the Cloudflare Worker", () => {
     await worker.fetch(new Request("https://app.example.com/mcp", forged), env);
     expect(keys).toEqual(["the deployment's edge key", "the deployment's edge key", null]);
   });
+
+  it("passes a live stream on as it arrives, unread and unkept", async () => {
+    const encoder = new TextEncoder();
+    let send!: (text: string) => void;
+    const stream = new ReadableStream<Uint8Array>({
+      start(c) {
+        send = (text) => c.enqueue(encoder.encode(text));
+      },
+    });
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(stream, { headers: { "Content-Type": "text/event-stream; charset=utf-8", "Cache-Control": "no-store, no-transform", "X-Accel-Buffering": "no" } })));
+    const answer = await worker.fetch(new Request("https://app.example.com/api/v1/p/acme/team/planner/live"), env);
+    expect(answer.headers.get("content-type")).toBe("text/event-stream; charset=utf-8");
+    expect(answer.headers.get("cache-control")).toBe("no-store, no-transform");
+    const reader = answer.body!.getReader();
+    send(": listening\n\n");
+    expect(new TextDecoder().decode((await reader.read()).value)).toBe(": listening\n\n");
+    // The first part arrived with the stream still open: nothing waited for it to end.
+    send('event: change\ndata: {"areas":["story"]}\n\n');
+    expect(new TextDecoder().decode((await reader.read()).value)).toBe('event: change\ndata: {"areas":["story"]}\n\n');
+    await reader.cancel();
+  });
 });

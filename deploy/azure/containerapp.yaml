@@ -61,6 +61,10 @@ properties:
           # X-Forwarded-Host, which would loop, turn that off:
           # - name: WHATBUILD_REDIRECT_TO_PUBLIC_URL
           #   value: "0"
+          # Open tabs hear when a product changes, which keeps a replica running while anyone is
+          # working (azure.md, What it costs). To go without, and have people refresh instead:
+          # - name: WHATBUILD_LIVE_UPDATES
+          #   value: "0"
           - name: WHATBUILD_RELEASE
             value: "${WB_IMAGE_TAG}"
           # Files go to the mounted share through the filesystem adapter.

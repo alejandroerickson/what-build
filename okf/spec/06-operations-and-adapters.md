@@ -3,7 +3,7 @@ type: Specification
 title: Every capability is one registered operation, reached identically over REST and MCP.
 description: The operation registry, the error model and bounds, the full catalogue of 118 operations with their REST routes and MCP tools, authorization and agent connection levels, upload flows, the guide and the Connect page.
 tags: [spec, operations, rest, mcp, registry, uploads, guide]
-generated: {by: agent:claude, at: 2026-10-31}
+generated: {by: agent:claude, at: 2026-11-01}
 status: stable
 ---
 
@@ -624,6 +624,7 @@ GET  /api/v1/downloads/export/:export_id             an export ZIP under a downl
 GET  P/sources/:record_id/attachment?path=&version=&download=1   an attachment's bytes for the web app (ranged)
 GET  P/sources/:record_id/attachment/view?path=&version=   an uploaded HTML page, as its preview shows it
 GET  P/sources/:record_id/text                       a source's whole derived text for the web app (text/markdown)
+GET  P/live                                          a stream of which part of the product changed, for the web app's session only (text/event-stream)
 GET  P/exports/:export_id/file                       an export ZIP for the web app
 GET  P/story/pages/:page_id/versions/:version/html?theme=light|dark   Story page HTML
 GET  P/story/print?page_ids=…                        the Story print view (HTML)
