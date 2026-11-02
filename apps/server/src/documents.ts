@@ -249,6 +249,16 @@ export function bytesAsked(c: Context, v: { size: number; media_type: string }):
 }
 
 /**
+ * Past this a response goes in chunks: Cloud Run refuses one that is not chunked or streamed. It says
+ * so itself, since the server otherwise works a length out of a stream that ends at once.
+ */
+const LENGTH_SAID_UP_TO_BYTES = 32 * 1024 * 1024;
+
+function lengthHeader(bytes: number): Record<string, string> {
+  return bytes > LENGTH_SAID_UP_TO_BYTES ? { "Transfer-Encoding": "chunked" } : { "Content-Length": String(bytes) };
+}
+
+/**
  * An attachment's bytes, in ranges when asked (as media players and PDF viewers ask). Uploaded HTML
  * and SVG are only ever an attachment to save; a PDF to show inline is the one document among them.
  */
@@ -277,8 +287,8 @@ export async function streamFile(c: Context, env: Env, v: FileVersion, path: str
     const end = rangeEnd(start, m[2], v);
     if (start >= v.size || start > end) return c.body(null, 416, { "Content-Range": `bytes */${v.size}` });
     const body = await env.ports.blobs.getStream(v.blob_key, { start, end });
-    return c.body(body, 206, { ...headers, "Content-Range": `bytes ${start}-${end}/${v.size}`, "Content-Length": String(end - start + 1) });
+    return c.body(body, 206, { ...headers, "Content-Range": `bytes ${start}-${end}/${v.size}`, ...lengthHeader(end - start + 1) });
   }
   const body = await env.ports.blobs.getStream(v.blob_key);
-  return c.body(body, 200, { ...headers, "Content-Length": String(v.size) });
+  return c.body(body, 200, { ...headers, ...lengthHeader(v.size) });
 }

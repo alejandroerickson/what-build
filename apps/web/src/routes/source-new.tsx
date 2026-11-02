@@ -3,6 +3,7 @@ import { useRef, useState, type Ref } from "react";
 import { useNavigate } from "react-router";
 import { api, putWithProgress } from "../lib/api.ts";
 import { formatBytes, formatDate, plural } from "../lib/format.ts";
+import { largestFile, size, useOrganizationLimits } from "../lib/limits.ts";
 import { cannotWriteReason, useProduct } from "../lib/session.tsx";
 import { pictureOfHtml } from "../lib/html-picture.ts";
 import { frameOfFile, sendFrame } from "../lib/video-frame.ts";
@@ -25,6 +26,14 @@ type Item = UploadItem;
 
 const RECORDING = /^(audio|video)\//;
 
+/** Where a file's bytes go: the server's own route, and, for a file that may not fit it, straight to the store. */
+interface UploadGrant {
+  url: string;
+  headers: Record<string, string>;
+  max_bytes: number;
+  direct?: { url: string; headers: Record<string, string>; max_bytes: number };
+}
+
 /**
  * Upload files to a source as attachments, one after another in the order given, through grants —
  * the same path agents use. Resolves true when every file is in, so callers move on without reading
@@ -36,12 +45,19 @@ export async function uploadFiles(base: string, recordId: string, items: Item[],
     if (it.state === "done") continue;
     update(i, { state: "uploading", loaded: 0, error: undefined });
     try {
-      const grant = await api<{ url: string; headers: Record<string, string>; max_bytes: number }>("POST", `${base}/sources/${recordId}/uploads`, {
+      const grant = await api<UploadGrant>("POST", `${base}/sources/${recordId}/uploads`, {
         path: it.file.name,
         size: it.file.size,
         ...(it.file.type ? { media_type: it.file.type } : {}),
       });
-      await putWithProgress(grant.url, grant.headers, it.file, (loaded) => update(i, { loaded }));
+      const onProgress = (loaded: number) => update(i, { loaded });
+      // A file past what the server's own route takes goes straight to the store, and the server is then told to add it. The server offers that only for such a file.
+      if (grant.direct) {
+        await putWithProgress(grant.direct.url, grant.direct.headers, it.file, onProgress);
+        await api("POST", `${base}/sources/${recordId}/uploads/complete`, { path: it.file.name });
+      } else {
+        await putWithProgress(grant.url, grant.headers, it.file, onProgress);
+      }
       update(i, { state: "done", loaded: it.file.size });
       // What the server can't draw is drawn here, from the file on the person's own machine.
       const picture = it.file.type.startsWith("video/") ? frameOfFile(it.file) : /\.html?$/i.test(it.file.name) ? it.file.text().then(pictureOfHtml) : null;
@@ -54,6 +70,24 @@ export async function uploadFiles(base: string, recordId: string, items: Item[],
   return allDone;
 }
 
+/**
+ * Keeps what is past the largest file this organization takes out of a list as it is picked, so no
+ * source is made for a file that could not arrive. Until the limits are read, or where they can't
+ * be, the server refuses such a file when asked for its grant.
+ */
+export function useFilesThatFit() {
+  const { product, canWrite } = useProduct();
+  const limits = useOrganizationLimits(product.tenant.slug, canWrite);
+  const [refused, setRefused] = useState<string | null>(null);
+  const largest = limits.data ? largestFile(limits.data) : Number.POSITIVE_INFINITY;
+  const fitting = (files: File[]) => {
+    const over = files.filter((f) => f.size > largest).map((f) => f.name);
+    const one = over.length === 1;
+    setRefused(over.length ? `${over.join(", ")} ${one ? "is" : "are"} over the ${size(largest)} a file can be here, so ${one ? "it wasn’t" : "they weren’t"} added.` : null);
+    return files.filter((f) => f.size <= largest);
+  };
+  return { fitting, refused };
+}
 
 function DropZone({ label, hint, multiple, onFiles }: { label: string; hint: string; multiple: boolean; onFiles: (files: File[]) => void }) {
   const input = useRef<HTMLInputElement>(null);
@@ -126,6 +160,7 @@ export function SourceNewPage() {
   const errors = { title: !title.trim() ? "Give the source a title." : null };
   const describeOk = !errors.title && !tooLong(title, TITLE_MAX);
   const titleField = useRef<HTMLInputElement>(null);
+  const { fitting, refused } = useFilesThatFit();
   const update = (i: number, patch: Partial<Item>) => setItems((all) => all.map((x, j) => (j === i ? { ...x, ...patch } : x)));
   const run = useMutation({
     mutationFn: async () => {
@@ -220,8 +255,9 @@ export function SourceNewPage() {
               label="Attachments"
               hint="They’re read in the order listed, and the first in which WhatBuild finds text becomes the source’s text, which search reads. It reads text, Markdown, transcripts (VTT, SRT), Word, PDF, spreadsheets and HTML, but no words in images or scanned pages, and it doesn’t transcribe recordings: add a recording’s transcript too."
               multiple
-              onFiles={(f) => setItems([...items, ...f.filter((file) => !items.some((i) => i.file.name === file.name)).map((file) => ({ file, state: "waiting" as const, loaded: 0 }))])}
+              onFiles={(f) => setItems([...items, ...fitting(f).filter((file) => !items.some((i) => i.file.name === file.name)).map((file) => ({ file, state: "waiting" as const, loaded: 0 }))])}
             />
+            {refused ? <p className="field-error" role="alert">{refused}</p> : null}
             {items.length ? (
               <ul className="intake-file-list">
                 {items.map((i) => (

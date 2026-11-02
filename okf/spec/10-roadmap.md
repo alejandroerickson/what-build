@@ -3,7 +3,7 @@ type: Roadmap
 title: Phases 0 to 5 are mostly built, with an example organization every account reads and plans that set every limit; durability, data rights and public sign-up come next.
 description: What is built and what is not, phase by phase, with acceptance criteria; the open questions that remain, the ones already settled, the risks, and problems seen that are not yet explained.
 tags: [roadmap, status, phases, open-questions, risks, problems]
-generated: {by: agent:claude, at: 2026-11-01}
+generated: {by: agent:claude, at: 2026-11-02}
 status: stable
 ---
 
@@ -201,7 +201,6 @@ style. These follow.
 |---|---|
 | A document's address ends with its session | A document's address on the content site is checked again when it is used, but outlives a sign-out by up to its lifetime (30 minutes) for whoever holds it. Naming the session in the grant, by an HMAC of its hash under the grant key, would end it with the session ("sign out everywhere" included). |
 | Stable addresses for immutable versions | Every load mints a new address, and every document is `no-store`, so a browser keeps nothing between loads. A Story page's or a mockup page's version never changes: an address whose expiry is rounded up, as a prototype's is, with `private, max-age`, would make flipping through the Story faster. |
-| Uploads past the relay from the web app | The web app always uploads through the relay, which takes 25 MiB, whatever a plan's file limit is; only agents use the direct address `SIGNED_URLS=1` offers. Using it needs the bucket to allow the app's origin, and a download of a file past Cloud Run's 32 MiB for a response not streamed should be tried on a deployment first. |
 | Long recordings | A recording plays from the attachment route in pieces, and a file is at most 100 MB, which is minutes of phone video. An hour-long call would want direct upload and playback straight from the bucket (the port has `signedDownloadUrl`, unused), a plan that sends a person more in a day, and, for several qualities, a conversion service. |
 | Images, audio and video from the content site | They are subresources of the app's pages, not documents, and SVG is never served inline, so they stay on the app's origin. Moving them would need `img-src` and `media-src` to name the content site and a grant for each file. |
 | The print view's address | The print view's grant names each page's version, up to 50, so its address is long. Holding the composed document in a short-lived row, as a Story preview is, would shorten it. |

@@ -3,7 +3,7 @@ type: Specification
 title: Every object in a product, with its fields, limits and invariants, as the REST and MCP wire sees it.
 description: The common envelope (ids, etags, attribution, revisions), outcomes, sources and their tags, attachments, comments, summaries and notes, evidence links, the assumption register, views, activity, Story, mockups, feedback, the product bundle, and the storage layout.
 tags: [spec, data-model, schema, revisions, story, mockups, export]
-generated: {by: agent:claude, at: 2026-10-31}
+generated: {by: agent:claude, at: 2026-11-02}
 status: stable
 ---
 
@@ -287,7 +287,8 @@ each attachment as:
   it: an agent that can see it writes them as the source's derived text.
 
 Default limits: **100 MB per attachment** (`WHATBUILD_FILE_MAX_BYTES`), 25 MiB through the
-service's own relay, **50 attachments per source** (`409 too_many_attachments`), and 25 MiB read
+service's own relay, which is the most a deployment takes unless its store signs direct uploads
+([§6.7](06-operations-and-adapters.md)), **50 attachments per source** (`409 too_many_attachments`), and 25 MiB read
 of each (`WHATBUILD_PARSE_CAP_BYTES`; a larger one is stored, not read). A per-tenant stored-bytes
 quota is planned ([§9.2](09-data-lifecycle.md)).
 **No operation accepts base64 file content.** Upload flows: [§6.7](06-operations-and-adapters.md).

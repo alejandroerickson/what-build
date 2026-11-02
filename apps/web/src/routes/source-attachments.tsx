@@ -9,7 +9,7 @@ import type { Attachment, RecordFull } from "../lib/types.ts";
 import { Button, Dialog, EmptyState, ErrorCallout, Glyph, Loading, Menu, MenuItem, Sheet, SheetHeader, StatusBadge, useToast, type GlyphName } from "../ui/index.tsx";
 import { ImageViewer } from "./image-viewer.tsx";
 import { attachmentGlyph } from "./source-face.tsx";
-import { uploadFiles, type UploadItem } from "./source-new.tsx";
+import { uploadFiles, useFilesThatFit, type UploadItem } from "./source-new.tsx";
 import { UseAttachmentText } from "./source-text.tsx";
 
 /** An attachment's bytes, through the app's own route; `download` asks the browser to save it. */
@@ -336,6 +336,7 @@ export function AddAttachments({ record, onClose }: { record: RecordFull; onClos
   const toast = useToast();
   const [items, setItems] = useState<UploadItem[]>([]);
   const [running, setRunning] = useState(false);
+  const { fitting, refused } = useFilesThatFit();
   const run = async () => {
     setRunning(true);
     const allDone = await uploadFiles(base, record.record_id, items, (i, patch) => setItems((all) => all.map((x, j) => (j === i ? { ...x, ...patch } : x))));
@@ -374,8 +375,9 @@ export function AddAttachments({ record, onClose }: { record: RecordFull; onClos
         className="source-file-input"
         multiple
         aria-label="Attachments to add"
-        onChange={(e) => setItems([...(e.target.files ?? [])].map((file) => ({ file, state: "waiting" as const, loaded: 0 })))}
+        onChange={(e) => setItems(fitting([...(e.target.files ?? [])]).map((file) => ({ file, state: "waiting" as const, loaded: 0 })))}
       />
+      {refused ? <p className="field-error" role="alert">{refused}</p> : null}
       {items.length ? (
         <ul className="source-uploads" aria-live="polite">
           {items.map((i) => (

@@ -22,10 +22,12 @@ export class GcsBlobStore implements BlobStore {
   private readonly bucket: Bucket;
   readonly signedUploadUrl?: BlobStore["signedUploadUrl"];
   readonly signedDownloadUrl?: BlobStore["signedDownloadUrl"];
+  readonly directUploadSource?: string;
 
   constructor(bucketName: string, signedUrls: boolean) {
     this.bucket = new Storage().bucket(bucketName);
     if (signedUrls) {
+      this.directUploadSource = `https://storage.googleapis.com/${bucketName}/`;
       this.signedUploadUrl = async (key, contentType, expiresAt, maxBytes) => {
         const { config, headers } = directUploadSigning(contentType, expiresAt, maxBytes);
         const [url] = await this.bucket.file(key).getSignedUrl(config);

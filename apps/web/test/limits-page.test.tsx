@@ -1,6 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act } from "react";
 import { createRoot } from "react-dom/client";
+import { renderToStaticMarkup } from "react-dom/server";
 import { MemoryRouter, Route, Routes } from "react-router";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -84,6 +85,7 @@ vi.mock("../src/lib/api.ts", async (original) => ({
       deployment_limits: [
         { key: "file_max_bytes", label: "File size", value: 100 * MB, unit: "bytes", set_by: "WHATBUILD_FILE_MAX_BYTES" },
         { key: "relay_max_bytes", label: "File size through the upload relay", value: 25 * MB, unit: "bytes", set_by: "WHATBUILD_RELAY_MAX_BYTES" },
+        { key: "upload_max_bytes", label: "Largest file that can be uploaded", value: 25 * MB, unit: "bytes", set_by: null },
         { key: "parse_cap_bytes", label: "Read per attachment", value: 20 * MB, unit: "bytes", set_by: "WHATBUILD_PARSE_CAP_BYTES" },
         { key: "parse_memory_bytes", label: "Memory for reading one attachment", value: 384 * MB, unit: "bytes", set_by: "WHATBUILD_PARSE_MEMORY_MB" },
         { key: "attachments_per_source", label: "Attachments on a source", value: 50, unit: "attachments", set_by: null },
@@ -274,5 +276,18 @@ describe("Plan", () => {
     expect(text).toContain("Limits of this deployment");
     expect(text).toContain("WHATBUILD_PARSE_MEMORY_MB");
     expect([...host.querySelectorAll("th[role=columnheader]")].map((th) => th.textContent)).toContain("Used");
+  });
+});
+
+describe("the plans side by side", () => {
+  it("never says a plan takes a larger file than the deployment can, in every limit either", async () => {
+    const { PlanComparison } = await import("../src/routes/plan-comparison.tsx");
+    const file = { key: "file_max_bytes", group: "size", label: "File size", unit: "bytes", per: "Each file", refusal: "413 too_large", help: "" };
+    const limits = { file_max_bytes: 100 * MB };
+    const html = renderToStaticMarkup(
+      <PlanComparison plans={[{ id: "pro", name: "Pro", about: "", price: null, limits }]} limits={[file] as never} fileMaxBytes={25 * MB} every="open" />,
+    );
+    expect(html).toContain("25 MB");
+    expect(html).not.toContain("100 MB");
   });
 });

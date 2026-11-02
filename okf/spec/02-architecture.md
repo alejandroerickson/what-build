@@ -3,7 +3,7 @@ type: Specification
 title: WhatBuild is one TypeScript application image over Postgres and an object store, and the same code runs on a laptop with only Node.
 description: The requirements behind the stack, the stack itself, the deployment shape, ports and adapters, the operation protocol, the local development contract, cross-cutting rules, and the repository layout.
 tags: [spec, architecture, stack, development, deployment]
-generated: {by: agent:claude, at: 2026-11-01}
+generated: {by: agent:claude, at: 2026-11-02}
 status: stable
 ---
 
@@ -175,9 +175,13 @@ before the service moves to it, Cloud Storage for blobs, Secret Manager for secr
   Neither path is ever redirected to the public URL.
 - **One upload path for everyone.** An upload grant always points at the service's own relay
   (at most 25 MiB, under Cloud Run's 32 MiB request cap), because agents' sandboxes often cannot
-  reach the object store. When the bucket can sign URLs (`WHATBUILD_GCS_SIGNED_URLS=1`), the grant
-  also offers a direct `PUT` URL for files up to the per-file limit (100 MB), signed for at most
-  the grant's size so the bucket refuses a larger body. Either way the application registers the
+  reach the object store. When the bucket can sign URLs (`WHATBUILD_GCS_SIGNED_URLS=1`) and the
+  file may not fit the relay, the grant also offers a direct `PUT` URL for files up to the per-file
+  limit (100 MB), signed for at most the grant's size so the bucket refuses a larger body. The web
+  app uses it for such a file, so the bucket lets the app's origin `PUT`, and the app's pages name
+  that bucket and no other in `connect-src`
+  ([decision](../decisions/a-file-past-the-relay-goes-straight-to-the-bucket-from-the-web-app-too.md)).
+  Either way the application registers the
   file from the stored object's own size, hash and sniffed type, never from caller claims: a
   direct upload's size is read before any of its bytes, and its hash from the bytes as they stream
   ([§6.7](06-operations-and-adapters.md)). A mockup canvas uploaded as a ZIP takes the relay only

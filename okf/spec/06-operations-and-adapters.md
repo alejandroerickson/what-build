@@ -1,9 +1,9 @@
 ---
 type: Specification
 title: Every capability is one registered operation, reached identically over REST and MCP.
-description: The operation registry, the error model and bounds, the full catalogue of 119 operations with their REST routes and MCP tools, authorization and agent connection levels, upload flows, the guide and the Connect page.
+description: The operation registry, the error model and bounds, the full catalogue of 120 operations with their REST routes and MCP tools, authorization and agent connection levels, upload flows, the guide and the Connect page.
 tags: [spec, operations, rest, mcp, registry, uploads, guide]
-generated: {by: agent:claude, at: 2026-11-01}
+generated: {by: agent:claude, at: 2026-11-02}
 status: stable
 ---
 
@@ -36,7 +36,7 @@ defineOperation({
 });
 ```
 
-`OPERATIONS` in `packages/core/src/index.ts` lists all 119. From that list, and from nothing else,
+`OPERATIONS` in `packages/core/src/index.ts` lists all 120. From that list, and from nothing else,
 the server builds the REST routes, the MCP tools with their `action` enums and JSON Schemas (via
 `z.toJSONSchema`), and the `describe` responses. The web app calls the same REST routes through
 one small hand-written client (`apps/web/src/lib/api.ts`); there is no generated client and no
@@ -45,8 +45,9 @@ OpenAPI document.
 A **parity test** (`apps/server/test/mcp.test.ts`, "adapter parity") fails if any operation is
 unreachable from either adapter, or if any tool action exists that is not in the registry. The one
 exception is what only a person does in the web app (`webOnly`): renaming an organization or a
-product, deleting an organization or one's own account and their previews, and running the instance
-(its owners' actions and removing an account), which MCP never lists and `execute` refuses to anything but the web app.
+product, deleting an organization or one's own account and their previews, running the instance
+(its owners' actions and removing an account), and a person's browser giving a video or a web page
+its first picture (`attachments.give_picture`), which MCP never lists and `execute` refuses to anything but the web app.
 
 `execute` (`packages/core/src/execute.ts`) is the one way an operation runs, whichever door the
 call came through:
@@ -245,7 +246,7 @@ it always has.
 
 ### The operation catalogue
 
-All 119 operations, generated from `OPERATIONS`. The MCP tool is the operation name's first half;
+All 120 operations, generated from `OPERATIONS`. The MCP tool is the operation name's first half;
 standalone tools (—) take their fields directly. "Needs" is the minimum role
 ([§3.5](03-accounts-teams-and-identity.md)); `members` write actions check admin at the level
 being changed inside the handler.
@@ -323,6 +324,7 @@ being changed inside the handler.
 | `attachments` | `fetch_url` | `POST P/sources/:record_id/fetch` | editor |
 | `attachments` | `get_download` | `POST P/sources/:record_id/downloads` | viewer |
 | `attachments` | `set_frame` | `POST P/sources/:record_id/frame` | editor |
+| `attachments` | `give_picture` (web app only) | `POST P/sources/:record_id/first-picture` | viewer |
 | `derived` | `manifest` | `GET P/sources/:record_id/derived/manifest` | viewer |
 | `derived` | `text` | `GET P/sources/:record_id/derived/text` | viewer |
 | `derived` | `write_text` | `PUT P/sources/:record_id/derived/text` | editor |
@@ -1073,12 +1075,16 @@ of preference for an agent (`packages/core/src/ops/attachments.ts`):
    (`WHATBUILD_RELAY_MAX_BYTES`). It refuses a larger body with `413 too_large`, at once when
    `Content-Length` says so and otherwise when what arrives passes the limit, then reads and drops
    the rest, so the sender's connection can take its next request. When the deployment enables
-   signed URLs (`WHATBUILD_GCS_SIGNED_URLS=1`), the grant also carries a `direct` block for a PUT straight to
-   the bucket, up to the per-file limit of 100 MB (`WHATBUILD_FILE_MAX_BYTES`). The direct URL is
+   signed URLs (`WHATBUILD_GCS_SIGNED_URLS=1`) and the file may not fit the relay (what the grant
+   takes is more than the relay does, and `size`, if given, is too), the grant also carries a `direct` block for a PUT straight to
+   the bucket, up to the per-file limit of 100 MB (`WHATBUILD_FILE_MAX_BYTES`), or what the plan takes when that is lower ([§9.7](09-data-lifecycle.md)). The direct URL is
    signed with that limit as the allowed body size (`x-goog-content-length-range`, among the
    headers to send), so the bucket refuses a larger body; `attachments.complete_upload` reads the
    object's size first, discards an object over the grant's size with `413 too_large`, and hashes
-   the bytes as it streams them, never trusting a hash stored beside them.
+   the bytes as it streams them, before its transaction and so with no database connection held,
+   never trusting a hash stored beside them. Without signed URLs a `size` past the relay is refused
+   at once with `413 too_large`. Bytes nobody completes are deleted with their grant, a day after
+   it expires.
 2. **URL fetch** — `attachments.fetch_url { record_id, url, path? }` for public HTTPS material:
    public addresses only, both an address written in the URL (in any notation the URL parser
    accepts) and every address a name resolves to, checked again on each redirect; size-capped
@@ -1090,7 +1096,8 @@ of preference for an agent (`packages/core/src/ops/attachments.ts`):
    route fetches only its shell; when the URL has a fragment, the result's `warnings` says so.
 3. **Words, not a file** — `derived.write_text { record_id, content }` writes a source's text
    directly, up to 2,000,000 characters ([§5.4](05-derived-layer.md)); a source can be words alone.
-4. **Web upload** — a person adds the source through the web app's intake. This covers clients with no file
+4. **Web upload** — a person adds the source through the web app's intake, under the same grants: the
+   relay's address, or, for a file past the relay, the `direct` one and then `complete_upload`. This covers clients with no file
    tools at all; file content never goes in a tool argument, base64 included.
 
 **A mockup canvas** comes in the same way, through the relay only.
@@ -1108,7 +1115,8 @@ A source holds at most 50 attachments (`409 too_many_attachments`). No operation
 content. `attachments.get_download { record_id, path, file_version_id? }` returns a short-lived
 grant (`GET /api/v1/downloads/:file_version_id` with a grant header) for an agent to read an
 attachment's original bytes, to check what was read from it against the original or read what
-reading it dropped.
+reading it dropped. Past 32 MiB an answer is sent in chunks, without a length, since Cloud Run
+refuses one that is neither chunked nor streamed.
 
 ## 6.8 The guide and the Connect page
 

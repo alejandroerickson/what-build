@@ -151,7 +151,7 @@ function NoPreview({ recordId, a, children }: { recordId: string; a: ListedAttac
 }
 
 /** One attachment in the preview: what it looks like when it has a picture, and what it says when it can be read. */
-function AttachmentPage({ s, a, settled, canWrite }: { s: ListedSource; a: ListedAttachment; settled: boolean; canWrite: boolean }) {
+function AttachmentPage({ s, a, settled, canGivePicture }: { s: ListedSource; a: ListedAttachment; settled: boolean; canGivePicture: boolean }) {
   const { api: base } = useProduct();
   const [whole, setWhole] = useState(false);
   const [zoomed, setZoomed] = useState(false);
@@ -161,16 +161,16 @@ function AttachmentPage({ s, a, settled, canWrite }: { s: ListedSource; a: Liste
   const kind = pic?.made_from === "image" ? "image" : previewKind(a);
   const url = attachmentUrl(base, s.record_id, a.path);
 
-  // Someone who can write gives an HTML page its picture when they stop on it, as they do a video when it plays.
+  // Whoever stops on an HTML page gives it its picture, as they do a video when it plays, and everyone in the product then sees it.
   useEffect(() => {
-    if (kind !== "html" || !settled || !canWrite || pic?.thumb_url || (a.size ?? 0) > HTML_DRAWN_MAX_BYTES || triedToDraw.has(a.file_version_id)) return;
+    if (kind !== "html" || !settled || !canGivePicture || pic?.thumb_url || (a.size ?? 0) > HTML_DRAWN_MAX_BYTES || triedToDraw.has(a.file_version_id)) return;
     triedToDraw.add(a.file_version_id);
     void fetch(url)
       .then((r) => (r.ok ? r.text() : null))
       .then((html) => (html ? pictureOfHtml(html) : null))
       .then((picture) => (picture ? sendFrame(base, s.record_id, a.path, picture) : undefined))
       .catch(() => undefined);
-  }, [kind, settled, canWrite, pic?.thumb_url, a.size, a.file_version_id, a.path, url, base, s.record_id]);
+  }, [kind, settled, canGivePicture, pic?.thumb_url, a.size, a.file_version_id, a.path, url, base, s.record_id]);
   const readable = a.text.status === "ready";
   const isDeck = pic?.made_from === "deck" || extensionLabel(a.path) === "PPTX";
 
@@ -237,7 +237,7 @@ function AttachmentPage({ s, a, settled, canWrite }: { s: ListedSource; a: Liste
         downloadUrl={attachmentUrl(base, s.record_id, a.path, true)}
         poster={pic?.preview_url ?? null}
         onPlaying={
-          kind === "video" && canWrite && !pic?.thumb_url
+          kind === "video" && canGivePicture && !pic?.thumb_url
             ? (video) => {
                 void frameOf(video).then((frame) => (frame ? sendFrame(base, s.record_id, a.path, frame) : undefined));
               }
@@ -309,7 +309,7 @@ function ZoomedImages({ s, path, onClose }: { s: ListedSource; path: string; onC
  * kinds, so the summary being HTML one day is one more kind of page.
  */
 export function SourcePreview({ s, page, onPage, onClose, to, phone }: { s: ListedSource; page: number; onPage: (n: number) => void; onClose: () => void; to: string; phone: boolean }) {
-  const { canWrite } = useProduct();
+  const { canGivePicture } = useProduct();
   const pages = previewPages(s);
   const at = Math.min(Math.max(0, page), Math.max(0, pages.length - 1));
   const shown = pages[at];
@@ -341,7 +341,7 @@ export function SourcePreview({ s, page, onPage, onClose, to, phone }: { s: List
       ) : shown.kind === "text" ? (
         <TextPage s={s} settled={settled} />
       ) : (
-        <AttachmentPage key={shown.a.file_version_id} s={s} a={shown.a} settled={settled} canWrite={canWrite} />
+        <AttachmentPage key={shown.a.file_version_id} s={s} a={shown.a} settled={settled} canGivePicture={canGivePicture} />
       )}
       {pages.length > 1 ? (
         <footer className="preview-pager">

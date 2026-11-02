@@ -5,8 +5,9 @@ import { json } from "../db.ts";
 import { AppError, conflict, invalid, notFound, rateLimited, tooLarge } from "../errors.ts";
 import { extensionForMediaType, extensionOf, mediaTypeFor, validFilePath } from "../media.ts";
 import { pictureSource } from "../pictures.ts";
-import { defineOperation, type OpContext, type Principal } from "../registry.ts";
-import { countBytes, mayFetchUrl, tallyOf, uploadLimit } from "../limits.ts";
+import { defineOperation, type OpContext, type Principal, type PrepareContext } from "../registry.ts";
+import { countBytes, mayFetchUrl, sizeInWords, tallyOf, uploadLimit } from "../limits.ts";
+import type { Ports } from "../ports.ts";
 import { id } from "../schemas.ts";
 import { newEtag, newId, sha256OfStream } from "../util.ts";
 import { attachmentEntries, duplicateWarnings, insertRecord, loadRecord, recordMetadata, recordSummary } from "./sources.ts";
@@ -64,6 +65,11 @@ async function checkTarget(ctx: OpContext, recordId: string, path: string) {
   if (count > MAX_ATTACHMENTS) throw conflict("too_many_attachments", `A source holds at most ${MAX_ATTACHMENTS} attachments.`);
 }
 
+/** The largest file this deployment can take: past the relay's limit, only a store that signs direct uploads takes it. */
+export function uploadMaxBytes(ports: Pick<Ports, "blobs" | "config">): number {
+  return ports.blobs.signedUploadUrl ? ports.config.fileMaxBytes : Math.min(ports.config.fileMaxBytes, ports.config.relayMaxBytes);
+}
+
 export function blobKeyFor(tenant: string, recordId: string, fileVersionId: string) {
   return `t/${tenant}/r/${recordId}/f/${fileVersionId}`;
 }
@@ -74,10 +80,12 @@ async function issueGrant(
   input: { path: string; media_type?: string | undefined; size?: number | undefined },
 ) {
   const cfg = ctx.ports.config;
-  // In an organization whose plan sets limits, an upload meets them, through the relay only, where the size is enforced as the bytes arrive.
+  // In an organization whose plan sets limits, an upload meets them.
   const limited = ctx.limits && !ctx.limits.guest ? ctx.limits : null;
   const maxBytes = limited ? await uploadLimit(ctx.db, limited, ctx.principal.account_id, input, cfg.fileMaxBytes) : cfg.fileMaxBytes;
-  if (input.size !== undefined && input.size > maxBytes) throw tooLarge(`Files are limited to ${maxBytes} bytes.`, { limit: maxBytes });
+  // Past the relay a file needs a store that signs direct uploads, so without one it is refused before any bytes move.
+  const takes = Math.min(maxBytes, uploadMaxBytes(ctx.ports));
+  if (input.size !== undefined && input.size > takes) throw tooLarge(`The file is ${sizeInWords(input.size)}; files here are limited to ${sizeInWords(takes)}.`, { limit: takes });
   const grant_id = newId();
   const file_version_id = newId();
   const blob_key = blobKeyFor(tenantId(ctx), recordId, file_version_id);
@@ -92,7 +100,9 @@ async function issueGrant(
     .execute();
   const token = ctx.ports.grants.sign({ v: 1, purpose: "upload", g: grant_id, t: tenantId(ctx), exp: Math.floor(expiresAt.getTime() / 1000) });
   let direct: { url: string; method: "PUT"; headers: Record<string, string>; max_bytes: number } | undefined;
-  if (ctx.ports.blobs.signedUploadUrl && !limited) {
+  // Only for what may not fit the relay, where the size is enforced as the bytes arrive: the bucket holds a direct upload to the size it is signed for.
+  const mayPassRelay = maxBytes > cfg.relayMaxBytes && (input.size === undefined || input.size > cfg.relayMaxBytes);
+  if (ctx.ports.blobs.signedUploadUrl && mayPassRelay) {
     const signed = await ctx.ports.blobs.signedUploadUrl(blob_key, mediaType, expiresAt, maxBytes);
     direct = { url: signed.url, method: "PUT", headers: signed.headers, max_bytes: maxBytes };
   }
@@ -195,32 +205,42 @@ export const createUploads = defineOperation({
   },
 });
 
+/** What a direct upload left in the store. */
+interface Landed {
+  size: number;
+  sha256: string;
+}
+
+/**
+ * Read what a direct upload left, its size before any of its bytes. A file can be 100 MB, so this
+ * runs before the transaction, and holds no database connection while the bytes go by.
+ */
+async function measureLanded(ctx: PrepareContext, g: { path: string; blob_key: string | null; max_bytes: number | string }): Promise<Landed> {
+  const stat = await ctx.ports.blobs.stat(g.blob_key!);
+  if (!stat) throw notFound(`No bytes have arrived for ${g.path} yet. PUT the file to the grant’s url first, then call complete_upload again.`);
+  const limit = Number(g.max_bytes);
+  if (stat.size > limit) {
+    await ctx.ports.blobs.delete(g.blob_key!);
+    throw tooLarge(`The file that arrived for ${g.path} is ${stat.size} bytes; this grant takes at most ${limit}. It was discarded and nothing was added.`, { limit });
+  }
+  // The hash comes from the bytes themselves, read as a stream, never from metadata an uploader could set.
+  return { size: stat.size, sha256: await sha256OfStream(await ctx.ports.blobs.getStream(g.blob_key!)) };
+}
+
 /**
  * Register the bytes behind a grant as an attachment version, and queue it to be read: the stored
  * object's own size, hash and type decide the entry, never the caller's claims. Idempotent: a
- * repeat returns the entry.
+ * repeat returns the entry. `landed` is what a direct upload left; the relay has recorded its own.
  */
-export async function completeGrant(ctx: OpContext, grantId: string) {
+export async function completeGrant(ctx: OpContext, grantId: string, landed?: Landed) {
   const g = await ctx.db.selectFrom("upload_grants").selectAll().where("grant_id", "=", grantId).forUpdate().executeTakeFirstOrThrow();
   const record = await loadRecord(ctx, g.record_id);
   if (!g.completed_at) {
-    let size = g.size === null ? null : Number(g.size);
-    let sha = g.sha256;
-    if (size === null) {
-      // A direct-to-store upload: read what actually landed, its size before any of its bytes.
-      const stat = await ctx.ports.blobs.stat(g.blob_key!);
-      if (!stat)
-        throw notFound(`No bytes have arrived for ${g.path} yet. PUT the file to the grant’s url first, then call complete_upload again.`);
-      const limit = Number(g.max_bytes);
-      if (stat.size > limit) {
-        await ctx.ports.blobs.delete(g.blob_key!);
-        throw tooLarge(`The file that arrived for ${g.path} is ${stat.size} bytes; this grant takes at most ${limit}. It was discarded and nothing was added.`, { limit });
-      }
-      size = stat.size;
-      // The hash comes from the bytes themselves, read as a stream, never from metadata an uploader could set.
-      sha = await sha256OfStream(await ctx.ports.blobs.getStream(g.blob_key!));
-      await ctx.db.updateTable("upload_grants").set({ uploaded_at: ctx.now, size, sha256: sha }).where("grant_id", "=", g.grant_id).execute();
-    }
+    const direct = g.size === null;
+    const size = direct ? landed?.size : Number(g.size);
+    const sha = direct ? landed?.sha256 : g.sha256;
+    if (size === undefined || !sha) throw notFound(`No bytes have arrived for ${g.path} yet. PUT the file to the grant’s url first, then call complete_upload again.`);
+    if (direct) await ctx.db.updateTable("upload_grants").set({ uploaded_at: ctx.now, size, sha256: sha }).where("grant_id", "=", g.grant_id).execute();
     if (record.archived_at) throw conflict("record_archived", `The file for ${g.path} arrived, but source ${record.record_id} was archived meanwhile; restore it, then call complete_upload again. Nothing was added.`);
     const fileVersionId = g.blob_key!.split("/").pop()!;
     let file = await ctx.db.selectFrom("files").selectAll().where("record_id", "=", g.record_id).where("path", "=", g.path).executeTakeFirst();
@@ -299,17 +319,23 @@ export const completeUpload = defineOperation({
   input: z.strictObject({ record_id: id("source"), path: z.string().min(1).max(200) }),
   rest: { method: "POST", path: "/sources/:record_id/uploads/complete" },
   mcp: { tool: "attachments", action: "complete_upload" },
-  async handler(ctx, input) {
-    await loadRecord(ctx, input.record_id);
-    const g = await ctx.db
-      .selectFrom("upload_grants")
-      .select(["grant_id", "completed_at", "expires_at", "uploaded_at"])
-      .where("record_id", "=", input.record_id)
-      .where("path", "=", input.path)
-      .orderBy("created_at", "desc")
-      .executeTakeFirst();
+  async prepare(ctx, input) {
+    const g = await ctx.read(async (c) => {
+      await loadRecord(c, input.record_id);
+      return c.db
+        .selectFrom("upload_grants")
+        .select(["grant_id", "completed_at", "path", "blob_key", "max_bytes", "size"])
+        .where("record_id", "=", input.record_id)
+        .where("path", "=", input.path)
+        .orderBy("created_at", "desc")
+        .executeTakeFirst();
+    });
     if (!g) throw notFound(`There is no upload grant for ${input.path} on this source. Call attachments_write(action="request_upload") first.`);
-    return completeGrant(ctx, g.grant_id);
+    return { grant_id: g.grant_id, ...(g.completed_at || g.size !== null ? {} : { landed: await measureLanded(ctx, g) }) };
+  },
+  async handler(ctx, input, { grant_id, landed }) {
+    await loadRecord(ctx, input.record_id);
+    return completeGrant(ctx, grant_id, landed);
   },
 });
 
@@ -428,6 +454,28 @@ export const getDownload = defineOperation({
 /** The longest frame `attachments.set_frame` takes, in base64: a small picture, far short of a photo. */
 const FRAME_MAX_CHARS = 700_000;
 
+const frameInput = {
+  record_id: id("source"),
+  path: z.string().min(1).max(200),
+  image_base64: z.string().min(1).max(FRAME_MAX_CHARS).regex(/^[A-Za-z0-9+/]+={0,2}$/, "image_base64 is base64"),
+};
+
+/** Keep a frame as the picture of a video or an HTML page, unless it has one and this is not to replace it. The worker checks it and makes its copies. */
+async function takeFrame(ctx: OpContext, input: { record_id: string; path: string; image_base64: string; replace: boolean }) {
+  await loadRecord(ctx, input.record_id, { live: true });
+  const f = await ctx.db.selectFrom("files").select("current_version_id").where("record_id", "=", input.record_id).where("path", "=", input.path).executeTakeFirst();
+  if (!f?.current_version_id) throw notFound(`No attachment ${input.path} on this source.`);
+  const v = await ctx.db.selectFrom("file_versions").select("media_type").where("file_version_id", "=", f.current_version_id).executeTakeFirstOrThrow();
+  if (!v.media_type.startsWith("video/") && v.media_type !== "text/html" && !/\.html?$/i.test(input.path))
+    throw invalid("not_a_video", `${input.path} is ${v.media_type}: only a video or an HTML page is given a picture this way. Another attachment's picture, if it can have one, is made when it arrives.`);
+  const has = await ctx.db.selectFrom("attachment_pictures").select("file_version_id").where("file_version_id", "=", f.current_version_id).where("status", "=", "ready").executeTakeFirst();
+  if (has && !input.replace) return { record_id: input.record_id, path: input.path, made: false };
+  const frame_key = `t/${tenantId(ctx)}/r/${input.record_id}/p/${newId()}/frame`;
+  await ctx.ports.blobs.put(frame_key, new Uint8Array(Buffer.from(input.image_base64, "base64")), { contentType: "application/octet-stream" });
+  await ctx.enqueue("make_picture", { record_id: input.record_id, file_version_id: f.current_version_id, frame_key });
+  return { record_id: input.record_id, path: input.path, made: true };
+}
+
 export const setFrame = defineOperation({
   name: "attachments.set_frame",
   scope: "product",
@@ -435,29 +483,36 @@ export const setFrame = defineOperation({
   mutates: true,
   summary: "Give a video or an HTML page its picture, as a small image, which people see in the list of sources and the preview.",
   description:
-    `WhatBuild neither plays videos nor draws web pages itself, so these have no picture in the list until they are given one: the web app sends it when someone who can write to the product uploads or opens the attachment, and an agent can send one it took. image_base64 is an image of at most ${Math.floor((FRAME_MAX_CHARS * 3) / 4 / 1024)} KB, base64; it is checked and made small by the worker, and shows once that has run. One that already has its picture keeps it unless replace is true, and then made is false. Refuses any other attachment (a picture of an image, a PDF or a deck is made when it arrives). Changes neither the source's etag nor its activity: a picture says nothing of what the source holds.`,
-  input: z.strictObject({
-    record_id: id("source"),
-    path: z.string().min(1).max(200),
-    image_base64: z.string().min(1).max(FRAME_MAX_CHARS).regex(/^[A-Za-z0-9+/]+={0,2}$/, "image_base64 is base64"),
-    replace: z.boolean().default(false).describe("Replace the frame the video has."),
-  }),
+    `WhatBuild neither plays videos nor draws web pages itself, so these have no picture in the list until they are given one: the web app sends it when someone uploads the attachment or stops on it, and an agent can send one it took. image_base64 is an image of at most ${Math.floor((FRAME_MAX_CHARS * 3) / 4 / 1024)} KB, base64; it is checked and made small by the worker, and shows once that has run. One that already has its picture keeps it unless replace is true, and then made is false. Refuses any other attachment (a picture of an image, a PDF or a deck is made when it arrives). Changes neither the source's etag nor its activity: a picture says nothing of what the source holds.`,
+  input: z.strictObject({ ...frameInput, replace: z.boolean().default(false).describe("Replace the frame the video has.") }),
   rest: { method: "POST", path: "/sources/:record_id/frame" },
   mcp: { tool: "attachments", action: "set_frame" },
   async handler(ctx, input) {
-    await loadRecord(ctx, input.record_id, { live: true });
-    const f = await ctx.db.selectFrom("files").select("current_version_id").where("record_id", "=", input.record_id).where("path", "=", input.path).executeTakeFirst();
-    if (!f?.current_version_id) throw notFound(`No attachment ${input.path} on this source.`);
-    const v = await ctx.db.selectFrom("file_versions").select("media_type").where("file_version_id", "=", f.current_version_id).executeTakeFirstOrThrow();
-    if (!v.media_type.startsWith("video/") && v.media_type !== "text/html" && !/\.html?$/i.test(input.path))
-      throw invalid("not_a_video", `${input.path} is ${v.media_type}: only a video or an HTML page is given a picture this way. Another attachment's picture, if it can have one, is made when it arrives.`);
-    const has = await ctx.db.selectFrom("attachment_pictures").select("file_version_id").where("file_version_id", "=", f.current_version_id).where("status", "=", "ready").executeTakeFirst();
-    if (has && !input.replace) return { record_id: input.record_id, path: input.path, made: false };
-    const frame_key = `t/${tenantId(ctx)}/r/${input.record_id}/p/${newId()}/frame`;
-    await ctx.ports.blobs.put(frame_key, new Uint8Array(Buffer.from(input.image_base64, "base64")), { contentType: "application/octet-stream" });
-    await ctx.enqueue("make_picture", { record_id: input.record_id, file_version_id: f.current_version_id, frame_key });
-    return { record_id: input.record_id, path: input.path, made: true };
+    return takeFrame(ctx, input);
   },
 });
 
-export const attachmentOps = [requestUpload, createUpload, createUploads, completeUpload, fetchUrl, getDownload, setFrame];
+/**
+ * Whoever can read a source gives a video or a page the first picture it lacks, from their own
+ * browser, because no server here draws them and most who look at evidence may only read it. It
+ * never replaces one, and an agent, which has `set_frame`, is not offered it: a viewer's agent has
+ * no tool that writes.
+ */
+export const givePicture = defineOperation({
+  name: "attachments.give_picture",
+  scope: "product",
+  access: "read",
+  mutates: true,
+  webOnly: "a person does it in the web app, by stopping on the attachment; an agent that may write sends a picture with attachments_write(action=\"set_frame\")",
+  summary: "Give a video or an HTML page that has no picture its first one, from a person's browser.",
+  description:
+    "What the web app sends when someone who can read a source uploads a video or a web page or stops on one. It takes what set_frame takes but replace: one that has its picture keeps it, and then made is false. Refused to a guest of the example organization, who changes nothing there.",
+  input: z.strictObject(frameInput),
+  rest: { method: "POST", path: "/sources/:record_id/first-picture" },
+  mcp: { tool: "attachments", action: "give_picture" },
+  async handler(ctx, input) {
+    return takeFrame(ctx, { ...input, replace: false });
+  },
+});
+
+export const attachmentOps = [requestUpload, createUpload, createUploads, completeUpload, fetchUrl, getDownload, setFrame, givePicture];

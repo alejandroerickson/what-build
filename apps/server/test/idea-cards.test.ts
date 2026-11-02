@@ -26,6 +26,41 @@ beforeAll(async () => {
 });
 afterAll(async () => h?.close());
 
+describe("advice on a card", () => {
+  it("takes no longer on markup that never closes", () => {
+    const long = 2_000_000;
+    for (const unit of ["<style", "<style>a", "<!--", "<", "<style></style", "&a"]) {
+      const front = unit.repeat(Math.ceil(long / unit.length));
+      const started = performance.now();
+      adviseIdeaCard({ kind: "concept", front });
+      expect(performance.now() - started, unit).toBeLessThan(2000);
+    }
+  });
+
+  it("reads styles, comments and markup as it always has", () => {
+    const words = (front: string) => adviseIdeaCard({ kind: "outcome", front }).some((a) => a.includes("read as a paragraph"));
+    const many = "word ".repeat(61);
+    expect(words(`<p>${many}</p>`)).toBe(true);
+    expect(words(`<style>${many}</style><p>short</p>`)).toBe(false);
+    expect(words(`<STYLE type="text/css">${many}</STYLE ><p>short</p>`)).toBe(true);
+    expect(words(`<STYLE type="text/css">${many}</STYLE><p>short</p>`)).toBe(false);
+    expect(words(`<!-- ${many} --><p>short</p>`)).toBe(false);
+    // A browser ends a comment at --!> too: what it holds stays out, and what follows it counts.
+    expect(words(`<!-- > ${many} --!><p>short</p>`)).toBe(false);
+    expect(words(`<!-- a --!>${many}<!-- b -->`)).toBe(true);
+    expect(words(`<a title="${many}">short</a>`)).toBe(false);
+    // Nothing closes it, so it is not a style block, and its words count.
+    expect(words(`<style>${many}`)).toBe(true);
+
+    const fixed = (front: string) => adviseIdeaCard({ kind: "outcome", front }).some((a) => a.includes("fixed colours"));
+    expect(fixed("<style>.a{color:#123456}</style>")).toBe(true);
+    expect(fixed('<style media="screen">.a{color:rgb(1,2,3)}</style>')).toBe(true);
+    expect(fixed('<svg><path fill="#123456"/></svg>')).toBe(true);
+    expect(fixed("<style>.a{color:var(--hue-ink)}</style><p>#123456</p>")).toBe(false);
+    expect(fixed("<style>.a{background:url(data:image/png;base64,#123456)}</style>")).toBe(false);
+  });
+});
+
 describe("an outcome's card", () => {
   it("keeps a front and a back; a list gives the front's length, get gives the front", async () => {
     const made = await alice.api("POST", `${P}/outcomes`, { title: "Plan the week in minutes", description: "**Success** is planning in under half an hour.", card_html: FRONT });

@@ -3,7 +3,7 @@ type: Specification
 title: The web app is a person's way to run the same operations an agent runs, one screen at a time.
 description: Principles, the shell and product switching, the overview, routes, first run, and the behavior of every screen (Idea, Evidence, Exploration, Story, Activity, archive and delete, organization and account screens).
 tags: [spec, web, ui, routes, shell]
-generated: {by: agent:claude, at: 2026-11-01}
+generated: {by: agent:claude, at: 2026-11-02}
 status: stable
 ---
 
@@ -526,7 +526,8 @@ The sources, and everything for reading them.
   **Describe it** asks for the title, the **date captured** (optional, with help text
   distinguishing it from today) and tags, offering the product's most used tags to add with one
   click ([§4.4](04-data-model.md)), and nothing else. **Add attachments** is one drop zone, optional,
-  that takes any number of files, with no role to choose; it says that they are read in the order
+  that takes any number of files, with no role to choose, and keeps out one past the largest file
+  that can be uploaded, saying so as it is picked, so that no source is made for it; it says that they are read in the order
   listed and the first in which WhatBuild finds text becomes the source's text, which search reads
   ([§5.4](05-derived-layer.md)), which formats it reads, that a recording needs its transcript too,
   and that no words are read from images or scanned pages. **Create** makes the source and uploads each
@@ -1262,9 +1263,9 @@ never described as deleting. A list row showing an archived object says *Archive
   as "6 of 50" over a thin bar, with "Nearly full" from 80% and "Full", with its mark, when it is
   reached, or "no limit". **Today**, with when it starts over (midnight UTC): **You** (changes,
   sources added, files uploaded, data sent to you, exports) and **Everyone in** the organization
-  (changes, files uploaded), in the same form. **What you can add**: the largest file the web app
-  takes (the lowest of the plan's, the deployment's and the upload relay's, since the web app
-  uploads through the relay), the size above which a file is kept but not read when that is
+  (changes, files uploaded), in the same form. **What you can add**: the largest file that can be
+  uploaded (the lower of the plan's and the deployment's `upload_max_bytes`, which past the upload
+  relay's limit needs a store that signs direct uploads), the size above which a file is kept but not read when that is
   smaller, attachments on a source, mockups and Story pages in a product, and, where the plan says
   so, that files must be in a format WhatBuild reads (a plan with `documents_only` off keeps any
   file) or that adding a file from a link is off. Then **Plans**, the plans side by side with this

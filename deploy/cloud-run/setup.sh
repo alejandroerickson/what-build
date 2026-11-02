@@ -46,7 +46,9 @@
 #   GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET   an OAuth web client for "Continue with Google" (optional).
 #                       The secret may instead be created in Secret Manager as
 #                       whatbuild-google-client-secret, and only GOOGLE_CLIENT_ID passed.
-#   SIGNED_URLS=1       also hand agents direct-to-bucket upload URLs for files over 25 MB
+#   SIGNED_URLS=1       let files past the service's own 25 MB route go straight to the bucket, from
+#                       the web app and agents alike. Without it, nothing larger can be uploaded,
+#                       whatever a plan's file limit says.
 #   MAX_INSTANCES       the most instances that run at once, default 1; each one kept busy all month
 #                       costs roughly US$62 in northamerica-northeast2, so this is also the
 #                       ceiling on the service's instance time
@@ -249,6 +251,13 @@ $G run deploy "$SERVICE" --region "$REGION" --image "$IMAGE" --service-account "
 # The stable run.app address, named by project number (status.url is the older, hashed one).
 URL="${PUBLIC_URL:-https://$SERVICE-$PROJECT_NUMBER.$REGION.run.app}"
 $G run services update "$SERVICE" --region "$REGION" --update-env-vars "WHATBUILD_PUBLIC_URL=$URL" >/dev/null
+if [ -n "${SIGNED_URLS:-}" ]; then
+  # A person's browser sends a large file to the bucket itself, so the bucket lets the app's origin PUT, and nothing else.
+  cors="$(mktemp)"
+  echo "[{\"origin\": [\"$URL\"], \"method\": [\"PUT\"], \"responseHeader\": [\"Content-Type\", \"x-goog-content-length-range\", \"x-goog-if-generation-match\"], \"maxAgeSeconds\": 3600}]" >"$cors"
+  $G storage buckets update "gs://$BUCKET" --cors-file "$cors" >/dev/null
+  rm -f "$cors"
+fi
 
 step "Request logs without addresses that carry words or credentials"
 # Cloud Run logs every request itself, with its whole address: a search's words, a sign-in link's
