@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { Link } from "react-router";
+import { AGENTS_KEY } from "../lib/agents.ts";
 import { api } from "../lib/api.ts";
 import { plural } from "../lib/format.ts";
 import { forgetPersonalState } from "../lib/local-state.ts";
@@ -118,7 +119,7 @@ function SignOutEverywhere() {
         return;
       }
       setOpen(false);
-      void qc.invalidateQueries({ queryKey: ["agents"] });
+      void qc.invalidateQueries({ queryKey: AGENTS_KEY });
       toast(`Signed out of every other browser${r.connections ? `, and disconnected ${plural(r.connections, "agent")}` : ""}.`);
     },
   });

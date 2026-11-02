@@ -23,7 +23,12 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
 
 ## Unreleased
 
-Nothing yet.
+- **Until someone connects an agent, the panel holds an empty seat where Connect an agent's row
+  is.** It asks nothing of a deployment. People will notice it: a card in the panel, on every
+  screen and for every role, saying "No agent connected" with Connect an agent as a button, which
+  goes when they come back to the tab having connected one. The first time a visit finds no agent, a hidden panel is shown
+  once (never a phone's drawer); while the panel is hidden, the pill that brings it back carries a
+  small mark.
 
 ## v0.30.0
 
