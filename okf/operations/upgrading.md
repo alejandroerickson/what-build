@@ -23,6 +23,10 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
 
 ## Unreleased
 
+Nothing yet.
+
+## v0.30.0
+
 - **Migration `0042_attachment_pictures`.** It adds a table, and queues a job for every image, PDF
   and PowerPoint deck already held, and a fresh reading of each deck. A deployment does nothing:
   the worker fills them in, one at a time, while the instance is up. Until it has, those sources
@@ -39,9 +43,6 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
   tools.
 - **A recording is answered in pieces of at most 8 MiB**, and a person's day counts what each holds,
   where it used to count the whole file for each open and seek.
-
-## v0.30.0
-
 - **Until someone connects an agent, the panel holds an empty seat where Connect an agent's row
   is.** It asks nothing of a deployment. People will notice it: a card in the panel, on every
   screen and for every role, saying "No agent connected" with Connect an agent as a button, which
