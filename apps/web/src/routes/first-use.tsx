@@ -1,6 +1,5 @@
-import { useQuery } from "@tanstack/react-query";
 import { useState, type ReactNode } from "react";
-import { api } from "../lib/api.ts";
+import { useConnectedAgentCount } from "../lib/agents.ts";
 import { useProduct } from "../lib/session.tsx";
 import { Button, ButtonLink, useToast } from "../ui/index.tsx";
 
@@ -16,13 +15,8 @@ export function FirstUse({ title, children, ask }: { title: string; children: Re
   const { app, canWrite } = useProduct();
   const toast = useToast();
   const [copied, setCopied] = useState(false);
-  // The person's connected agents are account-wide; the Connect page shares this query.
-  const agents = useQuery({
-    queryKey: ["agents"],
-    enabled: Boolean(ask && canWrite),
-    queryFn: () => api<{ items: unknown[] }>("GET", "/api/v1/me/agents"),
-  });
-  const connected = Boolean(agents.data?.items.length);
+  // The person's connected agents are account-wide; Connect an agent and the panel share this query.
+  const connected = Boolean(useConnectedAgentCount(Boolean(ask && canWrite)));
   const request = canWrite ? ask : undefined;
   const copy = () =>
     navigator.clipboard

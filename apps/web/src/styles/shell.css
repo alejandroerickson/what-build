@@ -277,6 +277,52 @@ h1[tabindex="-1"]:focus {
   color: var(--text);
 }
 
+/* The empty seat: until the person has an agent connected, Connect an agent's row widens into a card
+   in its own place in the quiet group (under the Story for a reader, who has no quiet group), on the
+   Hover wash the example organization's block uses for something set apart. The dashed face breathes
+   once every six seconds; the words carry the state. Nothing dismisses it but connecting an agent. */
+.agent-seat {
+  margin: var(--s-0) 0 var(--s-1);
+  padding: var(--s-2) var(--s-2) var(--s-2h);
+  border-radius: var(--r-md);
+  background: var(--hover);
+}
+.agent-seat-head {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+}
+.agent-seat-face {
+  border-style: dashed;
+  animation: seat-breath 6s var(--ease) 1s infinite;
+}
+@keyframes seat-breath {
+  0%,
+  100% {
+    border-color: var(--line-2);
+    color: var(--muted);
+  }
+  10% {
+    border-color: var(--line-strong);
+    color: var(--text);
+  }
+  22% {
+    border-color: var(--line-2);
+    color: var(--muted);
+  }
+}
+.agent-seat-title {
+  font-size: var(--fs-base);
+  font-weight: var(--fw-medium);
+  line-height: var(--lh-ui);
+}
+.agent-seat-text {
+  margin: var(--s-1h) 0 var(--s-2);
+  color: var(--muted);
+  font-size: var(--fs-sm);
+  line-height: 1.45;
+}
+
 /* The context slot: filled by the route (Story tree, source filters); scrolls on its own. */
 .panel-context {
   display: flex;
@@ -420,6 +466,18 @@ h1[tabindex="-1"]:focus {
     opacity: 0;
     transform: translateX(-6px);
   }
+}
+/* While the panel is away, the pill carries the seat's mark at its corner: the 7px mark, ringed in
+   the canvas so it sits on the pill's edge, with the same words for assistive technology. */
+.show-pill .seat-mark {
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  width: calc(var(--mark) + 4px);
+  height: calc(var(--mark) + 4px);
+  border: 2px solid var(--canvas);
+  border-radius: 50%;
+  background: var(--accent);
 }
 
 /* The inspector's counterpart to the pill: a square at the top-right inset that brings it back. */
@@ -862,7 +920,8 @@ h1[tabindex="-1"]:focus {
 }
 /* Without motion it simply appears; the flash, which only brightens, stays. */
 @media (prefers-reduced-motion: reduce) {
-  .find-pal[open]:not(.is-flash) {
+  .find-pal[open]:not(.is-flash),
+  .agent-seat-face {
     animation: none;
   }
 }
