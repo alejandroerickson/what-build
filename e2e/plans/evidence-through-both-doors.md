@@ -28,7 +28,15 @@ plans file's Free plan, which the end-to-end instance offers, are tried.
    *Expect:* each step answers as its description and the guide (`guide(topic="evidence")`) say; the PUT answers `201` with the
    `attachment`, whose `note` says it is being read and will become the source's text, and that
    it is kept and never searched; no `complete_upload` is needed.
-3. **Web, as Sam.** Open Evidence. *Expect:* the new source is listed with its title and tags;
+3. **Web, as Sam.** Open Evidence. *Expect:* the list is alone, with no preview and no way to unfold a
+   summary; each row shows what its source looks like (a small page of its words here), its title,
+   its date and its attachment count, and the new source is listed with its title and tags. Click
+   a row. *Expect:* a preview opens beside the list without leaving it, the row selected, the
+   address naming the source; the up and down arrows move through sources, spending no request but
+   what a stopped-on page needs (the browser's network panel), left and right through its summary
+   and attachments; Esc closes the preview and Space opens it again; a click that opens a new tab, and
+   **Open source**, go to the source's page. At phone width the preview takes the screen, with a
+   button back to the list. Open the source;
    the panel's filters are Tags and Archived, with Added by only when more than one person has
    added sources (a fresh golden master shows Tags and Archived alone; Sam's source may bring Added
    by); opening the source shows its Text once the attachment has been read (the page updates by

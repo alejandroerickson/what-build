@@ -1,5 +1,5 @@
 import type { ServerType } from "@hono/node-server";
-import { usageSettled, type FileParser, type LiveChanges } from "@whatbuild/core";
+import { usageSettled, type FileParser, type LiveChanges, type PictureMaker } from "@whatbuild/core";
 import type { Pool } from "pg";
 import type { Worker } from "./worker.ts";
 
@@ -16,10 +16,11 @@ export const SHUTDOWN_LIMIT_MS = 8000;
  * are counted through it. Live streams end first: each holds a connection open, which the server's
  * close would otherwise wait for until the limit above.
  */
-export async function shutDown(parts: { worker: Worker; parser: FileParser; pool: Pool; server?: ServerType; live?: LiveChanges; tracing?: { shutdown(): Promise<unknown> } | null }): Promise<void> {
+export async function shutDown(parts: { worker: Worker; parser: FileParser; pictures?: PictureMaker | undefined; pool: Pool; server?: ServerType; live?: LiveChanges; tracing?: { shutdown(): Promise<unknown> } | null }): Promise<void> {
   parts.live?.close();
   const drained = parts.worker.stop();
   parts.parser.stop();
+  parts.pictures?.stop();
   const { server } = parts;
   if (server)
     await new Promise<void>((resolve) => {

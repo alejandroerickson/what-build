@@ -27,7 +27,7 @@ how people read a source.
   words saying what the source is and what it tells the team, with no ids or codes. People write
   and edit it in the app; agents write it with `derived.write_note`.
 - The summary is **what people browse**: the page shows it whole, then the source's images, then
-  its text folded to its first lines; the Evidence list unfolds each row's summary to three lines.
+  its text folded to its first lines; the Evidence list's preview opens on the summary ([decision](evidence-is-a-list-of-what-sources-look-like-with-a-preview-beside-it.md)).
   Agents are told it is the part people read, to be succinct and high in signal.
 - The **notes** are one freeform Markdown document: whatever is worth keeping about the source
   that is not its words, structured as the writer likes. Agents and people both write them.

@@ -20,7 +20,7 @@ export const DERIVED_STATUS: Record<string, { label: string; tone: StatusTone; e
     label: "Not read as text",
     tone: "neutral",
     explain: "WhatBuild can’t read this format. The attachment is kept for download.",
-    next: "Add a text, Markdown, VTT, SRT, DOC, DOCX, XLSX, CSV, TSV, PDF or HTML version as another attachment, or write the text.",
+    next: "Add a text, Markdown, VTT, SRT, DOC, DOCX, XLSX, PPTX, CSV, TSV, PDF or HTML version as another attachment, or write the text.",
   },
   too_large: { label: "Too large to read", tone: "attention", explain: "The attachment is kept, but it’s over the size limit for reading its text.", next: "Add a shorter version as another attachment, or write the text.", detail: true },
   failed: { label: "Couldn’t be read", tone: "negative", explain: "The attachment is kept, but its text couldn’t be read.", next: "Check that it opens elsewhere, then add a clean copy, or write the text.", detail: true },

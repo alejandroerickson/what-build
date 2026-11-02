@@ -1117,8 +1117,16 @@ activity.jsonl
   that search reads ([§8.3](08-search.md)); both have the policy and go with their source. An index
   on `derivations (file_version_id, derivation_id desc)` finds an attachment's latest reading. The
   tables that hold attachments keep their names, `files` and `file_versions`.
+- **An attachment's picture**
+  ([`0042_attachment_pictures.sql`](../../apps/server/src/migrations/0042_attachment_pictures.sql)):
+  `attachment_pictures`, one row for an attachment version the worker has made a picture of or
+  passed over (`file_version_id`, `record_id`, `status`: `ready`, `none` or `failed`, `detail`,
+  `made_from`: `image`, `pdf`, `deck` or `frame`, `blob_prefix`, the preview copy's `width` and
+  `height`, a PDF's or deck's `pages`, and a deck's `card_title` and `card_colour`). It has the policy,
+  goes with its source, and can always be made again, so it is never exported.
 - **Blobs** are immutable and keyed opaquely: `t/<tenant_id>/r/<record_id>/f/<file_version_id>`
-  for attachments' versions, `t/<tenant_id>/r/<record_id>/d/<derivation_id>/{text.md,manifest.json}`
+  for attachments' versions, `t/<tenant_id>/r/<record_id>/p/<id>/{thumb.webp,preview.webp}` for a
+  picture's copies, `t/<tenant_id>/r/<record_id>/d/<derivation_id>/{text.md,manifest.json}`
   for what each reading read, and
   `t/<tenant_id>/exports/<export_id>.zip` for exports. Keys never encode titles, tags or any other
   metadata, so no metadata change ever moves bytes, and a key names its tenant. A copied source shares its

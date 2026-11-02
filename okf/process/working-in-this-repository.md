@@ -117,6 +117,9 @@ Triaging a report, when asked:
   `scripts/e2e.mjs` and look at `scripts/shots.mjs` captures; for a change across both doors,
   have an agent run the [end-to-end test plans](../operations/end-to-end-tests.md) it touches
   ([local development](../operations/local-development.md)).
+- A change to how an attachment is read or pictured, or an upgrade of Sharp, pdf.js or the canvas,
+  passes `corepack pnpm check:attachments` on real files
+  ([real files](../operations/end-to-end-tests.md#real-files)). Nothing else needs it.
 - A change that asks something of a deployment (a setting, an identity provider step, a minimum
   version, a behaviour people will notice) has its line under Unreleased in
   [upgrading](../operations/upgrading.md).

@@ -70,6 +70,18 @@ await find.getByRole("option", { name: /Dispatcher interview — Brightway Clean
 await page.keyboard.press("Escape");
 await find.waitFor({ state: "detached" });
 step("found the source by its title from the panel's search, then closed it");
+await page.locator(".source-row-link").first().click();
+await page.locator(".sources-preview").waitFor();
+const firstInList = new URL(page.url()).searchParams.get("source");
+await page.keyboard.press("ArrowDown");
+await page.waitForFunction((was) => new URL(location.href).searchParams.get("source") !== was, firstInList);
+step("a row opens a preview beside the list, and an arrow moves to the next source");
+await page.keyboard.press("Escape");
+await page.locator(".sources-preview").waitFor({ state: "detached" });
+await page.keyboard.press("Space");
+await page.locator(".sources-preview").waitFor();
+await page.keyboard.press("Escape");
+step("Esc closes the preview and Space opens it again");
 await page.getByRole("link", { name: /^interview\s*\d+$/ }).click();
 await page.waitForURL(/tags=interview/);
 await page.getByRole("link", { name: /Dispatcher interview — Brightway Cleaning/ }).first().waitFor();

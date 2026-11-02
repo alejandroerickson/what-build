@@ -26,6 +26,35 @@ export interface RecordSummary {
   summary?: string | null;
 }
 
+/** An attachment's picture: its small copies' addresses, or the card a deck has instead, and how many pages or slides it has. */
+export interface AttachmentPicture {
+  made_from: "image" | "pdf" | "deck" | "frame";
+  thumb_url: string | null;
+  preview_url: string | null;
+  width: number | null;
+  height: number | null;
+  pages: number | null;
+  card: { title: string; colour: string | null } | null;
+}
+
+/** An attachment as the list of sources has it: enough to show it with no further call. */
+export interface ListedAttachment {
+  path: string;
+  media_type: string | null;
+  size: number | null;
+  file_version_id: string;
+  text: { status: string; chars: number; duration_ms: number | null };
+  picture: AttachmentPicture | null;
+}
+
+/** A source as the list of sources has it: enough to move through them and preview each with no further call. */
+export interface ListedSource extends RecordSummary {
+  summary: string | null;
+  /** How its derived text starts. */
+  first_lines: string | null;
+  attachments: ListedAttachment[];
+}
+
 /** How an attachment's text was read: kept with the source, never searched. */
 export interface AttachmentText {
   status: string;

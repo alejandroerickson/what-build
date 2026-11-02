@@ -119,9 +119,15 @@ describe("zip bombs", () => {
   });
 
   it("never unpacks a package no parser reads", async () => {
-    const { r, ms } = await measured(zip([{ name: "ppt/slides/slide1.xml", data: bomb(512) }]), "deck.pptx");
+    const { r, ms } = await measured(zip([{ name: "ppt/slides/slide1.xml", data: bomb(512) }]), "deck.key");
     expect(r.status).toBe("unsupported");
     expect(ms).toBeLessThan(1000);
+  });
+
+  it("stops a deck that unpacks past the cap", async () => {
+    const { r } = await measured(zip([{ name: "ppt/slides/slide1.xml", data: bomb(512) }]), "deck.pptx");
+    expect(r.status).toBe("too_large");
+    expect(r.parser).toBe("pptx");
   });
 
   it("still reads ordinary packages, stored or deflated", async () => {

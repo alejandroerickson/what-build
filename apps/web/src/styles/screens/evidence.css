@@ -89,18 +89,31 @@
   padding: 0;
   list-style: none;
 }
-/* The title is the row's link, stretched over the whole row; the summary toggle sits above it. */
+/* The title is the row's link, stretched over the whole row. The list can grow long: a row off screen
+   is laid out only when it comes near, at about its own height until then. */
 .source-row {
   position: relative;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: 64px minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: var(--s-3h);
+  padding-block: var(--s-2);
+  content-visibility: auto;
+  contain-intrinsic-size: auto 65px;
 }
-.has-toggles > .source-row {
-  grid-template-columns: var(--h-sm) minmax(0, 1fr) auto;
-  /* The toggle's chevron lines up with the sheet's gutter. */
-  padding-left: calc(var(--sheet-px) - (var(--h-sm) - var(--icon-md)) / 2);
+.source-row.is-compact {
+  grid-template-columns: 60px minmax(0, 1fr);
+  column-gap: var(--s-2h);
+  padding-inline: var(--s-3);
+  align-items: start;
 }
 .source-row:hover {
   background: var(--hover);
+}
+.source-row[aria-current] {
+  background: var(--select);
+}
+.source-row[aria-current] .source-row-link {
+  color: var(--select-text);
 }
 .source-row:has(.source-row-link:focus-visible) {
   outline: 2px solid var(--accent);
@@ -118,44 +131,19 @@
 .source-row-link:focus-visible {
   outline: none;
 }
-.source-row-toggle {
-  position: relative;
-  z-index: 1;
-  align-self: start;
-  /* Centred on the title's first line. */
-  margin: calc((var(--fs-base) * var(--lh-ui) - var(--h-sm)) / 2) calc(-1 * var(--s-1h)) 0 0;
-}
-.source-row-toggle .glyph {
-  transition: transform var(--dur-1) var(--ease);
-}
-.source-row-toggle[aria-expanded="true"] .glyph {
-  transform: rotate(90deg);
-}
-.source-row .source-row-toggle[aria-expanded="true"]:not(:hover) {
-  background: transparent;
-  color: var(--muted);
-}
-.source-row .source-row-toggle:hover {
-  background: var(--hover-strong);
+.source-row.is-compact .source-row-link {
+  display: -webkit-box;
+  overflow: hidden;
+  line-height: 1.34;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
 }
 .source-row-sub {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 4px var(--s-1h);
-}
-/* A summary unfolded: its first three lines, as plain words. */
-.source-row-summary {
-  display: -webkit-box;
-  max-width: var(--measure);
-  margin-top: var(--s-1h);
-  overflow: hidden;
-  color: var(--muted);
-  font-size: var(--fs-body);
-  line-height: var(--lh-body);
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 3;
-  line-clamp: 3;
 }
 .source-row.is-archived .list-title {
   color: var(--muted);
@@ -178,12 +166,533 @@
   width: 76px;
   text-align: right;
 }
+.source-row.is-compact .source-row-date {
+  display: block;
+  width: auto;
+  margin-top: 1px;
+  color: var(--faint);
+  font-size: var(--fs-xs);
+  text-align: left;
+}
 .source-row-date.is-none {
   color: var(--faint);
 }
+/* ---- A source's face: a picture, a deck's card, a small page of its words, or an icon --------- */
+
+/* A face is the thing itself, not the app: paper stays paper in dark mode (the Paper Rule). */
+.face {
+  position: relative;
+  display: block;
+  flex: none;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+  border-radius: var(--r-xs);
+  background: #efefec;
+  box-shadow: var(--shadow-paper);
+  color-scheme: light;
+}
+.face img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.face-page {
+  background: #fff;
+  color: #1e1e1e;
+}
+/* Set at four times the size and drawn at a quarter, so a page keeps its shape at any width. */
+.face-page-in {
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: block;
+  width: 400%;
+  padding: 14px 16px;
+  font-size: 15px;
+  line-height: 1.34;
+  transform: scale(0.25);
+  transform-origin: 0 0;
+}
+.page-line {
+  display: block;
+  margin: 0 0 6px;
+}
+.page-line.is-heading {
+  margin: 4px 0 6px;
+  font-size: 22px;
+  font-weight: var(--fw-semibold);
+  line-height: 1.14;
+}
+.page-line.is-item {
+  padding-left: 16px;
+}
+.page-line.is-item::before {
+  content: "";
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin: 0 10px 3px -16px;
+  border-radius: 50%;
+  background: #6e6e6e;
+}
+.page-line.is-row {
+  display: grid;
+  grid-auto-columns: minmax(0, 1fr);
+  grid-auto-flow: column;
+  margin: 0;
+  font-size: 13px;
+}
+.page-line.is-row > span {
+  overflow: hidden;
+  padding: 2px 5px;
+  border: 2px solid #c2c2c2;
+  white-space: nowrap;
+}
+.face-card {
+  display: grid;
+  align-content: center;
+  container-type: inline-size;
+  padding: 8% 9%;
+  background: var(--card, #2b3a55);
+  color: #fff;
+  font-weight: var(--fw-semibold);
+  letter-spacing: -0.01em;
+}
+.face-card > span:first-child {
+  display: -webkit-box;
+  overflow: hidden;
+  font-size: clamp(5px, 10.5cqw, 40px);
+  line-height: 1.14;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+  line-clamp: 4;
+}
+.face-card.is-large {
+  aspect-ratio: 16 / 9;
+}
+.face-icon {
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 2px;
+  background: var(--hover);
+  box-shadow: inset 0 0 0 1px var(--line);
+  color: var(--muted);
+  color-scheme: inherit;
+  font-size: 9px;
+  font-weight: var(--fw-semibold);
+  letter-spacing: 0.02em;
+}
+.face-icon .glyph {
+  width: 16px;
+  height: 16px;
+}
+.face-mark {
+  position: absolute;
+  right: 3px;
+  bottom: 3px;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  height: 15px;
+  padding: 0 4px;
+  border-radius: 3px;
+  background: rgb(20 20 20 / 0.78);
+  color: #fff;
+  font-size: 10px;
+  font-weight: var(--fw-medium);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
+}
+.face-mark .glyph {
+  width: 9px;
+  height: 9px;
+}
+.face-mark.is-play .glyph {
+  fill: currentColor;
+}
+
+/* ---- The list beside its preview --------------------------------------------------------------- */
+
+/* While a preview is open the two sit side by side and fill the window, each scrolling its own: one
+   of the places the One Scroller Rule names. The measure lets go too, since a page needs the room. */
+.canvas:has(.sources-split) {
+  overflow: hidden;
+  padding: var(--float-inset) var(--float-inset) var(--float-inset) calc(var(--float-inset) * 2 + var(--panel-w));
+}
+.stage[data-nav="closed"] .canvas:has(.sources-split) {
+  padding-left: max(var(--float-inset), calc(var(--float-inset) + var(--pill-w) + var(--s-3)));
+}
+.canvas:has(.sources-split) .canvas-wrap {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  max-width: none;
+}
+.canvas:has(.sources-split) .canvas-banner {
+  flex: none;
+  margin-bottom: var(--s-1h);
+}
+/* Its show button keeps the list clear of it, as the inspector's does. */
+.canvas:has(.sources-show-preview) {
+  padding-right: max(var(--canvas-px), calc(var(--float-inset) + var(--h-lg) + var(--s-3)));
+}
+.sources-split {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: clamp(248px, 26%, 344px) minmax(0, 1fr);
+  gap: var(--float-inset);
+}
+.sources-split > .sheet {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  margin: 0;
+}
+.sources-split .sheet-head {
+  flex: none;
+}
+.sources-split-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+.sources-split .sources-sort-key,
+.sources-split .sources-sort-wide {
+  display: none;
+}
+.sources-split .sources-sort-narrow {
+  display: inline-flex;
+}
+.sources-keys {
+  flex: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px var(--s-2h);
+  margin: 0;
+  padding: var(--s-1h) var(--s-3);
+  border-top: 1px solid var(--line);
+  color: var(--faint);
+  font-size: var(--fs-xs);
+}
+.sources-keys span {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+.sources-keys kbd {
+  font: inherit;
+  font-weight: var(--fw-medium);
+}
+/* Only where there is a keyboard to use them with. */
+@media (pointer: coarse) {
+  .sources-keys {
+    display: none;
+  }
+}
+.sources-show-preview {
+  position: fixed;
+}
+.sources-preview .empty-state,
+.sources-preview .empty {
+  margin: auto;
+}
+.sources-gone {
+  margin: var(--s-2) 0 0;
+  color: var(--muted);
+  font-size: var(--fs-sm);
+}
+
+.sources-preview {
+  min-width: 0;
+  animation: sources-preview-in var(--dur-3) var(--ease) both;
+}
+@keyframes sources-preview-in {
+  from {
+    opacity: 0;
+    transform: translateX(8px);
+  }
+}
 @media (prefers-reduced-motion: reduce) {
-  .source-row-toggle .glyph {
-    transition: none;
+  .sources-preview {
+    animation: none;
+  }
+}
+.preview-head {
+  flex: none;
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-3);
+  padding: var(--s-3) var(--s-2h) var(--s-2h) var(--sheet-px);
+  border-bottom: 1px solid var(--line);
+}
+.preview-head-main {
+  flex: 1;
+  min-width: 0;
+}
+.preview-head h2 {
+  margin: 0;
+  font-size: var(--fs-title);
+  font-weight: var(--fw-semibold);
+  line-height: 1.3;
+  text-wrap: balance;
+}
+.preview-head p {
+  margin: 3px 0 0;
+  color: var(--faint);
+  font-size: var(--fs-sm);
+}
+.preview-head-actions {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--s-1);
+}
+.preview-bar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--s-2h);
+  min-height: 38px;
+  padding: var(--s-1) var(--s-2) var(--s-1) var(--sheet-px);
+  border-bottom: 1px solid var(--line);
+}
+.preview-bar-name {
+  min-width: 0;
+  overflow: hidden;
+  font-weight: var(--fw-medium);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.preview-bar-type {
+  flex: none;
+  color: var(--faint);
+  font-size: var(--fs-sm);
+}
+.preview-bar-actions {
+  flex: none;
+  display: flex;
+  gap: 2px;
+  margin-left: auto;
+}
+.preview-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+.preview-summary {
+  padding: var(--s-5) var(--sheet-px) var(--s-6);
+}
+.preview-summary .prose {
+  max-width: 62ch;
+  color: var(--text);
+  font-size: var(--fs-lead);
+  line-height: 1.5;
+}
+.preview-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: var(--s-4);
+}
+.preview-words {
+  padding: var(--s-4) var(--sheet-px) var(--s-6);
+}
+.preview-words .prose {
+  max-width: 68ch;
+}
+.preview-stage {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  width: 100%;
+  overflow: hidden;
+  padding: 0;
+  border: 0;
+  background: var(--canvas);
+  cursor: zoom-in;
+}
+.preview-stage img {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  object-fit: contain;
+}
+.preview-stage.is-page {
+  overflow-y: auto;
+  align-items: start;
+  justify-items: center;
+  padding: var(--s-4) 0;
+  cursor: default;
+}
+.preview-stage.is-page img {
+  width: min(760px, 86%);
+  height: auto;
+  box-shadow: var(--shadow-paper);
+}
+.preview-slide {
+  display: grid;
+  justify-items: center;
+  padding: var(--s-4) var(--sheet-px) 0;
+}
+.preview-slide img,
+.preview-slide .face {
+  height: auto;
+  border-radius: var(--r-sm);
+  box-shadow: var(--shadow-paper);
+}
+.preview-slide .face {
+  width: min(560px, 100%);
+}
+/* The picture a deck carries of itself is 256 pixels wide, so it stays small enough to read as sharp. */
+.preview-slide img {
+  width: min(384px, 100%);
+}
+.preview-frame {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  border: 0;
+  background: #fff;
+}
+.preview-note {
+  margin: 0;
+  padding: var(--s-2) var(--sheet-px);
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-size: var(--fs-sm);
+}
+.preview-note.is-action {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-2);
+}
+.preview-none {
+  flex: 1;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: var(--s-2);
+  padding: var(--s-6);
+  text-align: center;
+}
+.preview-none .face {
+  width: 96px;
+}
+.preview-none b {
+  margin-top: var(--s-1);
+  font-size: var(--fs-md);
+  font-weight: var(--fw-semibold);
+  overflow-wrap: anywhere;
+}
+.preview-none p {
+  max-width: 44ch;
+  margin: 0 0 var(--s-2);
+  color: var(--muted);
+  line-height: 1.5;
+}
+.sources-preview .source-preview-media {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  border-radius: 0;
+}
+.sources-preview video.source-preview-media {
+  object-fit: contain;
+  background: #111;
+}
+.sources-preview audio.source-preview-media {
+  flex: none;
+  width: min(480px, calc(100% - var(--sheet-px) * 2));
+  margin: auto;
+}
+.preview-pager {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--s-2h);
+  padding: var(--s-2) var(--sheet-px);
+  border-top: 1px solid var(--line);
+}
+.preview-pager-at {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  color: var(--muted);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-medium);
+}
+.preview-pager-at .num {
+  min-width: 44px;
+  text-align: center;
+}
+.preview-strip {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  gap: var(--s-2);
+  overflow-x: auto;
+  padding: 3px;
+  scrollbar-width: none;
+}
+.preview-tile {
+  flex: none;
+  display: block;
+  width: 64px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-xs);
+  background: none;
+}
+.preview-tile[aria-current] .face {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.preview-tile:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* A phone: the preview takes the screen, and the list waits behind it. */
+@media (max-width: 760px) {
+  .canvas:has(.sources-split),
+  .stage[data-nav="closed"] .canvas:has(.sources-split) {
+    padding: 0;
+  }
+  .sources-split {
+    display: block;
+  }
+  .sources-split > .sources-sheet {
+    display: none;
+  }
+  .sources-split > .sources-preview {
+    position: fixed;
+    inset: 0;
+    z-index: var(--z-overlay);
+    display: flex;
+    flex-direction: column;
+    margin: 0;
+    animation: none;
+  }
+  .preview-head {
+    gap: var(--s-1);
+    padding-left: var(--s-1h);
+  }
+  .preview-pager,
+  .preview-bar {
+    padding-inline: var(--s-3);
+  }
+  .preview-bar-type {
+    display: none;
+  }
+  .sources-show-preview {
+    display: none;
   }
 }
 .sources-more {

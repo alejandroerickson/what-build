@@ -188,5 +188,5 @@ export const LIMITS: LimitInfo[] = [
   { key: "text_max_chars", group: "size", label: "Text in one field", unit: "characters", per: "Each text field", refusal: "413 too_large", help: "The longest body, note or Story page one call may send." },
   { key: "batch_max", group: "size", label: "Sources in one call", unit: "sources", per: "Each call", refusal: "413 too_large", help: "How many sources one archive or restore call may name." },
   { key: "fetch_url", group: "switch", label: "Fetching a file from a URL", unit: "", per: "Each person", refusal: "403 plan_restricted", help: "Off stops the server fetching links." },
-  { key: "documents_only", group: "switch", label: "Uploads limited to formats the parsers read", unit: "", per: "Each person", refusal: "403 plan_restricted", help: "On allows only text, Markdown, transcripts, HTML, Word, PDF, spreadsheets and XML; off keeps recordings, images and any other file too, unread." },
+  { key: "documents_only", group: "switch", label: "Uploads limited to formats the parsers read", unit: "", per: "Each person", refusal: "403 plan_restricted", help: "On allows only text, Markdown, transcripts, HTML, Word, PowerPoint, PDF, spreadsheets and XML; off keeps recordings, images and any other file too, unread." },
 ];

@@ -58,6 +58,33 @@ export interface FileParser {
   stop(): void;
 }
 
+/** What a picture is made from: an image, a PDF's first page, or a PowerPoint deck. */
+export type PictureSource = "image" | "pdf" | "deck";
+
+/** What came of making a picture. `thumb` and `preview` come together, as WebP; `card` is a deck's, for the app to draw. */
+export interface MadePicture {
+  status: "ready" | "none" | "failed";
+  detail: string | null;
+  thumb: Uint8Array | null;
+  preview: Uint8Array | null;
+  width: number | null;
+  height: number | null;
+  pages: number | null;
+  card: { title: string; colour: string | null } | null;
+}
+
+/**
+ * Makes the small copies of a picture, away from the requests the server is answering: in a child
+ * process of its own, held to a memory and a time limit, as a parse is. Never rejects for a bad
+ * file: that is a `failed` picture. It rejects with `ParseInterrupted` when it could not finish for
+ * a reason that need not be the file's, and `ParseStopped` when the server is stopping.
+ */
+export interface PictureMaker {
+  make(bytes: Uint8Array, as: PictureSource): Promise<MadePicture>;
+  /** For a server shutting down: ends what is running, which rejects with `ParseStopped`, and refuses any more. */
+  stop(): void;
+}
+
 export interface Mailer {
   send(message: { to: string; subject: string; text: string }): Promise<void>;
 }
@@ -124,6 +151,8 @@ export interface Ports {
   blobs: BlobStore;
   grants: GrantSigner;
   parser: FileParser;
+  /** Makes attachments' pictures; absent, an attachment simply has none. */
+  pictures?: PictureMaker;
   config: CoreConfig;
   fetcher?: UrlFetcher;
   mailer?: Mailer;

@@ -20,7 +20,7 @@ export function AgentSeat({ to }: { to: string }) {
           No agent connected
         </h2>
       </div>
-      <p className="agent-seat-text">An agent reads your sources, drafts assumptions, builds mockups and writes the Story. Without one, you&rsquo;re seeing less than half of WhatBuild.</p>
+      <p className="agent-seat-text">Without one, you&rsquo;re seeing less than half of WhatBuild.</p>
       <ButtonLink to={to} variant="primary" size="sm" icon="bot">
         Connect an agent
       </ButtonLink>

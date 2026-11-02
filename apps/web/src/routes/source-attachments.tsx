@@ -1,13 +1,14 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { api, qs } from "../lib/api.ts";
-import { actorName, fileTypeName, formatBytes, plural, relativeTime, viaSurface } from "../lib/format.ts";
+import { actorName, clockLength, fileTypeName, formatBytes, plural, relativeTime, viaSurface } from "../lib/format.ts";
 import { Markdown } from "../lib/markdown.tsx";
 import { useProduct } from "../lib/session.tsx";
 import { ATTACHMENT_TEXT, pictureKind } from "../lib/status.ts";
 import type { Attachment, RecordFull } from "../lib/types.ts";
 import { Button, Dialog, EmptyState, ErrorCallout, Glyph, Loading, Menu, MenuItem, Sheet, SheetHeader, StatusBadge, useToast, type GlyphName } from "../ui/index.tsx";
 import { ImageViewer } from "./image-viewer.tsx";
+import { attachmentGlyph } from "./source-face.tsx";
 import { uploadFiles, type UploadItem } from "./source-new.tsx";
 import { UseAttachmentText } from "./source-text.tsx";
 
@@ -27,7 +28,7 @@ export function attachmentViewUrl(base: string, recordId: string, path: string) 
 
 type PreviewKind = "html" | "markdown" | "pdf" | "audio" | "video" | "image" | "text" | "download";
 
-export function previewKind(a: Attachment): PreviewKind {
+export function previewKind(a: Pick<Attachment, "media_type" | "path">): PreviewKind {
   const t = a.media_type ?? "";
   const ext = a.path.toLowerCase().split(".").pop() ?? "";
   if (t === "text/html" || ["html", "htm"].includes(ext)) return "html";
@@ -38,20 +39,6 @@ export function previewKind(a: Attachment): PreviewKind {
   if (t.startsWith("image/") && t !== "image/svg+xml") return "image";
   if (t.startsWith("text/") || ["txt", "vtt", "srt", "csv", "tsv", "json", "log"].includes(ext) || t === "application/json" || t === "application/x-subrip") return "text";
   return "download";
-}
-
-function glyphOf(a: Attachment): GlyphName {
-  const t = a.media_type ?? "";
-  return /^(audio|video)\//.test(t) ? "file-audio" : t.startsWith("image/") ? "image" : "file-text";
-}
-
-/** A recording's length as a clock: "2:27", or "1:02:05" past an hour. */
-function clockLength(ms: number) {
-  const s = Math.round(ms / 1000);
-  const h = Math.floor(s / 3600);
-  const m = Math.floor((s % 3600) / 60);
-  const ss = String(s % 60).padStart(2, "0");
-  return h ? `${h}:${String(m).padStart(2, "0")}:${ss}` : `${m}:${ss}`;
 }
 
 /**
@@ -129,7 +116,7 @@ export function AttachmentsView({ record, onAdd }: { record: RecordFull; onAdd?:
               const picture = pictureKind(a);
               return (
                 <li key={a.path} className="source-file">
-                  <Glyph name={glyphOf(a)} />
+                  <Glyph name={attachmentGlyph(a)} />
                   <span className="source-file-main">
                     {kind !== "download" ? (
                       <button type="button" className="quiet-link ellipsis source-file-name" title={`Show ${a.path}`} onClick={() => setPreview(a.path)}>
@@ -210,8 +197,71 @@ export function SourceImages({ record }: { record: RecordFull }) {
   );
 }
 
+/** How long into a video its frame is taken, or halfway through a shorter one. */
+const FRAME_AFTER_SECONDS = 1;
+
+/**
+ * A recording, in the browser's own player. WhatBuild converts nothing, so what plays depends on the
+ * browser; one that can't says so here, where a bare player would just sit there. `preload` is
+ * "none" where someone passes it on the way to something else, so nothing is fetched until they
+ * press play. `onPlaying` gets the video once a frame worth keeping is showing, once.
+ */
+export function RecordingPlayer({ kind, url, downloadUrl, poster, preload = "none", onPlaying }: {
+  kind: "audio" | "video";
+  url: string;
+  downloadUrl: string;
+  poster?: string | null;
+  preload?: "none" | "metadata";
+  onPlaying?: ((video: HTMLVideoElement) => void) | undefined;
+}) {
+  const [failed, setFailed] = useState(false);
+  const told = useRef(false);
+  if (failed)
+    return (
+      <EmptyState
+        size="inline"
+        title="This recording can’t be played here"
+        action={
+          <a className="btn btn-secondary btn-md" href={downloadUrl}>
+            <Glyph name="download" />
+            Download
+          </a>
+        }
+      >
+        This browser may not play its format, or it couldn’t be fetched just now. Download it to open it in another app.
+      </EmptyState>
+    );
+  if (kind === "audio") return <audio controls preload={preload} src={url} className="source-preview-media" onError={() => setFailed(true)} />;
+  return (
+    <video
+      controls
+      preload={preload}
+      poster={poster ?? undefined}
+      src={url}
+      className="source-preview-media"
+      onError={() => setFailed(true)}
+      // A browser that decodes a file's sound but not its picture plays it to a black screen, and calls that no error.
+      onLoadedMetadata={(e) => {
+        if (!e.currentTarget.videoWidth) setFailed(true);
+      }}
+      onTimeUpdate={(e) => {
+        const video = e.currentTarget;
+        if (told.current || !onPlaying || video.currentTime < Math.min(FRAME_AFTER_SECONDS, (video.duration || 0) / 2)) return;
+        told.current = true;
+        onPlaying(video);
+      }}
+    />
+  );
+}
+
+/** What the dialog below needs of a source: the attachments it moves through. */
+export interface PreviewedSource {
+  record_id: string;
+  attachments: (Pick<Attachment, "path" | "media_type" | "size" | "file_version_id"> & { text: { duration_ms: number | null } })[];
+}
+
 /** One attachment as it was uploaded: a PDF, an image, a recording or a text, shown in a dialog. */
-function AttachmentPreview({ record, path, onSelect, onClose }: { record: RecordFull; path: string; onSelect: (path: string) => void; onClose: () => void }) {
+export function AttachmentPreview({ record, path, onSelect, onClose }: { record: PreviewedSource; path: string; onSelect: (path: string) => void; onClose: () => void }) {
   const { api: base } = useProduct();
   const a = record.attachments.find((x) => x.path === path)!;
   const kind = previewKind(a);
@@ -251,10 +301,8 @@ function AttachmentPreview({ record, path, onSelect, onClose }: { record: Record
           </EmptyState>
         ) : kind === "pdf" ? (
           <iframe title={a.path} src={url} className="source-preview-frame" />
-        ) : kind === "audio" ? (
-          <audio controls preload="metadata" src={url} className="source-preview-media" />
-        ) : kind === "video" ? (
-          <video controls preload="metadata" src={url} className="source-preview-media" />
+        ) : kind === "audio" || kind === "video" ? (
+          <RecordingPlayer kind={kind} url={url} downloadUrl={attachmentUrl(base, record.record_id, a.path, true)} preload="metadata" />
         ) : kind === "html" ? (
           <iframe title={a.path} sandbox="" referrerPolicy="no-referrer" src={attachmentViewUrl(base, record.record_id, a.path)} className="source-preview-frame" />
         ) : kind === "image" ? (

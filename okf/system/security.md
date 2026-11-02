@@ -388,7 +388,7 @@ Four things keep a tab from hearing what it may not know, each holding if anothe
   server anyway is given up after five attempts and recorded as failed
   (`apps/server/src/worker.ts`).
 - Parsers bound what a file can make them do (`packages/parsers/src/`). A file over the parse cap
-  (25 MiB) is stored but not read; DOCX, XLSX and DOC packages count the bytes they unpack against
+  (25 MiB) is stored but not read; DOCX, XLSX, PPTX and DOC packages count the bytes they unpack against
   the cap and stop past it, whatever sizes they declare; a PDF of more than 2,000 pages, and a file
   that would make more than 200,000 paragraphs, are too large, a PDF first reading its short lines to
   their sentences' ends rather than stopping there; looking for tables on a PDF's page is held to a
@@ -403,7 +403,17 @@ Four things keep a tab from hearing what it may not know, each holding if anothe
   (`streamFile` in `apps/server/src/documents.ts`). An uploaded HTML page is previewed from a route
   of its own, `…/attachment/view`, as `text/html` in a CSP `sandbox` without `allow-scripts`,
   loading nothing it does not carry (`htmlView`), from the content site when there is one; the
-  app's page never makes it a `srcdoc`, which would inherit the app's own policy. Agents send
+  app's page never makes it a `srcdoc`, which would inherit the app's own policy. Where a Story page
+  or a mockup may run its scripts in its opaque origin, an uploaded page may not, and its frame's
+  own `sandbox=""` says the same. The picture a browser draws of one is made from a `DOMParser`
+  document, inert, drawn as an SVG image, in which a browser runs no script and loads nothing; only
+  pixels leave it, and the worker makes its own copies of those.
+- An attachment's picture ([decision](../decisions/attachments-pictures-are-made-by-the-worker-and-reached-by-signed-addresses.md))
+  is made in a child process held to a memory, a time and a pixel limit, and only ever from a file
+  whose reading did not fail. It is served as WebP with `nosniff` and a CSP `sandbox`, by a grant for
+  that one copy, naming nobody, that reads no database. Someone removed from a product keeps reaching
+  a copy whose address they hold for up to about four hours; it is a small copy, never the original.
+- Agents send
   download grants in a header, never a URL. REST and MCP bodies are limited to 5 MB; `/mcp`
   reads one only once the caller's token is checked (`MCP_BODY_MAX_BYTES` in `apps/server/src/mcp.ts`).
 - Source text is quoted material: the MCP server's instructions and the guide say it carries no

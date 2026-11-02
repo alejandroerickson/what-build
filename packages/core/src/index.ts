@@ -27,6 +27,7 @@ export * from "./errors.ts";
 export * from "./execute.ts";
 export { digestMessage, FEEDBACK_KINDS, FEEDBACK_PER_DAY, pruneFeedbackCounts, sendFeedbackDigest } from "./feedback.ts";
 export * from "./media.ts";
+export * from "./pictures.ts";
 export * from "./plain-query.ts";
 export * from "./policy.ts";
 export * from "./ports.ts";

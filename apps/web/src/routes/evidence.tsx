@@ -1,17 +1,19 @@
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router";
 import { api, qs } from "../lib/api.ts";
 import { attribution, formatDate, formatDateTime, plural, relativeTime } from "../lib/format.ts";
-import { markdownText } from "../lib/markdown.tsx";
 import { useProduct } from "../lib/session.tsx";
 import { derivedStatus } from "../lib/status.ts";
-import type { RecordSummary, SourceFacets } from "../lib/types.ts";
+import type { ListedSource, RecordSummary, SourceFacets } from "../lib/types.ts";
 import { PanelContext, PanelFilter, PanelSection, usePageTitle } from "../shell/slots.tsx";
 import {
   Button, ButtonLink, EmptyState, ErrorCallout, FiltersInUse, Glyph, Loading, Menu, MenuRadio, Segmented, Sheet, SheetHeader, StatusBadge, Tag,
 } from "../ui/index.tsx";
+import { isTypingTarget, PHONE_QUERY, useMediaQuery } from "../ui/media.ts";
 import { FirstUse } from "./first-use.tsx";
+import { SourceFace } from "./source-face.tsx";
+import { previewPages, previewPicture, SourcePreview } from "./source-preview.tsx";
 import "../styles/screens/evidence.css";
 
 /** The tags in use on the product's sources, most used first, and the people who added sources. */
@@ -253,29 +255,6 @@ export function sourcesCount({ loaded, more, filters, facets, of = "" }: { loade
   return known !== undefined ? `${known}${of}` : `${loaded}+${of}`;
 }
 
-/** Whether the list shows every source's summary, kept for the person in this browser. */
-const SUMMARIES_KEY = "whatbuild.sources.summaries";
-
-function useShowSummaries(): [boolean, (on: boolean) => void] {
-  const [on, setOn] = useState(() => {
-    try {
-      return localStorage.getItem(SUMMARIES_KEY) === "shown";
-    } catch {
-      return false;
-    }
-  });
-  const save = (next: boolean) => {
-    setOn(next);
-    try {
-      if (next) localStorage.setItem(SUMMARIES_KEY, "shown");
-      else localStorage.removeItem(SUMMARIES_KEY);
-    } catch {
-      // The choice lasts for this visit.
-    }
-  };
-  return [on, save];
-}
-
 /**
  * A row's one date: the one the list is ordered by. The date captured by default, and "2 h ago"
  * when the list is ordered by date added or details updated (or by title, which shows when it was
@@ -289,39 +268,45 @@ function rowDate(r: RecordSummary, sort: Sort): { text: string; said: string; ti
 }
 
 /**
- * One source in the list. The title is the link, stretched over the whole row; a row with a
- * summary leads with a toggle that unfolds its first three lines under the tags.
+ * One source in the list: how it looks, its title, and its date. The title is the link, stretched
+ * over the whole row: a click opens the preview, and a click that opens a new tab still goes to the
+ * source's page. Beside the preview only the look, the title and the date stay.
  */
-function SourceRow({ r, to, sort, twin, open, onToggle, toggles }: {
-  r: RecordSummary;
+const SourceRow = memo(function SourceRow({ r, to, sort, twin, selected, compact, onOpen }: {
+  r: ListedSource;
   to: string;
   sort: Sort;
   twin: boolean;
-  open: boolean;
-  onToggle: () => void;
-  /** Whether any row in the list has a summary, so every row keeps the toggle's column. */
-  toggles: boolean;
+  selected: boolean;
+  compact: boolean;
+  onOpen: (id: string, at: number) => void;
 }) {
-  const status = r.derived_status === "ready" ? null : derivedStatus(r.derived_status);
+  // Only what is happening now, or went wrong. That a recording has no transcript or a format isn't
+  // read is no fault of the row's: its source's page says what can be done.
+  const status = r.derived_status === "pending" || r.derived_status === "failed" ? derivedStatus(r.derived_status) : null;
   const twinNote = twin ? (r.text_from ? r.text_from.split("/").pop() : r.attachment_count ? plural(r.attachment_count, "attachment") : "No attachment yet") : null;
   const date = rowDate(r, sort);
-  const summaryId = `source-summary-${r.record_id}`;
   return (
-    <li className={`list-row source-row${r.archived_at ? " is-archived" : ""}`}>
-      {toggles ? (
-        r.summary ? (
-          <button type="button" className="icon-btn icon-btn-sm source-row-toggle" aria-expanded={open} aria-controls={summaryId} aria-label={`Summary of ${r.title}`} onClick={onToggle}>
-            <Glyph name="chevron-right" />
-          </button>
-        ) : (
-          <span className="source-row-toggle" aria-hidden="true" />
-        )
-      ) : null}
+    <li className={`list-row source-row${compact ? " is-compact" : ""}${r.archived_at ? " is-archived" : ""}`} data-source={r.record_id} aria-current={selected ? "true" : undefined}>
+      <SourceFace s={r} compact={compact} />
       <span className="list-main">
-        <Link to={to} className="list-title source-row-link">
+        <Link
+          to={to}
+          className="list-title source-row-link"
+          onClick={(e) => {
+            if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+            e.preventDefault();
+            onOpen(r.record_id, e.currentTarget.closest("li")?.getBoundingClientRect().top ?? 0);
+          }}
+        >
           {r.title}
         </Link>
-        {r.tags.length || twinNote ? (
+        {compact ? (
+          <span className={`source-row-date num${date.none ? " is-none" : ""}`} title={date.title}>
+            {date.said ? <span className="visually-hidden">{date.said} </span> : null}
+            {date.text}
+          </span>
+        ) : r.tags.length || twinNote ? (
           <span className="list-sub source-row-sub">
             {r.tags.slice(0, 3).map((t) => (
               <Tag key={t}>{t}</Tag>
@@ -330,38 +315,63 @@ function SourceRow({ r, to, sort, twin, open, onToggle, toggles }: {
             {twinNote ? <span>{twinNote}</span> : null}
           </span>
         ) : null}
-        {r.summary ? (
-          <span id={summaryId} className="source-row-summary" hidden={!open}>
-            {markdownText(r.summary)}
+      </span>
+      {compact ? null : (
+        <span className="list-end">
+          <span className="source-row-count num">
+            {r.archived_at ? (
+              <StatusBadge tone="neutral">Archived</StatusBadge>
+            ) : status ? (
+              <StatusBadge tone={status.tone}>{status.label}</StatusBadge>
+            ) : r.attachment_count ? (
+              <span className="source-row-attachments" title={plural(r.attachment_count, "attachment")}>
+                <Glyph name="paperclip" size="sm" />
+                <span aria-hidden="true">{r.attachment_count}</span>
+                <span className="visually-hidden">{plural(r.attachment_count, "attachment")}</span>
+              </span>
+            ) : null}
           </span>
-        ) : null}
-      </span>
-      <span className="list-end">
-        <span className="source-row-count num">
-          {r.archived_at ? (
-            <StatusBadge tone="neutral">Archived</StatusBadge>
-          ) : status ? (
-            <StatusBadge tone={status.tone}>{status.label}</StatusBadge>
-          ) : r.attachment_count ? (
-            <span className="source-row-attachments" title={plural(r.attachment_count, "attachment")}>
-              <Glyph name="paperclip" size="sm" />
-              <span aria-hidden="true">{r.attachment_count}</span>
-              <span className="visually-hidden">{plural(r.attachment_count, "attachment")}</span>
-            </span>
-          ) : null}
+          <span className={`source-row-date num${date.none ? " is-none" : ""}`} title={date.title}>
+            {date.said ? <span className="visually-hidden">{date.said} </span> : null}
+            {date.text}
+          </span>
         </span>
-        <span className={`source-row-date num${date.none ? " is-none" : ""}`} title={date.title}>
-          {date.said ? <span className="visually-hidden">{date.said} </span> : null}
-          {date.text}
-        </span>
-      </span>
+      )}
     </li>
   );
+});
+
+/** Asks for more once the end of the list comes near, in whichever scroller holds it. */
+function useLoadMoreNearEnd(active: boolean, more: () => void) {
+  const ref = useRef<HTMLDivElement>(null);
+  const latest = useRef(more);
+  latest.current = more;
+  useEffect(() => {
+    const el = ref.current;
+    if (!active || !el || typeof IntersectionObserver === "undefined") return;
+    const io = new IntersectionObserver((seen) => seen.some((e) => e.isIntersecting) && latest.current(), { root: el.closest(".sources-split-list, .canvas"), rootMargin: "800px 0px" });
+    io.observe(el);
+    return () => io.disconnect();
+  }, [active]);
+  return ref;
+}
+
+/** The key that went to something with keys of its own, where the list's would get in its way. */
+function keyBelongsElsewhere(target: EventTarget | null, key: string): boolean {
+  if (isTypingTarget(target)) return true;
+  if (!(target instanceof Element)) return false;
+  if (target.closest("[role=menu], [role=dialog], [aria-modal=true], dialog, .segmented")) return true;
+  // A player keeps every key but the one that closes what it is in.
+  if (key !== "Escape" && target.closest("video, audio")) return true;
+  // A row's link is the list's; another control keeps Space and Enter.
+  return (key === " " || key === "Enter") && Boolean(target.closest("button, summary, a")) && !target.closest(".source-row-link");
 }
 
 export function EvidencePage() {
   const { api: base, app, canWrite, product } = useProduct();
-  const [params] = useSearchParams();
+  const [params, setParams] = useSearchParams();
+  const navigate = useNavigate();
+  const phone = useMediaQuery(PHONE_QUERY);
   const f = readFilters(params);
   const sort: Sort = SORTS.find((s) => s.id === params.get("sort"))?.id ?? "date";
   const first: Order = SORTS.find((s) => s.id === sort)!.first;
@@ -371,36 +381,156 @@ export function EvidencePage() {
   const q = useInfiniteQuery({
     queryKey: ["sources", base, f, sort, order],
     queryFn: ({ pageParam }) =>
-      api<{ records: RecordSummary[]; next_cursor: string | null }>(
+      api<{ records: ListedSource[]; next_cursor: string | null }>(
         "GET",
-        `${base}/sources${qs({ ...f, include_archived: f.include_archived === "1" ? "true" : "", include_summary: "true", sort, order, cursor: pageParam, limit: 50 })}`,
+        `${base}/sources${qs({ ...f, include_archived: f.include_archived === "1" ? "true" : "", include_summary: "true", include_preview: "true", sort, order, cursor: pageParam, limit: 50 })}`,
       ),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (last) => last.next_cursor ?? undefined,
   });
-  const records = q.data?.pages.flatMap((p) => p.records) ?? [];
-  // Summaries: shown for every row or none, and each row can be turned the other way.
-  const [allShown, setAllShown] = useShowSummaries();
-  const [turned, setTurned] = useState<ReadonlySet<string>>(new Set());
-  const summarized = records.filter((r) => r.summary);
-  const isOpen = (id: string) => allShown !== turned.has(id);
-  const everyOpen = summarized.length > 0 && summarized.every((r) => isOpen(r.record_id));
-  const turn = (id: string) =>
-    setTurned((t) => {
-      const next = new Set(t);
-      if (!next.delete(id)) next.add(id);
-      return next;
-    });
-  const showAll = (on: boolean) => {
-    setAllShown(on);
-    setTurned(new Set());
+  const records = useMemo(() => q.data?.pages.flatMap((p) => p.records) ?? [], [q.data]);
+
+  // Which source the preview shows lives in the address, so a link or a reload lands on it. Closed,
+  // the list remembers the one it showed, for arrows to go on from and for Space to open again.
+  const previewed = params.get("source");
+  const [held, setHeld] = useState<string | null>(null);
+  const selectedId = previewed ?? held;
+  const index = selectedId ? records.findIndex((r) => r.record_id === selectedId) : -1;
+  const selected = index >= 0 ? records[index]! : null;
+  const page = Math.max(0, Number(params.get("page") ?? 1) - 1) || 0;
+  const open = Boolean(previewed);
+  const showing = open && selected ? selected : null;
+
+  const rowTop = useRef<number | null>(null);
+  const showPreview = useCallback(
+    (id: string | null, atPage = 0, replace = true) => {
+      setParams(
+        (now) => {
+          const next = new URLSearchParams(now);
+          if (id) next.set("source", id);
+          else next.delete("source");
+          if (id && atPage > 0) next.set("page", String(atPage + 1));
+          else next.delete("page");
+          return next;
+        },
+        { replace },
+      );
+    },
+    [setParams],
+  );
+  const openRow = useCallback(
+    (id: string, top: number) => {
+      rowTop.current = top;
+      setHeld(id);
+      showPreview(id, 0, false);
+    },
+    [showPreview],
+  );
+  const closePreview = useCallback(() => {
+    if (previewed) setHeld(previewed);
+    rowTop.current = selectedId ? (document.querySelector(`[data-source="${selectedId}"]`)?.getBoundingClientRect().top ?? null) : null;
+    showPreview(null);
+  }, [previewed, selectedId, showPreview]);
+
+  // A row stays where it was when the list changes between its two scrollers, and stays in view as the selection moves.
+  const listShape = showing ? "split" : "whole";
+  useLayoutEffect(() => {
+    const row = selectedId ? document.querySelector(`[data-source="${selectedId}"]`) : null;
+    if (!row) return;
+    const scroller = row.closest(".sources-split-list, .canvas");
+    if (scroller && rowTop.current !== null) scroller.scrollTop += row.getBoundingClientRect().top - rowTop.current;
+    else row.scrollIntoView({ block: "nearest" });
+    rowTop.current = null;
+  }, [listShape, selectedId]);
+
+  // A link can name a source further down than what is loaded: load on until it is found, or there is no more.
+  useEffect(() => {
+    if (previewed && q.isSuccess && index < 0 && q.hasNextPage && !q.isFetchingNextPage) void q.fetchNextPage();
+  }, [previewed, index, q.isSuccess, q.hasNextPage, q.isFetchingNextPage, q.fetchNextPage]);
+
+  const moveTo = (i: number) => {
+    const next = records[i];
+    if (!next) return;
+    setHeld(next.record_id);
+    if (open) showPreview(next.record_id);
+    const row = document.querySelector<HTMLElement>(`[data-source="${next.record_id}"] .source-row-link`);
+    row?.focus({ preventScroll: true });
+    if (i >= records.length - 5 && q.hasNextPage && !q.isFetchingNextPage) void q.fetchNextPage();
   };
+  const pages = selected ? previewPages(selected) : [];
+  const pageAt = Math.min(page, Math.max(0, pages.length - 1));
+  const toSource = useCallback((id: string) => `${app}/evidence/${id}`, [app]);
+  const keys = useRef<(e: KeyboardEvent) => void>(() => undefined);
+  keys.current = (e) => {
+    if (e.defaultPrevented || e.metaKey || e.ctrlKey || e.altKey || keyBelongsElsewhere(e.target, e.key) || !records.length) return;
+    // From the row someone has tabbed to, when they have; otherwise from the one selected.
+    const focused = e.target instanceof Element ? e.target.closest<HTMLElement>("[data-source]")?.dataset["source"] : undefined;
+    const from = focused ? records.findIndex((r) => r.record_id === focused) : index;
+    switch (e.key) {
+      case "ArrowDown":
+      case "j":
+        moveTo(from < 0 ? 0 : from + 1);
+        break;
+      case "ArrowUp":
+      case "k":
+        if (from < 0) return;
+        moveTo(from - 1);
+        break;
+      case "ArrowRight":
+        if (!showing || pageAt >= pages.length - 1) return;
+        showPreview(showing.record_id, pageAt + 1);
+        break;
+      case "ArrowLeft":
+        if (!showing || pageAt <= 0) return;
+        showPreview(showing.record_id, pageAt - 1);
+        break;
+      case " ":
+        if (!selected) return;
+        if (open) closePreview();
+        else showPreview(selected.record_id);
+        break;
+      case "Enter":
+        if (!selected) return;
+        navigate(toSource(selected.record_id));
+        break;
+      case "Escape":
+        if (!open) return;
+        closePreview();
+        document.querySelector<HTMLElement>(`[data-source="${selectedId}"] .source-row-link`)?.focus({ preventScroll: true });
+        break;
+      default:
+        return;
+    }
+    e.preventDefault();
+  };
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => keys.current(e);
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
+  // The next picture along is ready before someone arrives at it; pictures cost no call.
+  useEffect(() => {
+    if (!showing) return;
+    const neighbours = [previewPages(showing)[pageAt + 1], records[index + 1] && previewPages(records[index + 1]!)[0], records[index - 1] && previewPages(records[index - 1]!)[0]];
+    for (const p of neighbours) {
+      const url = previewPicture(p);
+      if (url) new Image().src = url;
+    }
+  }, [showing, pageAt, index, records]);
+
+  const more = useLoadMoreNearEnd(q.hasNextPage, () => {
+    if (q.hasNextPage && !q.isFetchingNextPage) void q.fetchNextPage();
+  });
+
   // Titles shared by more than one listed source: those rows also name the attachment their text was read from.
   const titleCount = new Map<string, number>();
   for (const r of records) titleCount.set(r.title.trim().toLowerCase(), (titleCount.get(r.title.trim().toLowerCase()) ?? 0) + 1);
   // The current order's link reverses it; another order starts from its usual direction.
   const sortLink = (id: Sort) => {
     const next = new URLSearchParams(params);
+    next.delete("source");
+    next.delete("page");
     if (id === "date") next.delete("sort");
     else next.set("sort", id);
     const flip = order === "asc" ? "desc" : "asc";
@@ -412,6 +542,8 @@ export function EvidencePage() {
   const active = FILTER_KEYS.filter((k) => f[k]);
   const without = (keys: (keyof Filters)[]) => {
     const next = new URLSearchParams(params);
+    next.delete("source");
+    next.delete("page");
     for (const k of keys) next.delete(k);
     const s = next.toString();
     return `${app}/evidence${s ? `?${s}` : ""}`;
@@ -426,75 +558,104 @@ export function EvidencePage() {
   // "of N" compares with the product's live sources, so it is left out once archived ones are listed.
   const total = active.length && f.include_archived !== "1" ? ` of ${product.counts.sources}` : "";
   const count = q.isSuccess ? sourcesCount({ loaded: records.length, more: q.hasNextPage, filters: f, facets: facets.data, of: total }) : undefined;
+  const list = (
+    <Sheet className="sources-sheet">
+      <SheetHeader
+        level={1}
+        title="Sources"
+        count={count}
+        filter={<SortControl sort={sort} order={order} link={sortLink} />}
+        end={canWrite && !showing ? <AddSourceButton /> : undefined}
+      />
+      <FiltersInUse chips={chips} clearTo={without([...FILTER_KEYS])} />
+      {q.isPending ? (
+        <Loading label="Loading sources…" lines={6} />
+      ) : q.isError ? (
+        <div className="sheet-body">
+          <ErrorCallout inset title="Sources couldn’t be loaded" error={q.error} onRetry={() => q.refetch()} />
+        </div>
+      ) : !records.length ? (
+        active.length && (product.counts.sources ?? 0) > 0 ? (
+          f.query && chips.length === 1 ? (
+            <EmptyState size="inline" title={`No titles, tags or attachment names hold “${f.query}”`} action={<ButtonLink to={without(["query"])}>Clear the search</ButtonLink>}>
+              Use Search to find what sources say.
+            </EmptyState>
+          ) : (
+            <EmptyState size="inline" title="No sources match these filters" action={<ButtonLink to={`${app}/evidence`}>Clear filters</ButtonLink>} />
+          )
+        ) : (
+          <FirstUse title="No sources yet" ask={`Add these meeting notes to ${product.name} in WhatBuild as a source.`}>
+            Anything the team learns from: meeting notes, transcripts, documents, whiteboard photos.
+          </FirstUse>
+        )
+      ) : (
+        <div className={showing ? "sources-split-list" : undefined}>
+          <ul className="sources-rows" aria-label="Sources. Up and down arrows move through them; left and right move through the one in the preview.">
+            {records.map((r) => (
+              <SourceRow
+                key={r.record_id}
+                r={r}
+                to={toSource(r.record_id)}
+                sort={sort}
+                twin={(titleCount.get(r.title.trim().toLowerCase()) ?? 0) > 1}
+                selected={r.record_id === selectedId}
+                compact={Boolean(showing)}
+                onOpen={openRow}
+              />
+            ))}
+          </ul>
+          {q.hasNextPage ? (
+            <div className="sources-more" ref={more}>
+              <Button size="sm" onClick={() => q.fetchNextPage()} busy={q.isFetchingNextPage} busyLabel="Loading…">
+                Show more sources
+              </Button>
+            </div>
+          ) : null}
+        </div>
+      )}
+      {showing ? (
+        <p className="sources-keys" aria-hidden="true">
+          <span>
+            <kbd>↑</kbd>
+            <kbd>↓</kbd> Sources
+          </span>
+          <span>
+            <kbd>←</kbd>
+            <kbd>→</kbd> Pages
+          </span>
+          <span>
+            <kbd>↵</kbd> Open
+          </span>
+          <span>
+            <kbd>Esc</kbd> Close
+          </span>
+        </p>
+      ) : null}
+    </Sheet>
+  );
   return (
     <>
       <EvidenceFilters />
-      <Sheet className="sources-sheet">
-        <SheetHeader
-          level={1}
-          title="Sources"
-          count={count}
-          filter={<SortControl sort={sort} order={order} link={sortLink} />}
-          end={
-            summarized.length || canWrite ? (
-              <>
-                {summarized.length ? (
-                  <Button variant="quiet" icon={everyOpen ? "fold" : "unfold"} onClick={() => showAll(!everyOpen)}>
-                    {everyOpen ? "Hide summaries" : "Show summaries"}
-                  </Button>
-                ) : null}
-                {canWrite ? <AddSourceButton /> : null}
-              </>
-            ) : undefined
-          }
-        />
-        <FiltersInUse chips={chips} clearTo={without([...FILTER_KEYS])} />
-        {q.isPending ? (
-          <Loading label="Loading sources…" lines={6} />
-        ) : q.isError ? (
-          <div className="sheet-body">
-            <ErrorCallout inset title="Sources couldn’t be loaded" error={q.error} onRetry={() => q.refetch()} />
-          </div>
-        ) : !records.length ? (
-          active.length && (product.counts.sources ?? 0) > 0 ? (
-            f.query && chips.length === 1 ? (
-              <EmptyState size="inline" title={`No titles, tags or attachment names hold “${f.query}”`} action={<ButtonLink to={without(["query"])}>Clear the search</ButtonLink>}>
-                Use Search to find what sources say.
-              </EmptyState>
-            ) : (
-              <EmptyState size="inline" title="No sources match these filters" action={<ButtonLink to={`${app}/evidence`}>Clear filters</ButtonLink>} />
-            )
-          ) : (
-            <FirstUse title="No sources yet" ask={`Add these meeting notes to ${product.name} in WhatBuild as a source.`}>
-              Anything the team learns from: meeting notes, transcripts, documents, whiteboard photos.
-            </FirstUse>
-          )
-        ) : (
-          <>
-            <ul className={`sources-rows${summarized.length ? " has-toggles" : ""}`}>
-              {records.map((r) => (
-                <SourceRow
-                  key={r.record_id}
-                  r={r}
-                  to={`${app}/evidence/${r.record_id}`}
-                  sort={sort}
-                  twin={(titleCount.get(r.title.trim().toLowerCase()) ?? 0) > 1}
-                  open={Boolean(r.summary) && isOpen(r.record_id)}
-                  onToggle={() => turn(r.record_id)}
-                  toggles={summarized.length > 0}
-                />
-              ))}
-            </ul>
-            {q.hasNextPage ? (
-              <div className="sources-more">
-                <Button size="sm" onClick={() => q.fetchNextPage()} busy={q.isFetchingNextPage} busyLabel="Loading…">
-                  Show more sources
-                </Button>
-              </div>
-            ) : null}
-          </>
-        )}
-      </Sheet>
+      {showing ? (
+        <div className="sources-split">
+          {list}
+          <SourcePreview s={showing} page={pageAt} onPage={(n) => showPreview(showing.record_id, n)} onClose={closePreview} to={toSource(showing.record_id)} phone={phone} />
+        </div>
+      ) : (
+        <>
+          {list}
+          {previewed && q.isSuccess && !q.hasNextPage && index < 0 ? (
+            <p className="sources-gone" role="status">
+              The source this address names isn’t in this list. It may have been archived or filtered out.
+            </p>
+          ) : null}
+          {held && selected && !phone ? (
+            <button type="button" className="show-ins sources-show-preview" aria-label="Show the preview" title="Show the preview (Space)" onClick={() => showPreview(selected.record_id)}>
+              <Glyph name="panel-right-open" />
+            </button>
+          ) : null}
+        </>
+      )}
     </>
   );
 }

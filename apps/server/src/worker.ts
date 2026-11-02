@@ -2,7 +2,7 @@ import { hostname } from "node:os";
 import { SpanKind, SpanStatusCode, type Span } from "@opentelemetry/api";
 import { ParseInterrupted, ParseStopped } from "@whatbuild/parsers";
 import {
-  indexSources, markExportFailed, pruneFeedbackCounts, pruneUsage, runDerivation, runEvidenceMove, runExport, sendFeedbackDigest, stagedPrototypeKeys, type Env,
+  indexSources, markExportFailed, PICTURE_FILES, pruneFeedbackCounts, pruneUsage, runDerivation, runEvidenceMove, runExport, runPicture, sendFeedbackDigest, stagedPrototypeKeys, type Env,
 } from "@whatbuild/core";
 import { sql } from "kysely";
 import { CONNECTION_NOTICE_JOB, sendConnectionNotice, type ConnectionNoticeJob } from "./auth/connection-notice.ts";
@@ -10,8 +10,8 @@ import { pruneOAuthClients } from "./auth/oauth.ts";
 import { migrationNames } from "./database.ts";
 import { errorType, tracer } from "./telemetry.ts";
 
-/** A reading's blobs. One made while sources had passages also has a segments.jsonl, and an older one an outline.md, released with the rest. */
-const SIDECARS = ["segments.jsonl", "text.md", "outline.md", "manifest.json"];
+/** A reading's blobs, and a picture's. A reading made while sources had passages also has a segments.jsonl, and an older one an outline.md, released with the rest. */
+const SIDECARS = ["segments.jsonl", "text.md", "outline.md", "manifest.json", PICTURE_FILES.thumb, PICTURE_FILES.preview];
 /** A job is tried at most this many times, whether it failed or the process stopped while running it. */
 const MAX_ATTEMPTS = 5;
 /**
@@ -29,7 +29,7 @@ const STALE_LOCK_MINUTES = 10;
  * instance of the version before it leaves a kind a new migration queued for the new version,
  * instead of failing it and spending its attempts. A job no running version knows waits.
  */
-export const JOB_KINDS = ["derive", "export", "move_to_evidence", "delete_blobs", "index_texts", CONNECTION_NOTICE_JOB] as const;
+export const JOB_KINDS = ["derive", "make_picture", "export", "move_to_evidence", "delete_blobs", "index_texts", CONNECTION_NOTICE_JOB] as const;
 
 interface Job {
   job_id: number;
@@ -375,6 +375,15 @@ export class Worker {
           });
           this.log(`job ${job.job_id} derive ${job.payload["record_id"]}: ${out ? out.status : "skipped"} in ${Date.now() - started} ms`);
           if (out && this.env.ports.live) changed = (await trx.selectFrom("records").select("product_id").where("record_id", "=", String(job.payload["record_id"])).executeTakeFirst())?.product_id;
+        } else if (job.kind === "make_picture") {
+          const recordId = String(job.payload["record_id"]);
+          const frameKey = job.payload["frame_key"] ? String(job.payload["frame_key"]) : undefined;
+          const out = await runPicture(trx, this.env.ports, { tenant_id: job.tenant_id, record_id: recordId, file_version_id: String(job.payload["file_version_id"]), frame_key: frameKey });
+          this.log(`job ${job.job_id} make_picture ${recordId}: ${out ?? "skipped"} in ${Date.now() - started} ms`);
+          // A frame someone sent has done its work, whatever came of it.
+          if (frameKey) await this.env.ports.blobs.delete(frameKey).catch(() => undefined);
+          // The attachments already there are made quietly: no tab needs to hear of each.
+          if (out === "ready" && this.env.ports.live && !job.payload["quiet"]) changed = (await trx.selectFrom("records").select("product_id").where("record_id", "=", recordId).executeTakeFirst())?.product_id;
         } else if (job.kind === "export") {
           const out = await runExport(trx, this.env.ports, { tenant_id: job.tenant_id, export_id: String(job.payload["export_id"]) });
           this.log(`job ${job.job_id} export: ${out ? `${out.files} files, ${out.size} bytes` : "skipped"} in ${Date.now() - started} ms`);

@@ -8,6 +8,7 @@ import { conflict, gone, invalid, notFound } from "../errors.ts";
 import { effectiveRole, membershipsFor, roleAtLeast } from "../policy.ts";
 import { defineOperation, type OpContext } from "../registry.ts";
 import { expectedEtag, id, isoDate, tags } from "../schemas.ts";
+import { picturePrefixes, pictureSource, picturesOf, type PictureSeen } from "../pictures.ts";
 import { indexSource, indexText } from "../text-index.ts";
 import { likeContaining, newEtag, newId, sameEtag, slugify, uniq } from "../util.ts";
 
@@ -331,6 +332,47 @@ export const sourceFacets = defineOperation({
 
 /** How much of each source's summary sources.list returns with include_summary. */
 export const LIST_SUMMARY_MAX = 1000;
+/** How much of each source's derived text sources.list returns with include_preview: enough to set a small page of it. */
+export const LIST_FIRST_LINES_MAX = 600;
+
+/**
+ * What a list shows of each source beyond its metadata, with no further call: how its derived text
+ * starts, and its attachments, each with how it was read and its picture.
+ */
+async function listPreviews(ctx: OpContext, recordIds: string[]) {
+  const words = await ctx.db
+    .selectFrom("source_texts")
+    .select(["record_id", sql<string>`left(content, ${LIST_FIRST_LINES_MAX})`.as("content")])
+    .where("record_id", "in", recordIds)
+    .execute();
+  const readings = await attachmentReadings(ctx.db, recordIds);
+  const pictures = await picturesOf(ctx.db, ctx.ports, readings.flatMap((a) => (a.current_version_id ? [a.current_version_id] : [])), ctx.now);
+  const attachments = new Map<string, ListedAttachment[]>();
+  for (const a of readings) {
+    if (!a.current_version_id) continue;
+    const list = attachments.get(a.record_id) ?? [];
+    list.push({
+      path: a.path,
+      media_type: a.media_type,
+      size: a.size,
+      file_version_id: a.current_version_id,
+      text: { status: attachmentText(a, ctx.ports.config.parseCapBytes).status, chars: Number(a.text_chars ?? 0), duration_ms: a.duration_ms },
+      picture: pictures.get(a.current_version_id) ?? null,
+    });
+    attachments.set(a.record_id, list);
+  }
+  return { firstLines: new Map(words.map((w) => [w.record_id, w.content])), attachments };
+}
+
+/** An attachment as a list shows it. */
+interface ListedAttachment {
+  path: string;
+  media_type: string | null;
+  size: number | null;
+  file_version_id: string;
+  text: { status: string; chars: number; duration_ms: number | null };
+  picture: PictureSeen | null;
+}
 
 export const listSources = defineOperation({
   name: "sources.list",
@@ -340,7 +382,7 @@ export const listSources = defineOperation({
   summary: "List sources by metadata: newest added first, or by date, last update or title, either way round. For what sources say, use search.",
   description:
     "Filters combine. `tags` must all be on a source; sources_read(action=\"facets\") lists the tags in use and who added sources. `added_by` is an account_id; `added_since` keeps sources added at or after a date or time; `date_from` and `date_to` bound the source's own date. `query` is a case-insensitive substring over metadata only — title, tags and attachment names — never what a source says; use `search` for that. `sort`: added (newest added first, the default), date (the source's own date, newest first, undated last), updated (details most recently changed first) or title (A to Z). `order` reverses it: asc or desc, defaulting to desc for the three dates and asc for title; undated sources stay last either way. Returns each source's metadata with derived_status, the attachment the derived text was taken from (text_from) and next_cursor; pass the cursor back with the same filters, sort and order. " +
-    `include_summary adds each source's summary (null without one, cut at ${LIST_SUMMARY_MAX} characters), which is what people read when they browse the list.`,
+    `include_summary adds each source's summary (null without one, cut at ${LIST_SUMMARY_MAX} characters), which is what people read when they browse the list. include_preview adds first_lines, the start of its derived text (null without one, at most ${LIST_FIRST_LINES_MAX} characters), and attachments, each with its path, media_type, size, how its text was read and its picture: thumb_url and preview_url, addresses on this deployment that work for a few hours and need no sign-in, or null with none yet. The web app's list and preview read these; an agent seldom needs them.`,
   input: z.strictObject({
     tags: z.array(z.string()).max(20).optional().describe("All must match."),
     added_by: z.string().min(1).max(100).optional().describe("An account_id from sources_read(action=\"facets\"): only the sources that person added, in the app or through an agent."),
@@ -350,6 +392,7 @@ export const listSources = defineOperation({
     query: z.string().max(500).optional(),
     include_archived: z.boolean().default(false),
     include_summary: z.boolean().default(false).describe("Add each source's summary."),
+    include_preview: z.boolean().default(false).describe("Add how each source's text starts, and its attachments with their pictures."),
     sort: z.enum(["added", "date", "updated", "title"]).default("added"),
     order: z.enum(["asc", "desc"]).optional().describe("Defaults to desc for added, date and updated, and asc for title."),
     limit: z.number().int().min(1).max(200).default(50),
@@ -422,11 +465,13 @@ export const listSources = defineOperation({
             ).map((n) => [n.record_id, truncateQuote(n.content, LIST_SUMMARY_MAX)]),
           )
         : null;
+    const previews = input.include_preview && page.length ? await listPreviews(ctx, page.map((r) => r.record_id)) : null;
     return {
       records: page.map((r) => ({
         ...recordSummary(r, statuses.get(r.record_id)),
         text_from: statuses.get(r.record_id)?.text_from ?? null,
         ...(summaries ? { summary: summaries.get(r.record_id) ?? null } : {}),
+        ...(previews ? { first_lines: previews.firstLines.get(r.record_id) ?? null, attachments: previews.attachments.get(r.record_id) ?? [] } : {}),
       })),
       next_cursor: next,
     };
@@ -947,6 +992,7 @@ export const copySource = defineOperation({
         if (was?.file_id === f.file_id) textFrom = file_version_id;
       }
       await ctx.enqueue("derive", { record_id: copy.record_id, file_version_id });
+      if (pictureSource(f.path, v.media_type)) await ctx.enqueue("make_picture", { record_id: copy.record_id, file_version_id });
     }
     if (text) {
       await ctx.db
@@ -976,7 +1022,7 @@ async function impact(ctx: OpContext, r: RecordRow) {
     annotations: annotations.length,
     after_delete: "Its attachments, every stored version of them and what was read from them, its derived text, summary, notes and comments go. Links to it from Story pages, mockups and notes open a record of the deletion instead.",
     _blobs: files.map((f) => f.blob_key),
-    _prefixes: derivations.map((d) => d.blob_prefix),
+    _prefixes: [...derivations.map((d) => d.blob_prefix), ...(await picturePrefixes(ctx.db, { record_ids: [r.record_id] }))],
   };
 }
 

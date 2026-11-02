@@ -425,6 +425,28 @@ export interface DerivationsTable {
   created_at: Ts;
 }
 
+/**
+ * The small copies of a picture of an attachment version, for the list of sources and its preview.
+ * A row with no copies (`none`, `failed`) says why; a deck's may still have a card to draw.
+ */
+export interface AttachmentPicturesTable {
+  file_version_id: string;
+  tenant_id: string;
+  record_id: string;
+  status: "ready" | "none" | "failed";
+  detail: string | null;
+  made_from: "image" | "pdf" | "deck" | "frame";
+  blob_prefix: string | null;
+  /** The preview copy's size in pixels. */
+  width: number | null;
+  height: number | null;
+  /** A PDF's pages or a deck's slides. */
+  pages: number | null;
+  card_title: string | null;
+  card_colour: string | null;
+  made_at: Ts;
+}
+
 /** A source's derived text: the Markdown search reads, taken from an attachment or written by someone. */
 export interface SourceTextsTable {
   record_id: string;
@@ -822,6 +844,7 @@ export interface DB {
   upload_grants: UploadGrantsTable;
   mockup_uploads: MockupUploadsTable;
   derivations: DerivationsTable;
+  attachment_pictures: AttachmentPicturesTable;
   source_texts: SourceTextsTable;
   text_chunks: TextChunksTable;
   annotations: AnnotationsTable;

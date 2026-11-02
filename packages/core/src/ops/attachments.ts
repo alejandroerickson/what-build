@@ -4,6 +4,7 @@ import { productId, recordActivity, tenantId } from "../common.ts";
 import { json } from "../db.ts";
 import { AppError, conflict, invalid, notFound, rateLimited, tooLarge } from "../errors.ts";
 import { extensionForMediaType, extensionOf, mediaTypeFor, validFilePath } from "../media.ts";
+import { pictureSource } from "../pictures.ts";
 import { defineOperation, type OpContext, type Principal } from "../registry.ts";
 import { countBytes, mayFetchUrl, tallyOf, uploadLimit } from "../limits.ts";
 import { id } from "../schemas.ts";
@@ -237,6 +238,7 @@ export async function completeGrant(ctx: OpContext, grantId: string) {
     // Adding an attachment changes the source, so its etag moves on.
     await ctx.db.updateTable("records").set({ etag: newEtag() }).where("record_id", "=", g.record_id).execute();
     await ctx.enqueue("derive", { record_id: g.record_id, file_version_id: fileVersionId });
+    if (pictureSource(g.path, g.media_type)) await ctx.enqueue("make_picture", { record_id: g.record_id, file_version_id: fileVersionId });
     // On every plan the file counts against whoever asked for the grant, whichever way its bytes came.
     await countBytes(ctx.db, ctx.limits ?? tallyOf(g.tenant_id, new Date(ctx.now)), g.principal.account_id, size!);
     await recordActivity(ctx, { action: "file_added", entity_type: "source", entity_id: g.record_id, entity_title: record.title, summary: `Added the attachment ${g.path}` });
@@ -423,4 +425,39 @@ export const getDownload = defineOperation({
   },
 });
 
-export const attachmentOps = [requestUpload, createUpload, createUploads, completeUpload, fetchUrl, getDownload];
+/** The longest frame `attachments.set_frame` takes, in base64: a small picture, far short of a photo. */
+const FRAME_MAX_CHARS = 700_000;
+
+export const setFrame = defineOperation({
+  name: "attachments.set_frame",
+  scope: "product",
+  access: "write",
+  mutates: true,
+  summary: "Give a video or an HTML page its picture, as a small image, which people see in the list of sources and the preview.",
+  description:
+    `WhatBuild neither plays videos nor draws web pages itself, so these have no picture in the list until they are given one: the web app sends it when someone who can write to the product uploads or opens the attachment, and an agent can send one it took. image_base64 is an image of at most ${Math.floor((FRAME_MAX_CHARS * 3) / 4 / 1024)} KB, base64; it is checked and made small by the worker, and shows once that has run. One that already has its picture keeps it unless replace is true, and then made is false. Refuses any other attachment (a picture of an image, a PDF or a deck is made when it arrives). Changes neither the source's etag nor its activity: a picture says nothing of what the source holds.`,
+  input: z.strictObject({
+    record_id: id("source"),
+    path: z.string().min(1).max(200),
+    image_base64: z.string().min(1).max(FRAME_MAX_CHARS).regex(/^[A-Za-z0-9+/]+={0,2}$/, "image_base64 is base64"),
+    replace: z.boolean().default(false).describe("Replace the frame the video has."),
+  }),
+  rest: { method: "POST", path: "/sources/:record_id/frame" },
+  mcp: { tool: "attachments", action: "set_frame" },
+  async handler(ctx, input) {
+    await loadRecord(ctx, input.record_id, { live: true });
+    const f = await ctx.db.selectFrom("files").select("current_version_id").where("record_id", "=", input.record_id).where("path", "=", input.path).executeTakeFirst();
+    if (!f?.current_version_id) throw notFound(`No attachment ${input.path} on this source.`);
+    const v = await ctx.db.selectFrom("file_versions").select("media_type").where("file_version_id", "=", f.current_version_id).executeTakeFirstOrThrow();
+    if (!v.media_type.startsWith("video/") && v.media_type !== "text/html" && !/\.html?$/i.test(input.path))
+      throw invalid("not_a_video", `${input.path} is ${v.media_type}: only a video or an HTML page is given a picture this way. Another attachment's picture, if it can have one, is made when it arrives.`);
+    const has = await ctx.db.selectFrom("attachment_pictures").select("file_version_id").where("file_version_id", "=", f.current_version_id).where("status", "=", "ready").executeTakeFirst();
+    if (has && !input.replace) return { record_id: input.record_id, path: input.path, made: false };
+    const frame_key = `t/${tenantId(ctx)}/r/${input.record_id}/p/${newId()}/frame`;
+    await ctx.ports.blobs.put(frame_key, new Uint8Array(Buffer.from(input.image_base64, "base64")), { contentType: "application/octet-stream" });
+    await ctx.enqueue("make_picture", { record_id: input.record_id, file_version_id: f.current_version_id, frame_key });
+    return { record_id: input.record_id, path: input.path, made: true };
+  },
+});
+
+export const attachmentOps = [requestUpload, createUpload, createUploads, completeUpload, fetchUrl, getDownload, setFrame];

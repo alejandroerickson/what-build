@@ -1647,9 +1647,9 @@ describe("statuses", () => {
     expect(r.duration_ms).toBeNull();
   });
   it("marks unknown formats unsupported", async () => {
-    const r = await derive(new Uint8Array(10), "slides.pptx");
+    const r = await derive(new Uint8Array(10), "slides.key");
     expect(r.status).toBe("unsupported");
-    expect(r.status_detail).toBe("no parser reads .pptx files");
+    expect(r.status_detail).toBe("no parser reads .key files");
   });
   it("marks an image unsupported, saying how an agent gives it its words", async () => {
     for (const [name, type] of [["board.png", null], ["photo", "image/jpeg"]] as const) {

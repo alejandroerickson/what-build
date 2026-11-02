@@ -8,6 +8,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 // and attachment names, as sources.list matches them, never what sources say.
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+window.matchMedia = (() => ({ matches: false, addEventListener: () => {}, removeEventListener: () => {} })) as unknown as typeof window.matchMedia;
 
 const BASE = "/api/v1/p/acme/core/crew";
 const APP = "/t/acme/core/crew";
@@ -16,7 +17,7 @@ const product = { name: "Crewboard", path: "acme/core/crew", your_role: "editor"
 const source = {
   record_id: "01K8A2B3C4D5E6F7G8H9J0K1M2", title: "Crew lead interview — Example Co", date: "2026-09-10", tags: ["van checks"], uploaded_by: by,
   uploaded_at: "2026-10-01T09:00:00.000Z", updated_at: "2026-10-01T09:00:00.000Z", updated_by: by, archived_at: null, derived_status: "ready",
-  text_chars: 1200, attachment_count: 1, etag: "e1", text_from: "interview.txt", summary: null,
+  text_chars: 1200, attachment_count: 1, etag: "e1", text_from: "interview.txt", summary: null, first_lines: null, attachments: [],
 };
 
 vi.mock("../src/lib/api.ts", async (original) => ({

@@ -4,6 +4,8 @@ import { useNavigate } from "react-router";
 import { api, putWithProgress } from "../lib/api.ts";
 import { formatBytes, formatDate, plural } from "../lib/format.ts";
 import { cannotWriteReason, useProduct } from "../lib/session.tsx";
+import { pictureOfHtml } from "../lib/html-picture.ts";
+import { frameOfFile, sendFrame } from "../lib/video-frame.ts";
 import { usePageTitle } from "../shell/slots.tsx";
 import {
   Button, ButtonLink, Callout, EmptyState, ErrorCallout, FormGrid, Glyph, IconButton, KeyValue, PageHeader, Sheet, SheetBody, SheetHeader,
@@ -41,6 +43,9 @@ export async function uploadFiles(base: string, recordId: string, items: Item[],
       });
       await putWithProgress(grant.url, grant.headers, it.file, (loaded) => update(i, { loaded }));
       update(i, { state: "done", loaded: it.file.size });
+      // What the server can't draw is drawn here, from the file on the person's own machine.
+      const picture = it.file.type.startsWith("video/") ? frameOfFile(it.file) : /\.html?$/i.test(it.file.name) ? it.file.text().then(pictureOfHtml) : null;
+      if (picture) void picture.then((frame) => (frame ? sendFrame(base, recordId, it.file.name, frame) : undefined));
     } catch (e) {
       update(i, { state: "failed", error: (e as Error).message });
       allDone = false;

@@ -234,7 +234,7 @@ export function uploadRoutes(env: Env & { config: ServerConfig }) {
       });
       if (!found) throw notFound("That file no longer exists.");
       const { principal, scope } = await requesterMayRead(env, claims, found.product_id);
-      await admitSend(env, principal, scope, bytesAsked(c, found.v.size));
+      await admitSend(env, principal, scope, bytesAsked(c, found.v));
       return streamFile(c, env, found.v, found.path, true);
     } catch (e) {
       return fail(c, e);
