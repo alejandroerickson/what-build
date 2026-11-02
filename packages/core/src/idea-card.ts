@@ -79,22 +79,56 @@ export const CARD_FRAMES = {
 /** About how many words of text a front holds before it reads as a paragraph rather than a picture. */
 const FRONT_WORDS = { concept: 80, outcome: 40 } as const;
 
+/**
+ * Every run from `open` to the next `close`, in order, in one pass. A front is an agent's text, and a
+ * pattern such as <style[\s\S]*?<\/style> starts over from each <style when nothing closes it, which
+ * takes quadratic time. Here a search that finds no `close` ends the walk: nothing later closes either.
+ */
+function runs(text: string, open: RegExp, close: RegExp): { start: number; inner: number; innerEnd: number; end: number }[] {
+  const found = [];
+  for (let o = open.exec(text); o; o = open.exec(text)) {
+    close.lastIndex = o.index + o[0].length;
+    const c = close.exec(text);
+    if (!c) break;
+    found.push({ start: o.index, inner: o.index + o[0].length, innerEnd: c.index, end: c.index + c[0].length });
+    open.lastIndex = c.index + c[0].length;
+  }
+  return found;
+}
+
+/** The text with those runs taken out, a space in place of each. */
+function without(text: string, open: RegExp, close: RegExp): string {
+  let kept = "";
+  let at = 0;
+  for (const run of runs(text, open, close)) {
+    kept += `${text.slice(at, run.start)} `;
+    at = run.end;
+  }
+  return kept + text.slice(at);
+}
+
 /** The words a front shows: its text, without markup, styles or comments. */
 function frontWords(html: string): string[] {
-  const text = html
-    .replace(/<style[\s\S]*?<\/style>/gi, " ")
-    .replace(/<!--[\s\S]*?-->/g, " ")
-    .replace(/<[^>]*>/g, " ")
-    .replace(/&[a-z]+;|&#\d+;/gi, " ");
+  const text = without(without(without(html, /<style/gi, /<\/style>/gi), /<!--/g, /-->/g), /</g, />/g).replace(/&[a-z]+;|&#\d+;/gi, " ");
   return text.split(/\s+/).filter((w) => /[\p{L}\p{N}]/u.test(w));
+}
+
+/** The CSS of a front's style blocks. */
+function styleBlocks(html: string): string[] {
+  const blocks: string[] = [];
+  for (const run of runs(html, /<style/gi, /<\/style>/gi)) {
+    const tagEnd = html.indexOf(">", run.inner);
+    if (tagEnd < run.innerEnd) blocks.push(html.slice(tagEnd + 1, run.innerEnd));
+  }
+  return blocks;
 }
 
 /** What sets a front's colours: its style blocks, style attributes and SVG paint, without data: URIs. */
 function styling(html: string): string {
   const found = [
-    ...html.matchAll(/<style[^>]*>([\s\S]*?)<\/style>/gi),
-    ...html.matchAll(/\s(?:style|fill|stroke|color|stop-color|flood-color|lighting-color)\s*=\s*("[^"]*"|'[^']*')/gi),
-  ].map((m) => m[1]!);
+    ...styleBlocks(html),
+    ...[...html.matchAll(/\s(?:style|fill|stroke|color|stop-color|flood-color|lighting-color)\s*=\s*("[^"]*"|'[^']*')/gi)].map((m) => m[1]!),
+  ];
   return found.join(" ").replace(/data:[^"')\s]+/gi, "");
 }
 
