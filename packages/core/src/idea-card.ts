@@ -109,7 +109,7 @@ function without(text: string, open: RegExp, close: RegExp): string {
 
 /** The words a front shows: its text, without markup, styles or comments. */
 function frontWords(html: string): string[] {
-  const text = without(without(without(html, /<style/gi, /<\/style>/gi), /<!--/g, /-->/g), /</g, />/g).replace(/&[a-z]+;|&#\d+;/gi, " ");
+  const text = without(without(without(html, /<style/gi, /<\/style>/gi), /<!--/g, /--!?>/g), /</g, />/g).replace(/&[a-z]+;|&#\d+;/gi, " ");
   return text.split(/\s+/).filter((w) => /[\p{L}\p{N}]/u.test(w));
 }
 

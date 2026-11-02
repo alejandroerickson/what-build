@@ -45,6 +45,8 @@ describe("advice on a card", () => {
     expect(words(`<STYLE type="text/css">${many}</STYLE ><p>short</p>`)).toBe(true);
     expect(words(`<STYLE type="text/css">${many}</STYLE><p>short</p>`)).toBe(false);
     expect(words(`<!-- ${many} --><p>short</p>`)).toBe(false);
+    // A browser ends a comment here too.
+    expect(words(`<!-- ${many} --!><p>short</p>`)).toBe(false);
     expect(words(`<a title="${many}">short</a>`)).toBe(false);
     // Nothing closes it, so it is not a style block, and its words count.
     expect(words(`<style>${many}`)).toBe(true);
