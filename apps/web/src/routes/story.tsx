@@ -1,8 +1,9 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { MOCKUP_PAGE_SANDBOX, STORY_PAGE_SANDBOX } from "@whatbuild/core/page-sandbox";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Navigate, useNavigate, useParams, useSearchParams } from "react-router";
 import { api, ApiError } from "../lib/api.ts";
+import { useHeldUpdate } from "../lib/live.tsx";
 import { useFrameReturn } from "../lib/minute.ts";
 import { useProduct } from "../lib/session.tsx";
 import { useScheme } from "../shell/theme.ts";
@@ -253,8 +254,12 @@ function StoryCanvas({ base, pageId, shown, mockup, onKey, canFocus, reread }: {
   );
 }
 
+/** A Story page as whoever reads it sees it, in a string that changes when any of that does. Moving it in the tree changes none of it. */
+const pagePrint = (p: PageView) => JSON.stringify([p.current_version, p.title, p.archived_at, p.agent_notes?.etag ?? null]);
+
 export function StoryPage() {
   const { pageId } = useParams();
+  const qc = useQueryClient();
   const { api: base, app, product, storyOnly, canWrite } = useProduct();
   const navigate = useNavigate();
   const [params] = useSearchParams();
@@ -302,6 +307,17 @@ export function StoryPage() {
   }, [pageId, page.isSuccess, rememberKey]);
 
   usePageTitle(page.data?.title ?? (pageId ? null : "Story"));
+
+  // The tree and its titles follow the Story by themselves; the page in its frame stays until the person says.
+  useHeldUpdate({
+    area: "story",
+    shown: page.data ? pagePrint(page.data) : null,
+    peek: () => api<PageView>("GET", `${base}/story/pages/${pageId}?include_html=false`).then(pagePrint),
+    refresh: () => {
+      for (const name of ["story-page", "story-versions", "story-version"]) void qc.invalidateQueries({ queryKey: [name, base, pageId] });
+    },
+    message: "This page was updated. Refresh to see the latest.",
+  });
 
   const all = pages.data?.items ?? [];
   const archived = all.filter((p) => p.archived_at);

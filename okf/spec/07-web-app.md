@@ -25,6 +25,21 @@ design system: tokens, type, components and the rules for using them — is docu
 - Every write path handles `409 stale_etag` explicitly: show what changed, keep the person's
   unsaved text, offer reload-and-reapply. Never discard input; never overwrite silently: a
   teammate or their agent may be editing the same object.
+- **What someone else changes reaches an open tab**, from a stream that says only which part of the
+  product changed ([decision](../decisions/open-tabs-hear-of-changes-through-a-stream-the-server-itself-serves.md)).
+  Idea, Evidence with a search's results, a source, assumptions, the list of mockups, the Story's
+  tree and activity refresh by themselves, at most every thirty seconds, and never while someone is
+  typing, holding something in mid-drag, or in a dialog, or on a form that saves over what it opened:
+  they refresh once that is over. A long list someone has read more than three pages into is read
+  again when next opened, and a read that fails changes nothing on screen. A Story page and a mockup's
+  canvas never change by themselves. When theirs changes, a toast that has no timer says "This page was
+  updated. Refresh to see the latest." (or "This mockup"), Refresh brings it without loading the app
+  again, and closed, it comes back only for a newer change. A change to another page of the Story
+  brings no toast, nor does the person's own edit. A reader hears only of the Story. A tab listens
+  while it is in view and used in the last ten minutes, for two minutes once hidden, and looks for
+  what it missed when it listens again. A screen outside a product does not listen. Where a deployment
+  turned this off, or a guest of the example organization reads, nothing is different but that people
+  refresh to see a change.
 - **A field's limit never cuts what is typed or pasted.** Past a limit the text stays as it is, the
   field is invalid and says how many characters are over ("140 characters over the limit of 1,000.
   Shorten it to save."), and the form refuses to save it, as MCP refuses the same text with an

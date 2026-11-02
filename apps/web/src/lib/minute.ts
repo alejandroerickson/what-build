@@ -187,6 +187,9 @@ export function minuteRefused(seconds: number): void {
   takeTurns();
 }
 
+/** Whether the minute's calls are used up now. */
+export const minuteUsedUp = () => resumesAt > Date.now();
+
 /** Whether the minute's calls are used up, what is waiting, and what has stopped. */
 export function useMinuteWait(): MinuteWait {
   return useSyncExternalStore(

@@ -19,6 +19,7 @@ name what replaced it, and date the change. Smaller decisions are marked
 - [One search covers the whole product and reads plain words, with no model](one-search-reads-plain-words-across-the-whole-product.md)
 - [A page's words are kept beside its HTML, and a search runs within limits](a-pages-words-are-kept-beside-its-html-and-a-search-runs-within-limits.md)
 - [One stateless container image serves everything and runs the worker](one-stateless-image.md)
+- [Open tabs hear of changes through a stream the server itself serves, which says only which part of a product changed](open-tabs-hear-of-changes-through-a-stream-the-server-itself-serves.md)
 - [Each file is parsed in a child process of its own, so a parse that ends in a fatal error ends only itself](each-file-is-parsed-in-a-process-of-its-own-so-a-parse-that-ends-in-a-fatal-error-ends-only-itself.md)
 - [Each file is parsed in a worker thread of its own, held to a memory and a time limit, so a file can fail but never take the server down](each-file-is-parsed-in-a-thread-of-its-own-with-memory-and-time-limits.md) (superseded)
 - [Self-hosting on Azure is done by an agent with the Azure CLI, from instructions in the repository, and shares nothing with the Cloud Run deployment](self-hosting-on-azure-is-agent-led-and-shares-nothing-with-cloud-run.md)

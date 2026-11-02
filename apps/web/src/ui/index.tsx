@@ -6,7 +6,7 @@ export { Button, ButtonLink, IconButton, type ButtonVariant, type ControlSize } 
 export { ChoiceRow, FindField, FormGrid, SelectField, TextArea, TextField, characters, tooLong } from "./field.tsx";
 export { Menu, MenuCheckbox, MenuGroup, MenuItem, MenuLabel, MenuNote, MenuRadio, MenuSeparator } from "./menu.tsx";
 export { Callout, Chip, EmptyState, ErrorCallout, FrameReloading, FrameStopped, keepFocusAt, Loading, MinuteAnnouncer, MinuteWaitWords, StatusBadge, Tag, type CalloutTone, type StatusTone } from "./feedback.tsx";
-export { ToastProvider, useToast, type ToastTone } from "./toast.tsx";
+export { ToastProvider, useStandingToast, useToast, type StandingToast, type ToastTone } from "./toast.tsx";
 export { Dialog } from "./dialog.tsx";
 export {
   AgentFace, Avatar, Card, CopyField, Crumbs, FiltersInUse, Group, initials, KeyValue, ListRow, PageHeader, Segmented, Sheet, SheetBody, SheetHeader,

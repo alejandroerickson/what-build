@@ -1,5 +1,6 @@
 import type { ParsedFile } from "@whatbuild/parsers";
 import type { SearchGate } from "./bounded-search.ts";
+import type { LiveArea } from "./live.ts";
 
 /**
  * The core depends only on these interfaces. Each adapter implements one; the in-memory ones are
@@ -61,6 +62,17 @@ export interface Mailer {
   send(message: { to: string; subject: string; text: string }): Promise<void>;
 }
 
+/**
+ * Tells the tabs open on a product that part of it changed. It takes a product and an area, and has
+ * no way to be handed anything more (`live.ts`). A deployment that turned live updates off has none.
+ */
+export interface LiveChanges {
+  /** Called after a commit: what did not happen is never announced. Costs nothing while no tab is listening. */
+  changed(productId: string, area: LiveArea): void;
+  /** For a server shutting down: ends every stream, which would otherwise hold it open. */
+  close(): void;
+}
+
 /** The largest JSON body the REST API reads; file bytes go through upload grants. */
 export const REST_BODY_MAX_BYTES = 5 * 1024 * 1024;
 /** Sign-in links one address may ask for in an hour. */
@@ -117,6 +129,8 @@ export interface Ports {
   mailer?: Mailer;
   /** Wakes the job worker after a commit that enqueued work. */
   notifyJobs?: () => void;
+  /** Tells open tabs a product changed; absent where live updates are off. */
+  live?: LiveChanges;
   /** This server's searches, how many run and how long each may (`bounded-search.ts`). */
   searches: SearchGate;
 }

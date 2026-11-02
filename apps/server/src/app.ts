@@ -23,6 +23,7 @@ import { prototypeRoutes } from "./prototype.ts";
 import { publicRoutes, staticRoutes } from "./public-routes.ts";
 import { OPERATION_HEADER, restRoutes } from "./rest.ts";
 import { siteRoutes } from "./site.ts";
+import { isLiveStream, liveRoutes, LiveHub } from "./live.ts";
 import { logError, requestFields, requestIdOf, tracer, withRequestId } from "./telemetry.ts";
 import { uploadRoutes } from "./uploads.ts";
 
@@ -30,6 +31,13 @@ export const SERVER_VERSION = process.env["WHATBUILD_RELEASE"] ?? `dev-${TOOLS_V
 
 /** The largest body sign-in and OAuth read. */
 const AUTH_BODY_MAX_BYTES = 64 * 1024;
+
+/**
+ * How long a request may take to be answered, but a live stream, which is meant to stay open. The
+ * platform's own limit is set far above this for the streams' sake (an hour on Cloud Run), so this
+ * is what still ends one that hangs. A response already begun, a download, runs its course.
+ */
+const REQUEST_LIMIT_MS = 300_000;
 
 /**
  * Headers every response carries unless its route set its own. No other site may load a response
@@ -144,6 +152,7 @@ export function createPorts(config: ServerConfig, blobs: BlobStore, mailer: Mail
     mailer,
     fetcher: new SafeUrlFetcher(),
     notifyJobs,
+    ...(config.liveUpdates ? { live: new LiveHub({ maxStreams: config.liveMaxStreams, lifeMs: config.liveStreamMinutes * 60_000, ...(config.env === "test" ? {} : { log: (fields: Record<string, unknown>) => console.log(JSON.stringify({ at: new Date().toISOString(), ...fields })) }) }) } : {}),
     searches: new SearchGate(),
     config: {
       publicBaseUrl: config.publicBaseUrl,
@@ -177,7 +186,7 @@ export function createPorts(config: ServerConfig, blobs: BlobStore, mailer: Mail
  * access token is served: the service passes its worker's `nudge`, so a sleeping worker looks at the
  * queue again. A request from nobody signed in never calls it, so it cannot keep the database awake.
  */
-export function createApp(deps: { db: Db; ports: Ports; config: ServerConfig; release?: Release; onRequest?: () => void }) {
+export function createApp(deps: { db: Db; ports: Ports; config: ServerConfig; release?: Release; onRequest?: () => void; requestLimitMs?: number }) {
   // The plans this deployment offers, as its configuration defines them, for every call this process serves.
   configurePlans(deps.config.plans);
   const env: Env & { config: ServerConfig } = { db: deps.db, ports: deps.ports, config: deps.config };
@@ -255,10 +264,11 @@ export function createApp(deps: { db: Db; ports: Ports; config: ServerConfig; re
   app.use("*", refuseNullCharacters());
 
   // Requests to the API, MCP and sign-in wake a sleeping worker once served, when someone signed in
-  // made them; a stranger's never do, nor do the app's pages and static files.
+  // made them; a stranger's never do, nor do the app's pages and static files. Nor does a tab that
+  // starts listening: it wants nothing of the worker, whose looking would keep the database awake.
   app.use("*", async (c, next) => {
     const p = c.req.path;
-    if (!(p.startsWith("/api/") || p.startsWith("/mcp") || p.startsWith("/auth/"))) return next();
+    if (!(p.startsWith("/api/") || p.startsWith("/mcp") || p.startsWith("/auth/")) || isLiveStream(p)) return next();
     await next();
     if (wasSignedIn(c)) deps.onRequest?.();
   });
@@ -276,6 +286,19 @@ export function createApp(deps: { db: Db; ports: Ports; config: ServerConfig; re
   // A page opened on another name for this deployment moves to the public URL; the site's host and the content site keep their own.
   app.use("*", canonicalHost(deps.config));
 
+  app.use("*", async (c, next) => {
+    if (isLiveStream(c.req.path)) return next();
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const over = new Promise<"over">((resolve) => {
+      timer = setTimeout(() => resolve("over"), deps.requestLimitMs ?? REQUEST_LIMIT_MS);
+    });
+    const served = next();
+    const first = await Promise.race([served, over]).finally(() => clearTimeout(timer));
+    if (first !== "over") return;
+    served.catch((e) => logError(`${c.req.method} ${loggedPath(c.req.path)}, after its time was up`, e));
+    return c.json({ error: { code: "timed_out", status: 504, message: "WhatBuild took too long to answer this. Try again." } }, 504);
+  });
+
   // First, so the public site's host never reaches the app's routes.
   app.route("/", siteRoutes({ db: deps.db, config: deps.config }));
   app.route("/", prototypeRoutes(env));
@@ -284,6 +307,7 @@ export function createApp(deps: { db: Db; ports: Ports; config: ServerConfig; re
   app.route("/", oauthRoutes({ db: deps.db, config: deps.config, notifyJobs: () => deps.ports.notifyJobs?.() }));
   app.route("/", authRoutes({ db: deps.db, config: deps.config, mailer: deps.ports.mailer ?? new ConsoleMailer() }));
   app.route("/", uploadRoutes(env));
+  app.route("/", liveRoutes(env));
   app.route("/", mcpRoutes(env));
   app.route("/", restRoutes(env));
 

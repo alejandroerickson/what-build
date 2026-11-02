@@ -3,7 +3,7 @@ type: System Concept
 title: WhatBuild self-hosts on Azure Container Apps with Azure Database for PostgreSQL and a mounted file share, set up by an agent with the Azure CLI.
 description: What a self-hosted deployment on Azure is made of, how each resource is configured, the commands that create it, sign-in with a Microsoft work account, the variations between organizations, deploying a new version, cost and removal.
 tags: [operations, deployment, azure, self-hosting, container-apps, entra]
-generated: {by: agent:claude, at: 2026-10-31}
+generated: {by: agent:claude, at: 2026-11-01}
 status: draft
 ---
 
@@ -873,7 +873,9 @@ the share is common, so more is a number. With none idle, the app is stopped abo
 after its last request, and the next one waits some twenty seconds: most of it for a replica to
 be scheduled, a few seconds to pull the image, under one for the server to listen.
 `minReplicas: 1` removes that wait and bills a replica all month; a deploy keeps whichever is
-set.
+set. With more than one replica, a tab hearing of changes hears only of those made on its own
+([decision](../decisions/open-tabs-hear-of-changes-through-a-stream-the-server-itself-serves.md)),
+and people refresh to see the rest.
 
 ## What it costs
 
@@ -882,6 +884,16 @@ floor: about US$17 a month for `Standard_B1ms` with 32 GiB, running all month. T
 is about US$5. The app scales to nothing and its monthly free grant covers a few people working in
 bursts; a replica kept running all month is roughly US$25 idle and US$80 busy. The vault, the
 share, and the logs of one small app are cents.
+
+Open tabs hear of changes through a request held open, so a replica stays up while anyone is working,
+in a tab in view and used in the last ten minutes, and stops about five minutes after. That can
+take a deployment used all working day past the free grant, by up to about US$20 a month. The ingress may also end
+a long stream sooner than the server would, which costs a tab a reconnect and nothing else. Set
+`WHATBUILD_LIVE_UPDATES` to `0` on the app to go without, with no release, and people refresh to see a change:
+
+```sh
+az containerapp update --subscription "$AZ_SUBSCRIPTION" -g "$AZ_RG" -n "$AZ_APP" --set-env-vars WHATBUILD_LIVE_UPDATES=0
+```
 
 ## What is where
 

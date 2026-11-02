@@ -360,6 +360,8 @@ export class Worker {
 
   private async runJob(job: Job, span: Span) {
     const started = Date.now();
+    // The product whose evidence the job changed, told to the tabs open on it once the job has committed.
+    let changed: string | undefined;
     try {
       await this.env.db.transaction().execute(async (trx) => {
         await sql`select set_config('app.tenant_id', ${job.tenant_id}, true)`.execute(trx);
@@ -372,12 +374,14 @@ export class Worker {
             quiet: Boolean(job.payload["quiet"]),
           });
           this.log(`job ${job.job_id} derive ${job.payload["record_id"]}: ${out ? out.status : "skipped"} in ${Date.now() - started} ms`);
+          if (out && this.env.ports.live) changed = (await trx.selectFrom("records").select("product_id").where("record_id", "=", String(job.payload["record_id"])).executeTakeFirst())?.product_id;
         } else if (job.kind === "export") {
           const out = await runExport(trx, this.env.ports, { tenant_id: job.tenant_id, export_id: String(job.payload["export_id"]) });
           this.log(`job ${job.job_id} export: ${out ? `${out.files} files, ${out.size} bytes` : "skipped"} in ${Date.now() - started} ms`);
         } else if (job.kind === "move_to_evidence") {
           const out = await runEvidenceMove(trx, this.env.ports, { tenant_id: job.tenant_id, product_id: String(job.payload["product_id"]) });
           this.log(`job ${job.job_id} move_to_evidence ${job.payload["product_id"]}: ${out ? `${out.insights} insights, ${out.decisions} decisions` : "skipped"} in ${Date.now() - started} ms`);
+          if (out) changed = String(job.payload["product_id"]);
         } else if (job.kind === "index_texts") {
           const n = await indexSources(trx, { product_id: String(job.payload["product_id"]) });
           this.log(`job ${job.job_id} index_texts ${job.payload["product_id"]}: ${n} sources in ${Date.now() - started} ms`);
@@ -393,6 +397,7 @@ export class Worker {
         }
         await trx.updateTable("jobs").set({ done_at: new Date().toISOString(), error: null }).where("job_id", "=", job.job_id).execute();
       });
+      if (changed) this.env.ports.live?.changed(changed, "evidence");
     } catch (e) {
       // Says nothing of its file, so nothing is recorded against it; the attempt stays spent.
       if (e instanceof ParseStopped) return this.putBack(job);

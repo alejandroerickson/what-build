@@ -3,7 +3,7 @@ type: Roadmap
 title: Phases 0 to 5 are mostly built, with an example organization every account reads and plans that set every limit; durability, data rights and public sign-up come next.
 description: What is built and what is not, phase by phase, with acceptance criteria; the open questions that remain, the ones already settled, the risks, and problems seen that are not yet explained.
 tags: [roadmap, status, phases, open-questions, risks, problems]
-generated: {by: agent:claude, at: 2026-10-31}
+generated: {by: agent:claude, at: 2026-11-01}
 status: stable
 ---
 
@@ -381,6 +381,7 @@ Each has a default so work is not blocked.
 | 11 | **Tags that drift apart** — tags are free text, so one team can end up with `interview`, `interviews` and `customer-interview` ([decision](../decisions/sources-are-described-by-tags.md)). | Agents read `sources.facets` before tagging and the app offers the tags in use. If drift appears anyway, an operation that renames or merges a tag across a product's sources. |
 | 12 | **The waitlist.** Requests for an organization, from the app (a guest asks with one click) or the public site's form, go to the `interest` table ([decision](../decisions/guests-come-into-the-example-organization-while-there-is-room.md)); instance owners read them on `/instance` and let someone in with an allowance, which emails them ([§3.2](03-accounts-teams-and-identity.md#32-accounts-and-sign-in)). Not decided: whether anyone is told of a new request, and how an announcement reaches everyone on it. | Nothing sends mail about a new request; instance owners look. |
 | 13 | **A deployment's former addresses.** After `WHATBUILD_PUBLIC_URL` moves, a link written with the old address outside the product being read is dead once that address stops reaching the deployment, every connected agent must connect again (its access names the old address), and nothing tells an agent at publish time that a page links to another host ([decision](../decisions/the-app-has-one-address-and-pages-on-other-hosts-move-to-it.md)). | Not built. A list of former addresses (for example `WHATBUILD_FORMER_URLS`) would let the web app and the Story frame open any link on them in place, let tokens issued for them keep working, and let publishing a Story or mockup page warn of links to a host that is not the public URL. |
+| 14 | **Live updates across instances.** A tab hears only of changes made on its own instance ([decision](../decisions/open-tabs-hear-of-changes-through-a-stream-the-server-itself-serves.md)). Postgres cannot carry them across where it scales to zero. | One instance; with more, people refresh to see the rest. A shared channel when a deployment needs more than one. |
 
 **Settled**, and where:
 

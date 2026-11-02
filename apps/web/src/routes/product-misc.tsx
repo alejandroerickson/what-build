@@ -4,6 +4,7 @@ import { Link, useLocation, useNavigate, useSearchParams } from "react-router";
 import { api, ApiError, qs } from "../lib/api.ts";
 import { formatBytes, formatDate, formatDateTime, plural, relativeTime, scopeWords } from "../lib/format.ts";
 import { useOrganizationLimits } from "../lib/limits.ts";
+import { useHoldRefresh } from "../lib/live.tsx";
 import { useProduct, useProducts } from "../lib/session.tsx";
 import { ActivityFeed, ENTITY_LABEL, useActivity, type ActivityFilter } from "../shell/ActivityFeed.tsx";
 import { usePageTitle } from "../shell/slots.tsx";
@@ -135,6 +136,7 @@ function ProductDetails() {
   const qc = useQueryClient();
   const toast = useToast();
   const navigate = useNavigate();
+  useHoldRefresh();
   const [name, setName] = useState(product.name);
   const [slug, setSlug] = useState(product.slug);
   const archived = Boolean(product.archived_at);

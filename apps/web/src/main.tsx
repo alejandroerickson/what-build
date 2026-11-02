@@ -8,8 +8,9 @@ import { StrictMode, useEffect, useRef } from "react";
 import { createRoot } from "react-dom/client";
 import { createBrowserRouter, Navigate, Outlet, RouterProvider, useLocation, useNavigate, useParams, useRouteError } from "react-router";
 import { ApiError, isMinuteRefusal, readDefaults, setUnauthenticatedHandler } from "./lib/api.ts";
+import { LiveUpdates } from "./lib/live.tsx";
 import { loadNewRelease, releasedSinceLoad } from "./lib/new-release.ts";
-import { CurrentTenantAddress, productHome, ProductProvider, RequireSession, useProduct } from "./lib/session.tsx";
+import { CurrentTenantAddress, productHome, ProductProvider, RequireSession, useProduct, useProductParams, type Product } from "./lib/session.tsx";
 import { ConnectPage } from "./routes/connect.tsx";
 import { CookiesPage } from "./routes/cookies.tsx";
 import { AcceptInvite, NotFound, NotVisible, SignIn } from "./routes/auth.tsx";
@@ -173,6 +174,18 @@ function BackToStory({ to }: { to: string }) {
   return null;
 }
 
+/** A product's screens, in its shell, hearing of changes to it. */
+function ProductScreens({ product, api, app }: { product: Product; api: string; app: string }) {
+  const { path } = useProductParams();
+  return (
+    <LiveUpdates api={api} path={path} guest={product.your_role === "guest"}>
+      <ProductShell product={product} app={app}>
+        <Outlet />
+      </ProductShell>
+    </LiveUpdates>
+  );
+}
+
 /** Every screen, signed in or not, with the cookie notice in its corner until it is dismissed. */
 function Root() {
   return (
@@ -221,11 +234,7 @@ const router = createBrowserRouter([{ element: <Root />, errorElement: <RouteErr
         element: (
           <CurrentTenantAddress>
             <ProductProvider fallback={(e, retry) => <ProductNotFound error={e} retry={retry} />}>
-              {(ctx) => (
-                <ProductShell product={ctx.product} app={ctx.app}>
-                  <Outlet />
-                </ProductShell>
-              )}
+              {(ctx) => <ProductScreens product={ctx.product} api={ctx.api} app={ctx.app} />}
             </ProductProvider>
           </CurrentTenantAddress>
         ),

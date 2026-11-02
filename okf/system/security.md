@@ -3,7 +3,7 @@ type: System Concept
 title: WhatBuild keeps each organization's material to its own people, and treats agent-written HTML, uploads and source text as hostile
 description: The threat model: what is protected, who the attackers are, the trust boundaries, and each control with where it lives in code and the decision that governs it.
 tags: [security, threat-model, tenancy, identity, oauth, example, limits, uploads]
-generated: {by: agent:claude, at: 2026-10-31}
+generated: {by: agent:claude, at: 2026-11-01}
 status: draft
 ---
 
@@ -47,6 +47,24 @@ holds each one; the linked decisions say why. Observed in the code on 2026-10-10
 8. **Repository and production**: approved releases only; no credential in the repository or image.
 
 ## Controls
+
+**Live updates** in `apps/server/src/live.ts` ([decision](../decisions/open-tabs-hear-of-changes-through-a-stream-the-server-itself-serves.md)).
+Four things keep a tab from hearing what it may not know, each holding if another has a mistake in it.
+
+- A message can say only which part of the product changed. `liveMessage` writes it from a fixed list
+  and takes no id, title or text from anywhere; the tab reads what changed through ordinary
+  operations, which check it as any read. A test pins the message's exact form.
+- Opening a stream is what a read of the product's Story meets (`resolveScope` at `story`, the limit on
+  calls a minute), for a browser's session only, since `restPrincipal` refuses an access token. A
+  request from anything but the app's own pages is refused (`Sec-Fetch-Site`, `Origin`), and no other
+  site could read the answer anyway: nothing here allows another origin, and the response is
+  `Cross-Origin-Resource-Policy: same-origin`. Its channel is the id that check resolved. A guest of
+  the example organization gets no stream.
+- Before anything is sent, the session (not signed out, not expired, its account not deleted) and the
+  role are asked again, and anything going wrong in asking ends the stream. A reader hears `story` alone,
+  and a kind of operation nobody labelled is `other`, which no reader hears.
+- A stream ends after `WHATBUILD_LIVE_STREAM_MINUTES`, so going on means passing the first check again. Nothing changes
+  while one is open: it can only hear.
 
 **Identity and sessions** in `apps/server/src/auth/` ([decision](../decisions/built-in-identity-and-oauth.md),
 [decision](../decisions/invitations-belong-to-their-address.md), [§3.2, §3.8](../spec/03-accounts-teams-and-identity.md)).
@@ -267,6 +285,10 @@ holds each one; the linked decisions say why. Observed in the code on 2026-10-10
   document opens only under a download grant of its own purpose (`story_preview`), never with a
   session, lives no longer than the grant, and is served from the content site when there is one
   ([decision](../decisions/a-story-preview-is-the-document-publish-would-store.md)).
+- A page in a frame can post `frame-active`, which the frame script sends at most every half minute so
+  that reading in a frame counts as using the tab. A page sending it falsely gains only that a tab in
+  view goes on listening for changes, within the limits of [live updates](#controls), which cost the
+  deployment an instance kept up and tell the page nothing.
 - A frame refused for the minute's calls is answered by `refusedFrame` (`apps/server/src/documents.ts`):
   a fixed page of WhatBuild's own, holding nothing of anyone's, with a page's headers in the narrowest
   sandbox a frame takes, framed only by the app's origin and kept by no cache. It never asks again by

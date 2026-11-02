@@ -16,6 +16,9 @@ export function noteServerCommit(commit: string | null) {
   if (commit) server = commit;
 }
 
+/** The commit the server last answered from, once any response has named one. */
+export const serverCommit = () => server;
+
 /** Whether an app built from `ours` is not what a server built from `theirs` runs: never in development, which has no commit. */
 export function replaced(ours: string, theirs: string | null): boolean {
   return Boolean(ours && theirs && theirs !== ours);
