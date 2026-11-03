@@ -23,6 +23,10 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
 
 ## Unreleased
 
+Nothing yet.
+
+## v0.31.0
+
 - **A plan's file limit past 25 MB needs direct uploads.** A deployment on Cloud Run that promises
   more (the example plans' Pro, 100 MB) does the steps under **Large uploads** in
   [Cloud Run](cloud-run.md) before taking this release: the runtime identity may sign, the bucket
