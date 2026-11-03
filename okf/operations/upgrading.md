@@ -23,6 +23,10 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
 
 ## Unreleased
 
+Nothing yet.
+
+## v0.32.1
+
 - **A Cloud Run deployment on Neon could not take v0.32.0, and takes this one instead.** The
   Cloud Build image the deploy uses (`cloud-sdk:slim`) stopped putting `python3` on its PATH, so
   the build stopped at its restore point, before migrating or deploying, and the deployment stayed
