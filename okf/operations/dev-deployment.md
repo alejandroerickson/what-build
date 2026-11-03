@@ -77,11 +77,13 @@ has migrated since `NEON_DEV_COPY_TAKEN`, or the rehearsal should see recent dat
 **2. Deploy the release**, or a commit of `main` before it is tagged, from a clean export. The
 build branches `main` as a restore point, runs the migration job, deploys and sends traffic to it,
 exactly as production's build does. Leave out `TAG_NAME` for a commit, which is then named by its
-hash:
+hash. The source goes into the image with the permissions it has here, so a shell still on the
+refresh's `umask 077` builds an image whose migration job fails with `EACCES` on `/app/migrations/`:
 
 ```bash
 REF=v0.5.0                                          # the tag, or a commit of main
-S=$(mktemp -d); git archive "$REF" | tar -x -C "$S"; SHA=$(git rev-parse "$REF^{commit}")
+umask 022                                           # a refresh's 077 would leave the image's files unreadable
+S=$(mktemp -d); chmod 755 "$S"; git archive "$REF" | tar -x -C "$S"; SHA=$(git rev-parse "$REF^{commit}")
 gcloud builds submit "$S" --project $P --region $R --config "$S/deploy/cloud-run/cloudbuild.yaml" \
   --substitutions "TAG_NAME=$REF,COMMIT_SHA=$SHA,SHORT_SHA=${SHA:0:7},_NEON_PROJECT=$N,_NEON_BRANCH=main"
 rm -rf "$S"
