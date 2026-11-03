@@ -253,8 +253,11 @@ describe("a document on the content site", () => {
     expect((await open(resigned(story, { purpose: "story_canvas_page", pg: "board" }))).status).toBe(404);
     expect((await open(resigned(mockup, { purpose: "story_canvas_page" }))).status).toBe(404);
     expect((await open(resigned(story, { sv: claimsOf(mockup)["xv"] }))).status).toBe(404);
+    // A preview's grant finds only a preview, and a page's grant read as one finds nothing.
+    expect((await open(resigned(story, { purpose: "story_preview", sp: claimsOf(story)["sv"] }))).status).toBe(404);
+    expect((await open(resigned(story, { purpose: "card_preview", cp: claimsOf(story)["sv"] }))).status).toBe(404);
     // Grants for anything else are not a document's.
-    for (const purpose of ["download", "prototype", "story_preview", "export"]) expect((await open(resigned(story, { purpose }))).status, purpose).toBe(401);
+    for (const purpose of ["download", "prototype", "export"]) expect((await open(resigned(story, { purpose }))).status, purpose).toBe(401);
     // Nor is a document's grant anything else's: the agents' download route refuses an attachment's.
     const fv = claimsOf(pdf)["fv"];
     const token = new URL(pdf).pathname.split("/")[2]!;
@@ -374,22 +377,33 @@ describe("the content site", () => {
     }
   });
 
-  it("serves agents' previews of a page and a card, which the app's host no longer does", async () => {
+  it("serves agents' previews of a page and a card at an address that carries its grant, which the app's host does not", async () => {
     const story = await alice.api("POST", `${P}/story/pages/friday/preview`, { title: "Friday", html: page("Friday", "<h1>Friday</h1>") });
     expect(story.status, JSON.stringify(story.body)).toBe(200);
     const card = await alice.api("POST", `${P}/idea/card-preview`, { card_html: FRONT, title: "Plan the week", back: "Planning takes minutes." });
     expect(card.status, JSON.stringify(card.body)).toBe(200);
     for (const preview of [story.body.preview, card.body.preview]) {
-      expect(preview.url.startsWith(`${content}/api/v1/downloads/`)).toBe(true);
-      const there = await fetch(`${preview.url}?theme=dark`, { headers: preview.headers });
+      expect(preview.url.startsWith(`${content}/documents/`)).toBe(true);
+      expect(preview.headers).toEqual({});
+      // Any browser opens it as it is, at the top level: no header, no session.
+      const there = await fetch(`${preview.url}?theme=dark`, { headers: { "sec-fetch-dest": "document" } });
       expect(there.status).toBe(200);
       expect(there.headers.get("content-security-policy")).toContain(`frame-ancestors ${h.baseUrl}`);
       expect(there.headers.get("cross-origin-resource-policy")).toBe("cross-origin");
       expect(there.headers.get("cache-control")).toBe("private, no-store");
-      const here = await fetch(preview.url.replace(content, h.baseUrl), { headers: preview.headers });
+      expect(there.headers.get("set-cookie")).toBeNull();
+      const here = await fetch(preview.url.replace(content, h.baseUrl));
       expect(here.status).toBe(404);
-      expect(((await here.json()) as { error: { message: string } }).error.message).toContain(`serves previews from its content site, ${content}`);
     }
+    // A grant given in a header before previews moved to these addresses still opens its preview there, and only there.
+    const id = card.body.preview.preview_id as string;
+    const { t, a } = claimsOf(card.body.preview.url);
+    const old = new HmacGrantSigner(h.config.grantKey).sign({ v: 1, purpose: "card_preview", t, cp: id, a, exp: Math.floor(Date.now() / 1000) + 60 });
+    const route = `/api/v1/downloads/card-preview/${id}`;
+    expect((await fetch(`${content}${route}`, { headers: { [DOWNLOAD_GRANT_HEADER]: old } })).status).toBe(200);
+    const here = await fetch(`${h.baseUrl}${route}`, { headers: { [DOWNLOAD_GRANT_HEADER]: old } });
+    expect(here.status).toBe(404);
+    expect(((await here.json()) as { error: { message: string } }).error.message).toContain(`serves previews from its content site, ${content}`);
   });
 });
 

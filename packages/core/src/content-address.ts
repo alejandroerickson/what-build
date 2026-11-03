@@ -25,12 +25,24 @@ export const DOCUMENT_ROUTE = "/documents";
  * - `print`: `vs`, the Story page versions the print view shows.
  * - `attachment`: `fv`, an attachment's file version: a PDF shown inline, or an HTML file in its
  *   preview's sandbox, and nothing else.
+ *
+ * The app's own routes hand those off. An agent's previews are not handed off: the operation that
+ * makes one gives its address on the content site (previews.ts).
+ *
+ * - `card_preview`: `cp`, a card's front that `card_preview` checked.
+ * - `story_preview`: `sp`, a Story page that `story.preview` checked.
  */
-export const DOCUMENT_PURPOSES = ["story_page", "story_canvas_page", "mockup_page", "specimen", "card", "print", "attachment"] as const;
+const HANDED_OFF = ["story_page", "story_canvas_page", "mockup_page", "specimen", "card", "print", "attachment"] as const;
+export const DOCUMENT_PURPOSES = [...HANDED_OFF, "card_preview", "story_preview"] as const;
 export type DocumentPurpose = (typeof DOCUMENT_PURPOSES)[number];
 
 export function isDocumentPurpose(purpose: unknown): purpose is DocumentPurpose {
   return (DOCUMENT_PURPOSES as readonly unknown[]).includes(purpose);
+}
+
+/** Whether a grant's document is one the app's route handed off, which counted the load before it did. */
+export function isHandedOff(purpose: unknown): boolean {
+  return (HANDED_OFF as readonly unknown[]).includes(purpose);
 }
 
 /**

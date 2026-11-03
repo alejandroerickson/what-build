@@ -81,6 +81,7 @@ name what replaced it, and date the change. Smaller decisions are marked
 - [A mockup version may carry a team's prototype as it is, served in the sandbox from a short-lived capability path](mockups-carry-prototypes-served-from-a-capability-path.md)
 - [A canvas whose pages link can be viewed as a clickable prototype, and there is no separate kind of mockup](a-canvas-whose-pages-link-is-viewed-as-a-clickable-prototype.md)
 - [With a content site, every page and inline file is served from it under a short-lived address the app's own route hands off to](with-a-content-site-every-page-and-inline-file-is-served-from-it.md)
+- [On a deployment with a content site, an agent's preview opens at an address that carries its grant](on-a-content-site-a-preview-opens-at-an-address-that-carries-its-grant.md)
 - [Each stage's count is the total of every item the stage holds](each-stage-counts-every-item-it-holds.md)
 - [Insights and decisions are retired, and what a product held of them becomes sources in Evidence](insights-and-decisions-are-retired-into-evidence.md)
 - [Archive is the reversible default; delete is permanent, guarded, and an admin's](archive-by-default-delete-guarded.md)

@@ -117,7 +117,8 @@ describe("a download grant", () => {
       for (const [kind, g] of Object.entries(held)) {
         const r = await use(g);
         expect(r.status, kind).toBe(403);
-        expect(JSON.parse(r.text).error.message, kind).toBe("Whoever requested this grant can no longer read this product. Nothing was sent.");
+        // A preview's address on a content site answers in words, as its other documents do; the agents' routes, in JSON.
+        expect(r.text.startsWith("{") ? JSON.parse(r.text).error.message : r.text, kind).toBe("Whoever requested this grant can no longer read this product. Nothing was sent.");
       }
     } finally {
       await setRole("editor");

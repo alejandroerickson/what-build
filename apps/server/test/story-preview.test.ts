@@ -58,9 +58,17 @@ describe("previewing a page's first version", () => {
     expect(r.status, JSON.stringify(r.body)).toBe(200);
     previewed = r.body;
     expect(r.body).toMatchObject({ page_id: "friday", new_page: true, based_on_version: null, carried_forward: [], title: "Friday planning", published: false });
-    // On the content site when there is one, as every page is.
-    expect(r.body.preview).toMatchObject({ method: "GET", url: `${h.config.contentUrl ?? h.baseUrl}/api/v1/downloads/story-preview/${r.body.preview.preview_id}` });
-    expect(Object.keys(r.body.preview.headers)).toEqual([DOWNLOAD_GRANT_HEADER]);
+    // On the content site when there is one, at an address that carries its grant; otherwise the app's route, with the grant in a header.
+    expect(r.body.preview.method).toBe("GET");
+    if (h.config.contentUrl) {
+      expect(r.body.preview.url.startsWith(`${h.config.contentUrl}/documents/`)).toBe(true);
+      expect(r.body.preview.headers).toEqual({});
+      expect(r.body.next).toMatch(/^Open url, which needs no headers,/);
+    } else {
+      expect(r.body.preview.url).toBe(`${h.baseUrl}/api/v1/downloads/story-preview/${r.body.preview.preview_id}`);
+      expect(Object.keys(r.body.preview.headers)).toEqual([DOWNLOAD_GRANT_HEADER]);
+      expect(r.body.next).toMatch(/^GET url with these headers/);
+    }
     expect(Date.parse(r.body.preview.expires_at)).toBeGreaterThan(Date.now());
     expect(r.headers.get("etag")).toBeNull();
     // No page, no version, no activity: only the preview's own document, held for its grant.
@@ -181,15 +189,31 @@ describe("a write sent again after its answer was lost", () => {
 describe("the preview's grant", () => {
   let first: any;
 
-  it("opens only its own preview, and only with the header", async () => {
+  it("opens only its own preview, and only with its grant", async () => {
     first = (await alice.api("POST", `${P}/story/pages/grant-check/preview`, { title: "Grant check", body })).body;
     const second = (await alice.api("POST", `${P}/story/pages/grant-check/preview`, { title: "Grant check, again", body })).body;
+    expect((await open(second.preview)).text).toContain("<title>Grant check, again</title>");
+    if (h.config.contentUrl) {
+      // The address is the grant: altered, it opens nothing, and another preview's address opens only that one.
+      const token = new URL(first.preview.url).pathname.split("/")[2]!;
+      expect((await fetch(first.preview.url.replace(token, `${token}x`))).status).toBe(401);
+      expect((await open(first.preview)).text).toContain("<title>Grant check</title>");
+      expect(first.preview.url).not.toBe(second.preview.url);
+      return;
+    }
     expect((await fetch(first.preview.url)).status).toBe(401);
     expect((await fetch(first.preview.url, { headers: second.preview.headers })).status).toBe(401);
     expect((await fetch(first.preview.url, { headers: { [DOWNLOAD_GRANT_HEADER]: `${first.preview.headers[DOWNLOAD_GRANT_HEADER]}x` } })).status).toBe(401);
     // A session is not a grant.
     expect((await fetch(first.preview.url, { headers: { cookie: alice.cookie } })).status).toBe(401);
-    expect((await open(second.preview)).text).toContain("<title>Grant check, again</title>");
+  });
+
+  it("keeps every preview made at once: making room never drops one another call just made", async () => {
+    const made = await Promise.all(Array.from({ length: 6 }, (_, i) => alice.api("POST", `${P}/story/pages/burst/preview`, { title: `Burst ${i}`, body })));
+    for (const [i, r] of made.entries()) {
+      expect(r.status, JSON.stringify(r.body)).toBe(200);
+      expect((await open(r.body.preview)).text, `preview ${i}`).toContain(`<title>Burst ${i}</title>`);
+    }
   });
 
   it("keeps a product's newest previews, and the worker drops expired ones", async () => {

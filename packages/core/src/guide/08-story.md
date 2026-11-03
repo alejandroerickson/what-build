@@ -60,10 +60,19 @@ version.
 
 `story_read(action="preview")` takes the same params as `publish` and needs the same role. It refuses
 what `publish` would refuse, with the same error, and publishes nothing. Otherwise it returns
-`html_sha256` and a short-lived grant: GET its `url` with its `headers` (in a browser tool, a headless
-browser, or a screenshot tool) to see the exact document `publish` would store, in the Story style and
-the page sandbox. `?theme=light` and `?theme=dark` choose the theme; desktop and phone widths are
-1280 and 390. The grant header is a credential.
+`html_sha256` and a short-lived grant: GET its `url` with its `headers` to see the exact document
+`publish` would store, in the Story style and the page sandbox. `?theme=light` and `?theme=dark`
+choose the theme; desktop and phone widths are 1280 and 390.
+
+### Opening a preview
+
+A Story page's preview and a card's (`outcomes_read` and `derived_read`, `action="card_preview"`) are
+opened the same way. On a deployment with a content site, `url` is an address there that carries its
+own grant and `headers` is empty, so any browser, headless browser or fetch tool opens it as it is.
+Without one, `url` is on the app's own address and needs its `headers`, which a headless browser takes
+as extra HTTP headers. Until `expires_at`, the `url` and any header open the preview, so they are kept
+out of reports and logs. A preview that has expired, or that newer ones replaced (a product keeps its
+20 newest of each), answers `404`: preview again.
 
 ## The hierarchy
 

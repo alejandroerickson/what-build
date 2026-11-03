@@ -274,7 +274,11 @@ describe("a card's preview", () => {
     expect(r.body.card_advice.some((a: string) => a.includes("back is empty"))).toBe(true);
     expect((await alice.api("GET", `${P}/outcomes`)).body.items.length).toBe(outcomesBefore);
     const { url, headers } = r.body.preview;
-    expect(url).toBe(`${h.config.contentUrl ?? h.baseUrl}/api/v1/downloads/card-preview/${r.body.preview.preview_id}`);
+    // On the content site, an address that carries its grant; otherwise the app's route, with the grant in a header.
+    if (h.config.contentUrl) {
+      expect(url.startsWith(`${h.config.contentUrl}/documents/`)).toBe(true);
+      expect(headers).toEqual({});
+    } else expect(url).toBe(`${h.baseUrl}/api/v1/downloads/card-preview/${r.body.preview.preview_id}`);
     const doc = await fetch(`${url}?theme=dark`, { headers });
     expect(doc.status).toBe(200);
     const csp = doc.headers.get("content-security-policy")!;
@@ -285,12 +289,29 @@ describe("a card's preview", () => {
     expect(html).toContain(`data-limit="${r.body.frame.max_height}"`);
     // A phone has no height line, so there the note follows the card rather than lying over its last part.
     expect(html).toMatch(/@media \(max-width:520px\)\{\.wb-limit\{position:static;/);
-    // Without the grant, or with another preview's, nothing.
-    expect((await fetch(url)).status).toBe(401);
     const concept = await eddie.api("POST", `${P}/idea/card-preview`, { kind: "concept", card_html: "<p style=\"color:#c00\">A fixed colour.</p>" });
     expect(concept.body.card_advice.some((a: string) => a.includes("fixed colours"))).toBe(true);
-    expect((await fetch(concept.body.preview.url, { headers: r.body.preview.headers })).status).toBe(401);
+    if (h.config.contentUrl) {
+      // An altered address opens nothing.
+      const token = new URL(url).pathname.split("/")[2]!;
+      expect((await fetch(url.replace(token, `${token}x`))).status).toBe(401);
+    } else {
+      // Without the grant, or with another preview's, nothing.
+      expect((await fetch(url)).status).toBe(401);
+      expect((await fetch(concept.body.preview.url, { headers: r.body.preview.headers })).status).toBe(401);
+    }
     // A reader writes no cards, so previews none.
     expect((await rita.api("POST", `${P}/idea/card-preview`, { card_html: FRONT })).status).toBe(403);
+  });
+
+  it("keeps every preview made at once, the concept's and the outcomes' alike", async () => {
+    const fronts = Array.from({ length: 6 }, (_, i) => `<p class="wb-pitch">Front number ${i}.</p>`);
+    const made = await Promise.all(fronts.map((card_html, i) => eddie.api("POST", `${P}/idea/card-preview`, { kind: i ? "outcome" : "concept", card_html })));
+    for (const [i, r] of made.entries()) {
+      expect(r.status, JSON.stringify(r.body)).toBe(200);
+      const doc = await fetch(r.body.preview.url, { headers: r.body.preview.headers });
+      expect(doc.status, `preview ${i}`).toBe(200);
+      expect(await doc.text()).toContain(fronts[i]);
+    }
   });
 });

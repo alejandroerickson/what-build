@@ -3,7 +3,7 @@ type: Decision
 title: With a content site, every page and inline file is served from it under a short-lived address the app's own route hands off to
 description: The app's routes keep their addresses and checks and answer 302 to the content site, under a grant for one document and its requester that is checked again there; uploaded HTML is previewed from a sandboxed route, so the app's policy allows no inline style.
 tags: [decision, security, sandbox, story, mockups, cards, attachments, content-site, csp]
-generated: {by: agent:claude, at: 2026-10-25}
+generated: {by: agent:claude, at: 2026-11-03}
 status: stable
 ---
 
@@ -42,7 +42,8 @@ preview, a `srcdoc` frame, kept the app's policy at `style-src 'unsafe-inline'`.
   which names the app's origin, and CORP `cross-origin` and `private, no-store`.
 - **Uploaded HTML from a route of its own**, in both modes, in a sandbox that runs no script, so
   the app's pages allow no inline style or script and ZAP rule 10055 fails the scan.
-- Agents' previews give their `url` on the content site and keep their header grant.
+- Agents' previews give their `url` on the content site, an address under `/documents/` that carries
+  its grant, so they need no header ([decision](on-a-content-site-a-preview-opens-at-an-address-that-carries-its-grant.md)).
 - Not decided here, and on the [roadmap](../spec/10-roadmap.md): ending an address with its
   session, stable cacheable addresses for immutable versions, images and media from the content
   site, a shorter print address.

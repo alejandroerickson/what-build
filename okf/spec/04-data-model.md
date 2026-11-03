@@ -3,7 +3,7 @@ type: Specification
 title: Every object in a product, with its fields, limits and invariants, as the REST and MCP wire sees it.
 description: The common envelope (ids, etags, attribution, revisions), outcomes, sources and their tags, attachments, comments, summaries and notes, evidence links, the assumption register, views, activity, Story, mockups, feedback, the product bundle, and the storage layout.
 tags: [spec, data-model, schema, revisions, story, mockups, export]
-generated: {by: agent:claude, at: 2026-11-02}
+generated: {by: agent:claude, at: 2026-11-03}
 status: stable
 ---
 
@@ -633,12 +633,15 @@ the point of writing ([`ops/story.ts`](../../packages/core/src/ops/story.ts), `d
 every check, in the same order, with the same errors (a list of problems says "The page would not
 be published"), and the same document. It writes no version, page or activity. It stores the
 document publish would store (or, for a version that keeps showing a mockup page, that page) in
-`story_previews`, and returns its `html_sha256` with a download grant to GET it
-(`GET /api/v1/downloads/story-preview/{preview_id}`, [§6.4](06-operations-and-adapters.md)),
+`story_previews`, and returns its `html_sha256` with a grant to GET it (on a content site an
+address there that carries the grant, otherwise
+`GET /api/v1/downloads/story-preview/{preview_id}` with the grant in a header,
+[§6.4](06-operations-and-adapters.md)),
 served exactly as a version's HTML is: the same sandbox headers, the carried typefaces embedded,
 and `?theme=light|dark`. Publishing the same call then stores a version whose `html_sha256` is the
 preview's, unless the page or the Story style changed in between. A preview lasts as long as its
-grant (30 minutes by default) and a product keeps its 20 newest; it is refused where publish would
+grant (30 minutes by default) and a product keeps its 20 newest, trimmed in one statement so that
+previews made at once never drop each other; it is refused where publish would
 be (a viewer, a guest of the example organization, an archived product, a plan that switched
 writing off) and takes nothing from a plan's daily allowances ([§9.7](09-data-lifecycle.md),
 [decision](../decisions/a-story-preview-is-the-document-publish-would-store.md)).

@@ -11,6 +11,7 @@ import { indexText } from "../text-index.ts";
 import { CARD_HTML_MAX, checkIdeaCard } from "../idea-card.ts";
 import { adviseSourceCard, SOURCE_CARD_FRAME, sourceCardGuidance } from "../source-card.ts";
 import { keepCardPreview, refuseCardPreview } from "./outcomes.ts";
+import { PREVIEW_OPENING, PREVIEW_SECRET } from "../previews.ts";
 import { newEtag, newId, sameEtag } from "../util.ts";
 import { attachmentReadings, attachmentText, loadRecord, takenFrom, textFileId } from "./sources.ts";
 
@@ -451,8 +452,8 @@ export const sourceCardPreviewOp = defineOperation({
   mutates: false,
   summary: "Look at a source's card before writing it: every check a write makes, its advice, and a short-lived grant to GET the card as the app shows it.",
   description:
-    `Send the card you mean to write (card_html) and the source it is for (record_id). preview refuses what a write would refuse (422 invalid_card, listing every problem) and writes nothing anyone sees. Otherwise it returns card_advice, frame (the ${SOURCE_CARD_FRAME.width} × ${SOURCE_CARD_FRAME.height} board and the width of a thumbnail) and a grant: GET url with exactly the headers given to receive the card in the document the app shows it in. ` +
-    `Open it in a browser or a headless one (Playwright: new_context(extra_http_headers=headers, viewport={"width": ${SOURCE_CARD_FRAME.width}, "height": ${SOURCE_CARD_FRAME.height}})), adding ?theme=light and ?theme=dark, and look at it full size and shrunk to ${SOURCE_CARD_FRAME.thumb_width}px wide. The grant expires (expires_at), and a product keeps only its newest card previews, the Idea's and the sources' together; preview again for a new one. Keep the grant header out of reports and logs.`,
+    `Send the card you mean to write (card_html) and the source it is for (record_id). preview refuses what a write would refuse (422 invalid_card, listing every problem) and writes nothing anyone sees. Otherwise it returns card_advice, frame (the ${SOURCE_CARD_FRAME.width} × ${SOURCE_CARD_FRAME.height} board and the width of a thumbnail) and a grant: url gives the card in the document the app shows it in. ` +
+    `${PREVIEW_OPENING} Open it ${SOURCE_CARD_FRAME.width} × ${SOURCE_CARD_FRAME.height}, adding ?theme=light and ?theme=dark, and look at it full size and shrunk to ${SOURCE_CARD_FRAME.thumb_width}px wide. The grant expires (expires_at), and a product keeps only its newest card previews, the Idea's and the sources' together; preview again for a new one. ${PREVIEW_SECRET}`,
   input: z.strictObject({
     record_id: id("source"),
     card_html: z.string().trim().min(1).max(CARD_HTML_MAX).describe("The card, as you would write it."),

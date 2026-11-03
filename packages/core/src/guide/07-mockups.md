@@ -117,6 +117,21 @@ etag for a later version). An upload publishes once (`409 upload_used`).
   `height` for a new page or a change, `entry` and `poster` for one that enters the prototype. A page
   whose HTML or notes the ZIP leaves out keeps them, so a later version's ZIP need hold only the pages
   that changed.
+- At its top level, beside `pages`, `manifest.json` may give the canvas's `title`, `summary` and
+  `columns`, as `get_download` writes them; other keys, such as `format`, are not read. What the call
+  gives wins over the manifest, and the brief comes from `brief.md` or the call, never both. A new
+  mockup published from an upload alone needs a `title`, a `brief.md`, and at least one page with a
+  title and its HTML:
+
+  ```json
+  {
+    "title": "Week planner",
+    "summary": "Two ways to plan a crew's week.",
+    "pages": [{ "page_id": "board", "title": "The board", "width": 1280, "height": 800 }]
+  }
+  ```
+
+  with `brief.md` and `pages/board.html` beside it.
 - The files it lists (`files: [{path}]`), or else the ones under `files/`, are the whole set. So is the
   prototype: the files `manifest.json` lists under `prototype` (`[{path, sha256?}]`; a listed path
   missing from `prototype/` keeps the base's bytes), or else the files under `prototype/`. With

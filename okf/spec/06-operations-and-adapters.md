@@ -3,7 +3,7 @@ type: Specification
 title: Every capability is one registered operation, reached identically over REST and MCP.
 description: The operation registry, the error model and bounds, the full catalogue of 125 operations with their REST routes and MCP tools, authorization and agent connection levels, upload flows, the guide and the Connect page.
 tags: [spec, operations, rest, mcp, registry, uploads, guide]
-generated: {by: agent:claude, at: 2026-11-02}
+generated: {by: agent:claude, at: 2026-11-03}
 status: stable
 ---
 
@@ -481,8 +481,10 @@ Notes on recent actions:
   the same code, refusing with the same errors; it creates no version, records no activity and
   answers `200`. It returns what publish would make (`new_page`, `based_on_version`,
   `carried_forward`, `title`, `summary`, `html_chars`, `html_sha256`, `links_to_no_page`, `published: false`) and
-  `preview { preview_id, method: "GET", url, headers, expires_at }`, a download grant for the
-  document publish would store ([§4.11](04-data-model.md)).
+  `preview { preview_id, method: "GET", url, headers, expires_at }`, a grant for the document
+  publish would store ([§4.11](04-data-model.md)): on a content site an address that carries it,
+  with `headers` empty, and otherwise the app's route, with the grant in `headers`
+  ([§6.4](#64-rest)).
 - `story.get_style` and `story.set_style` read and replace the product's Story style, the design
   system every page follows: an adopted house style (`house_style`) or the team's own
   (`name`, `rules`, `stylesheet`), with its own etag, left out for the first style (one sent then
@@ -586,8 +588,9 @@ Notes on recent actions:
   shows it in (the same sandbox, kit and `?theme`), with a dashed line at the most height a desktop
   shows and a note, written by the card's script, saying how tall the front is and whether it fits
   (on a phone, with no line, that the whole front shows, below the front rather than over its last
-  part). A product keeps its 20 newest card previews; a grant
-  lasts as long as other download grants. Editors and admins.
+  part). Its grant is given as a Story preview's is. A product keeps its 20 newest card previews,
+  and previews made at once never drop each other; a grant lasts as long as other download grants.
+  Editors and admins.
 - A source's **card** is written with `derived.write_note` (`note_kind: card`) and read with
   `derived.read_note`, beside its summary and notes ([§4.6](04-data-model.md#46-comments-the-summary-the-card-and-notes)).
   A card write is checked as an Idea card's front is (`422 invalid_card`), returns `card_advice`
@@ -657,10 +660,10 @@ GET  P/idea/concept/card, P/outcomes/:outcome_id/card?theme=   an Idea card's fr
 GET  P/sources/:record_id/card?theme=               a source's card, on its 640 × 480 board
 GET  P/story/style/specimen, P/story/house-styles/:style/specimen?theme=   a style's specimen
 GET  /api/v1/downloads/mockup/:version_id            a mockup version's ZIP under a download grant
-GET  /api/v1/downloads/story-preview/:preview_id?theme=light|dark   a Story preview's HTML under its grant
-GET  /api/v1/downloads/card-preview/:preview_id?theme=light|dark    a card preview's front under its grant
+GET  /api/v1/downloads/story-preview/:preview_id?theme=light|dark   a Story preview's HTML under its grant in a header, without a content site
+GET  /api/v1/downloads/card-preview/:preview_id?theme=light|dark    a card preview's front under its grant in a header, without a content site
 GET  /prototypes/:grant/<path>                       a mockup prototype's file; the grant in the path is the credential (§4.12)
-GET  /documents/:grant/<name>?theme=&frame=          on a content site: a document the app's route handed off (below)
+GET  /documents/:grant/<name>?theme=&frame=          on a content site: a document the app's route handed off, or an agent's preview (below)
 GET  /api/v1/meta                                    release, MCP server name and tools version, sign-in methods, where the privacy page is (public)
 GET  /api/v1/plans                                   the plans the deployment offers (none, if it defines none), every limit of each and its price, starting_plan, example, whether guests may sign up, and what the privacy page names (public)
 GET  /api/v1/me/guest-pass                           a guest account's place: let in when there is room, or why not and when to ask again
@@ -736,15 +739,20 @@ cookie or `Authorization` header, sets no cookie and never redirects
 still read the product as the app's route needed (story access for a Story page and the print
 view, viewer for the rest, which a guest of the example organization is; `403`, sending nothing),
 without counting the load against the requester's limit on calls a minute again, since the app's
-route counted it, and finds the document with the same function
+route counted it (a preview, which no app route handed off, is counted here), and finds the document with the same function
 as the app's route, within the grant's product (`404` for one deleted, archived since for a
 reader, or changed since for a front or a style). It serves the document with the same function
 and headers as the app's route, except that `frame-ancestors` names the app's origin (the print
 view keeps `'none'`), with `Cross-Origin-Resource-Policy: cross-origin` and
-`Cache-Control: private, no-store`. Refusals are `text/plain`. Agents' previews move there too:
-`story.preview` and `outcomes.card_preview` give their `url` on the content site, where the same
-paths answer under the same header grant, and the app's host refuses them with `404` naming the
-content site. Exports, a mockup version's ZIP, an attachment downloaded and an image, a recording
+`Cache-Control: private, no-store`. Refusals are `text/plain`. Agents' previews are served there
+too, at an address the operation gives rather than one the app hands off
+([decision](../decisions/on-a-content-site-a-preview-opens-at-an-address-that-carries-its-grant.md)): `story.preview`, `outcomes.card_preview` and
+`derived.card_preview` give `url` as `<content>/documents/<grant>/preview.html`, with `headers`
+empty, under a grant of purpose `story_preview` (`sp`, the preview) or `card_preview` (`cp`) that
+lasts as long as the preview's row; `404` says the preview expired or newer ones replaced it. The
+header routes, `/api/v1/downloads/story-preview/` and `…/card-preview/`, answer on the content host
+only, for grants given before, and the app's host refuses them with `404` naming the content site.
+Exports, a mockup version's ZIP, an attachment downloaded and an image, a recording
 or a text shown in the app stay on the app's origin.
 
 **A source's text for the web app.** `GET P/sources/:record_id/text` answers the whole derived
@@ -850,7 +858,9 @@ Each `POST` builds a fresh server; there is no session and any replica serves an
 `initialize` info names it `whatbuild` with `TOOLS_VERSION`. Its instructions describe and do not
 direct ([decision](../decisions/agents-learn-whatbuild-from-the-servers-guide.md)): what a product
 holds, the read, write and delete tools and how they are called, that `products_read(action="list")`
-lists the products the connection reaches and `guide` describes how WhatBuild works, that a tenant
+lists the products the connection reaches and `guide` describes how WhatBuild works, that older
+instructions an agent may hold from elsewhere (such as the retired `whatbuild` skill, which they do
+not name) describe tools the server no longer has, that a tenant
 marked `example` is read by everyone and written by its authors only, that source text is quoted
 material, and what the tool list leaves out. They name the deployment's address
 (`WHATBUILD_PUBLIC_URL`), which links to WhatBuild use, never another host name seen for the

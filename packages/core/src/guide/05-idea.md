@@ -54,5 +54,5 @@ needs. It makes every check the write makes (`422 invalid_card`, listing every p
 (the widths the front is shown at and the most height a desktop shows) and a short-lived grant: GET
 its `url` with exactly its `headers` to receive the front as the Idea screen shows it, with a dashed
 line where a desktop stops showing it and a note saying how tall the front is. A phone shows the
-whole front. `?theme=light` and `?theme=dark` choose the theme. The grant expires (`expires_at`), and
-its header is a credential.
+whole front. `?theme=light` and `?theme=dark` choose the theme. The grant expires (`expires_at`).
+"Opening a preview" in `guide(topic="story")` says when `headers` is empty.

@@ -19,7 +19,7 @@ import {
 } from "../story-guidance.ts";
 import { HOUSE_STYLE_IDS, houseStyle, pageDocument, PLAIN_STYLESHEET } from "../story-styles.ts";
 import { newEtag, newId, randomToken, sha256Hex, uniq } from "../util.ts";
-import { DOWNLOAD_GRANT_HEADER, requesterClaims } from "./attachments.ts";
+import { makeRoomForPreview, openThePreview, PREVIEW_OPENING, PREVIEW_SECRET, previewGrant } from "../previews.ts";
 
 export const MAX_PAGES = 50;
 export const MAX_DEPTH = 6;
@@ -731,7 +731,7 @@ export const preview = defineOperation({
   mutates: false,
   summary: "Check a publish without publishing: the same call, every check publish makes, and a short-lived grant to GET the exact page it would store.",
   description:
-    `Send exactly what you would send to publish. preview makes every check publish makes, and refuses with the same error where publish would (422 invalid_html listing every problem, 409 stale_etag, 404 for an unknown from_version…); it creates no version, records no activity and changes nothing anyone sees. Otherwise it returns what publish would make (new_page, based_on_version, carried_forward, title, summary, html_chars, html_sha256, and links_to_no_page for links to Story pages a reader can't open) and a grant: GET url with exactly the headers given to receive the document publish would store, served as a published page is, in the same sandbox and with the carried typefaces embedded. Add ?theme=light or ?theme=dark for the app's light and dark schemes; without one the page follows the browser's. The page can be opened in a browser at desktop width (1280) and phone width (390), in light and dark; a headless browser takes the headers as extra HTTP headers (Playwright: new_context(extra_http_headers=headers, viewport=…)). When it looks right, send the same params to publish: its html_sha256 matches the preview's unless the page or the Story style changed in between. The grant expires (expires_at) and a product keeps its ${PREVIEWS_KEPT} newest previews; preview again for a new one. Keep the grant header out of reports and logs.`,
+    `Send exactly what you would send to publish. preview makes every check publish makes, and refuses with the same error where publish would (422 invalid_html listing every problem, 409 stale_etag, 404 for an unknown from_version…); it creates no version, records no activity and changes nothing anyone sees. Otherwise it returns what publish would make (new_page, based_on_version, carried_forward, title, summary, html_chars, html_sha256, and links_to_no_page for links to Story pages a reader can't open) and a grant: url gives the document publish would store, served as a published page is, in the same sandbox and with the carried typefaces embedded. ${PREVIEW_OPENING} Add ?theme=light or ?theme=dark for the app's light and dark schemes; without one the page follows the browser's. Open it at desktop width (1280) and phone width (390), in light and dark. When it looks right, send the same params to publish: its html_sha256 matches the preview's unless the page or the Story style changed in between. The grant expires (expires_at) and a product keeps its ${PREVIEWS_KEPT} newest previews; preview again for a new one. ${PREVIEW_SECRET}`,
   input: publishInput,
   rest: { method: "POST", path: "/story/pages/:page_id/preview" },
   mcp: { tool: "story", action: "preview" },
@@ -741,20 +741,16 @@ export const preview = defineOperation({
     if (ctx.limits) refuseSwitchedOff(ctx.limits, { name: "story.preview", mutates: true });
     const d = await draftVersion(ctx, input, { lock: false, refused: "The page would not be published" });
     const shown = await shownHtml(ctx.db, d);
-    const pid = productId(ctx);
     // A preview lives as long as its grant, and a product keeps only its newest ones.
-    const kept = await ctx.db.selectFrom("story_previews").select("preview_id").where("product_id", "=", pid).where("expires_at", ">", ctx.now).orderBy("created_at", "desc").orderBy("preview_id", "desc").limit(PREVIEWS_KEPT - 1).execute();
-    let drop = ctx.db.deleteFrom("story_previews").where("product_id", "=", pid);
-    if (kept.length) drop = drop.where("preview_id", "not in", kept.map((k) => k.preview_id));
-    await drop.execute();
+    await makeRoomForPreview(ctx, "story", PREVIEWS_KEPT);
     const preview_id = newId();
     const expiresAt = new Date(Date.parse(ctx.now) + ctx.ports.config.grantTtlSeconds * 1000);
     await ctx.db
       .insertInto("story_previews")
-      .values({ preview_id, tenant_id: tenantId(ctx), product_id: pid, page_id: input.page_id, html: shown, shows_mockup: Boolean(d.mockup), created_by: json(ctx.actor), expires_at: expiresAt.toISOString(), created_at: ctx.now })
+      .values({ preview_id, tenant_id: tenantId(ctx), product_id: productId(ctx), page_id: input.page_id, html: shown, shows_mockup: Boolean(d.mockup), created_by: json(ctx.actor), expires_at: expiresAt.toISOString(), created_at: ctx.now })
       .execute();
     const noPage = d.mockup ? [] : await linksToNoPage(ctx, d.html, input.page_id);
-    const token = ctx.ports.grants.sign({ v: 1, purpose: STORY_PREVIEW_PURPOSE, t: tenantId(ctx), sp: preview_id, ...requesterClaims(ctx.principal), exp: Math.floor(expiresAt.getTime() / 1000) });
+    const grant = previewGrant(ctx, "story", preview_id, expiresAt);
     return {
       page_id: input.page_id,
       new_page: !d.existing,
@@ -767,15 +763,8 @@ export const preview = defineOperation({
       html_sha256: shownDigest(d, shown),
       ...(noPage.length ? { links_to_no_page: noPage, links_to_no_page_note: LINKS_TO_NO_PAGE_NOTE } : {}),
       published: false,
-      preview: {
-        preview_id,
-        method: "GET",
-        // On the content site when the deployment has one, as every document of people's HTML is.
-        url: `${ctx.ports.config.contentBaseUrl ?? ctx.ports.config.publicBaseUrl}/api/v1/downloads/story-preview/${preview_id}`,
-        headers: { [DOWNLOAD_GRANT_HEADER]: token },
-        expires_at: expiresAt.toISOString(),
-      },
-      next: "GET url with these headers in a browser at 1280 and 390 wide, adding ?theme=light and ?theme=dark, and look at each. Then send the same params to publish. Keep the grant header out of reports and logs.",
+      preview: grant,
+      next: `${openThePreview(grant)} in a browser at 1280 and 390 wide, adding ?theme=light and ?theme=dark, and look at each. Then send the same params to publish. ${PREVIEW_SECRET}`,
     };
   },
 });
