@@ -25,6 +25,21 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
 
 Nothing yet.
 
+## v0.32.0
+
+- **Sources get cards, and nothing needs doing.** Migration `0043_source_cards.sql` lets a source's
+  note be a card and a card preview be a source's; it changes no rows and queues no job. A card is an
+  agent-drawn picture of a source, in the Idea cards' kit and sandbox, served from the content site
+  when the deployment has one, like an Idea card's front.
+- **People will notice:** in the Evidence list, a source an agent has drawn a card for shows it as
+  its face, where it showed a small page of its words; the preview opens on the card with the summary
+  under it, and its tags now sit beside the date and author. Each card in the list is a frame, so it
+  counts as one call against a plan's calls a minute, as an Idea card does; the list loads one only
+  once its row is in view.
+- **Connected agents are asked to update their tools:** `derived_read` gains `card_guidance` and
+  `card_preview`, and `derived_write(action="write_note")` takes `note_kind="card"`. An agent keeps
+  the tools it had until a new session brings version 0.58.0.
+
 ## v0.31.0
 
 - **A plan's file limit past 25 MB needs direct uploads.** A deployment on Cloud Run that promises
