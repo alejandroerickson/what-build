@@ -382,7 +382,7 @@ export const listSources = defineOperation({
   summary: "List sources by metadata: newest added first, or by date, last update or title, either way round. For what sources say, use search.",
   description:
     "Filters combine. `tags` must all be on a source; sources_read(action=\"facets\") lists the tags in use and who added sources. `added_by` is an account_id; `added_since` keeps sources added at or after a date or time; `date_from` and `date_to` bound the source's own date. `query` is a case-insensitive substring over metadata only — title, tags and attachment names — never what a source says; use `search` for that. `sort`: added (newest added first, the default), date (the source's own date, newest first, undated last), updated (details most recently changed first) or title (A to Z). `order` reverses it: asc or desc, defaulting to desc for the three dates and asc for title; undated sources stay last either way. Returns each source's metadata with derived_status, the attachment the derived text was taken from (text_from) and next_cursor; pass the cursor back with the same filters, sort and order. " +
-    `include_summary adds each source's summary (null without one, cut at ${LIST_SUMMARY_MAX} characters), which is what people read when they browse the list. include_preview adds first_lines, the start of its derived text (null without one, at most ${LIST_FIRST_LINES_MAX} characters), and attachments, each with its path, media_type, size, how its text was read and its picture: thumb_url and preview_url, addresses on this deployment that work for a few hours and need no sign-in, or null with none yet. The web app's list and preview read these; an agent seldom needs them.`,
+    `include_summary adds each source's summary (null without one, cut at ${LIST_SUMMARY_MAX} characters), which is what people read when they browse the list, and card_etag, the etag of its card (null without one), the picture people recognise it by. include_preview adds first_lines, the start of its derived text (null without one, at most ${LIST_FIRST_LINES_MAX} characters), and attachments, each with its path, media_type, size, how its text was read and its picture: thumb_url and preview_url, addresses on this deployment that work for a few hours and need no sign-in, or null with none yet. The web app's list and preview read these; an agent seldom needs them.`,
   input: z.strictObject({
     tags: z.array(z.string()).max(20).optional().describe("All must match."),
     added_by: z.string().min(1).max(100).optional().describe("An account_id from sources_read(action=\"facets\"): only the sources that person added, in the app or through an agent."),
@@ -391,7 +391,7 @@ export const listSources = defineOperation({
     date_to: isoDate.optional().describe("The source's own date, on or before."),
     query: z.string().max(500).optional(),
     include_archived: z.boolean().default(false),
-    include_summary: z.boolean().default(false).describe("Add each source's summary."),
+    include_summary: z.boolean().default(false).describe("Add each source's summary, and whether it has a card (card_etag)."),
     include_preview: z.boolean().default(false).describe("Add how each source's text starts, and its attachments with their pictures."),
     sort: z.enum(["added", "date", "updated", "title"]).default("added"),
     order: z.enum(["asc", "desc"]).optional().describe("Defaults to desc for added, date and updated, and asc for title."),
@@ -452,25 +452,24 @@ export const listSources = defineOperation({
         input.sort === "added"
           ? last.record_id
           : Buffer.from(JSON.stringify({ v: input.sort === "date" ? last.date : input.sort === "updated" ? last.sort_updated : last.sort_title, id: last.record_id })).toString("base64url");
-    const summaries =
+    // The summary, cut, and whether there is a card (its etag, which names its address, never its HTML).
+    const notes =
       input.include_summary && page.length
-        ? new Map(
-            (
-              await ctx.db
-                .selectFrom("agent_notes")
-                .select(["record_id", sql<string>`left(content, ${LIST_SUMMARY_MAX + 1})`.as("content")])
-                .where("kind", "=", "summary")
-                .where("record_id", "in", page.map((r) => r.record_id))
-                .execute()
-            ).map((n) => [n.record_id, truncateQuote(n.content, LIST_SUMMARY_MAX)]),
-          )
+        ? await ctx.db
+            .selectFrom("agent_notes")
+            .select(["record_id", "kind", "etag", sql<string>`case when kind = 'summary' then left(content, ${LIST_SUMMARY_MAX + 1}) else '' end`.as("content")])
+            .where("kind", "in", ["summary", "card"])
+            .where("record_id", "in", page.map((r) => r.record_id))
+            .execute()
         : null;
+    const summaries = notes ? new Map(notes.filter((n) => n.kind === "summary").map((n) => [n.record_id, truncateQuote(n.content, LIST_SUMMARY_MAX)])) : null;
+    const cards = notes ? new Map(notes.filter((n) => n.kind === "card").map((n) => [n.record_id, n.etag])) : null;
     const previews = input.include_preview && page.length ? await listPreviews(ctx, page.map((r) => r.record_id)) : null;
     return {
       records: page.map((r) => ({
         ...recordSummary(r, statuses.get(r.record_id)),
         text_from: statuses.get(r.record_id)?.text_from ?? null,
-        ...(summaries ? { summary: summaries.get(r.record_id) ?? null } : {}),
+        ...(summaries && cards ? { summary: summaries.get(r.record_id) ?? null, card_etag: cards.get(r.record_id) ?? null } : {}),
         ...(previews ? { first_lines: previews.firstLines.get(r.record_id) ?? null, attachments: previews.attachments.get(r.record_id) ?? [] } : {}),
       })),
       next_cursor: next,

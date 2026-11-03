@@ -115,8 +115,9 @@ export async function indexSource(db: Db, recordId: string): Promise<boolean> {
   await db.deleteFrom("text_chunks").where("record_id", "=", recordId).execute();
   await writePieces(db, r.tenant_id, recordId, "title", "", r.title);
   await writePieces(db, r.tenant_id, recordId, "tags", "", r.tags.join(", "));
-  for (const n of await db.selectFrom("agent_notes").select(["kind", "content"]).where("record_id", "=", recordId).execute())
-    await writePieces(db, r.tenant_id, recordId, n.kind, "", n.content);
+  // A card is a picture; its words are the summary's, which is searched.
+  for (const n of await db.selectFrom("agent_notes").select(["kind", "content"]).where("record_id", "=", recordId).where("kind", "!=", "card").execute())
+    await writePieces(db, r.tenant_id, recordId, n.kind as "summary" | "notes", "", n.content);
   const text = await db.selectFrom("source_texts").select("content").where("record_id", "=", recordId).executeTakeFirst();
   await writePieces(db, r.tenant_id, recordId, "text", "", text?.content);
   for (const a of await db.selectFrom("annotations").select(["annotation_id", "note"]).where("record_id", "=", recordId).execute())

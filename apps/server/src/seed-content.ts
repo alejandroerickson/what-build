@@ -181,6 +181,73 @@ export const SOURCE_SUMMARIES = {
     "\"for the real plan\". In their words, they think in jobs, not time slots, and sending everyone their day takes longest.",
 };
 
+/**
+ * The card an agent drew of each source: a picture people tell it apart by in the Evidence list,
+ * each a different shape and hue, drawn on the 640 × 480 board.
+ */
+export const SOURCE_CARDS = {
+  // The hand-off: jobs typed into a text by hand, one address wrong.
+  greenline: `<style>
+.handoff{display:grid;grid-template-columns:.75fr 1.25fr;gap:30px;height:100%;align-items:center}
+.handoff ol{display:grid;gap:12px;margin:0;padding:0;list-style:none}
+.handoff li{height:44px;border-radius:22px 22px 22px 6px;background:var(--hue-fill);box-shadow:inset 0 0 0 2px var(--hue-line)}
+.handoff li:nth-child(2){width:80%}.handoff li:nth-child(4){width:65%}
+.handoff li.wrong{background:var(--rose-solid);box-shadow:none}
+.handoff b{display:block;font-size:76px;line-height:.95;font-weight:700;letter-spacing:-.04em;white-space:nowrap;color:var(--rose-solid)}
+.handoff span{display:block;margin-top:12px;font-size:30px;font-weight:600;line-height:1.1}
+</style>
+<div class="handoff" data-hue="sky">
+  <ol aria-hidden="true"><li></li><li></li><li class="wrong"></li><li></li><li></li></ol>
+  <div><b>1 a week</b><span>wrong address, typed by hand</span></div>
+</div>`,
+  // The double booking: the same client twice on Tuesday.
+  oakAndAsh: `<style>
+.twice{display:flex;flex-direction:column;justify-content:center;gap:18px;height:100%}
+.twice .row{display:grid;grid-template-columns:110px 1fr;gap:18px;align-items:center}
+.twice .row i{height:84px;border-radius:12px;background:var(--hue-solid)}
+.twice .row:nth-child(2) i{background:repeating-linear-gradient(135deg,var(--hue-solid) 0 14px,var(--hue-fill) 14px 28px)}
+.twice .day{font-size:40px;font-weight:700;color:var(--muted)}
+.twice p{margin-top:10px;font-size:40px;font-weight:700;line-height:1.05;letter-spacing:-.02em;max-width:none}
+</style>
+<div class="twice" data-hue="amber">
+  <div class="row" aria-hidden="true"><span class="day">Tue</span><i></i></div>
+  <div class="row" aria-hidden="true"><span class="day">Tue</span><i></i></div>
+  <p>Same client, booked twice</p>
+</div>`,
+  // One person on a Sunday evening, six crews hanging from her.
+  fernside: `<style>
+.fan{display:grid;grid-template-rows:auto 1fr auto;height:100%;justify-items:center}
+.fan .me{display:grid;place-items:center;width:120px;height:120px;border-radius:50%;background:var(--hue-solid);color:var(--on-solid);font-size:30px;font-weight:700}
+.fan svg{width:100%;height:100%}
+.fan ol{display:grid;grid-template-columns:repeat(6,1fr);gap:16px;width:100%;margin:0;padding:0;list-style:none}
+.fan li{height:72px;border-radius:10px;background:var(--hue-line)}
+</style>
+<div class="fan" data-hue="indigo">
+  <span class="me">Sun</span>
+  <svg viewBox="0 0 600 100" preserveAspectRatio="none" fill="none" stroke="var(--hue-solid)" stroke-width="6" aria-hidden="true"><path vector-effect="non-scaling-stroke" d="M300 0L50 100M300 0L150 100M300 0L250 100M300 0L350 100M300 0L450 100M300 0L550 100"/></svg>
+  <ol aria-label="Six crews"><li></li><li></li><li></li><li></li><li></li><li></li></ol>
+</div>`,
+  // The survey: most crew leads plan in a spreadsheet.
+  survey: `<style>
+.waffle{display:grid;grid-template-columns:1fr 1.1fr;gap:30px;height:100%;align-items:center}
+.waffle ol{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin:0;padding:0;list-style:none}
+.waffle li{aspect-ratio:1;border-radius:6px;background:var(--line-2)}
+.waffle li.yes{background:var(--hue-solid)}
+.waffle b{display:block;font-size:120px;line-height:.9;font-weight:700;letter-spacing:-.05em;color:var(--hue-ink)}
+.waffle span{display:block;margin-top:14px;font-size:30px;font-weight:600;line-height:1.1}
+</style>
+<div class="waffle" data-hue="teal">
+  <ol aria-hidden="true">
+    <li class="yes"></li><li class="yes"></li><li class="yes"></li><li class="yes"></li><li class="yes"></li>
+    <li class="yes"></li><li class="yes"></li><li class="yes"></li><li class="yes"></li><li class="yes"></li>
+    <li class="yes"></li><li class="yes"></li><li class="yes"></li><li class="yes"></li><li></li>
+    <li></li><li></li><li></li><li></li><li></li>
+    <li></li><li></li><li></li>
+  </ol>
+  <div><b>14</b><span>of 23 plan in a spreadsheet</span></div>
+</div>`,
+};
+
 export const INTERVIEW_TXT = `Interviewer: Tell me about the last time the schedule went wrong.
 Dev: Two weeks ago. We double-booked the mower crew on Tuesday because the spreadsheet had the same client twice.
 Interviewer: How did you find out?

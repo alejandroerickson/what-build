@@ -5,6 +5,9 @@ import { MemoryRouter, Route, Routes } from "react-router";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { hitHref, type FindHit } from "../src/lib/find.tsx";
 
+// The source's card follows the theme, which asks the system; jsdom has no media queries.
+window.matchMedia ??= (query: string) => ({ matches: false, media: query, onchange: null, addListener() {}, removeListener() {}, addEventListener() {}, removeEventListener() {}, dispatchEvent: () => false });
+
 // Each place the Search screen and the palette show of a source opens the source's text at the match
 // that place's line shows (`?at=`, where it starts), not at the first of its piece; a link without it
 // starts at the first, as before.

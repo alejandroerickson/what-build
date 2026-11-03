@@ -27,7 +27,7 @@ export const BUNDLE_LAYOUT: readonly { path: string; holds: string }[] = [
   { path: "records/<record_id>/attachments/<file_version_id>/<path>", holds: "Every stored version of every attachment, byte for byte; MISSING.txt where the bytes could not be read." },
   { path: "records/<record_id>/derived/<derivation_id>/<file>", holds: "What an attachment was read as: text.md and manifest.json, with segments.jsonl in readings made while sources had passages." },
   { path: "records/<record_id>/annotations.json", holds: "The source's comments." },
-  { path: "records/<record_id>/agent-notes/<kind>.md", holds: "The source's summary (summary.md) and notes (notes.md)." },
+  { path: "records/<record_id>/agent-notes/<kind>.md", holds: "The source's summary (summary.md) and notes (notes.md); its card, the picture people recognise it by, is card.html." },
   { path: "assumptions.json", holds: "The assumptions, each with its reviews." },
   { path: "revisions.json", holds: "Earlier texts of the outcomes, the assumptions, the comments and the product concept." },
   { path: "story/hierarchy.json", holds: "The Story's page tree." },
@@ -223,7 +223,7 @@ export async function runExport(db: Tx, ports: Ports, job: { tenant_id: string; 
     const notes = await db.selectFrom("annotations").selectAll().where("record_id", "=", r.record_id).execute();
     if (notes.length) add(`${base}/annotations.json`, j(notes));
     const agent = await db.selectFrom("agent_notes").selectAll().where("record_id", "=", r.record_id).execute();
-    for (const a of agent) add(`${base}/agent-notes/${a.kind}.md`, a.content);
+    for (const a of agent) add(`${base}/agent-notes/${a.kind}.${a.kind === "card" ? "html" : "md"}`, a.content);
   }
 
   const entries = await db.selectFrom("register_entries").select(ASSUMPTION_COLUMNS).where("product_id", "=", pid).where("kind", "=", "assumption").orderBy("entry_id").execute();

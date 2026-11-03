@@ -1,11 +1,11 @@
 # Evidence: sources, attachments and their text
 
-Sources and their attachments, getting files in, the derived text, summaries, notes, comments, finding and moving sources.
+Sources and their attachments, getting files in, the derived text, summaries, cards, notes, comments, finding and moving sources.
 
 ## Sources
 
 A **source** is one piece of evidence: an interview, a call, a document, a deck, an export. It has a
-title, a date, tags, attachments, one derived text, a summary, notes and comments. Sources have no
+title, a date, tags, attachments, one derived text, a summary, a card, notes and comments. Sources have no
 kind, organization, folder, participants, source system or provenance field: a call that sends one
 is refused.
 
@@ -119,13 +119,26 @@ A reading keeps the layout of the parser version that made it (`parser_version` 
 the current parser; it is done when `manifest` shows a `derivation_id` other than the
 `previous_derivation_id` it returned.
 
-## Summary, notes and comments
+## Summary, card, notes and comments
 
-- The **summary** (`derived_write(action="write_note", note_kind="summary")`) heads the source's page
-  and shows in the Evidence list. It is searched like the rest of the source.
-  `sources_read(action="list", include_summary=true)` shows the summaries, and which sources lack one.
+Give every source you work on a summary and a card: the summary is the source in words, the card the
+source in a picture.
+
+- The **summary** (`derived_write(action="write_note", note_kind="summary")`) is Markdown: what the
+  source is and what it tells the team, in two to four short sentences. Agents and search read it,
+  and people read it under the card. `sources_read(action="list", include_summary=true)` shows the
+  summaries, and which sources lack one.
+- The **card** (`note_kind="card"`) is HTML: a picture of the one thing this source says that the
+  product's other sources do not, so that someone glancing down the Evidence list tells the sources
+  apart before reading a title. It heads the source's preview and page, and is its thumbnail in the
+  list unless the source carries a picture of its own (a photo, a slide, a PDF's page). It is drawn on
+  a 640 × 480 board and shown as small as a thumbnail, so big shapes, one hue and few, very large
+  words. Read `derived_read(action="card_guidance")` before drawing one, look at it with
+  `derived_read(action="card_preview")`, and read the other sources' cards so yours is unlike them.
+  A card is checked as an Idea card's front is (`422 invalid_card`), is not searched, and a write
+  returns `card_advice`. In the list, `card_etag` says which sources have one.
 - The **notes** (`note_kind="notes"`) are freeform Markdown below it.
-- People edit both in the app. The first summary or notes take no etag; after that, a write takes the
+- People edit the summary and notes in the app; agents draw the cards. The first summary, card or notes take no etag; after that, a write takes the
   etag `derived_read(action="read_note")` returns (or `agent_notes` in
   `sources_read(action="get", detail="full")`). Without it, with a stale one, or with the source's own
   etag, the write is refused (`409 stale_etag`, with `current_etag`).

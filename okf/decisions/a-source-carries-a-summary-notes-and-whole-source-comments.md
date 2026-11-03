@@ -3,7 +3,7 @@ type: Decision
 title: A source carries a summary written for people, freeform notes and comments on the whole source, and no outline
 description: Beside its words, a source has a short summary people read, notes agents and people keep, and comments on the source as a whole, because outlines, passage-anchored comments and agent-only notes added granularity nobody used.
 tags: [decision, sources, evidence, comments, notes, web, mcp, product]
-generated: {by: agent:claude, at: 2026-10-26}
+generated: {by: agent:claude, at: 2026-11-02}
 status: stable
 ---
 
@@ -28,6 +28,8 @@ how people read a source.
   and edit it in the app; agents write it with `derived.write_note`.
 - The summary is **what people browse**: the page shows it whole, then the source's images, then
   its text folded to its first lines; the Evidence list's preview opens on the summary ([decision](evidence-is-a-list-of-what-sources-look-like-with-a-preview-beside-it.md)).
+  A card, the source in a picture, now heads both, with the summary under it
+  ([decision](a-source-has-a-card-people-recognise-it-by.md)).
   Agents are told it is the part people read, to be succinct and high in signal.
 - The **notes** are one freeform Markdown document: whatever is worth keeping about the source
   that is not its words, structured as the writer likes. Agents and people both write them.

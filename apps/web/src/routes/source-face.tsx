@@ -1,7 +1,9 @@
 import { memo, useState, type ReactNode } from "react";
 import { clockLength } from "../lib/format.ts";
+import { useProduct } from "../lib/session.tsx";
 import type { ListedAttachment, ListedSource } from "../lib/types.ts";
 import { Glyph, type GlyphName } from "../ui/index.tsx";
+import { SourceCardFace, useSourceCardUrl } from "./source-card.tsx";
 
 /** The letters of an attachment's name after its last dot, for a small label: "PDF". */
 export function extensionLabel(path: string): string {
@@ -105,10 +107,13 @@ function pictured(atts: ListedAttachment[]): ListedAttachment | undefined {
 }
 
 /**
- * What a source looks like in the list: the first it can show of a picture, a deck's card, a small
- * page of its own words, and an icon of what it holds.
+ * What a source looks like in the list: the first it can show of a picture of the thing itself (an
+ * image, a PDF's page, a deck's slide or card, a video's frame), the card an agent drew of it, a
+ * small page of its own words, and an icon of what it holds.
  */
 export const SourceFace = memo(function SourceFace({ s, compact }: { s: ListedSource; compact: boolean }) {
+  const { api: base } = useProduct();
+  const card = useSourceCardUrl(base, s.record_id, s.card_etag);
   const atts = s.attachments;
   const length = atts.find((a) => a.text.duration_ms && /^(audio|video)\//.test(a.media_type ?? ""))?.text.duration_ms;
   const shown = pictured(atts) ?? atts.find((a) => a.picture?.card);
@@ -136,7 +141,9 @@ export const SourceFace = memo(function SourceFace({ s, compact }: { s: ListedSo
     if (ext && !["MD", "TXT", "MARKDOWN"].includes(ext)) mark = <span className="face-mark">{ext}</span>;
   }
   if (shown) return <AttachmentFace a={shown} words={words} mark={mark} />;
-  if (words) return <SmallPage text={words} mark={mark} />;
+  const page = words ? <SmallPage text={words} mark={mark} /> : null;
+  if (card) return <SourceCardFace key={card} src={card} mark={mark} fallback={page ?? <IconFace a={atts[0] ?? { path: "", media_type: null }} mark={mark} />} />;
+  if (page) return page;
   if (atts[0]) return <IconFace a={atts[0]} mark={mark} />;
   return (
     <span className="face face-icon">

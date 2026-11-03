@@ -7,7 +7,7 @@ import { sql } from "kysely";
 import { requestedHost } from "./canonical-host.ts";
 import type { ServerConfig } from "./config.ts";
 import {
-  askedByFrame, cardFront, failedFrame, FALLBACK_HTML_POLICY, findAttachment, findCard, findMockupPage, findSpecimen, findStoryCanvasPage, findStoryVersion, htmlView, isHtmlAttachment, isPdf, printView, storyHtml, storyTheme, streamFile,
+  askedByFrame, cardFront, failedFrame, FALLBACK_HTML_POLICY, findAttachment, findCard, findSourceCard, SOURCE_CARD_ROOM, findMockupPage, findSpecimen, findStoryCanvasPage, findStoryVersion, htmlView, isHtmlAttachment, isPdf, printView, storyHtml, storyTheme, streamFile,
 } from "./documents.ts";
 import { logError } from "./telemetry.ts";
 import { requesterMayRead } from "./uploads.ts";
@@ -101,9 +101,11 @@ export function contentDocumentRoutes(env: Env & { config: ServerConfig }) {
           return storyHtml(c, html, theme, frame, false, site);
         }
         case "card": {
-          const card = await inTenant(tenant, (trx) => findCard(trx, product, str("o")));
+          // An Idea card's front (o, an outcome; neither, the concept), or a source's card (s).
+          const source = str("s");
+          const card = await inTenant(tenant, (trx) => (source ? findSourceCard(trx, product, source) : findCard(trx, product, str("o"))));
           if (!card || documentDigest(card.front) !== claims["d"]) throw gone();
-          return cardFront(c, card.front, card.title, theme, site);
+          return cardFront(c, card.front, card.title, theme, site, source ? SOURCE_CARD_ROOM : undefined);
         }
         case "print": {
           const versions = Array.isArray(claims["vs"]) ? claims["vs"].filter((x): x is string => typeof x === "string") : [];

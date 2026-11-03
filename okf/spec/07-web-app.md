@@ -574,10 +574,15 @@ The sources, and everything for reading them.
   they have, or none yet), so the twins can be told apart.
 - **A source's face** in a row ([decision](../decisions/evidence-is-a-list-of-what-sources-look-like-with-a-preview-beside-it.md)):
   the first it can show of its first image's picture, then a PDF's first page, a deck's own picture
-  or a picture of a video or an HTML page; a deck's card, drawn from slide one's title and its theme's colour; a small
-  page of its own words; and an icon of what it holds. A recording's length, or a label such as
+  or a picture of a video or an HTML page; a deck's card, drawn from slide one's title and its theme's colour; the
+  **card** an agent drew of the source ([§4.6](04-data-model.md), [decision](../decisions/a-source-has-a-card-people-recognise-it-by.md));
+  a small page of its own words; and an icon of what it holds. A recording's length, or a label such as
   "VTT" for words read from anything but a page of text, marks the corner. A face is paper in dark
-  mode too.
+  mode too, but for a source's card, which is WhatBuild's picture of the source rather than the
+  thing itself and follows the theme, as the Idea's cards do. A card is framed from its route in
+  the Idea cards' sandbox, on its 640 × 480 board scaled to the face, out of reach of the pointer
+  and the keyboard, and loaded only once its row comes into view: each counts as a call, as every
+  frame does ([§9.7](09-data-lifecycle.md)).
 - **The preview beside the list.** The list opens alone. A click on a row opens the preview beside
   it, and a click that opens a new tab, **Open source** and Enter go to the source's page. The
   address holds what it shows (`?source=<id>&page=<n>`); a source further down than what has loaded
@@ -586,7 +591,9 @@ The sources, and everything for reading them.
   takes the screen, with a button back to the list. Up and down arrows (and J and K) move through
   sources, with the preview open or not; left and right through its pages; Space opens and closes
   it; Esc closes it. Keys leave a field, a menu, a dialog and a player alone.
-  Its pages are the summary, whole; the source's own text when it is no attachment's; and each
+  The header gives the title, then on one line the date, who added it and the source's tags.
+  Its pages are the card, as large as the preview allows on its board, with the summary under it,
+  whole (one page, its thumbnail the card); the source's own text when it is no attachment's; and each
   attachment, with its name, type and a download. An image shows its preview copy, and opens the
   image viewer on its original. A PDF shows page one and **Show all N pages**. A deck shows its
   picture or card above its slides' text. A Word document, a workbook, a transcript and a text show
@@ -599,7 +606,7 @@ The sources, and everything for reading them.
   first, and what needs a call waits until someone has stopped on it for a moment.
 - **Source page.** A source is the busiest object in the app, so the page is dense on purpose.
   - **Header:** the title and the actions menu, nothing else; every property is in the inspector.
-    Below it the **summary** ([§4.6](04-data-model.md)), whole: rendered Markdown, attributed to
+    Below it the source's **card**, when an agent has drawn one, 480 pixels wide at most; then the **summary** ([§4.6](04-data-model.md)), whole: rendered Markdown, attributed to
     whoever wrote it last, with Edit for an editor. It is what people read of a source, so nothing
     above it competes and the text below starts folded. With no summary,
     an editor sees "Add a summary" and everyone else nothing. Both open a dialog holding the

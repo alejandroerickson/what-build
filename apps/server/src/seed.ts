@@ -2,7 +2,7 @@ import { actorOf, createTenantWithTeam, execute, houseStyle, json, newEtag, OPER
 import { sql } from "kysely";
 import { acceptInvitation, findOrCreateAccount, type AccountRow } from "./auth/identity.ts";
 import {
-  MOCKUP, MOCKUP_LINKED_PAGES, HANDOFF_HTML, HANDOFF_NOTES, INTERVIEW_AGENT_NOTES, INTERVIEW_RECORDER_EXPORT, INTERVIEW_TXT, INTERVIEW_VTT, OVERVIEW_NOTES, OWNER_NOTES_MD, RESEARCH_EXPORT_MD, SAMPLE, SOURCE_SUMMARIES, STORY_HTML,
+  MOCKUP, MOCKUP_LINKED_PAGES, HANDOFF_HTML, HANDOFF_NOTES, INTERVIEW_AGENT_NOTES, INTERVIEW_RECORDER_EXPORT, INTERVIEW_TXT, INTERVIEW_VTT, OVERVIEW_NOTES, OWNER_NOTES_MD, RESEARCH_EXPORT_MD, SAMPLE, SOURCE_CARDS, SOURCE_SUMMARIES, STORY_HTML,
 } from "./seed-content.ts";
 import type { Worker } from "./worker.ts";
 
@@ -96,6 +96,10 @@ export async function seed(env: Env, worker: Worker, log: (m: string) => void = 
   // And a summary for every other source, which the Evidence list shows.
   for (const [record_id, content] of [[txt, SOURCE_SUMMARIES.oakAndAsh], [notes, SOURCE_SUMMARIES.fernside], [survey, SOURCE_SUMMARIES.survey]] as const) {
     await call(env, samAgent, "derived.write_note", { record_id, note_kind: "summary", content }, ref);
+  }
+  // And a card for each, the picture people tell the sources apart by.
+  for (const [record_id, content] of [[vtt, SOURCE_CARDS.greenline], [txt, SOURCE_CARDS.oakAndAsh], [notes, SOURCE_CARDS.fernside], [survey, SOURCE_CARDS.survey]] as const) {
+    await call(env, samAgent, "derived.write_note", { record_id, note_kind: "card", content }, ref);
   }
 
   const base = env.ports.config.publicBaseUrl;

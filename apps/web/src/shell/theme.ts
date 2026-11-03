@@ -22,15 +22,18 @@ function read(): ThemeChoice {
 
 let choice: ThemeChoice = typeof window === "undefined" ? "system" : read();
 
+/** Whether the system's theme can be asked: always in a browser, never in a test's document. */
+const canAsk = typeof window !== "undefined" && typeof window.matchMedia === "function";
+
 function apply() {
   if (typeof document === "undefined") return;
-  const dark = choice === "dark" || (choice === "system" && window.matchMedia(DARK).matches);
+  const dark = choice === "dark" || (choice === "system" && canAsk && window.matchMedia(DARK).matches);
   document.documentElement.setAttribute("data-theme", dark ? "dark" : "light");
 }
 
 if (typeof window !== "undefined") {
   apply();
-  window.matchMedia(DARK).addEventListener("change", () => choice === "system" && apply());
+  if (canAsk) window.matchMedia(DARK).addEventListener("change", () => choice === "system" && apply());
   window.addEventListener("storage", (e) => {
     if (e.key !== KEY) return;
     choice = read();

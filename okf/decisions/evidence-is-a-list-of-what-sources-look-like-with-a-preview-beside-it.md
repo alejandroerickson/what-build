@@ -3,7 +3,7 @@ type: Decision
 title: Evidence is a list of what sources look like, with a preview beside it that is moved through by keys
 description: People remember what they saw, so a row shows a source's face, its title and its date; a click opens a preview column instead of leaving the list, with arrows through sources and through a source's pages.
 tags: [decision, web-app, evidence, design-system, performance]
-generated: {by: agent:claude, at: 2026-11-01}
+generated: {by: agent:claude, at: 2026-11-02}
 status: stable
 ---
 
@@ -20,9 +20,10 @@ beside the list) and chose the preview beside the list on 2026-11-01.
 ## Decision
 
 - **A row is a face, a title and a date.** The face is the first a source can show of a picture, a
-  deck's card, a small page of its own words, and an icon of what it holds. Beside the preview that
+  deck's card, the card an agent drew of it ([decision](a-source-has-a-card-people-recognise-it-by.md)),
+  a small page of its own words, and an icon of what it holds. Beside the preview that
   is all a row keeps; alone, the list keeps its tags and the attachment count at today's measure.
-- **The summary no longer unfolds in the row.** It is the first page of the preview, so it can
+- **The summary no longer unfolds in the row.** It is the first page of the preview, under the source's card when it has one, so it can
   become something other than Markdown one day as one more kind of page, with nothing else moving.
 - **The list opens alone; a click opens the preview.** A click that opens a new tab still goes to the
   source's page, and **Open source** and Enter go there too. Which source and page is in the address

@@ -63,6 +63,7 @@ name what replaced it, and date the change. Smaller decisions are marked
 - [Every write is attributed, and human or agent authorship is declared](attribution-and-declared-authorship.md)
 - [Sources are described by a title, a date and tags; there are no kinds, folders, organization field, dimensions, participants, source system or provenance](sources-are-described-by-tags.md)
 - [A source carries a summary written for people, freeform notes and comments on the whole source, and no outline](a-source-carries-a-summary-notes-and-whole-source-comments.md)
+- [A source has a card, an agent-drawn picture people recognise it by, beside its text summary](a-source-has-a-card-people-recognise-it-by.md)
 - [A source's words are one derived text; its files are attachments, read and kept but never searched; search reads a source's title, tags, summary, derived text, notes and comments](a-sources-words-are-one-derived-text-and-attachments-are-never-searched.md)
 - [Only a source's primary file is parsed and searched](only-the-primary-file-is-searched.md) (superseded)
 - [Evidence is found by searching, not kept as citations](evidence-is-searched-not-cited.md)

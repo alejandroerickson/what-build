@@ -400,7 +400,7 @@ export interface CardPreviewsTable {
   preview_id: string;
   tenant_id: string;
   product_id: string;
-  kind: "concept" | "outcome";
+  kind: "concept" | "outcome" | "source";
   title: string;
   card_html: string;
   created_by: Json<ActorSnapshot>;
@@ -496,7 +496,8 @@ export interface AnnotationsTable {
 
 export interface AgentNotesTable {
   record_id: string;
-  kind: "summary" | "notes";
+  /** A card is HTML (source-card.ts); a summary and notes are Markdown. */
+  kind: "summary" | "notes" | "card";
   tenant_id: string;
   content: string;
   updated_at: Ts;

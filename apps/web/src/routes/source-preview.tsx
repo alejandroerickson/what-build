@@ -9,14 +9,15 @@ import type { ListedAttachment, ListedSource } from "../lib/types.ts";
 import { frameOf, sendFrame } from "../lib/video-frame.ts";
 import { Button, ButtonLink, ErrorCallout, Glyph, IconButton, Loading, Tag } from "../ui/index.tsx";
 import { attachmentUrl, attachmentViewUrl, AttachmentPreview, previewKind, RecordingPlayer } from "./source-attachments.tsx";
+import { SourceCardFace, SourceCardStage, useSourceCardUrl } from "./source-card.tsx";
 import { AttachmentFace, attachmentGlyph, DeckCard, extensionLabel } from "./source-face.tsx";
 
-/** What the preview moves through, side to side: the summary, the source's own text when it is no attachment's, then each attachment. */
+/** What the preview moves through, side to side: the card and the summary, the source's own text when it is no attachment's, then each attachment. */
 export type PreviewPage = { kind: "summary" } | { kind: "text" } | { kind: "attachment"; a: ListedAttachment };
 
 export function previewPages(s: ListedSource): PreviewPage[] {
   return [
-    ...(s.summary ? [{ kind: "summary" as const }] : []),
+    ...(s.summary || s.card_etag ? [{ kind: "summary" as const }] : []),
     ...(s.first_lines && !s.text_from ? [{ kind: "text" as const }] : []),
     ...s.attachments.map((a) => ({ kind: "attachment" as const, a })),
   ];
@@ -72,8 +73,10 @@ function Words({ query, words }: { query: { isError: boolean; error: unknown; re
   );
 }
 
+/** The card an agent drew of the source, as large as the preview allows, with the summary under it. */
 function SummaryPage({ s, settled }: { s: ListedSource; settled: boolean }) {
   const { api: base } = useProduct();
+  const card = useSourceCardUrl(base, s.record_id, s.card_etag);
   const cut = (s.summary?.length ?? 0) >= LISTED_SUMMARY_CHARS;
   const whole = useQuery({
     queryKey: ["source-agent-note", base, s.record_id, "summary", s.etag],
@@ -82,15 +85,9 @@ function SummaryPage({ s, settled }: { s: ListedSource; settled: boolean }) {
     staleTime: 60_000,
   });
   return (
-    <div className="preview-scroll preview-summary">
-      <Markdown source={whole.data?.content ?? s.summary ?? ""} className="prose" />
-      {s.tags.length ? (
-        <div className="preview-tags">
-          {s.tags.map((t) => (
-            <Tag key={t}>{t}</Tag>
-          ))}
-        </div>
-      ) : null}
+    <div className={`preview-scroll preview-summary${card ? " has-card" : ""}`}>
+      {card ? <SourceCardStage key={card} src={card} title={s.title} /> : null}
+      {s.summary ? <Markdown source={whole.data?.content ?? s.summary} className="prose" /> : null}
     </div>
   );
 }
@@ -305,11 +302,11 @@ function ZoomedImages({ s, path, onClose }: { s: ListedSource; path: string; onC
 
 /**
  * A source beside the list. It shows what the list already holds, so moving through sources costs
- * no call unless someone stops on one that needs its text or its original. Its pages are a list of
- * kinds, so the summary being HTML one day is one more kind of page.
+ * no call unless someone stops on one that needs its text or its original, or has a card, whose frame
+ * is one. Its pages are a list of kinds: first the card and the summary, then the source's own.
  */
 export function SourcePreview({ s, page, onPage, onClose, to, phone }: { s: ListedSource; page: number; onPage: (n: number) => void; onClose: () => void; to: string; phone: boolean }) {
-  const { canGivePicture } = useProduct();
+  const { canGivePicture, api: base } = useProduct();
   const pages = previewPages(s);
   const at = Math.min(Math.max(0, page), Math.max(0, pages.length - 1));
   const shown = pages[at];
@@ -319,13 +316,23 @@ export function SourcePreview({ s, page, onPage, onClose, to, phone }: { s: List
     strip.current?.querySelector("[aria-current]")?.scrollIntoView({ block: "nearest", inline: "nearest" });
   }, [at, s.record_id]);
   const sub = [s.date ? formatDate(s.date) : null, attribution(s.uploaded_by)].filter(Boolean).join(" · ");
+  const card = useSourceCardUrl(base, s.record_id, s.card_etag);
   return (
     <section className="sheet sources-preview" aria-label={`Preview of ${s.title}`}>
       <header className="preview-head">
         {phone ? <IconButton icon="chevron-left" label="Back to the list" onClick={onClose} /> : null}
         <div className="preview-head-main">
           <h2>{s.title}</h2>
-          <p className="num">{sub}</p>
+          <div className="preview-head-meta">
+            <p className="num">{sub}</p>
+            {s.tags.length ? (
+              <span className="preview-tags">
+                {s.tags.map((t) => (
+                  <Tag key={t}>{t}</Tag>
+                ))}
+              </span>
+            ) : null}
+          </div>
         </div>
         <span className="preview-head-actions">
           <ButtonLink to={to}>Open source</ButtonLink>
@@ -357,6 +364,8 @@ export function SourcePreview({ s, page, onPage, onClose, to, phone }: { s: List
               <button key={p.kind === "attachment" ? p.a.path : p.kind} type="button" className="preview-tile" aria-current={n === at ? "true" : undefined} title={p.kind === "attachment" ? p.a.path : p.kind === "summary" ? "Summary" : "Text"} onClick={() => onPage(n)}>
                 {p.kind === "attachment" ? (
                   <AttachmentFace a={p.a} />
+                ) : p.kind === "summary" && card ? (
+                  <SourceCardFace key={card} src={card} fallback={<span className="face face-icon"><Glyph name="file-text" /><span>Summary</span></span>} />
                 ) : (
                   <span className="face face-icon">
                     <Glyph name="file-text" />

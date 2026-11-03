@@ -446,7 +446,7 @@ describe("the sample product", () => {
     const call = sources.body.records.find((r: { title: string }) => r.title.startsWith("Crew lead interview"));
     expect(call).toMatchObject({ derived_status: "ready", text_from: "interview.vtt", attachment_count: 2 });
     const source = await sam.api("GET", `${S}/sources/${call.record_id}?detail=full`);
-    expect(source.body.agent_notes.map((n: { kind: string }) => n.kind).sort()).toEqual(["notes", "summary"]);
+    expect(source.body.agent_notes.map((n: { kind: string }) => n.kind).sort()).toEqual(["card", "notes", "summary"]);
     const attachments = source.body.attachments.map((f: { path: string; is_text_source: boolean; text: { status: string } }) => `${f.path}:${f.text.status}:${f.is_text_source}`).sort();
     expect(attachments).toEqual(["interview.vtt:ready:true", "recorder-export.txt:ready:false"]);
   });

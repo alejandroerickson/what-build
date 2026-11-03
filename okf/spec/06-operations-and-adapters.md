@@ -1,7 +1,7 @@
 ---
 type: Specification
 title: Every capability is one registered operation, reached identically over REST and MCP.
-description: The operation registry, the error model and bounds, the full catalogue of 120 operations with their REST routes and MCP tools, authorization and agent connection levels, upload flows, the guide and the Connect page.
+description: The operation registry, the error model and bounds, the full catalogue of 125 operations with their REST routes and MCP tools, authorization and agent connection levels, upload flows, the guide and the Connect page.
 tags: [spec, operations, rest, mcp, registry, uploads, guide]
 generated: {by: agent:claude, at: 2026-11-02}
 status: stable
@@ -36,7 +36,7 @@ defineOperation({
 });
 ```
 
-`OPERATIONS` in `packages/core/src/index.ts` lists all 120. From that list, and from nothing else,
+`OPERATIONS` in `packages/core/src/index.ts` lists all 125. From that list, and from nothing else,
 the server builds the REST routes, the MCP tools with their `action` enums and JSON Schemas (via
 `z.toJSONSchema`), and the `describe` responses. The web app calls the same REST routes through
 one small hand-written client (`apps/web/src/lib/api.ts`); there is no generated client and no
@@ -246,7 +246,7 @@ it always has.
 
 ### The operation catalogue
 
-All 120 operations, generated from `OPERATIONS`. The MCP tool is the operation name's first half;
+All 125 operations, generated from `OPERATIONS`. The MCP tool is the operation name's first half;
 standalone tools (—) take their fields directly. "Needs" is the minimum role
 ([§3.5](03-accounts-teams-and-identity.md)); `members` write actions check admin at the level
 being changed inside the handler.
@@ -332,6 +332,8 @@ being changed inside the handler.
 | `derived` | `rederive` | `POST P/sources/:record_id/rederive` | editor |
 | `derived` | `write_note` | `PUT P/sources/:record_id/agent-notes/:note_kind` | editor |
 | `derived` | `read_note` | `GET P/sources/:record_id/agent-notes/:note_kind` | viewer |
+| `derived` | `card_guidance` | `GET P/evidence/card-guidance` | viewer |
+| `derived` | `card_preview` | `POST P/sources/:record_id/card-preview` | editor |
 | `search` | — | `GET P/search` | reader, for the Story alone in plain mode; viewer for the rest |
 | `assumptions` | `list` | `GET P/assumptions` | viewer |
 | `assumptions` | `get` | `GET P/assumptions/:id` | viewer |
@@ -586,6 +588,18 @@ Notes on recent actions:
   (on a phone, with no line, that the whole front shows, below the front rather than over its last
   part). A product keeps its 20 newest card previews; a grant
   lasts as long as other download grants. Editors and admins.
+- A source's **card** is written with `derived.write_note` (`note_kind: card`) and read with
+  `derived.read_note`, beside its summary and notes ([§4.6](04-data-model.md#46-comments-the-summary-the-card-and-notes)).
+  A card write is checked as an Idea card's front is (`422 invalid_card`), returns `card_advice`
+  (more words than a card holds, the source's title repeated, fixed colours, no drawing, no text
+  summary), and never refuses for it; a summary write on a source with no card says so in `note`.
+  `derived.card_guidance` gives the guidance for drawing one (what a card is for, how to make it
+  unlike the product's other sources' cards, drawn examples, the board), the pictogram names, the
+  board (`frame`: 640 × 480, and the width of a thumbnail) and the most characters.
+  `derived.card_preview` takes `record_id` and `card_html`, makes every check a write makes, and
+  returns `card_advice`, the `frame` and a download grant to GET the card from `card_previews` on
+  its board, as the app shows it, without the Idea preview's height line; it shares the product's
+  20 card previews with the Idea's. Editors and admins.
 - `members.list` takes an optional `product` to list only the people who can reach it, each with
   `product_access { role, via }`. It answers `403` to someone who reads only the Story everywhere
   in the organization, and `products.list` marks such an organization `story_only: true`
@@ -640,6 +654,7 @@ GET  P/story/print?page_ids=…                        the Story print view (HTM
 GET  P/story/pages/:page_id/versions/:version/pages/:mockup_page_id/html   a page of the canvas that Story page's version shows; a reader may ask
 GET  P/mockups/:mockup_id/versions/:version/pages/:page_id/html   a mockup page's HTML (`?download=1` to save it, from the app's own address)
 GET  P/idea/concept/card, P/outcomes/:outcome_id/card?theme=   an Idea card's front
+GET  P/sources/:record_id/card?theme=               a source's card, on its 640 × 480 board
 GET  P/story/style/specimen, P/story/house-styles/:style/specimen?theme=   a style's specimen
 GET  /api/v1/downloads/mockup/:version_id            a mockup version's ZIP under a download grant
 GET  /api/v1/downloads/story-preview/:preview_id?theme=light|dark   a Story preview's HTML under its grant
@@ -893,7 +908,7 @@ owner's included: running the instance is done in the web app.
 | `sources_delete` | `delete`, `delete_annotation` |
 | `attachments_read` | `get_download` |
 | `attachments_write` | `request_upload`, `create_upload`, `create_uploads`, `complete_upload`, `fetch_url` |
-| `derived_read` | `manifest`, `text`, `list`, `read_note` |
+| `derived_read` | `manifest`, `text`, `list`, `read_note`, `card_guidance`, `card_preview` |
 | `derived_write` | `write_text`, `rederive`, `write_note` |
 | `assumptions_read` | `list`, `get`, `delete_impact` |
 | `assumptions_write` | `create`, `update`, `review`, `supersede`, `link`, `unlink`, `archive` |
