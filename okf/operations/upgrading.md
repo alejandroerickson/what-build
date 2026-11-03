@@ -23,7 +23,11 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
 
 ## Unreleased
 
-Nothing yet.
+- **A Cloud Run deployment on Neon could not take v0.32.0, and takes this one instead.** The
+  Cloud Build image the deploy uses (`cloud-sdk:slim`) stopped putting `python3` on its PATH, so
+  the build stopped at its restore point, before migrating or deploying, and the deployment stayed
+  on the release it ran. This release's build finds gcloud's own Python instead. Nothing else needs
+  doing; a deployment without `_NEON_PROJECT` was never affected.
 
 ## v0.32.0
 
