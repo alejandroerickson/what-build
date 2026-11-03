@@ -9,7 +9,8 @@ import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type Re
  *   each at its own moment within a few seconds, so a screen's reads do not all land at once.
  * - A refused frame answers a short page that tells the app so, and never reloads itself. The app
  *   asks for it again by making a new frame at the page's own address, which is how it puts back a
- *   page replaced in its frame too, so a second load of one frame is still never accepted.
+ *   page replaced in its frame too, so a second load of one frame is still never accepted, nor a
+ *   load whose document never says it has loaded (SAYS_LOADED_WITHIN_MS).
  * - Frames take turns after the screen's reads have had theirs, one every FRAME_SPACING_MS, and no
  *   message changes that pace. One refused again stops the turns until the next minute, so a minute
  *   something else has used costs one call. Nothing takes a turn while the tab is hidden.
@@ -50,6 +51,12 @@ export const PAGE_PUT_BACKS_A_MINUTE = 3;
 export const PUT_BACK_WAITS = 3;
 /** How long a page stays in its frame, not replaced, to have settled. */
 export const SETTLES_AFTER_MS = 60_000;
+/**
+ * How long after its frame's load a document has to say it has loaded (frame-ready) before it is
+ * taken for something that replaced the page and put back. A document of WhatBuild's says so as its
+ * own load event fires, which is when the frame's comes, so this is ample.
+ */
+export const SAYS_LOADED_WITHIN_MS = 1_500;
 const MINUTE_MS = 60_000;
 
 /** Whether a refusal's wait is one for the next minute. */
@@ -248,7 +255,7 @@ function frameReplaced(frame: WaitingFrame) {
 
 /**
  * Brings a frame back when the document in it says it was refused, or when something takes its place
- * (`replaced`, which the caller calls on a second load). `frame` is the iframe, and `reload` makes a
+ * (`replaced`, which the caller calls on a second load, or on a load whose document never said it had loaded). `frame` is the iframe, and `reload` makes a
  * new one at the same address. A message counts only from this frame's own window, and only while
  * the frame is on show, so one page's many messages are one refusal.
  *

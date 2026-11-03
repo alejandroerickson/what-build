@@ -28,3 +28,6 @@ export const IDEA_CARD_SANDBOX = "allow-scripts";
  * any frame it lands in. A preview's frame, which runs no script, gets the same words with none.
  */
 export const REFUSED_FRAME_SANDBOX = "allow-scripts";
+
+/** What a mockup's pages can do once they are saved and opened outside this sandbox: said with every download, and in the ZIP's index.html. */
+export const OUTSIDE_THE_SANDBOX = "These pages can run their own code when opened outside WhatBuild. Only open them if you trust where they came from.";

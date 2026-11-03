@@ -471,11 +471,14 @@ Notes on recent actions:
   find and replace, `restyle` replaces the page's stylesheet with the product's current one, and
   `from_version` starts from an earlier version, which restores it
   ([§4.11](04-data-model.md)). Versions report `html_sha256`. A version has no change note:
-  `note` is refused like any unknown field (`422`), and versions do not return one.
+  `note` is refused like any unknown field (`422`), and versions do not return one. The answer
+  names in `links_to_no_page` (with `links_to_no_page_note`) the Story pages the page links to,
+  by the guidance's `story_page` address on any host, that a reader can't open: none is published
+  under that id, or it is archived. Up to 25; left out when there are none.
 - `story.preview` takes exactly `story.publish`'s input and makes every check publish makes, in
   the same code, refusing with the same errors; it creates no version, records no activity and
   answers `200`. It returns what publish would make (`new_page`, `based_on_version`,
-  `carried_forward`, `title`, `summary`, `html_chars`, `html_sha256`, `published: false`) and
+  `carried_forward`, `title`, `summary`, `html_chars`, `html_sha256`, `links_to_no_page`, `published: false`) and
   `preview { preview_id, method: "GET", url, headers, expires_at }`, a download grant for the
   document publish would store ([§4.11](04-data-model.md)).
 - `story.get_style` and `story.set_style` read and replace the product's Story style, the design
@@ -508,8 +511,9 @@ Notes on recent actions:
   plan (`403 plan_restricted`), and the result names `from_upload` and gives `upload { upload_id,
   size, sha256 }`, the ZIP as its PUT answered ([§4.12](04-data-model.md), §6.7). `publish`
   answers with what a caller needs next, not the canvas it sent: `{ mockup_id, title,
-  current_version, current_version_id, etag, based_on_version, page_ids, url, next }`, where
-  `page_ids` are the canvas's pages in order and `url` is the canvas in the web app, with
+  current_version, current_version_id, etag, based_on_version, page_ids, url, clickable, next }`, where
+  `page_ids` are the canvas's pages in order, `url` is the canvas in the web app and `clickable`
+  says whether its pages link, which name no page, and the clickable view's address, with
   `from_upload` and `upload` after an upload and `prototype_warnings` when one brings a prototype;
   `mockups.get` reads the version back. ◆ Decision: a version's brief, page notes and page details
   run to tens of thousands of characters, which an echo would put into an agent's context after
@@ -526,13 +530,15 @@ Notes on recent actions:
   `prototype_warnings`. `publish`'s and `request_upload`'s descriptions state that a prototype is
   stateless, uses relative addresses and no network, and what its warnings mean.
   `mockups.get_download` gives a version as a ZIP through a grant, for an agent to build the next
-  version elsewhere ([§4.12](04-data-model.md)). `mockups.get` lists the Story pages that show
+  version elsewhere and for a person to open from its `index.html` ([§4.12](04-data-model.md)). `mockups.get` lists the Story pages that show
   its pages or its whole canvas.
 - `story.promote_mockup` publishes a Story page version that shows one page of a mockup version,
   or without `mockup_page_id` its whole canvas, on a new page or as an existing page's next version,
   without copying it; the version reports `mockup` with the page's size, or the canvas's layout and
   pages. It answers `201` like `publish` ([§4.11](04-data-model.md)). A new page is unplaced, like
-  any other (`placed: false`).
+  any other (`placed: false`). For one page shown alone, `links_off_story` (with
+  `links_off_story_note`) names the other pages of its canvas it links to that no Story page shows,
+  which a reader's click would not reach; left out when there are none.
 - `story.get_hierarchy` returns the tree as saved as `items`, with the live pages not yet placed as
   `unplaced` (`{page_id, title, description, kind}`, never also in `items`); each node's `kind` is
   `story_page`, `mockup_page` or `canvas`. Its `items` round-trip: `story.set_hierarchy` accepts them
@@ -632,7 +638,7 @@ GET  P/exports/:export_id/file                       an export ZIP for the web a
 GET  P/story/pages/:page_id/versions/:version/html?theme=light|dark   Story page HTML
 GET  P/story/print?page_ids=…                        the Story print view (HTML)
 GET  P/story/pages/:page_id/versions/:version/pages/:mockup_page_id/html   a page of the canvas that Story page's version shows; a reader may ask
-GET  P/mockups/:mockup_id/versions/:version/pages/:page_id/html   a mockup page's HTML
+GET  P/mockups/:mockup_id/versions/:version/pages/:page_id/html   a mockup page's HTML (`?download=1` to save it, from the app's own address)
 GET  P/idea/concept/card, P/outcomes/:outcome_id/card?theme=   an Idea card's front
 GET  P/story/style/specimen, P/story/house-styles/:style/specimen?theme=   a style's specimen
 GET  /api/v1/downloads/mockup/:version_id            a mockup version's ZIP under a download grant
@@ -752,15 +758,24 @@ a refusal for calls a minute with `429` and the same `Retry-After`, as a short H
 the JSON, when the frame's address says `?frame=1` or the browser says `Sec-Fetch-Dest: iframe`, which
 no script can set (`refusedFrame` in `apps/server/src/documents.ts`). An agent, an API caller or a
 tab says neither and gets the JSON at the same address, and an image, a video or a download of an
-attachment does too. Every other failure is the JSON it always was. The page holds WhatBuild's own
+attachment does too. The page holds WhatBuild's own
 words and one script, which posts `{ whatbuild: "frame-refused", retry_after_seconds }` to
-its parent; it loads nothing, navigates nowhere and never asks again by itself
+its parent, and `{ whatbuild: "frame-ready" }` once it has loaded, as every document the app frames does;
+it loads nothing, navigates nowhere and never asks again by itself
 ([§7.1](07-web-app.md)). It takes `?theme=` when that is `light` or `dark`. It is served with the
 headers of a page, with `no-store`, in the narrowest sandbox a frame takes (`sandbox allow-scripts`,
 `REFUSED_FRAME_SANDBOX`), from the app's origin with or without a content site, since the route
 refuses before any hand-off, and only the app may frame it. An attachment's preview (`attachment`
 and `attachment/view`, asked by `Sec-Fetch-Dest: iframe` alone) gets the same page with no script and
 an empty `sandbox`, which asks the person to close it and open it again.
+
+**Any other failure a frame asks for** comes the same way, asked the same way (`failedFrame`): the
+failure's own status, and the words its JSON gives (*No such Story version.*), under *This can't be
+shown*, in the same headers and sandbox, with the one script that says it has loaded. The content
+site's documents route answers its refusals so too when a frame asks, framed by the app's origin
+alone. So every document the app frames says it has loaded, and the app takes a load that does not
+for something a page put in its place ([§7.1](07-web-app.md)). An agent or an API caller still gets
+the JSON, and a tab the plain words.
 
 ### The Story print view
 

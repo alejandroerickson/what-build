@@ -3,7 +3,7 @@ type: Decision
 title: Mockups are versioned canvases of agent-made HTML, in a stage called Exploration
 description: Agents build directions as sandboxed HTML pages on a canvas under a brief, versioned as a whole and downloadable to build the next one; the third stage is named Exploration.
 tags: [decision, mockups, exploration, story, security, web, agents]
-generated: {by: agent:claude, at: 2026-10-30}
+generated: {by: agent:claude, at: 2026-11-02}
 status: stable
 ---
 
@@ -42,12 +42,15 @@ the names Mockups and Exploration on 2026-10-09.
   under its cap on what one field holds. The maintainer chose this on 2026-10-14, replacing the Story's
   rules for mockup pages: a budget on script length bounds nothing the sandbox does not, and kept
   interactive prototypes off the canvas.
-- A version downloads as a ZIP (brief, manifest, each page's HTML and notes) through a short-lived
+- **A canvas's pages may link to each other**, and a canvas whose pages link can be viewed as a
+  clickable prototype. That is a way to view a canvas, not a kind of mockup
+  ([decision](a-canvas-whose-pages-link-is-viewed-as-a-clickable-prototype.md)).
+- A version downloads as a ZIP (an index to start from, the brief, a manifest, each page's HTML and notes) through a short-lived
   grant, so an agent builds the next version in its own project and publishes the pages it changed.
   The same layout uploads as a ZIP through a grant, so an agent can publish a canvas without
   sending its pages' HTML through a tool call.
-- Agents publish and archive mockups; the web app shows them on a pannable, zoomable canvas and
-  downloads them.
+- Agents publish and archive mockups; the web app shows them on a pannable, zoomable canvas, or one
+  page at a time as a clickable prototype, and downloads them, whole or a page at a time.
 - **Mockups are outputs.** They come from the work a team's agents do in their own projects, where
   shared components, stylesheets and design systems are used. Each page is stored as one
   self-contained document, and nothing shared is used to draw it. The maintainer chose this on

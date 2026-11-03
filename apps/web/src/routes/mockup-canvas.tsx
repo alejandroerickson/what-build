@@ -2,11 +2,12 @@ import { MOCKUP_PAGE_SANDBOX } from "@whatbuild/core/page-sandbox";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type RefObject } from "react";
 import { flushSync } from "react-dom";
 import { plural } from "../lib/format.ts";
-import { tryStoppedFramesAgain, useFrameReturn, useMinuteWait } from "../lib/minute.ts";
+import { SAYS_LOADED_WITHIN_MS, tryStoppedFramesAgain, useFrameReturn, useMinuteWait } from "../lib/minute.ts";
 import { useProduct } from "../lib/session.tsx";
-import { Button, Callout, Glyph, keepFocusAt, Menu, MenuItem, MenuNote, MenuSeparator } from "../ui/index.tsx";
+import { Button, Callout, Glyph, keepFocusAt, Menu, MenuItem, MenuNote, MenuRadio, MenuSeparator, useToast } from "../ui/index.tsx";
 import { COARSE_POINTER_QUERY, isTypingTarget, useMediaQuery } from "../ui/media.ts";
 import { wheelZoomFactor } from "./mockup-wheel-zoom.ts";
+import { pageMoves, personActed } from "./page-moves.ts";
 import type { PageView } from "./story-flip.tsx";
 import "../styles/screens/story.css";
 import "../styles/screens/mockups.css";
@@ -54,6 +55,8 @@ const MAX_ZOOM = 4;
 const GAP_X = 120;
 const GAP_Y = 160;
 const MODE_KEY = "whatbuild.mockup.mode";
+/** How long before a link to no page says so again. */
+const NO_PAGE_SAID_EVERY_MS = 4000;
 
 type Mode = "pan" | "interact";
 
@@ -108,7 +111,8 @@ type FrameSignal =
   | { kind: "key"; key: string }
   | { kind: "keyup"; key: string }
   | { kind: "zoom"; clientX: number; clientY: number; dy: number; line: boolean; pinch: boolean }
-  | { kind: "select" };
+  | { kind: "select" }
+  | { kind: "follow"; page: string; hash: string };
 
 /** The keys a page's frame passes on to the canvas: focus mode's, the arrows, and the canvas's own. */
 const FRAME_KEYS = new Set(["f", "Escape", "ArrowLeft", "ArrowRight", " ", "h", "H", "v", "V", "0", "1", "2", "3", "+", "=", "-", "_"]);
@@ -127,18 +131,22 @@ const HELD_WORDS = {
  * page. A page that loads another address in its place is put back. In pan mode the frame takes no
  * pointer, so a click selects the page and a drag moves the canvas.
  *
- * A page that enters a prototype moves between the prototype's documents inside its frame, so a
- * second load is not a replacement: each of the prototype's documents says it has loaded
- * (frame-ready, from the frame script the prototype route adds), and a load that does not say so
- * within a moment is put back.
+ * Every document WhatBuild frames says it has loaded (frame-ready, from the frame script, at its
+ * load event), and a load that does not say so within a moment is put back: a page that sends its
+ * frame elsewhere while it is still loading never gets that far. A second load of a page's frame is
+ * put back at once, whatever it says. A page that enters a prototype moves between the prototype's
+ * documents inside its frame, so there a second load is not a replacement when it says so too.
  *
  * A page refused for the minute's calls gets a short document that says so and tells the canvas,
  * and comes back the way a page is put back: as a new frame, whose first load is its first. A second
  * load of one frame is never let through, whatever a page says of itself. Each new frame is a call,
  * so a page that keeps being replaced waits for the next minute with no frame on show, and in time
  * stops until the person says to (useFrameReturn). A prototype's frames cost no calls, and meet none of that.
+ *
+ * A link to another page of the canvas comes here as that page's name, and the canvas checks it. A
+ * new `visit` opens the page afresh, as following a link to a file in a folder does.
  */
-function PageFrame({ page, src, title, selected, onSignal, frameRef, prototype }: {
+function PageFrame({ page, src, title, selected, onSignal, frameRef, prototype, entries, visit, takeHash }: {
   page: CanvasPage;
   src: string;
   title: string;
@@ -147,6 +155,11 @@ function PageFrame({ page, src, title, selected, onSignal, frameRef, prototype }
   frameRef: (el: HTMLDivElement | null) => void;
   /** Set for a page that enters the version's prototype: the sandbox its frame takes. */
   prototype?: { sandbox: string } | null;
+  /** The prototype's documents that canvas pages enter, by path, so a link to one moves to its page. */
+  entries: Record<string, string> | null;
+  visit: number;
+  /** The place within this page that a link just named, once it has loaded. */
+  takeHash: (pageId: string) => string | null;
 }) {
   const { app } = useProduct();
   const frame = useRef<HTMLIFrameElement>(null);
@@ -156,15 +169,26 @@ function PageFrame({ page, src, title, selected, onSignal, frameRef, prototype }
   const [reloads, setReloads] = useState(0);
   // The sandboxed page has an opaque origin, so the message cannot be addressed to one.
   const hello = useCallback(() => {
-    frame.current?.contentWindow?.postMessage({ whatbuild: "canvas-host" }, "*");
+    const others = entries ? Object.fromEntries(Object.entries(entries).filter(([, id]) => id !== page.page_id)) : null;
+    frame.current?.contentWindow?.postMessage({ whatbuild: "canvas-host", ...(others ? { entries: others } : {}) }, "*");
     frame.current?.contentWindow?.postMessage({ whatbuild: "app-home", home: `${window.location.origin}${app}` }, "*");
-  }, [app]);
+    const hash = takeHash(page.page_id);
+    if (hash) frame.current?.contentWindow?.postMessage({ whatbuild: "canvas-hash", hash }, "*");
+  }, [app, entries, page.page_id, takeHash]);
   const newFrame = useCallback(() => {
     ready.current = false;
     loads.current = 0;
+    if (waiting.current) clearTimeout(waiting.current);
+    waiting.current = null;
     setReloads((n) => n + 1);
   }, []);
   const { stopped, asking, reloading, wasReplaced, replaced: putBack } = useFrameReturn(frame, newFrame, !prototype);
+  const visited = useRef(visit);
+  useEffect(() => {
+    if (visited.current === visit) return;
+    visited.current = visit;
+    newFrame();
+  }, [visit, newFrame]);
   useEffect(() => () => {
     if (waiting.current) clearTimeout(waiting.current);
   }, []);
@@ -172,8 +196,8 @@ function PageFrame({ page, src, title, selected, onSignal, frameRef, prototype }
     const handle = (e: MessageEvent) => {
       const el = frame.current;
       if (!el || e.source !== el.contentWindow) return;
-      const data = e.data as { whatbuild?: unknown; key?: unknown; x?: unknown; y?: unknown; dy?: unknown; line?: unknown; pinch?: unknown } | null;
-      if (data?.whatbuild === "frame-ready" && prototype) {
+      const data = e.data as { whatbuild?: unknown; key?: unknown; x?: unknown; y?: unknown; dy?: unknown; line?: unknown; pinch?: unknown; page?: unknown; hash?: unknown } | null;
+      if (data?.whatbuild === "frame-ready") {
         if (waiting.current) {
           clearTimeout(waiting.current);
           waiting.current = null;
@@ -184,6 +208,7 @@ function PageFrame({ page, src, title, selected, onSignal, frameRef, prototype }
       if (data?.whatbuild === "story-key" && typeof data.key === "string" && FRAME_KEYS.has(data.key)) onSignal(page.page_id, { kind: "key", key: data.key });
       else if (data?.whatbuild === "canvas-keyup" && data.key === " ") onSignal(page.page_id, { kind: "keyup", key: " " });
       else if (data?.whatbuild === "canvas-select") onSignal(page.page_id, { kind: "select" });
+      else if (data?.whatbuild === "canvas-page" && typeof data.page === "string") onSignal(page.page_id, { kind: "follow", page: data.page, hash: typeof data.hash === "string" ? data.hash : "" });
       else if (data?.whatbuild === "canvas-zoom" && typeof data.x === "number" && typeof data.y === "number" && typeof data.dy === "number" && Number.isFinite(data.x + data.y + data.dy)) {
         // The page reports its own pixels; the frame is drawn at the canvas's zoom.
         const r = el.getBoundingClientRect();
@@ -213,23 +238,21 @@ function PageFrame({ page, src, title, selected, onSignal, frameRef, prototype }
           referrerPolicy="no-referrer"
           src={prototype ? src : `${src}?frame=1`}
           onLoad={() => {
-            if (prototype) {
-              // One of the prototype's own documents has said so already, or will in a moment.
-              if (ready.current) {
-                ready.current = false;
-                hello();
-              } else waiting.current = setTimeout(() => {
-                waiting.current = null;
-                putBack();
-              }, 1500);
-              return;
-            }
             loads.current += 1;
-            if (loads.current > 1) {
+            if (!prototype && loads.current > 1) {
               putBack();
               return;
             }
-            hello();
+            // The document has said it is one of WhatBuild's already, or will in a moment. A load before is judged no more.
+            if (waiting.current) clearTimeout(waiting.current);
+            waiting.current = null;
+            if (ready.current) {
+              ready.current = false;
+              hello();
+            } else waiting.current = setTimeout(() => {
+              waiting.current = null;
+              putBack();
+            }, SAYS_LOADED_WITHIN_MS);
           }}
         />
       )}
@@ -289,13 +312,17 @@ function PagesNote({ board }: { board: RefObject<HTMLElement | null> }) {
  * - On a touch screen one finger drags and two pinch, the point under them staying under them; a
  *   finger lifting from a pinch leaves the other dragging from where it is. The toolbar's controls
  *   grow for a thumb, and the zoom buttons and the list of keys give way.
+ * - A link from one page to another flies the view to the page it names; the page clicked stays as
+ *   it was. Viewed as a clickable prototype (`clickable`), only the selected page shows, at its own
+ *   size or smaller, and a link changes it in place, opening it afresh as a link to a file in a folder
+ *   does. There the toolbar keeps only what moves between and shows pages.
  * - + and − zoom, 0 shows 100%, 1 fits the canvas, 2 fits the selected page (or the one nearest the
  *   middle) to the screen, and 3 fills the screen's width with it, its top at the top, to scroll
  *   down through it. ← and → select the previous or next page and show it the way 2 or 3 last did.
  *   Each page's label has its own fit button, and the toolbar has fit and fill, the arrows and a list
  *   of every key. A page's frame passes these keys on, so they work from inside a page.
  */
-export function Canvas({ version, pageSrc, selected, onSelect, onKey, canFocus, pageView, onPageView, showRequest }: {
+export function Canvas({ version, pageSrc, selected, onSelect: selectPage, onKey, canFocus, pageView, onPageView, clickable = false, onFollow, onDownloadPage }: {
   version: CanvasVersion;
   pageSrc: (page: CanvasPage) => string;
   selected: string | null;
@@ -306,9 +333,23 @@ export function Canvas({ version, pageSrc, selected, onSelect, onKey, canFocus, 
   /** Fit or fill: how a page is shown when the arrows or the inspector select it. */
   pageView: PageView;
   onPageView: (v: PageView) => void;
-  /** Bumped by the inspector to show the selected page, the way pageView says. */
-  showRequest: number;
+  /** Viewed as a clickable prototype: one page at a time. */
+  clickable?: boolean;
+  /** A link was followed to this page: unlike a selection, it is a step the browser's Back returns from. */
+  onFollow?: (pageId: string) => void;
+  /** Where a page's label offers to download the page. */
+  onDownloadPage?: (page: CanvasPage) => void;
 }) {
+  const toast = useToast();
+  // The page this canvas last asked to select, so it can tell when the selection changed by another way.
+  const asked = useRef(selected);
+  const onSelect = useCallback(
+    (pageId: string | null) => {
+      asked.current = pageId;
+      selectPage(pageId);
+    },
+    [selectPage],
+  );
   const viewport = useRef<HTMLDivElement>(null);
   const world = useRef<HTMLDivElement>(null);
   const frames = useRef(new Map<string, HTMLDivElement>());
@@ -337,7 +378,44 @@ export function Canvas({ version, pageSrc, selected, onSelect, onKey, canFocus, 
     following.current = null;
   }, []);
   const columns = Math.max(1, version.columns ?? version.pages.length);
-  const panning = mode === "pan" || space;
+  const panning = space || (!clickable && mode === "pan");
+  // Read when the view moves, so the calls that move it stay the same across the switch.
+  const asPrototype = useRef(clickable);
+  asPrototype.current = clickable;
+  const [visits, setVisits] = useState<Record<string, number>>({});
+  const saidNoPage = useRef(-Infinity);
+  const [mayMove] = useState(() => pageMoves());
+  // Set in the render that switches the view, so the pages' fade is in place before they change.
+  const [folding, setFolding] = useState(false);
+  const [viewWas, setViewWas] = useState(clickable);
+  if (viewWas !== clickable) {
+    setViewWas(clickable);
+    setFolding(true);
+  }
+  useEffect(() => {
+    if (!folding) return;
+    const done = window.setTimeout(() => setFolding(false), 220);
+    return () => window.clearTimeout(done);
+  }, [folding]);
+  const hashes = useRef(new Map<string, string>());
+  const takeHash = useCallback((pageId: string) => {
+    const hash = hashes.current.get(pageId) ?? null;
+    hashes.current.delete(pageId);
+    return hash;
+  }, []);
+  const entries = useMemo(() => {
+    const out: Record<string, string> = {};
+    for (const p of version.pages) {
+      if (!p.entry) continue;
+      const path = p.entry.split(/[?#]/)[0]!;
+      try {
+        out[decodeURIComponent(path)] ??= p.page_id;
+      } catch {
+        // An entry the server would have refused to serve leads nowhere.
+      }
+    }
+    return Object.keys(out).length ? out : null;
+  }, [version.pages]);
 
   /**
    * Marks the view as moving by hand, and as settled once it keeps still. Only while it moves is the
@@ -391,8 +469,10 @@ export function Canvas({ version, pageSrc, selected, onSelect, onKey, canFocus, 
       const vp = viewport.current;
       if (!vp || !b || !b.width) return;
       const pad = 48;
-      const z = clamp(Math.min((vp.clientWidth - pad * 2) / b.width, (vp.clientHeight - pad * 2 - 24) / b.height));
-      const v = { z, x: (vp.clientWidth - b.width * z) / 2 - b.left * z, y: (vp.clientHeight - b.height * z) / 2 + 12 - b.top * z };
+      // As a clickable prototype a page has no label above it, the toolbar under it, and never grows past its own size.
+      const room = asPrototype.current ? { side: 16, top: 16, bottom: 64, most: 1 } : { side: pad, top: pad + 24, bottom: pad, most: MAX_ZOOM };
+      const z = clamp(Math.min(room.most, (vp.clientWidth - room.side * 2) / b.width, (vp.clientHeight - room.top - room.bottom) / b.height));
+      const v = { z, x: (vp.clientWidth - b.width * z) / 2 - b.left * z, y: room.top + (vp.clientHeight - room.top - room.bottom - b.height * z) / 2 - b.top * z };
       if (glide) go(v);
       else setView(v);
     },
@@ -403,9 +483,9 @@ export function Canvas({ version, pageSrc, selected, onSelect, onKey, canFocus, 
     (b: Box | undefined, glide = true) => {
       const vp = viewport.current;
       if (!vp || !b || !b.width) return;
-      const pad = 48;
+      const pad = asPrototype.current ? 16 : 48;
       const z = clamp((vp.clientWidth - pad * 2) / b.width);
-      const v = { z, x: (vp.clientWidth - b.width * z) / 2 - b.left * z, y: pad + 24 - b.top * z };
+      const v = { z, x: (vp.clientWidth - b.width * z) / 2 - b.left * z, y: (asPrototype.current ? pad : pad + 24) - b.top * z };
       if (glide) go(v);
       else setView(v);
     },
@@ -423,10 +503,12 @@ export function Canvas({ version, pageSrc, selected, onSelect, onKey, canFocus, 
       touched.current = true;
       following.current = { id, how };
       onSelect(id);
+      // As a clickable prototype, a new page is placed once it is selected (below).
+      if (asPrototype.current && id !== selected) return;
       if (how === "fill") fillBox(boxes[id]);
       else fitBox(boxes[id]);
     },
-    [boxes, fitBox, fillBox, onSelect, pageView],
+    [boxes, fitBox, fillBox, onSelect, pageView, selected],
   );
   // The view as last drawn, for what reads it only when asked, so a drag does not remake them.
   const shownView = useRef(view);
@@ -486,11 +568,37 @@ export function Canvas({ version, pageSrc, selected, onSelect, onKey, canFocus, 
     ro.observe(vp);
     return () => ro.disconnect();
   }, [fitCanvas, fitBox, fillBox, boxes]);
+  // Folding into a clickable prototype glides to the selected page as the others fade, and unfolding
+  // glides back out. Within it a new page takes the place at once, and opens afresh.
+  const placed = useRef<string | null>(null);
+  useLayoutEffect(() => {
+    if (!clickable) {
+      if (placed.current === null) return;
+      placed.current = null;
+      touched.current = false;
+      following.current = null;
+      fitCanvas();
+      return;
+    }
+    const b = selected ? boxes[selected] : undefined;
+    if (!selected || !b || placed.current === selected) return;
+    const folding = placed.current === null;
+    placed.current = selected;
+    touched.current = true;
+    following.current = { id: selected, how: pageView };
+    (pageView === "fill" ? fillBox : fitBox)(b, folding);
+    if (!folding) setVisits((v) => ({ ...v, [selected]: (v[selected] ?? 0) + 1 }));
+  }, [clickable, selected, boxes, pageView, fitBox, fillBox, fitCanvas]);
+  // A selection this canvas did not make, such as the browser's Back after following a link, takes the view with it.
   useEffect(() => {
-    if (showRequest) showPage(selected);
-    // Only a new request shows the page; selecting a page from the inspector's list does too, through it.
+    if (asked.current === selected) return;
+    asked.current = selected;
+    if (clickable || !selected) return;
+    following.current = { id: selected, how: pageView };
+    (pageView === "fill" ? fillBox : fitBox)(boxes[selected]);
+    // Only a change of page moves the view.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [showRequest]);
+  }, [selected]);
 
   const zoomAt = useCallback((factor: number, cx?: number, cy?: number, glide = false) => {
     const vp = viewport.current;
@@ -554,6 +662,8 @@ export function Canvas({ version, pageSrc, selected, onSelect, onKey, canFocus, 
   /** The canvas's keys, pressed in the app or inside a page. False when the key is not one of them here. */
   const press = useCallback(
     (k: string): boolean => {
+      // As a clickable prototype the keys that move between and show pages are all there is.
+      if (clickable && k !== "2" && k !== "3" && k !== "ArrowLeft" && k !== "ArrowRight") return false;
       if (k === "h" || k === "H") setMode("pan");
       else if (k === "v" || k === "V") setMode("interact");
       else if (k === "+" || k === "=") zoomAt(1.25, undefined, undefined, true);
@@ -571,17 +681,56 @@ export function Canvas({ version, pageSrc, selected, onSelect, onKey, canFocus, 
       else return false;
       return true;
     },
-    [setMode, zoomAt, view.z, fitCanvas, fitShown, fillShown, selected, step, onSelect],
+    [clickable, setMode, zoomAt, view.z, fitCanvas, fitShown, fillShown, selected, step, onSelect],
   );
+
+  /** A link inside a page: the app checks the name it sent against this version's pages, and goes nowhere else. */
+  const follow = (from: string, s: { page: string; hash: string }) => {
+    // A script with nobody behind it moves nothing, or it could flip pages forever and spend the
+    // person's calls, and a page that is not showing has nothing to ask for.
+    if (!personActed() || (clickable && from !== selected)) return;
+    if (!version.pages.some((p) => p.page_id === s.page)) {
+      // In the app's own words, never the page's: whatever a page sends could be made to read as
+      // WhatBuild talking. Not again for a while, so a script cannot stack these over the screen.
+      const at = Date.now();
+      if (at - saidNoPage.current > NO_PAGE_SAID_EVERY_MS) {
+        saidNoPage.current = at;
+        toast("This link leads to a page that isn’t on this canvas.", { tone: "negative" });
+      }
+      return;
+    }
+    const inFrame = () => frames.current.get(s.page)?.querySelector("iframe")?.contentWindow;
+    // Already there: a place within the page at most, and never a step for Back.
+    if (s.page === from || s.page === selected) {
+      if (s.hash) inFrame()?.postMessage({ whatbuild: "canvas-hash", hash: s.hash }, "*");
+      return;
+    }
+    if (!mayMove()) return;
+    // For a page still to load; one already open is told now.
+    if (s.hash) hashes.current.set(s.page, s.hash);
+    asked.current = s.page;
+    if (clickable) {
+      (onFollow ?? onSelect)(s.page);
+      return;
+    }
+    if (s.hash) inFrame()?.postMessage({ whatbuild: "canvas-hash", hash: s.hash }, "*");
+    touched.current = true;
+    following.current = { id: s.page, how: pageView };
+    (onFollow ?? onSelect)(s.page);
+    (pageView === "fill" ? fillBox : fitBox)(boxes[s.page]);
+  };
 
   /** What a page's frame passes on: the same keys, Space held, a pinch, a press that selects the page. */
   const handleSignal = (pageId: string, s: FrameSignal) => {
     if (s.kind === "keyup") setSpace(false);
+    else if (s.kind === "follow") follow(pageId, s);
     else if (s.kind === "select") {
       if (pageId !== selected) onSelect(pageId);
     } else if (s.kind === "zoom") wheelZoom(s.dy, s.line, s.pinch, s.clientX, s.clientY);
     else if (document.querySelector("dialog[open], .menu")) return;
     else if (s.key === " ") setSpace(true);
+    // A page's arrow moves between pages, so a page's script is held as a link is.
+    else if ((s.key === "ArrowLeft" || s.key === "ArrowRight") && ((clickable && pageId !== selected) || !mayMove())) return;
     else if (!press(s.key) && (s.key === "f" || s.key === "Escape")) onKey(s.key);
   };
   // The frames hold one listener that never changes, so moving the view leaves them alone.
@@ -673,7 +822,7 @@ export function Canvas({ version, pageSrc, selected, onSelect, onKey, canFocus, 
     const g = gesture.current;
     if (pointers.current.size === 0) {
       // A click without a drag selects the page under it, or clears the selection on the background.
-      if (g && !g.moved) onSelect(g.page);
+      if (g && !g.moved && !clickable) onSelect(g.page);
       gesture.current = null;
       setDragging(false);
       return;
@@ -703,13 +852,16 @@ export function Canvas({ version, pageSrc, selected, onSelect, onKey, canFocus, 
           title={p.title}
           selected={p.page_id === selected}
           onSignal={onSignal}
+          entries={entries}
+          visit={visits[p.page_id] ?? 0}
+          takeHash={takeHash}
           frameRef={(el) => {
             if (el) frames.current.set(p.page_id, el);
             else frames.current.delete(p.page_id);
           }}
         />
       )),
-    [version.pages, version.prototype, pageSrc, selected, onSignal],
+    [version.pages, version.prototype, pageSrc, selected, onSignal, entries, visits, takeHash],
   );
 
   const worldStyle: CSSProperties = {
@@ -726,6 +878,8 @@ export function Canvas({ version, pageSrc, selected, onSelect, onKey, canFocus, 
         ref={viewport}
         className="xc-viewport"
         data-mode={panning ? "pan" : "interact"}
+        data-view={clickable ? "clickable" : undefined}
+        data-folding={folding ? "" : undefined}
         data-dragging={dragging ? "" : undefined}
         data-gliding={gliding ? "" : undefined}
         data-moving={moving ? "" : undefined}
@@ -742,7 +896,7 @@ export function Canvas({ version, pageSrc, selected, onSelect, onKey, canFocus, 
         </div>
         {/* The selected page's outline, drawn at screen size over it, so it keeps its width at any
             zoom and the pages never redraw as the view zooms. */}
-        {selected && boxes[selected] ? (
+        {!clickable && selected && boxes[selected] ? (
           <div
             className="xc-ring"
             aria-hidden="true"
@@ -755,7 +909,7 @@ export function Canvas({ version, pageSrc, selected, onSelect, onKey, canFocus, 
         ) : null}
         {/* Labels sit above their pages at screen size, so a page's name reads at any zoom. They
             move together, so a drag moves one layer and redraws nothing. */}
-        <ol className="xc-labels" aria-label="Pages" style={{ transform: `translate(${view.x}px, ${view.y}px)` }}>
+        {clickable ? null : <ol className="xc-labels" aria-label="Pages" style={{ transform: `translate(${view.x}px, ${view.y}px)` }}>
           {version.pages.map((p, i) => {
             const b = boxes[p.page_id];
             if (!b) return null;
@@ -791,58 +945,68 @@ export function Canvas({ version, pageSrc, selected, onSelect, onKey, canFocus, 
                 >
                   <Glyph name="scan" size="sm" />
                 </button>
+                {/* A page that enters a prototype has no document of its own to give. */}
+                {onDownloadPage && p.html_path ? (
+                  <button type="button" className="xc-label-fit" onClick={() => onDownloadPage(p)} aria-label={`Download ${p.title}`} title="Download this page">
+                    <Glyph name="download" size="sm" />
+                  </button>
+                ) : null}
               </li>
             );
           })}
-        </ol>
+        </ol>}
       </div>
 
       <PagesNote board={viewport} />
       <div className="xc-tools" role="toolbar" aria-label="Canvas">
-        <div className="xc-modes" role="radiogroup" aria-label="Mode">
-          <button type="button" role="radio" aria-checked={mode === "pan"} className="xc-tool" onClick={() => setMode("pan")} title="Pan (H)">
-            <Glyph name="hand" />
-            <span className="visually-hidden">Pan</span>
-          </button>
-          <button type="button" role="radio" aria-checked={mode === "interact"} className="xc-tool" onClick={() => setMode("interact")} title="Interact with the pages (V)">
-            <Glyph name="pointer" />
-            <span className="visually-hidden">Interact</span>
-          </button>
-        </div>
-        <span className="xc-tools-rule" aria-hidden="true" />
-        <div className="xc-tools-group">
-          {coarse ? null : (
-            <button type="button" className="xc-tool" onClick={() => zoomAt(0.8, undefined, undefined, true)} disabled={view.z <= MIN_ZOOM} title="Zoom out (−)">
-              <Glyph name="zoom-out" />
-              <span className="visually-hidden">Zoom out</span>
-            </button>
-          )}
-          <Menu
-            label={`Zoom ${pct}%`}
-            triggerClassName="xc-tool xc-zoom num"
-            align="end"
-            side="top"
-            minWidth={200}
-            trigger={<>{pct}%</>}
-          >
-            <MenuItem onSelect={() => { moved(); fitCanvas(); }} kbd={coarse ? undefined : "1"}>Fit the canvas</MenuItem>
-            <MenuItem onSelect={fitShown} kbd={coarse ? undefined : "2"}>{selected ? "Fit the selected page" : "Fit the page in the middle"}</MenuItem>
-            <MenuItem onSelect={fillShown} kbd={coarse ? undefined : "3"}>{selected ? "Fill the width with the selected page" : "Fill the width with the page in the middle"}</MenuItem>
-            <MenuSeparator />
-            {[50, 100, 200].map((n) => (
-              <MenuItem key={n} onSelect={() => zoomAt(n / 100 / view.z, undefined, undefined, true)} kbd={n === 100 && !coarse ? "0" : undefined}>
-                {n}%
-              </MenuItem>
-            ))}
-          </Menu>
-          {coarse ? null : (
-            <button type="button" className="xc-tool" onClick={() => zoomAt(1.25, undefined, undefined, true)} disabled={view.z >= MAX_ZOOM} title="Zoom in (+)">
-              <Glyph name="zoom-in" />
-              <span className="visually-hidden">Zoom in</span>
-            </button>
-          )}
-        </div>
-        <span className="xc-tools-rule" aria-hidden="true" />
+        {clickable ? null : (
+          <>
+            <div className="xc-modes" role="radiogroup" aria-label="Mode">
+              <button type="button" role="radio" aria-checked={mode === "pan"} className="xc-tool" onClick={() => setMode("pan")} title="Pan (H)">
+                <Glyph name="hand" />
+                <span className="visually-hidden">Pan</span>
+              </button>
+              <button type="button" role="radio" aria-checked={mode === "interact"} className="xc-tool" onClick={() => setMode("interact")} title="Interact with the pages (V)">
+                <Glyph name="pointer" />
+                <span className="visually-hidden">Interact</span>
+              </button>
+            </div>
+            <span className="xc-tools-rule" aria-hidden="true" />
+            <div className="xc-tools-group">
+              {coarse ? null : (
+                <button type="button" className="xc-tool" onClick={() => zoomAt(0.8, undefined, undefined, true)} disabled={view.z <= MIN_ZOOM} title="Zoom out (−)">
+                  <Glyph name="zoom-out" />
+                  <span className="visually-hidden">Zoom out</span>
+                </button>
+              )}
+              <Menu
+                label={`Zoom ${pct}%`}
+                triggerClassName="xc-tool xc-zoom num"
+                align="end"
+                side="top"
+                minWidth={200}
+                trigger={<>{pct}%</>}
+              >
+                <MenuItem onSelect={() => { moved(); fitCanvas(); }} kbd={coarse ? undefined : "1"}>Fit the canvas</MenuItem>
+                <MenuItem onSelect={fitShown} kbd={coarse ? undefined : "2"}>{selected ? "Fit the selected page" : "Fit the page in the middle"}</MenuItem>
+                <MenuItem onSelect={fillShown} kbd={coarse ? undefined : "3"}>{selected ? "Fill the width with the selected page" : "Fill the width with the page in the middle"}</MenuItem>
+                <MenuSeparator />
+                {[50, 100, 200].map((n) => (
+                  <MenuItem key={n} onSelect={() => zoomAt(n / 100 / view.z, undefined, undefined, true)} kbd={n === 100 && !coarse ? "0" : undefined}>
+                    {n}%
+                  </MenuItem>
+                ))}
+              </Menu>
+              {coarse ? null : (
+                <button type="button" className="xc-tool" onClick={() => zoomAt(1.25, undefined, undefined, true)} disabled={view.z >= MAX_ZOOM} title="Zoom in (+)">
+                  <Glyph name="zoom-in" />
+                  <span className="visually-hidden">Zoom in</span>
+                </button>
+              )}
+            </div>
+            <span className="xc-tools-rule" aria-hidden="true" />
+          </>
+        )}
         <div className="xc-tools-group">
           {/* Fit and fill show a page now, and are how the arrows show the next one: the one in use is marked. */}
           <div className="xc-modes" role="radiogroup" aria-label="Show pages">
@@ -855,10 +1019,12 @@ export function Canvas({ version, pageSrc, selected, onSelect, onKey, canFocus, 
               <span className="visually-hidden">{selected ? "Fill the width with the selected page" : "Fill the width with the page in the middle"}</span>
             </button>
           </div>
-          <button type="button" className="xc-tool" onClick={() => { moved(); fitCanvas(); }} title="Fit the canvas (1)" aria-keyshortcuts="1">
-            <Glyph name="layout-grid" />
-            <span className="visually-hidden">Fit the canvas</span>
-          </button>
+          {clickable ? null : (
+            <button type="button" className="xc-tool" onClick={() => { moved(); fitCanvas(); }} title="Fit the canvas (1)" aria-keyshortcuts="1">
+              <Glyph name="layout-grid" />
+              <span className="visually-hidden">Fit the canvas</span>
+            </button>
+          )}
         </div>
         <span className="xc-tools-rule" aria-hidden="true" />
         <div className="xc-tools-group">
@@ -870,6 +1036,29 @@ export function Canvas({ version, pageSrc, selected, onSelect, onKey, canFocus, 
             <Glyph name="chevron-right" />
             <span className="visually-hidden">Next page</span>
           </button>
+          <Menu
+            label={selectedIndex >= 0 ? `Page ${selectedIndex + 1} of ${version.pages.length}, ${version.pages[selectedIndex]!.title}. Choose a page` : "Choose a page"}
+            triggerClassName="xc-tool xc-page-menu"
+            align="end"
+            side="top"
+            minWidth={240}
+            trigger={
+              selectedIndex >= 0 ? (
+                <>
+                  <span className="num">{selectedIndex + 1} of {version.pages.length}</span>
+                  <span className="xc-page-menu-title ellipsis">{version.pages[selectedIndex]!.title}</span>
+                </>
+              ) : (
+                <span className="num">{plural(version.pages.length, "page")}</span>
+              )
+            }
+          >
+            {version.pages.map((p, i) => (
+              <MenuRadio key={p.page_id} checked={p.page_id === selected} meta={`${p.width} × ${p.height}`} onSelect={() => showPage(p.page_id)}>
+                {i + 1}. {p.title}
+              </MenuRadio>
+            ))}
+          </Menu>
         </div>
         {coarse ? null : (
           <>
@@ -879,16 +1068,20 @@ export function Canvas({ version, pageSrc, selected, onSelect, onKey, canFocus, 
               <MenuItem onSelect={() => step(1)} disabled={selectedIndex === version.pages.length - 1} kbd="→">Next page</MenuItem>
               <MenuItem onSelect={fitShown} kbd="2">{selected ? "Fit the selected page" : "Fit the page in the middle"}</MenuItem>
               <MenuItem onSelect={fillShown} kbd="3">{selected ? "Fill the width with the selected page" : "Fill the width with the page in the middle"}</MenuItem>
-              <MenuItem onSelect={() => { moved(); fitCanvas(); }} kbd="1">Fit the canvas</MenuItem>
-              <MenuSeparator />
-              <MenuItem onSelect={() => zoomAt(1.25, undefined, undefined, true)} kbd="+">Zoom in</MenuItem>
-              <MenuItem onSelect={() => zoomAt(0.8, undefined, undefined, true)} kbd="−">Zoom out</MenuItem>
-              <MenuItem onSelect={() => zoomAt(1 / view.z, undefined, undefined, true)} kbd="0">Zoom to 100%</MenuItem>
-              <MenuSeparator />
-              <MenuItem onSelect={() => setMode("pan")} kbd="H">Pan</MenuItem>
-              <MenuItem onSelect={() => setMode("interact")} kbd="V">Interact</MenuItem>
+              {clickable ? null : (
+                <>
+                  <MenuItem onSelect={() => { moved(); fitCanvas(); }} kbd="1">Fit the canvas</MenuItem>
+                  <MenuSeparator />
+                  <MenuItem onSelect={() => zoomAt(1.25, undefined, undefined, true)} kbd="+">Zoom in</MenuItem>
+                  <MenuItem onSelect={() => zoomAt(0.8, undefined, undefined, true)} kbd="−">Zoom out</MenuItem>
+                  <MenuItem onSelect={() => zoomAt(1 / view.z, undefined, undefined, true)} kbd="0">Zoom to 100%</MenuItem>
+                  <MenuSeparator />
+                  <MenuItem onSelect={() => setMode("pan")} kbd="H">Pan</MenuItem>
+                  <MenuItem onSelect={() => setMode("interact")} kbd="V">Interact</MenuItem>
+                </>
+              )}
               {canFocus ? <MenuItem onSelect={() => onKey("f")} kbd="F">Focus mode</MenuItem> : null}
-              <MenuNote>The arrows show each page as 2 or 3 last did. Hold Space and drag to pan. Esc clears the selection.</MenuNote>
+              <MenuNote>{clickable ? "The arrows show each page as 2 or 3 last did. Hold Space and drag to pan." : "The arrows show each page as 2 or 3 last did. Hold Space and drag to pan. Esc clears the selection."}</MenuNote>
             </Menu>
           </>
         )}

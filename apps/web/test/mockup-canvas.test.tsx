@@ -2,6 +2,8 @@ import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Canvas, type CanvasVersion } from "../src/routes/mockup-canvas.tsx";
+import { ToastProvider } from "../src/ui/toast.tsx";
+import { BACK_STEP_GAP_MS, backSteps, PAGE_MOVE_GAP_MS, pageMoves } from "../src/routes/page-moves.ts";
 import type { PageView } from "../src/routes/story-flip.tsx";
 
 // The canvas's view, what it does as the board around it changes, and what its labels are called.
@@ -101,7 +103,6 @@ function show(pageView: PageView = "fit", onPageView: (v: PageView) => void = ()
         canFocus
         pageView={pageView}
         onPageView={onPageView}
-        showRequest={0}
       />,
     );
   act(draw);
@@ -213,5 +214,206 @@ describe("fit and fill in the toolbar", () => {
     key("ArrowRight");
     expect(view().z).toBeCloseTo((board.width - 96) / 1280);
     expect(markedRadio()).toEqual(["false", "true"]);
+  });
+});
+
+describe("links between a canvas's pages", () => {
+  /** What the app hears when a link is clicked inside a page's frame. */
+  function linkClicked(from: string, to: string, extra: Record<string, string> = {}) {
+    const iframe = document.querySelector(`.xc-frame[data-page="${from}"] iframe`) as HTMLIFrameElement;
+    act(() => {
+      window.dispatchEvent(new MessageEvent("message", { source: iframe.contentWindow, data: { whatbuild: "canvas-page", page: to, hash: "", ...extra } }));
+    });
+  }
+
+  function showClickable(opts: { clickable?: boolean; onFollow?: (id: string) => void; onDownloadPage?: (id: string) => void } = {}) {
+    const host = document.createElement("div");
+    document.body.append(host);
+    const root = createRoot(host);
+    const state = { id: opts.clickable ? "phone" : null as string | null, clickable: Boolean(opts.clickable) };
+    const follow = opts.onFollow;
+    const draw = () =>
+      root.render(
+        <ToastProvider>
+          <Canvas
+            version={version}
+            pageSrc={(p) => `about:blank#${p.page_id}`}
+            selected={state.id}
+            onSelect={(id) => {
+              state.id = id;
+              draw();
+            }}
+            onKey={() => {}}
+            canFocus
+            pageView="fit"
+            onPageView={() => {}}
+            clickable={state.clickable}
+            onFollow={(id) => {
+              follow?.(id);
+              state.id = id;
+              draw();
+            }}
+            onDownloadPage={opts.onDownloadPage ? (p) => opts.onDownloadPage!(p.page_id) : undefined}
+          />
+        </ToastProvider>,
+      );
+    act(draw);
+    unmount = () => act(() => root.unmount());
+    act(() => observers.forEach((cb) => cb()));
+    return { state, setClickable: (on: boolean) => { state.clickable = on; act(draw); } };
+  }
+
+  it("follows a link on the canvas by moving to the page it names, whose frame is never replaced", () => {
+    const followed: string[] = [];
+    showClickable({ onFollow: (id) => followed.push(id) });
+    const frameOfWide = document.querySelector('.xc-frame[data-page="wide"] iframe');
+    const before = view();
+    linkClicked("phone", "wide");
+    expect(followed).toEqual(["wide"]);
+    expect(view()).not.toEqual(before);
+    expect(document.querySelector('.xc-frame[data-page="wide"] iframe')).toBe(frameOfWide);
+    expect(document.querySelector('.xc-frame[data-page="phone"] iframe')).toBeTruthy();
+  });
+
+  it("goes nowhere for a page the canvas does not hold, and says so", () => {
+    const followed: string[] = [];
+    showClickable({ onFollow: (id) => followed.push(id) });
+    linkClicked("phone", "last-week");
+    expect(followed).toEqual([]);
+    expect(document.body.textContent).toContain("This link leads to a page that isn’t on this canvas.");
+  });
+
+  it("never puts a page's own words in the app's message, and does not stack it", () => {
+    showClickable();
+    const spoof = "Your session has expired: sign in again at https://attacker.example/signin";
+    linkClicked("phone", spoof, { href: spoof });
+    linkClicked("phone", "another", { href: spoof });
+    expect(document.body.textContent).not.toContain("attacker.example");
+    expect(document.querySelectorAll(".toast")).toHaveLength(1);
+  });
+
+  it("moves nothing and says nothing for a script no person prompted", () => {
+    vi.stubGlobal("navigator", Object.create(navigator, { userActivation: { value: { isActive: false } } }));
+    try {
+      const followed: string[] = [];
+      showClickable({ onFollow: (id) => followed.push(id) });
+      linkClicked("phone", "last-week");
+      linkClicked("phone", "wide");
+      expect(document.querySelector(".toast")).toBeNull();
+      expect(followed).toEqual([]);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("as a clickable prototype, hears nothing from a page that is not showing", () => {
+    const followed: string[] = [];
+    showClickable({ clickable: true, onFollow: (id) => followed.push(id) });
+    linkClicked("wide", "phone");
+    linkClicked("wide", "wide");
+    expect(followed).toEqual([]);
+  });
+
+  it("as a clickable prototype, opens one page for a burst of requests, not one for each", () => {
+    const followed: string[] = [];
+    showClickable({ clickable: true, onFollow: (id) => followed.push(id) });
+    linkClicked("phone", "wide");
+    linkClicked("wide", "phone");
+    linkClicked("phone", "wide");
+    expect(followed).toEqual(["wide"]);
+  });
+
+  it("ignores a message from anything but the page's own frame", () => {
+    const followed: string[] = [];
+    showClickable({ onFollow: (id) => followed.push(id) });
+    act(() => {
+      window.dispatchEvent(new MessageEvent("message", { source: window, data: { whatbuild: "canvas-page", page: "wide", hash: "", href: "wide.html" } }));
+    });
+    expect(followed).toEqual([]);
+  });
+
+  it("as a clickable prototype, shows one page with no labels or pan and zoom, and opens a linked page afresh", () => {
+    showClickable({ clickable: true });
+    expect(viewport().dataset["view"]).toBe("clickable");
+    expect(document.querySelector(".xc-labels")).toBeNull();
+    expect(document.querySelector(".xc-ring")).toBeNull();
+    expect(document.querySelector('[aria-label="Mode"]')).toBeNull();
+    expect(document.querySelector('[aria-label="Show pages"]')).toBeTruthy();
+    expect(view().z).toBeLessThanOrEqual(1);
+    const was = document.querySelector('.xc-frame[data-page="wide"] iframe');
+    linkClicked("phone", "wide");
+    expect((document.querySelector('.xc-frame[data-page="wide"]') as HTMLElement).dataset["selected"]).toBe("");
+    expect(document.querySelector('.xc-frame[data-page="wide"] iframe')).not.toBe(was);
+  });
+
+  it("offers a page's download on its label on the canvas alone, and for a page with its own HTML alone", () => {
+    version.pages[1] = { ...version.pages[1]!, html_path: "/x" };
+    try {
+      const asked: string[] = [];
+      const { setClickable } = showClickable({ onDownloadPage: (id) => asked.push(id) });
+      expect(label(0).querySelector('[aria-label^="Download"]')).toBeNull();
+      const button = label(1).querySelector('[aria-label="Download Jobs board"]') as HTMLButtonElement;
+      act(() => button.click());
+      expect(asked).toEqual(["wide"]);
+      setClickable(true);
+      expect(document.querySelector('[aria-label^="Download"]')).toBeNull();
+    } finally {
+      version.pages[1] = { page_id: "wide", title: "Jobs board", width: 1280, height: 800 };
+    }
+  });
+
+  it("keeps choosing a page in the toolbar, and has no view or download control there", () => {
+    showClickable();
+    const tools = document.querySelector(".xc-tools")!;
+    expect(tools.querySelector('.xc-page-menu')).toBeTruthy();
+    expect(tools.textContent).not.toMatch(/Clickable|Download/);
+    expect(tools.querySelector('[aria-label="View"]')).toBeNull();
+  });
+});
+
+describe("how many steps a page can add to the browser's Back", () => {
+  const stepsAfter = (asks: number[], active = () => true) => {
+    let at = 0;
+    vi.stubGlobal("navigator", Object.create(navigator, { userActivation: { get: () => ({ isActive: active() }) } }));
+    try {
+      const may = backSteps(() => at);
+      return asks.filter((t) => {
+        at = t;
+        return may();
+      });
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  };
+
+  it("takes none from a script no person prompted", () => {
+    expect(stepsAfter([0, 50, 2000], () => false)).toEqual([]);
+  });
+
+  it("holds a script to one step in each gap, however often it asks", () => {
+    const flood = Array.from({ length: 100 }, (_, i) => i * 50);
+    expect(stepsAfter(flood)).toEqual(flood.filter((t) => t % BACK_STEP_GAP_MS === 0));
+  });
+
+  it("moves nothing for a script no person prompted, and holds one that follows a click to the gap", () => {
+    const allowed = (active: boolean) => {
+      let at = 0;
+      vi.stubGlobal("navigator", Object.create(navigator, { userActivation: { value: { isActive: active } } }));
+      try {
+        const may = pageMoves(() => at);
+        return [0, 50, PAGE_MOVE_GAP_MS, PAGE_MOVE_GAP_MS + 50].filter((t) => {
+          at = t;
+          return may();
+        });
+      } finally {
+        vi.unstubAllGlobals();
+      }
+    };
+    expect(allowed(false)).toEqual([]);
+    expect(allowed(true)).toEqual([0, PAGE_MOVE_GAP_MS]);
+  });
+
+  it("gives a person's clicks a step each, once they are a gap apart", () => {
+    expect(stepsAfter([0, BACK_STEP_GAP_MS, BACK_STEP_GAP_MS * 3])).toEqual([0, BACK_STEP_GAP_MS, BACK_STEP_GAP_MS * 3]);
   });
 });

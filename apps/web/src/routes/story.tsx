@@ -4,18 +4,19 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { Navigate, useNavigate, useParams, useSearchParams } from "react-router";
 import { api, ApiError } from "../lib/api.ts";
 import { useHeldUpdate } from "../lib/live.tsx";
-import { useFrameReturn } from "../lib/minute.ts";
+import { SAYS_LOADED_WITHIN_MS, useFrameReturn } from "../lib/minute.ts";
 import { useProduct } from "../lib/session.tsx";
 import { useScheme } from "../shell/theme.ts";
 import { Inspector, usePageTitle } from "../shell/slots.tsx";
 import { deletedSentence } from "../lib/format.ts";
-import { Button, ButtonLink, Callout, Crumbs, EmptyState, ErrorCallout, FrameReloading, FrameStopped, Loading, Sheet } from "../ui/index.tsx";
+import { Button, ButtonLink, Callout, Crumbs, EmptyState, ErrorCallout, FrameReloading, FrameStopped, Loading, Sheet, useToast } from "../ui/index.tsx";
 import { FirstUse } from "./first-use.tsx";
 import { Canvas, pageAddress, usePinnedPrototype } from "./mockup-canvas.tsx";
 import { DeletePage, useArchiveActions, type PageActions, type PageRef } from "./story-actions.tsx";
+import { backSteps, pageMoves, personActed } from "./page-moves.ts";
 import { ExportDialog } from "./story-export.tsx";
 import { StoryInspectorBody } from "./story-inspector.tsx";
-import { arrangement, flatten, mockupStop, trail, type CanvasShown, type Hierarchy, type PageSummary, type PageView, type VersionItem, type VersionView } from "./story-model.ts";
+import { arrangement, flatten, mockupStop, storyLinkPath, trail, type CanvasShown, type Hierarchy, type PageSummary, type PageView, type VersionItem, type VersionView } from "./story-model.ts";
 import { MockupFlip, PAGE_VIEW_KEYS, PageViewToggle, useFlipKeys, usePageView, usePageViewKeys, type FlipKey, type PageView as MockupPageView } from "./story-flip.tsx";
 import { FocusToggle, useStoryFocus, type StoryKey } from "./story-focus.tsx";
 import { StyleDialog, styleLine, useStoryStyle } from "./story-style.tsx";
@@ -33,7 +34,10 @@ import "../styles/screens/story.css";
  * F and Esc on (keys pressed in a frame never reach the app), hands a link to another page of this
  * Story to the app, and opens every other link in a new tab. A page that still manages to load
  * another address in its place (a script, a refresh) is put back, and the reader is told, so the
- * app never shows someone else's page inside its own frame. A page refused for the minute's calls
+ * app never shows someone else's page inside its own frame: every document WhatBuild frames says it
+ * has loaded (frame-ready, at its load event), and a load that does not say so within a moment is
+ * put back, as a page sending its frame elsewhere while it loads is. Until then the skeleton stays
+ * over the frame. A second load is put back at once, whatever it says. A page refused for the minute's calls
  * gets a short document that says so and tells the app, and comes back the same way, as a new frame
  * whose first load is its first. Each new frame is a call, so a page that keeps being replaced waits
  * for the next minute with no frame on show, and in time stops until the person says to
@@ -45,6 +49,8 @@ import "../styles/screens/story.css";
  * there, and copied here) opens here instead.
  */
 const PAGE_SLUG = /^[a-z0-9][a-z0-9-]{0,79}$/;
+/** How often a link that leads to no page of the Story says so: one page's script can't stack them. */
+const NO_PAGE_SAID_EVERY_MS = 4000;
 const FRAME_KEYS: readonly unknown[] = ["f", "Escape", "ArrowLeft", "ArrowRight", "2", "3"] satisfies StoryKey[];
 
 export function StoryFrame({
@@ -55,6 +61,7 @@ export function StoryFrame({
   storyBase,
   home,
   onPage,
+  onLink,
   size,
   prototype,
   view = "fill",
@@ -66,12 +73,14 @@ export function StoryFrame({
   storyBase?: string;
   home?: string;
   onPage?: (pageId: string) => void;
+  /** For a mockup page shown alone: a link to another page of its canvas, by the name it gives. The frame is told to hand those over. */
+  onLink?: (name: string) => void;
   /** A mockup page's own size: the frame keeps it, scaled down to the room there is, never up, in a mockup page's sandbox. */
   size?: { width: number; height: number };
   /**
    * Set when the page is an entry into a mockup's prototype: src is the entry's own address, and
    * the frame takes the sandbox the server names. The prototype's documents move inside the frame,
-   * each saying it has loaded; a load that does not say so within a moment is put back.
+   * each saying it has loaded, so there a second load is no replacement when it says so too.
    */
   prototype?: { sandbox: string } | null;
   /** For a mockup page: scaled to the room's width (fill), or to its width and height (fit). */
@@ -100,12 +109,15 @@ export function StoryFrame({
   const hello = () => {
     if (storyBase && onPage) frame.current?.contentWindow?.postMessage({ whatbuild: "story-base", base: storyBase }, "*");
     if (home) frame.current?.contentWindow?.postMessage({ whatbuild: "app-home", home }, "*");
+    if (onLink) frame.current?.contentWindow?.postMessage({ whatbuild: "page-links" }, "*");
   };
   const helloRef = useRef(hello);
   helloRef.current = hello;
   const newFrame = () => {
     ready.current = false;
     loads.current = 0;
+    if (waiting.current) clearTimeout(waiting.current);
+    waiting.current = null;
     setLoaded(false);
     setReloads((n) => n + 1);
   };
@@ -116,24 +128,25 @@ export function StoryFrame({
   }, []);
 
   useEffect(() => {
-    if (!onKey && !onPage && !prototype) return;
     const handle = (e: MessageEvent) => {
       if (e.source !== frame.current?.contentWindow) return;
       const data = e.data as { whatbuild?: unknown; key?: unknown; page?: unknown } | null;
-      if (data?.whatbuild === "frame-ready" && prototype) {
+      if (data?.whatbuild === "frame-ready") {
         if (waiting.current) {
           clearTimeout(waiting.current);
           waiting.current = null;
+          setLoaded(true);
           helloRef.current();
         } else ready.current = true;
         return;
       }
       if (data?.whatbuild === "story-key" && FRAME_KEYS.includes(data.key)) onKey?.(data.key as StoryKey);
       if (data?.whatbuild === "story-page" && typeof data.page === "string" && PAGE_SLUG.test(data.page)) onPage?.(data.page);
+      if (data?.whatbuild === "canvas-page" && typeof data.page === "string") onLink?.(data.page);
     };
     window.addEventListener("message", handle);
     return () => window.removeEventListener("message", handle);
-  }, [onKey, onPage, prototype]);
+  }, [onKey, onPage, onLink, prototype]);
 
   const page = (
     <iframe
@@ -146,24 +159,22 @@ export function StoryFrame({
       referrerPolicy="no-referrer"
       src={prototype ? src : `${src}${src.includes("?") ? "&" : "?"}frame=1`}
       onLoad={() => {
-        if (prototype) {
-          setLoaded(true);
-          if (ready.current) {
-            ready.current = false;
-            hello();
-          } else waiting.current = setTimeout(() => {
-            waiting.current = null;
-            putBack();
-          }, 1500);
-          return;
-        }
         loads.current += 1;
-        if (loads.current > 1) {
+        if (!prototype && loads.current > 1) {
           putBack();
           return;
         }
-        setLoaded(true);
-        hello();
+        // The document has said it is one of WhatBuild's already, or will in a moment. A load before is judged no more.
+        if (waiting.current) clearTimeout(waiting.current);
+        waiting.current = null;
+        if (ready.current) {
+          ready.current = false;
+          setLoaded(true);
+          hello();
+        } else waiting.current = setTimeout(() => {
+          waiting.current = null;
+          putBack();
+        }, SAYS_LOADED_WITHIN_MS);
       }}
     />
   );
@@ -230,14 +241,15 @@ function StoryCanvas({ base, pageId, shown, mockup, onKey, canFocus, reread }: {
   const pinned = usePinnedPrototype(version, reread);
   const asked = params.get("page");
   const select = useCallback(
-    (id: string | null) => {
+    (id: string | null, options?: { step: boolean }) => {
       const next = new URLSearchParams(params);
       if (id) next.set("page", id);
       else next.delete("page");
-      setParams(next, { replace: true });
+      setParams(next, { replace: !options?.step });
     },
     [params, setParams],
   );
+  const [mayStep] = useState(() => backSteps());
   if (!pages.length) return <EmptyState title="This canvas is gone">Its mockup was deleted after this version was published.</EmptyState>;
   return (
     <Canvas
@@ -249,7 +261,7 @@ function StoryCanvas({ base, pageId, shown, mockup, onKey, canFocus, reread }: {
       canFocus={canFocus}
       pageView={pageView}
       onPageView={setPageView}
-      showRequest={0}
+      onFollow={(id) => select(id, { step: mayStep() })}
     />
   );
 }
@@ -345,8 +357,16 @@ export function StoryPage() {
   // Fit (2) or fill (3) a mockup page; the choice holds as the arrows flip to the next one.
   const [mockupView, setMockupView] = usePageView("whatbuild.story.mockup-view", "fill");
   usePageViewKeys(stop ? setMockupView : null);
+  // What a page asks for, unlike the same keys pressed in the app: a page's script can post them too.
+  const [mayMove] = useState(() => pageMoves());
+  const [mayStep] = useState(() => backSteps());
+  const goFromFrame = (to: string | undefined) => {
+    if (to && mayMove()) navigate(`${app}/story/${to}`, { replace: !mayStep() });
+  };
+  const toast = useToast();
+  const saidNoPage = useRef(-Infinity);
   const onFrameKey = (key: StoryKey) => {
-    if (key === "ArrowLeft" || key === "ArrowRight") stop && flip(key);
+    if (key === "ArrowLeft" || key === "ArrowRight") stop && goFromFrame(key === "ArrowLeft" ? prevId : nextId);
     else if (key === "2" || key === "3") stop && setMockupView(PAGE_VIEW_KEYS[key]!);
     else focusMode.onKey(key);
   };
@@ -453,6 +473,17 @@ export function StoryPage() {
   const p = page.data;
   const shownMockup = shown?.mockup;
   const onePage = shownMockup && !shownMockup.canvas ? shownMockup : undefined;
+  // A mockup page shown alone has no canvas to fly over: its link to another page of the canvas goes to
+  // the Story page that shows that page, and says so when none does. Only just after a person did something.
+  const followLink = (name: string) => {
+    if (!personActed()) return;
+    const to = storyLinkPath(onePage?.story_links, name);
+    if (to) return goFromFrame(to);
+    const at = Date.now();
+    if (at - saidNoPage.current < NO_PAGE_SAID_EVERY_MS) return;
+    saidNoPage.current = at;
+    toast("This link leads to a page that isn’t in the Story.", { tone: "negative" });
+  };
 
   return (
     <div className={onCanvas ? "story-view mockup-view" : "story-view"} data-focus={onCanvas && focusMode.focus ? "" : undefined}>
@@ -518,7 +549,8 @@ export function StoryPage() {
               onKey={onFrameKey}
               storyBase={`${window.location.origin}${app}/story/`}
               home={`${window.location.origin}${app}`}
-              onPage={(id) => navigate(`${app}/story/${id}`)}
+              onPage={goFromFrame}
+              onLink={onePage && !onePage.prototype_url ? followLink : undefined}
             />
           ) : wantsOld && old.isPending ? (
             <Loading variant="lines" />

@@ -37,6 +37,27 @@ and does not follow the Story style.
 
 **Notes** belong to a page: Markdown design notes, shown beside it.
 
+## Clickable prototypes
+
+Pages link to each other with ordinary relative links: `<a href="checkout.html">`, where `checkout` is
+the other page's `page_id`, as files side by side in a folder do. They work the same in the ZIP once it
+is unzipped. On the canvas a link flies the view to the page it names. People can then view the canvas
+as a clickable prototype: one page at a time in the web app, a link changing the page in place, starting
+at the first page.
+
+- `clickable` in `publish` and `get` says whether a version can be viewed that way (`viewable`), counts
+  `links_between_pages`, lists `broken` links that name no page, and from `publish` gives the `url` to
+  hand the person. A version with no links says `how`.
+- Use real links, for a person to click: a script that goes to an address on its own is not followed,
+  and a page's script moves nothing unless a person did something moments ago.
+- A `#fragment` moves within the page a link opens. A `?query` does not reach it, and browser storage is
+  unavailable, as everywhere in the sandbox.
+- On the Story, a whole canvas keeps its links flying between its pages. A page promoted alone takes a
+  link to another page of its canvas to the Story page that shows that page, or to a whole canvas that
+  holds it; `links_off_story` in `promote_mockup`'s answer names the pages it links to that no Story
+  page shows, which a reader's click would not reach. Promote them too, or the whole canvas.
+- A comparison of alternatives needs no links.
+
 ## Prototypes
 
 A clickable prototype of several files (HTML documents that link to one another, scripts,
@@ -84,7 +105,7 @@ version.
 ## Download and upload
 
 `mockups_read(action="get_download")` gives a version as a ZIP through a short-lived grant (its header
-is a credential): `brief.md`, `manifest.json`, each page as `pages/<page_id>.html` with
+is a credential): `index.html`, which a person opens to start at the first page, `brief.md`, `manifest.json`, each page as `pages/<page_id>.html` with
 `pages/<page_id>.notes.md`, the version's files under `files/`, and its prototype under `prototype/`,
 every file byte for byte with its `sha256` in the manifest.
 

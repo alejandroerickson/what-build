@@ -302,16 +302,28 @@ Four things keep a tab from hearing what it may not know, each holding if anothe
   five seconds are over. Each of its four asks can name that wait again, so a canvas of such pages can hold the others' turns back for about four minutes each, and then stops asking.
   It cannot change the pace of frames, which is fixed, stop another frame for good, hold back a read, or get past the
   check that puts back a page replaced in its frame, since a second load of one frame is never let through.
+  Nor is a first whose document never says it has loaded (`frame-ready`, which every document the app frames sends
+  as its load event fires): a page that sends its frame elsewhere while it still loads never gets that far. A page
+  can post `frame-ready` itself before it goes, and its frame then keeps what it went to, which the app's policy
+  limits to what the same deployment serves or the browser's refusal of the address (below).
   Putting a page back costs a call too, so a screen puts back at most 10 a minute and a page at most 3. Past either the page waits
   with no frame on show, and after 3 such waits in a row it stops until the person says to or leaves the screen, so a page reloading itself
   spends those at most ([§7.1](../spec/07-web-app.md)); a page's own asks after a refusal come on top, three each until the person says to, since a refusal it names cannot be told from one it got. A prototype's route meets no limit, so its frames are outside this.
   A Story page can also ask the app to open another of the Story's pages, as a link in it does, and each page opened costs a call. Nothing bounds how often it asks but the person's calls a minute, which it can use up while the screen stays open.
+  An address under `/api/` with no route answers a browser that opened it as a page or a frame
+  (`Sec-Fetch-Dest`) without repeating the address, whose words whoever wrote a link chose; an API
+  caller is told its method and path (`apps/server/src/app.ts`).
+  A page that navigates its own frame adds a step to the browser's history each time, which Back walks through before it leaves the
+  screen; the browser keeps a frame's history with the tab's, and the app cannot refuse it (accepted:
+  [decision](../decisions/a-canvas-whose-pages-link-is-viewed-as-a-clickable-prototype.md)).
 - The app frames pages with `<iframe sandbox>` and takes only a key name, a page slug or that a frame
   was refused from the frame it made (`apps/web/src/routes/story.tsx`), by `e.source`, never by `e.origin`, which is
   `null` for a sandboxed document wherever it is served. App pages send `Cross-Origin-Opener-Policy:
   same-origin`, `X-Frame-Options: DENY`, `frame-ancestors 'none'`, `script-src 'self'` and a
   `style-src` without `'unsafe-inline'`, and frame only their own origin and the content site's
-  `/prototypes/` and `/documents/` (`apps/server/src/public-routes.ts`).
+  `/prototypes/` and `/documents/` (`apps/server/src/public-routes.ts`). The browser holds every navigation
+  of a frame to that, whoever starts it and when, so a page cannot show another site in WhatBuild's frame;
+  the dev server sends the same `frame-src`, so local testing sees it (`apps/web/vite.config.ts`).
   The print view is sandboxed and runs one nonce'd script (`packages/core/src/story-print.ts`).
 - A mockup's **prototype**, a team's multi-file prototype, is served by one route,
   `/prototypes/<grant>/<path>` (`apps/server/src/prototype.ts`,

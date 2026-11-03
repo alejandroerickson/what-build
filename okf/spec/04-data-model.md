@@ -537,6 +537,12 @@ version until it is promoted again; reading it returns `mockup` with the page's 
 and, for every role but a reader, the mockup's title, the version shown and the mockup's current
 version. A promoted page has no special place in the Story: it is unplaced until it is placed, and
 an existing page keeps its place (Hierarchy, below).
+A page shown alone has no canvas to fly over, so its relative links to the other pages of its canvas
+([§4.12](#412-mockups)) lead to other Story pages: `mockup.story_links` maps each page it links to
+onto a live Story page showing that page (`{ page_id, on_canvas: false }`, one of the same mockup
+version first) or else showing a whole canvas of the mockup that holds it (`on_canvas: true`, opened
+at that page). Archived Story pages lead nowhere. Every role reads `story_links`; the team also reads
+`links_off_story`, the pages it links to that lead nowhere on the Story.
 A whole canvas reads as `mockup: { canvas: true, columns, pages: [{ page_id, title, width, height,
 entry?, prototype_url? }], prototype? }`, the same team fields but no one page's size; each page's HTML
 comes from `GET …/story/pages/:page_id/versions/:n/pages/:mockup_page_id/html`, which finds nothing
@@ -740,7 +746,9 @@ side by side), each with design notes, and a brief that says what the canvas exp
 the whole canvas: `version` (1, 2, 3…), `title`, `summary`, `brief` (Markdown, ≤ 50,000: what the
 canvas explores, for whom, the questions it should answer, what each page tries), `columns` (1–12
 pages side by side before the canvas wraps, or null for one row), the `pages` in order, the
-`files` it carries, its `prototype` if it carries one, `published_at` and `published_by`. The
+`files` it carries, its `prototype` if it carries one, `published_at` and `published_by`, and,
+computed on read, `clickable { viewable, links_between_pages, broken, how? }`: whether people can
+view it as a clickable prototype, read from its pages' links ([decision](../decisions/a-canvas-whose-pages-link-is-viewed-as-a-clickable-prototype.md)). The
 database keeps each page's words beside its HTML for search ([§8.3](08-search.md)), in no answer and
 no export. A
 page:

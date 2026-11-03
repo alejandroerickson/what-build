@@ -52,7 +52,9 @@ version.
 - A page that shows a mockup page (`current.mockup` in `get_page`) has no HTML of its own: `patch_html`
   and `restyle` are refused there, and `html` or `body` replace the mockup page with a page of its own.
 - In the app, a link to another page of the same Story (`links.story_page` in the guidance) shows that
-  page in place; every other link opens in a new tab.
+  page in place; every other link opens in a new tab. `links_to_no_page` in the answers of `publish`
+  and `preview` names the Story pages a page links to that a reader can't open (none is published under
+  that `page_id`, or it is archived): publish them, or change the links.
 
 ## Previewing
 

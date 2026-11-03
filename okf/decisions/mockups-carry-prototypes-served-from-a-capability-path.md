@@ -3,7 +3,7 @@ type: Decision
 title: A mockup version may carry a team's prototype as it is, served in the sandbox from a short-lived capability path
 description: Multi-file prototypes come in unchanged, stateless, and canvas pages enter them; every file is served under a signed path that the sandbox policy confines the prototype to, on the app's origin until a separate content site is set.
 tags: [decision, mockups, prototype, security, sandbox, storage, story, web, agents]
-generated: {by: agent:claude, at: 2026-10-25}
+generated: {by: agent:claude, at: 2026-11-02}
 status: stable
 ---
 
@@ -60,7 +60,9 @@ sees the promoted page and nothing else of the mockup ([decision](a-reader-reads
   page and inline file as well, never anything of the app's
   ([decision](with-a-content-site-every-page-and-inline-file-is-served-from-it.md)).
 - **Frames.** `mockups.get` and the Story's read give a frame its address; the route adds the
-  frame script to every HTML document. Links within the prototype move in place; a load that does
+  frame script to every HTML document. Links within the prototype move in place, but a link to a
+  document another canvas page enters moves to that page
+  ([decision](a-canvas-whose-pages-link-is-viewed-as-a-clickable-prototype.md)); a load that does
   not announce itself as one of its documents is put back.
 - **On the Story** a reader of a promoted entry reaches that version's whole prototype, which is
   what the prototype is, and nothing else of the mockup (the maintainer's choice, 2026-10-14).

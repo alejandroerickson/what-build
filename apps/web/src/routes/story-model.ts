@@ -249,6 +249,27 @@ export interface MockupPageShown extends MockupOrigin {
   prototype_sandbox?: string;
   prototype_expires_at?: string;
   page_title?: string | null;
+  /** Where its links to the other pages of its canvas lead on the Story, by the page each names. */
+  story_links?: Record<string, StoryLinkTarget>;
+  /** For the team: the pages it links to that no Story page shows. */
+  links_off_story?: string[];
+}
+
+/** A Story page a link from a mockup page shown alone leads to, and whether it shows the whole canvas. */
+export interface StoryLinkTarget {
+  page_id: string;
+  on_canvas: boolean;
+}
+
+/**
+ * Where on the Story a link from a mockup page shown alone leads, as the address under the Story
+ * (a whole canvas opened at the page named), or null when no Story page shows that page. Only the
+ * names the server gave count, so a page's own name for something else ("constructor") is none.
+ */
+export function storyLinkPath(links: Record<string, StoryLinkTarget> | undefined, name: string): string | null {
+  const to = links && Object.prototype.hasOwnProperty.call(links, name) ? links[name] : undefined;
+  if (!to || typeof to.page_id !== "string") return null;
+  return to.on_canvas ? `${to.page_id}?page=${encodeURIComponent(name)}` : to.page_id;
 }
 
 /** A mockup's whole canvas: its layout and pages. */

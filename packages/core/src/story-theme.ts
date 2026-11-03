@@ -45,11 +45,21 @@ export function withStoryTheme(html: string, theme: "light" | "dark"): string {
  *   zooming), and a press on the page, which selects it: once a person works inside a page, the
  *   canvas around it would otherwise hear nothing.
  *
+ * Says it has loaded (frame-ready), once its document's load event comes, so the app tells the
+ * documents it framed from whatever replaced them: a page that sends its frame elsewhere while it
+ * is still loading never reaches its own load event, and the app puts it back.
+ *
  * In a mockup's prototype (frameScript with its address), a link into the prototype is left to
  * navigate the frame, as the prototype's own links do at home; on the app's origin one with a
  * target opens in the frame too, since a prototype's document is never served at the top level
- * there. Each document says it has loaded (frame-ready), so the app tells its own documents from
- * an address that replaced them.
+ * there. Each of its documents says it has loaded in the same way.
+ *
+ * On a canvas a relative link names another of its pages, as files side by side in a folder do
+ * (canvas-links.ts): the script sends the page's name and the app checks it against the version's
+ * pages, then moves there. A mockup page shown alone on the Story does the same when the app says so
+ * (page-links), and the app takes the name to the Story page that shows it. A click with a modifier key does the same, since a new tab would have
+ * no address for another page of the canvas. In a prototype, a link to a document another canvas page enters does the
+ * same; any other link stays in the frame.
  *
  * Says, at most every half minute, that someone is using the frame (frame-active): a page they read
  * or press in a frame shows the app nothing, and a tab no one is using stops listening for changes
@@ -59,8 +69,9 @@ export function frameScript(prototype?: { base: string; inPlace: boolean }): str
   const proto = prototype ? JSON.stringify(prototype.base).replace(/</g, "\\u003c") : "null";
   return (
   "(function(){" +
-  `var story=null,canvas=false,home=null,proto=${proto},inPlace=${prototype?.inPlace ? "true" : "false"};` +
+  `var story=null,canvas=false,pages=false,entries=null,home=null,proto=${proto},inPlace=${prototype?.inPlace ? "true" : "false"};` +
   "function typing(t){return t&&(t.isContentEditable||/^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName));}" +
+  'function relative(u){u=u.trim();return !!u&&u.charAt(0)!=="#"&&u.charAt(0)!=="/"&&!/^[a-z][a-z0-9+.-]*:/i.test(u);}' +
   'function send(m){parent.postMessage(m,"*");}' +
   'var used=0;function using(){var n=Date.now();if(n-used<30000)return;used=n;send({whatbuild:"frame-active"});}' +
   '["pointerdown","keydown","wheel","touchstart","scroll"].forEach(function(t){addEventListener(t,using,{capture:true,passive:true});});' +
@@ -68,7 +79,9 @@ export function frameScript(prototype?: { base: string; inPlace: boolean }): str
   "if(e.source!==parent||!e.data)return;" +
   'if(e.data.whatbuild==="story-base"&&typeof e.data.base==="string")story=e.data.base;' +
   'if(e.data.whatbuild==="app-home"&&typeof e.data.home==="string")home=/^(https?:\\/\\/[^\\/?#]+)(\\/[^?#]*)$/i.exec(e.data.home);' +
-  'if(e.data.whatbuild==="canvas-host")canvas=true;});' +
+  'if(e.data.whatbuild==="page-links")pages=true;' +
+  'if(e.data.whatbuild==="canvas-host"){canvas=true;if(e.data.entries&&typeof e.data.entries==="object")entries=e.data.entries;}' +
+  'if(e.data.whatbuild==="canvas-hash"&&typeof e.data.hash==="string"){var at=document.getElementById(e.data.hash);if(at)at.scrollIntoView();}});' +
   'addEventListener("keydown",function(e){' +
   "if(e.defaultPrevented||e.metaKey||e.ctrlKey||e.altKey||typing(e.target))return;" +
   'var k=e.key==="Escape"||e.key==="ArrowLeft"||e.key==="ArrowRight"||e.key==="2"||e.key==="3"?e.key:(e.key==="f"||e.key==="F")?"f":canvas&&/^[ hHvV01+=_-]$/.test(e.key)?e.key:null;' +
@@ -81,10 +94,24 @@ export function frameScript(prototype?: { base: string; inPlace: boolean }): str
   "e.preventDefault();" +
   'send({whatbuild:"canvas-zoom",x:e.clientX,y:e.clientY,dy:e.deltaY,line:e.deltaMode===1,pinch:e.ctrlKey&&!e.metaKey});},{passive:false});' +
   'addEventListener("pointerdown",function(){if(canvas)send({whatbuild:"canvas-select"});},true);' +
+  // On a canvas a link to another of its pages is the canvas's to follow, unless the page dealt with the click itself: after every handler the page has.
+  'addEventListener("click",function(e){' +
+  'if(!(canvas||pages)||e.defaultPrevented||e.button!==0)return;' +
+  'var a=e.target&&e.target.closest?e.target.closest("a[href]"):null;' +
+  'if(!a||a.hasAttribute("download"))return;' +
+  'var r=a.getAttribute("href"),h=r.split("#")[1]||"",n=null;' +
+  'if(proto){if(!entries||a.href.indexOf(proto)!==0)return;var p=a.href.slice(proto.length).split(/[?#]/)[0];try{p=decodeURIComponent(p);}catch(_){return;}n=Object.prototype.hasOwnProperty.call(entries,p)?entries[p]:null;if(!n)return;}' +
+  'else{if(!relative(r))return;n=r.split(/[?#]/)[0].split("/").pop().replace(/\\.html?$/i,"");if(!n)return;}' +
+  'e.preventDefault();send({whatbuild:"canvas-page",page:n,hash:h});});' +
+  // A new tab has no address for another page of a canvas: the frame's own would be an error.
+  'addEventListener("auxclick",function(e){' +
+  'var a=e.target&&e.target.closest?e.target.closest("a[href]"):null;' +
+  'if((canvas||pages)&&!proto&&a&&e.button===1&&relative(a.getAttribute("href")))e.preventDefault();});' +
   'addEventListener("click",function(e){' +
   'var a=e.target&&e.target.closest?e.target.closest("a[href]"):null;' +
   'if(!a||a.getAttribute("href").charAt(0)==="#")return;' +
   'if(proto&&a.href.indexOf(proto)===0){if(inPlace&&a.hasAttribute("target"))a.setAttribute("target","_self");return;}' +
+  'if((canvas||pages)&&!proto&&relative(a.getAttribute("href")))return;' +
   'var h=home&&/^(https?:\\/\\/[^\\/?#]+)(\\/[^?#]*)?/i.exec(a.href);' +
   'if(h&&h[1].toLowerCase()!==home[1].toLowerCase()&&(h[2]===home[2]||(h[2]||"").indexOf(home[2]+"/")===0))a.href=home[1]+a.href.slice(h[1].length);' +
   'var r=a.getAttribute("href");' +
@@ -95,7 +122,8 @@ export function frameScript(prototype?: { base: string; inPlace: boolean }): str
   'var t=(a.getAttribute("target")||"").toLowerCase();' +
   'if(!t||t==="_self"||t==="_parent"||t==="_top"){a.setAttribute("target","_blank");a.setAttribute("rel","noopener noreferrer");}' +
   "},true);" +
-  'if(proto)send({whatbuild:"frame-ready"});' +
+  // Said once this document has loaded: a document that replaced it while it loaded never says so, and is put back.
+  'addEventListener("load",function(){send({whatbuild:"frame-ready"});},true);' +
   "})();"
   );
 }

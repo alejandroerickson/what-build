@@ -138,7 +138,7 @@ const TOOL_TEXT: Record<string, { title: string; parts: [text: string, ...action
   mockups_write: {
     title: "Publish mockups",
     parts: [
-      ["Publish a mockup's next version from an uploaded ZIP of the canvas, or create a mockup.", "request_upload", "publish"],
+      ["Publish a mockup's next version from an uploaded ZIP of the canvas, or create a mockup. Pages link to each other with ordinary relative links (href=\"checkout.html\", the other page's page_id); people can then view the canvas as a clickable prototype.", "request_upload", "publish"],
       ["Archive and restore mockups.", "archive", "restore"],
     ],
   },

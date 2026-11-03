@@ -59,6 +59,7 @@ export { MAX_MOCKUP_PAGES, MOCKUP_UPLOAD_PURPOSE, mockupBundle, readCanvasZip, s
 export { guideIndex, guideTopic, MCP_SERVER_NAME, TOOLS_VERSION, type GuideTopic } from "./ops/meta.ts";
 export { GUIDANCE_VERSION } from "./story-guidance.ts";
 export { HOUSE_STYLE_IDS, HOUSE_STYLES, houseSpecimen, houseStyle, pageDocument, specimenBody, styleSpecimen, type HouseStyle } from "./story-styles.ts";
+export { CLICKABLE_HOW, clickableCanvas, hrefsIn, linkedPageName, mockupIndexHtml, pagesLinkedFrom, type ClickableCanvas } from "./canvas-links.ts";
 export { FRAME_SCRIPT, frameScript, THEME_ATTRIBUTE, withPrototypeFrame, withStoryFrame, withStoryTheme } from "./story-theme.ts";
 export { STORY_FONTS, storyFontFaces, storyFontsNamed, withStoryFonts, type StoryFont } from "./story-fonts.ts";
 

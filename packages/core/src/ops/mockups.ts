@@ -2,6 +2,7 @@ import { TooLargeError, TooManyEntriesError, zipEntries } from "@whatbuild/parse
 import { sql } from "kysely";
 import { strToU8, zipSync } from "fflate";
 import { z } from "zod";
+import { clickableCanvas, mockupIndexHtml } from "../canvas-links.ts";
 import { checkEtag, listed, productId, recordActivity, tenantId } from "../common.ts";
 import { json, type Tx } from "../db.ts";
 import { checkConfirmation, DELETE_GUIDANCE, deleteGuards, leaveTombstone, refuseIfDeleted } from "../deletion.ts";
@@ -59,6 +60,9 @@ const PROTOTYPE_TEXT =
   `A version may also carry a prototype: a team's multi-file prototype as it is (HTML documents that link to one another, scripts, styles, fonts, images, media, fixtures), uploaded under prototype/ in the canvas ZIP and never sent in a call; at most ${fmt(PROTOTYPE_MAX_FILES)} files and ${PROTOTYPE_MAX_BYTES / MIB} MB, ${PROTOTYPE_FILE_MAX_BYTES / MIB} MB a file, and ${PROTOTYPE_PRODUCT_MAX_BYTES / MIB} MB of distinct prototype bytes in a product. Its files are any bytes, given back byte for byte, and are not held to a page's HTML rules: they are served in the sandbox under a short-lived address of their own, and load only one another, by relative address, with no network. A page with entry instead of html enters it: the path of one of its HTML documents, with a ?query and #fragment if wanted; several pages may enter one prototype, and its links move between its documents inside the page's frame. ` +
   `A prototype is stateless: localStorage, sessionStorage, IndexedDB and document.cookie are unavailable in WhatBuild's sandbox and throw, so each document load starts fresh; keep state in script variables while a document is open, or in the address (query or hash) across its documents. Forms run their submit handlers and submit nowhere. A root-relative address (/assets/app.js) points outside the prototype and does not load: build with a relative base (./). ` +
   "Publish answers with prototype_warnings, naming each file: root-relative and remote addresses, addresses the prototype does not hold, and scripts that use browser storage or cookies. A warning never refuses.";
+/** How a canvas's pages link to each other, and what that gives people. */
+const PAGE_LINKS_TEXT =
+  'Pages link to each other with ordinary relative links, <a href="checkout.html"> where checkout is the other page\'s page_id, as files side by side in a folder do; they work the same in the ZIP once it is unzipped. On the canvas a link flies the view to the page it names, and people can view a canvas whose pages link as a clickable prototype, one page at a time in the web app, starting at the first page. publish and get answer with clickable: viewable, links_between_pages, broken (relative links that name no page), how while it is not viewable, and from publish its url. A #fragment moves within the page a link opens; a ?query does not reach it. A comparison of alternatives needs no links.';
 /** What a frame does with a page taller than it, as the canvas and the Story show it. */
 const TALL_PAGES_TEXT =
   "Content taller than a page's height scrolls inside its frame: on the canvas people see the first height pixels in pan mode, its default, and scroll the rest in interact mode; on the Story a promoted page scrolls inside its frame. A long document can be one page that scrolls, or several pages side by side (columns) that people see whole on the canvas; both work, so choose by how people will read it.";
@@ -187,6 +191,7 @@ async function versionView(ctx: OpContext, versionId: string, withHtml: boolean,
     }),
     files: files.map((x) => ({ path: x.path, chars: x.content.length, sha256: sha256Hex(x.content), ...(withFiles ? { content: x.content } : {}) })),
     prototype,
+    clickable: clickableCanvas(pages),
     published_at: v.created_at,
     published_by: v.created_by,
   };
@@ -241,7 +246,7 @@ export const getMockup = defineOperation({
   mutates: false,
   summary: "Read a mockup's current version: its brief, its pages with their notes, the Story pages that show its pages, and the etag to publish again.",
   description:
-    `The brief says what the canvas explores. Pages come without HTML unless include_html; each has html_path (a GET in the web app's session), html_sha256 and, without include_html, html_chars, except a page that enters the version's prototype, which has entry, poster and prototype_url (its frame's address) instead. files lists what the version carries for collaborators (path, chars, sha256), with each file's content when include_files. prototype, when the version carries one, gives file_count, bytes, base_url (the prototype's address, a capability that expires at expires_at), the sandbox its frames use, and with include_files each file's path, size, sha256 and media_type. ${HASHES_TEXT} To work on the canvas outside WhatBuild, get_download gives the whole version as a ZIP. story_pages lists the Story pages whose current version shows one of its pages (story promote_mockup), with the mockup version each shows.`,
+    `The brief says what the canvas explores. Pages come without HTML unless include_html; each has html_path (a GET in the web app's session), html_sha256 and, without include_html, html_chars, except a page that enters the version's prototype, which has entry, poster and prototype_url (its frame's address) instead. files lists what the version carries for collaborators (path, chars, sha256), with each file's content when include_files. prototype, when the version carries one, gives file_count, bytes, base_url (the prototype's address, a capability that expires at expires_at), the sandbox its frames use, and with include_files each file's path, size, sha256 and media_type. ${HASHES_TEXT} To work on the canvas outside WhatBuild, get_download gives the whole version as a ZIP. story_pages lists the Story pages whose current version shows one of its pages (story promote_mockup), with the mockup version each shows. clickable says whether people can view this version as a clickable prototype. ${PAGE_LINKS_TEXT}`,
   input: z.strictObject({ mockup_id: id("mockup"), include_html: z.boolean().default(false), include_files: z.boolean().default(false).describe("Include each file's content, and the prototype's files.") }),
   rest: { method: "GET", path: "/mockups/:mockup_id" },
   mcp: { tool: "mockups", action: "get" },
@@ -476,7 +481,8 @@ export function readCanvasZip(uploadId: string, bytes: Uint8Array): CanvasUpload
   }
   const carried: z.infer<typeof fileInput>[] = [];
   for (const rel of text.keys()) {
-    if (rel === "manifest.json" || rel === "brief.md") continue;
+    // index.html is what a person opens from a downloaded ZIP; nothing reads it back.
+    if (rel === "manifest.json" || rel === "brief.md" || rel === "index.html") continue;
     const page = /^pages\/([^/]+?)(\.notes\.md|\.html)$/.exec(rel);
     if (page) {
       if (!listed.has(page[1]!)) problems.push(`${rel} belongs to page ${page[1]}, which manifest.json's pages does not list.`);
@@ -490,7 +496,7 @@ export function readCanvasZip(uploadId: string, bytes: Uint8Array): CanvasUpload
       else if (!listedFiles) carried.push({ path, content: text.get(rel)! });
       continue;
     }
-    problems.push(`${rel} is not part of a canvas: a ZIP holds manifest.json, brief.md, pages/<page_id>.html, pages/<page_id>.notes.md, files/<path> and prototype/<path>.`);
+    problems.push(`${rel} is not part of a canvas: a ZIP holds manifest.json, brief.md, index.html, pages/<page_id>.html, pages/<page_id>.notes.md, files/<path> and prototype/<path>.`);
   }
   const pages = manifest.pages.map((p) => {
     const html = text.get(`pages/${p.page_id}.html`);
@@ -617,7 +623,7 @@ export const publishMockup = defineOperation({
   mutates: true,
   summary: "Publish the next version of a mockup's canvas, or create a mockup with its first version. A later version keeps whatever you omit.",
   description:
-    `Without mockup_id, creates a mockup: give a title, a brief and at least one page with a title and html, and no expected_etag (one sent is refused with 409 stale_etag and current_etag null, as there is nothing to match). With mockup_id, publishes the next version: pass the mockup's etag, and send only what changes. pages, when given, is the whole canvas in order: a page you leave out is dropped from this version, and a page whose page_id was on the base version keeps its title, notes, size and html unless you send them, so a version that changes one page sends that page's html alone. The brief is Markdown: what the canvas explores, for whom, the questions it is meant to answer, and what each page tries; write it for the next agent as much as for people. Each page is one self-contained HTML document shown in a sandboxed frame of width × height CSS pixels (default ${DEFAULT_WIDTH} × ${DEFAULT_HEIGHT}; 390 wide for a phone; height at most 4000), with no network. ${PAGE_RULES_TEXT} ${SAFE_CHECK_TEXT} ${TALL_PAGES_TEXT} columns sets how many pages sit side by side before the canvas wraps; null keeps one row. files carries text files for collaborators to pull into their own projects (DESIGN.md, components, tokens), at most ${MAX_MOCKUP_FILES} and ${(MOCKUP_FILES_TOTAL / 1_000_000).toFixed(0)} million characters a version; WhatBuild never uses them to draw a page, so inline what a page needs. Like pages, files when given is the whole set: a path that was on the base keeps its content unless you send it, a path you leave out is dropped, a new path needs content, and [] drops them all; omit files to keep them. ${PROTOTYPE_TEXT} A version published without an upload keeps its base's prototype, and its pages may enter it. from_version: N starts from that earlier version instead of the current one. To keep page HTML out of the call, upload the canvas as a ZIP (request_upload) and pass upload_id: the ZIP gives pages, files and the brief, and the call gives the rest, and the result names from_upload with upload {upload_id, size, sha256}, the ZIP's own bytes as its PUT answered. At most ${MAX_MOCKUP_PAGES} pages, ${(MOCKUP_HTML_TOTAL / 1_000_000).toFixed(0)} million characters of HTML in all, and ${MAX_MOCKUPS} mockups in a product, archived ones included (list gives quota, used and limit). It answers with what you need next, not the canvas you sent: mockup_id, title, current_version and current_version_id, the etag to publish the next version with, based_on_version, page_ids in the canvas's order, url (the canvas in the web app, to give the person), and prototype_warnings when an upload brings a prototype; mockups_read(action="get") reads the version back.`,
+    `Without mockup_id, creates a mockup: give a title, a brief and at least one page with a title and html, and no expected_etag (one sent is refused with 409 stale_etag and current_etag null, as there is nothing to match). With mockup_id, publishes the next version: pass the mockup's etag, and send only what changes. pages, when given, is the whole canvas in order: a page you leave out is dropped from this version, and a page whose page_id was on the base version keeps its title, notes, size and html unless you send them, so a version that changes one page sends that page's html alone. The brief is Markdown: what the canvas explores, for whom, the questions it is meant to answer, and what each page tries; write it for the next agent as much as for people. Each page is one self-contained HTML document shown in a sandboxed frame of width × height CSS pixels (default ${DEFAULT_WIDTH} × ${DEFAULT_HEIGHT}; 390 wide for a phone; height at most 4000), with no network. ${PAGE_RULES_TEXT} ${SAFE_CHECK_TEXT} ${TALL_PAGES_TEXT} columns sets how many pages sit side by side before the canvas wraps; null keeps one row. files carries text files for collaborators to pull into their own projects (DESIGN.md, components, tokens), at most ${MAX_MOCKUP_FILES} and ${(MOCKUP_FILES_TOTAL / 1_000_000).toFixed(0)} million characters a version; WhatBuild never uses them to draw a page, so inline what a page needs. Like pages, files when given is the whole set: a path that was on the base keeps its content unless you send it, a path you leave out is dropped, a new path needs content, and [] drops them all; omit files to keep them. ${PROTOTYPE_TEXT} A version published without an upload keeps its base's prototype, and its pages may enter it. from_version: N starts from that earlier version instead of the current one. To keep page HTML out of the call, upload the canvas as a ZIP (request_upload) and pass upload_id: the ZIP gives pages, files and the brief, and the call gives the rest, and the result names from_upload with upload {upload_id, size, sha256}, the ZIP's own bytes as its PUT answered. At most ${MAX_MOCKUP_PAGES} pages, ${(MOCKUP_HTML_TOTAL / 1_000_000).toFixed(0)} million characters of HTML in all, and ${MAX_MOCKUPS} mockups in a product, archived ones included (list gives quota, used and limit). It answers with what you need next, not the canvas you sent: mockup_id, title, current_version and current_version_id, the etag to publish the next version with, based_on_version, page_ids in the canvas's order, url (the canvas in the web app, to give the person), and prototype_warnings when an upload brings a prototype; mockups_read(action="get") reads the version back. ${PAGE_LINKS_TEXT}`,
   input: z.strictObject({
     mockup_id: id("mockup").optional().describe("Omit to create a mockup."),
     title: z.string().trim().min(1).max(200).optional(),
@@ -836,6 +842,9 @@ export const publishMockup = defineOperation({
       await ctx.enqueue("delete_blobs", { keys: [u.blob_key], prefixes: [] });
     }
     const e = await loadMockup(ctx, mockup_id);
+    const published = await ctx.db.selectFrom("mockup_pages").select(["page_id", "html", "entry"]).where("version_id", "=", version_id).execute();
+    const clickable = clickableCanvas(published);
+    const url = linkTemplates(ctx.ports.config.publicBaseUrl, productPathOf(ctx)).mockup.replace("{mockup_id}", e.mockup_id);
     // What a caller needs next, not the canvas it just sent: a version's brief, notes and page
     // details run to tens of thousands of characters, and get reads them back.
     return {
@@ -846,7 +855,8 @@ export const publishMockup = defineOperation({
       etag: e.etag,
       based_on_version: base?.n ?? null,
       page_ids: pages.map((p) => p.page_id),
-      url: linkTemplates(ctx.ports.config.publicBaseUrl, productPathOf(ctx)).mockup.replace("{mockup_id}", e.mockup_id),
+      url,
+      clickable: { ...clickable, ...(clickable.viewable ? { url: `${url}?view=clickable` } : {}) },
       ...(upload ? { from_upload: upload.upload_id, upload } : {}),
       ...(canvas?.prototype ? { prototype_warnings: canvas.prototype.warnings } : {}),
       next: 'Show the person url. mockups_read(action="get") reads the version back: the brief, each page\'s notes, size and hash, the files and the prototype. Publish the next version with this etag.',
@@ -901,7 +911,7 @@ export const getMockupDownload = defineOperation({
   mutates: false,
   summary: "Get a short-lived grant to download one version of a mockup as a ZIP: the brief, each page's HTML and notes, its files, its prototype, and a manifest.",
   description:
-    "Use it to carry a canvas into the project where you build the next version: GET url with the headers, unzip, change the pages, and publish the next version with the pages that changed. The ZIP holds brief.md, manifest.json (format version 2: the version, the pages in order with their titles, sizes and notes and each page's html file or entry and poster, the files, the prototype's files with their size, sha256 and type), pages/<page_id>.html with pages/<page_id>.notes.md, each file the version carries under files/ at its path, ready to copy into your project, and each prototype file under prototype/, byte for byte. The ZIP uploads again as it is (request_upload), and a prototype file whose bytes are unchanged is not stored again. version defaults to the current one. Keep the grant header out of reports and logs.",
+    "Use it to carry a canvas into the project where you build the next version: GET url with the headers, unzip, change the pages, and publish the next version with the pages that changed. The ZIP holds index.html, which a person opens to start at the first page, brief.md, manifest.json (format version 2: the version, the pages in order with their titles, sizes and notes and each page's html file or entry and poster, the files, the prototype's files with their size, sha256 and type), pages/<page_id>.html with pages/<page_id>.notes.md, each file the version carries under files/ at its path, ready to copy into your project, and each prototype file under prototype/, byte for byte. The ZIP uploads again as it is (request_upload), and a prototype file whose bytes are unchanged is not stored again. version defaults to the current one. Keep the grant header out of reports and logs.",
   input: z.strictObject({ mockup_id: id("mockup"), version: z.number().int().min(1).optional() }),
   rest: { method: "POST", path: "/mockups/:mockup_id/downloads" },
   mcp: { tool: "mockups", action: "get_download" },
@@ -1069,6 +1079,7 @@ export async function mockupBundle(db: Tx, versionId: string, blobs: BlobStore) 
   const files: Record<string, Uint8Array> = {
     "brief.md": strToU8(v.brief),
     "manifest.json": strToU8(JSON.stringify(manifest, null, 2) + "\n"),
+    "index.html": strToU8(mockupIndexHtml({ title: v.title, n: v.n }, pages)),
   };
   for (const p of pages) {
     if (p.html !== null) files[`pages/${p.page_id}.html`] = strToU8(p.html);

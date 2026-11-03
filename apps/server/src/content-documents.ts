@@ -7,7 +7,7 @@ import { sql } from "kysely";
 import { requestedHost } from "./canonical-host.ts";
 import type { ServerConfig } from "./config.ts";
 import {
-  cardFront, FALLBACK_HTML_POLICY, findAttachment, findCard, findMockupPage, findSpecimen, findStoryCanvasPage, findStoryVersion, htmlView, isHtmlAttachment, isPdf, printView, storyHtml, storyTheme, streamFile,
+  askedByFrame, cardFront, failedFrame, FALLBACK_HTML_POLICY, findAttachment, findCard, findMockupPage, findSpecimen, findStoryCanvasPage, findStoryVersion, htmlView, isHtmlAttachment, isPdf, printView, storyHtml, storyTheme, streamFile,
 } from "./documents.ts";
 import { logError } from "./telemetry.ts";
 import { requesterMayRead } from "./uploads.ts";
@@ -49,8 +49,11 @@ export function contentDocumentRoutes(env: Env & { config: ServerConfig }) {
   const contentHost = env.config.contentUrl ? new URL(env.config.contentUrl).host.toLowerCase() : null;
   const site = new URL(env.config.publicBaseUrl).origin;
 
+  // To a frame, in a document that says it has loaded, so the app leaves the words on show (failedFrame).
   const say = (c: Context, status: number, text: string) =>
-    c.body(text, status as 404, { "Content-Type": "text/plain; charset=utf-8", "Content-Security-Policy": FALLBACK_HTML_POLICY, "Cache-Control": "private, no-store", "Referrer-Policy": "no-referrer" });
+    askedByFrame(c)
+      ? failedFrame(c, status, text, c.req.query("frame") === "1", site)
+      : c.body(text, status as 404, { "Content-Type": "text/plain; charset=utf-8", "Content-Security-Policy": FALLBACK_HTML_POLICY, "Cache-Control": "private, no-store", "Referrer-Policy": "no-referrer" });
 
   const inTenant = <T>(tenantId: string, fn: (trx: Tx) => Promise<T>) =>
     env.db.transaction().execute(async (trx) => {

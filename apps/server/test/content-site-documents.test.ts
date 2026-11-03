@@ -1,4 +1,5 @@
 import { DOWNLOAD_GRANT_HEADER } from "@whatbuild/core";
+import { readFileSync } from "node:fs";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { HmacGrantSigner } from "../src/adapters/misc.ts";
 import { createApp, createPorts } from "../src/app.ts";
@@ -272,16 +273,46 @@ describe("a document on the content site", () => {
     expect((await open(story.replace(content, h.baseUrl))).status).toBe(404);
   });
 
+  it("tells a frame why it sends nothing in a document of WhatBuild's own, framed by the app alone, which says it has loaded when the app's frame asked", async () => {
+    const story = await addressFor(alice, `${P}/story/pages/overview/versions/1/html?frame=1`);
+    expect(new URL(story).searchParams.get("frame")).toBe("1");
+    const expired = resigned(story, { exp: Math.floor(Date.now() / 1000) - 1 });
+    const app = new URL(h.config.publicBaseUrl).origin;
+    for (const headers of [{ "sec-fetch-dest": "iframe" }, {}] as Record<string, string>[]) {
+      const r = await open(expired, headers);
+      expect(r.status).toBe(401);
+      expect(r.headers.get("content-type")).toMatch(/^text\/html/);
+      expect(r.headers.get("content-security-policy")).toContain(`frame-ancestors ${app}`);
+      const html = await r.text();
+      expect(html).toContain("<p>This address has expired. Open it again in WhatBuild.</p>");
+      expect(html).toContain('<script>addEventListener("load",function(){parent.postMessage({whatbuild:"frame-ready"},"*")})</script>');
+    }
+    // A frame that runs no script, such as an attachment's preview, gets the words alone.
+    const unframed = new URL(expired);
+    unframed.searchParams.delete("frame");
+    const preview = await open(unframed.href, { "sec-fetch-dest": "iframe" });
+    expect(preview.status).toBe(401);
+    expect(await preview.text()).not.toContain("<script");
+    expect(preview.headers.get("content-security-policy")).toMatch(/^sandbox ?; default-src 'none';/);
+  });
+
   it("stops at once for someone removed from the organization, and sends nothing", async () => {
     const held = await Promise.all(kinds().map(async ([what, path]) => [what, await addressFor(bob, path)] as const));
     const bobId = (await bob.api("GET", "/api/v1/me")).body.account_id;
     expect((await alice.api("POST", `${T}/members/revoke`, { account_id: bobId, whole_tenant: true })).status).toBeLessThan(300);
     try {
+      const words = "Whoever requested this grant can no longer read this product. Nothing was sent.";
       for (const [what, address] of held) {
         const r = await open(address);
         expect(r.status, what).toBe(403);
-        expect(r.headers.get("content-type"), what).toBe("text/plain; charset=utf-8");
-        expect(await r.text(), what).toBe("Whoever requested this grant can no longer read this product. Nothing was sent.");
+        // The app's frame asked for these, so the words come in a document that says it has loaded.
+        if (new URL(address).searchParams.get("frame") === "1") {
+          expect(r.headers.get("content-type"), what).toMatch(/^text\/html/);
+          expect(await r.text(), what).toContain(`<p>${words}</p>`);
+        } else {
+          expect(r.headers.get("content-type"), what).toBe("text/plain; charset=utf-8");
+          expect(await r.text(), what).toBe(words);
+        }
       }
     } finally {
       expect((await alice.api("POST", `${T}/members`, { email: "bob@example.com", role: "editor", team })).status).toBeLessThan(300);
@@ -378,6 +409,13 @@ describe("the app's pages", () => {
     expect(csp).toContain(`frame-src 'self' ${content}/prototypes/ ${content}/documents/;`);
     expect(csp).toMatch(/(^|; )style-src 'self' https:\/\/fonts\.googleapis\.com;/);
     expect(csp).not.toContain("'unsafe-inline'");
+  });
+
+  it("are let frame the same by the dev server as by a deployment without a content site, so a frame sent to another site is refused there too", async () => {
+    const { PAGE_SECURITY_HEADERS } = await import("../src/public-routes.ts");
+    const frameSrc = PAGE_SECURITY_HEADERS["Content-Security-Policy"].split("; ").find((d) => d.startsWith("frame-src "));
+    expect(frameSrc).toBe("frame-src 'self'");
+    expect(readFileSync(new URL("../../web/vite.config.ts", import.meta.url), "utf8")).toContain(`headers: { "Content-Security-Policy": "${frameSrc}" }`);
   });
 });
 

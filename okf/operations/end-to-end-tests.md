@@ -26,7 +26,7 @@ with Google Chrome installed. Building the golden master needs a pull of product
 | Piece | What it is |
 |---|---|
 | The golden master | The database `golden` in the instance's own embedded Postgres (`.what-build/e2e/pg`, port `54339`) and its files (`.what-build/e2e/golden-blobs`). It is built once and stays as it is until it is built again. `.what-build/e2e/golden.json` says which pull it was built from, when, at which commit and schema, the three organizations' slugs, every product's path, and that the pull checked an instance owner owns what it took (`owned_by_instance_owners`). |
-| The instance | `pnpm dev:e2e`: the database `e2e`, made fresh from the golden master each time it starts, with its own files (`.what-build/e2e/blobs`), on `http://localhost:5283` (API `:8797`). It runs beside `pnpm dev`. Mail only prints. |
+| The instance | `pnpm dev:e2e`: the database `e2e`, made fresh from the golden master each time it starts, with its own files (`.what-build/e2e/blobs`), on `http://localhost:5283` (API `:8797`). It runs beside `pnpm dev`. Mail only prints. Its web app comes from the dev server, which sends the app's `frame-src` and none of its other page headers: a release's image on the Docker host sends them all. |
 | Plans | `e2e/plans/*.md`, Markdown steps in the product's vocabulary, each saying who acts, through which door, and what to expect. `e2e/plans/README.md` is the format. |
 | The browser driver | `pnpm e2e browser <command>`: a real Chrome kept open by a small daemon between commands, addressed by role, accessible name and label. The daemon listens on 127.0.0.1 and takes a command only with the token it writes to `.what-build/e2e/browser.json`, which only its owner can read, so a web page cannot drive it. |
 | The MCP client | `pnpm e2e mcp <command>`: connects as a sample person through the full OAuth flow and calls tools. |
@@ -180,6 +180,9 @@ The plans:
   sign in, find the invitation and accept or decline it, changes and takes roles, renames and
   deletes it; someone it no longer holds asks for, and starts, their own, where archiving makes no
   room under a total and deleting does.
+- `clickable-prototypes`: a canvas's pages link to each other; the board flies to a linked page, the
+  clickable view changes it in place, and the canvas or a page downloads; an agent learns of it from
+  what it reads, and a hostile page's script stays in the sandbox and cannot fill the browser's history.
 - `exploratory`: open-ended, every screen as each role and as a guest of the example, at phone width and
   in the dark theme.
 
@@ -216,7 +219,7 @@ went wrong in the page since the last command: console errors, uncaught exceptio
 requests, 5xx responses, and a 4xx for a script, style, image or font. A 4xx the app's own
 requests or a page the server writes were answered with (a 403, 404, 409 or 410 the app shows as a
 message) is a line starting with `·`: noted, so a step can see the refusal it expects, and not a
-problem. `wait <text>` and `wait-url <part>` wait for the app after a redirect
+problem. `frame-click` clicks with the real mouse inside a page's sandboxed frame, however far the canvas has scaled it, and `frame-eval` reads inside one. `wait <text>` and `wait-url <part>` wait for the app after a redirect
 or a load. `screenshot` saves into the current run; the app scrolls its own panes, so `--full`
 adds only what the document itself scrolls. `stop` closes it; its log is
 `.what-build/e2e/browser.log`.

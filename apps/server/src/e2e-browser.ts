@@ -37,6 +37,10 @@ const HELP = `pnpm e2e browser <command>   (the browser starts with the first co
                                   search box, its filters), so take the whole page when looking for a way
   click <role> <name>             click an element by role and accessible name (button, link, tab, …)
   click-text <text>               click the element showing this text
+  frame-click <frame> <text>      click, with the real mouse, the link or button showing this text in
+    [--modifier <key>]            the frame titled <frame> (a mockup or Story page), wherever the canvas
+                                  has scaled it; --modifier holds Meta, Shift, Control or Alt
+  frame-eval <frame> <javascript> evaluate an expression inside that frame and print the result
   fill <label> <value>            fill a field by its label
   select <label> <option>         choose an option in a select
   check <label> | uncheck <label> tick or clear a checkbox or radio, and wait until it shows that (a box
@@ -180,6 +184,30 @@ async function daemon(headed: boolean) {
       case "click-text":
         await (await one(page.getByText(need(a, "the text"), { exact: flags.exact }), `the text "${a}"`)).click();
         return `clicked "${a}"`;
+      case "frame-click": {
+        const { handle, frame } = await pageFrame(page, need(a, "a frame's title"));
+        const text = need(b, "the text of a link or button in the frame");
+        // A string: this file compiles for the server, with no document to name.
+        const at = (await frame.evaluate(
+          `(() => { const el = [...document.querySelectorAll("a, button")].find((e) => (e.textContent ?? "").trim().includes(${JSON.stringify(text)})); if (!el) return null; el.scrollIntoView({ block: "nearest" }); const r = el.getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; })()`,
+        )) as { x: number; y: number } | null;
+        if (!at) throw new Error(`No link or button showing "${text}" in the frame "${a}".`);
+        await page.waitForTimeout(150);
+        // Through the canvas's scale, which Playwright's own click in a frame does not allow for.
+        const box = await handle.evaluate((el) => {
+          const r = el.getBoundingClientRect();
+          return { x: r.x, y: r.y, scale: r.width / (el as unknown as { offsetWidth: number }).offsetWidth };
+        });
+        const modifier = valueOf(args, "--modifier");
+        if (modifier) await page.keyboard.down(modifier);
+        await page.mouse.click(box.x + at.x * box.scale, box.y + at.y * box.scale);
+        if (modifier) await page.keyboard.up(modifier);
+        return "";
+      }
+      case "frame-eval": {
+        const { frame } = await pageFrame(page, need(a, "a frame's title"));
+        return JSON.stringify(await frame.evaluate(need(b, "an expression")), null, 2) ?? "undefined";
+      }
       case "fill":
         await (await one(page.getByLabel(need(a, "a label"), { exact: flags.exact }), `the label "${a}"`)).fill(b ?? "");
         return `filled "${a}"`;
@@ -251,6 +279,16 @@ async function daemon(headed: boolean) {
  * sign-in, racing whatever the driver opens next. The storage is cleared on the signed-out sign-in
  * page, whose session check is answered without a refusal.
  */
+/** The visible frame with this title: the page of a canvas or the Story it shows. */
+async function pageFrame(page: Page, title: string) {
+  for (const handle of await page.$$("iframe")) {
+    if ((await handle.getAttribute("title")) !== title || !(await handle.isVisible())) continue;
+    const frame = await handle.contentFrame();
+    if (frame) return { handle, frame };
+  }
+  throw new Error(`No frame titled "${title}" is showing.`);
+}
+
 async function signedOut(page: Page) {
   await page.goto("about:blank");
   await page.context().clearCookies();
@@ -292,7 +330,7 @@ function valuesOf(args: string[], flag: string) {
 }
 
 function positional(args: string[]) {
-  return args.filter((a, i) => !a.startsWith("--") && args[i - 1] !== "--nth" && args[i - 1] !== "--header");
+  return args.filter((a, i) => !a.startsWith("--") && args[i - 1] !== "--nth" && args[i - 1] !== "--header" && args[i - 1] !== "--modifier");
 }
 
 function need(v: string | undefined, what: string): string {
