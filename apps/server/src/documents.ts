@@ -1,5 +1,5 @@
 import {
-  AppError, escapeHtml, houseSpecimen, SOURCE_CARD_FRAME, houseStyle, ideaCardDocument, ideaCardResponseHeaders, MOCKUP_PAGE_RULES, pageResponseHeaders, printResponseHeaders, prototypeNotice, REFUSED_FRAME_SANDBOX, shownHtml, STORY_PAGE_RULES, styleSpecimen,
+  AppError, CARD_FRAMES, escapeHtml, houseSpecimen, SOURCE_CARD_FRAME, houseStyle, ideaCardDocument, ideaCardResponseHeaders, MOCKUP_PAGE_RULES, pageResponseHeaders, printResponseHeaders, prototypeNotice, REFUSED_FRAME_SANDBOX, shownHtml, STORY_PAGE_RULES, styleSpecimen,
   THEME_ATTRIBUTE, withStoryFonts, withStoryFrame, withStoryTheme, type Env, type FileVersionsTable, type Tx,
 } from "@whatbuild/core";
 import type { Context } from "hono";
@@ -110,6 +110,36 @@ export async function findSpecimen(trx: Tx, productId: string, houseId: string |
   }
   const s = await trx.selectFrom("story_styles").select(["name", "stylesheet", "specimen_html"]).where("product_id", "=", productId).executeTakeFirst();
   return s ? styleSpecimen(s) : null;
+}
+
+/**
+ * An agent's preview of a card's front, while it lasts: null once it has expired or newer ones
+ * replaced it. `productId`, when a grant names one, must be the preview's.
+ */
+export async function findCardPreview(trx: Tx, previewId: string, productId?: string) {
+  let q = trx.selectFrom("card_previews").select(["product_id", "kind", "title", "card_html", "expires_at"]).where("preview_id", "=", previewId);
+  if (productId !== undefined) q = q.where("product_id", "=", productId);
+  const p = await q.executeTakeFirst();
+  return p && Date.parse(p.expires_at) >= Date.now() ? p : null;
+}
+
+/** An agent's preview of a Story page, while it lasts, as findCardPreview finds a card's. */
+export async function findStoryPreview(trx: Tx, previewId: string, productId?: string) {
+  let q = trx.selectFrom("story_previews").select(["product_id", "html", "shows_mockup", "expires_at"]).where("preview_id", "=", previewId);
+  if (productId !== undefined) q = q.where("product_id", "=", productId);
+  const p = await q.executeTakeFirst();
+  return p && Date.parse(p.expires_at) >= Date.now() ? p : null;
+}
+
+/** What a preview's GET is told once it has expired or newer ones replaced it. */
+export const PREVIEW_GONE = {
+  card: 'That preview has expired or was replaced by newer ones. Preview again with outcomes_read(action="card_preview"), or derived_read(action="card_preview") for a source\'s card.',
+  story: 'That preview has expired or was replaced by newer ones. Preview again with story_read(action="preview").',
+};
+
+/** A card's front in its preview: an Idea card's with a line where a desktop stops showing it, a source's on its board. */
+export function cardPreviewFront(c: Context, p: { kind: "concept" | "outcome" | "source"; title: string; card_html: string }, theme: "light" | "dark" | undefined, site: string | null) {
+  return cardFront(c, p.card_html, p.title, theme, site, p.kind === "source" ? SOURCE_CARD_ROOM : { limit: CARD_FRAMES[p.kind].max_height });
 }
 
 export type FileVersion = Pick<FileVersionsTable, "file_version_id" | "blob_key" | "size" | "media_type" | "sha256">;

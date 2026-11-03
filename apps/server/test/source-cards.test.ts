@@ -165,7 +165,7 @@ describe("an agent", () => {
     const s = await source("Written by an agent");
     expect((await call("derived_read", "card_guidance", {})).guidance).toContain("Drawing a source's card");
     const preview = await call("derived_read", "card_preview", { record_id: s.record_id, card_html: CARD });
-    expect(preview.preview.url).toContain("/card-preview/");
+    expect(preview.preview.url).toContain(h.config.contentUrl ? "/documents/" : "/card-preview/");
     const written = await call("derived_write", "write_note", { record_id: s.record_id, note_kind: "card", content: CARD });
     expect(written.chars).toBe(CARD.length);
     await client.close();

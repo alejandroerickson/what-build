@@ -7,7 +7,7 @@ import { sql } from "kysely";
 import { requestedHost } from "./canonical-host.ts";
 import type { ServerConfig } from "./config.ts";
 import {
-  askedByFrame, cardFront, failedFrame, FALLBACK_HTML_POLICY, findAttachment, findCard, findSourceCard, SOURCE_CARD_ROOM, findMockupPage, findSpecimen, findStoryCanvasPage, findStoryVersion, htmlView, isHtmlAttachment, isPdf, printView, storyHtml, storyTheme, streamFile,
+  askedByFrame, cardFront, cardPreviewFront, failedFrame, FALLBACK_HTML_POLICY, findAttachment, findCard, findCardPreview, findSourceCard, findStoryPreview, PREVIEW_GONE, SOURCE_CARD_ROOM, findMockupPage, findSpecimen, findStoryCanvasPage, findStoryVersion, htmlView, isHtmlAttachment, isPdf, printView, storyHtml, storyTheme, streamFile,
 } from "./documents.ts";
 import { logError } from "./telemetry.ts";
 import { requesterMayRead } from "./uploads.ts";
@@ -121,6 +121,17 @@ export function contentDocumentRoutes(env: Env & { config: ServerConfig }) {
             return printDocumentAt(ctx, versions);
           });
           return printView(c, html, nonce, site);
+        }
+        // An agent's preview: its own address carries the grant, which the operation gave it.
+        case "card_preview": {
+          const p = await inTenant(tenant, (trx) => findCardPreview(trx, str("cp") ?? "", product));
+          if (!p) throw notFound(PREVIEW_GONE.card);
+          return cardPreviewFront(c, p, theme, site);
+        }
+        case "story_preview": {
+          const p = await inTenant(tenant, (trx) => findStoryPreview(trx, str("sp") ?? "", product));
+          if (!p) throw notFound(PREVIEW_GONE.story);
+          return storyHtml(c, p.html, p.shows_mockup ? undefined : theme, frame, p.shows_mockup, site);
         }
         case "attachment": {
           const found = await inTenant(tenant, (trx) => findAttachment(trx, product, { fileVersionId: str("fv") ?? "" }));

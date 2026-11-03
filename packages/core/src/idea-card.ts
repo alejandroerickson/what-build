@@ -389,7 +389,7 @@ background-repeat:no-repeat;background-size:7px 10px,100% 1.5px;background-posit
 .wb-spectrum>mark{font-weight:600;color:var(--hue-ink)}
 .wb-spectrum>mark::after{top:22px;width:14px;height:14px;margin-left:-7px;background:var(--hue-solid);box-shadow:0 0 0 3px var(--bg)}
 
-/* A loop: stages that repeat, on a ring, clockwise from the top; data-core names what turns. */
+/* A loop: stages that repeat, on a ring, clockwise from the top; data-core names the cycle, never an actor. */
 .wb-loop{position:relative;width:min(100%,300px);aspect-ratio:1;margin:0 auto;padding:0;list-style:none}
 .wb-loop::before{content:"";position:absolute;inset:10%;background:var(--hue-line);-webkit-mask:var(--wb-ring) center/contain no-repeat;mask:var(--wb-ring) center/contain no-repeat}
 .wb-loop[data-core]::after{content:attr(data-core);position:absolute;left:50%;top:50%;translate:-50% -50%;max-width:38%;text-align:center;font-size:13px;font-weight:600;line-height:1.25;color:var(--hue-ink)}
@@ -761,7 +761,7 @@ Shortcuts for common pictures, not a menu to choose from. Every part is a class 
 </div>
 \`\`\`
 
-**Loop** — three to six stages that repeat, on a ring, clockwise from the top; \`data-core\` names what turns. \`is-us\` fills the stage the product owns.
+**Loop** — three to six stages that repeat, on a ring, clockwise from the top; \`data-core\` names the cycle or its rhythm, never a person or an agent: the middle reads as the cycle's name, so who does each stage is said in the stages, or drawn as a picture of its own. \`is-us\` fills the stage the product owns.
 \`\`\`html
 <ol class="wb-loop" data-core="Every week"><li>Plan</li><li class="is-us">Send</li><li>Work</li><li>Adjust</li></ol>
 \`\`\`

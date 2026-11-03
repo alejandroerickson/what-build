@@ -1,12 +1,12 @@
 import {
-  admitRead, admitSend, AppError, capRole, CARD_FRAMES, CARD_PREVIEW_PURPOSE, completeGrant, conflict, DOWNLOAD_GRANT_HEADER, effectiveRole, forbidden, isDocumentPurpose, levelAllows, membershipsFor, mockupBundle, json, MOCKUP_UPLOAD_PURPOSE, notFound,
+  admitRead, admitSend, AppError, capRole, CARD_PREVIEW_PURPOSE, completeGrant, conflict, DOWNLOAD_GRANT_HEADER, effectiveRole, forbidden, isHandedOff, levelAllows, membershipsFor, mockupBundle, json, MOCKUP_UPLOAD_PURPOSE, notFound,
   OPERATIONS, resolveScope, roleAtLeast, STORY_PREVIEW_PURPOSE, toAppError, tooLarge, UPLOAD_GRANT_HEADER, type ActorSnapshot, type ConnectionLevel, type Env, type OpContext, type Principal, type Scope, type Tx,
 } from "@whatbuild/core";
 import { Hono, type Context } from "hono";
 import { sql } from "kysely";
 import type { ServerConfig } from "./config.ts";
 import { requestedHost } from "./canonical-host.ts";
-import { bytesAsked, cardFront, SOURCE_CARD_ROOM, storyHtml, storyTheme, streamFile } from "./documents.ts";
+import { bytesAsked, cardPreviewFront, findCardPreview, findStoryPreview, PREVIEW_GONE, storyHtml, storyTheme, streamFile } from "./documents.ts";
 
 /** A count of bytes as people read it: 10,485,760. */
 const bytes = (n: number) => n.toLocaleString("en-US");
@@ -124,7 +124,8 @@ export async function requesterMayRead(env: Env, claims: Record<string, unknown>
   const resolved = await resolveScope(env.db, principal, "product", op.access, { product: productId }, op.name).catch((e: unknown) => {
     throw e instanceof AppError && (e.status === 403 || e.status === 404) ? noLongerReads() : e;
   });
-  if (!isDocumentPurpose(claims["purpose"])) await admitRead(env, principal, resolved, op.name);
+  // A handed-off document was counted when the app's route handed it off; a preview is counted here.
+  if (!isHandedOff(claims["purpose"])) await admitRead(env, principal, resolved, op.name);
   return { principal, scope: level ? { ...resolved, role: capRole(resolved.role, level) } : resolved };
 }
 
@@ -264,6 +265,11 @@ export function uploadRoutes(env: Env & { config: ServerConfig }) {
     }
   });
 
+  // An agent's previews, under a grant in a header: on a deployment without a content site, where
+  // no address on the app's origin may show an agent's HTML to whoever is given it. With a content
+  // site a preview's url is an address there that carries its grant (content-documents.ts), and
+  // these routes answer there only for grants given before that was so.
+
   // The document story.preview checked: what publish would store, served exactly as a published
   // version is (the same sandbox, typefaces and ?theme), for an agent to look at before publishing.
   app.get("/api/v1/downloads/story-preview/:preview_id", async (c) => {
@@ -273,10 +279,8 @@ export function uploadRoutes(env: Env & { config: ServerConfig }) {
       if (!claims || claims["purpose"] !== STORY_PREVIEW_PURPOSE || claims["sp"] !== c.req.param("preview_id"))
         throw new AppError(401, "invalid_grant", "The preview grant is missing, invalid or expired. Preview again with story_read(action=\"preview\").");
       const theme = storyTheme(c.req.query("theme"));
-      const p = await inTenant(env, String(claims["t"]), (trx) =>
-        trx.selectFrom("story_previews").select(["product_id", "html", "shows_mockup", "expires_at"]).where("preview_id", "=", c.req.param("preview_id")).executeTakeFirst(),
-      );
-      if (!p || Date.parse(p.expires_at) < Date.now()) throw notFound("That preview has expired or was replaced by newer ones. Preview again with story_read(action=\"preview\").");
+      const p = await inTenant(env, String(claims["t"]), (trx) => findStoryPreview(trx, c.req.param("preview_id")));
+      if (!p) throw notFound(PREVIEW_GONE.story);
       await requesterMayRead(env, claims, p.product_id);
       // A Story page in the Story's sandbox (page-sandbox.ts). A mockup page carries its own look, so
       // it takes neither the theme nor the carried typefaces, and keeps a mockup page's sandbox.
@@ -286,9 +290,9 @@ export function uploadRoutes(env: Env & { config: ServerConfig }) {
     }
   });
 
-  // The front outcomes.card_preview checked, in the document the Idea screen shows it in (the same
-  // sandbox, kit and ?theme), with a line where a desktop stops showing it, for an agent to look at
-  // before writing it.
+  // The front card_preview checked, in the document the Idea screen or the Evidence list shows it
+  // in (the same sandbox, kit and ?theme), with a line where a desktop stops showing an Idea card's
+  // front, for an agent to look at before writing it.
   app.get("/api/v1/downloads/card-preview/:preview_id", async (c) => {
     try {
       if (previewsElsewhere(c)) throw notFound(`This deployment serves previews from its content site, ${env.config.contentUrl}: GET the url the preview gave.`);
@@ -296,12 +300,10 @@ export function uploadRoutes(env: Env & { config: ServerConfig }) {
       if (!claims || claims["purpose"] !== CARD_PREVIEW_PURPOSE || claims["cp"] !== c.req.param("preview_id"))
         throw new AppError(401, "invalid_grant", "The preview grant is missing, invalid or expired. Preview again with outcomes_read(action=\"card_preview\"), or derived_read(action=\"card_preview\") for a source's card.");
       const theme = storyTheme(c.req.query("theme"));
-      const p = await inTenant(env, String(claims["t"]), (trx) =>
-        trx.selectFrom("card_previews").select(["product_id", "kind", "title", "card_html", "expires_at"]).where("preview_id", "=", c.req.param("preview_id")).executeTakeFirst(),
-      );
-      if (!p || Date.parse(p.expires_at) < Date.now()) throw notFound("That preview has expired or was replaced by newer ones. Preview again with outcomes_read(action=\"card_preview\").");
+      const p = await inTenant(env, String(claims["t"]), (trx) => findCardPreview(trx, c.req.param("preview_id")));
+      if (!p) throw notFound(PREVIEW_GONE.card);
       await requesterMayRead(env, claims, p.product_id);
-      return cardFront(c, p.card_html, p.title, theme, site, p.kind === "source" ? SOURCE_CARD_ROOM : { limit: CARD_FRAMES[p.kind].max_height });
+      return cardPreviewFront(c, p, theme, site);
     } catch (e) {
       return fail(c, e);
     }

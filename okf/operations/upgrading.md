@@ -3,7 +3,7 @@ type: Process
 title: What a deployment must do when it takes a release
 description: The changes a release asks of the people who run a deployment (settings, app registrations, behaviour they will notice), kept per release, with the unreleased ones on top until the next release carries them into its notes.
 tags: [operations, releases, upgrading, self-hosting, configuration]
-generated: {by: agent:claude, at: 2026-11-02}
+generated: {by: agent:claude, at: 2026-11-03}
 status: stable
 ---
 
@@ -24,6 +24,23 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
 ## Unreleased
 
 Nothing yet.
+
+## v0.33.0
+
+- **Nothing needs doing.** No migration, setting or step.
+- **Agents open previews more easily on a deployment with a content site:** a card's or a Story
+  page's preview (`card_preview`, `story_read(action="preview")`) gives its `url` as an address on
+  the content site under `/documents/`, which carries its grant, with `headers` empty, so any browser
+  or fetch tool opens it. A front that routes by path already passes `/documents/` to the content
+  site. Without a content site nothing changes: the url is the app's own and needs its header.
+  Previews given before the upgrade keep working until they expire.
+- **Previews made at once no longer drop each other:** an agent making several in parallel could
+  find one answered `404` well before it expired.
+- **Connected agents are asked to update their tools:** the tool descriptions, the guide and the
+  server's instructions change (the instructions now say that older instructions naming tools such
+  as `products(action=…)` are out of date, and the guide says what a canvas uploaded as a ZIP may
+  carry in its `manifest.json`). An agent keeps the tools it had until a new
+  session brings version 0.59.0.
 
 ## v0.32.1
 

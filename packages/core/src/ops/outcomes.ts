@@ -10,7 +10,7 @@ import { defineOperation, type OpContext } from "../registry.ts";
 import { expectedEtag, id } from "../schemas.ts";
 import { likeContaining, newEtag, newId } from "../util.ts";
 import { adviseIdeaCard, CARD_FRAMES, CARD_GUIDANCE, CARD_HTML_MAX, CARD_ICON_NAMES, checkCardSides, checkIdeaCard } from "../idea-card.ts";
-import { DOWNLOAD_GRANT_HEADER, requesterClaims } from "./attachments.ts";
+import { makeRoomForPreview, openThePreview, PREVIEW_OPENING, PREVIEW_SECRET, previewGrant } from "../previews.ts";
 
 type Row = Selectable<OutcomesTable>;
 
@@ -388,27 +388,14 @@ export function refuseCardPreview(ctx: OpContext, name: string) {
  * the document the app shows it in, and sign that grant. A product keeps only its newest previews.
  */
 export async function keepCardPreview(ctx: OpContext, card: { kind: "concept" | "outcome" | "source"; title: string; card_html: string }) {
-  const pid = productId(ctx);
-  // A preview lives as long as its grant, and a product keeps only its newest ones.
-  const kept = await ctx.db.selectFrom("card_previews").select("preview_id").where("product_id", "=", pid).where("expires_at", ">", ctx.now).orderBy("created_at", "desc").orderBy("preview_id", "desc").limit(CARD_PREVIEWS_KEPT - 1).execute();
-  let drop = ctx.db.deleteFrom("card_previews").where("product_id", "=", pid);
-  if (kept.length) drop = drop.where("preview_id", "not in", kept.map((k) => k.preview_id));
-  await drop.execute();
+  await makeRoomForPreview(ctx, "card", CARD_PREVIEWS_KEPT);
   const preview_id = newId();
   const expiresAt = new Date(Date.parse(ctx.now) + ctx.ports.config.grantTtlSeconds * 1000);
   await ctx.db
     .insertInto("card_previews")
-    .values({ preview_id, tenant_id: tenantId(ctx), product_id: pid, kind: card.kind, title: card.title, card_html: card.card_html, created_by: json(ctx.actor), expires_at: expiresAt.toISOString(), created_at: ctx.now })
+    .values({ preview_id, tenant_id: tenantId(ctx), product_id: productId(ctx), kind: card.kind, title: card.title, card_html: card.card_html, created_by: json(ctx.actor), expires_at: expiresAt.toISOString(), created_at: ctx.now })
     .execute();
-  const token = ctx.ports.grants.sign({ v: 1, purpose: CARD_PREVIEW_PURPOSE, t: tenantId(ctx), cp: preview_id, ...requesterClaims(ctx.principal), exp: Math.floor(expiresAt.getTime() / 1000) });
-  return {
-    preview_id,
-    method: "GET",
-    // On the content site when the deployment has one, as every document of people's HTML is.
-    url: `${ctx.ports.config.contentBaseUrl ?? ctx.ports.config.publicBaseUrl}/api/v1/downloads/card-preview/${preview_id}`,
-    headers: { [DOWNLOAD_GRANT_HEADER]: token },
-    expires_at: expiresAt.toISOString(),
-  };
+  return previewGrant(ctx, "card", preview_id, expiresAt);
 }
 
 export const outcomeCardPreview = defineOperation({
@@ -420,9 +407,9 @@ export const outcomeCardPreview = defineOperation({
   description:
     "Send the front you mean to write (card_html), for an outcome or the product concept (kind), with the title and the back it goes with when you have them, for their advice. " +
     "preview refuses what a write would refuse (422 invalid_card, listing every problem; outcome_cites_a_record) and writes nothing anyone sees. Otherwise it returns card_advice, frame (the widths the front is shown at and the most height a desktop shows) and a grant: " +
-    "GET url with exactly the headers given to receive the front in the document the Idea screen shows it in, with a dashed line where a desktop stops showing it and a note on it saying how tall the front is and whether it fits. " +
-    "Open it in a browser or a headless one (Playwright: new_context(extra_http_headers=headers, viewport=…)) at the frame's width and at 390 wide, adding ?theme=light and ?theme=dark, and look at each: nothing below the line, nothing running into anything else. A phone shows the whole front, so the line applies to the desktop width only. " +
-    `The grant expires (expires_at) and a product keeps its ${CARD_PREVIEWS_KEPT} newest card previews; preview again for a new one. Keep the grant header out of reports and logs.`,
+    "url gives the front in the document the Idea screen shows it in, with a dashed line where a desktop stops showing it and a note on it saying how tall the front is and whether it fits. " +
+    `${PREVIEW_OPENING} Open it at the frame's width and at 390 wide, adding ?theme=light and ?theme=dark, and look at each: nothing below the line, nothing running into anything else. A phone shows the whole front, so the line applies to the desktop width only. ` +
+    `The grant expires (expires_at) and a product keeps its ${CARD_PREVIEWS_KEPT} newest card previews; preview again for a new one. ${PREVIEW_SECRET}`,
   input: z.strictObject({
     kind: z.enum(["outcome", "concept"]).default("outcome").describe("Whose front: an outcome's, or the product concept's."),
     card_html: z.string().trim().min(1).max(CARD_HTML_MAX).describe("The front, as you would write it."),
@@ -446,7 +433,7 @@ export const outcomeCardPreview = defineOperation({
       frame,
       written: false,
       preview,
-      next: `GET url with these headers in a browser ${frame.width} and 390 wide, adding ?theme=light and ?theme=dark: at ${frame.width} the front ends above the dashed line, and nothing runs into anything else at either width. Cover the words: if the picture alone no longer says what the card must, draw it again. Then write it, with its back. Keep the grant header out of reports and logs.`,
+      next: `${openThePreview(preview)} in a browser ${frame.width} and 390 wide, adding ?theme=light and ?theme=dark: at ${frame.width} the front ends above the dashed line, and nothing runs into anything else at either width. Cover the words: if the picture alone no longer says what the card must, draw it again. Then write it, with its back. ${PREVIEW_SECRET}`,
     };
   },
 });

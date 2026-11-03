@@ -3,7 +3,7 @@ type: System Concept
 title: WhatBuild keeps each organization's material to its own people, and treats agent-written HTML, uploads and source text as hostile
 description: The threat model: what is protected, who the attackers are, the trust boundaries, and each control with where it lives in code and the decision that governs it.
 tags: [security, threat-model, tenancy, identity, oauth, example, limits, uploads]
-generated: {by: agent:claude, at: 2026-11-02}
+generated: {by: agent:claude, at: 2026-11-03}
 status: draft
 ---
 
@@ -282,9 +282,13 @@ Four things keep a tab from hearing what it may not know, each holding if anothe
 - A Story preview (`story.preview`) is checked by the same code as a publish and served by the
   same function as a version's HTML (`storyHtml` in `apps/server/src/documents.ts`), in the same
   sandbox, so nothing reaches a browser through a preview that publishing would refuse. Its
-  document opens only under a download grant of its own purpose (`story_preview`), never with a
+  document opens only under a grant of its own purpose (`story_preview`), never with a
   session, lives no longer than the grant, and is served from the content site when there is one
-  ([decision](../decisions/a-story-preview-is-the-document-publish-would-store.md)).
+  ([decision](../decisions/a-story-preview-is-the-document-publish-would-store.md)). There its
+  address carries the grant, as every document's does, so it needs no header; on the app's origin
+  the grant stays in a header, so no address there shows an agent's HTML to whoever is given it
+  ([decision](../decisions/on-a-content-site-a-preview-opens-at-an-address-that-carries-its-grant.md)).
+  A card's preview is given and served the same way (`card_preview`).
 - A page in a frame can post `frame-active`, which the frame script sends at most every half minute so
   that reading in a frame counts as using the tab. A page sending it falsely gains only that a tab in
   view goes on listening for changes, within the limits of [live updates](#controls), which cost the
