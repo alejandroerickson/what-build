@@ -46,7 +46,7 @@ single-file HTML export (a multi-file prototype cannot be flattened into one doc
   A script gets a few steps for each thing a person does, and someone clicking faster than that gets
   one step for the run. This holds for every message a frame can send, on the canvas and on the Story
   (`apps/web/src/routes/page-moves.ts`). A page navigating its own frame is the browser's doing, and it
-  does not hold for that.
+  does not hold for that (below).
 
 ## Consequences
 
@@ -55,6 +55,11 @@ single-file HTML export (a multi-file prototype cannot be flattened into one doc
 - A `?query` does not reach the next page, and browser storage stays unavailable.
 - A link only a script follows does not move the canvas; publish's `clickable` counts addresses it
   finds in a page's HTML.
+- A page that navigates its own frame (`location.href`, or a fragment) adds a step for Back each time,
+  with no one clicking: the browser keeps a frame's history with the tab's, and the app cannot refuse
+  it. Back then walks through steps that change nothing to be seen before it leaves the screen. A page
+  that loads another address is put back a bounded number of times a minute, which bounds that only
+  loosely. The maintainer accepted this on 2026-11-02 as a limit of showing pages in frames.
 
 ## Constrains
 
