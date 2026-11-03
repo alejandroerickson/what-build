@@ -41,6 +41,10 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
   editor. Connected agents are asked to update their tools.
 - **Bytes of a direct upload nobody completed are now deleted**, a day after their grant expires. A
   deployment does nothing. Bytes left by an upload whose grant has already gone stay in the bucket.
+- **A mockup's screen changes, and nothing needs doing.** Its inspector loses the page picker and Fit
+  and Fill: the toolbar has them. **Download version N** is now **Download as ZIP**, and the ZIP holds
+  an `index.html`. Agents that stay connected keep the tools they had until a new session brings
+  version 0.57.0, which tells them about links between pages.
 
 ## v0.30.0
 

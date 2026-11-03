@@ -271,6 +271,17 @@ export function restRoutes(env: Env & { config: ServerConfig }) {
       const pageId = c.req.param("page_id")!;
       const p = await inTenant(scope, (trx) => findMockupPage(trx, productId, { mockupId: c.req.param("mockup_id")!, n: Number(c.req.param("version")) }, pageId));
       if (!p) throw new AppError(404, "not_found", "No such mockup page.");
+      // To save, not to show: from the app's own address, so a page's bytes reach the person without a hand-off, and never rendered here.
+      if (c.req.query("download") === "1") {
+        await admitSend(env, principal, scope, Buffer.byteLength(p.html));
+        return c.body(p.html, 200, {
+          "Content-Type": "text/html; charset=utf-8",
+          "Content-Disposition": `attachment; filename="${pageId}.html"`,
+          "Content-Security-Policy": "sandbox",
+          "X-Content-Type-Options": "nosniff",
+          "Cache-Control": "no-store",
+        });
+      }
       if (site) return handOff(c, env, principal, scope, { purpose: "mockup_page", xv: p.version_id, pg: pageId }, "page.html");
       return storyHtml(c, p.html, undefined, c.req.query("frame") === "1", true);
     } catch (e) {

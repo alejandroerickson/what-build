@@ -73,6 +73,7 @@ describe("mockups", () => {
       based_on_version: null,
       page_ids: ["grid", "timeline"],
       url: `${h.baseUrl}/t/${P.replace("/api/v1/p/", "")}/exploration/mockups/${id}`,
+      clickable: { viewable: false, links_between_pages: 0, broken: [], how: expect.stringContaining("page_id.html") },
       next: expect.stringContaining('mockups_read(action="get")'),
     });
     expect(r.headers.get("etag")).toBe(`"${etag}"`);
@@ -146,7 +147,7 @@ describe("mockups", () => {
     expect(res.status).toBe(200);
     expect(res.headers.get("content-type")).toBe("application/zip");
     const files = unzipSync(new Uint8Array(await res.arrayBuffer()));
-    expect(Object.keys(files).sort()).toEqual(["brief.md", "manifest.json", "pages/cards.html", "pages/cards.notes.md", "pages/grid.html", "pages/grid.notes.md", "pages/timeline.html", "pages/timeline.notes.md"]);
+    expect(Object.keys(files).sort()).toEqual(["brief.md", "index.html", "manifest.json", "pages/cards.html", "pages/cards.notes.md", "pages/grid.html", "pages/grid.notes.md", "pages/timeline.html", "pages/timeline.notes.md"]);
     const manifest = JSON.parse(strFromU8(files["manifest.json"]!));
     expect(manifest).toMatchObject({ format: "whatbuild-mockup", version: 2, columns: 3 });
     expect(manifest.pages.map((p: { page_id: string }) => p.page_id)).toEqual(["timeline", "cards", "grid"]);

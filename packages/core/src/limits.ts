@@ -491,7 +491,7 @@ function storageFull(lc: LimitContext) {
   return overTotal(lc, "storage_max_bytes", max, "bytes", `This organization's plan keeps ${sizeWords(max)}, and it is full.`);
 }
 
-const sizeWords = (n: number) => (n >= 1024 * MiB ? `${+(n / (1024 * MiB)).toFixed(1)} GB` : `${+(n / MiB).toFixed(1)} MB`);
+const sizeWords = (n: number) => (n >= 1024 * MiB ? `${+(n / (1024 * MiB)).toFixed(1)} GB` : n >= MiB / 10 || n === 0 ? `${+(n / MiB).toFixed(1)} MB` : `${Math.ceil(n / 1024)} KB`);
 
 /**
  * The totals of the organization's plan: refused when the call would take the organization past

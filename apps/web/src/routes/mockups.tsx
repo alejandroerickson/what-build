@@ -1,3 +1,4 @@
+import { OUTSIDE_THE_SANDBOX } from "@whatbuild/core/page-sandbox";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useState } from "react";
 import { Link, Navigate, useNavigate, useParams, useSearchParams } from "react-router";
@@ -7,11 +8,12 @@ import { Markdown } from "../lib/markdown.tsx";
 import { useHeldUpdate } from "../lib/live.tsx";
 import { useProduct } from "../lib/session.tsx";
 import { Inspector, usePageTitle } from "../shell/slots.tsx";
-import { Button, ButtonLink, Callout, Crumbs, Dialog, EmptyState, ErrorCallout, Glyph, Group, KeyValue, Loading, Menu, MenuRadio, OneLine, TextField, useToast, tooLong } from "../ui/index.tsx";
+import { Button, ButtonLink, Callout, Crumbs, Dialog, EmptyState, ErrorCallout, Glyph, Group, KeyValue, Loading, Menu, MenuRadio, Segmented, TextField, useToast, tooLong } from "../ui/index.tsx";
 import { DeleteDialog } from "./delete-dialog.tsx";
 import { FirstUse } from "./first-use.tsx";
 import { Canvas, pageAddress, usePinnedPrototype, type CanvasPage, type CanvasVersion, type PrototypeAddress } from "./mockup-canvas.tsx";
-import { usePageView, type PageView } from "./story-flip.tsx";
+import { usePageView } from "./story-flip.tsx";
+import { backSteps } from "./page-moves.ts";
 import { FocusToggle, useStoryFocus } from "./story-focus.tsx";
 import type { Actor } from "./story-model.ts";
 
@@ -20,9 +22,25 @@ const STORY_TITLE_MAX = 200;
 
 /**
  * Mockups: canvases of agent-made HTML pages in Exploration. The panel lists them; one opens as
- * a canvas the width of the window (mockup-canvas.tsx). The inspector holds the version, the
- * selected page's notes and the brief.
+ * a canvas the width of the window (mockup-canvas.tsx), or one page at a time as a clickable
+ * prototype. The inspector holds how to view it, the version and its download, the selected page's
+ * notes, and the brief.
  */
+
+/** Saves a download as a file, under the name the server gives it, or throws what the server said was wrong. */
+async function saveResponse(res: Response, fallback: string) {
+  if (!res.ok) {
+    const said = (await res.json().catch(() => null)) as { error?: { message?: string } } | null;
+    throw new Error(said?.error?.message ?? `The download failed (${res.status}).`);
+  }
+  const name = /filename="([^"]+)"/.exec(res.headers.get("content-disposition") ?? "")?.[1] ?? fallback;
+  const url = URL.createObjectURL(await res.blob());
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = name;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
 
 export interface MockupSummary {
   mockup_id: string;
@@ -52,6 +70,7 @@ interface MockupVersion extends CanvasVersion {
   /** Text files the version carries for collaborators: never used to draw a page. */
   files: MockupFile[];
   prototype?: PrototypeInfo | null;
+  clickable: { viewable: boolean };
   published_at: string;
   published_by: Actor;
 }
@@ -122,39 +141,35 @@ export function MockupsIndex() {
 
 // ---- The inspector ------------------------------------------------------------------------------
 
-function MockupInspector({ e, shown, versions, onVersion, selected, onSelect, pageView, onShow }: {
+function MockupInspector({ e, shown, versions, onVersion, selected, clickable, onView }: {
   e: MockupView;
   shown: MockupVersion;
   versions: VersionItem[] | undefined;
   onVersion: (n: number) => void;
   selected: string | null;
-  onSelect: (pageId: string | null) => void;
-  pageView: PageView;
-  /** Shows the selected page fitted or filling the width, as 2 and 3 do. */
-  onShow: (how: PageView) => void;
+  clickable: boolean;
+  onView: (clickable: boolean) => void;
 }) {
-  const { api: base, canDelete } = useProduct();
+  const { api: base, canDelete, canWrite } = useProduct();
   const toast = useToast();
   const [downloading, setDownloading] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const isCurrent = shown.version === e.current_version;
   const numbered = isCurrent ? `${shown.version}, current` : `${shown.version} of ${e.current_version}`;
-  const index = shown.pages.findIndex((p) => p.page_id === selected);
-  const page = index >= 0 ? shown.pages[index]! : null;
+  const page = shown.pages.find((p) => p.page_id === selected) ?? null;
+  const askForLinks = () =>
+    navigator.clipboard
+      .writeText(`In WhatBuild, link the pages of the mockup “${e.title}” into a clickable prototype.`)
+      .then(() => toast("Copied. Paste it to your agent."))
+      .catch(() => toast("Couldn’t copy. Ask your agent to link the pages of this mockup.", { tone: "negative" }));
 
   const download = async () => {
+    if (downloading) return;
     setDownloading(true);
     try {
       const g = await api<{ url: string; headers: Record<string, string> }>("POST", `${base}/mockups/${e.mockup_id}/downloads`, { version: shown.version });
-      const res = await fetch(g.url, { headers: g.headers });
-      if (!res.ok) throw new Error(`The download failed (${res.status}).`);
-      const name = /filename="([^"]+)"/.exec(res.headers.get("content-disposition") ?? "")?.[1] ?? `mockup-v${shown.version}.zip`;
-      const url = URL.createObjectURL(await res.blob());
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = name;
-      a.click();
-      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      await saveResponse(await fetch(g.url, { headers: g.headers }), `mockup-v${shown.version}.zip`);
+      toast(OUTSIDE_THE_SANDBOX);
     } catch (err) {
       toast(err instanceof Error ? err.message : "The download failed.", { tone: "negative" });
     } finally {
@@ -164,6 +179,30 @@ function MockupInspector({ e, shown, versions, onVersion, selected, onSelect, pa
 
   return (
     <div className="story-inspector xc-inspector">
+      {shown.pages.length > 1 ? (
+        <Group title="View">
+          <Segmented
+            label="View"
+            equal
+            value={clickable ? "clickable" : "canvas"}
+            onChange={(v) => onView(v === "clickable")}
+            items={[
+              { id: "canvas", label: "Canvas" },
+              { id: "clickable", label: "Clickable prototype", disabled: !shown.clickable.viewable },
+            ]}
+          />
+          {shown.clickable.viewable ? null : (
+            <>
+              <p className="xc-hint">These pages don’t link to each other yet.</p>
+              {canWrite ? (
+                <Button size="sm" icon="copy" className="xc-ask-links" onClick={askForLinks}>
+                  Copy a request for your agent
+                </Button>
+              ) : null}
+            </>
+          )}
+        </Group>
+      ) : null}
       <Group title="Version">
         <KeyValue
           items={[
@@ -206,8 +245,9 @@ function MockupInspector({ e, shown, versions, onVersion, selected, onSelect, pa
           ]}
         />
         <OnTheStory mockup={e} shown={shown} page={null} />
-        <Button size="sm" icon="download" className="story-export-button" onClick={download} disabled={downloading}>
-          {downloading ? "Preparing…" : `Download version ${shown.version}`}
+        {/* Not disabled while it prepares: that would drop the keyboard's focus to the page. */}
+        <Button size="sm" icon="download" className="story-export-button" onClick={download} aria-disabled={downloading || undefined}>
+          {downloading ? "Preparing…" : "Download as ZIP"}
         </Button>
         {canDelete ? (
           <Button size="sm" variant="quiet" icon="trash" className="story-delete-button" onClick={() => setDeleting(true)}>
@@ -217,58 +257,21 @@ function MockupInspector({ e, shown, versions, onVersion, selected, onSelect, pa
         {deleting ? <DeleteMockup mockup={e} onClose={() => setDeleting(false)} /> : null}
       </Group>
 
-      <Group title="Page">
-        <div className="xc-page-pick">
-          <Menu
-            label={page ? `Page ${index + 1}, ${page.title}. Choose a page` : "Choose a page"}
-            triggerClassName="field-button xc-page-trigger"
-            align="start"
-            minWidth={240}
-            trigger={
-              <>
-                {page ? (
-                  <span className="xc-page-name grow">
-                    <span className="num faint">{index + 1}{"\u00a0"}</span>
-                    <OneLine text={page.title} />
-                  </span>
-                ) : (
-                  <span className="ellipsis grow">
-                    <span className="faint">Choose a page</span>
-                  </span>
-                )}
-                <Glyph name="chevron-down" size="sm" />
-              </>
-            }
-          >
-            {shown.pages.map((p, i) => (
-              <MenuRadio key={p.page_id} checked={p.page_id === selected} meta={`${p.width} × ${p.height}`} onSelect={() => onSelect(p.page_id)}>
-                {i + 1}. {p.title}
-              </MenuRadio>
-            ))}
-          </Menu>
-          <Button size="sm" icon="scan" onClick={() => onShow("fit")} disabled={!page} aria-pressed={pageView === "fit"} title="Fit to the screen (2)">
-            Fit
-          </Button>
-          <Button size="sm" icon="move-horizontal" onClick={() => onShow("fill")} disabled={!page} aria-pressed={pageView === "fill"} title="Fill the width, to scroll through the page (3)">
-            Fill
-          </Button>
-        </div>
-        {page?.entry ? (
-          <p className="xc-entry">
-            Enters the prototype at <code className="ellipsis" title={page.entry}>{page.entry}</code>
-          </p>
-        ) : null}
-        {page ? <OnTheStory mockup={e} shown={shown} page={page} /> : null}
-        {page ? (
-          page.notes.trim() ? (
+      {page ? (
+        <Group title={page.title}>
+          {page.entry ? (
+            <p className="xc-entry">
+              Enters the prototype at <code className="ellipsis" title={page.entry}>{page.entry}</code>
+            </p>
+          ) : null}
+          <OnTheStory mockup={e} shown={shown} page={page} />
+          {page.notes.trim() ? (
             <Markdown source={page.notes} className="prose story-notes xc-notes" headingShift={3} />
           ) : (
             <EmptyState size="inline">No notes on this page.</EmptyState>
-          )
-        ) : (
-          <p className="xc-hint">Select a page to read its notes.</p>
-        )}
-      </Group>
+          )}
+        </Group>
+      ) : null}
 
       <Group title="Brief">
         {shown.brief.trim() ? (
@@ -466,21 +469,43 @@ export function MockupPage() {
   usePageTitle(e.data?.title ?? null);
   // The selected page lives in the URL (?page=), so a link can open a canvas at one page.
   const selected = params.get("page");
-  const [showRequest, setShowRequest] = useState(0);
   // Fit (2) or fill (3): how the arrows and the inspector show a page, remembered in this browser.
   const [pageView, setPageView] = usePageView("whatbuild.mockup.page-view", "fit");
   const mockups = useMockupList();
+  const toast = useToast();
+
+  const shown = wantsOld ? old.data : e.data?.current;
+  // Viewed as a clickable prototype (?view=clickable), when this version can be: one page at a time, starting at the first.
+  const clickable = params.get("view") === "clickable" && Boolean(shown?.clickable.viewable);
+  const shownPage = shown?.pages.some((p) => p.page_id === selected) ? selected : clickable ? (shown?.pages[0]?.page_id ?? null) : null;
   const select = useCallback(
-    (pageId: string | null) => {
+    (pageId: string | null, options?: { step: boolean }) => {
       const next = new URLSearchParams(params);
       if (pageId) next.set("page", pageId);
       else next.delete("page");
-      setParams(next, { replace: true });
+      setParams(next, { replace: !options?.step });
     },
     [params, setParams],
   );
-
-  const shown = wantsOld ? old.data : e.data?.current;
+  const [mayStep] = useState(() => backSteps());
+  // Everything a page can ask for that moves between pages passes this, its keys too.
+  const stepTo = useCallback((pageId: string | null) => select(pageId, { step: mayStep() }), [select, mayStep]);
+  const onView = (toClickable: boolean) => {
+    const next = new URLSearchParams(params);
+    if (toClickable) {
+      next.set("view", "clickable");
+      if (shownPage ?? shown?.pages[0]) next.set("page", shownPage ?? shown!.pages[0]!.page_id);
+    } else next.delete("view");
+    setParams(next);
+  };
+  const downloadPage = async (p: CanvasPage) => {
+    try {
+      await saveResponse(await fetch(`${base}/mockups/${mockupId}/versions/${shown!.version}/pages/${p.page_id}/html?download=1`), `${p.page_id}.html`);
+      toast(OUTSIDE_THE_SANDBOX);
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "The download failed.", { tone: "negative" });
+    }
+  };
   const pinned = usePinnedPrototype(shown, () => {
     void e.refetch();
     if (wantsOld) void old.refetch();
@@ -571,29 +596,24 @@ export function MockupPage() {
           key={shown.version}
           version={shown}
           pageSrc={(p) => pageAddress(p, shown, pinned, `${base}/mockups/${x.mockup_id}/versions/${shown.version}/pages/${p.page_id}/html`)}
-          selected={shown.pages.some((p) => p.page_id === selected) ? selected : null}
-          onSelect={select}
+          selected={shownPage}
+          onSelect={clickable ? stepTo : select}
           onKey={focusMode.onKey}
           canFocus={focusMode.available}
           pageView={pageView}
           onPageView={setPageView}
-          showRequest={showRequest}
+          clickable={clickable}
+          onFollow={stepTo}
+          onDownloadPage={downloadPage}
         /> : <Loading variant="lines" />}
       <Inspector title={x.title}>{shown ? <MockupInspector
             e={x}
             shown={shown}
             versions={versions.data?.items}
             onVersion={onVersion}
-            selected={shown.pages.some((p) => p.page_id === selected) ? selected : null}
-            onSelect={(id) => {
-              select(id);
-              setShowRequest((n) => n + 1);
-            }}
-            pageView={pageView}
-            onShow={(how) => {
-              setPageView(how);
-              setShowRequest((n) => n + 1);
-            }}
+            selected={shownPage}
+            clickable={clickable}
+            onView={onView}
           /> : <Loading variant="lines" />}</Inspector>
     </div>
   );

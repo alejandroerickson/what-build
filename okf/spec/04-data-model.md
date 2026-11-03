@@ -740,7 +740,9 @@ side by side), each with design notes, and a brief that says what the canvas exp
 the whole canvas: `version` (1, 2, 3…), `title`, `summary`, `brief` (Markdown, ≤ 50,000: what the
 canvas explores, for whom, the questions it should answer, what each page tries), `columns` (1–12
 pages side by side before the canvas wraps, or null for one row), the `pages` in order, the
-`files` it carries, its `prototype` if it carries one, `published_at` and `published_by`. The
+`files` it carries, its `prototype` if it carries one, `published_at` and `published_by`, and,
+computed on read, `clickable { viewable, links_between_pages, broken, how? }`: whether people can
+view it as a clickable prototype, read from its pages' links ([decision](../decisions/a-canvas-whose-pages-link-is-viewed-as-a-clickable-prototype.md)). The
 database keeps each page's words beside its HTML for search ([§8.3](08-search.md)), in no answer and
 no export. A
 page:

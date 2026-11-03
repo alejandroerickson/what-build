@@ -729,11 +729,29 @@ restores one. Its writes are promoting a page to the Story, and, for a product's
   person moves it. From then on its pages stay where they are on the screen when the board's edges
   move, as they do when a panel hides or shows and when focus mode begins or ends.
 - **Labels.** Above each page, drawn at screen size so it reads at any zoom: its number, its title,
-  its size, and a button that fits that page to the window. A narrow label drops the size, then
-  the title, then, where it would run into the next page's label, the fit button. Whatever it has
+  its size, a button that fits that page to the window, and one that downloads that page's HTML (a
+  page that enters a prototype has none to give). A narrow label drops the size, then
+  the title, then, where it would run into the next page's label, the buttons. Whatever it has
   room to show, its button is named for the page's title. The gap between rows scales with the zoom
   and a label does not, so at a low zoom a label lies over the bottom of a taller page above it,
   where it keeps the board's tone so that it reads on a page of any colour, in either theme.
+- **Links between pages** ([decision](../decisions/a-canvas-whose-pages-link-is-viewed-as-a-clickable-prototype.md)). A page links to another with `<a href="checkout.html">`,
+  the other page's `page_id`. In interact mode a click flies the view to that page and selects it;
+  the page clicked stays as it was, and the browser's Back returns. A link to a page the canvas does
+  not hold goes nowhere and a toast says so, in the app's words and never the page's, at most every
+  few seconds. A click a page handled itself is left alone, and one with a modifier key does what a
+  plain click does, since a new tab has no address for another page of a canvas. A link to a document of the version's prototype that another canvas page enters
+  moves to that page; any other link within the prototype stays in its frame.
+- **Viewed as a clickable prototype** (`?view=clickable`, chosen under **View** in the inspector). One
+  page at a time on the plain board, at its own size or smaller, in interact mode, with no labels or
+  outline. The others fade as the view glides to the page, and back again on the way out. A link,
+  the arrows and the page menu change the page in place and open it afresh, as a link to a file in a
+  folder does. A page's request moves nothing unless a person did something moments ago, and then at
+  most four times a second, since each opening spends one of the person's calls. A move is a step the
+  browser's Back returns from at most once a second; otherwise it moves without one. The same holds on
+  the board and for every page on the Story, for links and for keys a frame passes on. It starts at the selected page, or the first. The toolbar keeps fit, fill,
+  the arrows, the page menu and the list of keys. A version whose pages do not link ignores the
+  address's `view`.
 - **Pan and interact.** A toolbar at the bottom of the canvas holds two modes. **Pan** (the hand,
   `H`, the default): a drag anywhere moves the canvas and a click selects a page; the pages take no
   pointer. **Interact** (the pointer, `V`): the pages take the pointer, so their links, buttons and
@@ -751,7 +769,8 @@ restores one. Its writes are promoting a page to the Story, and, for a product's
   mode too. A notch of a mouse wheel moves the zoom by about 10% at most, and a pinch follows the
   fingers. The toolbar has zoom out, the zoom level (a menu: Fit the canvas, Fit the selected page,
   Fill the width with the selected page, 50%, 100%, 200%), zoom in, fit and fill the selected
-  page, fit the canvas, the previous and next page, and a list of every key (each one also runs
+  page, fit the canvas, the previous and next page, a menu of the pages that says which is selected,
+  and a list of every key (each one also runs
   from the list). Keys: `+` and `−`, `0` for 100%, `1` fits the canvas, `2` fits the selected page
   to the screen and `3` fills the screen's width with it, its top at the top, to scroll down
   through a long page (with none selected, either selects the page nearest the middle of the
@@ -786,19 +805,22 @@ restores one. Its writes are promoting a page to the Story, and, for a product's
   and only the focus control (floating at the top right) and the toolbar remain. It is offered on a
   phone too, where the board gains the whole screen; there it never turns on by itself, the
   remembered choice still holds, and the control names no key.
-- **The inspector:** **Version** (a menu of every version with its date, who published the shown
-  one and when, its page count, its prototype's files and size when it carries one, **Download
-  version N** for the ZIP an agent builds the next version from, [§4.12](04-data-model.md));
-  **Page** (a menu of the pages with Fit and Fill buttons, as `2` and `3`, then where the selected
-  page enters the prototype, if it does, and its notes as Markdown, or a line asking the person to
-  select a page; and where the page stands in the Story, below); **Brief** (the
+- **The inspector:** **View** (Canvas or Clickable prototype, for a canvas of more than one page;
+  while its pages do not link, Clickable prototype is disabled, with a line that says so and, for
+  whoever can publish, **Copy a request for your agent**); **Version** (a menu of every version with
+  its date, who published the shown one and when, its page count, its prototype's files and size
+  when it carries one, **Download as ZIP** for the whole canvas, which a person opens from its
+  `index.html` and an agent builds the next version from, [§4.12](04-data-model.md)); the selected
+  page, under its title, once one is selected (where it enters the prototype, if it does, where it
+  stands in the Story, below, and its notes as Markdown); **Brief** (the
   version's brief as Markdown); and **Files** (the files the version carries, each with its
   length; one opens in a dialog as rendered Markdown or as source text, never as HTML, with Copy).
 - A callout above the canvas appears only for a state the person must know: the mockup is
   archived, an earlier version is shown (with **Show the current version**), or the version asked
   for does not exist.
+- **Downloading.** A toast says that a page runs its own code outside WhatBuild, with every download.
 - **On the Story** ([decision](../decisions/agents-write-the-story-people-arrange-it.md)). Under
-  the page picker, each Story page that shows the selected page is named and linked with the
+  the selected page's title, each Story page that shows the selected page is named and linked with the
   mockup version it shows. An editor whose page is not on the Story gets **Promote to Story**: a
   dialog says that a new Story page at the end of the tree will show the page as it is in
   the version shown, that a reader sees it but not the brief or the notes, and that it stays on that

@@ -13,6 +13,7 @@ import { Button, ButtonLink, Callout, Crumbs, EmptyState, ErrorCallout, FrameRel
 import { FirstUse } from "./first-use.tsx";
 import { Canvas, pageAddress, usePinnedPrototype } from "./mockup-canvas.tsx";
 import { DeletePage, useArchiveActions, type PageActions, type PageRef } from "./story-actions.tsx";
+import { backSteps, pageMoves } from "./page-moves.ts";
 import { ExportDialog } from "./story-export.tsx";
 import { StoryInspectorBody } from "./story-inspector.tsx";
 import { arrangement, flatten, mockupStop, trail, type CanvasShown, type Hierarchy, type PageSummary, type PageView, type VersionItem, type VersionView } from "./story-model.ts";
@@ -230,14 +231,15 @@ function StoryCanvas({ base, pageId, shown, mockup, onKey, canFocus, reread }: {
   const pinned = usePinnedPrototype(version, reread);
   const asked = params.get("page");
   const select = useCallback(
-    (id: string | null) => {
+    (id: string | null, options?: { step: boolean }) => {
       const next = new URLSearchParams(params);
       if (id) next.set("page", id);
       else next.delete("page");
-      setParams(next, { replace: true });
+      setParams(next, { replace: !options?.step });
     },
     [params, setParams],
   );
+  const [mayStep] = useState(() => backSteps());
   if (!pages.length) return <EmptyState title="This canvas is gone">Its mockup was deleted after this version was published.</EmptyState>;
   return (
     <Canvas
@@ -249,7 +251,7 @@ function StoryCanvas({ base, pageId, shown, mockup, onKey, canFocus, reread }: {
       canFocus={canFocus}
       pageView={pageView}
       onPageView={setPageView}
-      showRequest={0}
+      onFollow={(id) => select(id, { step: mayStep() })}
     />
   );
 }
@@ -345,8 +347,14 @@ export function StoryPage() {
   // Fit (2) or fill (3) a mockup page; the choice holds as the arrows flip to the next one.
   const [mockupView, setMockupView] = usePageView("whatbuild.story.mockup-view", "fill");
   usePageViewKeys(stop ? setMockupView : null);
+  // What a page asks for, unlike the same keys pressed in the app: a page's script can post them too.
+  const [mayMove] = useState(() => pageMoves());
+  const [mayStep] = useState(() => backSteps());
+  const goFromFrame = (to: string | undefined) => {
+    if (to && mayMove()) navigate(`${app}/story/${to}`, { replace: !mayStep() });
+  };
   const onFrameKey = (key: StoryKey) => {
-    if (key === "ArrowLeft" || key === "ArrowRight") stop && flip(key);
+    if (key === "ArrowLeft" || key === "ArrowRight") stop && goFromFrame(key === "ArrowLeft" ? prevId : nextId);
     else if (key === "2" || key === "3") stop && setMockupView(PAGE_VIEW_KEYS[key]!);
     else focusMode.onKey(key);
   };
@@ -518,7 +526,7 @@ export function StoryPage() {
               onKey={onFrameKey}
               storyBase={`${window.location.origin}${app}/story/`}
               home={`${window.location.origin}${app}`}
-              onPage={(id) => navigate(`${app}/story/${id}`)}
+              onPage={goFromFrame}
             />
           ) : wantsOld && old.isPending ? (
             <Loading variant="lines" />

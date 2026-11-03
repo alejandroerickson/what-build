@@ -43,7 +43,7 @@ function showCanvas(n: number, prototype: boolean | number = false) {
   const entering = prototype === true ? n : Number(prototype);
   const pages = pagesOf(n).map((p, i) => (i < entering ? { ...p, prototype_url: `/prototypes/grant/${p.page_id}.html` } : p));
   const version: CanvasVersion = { version: 1, title: "Sample canvas", columns: null, pages, ...(entering ? { prototype: { base_url: "/prototypes/grant/", expires_at: "2099-01-01T00:00:00Z", sandbox: "allow-scripts" } } : {}) };
-  draw(<Canvas version={version} pageSrc={(p) => `about:blank#${p.page_id}`} selected={null} onSelect={() => {}} onKey={() => {}} canFocus pageView="fit" onPageView={() => {}} showRequest={0} />);
+  draw(<Canvas version={version} pageSrc={(p) => `about:blank#${p.page_id}`} selected={null} onSelect={() => {}} onKey={() => {}} canFocus pageView="fit" onPageView={() => {}} />);
 }
 
 const frames = () => [...host.querySelectorAll("iframe")];

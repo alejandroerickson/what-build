@@ -508,8 +508,9 @@ Notes on recent actions:
   plan (`403 plan_restricted`), and the result names `from_upload` and gives `upload { upload_id,
   size, sha256 }`, the ZIP as its PUT answered ([§4.12](04-data-model.md), §6.7). `publish`
   answers with what a caller needs next, not the canvas it sent: `{ mockup_id, title,
-  current_version, current_version_id, etag, based_on_version, page_ids, url, next }`, where
-  `page_ids` are the canvas's pages in order and `url` is the canvas in the web app, with
+  current_version, current_version_id, etag, based_on_version, page_ids, url, clickable, next }`, where
+  `page_ids` are the canvas's pages in order, `url` is the canvas in the web app and `clickable`
+  says whether its pages link, which name no page, and the clickable view's address, with
   `from_upload` and `upload` after an upload and `prototype_warnings` when one brings a prototype;
   `mockups.get` reads the version back. ◆ Decision: a version's brief, page notes and page details
   run to tens of thousands of characters, which an echo would put into an agent's context after
@@ -526,7 +527,7 @@ Notes on recent actions:
   `prototype_warnings`. `publish`'s and `request_upload`'s descriptions state that a prototype is
   stateless, uses relative addresses and no network, and what its warnings mean.
   `mockups.get_download` gives a version as a ZIP through a grant, for an agent to build the next
-  version elsewhere ([§4.12](04-data-model.md)). `mockups.get` lists the Story pages that show
+  version elsewhere and for a person to open from its `index.html` ([§4.12](04-data-model.md)). `mockups.get` lists the Story pages that show
   its pages or its whole canvas.
 - `story.promote_mockup` publishes a Story page version that shows one page of a mockup version,
   or without `mockup_page_id` its whole canvas, on a new page or as an existing page's next version,
@@ -632,7 +633,7 @@ GET  P/exports/:export_id/file                       an export ZIP for the web a
 GET  P/story/pages/:page_id/versions/:version/html?theme=light|dark   Story page HTML
 GET  P/story/print?page_ids=…                        the Story print view (HTML)
 GET  P/story/pages/:page_id/versions/:version/pages/:mockup_page_id/html   a page of the canvas that Story page's version shows; a reader may ask
-GET  P/mockups/:mockup_id/versions/:version/pages/:page_id/html   a mockup page's HTML
+GET  P/mockups/:mockup_id/versions/:version/pages/:page_id/html   a mockup page's HTML (`?download=1` to save it, from the app's own address)
 GET  P/idea/concept/card, P/outcomes/:outcome_id/card?theme=   an Idea card's front
 GET  P/story/style/specimen, P/story/house-styles/:style/specimen?theme=   a style's specimen
 GET  /api/v1/downloads/mockup/:version_id            a mockup version's ZIP under a download grant
