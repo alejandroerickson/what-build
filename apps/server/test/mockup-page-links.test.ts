@@ -68,6 +68,21 @@ describe("the frame script on a canvas", () => {
   });
 });
 
+describe("the frame script, as its document loads", () => {
+  it("says it has loaded once the document's load event comes, and not while the document is still parsing", () => {
+    for (const script of [FRAME_SCRIPT, frameScript({ base: "https://usercontent.example.net/prototypes/g/", inPlace: false })]) {
+      const sent: unknown[] = [];
+      const load: (() => void)[] = [];
+      new Function("addEventListener", "parent", script)((type: string, fn: () => void) => void (type === "load" && load.push(fn)), { postMessage: (m: unknown) => void sent.push(m) });
+      // A page that sends its frame elsewhere while it loads never reaches this point, so the app puts it back.
+      expect(sent).toEqual([]);
+      expect(load).toHaveLength(1);
+      load[0]!();
+      expect(sent).toEqual([{ whatbuild: "frame-ready" }]);
+    }
+  });
+});
+
 describe("a click on a link inside a canvas's page", () => {
   /** The frame script in a stand-in for a page: a click reaches its capturing listener, the page's own handler, then its last listener. */
   function click(raw: string, opts: { canvas?: boolean; proto?: string; entries?: Record<string, string>; pageHandled?: boolean; meta?: boolean } = {}) {

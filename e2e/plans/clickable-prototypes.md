@@ -102,8 +102,11 @@ numbers is `page.goBack`, which walks every entry; the browser's own button may 
     seconds, no faster than four times a second, the other name goes nowhere, the page's own words never appear in WhatBuild's messages, and about five presses of Back at most
     leave it. A real click on a link adds one step.
 16. **Web, as Sam.** On a page whose script sets `location.href = "second.html"` after a click, and one that
-    sets it to another site. *Expect:* WhatBuild puts the page back and says so; nothing is left blank, and the
-    app's own address never changes to theirs.
+    sets it to another site; then on pages that do each from a script in their `<head>`, while they still load,
+    and one with a `<meta http-equiv="refresh">` to another site. *Expect:* WhatBuild puts each page back within
+    a couple of seconds and says so, and a page that keeps doing it waits, then stops with Try again. The browser
+    refuses another site in the frame before that (a console line naming `frame-src`). Nothing is left blank or
+    showing a raw error, and the app's own address never changes to theirs.
 
 ### Prototypes, uploads and round trips
 

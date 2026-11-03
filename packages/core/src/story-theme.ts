@@ -45,11 +45,14 @@ export function withStoryTheme(html: string, theme: "light" | "dark"): string {
  *   zooming), and a press on the page, which selects it: once a person works inside a page, the
  *   canvas around it would otherwise hear nothing.
  *
+ * Says it has loaded (frame-ready), once its document's load event comes, so the app tells the
+ * documents it framed from whatever replaced them: a page that sends its frame elsewhere while it
+ * is still loading never reaches its own load event, and the app puts it back.
+ *
  * In a mockup's prototype (frameScript with its address), a link into the prototype is left to
  * navigate the frame, as the prototype's own links do at home; on the app's origin one with a
  * target opens in the frame too, since a prototype's document is never served at the top level
- * there. Each document says it has loaded (frame-ready), so the app tells its own documents from
- * an address that replaced them.
+ * there. Each of its documents says it has loaded in the same way.
  *
  * On a canvas a relative link names another of its pages, as files side by side in a folder do
  * (canvas-links.ts): the script sends the page's name and the app checks it against the version's
@@ -117,7 +120,8 @@ export function frameScript(prototype?: { base: string; inPlace: boolean }): str
   'var t=(a.getAttribute("target")||"").toLowerCase();' +
   'if(!t||t==="_self"||t==="_parent"||t==="_top"){a.setAttribute("target","_blank");a.setAttribute("rel","noopener noreferrer");}' +
   "},true);" +
-  'if(proto)send({whatbuild:"frame-ready"});' +
+  // Said once this document has loaded: a document that replaced it while it loaded never says so, and is put back.
+  'addEventListener("load",function(){send({whatbuild:"frame-ready"});},true);' +
   "})();"
   );
 }

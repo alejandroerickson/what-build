@@ -51,9 +51,15 @@ const frames = () => [...host.querySelectorAll("iframe")];
 function refuse(frame: HTMLIFrameElement, seconds = 20, source: Window | null = frame.contentWindow) {
   act(() => window.dispatchEvent(new MessageEvent("message", { source, data: { whatbuild: "frame-refused", retry_after_seconds: seconds, limit: LIMIT } })));
 }
-const loaded = (frame: HTMLIFrameElement) => act(() => frame.dispatchEvent(new Event("load")));
 /** A frame's window saying anything at all. */
 const says = (frame: HTMLIFrameElement, data: unknown) => act(() => window.dispatchEvent(new MessageEvent("message", { source: frame.contentWindow, data })));
+/** A load in the frame that says nothing of itself: a missing file's plain words, or whatever a page sent its frame to while it loaded. */
+const loadsSayingNothing = (frame: HTMLIFrameElement) => act(() => frame.dispatchEvent(new Event("load")));
+/** A document of WhatBuild's loading in the frame: the frame's load, then the document saying so, as its frame script does at its own load. */
+function loaded(frame: HTMLIFrameElement) {
+  loadsSayingNothing(frame);
+  says(frame, { whatbuild: "frame-ready" });
+}
 /** The frame of one page on a canvas, if it has one on show. */
 const frameOf = (i: number) => host.querySelector<HTMLIFrameElement>(`[data-page="page-${i}"] iframe`);
 const noteOf = (i: number) => host.querySelector(`[data-page="page-${i}"] .xc-refused`)?.textContent ?? "";
@@ -640,7 +646,7 @@ describe("a page that keeps being replaced in its frame", () => {
     loaded(counted);
     const notReady = async () => {
       const f = frameOf(0)!;
-      loaded(f);
+      loadsSayingNothing(f);
       await advance(1_500);
       expect(frameOf(0)).not.toBeNull();
       expect(frameOf(0)).not.toBe(f);
@@ -664,22 +670,114 @@ describe("a page that keeps being replaced in its frame", () => {
   it("in a prototype moves between the prototype's documents, and a link to a missing file comes back to its entry", async () => {
     showCanvas(1, true);
     const entry = frames()[0]!;
-    // One of its documents says so, then its frame loads: another document, then another.
+    // Another document, then another, each saying so as it loads, or just before its frame's load is heard.
     for (let i = 0; i < 20; i++) {
-      says(entry, { whatbuild: "frame-ready" });
-      loaded(entry);
+      if (i % 2) loaded(entry);
+      else {
+        says(entry, { whatbuild: "frame-ready" });
+        loadsSayingNothing(entry);
+      }
       await advance(2_000);
     }
     expect(frames()[0]).toBe(entry);
     expect(host.querySelector(".xc-replaced")).toBeNull();
     // A missing file answers plain words, which say nothing.
-    loaded(entry);
+    loadsSayingNothing(entry);
     await advance(1_400);
     expect(frames()[0]).toBe(entry);
     await advance(200);
     expect(frames()[0]).not.toBe(entry);
     expect(frames()[0]!.getAttribute("src")).toBe(entry.getAttribute("src"));
     expect(host.querySelector(".xc-replaced")?.textContent).toContain("WhatBuild put it back");
+  });
+});
+
+describe("a page whose document never says it has loaded", () => {
+  it("is put back a moment after its frame loads, and said to be: what a page sends its frame to while it loads never says so", async () => {
+    showCanvas(2);
+    const [left, stays] = frames() as [HTMLIFrameElement, HTMLIFrameElement];
+    loadsSayingNothing(left);
+    loaded(stays);
+    await advance(1_400);
+    expect(frameOf(0)).toBe(left);
+    await advance(200);
+    expect(frameOf(0)).not.toBe(left);
+    expect(frameOf(0)!.getAttribute("src")).toBe(left.getAttribute("src"));
+    expect(host.querySelector('[data-page="page-0"] .xc-replaced')?.textContent).toContain("tried to open another address");
+    expect(frameOf(1)).toBe(stays);
+    expect(host.querySelector('[data-page="page-1"] .xc-replaced')).toBeNull();
+    // Back as itself, it stays.
+    loaded(frameOf(0)!);
+    await advance(60_000);
+    expect(frameOf(0)).not.toBe(left);
+    expect(frames()).toHaveLength(2);
+  });
+
+  it("stays when its document said so just before its frame's load is heard, as a frame in a process of its own may", async () => {
+    showCanvas(1);
+    const f = frames()[0]!;
+    says(f, { whatbuild: "frame-ready" });
+    loadsSayingNothing(f);
+    await advance(60_000);
+    expect(frames()[0]).toBe(f);
+    expect(host.querySelector(".xc-replaced")).toBeNull();
+  });
+
+  it("takes the word from its own frame alone", async () => {
+    showCanvas(2);
+    const [a, b] = frames() as [HTMLIFrameElement, HTMLIFrameElement];
+    for (const source of [window, null, b.contentWindow]) act(() => window.dispatchEvent(new MessageEvent("message", { source, data: { whatbuild: "frame-ready" } })));
+    loadsSayingNothing(a);
+    await advance(1_600);
+    expect(frameOf(0)).not.toBe(a);
+  });
+
+  it("is still put back at once on a second load, whatever it says", async () => {
+    showCanvas(1);
+    const f = frames()[0]!;
+    loaded(f);
+    says(f, { whatbuild: "frame-ready" });
+    loadsSayingNothing(f);
+    expect(frames()[0]).not.toBe(f);
+  });
+
+  it("keeps leaving as it loads at a cost the bounds hold, as any page that keeps being replaced", async () => {
+    showCanvas(1);
+    for (let i = 0; i < PAGE_PUT_BACKS_A_MINUTE; i++) {
+      const f = frames()[0]!;
+      loadsSayingNothing(f);
+      await advance(1_600);
+      expect(frames()[0]).toBeDefined();
+      expect(frames()[0]).not.toBe(f);
+    }
+    loadsSayingNothing(frames()[0]!);
+    await advance(1_600);
+    expect(frames()).toHaveLength(0);
+    expect(noteOf(0)).toBe("This page keeps reloading. It comes back with the next minute.");
+  });
+
+  it("in a prototype, judges each load on its own word: one that went unheard is not held against the document after it", async () => {
+    showCanvas(1, true);
+    const entry = frames()[0]!;
+    loadsSayingNothing(entry);
+    await advance(1_000);
+    loaded(entry);
+    await advance(60_000);
+    expect(frames()[0]).toBe(entry);
+    expect(host.querySelector(".xc-replaced")).toBeNull();
+  });
+
+  it("is not put back again for a frame since made: the page back in its place by then is left alone", async () => {
+    showCanvas(1);
+    const f = frames()[0]!;
+    // Waiting for its word, then loaded again: put back at once.
+    loadsSayingNothing(f);
+    loadsSayingNothing(f);
+    const back = frames()[0]!;
+    expect(back).not.toBe(f);
+    loaded(back);
+    await advance(60_000);
+    expect(frames()[0]).toBe(back);
   });
 });
 
@@ -861,11 +959,29 @@ describe("a Story page, refused", () => {
     expect(document.activeElement).toBe(wrap);
   });
 
+  it("is put back when its document never says it has loaded, with the skeleton over what loaded until then", async () => {
+    story();
+    const first = frames()[0]!;
+    loadsSayingNothing(first);
+    expect(host.querySelector(".story-frame-status")).not.toBeNull();
+    await advance(1_400);
+    expect(frames()[0]).toBe(first);
+    await advance(200);
+    const second = frames()[0]!;
+    expect(second).not.toBe(first);
+    expect(second.getAttribute("src")).toBe(first.getAttribute("src"));
+    expect(host.textContent).toContain("tried to open another address");
+    loaded(second);
+    expect(host.querySelector(".story-frame-status")).toBeNull();
+    await advance(60_000);
+    expect(frames()[0]).toBe(second);
+  });
+
   it("in a prototype is put back at once however often, and never waits or stops", async () => {
     draw(<StoryFrame title="Overview" scheme="light" src="/prototypes/grant/entry.html" prototype={{ sandbox: "allow-scripts" }} />);
     for (let i = 0; i < 30; i++) {
       const f = frames()[0]!;
-      loaded(f);
+      loadsSayingNothing(f);
       await advance(1_500);
       expect(frames()[0]).toBeDefined();
       expect(frames()[0]).not.toBe(f);

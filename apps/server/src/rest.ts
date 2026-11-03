@@ -9,7 +9,7 @@ import { isOwnOrigin, restPrincipal } from "./auth/identity.ts";
 import type { ServerConfig } from "./config.ts";
 import { handOff } from "./content-documents.ts";
 import {
-  bytesAsked, cardFront, findAttachment, findCard, findMockupPage, findSpecimen, findStoryCanvasPage, findStoryVersion, htmlView, isHtmlAttachment, isPdf, printView, refusedFrame, storyHtml, storyTheme, streamFile,
+  askedByFrame, bytesAsked, cardFront, failedFrame, findAttachment, findCard, findMockupPage, findSpecimen, findStoryCanvasPage, findStoryVersion, htmlView, isHtmlAttachment, isPdf, printView, refusedFrame, storyHtml, storyTheme, streamFile,
 } from "./documents.ts";
 import { logError } from "./telemetry.ts";
 
@@ -65,14 +65,16 @@ export function errorResponse(c: Context, e: AppError) {
 }
 
 /**
- * The answer to a document's route when a frame of the app asked and the minute's calls are used up,
- * and otherwise the JSON every caller gets. The frame says so in its address (`?frame=1`), or the
- * browser does for it (`Sec-Fetch-Dest`, which no script can set); an API caller or an agent says neither.
+ * The answer to a document's route that fails, when a frame asked: a short document of WhatBuild's
+ * own, which says the minute's calls are used up (refusedFrame) or what else went wrong
+ * (failedFrame), and otherwise the JSON every caller gets. The frame says so in its address
+ * (`?frame=1`), or the browser does for it (`Sec-Fetch-Dest`, which no script can set); an API
+ * caller or an agent says neither.
  */
 function documentFailure(c: Context, e: unknown, comesBack = true) {
   const err = toAppError(e, WEB);
-  const framed = (comesBack && c.req.query("frame") === "1") || c.req.header("sec-fetch-dest") === "iframe";
-  return err.code === "rate_limited" && framed ? refusedFrame(c, err, comesBack) : errorResponse(c, err);
+  if (!askedByFrame(c, comesBack)) return errorResponse(c, err);
+  return err.code === "rate_limited" ? refusedFrame(c, err, comesBack) : failedFrame(c, err.status, err.message, comesBack);
 }
 
 /** The last part of an attachment's path, which names it in an address. */

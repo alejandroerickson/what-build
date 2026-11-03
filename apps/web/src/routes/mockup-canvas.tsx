@@ -2,7 +2,7 @@ import { MOCKUP_PAGE_SANDBOX } from "@whatbuild/core/page-sandbox";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type RefObject } from "react";
 import { flushSync } from "react-dom";
 import { plural } from "../lib/format.ts";
-import { tryStoppedFramesAgain, useFrameReturn, useMinuteWait } from "../lib/minute.ts";
+import { SAYS_LOADED_WITHIN_MS, tryStoppedFramesAgain, useFrameReturn, useMinuteWait } from "../lib/minute.ts";
 import { useProduct } from "../lib/session.tsx";
 import { Button, Callout, Glyph, keepFocusAt, Menu, MenuItem, MenuNote, MenuRadio, MenuSeparator, useToast } from "../ui/index.tsx";
 import { COARSE_POINTER_QUERY, isTypingTarget, useMediaQuery } from "../ui/media.ts";
@@ -131,10 +131,11 @@ const HELD_WORDS = {
  * page. A page that loads another address in its place is put back. In pan mode the frame takes no
  * pointer, so a click selects the page and a drag moves the canvas.
  *
- * A page that enters a prototype moves between the prototype's documents inside its frame, so a
- * second load is not a replacement: each of the prototype's documents says it has loaded
- * (frame-ready, from the frame script the prototype route adds), and a load that does not say so
- * within a moment is put back.
+ * Every document WhatBuild frames says it has loaded (frame-ready, from the frame script, at its
+ * load event), and a load that does not say so within a moment is put back: a page that sends its
+ * frame elsewhere while it is still loading never gets that far. A second load of a page's frame is
+ * put back at once, whatever it says. A page that enters a prototype moves between the prototype's
+ * documents inside its frame, so there a second load is not a replacement when it says so too.
  *
  * A page refused for the minute's calls gets a short document that says so and tells the canvas,
  * and comes back the way a page is put back: as a new frame, whose first load is its first. A second
@@ -177,6 +178,8 @@ function PageFrame({ page, src, title, selected, onSignal, frameRef, prototype, 
   const newFrame = useCallback(() => {
     ready.current = false;
     loads.current = 0;
+    if (waiting.current) clearTimeout(waiting.current);
+    waiting.current = null;
     setReloads((n) => n + 1);
   }, []);
   const { stopped, asking, reloading, wasReplaced, replaced: putBack } = useFrameReturn(frame, newFrame, !prototype);
@@ -194,7 +197,7 @@ function PageFrame({ page, src, title, selected, onSignal, frameRef, prototype, 
       const el = frame.current;
       if (!el || e.source !== el.contentWindow) return;
       const data = e.data as { whatbuild?: unknown; key?: unknown; x?: unknown; y?: unknown; dy?: unknown; line?: unknown; pinch?: unknown; page?: unknown; hash?: unknown } | null;
-      if (data?.whatbuild === "frame-ready" && prototype) {
+      if (data?.whatbuild === "frame-ready") {
         if (waiting.current) {
           clearTimeout(waiting.current);
           waiting.current = null;
@@ -235,23 +238,21 @@ function PageFrame({ page, src, title, selected, onSignal, frameRef, prototype, 
           referrerPolicy="no-referrer"
           src={prototype ? src : `${src}?frame=1`}
           onLoad={() => {
-            if (prototype) {
-              // One of the prototype's own documents has said so already, or will in a moment.
-              if (ready.current) {
-                ready.current = false;
-                hello();
-              } else waiting.current = setTimeout(() => {
-                waiting.current = null;
-                putBack();
-              }, 1500);
-              return;
-            }
             loads.current += 1;
-            if (loads.current > 1) {
+            if (!prototype && loads.current > 1) {
               putBack();
               return;
             }
-            hello();
+            // The document has said it is one of WhatBuild's already, or will in a moment. A load before is judged no more.
+            if (waiting.current) clearTimeout(waiting.current);
+            waiting.current = null;
+            if (ready.current) {
+              ready.current = false;
+              hello();
+            } else waiting.current = setTimeout(() => {
+              waiting.current = null;
+              putBack();
+            }, SAYS_LOADED_WITHIN_MS);
           }}
         />
       )}

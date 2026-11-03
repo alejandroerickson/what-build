@@ -74,7 +74,12 @@ design system: tokens, type, components and the rules for using them — is docu
   Idea card and a style's specimen; `apps/web/src/lib/minute.ts`). The server answers a short page saying so
   in place of the JSON ([§6.4](06-operations-and-adapters.md#routes-outside-the-registry)), which also tells the app, and the
   app asks again by making a new frame at the page's own address. That is how a page replaced in its frame is
-  put back too, so a second load of one frame is never let through, whatever a page says of itself. Frames take
+  put back too, so a second load of one frame is never let through, whatever a page says of itself. Nor is a
+  first whose document never says it has loaded: every document the app frames says so as its load event
+  fires (`frame-ready`: the frame script, and WhatBuild's own short pages for a refusal or another failure,
+  [§6.4](06-operations-and-adapters.md#routes-outside-the-registry)), and a page that sends its frame elsewhere
+  while it is still loading never gets that far, so 1.5 seconds after a load with no word the page is put back,
+  and said to be. Frames take
   turns after the minute has turned and the screen's reads have had theirs, one every 2.4 seconds, half of a 50-call
   minute. No message changes that pace: a deployment with a much lower limit gets refused again, and one refused again stops the turns until
   the next minute. Nothing takes a turn while the tab is hidden; it takes them up at the same pace when visible. Each refused frame is

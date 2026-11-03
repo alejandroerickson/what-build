@@ -278,13 +278,43 @@ describe("a frame refused for the minute's calls", () => {
     }
   });
 
-  it("changes no other answer a frame gets, and spares a frame nothing: its call counts and is refused like any other", async () => {
+  it("says loaded, and so does any other failure a frame gets, in a document of WhatBuild's own with the failure's status and words", async () => {
+    // The app puts back a load whose document never says it has loaded, as a page that sent its frame elsewhere while loading.
+    const SAYS_LOADED = 'addEventListener("load",function(){parent.postMessage({whatbuild:"frame-ready"},"*")})';
+    tweak({ requests_per_minute: 0 });
+    try {
+      expect((await ned.api("GET", `${P}/story/pages/overview/versions/1/html?frame=1`)).body as unknown as string).toContain(SAYS_LOADED);
+    } finally {
+      reset();
+    }
     const missing = await ned.api("GET", `${P}/story/pages/no-such-page/versions/1/html?frame=1`, undefined, FRAME);
     expect(missing.status).toBe(404);
-    expect(missing.headers.get("content-type")).toMatch(/^application\/json/);
+    expect(missing.headers.get("content-type")).toMatch(/^text\/html/);
+    const html = missing.body as unknown as string;
+    expect(html).toMatch(/^<!doctype html>/i);
+    expect(html).toContain("<p>No such Story version.</p>");
+    expect(html).toContain(`<script>${SAYS_LOADED}</script>`);
+    for (const inner of ["not_found", "\"error\"", "frame-refused"]) expect(html).not.toContain(inner);
+    const csp = missing.headers.get("content-security-policy")!;
+    expect(csp).toMatch(/^sandbox allow-scripts; default-src 'none';/);
+    expect(csp).toContain("frame-ancestors 'self'");
+    expect(csp).toContain("connect-src 'none'");
+    // Someone outside the organization learns no more than the JSON tells them: the same status and words.
     const stranger = await root.api("GET", `${P}/story/pages/overview/versions/1/html?frame=1`, undefined, FRAME);
+    const strangerJson = await root.api("GET", `${P}/story/pages/overview/versions/1/html`);
     expect(stranger.status).toBe(404);
-    expect(stranger.headers.get("content-type")).toMatch(/^application\/json/);
+    expect(strangerJson.status).toBe(404);
+    expect(stranger.body as unknown as string).toContain(`<p>${strangerJson.body.error.message}</p>`);
+    // The browser's word is enough, as for a refusal; an agent or an API caller still gets the JSON.
+    expect((await ned.api("GET", `${P}/mockups/01ARZ3NDEKTSV4RRFFQ69G5FAV/versions/1/pages/board/html`, undefined, FRAME)).body as unknown as string).toContain(SAYS_LOADED);
+    for (const headers of [{}, { accept: "text/html" }, { "sec-fetch-dest": "document", accept: "text/html" }] as Record<string, string>[]) {
+      const r = await ned.api("GET", `${P}/story/pages/no-such-page/versions/1/html`, undefined, headers);
+      expect(r.status).toBe(404);
+      expect(r.body.error.code).toBe("not_found");
+    }
+  });
+
+  it("spares a frame nothing: its call counts and is refused like any other", async () => {
     // What frames spend leaves that much less for reads.
     tweak({ requests_per_minute: 3 });
     try {

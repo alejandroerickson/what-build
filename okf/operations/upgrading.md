@@ -45,6 +45,9 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
   and Fill: the toolbar has them. **Download version N** is now **Download as ZIP**, and the ZIP holds
   an `index.html`. Agents that stay connected keep the tools they had until a new session brings
   version 0.57.0, which tells them about links between pages.
+- **People will notice:** a page shown in a frame that can't be shown (missing, or no longer theirs
+  to read) says so in WhatBuild's words rather than in raw JSON, and a page that sends its frame
+  elsewhere while it is still loading is put back, as one that does so later always was. Nothing needs doing.
 
 ## v0.30.0
 

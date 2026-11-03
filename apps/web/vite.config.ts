@@ -14,6 +14,9 @@ export default defineConfig({
   server: {
     port: Number(process.env["WHATBUILD_WEB_PORT"] ?? 5273),
     strictPort: true,
+    // What production's policy lets the app frame (PAGE_SECURITY_HEADERS, apps/server/src/public-routes.ts), so a page
+    // that sends its frame to another site is refused here too. Only this directive: the rest would refuse the dev server's own scripts.
+    headers: { "Content-Security-Policy": "frame-src 'self'" },
     proxy: Object.fromEntries(proxied.map((p) => [p, { target: api, changeOrigin: false }])),
   },
   build: {

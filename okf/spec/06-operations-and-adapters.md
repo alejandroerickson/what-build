@@ -753,15 +753,24 @@ a refusal for calls a minute with `429` and the same `Retry-After`, as a short H
 the JSON, when the frame's address says `?frame=1` or the browser says `Sec-Fetch-Dest: iframe`, which
 no script can set (`refusedFrame` in `apps/server/src/documents.ts`). An agent, an API caller or a
 tab says neither and gets the JSON at the same address, and an image, a video or a download of an
-attachment does too. Every other failure is the JSON it always was. The page holds WhatBuild's own
+attachment does too. The page holds WhatBuild's own
 words and one script, which posts `{ whatbuild: "frame-refused", retry_after_seconds }` to
-its parent; it loads nothing, navigates nowhere and never asks again by itself
+its parent, and `{ whatbuild: "frame-ready" }` once it has loaded, as every document the app frames does;
+it loads nothing, navigates nowhere and never asks again by itself
 ([§7.1](07-web-app.md)). It takes `?theme=` when that is `light` or `dark`. It is served with the
 headers of a page, with `no-store`, in the narrowest sandbox a frame takes (`sandbox allow-scripts`,
 `REFUSED_FRAME_SANDBOX`), from the app's origin with or without a content site, since the route
 refuses before any hand-off, and only the app may frame it. An attachment's preview (`attachment`
 and `attachment/view`, asked by `Sec-Fetch-Dest: iframe` alone) gets the same page with no script and
 an empty `sandbox`, which asks the person to close it and open it again.
+
+**Any other failure a frame asks for** comes the same way, asked the same way (`failedFrame`): the
+failure's own status, and the words its JSON gives (*No such Story version.*), under *This can't be
+shown*, in the same headers and sandbox, with the one script that says it has loaded. The content
+site's documents route answers its refusals so too when a frame asks, framed by the app's origin
+alone. So every document the app frames says it has loaded, and the app takes a load that does not
+for something a page put in its place ([§7.1](07-web-app.md)). An agent or an API caller still gets
+the JSON, and a tab the plain words.
 
 ### The Story print view
 

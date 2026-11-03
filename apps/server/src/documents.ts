@@ -1,5 +1,5 @@
 import {
-  AppError, houseSpecimen, houseStyle, ideaCardDocument, ideaCardResponseHeaders, MOCKUP_PAGE_RULES, pageResponseHeaders, printResponseHeaders, prototypeNotice, REFUSED_FRAME_SANDBOX, shownHtml, STORY_PAGE_RULES, styleSpecimen,
+  AppError, escapeHtml, houseSpecimen, houseStyle, ideaCardDocument, ideaCardResponseHeaders, MOCKUP_PAGE_RULES, pageResponseHeaders, printResponseHeaders, prototypeNotice, REFUSED_FRAME_SANDBOX, shownHtml, STORY_PAGE_RULES, styleSpecimen,
   THEME_ATTRIBUTE, withStoryFonts, withStoryFrame, withStoryTheme, type Env, type FileVersionsTable, type Tx,
 } from "@whatbuild/core";
 import type { Context } from "hono";
@@ -177,6 +177,19 @@ const REFUSED_FRAME_STYLE =
   "h1{margin:0 0 .35em;font-size:1.15em;font-weight:600}" +
   "p{margin:0;color:var(--muted)}";
 
+/** A frame's document of WhatBuild's own saying it has loaded, as the frame script does: the app puts back a load that does not. */
+const SAYS_LOADED = `addEventListener("load",function(){parent.postMessage({whatbuild:"frame-ready"},"*")})`;
+
+/** A short document of WhatBuild's own for a frame: its words alone, and, when the app hears from that frame, `script`. */
+function frameNote(c: Context, status: number, title: string, words: string, script: string | null, site: string | null, headers: Record<string, string> = {}) {
+  const theme = c.req.query("theme");
+  const html =
+    `<!doctype html><html lang="en"${theme === "light" || theme === "dark" ? ` ${THEME_ATTRIBUTE}="${theme}"` : ""}><head><meta charset="utf-8"><title>${escapeHtml(title)}</title>` +
+    `<style>${REFUSED_FRAME_STYLE}</style></head><body><main><h1>${escapeHtml(title)}</h1><p>${escapeHtml(words)}</p></main>` +
+    `${script === null ? "" : `<script>${script}</script>`}</body></html>`;
+  return c.body(html, status as 404, { ...served(pageResponseHeaders({ sandbox: script === null ? "" : REFUSED_FRAME_SANDBOX }, ancestorOf(site)), site), ...headers });
+}
+
 /**
  * What a frame of the app is answered when its call is refused for the minute's calls, in place of
  * the JSON an API caller gets, with the same status and wait: a few words of WhatBuild's own, and
@@ -188,15 +201,23 @@ const REFUSED_FRAME_STYLE =
  */
 export function refusedFrame(c: Context, refusal: AppError, comesBack = true) {
   const seconds = Math.max(1, Math.ceil(Number(refusal.details?.["retry_after_seconds"]) || 60));
-  const theme = c.req.query("theme");
   const told = JSON.stringify({ whatbuild: "frame-refused", retry_after_seconds: seconds });
-  const html =
-    `<!doctype html><html lang="en"${theme === "light" || theme === "dark" ? ` ${THEME_ATTRIBUTE}="${theme}"` : ""}><head><meta charset="utf-8"><title>Waiting for the next minute</title>` +
-    `<style>${REFUSED_FRAME_STYLE}</style></head><body><main><h1>Waiting for the next minute</h1>` +
-    `<p>You’ve used this minute’s calls. ${comesBack ? "This comes back by itself." : "Close this preview and open it again in a moment."}</p></main>` +
-    `${comesBack ? `<script>parent.postMessage(${told},"*")</script>` : ""}</body></html>`;
-  return c.body(html, 429, { ...pageResponseHeaders({ sandbox: comesBack ? REFUSED_FRAME_SANDBOX : "" }), "Retry-After": String(seconds) });
+  const words = `You’ve used this minute’s calls. ${comesBack ? "This comes back by itself." : "Close this preview and open it again in a moment."}`;
+  return frameNote(c, 429, "Waiting for the next minute", words, comesBack ? `parent.postMessage(${told},"*");${SAYS_LOADED}` : null, null, { "Retry-After": String(seconds) });
 }
+
+/**
+ * What a frame of the app is answered when its document can't be shown for any other reason, in
+ * place of the JSON an API caller gets, with the same status: WhatBuild's own words for what went
+ * wrong, in the document that says it has loaded, so the app leaves it on show rather than taking
+ * it for something that replaced the page. `site` is the app's origin when the content site answers.
+ */
+export function failedFrame(c: Context, status: number, words: string, comesBack = true, site: string | null = null) {
+  return frameNote(c, status, "This can’t be shown", words, comesBack ? SAYS_LOADED : null, site);
+}
+
+/** Whether a document's request comes from a frame: the app's says so (`?frame=1`), and the browser says so for any (`Sec-Fetch-Dest`, which no script can set). */
+export const askedByFrame = (c: Context, comesBack = true) => (comesBack && c.req.query("frame") === "1") || c.req.header("sec-fetch-dest") === "iframe";
 
 /** The Story print view: opened at the top level, never framed, running only its nonce'd print script. */
 export function printView(c: Context, html: string, nonce: string, site: string | null = null) {

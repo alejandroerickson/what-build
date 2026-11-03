@@ -4,7 +4,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { Navigate, useNavigate, useParams, useSearchParams } from "react-router";
 import { api, ApiError } from "../lib/api.ts";
 import { useHeldUpdate } from "../lib/live.tsx";
-import { useFrameReturn } from "../lib/minute.ts";
+import { SAYS_LOADED_WITHIN_MS, useFrameReturn } from "../lib/minute.ts";
 import { useProduct } from "../lib/session.tsx";
 import { useScheme } from "../shell/theme.ts";
 import { Inspector, usePageTitle } from "../shell/slots.tsx";
@@ -34,7 +34,10 @@ import "../styles/screens/story.css";
  * F and Esc on (keys pressed in a frame never reach the app), hands a link to another page of this
  * Story to the app, and opens every other link in a new tab. A page that still manages to load
  * another address in its place (a script, a refresh) is put back, and the reader is told, so the
- * app never shows someone else's page inside its own frame. A page refused for the minute's calls
+ * app never shows someone else's page inside its own frame: every document WhatBuild frames says it
+ * has loaded (frame-ready, at its load event), and a load that does not say so within a moment is
+ * put back, as a page sending its frame elsewhere while it loads is. Until then the skeleton stays
+ * over the frame. A second load is put back at once, whatever it says. A page refused for the minute's calls
  * gets a short document that says so and tells the app, and comes back the same way, as a new frame
  * whose first load is its first. Each new frame is a call, so a page that keeps being replaced waits
  * for the next minute with no frame on show, and in time stops until the person says to
@@ -72,7 +75,7 @@ export function StoryFrame({
   /**
    * Set when the page is an entry into a mockup's prototype: src is the entry's own address, and
    * the frame takes the sandbox the server names. The prototype's documents move inside the frame,
-   * each saying it has loaded; a load that does not say so within a moment is put back.
+   * each saying it has loaded, so there a second load is no replacement when it says so too.
    */
   prototype?: { sandbox: string } | null;
   /** For a mockup page: scaled to the room's width (fill), or to its width and height (fit). */
@@ -107,6 +110,8 @@ export function StoryFrame({
   const newFrame = () => {
     ready.current = false;
     loads.current = 0;
+    if (waiting.current) clearTimeout(waiting.current);
+    waiting.current = null;
     setLoaded(false);
     setReloads((n) => n + 1);
   };
@@ -117,14 +122,14 @@ export function StoryFrame({
   }, []);
 
   useEffect(() => {
-    if (!onKey && !onPage && !prototype) return;
     const handle = (e: MessageEvent) => {
       if (e.source !== frame.current?.contentWindow) return;
       const data = e.data as { whatbuild?: unknown; key?: unknown; page?: unknown } | null;
-      if (data?.whatbuild === "frame-ready" && prototype) {
+      if (data?.whatbuild === "frame-ready") {
         if (waiting.current) {
           clearTimeout(waiting.current);
           waiting.current = null;
+          setLoaded(true);
           helloRef.current();
         } else ready.current = true;
         return;
@@ -147,24 +152,22 @@ export function StoryFrame({
       referrerPolicy="no-referrer"
       src={prototype ? src : `${src}${src.includes("?") ? "&" : "?"}frame=1`}
       onLoad={() => {
-        if (prototype) {
-          setLoaded(true);
-          if (ready.current) {
-            ready.current = false;
-            hello();
-          } else waiting.current = setTimeout(() => {
-            waiting.current = null;
-            putBack();
-          }, 1500);
-          return;
-        }
         loads.current += 1;
-        if (loads.current > 1) {
+        if (!prototype && loads.current > 1) {
           putBack();
           return;
         }
-        setLoaded(true);
-        hello();
+        // The document has said it is one of WhatBuild's already, or will in a moment. A load before is judged no more.
+        if (waiting.current) clearTimeout(waiting.current);
+        waiting.current = null;
+        if (ready.current) {
+          ready.current = false;
+          setLoaded(true);
+          hello();
+        } else waiting.current = setTimeout(() => {
+          waiting.current = null;
+          putBack();
+        }, SAYS_LOADED_WITHIN_MS);
       }}
     />
   );
