@@ -23,6 +23,10 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
 
 ## Unreleased
 
+Nothing yet.
+
+## v0.33.0
+
 - **Nothing needs doing.** No migration, setting or step.
 - **Agents open previews more easily on a deployment with a content site:** a card's or a Story
   page's preview (`card_preview`, `story_read(action="preview")`) gives its `url` as an address on
