@@ -180,6 +180,9 @@ The plans:
   sign in, find the invitation and accept or decline it, changes and takes roles, renames and
   deletes it; someone it no longer holds asks for, and starts, their own, where archiving makes no
   room under a total and deleting does.
+- `clickable-prototypes`: a canvas's pages link to each other; the board flies to a linked page, the
+  clickable view changes it in place, and the canvas or a page downloads; an agent learns of it from
+  what it reads, and a hostile page's script stays in the sandbox and cannot fill the browser's history.
 - `exploratory`: open-ended, every screen as each role and as a guest of the example, at phone width and
   in the dark theme.
 
@@ -216,7 +219,7 @@ went wrong in the page since the last command: console errors, uncaught exceptio
 requests, 5xx responses, and a 4xx for a script, style, image or font. A 4xx the app's own
 requests or a page the server writes were answered with (a 403, 404, 409 or 410 the app shows as a
 message) is a line starting with `·`: noted, so a step can see the refusal it expects, and not a
-problem. `wait <text>` and `wait-url <part>` wait for the app after a redirect
+problem. `frame-click` clicks with the real mouse inside a page's sandboxed frame, however far the canvas has scaled it, and `frame-eval` reads inside one. `wait <text>` and `wait-url <part>` wait for the app after a redirect
 or a load. `screenshot` saves into the current run; the app scrolls its own panes, so `--full`
 adds only what the document itself scrolls. `stop` closes it; its log is
 `.what-build/e2e/browser.log`.

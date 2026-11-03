@@ -332,7 +332,7 @@ header{display:flex;align-items:center;gap:12px;padding:14px 24px;background:#1f
 main{padding:20px 24px}h2{font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:#5b6662;margin:0 0 10px}
 .cols{display:grid;gap:14px}.card{background:#fff;border:1px solid #e1ded6;border-radius:10px;padding:12px 14px}
 .card b{display:block}.meta{color:#5b6662;font-size:13px}.tag{display:inline-block;font-size:12px;padding:1px 8px;border-radius:99px;background:#e6efe9;color:#1f3b34;margin-top:6px}
-.warn{background:#fbecd9;color:#7a4a10}.btn{display:inline-block;padding:8px 14px;border-radius:8px;background:#1f3b34;color:#fff;font-weight:600}`;
+.warn{background:#fbecd9;color:#7a4a10}.btn{display:inline-block;padding:8px 14px;border-radius:8px;background:#1f3b34;color:#fff;font-weight:600;text-decoration:none}`;
 
 const mock = (title: string, body: string) =>
   `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${title}</title><style>${MOCK_CSS}</style></head><body>${body}</body></html>`;
@@ -357,6 +357,8 @@ Crew leads disagree about how they think about the week. Marisol plans **jobs fi
 - **Jobs board**: unscheduled jobs on the left, crews as columns; drag a job onto a crew and day.
 - **Day planner**: one column per day, crews as rows; repeat clients pre-filled from last week.
 - **Crew message**: what Marisol's crew sees on a phone on Sunday night.
+
+Version 2 links the pages, so a crew lead can click from the board to the message.
 
 ## What it draws on
 
@@ -420,4 +422,11 @@ How these pages are built, so the next version looks like it belongs.
 </div>
 `,
   },
+};
+
+/** The canvas's pages in its second version, linked as files side by side in a folder are. */
+export const MOCKUP_LINKED_PAGES = {
+  jobs: MOCKUP.pages.jobs.replace("</div></main>", '</div><p style="margin-top:16px"><a class="btn" href="day-planner.html">Plan by day</a></p></main>'),
+  days: MOCKUP.pages.days.replace('<span class="btn">Send the week</span>', '<a class="btn" href="crew-message.html">Send the week</a>'),
+  message: MOCKUP.pages.message.replace('<span class="meta">or reply with a change</span>', '<a class="meta" href="day-planner.html">or change the plan</a>'),
 };

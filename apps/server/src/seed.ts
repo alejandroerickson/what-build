@@ -2,7 +2,7 @@ import { actorOf, createTenantWithTeam, execute, houseStyle, json, newEtag, OPER
 import { sql } from "kysely";
 import { acceptInvitation, findOrCreateAccount, type AccountRow } from "./auth/identity.ts";
 import {
-  MOCKUP, HANDOFF_HTML, HANDOFF_NOTES, INTERVIEW_AGENT_NOTES, INTERVIEW_RECORDER_EXPORT, INTERVIEW_TXT, INTERVIEW_VTT, OVERVIEW_NOTES, OWNER_NOTES_MD, RESEARCH_EXPORT_MD, SAMPLE, SOURCE_SUMMARIES, STORY_HTML,
+  MOCKUP, MOCKUP_LINKED_PAGES, HANDOFF_HTML, HANDOFF_NOTES, INTERVIEW_AGENT_NOTES, INTERVIEW_RECORDER_EXPORT, INTERVIEW_TXT, INTERVIEW_VTT, OVERVIEW_NOTES, OWNER_NOTES_MD, RESEARCH_EXPORT_MD, SAMPLE, SOURCE_SUMMARIES, STORY_HTML,
 } from "./seed-content.ts";
 import type { Worker } from "./worker.ts";
 
@@ -178,9 +178,9 @@ export async function seed(env: Env, worker: Worker, log: (m: string) => void = 
       mockup_id: mockup["mockup_id"],
       expected_etag: mockup["etag"],
       pages: [
-        { page_id: "jobs-board", notes: MOCKUP.notes.jobsRevised },
-        { page_id: "day-planner" },
-        { page_id: "crew-message", title: "Crew message", notes: MOCKUP.notes.message, width: 390, height: 760, html: MOCKUP.pages.message },
+        { page_id: "jobs-board", notes: MOCKUP.notes.jobsRevised, html: MOCKUP_LINKED_PAGES.jobs },
+        { page_id: "day-planner", html: MOCKUP_LINKED_PAGES.days },
+        { page_id: "crew-message", title: "Crew message", notes: MOCKUP.notes.message, width: 390, height: 760, html: MOCKUP_LINKED_PAGES.message },
       ],
     },
     ref,
