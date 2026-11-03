@@ -47,7 +47,9 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
   version 0.57.0, which tells them about links between pages.
 - **People will notice:** a page shown in a frame that can't be shown (missing, or no longer theirs
   to read) says so in WhatBuild's words rather than in raw JSON, and a page that sends its frame
-  elsewhere while it is still loading is put back, as one that does so later always was. Nothing needs doing.
+  elsewhere while it is still loading is put back, as one that does so later always was. On a Story
+  page that shows one mockup page, a link to another page of its canvas opens the Story page showing
+  that page, or says it isn't in the Story, where it used to open a tab with an error. Nothing needs doing.
 
 ## v0.30.0
 

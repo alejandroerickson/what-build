@@ -24,6 +24,21 @@ export function linkedPageName(href: string): string | null {
   return name || null;
 }
 
+/** Every href in a page's HTML, as written. */
+export function hrefsIn(html: string): string[] {
+  return [...html.matchAll(HREF)].map((m) => m[1] ?? m[2] ?? m[3] ?? "");
+}
+
+/** The other pages a page's relative links name, each once, in the order the page first names them. */
+export function pagesLinkedFrom(html: string, self: string): string[] {
+  const named = new Set<string>();
+  for (const href of hrefsIn(html)) {
+    const name = linkedPageName(href);
+    if (name !== null && name !== self) named.add(name);
+  }
+  return [...named];
+}
+
 export interface ClickableCanvas {
   /** Whether people can view this version as a clickable prototype: a page links to another, or enters a prototype. */
   viewable: boolean;

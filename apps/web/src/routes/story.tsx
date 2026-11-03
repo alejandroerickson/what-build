@@ -9,14 +9,14 @@ import { useProduct } from "../lib/session.tsx";
 import { useScheme } from "../shell/theme.ts";
 import { Inspector, usePageTitle } from "../shell/slots.tsx";
 import { deletedSentence } from "../lib/format.ts";
-import { Button, ButtonLink, Callout, Crumbs, EmptyState, ErrorCallout, FrameReloading, FrameStopped, Loading, Sheet } from "../ui/index.tsx";
+import { Button, ButtonLink, Callout, Crumbs, EmptyState, ErrorCallout, FrameReloading, FrameStopped, Loading, Sheet, useToast } from "../ui/index.tsx";
 import { FirstUse } from "./first-use.tsx";
 import { Canvas, pageAddress, usePinnedPrototype } from "./mockup-canvas.tsx";
 import { DeletePage, useArchiveActions, type PageActions, type PageRef } from "./story-actions.tsx";
-import { backSteps, pageMoves } from "./page-moves.ts";
+import { backSteps, pageMoves, personActed } from "./page-moves.ts";
 import { ExportDialog } from "./story-export.tsx";
 import { StoryInspectorBody } from "./story-inspector.tsx";
-import { arrangement, flatten, mockupStop, trail, type CanvasShown, type Hierarchy, type PageSummary, type PageView, type VersionItem, type VersionView } from "./story-model.ts";
+import { arrangement, flatten, mockupStop, storyLinkPath, trail, type CanvasShown, type Hierarchy, type PageSummary, type PageView, type VersionItem, type VersionView } from "./story-model.ts";
 import { MockupFlip, PAGE_VIEW_KEYS, PageViewToggle, useFlipKeys, usePageView, usePageViewKeys, type FlipKey, type PageView as MockupPageView } from "./story-flip.tsx";
 import { FocusToggle, useStoryFocus, type StoryKey } from "./story-focus.tsx";
 import { StyleDialog, styleLine, useStoryStyle } from "./story-style.tsx";
@@ -49,6 +49,8 @@ import "../styles/screens/story.css";
  * there, and copied here) opens here instead.
  */
 const PAGE_SLUG = /^[a-z0-9][a-z0-9-]{0,79}$/;
+/** How often a link that leads to no page of the Story says so: one page's script can't stack them. */
+const NO_PAGE_SAID_EVERY_MS = 4000;
 const FRAME_KEYS: readonly unknown[] = ["f", "Escape", "ArrowLeft", "ArrowRight", "2", "3"] satisfies StoryKey[];
 
 export function StoryFrame({
@@ -59,6 +61,7 @@ export function StoryFrame({
   storyBase,
   home,
   onPage,
+  onLink,
   size,
   prototype,
   view = "fill",
@@ -70,6 +73,8 @@ export function StoryFrame({
   storyBase?: string;
   home?: string;
   onPage?: (pageId: string) => void;
+  /** For a mockup page shown alone: a link to another page of its canvas, by the name it gives. The frame is told to hand those over. */
+  onLink?: (name: string) => void;
   /** A mockup page's own size: the frame keeps it, scaled down to the room there is, never up, in a mockup page's sandbox. */
   size?: { width: number; height: number };
   /**
@@ -104,6 +109,7 @@ export function StoryFrame({
   const hello = () => {
     if (storyBase && onPage) frame.current?.contentWindow?.postMessage({ whatbuild: "story-base", base: storyBase }, "*");
     if (home) frame.current?.contentWindow?.postMessage({ whatbuild: "app-home", home }, "*");
+    if (onLink) frame.current?.contentWindow?.postMessage({ whatbuild: "page-links" }, "*");
   };
   const helloRef = useRef(hello);
   helloRef.current = hello;
@@ -136,10 +142,11 @@ export function StoryFrame({
       }
       if (data?.whatbuild === "story-key" && FRAME_KEYS.includes(data.key)) onKey?.(data.key as StoryKey);
       if (data?.whatbuild === "story-page" && typeof data.page === "string" && PAGE_SLUG.test(data.page)) onPage?.(data.page);
+      if (data?.whatbuild === "canvas-page" && typeof data.page === "string") onLink?.(data.page);
     };
     window.addEventListener("message", handle);
     return () => window.removeEventListener("message", handle);
-  }, [onKey, onPage, prototype]);
+  }, [onKey, onPage, onLink, prototype]);
 
   const page = (
     <iframe
@@ -356,6 +363,8 @@ export function StoryPage() {
   const goFromFrame = (to: string | undefined) => {
     if (to && mayMove()) navigate(`${app}/story/${to}`, { replace: !mayStep() });
   };
+  const toast = useToast();
+  const saidNoPage = useRef(-Infinity);
   const onFrameKey = (key: StoryKey) => {
     if (key === "ArrowLeft" || key === "ArrowRight") stop && goFromFrame(key === "ArrowLeft" ? prevId : nextId);
     else if (key === "2" || key === "3") stop && setMockupView(PAGE_VIEW_KEYS[key]!);
@@ -464,6 +473,17 @@ export function StoryPage() {
   const p = page.data;
   const shownMockup = shown?.mockup;
   const onePage = shownMockup && !shownMockup.canvas ? shownMockup : undefined;
+  // A mockup page shown alone has no canvas to fly over: its link to another page of the canvas goes to
+  // the Story page that shows that page, and says so when none does. Only just after a person did something.
+  const followLink = (name: string) => {
+    if (!personActed()) return;
+    const to = storyLinkPath(onePage?.story_links, name);
+    if (to) return goFromFrame(to);
+    const at = Date.now();
+    if (at - saidNoPage.current < NO_PAGE_SAID_EVERY_MS) return;
+    saidNoPage.current = at;
+    toast("This link leads to a page that isn’t in the Story.", { tone: "negative" });
+  };
 
   return (
     <div className={onCanvas ? "story-view mockup-view" : "story-view"} data-focus={onCanvas && focusMode.focus ? "" : undefined}>
@@ -530,6 +550,7 @@ export function StoryPage() {
               storyBase={`${window.location.origin}${app}/story/`}
               home={`${window.location.origin}${app}`}
               onPage={goFromFrame}
+              onLink={onePage && !onePage.prototype_url ? followLink : undefined}
             />
           ) : wantsOld && old.isPending ? (
             <Loading variant="lines" />

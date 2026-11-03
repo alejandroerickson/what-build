@@ -72,7 +72,7 @@ numbers is `page.goBack`, which walks every entry; the browser's own button may 
 ### What an agent is told
 
 11. **MCP, as Sam, in the standard organization.** Knowing only the tool list and the guide, find out how to
-    make a canvas clickable. *Expect:* `mockups_write`'s description and the guide's mockups topic say it.
+    make a canvas clickable, and how its links behave on the Story. *Expect:* `mockups_write`'s description and the guide's mockups topic say it.
     Publish a canvas with two pages and no links. *Expect:* `clickable` says it is not `viewable`, and `how`.
 12. **MCP, as Sam.** Publish its next version with three pages: `<a href="two.html">` and
     `<a href="./three.htm#end">` on the first, and on another a link back, `<a href="gone.html">`,
@@ -123,12 +123,18 @@ numbers is `page.goBack`, which walks every entry; the browser's own button may 
 
 ### Who may
 
-20. **Web, as Avery, in the synthetic organization.** Open the Story's whole-canvas page. *Expect:* a link flies
+20. **Web, as Avery, in the synthetic organization.** Open the Story page that shows Jobs board alone, and click
+    **Plan by day**. *Expect:* the Story page showing Day planner opens, or the whole canvas at Day planner, with
+    Back returning; where no Story page shows it, a message says the page isn't in the Story. No tab opens.
+    Open the Story's whole-canvas page. *Expect:* a link flies
     there too, and Back returns. There is no View control and no page download, and nothing of the mockup but its
     pages. **Show panels** is on the screen. Try the mockup's own address and that page's `?download=1` at the
     mockup's address. *Expect:* both are refused.
 21. **Web, as Jordan, in the standard organization, and MCP.** With Sam first promoting the canvas from step 12
-    to the Story: the same as Avery, and `mockups_read` is refused.
+    to the Story: the same as Avery, and `mockups_read` is refused. Sam also promotes that canvas's first page
+    alone, then publishes a Story page linking to it and to a Story page that doesn't exist. *Expect:* the
+    promote answer names in `links_off_story` the pages the first page links to that no Story page shows, and
+    publish names the missing page in `links_to_no_page`; as Jordan, each link does what step 20 says.
 22. **Web, as a guest of the example organization.** Open a mockup. *Expect:* Copy a request for your agent is
     not offered, and whatever Download as ZIP does for a guest, a page's download does too. Then go past a guest's
     calls a minute and their 10 MB of downloads a day, with a throwaway guest. *Expect:* both buttons say the same

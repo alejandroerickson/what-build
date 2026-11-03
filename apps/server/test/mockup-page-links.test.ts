@@ -85,7 +85,7 @@ describe("the frame script, as its document loads", () => {
 
 describe("a click on a link inside a canvas's page", () => {
   /** The frame script in a stand-in for a page: a click reaches its capturing listener, the page's own handler, then its last listener. */
-  function click(raw: string, opts: { canvas?: boolean; proto?: string; entries?: Record<string, string>; pageHandled?: boolean; meta?: boolean } = {}) {
+  function click(raw: string, opts: { canvas?: boolean; pages?: boolean; proto?: string; entries?: Record<string, string>; pageHandled?: boolean; meta?: boolean } = {}) {
     const capture: ((e: unknown) => void)[] = [];
     const after: ((e: unknown) => void)[] = [];
     const listeners: Record<string, (e: unknown) => void> = {};
@@ -103,7 +103,8 @@ describe("a click on a link inside a canvas's page", () => {
       if (type === "click") (useCapture === true ? capture : after).push(fn);
       else listeners[type] = fn;
     }, parent);
-    if (opts.canvas !== false) listeners["message"]!({ source: parent, data: { whatbuild: "canvas-host", ...(opts.entries ? { entries: opts.entries } : {}) } });
+    if (opts.pages) listeners["message"]!({ source: parent, data: { whatbuild: "page-links" } });
+    else if (opts.canvas !== false) listeners["message"]!({ source: parent, data: { whatbuild: "canvas-host", ...(opts.entries ? { entries: opts.entries } : {}) } });
     const e = { target: { closest: () => a }, button: 0, defaultPrevented: false, metaKey: Boolean(opts.meta), ctrlKey: false, shiftKey: false, altKey: false, preventDefault() { this.defaultPrevented = true; } };
     capture.forEach((fn) => fn(e));
     if (opts.pageHandled) e.preventDefault();
@@ -127,6 +128,13 @@ describe("a click on a link inside a canvas's page", () => {
 
   it("off a canvas, opens a relative link in a new tab as it always has", () => {
     expect(click("checkout.html", { canvas: false })).toEqual({ sent: [], prevented: false, target: "_blank" });
+  });
+
+  it("on a mockup page shown alone, hands a relative link to the app by name when the app says so, and opens no tab", () => {
+    expect(click("checkout.html#total", { pages: true })).toEqual({ sent: [{ whatbuild: "canvas-page", page: "checkout", hash: "total" }], prevented: true, target: undefined });
+    expect(click("https://example.com/a.html", { pages: true })).toEqual({ sent: [], prevented: false, target: "_blank" });
+    // In a prototype the frame keeps its own links: no other page enters them there.
+    expect(click("other.html", { pages: true, proto: "https://usercontent.example.net/prototypes/grant/" })).toMatchObject({ sent: [], prevented: false });
   });
 
   it("in a prototype, moves to a document another page enters, and leaves any other in the frame", () => {
@@ -197,6 +205,91 @@ describe("a canvas's links, through both doors", () => {
 
   it("keeps a Story reader from downloading a page of the mockup", async () => {
     expect((await get(rita, `${P}/mockups/${id}/versions/1/pages/jobs/html?download=1`)).status).toBeGreaterThanOrEqual(400);
+  });
+
+  it("on the Story, takes a page's links to the Story pages that show what they name, and tells the agent which lead nowhere", async () => {
+    const canvas = await alice.api("POST", `${P}/mockups`, {
+      title: "Three steps",
+      brief: "A flow.",
+      pages: [
+        { page_id: "one", title: "One", html: page("One", '<a href="two.html">Two</a> <a href="./three.htm#end">Three</a> <a href="gone.html">Gone</a> <a href="one.html">Here</a>') },
+        { page_id: "two", title: "Two", html: page("Two", '<a href="one.html">One</a>') },
+        { page_id: "three", title: "Three", html: page("Three") },
+      ],
+    });
+    expect(canvas.status).toBe(201);
+    const m = canvas.body.mockup_id;
+    const promote = (mockup_page_id: string | undefined, page_id: string) => alice.api("POST", `${P}/story/promote-mockup`, { mockup_id: m, ...(mockup_page_id ? { mockup_page_id } : {}), page_id });
+    const shown = async (b: Browser) => (await b.api("GET", `${P}/story/pages/step-one?include_html=false`)).body.current.mockup;
+
+    // Alone on the Story: nothing it links to is there, and the agent is told so. A name no page has, and itself, are no page of the canvas.
+    const first = await promote("one", "step-one");
+    expect(first.status).toBe(201);
+    expect(first.body.links_off_story).toEqual(["two", "three"]);
+    expect(first.body.links_off_story_note).toContain("Promote each of them too");
+    expect(first.body.current.mockup.story_links).toBeUndefined();
+    expect(await shown(rita)).not.toHaveProperty("story_links");
+    expect(await shown(rita)).not.toHaveProperty("links_off_story");
+
+    // Another page shown alone, and then the whole canvas: each link leads to one, a page shown alone first.
+    expect((await promote("two", "step-two")).body.links_off_story).toBeUndefined();
+    expect(await shown(alice)).toMatchObject({ story_links: { two: { page_id: "step-two", on_canvas: false } }, links_off_story: ["three"] });
+    expect((await promote(undefined, "all-steps")).status).toBe(201);
+    const both = { two: { page_id: "step-two", on_canvas: false }, three: { page_id: "all-steps", on_canvas: true } };
+    expect((await shown(alice)).story_links).toEqual(both);
+    expect(await shown(alice)).not.toHaveProperty("links_off_story");
+    // A reader is given where the links lead, and nothing of which pages lead nowhere.
+    expect((await shown(rita)).story_links).toEqual(both);
+
+    // An archived Story page leads nowhere, since a reader can't open it: the whole canvas takes its place.
+    const two = await alice.api("GET", `${P}/story/pages/step-two?include_html=false`);
+    expect((await alice.api("POST", `${P}/story/pages/step-two/archive`, { expected_etag: two.body.etag })).status).toBe(200);
+    expect((await shown(rita)).story_links).toEqual({ two: { page_id: "all-steps", on_canvas: true }, three: { page_id: "all-steps", on_canvas: true } });
+  });
+
+  it("names the Story pages a published page links to that a reader can't open, in preview and publish", async () => {
+    const path = P.replace("/api/v1/p/", "");
+    expect((await alice.api("POST", `${P}/story/pages/there/versions`, { title: "There", body: '<main class="page"><h1>There</h1></main>' })).status).toBe(201);
+    const shelved = await alice.api("POST", `${P}/story/pages/shelved/versions`, { title: "Shelved", body: '<main class="page"><h1>Shelved</h1></main>' });
+    expect((await alice.api("POST", `${P}/story/pages/shelved/archive`, { expected_etag: shelved.body.etag })).status).toBe(200);
+    const links = [
+      `${h.baseUrl}/t/${path}/story/there`,
+      `${h.baseUrl}/t/${path}/story/missing`,
+      `/t/${path}/story/missing-too/`,
+      `https://elsewhere.example.com/t/${path}/story/copied`,
+      `${h.baseUrl}/t/${path}/story/shelved`,
+      `${h.baseUrl}/t/${path}/story/linking`,
+      `${h.baseUrl}/t/${path}/idea`,
+      "https://example.com/story/not-ours",
+      "notes.html",
+    ];
+    const body = `<main class="page"><h1>Linking</h1>${links.map((l) => `<a href="${l}">A link</a>`).join(" ")}</main>`;
+    const expected = ["missing", "missing-too", "copied", "shelved"];
+    const preview = await alice.api("POST", `${P}/story/pages/linking/preview`, { title: "Linking", body });
+    expect(preview.status).toBe(200);
+    expect(preview.body.links_to_no_page).toEqual(expected);
+    const published = await alice.api("POST", `${P}/story/pages/linking/versions`, { title: "Linking", body });
+    expect(published.status).toBe(201);
+    expect(published.body.links_to_no_page).toEqual(expected);
+    expect(published.body.links_to_no_page_note).toContain("This page isn't in the Story");
+    // A page whose links all lead somewhere is told nothing.
+    const fine = await alice.api("POST", `${P}/story/pages/fine/versions`, { title: "Fine", body: `<main class="page"><a href="${links[0]}">There</a></main>` });
+    expect(fine.body).not.toHaveProperty("links_to_no_page");
+  });
+
+  it("does not tell a browser opening an address that leads nowhere the address back, whose words a page's link chose; an API caller is told", async () => {
+    const words = "Your session has expired, sign in again at example.com";
+    const at = `${h.baseUrl}${P}/story/pages/jobs/versions/1/${encodeURIComponent(words)}`;
+    for (const dest of ["document", "iframe"]) {
+      const r = await fetch(at, { headers: { "sec-fetch-dest": dest } });
+      expect(r.status).toBe(404);
+      const text = await r.text();
+      expect(text).not.toContain("session");
+      expect(text).not.toContain("expired");
+      expect(JSON.parse(text).error).toMatchObject({ code: "not_found", message: "WhatBuild has nothing at this address." });
+    }
+    const asked = await fetch(at);
+    expect(((await asked.json()) as { error: { message: string } }).error.message).toMatch(/^No route GET \/api\/v1\/p\/.*\/versions\/1\/Your session has expired/);
   });
 
   it("puts an index in the ZIP, and takes that ZIP back as it is", async () => {

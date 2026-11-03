@@ -471,11 +471,14 @@ Notes on recent actions:
   find and replace, `restyle` replaces the page's stylesheet with the product's current one, and
   `from_version` starts from an earlier version, which restores it
   ([§4.11](04-data-model.md)). Versions report `html_sha256`. A version has no change note:
-  `note` is refused like any unknown field (`422`), and versions do not return one.
+  `note` is refused like any unknown field (`422`), and versions do not return one. The answer
+  names in `links_to_no_page` (with `links_to_no_page_note`) the Story pages the page links to,
+  by the guidance's `story_page` address on any host, that a reader can't open: none is published
+  under that id, or it is archived. Up to 25; left out when there are none.
 - `story.preview` takes exactly `story.publish`'s input and makes every check publish makes, in
   the same code, refusing with the same errors; it creates no version, records no activity and
   answers `200`. It returns what publish would make (`new_page`, `based_on_version`,
-  `carried_forward`, `title`, `summary`, `html_chars`, `html_sha256`, `published: false`) and
+  `carried_forward`, `title`, `summary`, `html_chars`, `html_sha256`, `links_to_no_page`, `published: false`) and
   `preview { preview_id, method: "GET", url, headers, expires_at }`, a download grant for the
   document publish would store ([§4.11](04-data-model.md)).
 - `story.get_style` and `story.set_style` read and replace the product's Story style, the design
@@ -533,7 +536,9 @@ Notes on recent actions:
   or without `mockup_page_id` its whole canvas, on a new page or as an existing page's next version,
   without copying it; the version reports `mockup` with the page's size, or the canvas's layout and
   pages. It answers `201` like `publish` ([§4.11](04-data-model.md)). A new page is unplaced, like
-  any other (`placed: false`).
+  any other (`placed: false`). For one page shown alone, `links_off_story` (with
+  `links_off_story_note`) names the other pages of its canvas it links to that no Story page shows,
+  which a reader's click would not reach; left out when there are none.
 - `story.get_hierarchy` returns the tree as saved as `items`, with the live pages not yet placed as
   `unplaced` (`{page_id, title, description, kind}`, never also in `items`); each node's `kind` is
   `story_page`, `mockup_page` or `canvas`. Its `items` round-trip: `story.set_hierarchy` accepts them

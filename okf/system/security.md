@@ -310,6 +310,9 @@ Four things keep a tab from hearing what it may not know, each holding if anothe
   with no frame on show, and after 3 such waits in a row it stops until the person says to or leaves the screen, so a page reloading itself
   spends those at most ([§7.1](../spec/07-web-app.md)); a page's own asks after a refusal come on top, three each until the person says to, since a refusal it names cannot be told from one it got. A prototype's route meets no limit, so its frames are outside this.
   A Story page can also ask the app to open another of the Story's pages, as a link in it does, and each page opened costs a call. Nothing bounds how often it asks but the person's calls a minute, which it can use up while the screen stays open.
+  An address under `/api/` with no route answers a browser that opened it as a page or a frame
+  (`Sec-Fetch-Dest`) without repeating the address, whose words whoever wrote a link chose; an API
+  caller is told its method and path (`apps/server/src/app.ts`).
   A page that navigates its own frame adds a step to the browser's history each time, which Back walks through before it leaves the
   screen; the browser keeps a frame's history with the tab's, and the app cannot refuse it (accepted:
   [decision](../decisions/a-canvas-whose-pages-link-is-viewed-as-a-clickable-prototype.md)).

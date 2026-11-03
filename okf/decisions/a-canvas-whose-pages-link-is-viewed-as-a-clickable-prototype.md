@@ -24,6 +24,12 @@ single-file HTML export (a multi-file prototype cannot be flattened into one doc
 - **Links are ordinary relative links**, `<a href="checkout.html">` where `checkout` is the other
   page's `page_id`, as files side by side in a folder and in the version's ZIP.
 - **On the canvas a link flies the view** to the page it names, and the page clicked stays as it was.
+- **On the Story** a whole canvas keeps its links flying. A page promoted alone takes a link to another
+  page of its canvas to the Story page that shows that page, or to a whole canvas that holds it, and
+  otherwise says the page isn't in the Story: never a new tab at an address that has nothing.
+  `promote_mockup` names the pages such links would not reach (`links_off_story`), and Story
+  `publish` names links to Story pages a reader can't open (`links_to_no_page`), so an agent that
+  links as it is told hears of every link that would lead a reader nowhere.
 - **The clickable view** (`?view=clickable`) shows one page at a time, inside WhatBuild with its
   rails, starting at the first page. A link changes the page in place and opens it afresh.
 - **It is on offer where links exist:** a page links to another, or enters a prototype. Elsewhere it

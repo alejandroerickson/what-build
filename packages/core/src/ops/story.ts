@@ -6,6 +6,7 @@ import { checkConfirmation, DELETE_GUIDANCE, deleteGuards, leaveTombstone, refus
 import { conflict, invalid, notFound } from "../errors.ts";
 import { readsOnlyTheStory } from "../policy.ts";
 import type { BlobStore } from "../ports.ts";
+import { hrefsIn, pagesLinkedFrom } from "../canvas-links.ts";
 import { entryAddress, prototypeAddress, prototypeNotice } from "../prototype.ts";
 import { refuseSwitchedOff } from "../limits.ts";
 import { defineOperation, type OpContext } from "../registry.ts";
@@ -355,18 +356,95 @@ async function canvasView(ctx: OpContext, ref: MockupPageRef) {
  */
 async function mockupView(ctx: OpContext, ref: MockupPageRef) {
   if (ref.page_id === null) return canvasView(ctx, ref);
-  const page = await ctx.db.selectFrom("mockup_pages").select(["title", "width", "height", "entry"]).where("version_id", "=", ref.mockup_version_id).where("page_id", "=", ref.page_id).executeTakeFirst();
+  const page = await ctx.db.selectFrom("mockup_pages").select(["title", "width", "height", "entry", "html"]).where("version_id", "=", ref.mockup_version_id).where("page_id", "=", ref.page_id).executeTakeFirst();
   const address = page?.entry ? prototypeAddress(ctx.ports, tenantId(ctx), ref.mockup_version_id, ctx.now) : null;
+  const links = page?.html ? await linksOnTheStory(ctx, { ...ref, page_id: ref.page_id }, page.html) : { to: {}, off: [] };
   const size = {
     width: page?.width ?? 1280,
     height: page?.height ?? 800,
     ...(address && page?.entry
       ? { entry: page.entry, prototype_url: `${address.base_url}${entryAddress(page.entry)}`, prototype_sandbox: address.sandbox, prototype_expires_at: address.expires_at }
       : {}),
+    ...(Object.keys(links.to).length ? { story_links: links.to } : {}),
   };
   if (readsOnlyTheStory(ctx.scope.role)) return size;
-  return { ...size, ...(await mockupOrigin(ctx, ref)), page_title: page?.title ?? null };
+  return { ...size, ...(await mockupOrigin(ctx, ref)), page_title: page?.title ?? null, ...(links.off.length ? { links_off_story: links.off } : {}) };
 }
+
+/**
+ * Where a mockup page's links to the other pages of its canvas lead on the Story, since a page shown
+ * alone has no canvas to fly over: to a Story page that shows the page a link names (one of the same
+ * mockup version first), or else to one that shows a whole canvas holding it, opened at that page.
+ * An archived Story page leads nowhere, since a reader cannot open it. `off` names the pages linked to
+ * that no Story page shows, which the team's agents are told so they can promote them.
+ */
+async function linksOnTheStory(ctx: OpContext, ref: MockupPageRef & { page_id: string }, html: string) {
+  const none = { to: {} as Record<string, { page_id: string; on_canvas: boolean }>, off: [] as string[] };
+  const siblings = new Set((await ctx.db.selectFrom("mockup_pages").select("page_id").where("version_id", "=", ref.mockup_version_id).execute()).map((p) => p.page_id));
+  const named = pagesLinkedFrom(html, ref.page_id).filter((n) => siblings.has(n));
+  if (!named.length) return none;
+  const showing = await ctx.db
+    .selectFrom("story_pages as p")
+    .innerJoin("story_versions as v", "v.version_id", "p.current_version_id")
+    .select(["p.page_id", "v.mockup"])
+    .where("p.product_id", "=", productId(ctx))
+    .where("p.archived_at", "is", null)
+    .where(sql<boolean>`v.mockup->>'mockup_id' = ${ref.mockup_id}`)
+    .orderBy("p.page_id")
+    .execute();
+  const canvases = showing.filter((s) => s.mockup!.page_id === null);
+  const held = canvases.length
+    ? await ctx.db.selectFrom("mockup_pages").select(["version_id", "page_id"]).where("version_id", "in", uniq(canvases.map((c) => c.mockup!.mockup_version_id))).where("page_id", "in", named).execute()
+    : [];
+  const sameFirst = (a: { mockup: MockupPageRef | null }, b: { mockup: MockupPageRef | null }) =>
+    Number(a.mockup!.mockup_version_id !== ref.mockup_version_id) - Number(b.mockup!.mockup_version_id !== ref.mockup_version_id);
+  const to: [string, { page_id: string; on_canvas: boolean }][] = [];
+  const off: string[] = [];
+  for (const name of named) {
+    const alone = showing.filter((s) => s.mockup!.page_id === name).sort(sameFirst)[0];
+    const canvas = canvases.filter((c) => held.some((h) => h.version_id === c.mockup!.mockup_version_id && h.page_id === name)).sort(sameFirst)[0];
+    const at = alone ?? canvas;
+    if (at) to.push([name, { page_id: at.page_id, on_canvas: !alone }]);
+    else off.push(name);
+  }
+  return { to: Object.fromEntries(to), off };
+}
+
+/** The most links to no page that an answer names. */
+const NO_PAGE_LISTED = 25;
+
+/**
+ * The Story pages a page's links name (the story_page link of the guidance, on any host, as the frame
+ * script reads it) that a reader can't open: no such page, or an archived one. A link to the page
+ * itself is left out.
+ */
+async function linksToNoPage(ctx: OpContext, html: string, self: string): Promise<string[]> {
+  const prefix = `/t/${productPath(ctx)}/story/`;
+  const named = new Set<string>();
+  for (const href of hrefsIn(html)) {
+    let u: URL;
+    try {
+      u = new URL(href.trim(), ctx.ports.config.publicBaseUrl);
+    } catch {
+      continue;
+    }
+    if (!/^https?:$/.test(u.protocol) || !u.pathname.startsWith(prefix)) continue;
+    const m = /^([a-z0-9][a-z0-9-]{0,79})\/?$/.exec(u.pathname.slice(prefix.length));
+    if (m && m[1] !== self) named.add(m[1]!);
+  }
+  if (!named.size) return [];
+  const open = await ctx.db.selectFrom("story_pages").select("page_id").where("product_id", "=", productId(ctx)).where("archived_at", "is", null).where("page_id", "in", [...named]).execute();
+  const have = new Set(open.map((r) => r.page_id));
+  return [...named].filter((n) => !have.has(n)).slice(0, NO_PAGE_LISTED);
+}
+
+/** What an answer says of links to Story pages a reader can't open. */
+const LINKS_TO_NO_PAGE_NOTE =
+  "These Story pages are linked from this page and are not in the Story, or are archived, so a reader's click on those links meets \"This page isn't in the Story\". Publish them, restore them, or change the links.";
+
+/** What a promoted page's answer says of its links that lead nowhere on the Story. */
+const LINKS_OFF_STORY_NOTE =
+  "This page links to these pages of its canvas, and no Story page shows them, so a reader's click on those links goes nowhere. Promote each of them too (mockup_page_id), or show the whole canvas instead (promote_mockup without mockup_page_id), whose links fly between its pages.";
 
 /** A version as its reader may see it: the page itself, the mockup page it shows, and how it was published. */
 async function versionView(ctx: OpContext, versionId: string, withHtml: boolean) {
@@ -601,7 +679,7 @@ export const publish = defineOperation({
   mutates: true,
   summary: "Publish a new version of a Story page (creating the page on its first version). A later version keeps whatever you omit.",
   description:
-    `Call guidance first, and get_page before revising (read its agent_notes too). Send the same call to preview first: it checks everything publish checks and gives you the exact page to look at, publishing nothing. A page's first version: omit expected_etag, give a title, and give body (or html for a whole document of your own, or neither for a generated title page). Prefer body: it is only the markup inside <body>, and WhatBuild puts the product's Story style around it, so the stylesheet is never sent and every page carries the same one. A later version: pass the page etag and send only what changes — the title, summary and html you omit are taken from the current version, and carried_forward in the result names them. To change a sentence, patch_html applies exact find/replace edits instead of re-sending the page. After set_style, restyle: true gives a page the new stylesheet and keeps its content. from_version: N starts from that earlier version instead, so from_version alone restores it as a new version; compare html_sha256 to confirm the HTML is identical. The HTML is validated and every problem is listed at once (422). summary describes the page itself. Publishing never places the page in the navigation: call set_hierarchy afterwards, and update the page's notes with write_notes (agent_notes_etag is in the result). If a response is lost, sending the same call again is safe: once the version has landed it fails with stale_etag, and get_page shows it. Never invent facts, owners or dates, and never present an unconfirmed assumption as settled.`,
+    `Call guidance first, and get_page before revising (read its agent_notes too). Send the same call to preview first: it checks everything publish checks and gives you the exact page to look at, publishing nothing. A page's first version: omit expected_etag, give a title, and give body (or html for a whole document of your own, or neither for a generated title page). Prefer body: it is only the markup inside <body>, and WhatBuild puts the product's Story style around it, so the stylesheet is never sent and every page carries the same one. A later version: pass the page etag and send only what changes — the title, summary and html you omit are taken from the current version, and carried_forward in the result names them. To change a sentence, patch_html applies exact find/replace edits instead of re-sending the page. After set_style, restyle: true gives a page the new stylesheet and keeps its content. from_version: N starts from that earlier version instead, so from_version alone restores it as a new version; compare html_sha256 to confirm the HTML is identical. The HTML is validated and every problem is listed at once (422). summary describes the page itself. Publishing never places the page in the navigation: call set_hierarchy afterwards, and update the page's notes with write_notes (agent_notes_etag is in the result). If a response is lost, sending the same call again is safe: once the version has landed it fails with stale_etag, and get_page shows it. links_to_no_page in the result names the Story pages this page links to (links.story_page) that a reader can't open, since no such page is published or it is archived: publish them, or change the links. Never invent facts, owners or dates, and never present an unconfirmed assumption as settled.`,
   input: publishInput,
   rest: { method: "POST", path: "/story/pages/:page_id/versions" },
   mcp: { tool: "story", action: "publish" },
@@ -628,6 +706,7 @@ export const publish = defineOperation({
       await recordActivity(ctx, { action: "updated", entity_type: "story_page", entity_id: input.page_id, entity_title: d.title, summary: `Published version ${d.n}${input.from_version ? ` from version ${input.from_version}` : ""}` });
     }
     const p = await loadPage(ctx, input.page_id);
+    const noPage = d.mockup ? [] : await linksToNoPage(ctx, d.html, input.page_id);
     return {
       ...pageSummary(p),
       current: await versionView(ctx, p.current_version_id, false),
@@ -635,6 +714,7 @@ export const publish = defineOperation({
       carried_forward: d.carried,
       agent_notes_etag: p.agent_notes_etag,
       placed: await isPlaced(ctx, input.page_id),
+      ...(noPage.length ? { links_to_no_page: noPage, links_to_no_page_note: LINKS_TO_NO_PAGE_NOTE } : {}),
     };
   },
 });
@@ -651,7 +731,7 @@ export const preview = defineOperation({
   mutates: false,
   summary: "Check a publish without publishing: the same call, every check publish makes, and a short-lived grant to GET the exact page it would store.",
   description:
-    `Send exactly what you would send to publish. preview makes every check publish makes, and refuses with the same error where publish would (422 invalid_html listing every problem, 409 stale_etag, 404 for an unknown from_version…); it creates no version, records no activity and changes nothing anyone sees. Otherwise it returns what publish would make (new_page, based_on_version, carried_forward, title, summary, html_chars, html_sha256) and a grant: GET url with exactly the headers given to receive the document publish would store, served as a published page is, in the same sandbox and with the carried typefaces embedded. Add ?theme=light or ?theme=dark for the app's light and dark schemes; without one the page follows the browser's. The page can be opened in a browser at desktop width (1280) and phone width (390), in light and dark; a headless browser takes the headers as extra HTTP headers (Playwright: new_context(extra_http_headers=headers, viewport=…)). When it looks right, send the same params to publish: its html_sha256 matches the preview's unless the page or the Story style changed in between. The grant expires (expires_at) and a product keeps its ${PREVIEWS_KEPT} newest previews; preview again for a new one. Keep the grant header out of reports and logs.`,
+    `Send exactly what you would send to publish. preview makes every check publish makes, and refuses with the same error where publish would (422 invalid_html listing every problem, 409 stale_etag, 404 for an unknown from_version…); it creates no version, records no activity and changes nothing anyone sees. Otherwise it returns what publish would make (new_page, based_on_version, carried_forward, title, summary, html_chars, html_sha256, and links_to_no_page for links to Story pages a reader can't open) and a grant: GET url with exactly the headers given to receive the document publish would store, served as a published page is, in the same sandbox and with the carried typefaces embedded. Add ?theme=light or ?theme=dark for the app's light and dark schemes; without one the page follows the browser's. The page can be opened in a browser at desktop width (1280) and phone width (390), in light and dark; a headless browser takes the headers as extra HTTP headers (Playwright: new_context(extra_http_headers=headers, viewport=…)). When it looks right, send the same params to publish: its html_sha256 matches the preview's unless the page or the Story style changed in between. The grant expires (expires_at) and a product keeps its ${PREVIEWS_KEPT} newest previews; preview again for a new one. Keep the grant header out of reports and logs.`,
   input: publishInput,
   rest: { method: "POST", path: "/story/pages/:page_id/preview" },
   mcp: { tool: "story", action: "preview" },
@@ -673,6 +753,7 @@ export const preview = defineOperation({
       .insertInto("story_previews")
       .values({ preview_id, tenant_id: tenantId(ctx), product_id: pid, page_id: input.page_id, html: shown, shows_mockup: Boolean(d.mockup), created_by: json(ctx.actor), expires_at: expiresAt.toISOString(), created_at: ctx.now })
       .execute();
+    const noPage = d.mockup ? [] : await linksToNoPage(ctx, d.html, input.page_id);
     const token = ctx.ports.grants.sign({ v: 1, purpose: STORY_PREVIEW_PURPOSE, t: tenantId(ctx), sp: preview_id, ...requesterClaims(ctx.principal), exp: Math.floor(expiresAt.getTime() / 1000) });
     return {
       page_id: input.page_id,
@@ -684,6 +765,7 @@ export const preview = defineOperation({
       ...(d.mockup ? { shows_mockup: { mockup_id: d.mockup.mockup_id, version: d.mockup.version, page_id: d.mockup.page_id } } : {}),
       html_chars: shown.length,
       html_sha256: shownDigest(d, shown),
+      ...(noPage.length ? { links_to_no_page: noPage, links_to_no_page_note: LINKS_TO_NO_PAGE_NOTE } : {}),
       published: false,
       preview: {
         preview_id,
@@ -931,7 +1013,7 @@ export const promoteMockup = defineOperation({
   mutates: true,
   summary: "Show one page of a mockup, or its whole canvas, in the Story: a Story page version that points at it as it is in one mockup version, never a copy.",
   description:
-    "mockup_page_id chooses the page on the canvas; omit it to show the whole canvas, which takes one Story page however many pages the canvas has. page_id chooses the Story page. A page_id no page has yet creates the page under that id. The page_id of an existing page, with its etag, publishes that page's next version showing the mockup page or canvas, which is how a Story page moves to a newer mockup version: it never follows the mockup by itself. Without page_id, the new page's id is the mockup page's own slug, or a slug of the mockup's title for a whole canvas, with -2, -3… if that is taken. A new page is titled with the mockup page's title, or the mockup's for a whole canvas, unless you give one. Name the page_id when you can: if a response is lost, the same call sent again then fails with stale_etag instead of making a second page. version is the mockup version, the current one when omitted. The Story page shows a mockup page at its own size, scaled to fit, in the same sandbox, and a whole canvas as the mockup's board, to pan and zoom, with each page's title. A Story reader sees that and nothing else of the mockup: never its brief, notes, files or other versions. Publishing html or body on the page later replaces it with HTML of its own. A new page is unplaced, like any page: it reads at the end of the tree until set_hierarchy places it, and an existing page keeps its place. placed in the result says which.",
+    "mockup_page_id chooses the page on the canvas; omit it to show the whole canvas, which takes one Story page however many pages the canvas has. page_id chooses the Story page. A page_id no page has yet creates the page under that id. The page_id of an existing page, with its etag, publishes that page's next version showing the mockup page or canvas, which is how a Story page moves to a newer mockup version: it never follows the mockup by itself. Without page_id, the new page's id is the mockup page's own slug, or a slug of the mockup's title for a whole canvas, with -2, -3… if that is taken. A new page is titled with the mockup page's title, or the mockup's for a whole canvas, unless you give one. Name the page_id when you can: if a response is lost, the same call sent again then fails with stale_etag instead of making a second page. version is the mockup version, the current one when omitted. The Story page shows a mockup page at its own size, scaled to fit, in the same sandbox, and a whole canvas as the mockup's board, to pan and zoom, with each page's title. On a whole canvas, links between its pages fly between them. A page shown alone takes a link to another page of its canvas to the Story page that shows that page, or to a Story page showing the whole canvas; links_off_story in the answer names the pages it links to that no Story page shows, so promote those too or show the whole canvas. A Story reader sees that and nothing else of the mockup: never its brief, notes, files or other versions. Publishing html or body on the page later replaces it with HTML of its own. A new page is unplaced, like any page: it reads at the end of the tree until set_hierarchy places it, and an existing page keeps its place. placed in the result says which.",
   input: z.strictObject({
     mockup_id: id("mockup"),
     mockup_page_id: mockupPageId.optional(),
@@ -1002,13 +1084,16 @@ export const promoteMockup = defineOperation({
       await recordActivity(ctx, { action: "updated", entity_type: "story_page", entity_id: pageIdOut, entity_title: title, summary: `Published version ${n}, showing ${what}` });
     }
     const p = await loadPage(ctx, pageIdOut);
+    const current = await versionView(ctx, p.current_version_id, false);
+    const off = current.mockup && "links_off_story" in current.mockup ? current.mockup.links_off_story ?? [] : [];
     return {
       ...pageSummary(p),
-      current: await versionView(ctx, p.current_version_id, false),
+      current,
       based_on_version: existing ? existing.version_count : null,
       carried_forward: [],
       agent_notes_etag: p.agent_notes_etag,
       placed: await isPlaced(ctx, pageIdOut),
+      ...(off.length ? { links_off_story: off, links_off_story_note: LINKS_OFF_STORY_NOTE } : {}),
     };
   },
 });

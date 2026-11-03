@@ -895,7 +895,11 @@ page of a mockup reaches it by promotion, from the mockup (§7.7).
   and the browser remembers it (`whatbuild.story.mockup-view`, fill until chosen). A promoted entry
   into a prototype is framed at its entry's address, as on the canvas, for a reader too: the
   prototype's links move between its documents inside the frame, and a load that is not one of
-  them is put back.
+  them is put back. A link to another page of its canvas opens the Story page that shows that page,
+  or a whole canvas holding it at that page (`mockup.story_links`, [§4.11](04-data-model.md)), as a
+  step for Back; with none, a message says *This link leads to a page that isn't in the Story*, at
+  most every 4 seconds, and no tab opens. A page's own request goes only just after a person did
+  something, as on the canvas (§7.7).
 - **A whole canvas** ([§4.11](04-data-model.md)) opens as the mockup's board (§7.7), the width of
   the window, for a reader too: pan, zoom, interact, fit and fill, the keys and focus mode work as
   they do there, with the selected page in the address (`?page=`) and each page's title above it.

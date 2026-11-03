@@ -52,6 +52,10 @@ at the first page.
   and a page's script moves nothing unless a person did something moments ago.
 - A `#fragment` moves within the page a link opens. A `?query` does not reach it, and browser storage is
   unavailable, as everywhere in the sandbox.
+- On the Story, a whole canvas keeps its links flying between its pages. A page promoted alone takes a
+  link to another page of its canvas to the Story page that shows that page, or to a whole canvas that
+  holds it; `links_off_story` in `promote_mockup`'s answer names the pages it links to that no Story
+  page shows, which a reader's click would not reach. Promote them too, or the whole canvas.
 - A comparison of alternatives needs no links.
 
 ## Prototypes
