@@ -1,5 +1,5 @@
 import {
-  AppError, escapeHtml, houseSpecimen, houseStyle, ideaCardDocument, ideaCardResponseHeaders, MOCKUP_PAGE_RULES, pageResponseHeaders, printResponseHeaders, prototypeNotice, REFUSED_FRAME_SANDBOX, shownHtml, STORY_PAGE_RULES, styleSpecimen,
+  AppError, escapeHtml, houseSpecimen, SOURCE_CARD_FRAME, houseStyle, ideaCardDocument, ideaCardResponseHeaders, MOCKUP_PAGE_RULES, pageResponseHeaders, printResponseHeaders, prototypeNotice, REFUSED_FRAME_SANDBOX, shownHtml, STORY_PAGE_RULES, styleSpecimen,
   THEME_ATTRIBUTE, withStoryFonts, withStoryFrame, withStoryTheme, type Env, type FileVersionsTable, type Tx,
 } from "@whatbuild/core";
 import type { Context } from "hono";
@@ -89,6 +89,19 @@ export async function findCard(trx: Tx, productId: string, outcomeId: string | n
   return o?.card_html ? { front: o.card_html, title: o.title } : null;
 }
 
+/** A source's card, in its product. Null when it has none. */
+export async function findSourceCard(trx: Tx, productId: string, recordId: string): Promise<{ front: string; title: string } | null> {
+  const n = await trx
+    .selectFrom("agent_notes as n")
+    .innerJoin("records as r", "r.record_id", "n.record_id")
+    .select(["r.title", "n.content"])
+    .where("r.product_id", "=", productId)
+    .where("n.record_id", "=", recordId)
+    .where("n.kind", "=", "card")
+    .executeTakeFirst();
+  return n ? { front: n.content, title: n.title } : null;
+}
+
 /** A sample page in the product's Story style, or in a house style (`houseId`). Null when there is none. */
 export async function findSpecimen(trx: Tx, productId: string, houseId: string | null): Promise<string | null> {
   if (houseId !== null) {
@@ -161,11 +174,22 @@ export function storyHtml(c: Context, stored: string, theme: "light" | "dark" | 
  * kit, the theme the app gives, and WhatBuild's one measuring script, which only its nonce lets run.
  * `limit` draws a preview's line where a desktop stops showing it.
  */
-export function cardFront(c: Context, front: string, title: string, theme: "light" | "dark" | undefined, site: string | null = null, limit?: number) {
+export function cardFront(
+  c: Context,
+  front: string,
+  title: string,
+  theme: "light" | "dark" | undefined,
+  site: string | null = null,
+  /** A preview's height line, or a source card's fixed board. */
+  room?: { limit: number } | { artboard: { width: number; height: number } },
+) {
   const nonce = randomBytes(16).toString("base64");
   for (const [k, val] of Object.entries(served(ideaCardResponseHeaders(nonce, ancestorOf(site)), site))) c.header(k, val);
-  return c.body(ideaCardDocument(front, { title, theme, nonce, ...(limit ? { limit } : {}) }));
+  return c.body(ideaCardDocument(front, { title, theme, nonce, ...room }));
 }
+
+/** A source's card is drawn on one board, which the app scales to fit wherever it shows it. */
+export const SOURCE_CARD_ROOM = { artboard: { width: SOURCE_CARD_FRAME.width, height: SOURCE_CARD_FRAME.height } };
 
 const REFUSED_FRAME_STYLE =
   ":root{color-scheme:light;--panel:#fff;--text:#1e1e1e;--muted:#555}" +

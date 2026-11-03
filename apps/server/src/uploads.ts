@@ -6,7 +6,7 @@ import { Hono, type Context } from "hono";
 import { sql } from "kysely";
 import type { ServerConfig } from "./config.ts";
 import { requestedHost } from "./canonical-host.ts";
-import { bytesAsked, cardFront, storyHtml, storyTheme, streamFile } from "./documents.ts";
+import { bytesAsked, cardFront, SOURCE_CARD_ROOM, storyHtml, storyTheme, streamFile } from "./documents.ts";
 
 /** A count of bytes as people read it: 10,485,760. */
 const bytes = (n: number) => n.toLocaleString("en-US");
@@ -294,14 +294,14 @@ export function uploadRoutes(env: Env & { config: ServerConfig }) {
       if (previewsElsewhere(c)) throw notFound(`This deployment serves previews from its content site, ${env.config.contentUrl}: GET the url the preview gave.`);
       const claims = env.ports.grants.verify(c.req.header(DOWNLOAD_GRANT_HEADER) ?? "");
       if (!claims || claims["purpose"] !== CARD_PREVIEW_PURPOSE || claims["cp"] !== c.req.param("preview_id"))
-        throw new AppError(401, "invalid_grant", "The preview grant is missing, invalid or expired. Preview again with outcomes_read(action=\"card_preview\").");
+        throw new AppError(401, "invalid_grant", "The preview grant is missing, invalid or expired. Preview again with outcomes_read(action=\"card_preview\"), or derived_read(action=\"card_preview\") for a source's card.");
       const theme = storyTheme(c.req.query("theme"));
       const p = await inTenant(env, String(claims["t"]), (trx) =>
         trx.selectFrom("card_previews").select(["product_id", "kind", "title", "card_html", "expires_at"]).where("preview_id", "=", c.req.param("preview_id")).executeTakeFirst(),
       );
       if (!p || Date.parse(p.expires_at) < Date.now()) throw notFound("That preview has expired or was replaced by newer ones. Preview again with outcomes_read(action=\"card_preview\").");
       await requesterMayRead(env, claims, p.product_id);
-      return cardFront(c, p.card_html, p.title, theme, site, CARD_FRAMES[p.kind].max_height);
+      return cardFront(c, p.card_html, p.title, theme, site, p.kind === "source" ? SOURCE_CARD_ROOM : { limit: CARD_FRAMES[p.kind].max_height });
     } catch (e) {
       return fail(c, e);
     }

@@ -293,7 +293,7 @@ of each (`WHATBUILD_PARSE_CAP_BYTES`; a larger one is stored, not read). A per-t
 quota is planned ([§9.2](09-data-lifecycle.md)).
 **No operation accepts base64 file content.** Upload flows: [§6.7](06-operations-and-adapters.md).
 
-## 4.6 Comments, the summary and notes
+## 4.6 Comments, the summary, the card and notes
 
 A **comment** (an `annotation` on the wire) is someone's remark on a source as a whole. It is not
 anchored to any part of the source's text
@@ -315,21 +315,38 @@ comments still read.
 Comments are searched with the rest of the source; an archived one is not
 ([§8](08-search.md)).
 
-A source also has at most one **summary** and one set of **notes**, each Markdown up to 100,000
-chars, written with `derived.write_note { record_id, note_kind, content, expected_etag? }`
-(`note_kind` `summary` or `notes`; empty content removes it) and read with `derived.read_note`,
+A source also has at most one **summary**, one **card** and one set of **notes**: the summary and
+notes Markdown up to 100,000 chars, the card HTML. Each is written with `derived.write_note {
+record_id, note_kind, content, expected_etag? }` (`note_kind` `summary`, `card` or `notes`; empty
+content removes it) and read with `derived.read_note`,
 which answers `{ record_id, note_kind, content, etag, updated_at, updated_by }`, or `404` when
 there is none. Each has an etag of its own, apart from the source's: the first write takes none,
 and once there is one, replacing or clearing it takes its current etag (§4.1). `write_note`
 answers `{ record_id, note_kind, chars, etag, updated_at }`, with `etag: null` once cleared; the
-time it answers with is the time it stored. People write and edit both in the web app, and agents
-through the same operations; each records who wrote it last and when. Both are searched.
+time it answers with is the time it stored. People write and edit the summary and notes in the web
+app, and agents all three through the same operations; each records who wrote it last and when. The
+summary and notes are searched.
 
-- The **summary** is the part of a source people read: it heads the source's page, whole, and
-  unfolds under its row in the Evidence list, and people browsing sources read it and rarely
-  anything below. It is written for them: two to four short sentences or a few bullets, succinct
-  and high in signal, saying what the source is and what it tells the team, without ids or codes.
-  `sources.list` returns it with `include_summary`, cut at 1,000 characters.
+- The **summary** is the source in words: what agents and search read of someone's reading of it,
+  and what people read under its card in the preview and on its page. It is written for them: two
+  to four short sentences or a few bullets, succinct and high in signal, saying what the source is
+  and what it tells the team, without ids or codes. `sources.list` returns it with
+  `include_summary`, cut at 1,000 characters. A summary write on a source with no card says so in
+  `note`.
+- The **card** is the source in a picture, which people recognise it by
+  ([decision](../decisions/a-source-has-a-card-people-recognise-it-by.md)): agent-written HTML in the
+  Idea cards' kit (§4.2.1), up to 40,000 characters, held to `IDEA_CARD_RULES` at write (`422
+  invalid_card`, every problem at once) and drawn on a board of 640 × 480 (`SOURCE_CARD_FRAME` in
+  `packages/core/src/source-card.ts`) that the web app scales to fit. It heads the source's preview
+  and its page, and is the source's face in the Evidence list whenever the source has no picture of
+  its own (§7.6). It is written with `note_kind` `card`, has an etag of its own as the summary does,
+  and is **not searched**: its words are the summary's. A write returns `card_advice` on what the
+  guidance asks and the card misses, never refusing for it. `sources.list` with `include_summary`
+  gives `card_etag`, its etag or null, never its HTML; `GET P/sources/:record_id/card` serves it
+  (viewer and above; `?theme=light|dark`) in the Idea cards' document and sandbox, fixed to its
+  board. `derived.card_guidance` says how to draw one, and `derived.card_preview` shows one before
+  it is written ([§6](06-operations-and-adapters.md)). Migration `0043_source_cards.sql` lets a
+  note be a card and a card preview be a source's.
 - The **notes** are freeform: whatever is worth keeping about the source that is not its words,
   structured as the writer likes. Agents keep their working knowledge of a source there, and
   what an attachment was made from.
@@ -1009,7 +1026,7 @@ records/<record_id>/record.json                  the source, its derived text's 
 records/<record_id>/text.md                      the source's derived text, when it has one
 records/<record_id>/attachments/<file_version_id>/<path>   every version of every attachment
 records/<record_id>/derived/<derivation_id>/{text.md,manifest.json}   every reading (and segments.jsonl, in one made while sources had passages)
-records/<record_id>/annotations.json · agent-notes/{summary,notes}.md
+records/<record_id>/annotations.json · agent-notes/{summary,notes}.md · agent-notes/card.html
 assumptions.json            with their reviews (every column but the search vector)
 revisions.json
 story/hierarchy.json  ·  story/style.{json,css} (when the product has a Story style)

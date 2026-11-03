@@ -13,6 +13,7 @@ import {
 } from "../ui/index.tsx";
 import "../styles/screens/evidence.css";
 import { AddAttachments, AttachmentsView, SourceImages } from "./source-attachments.tsx";
+import { SourceCardStage, useSourceCardUrl } from "./source-card.tsx";
 import { CommentsView } from "./source-comments.tsx";
 import { ChangedMeanwhile, TextView, type Theirs } from "./source-text.tsx";
 import { EvidenceFilters, splitTags, TagSuggestions } from "./evidence.tsx";
@@ -27,7 +28,7 @@ const VIEWS: View[] = ["text", "notes", "comments", "attachments"];
 /** Sections a link may still name from before a source's words were one text. */
 const OLD_VIEWS: Record<string, View> = { passages: "text", original: "attachments", files: "attachments" };
 type AgentNoteKind = "summary" | "notes";
-type SourceRecord = RecordFull & { agent_notes?: { kind: AgentNoteKind; etag: string; updated_at: string; updated_by: Actor }[] };
+type SourceRecord = RecordFull & { agent_notes?: { kind: AgentNoteKind | "card"; etag: string; updated_at: string; updated_by: Actor }[] };
 interface AgentNote {
   note_kind: AgentNoteKind;
   content: string;
@@ -176,15 +177,21 @@ export function SourceDetailPage() {
 }
 
 /**
- * The summary under the title, whole: what the source is and what it tells the team, the part of
- * a source people read. Editors can write or change it here; without one, others see nothing.
+ * The card an agent drew of the source, then the summary, whole: what the source is and what it tells
+ * the team. Editors can write or change the summary here; agents draw the card.
  */
 function SourceDescription({ record, note, loading }: { record: SourceRecord; note: AgentNote | null; loading: boolean }) {
-  const { canWrite } = useProduct();
+  const { canWrite, api: base } = useProduct();
   const [editing, setEditing] = useState(false);
   const writable = canWrite && !record.archived_at;
+  const card = useSourceCardUrl(base, record.record_id, record.agent_notes?.find((n) => n.kind === "card")?.etag);
   return (
     <>
+      {card ? (
+        <div className="source-card-head">
+          <SourceCardStage key={card} src={card} title={record.title} />
+        </div>
+      ) : null}
       {loading ? (
         <Loading variant="lines" lines={2} label="Loading the summary…" />
       ) : !note ? (

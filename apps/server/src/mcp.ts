@@ -92,12 +92,15 @@ const TOOL_TEXT: Record<string, { title: string; parts: [text: string, ...action
   },
   derived_read: {
     title: "Read a source's text and notes",
-    parts: [["Read a source's derived text (its words as one Markdown document, what search reads), the text read from each of its attachments and how it was read, and the source's summary and notes."]],
+    parts: [
+      ["Read a source's derived text (its words as one Markdown document, what search reads), the text read from each of its attachments and how it was read, and the source's summary, card and notes. Also the guidance for drawing a source's card."],
+      ["Preview a source's card as the app shows it, before writing it.", "card_preview"],
+    ],
   },
   derived_write: {
     title: "Write a source's text and notes",
     parts: [
-      ["Write a source's derived text, its summary and its notes.", "write_text", "write_note"],
+      ["Write a source's derived text, its summary, its card (a picture people recognise it by) and its notes.", "write_text", "write_note"],
       ["Read an attachment again with the current parser.", "rederive"],
     ],
   },

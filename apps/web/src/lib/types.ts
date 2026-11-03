@@ -50,6 +50,8 @@ export interface ListedAttachment {
 /** A source as the list of sources has it: enough to move through them and preview each with no further call. */
 export interface ListedSource extends RecordSummary {
   summary: string | null;
+  /** The etag of the card an agent drew of it, a picture people recognise it by; null with none. */
+  card_etag: string | null;
   /** How its derived text starts. */
   first_lines: string | null;
   attachments: ListedAttachment[];

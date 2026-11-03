@@ -4,6 +4,9 @@ import { createRoot } from "react-dom/client";
 import { MemoryRouter, Route, Routes } from "react-router";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+// The source's card follows the theme, which asks the system; jsdom has no media queries.
+window.matchMedia ??= (query: string) => ({ matches: false, media: query, onchange: null, addListener() {}, removeListener() {}, addEventListener() {}, removeEventListener() {}, dispatchEvent: () => false });
+
 // A source's details say what their third date covers: its details (title, date captured, tags) or
 // its archiving, which its text, summary, notes and comments leave alone.
 

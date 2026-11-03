@@ -163,6 +163,8 @@ const SCOPED: Record<string, Probe> = {
     ],
   },
   "derived.read_note": { input: (a) => ({ record_id: a.source.id, note_kind: "summary" }) },
+  "derived.card_guidance": { input: () => ({}) },
+  "derived.card_preview": { input: (a) => ({ record_id: a.source.id, card_html: "<p class=\"wb-pitch\">Planted.</p>" }) },
   search: {
     input: () => ({ query: "crews", scope: "all" }),
     inside: (a) => [{ query: "crews", scope: "all" }, { query: "crews", record_id: a.source.id }],

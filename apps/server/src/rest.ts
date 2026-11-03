@@ -9,7 +9,7 @@ import { isOwnOrigin, restPrincipal } from "./auth/identity.ts";
 import type { ServerConfig } from "./config.ts";
 import { handOff } from "./content-documents.ts";
 import {
-  askedByFrame, bytesAsked, cardFront, failedFrame, findAttachment, findCard, findMockupPage, findSpecimen, findStoryCanvasPage, findStoryVersion, htmlView, isHtmlAttachment, isPdf, printView, refusedFrame, storyHtml, storyTheme, streamFile,
+  askedByFrame, bytesAsked, cardFront, failedFrame, findAttachment, findCard, findSourceCard, SOURCE_CARD_ROOM, findMockupPage, findSpecimen, findStoryCanvasPage, findStoryVersion, htmlView, isHtmlAttachment, isPdf, printView, refusedFrame, storyHtml, storyTheme, streamFile,
 } from "./documents.ts";
 import { logError } from "./telemetry.ts";
 
@@ -311,6 +311,22 @@ export function restRoutes(env: Env & { config: ServerConfig }) {
   app.get(`${SCOPE_PREFIX.product}/outcomes/:outcome_id/card`, async (c) => {
     try {
       return await card(c, c.req.param("outcome_id")!);
+    } catch (e) {
+      return documentFailure(c, e);
+    }
+  });
+
+  // A source's card, as the app's frames show it: the preview's, its page's, and its face in the
+  // list. Like an Idea card, its grant carries the card's digest, since a card changes in place.
+  app.get(`${SCOPE_PREFIX.product}/sources/:record_id/card`, async (c) => {
+    try {
+      const { principal, scope, productId } = await scoped(c);
+      const theme = storyTheme(c.req.query("theme"));
+      const recordId = c.req.param("record_id")!;
+      const found = await inTenant(scope, (trx) => findSourceCard(trx, productId, recordId));
+      if (!found) throw new AppError(404, "not_found", "This source has no card yet.");
+      if (site) return handOff(c, env, principal, scope, { purpose: "card", s: recordId, d: documentDigest(found.front) }, "card.html");
+      return cardFront(c, found.front, found.title, theme, null, SOURCE_CARD_ROOM);
     } catch (e) {
       return documentFailure(c, e);
     }

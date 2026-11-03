@@ -4,6 +4,9 @@ import { createRoot } from "react-dom/client";
 import { MemoryRouter, Route, Routes } from "react-router";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
+// The source's card follows the theme, which asks the system; jsdom has no media queries.
+window.matchMedia ??= (query: string) => ({ matches: false, media: query, onchange: null, addListener() {}, removeListener() {}, addEventListener() {}, removeEventListener() {}, dispatchEvent: () => false });
+
 // Editing a source's summary, notes or text names the etag of what the editor opened. When someone
 // changed it meanwhile, the save is refused (409 stale_etag): the editor keeps the person's words,
 // shows theirs, and saving again names their etag, so nothing is overwritten unseen.

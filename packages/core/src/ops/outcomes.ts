@@ -377,6 +377,40 @@ export const CARD_PREVIEW_PURPOSE = "card_preview";
 /** The card previews a product keeps at once; a new one beyond them drops the oldest. */
 const CARD_PREVIEWS_KEPT = 20;
 
+/** A preview answers whether the write would land, so it is refused wherever the write would be. */
+export function refuseCardPreview(ctx: OpContext, name: string) {
+  if (ctx.scope.product!.archived_at) throw conflict("product_archived", `Product ${ctx.scope.product!.name} is archived and read-only. Restore it first.`);
+  if (ctx.limits) refuseSwitchedOff(ctx.limits, { name, mutates: true });
+}
+
+/**
+ * Keep a card the preview checked, an Idea card's front or a source's card, for its grant to GET in
+ * the document the app shows it in, and sign that grant. A product keeps only its newest previews.
+ */
+export async function keepCardPreview(ctx: OpContext, card: { kind: "concept" | "outcome" | "source"; title: string; card_html: string }) {
+  const pid = productId(ctx);
+  // A preview lives as long as its grant, and a product keeps only its newest ones.
+  const kept = await ctx.db.selectFrom("card_previews").select("preview_id").where("product_id", "=", pid).where("expires_at", ">", ctx.now).orderBy("created_at", "desc").orderBy("preview_id", "desc").limit(CARD_PREVIEWS_KEPT - 1).execute();
+  let drop = ctx.db.deleteFrom("card_previews").where("product_id", "=", pid);
+  if (kept.length) drop = drop.where("preview_id", "not in", kept.map((k) => k.preview_id));
+  await drop.execute();
+  const preview_id = newId();
+  const expiresAt = new Date(Date.parse(ctx.now) + ctx.ports.config.grantTtlSeconds * 1000);
+  await ctx.db
+    .insertInto("card_previews")
+    .values({ preview_id, tenant_id: tenantId(ctx), product_id: pid, kind: card.kind, title: card.title, card_html: card.card_html, created_by: json(ctx.actor), expires_at: expiresAt.toISOString(), created_at: ctx.now })
+    .execute();
+  const token = ctx.ports.grants.sign({ v: 1, purpose: CARD_PREVIEW_PURPOSE, t: tenantId(ctx), cp: preview_id, ...requesterClaims(ctx.principal), exp: Math.floor(expiresAt.getTime() / 1000) });
+  return {
+    preview_id,
+    method: "GET",
+    // On the content site when the deployment has one, as every document of people's HTML is.
+    url: `${ctx.ports.config.contentBaseUrl ?? ctx.ports.config.publicBaseUrl}/api/v1/downloads/card-preview/${preview_id}`,
+    headers: { [DOWNLOAD_GRANT_HEADER]: token },
+    expires_at: expiresAt.toISOString(),
+  };
+}
+
 export const outcomeCardPreview = defineOperation({
   name: "outcomes.card_preview",
   scope: "product",
@@ -398,26 +432,12 @@ export const outcomeCardPreview = defineOperation({
   rest: { method: "POST", path: "/idea/card-preview" },
   mcp: { tool: "outcomes", action: "card_preview" },
   async handler(ctx, input) {
-    // A preview answers whether the write would land, so it is refused wherever the write would be.
-    if (ctx.scope.product!.archived_at) throw conflict("product_archived", `Product ${ctx.scope.product!.name} is archived and read-only. Restore it first.`);
-    if (ctx.limits) refuseSwitchedOff(ctx.limits, { name: "outcomes.card_preview", mutates: true });
+    refuseCardPreview(ctx, "outcomes.card_preview");
     const what = input.kind === "concept" ? "The product concept" : "The outcome";
     if (input.kind === "outcome") refuseReferences({ card_html: input.card_html });
     checkIdeaCard(input.card_html, what);
-    const pid = productId(ctx);
-    // A preview lives as long as its grant, and a product keeps only its newest ones.
-    const kept = await ctx.db.selectFrom("card_previews").select("preview_id").where("product_id", "=", pid).where("expires_at", ">", ctx.now).orderBy("created_at", "desc").orderBy("preview_id", "desc").limit(CARD_PREVIEWS_KEPT - 1).execute();
-    let drop = ctx.db.deleteFrom("card_previews").where("product_id", "=", pid);
-    if (kept.length) drop = drop.where("preview_id", "not in", kept.map((k) => k.preview_id));
-    await drop.execute();
-    const preview_id = newId();
-    const expiresAt = new Date(Date.parse(ctx.now) + ctx.ports.config.grantTtlSeconds * 1000);
     const title = input.kind === "concept" ? `${ctx.scope.product!.name}: product concept` : input.title || "Outcome";
-    await ctx.db
-      .insertInto("card_previews")
-      .values({ preview_id, tenant_id: tenantId(ctx), product_id: pid, kind: input.kind, title, card_html: input.card_html, created_by: json(ctx.actor), expires_at: expiresAt.toISOString(), created_at: ctx.now })
-      .execute();
-    const token = ctx.ports.grants.sign({ v: 1, purpose: CARD_PREVIEW_PURPOSE, t: tenantId(ctx), cp: preview_id, ...requesterClaims(ctx.principal), exp: Math.floor(expiresAt.getTime() / 1000) });
+    const preview = await keepCardPreview(ctx, { kind: input.kind, title, card_html: input.card_html });
     const frame = CARD_FRAMES[input.kind];
     return {
       kind: input.kind,
@@ -425,14 +445,7 @@ export const outcomeCardPreview = defineOperation({
       card_advice: adviseIdeaCard({ kind: input.kind, front: input.card_html, back: input.back, title: input.title }),
       frame,
       written: false,
-      preview: {
-        preview_id,
-        method: "GET",
-        // On the content site when the deployment has one, as every document of people's HTML is.
-        url: `${ctx.ports.config.contentBaseUrl ?? ctx.ports.config.publicBaseUrl}/api/v1/downloads/card-preview/${preview_id}`,
-        headers: { [DOWNLOAD_GRANT_HEADER]: token },
-        expires_at: expiresAt.toISOString(),
-      },
+      preview,
       next: `GET url with these headers in a browser ${frame.width} and 390 wide, adding ?theme=light and ?theme=dark: at ${frame.width} the front ends above the dashed line, and nothing runs into anything else at either width. Cover the words: if the picture alone no longer says what the card must, draw it again. Then write it, with its back. Keep the grant header out of reports and logs.`,
     };
   },

@@ -8,6 +8,9 @@ import type { Ports } from "../ports.ts";
 import { expectedEtag, id } from "../schemas.ts";
 import { applyEdits, editsInput, rewrites, textDiff } from "../text-edits.ts";
 import { indexText } from "../text-index.ts";
+import { CARD_HTML_MAX, checkIdeaCard } from "../idea-card.ts";
+import { adviseSourceCard, SOURCE_CARD_FRAME, sourceCardGuidance } from "../source-card.ts";
+import { keepCardPreview, refuseCardPreview } from "./outcomes.ts";
 import { newEtag, newId, sameEtag } from "../util.ts";
 import { attachmentReadings, attachmentText, loadRecord, takenFrom, textFileId } from "./sources.ts";
 
@@ -23,7 +26,7 @@ const count = (n: number) => n.toLocaleString("en-US");
 const PARSER = { account_id: "system", display_name: "WhatBuild", surface: null, client: "parser" };
 
 /** The parts of a source a write may create: each has an etag of its own, apart from the source's. */
-type Part = "summary" | "notes" | "text";
+type Part = "summary" | "notes" | "card" | "text";
 
 /** What a refusal says about each part, and where a caller reads its etag. */
 const PART: Record<Part, { of: string; missing: string; none: string; own: string; pass: string; stale: string }> = {
@@ -42,6 +45,14 @@ const PART: Record<Part, { of: string; missing: string; none: string; own: strin
     own: "its notes have their own",
     pass: `Pass the notes' etag: derived_read(action="read_note", note_kind="notes") returns it, as does sources_read(action="get", detail="full") in agent_notes.`,
     stale: `That is not the current etag of this source's notes. Read them again with derived_read(action="read_note", note_kind="notes"), see what they say now, and pass their etag.`,
+  },
+  card: {
+    of: "the etag of the source's card",
+    missing: `This source already has a card; read it with derived_read(action="read_note", note_kind="card") and pass its etag as expected_etag.`,
+    none: `This source has no card now, so there is no etag to match: derived_read(action="read_note", note_kind="card") answers 404. Leave expected_etag out for the first write.`,
+    own: "its card has its own",
+    pass: `Pass the card's etag: derived_read(action="read_note", note_kind="card") returns it, as does sources_read(action="get", detail="full") in agent_notes.`,
+    stale: `That is not the current etag of this source's card. Read it again with derived_read(action="read_note", note_kind="card"), see what it shows now, and pass its etag.`,
   },
   text: {
     of: "the etag of the source's derived text",
@@ -317,60 +328,88 @@ export const rederive = defineOperation({
 });
 
 const NOTE_KIND = z
-  .enum(["summary", "notes"])
+  .enum(["summary", "notes", "card"])
   .describe(
-    "summary: what the source is and what it tells the team, the part of a source people read: it heads the source's page and shows in the Evidence list. notes: freeform working notes on the source, for agents and people.",
+    "summary: what the source is and what it tells the team, in Markdown; agents and search read it, and the preview shows it under the card. card: a picture of the source people recognise it by, HTML (derived_read(action=\"card_guidance\") says how to draw one); it heads the source's preview and page, and is its thumbnail in the Evidence list when the source has no picture of its own. notes: freeform working notes on the source, for agents and people.",
   );
+
+const NOTE_WORDS = { summary: "the summary", notes: "the notes", card: "the card" } as const;
 
 export const writeNote = defineOperation({
   name: "derived.write_note",
   scope: "product",
   access: "write",
   mutates: true,
-  summary: "Write a source's summary or its notes. Empty content clears it.",
+  summary: "Write a source's summary, its card or its notes. Empty content clears it.",
   description:
-    `Markdown, up to ${count(AGENT_NOTE_MAX)} characters; it replaces what was there, and people can edit both in the app too. Once the source has one, pass its etag as expected_etag (derived_read(action="read_note") returns it, as does sources_read(action="get", detail="full") in agent_notes): a write or a clearing without it, or with one that is no longer current, is refused with 409 stale_etag and current_etag, so you never replace someone else's words unseen. Leave it out only for the first write, while read_note answers 404. Both are searched. Write the summary with care: it is the part of a source people read. It heads the source's page and shows in the Evidence list, and people browsing sources read the summary and rarely anything below it. Make it succinct and high in signal: two to four short sentences, or a few bullets, saying what the source is and what it tells the team (the finding, the number, the decision, what is still open) in plain words, with no ids or codes, no preamble and no restating of the title. Notes are freeform: whatever is worth keeping about the source that is not its words, structured as you like, so the next agent need not work it out again.`,
+    `A summary and notes are Markdown, up to ${count(AGENT_NOTE_MAX)} characters; a card is HTML, up to ${count(CARD_HTML_MAX)}. A write replaces what was there, and people can edit the summary and notes in the app too. Once the source has one, pass its etag as expected_etag (derived_read(action="read_note") returns it, as does sources_read(action="get", detail="full") in agent_notes): a write or a clearing without it, or with one that is no longer current, is refused with 409 stale_etag and current_etag, so you never replace someone else's work unseen. Leave it out only for the first write, while read_note answers 404. The summary and notes are searched; the card is not. ` +
+    `Give every source you work on a summary and a card. The summary is what agents and search read, and it shows under the card: succinct and high in signal, two to four short sentences or a few bullets saying what the source is and what it tells the team (the finding, the number, the decision, what is still open) in plain words, with no ids or codes, no preamble and no restating of the title. ` +
+    `The card is what people see: a picture of the one thing this source says that the product's other sources do not, drawn on a ${SOURCE_CARD_FRAME.width} × ${SOURCE_CARD_FRAME.height} board and shown as small as a thumbnail, so that someone glancing down the list tells the sources apart before reading a title. Read derived_read(action="card_guidance") before drawing one, and look at it first with derived_read(action="card_preview"). A card is checked as an Idea card's front is (422 invalid_card, listing every problem), and a card write returns card_advice on what it misses of the guidance. ` +
+    `Notes are freeform: whatever is worth keeping about the source that is not its words, structured as you like, so the next agent need not work it out again.`,
   input: z.strictObject({
     record_id: id("source"),
     note_kind: NOTE_KIND,
     content: z.string().max(AGENT_NOTE_MAX, `a summary or notes hold at most ${count(AGENT_NOTE_MAX)} characters`),
     expected_etag: expectedEtag
       .optional()
-      .describe("The etag of the summary or notes this replaces, from read_note or agent_notes in sources_read(action=\"get\", detail=\"full\"); not the source's. Required once there is one; leave it out for the first write."),
+      .describe("The etag of the summary, card or notes this replaces, from read_note or agent_notes in sources_read(action=\"get\", detail=\"full\"); not the source's. Required once there is one; leave it out for the first write."),
   }),
   rest: { method: "PUT", path: "/sources/:record_id/agent-notes/:note_kind" },
   mcp: { tool: "derived", action: "write_note" },
   async handler(ctx, input) {
     const r = await loadRecord(ctx, input.record_id, { live: true, lock: true });
-    const what = input.note_kind === "summary" ? "the summary" : "the notes";
-    const cur = await ctx.db.selectFrom("agent_notes").selectAll().where("record_id", "=", r.record_id).where("kind", "=", input.note_kind).executeTakeFirst();
-    await checkPartEtag(ctx, r, input.note_kind, cur?.etag ?? null, input.expected_etag);
+    const kind = input.note_kind;
+    const what = NOTE_WORDS[kind];
+    const isCard = kind === "card";
+    if (isCard && input.content.trim()) {
+      if (input.content.length > CARD_HTML_MAX) throw invalid("invalid_card", `A source's card holds at most ${count(CARD_HTML_MAX)} characters; this one has ${count(input.content.length)}.`, { problems: [`At most ${count(CARD_HTML_MAX)} characters.`] });
+      checkIdeaCard(input.content, "This source");
+    }
+    const cur = await ctx.db.selectFrom("agent_notes").selectAll().where("record_id", "=", r.record_id).where("kind", "=", kind).executeTakeFirst();
+    await checkPartEtag(ctx, r, kind, cur?.etag ?? null, input.expected_etag);
     if (!input.content.trim()) {
       if (cur) {
-        await ctx.db.deleteFrom("agent_notes").where("record_id", "=", r.record_id).where("kind", "=", input.note_kind).execute();
-        await indexText(ctx.db, tenantId(ctx), r.record_id, input.note_kind, null);
+        await ctx.db.deleteFrom("agent_notes").where("record_id", "=", r.record_id).where("kind", "=", kind).execute();
+        if (!isCard) await indexText(ctx.db, tenantId(ctx), r.record_id, kind, null);
         await recordActivity(ctx, { action: "agent_note_written", entity_type: "source", entity_id: r.record_id, entity_title: r.title, summary: `Cleared ${what}` });
       }
-      return { record_id: r.record_id, note_kind: input.note_kind, chars: 0, etag: null, updated_at: ctx.now };
+      return { record_id: r.record_id, note_kind: kind, chars: 0, etag: null, updated_at: ctx.now };
     }
     // Stored at the time the call answers with, so what a read returns is what the write said.
     const row = { content: input.content, updated_at: ctx.now, updated_by: json(ctx.actor), etag: newEtag() };
-    if (cur) await ctx.db.updateTable("agent_notes").set(row).where("record_id", "=", r.record_id).where("kind", "=", input.note_kind).execute();
-    else await ctx.db.insertInto("agent_notes").values({ record_id: r.record_id, kind: input.note_kind, tenant_id: tenantId(ctx), ...row }).execute();
-    await indexText(ctx.db, tenantId(ctx), r.record_id, input.note_kind, input.content);
+    if (cur) await ctx.db.updateTable("agent_notes").set(row).where("record_id", "=", r.record_id).where("kind", "=", kind).execute();
+    else await ctx.db.insertInto("agent_notes").values({ record_id: r.record_id, kind, tenant_id: tenantId(ctx), ...row }).execute();
+    if (!isCard) await indexText(ctx.db, tenantId(ctx), r.record_id, kind, input.content);
     await recordActivity(ctx, { action: "agent_note_written", entity_type: "source", entity_id: r.record_id, entity_title: r.title, summary: `Wrote ${what}` });
-    return { record_id: r.record_id, note_kind: input.note_kind, chars: input.content.length, etag: row.etag, updated_at: ctx.now };
+    const written = { record_id: r.record_id, note_kind: kind, chars: input.content.length, etag: row.etag, updated_at: ctx.now };
+    if (isCard) return { ...written, card_advice: adviseSourceCard({ front: input.content, title: r.title, summary: await summaryOf(ctx, r.record_id) }) };
+    if (kind === "summary" && !(await hasCard(ctx, r.record_id)))
+      return { ...written, note: NO_CARD };
+    return written;
   },
 });
+
+/** What a summary write says while its source has no card. */
+const NO_CARD =
+  'This source has no card yet, so in the Evidence list it shows as a small page of grey lines like every other source with text. Draw it one: read derived_read(action="card_guidance"), then write it with note_kind="card".';
+
+async function summaryOf(ctx: OpContext, recordId: string): Promise<string | null> {
+  const n = await ctx.db.selectFrom("agent_notes").select("content").where("record_id", "=", recordId).where("kind", "=", "summary").executeTakeFirst();
+  return n?.content ?? null;
+}
+
+async function hasCard(ctx: OpContext, recordId: string): Promise<boolean> {
+  return Boolean(await ctx.db.selectFrom("agent_notes").select("record_id").where("record_id", "=", recordId).where("kind", "=", "card").executeTakeFirst());
+}
 
 export const readNote = defineOperation({
   name: "derived.read_note",
   scope: "product",
   access: "read",
   mutates: false,
-  summary: "Read a source's summary or its notes.",
+  summary: "Read a source's summary, its card or its notes.",
   description:
-    "404 when none was written. Both are someone's reading of the source, not its words. etag is the one write_note takes to replace or clear it; updated_at and updated_by say who wrote it last.",
+    "404 when none was written. Each is someone's reading of the source, not its words; a card is HTML, the others Markdown. etag is the one write_note takes to replace or clear it; updated_at and updated_by say who wrote it last.",
   input: z.strictObject({ record_id: id("source"), note_kind: NOTE_KIND }),
   rest: { method: "GET", path: "/sources/:record_id/agent-notes/:note_kind" },
   mcp: { tool: "derived", action: "read_note" },
@@ -379,15 +418,64 @@ export const readNote = defineOperation({
     const n = await ctx.db.selectFrom("agent_notes").selectAll().where("record_id", "=", input.record_id).where("kind", "=", input.note_kind).executeTakeFirst();
     if (!n)
       throw notFound(
-        input.note_kind === "summary"
-          ? "No summary has been written for this source. To write one, send derived_write(action=\"write_note\") without expected_etag."
-          : "No notes have been written for this source. To write them, send derived_write(action=\"write_note\") without expected_etag.",
+        input.note_kind === "notes"
+          ? "No notes have been written for this source. To write them, send derived_write(action=\"write_note\") without expected_etag."
+          : input.note_kind === "card"
+            ? "This source has no card yet. To draw one, read derived_read(action=\"card_guidance\"), then send derived_write(action=\"write_note\", note_kind=\"card\") without expected_etag."
+            : "No summary has been written for this source. To write one, send derived_write(action=\"write_note\") without expected_etag.",
       );
     return { record_id: n.record_id, note_kind: n.kind, content: n.content, etag: n.etag, updated_at: n.updated_at, updated_by: n.updated_by };
   },
 });
 
-export const derivedOps = [manifest, text, writeText, listDerivations, rederive, writeNote, readNote];
+export const sourceCardGuidanceOp = defineOperation({
+  name: "derived.card_guidance",
+  scope: "product",
+  access: "read",
+  mutates: false,
+  summary: "How to draw a source's card: what it is for, how to make it memorable among the product's other sources, drawn examples, the board it is drawn on, and what it may hold.",
+  description:
+    `Read it before writing a card with derived_write(action="write_note", note_kind="card"). The same for every product: guidance is the reference as Markdown, icons the pictogram names data-icon accepts, frame the board a card is drawn on (${SOURCE_CARD_FRAME.width} × ${SOURCE_CARD_FRAME.height}) and the width of a thumbnail, and max_chars the longest card. derived_read(action="card_preview") shows a card as the app will, before you write it.`,
+  input: z.strictObject({}),
+  rest: { method: "GET", path: "/evidence/card-guidance" },
+  mcp: { tool: "derived", action: "card_guidance" },
+  async handler() {
+    return sourceCardGuidance();
+  },
+});
+
+export const sourceCardPreviewOp = defineOperation({
+  name: "derived.card_preview",
+  scope: "product",
+  access: "write",
+  mutates: false,
+  summary: "Look at a source's card before writing it: every check a write makes, its advice, and a short-lived grant to GET the card as the app shows it.",
+  description:
+    `Send the card you mean to write (card_html) and the source it is for (record_id). preview refuses what a write would refuse (422 invalid_card, listing every problem) and writes nothing anyone sees. Otherwise it returns card_advice, frame (the ${SOURCE_CARD_FRAME.width} × ${SOURCE_CARD_FRAME.height} board and the width of a thumbnail) and a grant: GET url with exactly the headers given to receive the card in the document the app shows it in. ` +
+    `Open it in a browser or a headless one (Playwright: new_context(extra_http_headers=headers, viewport={"width": ${SOURCE_CARD_FRAME.width}, "height": ${SOURCE_CARD_FRAME.height}})), adding ?theme=light and ?theme=dark, and look at it full size and shrunk to ${SOURCE_CARD_FRAME.thumb_width}px wide. The grant expires (expires_at), and a product keeps only its newest card previews, the Idea's and the sources' together; preview again for a new one. Keep the grant header out of reports and logs.`,
+  input: z.strictObject({
+    record_id: id("source"),
+    card_html: z.string().trim().min(1).max(CARD_HTML_MAX).describe("The card, as you would write it."),
+  }),
+  rest: { method: "POST", path: "/sources/:record_id/card-preview" },
+  mcp: { tool: "derived", action: "card_preview" },
+  async handler(ctx, input) {
+    refuseCardPreview(ctx, "derived.card_preview");
+    const r = await loadRecord(ctx, input.record_id, { live: true });
+    checkIdeaCard(input.card_html, "This source");
+    const preview = await keepCardPreview(ctx, { kind: "source", title: r.title, card_html: input.card_html });
+    return {
+      record_id: r.record_id,
+      card_chars: input.card_html.length,
+      card_advice: adviseSourceCard({ front: input.card_html, title: r.title, summary: await summaryOf(ctx, r.record_id) }),
+      frame: SOURCE_CARD_FRAME,
+      written: false,
+      preview,
+    };
+  },
+});
+
+export const derivedOps = [manifest, text, writeText, listDerivations, rederive, writeNote, readNote, sourceCardGuidanceOp, sourceCardPreviewOp];
 
 // ---- Reading an attachment ----------------------------------------------------------------------
 

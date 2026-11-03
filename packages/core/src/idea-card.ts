@@ -108,7 +108,7 @@ function without(text: string, open: RegExp, close: RegExp): string {
 }
 
 /** The words a front shows: its text, without markup, styles or comments. */
-function frontWords(html: string): string[] {
+export function frontWords(html: string): string[] {
   const text = without(without(without(html, /<style/gi, /<\/style>/gi), /<!--/g, /--!?>/g), /</g, />/g).replace(/&[a-z]+;|&#\d+;/gi, " ");
   return text.split(/\s+/).filter((w) => /[\p{L}\p{N}]/u.test(w));
 }
@@ -124,7 +124,7 @@ function styleBlocks(html: string): string[] {
 }
 
 /** What sets a front's colours: its style blocks, style attributes and SVG paint, without data: URIs. */
-function styling(html: string): string {
+export function styling(html: string): string {
   const found = [
     ...styleBlocks(html),
     ...[...html.matchAll(/\s(?:style|fill|stroke|color|stop-color|flood-color|lighting-color)\s*=\s*("[^"]*"|'[^']*')/gi)].map((m) => m[1]!),
@@ -133,7 +133,7 @@ function styling(html: string): string {
 }
 
 /** Text compared loosely: lower case, letters and digits only. */
-function loose(text: string): string {
+export function loose(text: string): string {
   return text.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
 }
 
@@ -505,13 +505,24 @@ const LIMIT_CSS =
  */
 export function ideaCardDocument(
   front: string,
-  opts: { title: string; theme?: "light" | "dark"; nonce: string; /** A preview's height line: the most a desktop shows. */ limit?: number },
+  opts: {
+    title: string;
+    theme?: "light" | "dark";
+    nonce: string;
+    /** A preview's height line: the most a desktop shows. */
+    limit?: number;
+    /** A card of one fixed size, as a source's is, which the app scales to fit wherever it shows it. */
+    artboard?: { width: number; height: number };
+  },
 ): string {
   const theme = opts.theme ? ` ${THEME_ATTRIBUTE}="${opts.theme}"` : "";
+  const board = opts.artboard
+    ? `\nhtml,body{width:${opts.artboard.width}px;height:${opts.artboard.height}px;overflow:hidden}.wb-card{width:${opts.artboard.width}px;height:${opts.artboard.height}px;overflow:hidden}`
+    : "";
   const limit = opts.limit ? `<div class="wb-limit" aria-hidden="true" data-limit="${opts.limit}" style="top:${opts.limit}px"><span></span></div>` : "";
   return (
     `<!doctype html><html lang="en"${theme}><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">` +
-    `<title>${escapeHtml(opts.title)}</title><style>${interFace()}\n${CARD_KIT_CSS}\n${iconRules(cardIconsNamed(front))}${opts.limit ? `\n${LIMIT_CSS}` : ""}</style></head>` +
+    `<title>${escapeHtml(opts.title)}</title><style>${interFace()}\n${CARD_KIT_CSS}\n${iconRules(cardIconsNamed(front))}${board}${opts.limit ? `\n${LIMIT_CSS}` : ""}</style></head>` +
     `<body><main class="wb-card">\n${front}\n</main>${limit}<script nonce="${opts.nonce}">${MEASURE_SCRIPT}</script></body></html>`
   );
 }
