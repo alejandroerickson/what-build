@@ -48,7 +48,10 @@ steps:
         if [ -z "$$NEON_PROJECT" ]; then echo "No _NEON_PROJECT: no restore point."; exit 0; fi
         NEON_API_KEY="$$(gcloud secrets versions access latest --secret whatbuild-neon-api-key)"
         export NEON_API_KEY
-        python3 - <<'PY'
+        # The slim image no longer puts python3 on the PATH (from Google Cloud SDK 592); gcloud's own
+        # Python is still in it, and has all the script needs.
+        PYTHON="$$(command -v python3 || echo /usr/lib/google-cloud-sdk/platform/bundledpythonunix/bin/python3)"
+        "$$PYTHON" - <<'PY'
         import datetime, json, os, time, urllib.error, urllib.request
 
         API = "https://console.neon.tech/api/v2/projects/" + os.environ["NEON_PROJECT"]

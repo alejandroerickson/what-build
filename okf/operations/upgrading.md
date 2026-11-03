@@ -25,6 +25,15 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
 
 Nothing yet.
 
+## v0.32.1
+
+- **A Cloud Run deployment on Neon could not take v0.32.0, and takes this one instead.** The
+  Cloud Build image the deploy uses (`cloud-sdk:slim`) stopped putting `python3` on its PATH, so
+  the build stopped at its restore point, before migrating or deploying, and the deployment stayed
+  on the release it ran. This release's build finds gcloud's own Python instead, and brings
+  v0.32.0's changes with it, migration `0043_source_cards.sql` among them: read v0.32.0's lines
+  below too. Nothing else needs doing; a deployment without `_NEON_PROJECT` was never affected.
+
 ## v0.32.0
 
 - **Sources get cards, and nothing needs doing.** Migration `0043_source_cards.sql` lets a source's
