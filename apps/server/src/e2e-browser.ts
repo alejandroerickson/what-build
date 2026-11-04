@@ -187,10 +187,21 @@ async function daemon(headed: boolean) {
       case "frame-click": {
         const { handle, frame } = await pageFrame(page, need(a, "a frame's title"));
         const text = need(b, "the text of a link or button in the frame");
-        // A string: this file compiles for the server, with no document to name.
-        const at = (await frame.evaluate(
-          `(() => { const el = [...document.querySelectorAll("a, button")].find((e) => (e.textContent ?? "").trim().includes(${JSON.stringify(text)})); if (!el) return null; el.scrollIntoView({ block: "nearest" }); const r = el.getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; })()`,
-        )) as { x: number; y: number } | null;
+        // The text goes in as an argument, never into code. This file compiles for the server, with no
+        // DOM types, so the page's document is reached through globalThis with just what is used of it.
+        const at = await frame.evaluate((wanted) => {
+          type Found = {
+            textContent: string | null;
+            scrollIntoView(options: { block: "nearest" }): void;
+            getBoundingClientRect(): { x: number; y: number; width: number; height: number };
+          };
+          const { document } = globalThis as unknown as { document: { querySelectorAll(selectors: string): Iterable<Found> } };
+          const el = [...document.querySelectorAll("a, button")].find((e) => (e.textContent ?? "").trim().includes(wanted));
+          if (!el) return null;
+          el.scrollIntoView({ block: "nearest" });
+          const r = el.getBoundingClientRect();
+          return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+        }, text);
         if (!at) throw new Error(`No link or button showing "${text}" in the frame "${a}".`);
         await page.waitForTimeout(150);
         // Through the canvas's scale, which Playwright's own click in a frame does not allow for.

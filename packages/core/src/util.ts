@@ -76,14 +76,16 @@ export function canonicalJson(value: unknown): string {
 
 /** Unicode NFKD, ASCII only, lower case, runs of other characters to `-`, at most `max` characters. */
 export function slugify(input: string, max = 60, fallback = "untitled"): string {
+  // Every run of other characters, dashes among them, is one `-` by the time the ends are trimmed,
+  // so each end has at most one: the trims take one, in time linear in the input.
   const s = input
     .normalize("NFKD")
     .replace(/[^\x00-\x7f]/g, "")
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
+    .replace(/^-|-$/g, "")
     .slice(0, max)
-    .replace(/^-+|-+$/g, "");
+    .replace(/^-|-$/g, "");
   return s || fallback;
 }
 
