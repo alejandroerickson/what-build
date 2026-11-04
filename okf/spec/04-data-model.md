@@ -3,7 +3,7 @@ type: Specification
 title: Every object in a product, with its fields, limits and invariants, as the REST and MCP wire sees it.
 description: The common envelope (ids, etags, attribution, revisions), outcomes, sources and their tags, attachments, comments, summaries and notes, evidence links, the assumption register, views, activity, Story, mockups, feedback, the product bundle, and the storage layout.
 tags: [spec, data-model, schema, revisions, story, mockups, export]
-generated: {by: agent:claude, at: 2026-11-03}
+generated: {by: agent:claude, at: 2026-11-04}
 status: stable
 ---
 
@@ -473,8 +473,10 @@ An append-only event log, written in the same transaction as the mutation that c
   summary names objects; it does not quote them. An archived comment's entry once ended with the
   reason it was archived ("Archived a comment: …"); `activity.list` reads such an entry without it,
   as it reads an old parse entry without the parser's label and an old edit that named its fields
-  ("Changed outcome_ids, tags") in the app's words, though the stored row, and so an export's
-  `activity.jsonl`, still holds what was recorded.
+  ("Changed outcome_ids, tags") in the app's words, fields objects no longer have included; a field
+  with no words of its own is read as its name written out ("the source system"), never with an
+  `_id` or an underscore. The stored row, and so an export's `activity.jsonl`, still holds what was
+  recorded.
 - `activity.list` filters by `entity_type`, `entity_id`, `actor`, `channel`, `by` (`people` for
   the web app, and for the REST API in entries from when personal tokens reached it; `agents` for
   MCP; what WhatBuild does by itself, which has no channel, is in neither) and `since`, with the

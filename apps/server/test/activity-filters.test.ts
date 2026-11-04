@@ -177,6 +177,11 @@ describe("what an entry says", () => {
     ["updated", "source", "Changed title, date, tags", "Changed the title, the date and the tags"],
     ["updated", "product", "Changed name, slug", "Changed the name and the short name in links"],
     ["updated", "product", "Changed concept, concept's front", "Changed the concept and the concept's picture"],
+    ["updated", "assumption", "Changed links, outcome_ids, dimensions, provenance_depth", "Changed the links to other assumptions, the outcomes it bears on, the dimensions and how far it is from the evidence"],
+    ["updated", "source", "Changed kind, organization, participants, related_records", "Changed the kind of material, the organization it is from, the participants and the related sources"],
+    ["updated", "source", "Changed title, summary, references (revision 3)", "Changed the title, the summary and what it cites"],
+    ["updated", "source", "Refiled under Interviews; changed title, kind", "Refiled under Interviews; changed the title and the kind of material"],
+    ["updated", "source", "Changed source_system, story_page_id, persona_ids", "Changed the source system, the story page and the personas"],
   ])("reads an entry (%s, %s) recorded as %s in the same words", async (action, entityType, was, reads) => {
     expect((await recorded(action, entityType, was)).summary).toBe(reads);
   });
@@ -186,8 +191,17 @@ describe("what an entry says", () => {
     ["updated", "assumption", "Edited the entry"],
     ["updated", "story_page", "Published version 2"],
     ["archived", "source", "Changed title"],
+    ["updated", "outcome", "Changed status from draft to current"],
+    ["updated", "outcome", "Changed the title, the text and the picture"],
   ])("leaves an entry (%s, %s) that names no field, %s, as it is", async (action, entityType, summary) => {
     expect((await recorded(action, entityType, summary)).summary).toBe(summary);
+  });
+
+  it("never shows a field's name, whatever field an entry names", async () => {
+    for (const was of ["Changed outcome_ids", "Changed some_new_field, other_ids, a_thing_id", "Changed title, tags (revision 12)"]) {
+      const { summary } = await recorded("updated", "assumption", was);
+      expect(summary).not.toMatch(/_ids?\b|\b[a-z]+_[a-z]+\b|\(revision/);
+    }
   });
 
   it("names a link between assumptions in words", async () => {

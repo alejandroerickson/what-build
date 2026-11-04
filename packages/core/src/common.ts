@@ -25,7 +25,8 @@ export function listed(items: string[]): string {
 
 /**
  * What the activity log calls each part of an object that changed: the words the app uses for it,
- * never the name of its field. `front` and `concept's front` are what older entries say.
+ * never the name of its field. `front` and `concept's front` are what older entries say, and the
+ * names after them are fields objects no longer have, which entries recorded before then name.
  */
 const CHANGED_WORDS: Readonly<Record<string, string>> = {
   title: "the title",
@@ -43,20 +44,43 @@ const CHANGED_WORDS: Readonly<Record<string, string>> = {
   position: "its place in the order",
   concept: "the concept",
   "concept's front": "the concept's picture",
+  summary: "the summary",
+  status: "the status",
+  references: "what it cites",
+  kind: "the kind of material",
+  organization: "the organization it is from",
+  participants: "the participants",
+  related_records: "the related sources",
+  dimensions: "the dimensions",
+  provenance_depth: "how far it is from the evidence",
 };
+
+/** A field's name as it would be written ("the source system"), for one no words were given for. */
+const FIELD_NAME = /^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$/;
+
+/** What the log calls a part that changed: its words, or its name read as words, never `_ids` or `snake_case`. */
+function changedPart(field: string): string {
+  if (Object.hasOwn(CHANGED_WORDS, field)) return CHANGED_WORDS[field]!;
+  return `the ${field.replace(/_ids?$/, (end) => (end === "_ids" ? "s" : "")).replace(/_/g, " ")}`;
+}
 
 /** An activity entry's summary for a change to these fields: "Changed the title and the tags". */
 export function changedSummary(fields: readonly string[]): string {
-  return `Changed ${listed(fields.map((f) => CHANGED_WORDS[f] ?? f))}`;
+  return `Changed ${listed(fields.map(changedPart))}`;
 }
 
 /**
- * The same sentence for an entry recorded with the fields' names ("Changed outcome_ids, tags"). Any
- * other summary, one already in words included, comes back as it is.
+ * The same sentence for an entry recorded with the fields' names ("Changed outcome_ids, tags"),
+ * including an insight's, which ended with its revision ("Changed title, body (revision 2)"), and a
+ * source's that was refiled ("Refiled under …; changed title, kind"). Any other summary, one already
+ * in words included, comes back as it is.
  */
 export function changedInWords(summary: string): string {
-  const fields = /^Changed (.+)$/.exec(summary)?.[1]?.split(", ");
-  return fields?.every((f) => Object.hasOwn(CHANGED_WORDS, f)) ? changedSummary(fields) : summary;
+  const m = /^(?:(Refiled under .+); c|C)hanged (.+?)( \(revision \d+\))?$/s.exec(summary);
+  const fields = m?.[2]?.split(", ");
+  if (!m || !fields?.every((f) => Object.hasOwn(CHANGED_WORDS, f) || FIELD_NAME.test(f))) return summary;
+  const changed = changedSummary(fields);
+  return m[1] ? `${m[1]}; c${changed.slice(1)}` : changed;
 }
 
 /**
