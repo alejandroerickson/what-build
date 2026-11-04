@@ -182,6 +182,11 @@ describe("what an entry says", () => {
     ["updated", "source", "Changed title, summary, references (revision 3)", "Changed the title, the summary and what it cites"],
     ["updated", "source", "Refiled under Interviews; changed title, kind", "Refiled under Interviews; changed the title and the kind of material"],
     ["updated", "source", "Changed source_system, story_page_id, persona_ids", "Changed the source system, the story page and the personas"],
+    ["updated", "source", "Changed title, body (revision 2)", "Changed the title and the text"],
+    ["updated", "source", "Changed statement, body, citations, links, outcome_ids, tags", "Changed the statement, the text, what it cites, the links, the outcomes it bears on and the tags"],
+    ["updated", "assumption", "Changed statement, body, citations", "Changed the statement, why the team holds it and what it cites"],
+    ["updated", "insight", "Changed title, body (revision 2)", "Changed the title and the text"],
+    ["updated", "decision", "Changed body, links", "Changed the text and the links"],
   ])("reads an entry (%s, %s) recorded as %s in the same words", async (action, entityType, was, reads) => {
     expect((await recorded(action, entityType, was)).summary).toBe(reads);
   });
@@ -193,6 +198,9 @@ describe("what an entry says", () => {
     ["archived", "source", "Changed title"],
     ["updated", "outcome", "Changed status from draft to current"],
     ["updated", "outcome", "Changed the title, the text and the picture"],
+    ["updated", "assumption", "Changed everything"],
+    ["updated", "source", "Changed title, everything"],
+    ["updated", "source", "Refiled under Interviews; changed everything"],
   ])("leaves an entry (%s, %s) that names no field, %s, as it is", async (action, entityType, summary) => {
     expect((await recorded(action, entityType, summary)).summary).toBe(summary);
   });
