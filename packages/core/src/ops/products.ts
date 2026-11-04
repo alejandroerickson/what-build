@@ -509,7 +509,7 @@ export const updateProduct = defineOperation({
       .set({ name: input.name ?? row.name, slug: input.slug ?? row.slug, etag: newEtag(), updated_at: ctx.now, updated_by: json(ctx.actor) })
       .where("product_id", "=", pid)
       .execute();
-    await recordActivity(ctx, { action: "updated", entity_type: "product", entity_id: pid, entity_title: input.name ?? row.name, summary: changedSummary(changed) });
+    await recordActivity(ctx, { action: "updated", entity_type: "product", entity_id: pid, entity_title: input.name ?? row.name, summary: changedSummary("product", changed) });
     const next = await ctx.db.selectFrom("products").selectAll().where("product_id", "=", pid).executeTakeFirstOrThrow();
     return productView(next, { ...ctx, scope: { ...ctx.scope } });
   },
@@ -546,7 +546,7 @@ export const updateConcept = defineOperation({
       .where("product_id", "=", pid)
       .execute();
     const said = { concept: "concept", card_html: "concept's front" } as const;
-    await recordActivity(ctx, { action: "updated", entity_type: "product", entity_id: pid, entity_title: row.name, summary: changedSummary(changed.map((k) => said[k])) });
+    await recordActivity(ctx, { action: "updated", entity_type: "product", entity_id: pid, entity_title: row.name, summary: changedSummary("product", changed.map((k) => said[k])) });
     const next = await ctx.db.selectFrom("products").selectAll().where("product_id", "=", pid).executeTakeFirstOrThrow();
     return { ...productView(next, { ...ctx, scope: { ...ctx.scope } }), ...conceptAdvice(next) };
   },

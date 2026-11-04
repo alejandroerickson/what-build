@@ -105,8 +105,10 @@ const sizes = (el: HTMLElement) => `${el.clientWidth}:${el.parentElement?.client
  * where the other direction's words start. So a title that doesn't fit is cut here after the last
  * word that leaves room for the ellipsis, measured before the browser paints. It is measured again
  * only when its box or its parent's changes width, a font loads, or `measure` changes; never while
- * nothing moves. The rest stays in the text, hidden, so assistive technology reads it all, and a
- * cut title shows the whole of it on hover.
+ * nothing moves. A cut title is kept whole in the text, hidden, for assistive technology, and the part
+ * shown is hidden from it: read as pieces, the hidden ones, which are laid out as blocks, were read
+ * with a space beside them that the title does not have ("Customer , onboarding"). A cut title shows
+ * the whole of it on hover.
  *
  * Given `keep`, the line does not leave that stretch out: when its first words end before the
  * stretch does, the line starts at a word nearer it, after an ellipsis, as far back as still fits. A
@@ -219,11 +221,17 @@ export function OneLine({ text, measure = "", render, keep, className = "" }: {
     };
   }, []);
   const shown = text.slice(from, cut ? at : text.length);
+  const drawn = !current || !render ? shown : render(shown, from);
   return (
     <span ref={ref} className={`one-line${className ? ` ${className}` : ""}`} dir="auto" title={cut || from ? text : undefined} data-cut={cut ? "" : undefined} data-lead={from ? "" : undefined}>
-      {from ? <span className="visually-hidden">{text.slice(0, from)}</span> : null}
-      {!current || !render ? shown : render(shown, from)}
-      {cut ? <span className="visually-hidden">{text.slice(at)}</span> : null}
+      {cut || from ? (
+        <>
+          <span className="visually-hidden">{text}</span>
+          <span aria-hidden="true">{drawn}</span>
+        </>
+      ) : (
+        drawn
+      )}
     </span>
   );
 }

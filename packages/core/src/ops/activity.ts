@@ -58,17 +58,17 @@ export const listActivity = defineOperation({
       entity_type: r.entity_type,
       entity_id: r.entity_id,
       entity_title: r.entity_title,
-      summary: summaryAsRead(r.action, r.summary),
+      summary: summaryAsRead(r.action, r.entity_type, r.summary),
     }));
     return { items, next_cursor: rows.length > input.limit ? items[items.length - 1]!.activity_id : null };
   },
 });
 
 /** An entry's summary as it reads now, whenever it was recorded. */
-export function summaryAsRead(action: string, summary: string): string {
+export function summaryAsRead(action: string, entityType: string, summary: string): string {
   if (action === "derived") return withoutParserLabel(summary);
   if (action === "note_archived") return withoutArchiveReason(summary);
-  if (action === "updated" || action === "reordered") return changedInWords(summary);
+  if (action === "updated" || action === "reordered") return changedInWords(entityType, summary);
   return summary;
 }
 

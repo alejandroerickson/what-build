@@ -25,7 +25,9 @@ export function listed(items: string[]): string {
 
 /**
  * What the activity log calls each part of an object that changed: the words the app uses for it,
- * never the name of its field. `front` and `concept's front` are what older entries say.
+ * never the name of its field. `front` and `concept's front` are what older entries say, and some
+ * of the names after them are fields objects no longer have, which entries recorded before then name.
+ * Words that hold for one kind of object only are in CHANGED_WORDS_OF.
  */
 const CHANGED_WORDS: Readonly<Record<string, string>> = {
   title: "the title",
@@ -34,8 +36,8 @@ const CHANGED_WORDS: Readonly<Record<string, string>> = {
   name: "the name",
   slug: "the short name in links",
   statement: "the statement",
-  body: "why the team holds it",
-  links: "the links to other assumptions",
+  body: "the text",
+  links: "the links",
   outcome_ids: "the outcomes it bears on",
   description: "the text",
   card_html: "the picture",
@@ -43,20 +45,87 @@ const CHANGED_WORDS: Readonly<Record<string, string>> = {
   position: "its place in the order",
   concept: "the concept",
   "concept's front": "the concept's picture",
+  summary: "the summary",
+  status: "the status",
+  references: "what it cites",
+  citations: "what it cites",
+  dimensions: "the dimensions",
+  provenance_depth: "how far it is from the evidence",
 };
 
-/** An activity entry's summary for a change to these fields: "Changed the title and the tags". */
-export function changedSummary(fields: readonly string[]): string {
-  return `Changed ${listed(fields.map((f) => CHANGED_WORDS[f] ?? f))}`;
+/**
+ * Words for one kind of object, ahead of CHANGED_WORDS. A source's fields that are gone are read
+ * as a source's. Insights and decisions became sources, and their entries with them, so a source's
+ * `body` (an insight's or a decision's text) and `links` (a decision's) keep the plain words, never
+ * an assumption's.
+ */
+const SOURCE_WORDS: Readonly<Record<string, string>> = {
+  kind: "the kind of material",
+  organization: "the organization it is from",
+  participants: "the participants",
+  related_records: "the related sources",
+};
+const CHANGED_WORDS_OF: Readonly<Record<string, Readonly<Record<string, string>>>> = {
+  assumption: { body: "why the team holds it", links: "the links to other assumptions" },
+  source: SOURCE_WORDS,
+  insight: SOURCE_WORDS,
+  decision: SOURCE_WORDS,
+};
+
+/** The words for a field of this kind of object, if it has any. */
+function wordsFor(entityType: string, field: string): string | undefined {
+  const own = Object.hasOwn(CHANGED_WORDS_OF, entityType) ? CHANGED_WORDS_OF[entityType]! : {};
+  if (Object.hasOwn(own, field)) return own[field];
+  return Object.hasOwn(CHANGED_WORDS, field) ? CHANGED_WORDS[field] : undefined;
 }
 
+/** A field's name, which has an underscore in it ("source_system"), for one no words were given for. */
+const FIELD_NAME = /^[a-z][a-z0-9]*(?:_[a-z0-9]+)+$/;
+
+/** Whether an entry names this as a field: one with words, or a name no words were given for. */
+const isField = (entityType: string, field: string) => wordsFor(entityType, field) !== undefined || FIELD_NAME.test(field);
+
+/** What the log calls a part that changed: its words, or its name read as words, never `_ids` or `snake_case`. */
+function changedPart(entityType: string, field: string): string {
+  return wordsFor(entityType, field) ?? `the ${field.replace(/_ids?$/, (end) => (end === "_ids" ? "s" : "")).replace(/_/g, " ")}`;
+}
+
+/** The sentence for a change to these fields, for a kind of object named as an entry stores it. */
+const changedSentence = (entityType: string, fields: readonly string[]) => `Changed ${listed(fields.map((f) => changedPart(entityType, f)))}`;
+
+/** An activity entry's summary for a change to these fields of this kind of object: "Changed the title and the tags". */
+export function changedSummary(entityType: EntityType, fields: readonly string[]): string {
+  return changedSentence(entityType, fields);
+}
+
+const REFILED = "Refiled under ";
+const REVISION = " (revision ";
+
 /**
- * The same sentence for an entry recorded with the fields' names ("Changed outcome_ids, tags"). Any
- * other summary, one already in words included, comes back as it is.
+ * The same sentence for an entry recorded with the fields' names ("Changed outcome_ids, tags"),
+ * including an insight's, which ended with its revision ("Changed title, body (revision 2)"), and a
+ * source's that was refiled ("Refiled under …; changed title, kind"), in the words for the kind of
+ * object the entry is about. Any other summary, one already in words or a word that is not a field
+ * ("Changed everything") included, comes back as it is. Read with string operations, so a long
+ * summary costs no more than its length.
  */
-export function changedInWords(summary: string): string {
-  const fields = /^Changed (.+)$/.exec(summary)?.[1]?.split(", ");
-  return fields?.every((f) => Object.hasOwn(CHANGED_WORDS, f)) ? changedSummary(fields) : summary;
+export function changedInWords(entityType: string, summary: string): string {
+  let refiled = "";
+  let rest: string;
+  if (summary.startsWith(REFILED)) {
+    const at = summary.lastIndexOf("; changed ");
+    if (at <= REFILED.length) return summary;
+    refiled = summary.slice(0, at);
+    rest = summary.slice(at + "; changed ".length);
+  } else if (summary.startsWith("Changed ")) {
+    rest = summary.slice("Changed ".length);
+  } else return summary;
+  const revision = rest.lastIndexOf(REVISION);
+  if (revision > 0 && rest.endsWith(")") && /^\d+$/.test(rest.slice(revision + REVISION.length, -1))) rest = rest.slice(0, revision);
+  const fields = rest.split(", ");
+  if (!fields.every((f) => isField(entityType, f))) return summary;
+  const changed = changedSentence(entityType, fields);
+  return refiled ? `${refiled}; c${changed.slice(1)}` : changed;
 }
 
 /**

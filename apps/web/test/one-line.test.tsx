@@ -28,6 +28,16 @@ function drawn(el: Element): string {
   return text;
 }
 
+/** What assistive technology reads in an element: its text but what is hidden from it. */
+function read(el: Element): string {
+  let text = "";
+  for (const node of el.childNodes) {
+    if (node instanceof Text) text += node.data;
+    else if (node instanceof Element && node.getAttribute("aria-hidden") !== "true") text += read(node);
+  }
+  return text;
+}
+
 /** One ResizeObserver, told by the test when the room has changed. */
 class Observer {
   static all = new Set<Observer>();
@@ -94,7 +104,7 @@ async function render(node: ReactNode): Promise<HTMLElement> {
 /** The line, what it shows, and whether it is cut with the whole title kept to be read and hovered. */
 function line(host: HTMLElement, within = "") {
   const el = host.querySelector<HTMLElement>(`${within} .one-line`.trim())!;
-  return { el, shown: drawn(el), cut: el.hasAttribute("data-cut"), title: el.getAttribute("title"), text: el.textContent, dir: el.getAttribute("dir") };
+  return { el, shown: drawn(el), cut: el.hasAttribute("data-cut"), title: el.getAttribute("title"), text: read(el), dir: el.getAttribute("dir") };
 }
 
 const MIXED = "Crew lead interview مقابلة مع قائد الطاقم";
@@ -153,8 +163,34 @@ describe("a title on one line", () => {
     const host = await render(<OneLine text={MIXED} render={(shown) => <>{shown.slice(0, 5)}<mark>{shown.slice(5, 9)}</mark>{shown.slice(9)}</>} />);
     const l = line(host);
     expect(l).toMatchObject({ cut: true, text: MIXED, title: MIXED });
-    const parts = [...l.el.childNodes].filter((n) => !(n instanceof Element && n.classList.contains("visually-hidden")));
+    const parts = [...l.el.querySelector('[aria-hidden="true"]')!.childNodes];
     expect(parts.map((n) => [n.nodeName, n.textContent])).toEqual([["#text", "Crew "], ["MARK", "lead"], ["#text", " interview مقابلة"]]);
+  });
+});
+
+describe("a cut title, as assistive technology reads it", () => {
+  // A hidden piece is laid out as a block, and a browser reads a block with a space on either side:
+  // split into the part shown and the hidden rest, "Customer, onboarding" was read "Customer , onboarding".
+  const CUT = "Customer, onboarding: the first week; what crew leads ask - and when";
+
+  it.each([
+    ["cut after its first words", undefined],
+    ["started at a word nearer what it keeps", [CUT.indexOf("when"), CUT.length] as const],
+  ])("%s is read as the title, exactly, in one piece", async (_, keep) => {
+    room = 20;
+    const l = line(await render(<OneLine text={CUT} keep={keep} />));
+    expect(l.shown).not.toBe(CUT);
+    expect(l.title).toBe(CUT);
+    expect(read(l.el)).toBe(CUT);
+    const hidden = [...l.el.querySelectorAll(".visually-hidden")];
+    expect(hidden.map((h) => h.textContent)).toEqual([CUT]);
+    expect(hidden[0]!.childNodes).toHaveLength(1);
+  });
+
+  it("that fits is one piece of text, with nothing hidden", async () => {
+    const l = line(await render(<OneLine text={SHORT} />));
+    expect(read(l.el)).toBe(SHORT);
+    expect(l.el.querySelector(".visually-hidden, [aria-hidden]")).toBeNull();
   });
 });
 
@@ -248,7 +284,7 @@ describe("titles cut on one line", () => {
       </PanelFilter>,
     );
     expect(line(host, ".panel-filter")).toMatchObject({ shown: "Crew lead interview مقابلة مع", cut: true, title: MIXED });
-    expect(host.querySelector(".panel-filter")?.textContent).toBe(`${MIXED}3`);
+    expect(read(host.querySelector(".panel-filter")!)).toBe(`${MIXED}3`);
   });
 
   it("at the head of the inspector", async () => {
@@ -264,7 +300,7 @@ describe("titles cut on one line", () => {
       </ShellContext.Provider>,
     );
     expect(line(inspectorEl, ".inspector-title")).toMatchObject({ shown: "مقابلة مع قائد الطاقم حول", cut: true, title: ARABIC });
-    expect(inspectorEl.querySelector("h2")?.textContent).toBe(ARABIC);
+    expect(read(inspectorEl.querySelector("h2")!)).toBe(ARABIC);
   });
 
   it("in a filter chip, which is as wide as its words", async () => {

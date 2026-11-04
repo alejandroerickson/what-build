@@ -683,7 +683,7 @@ export const updateSource = defineOperation({
       entity_type: "source",
       entity_id: r.record_id,
       entity_title: next.title,
-      summary: changedSummary(changed),
+      summary: changedSummary("source", changed),
     });
     const after = await loadRecord(ctx, r.record_id);
     const s = (await derivedStatuses(ctx, [r.record_id])).get(r.record_id);

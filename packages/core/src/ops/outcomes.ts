@@ -226,7 +226,7 @@ export const updateOutcome = defineOperation({
         entity_type: "outcome",
         entity_id: row.outcome_id,
         entity_title: input.title ?? row.title,
-        summary: changedSummary(changed),
+        summary: changedSummary("outcome", changed),
       });
     }
     return written(await load(ctx, row.outcome_id), changed.some((k) => k !== "position"));
