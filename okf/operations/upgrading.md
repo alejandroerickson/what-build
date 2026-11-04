@@ -23,12 +23,7 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
 
 ## Unreleased
 
-- **Only an MCP request that calls a tool wakes the worker.** It concerns every deployment that
-  runs `serve` with its worker, and asks nothing of it. An MCP client connects and lists the tools
-  whenever a conversation starts, whether or not WhatBuild is then used; those requests
-  (`initialize`, notifications, `tools/list`, `ping`, and a `GET` or `DELETE`, answered 405) no longer start the worker's minute of
-  polling the job queue, so they cannot keep a database that suspends when idle awake. A
-  `tools/call`, alone or in a batch, wakes it as before, as do the API and sign-in.
+Nothing yet.
 
 ## v0.33.0
 
@@ -41,6 +36,12 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
   Previews given before the upgrade keep working until they expire.
 - **Previews made at once no longer drop each other:** an agent making several in parallel could
   find one answered `404` well before it expired.
+- **Only an MCP request that calls a tool wakes the worker.** It concerns every deployment that
+  runs `serve` with its worker, and asks nothing of it. An MCP client connects and lists the tools
+  whenever a conversation starts, whether or not WhatBuild is then used; those requests
+  (`initialize`, notifications, `tools/list`, `ping`, and a `GET` or `DELETE`, answered 405) no longer start the worker's minute of
+  polling the job queue, so they cannot keep a database that suspends when idle awake. A
+  `tools/call`, alone or in a batch, wakes it as before, as do the API and sign-in.
 - **Connected agents are asked to update their tools:** the tool descriptions, the guide and the
   server's instructions change (the instructions now say that older instructions naming tools such
   as `products(action=…)` are out of date, and the guide says what a canvas uploaded as a ZIP may
