@@ -324,6 +324,9 @@ describe("a palette title cut before the word it matched", () => {
     return text;
   };
   const one = (el: Element) => el.classList.contains("one-line");
+  /** What assistive technology reads in a line: its text but what is hidden from it. */
+  const read = (el: Element): string =>
+    [...el.childNodes].map((n) => (n instanceof Text ? n.data : n instanceof Element && n.getAttribute("aria-hidden") !== "true" ? read(n) : "")).join("");
   const layout = {
     clientHeight: (el: Element) => (one(el) ? LINE : 0),
     scrollHeight: (el: Element) => (one(el) ? LINE * Math.max(1, Math.ceil((drawn(el).length + (el.hasAttribute("data-cut") ? 1 : 0) + (el.hasAttribute("data-lead") ? 1 : 0)) / ROOM)) : 0),
@@ -355,7 +358,7 @@ describe("a palette title cut before the word it matched", () => {
     expect(line.querySelector("mark")?.textContent).toBe("schedulers");
     expect(drawn(line).endsWith("schedulers")).toBe(true);
     expect(line.hasAttribute("data-lead")).toBe(true);
-    expect(line.textContent).toBe(whole);
+    expect(read(line)).toBe(whole);
     expect(line.getAttribute("title")).toBe(whole);
   });
 
@@ -386,7 +389,7 @@ describe("a palette title cut before the word it matched", () => {
     expect(drawn(line)).toContain("common mowerlog");
     expect(line.hasAttribute("data-lead")).toBe(true);
     // The whole title is still read, and shown on hover.
-    expect(line.textContent).toContain("keep one common rota");
+    expect(read(line)).toContain("keep one common rota");
     expect(line.getAttribute("title")).toContain("keep one common rota");
   });
 
