@@ -3,7 +3,7 @@ type: Decision
 title: One stateless container image serves everything and runs the worker
 description: The web app, REST, MCP, OAuth, the upload relay and the job worker ship in one image on Cloud Run.
 tags: [decision, architecture, deployment]
-generated: {by: agent:claude, at: 2026-11-01}
+generated: {by: agent:claude, at: 2026-11-04}
 status: stable
 ---
 
@@ -40,7 +40,7 @@ A side project on near-free infrastructure benefits from the fewest moving servi
   change; the workspace's own layout and lockfile stay as they are.
 - Splitting the worker into its own service is a configuration change.
 - In the service the worker sleeps a minute after the last signed-in request or job, and such a
-  request, a commit that queues work or a job falling due wakes it, so a database that suspends when
+  request (through MCP, only one that calls a tool), a commit that queues work or a job falling due wakes it, so a database that suspends when
   idle can sleep while an instance stays up, and a stranger's requests cannot keep it awake
   ([02-architecture](../spec/02-architecture.md)).
 - Large files never pass through the application or a tool call.

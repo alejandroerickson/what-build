@@ -496,7 +496,7 @@ function errorResult(e: unknown, principal: Principal) {
   return { content: [{ type: "text" as const, text: `${err.status}: ${err.message}\n${JSON.stringify({ error: err.toJSON() })}` }], isError: true };
 }
 
-function buildServer(env: Env, principal: Principal, bound: ScopeRef | null, signal: AbortSignal) {
+function buildServer(env: Env, principal: Principal, bound: ScopeRef | null, signal: AbortSignal, onCall: () => void) {
   const server = new Server(
     { name: MCP_SERVER_NAME, version: TOOLS_VERSION, title: "WhatBuild" },
     {
@@ -518,6 +518,7 @@ function buildServer(env: Env, principal: Principal, bound: ScopeRef | null, sig
     })());
   server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: listedTools(principal, await offered()) }));
   server.setRequestHandler(CallToolRequestSchema, async (req) => {
+    onCall();
     const name = req.params.name;
     const args = (req.params.arguments ?? {}) as Record<string, unknown>;
     // Set once the call is handed to execute, which counts it from then on.
@@ -641,6 +642,16 @@ function buildServer(env: Env, principal: Principal, bound: ScopeRef | null, sig
  */
 export const MCP_BODY_MAX_BYTES = REST_BODY_MAX_BYTES;
 
+/** The MCP requests that called a tool, alone or in a batch. */
+const calledATool = new WeakSet<Request>();
+
+/**
+ * Whether this MCP request called a tool. Only such a request wakes the service's worker (app.ts):
+ * the rest (initialize, notifications, tools/list, ping) queue no work, and a client sends them
+ * whenever a conversation starts, whether or not it then uses WhatBuild.
+ */
+export const mcpCalledATool = (c: Context) => calledATool.has(c.req.raw);
+
 export function mcpRoutes(env: Env & { config: ServerConfig }) {
   const app = new Hono();
   const base = env.config.publicBaseUrl;
@@ -656,8 +667,11 @@ export function mcpRoutes(env: Env & { config: ServerConfig }) {
       // Stateless: no server-initiated stream and no session to end.
       return c.json({ error: { code: "method_not_allowed", status: 405, message: "This MCP endpoint is stateless; POST JSON-RPC requests." } }, 405, { Allow: "POST" });
     }
+    // JSON responses, not a stream: handleRequest then runs the handlers before it returns, so a
+    // tools/call has marked the request (calledATool) by the time app.ts decides whether to wake
+    // the worker. With streamed responses that hook could run first and miss the mark.
     const transport = new WebStandardStreamableHTTPServerTransport({ sessionIdGenerator: undefined, enableJsonResponse: true, maxRequestBodySize: MCP_BODY_MAX_BYTES });
-    const server = buildServer(env, principal, bound, c.req.raw.signal);
+    const server = buildServer(env, principal, bound, c.req.raw.signal, () => calledATool.add(c.req.raw));
     await server.connect(transport);
     try {
       return await transport.handleRequest(c.req.raw);

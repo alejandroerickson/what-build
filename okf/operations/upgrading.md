@@ -3,7 +3,7 @@ type: Process
 title: What a deployment must do when it takes a release
 description: The changes a release asks of the people who run a deployment (settings, app registrations, behaviour they will notice), kept per release, with the unreleased ones on top until the next release carries them into its notes.
 tags: [operations, releases, upgrading, self-hosting, configuration]
-generated: {by: agent:claude, at: 2026-11-03}
+generated: {by: agent:claude, at: 2026-11-04}
 status: stable
 ---
 
@@ -23,7 +23,12 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
 
 ## Unreleased
 
-Nothing yet.
+- **Only an MCP request that calls a tool wakes the worker.** It concerns every deployment that
+  runs `serve` with its worker, and asks nothing of it. An MCP client connects and lists the tools
+  whenever a conversation starts, whether or not WhatBuild is then used; those requests
+  (`initialize`, notifications, `tools/list`, `ping`, and a `GET` or `DELETE`, answered 405) no longer start the worker's minute of
+  polling the job queue, so they cannot keep a database that suspends when idle awake. A
+  `tools/call`, alone or in a batch, wakes it as before, as do the API and sign-in.
 
 ## v0.33.0
 
