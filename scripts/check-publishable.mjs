@@ -17,11 +17,15 @@
 //                                                         Actions logs and artifacts; all of it, or since then
 //
 // A finding exits 1. In CI the matched text is not printed, so a log never repeats a leak.
+//
+// Besides its own rules, it refuses the terms on this machine's never-publish list, if there is
+// one: the names of private repositories, projects or people that only the person committing
+// knows must stay out (neverPublish below).
 
 import { execFileSync, spawn, spawnSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join, relative } from "node:path";
+import { homedir, tmpdir } from "node:os";
+import { join, relative, resolve } from "node:path";
 import { createInterface } from "node:readline";
 import { fileURLToPath } from "node:url";
 import { tool } from "./tools.mjs";
@@ -163,7 +167,59 @@ const CONTENT = [
     since: ADDED_2026_10_24,
     find: (line) => line.match(NARRATION)?.[0],
   },
+  {
+    // Files, messages and the text beside the code alike; empty, so silent, where there is no list (CI).
+    rule: "local-term",
+    why: "a term on this machine's never-publish list",
+    find: (line) => {
+      for (const term of neverPublish()) {
+        const m = line.match(term);
+        if (m) return m[0];
+      }
+    },
+  },
 ];
+
+/**
+ * The terms this machine never publishes, read once from every list that exists:
+ *   - `info/never-publish` in the clone's git directory, which every worktree of the clone shares
+ *     and nothing pushes;
+ *   - `what-build/never-publish` under `$XDG_CONFIG_HOME` (by default `~/.config`), for every clone;
+ *   - the file `$WHATBUILD_NEVER_PUBLISH` names.
+ * One term a line, matched whatever its case; a line written `/like this/` is a regular expression.
+ * Blank lines and lines starting with # are skipped.
+ */
+let neverPublishTerms;
+function neverPublish() {
+  if (neverPublishTerms) return neverPublishTerms;
+  neverPublishTerms = [];
+  const lists = [join(process.env.XDG_CONFIG_HOME || join(homedir(), ".config"), "what-build", "never-publish")];
+  try {
+    lists.unshift(join(resolve(repo, git("rev-parse", "--git-common-dir").trim()), "info", "never-publish"));
+  } catch {
+    // Not in a git repository: the other lists still apply.
+  }
+  if (process.env.WHATBUILD_NEVER_PUBLISH) lists.push(process.env.WHATBUILD_NEVER_PUBLISH);
+  for (const list of lists) {
+    let text;
+    try {
+      text = readFileSync(list, "utf8");
+    } catch {
+      continue;
+    }
+    for (const raw of text.split("\n")) {
+      const line = raw.trim();
+      if (!line || line.startsWith("#")) continue;
+      const pattern = /^\/(.+)\/$/.exec(line)?.[1];
+      try {
+        neverPublishTerms.push(new RegExp(pattern ?? line.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i"));
+      } catch {
+        console.error(`check-publishable: ignoring ${line} in ${list}, which is not a valid regular expression`);
+      }
+    }
+  }
+  return neverPublishTerms;
+}
 
 const SKIP_CONTENT = new Set([SELF, "pnpm-lock.yaml"]);
 
@@ -559,5 +615,7 @@ Fix the content: move private notes to _private/ (ignored), use example.com addr
 relative paths, and describe the change rather than the conversation. A false positive is fixed
 in the rules of ${SELF} in the same commit. Never bypass the check with --no-verify.
 `);
+  if (unique.some((f) => f.rule === "local-term"))
+    console.error("A term on this machine's never-publish list is reworded away; the list is yours, outside the repository.\n");
   process.exit(1);
 }
