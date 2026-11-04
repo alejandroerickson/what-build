@@ -3,7 +3,7 @@ type: System Concept
 title: WhatBuild runs as one stateless Cloud Run service with Postgres and a Cloud Storage bucket.
 description: What a deployment on Cloud Run is made of, how deploy/cloud-run/setup.sh creates it, sign-in, deploying and restore points before migrating, its alerts and traces, cost, names, and useful commands; backups and the dev deployment have guides of their own.
 tags: [operations, deployment, cloud-run, gcp]
-generated: {by: agent:claude, at: 2026-11-02}
+generated: {by: agent:claude, at: 2026-11-04}
 status: stable
 ---
 
@@ -581,7 +581,9 @@ crawlers included, keeps one running: roughly US$62 a month for each instance ke
 `northamerica-northeast2` (US$0.0864 an hour for 1 vCPU and 1 GiB; less in Google's cheaper
 regions). The
 database need not stay up with it. The worker looks at the job queue every two seconds only for a
-minute after the last request someone signed in made to the API, MCP or sign-in, or the last job,
+minute after the last request someone signed in made to the API or sign-in, or to MCP to call a
+tool (an agent connecting, listing the tools, or sending a `GET` or `DELETE`, which the stateless
+endpoint answers 405, wakes nothing), or the last job,
 then sleeps until the next such request, a commit that queues work, or a retry falling due, and
 nothing else queries the database between requests. A request from nobody signed in (a scanner's,
 a stranger's) never wakes it, so it cannot keep the database awake. A Postgres that suspends when idle (Neon's free plan, after five

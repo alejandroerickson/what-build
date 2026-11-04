@@ -3,7 +3,7 @@ type: Specification
 title: WhatBuild is one TypeScript application image over Postgres and an object store, and the same code runs on a laptop with only Node.
 description: The requirements behind the stack, the stack itself, the deployment shape, ports and adapters, the operation protocol, the local development contract, cross-cutting rules, and the repository layout.
 tags: [spec, architecture, stack, development, deployment]
-generated: {by: agent:claude, at: 2026-11-02}
+generated: {by: agent:claude, at: 2026-11-04}
 status: stable
 ---
 
@@ -100,8 +100,11 @@ before the service moves to it, Cloud Storage for blobs, Secret Manager for secr
 - **The worker ships in the same image** and polls the Postgres queue; a commit that enqueues work
   also wakes it. `serve` runs HTTP and the worker in one process unless `WHATBUILD_WORKER=0`;
   `worker` runs the worker alone. Under `serve` the worker sleeps a minute after the last request
-  someone signed in made to the API, MCP or sign-in (one with a good session or access token, and
-  not a tab starting to listen for changes), or the last job: it stops polling, so a database that suspends when no query comes can while the
+  someone signed in made to the API or sign-in (one with a good session, and not a tab starting to
+  listen for changes), or to MCP with a good access token that called a tool (`tools/call`, alone or
+  in a batch, even one refused; not `initialize`, a notification, `tools/list` or `ping`, which a
+  client sends whenever a conversation starts, nor a `GET` or `DELETE`, which the stateless endpoint
+  answers 405), or the last job: it stops polling, so a database that suspends when no query comes can while the
   instance stays up, and looks again at the next such request, at a commit that enqueues work, and
   when the next job it could take falls due (a retry's `run_after`, or a lock gone stale), or, if no
   instance is up then, at the next request. A request from nobody signed in never wakes it.

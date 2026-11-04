@@ -16,7 +16,7 @@ import { requireEdgeKey } from "./edge-key.ts";
 import { oauthRoutes } from "./auth/oauth.ts";
 import { authRoutes } from "./auth/routes.ts";
 import type { ServerConfig } from "./config.ts";
-import { mcpRoutes } from "./mcp.ts";
+import { mcpCalledATool, mcpRoutes } from "./mcp.ts";
 import { refuseNullCharacters } from "./null-characters.ts";
 import { processParser } from "./parse-process.ts";
 import { pictureRoutes } from "./pictures.ts";
@@ -186,9 +186,11 @@ export function createPorts(config: ServerConfig, blobs: BlobStore, mailer: Mail
 
 /** One application: static web app, REST, MCP, OAuth and the upload relay on one origin, and the public site on its own host. */
 /**
- * `onRequest` is called once a request to the API, MCP or sign-in that came with a good session or
- * access token is served: the service passes its worker's `nudge`, so a sleeping worker looks at the
- * queue again. A request from nobody signed in never calls it, so it cannot keep the database awake.
+ * `onRequest` is called once a request to the API or sign-in that came with a good session, or an
+ * MCP request with a good access token that called a tool, is served: the service passes its
+ * worker's `nudge`, so a sleeping worker looks at the queue again. A request from nobody signed in
+ * never calls it, so it cannot keep the database awake; nor does an MCP request that only connects,
+ * lists the tools, pings or notifies, which a client sends whenever a conversation starts.
  */
 export function createApp(deps: { db: Db; ports: Ports; config: ServerConfig; release?: Release; onRequest?: () => void; requestLimitMs?: number }) {
   // The plans this deployment offers, as its configuration defines them, for every call this process serves.
@@ -269,12 +271,14 @@ export function createApp(deps: { db: Db; ports: Ports; config: ServerConfig; re
 
   // Requests to the API, MCP and sign-in wake a sleeping worker once served, when someone signed in
   // made them; a stranger's never do, nor do the app's pages and static files. Nor does a tab that
-  // starts listening: it wants nothing of the worker, whose looking would keep the database awake.
+  // starts listening, or an MCP request that calls no tool (connecting, listing the tools, a ping or
+  // a notification): they want nothing of the worker, whose looking would keep the database awake.
   app.use("*", async (c, next) => {
     const p = c.req.path;
-    if (!(p.startsWith("/api/") || p.startsWith("/mcp") || p.startsWith("/auth/")) || isLiveStream(p)) return next();
+    const mcp = p.startsWith("/mcp");
+    if (!(p.startsWith("/api/") || mcp || p.startsWith("/auth/")) || isLiveStream(p)) return next();
     await next();
-    if (wasSignedIn(c)) deps.onRequest?.();
+    if (wasSignedIn(c) && (!mcp || mcpCalledATool(c))) deps.onRequest?.();
   });
 
   // A content site serves prototypes, the documents of people's HTML and the files the app shows
