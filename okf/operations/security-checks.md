@@ -14,8 +14,9 @@ host ([decision](../decisions/privacy-and-security-checks-live-in-the-repository
 
 - **Nothing private is published.** `scripts/check-publishable.mjs` refuses secrets, paths from
   someone's machine, personal email addresses (in text, or as a commit's author), talk about a
-  session or a link to one, an account of the work in the first person, and files where the
-  repository keeps none. It checks commits, and the text GitHub holds beside them.
+  session or a link to one, an account of the work in the first person, files where the
+  repository keeps none, and the terms on the committer's own [never-publish
+  list](#terms-only-you-know). It checks commits, and the text GitHub holds beside them.
 - **Known vulnerabilities are found.** `pnpm security` (osv-scanner for the dependencies, zizmor
   for the GitHub Actions workflows), Dependabot, an OWASP ZAP scan of the running app, and CodeQL
   once the repository is public.
@@ -49,9 +50,13 @@ each scanner once, checks it against the SHA-256 pinned there, and keeps it in
 `~/.cache/what-build/tools/` (or under `$XDG_CACHE_HOME`). If gitleaks cannot be fetched, a commit
 goes ahead with a warning; the push and CI check it again.
 
-No check is required to merge. `main` also takes direct pushes, which a required check would
-refuse, and a new advisory for a dependency nobody changed should not stop unrelated work. The
-hooks stop a leak before it leaves the machine; CI shows what got past them.
+`main` takes changes only through pull requests, and a pull request merges only once these
+checks pass: `test`, `The image builds` and `Nothing private` (`ci.yml`), `Nothing private in the
+pull request's text`, CodeQL's `Analyze (javascript-typescript)` and `Analyze (actions)`, and
+`Dependencies and workflows` (`pnpm security`). So a pull request can be set to merge itself when
+they pass. A new advisory for a dependency nobody changed fails `pnpm security` on every pull
+request until the dependency is upgraded or the advisory accepted. The hooks stop a leak before it
+leaves the machine; CI shows what got past them.
 
 ## What the publishable check refuses
 
@@ -70,6 +75,7 @@ hooks stop a leak before it leaves the machine; CI shows what got past them.
 | `never-commit` | `.env` files, `_private/`, `.what-build/`, keys, certificates, database files and dumps, wherever they are |
 | `media` | images, PDFs, office documents, recordings and archives outside `apps/web/public/` and `.github/assets/` (the README's pictures); these are how real data slips in |
 | `large-file` | a file over 1 MB other than `pnpm-lock.yaml` and the README's animated tour, `.github/assets/whatbuild.gif` |
+| `local-term` | a term on the never-publish list of the machine running the check ([below](#terms-only-you-know)); silent where there is none, as in CI |
 
 Content and secret rules hold for every commit ever published. The placement rules (`top-level`,
 `agent-local`, `stray-document`) hold for commits made under the check, which are those whose tree
@@ -82,6 +88,23 @@ before was audited by hand that day, and what it found stays: a personal address
 commits up to 2026-10-01, one session link, and first-person lines in two pull requests. None of
 it is a secret, and rewriting history would change every commit since. In CI the matched text is
 never printed, so a log does not repeat a leak; run the same command locally to see it.
+
+## Terms only you know
+
+Some words must never be published, yet no public rule can name them without publishing them: a
+private repository beside this one, a client, a project. Each person keeps their own list outside
+the repository, and the check reads every one that exists:
+
+- `info/never-publish` in the clone's git directory (`git rev-parse --git-common-dir`), which every
+  worktree of the clone shares and no push sends;
+- `~/.config/what-build/never-publish` (or under `$XDG_CONFIG_HOME`), for every clone on the
+  machine;
+- the file `$WHATBUILD_NEVER_PUBLISH` names.
+
+One term a line, matched whatever its case. A line written `/like this/` is a regular expression,
+and blank lines and lines starting with `#` are skipped. The hooks apply it to every commit,
+message and push. CI has no list, so check a pull request's title and description before opening
+it, with the text in a file: `node scripts/check-publishable.mjs --text <file>`.
 
 ## When a check blocks
 

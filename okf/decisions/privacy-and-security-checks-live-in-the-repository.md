@@ -3,7 +3,7 @@ type: Decision
 title: Checks that keep private material out and find known vulnerabilities live in the repository, with pinned tools, and no separate service
 description: Git hooks and CI run one publishable check; pinned scanners and GitHub's own features find vulnerabilities; nothing else is hosted or installed.
 tags: [decision, security, public, privacy, ci, agents, process]
-generated: {by: agent:claude, at: 2026-11-01}
+generated: {by: agent:claude, at: 2026-11-04}
 status: stable
 ---
 
@@ -64,8 +64,12 @@ install, and so that it runs well before the repository becomes public.
 
 - A leak is refused before it leaves the machine, with no care needed from whoever commits. The
   push and CI check the same commits again, so `--no-verify` gains nothing.
-- No check is required to merge: `main` takes direct pushes, and a new advisory should not stop
-  unrelated work. A failure is visible, not blocking.
+- `main` takes changes only through pull requests, which merge once the checks that run on every
+  pull request pass, `pnpm security` among them (the maintainer's choice, 2026-11-04), so a pull
+  request can be set to merge itself. A new advisory for a dependency nobody changed holds every
+  merge until it is fixed or accepted.
+- Terms no public rule may name, such as a private repository's, are kept by each person in a list
+  outside the repository, which the hooks read; CI has none.
 - Updating a scanner is a commit that changes its version and hashes.
 
 ## Constrains
