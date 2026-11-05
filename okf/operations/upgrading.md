@@ -23,6 +23,11 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
 
 ## Unreleased
 
+Nothing yet.
+
+## v0.33.1
+
+- **Nothing needs doing.** No migration, setting or step.
 - **Connected agents are asked to update their tools:** `submit_feedback` is no longer marked
   destructive, since it changes nothing the team has, so a client that asks before a destructive
   tool no longer asks before feedback; and someone who reads only the Story is told that
