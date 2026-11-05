@@ -156,6 +156,29 @@ describe("deleting what is in a product", () => {
 });
 
 describe("deleting a product", () => {
+  it("counts its stored files as its organization’s plan counts files", async () => {
+    // Every file the organization keeps is in this product: attachments, the text read from each, and a prototype's files.
+    const annexRecords = sql`record_id in (select record_id from records where product_id = ${org.annex.id})`;
+    for (const table of ["file_versions", "derivations"]) expect(await rowsIn(org.tenant.id, table, annexRecords), table).toBe(0);
+    expect(await rowsIn(org.tenant.id, "mockup_prototype_files", sql`product_id = ${org.annex.id}`)).toBe(0);
+    const product = (await owner.api("GET", `${P}/delete-impact`)).body.contents;
+    const held = (await owner.api("GET", `/api/v1/tenants/${org.tenant.slug}/limits`)).body.holds.storage;
+    expect(held.files).toBeGreaterThan(0);
+    expect(product.bytes).toBe(held.files);
+    const files = await h.db.transaction().execute(async (trx) => {
+      await sql`select set_config('app.tenant_id', ${org.tenant.id}, true)`.execute(trx);
+      const q = await sql<{ attachments: number; readings: number; prototypes: number }>`select
+        (select count(distinct blob_key)::int from file_versions where tenant_id = ${org.tenant.id}) as attachments,
+        (select count(*)::int from derivations where tenant_id = ${org.tenant.id} and text_chars > 0) as readings,
+        (select count(distinct blob_key)::int from mockup_prototype_files where tenant_id = ${org.tenant.id}) as prototypes`.execute(trx);
+      return q.rows[0]!;
+    });
+    expect(files.readings).toBeGreaterThan(0);
+    expect(files.prototypes).toBeGreaterThan(0);
+    expect(product.stored_files).toBe(files.attachments + files.readings + files.prototypes);
+    expect((await owner.api("GET", `/api/v1/tenants/${org.tenant.slug}/delete-impact`)).body.contents).toMatchObject({ stored_files: product.stored_files, bytes: held.files });
+  });
+
   it("needs its name typed, deletes everything in it, and keeps the bytes a copy elsewhere still uses", async () => {
     const copy = await owner.api("POST", `${P}/sources/${org.source.id}/copy`, { to_product: org.annex.id });
     expect(copy.status, JSON.stringify(copy.body)).toBe(200);
@@ -223,6 +246,8 @@ describe("deleting an organization", () => {
     const impact = await owner.api("GET", `${T}/delete-impact`);
     expect(impact.status, JSON.stringify(impact.body)).toBe(200);
     expect(impact.body.contents.people).toBeGreaterThanOrEqual(3);
+    // Its stored files are what its Plan page counts as files.
+    expect(impact.body.contents.bytes).toBe((await owner.api("GET", `${T}/limits`)).body.holds.storage.files);
     expect((await owner.api("DELETE", T, { name: "Delta", reason: "x", confirm: "delete permanently" })).body.error.code).toBe("name_mismatch");
     expect((await owner.api("DELETE", T, { name: "Delta Works", reason: "x", confirm: "yes" })).body.error.code).toBe("confirmation_required");
     const other = await owner.api("POST", "/api/v1/tenants", { name: "Delta Elsewhere" });

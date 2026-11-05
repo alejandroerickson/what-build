@@ -25,6 +25,34 @@ async function dropBlobs(ctx: OpContext, keys: string[], prefixes: string[]): Pr
 
 const count = async (q: Promise<{ n: number | string | bigint } | undefined>) => Number((await q)?.n ?? 0);
 
+/**
+ * The files a product or an organization keeps, counted as its plan's storage counts them
+ * (`holdingsOf`'s files): each distinct file of its attachments' every version, the text read from
+ * each attachment, kept as a file of its own, and each distinct file of its mockups' prototypes. A
+ * file two of its sources share (a copy) counts once, as it is stored once. It must agree with the
+ * files figure of `holdingsOf` in `limits.ts`, which plan limits are enforced against: change the
+ * two together.
+ */
+async function storedFiles(ctx: OpContext, of: { tenant: string } | { product: string }): Promise<{ n: number; bytes: number }> {
+  const attachments =
+    "tenant" in of
+      ? sql`SELECT DISTINCT blob_key, size FROM file_versions WHERE tenant_id = ${of.tenant}`
+      : sql`SELECT DISTINCT v.blob_key, v.size FROM file_versions v JOIN records r ON r.record_id = v.record_id WHERE r.product_id = ${of.product}`;
+  const readings =
+    "tenant" in of
+      ? sql`SELECT text_chars FROM derivations WHERE tenant_id = ${of.tenant}`
+      : sql`SELECT d.text_chars FROM derivations d JOIN records r ON r.record_id = d.record_id WHERE r.product_id = ${of.product}`;
+  const prototypes =
+    "tenant" in of
+      ? sql`SELECT DISTINCT blob_key, size FROM mockup_prototype_files WHERE tenant_id = ${of.tenant}`
+      : sql`SELECT DISTINCT blob_key, size FROM mockup_prototype_files WHERE product_id = ${of.product}`;
+  const r = await sql<{ n: number | string; bytes: number | string }>`
+    WITH a AS (${attachments}), d AS (${readings}), p AS (${prototypes})
+    SELECT (SELECT count(*) FROM a) + (SELECT count(*) FROM d WHERE text_chars > 0) + (SELECT count(*) FROM p) AS n,
+      (SELECT coalesce(sum(size), 0) FROM a) + (SELECT coalesce(sum(text_chars), 0) FROM d) + (SELECT coalesce(sum(size), 0) FROM p) AS bytes`.execute(ctx.db);
+  return { n: Number(r.rows[0]?.n ?? 0), bytes: Number(r.rows[0]?.bytes ?? 0) };
+}
+
 /** The name typed to confirm, which must be the name itself. */
 const typedName = (what: string) => z.string().describe(`The ${what}'s name, typed exactly as the person confirmed it.`);
 
@@ -38,16 +66,11 @@ function checkTypedName(typed: string, name: string, what: string): void {
 async function productContents(ctx: OpContext) {
   const pid = productId(ctx);
   const db = ctx.db;
-  const files = await db
-    .selectFrom("file_versions as v")
-    .innerJoin("records as r", "r.record_id", "v.record_id")
-    .select((eb) => [eb.fn.countAll<number>().as("n"), eb.fn.coalesce(eb.fn.sum<number>("v.size"), sql<number>`0`).as("bytes")])
-    .where("r.product_id", "=", pid)
-    .executeTakeFirst();
+  const files = await storedFiles(ctx, { product: pid });
   return {
     sources: await count(db.selectFrom("records").select((eb) => eb.fn.countAll<number>().as("n")).where("product_id", "=", pid).executeTakeFirst()),
-    stored_files: Number(files?.n ?? 0),
-    bytes: Number(files?.bytes ?? 0),
+    stored_files: files.n,
+    bytes: files.bytes,
     comments: await count(db.selectFrom("annotations").select((eb) => eb.fn.countAll<number>().as("n")).where("product_id", "=", pid).executeTakeFirst()),
     outcomes: await count(db.selectFrom("outcomes").select((eb) => eb.fn.countAll<number>().as("n")).where("product_id", "=", pid).executeTakeFirst()),
     assumptions: await count(db.selectFrom("register_entries").select((eb) => eb.fn.countAll<number>().as("n")).where("product_id", "=", pid).executeTakeFirst()),
@@ -174,11 +197,7 @@ export async function organizationDeletion(ctx: OpContext, tid: string = tenantI
   const db = ctx.db;
   const t = await db.selectFrom("tenants").select(["tenant_id", "slug", "name", "example"]).where("tenant_id", "=", tid).executeTakeFirstOrThrow();
   const products = await db.selectFrom("products").select(["product_id", "name", "archived_at"]).where("tenant_id", "=", tid).orderBy("name").execute();
-  const files = await db
-    .selectFrom("file_versions")
-    .select((eb) => [eb.fn.countAll<number>().as("n"), eb.fn.coalesce(eb.fn.sum<number>("size"), sql<number>`0`).as("bytes")])
-    .where("tenant_id", "=", tid)
-    .executeTakeFirst();
+  const files = await storedFiles(ctx, { tenant: tid });
   const people = await db.selectFrom("memberships").select("account_id").distinct().where("tenant_id", "=", tid).execute();
   return {
     tenant_id: t.tenant_id,
@@ -189,8 +208,8 @@ export async function organizationDeletion(ctx: OpContext, tid: string = tenantI
       teams: await count(db.selectFrom("teams").select((eb) => eb.fn.countAll<number>().as("n")).where("tenant_id", "=", tid).executeTakeFirst()),
       products: products.map((p) => ({ product_id: p.product_id, name: p.name, archived: Boolean(p.archived_at) })),
       sources: await count(db.selectFrom("records").select((eb) => eb.fn.countAll<number>().as("n")).where("tenant_id", "=", tid).executeTakeFirst()),
-      stored_files: Number(files?.n ?? 0),
-      bytes: Number(files?.bytes ?? 0),
+      stored_files: files.n,
+      bytes: files.bytes,
       people: people.length,
       pending_invitations: await count(
         db.selectFrom("invitations").select((eb) => eb.fn.countAll<number>().as("n")).where("tenant_id", "=", tid).where("accepted_at", "is", null).where("expires_at", ">", ctx.now).executeTakeFirst(),

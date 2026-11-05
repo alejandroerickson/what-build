@@ -1117,7 +1117,8 @@ never described as deleting. A list row showing an archived object says *Archive
   A guest of the example organization sees a callout that it is the example organization and that
   its people aren't shown to its readers, and no list.
   Last, an organization's owners see **Delete this organization** (never the example organization):
-  the dialog lists its products and counts its sources, files and people, and needs a reason and
+  the dialog lists its products and counts its sources, files (with their size, the files its Plan
+  page counts) and people, and needs a reason and
   the organization's name typed (§7.10, [§9.5](09-data-lifecycle.md)). It is the only place an
   organization is deleted; afterwards the overview opens.
 - **Invitation** (`/invite/:token`). Opening the link changes nothing: it asks "Join <organization>?",

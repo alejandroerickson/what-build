@@ -336,7 +336,10 @@ Everything that can be archived can also be deleted, and so can an organization:
   assumption: its reviews and the other assumptions that link to it (`linked_from`). For an
   outcome: the assumptions that serve it. For a Story page:
   its versions and the sub-pages that would move up. For a mockup: its versions and the Story
-  pages that show it. For a product or organization: everything it holds, counted. Each says in
+  pages that show it. For a product or organization: everything it holds, counted, its stored
+  files (`stored_files`, `bytes`) counted as its plan's storage counts files (§9.7): each distinct
+  file of its attachments' every version, so a copy's shared file once, the text read from each,
+  and each distinct file of its mockups' prototypes. Each says in
   `after_delete` what becomes of what points at it. The web UI shows this inside the confirmation
   dialog. An agent's delete takes the impact's etag, so it reads the impact first, and a permanent
   delete is in a `_delete` tool of its own, which a client such as Claude asks the person about
