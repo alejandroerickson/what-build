@@ -119,9 +119,10 @@ export interface OperationDef<I extends z.ZodType = z.ZodType, O = unknown, P = 
   description: string;
   input: I;
   /**
-   * What a standalone tool's list entry says to someone who reads only the Story, in place of its
-   * summary, description and schema: a tool's description speaks only of what it offers them. It
-   * changes nothing a call is checked against.
+   * What it says to someone who reads only the Story, in place of its summary, description and
+   * schema: in a standalone tool's list entry, in its line in a tool of actions, and in what
+   * describe=true returns. A tool's description speaks only of what it offers them. It changes
+   * nothing a call is checked against.
    */
   forStoryReader?: { summary: string; description: string; input: z.ZodType };
   rest: { method: "GET" | "POST" | "PATCH" | "PUT" | "DELETE"; path: string };

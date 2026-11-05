@@ -73,9 +73,9 @@ describe("adapter parity", () => {
       expect(t.title, t.name).toMatch(/^[A-Z]/);
       expect(t.annotations, t.name).toMatchObject({ title: t.title });
       const reads = t.name.endsWith("_read") || t.name === "search" || t.name === "guide";
-      // An export changes nothing the team has, though it leaves a record, so it says neither.
-      const copies = t.name.endsWith("_export");
-      expect(t.annotations, t.name).toMatchObject(reads ? { readOnlyHint: true, destructiveHint: false } : { readOnlyHint: false, destructiveHint: !copies });
+      // An export changes nothing the team has, though it leaves a record, so it says neither; nor does feedback, which only adds a note.
+      const changesNothing = t.name.endsWith("_export") || t.name === "submit_feedback";
+      expect(t.annotations, t.name).toMatchObject(reads ? { readOnlyHint: true, destructiveHint: false } : { readOnlyHint: false, destructiveHint: !changesNothing });
       expect(t.name.length, t.name).toBeLessThanOrEqual(64);
     }
     // Fetching a document is the one action that reaches outside WhatBuild.
