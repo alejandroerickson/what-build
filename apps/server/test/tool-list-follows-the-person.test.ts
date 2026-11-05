@@ -337,8 +337,10 @@ describe("an export, on a Read only connection", () => {
     const tool = tools.find((t) => t.name === "products_export")!;
     expect(tool.annotations).toMatchObject({ title: "Export a product", readOnlyHint: false, destructiveHint: false });
     expect(said(tool.description!)).toMatch(/changes nothing in the product/);
-    // The one tool on this list that is marked destructive is the person's own report to the developer.
-    expect(tools.filter((t) => t.annotations?.destructiveHint).map((t) => t.name)).toEqual(["submit_feedback"]);
+    // Nothing on this list is marked destructive: not even the person's own report to the developer, which only adds a note.
+    expect(names).toContain("submit_feedback");
+    expect(tools.filter((t) => t.annotations?.destructiveHint).map((t) => t.name)).toEqual([]);
+    expect(tools.find((t) => t.name === "submit_feedback")!.annotations).toMatchObject({ readOnlyHint: false, destructiveHint: false });
     const made = result(await client.callTool({ name: "products_export", arguments: { action: "export" } }));
     expect(made.json).toMatchObject({ status: "pending", scope: { connection_level: "viewer", your_role: "viewer" } });
     const listed = result(await client.callTool({ name: "products_read", arguments: { action: "exports" } }));
@@ -472,11 +474,55 @@ describe("each tool's description", () => {
   it("says nothing of publishing or the style's guidance to a reader, nor of writing to a viewer", async () => {
     const reader = (await offeredWith(rita, `/mcp/t/${path}`)).descriptions;
     expect(said(reader["story_read"]!)).not.toMatch(/publish|set_style|guidance|notes for agents/i);
+    // Nor its actions' lines: a reader gets a page without notes for agents.
+    expect(reader["story_read"]).not.toMatch(/notes for agents/i);
+    expect(reader["story_read"]).toMatch(/^- get_page: Read a Story page's current version, with its HTML and its etag\.$/m);
     expect(reader["story_write"]).toBeUndefined();
     const viewer = (await offeredWith(vic, `/mcp/t/${path}`)).descriptions;
     for (const tool of ["sources_write", "attachments_write", "story_write"]) expect(viewer[tool], tool).toBeUndefined();
     expect(said(viewer["sources_read"]!)).not.toMatch(/create/i);
     expect(said(viewer["story_read"]!)).toMatch(/get_style/);
     expect(said(viewer["story_read"]!)).not.toMatch(/set_style|publish/);
+  });
+
+  it("tells a reader what products_read gives them, and nothing of a concept they do not get", async () => {
+    for (const at of [`/mcp/t/${path}`, `/mcp/t/${org}`]) {
+      // The whole description, its actions' lines among it.
+      const reader = (await offeredWith(rita, at)).descriptions["products_read"]!;
+      expect(reader, at).not.toMatch(/concept|card|etag|limits|plan|export|delet|example organization/i);
+      expect(said(reader), at).toMatch(/your role in it and how many Story pages it has/);
+      expect(reader, at).toMatch(/^- list: .*your role and how many Story pages each has\.$/m);
+      expect(reader, at).toMatch(/^- get: Read a product: its name and path, your role, and how many Story pages it has\.$/m);
+      // describe=true says the same: what a reader gets, with no field that asks for a card.
+      const client = await connect(await h.connectAgent(rita, `Rita's describing agent at ${at}`, at), at);
+      for (const action of ["get", "list"]) {
+        const described = result(await client.callTool({ name: "products_read", arguments: { action, describe: true } })).json;
+        expect(JSON.stringify(described), `${at} ${action}`).not.toMatch(/concept|card|etag/i);
+        expect(described.summary, `${at} ${action}`).toMatch(/how many Story pages/);
+      }
+      const get = result(await client.callTool({ name: "products_read", arguments: { action: "get", describe: true } })).json;
+      expect(get.input_schema.properties ?? {}).toEqual({});
+      // And the product is read as described.
+      const read = result(await client.callTool({ name: "products_read", arguments: { action: "get", product: path } })).json;
+      expect(read).not.toHaveProperty("concept");
+      expect(read).toMatchObject({ your_role: "reader", counts: { story_pages: 0 }, stage_counts: { story: 0 } });
+      await client.close();
+    }
+    // Anyone who reads more than the Story is still told of the concept, in the description and by describe=true.
+    const viewer = (await offeredWith(vic, `/mcp/t/${path}`)).descriptions["products_read"]!;
+    expect(said(viewer)).toMatch(/read a product and its concept/);
+    expect(viewer).toMatch(/^- get: Read a product: its concept, etag, your role, and counts of what it holds\.$/m);
+    const client = await connect(await h.connectAgent(vic, "Vic's describing agent", `/mcp/t/${path}`), `/mcp/t/${path}`);
+    const get = result(await client.callTool({ name: "products_read", arguments: { action: "get", describe: true } })).json;
+    expect(get.summary).toMatch(/its concept/);
+    expect(Object.keys(get.input_schema.properties)).toEqual(["include_card"]);
+    await client.close();
+  });
+
+  it("marks feedback destructive on no connection, whatever its level", () => {
+    for (const level of levels) {
+      const tool = toolDefinitions((op) => levelAllows(level, op)).tools.find((t) => t.name === "submit_feedback")!;
+      expect(tool.annotations, level).toMatchObject({ readOnlyHint: false, destructiveHint: false });
+    }
   });
 });

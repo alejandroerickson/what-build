@@ -948,7 +948,9 @@ Rules:
   person before each call, and `attachments_write`, which fetches from the web, says
   `openWorldHint: true`. `products_export` says neither read-only nor destructive: it records that an
   export was asked for and counts against a plan's daily exports, and it changes nothing the team has,
-  so a Read only connection, which may export, is shown no write tool for it. An action called in
+  so a Read only connection, which may export, is shown no write tool for it. Nor is
+  `submit_feedback` destructive, on any connection: it only adds a note for the people who run
+  WhatBuild, so a client that asks before a destructive tool does not ask before it. An action called in
   another of its noun's tools is `422 wrong_tool`, naming the tool it is in (`details.tool`), and
   changes nothing; for an export the refusal adds that a client not listing `products_export` holds
   an older list.
@@ -957,6 +959,11 @@ Rules:
   is offered (`TOOL_TEXT` in `mcp.ts`), as its lines do: an Edit connection is not listed
   `members_write`, a reader's `story_read` says nothing of the style or the guidance, and
   `products_write` speaks of starting an organization only to someone offered `create_tenant`.
+  A tool that reads differently for someone who reads only the Story says so to them
+  (`forStoryReader` in `TOOL_TEXT`), and so does each action that does (`forStoryReader` on the
+  operation, in its line and in what `describe` returns): `products_read`, its `list` and its `get`
+  tell them of their role in a product and how many Story pages it has, never of its concept,
+  which they do not get, and `story_read`'s `get_page` speaks of no notes for agents.
   `search` shows someone who reads only the Story (the list offers them nothing that needs viewer)
   what it does for them, in plain mode over the Story, with a schema that asks for that mode
   (`forStoryReader` in `registry.ts`), and of the words that name a kind only the word `story`, the

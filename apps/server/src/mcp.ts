@@ -15,9 +15,11 @@ import { logError } from "./telemetry.ts";
  * What each tool is called in a client's list, and what it says it does, part by part: a sentence,
  * and the actions it speaks of. A part that names actions is said only when the connection is
  * offered one of them, so a tool never describes what it does not offer: members_write at the Edit
- * level grants nobody, a reader's story_write publishes nothing.
+ * level grants nobody, a reader's story_write publishes nothing. A tool that reads differently for
+ * someone who reads only the Story says so to them in `forStoryReader`, in place of `parts`.
  */
-const TOOL_TEXT: Record<string, { title: string; parts: [text: string, ...actions: string[]][] }> = {
+type Parts = [text: string, ...actions: string[]][];
+const TOOL_TEXT: Record<string, { title: string; parts: Parts; forStoryReader?: Parts }> = {
   products_read: {
     title: "Read products and organizations",
     parts: [
@@ -25,6 +27,9 @@ const TOOL_TEXT: Record<string, { title: string; parts: [text: string, ...action
       ["Read an organization's plan and limits.", "limits"],
       ["Get a download grant for a finished export.", "exports"],
       ["Read what deleting a product would destroy.", "delete_impact"],
+    ],
+    forStoryReader: [
+      ["Find the products (discoveries) you can reach and the tenants and teams they are in; read a product: your role in it and how many Story pages it has."],
     ],
   },
   products_write: {
@@ -179,10 +184,11 @@ const TOOL_TEXT: Record<string, { title: string; parts: [text: string, ...action
   submit_feedback: { title: "Send feedback to WhatBuild's developer", parts: [] },
 };
 
-/** What a tool of actions says of itself, of the actions it offers. */
-function toolDescription(tool: string, ops: OperationDef[]): string {
+/** What a tool of actions says of itself, of the actions it offers, to someone who may read more than the Story or not. */
+function toolDescription(tool: string, ops: OperationDef[], readsOnlyTheStory: boolean): string {
   const offered = new Set(ops.map((o) => o.mcp.action!));
-  return (TOOL_TEXT[tool]?.parts ?? [])
+  const text = TOOL_TEXT[tool];
+  return ((readsOnlyTheStory && text?.forStoryReader) || text?.parts || [])
     .filter(([, ...actions]) => !actions.length || actions.some((a) => offered.has(a)))
     .map(([text]) => text)
     .join(" ");
@@ -197,17 +203,21 @@ const nounOf = (tool: string) => tool.replace(/_(read|write|delete|export)$/, ""
 /** Operations that reach outside WhatBuild: fetching a document from the web. */
 const OPEN_WORLD = new Set(["attachments.fetch_url"]);
 
+/** Writes that change nothing the team has: feedback only adds a note for the people who run WhatBuild. */
+const ADDS_ONLY = new Set(["submit_feedback"]);
+
 /**
  * How a tool tells a client what it does to data, which a client such as Claude uses to decide
  * whether to ask the person first: a read runs without asking, and a write or a delete is
  * destructive, since it changes what the team has. An export is neither: it leaves a record that it
  * was made and counts against a plan's daily exports, so it is no read, and it changes nothing the
- * team has, so it is not destructive.
+ * team has, so it is not destructive. Nor is feedback, which only adds a note of its own.
  */
 function annotations(title: string, kind: ToolKind, ops: OperationDef[]) {
   const openWorldHint = ops.some((o) => OPEN_WORLD.has(o.name));
   if (kind === "read") return { title, readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint };
-  return { title, readOnlyHint: false, destructiveHint: kind !== "export", idempotentHint: false, openWorldHint };
+  const destructiveHint = kind !== "export" && !ops.every((o) => ADDS_ONLY.has(o.name));
+  return { title, readOnlyHint: false, destructiveHint, idempotentHint: false, openWorldHint };
 }
 
 /**
@@ -224,6 +234,11 @@ function jsonSchema(op: Pick<OperationDef, "input">): Record<string, unknown> {
   const s = z.toJSONSchema(op.input, { io: "input", unrepresentable: "any" }) as Record<string, unknown>;
   delete s["$schema"];
   return s;
+}
+
+/** What an operation says of itself to someone who reads only the Story, or to anyone else: its summary, description and schema. */
+function shownTo(op: OperationDef, readsOnlyTheStory: boolean): Pick<OperationDef, "summary" | "description" | "input"> {
+  return (readsOnlyTheStory && op.forStoryReader) || op;
 }
 
 /** The kinds of tool a noun may have, in the order they are listed. */
@@ -244,16 +259,18 @@ export function toolDefinitions(offered: (op: OperationDef) => boolean = () => t
     else standalone.push(op);
   }
   const tools: { name: string; title: string; description: string; inputSchema: Record<string, unknown>; annotations: Record<string, unknown> }[] = [];
+  // Of what a viewer may read, nothing is offered: this list is for someone who reads only the Story.
+  const readsOnlyTheStory = !OPERATIONS.some((o) => o.scope === "product" && o.access === "read" && !o.webOnly && offered(o));
   // Listed by the kind of object, in the order the operations are defined, each kind's read, write and delete together.
   const nouns = [...new Set([...groups.values()].map((ops) => ops[0]!.mcp.tool))];
   const order = (tool: string) => nouns.indexOf(nounOf(tool)) * TOOL_KINDS.length + TOOL_KINDS.indexOf(toolKind(groups.get(tool)![0]!));
   for (const [tool, ops] of [...groups].sort(([a], [b]) => order(a) - order(b))) {
-    const lines = ops.map((o) => `- ${o.mcp.action}: ${o.summary}`).join("\n");
+    const lines = ops.map((o) => `- ${o.mcp.action}: ${shownTo(o, readsOnlyTheStory).summary}`).join("\n");
     const title = TOOL_TEXT[tool]?.title ?? tool;
     tools.push({
       name: tool,
       title,
-      description: `${toolDescription(tool, ops)}${ACTIONS_SUFFIX}\nActions:\n${lines}`,
+      description: `${toolDescription(tool, ops, readsOnlyTheStory)}${ACTIONS_SUFFIX}\nActions:\n${lines}`,
       inputSchema: {
         type: "object",
         properties: {
@@ -268,10 +285,8 @@ export function toolDefinitions(offered: (op: OperationDef) => boolean = () => t
       annotations: annotations(title, toolKind(ops[0]!), ops),
     });
   }
-  // Of what a viewer may read, nothing is offered: this list is for someone who reads only the Story.
-  const readsOnlyTheStory = !OPERATIONS.some((o) => o.scope === "product" && o.access === "read" && !o.webOnly && offered(o));
   for (const op of standalone) {
-    const shown = (readsOnlyTheStory && op.forStoryReader) || op;
+    const shown = shownTo(op, readsOnlyTheStory);
     const schema = jsonSchema(shown);
     if (op.scope === "product") {
       (schema["properties"] as Record<string, unknown>)["product"] = PRODUCT_PARAM;
@@ -279,7 +294,7 @@ export function toolDefinitions(offered: (op: OperationDef) => boolean = () => t
     const title = TOOL_TEXT[op.mcp.tool]?.title ?? op.mcp.tool;
     tools.push({ name: op.mcp.tool, title, description: `${shown.summary} ${shown.description}`, inputSchema: schema, annotations: annotations(title, toolKind(op), [op]) });
   }
-  return { tools, groups, standalone: new Map(standalone.map((o) => [o.mcp.tool, o])) };
+  return { tools, groups, standalone: new Map(standalone.map((o) => [o.mcp.tool, o])), readsOnlyTheStory };
 }
 
 type Definitions = ReturnType<typeof toolDefinitions>;
@@ -569,7 +584,9 @@ function buildServer(env: Env, principal: Principal, bound: ScopeRef | null, sig
         }
         if (args["describe"] === true) {
           if (args["params"] && Object.keys(args["params"] as object).length) throw invalid("invalid_input", "describe=true only describes an action; omit params.");
-          return textResult({ tool: name, action: op.mcp.action, scope: op.scope, access: op.access, mutates: op.mutates, summary: op.summary, description: op.description, input_schema: jsonSchema(op), usage: { action: op.mcp.action, params: "Supply fields from input_schema here." } });
+          // Described as the tool list describes it to this connection: to someone who reads only the Story, what they get.
+          const shown = shownTo(op, (await offered()).readsOnlyTheStory);
+          return textResult({ tool: name, action: op.mcp.action, scope: op.scope, access: op.access, mutates: op.mutates, summary: shown.summary, description: shown.description, input_schema: jsonSchema(shown), usage: { action: op.mcp.action, params: "Supply fields from input_schema here." } });
         }
         rawInput = args["params"] ?? {};
         productArg = args["product"];

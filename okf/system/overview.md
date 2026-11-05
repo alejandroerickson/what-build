@@ -116,7 +116,8 @@ every call outside its scope, and its token works nowhere wider
 ([decision](../decisions/a-scoped-mcp-connector-is-a-fence.md)). 29 tools: for each noun a
 `_read`, a `_write` and, where something can be deleted for good, a `_delete` tool, each with
 `action`, `params`, `describe` and `product`, a title and a read-only or destructive hint, plus
-`products_export`, which is neither, and `search`, `guide` and `submit_feedback`
+`products_export`, which is neither, and `search`, `guide` and `submit_feedback` (which is not
+destructive either: it only adds a note)
 ([decision](../decisions/mcp-tools-are-split-into-read-write-and-delete.md)). The server's
 instructions describe WhatBuild and its tools; the `guide` tool explains how it works, one topic at
 a time, with nothing to install

@@ -23,7 +23,13 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
 
 ## Unreleased
 
-Nothing yet.
+- **Connected agents are asked to update their tools:** `submit_feedback` is no longer marked
+  destructive, since it changes nothing the team has, so a client that asks before a destructive
+  tool no longer asks before feedback; and someone who reads only the Story is told that
+  `products_read` gives them their role in a product and how many Story pages it has, not its
+  concept, which they do not get, in its description, its actions' lines and `describe`, and that
+  `story_read`'s `get_page` gives no notes for agents. An agent keeps the tools it had until a new
+  session brings version 0.60.0.
 
 ## v0.33.0
 

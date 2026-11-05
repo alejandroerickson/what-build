@@ -467,6 +467,8 @@ async function htmlFields(ctx: OpContext, v: { html: string; mockup: MockupPageR
   return { html_sha256: shownDigest(v, html), ...(withHtml ? { html } : { html_chars: html.length }) };
 }
 
+const getPageInput = z.strictObject({ page_id: pageId, include_html: z.boolean().default(true) });
+
 export const getPage = defineOperation({
   name: "story.get_page",
   scope: "product",
@@ -475,7 +477,12 @@ export const getPage = defineOperation({
   summary: "Read a Story page's current version, with its HTML, notes for agents, and its etag.",
   description:
     "404 means the page has never been published. An archived page stays readable here, except to a reader (the Story-only role), who gets 404 for it. Read this before revising a page, and keep what is useful. agent_notes holds what agents keep about the page — its purpose, sources still to fold in, choices about its structure — with its own etag for write_notes; read it before revising. include_html false leaves out the HTML (html_chars and html_sha256 stay). A reader (the Story-only role) gets the page without agent_notes.",
-  input: z.strictObject({ page_id: pageId, include_html: z.boolean().default(true) }),
+  input: getPageInput,
+  forStoryReader: {
+    summary: "Read a Story page's current version, with its HTML and its etag.",
+    description: "404 means the page has never been published, or is archived. include_html false leaves out the HTML (html_chars and html_sha256 stay).",
+    input: getPageInput,
+  },
   rest: { method: "GET", path: "/story/pages/:page_id" },
   mcp: { tool: "story", action: "get_page" },
   async handler(ctx, input) {
