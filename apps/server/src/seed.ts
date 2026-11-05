@@ -207,7 +207,9 @@ export async function seed(env: Env, worker: Worker, log: (m: string) => void = 
     ref,
   );
   await call(env, riley, "sources.annotate", { record_id: vtt, note: "The moment to design for is the typed hand-off message, not the spreadsheet.", tags: ["hand-off"] }, ref);
-  // The editor (Sam) may start one organization of their own; the owner (Riley, the instance's owner in development) gave it.
+  // The editor (the second of `people`) may start one organization of their own, given by the owner
+  // (the first), who in development is the instance's owner too. The end-to-end dataset makes the
+  // sample with people of its own, and records the instance's owner as the giver (`dataset.ts`).
   const sam = people[1].email;
   await env.db
     .insertInto("tenant_allowances")
