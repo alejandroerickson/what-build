@@ -77,7 +77,8 @@ other plans will too.
     source and a Story page. *Expect:* nothing overflows, overlaps or becomes unreadable, and the
     overview's tiles under each product show each section's name and count whole.
 13. **Web, as Sam.** On a source, choose Submit feedback in the account menu, choose Bug, write a
-    line saying it is an end-to-end test, and send it. *Expect:* the dialog says it sends the
+    line saying it is an end-to-end test in the text box, and send it. Find the box after choosing
+    Bug, labelled "What happened?". *Expect:* the dialog says it sends the
     words, "its kind" once a kind is chosen (not before), the release (on a development server
     that names none, such as `pnpm dev:e2e`, "that it is a development server" instead; on the
     Docker host, the release its image is) and
