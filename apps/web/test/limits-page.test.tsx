@@ -291,3 +291,11 @@ describe("the plans side by side", () => {
     expect(html).not.toContain("100 MB");
   });
 });
+
+describe("what an organization holds, in a line", () => {
+  it("says its people leave out readers of the Story, as its plan does and its Members page doesn't", async () => {
+    const { heldLine } = await import("../src/routes/limits.tsx");
+    const line = heldLine({ members: 4, invited: 1, products: 2, sources: 3, storage: { files: 0, text: 0, total: 0 } });
+    expect(line).toMatch(/^4 people besides Story readers \(\+1 invited\) · 2 products · 3 sources · /);
+  });
+});

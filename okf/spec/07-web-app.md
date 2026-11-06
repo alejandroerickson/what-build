@@ -1234,7 +1234,8 @@ never described as deleting. A list row showing an archived object says *Archive
   plan a new organization starts on here, or, where the deployment offers no plans, that every
   organization is Unlimited, both set where the service is deployed (`WHATBUILD_PLANS` and
   `WHATBUILD_NEW_ORGANIZATION_PLAN`): each row its name (a link to its Plan page where the instance owner is in it and reads more than the Story), whether it is
-  the example, what it holds (people, with invitations waiting, products, sources and storage), who
+  the example, what it holds (people besides readers of the Story, whom the plan doesn't count, with
+  invitations waiting; products, sources and storage), who
   created it and when, how long a read-only one is kept, and today's writes, ending in a Read-only
   badge where it is, "Plan no longer defined" for one on a plan the deployment no longer defines,
   its plan's badge and **Change plan** where the deployment offers plans, **Rename** and, but for the example,

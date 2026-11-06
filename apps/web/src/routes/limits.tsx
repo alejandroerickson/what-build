@@ -386,9 +386,13 @@ function DeploymentLimits({ limits }: { limits: DeploymentLimit[] }) {
 
 const ORGS = "/api/v1/organizations";
 
-/** What an organization holds, in a line: the numbers its plan's totals count. */
-function heldLine(h: Holdings) {
-  return [plural(h.members, "person", "people") + (h.invited ? ` (+${h.invited} invited)` : ""), plural(h.products, "product"), plural(h.sources, "source"), size(h.storage.total)].join(" · ");
+/**
+ * What an organization holds, in a line: the numbers its plan's totals count. Its people leave out
+ * readers of the Story, as the plan does, so the line says so beside a Members page that lists them.
+ */
+export function heldLine(h: Holdings) {
+  const people = plural(h.members, "person", "people") + " besides Story readers" + (h.invited ? ` (+${h.invited} invited)` : "");
+  return [people, plural(h.products, "product"), plural(h.sources, "source"), size(h.storage.total)].join(" · ");
 }
 
 /**
