@@ -35,6 +35,8 @@ export function OverviewPage() {
   if (products.data && !products.data.tenants.length) return <Navigate to="/welcome" replace />;
   const tenants = ownFirst(products.data?.tenants ?? []);
   const ownOrgs = tenants.filter((t) => !t.example).length;
+  const mayStart = me.data?.tenant_allowance.remaining !== 0;
+  const asked = Boolean(me.data?.asked_for_organization_at);
   const all = products.data?.items ?? [];
   const items = all.filter((p) => !p.archived_at);
   // Each organization shows its own archived products: the parameter names the ones that do.
@@ -86,7 +88,7 @@ export function OverviewPage() {
         </Sheet>
       ) : (
         <>
-          {!ownOrgs ? <StartYourOwn mayStart={me.data?.tenant_allowance.remaining !== 0} /> : null}
+          {!ownOrgs ? <StartYourOwn mayStart={mayStart} asked={asked} /> : null}
           {tenants.map((t) => (
           <Organization
             key={t.tenant_id}
@@ -189,8 +191,11 @@ function Organization({ tenant, products, showArchived, onShowArchived, onCreate
   );
 }
 
-/** For someone with no organization of their own: where their work goes. */
-function StartYourOwn({ mayStart }: { mayStart: boolean }) {
+/**
+ * For someone with no organization of their own: where their work goes. Once they are on the
+ * waitlist it no longer tells them to ask: the line below says since when, and that an email follows.
+ */
+function StartYourOwn({ mayStart, asked }: { mayStart: boolean; asked: boolean }) {
   return (
     <Sheet className="overview-start" labelledBy="overview-start-title">
       <SheetHeader
@@ -208,7 +213,9 @@ function StartYourOwn({ mayStart }: { mayStart: boolean }) {
         <p className="muted">
           {mayStart
             ? "Your team’s work goes in an organization of your own. Start one when you’re ready."
-            : "Your team’s work goes in an organization of your own. Organizations open a few at a time: ask for yours, or have someone who uses WhatBuild invite you to theirs."}
+            : asked
+              ? "Your team’s work goes in an organization of your own. Organizations open a few at a time. Meanwhile, someone who uses WhatBuild can invite you to theirs."
+              : "Your team’s work goes in an organization of your own. Organizations open a few at a time: ask for yours, or have someone who uses WhatBuild invite you to theirs."}
         </p>
         {mayStart ? null : <AskForOrganization />}
       </SheetBody>

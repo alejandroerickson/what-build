@@ -60,7 +60,8 @@ other plans will too.
     the same address. *Expect:* the overview lists the example organization, marked Example
     organization and Read only, and, since the guest may not start one, says organizations open a
     few at a time and offers **Ask for your own organization**; pressing it says they are on the
-    waitlist since today, and the button is gone after a reload. Its products open with a notice that
+    waitlist since today and the sheet no longer tells them to ask, and after a reload the button is
+    still gone and the sheet still doesn't. Its products open with a notice that
     it is a worked example nothing in it can change; its Members shows no people.
     `products_read(action="list")` lists the example's products with `your_role` guest and the tenant
     `example: true`; the tool list offers no write but `submit_feedback`, and no `create_tenant`;

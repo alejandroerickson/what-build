@@ -26,8 +26,9 @@ and **Cleo** are three such addresses, signed in with `pnpm e2e browser signin <
 1. **Web, as Ana, a new address.** Sign in. *Expect:* the overview lists the example organization,
    and a sheet, Your own organization, says organizations open a few at a time and offers **Ask
    for your own organization**; there is no Start your organization. Press it. *Expect:* the button
-   gives way to "On the waitlist since <today>" and that an email will say when Ana can start one;
-   a reload keeps it. The example's banner offers no button to ask again.
+   gives way to "On the waitlist since <today>" and that an email will say when Ana can start one,
+   and the sheet no longer tells Ana to ask; a reload keeps both. The example's banner offers no
+   button to ask again.
 2. **Web, as Riley.** Open Organizations (`/instance`) from the account menu. *Expect:* sheets for
    Organizations, Plans, Guests, Who can start organizations and Waitlist. The Waitlist lists Ana
    with her address, when she asked and "signed up". Press **Let them start one** for Ana.

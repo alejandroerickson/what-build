@@ -439,7 +439,8 @@ new tab ([§7.8](#78-story), [§6](06-operations-and-adapters.md)).
    to ask for one or be invited to someone's, and offers **Ask for your own organization**, which puts them on the
    waitlist with one click ([§3.2](03-accounts-teams-and-identity.md#32-accounts-and-sign-in));
    then it says since when they have been on it and that an email will tell them when they can
-   start one.
+   start one, and the sheet no longer tells them to ask, only that someone who uses WhatBuild can
+   invite them meanwhile.
 3. **First run** (`/welcome`): name the organization and the first product in one form, for an
    account that may create one ([§3.3](03-accounts-teams-and-identity.md)); for someone who is not
    an instance owner, where the deployment offers plans, it adds which plan the organization starts
