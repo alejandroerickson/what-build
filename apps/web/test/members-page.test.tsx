@@ -20,7 +20,7 @@ HTMLDialogElement.prototype.close ??= function (this: HTMLDialogElement) {
 };
 window.matchMedia ??= ((query: string) => ({ matches: false, media: query, onchange: null, addListener() {}, removeListener() {}, addEventListener() {}, removeEventListener() {}, dispatchEvent: () => false })) as never;
 
-const state = { readOnly: false, refuseGrant: false };
+const state = { readOnly: false, refuseGrant: false, guest: false };
 const calls: { method: string; path: string; body?: Record<string, unknown> }[] = [];
 
 const tenant = () => ({
@@ -28,7 +28,7 @@ const tenant = () => ({
   ...(state.readOnly ? { read_only: { since: "2026-10-26T10:00:00.000Z", kept_until: "2027-10-26T10:00:00.000Z" } } : {}),
   teams: [{ team_id: "team1", slug: "core", name: "Core", your_role: "owner" }],
 });
-const members = () => ({
+const members = () => state.guest ? { members: [], invitations: [], guest: true } : ({
   members: [
     { account_id: "a1", display_name: "Olive Owner", email: "olive@example.com", grants: [{ membership_id: "m1", scope_type: "tenant", scope_id: "t1", scope: { name: "Acme", slug: "acme" }, role: "owner", since: "" }] },
     { account_id: "a2", display_name: "Pat Editor", email: "pat@example.com", grants: [{ membership_id: "m2", scope_type: "product", scope_id: "p1", scope: { name: "Planner", slug: "planner" }, role: "editor", since: "" }] },
@@ -61,7 +61,7 @@ afterEach(() => {
   unmount = null;
   document.body.innerHTML = "";
   calls.length = 0;
-  Object.assign(state, { readOnly: false, refuseGrant: false });
+  Object.assign(state, { readOnly: false, refuseGrant: false, guest: false });
 });
 
 async function page() {
@@ -83,7 +83,7 @@ async function page() {
       </QueryClientProvider>,
     );
   });
-  for (let i = 0; i < 20 && !host.textContent?.includes("Pat Editor"); i++) await act(() => new Promise((r) => setTimeout(r, 5)));
+  for (let i = 0; i < 20 && !host.textContent?.includes("Pat Editor") && !host.textContent?.includes("example organization"); i++) await act(() => new Promise((r) => setTimeout(r, 5)));
   return host;
 }
 
@@ -196,5 +196,14 @@ describe("the Members page", () => {
     const dialog = document.querySelector("dialog[open]")!;
     expect(dialog.textContent).toContain("so removing it removes them from the organization");
     expect(buttons(dialog, "Remove role, keep as member")).toHaveLength(0);
+  });
+
+  it("tells a guest of the example organization that its people aren't shown to its guests, naming no other role", async () => {
+    state.guest = true;
+    const host = await page();
+    expect(host.textContent).toContain("Acme is the example organization");
+    expect(host.textContent).toContain("Its people aren’t shown to its guests.");
+    expect(host.textContent).not.toMatch(/readers?\b/i);
+    expect(host.textContent).not.toContain("Pat Editor");
   });
 });

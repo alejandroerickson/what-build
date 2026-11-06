@@ -432,7 +432,7 @@ function PeopleSheet() {
             ))}
           </ul>
           {q.data.guest ? (
-            <p className="people-foot">The example organization&rsquo;s people aren&rsquo;t shown to its readers.</p>
+            <p className="people-foot">The example organization&rsquo;s people aren&rsquo;t shown to its guests.</p>
           ) : (
             <p className="people-foot">
               Change team and organization roles in <Link to={membersLink}>{product.tenant.name} members</Link>.

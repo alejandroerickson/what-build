@@ -32,7 +32,10 @@ what the plan expects, and report. The system, with every command, is described 
    plan named, run `smoke`.
 2. **Check the golden master.** `cat .what-build/e2e/golden.json`. If there is none, or the person
    asked for a fresh one or for newer data, build it with `pnpm e2e golden` from the newest pull
-   (`ls .what-build/fixtures`, or the main checkout's in a worktree). With no pull to build
+   (`pnpm fixture list`). To build from another, name the pull's folder, such as
+   `pnpm e2e golden 2026-10-10T1621Z`, never its path, which is refused ("No complete copy
+   named …"); in a git worktree without pulls of its own, the main checkout's are found without
+   naming them. With no pull to build
    it from, take one with `pnpm fixture pull`, without asking, following the
    `test-on-a-copy-of-production` skill; it takes the example organization, which is all the golden
    master keeps. When the person asks for the synthetic organizations too (many members, a

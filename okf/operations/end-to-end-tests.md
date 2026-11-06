@@ -43,6 +43,11 @@ corepack pnpm e2e golden --org <slug>     # keep another organization than the e
 corepack pnpm e2e golden <dataset>        # from the non-production dataset, its synthetic organizations kept
 ```
 
+A pull or a dataset is named by its folder's name, as `pnpm fixture list` gives it
+(`2026-10-10T1621Z`), never by a path: a path is refused with "No complete copy named …". The
+folder is looked for in `.what-build/fixtures` (or `WHATBUILD_FIXTURE_DIR`), and in a git worktree
+without pulls of its own, in the main checkout's, found without being named.
+
 It is made from a pull of production ([a copy of production](a-copy-of-production.md)): a pull of
 the example organization, `pnpm fixture pull`'s default, is all it needs. It refuses a pull taken
 before pulls checked who owns each organization, and one taken to move into another deployment
@@ -101,8 +106,7 @@ there is, and the search index as those jobs left it. A golden master built befo
 the index has none in the standard organization, where search then finds a source by its title
 and tags at most: build it again. Once built, the golden master does not change: migrations added to the code later
 run on each fresh copy when it is served. Build it again from a newer pull to move it forward, and
-stop the instance first. In a git worktree without pulls of its own, pulls are read
-from the main checkout's `.what-build/fixtures`.
+stop the instance first.
 
 ## Serving
 
