@@ -3,7 +3,7 @@ type: System Concept
 title: Agent-driven end-to-end tests on a golden master
 description: An agent follows a written test plan through the real web app and the real MCP server, on a local instance reset each time to a golden master made from production's example organization, and reports failures and anomalies.
 tags: [development, testing, qa, e2e, agents, mcp, browser]
-generated: {by: agent:claude, at: 2026-10-31}
+generated: {by: agent:claude, at: 2026-11-06}
 status: draft
 ---
 
@@ -230,6 +230,18 @@ adds only what the document itself scrolls. `stop` closes it; its log is
 
 An agent whose harness has its own browser tools may use them on the same address instead; the
 driver is for any agent that has a shell.
+
+A `live` request answered `429 live_full` (a `·` line) means the person already holds as many
+streams as one account may (5), or the instance as many as it allows (`WHATBUILD_LIVE_MAX_STREAMS`).
+Every tab signed in as that person counts, in any browser: the driver's page, a tab a link opened
+beside it, the harness's own browser. A page load, `signin`, `signout` and closing a tab end its
+stream at once, directly and through the development server's proxy, and the server's log says so
+with a `live_stream_ended` line whose `open` is how many the instance still holds. No stream
+outlives `WHATBUILD_LIVE_STREAM_MINUTES` (4 by default), so a refusal that lasts longer means tabs
+that are really open. A refused tab goes without live updates and says nothing. While it is in view
+it asks again after five minutes or so, and after six refusals in a row it stops asking until the
+page is loaded again.
+Before calling it a finding, check what else is signed in as the same person.
 
 ## The MCP client
 
