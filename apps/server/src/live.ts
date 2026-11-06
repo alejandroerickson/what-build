@@ -244,7 +244,11 @@ export function liveRoutes(env: Env & { config: ServerConfig }) {
       const session = heldSession(c, env.config.publicBaseUrl.startsWith("https://"));
       const productId = scope.product!.product_id;
       const body = session ? hub.listen(productId, principal.account_id, asker(principal, session, productId), signal) : null;
-      if (!body) throw noRoom();
+      // A request that went while it was being let in (a tab closed, a screen left, or React's
+      // second run of an effect in development, which drops the first request at once) is told it
+      // went, not refused: nobody reads either answer, but the access log keeps the status, and a
+      // 429 there would read as a person with no room left.
+      if (!body) throw signal.aborted ? wentAway() : noRoom();
       return c.body(body, 200, {
         "Content-Type": "text/event-stream; charset=utf-8",
         // Nothing between here and the tab may keep it, change it or wait for more of it.
@@ -261,4 +265,12 @@ export function liveRoutes(env: Env & { config: ServerConfig }) {
 /** A tab refused for lack of room goes without live updates, and tries again later. */
 function noRoom(): AppError {
   return new AppError(429, "live_full", "No more tabs can listen for changes just now. Refresh to see the latest.", { retry_after_seconds: 300 });
+}
+
+/**
+ * A tab that stopped asking before its stream was let in. 499 is what servers log for a client that
+ * closed its request, as search does for a search nobody waits for any more (`search_cancelled`).
+ */
+function wentAway(): AppError {
+  return new AppError(499, "live_cancelled", "The tab stopped asking before it was let in.");
 }

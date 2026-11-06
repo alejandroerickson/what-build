@@ -240,8 +240,11 @@ with a `live_stream_ended` line whose `open` is how many the instance still hold
 outlives `WHATBUILD_LIVE_STREAM_MINUTES` (4 by default), so a refusal that lasts longer means tabs
 that are really open. A refused tab goes without live updates and says nothing. While it is in view
 it asks again after five minutes or so, and after six refusals in a row it stops asking until the
-page is loaded again.
-Before calling it a finding, check what else is signed in as the same person.
+page is loaded again. Before calling it a finding, check what else is signed in as the same
+person. In development React runs each screen's effects twice, so every page load asks for its
+stream twice and drops the first request at once. A request dropped while it was being let in holds
+nothing, and the server's log shows it as `499` (its answer, which nobody reads, says
+`live_cancelled`), never as `429`, beside the `200` of the stream that stayed.
 
 ## The MCP client
 
