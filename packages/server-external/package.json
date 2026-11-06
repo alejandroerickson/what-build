@@ -5,7 +5,7 @@
   "description": "What the server leaves out of its bundle, which the image installs from pnpm-lock.yaml. Raise a version here and where the code imports it, together: the build refuses two.",
   "dependencies": {
     "@azure/communication-email": "^1.1.0",
-    "@azure/identity": "^4.14.0",
+    "@azure/identity": "^4.14.1",
     "@google-cloud/storage": "^8.4.0",
     "@napi-rs/canvas": "^1.0.10",
     "google-auth-library": "^11.3.1",
