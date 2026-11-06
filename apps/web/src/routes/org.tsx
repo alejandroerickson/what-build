@@ -318,7 +318,7 @@ export function MembersPage() {
         <SheetBody className="members-intro">
           {guest ? (
             <Callout inset tone="info" title={`${orgName} is the example organization`}>
-              Its people aren&rsquo;t shown to its readers.
+              Its people aren&rsquo;t shown to its guests.
             </Callout>
           ) : null}
           {t?.read_only ? (

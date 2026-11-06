@@ -1115,7 +1115,7 @@ never described as deleting. A list row showing an archived object says *Archive
   doesn't exist or they can't see it (§7.1); until the members answer, the page for an
   organization that isn't theirs shows only that it is loading, not the key to the roles.
   A guest of the example organization sees a callout that it is the example organization and that
-  its people aren't shown to its readers, and no list.
+  its people aren't shown to its guests, and no list.
   Last, an organization's owners see **Delete this organization** (never the example organization):
   the dialog lists its products and counts its sources, files (with their size, the files its Plan
   page counts) and people, and needs a reason and
