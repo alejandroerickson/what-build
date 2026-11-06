@@ -268,6 +268,35 @@ describe("who may start listening", () => {
     await Promise.all([...tabs, other].map((l) => l.stop()));
     await vi.waitFor(() => expect(few.open).toBe(0));
   });
+
+  it("tells a tab that went while it was being let in that it went, not that there is no room, and keeps no place for it", async () => {
+    const one = new LiveHub({ maxPerAccount: 1 });
+    const leaving = new AbortController();
+    // The tab goes before it is let in, as the first of the two requests a page load makes in
+    // development does: the first time anything reads the database, the request is already gone.
+    const db = new Proxy(h.db, {
+      get: (target, key) => {
+        leaving.abort();
+        const value: unknown = Reflect.get(target, key, target);
+        return typeof value === "function" ? value.bind(target) : value;
+      },
+    });
+    const went = await createApp({ db, ports: { ...h.ports, live: one }, config: h.config }).fetch(new Request(`${h.baseUrl}/api/v1/p/${path}/live`, { headers: { cookie: alice.cookie }, signal: leaving.signal }));
+    expect(leaving.signal.aborted).toBe(true);
+    expect(went.status).toBe(499);
+    expect(((await went.json()) as { error: { code: string } }).error.code).toBe("live_cancelled");
+    expect(one.open).toBe(0);
+    // Its place is free for the tab that stays, and the next one is refused for lack of room as before.
+    const owned = createApp({ db: h.db, ports: { ...h.ports, live: one }, config: h.config });
+    const tab = reading(await listenOn(owned, path, { cookie: alice.cookie }));
+    expect(tab.status).toBe(200);
+    const refused = await listenOn(owned, path, { cookie: alice.cookie });
+    expect(refused.status).toBe(429);
+    expect(refused.headers.get("retry-after")).toBe("300");
+    expect(((await refused.json()) as { error: { code: string; details: { retry_after_seconds: number } } }).error).toMatchObject({ code: "live_full", details: { retry_after_seconds: 300 } });
+    await tab.stop();
+    await vi.waitFor(() => expect(one.open).toBe(0));
+  });
 });
 
 describe("who hears what", () => {

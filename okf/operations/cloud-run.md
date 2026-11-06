@@ -623,8 +623,9 @@ its idle time; on Neon's smallest size that is some minutes of 0.25 CU each time
 The service log says what it is doing, with nothing of anyone's: a `live_stream_ended` line for each
 stream, with its `reason`, how many `seconds` it lasted and how many stay `open`. Many ending within a minute
 means something between is cutting them. `WHATBUILD_LIVE_MAX_STREAMS` is how many may be open, past
-which a tab goes without and tries again in five minutes. It fits inside `--concurrency`, with room for
-ordinary requests. `WHATBUILD_LIVE_STREAM_MINUTES` is how long a stream lasts, and stays below
+which a tab goes without (`429`) and tries again in five minutes. It fits inside `--concurrency`,
+with room for ordinary requests. A `live` request logged `499` is a tab that went while it was being
+let in, not a refusal. `WHATBUILD_LIVE_STREAM_MINUTES` is how long a stream lasts, and stays below
 `--timeout`, past which Cloud Run cuts it and logs a 504.
 
 A deploy leaves streams on the old revision, which goes on being billed until they end. A tab moves
