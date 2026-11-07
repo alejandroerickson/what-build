@@ -1,4 +1,4 @@
-import { CONTENT_TABLES, newId } from "@whatbuild/core";
+import { CONTENT_TABLES, newEtag, newId } from "@whatbuild/core";
 import type pg from "pg";
 import { checkReferences, storedColumns } from "./organization-copy.ts";
 
@@ -14,6 +14,9 @@ const ID = /^[0-9A-HJKMNP-TV-Z]{26}$/;
 
 /** Columns that hold file storage keys. The copy shares the files: blobs are immutable, and keys are never parsed back into ids. */
 const SHARED = (column: string) => column.includes("blob");
+
+/** What an organization's renames record in its activity (products.rename_tenant), which never happened to a copy. */
+const RENAMES = new Set(["renamed", "slug_changed"]);
 
 async function tablesWith(c: pg.Client, column: string) {
   const r = await c.query<{ table_name: string }>(
@@ -54,7 +57,9 @@ export async function keepOnlyTenants(c: pg.Client, tenantIds: string[]) {
  * Copy one organization's content into a new organization that is not the example: its teams,
  * products and everything in them, the search index of their sources, the activity log and its
  * memberships, with every id made new and every reference to an old
- * id, in any column or JSON, pointing at the new one. Files are shared.
+ * id, in any column or JSON, pointing at the new one. Files are shared. The copy was never
+ * renamed: its name gets an etag of its own, and the original's renames and slug changes stay out
+ * of its activity, as its former slugs do.
  */
 export async function copyTenant(c: pg.Client, fromTenantId: string, slug: string, name: string) {
   // The copy may be from before some of these tables existed: its own migrations come later.
@@ -66,6 +71,7 @@ export async function copyTenant(c: pg.Client, fromTenantId: string, slug: strin
   const accounts = new Set(people.map((p) => p.account_id));
   const rows = new Map<string, Record<string, unknown>[]>();
   for (const t of tables) rows.set(t, (await c.query<{ row: Record<string, unknown> }>(`select to_jsonb(x) as row from ${t} x where tenant_id = $1`, [fromTenantId])).rows.map((r) => r.row));
+  if (rows.has("activity")) rows.set("activity", rows.get("activity")!.filter((r) => !(r.entity_type === "tenant" && RENAMES.has(r.action as string))));
 
   // Every id the organization's rows name, other than people's: those are the ones made new. A new
   // id keeps the old one's time (a ULID's first ten characters), so lists ordered by id, such as
@@ -82,7 +88,7 @@ export async function copyTenant(c: pg.Client, fromTenantId: string, slug: strin
   await c.query("begin");
   try {
     const t = (await c.query<{ row: Record<string, unknown> }>("select to_jsonb(t) as row from tenants t where tenant_id = $1", [fromTenantId])).rows[0]!.row;
-    await c.query("insert into tenants select * from jsonb_populate_record(null::tenants, $1)", [{ ...t, tenant_id: ids.get(fromTenantId), slug, name, example: false }]);
+    await c.query("insert into tenants select * from jsonb_populate_record(null::tenants, $1)", [{ ...t, tenant_id: ids.get(fromTenantId), slug, name, ...("name_etag" in t ? { name_etag: newEtag() } : {}), example: false }]);
     for (const table of tables) {
       const cols = await storedColumns(c, table);
       const list = rows
