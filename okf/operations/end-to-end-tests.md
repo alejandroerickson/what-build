@@ -64,7 +64,8 @@ application's role, and shaped into three organizations
   example organization's teams, products, content, activity and memberships, under new ids, with every reference to an old id rewritten, in columns and in
   JSON. Its sources' search index is copied with them, so search finds in it what it finds in the
   example organization. A new id keeps the time of the one it replaces, so lists ordered by id, such as activity,
-  keep their order in the copy. It is not the example. The files are shared, since blobs never change. After the copy, every
+  keep their order in the copy. It was never renamed: its name has an etag of its own, and the
+  example organization's renames and slug changes, and its former slugs, are left out of it. It is not the example. The files are shared, since blobs never change. After the copy, every
   foreign key is checked.
 - **The synthetic organization** (`harbor-labs`, "Harbor Labs", with the product Crewboard): the
   development sample (`seed.ts`), made through the operations as its people would make it, by people

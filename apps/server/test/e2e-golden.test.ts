@@ -53,6 +53,41 @@ describe("the golden master's standard organization", () => {
     await syncExampleTenant(h.db, null, () => {});
   });
 
+  it("gives the copy a name etag of its own, and none of the original's renames, which never happened to it", async () => {
+    const owner = await h.signIn("renamer@sample.example", "Sample Renamer");
+    const t = await owner.api("POST", "/api/v1/tenants", { name: "First Sample" });
+    const { slug: first, tenant_id: tenantId, name_etag: etag } = t.body.tenant;
+    expect((await owner.api("POST", `/api/v1/teams/${first}/${t.body.team.slug}/products`, { name: "Kept" })).status).toBe(201);
+    const renamed = await owner.api("PATCH", `/api/v1/tenants/${first}`, { name: "Renamed Sample", slug: `${first}-renamed`, expected_etag: etag });
+    expect(renamed.status).toBe(200);
+    // A slug changed on its own is recorded apart from a rename.
+    const moved = await owner.api("PATCH", `/api/v1/tenants/${renamed.body.slug}`, { slug: `${first}-moved`, expected_etag: renamed.body.name_etag });
+    expect(moved.status).toBe(200);
+    const slug = moved.body.slug as string;
+
+    const ids = await copyTenant(admin, tenantId, `${slug}-standard`, "Renamed Sample (standard)");
+    const copy = ids.get(tenantId)!;
+    const etagOf = async (id: string) => (await admin.query<{ name_etag: string }>("select name_etag from tenants where tenant_id = $1", [id])).rows[0]!.name_etag;
+    expect(await etagOf(tenantId)).toBe(moved.body.name_etag);
+    expect(await etagOf(copy)).toMatch(/\S/);
+    expect(await etagOf(copy)).not.toBe(await etagOf(tenantId));
+
+    type Event = { action: string; entity_type: string; entity_id: string; entity_title: string };
+    const events = async (id: string) =>
+      (await admin.query<Event>("select action, entity_type, entity_id, entity_title from activity where tenant_id = $1 order by activity_id", [id])).rows;
+    const original = await events(tenantId);
+    expect(original.filter((e) => e.entity_type === "tenant").map((e) => e.action)).toEqual(["created", "renamed", "slug_changed"]);
+    // The rest of its activity, in its order, under the copy's ids.
+    const itsRenames = (e: Event) => e.entity_type === "tenant" && (e.action === "renamed" || e.action === "slug_changed");
+    expect(await events(copy)).toEqual(original.filter((e) => !itsRenames(e)).map((e) => ({ ...e, entity_id: ids.get(e.entity_id) ?? e.entity_id })));
+    expect((await admin.query("select slug from tenant_slugs where tenant_id = $1", [copy])).rows).toEqual([]);
+
+    // Over the API too, where its owners read it.
+    const copySlug = `${slug}-standard`;
+    const listed = (await owner.api("GET", "/api/v1/me/products")).body.tenants as { slug: string; name_etag: string }[];
+    expect(listed.find((x) => x.slug === copySlug)!.name_etag).not.toBe(listed.find((x) => x.slug === slug)!.name_etag);
+  });
+
   it("copies the search index with what it indexes, so plain search finds the same words in the copy", async () => {
     const owner = await h.signIn("indexer@sample.example", "Sample Indexer");
     const t = await owner.api("POST", "/api/v1/tenants", { name: "Indexed Sample" });
