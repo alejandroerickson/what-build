@@ -66,8 +66,10 @@ other plans will too.
     `products_read(action="list")` lists the example's products with `your_role` guest and the tenant
     `example: true`; the tool list offers no write but `submit_feedback`, and no `create_tenant`;
     reading a source works, and its `scope` says `your_role` guest; creating one anyway is refused
-    with `403 example_read_only`, which says that, since the guest may not start an organization,
-    they ask whoever runs this WhatBuild for one, and not to call `create_tenant`.
+    with `403 example_read_only`, which says that the guest may not start an organization and,
+    since they asked above, is on the waitlist for one (organizations open a few at a time), that
+    someone who uses WhatBuild can invite them meanwhile, and not to call `create_tenant`; it no
+    longer tells them to ask whoever runs this WhatBuild.
 11. **MCP, as Jordan.** List the tools and the products, then try to list sources in a product, and
     to search it, first with no mode and then in `plain` mode. *Expect:* the tools are `story_read`,
     `products_read` and `search` (with `guide` and `submit_feedback`), and no `sources_`, `outcomes_`
