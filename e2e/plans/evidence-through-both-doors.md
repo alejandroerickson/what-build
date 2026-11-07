@@ -105,8 +105,8 @@ plans file's Free plan, which the end-to-end instance offers, are tried.
     (create a source, request an upload) and an export. Check that nothing from steps 2 to 13
     appears in the example organization. *Expect:* reads and search work; every write and the
     export are refused with `403 example_read_only`, saying that, since the guest may not start an
-    organization, they ask whoever runs this WhatBuild for one (never to call `create_tenant`), and
-    nothing changed; the two organizations stay separate.
+    organization and has not asked for one, they ask whoever runs this WhatBuild for one (never to
+    call `create_tenant`), and nothing changed; the two organizations stay separate.
 15. **The Free plan (the example file's), as Riley and then Sam.** As Riley, on Organizations, choose Change plan on the
     standard organization and move it to Free; the dialog says by how much it already holds more
     than Free allows, if it does. As Sam, read `products_read(action="limits")` for it over MCP, then

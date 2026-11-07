@@ -195,6 +195,8 @@ export function isGuest(scope: Pick<Scope, "tenantRole">): boolean {
  * person's own work goes, as the web app's notice does: an organization they are in; one they may
  * create, as an instance owner or with room in their allowance; or, when they may create none,
  * whoever runs this WhatBuild, so that their agent does not set out to create one and be refused.
+ * Someone who may create none and is on the waitlist already (a row in `interest` with their
+ * address) is told so instead, and not to ask again.
  */
 export async function exampleReadOnly(db: Db, config: AllowanceConfig, account: Pick<Principal, "account_id" | "email">, tenantName: string, what: string): Promise<AppError> {
   const elsewhere = await db
@@ -209,12 +211,20 @@ export async function exampleReadOnly(db: Db, config: AllowanceConfig, account: 
     ? `Do your own work in an organization you are in: products_read(action="list") lists them, as the panel of the WhatBuild web app does.`
     : (await tenantAllowanceOf(db, config, account)).remaining !== 0
       ? `To do your own work, create an organization of your own: products_write(action="create_tenant"), or New organization in the WhatBuild web app.`
-      : `This account may not start an organization: for one of your own, ask whoever runs this WhatBuild, or ask someone to invite you to theirs. Do not call products_write(action="create_tenant"), which would be refused.`;
+      : (await onTheWaitlist(db, account.email))
+        ? `This account may not start an organization, and is on the waitlist for one of your own: organizations open a few at a time. Meanwhile, someone who uses WhatBuild can invite you to theirs. Do not call products_write(action="create_tenant"), which would be refused.`
+        : `This account may not start an organization: for one of your own, ask whoever runs this WhatBuild, or ask someone to invite you to theirs. Do not call products_write(action="create_tenant"), which would be refused.`;
   return new AppError(
     403,
     "example_read_only",
     `${tenantName} is the example organization: everyone can read it, and nobody but its authors changes it, so ${what} was refused and nothing was changed. ${own}`,
   );
+}
+
+/** Whether someone with this address has asked for an organization: the waitlist, matched by lower-cased address. */
+async function onTheWaitlist(db: Db, email: string): Promise<boolean> {
+  const asked = await db.selectFrom("interest").select("interest_id").where(sql<string>`lower(email)`, "=", email.toLowerCase()).limit(1).executeTakeFirst();
+  return asked !== undefined;
 }
 
 /**
