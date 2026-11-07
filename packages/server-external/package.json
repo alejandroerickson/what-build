@@ -7,9 +7,9 @@
     "@azure/communication-email": "^1.1.0",
     "@azure/identity": "^4.14.1",
     "@google-cloud/storage": "^8.4.0",
-    "@napi-rs/canvas": "^1.0.10",
-    "google-auth-library": "^11.3.1",
-    "nodemailer": "^10.2.1",
+    "@napi-rs/canvas": "^1.1.0",
+    "google-auth-library": "^11.3.2",
+    "nodemailer": "^10.3.1",
     "pdfjs-dist": "^6.4.299",
     "sharp": "^0.35.5"
   }
