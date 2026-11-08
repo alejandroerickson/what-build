@@ -143,23 +143,23 @@ describe("the example organization, for a guest", () => {
     const nell = await h.signIn("nell@guest.example", "Nell Guest");
     for (const message of await refusals(nell)) {
       expect(message).toMatch(/is the example organization/);
-      expect(message).toMatch(/may not start an organization: for one of your own, ask whoever runs this WhatBuild/);
-      expect(message).not.toMatch(/create an organization of your own|waitlist/);
+      expect(message).toMatch(/You may not start an organization: for one of your own, ask whoever runs this WhatBuild/);
+      expect(message).not.toMatch(/create an organization of your own|waitlist|This account/);
     }
     // Once they have asked for an organization, they are told they are on the waitlist, not to ask.
     expect((await nell.api("POST", "/api/v1/me/ask-for-organization", {})).status).toBe(200);
     for (const message of await refusals(nell)) {
       expect(message).toMatch(/is the example organization/);
-      expect(message).toMatch(/may not start an organization, and is on the waitlist for one of your own: organizations open a few at a time/);
+      expect(message).toMatch(/You may not start an organization, and you are on the waitlist for one of your own: organizations open a few at a time/);
       expect(message).toMatch(/someone who uses WhatBuild can invite you to theirs/);
       expect(message).toMatch(/Do not call products_write\(action="create_tenant"\)/);
-      expect(message).not.toMatch(/ask whoever runs|create an organization of your own/);
+      expect(message).not.toMatch(/ask whoever runs|create an organization of your own|This account/);
     }
     // The waitlist is matched by lower-cased address: a row kept as it was typed on the public site still counts.
     expect((await olive.api("PUT", "/api/v1/tenant-allowances", { email: "mae@guest.example", allowed: 0, notify: false })).status).toBe(200);
     const mae = await h.signIn("mae@guest.example", "Mae Guest");
     await h.db.insertInto("interest").values({ interest_id: "01M5TINTEREST0000000000MAE", email: "Mae@Guest.Example", name: "Mae", organization: null, note: null }).execute();
-    for (const message of await refusals(mae)) expect(message).toMatch(/is on the waitlist for one of your own/);
+    for (const message of await refusals(mae)) expect(message).toMatch(/you are on the waitlist for one of your own/);
     const ivy = await h.signIn("ivy@own.example", "Ivy Own");
     expect((await ivy.api("POST", "/api/v1/tenants", { name: "Ivy's own" })).status).toBe(201);
     for (const message of await refusals(ivy)) {
