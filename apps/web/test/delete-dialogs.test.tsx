@@ -29,7 +29,7 @@ vi.mock("../src/lib/api.ts", async (original) => {
         return { etag: "product-impact-etag", contents: { sources: 2, stored_files: 0, bytes: 0, comments: 0, outcomes: 0, assumptions: 0, story_pages: 0, mockups: 0, exports: 0, people: 0 } };
       if (method === "POST" && path === `${BASE}/archive`) return { product_id: product.product_id, archived_at: "2026-10-02T09:00:00.000Z" };
       if (path === `${BASE}/exports`) return { items: [] };
-      if (path === "/api/v1/me/products") return { items: [], tenants: [] };
+      if (path.startsWith("/api/v1/me/products")) return { items: [], tenants: [] };
       if (path.startsWith("/api/v1/tenants/acme/members")) return { product: { product_id: product.product_id, name: product.name, team_id: "tm1", team: "Core" }, members: [], invitations: [] };
       if (path === `${BASE}/sources/${ID}?detail=full`)
         return {
