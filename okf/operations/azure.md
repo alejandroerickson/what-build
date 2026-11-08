@@ -3,7 +3,7 @@ type: System Concept
 title: WhatBuild self-hosts on Azure Container Apps with Azure Database for PostgreSQL and a mounted file share, set up by an agent with the Azure CLI.
 description: What a self-hosted deployment on Azure is made of, how each resource is configured, the commands that create it, sign-in with a Microsoft work account, the variations between organizations, deploying a new version, cost and removal.
 tags: [operations, deployment, azure, self-hosting, container-apps, entra]
-generated: {by: agent:claude, at: 2026-11-01}
+generated: {by: agent:claude, at: 2026-11-08}
 status: draft
 ---
 
@@ -752,7 +752,10 @@ on development behaviour (anyone signs in as anyone), and a server without it is
 ## Checking parsing's memory
 
 For a deployment that changes `WHATBUILD_PARSE_MEMORY_MB` or the container's memory, or takes a
-release that changes parsing. Do it on a replica you can afford to lose, outside working hours, as
+release that changes parsing (an upgrade of a package the parsers load among it). A package the
+parsers load is one `packages/parsers` lists, or a module one of those loads while it parses, such
+as `@napi-rs/canvas`; a dependency used only elsewhere does not count. Do it on a replica you can
+afford to lose, outside working hours, as
 [the dev deployment's rehearsal](dev-deployment.md#rehearsing-a-release) does on Cloud Run: make the
 hostile files, upload each as the one attachment of a source of its own, and read:
 

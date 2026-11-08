@@ -3,7 +3,7 @@ type: System Concept
 title: WhatBuild runs as one stateless Cloud Run service with Postgres and a Cloud Storage bucket.
 description: What a deployment on Cloud Run is made of, how deploy/cloud-run/setup.sh creates it, sign-in, deploying and restore points before migrating, its alerts and traces, cost, names, and useful commands; backups and the dev deployment have guides of their own.
 tags: [operations, deployment, cloud-run, gcp]
-generated: {by: agent:claude, at: 2026-11-04}
+generated: {by: agent:claude, at: 2026-11-08}
 status: stable
 ---
 
@@ -119,9 +119,12 @@ without it, or with any value but `development` or `test`, is production as well
 ([local development](local-development.md#development-and-production)). Over HTTPS the session
 cookie is `__Host-wb_session`, which only the service's own host can set.
 
-A release that changes parsing, these limits or the service's memory is tried with hostile files
-on the [dev deployment](dev-deployment.md#rehearsing-a-release) (`scripts/hostile-files.mjs`), and
-its memory read there, before production moves.
+A release that changes parsing (an upgrade of a package the parsers load among it), these limits or
+the service's memory is tried with hostile files on the
+[dev deployment](dev-deployment.md#rehearsing-a-release) (`scripts/hostile-files.mjs`), and its
+memory read there, before production moves. A package the parsers load is one `packages/parsers`
+lists, or a module one of those loads while it parses, such as `@napi-rs/canvas`; a dependency used
+only elsewhere does not count.
 
 **Sign-in.** A production server never logs sign-in links, so it needs one of:
 
