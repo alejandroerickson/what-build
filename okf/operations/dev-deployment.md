@@ -3,7 +3,7 @@ type: System Concept
 title: The dev deployment is a second Cloud Run deployment, laid out like production and holding a copy of its example organization or other organizations its instance owners own, where a release is rehearsed before production moves.
 description: For the maintainer and the agent working for them; what the dev deployment is and how it differs from production, where its values are, rehearsing a release on it, putting it back, refreshing its copy of the instance owners' organizations, setting one up from nothing, and keeping its data private.
 tags: [operations, deployment, dev, rehearsal, migrations, cloud-run, neon, production]
-generated: {by: agent:claude, at: 2026-10-31}
+generated: {by: agent:claude, at: 2026-11-08}
 status: stable
 ---
 
@@ -115,8 +115,12 @@ rm -rf "$S"
   (`gcloud run services logs read whatbuild --project $P --region $R --limit 100`) has no 500s.
 
 **4. Hostile files**, when the release changes parsing (`packages/parsers/`,
-`apps/server/src/parse-process.ts`, `parse-child.ts` or `parse-worker.ts`), making pictures (`picture-process.ts`,
-`picture-child.ts` or `picture-worker.ts`), the parse limits (`WHATBUILD_PARSE_*`) or the image's memory. Make them on your machine; none is committed:
+`apps/server/src/parse-process.ts`, `parse-child.ts`, `parse-worker.ts`, or an upgrade of a package
+the parsers load), making pictures (`picture-process.ts`, `picture-child.ts` or
+`picture-worker.ts`), the parse limits (`WHATBUILD_PARSE_*`) or the image's memory. A package the
+parsers load is one `packages/parsers` lists, or a module one of those loads while it parses, such
+as `@napi-rs/canvas`; a dependency used only elsewhere does not count. Make them on your machine;
+none is committed:
 
 ```bash
 H=$(mktemp -d); node scripts/hostile-files.mjs "$H"

@@ -52,12 +52,15 @@ approved):
 4. Check, from the guide: every build step, a `migrated …` line per new migration, every queued
    job done without an error, `/api/v1/meta`, the changed screens on the copied data, and logs
    without 500s.
-5. If the release changes parsing, the parse limits or the service's memory, upload the hostile
-   files (`scripts/hostile-files.mjs`, the guide's steps 4 and 4a): each must end in the status the
-   script prints, the service must keep answering, each parse's peak with what the server holds
-   (the log's `parse:` lines; a per-minute metric cannot see it) must stay a sixth under the limit, and
-   no process may be left behind. Record the execution environment, and run the step test, on dev
-   alone. Put the limit back and delete the hostile sources afterwards.
+5. If the release changes parsing (an upgrade of a package the parsers load among it), the parse
+   limits or the service's memory, upload the hostile files (`scripts/hostile-files.mjs`, the
+   guide's steps 4 and 4a): each must end in the status the script prints, the service must keep
+   answering, each parse's peak with what the server holds (the log's `parse:` lines; a per-minute
+   metric cannot see it) must stay a sixth under the limit, and no process may be left behind.
+   Record the execution environment, and run the step test, on dev alone. Put the limit back and
+   delete the hostile sources afterwards. A package the parsers load is one `packages/parsers`
+   lists, or a module one of those loads while it parses, such as `@napi-rs/canvas`; a dependency
+   used only elsewhere does not count.
 6. Report what ran, what migrated, what each job did, what each hostile file ended as and the
    memory it took, what the step test ended, and what failed or could not be checked.
    Say plainly whether production's build should be approved.

@@ -3,7 +3,7 @@ type: Decision
 title: A release that migrates is rehearsed on a dev deployment that holds a copy of production, before production's deploy is approved
 description: A second Cloud Run deployment, sharing nothing with production, holds a copy of the organizations its instance owners own, with their files, so that a release's migrations run on real data through the real deploy before production runs them.
 tags: [decision, deployment, releases, migrations, dev, production, privacy, operations]
-generated: {by: agent:claude, at: 2026-10-31}
+generated: {by: agent:claude, at: 2026-11-08}
 status: stable
 ---
 
@@ -19,7 +19,9 @@ the deploy: the image build, the restore point, the migration job and the servic
 The maintainer chose on 2026-10-10 to keep a second deployment holding a copy of production's data
 for this, which narrows that decision's rejection of "a shared copy in the cloud". On 2026-10-27
 they settled what the copy may hold: only organizations an instance owner owns
-([decision](copies-outside-production-hold-only-organizations-an-instance-owner-owns.md)).
+([decision](copies-outside-production-hold-only-organizations-an-instance-owner-owns.md)). On
+2026-11-08 they counted an upgrade of a package the parsers load as changing parsing, since one can
+change what a parse does and the memory it takes without touching a file listed here.
 
 ## Decision
 
@@ -34,8 +36,12 @@ they settled what the copy may hold: only organizations an instance owner owns
 - **Before production's build of a release that adds a migration is approved**, that release (or
   its commit, before tagging) is deployed to dev, and its migrations and the jobs they queue are
   checked there, unless the maintainer says to skip it. The same holds for a release that
-  changes parsing (`packages/parsers/`, `apps/server/src/parse-process.ts`, `parse-child.ts`, `parse-worker.ts`, the `WHATBUILD_PARSE_*` limits) or the service's memory: hostile files are uploaded on dev and its memory is read there
-  (`scripts/hostile-files.mjs`), since a parse and the server share the instance's memory.
+  changes parsing (`packages/parsers/`, `apps/server/src/parse-process.ts`, `parse-child.ts`,
+  `parse-worker.ts`, the `WHATBUILD_PARSE_*` limits, or an upgrade of a package the parsers load)
+  or the service's memory: hostile files are uploaded on dev and its memory is read there
+  (`scripts/hostile-files.mjs`), since a parse and the server share the instance's memory. A
+  package the parsers load is one `packages/parsers` lists, or a module one of those loads while it
+  parses, such as `@napi-rs/canvas`; a dependency used only elsewhere does not count.
 - Rejected: **a dev deployment with synthetic data only**, which would not show migrations on the
   shapes months of real use leave; **a branch of production's Neon database for dev**, which would
   give dev's identity and key access to production's project; **a trigger on dev**, which would

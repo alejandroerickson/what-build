@@ -36,14 +36,16 @@ command. This file is how to conduct the work.
    that to `main`, then `gh release create` with them as the notes' first section, as the guide
    shows. Watch the Release workflow to the end.
 5. **Production, if asked:** if the release adds migrations, or changes parsing
-   (`packages/parsers/`, `apps/server/src/parse-process.ts`, `parse-child.ts`, `parse-worker.ts`, the
-   `WHATBUILD_PARSE_*` limits) or the
-   service's memory, rehearse it on the dev deployment first and report the result. Before
-   approving, do on production what the release's lines in `upgrading.md` ask of a deployment, with
-   the person's yes: plans, for one, through the `run-the-instance` skill, since a starting plan the
-   service cannot find stops it from starting. Then approve the pending Cloud Build, follow its log, and check
-   that `/api/v1/meta` reports the new version. Then deploy the Cloudflare Worker from the release's
-   tag, as the guide shows: the public site is served from the Worker's own build, so without this
-   it keeps the page of an older release.
+   (`packages/parsers/`, `apps/server/src/parse-process.ts`, `parse-child.ts`, `parse-worker.ts`,
+   the `WHATBUILD_PARSE_*` limits, or an upgrade of a package the parsers load) or the service's
+   memory, rehearse it on the dev deployment first and report the result. A package the parsers load
+   is one `packages/parsers` lists, or a module one of those loads while it parses, such as
+   `@napi-rs/canvas`; a dependency used only elsewhere does not count. Before approving, do on
+   production what the release's lines in `upgrading.md` ask of a deployment, with the person's yes:
+   plans, for one, through the `run-the-instance` skill, since a starting plan the service cannot
+   find stops it from starting. Then approve the pending Cloud Build, follow its log, and check that
+   `/api/v1/meta` reports the new version. Then deploy the Cloudflare Worker from the release's tag,
+   as the guide shows: the public site is served from the Worker's own build, so without this it
+   keeps the page of an older release.
 6. **Report** the release page's address, whether the image was published, what production
    runs now, and whether the site's page is the release's. If the deploy broke something, use the `recover-a-deployment` skill.
