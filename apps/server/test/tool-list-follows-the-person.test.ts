@@ -316,8 +316,8 @@ describe("a connector scoped to a product of the example organization", () => {
     const write = result(await client.callTool({ name: "sources_write", arguments: { action: "create", product: example, params: { title: "Not here" } } }));
     expect(write.status).toBe(403);
     expect(write.json.error.code).toBe("example_read_only");
-    expect(write.json.error.message).toMatch(/may not start an organization: for one of your own, ask whoever runs this WhatBuild/);
-    expect(write.json.error.message).not.toMatch(/create an organization of your own/);
+    expect(write.json.error.message).toMatch(/You may not start an organization: for one of your own, ask whoever runs this WhatBuild/);
+    expect(write.json.error.message).not.toMatch(/create an organization of your own|This account/);
     await client.close();
     const able = await connect(await h.connectAgent(gus, "Gus's agent"));
     const refused = result(await able.callTool({ name: "sources_write", arguments: { action: "create", product: example, params: { title: "Not here" } } }));

@@ -212,8 +212,8 @@ export async function exampleReadOnly(db: Db, config: AllowanceConfig, account: 
     : (await tenantAllowanceOf(db, config, account)).remaining !== 0
       ? `To do your own work, create an organization of your own: products_write(action="create_tenant"), or New organization in the WhatBuild web app.`
       : (await onTheWaitlist(db, account.email))
-        ? `This account may not start an organization, and is on the waitlist for one of your own: organizations open a few at a time. Meanwhile, someone who uses WhatBuild can invite you to theirs. Do not call products_write(action="create_tenant"), which would be refused.`
-        : `This account may not start an organization: for one of your own, ask whoever runs this WhatBuild, or ask someone to invite you to theirs. Do not call products_write(action="create_tenant"), which would be refused.`;
+        ? `You may not start an organization, and you are on the waitlist for one of your own: organizations open a few at a time. Meanwhile, someone who uses WhatBuild can invite you to theirs. Do not call products_write(action="create_tenant"), which would be refused.`
+        : `You may not start an organization: for one of your own, ask whoever runs this WhatBuild, or ask someone to invite you to theirs. Do not call products_write(action="create_tenant"), which would be refused.`;
   return new AppError(
     403,
     "example_read_only",
