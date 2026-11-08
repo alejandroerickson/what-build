@@ -25,6 +25,13 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
 
 Nothing yet.
 
+## v0.33.2
+
+- **Nothing needs doing.** No migration, setting or step. The tools are unchanged (version 0.60.0).
+- **The image no longer carries `@azure/msal-node` 6** or its high-severity advisory
+  (GHSA-xcx6-jx8p-x3h5): `@azure/identity` is now 4.14.1. A deployment that scans its image stops
+  seeing it.
+
 ## v0.33.1
 
 - **Nothing needs doing.** No migration, setting or step.
