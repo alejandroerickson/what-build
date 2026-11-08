@@ -556,9 +556,10 @@ function ExportSheet() {
   );
 }
 
+/** The organization this product is in: its teams, and every product in it the person can see, archived ones (this one, perhaps) marked. */
 function OrganizationSheet() {
   const { product } = useProduct();
-  const products = useProducts();
+  const products = useProducts(true);
   const t = products.data?.tenants.find((x) => x.tenant_id === product.tenant.tenant_id);
   const inOrg = (products.data?.items ?? []).filter((p) => p.tenant.tenant_id === product.tenant.tenant_id);
   const list = (names: string[]) => (names.length <= 1 ? names.join("") : `${names.slice(0, -1).join(", ")} and ${names.at(-1)}`);
@@ -570,7 +571,7 @@ function OrganizationSheet() {
         {t ? (
           <p className="muted">
             {t.name} has {t.teams.length === 1 ? "1 team" : `${t.teams.length} teams`}
-            {t.teams.length ? `, ${list(t.teams.map((x) => x.name))}` : ""}. You can see {inOrg.length === 1 ? "1 product" : `${inOrg.length} products`} in it: {list(inOrg.map((p) => p.name))}.
+            {t.teams.length ? `, ${list(t.teams.map((x) => x.name))}` : ""}. You can see {inOrg.length === 1 ? "1 product" : `${inOrg.length} products`} in it: {list(inOrg.map((p) => (p.archived_at ? `${p.name} (archived)` : p.name)))}.
           </p>
         ) : products.isError ? (
           <ErrorCallout inset title="The organization couldn’t be loaded" error={products.error} onRetry={() => products.refetch()} />
