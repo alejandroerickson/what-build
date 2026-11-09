@@ -23,6 +23,10 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
 
 ## Unreleased
 
+Nothing yet.
+
+## v0.34.0
+
 - **Migration `0044_no_teams`: teams are removed.** An organization holds its products directly
   ([decision](../decisions/an-organization-holds-its-products-directly-with-no-teams.md)). The
   migration makes each team's role the same role on all the organization's products where it had one
