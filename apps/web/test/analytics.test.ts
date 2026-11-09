@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { actionName, maskedPage, screenPath } from "../src/lib/analytics.ts";
+import { actionName, maskedPage, screenPath, settingsScreen } from "../src/lib/analytics.ts";
 
 describe("screenPath", () => {
   it("names the screen, never the organization, product or record", () => {
@@ -44,5 +44,14 @@ describe("maskedPage", () => {
     expect(page).toMatchObject({ page_path: "/t/:org/:product/search", page_title: "WhatBuild" });
     expect(page.page_location).toBe(`${location.origin}/t/:org/:product/search`);
     expect(JSON.stringify(page)).not.toMatch(/acme|planner/);
+  });
+});
+
+describe("settingsScreen", () => {
+  it("counts a Settings section as a screen of its own, and nothing else in the query", () => {
+    expect(settingsScreen("?settings=organization/plan&reach=product&product=acme/planner")).toBe("/settings/organization/plan");
+    expect(settingsScreen("?settings=agents")).toBe("/settings/agents");
+    expect(settingsScreen("?settings=acme-secret-name")).toBe("/settings");
+    expect(settingsScreen("?q=spreadsheet")).toBeNull();
   });
 });

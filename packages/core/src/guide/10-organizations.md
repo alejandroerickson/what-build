@@ -96,14 +96,16 @@ agent. No connection is offered these actions, an instance owner's included, and
 refused with `403 web_only`, saying where a person does it, not as an action from an older tool
 list. Tell the person where to go:
 
-- On Organizations (`/instance`): every organization, its plan and what it holds; moving one to
-  another plan (Change plan); a plan's limits and price (Plans); how guests come into the example
-  organization (Guests); who may start organizations, and the waitlist.
-- On People (`/people`): every account, and removing one.
+- In Instance admin (`/admin`), which only they see: under Organizations, every organization, its
+  plan and what it holds, and moving one to another plan (Change plan); under Plans, a plan's limits
+  and price; under Guests, how guests come into the example organization; under Starting
+  organizations, who may start organizations, and the waitlist; under People, every account, and
+  removing one.
 - How the instance is used is read with the usage report whoever runs it keeps (`pnpm usage`).
 
-Renaming and deleting are also done only in the web app. An organization's owners rename it under
-Organization name on its Members page, and a product's admins rename it in its Settings; an instance
-owner renames any organization on Organizations. A person deletes their own account in their
-Settings, an organization's owners delete it on its Members page, and an instance owner deletes any
-organization on Organizations. A renamed organization keeps answering to the slugs it had before.
+Renaming and deleting are also done only in the web app, in Settings, which opens over the product
+the person has open. An organization's owners rename it under the organization's General, and a
+product's admins rename it under the product's General; an instance owner renames any organization in
+Instance admin, under Organizations. A person deletes their own account under Account, an
+organization's owners delete it under the organization's General, and an instance owner deletes any
+organization in Instance admin, under Organizations. A renamed organization keeps answering to the slugs it had before.

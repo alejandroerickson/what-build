@@ -234,8 +234,13 @@ export function currentProductPath(items: Pick<ProductSummary, "path" | "former_
   return shorter;
 }
 
-export function ProductProvider({ children, fallback }: { children: (ctx: ProductCtx) => ReactNode; fallback: (error: unknown, retry: () => void) => ReactNode }) {
-  const { path } = useProductParams();
+/**
+ * Loads the product the address names, or the one `path` names (Settings, opened over a screen that
+ * is not the product's own), and gives its screens what they need of it.
+ */
+export function ProductProvider({ children, fallback, path: given }: { children: (ctx: ProductCtx) => ReactNode; fallback: (error: unknown, retry: () => void) => ReactNode; path?: string }) {
+  const params = useProductParams();
+  const path = given ?? params.path;
   const q = useQuery({ queryKey: ["product", path], queryFn: () => api<Product>("GET", `/api/v1/p/${path}`) });
   if (q.isPending) return <div className="center-page"><Loading /></div>;
   // A re-check refused for the minute's calls says nothing of the person's access, so the product the
@@ -254,11 +259,7 @@ export function ProductProvider({ children, fallback }: { children: (ctx: Produc
     canDelete: product.your_role === "admin" && !product.archived_at,
     storyOnly: product.your_role === "reader",
   };
-  try {
-    localStorage.setItem("whatbuild.last-product", path);
-  } catch {
-    // Storage may be blocked; the URL still carries the product.
-  }
+  if (!given) rememberProduct(product);
   return <ProductContext.Provider value={ctx}>{children(ctx)}</ProductContext.Provider>;
 }
 
@@ -281,5 +282,24 @@ export function lastProduct(): string | null {
     return localStorage.getItem("whatbuild.last-product");
   } catch {
     return null;
+  }
+}
+
+/** The product the person last opened in an organization, which switching to that organization opens again. */
+export function lastProductIn(tenantId: string): string | null {
+  try {
+    return localStorage.getItem(`whatbuild.last-product.${tenantId}`);
+  } catch {
+    return null;
+  }
+}
+
+/** Keeps the product just opened as the last one, everywhere and in its organization. */
+function rememberProduct(product: Pick<Product, "path" | "tenant">) {
+  try {
+    localStorage.setItem("whatbuild.last-product", product.path);
+    localStorage.setItem(`whatbuild.last-product.${product.tenant.tenant_id}`, product.path);
+  } catch {
+    // Storage may be blocked; the URL still carries the product.
   }
 }

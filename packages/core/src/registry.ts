@@ -148,7 +148,7 @@ export interface OperationDef<I extends z.ZodType = z.ZodType, O = unknown, P = 
   /**
    * Never offered to an agent, and done by a person in the web app: closing an organization or an
    * account, and running the instance. Says where, as an agent's call to it is told: "a person
-   * does it in the web app, on People (`/people`), Remove on the account".
+   * does it in the web app, in Instance admin, under People (`/admin/people`), Remove on the account".
    */
   webOnly?: string;
   /**

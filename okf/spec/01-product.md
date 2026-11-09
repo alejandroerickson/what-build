@@ -3,7 +3,7 @@ type: Specification
 title: WhatBuild turns a team's discovery material into insight and a story, with agents as first-class contributors.
 description: Who the product is for, the core loop, the four screens, the vocabulary, the non-negotiable behaviors, and what the product is not.
 tags: [spec, product, vocabulary, principles]
-generated: {by: agent:claude, at: 2026-10-26}
+generated: {by: agent:claude, at: 2026-11-09}
 status: stable
 ---
 
@@ -64,13 +64,15 @@ of one of them.
 | **Story** | The team's communication with its stakeholders: an ordered hierarchy of versioned, sandboxed HTML pages. |
 
 **Activity** is not a fifth destination: it is a quiet page reached from the product's panel, and from
-an item's "Activity on this …" link, filtered to that item ([§7](07-web-app.md)). Product settings
-(details, people, export, archive) are a page inside the product.
+an item's "Activity on this …" link, filtered to that item ([§7](07-web-app.md)).
 
-Outside a product there are only: the product list, **Members** of an organization, **Connect an
-agent** (the MCP address and the agents connected now), and the person's **Settings** (their display
-name). Routes are in
-[`apps/web/src/main.tsx`](../../apps/web/src/main.tsx).
+The panel always shows one product. Everything else is **Settings**, one dialog over whatever
+screen is open: the product's (details, people, export, archive), its organization's (people, plan,
+access changes, name) and the person's own (account, and **Connect an agent** with the agents
+connected now). Beside the products there is only the overview, the one list of products, and,
+for the instance's owners alone, **Instance admin**, where the instance is run
+([decision](../decisions/the-panel-shows-one-product-and-everything-else-is-in-settings.md)).
+Routes are in [`apps/web/src/main.tsx`](../../apps/web/src/main.tsx).
 
 ## 1.4 Vocabulary
 

@@ -1,16 +1,15 @@
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { READ_ONLY_ALLOWS } from "@whatbuild/core/read-only";
-import { useEffect, useState } from "react";
-import { Link, useLocation, useNavigate, useParams } from "react-router";
+import { useState } from "react";
+import { Link, useNavigate } from "react-router";
 import { api, ApiError, qs } from "../lib/api.ts";
 import { aRole, formatBytes, formatDate, plural, ROLE_WORD, roleWords, scopeWords, slugProblem } from "../lib/format.ts";
 import { anyPriced, keptLine, totalsInWords, usePlans, type Plan } from "../lib/limits.ts";
 import { useMe, useProducts } from "../lib/session.tsx";
 import { ActivityLog, type ActivityItem } from "../shell/ActivityFeed.tsx";
 import { InvitationsSheet, useInvitations } from "../shell/invitations.tsx";
-import { usePageTitle } from "../shell/slots.tsx";
 import {
-  Avatar, Button, ButtonLink, Callout, Dialog, EmptyState, ErrorCallout, FormGrid, Glyph, Loading, Menu, MenuGroup, MenuItem, MenuRadio, MenuSeparator,
+  Avatar, Button, Callout, Dialog, EmptyState, ErrorCallout, FormGrid, Glyph, Loading, Menu, MenuGroup, MenuItem, MenuRadio, MenuSeparator,
   SelectField, Sheet, SheetBody, SheetHeader, StatusBadge, TextArea, TextField, useToast, tooLong,
 } from "../ui/index.tsx";
 import { EntryPage, NotVisible } from "./auth.tsx";
@@ -199,8 +198,11 @@ const SCOPE_ROLE_HINT: Record<string, string> = {
   reader: "Reads only the Story",
 };
 
-export function MembersPage() {
-  const { tenant = "" } = useParams();
+/**
+ * Settings → the organization → People: everyone in it, with their role in the organization and
+ * their roles on its products, the invitations waiting, and Add people.
+ */
+export function OrganizationPeople({ tenant }: { tenant: string }) {
   const products = useProducts();
   const me = useMe();
   const qc = useQueryClient();
@@ -222,15 +224,8 @@ export function MembersPage() {
   const notVisible = q.error instanceof ApiError && q.error.status === 404;
   const orgName = t?.name ?? tenant;
   const guest = Boolean(q.data?.guest);
-  usePageTitle(notVisible ? null : "Members");
   const tenantAdmin = t?.your_role === "owner" || t?.your_role === "admin";
   const inOrg = (products.data?.items ?? []).filter((p) => p.tenant.slug === tenant);
-  // A link to a part of the page (Delete this organization, from deleting an account) lands on it once the page is drawn.
-  const { hash } = useLocation();
-  const drawn = Boolean(q.data);
-  useEffect(() => {
-    if (drawn && hash.length > 1) document.getElementById(decodeURIComponent(hash.slice(1)))?.scrollIntoView({ block: "start" });
-  }, [drawn, hash]);
   const canManage = (g: { scope_type: string; scope_id: string; role: string }) => {
     if (g.scope_type === "tenant") return g.role === "owner" ? t?.your_role === "owner" : tenantAdmin;
     // Roles on all products are the organization's owners' and admins' to give and take.
@@ -307,9 +302,9 @@ export function MembersPage() {
   if (storyOnly)
     return (
       <Sheet className="members-sheet" labelledBy="members-title">
-        <SheetHeader level={1} id="members-title" title="Members" />
+        <SheetHeader id="members-title" title="People" />
         <SheetBody>
-          <EmptyState title="Members aren’t shown to Story readers" action={<ButtonLink to="/">Go to your products</ButtonLink>}>
+          <EmptyState title="The organization’s people aren’t shown to Story readers">
             An admin of one of its products can give you more access.
           </EmptyState>
         </SheetBody>
@@ -319,11 +314,10 @@ export function MembersPage() {
     <>
       <Sheet className="members-sheet" labelledBy="members-title">
         <SheetHeader
-          level={1}
           id="members-title"
-          title="Members"
+          title="People"
           count={q.data?.members.length}
-          end={canGive ? <Button variant="primary" icon="user-plus" onClick={() => setGiving({})}>Give access</Button> : null}
+          end={canGive ? <Button variant="primary" icon="user-plus" onClick={() => setGiving({})}>Add people</Button> : null}
         />
         <SheetBody className="members-intro">
           {guest ? (
@@ -458,11 +452,6 @@ export function MembersPage() {
                                 ? `No product yet, though ${self ? "you" : "they"} can create one.`
                                 : `No product yet, so ${self ? "you can’t" : "they can’t"} open anything.`}
                             </span>
-                            {canGive ? (
-                              <Button size="sm" variant="quiet" onClick={() => setGiving({ email: m.email })}>
-                                Give access
-                              </Button>
-                            ) : null}
                           </span>
                         )}
                       </dd>
@@ -473,10 +462,6 @@ export function MembersPage() {
                       <Menu label={`Actions for ${m.display_name}`} triggerClassName="icon-btn icon-btn-sm" trigger={<Glyph name="ellipsis" />} align="end" minWidth={260}>
                         {readOnly ? null : (
                           <>
-                            <MenuItem icon="user-plus" onSelect={() => setGiving({ email: m.email })}>
-                              Give access to products…
-                            </MenuItem>
-                            <MenuSeparator />
                             <MenuGroup label={`Role in ${orgName}`}>
                               {orgRolesFor(t?.your_role === "owner").map((r) => (
                                 <MenuRadio key={r} checked={orgRole === r} meta={ORG_ROLE_HINT[r]} onSelect={() => setOrgRole(m, r)}>
@@ -528,9 +513,6 @@ export function MembersPage() {
           </ul>
         </Sheet>
       ) : null}
-      {tenantAdmin ? <AccessChanges tenant={tenant} /> : null}
-      {t && tenantAdmin ? <OrganizationNameSheet key={t.name_etag} slug={t.slug} name={t.name} etag={t.name_etag} owner={t.your_role === "owner"} readOnly={readOnly} /> : null}
-      {t?.your_role === "owner" && !t.example ? <DeleteOrganizationSheet tenant={tenant} orgName={orgName} /> : null}
       {giving ? (
         <GiveAccessDialog
           tenant={tenant}
@@ -549,6 +531,37 @@ export function MembersPage() {
       {removing ? <RemoveMemberDialog tenant={tenant} orgName={orgName} member={removing.m} lastGrant={removing.g} keepAsMember={tenantAdmin && !readOnly} onClose={() => setRemoving(null)} /> : null}
     </>
   );
+}
+
+/** Settings → the organization → General, for its owners and admins: its name and short name in links, and, for its owners, deleting it. */
+export function OrganizationGeneral({ tenant }: { tenant: string }) {
+  const products = useProducts();
+  const t = products.data?.tenants.find((x) => x.slug === tenant);
+  if (!t)
+    return products.isError ? (
+      <Sheet label="Organization">
+        <SheetBody>
+          <ErrorCallout inset error={products.error} onRetry={() => products.refetch()} />
+        </SheetBody>
+      </Sheet>
+    ) : (
+      <Sheet label="Loading the organization">
+        <Loading lines={2} />
+      </Sheet>
+    );
+  return (
+    <>
+      {t.your_role === "owner" || t.your_role === "admin" ? (
+        <OrganizationNameSheet key={t.name_etag} slug={t.slug} name={t.name} etag={t.name_etag} owner={t.your_role === "owner"} readOnly={Boolean(t.read_only)} />
+      ) : null}
+      {t.your_role === "owner" && !t.example ? <DeleteOrganizationSheet tenant={tenant} orgName={t.name} /> : null}
+    </>
+  );
+}
+
+/** Settings → the organization → Access changes, for its owners and admins. */
+export function OrganizationAccessChanges({ tenant }: { tenant: string }) {
+  return <AccessChanges tenant={tenant} />;
 }
 
 /**
@@ -865,7 +878,7 @@ const PLACE_HINT: Partial<Record<GrantScope, string>> = {
 };
 
 /**
- * Give people roles on all products, a product or the organization, many at a time, and change the
+ * Add people: give them roles on all products, a product or the organization, many at a time, and change the
  * roles of the people who have one there: the place is chosen first, then the people.
  */
 function GiveAccessDialog({ tenant, orgName, initialEmail, members, partial, invitations, selfId, onClose, canManage, tenantAdmin, ownerHere }: {
@@ -900,7 +913,7 @@ function GiveAccessDialog({ tenant, orgName, initialEmail, members, partial, inv
   const target = targets.find((x) => `${x.scope_type}:${x.scope_id}` === chosen) ?? targets[0];
   if (!target)
     return (
-      <Dialog open onClose={onClose} title="Give people access">
+      <Dialog open onClose={onClose} title="Add people">
         {products.isError ? <ErrorCallout inset error={products.error} onRetry={() => products.refetch()} /> : products.isPending ? <Loading lines={2} /> : <p className="muted">There&rsquo;s no product here you can give access to.</p>}
       </Dialog>
     );
@@ -908,10 +921,10 @@ function GiveAccessDialog({ tenant, orgName, initialEmail, members, partial, inv
     <PeopleEditor
       tenant={tenant}
       orgName={orgName}
-      title="Give people access"
+      title={`Add people to ${target.scope_type === "all_products" ? "all products" : target.name}`}
       description="People from the organization get their role at once; anyone else is invited, and joins by accepting within 7 days."
       above={
-        <SelectField label="Give access to" value={chosen} onChange={(e) => setChosen(e.target.value)} hint={PLACE_HINT[target.scope_type]}>
+        <SelectField label="Where" value={chosen} onChange={(e) => setChosen(e.target.value)} hint={PLACE_HINT[target.scope_type]}>
           {targets.map((x) => (
             <option key={`${x.scope_type}:${x.scope_id}`} value={`${x.scope_type}:${x.scope_id}`}>
               {x.label}

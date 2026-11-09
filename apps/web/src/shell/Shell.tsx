@@ -1,16 +1,18 @@
 import { READ_ONLY_ALLOWS } from "@whatbuild/core/read-only";
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
-import { useLocation } from "react-router";
+import { useLocation, useSearchParams } from "react-router";
 import { useHasNoAgent } from "../lib/agents.ts";
 import { keptLine, type ReadOnly } from "../lib/limits.ts";
-import { useProducts, type Product } from "../lib/session.tsx";
+import { useProducts, type Product, type ProductsResponse } from "../lib/session.tsx";
 import { ButtonLink, Callout, Glyph } from "../ui/index.tsx";
 import { isTypingTarget, NARROW_QUERY, PHONE_QUERY, shortcutLabel, useMediaQuery } from "../ui/media.ts";
 import { BrandMark } from "./brand.tsx";
-import { AccountMenu, BrandRow, PlainNav, ProductNav, ProductSwitcher, productSection } from "./panel.tsx";
+import { AccountMenu, AdminNav, BrandRow, EmptyOrganizationNav, ProductNav, ProductSwitcher, productSection, useContextProduct, type PanelProduct } from "./panel.tsx";
 import { FindLauncher, FindProvider } from "./find-palette.tsx";
 import { ExampleBanner } from "./ExampleBanner.tsx";
 import { InvitationsBanner } from "./invitations.tsx";
+import { SettingsDialog } from "./settings-dialog.tsx";
+import { SETTINGS_PARAM, useSettingsTo } from "./settings-link.ts";
 import { ShellContext, type ShellSlots } from "./slots.tsx";
 
 const NAV_KEY = "whatbuild.nav";
@@ -56,8 +58,8 @@ function saveHidden(key: string, hidden: boolean) {
  *   panel is shown for it once a visit, never on a phone, where the drawer opens only by hand, and
  *   the pill carries a mark with the same words while the panel is away.
  */
-function Stage({ variant, panel, panelFoot, pillName, section, title, banner, children }: {
-  variant: "product" | "plain";
+function Stage({ variant, panel, panelFoot, pillName, section, title, banner, settings, children }: {
+  variant: "product" | "plain" | "admin";
   /** The panel above the context slot: brand row and navigation. */
   panel: (hide: () => void, hideLabel: string) => ReactNode;
   /** The panel below the context slot: the account menu. */
@@ -67,9 +69,13 @@ function Stage({ variant, panel, panelFoot, pillName, section, title, banner, ch
   /** Default document title parts, before any usePageTitle override. */
   title: string;
   banner?: ReactNode;
+  /** Settings, over the whole stage while the address asks for it (`?settings=`). */
+  settings?: ReactNode;
   children: ReactNode;
 }) {
   const isPhone = useMediaQuery(PHONE_QUERY);
+  const [params] = useSearchParams();
+  const settingsOpen = Boolean(settings) && params.has(SETTINGS_PARAM);
   const isNarrow = useMediaQuery(NARROW_QUERY);
   const loc = useLocation();
   const [navHidden, setNavHidden] = useState(() => readHidden(NAV_KEY));
@@ -116,9 +122,15 @@ function Stage({ variant, panel, panelFoot, pillName, section, title, banner, ch
   const insState = !hasInspector ? "none" : !inspectorOpen ? "closed" : isPhone ? "drawer" : "docked";
   const drawerActive = isPhone && drawerOpen;
   const insDrawerActive = insState === "drawer";
-  const modal = drawerActive || insDrawerActive;
+  const modal = drawerActive || insDrawerActive || settingsOpen;
 
   useEffect(() => setInsSmallOpen(false), [isNarrow]);
+  // Settings opens over everything, so a drawer it was opened from steps aside.
+  useEffect(() => {
+    if (!settingsOpen) return;
+    setDrawerOpen(false);
+    if (window.matchMedia(PHONE_QUERY).matches) setInsSmallOpen(false);
+  }, [settingsOpen]);
 
   const toggleNav = useCallback(() => {
     if (window.matchMedia(PHONE_QUERY).matches) {
@@ -171,6 +183,8 @@ function Stage({ variant, panel, panelFoot, pillName, section, title, banner, ch
   // Global keys: the two panel shortcuts, and Esc for an open drawer.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      // Settings is over the panels: it answers its own keys, and the panels' wait until it closes.
+      if (settingsOpen) return;
       const mod = (e.metaKey || e.ctrlKey) && !e.altKey && !isTypingTarget(e.target);
       const navKey = mod && !e.shiftKey && e.key === "\\";
       const insKey = mod && e.shiftKey && (e.key === "|" || e.key === "\\") && hasInspector;
@@ -193,7 +207,7 @@ function Stage({ variant, panel, panelFoot, pillName, section, title, banner, ch
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [toggleNav, toggleInspector, hasInspector, drawerActive, insDrawerActive, setInspectorOpen, focus]);
+  }, [toggleNav, toggleInspector, hasInspector, drawerActive, insDrawerActive, setInspectorOpen, focus, settingsOpen]);
 
   // Opening a drawer moves focus into it.
   useEffect(() => {
@@ -319,7 +333,7 @@ function Stage({ variant, panel, panelFoot, pillName, section, title, banner, ch
           role={drawerActive ? "dialog" : undefined}
           aria-modal={drawerActive || undefined}
           aria-label={drawerActive ? "Navigation" : undefined}
-          inert={!navOpen || insDrawerActive}
+          inert={!navOpen || insDrawerActive || settingsOpen}
         >
           {panel(toggleNav, hideLabel)}
           <div className="panel-context" ref={setPanelContextEl} hidden={contextCount === 0} />
@@ -337,7 +351,7 @@ function Stage({ variant, panel, panelFoot, pillName, section, title, banner, ch
           ref={setInspectorEl}
           className="panel inspector"
           hidden={!hasInspector}
-          inert={insState === "closed" || drawerActive}
+          inert={insState === "closed" || drawerActive || settingsOpen}
           role={insDrawerActive ? "dialog" : undefined}
           aria-modal={insDrawerActive || undefined}
           aria-labelledby={`${inspectorId}-title`}
@@ -345,6 +359,7 @@ function Stage({ variant, panel, panelFoot, pillName, section, title, banner, ch
         <div className="visually-hidden" aria-live="polite" aria-atomic="true">
           {announcement}
         </div>
+        {settings}
       </div>
     </ShellContext.Provider>
   );
@@ -353,6 +368,7 @@ function Stage({ variant, panel, panelFoot, pillName, section, title, banner, ch
 /** That the organization is read-only, and what that means. Whoever reads only the Story in it has no Plan page to go to. */
 export function ReadOnlyBanner({ tenant, readOnly }: { tenant: Pick<Product["tenant"], "name" | "slug">; readOnly: ReadOnly }) {
   const storyOnly = useProducts().data?.tenants.find((t) => t.slug === tenant.slug)?.story_only;
+  const settingsTo = useSettingsTo();
   return (
     <div className="canvas-banner">
       <Callout
@@ -360,7 +376,7 @@ export function ReadOnlyBanner({ tenant, readOnly }: { tenant: Pick<Product["ten
         title={`${tenant.name} is read-only`}
         action={
           storyOnly ? null : (
-            <ButtonLink to={`/t/${tenant.slug}/plan`} size="sm">
+            <ButtonLink to={settingsTo("organization/plan")} size="sm">
               See plan
             </ButtonLink>
           )
@@ -372,7 +388,7 @@ export function ReadOnlyBanner({ tenant, readOnly }: { tenant: Pick<Product["ten
   );
 }
 
-/** Every screen inside a product: L1, the quiet group, the context slot, the account menu. */
+/** Every screen inside a product: the product's panel, the context slot, the account menu, and Settings over it all. */
 export function ProductShell({ product, app, children }: { product: Product; app: string; children: ReactNode }) {
   const loc = useLocation();
   const section = productSection(loc.pathname.split("/")[4]);
@@ -404,11 +420,12 @@ export function ProductShell({ product, app, children }: { product: Product; app
           <nav className="panel-nav" aria-label={product.name}>
             <ProductSwitcher current={product} />
             <FindLauncher product={product} />
-            <ProductNav product={product} app={app} section={section.id} />
+            <ProductNav product={product} section={section.id} />
           </nav>
         </>
       )}
       panelFoot={<AccountMenu />}
+      settings={<SettingsDialog product={product} tenantId={product.tenant.tenant_id} />}
     >
       {children}
     </Stage>
@@ -416,41 +433,104 @@ export function ProductShell({ product, app, children }: { product: Product; app
   );
 }
 
-const PLAIN_SECTIONS: Record<string, string> = { connect: "Connect an agent", settings: "Settings", instance: "Organizations", people: "People", members: "Members", plan: "Plan", limits: "Plan", _system: "System" };
+const PLAIN_SECTIONS: Record<string, string> = { _system: "System" };
 
 /**
- * The plain screen an address names: its one part, or Members or Plan under
- * /t/<organization>/. Anything else (a product that didn't open, an address the app doesn't know)
- * is in no section, so it takes no section's title and marks nothing current in the panel.
+ * The plain screen an address names: its one part. Anything else (a product that didn't open, an
+ * address the app doesn't know) is in no section, so it takes no section's title.
  */
 export function plainSection(pathname: string): string {
   const parts = pathname.split("/").filter(Boolean);
   if (!parts.length) return "home";
-  if (parts.length === 1) return parts[0]!;
-  return parts[0] === "t" && parts.length === 3 && (parts[2] === "members" || parts[2] === "plan" || parts[2] === "limits") ? parts[2] : "";
+  return parts.length === 1 ? parts[0]! : "";
 }
 
 /**
- * Screens outside a product (the overview, Connect an agent, settings, organization members): the
- * same stage with the non-product panel, which is identical on each of them.
+ * Screens that are no product's own (the overview, a page that wasn't found): the same stage, with
+ * the panel of the product the person was last in, marking none of its rows, so the panel is the
+ * same everywhere. With no product to show it is their first organization's, with Create a product.
  */
 export function PlainShell({ children }: { children: ReactNode }) {
   const loc = useLocation();
   const key = plainSection(loc.pathname);
   const section = PLAIN_SECTIONS[key] ?? "WhatBuild";
-  const isHome = key === "home";
-  return (
+  const { product, tenant } = useContextProduct();
+  return <PanelStage product={product} tenant={tenant} current={key === "home"} section={section} title={`${section} · WhatBuild`}>{children}</PanelStage>;
+}
+
+/** An organization with no product the person can open (`/t/<organization>`): its panel offers Create a product. */
+export function OrganizationShell({ tenant, children }: { tenant: ProductsResponse["tenants"][number]; children: ReactNode }) {
+  return <PanelStage product={null} tenant={tenant} section={tenant.name} title={`${tenant.name} · WhatBuild`}>{children}</PanelStage>;
+}
+
+function PanelStage({ product, tenant, current, section, title, children }: {
+  product: PanelProduct | null;
+  tenant: ProductsResponse["tenants"][number] | null;
+  current?: boolean;
+  section: string;
+  title: string;
+  children: ReactNode;
+}) {
+  const nav = product ? (
+    <nav className="panel-nav" aria-label={product.name}>
+      <ProductSwitcher current={product} />
+      <FindLauncher product={product} />
+      <ProductNav product={product} section={null} />
+    </nav>
+  ) : tenant ? (
+    <nav className="panel-nav" aria-label={tenant.name}>
+      <EmptyOrganizationNav tenant={tenant} />
+    </nav>
+  ) : null;
+  const stage = (
     <Stage
       variant="plain"
-      pillName={null}
+      pillName={product?.name ?? tenant?.name ?? null}
       section={section}
-      title={`${section} · WhatBuild`}
+      title={title}
       banner={<InvitationsBanner />}
       panel={(hide, hideLabel) => (
         <>
-          <BrandRow to="/" label="WhatBuild, home" current={isHome} onHide={hide} hideLabel={hideLabel} />
-          <nav className="panel-nav" aria-label="Products and organization">
-            <PlainNav section={key} />
+          <BrandRow to="/" label="WhatBuild, home" current={current} onHide={hide} hideLabel={hideLabel} />
+          {nav}
+        </>
+      )}
+      panelFoot={<AccountMenu />}
+      settings={<SettingsDialog product={product} tenantId={product?.tenant.tenant_id ?? tenant?.tenant_id ?? null} />}
+    >
+      {children}
+    </Stage>
+  );
+  // The panel's search reaches the product it shows.
+  return product ? (
+    <FindProvider app={`/t/${product.path}`} base={`/api/v1/p/${product.path}`} product={product}>
+      {stage}
+    </FindProvider>
+  ) : (
+    stage
+  );
+}
+
+const ADMIN_SECTIONS: Record<string, string> = { organizations: "Organizations", people: "People", plans: "Plans", guests: "Guests", starting: "Starting organizations" };
+
+/**
+ * Instance admin (`/admin/…`): running this WhatBuild, a place of its own outside every product,
+ * with its own panel and a way back to the product the person had open. Only its owners reach it.
+ */
+export function AdminShell({ children }: { children: ReactNode }) {
+  const loc = useLocation();
+  const section = ADMIN_SECTIONS[loc.pathname.split("/")[2] ?? ""] ?? "Instance admin";
+  return (
+    <Stage
+      variant="admin"
+      pillName="Instance admin"
+      section={section}
+      title={`${section} · Instance admin · WhatBuild`}
+      panel={(hide, hideLabel) => (
+        <>
+          <BrandRow to="/" label="WhatBuild, home" onHide={hide} hideLabel={hideLabel} />
+          <nav className="panel-nav" aria-label="Instance admin">
+            <AdminNav />
           </nav>
         </>
       )}

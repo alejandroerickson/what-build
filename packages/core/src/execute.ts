@@ -329,7 +329,7 @@ function connectionLevelTooLow(op: OperationDef, principal: Principal): AppError
     403,
     "connection_level",
     `This connection is set to ${LEVEL_NAMES[level]}, and ${callName(op, principal.surface)} needs ${LEVEL_NAMES[needed]}. Nothing was changed. ` +
-      `Only the person can raise it, under Connect an agent in WhatBuild.`,
+      `Only the person can raise it, in WhatBuild’s Settings, under Agents.`,
     { level, needed },
   );
 }

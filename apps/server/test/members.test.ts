@@ -83,7 +83,7 @@ describe("who sees the organization's people", () => {
     expect(JSON.stringify(halSees.body)).not.toMatch(/Planner|pat@|pam@/);
   });
 
-  it("gives someone whose roles are on products only the organization role member, as the Members page does", async () => {
+  it("gives someone whose roles are on products only the organization role member, as its People in Settings does", async () => {
     const tenant = (await pat.api("GET", "/api/v1/me/products")).body.tenants.find((t: { slug: string }) => t.slug === T);
     expect(tenant.your_role).toBe("member");
     expect((await adam.api("GET", "/api/v1/me/products")).body.tenants.find((t: { slug: string }) => t.slug === T).your_role).not.toBe("member");

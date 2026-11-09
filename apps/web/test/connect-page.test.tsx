@@ -1,11 +1,12 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act } from "react";
 import { createRoot } from "react-dom/client";
-import { MemoryRouter, Route, Routes } from "react-router";
+import { MemoryRouter, Route, Routes, useParams } from "react-router";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-// Connect an agent leads with the one address every agent can use, `/mcp`, and keeps limiting an
-// agent to one organization or product behind a quiet button that gives the scoped address.
+// Connect an agent (Settings → Agents) leads with the one address every agent can use, `/mcp`, and
+// keeps limiting an agent to one organization or product behind a quiet button that gives the scoped
+// address. Opened over a product, that product is the one offered first.
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 window.matchMedia ??= (query: string) => ({ matches: false, media: query, onchange: null, addListener() {}, removeListener() {}, addEventListener() {}, removeEventListener() {}, dispatchEvent: () => false });
@@ -27,7 +28,13 @@ vi.mock("../src/lib/api.ts", async (original) => ({
   }),
 }));
 
-const { ConnectPage, productConnectorUrl } = await import("../src/routes/connect.tsx");
+const { AgentsSettings, productConnectorUrl } = await import("../src/routes/connect.tsx");
+
+/** Agents, opened over the overview or over one of a product's screens. */
+function ConnectPage() {
+  const { tenant, product } = useParams();
+  return <AgentsSettings herePath={product ? `${tenant}/${product}` : null} />;
+}
 const { ShellContext } = await import("../src/shell/slots.tsx");
 
 const slots = {

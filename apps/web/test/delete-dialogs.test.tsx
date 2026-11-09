@@ -54,7 +54,7 @@ window.matchMedia ??= (query: string) => ({ matches: false, media: query, onchan
 
 const { api } = await import("../src/lib/api.ts");
 const { DeleteDialog } = await import("../src/routes/delete-dialog.tsx");
-const { ProductSettingsPage } = await import("../src/routes/product-misc.tsx");
+const { ProductGeneralSettings } = await import("../src/routes/product-misc.tsx");
 const { entryImpactWords } = await import("../src/routes/registers.tsx");
 const { DeletePage } = await import("../src/routes/story-actions.tsx");
 const { outcomeGoes, servedBy } = await import("../src/routes/idea.tsx");
@@ -239,7 +239,7 @@ describe("deleting what is already archived", () => {
 
 describe("deleting a product", () => {
   it("offers Archive instead while the product is live, as the dialogs of everything else that can be archived do, and it archives the product", async () => {
-    await render(<ProductSettingsPage />);
+    await render(<ProductGeneralSettings />);
     await act(async () => button("Delete Crewboard permanently…").click());
     await settle();
     expect(document.querySelector("dialog[open] .dialog-title")?.textContent).toBe("Delete Crewboard permanently?");
@@ -253,7 +253,7 @@ describe("deleting a product", () => {
 
   it("leaves Archive instead out once the product is archived", async () => {
     product.archived_at = "2026-10-02T09:00:00.000Z";
-    await render(<ProductSettingsPage />);
+    await render(<ProductGeneralSettings />);
     await act(async () => button("Delete Crewboard permanently…").click());
     await settle();
     expect(footer()).toEqual(["Cancel", "Delete permanently"]);

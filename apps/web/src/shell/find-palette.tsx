@@ -9,6 +9,9 @@ import type { Product } from "../lib/session.tsx";
 import { Glyph, MinuteWaitWords, OneLine, type GlyphName } from "../ui/index.tsx";
 import { isTypingTarget, PHONE_QUERY, shortcutLabel, useMediaQuery } from "../ui/media.ts";
 
+/** What search needs of the product it reaches: the panel's product, whatever screen it is on. */
+type FindProduct = Pick<Product, "path" | "name" | "your_role">;
+
 /**
  * Find anything in a product from anywhere in it: ⌘K / Ctrl+K, or / when not typing, or the Search
  * field at the top of the panel. It opens as the field, with recent searches under it; results come
@@ -116,7 +119,7 @@ function options(app: string, d: FindResponse | undefined, phone: boolean): Opti
   });
 }
 
-function Palette({ app, base, product, text, setText, via, onClose }: { app: string; base: string; product: Product; text: string; setText: (t: string) => void; via: "field" | "shortcut"; onClose: () => void }) {
+function Palette({ app, base, product, text, setText, via, onClose }: { app: string; base: string; product: FindProduct; text: string; setText: (t: string) => void; via: "field" | "shortcut"; onClose: () => void }) {
   const ref = useRef<HTMLDialogElement>(null);
   const input = useRef<HTMLInputElement>(null);
   const listId = useId();
@@ -322,7 +325,7 @@ export function understood(d: FindResponse): ReactNode {
 }
 
 /** Holds the palette, and the words in it, for a product's screens, and listens for its shortcuts. */
-export function FindProvider({ app, base, product, children }: { app: string; base: string; product: Product; children: ReactNode }) {
+export function FindProvider({ app, base, product, children }: { app: string; base: string; product: FindProduct; children: ReactNode }) {
   const [open, setOpen] = useState(false);
   const [text, setText] = useState("");
   const [via, setVia] = useState<"field" | "shortcut">("field");
@@ -363,7 +366,7 @@ export function searchLabel(product: Pick<Product, "name" | "your_role">): strin
 }
 
 /** The panel's Search field: a button that opens the palette, with its shortcut. */
-export function FindLauncher({ product }: { product: Product }) {
+export function FindLauncher({ product }: { product: FindProduct }) {
   const open = useOpenFind();
   return (
     <div className="find-launch-wrap">

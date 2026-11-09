@@ -44,7 +44,7 @@ export async function resolveConnectorScope(db: Db, principal: Principal, bound:
   const scope = await resolveScope(db, principal, product ? "product" : "tenant", "any", bound, "connect").catch((e: unknown) => {
     if (e instanceof AppError && e.status === 404) {
       const path = [bound.tenant, bound.formerTeam, bound.product].filter(Boolean).join("/");
-      throw new AppError(404, "not_found", `This connector is scoped to ${product ? "product" : "organization"} ${path}, which you cannot reach. It may have been renamed, or you may have left it. Copy its address again from Connect an agent.`);
+      throw new AppError(404, "not_found", `This connector is scoped to ${product ? "product" : "organization"} ${path}, which you cannot reach. It may have been renamed, or you may have left it. Copy its address again in WhatBuild’s Settings, under Agents.`);
     }
     throw e;
   });

@@ -3,7 +3,7 @@ type: System Concept
 title: WhatBuild runs as one stateless Cloud Run service with Postgres and a Cloud Storage bucket.
 description: What a deployment on Cloud Run is made of, how deploy/cloud-run/setup.sh creates it, sign-in, deploying and restore points before migrating, its alerts and traces, cost, names, and useful commands; backups and the dev deployment have guides of their own.
 tags: [operations, deployment, cloud-run, gcp]
-generated: {by: agent:claude, at: 2026-11-08}
+generated: {by: agent:claude, at: 2026-11-09}
 status: stable
 ---
 
@@ -166,8 +166,8 @@ can always join. Widen it when public sign-up opens.
 
 **Who can create organizations.** `INSTANCE_OWNERS` (emails, comma-separated; by default the
 `gcloud` account that ran the script) names the people who run the instance. They create any
-number of organizations, and on **Organization creators** (`/instance`, in the account menu) let
-anyone else create a number of their own; being in an organization never lets anyone create one
+number of organizations, and in **Instance admin** (`/admin`, in the account menu), under Starting
+organizations, let anyone else create a number of their own; being in an organization never lets anyone create one
 ([§3.3](../spec/03-accounts-and-identity.md#33-tenants)). An address given an
 allowance may also sign up. `TENANT_ALLOWANCE` sets how many any other address may create (0 by
 default). **A service deployed before this setting existed has no instance owner**, so nobody can
@@ -215,9 +215,9 @@ organization's own people leaves it out. `NEW_ORGANIZATION_PLAN=<id>`
 (`WHATBUILD_NEW_ORGANIZATION_PLAN`) puts every organization someone other than an instance owner
 creates on one of those plans, whose limits everyone in it meets; it must name a plan the file
 defines, or the service does not start. Left out, they are unlimited. Instance owners'
-organizations are always unlimited, and they move any organization to another plan on `/instance`.
-There too they change a plan's limits and price over what the file sets, for every organization on
-it, and set the guests' settings: whether anyone may sign up as a guest, and how many come in
+organizations are always unlimited, and they move any organization to another plan in Instance
+admin, under Organizations. Under Plans they change a plan's limits and price over what the file
+sets, for every organization on it, and under Guests they set the guests' settings: whether anyone may sign up as a guest, and how many come in
 ([§3.10](../spec/03-accounts-and-identity.md#310-the-example-organization)). The guests'
 settings start closed to self-serve sign-up, with the defaults in the code; raise them as the
 deployment grows. Nothing in WhatBuild takes payment: an instance owner moves an organization to a
@@ -250,8 +250,8 @@ gcloud run services update whatbuild --region $R --update-env-vars WHATBUILD_EXA
 
 Its owners and admins then write the worked example there as in any organization. Removing the
 variable takes every guest's access away at the next start, and leaves the organization and its
-members as they were. After its slug changes (Organization name on its Members page, or Rename on
-`/instance`), set the variable to the new slug: until then the server still finds the example by
+members as they were. After its slug changes (Organization name in Settings, under the
+organization's General, or Rename in Instance admin → Organizations), set the variable to the new slug: until then the server still finds the example by
 the old one and warns at start-up.
 
 **Deploying releases.** A deployment that follows releases has a Cloud Build trigger, which
@@ -462,7 +462,8 @@ answer. Cloud Run's own request log line for it is dropped (`whatbuild-refused-r
 
 **Who asked for an organization.** The site's form, and guests who ask in the app, write to the
 `interest` table ([§4.13](../spec/04-data-model.md)); nothing sends mail about a new request.
-Instance owners read it on `/instance`, under **Waitlist**, and let someone in from there.
+Instance owners read it in Instance admin, under Starting organizations → **Waitlist**, and let
+someone in from there.
 
 ## Alerts
 

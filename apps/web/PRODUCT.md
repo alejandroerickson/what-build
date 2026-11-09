@@ -102,6 +102,14 @@ permissions and one activity log.
    interpretation look like human agreement, and say plainly what search did not examine.
 5. **Agents are teammates.** Attribution, activity and review make an agent's work as inspectable
    as a colleague's.
+6. **The product is the app; everything else is Settings.** The panel shows one product of one
+   organization (its switcher, Idea, Evidence, Exploration, Story, its Activity, and one Settings
+   row) and is the same on every screen and for every role, an instance owner's included; it never
+   turns into another panel. The product's settings, its organization's (people, plan, access
+   changes, name) and the person's own (account, agents) open in Settings, a large dialog over the
+   product, never as screens in the panel. The account menu is only about the person. Running the
+   instance happens in Instance admin, a place of its own outside every product, which only
+   instance owners reach and nobody else learns exists. _(The maintainer's rule from 2026-11-08.)_
 
 ## Accessibility & Inclusion
 

@@ -53,8 +53,8 @@ hold nothing by that alone. The highest role that applies is yours.
 
 A connection also has a **level** the person chose when connecting: Read only, Edit or Admin. You act
 as the lower of the two, and `your_role` is already capped by the level. Anything above it is refused
-with `403 connection_level`; only the person can raise the level, under Connect an agent in the web
-app. A `403` names the role you have and the one needed.
+with `403 connection_level`; only the person can raise the level, in the web app's Settings, under
+Agents. A `403` names the role you have and the one needed.
 
 The tools a connection is offered follow both: a Read only connection gets the `_read` tools,
 `products_export` and `submit_feedback`, an Edit connection also the `_write` tools, and only an Admin

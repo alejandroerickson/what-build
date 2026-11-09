@@ -3,7 +3,7 @@ type: Decision
 title: A reader reads only the Story, never the evidence behind it
 description: A product role, given on a product or on all products, below viewer for stakeholders, enforced by the server: Story pages, their versions and their export, without the notes agents keep on them.
 tags: [decision, access, roles, story, stakeholders]
-generated: {by: agent:claude, at: 2026-10-31}
+generated: {by: agent:claude, at: 2026-11-09}
 status: stable
 ---
 
@@ -28,11 +28,11 @@ product as anyone else does. It revises one consequence of
 - Everything else needs `viewer` at least, and answers a reader `403` naming both roles.
 - That includes the organization's people. Someone who reads only the Story everywhere in an
   organization (a reader on all its products or on some of them, with no higher role there and no
-  organization role but member or product creator) is refused its members and invitations (`members.list`, `403`), and the app
-  leaves its Members out for them. The maintainer chose this on 2026-10-10: a Story is often read
+  organization role but member or product creator) is refused its members and invitations (`members.list`, `403`), and the app's
+  Settings leaves the organization's sections out for them. The maintainer chose this on 2026-10-10: a Story is often read
   outside the team, and who works on it stays with the team.
 - That includes what the organization holds. The same person is refused its plan's limits and its
-  totals (`products.limits`, `403`), and the app's Plan says it isn't shown to them: how many people,
+  totals (`products.limits`, `403`), and the app's Settings does not list its Plan for them: how many people,
   products and sources it holds stays with the team, as a reader's product reads count Story pages
   only.
 - A reader is given only the Story's live pages. An archived page, one the team took out of the

@@ -3,7 +3,7 @@ type: Decision
 title: The overview is WhatBuild's front door, and the one screen with display type
 description: `/` and the WhatBuild mark open an overview that introduces the product and lists every product with a link to each section; only its intro is set above the 20px ceiling.
 tags: [decision, web, design, navigation]
-generated: {by: agent:claude, at: 2026-10-24}
+generated: {by: agent:claude, at: 2026-11-09}
 status: stable
 ---
 
@@ -19,20 +19,23 @@ overview, its landing role and the type exception on 2026-09-28. On 2026-09-29 t
 separate All products screen, which repeated the overview's list in a table, and moved roles and
 the members link off the overview. The same day they removed the totals across products from the
 intro, since each product row already shows its own counts, and the journey beside the intro now says
-what each stage holds instead.
+what each stage holds instead. On 2026-11-08 the panel became the same on every screen
+([decision](the-panel-shows-one-product-and-everything-else-is-in-settings.md)), so the overview
+has the product panel beside it rather than a panel of its own.
 
 ## Decision
 
 - `/` is the overview, for everyone who belongs to an organization; people with none still go to
-  first run. The W mark and wordmark in the panel link to it from every screen.
+  first run. The W mark and wordmark in the panel link to it from every screen. Beside it the panel
+  shows the product the person was last in, marking none of its rows current.
 - The overview introduces WhatBuild, shows small and quiet the four stages
   (Idea, Evidence, Exploration, Story) with a line on what a team does in each, and lists each
   organization's products.
   Each product row links to its four sections with their counts, one click each.
 - The overview is the only list of products. New product opens as a dialog on it, and archived
   products appear on it only when asked for; `/products` redirects to it. It shows no roles and no
-  product count per organization: the person's organization role is in the account menu, beside
-  that organization's Members.
+  product count per organization: who has which role, the person's own included, is in Settings
+  under the organization's People.
 - Only the overview's intro, the wordmark and the question "What to build?", is set above 20px
   (tokens `--fs-brand` and `--fs-display`). Every other screen keeps the ceiling.
 - `products.list` returns each product's counts, the same ones `products.get` reports, so the page
@@ -44,7 +47,8 @@ what each stage holds instead.
 
 ## Consequences
 
-- Returning to a product takes one click from the overview, or the product switch inside a product.
+- Returning to a product takes one click from the overview, or from the panel beside it, which
+  shows the product the person was last in.
 - `products.list` counts each tenant's products inside that tenant's row-level-security scope.
 
 ## Constrains

@@ -137,7 +137,7 @@ describe("an agent", () => {
       const r = body(await c.callTool({ name: "products_write", arguments: { action: "rename_tenant", params: { tenant: acme, name: "Acme by an agent", expected_etag: before.name_etag } } }));
       expect(r.status, `${path} ${level} ${JSON.stringify(r.json)}`).toBe(403);
       expect(r.json.error.code).toBe("web_only");
-      expect(r.json.error.message).toContain("under Organization name on its Members page");
+      expect(r.json.error.message).toContain("under Organization name, in Settings under the organization's General");
       await c.close();
     }
     expect(await acmeOf(olga)).toMatchObject({ name: before.name, name_etag: before.name_etag });
@@ -176,7 +176,7 @@ describe("an instance owner", () => {
     const c = await connect(root);
     const r = body(await c.callTool({ name: "products_write", arguments: { action: "rename_tenant", params: { tenant: acme, name: "Acme by an agent", expected_etag: item.name_etag } } }));
     expect(r.json.error.code, JSON.stringify(r.json)).toBe("web_only");
-    expect(r.json.error.message).toContain("with Rename on Organizations (`/instance`)");
+    expect(r.json.error.message).toContain("with Rename in Instance admin, under Organizations (`/admin/organizations`)");
     await c.close();
     expect(await acmeOf(olga)).toMatchObject({ name: item.name, name_etag: item.name_etag });
   });

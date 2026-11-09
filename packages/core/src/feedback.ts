@@ -16,7 +16,7 @@ import type { Ports } from "./ports.ts";
  * before anything else about the call, its input included: the tool is off, whatever was sent.
  */
 export const feedbackOff = () =>
-  new AppError(403, "feedback_off", "The person turned off submit_feedback for this connection, in Connect an agent. Send no feedback another way; tell them what went wrong instead.");
+  new AppError(403, "feedback_off", "The person turned off submit_feedback for this connection, in WhatBuild’s Settings, under Agents. Send no feedback another way; tell them what went wrong instead.");
 
 /** Reports one person, with their agents, may send in a day (UTC). */
 export const FEEDBACK_PER_DAY = 10;

@@ -6,6 +6,7 @@ import { AskForOrganization } from "../shell/ask-for-organization.tsx";
 import { BrandMark } from "../shell/brand.tsx";
 import { Journey } from "../shell/journey.tsx";
 import { L1 } from "../shell/panel.tsx";
+import { useSettingsTo } from "../shell/settings-link.ts";
 import { Button, ButtonLink, EmptyState, ErrorCallout, Glyph, Loading, Sheet, SheetBody, SheetHeader, StatusBadge, Tag } from "../ui/index.tsx";
 import { CreateProductDialog } from "./new-product.tsx";
 import "../styles/screens/overview.css";
@@ -23,6 +24,7 @@ export function OverviewPage() {
   const [params, setParams] = useSearchParams();
   const products = useProducts(true);
   const me = useMe();
+  const settingsTo = useSettingsTo();
   const setParam = (key: string, value: string | null) =>
     setParams(
       (p) => {
@@ -69,7 +71,7 @@ export function OverviewPage() {
             WhatBuild accelerates collaborative agentic discovery, facilitates alignment, and tells the story of your build. At the
             finish line, WhatBuild provides context to your ticket-creation agent so that your team can hit the ground running.
           </p>
-          <Link to="/connect" className="overview-agent-link">
+          <Link to={settingsTo("agents")} className="overview-agent-link">
             <Glyph name="bot" size="sm" />
             Connect an agent
           </Link>
@@ -150,7 +152,7 @@ function Organization({ tenant, products, showArchived, onShowArchived, onCreate
             </Button>
           ) : guest ? (
             <Button size="sm" variant="quiet" disabled={hide.isPending} onClick={() => hide.mutate(!hidden)}>
-              {hidden ? "Show in the panel" : "Hide from the panel"}
+              {hidden ? "Show in the switcher" : "Hide from the switcher"}
             </Button>
           ) : null
         }

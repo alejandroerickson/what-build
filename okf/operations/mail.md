@@ -3,7 +3,7 @@ type: System Concept
 title: Mail - what WhatBuild sends, how each deployment sends it, and sending it through Cloudflare Email Sending
 description: The messages the server sends (four while a request waits, and the daily feedback digest), the settings that choose a mailer, which deployments send mail and which never do, setting up Cloudflare Email Sending over SMTP, checking it, rotating its token, changing provider, and what breaks it.
 tags: [operations, mail, smtp, cloudflare, invitations, sign-in, cloud-run, azure, runbook]
-generated: {by: agent:claude, at: 2026-10-31}
+generated: {by: agent:claude, at: 2026-11-09}
 status: stable
 ---
 
@@ -49,7 +49,7 @@ since the person asked for it; the answer's `notice_sent` says whether it went.
 
 **A connection's notice that cannot be sent is tried again**, as any job is, a few times with
 growing waits; the agent's connection is made either way. With no mailer none is queued, and the
-connection still shows under Connect an agent.
+connection still shows in Settings, under Agents.
 
 **A digest that cannot be sent waits.** Its reports are marked sent in the same transaction as the
 message, so a failed send leaves them unsent, the service logs `feedback digest:` with the provider

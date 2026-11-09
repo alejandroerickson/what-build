@@ -3,7 +3,7 @@ type: Specification
 title: Nothing is ever trapped - say what we promise, keep export open, and never let a limit block a read.
 description: What we tell people, limits and quotas (enforced and planned), backups and in-product versioning, export, archive and permanent delete of everything archivable and of an organization, the operator runbooks, plans and their limits, and how retired insights and decisions became sources.
 tags: [spec, lifecycle, quotas, backups, export, archive, delete, limits, plans]
-generated: {by: agent:claude, at: 2026-11-02}
+generated: {by: agent:claude, at: 2026-11-09}
 status: stable
 ---
 
@@ -153,7 +153,7 @@ Rules:
    `details` — an error an agent can explain and a person can act on
    ([§6.2](06-operations-and-adapters.md)).
 3. **Usage is visible before it bites:** `products.limits` gives every limit with what is used of
-   it, and an organization's Plan page shows each total as a fraction with a word as it fills
+   it, and an organization's Plan in Settings shows each total as a fraction with a word as it fills
    (nearly full from 80%, then full) ([§7.11](07-web-app.md)). An upload grant's `max_bytes` is
    what the storage left allows. **Planned:** an upload flow that shows remaining storage before it
    starts.
@@ -171,8 +171,8 @@ the limits on OAuth client registration and on sign-in and OAuth request bodies
 ([§3.8](03-accounts-and-identity.md)), invite-only mode (`WHATBUILD_SIGNUP_ALLOWLIST`, [§3.2](03-accounts-and-identity.md)), in
 which an instance owner lets people in one at a time with an allowance, and a guest's limit on calls
 a minute in the example organization (§9.7).
-The operator's view of usage by organization is built: `products.organizations` and `/instance`
-give each organization's plan, what it holds and today's use. Planned: per-IP sign-up limits.
+The operator's view of usage by organization is built: `products.organizations` and Instance
+admin's Organizations give each organization's plan, what it holds and today's use. Planned: per-IP sign-up limits.
 
 ## 9.3 Durability: backups and what is versioned
 
@@ -390,8 +390,9 @@ Everything that can be archived can also be deleted, and so can an organization:
 ### Delete an organization
 
 An owner-only operation, because it is organization lifecycle, not content
-([§3.5](03-accounts-and-identity.md)), offered in the web app only: the Members page shows
-an owner Delete this organization, behind its typed name. `execute` refuses it to anything but a
+([§3.5](03-accounts-and-identity.md)), offered in the web app only: Settings, under the
+organization's General, shows an owner Delete this organization, behind its typed name, and
+Instance admin's Organizations shows an instance owner Delete on its row. `execute` refuses it to anything but a
 person in the web app (`403 web_only`), and MCP lists neither it nor its preview.
 
 - It is permanent at once, like every other delete: the organization is gone from the product
@@ -404,8 +405,8 @@ person in the web app (`403 web_only`), and MCP lists neither it nor its preview
 
 ### Delete an account
 
-A person deletes their own account in the web app, in the Delete account section of Settings, and
-an instance owner removes anyone's on People; both do the same thing
+A person deletes their own account in the web app, in the Delete account section of Settings
+(under Account), and an instance owner removes anyone's in Instance admin → People; both do the same thing
 ([§3.2](03-accounts-and-identity.md#32-accounts-and-sign-in),
 [decision](../decisions/a-person-deletes-their-own-account-after-a-recent-sign-in.md)). It removes
 the person from every organization, deletes their sign-in, sessions and tokens, and deletes what is
@@ -495,7 +496,7 @@ example organization (`example`), and whether guests may sign up. `products.orga
 instance owners every organization's plan, what it holds and today's totals, and each plan's
 configured limits (`plan_defaults`) and who changed it.
 
-An instance owner changes a plan's limits and its price, as people read it, on `/instance`
+An instance owner changes a plan's limits and its price, as people read it, in Instance admin → Plans
 (`products.set_plan_limits`, guarded by the plan's etag once changed): for every organization on
 the plan, from the next call, and never for one organization alone. Only what differs from the
 configured limits is stored (`instance_settings`, key `plan:<plan>`), so the limits are read

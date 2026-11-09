@@ -5,9 +5,10 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { MemoryRouter, Route, Routes } from "react-router";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-// An organization's Plan says to its people what plan it is on, what it holds against the plan's
-// totals and what they used today, in words, with the plans side by side. The refusals, the
-// deployment's internals and what sets them are for whoever runs WhatBuild.
+// An organization's Plan, in Settings, says to its people what plan it is on, what it holds against
+// the plan's totals and what they used today, in words, with the plans side by side, the same for an
+// owner of this WhatBuild. The refusals, the deployment's internals and what sets them are in Instance
+// admin, under Plans.
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -101,7 +102,11 @@ vi.mock("../src/lib/session.tsx", async (original) => ({
 // Asked as the shell's modules load; jsdom has no media queries.
 window.matchMedia ??= (query: string) => ({ matches: false, media: query, onchange: null, addListener() {}, removeListener() {}, addEventListener() {}, removeEventListener() {}, dispatchEvent: () => false }) as MediaQueryList;
 
-const { PlanPage } = await import("../src/routes/limits.tsx");
+const { InstanceLimitsSheets, OrganizationPlan } = await import("../src/routes/limits.tsx");
+
+function PlanPage() {
+  return <OrganizationPlan tenant="acme" />;
+}
 const { ReadOnlyBanner } = await import("../src/shell/Shell.tsx");
 const { ShellContext } = await import("../src/shell/slots.tsx");
 
@@ -155,10 +160,9 @@ describe("Plan, for someone who reads only the Story in the organization", () =>
   it("says it isn't shown, without asking the server or drawing anything of the organization", async () => {
     state.storyOnly = true;
     const host = await page();
-    expect(host.querySelector("h1")?.textContent).toContain("Plan");
+    expect(host.querySelector("h2")?.textContent).toContain("Plan");
     expect(host.textContent).toContain("The plan isn’t shown to Story readers");
     expect(host.textContent).toContain("An admin of one of its products can give you more access.");
-    expect(host.querySelector('a[href="/"]')?.textContent).toBe("Go to your products");
     for (const words of TOTALS) expect(host.textContent, words).not.toContain(words);
     expect(asked.filter((p) => p.endsWith("/limits"))).toEqual([]);
   });
@@ -199,12 +203,12 @@ describe("Plan, for someone who reads only the Story in the organization", () =>
     state.storyOnly = true;
     const host = await banner();
     expect(host.textContent).toContain("Acme is read-only");
-    expect(host.querySelector('a[href="/t/acme/plan"]')).toBeNull();
+    expect(host.querySelector('a[href="/?settings=organization/plan"]')).toBeNull();
   });
 
   it("offers the plan from that banner to anyone who reads more", async () => {
     const host = await banner();
-    expect(host.querySelector('a[href="/t/acme/plan"]')?.textContent).toBe("See plan");
+    expect(host.querySelector('a[href="/?settings=organization/plan"]')?.textContent).toBe("See plan");
   });
 });
 
@@ -266,11 +270,34 @@ describe("Plan", () => {
     for (const internal of [...INTERNALS, "Files up to"]) expect(text).not.toContain(internal);
   });
 
-  it("shows whoever runs WhatBuild every limit of the plan, its refusal and what sets the deployment's, and where to change the plan", async () => {
+  it("shows whoever runs WhatBuild the same Plan as everyone, with no way to change it and none of the internals", async () => {
     state.instanceOwner = true;
     const host = await page();
     const text = host.textContent ?? "";
-    expect(host.querySelector('a[href="/instance?org=acme"]')?.textContent).toContain("Change plan");
+    expect(host.querySelector(".plan-word")?.textContent).toBe("Free");
+    expect(text).not.toContain("Change plan");
+    expect(host.querySelector('a[href*="/admin"]')).toBeNull();
+    for (const internal of INTERNALS) expect(text).not.toContain(internal);
+  });
+
+  it("gives whoever runs WhatBuild every limit with its refusal, and what sets the deployment's, in Instance admin", async () => {
+    state.instanceOwner = true;
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const host = document.createElement("div");
+    document.body.append(host);
+    const root = createRoot(host);
+    unmount = () => act(() => root.unmount());
+    await act(async () => {
+      root.render(
+        <QueryClientProvider client={qc}>
+          <MemoryRouter initialEntries={["/admin/plans"]}>
+            <InstanceLimitsSheets />
+          </MemoryRouter>
+        </QueryClientProvider>,
+      );
+    });
+    for (let i = 0; i < 20 && !host.textContent?.includes("Limits of"); i++) await act(() => new Promise((r) => setTimeout(r, 5)));
+    const text = host.textContent ?? "";
     expect(text).toContain("Limits of the Free plan");
     expect(text).toContain("429 rate_limited");
     expect(text).toContain("Limits of this deployment");
@@ -293,7 +320,7 @@ describe("the plans side by side", () => {
 });
 
 describe("what an organization holds, in a line", () => {
-  it("says its people leave out readers of the Story, as its plan does and its Members page doesn't", async () => {
+  it("says its people leave out readers of the Story, as its plan does and its People in Settings doesn't", async () => {
     const { heldLine } = await import("../src/routes/limits.tsx");
     const line = heldLine({ members: 4, invited: 1, products: 2, sources: 3, storage: { files: 0, text: 0, total: 0 } });
     expect(line).toMatch(/^4 people besides Story readers \(\+1 invited\) · 2 products · 3 sources · /);

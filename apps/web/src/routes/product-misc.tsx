@@ -1,12 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router";
 import { api, ApiError, qs } from "../lib/api.ts";
 import { formatBytes, formatDate, formatDateTime, plural, relativeTime, scopeWords } from "../lib/format.ts";
 import { useOrganizationLimits } from "../lib/limits.ts";
 import { useHoldRefresh } from "../lib/live.tsx";
-import { useProduct, useProducts } from "../lib/session.tsx";
+import { useProduct } from "../lib/session.tsx";
 import { ActivityFeed, ENTITY_LABEL, useActivity, type ActivityFilter } from "../shell/ActivityFeed.tsx";
+import { useSettingsTo } from "../shell/settings-link.ts";
 import { usePageTitle } from "../shell/slots.tsx";
 import {
   Avatar, Button, Callout, Dialog, ErrorCallout, FormGrid, Glyph, Loading, Menu, MenuGroup, MenuItem, MenuRadio,
@@ -105,30 +106,28 @@ export function ActivityPage() {
 
 // ---- Settings -----------------------------------------------------------------------------------
 
-export function ProductSettingsPage() {
+/** Settings → the product → General: its name and short name in links, archiving it and deleting it. */
+export function ProductGeneralSettings() {
   const { isAdmin, product, readOnlyOrganization } = useProduct();
   const archive = useArchiveProduct();
-  const loc = useLocation();
-  usePageTitle("Settings");
-  useEffect(() => {
-    if (!loc.hash) return;
-    const t = setTimeout(() => document.getElementById(loc.hash.slice(1))?.scrollIntoView({ block: "start" }), 300);
-    return () => clearTimeout(t);
-  }, [loc.hash]);
   return (
-    <div className="settings">
+    <>
       <ProductDetails />
-      <PeopleSheet />
-      <ExportSheet />
-      <OrganizationSheet />
       {isAdmin && !readOnlyOrganization ? <ArchiveSheet archive={archive} /> : null}
       {/* A live product's delete dialog offers archiving it instead; one already archived has nothing to offer. */}
       {isAdmin ? <DeleteProductSheet onArchive={product.archived_at || readOnlyOrganization ? undefined : () => archive.change.mutate(false)} /> : null}
-      <p className="settings-foot">
-        Your display name is in <Link to="/settings">your own settings</Link>.
-      </p>
-    </div>
+    </>
   );
+}
+
+/** Settings → the product → People: who has a role on it, and adding people to it. */
+export function ProductPeopleSettings() {
+  return <PeopleSheet />;
+}
+
+/** Settings → the product → Export. */
+export function ProductExportSettings() {
+  return <ExportSheet />;
 }
 
 function ProductDetails() {
@@ -136,6 +135,7 @@ function ProductDetails() {
   const qc = useQueryClient();
   const toast = useToast();
   const navigate = useNavigate();
+  const loc = useLocation();
   useHoldRefresh();
   const [name, setName] = useState(product.name);
   const [slug, setSlug] = useState(product.slug);
@@ -152,14 +152,17 @@ function ProductDetails() {
     onSuccess: (p) => {
       toast("Saved.");
       void qc.invalidateQueries({ queryKey: ["products"] });
-      if (slug !== product.slug) navigate(`/t/${p.path}/settings`, { replace: true });
+      // Open over one of the product's own screens, that screen moves to the product's new address.
+      const prefix = `/t/${product.path}`;
+      if (slug !== product.slug && (loc.pathname === prefix || loc.pathname.startsWith(`${prefix}/`)))
+        navigate(`/t/${p.path}${loc.pathname.slice(prefix.length)}${loc.search}`, { replace: true });
       else void qc.invalidateQueries({ queryKey: ["product"] });
     },
   });
   const slugError = slug && !/^[a-z0-9-]{3,50}$/.test(slug) ? "Use 3 to 50 lower-case letters, digits and hyphens." : null;
   return (
     <Sheet className="settings-sheet" labelledBy="settings-title">
-      <SheetHeader level={1} id="settings-title" title="Settings" count={product.name} />
+      <SheetHeader id="settings-title" title="General" count={product.name} />
       <form
         onSubmit={(e) => {
           e.preventDefault();
@@ -289,7 +292,7 @@ function PeopleSheet() {
   const toast = useToast();
   const [adding, setAdding] = useState(false);
   const tenant = product.tenant.slug;
-  const membersLink = `/t/${tenant}/members`;
+  const membersLink = useSettingsTo()("organization/people");
   const refresh = () => void qc.invalidateQueries({ queryKey: ["members", tenant] });
   const grant = useMutation({
     mutationFn: (v: { email: string; role: Role }) => api<{ invited: boolean; invite_link?: string }>("POST", `/api/v1/tenants/${tenant}/members`, { product: product.product_id, ...v }),
@@ -325,7 +328,7 @@ function PeopleSheet() {
           isAdmin && !readOnlyOrganization ? (
             <Button icon="user-plus" onClick={() => setAdding(true)}>Add people</Button>
           ) : q.data?.guest ? null : (
-            <Link className="quiet-link" to={membersLink}>Organization members</Link>
+            <Link className="quiet-link" to={membersLink}>People in {product.tenant.name}</Link>
           )
         }
       />
@@ -360,7 +363,7 @@ function PeopleSheet() {
                       {inherited ? (
                         <>
                           {ROLE_WORD[m.product_access.role]} through{" "}
-                          <Link to={membersLink} title={`Change it in ${product.tenant.name} members`}>
+                          <Link to={membersLink} title={`Change it under People in ${product.tenant.name}`}>
                             {via === "all_products" ? "all products" : from.scope.name}
                           </Link>
                           {via === "tenant" ? ` (${from.role})` : ""}
@@ -436,7 +439,7 @@ function PeopleSheet() {
             <p className="people-foot">The example organization&rsquo;s people aren&rsquo;t shown to its guests.</p>
           ) : (
             <p className="people-foot">
-              Change roles on all products and in the organization in <Link to={membersLink}>{product.tenant.name} members</Link>.
+              Change roles on all products and in the organization under <Link to={membersLink}>People in {product.tenant.name}</Link>.
             </p>
           )}
         </>
@@ -481,7 +484,7 @@ function AddPeopleDialog({ onClose }: { onClose: () => void }) {
   );
 }
 
-// ---- Export, organization, archive --------------------------------------------------------------
+// ---- Export, archive --------------------------------------------------------------
 
 interface ExportItem {
   export_id: string;
@@ -555,32 +558,6 @@ function ExportSheet() {
   );
 }
 
-/** The organization this product is in: every product in it the person can see, archived ones (this one, perhaps) marked. */
-function OrganizationSheet() {
-  const { product } = useProduct();
-  const products = useProducts(true);
-  const t = products.data?.tenants.find((x) => x.tenant_id === product.tenant.tenant_id);
-  const inOrg = (products.data?.items ?? []).filter((p) => p.tenant.tenant_id === product.tenant.tenant_id);
-  const list = (names: string[]) => (names.length <= 1 ? names.join("") : `${names.slice(0, -1).join(", ")} and ${names.at(-1)}`);
-  return (
-    <Sheet labelledBy="org-title">
-      <span id="organization" className="settings-anchor" />
-      <SheetHeader id="org-title" title="Organization" count={product.tenant.name} end={<Link className="quiet-link" to={`/t/${product.tenant.slug}/members`}>Members and roles</Link>} />
-      <SheetBody>
-        {t ? (
-          <p className="muted">
-            You can see {inOrg.length === 1 ? "1 product" : `${inOrg.length} products`} in {t.name}: {list(inOrg.map((p) => (p.archived_at ? `${p.name} (archived)` : p.name)))}.
-          </p>
-        ) : products.isError ? (
-          <ErrorCallout inset title="The organization couldn’t be loaded" error={products.error} onRetry={() => products.refetch()} />
-        ) : (
-          <Loading lines={1} variant="lines" />
-        )}
-      </SheetBody>
-    </Sheet>
-  );
-}
-
 /** What deleting a product destroys, as products.delete_impact reports it. */
 interface ProductImpact {
   etag: string;
@@ -639,6 +616,7 @@ function DeleteProductSheet({ onArchive }: { onArchive?: () => void }) {
             void qc.invalidateQueries({ queryKey: ["products"] });
             try {
               localStorage.removeItem("whatbuild.last-product");
+              localStorage.removeItem(`whatbuild.last-product.${product.tenant.tenant_id}`);
             } catch {
               // Storage may be blocked.
             }

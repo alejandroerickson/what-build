@@ -161,64 +161,34 @@ h1[tabindex="-1"]:focus {
   gap: 1px;
   padding: var(--s-0) var(--s-1h) var(--s-1);
 }
-/* Outside a product the panel lists the person's products under each organization: its name, as the
-   product switcher names a product, over the label "Products". */
-.nav-products {
-  padding-top: var(--s-2h);
-}
-.nav-products + .nav-products {
-  margin-top: var(--s-1h);
-  border-top: 1px solid var(--line);
-}
-.nav-org {
+/* An organization with no product the person can open: Create a product, or who to ask, where the
+   four sections would be. */
+.nav-empty {
   display: grid;
-  padding: var(--s-0) var(--s-2) var(--s-1h);
-}
-.nav-org-name {
-  font-size: var(--fs-md);
-  font-weight: var(--fw-semibold);
-}
-.nav-org-label {
-  color: var(--faint);
-  font-size: var(--fs-xs);
-}
-/* The example organization: set apart on a Hover wash (a neutral, never the accent), headed as the
-   example over its own name, with a guest's way to hide it. */
-.nav-products.nav-example {
-  margin: var(--s-2) var(--s-1h) 0;
-  padding: var(--s-2) 0 var(--s-1);
-  border-top: 0;
+  justify-items: start;
+  gap: var(--s-2);
+  margin: var(--s-1) var(--s-2h) var(--s-2h);
+  padding: var(--s-3);
   border-radius: var(--r-md);
   background: var(--hover);
 }
-.nav-example .nav-org {
-  position: relative;
-  padding-right: calc(var(--s-2) + var(--h-sm));
+.nav-empty-title {
+  font-weight: var(--fw-semibold);
 }
-.nav-example .nav-org-name {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--s-1h);
+.nav-empty-text {
+  color: var(--muted);
+  font-size: var(--fs-sm);
+  line-height: 1.45;
 }
-.nav-example .nav-org-name .glyph {
+/* Instance admin's head, where a product's switcher would be: what this place is, not a menu. */
+.admin-head .product-name .glyph {
   color: var(--muted);
 }
-/* Rows on the wash take the stronger fill, so hovering one still shows. */
-.nav-example .nav-node:not([aria-current="page"]):hover {
-  background: var(--hover-strong);
-}
-.nav-org-hide {
-  position: absolute;
-  top: calc(-1 * var(--s-0));
-  right: var(--s-1);
-  color: var(--muted);
-}
-.nav-example .nav-org-hide:hover:not(:disabled),
-.nav-example .nav-org-hide:focus-visible {
+.nav-node-quiet[data-open] {
   color: var(--text);
-  background: var(--hover-strong);
+  background: var(--hover);
 }
-.nav-products + .nav-quiet {
+.nav-quiet {
   padding-top: var(--s-2);
 }
 .nav-quiet {

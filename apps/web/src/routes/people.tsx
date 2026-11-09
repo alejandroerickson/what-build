@@ -70,7 +70,7 @@ export function PeoplePage() {
       <SheetHeader level={1} id="people-title" title="People" count={q.data ? all.length : undefined} />
       <SheetBody className="instance-intro">
         <p className="muted">
-          Everyone with an account here. To let someone in, give their address an allowance on <Link to="/instance">Organizations</Link>.
+          Everyone with an account here. To let someone in, give their address an allowance under <Link to="/admin/starting">Starting organizations</Link>.
         </p>
         {all.length > 8 ? <FindField label="Find a person by name or address" value={find} onChange={(e) => setFind(e.target.value)} /> : null}
       </SheetBody>

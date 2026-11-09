@@ -5,6 +5,7 @@ import { api, qs } from "../lib/api.ts";
 import { formatDate, formatDateTime, formatTime, relativeTime } from "../lib/format.ts";
 import { useProduct } from "../lib/session.tsx";
 import { AgentFace, Avatar, Button, ButtonLink, EmptyState, ErrorCallout, Loading } from "../ui/index.tsx";
+import { useSettingsTo } from "./settings-link.ts";
 
 export interface ActivityItem {
   activity_id: string;
@@ -116,7 +117,7 @@ export const ENTITY_LABEL: Record<string, string> = {
   membership: "people and roles",
 };
 
-function linkFor(app: string, i: ActivityItem): string | null {
+function linkFor(app: string, i: ActivityItem, settingsTo: ReturnType<typeof useSettingsTo>): string | null {
   if (!i.entity_id && i.entity_type !== "story_hierarchy" && i.entity_type !== "product") return null;
   switch (i.entity_type) {
     case "source":
@@ -133,9 +134,9 @@ function linkFor(app: string, i: ActivityItem): string | null {
     case "story_style":
       return `${app}/story`;
     case "product":
-      return `${app}/settings`;
+      return settingsTo("product");
     case "membership":
-      return i.action === "invitation_cancelled" || i.action === "invitation_declined" ? null : `${app}/settings#people`;
+      return i.action === "invitation_cancelled" || i.action === "invitation_declined" ? null : settingsTo("product/people");
     default:
       return null;
   }
@@ -188,16 +189,17 @@ export function ActivityFeed(filter: ActivityFilter & { query?: ReturnType<typeo
   const own = useActivity(filter);
   const q = filter.query ?? own;
   const { app } = useProduct();
+  const settingsTo = useSettingsTo();
   const filtered = Boolean(filter.entityId || filter.entityType);
   return (
     <ActivityLog
       query={q}
-      linkOf={(i) => linkFor(app, i)}
+      linkOf={(i) => linkFor(app, i, settingsTo)}
       empty={
         <EmptyState
           size="inline"
           title={filtered ? "Nothing matches this view yet" : "Nothing has changed yet"}
-          action={filtered ? undefined : <ButtonLink to="/connect" size="sm" icon="bot">Connect an agent</ButtonLink>}
+          action={filtered ? undefined : <ButtonLink to={settingsTo("agents")} size="sm" icon="bot">Connect an agent</ButtonLink>}
         />
       }
     />

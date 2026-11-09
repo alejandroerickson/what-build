@@ -425,7 +425,7 @@ function connectorMoved(base: string, bound: ScopeRef, fence: ConnectorScope): s
     : `names ${fence.tenant.name} by a slug it had before (${bound.tenant})`;
   return (
     `This connector's address ${names}. It still works; its address is now ${base}/mcp/t/${path}. ` +
-    "Tell the person once, and suggest they update the connector when convenient (Connect an agent in WhatBuild gives the address)."
+    "Tell the person once, and suggest they update the connector when convenient (WhatBuild’s Settings, under Agents, gives the address)."
   );
 }
 

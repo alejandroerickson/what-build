@@ -3,7 +3,7 @@ type: Decision
 title: WhatBuild runs its own sign-in and its own OAuth 2.1 server for agents
 description: Email links, Google and Microsoft sign-in and sessions are built in, agents connect only through WhatBuild's own OAuth server, and there are no personal access tokens.
 tags: [decision, identity, oauth, mcp, security]
-generated: {by: agent:claude, at: 2026-10-12}
+generated: {by: agent:claude, at: 2026-11-09}
 status: stable
 ---
 
@@ -26,7 +26,7 @@ MCP clients expect OAuth discovery and dynamic registration against the server t
 ## Consequences
 
 - Agents act as their person, so authorship is also declared ([decision](attribution-and-declared-authorship.md)).
-- The Connect an agent page needs only the MCP address, and lists every connected agent.
+- Connect an agent (Settings → Agents) needs only the MCP address, and lists every connected agent.
 - An agent without MCP authorization support cannot connect.
 
 ## Constrains

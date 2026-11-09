@@ -244,7 +244,7 @@ export const listProducts = defineOperation({
       ...(ctx.principal.level ? { connection_level: ctx.principal.level } : {}),
       items: items.map((i) => ({ ...i, ...countsFor(i.your_role, counts.get(i.product_id)!) })),
       tenants: tenants.map(({ example, read_only_since, kept_until, ...t }) => {
-        // Everyone with a role in the organization is in it: someone whose roles are on its products only is a member, as the Members page says.
+        // Everyone with a role in the organization is in it: someone whose roles are on its products only is a member, as its People in Settings says.
         const tr = memberships.find((m) => m.scope_type === "tenant" && m.scope_id === t.tenant_id)?.role ?? "member";
         const everywhere = memberships.find((m) => m.scope_type === "all_products" && m.scope_id === t.tenant_id)?.role as ProductRole | undefined;
         return {
@@ -330,7 +330,7 @@ export const renameTenant = defineOperation({
   access: "owner",
   mutates: true,
   allowInstanceOwners: true,
-  webOnly: "a person does it in the web app: one of its owners under Organization name on its Members page (`/t/<organization>/members`), or an owner of this WhatBuild with Rename on Organizations (`/instance`)",
+  webOnly: "a person does it in the web app: one of its owners under Organization name, in Settings under the organization's General (`/t/<organization>?settings=organization`), or an owner of this WhatBuild with Rename in Instance admin, under Organizations (`/admin/organizations`)",
   summary: "Rename an organization, change its slug, or both (its owners, and the instance's owners, in the web app).",
   description:
     "A person's act in the web app, never an agent's. Pass only what changes, name or slug, with expected_etag: the tenant's name_etag. " +
@@ -484,7 +484,7 @@ export const updateProduct = defineOperation({
   scope: "product",
   access: "admin",
   mutates: true,
-  webOnly: "a person does it in the web app, in the product's Settings (`…/settings`), its name and short name in links",
+  webOnly: "a person does it in the web app, in the product's Settings, under General (`…?settings=product`), its name and short name in links",
   summary: "Rename a product or change its slug (product admins, in the web app).",
   description:
     'A person\'s act in the web app, never an agent\'s. Pass only the fields that change, plus expected_etag. The product concept is a card on the Idea screen, written with products.update_concept, which editors may call too, agents among them.',

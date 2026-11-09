@@ -63,6 +63,19 @@ export function screenPath(pathname: string): string {
   return pathname;
 }
 
+/** Settings' sections, the only values of `?settings=` that are counted as a screen. */
+const SETTINGS_SECTIONS = new Set(["product", "product/people", "product/export", "organization", "organization/people", "organization/plan", "organization/access", "account", "agents"]);
+
+/**
+ * The screen Settings is, while it is open over another (`?settings=organization/plan` is
+ * `/settings/organization/plan`), or null when it is closed. A value it does not know is plain `/settings`.
+ */
+export function settingsScreen(search: string): string | null {
+  const key = new URLSearchParams(search).get("settings");
+  if (key === null) return null;
+  return SETTINGS_SECTIONS.has(key) ? `/settings/${key}` : "/settings";
+}
+
 /**
  * What a change the app made was, as an event name: the operation the server says it ran
  * (`X-WhatBuild-Operation`), so `POST …/assumptions/01J…/review` is `assumptions_review` and

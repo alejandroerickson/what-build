@@ -61,7 +61,7 @@ describe("a new agent connection", () => {
     expect(mail.text).toContain("May:       Edit");
     expect(mail.text).toMatch(/When: {6}\d{4}-\d\d-\d\d \d\d:\d\d UTC/);
     expect(mail.text).toContain(`${h.baseUrl}/connect`);
-    expect(mail.text).toContain(`${h.baseUrl}/settings`);
+    expect(mail.text).toContain("Sign out everywhere, in the same place");
   });
 
   it("names a web host, and an organization's reach, in the consent page's words", () => {

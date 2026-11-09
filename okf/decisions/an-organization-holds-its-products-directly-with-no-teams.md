@@ -3,7 +3,7 @@ type: Decision
 title: An organization holds its products directly; there are no teams, and an address with a team still reaches its product
 description: Teams are removed from the data, the roles and every address; a role on all products and a product creator role take over what teams did, and addresses written with a team keep working.
 tags: [decision, tenancy, roles, addressing, mcp, web]
-generated: {by: agent:claude, at: 2026-11-08}
+generated: {by: agent:claude, at: 2026-11-09}
 status: stable
 ---
 
@@ -42,7 +42,7 @@ The maintainer chose to remove teams on 2026-11-08.
 
 ## Consequences
 
-- Two levels of roles to learn instead of three; Give access names a place: the organization, all
+- Two levels of roles to learn instead of three; Add people names a place: the organization, all
   products, or one product.
 - A source added to the wrong product is archived there and added again in the right one.
 

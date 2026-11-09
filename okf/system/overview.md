@@ -3,7 +3,7 @@ type: System Concept
 title: WhatBuild at three altitudes
 description: The whole system from the top down, the major parts, and the mechanics underneath, with links to the detail.
 tags: [overview, architecture, tenancy, access, mcp]
-generated: {by: agent:claude, at: 2026-10-31}
+generated: {by: agent:claude, at: 2026-11-09}
 status: stable
 ---
 
@@ -126,11 +126,14 @@ a time, with nothing to install
 ([decision](../decisions/agents-learn-whatbuild-from-the-servers-guide.md)). Source text is quoted
 material.
 
-**The experience.** One floating panel (Idea, Evidence, Exploration, Story, then Connect an agent,
-Activity and Settings) that hides fully; the screen beside it; an inspector on the Story, a mockup
-and a source page. No
+**The experience.** One floating panel that shows one product on every screen (Idea, Evidence,
+Exploration, Story, then Activity and Settings) and hides fully; the screen beside it; an inspector
+on the Story, a mockup and a source page. Settings is one dialog over any screen, for the product,
+its organization and the person; the instance's owners run it in Instance admin, a place of its own. No
 in-app tabs; rows are real links; works in a phone browser, light and dark
-([decision](../decisions/studio-design-system.md), [web app](../spec/07-web-app.md)).
+([decision](../decisions/studio-design-system.md),
+[decision](../decisions/the-panel-shows-one-product-and-everything-else-is-in-settings.md),
+[web app](../spec/07-web-app.md)).
 
 ## 100 ft: mechanics
 

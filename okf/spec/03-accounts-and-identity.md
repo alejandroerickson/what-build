@@ -3,7 +3,7 @@ type: Specification
 title: Accounts belong to tenants, tenants hold products, and one role check decides every call.
 description: The account → tenant → product hierarchy, sign-in, roles and what they grant, plans and their limits, addressing and isolation, caller identity, attribution, the example organization every account reads, and how teams were removed.
 tags: [spec, accounts, tenancy, roles, identity, oauth, isolation, example, limits]
-generated: {by: agent:claude, at: 2026-10-31}
+generated: {by: agent:claude, at: 2026-11-09}
 status: stable
 ---
 
@@ -86,7 +86,7 @@ signing in with the development sign-in, never leaves the origin either. Request
 
 **Invite-only mode.** `WHATBUILD_SIGNUP_ALLOWLIST` (emails and `@domains`) limits who may create an
 account. Without it there is no invite-only mode and anyone may, whatever the guests' `self_serve`
-says, and `/instance` says so. Existing accounts, invited addresses, the instance's owners and addresses with an
+says, and Instance admin says so. Existing accounts, invited addresses, the instance's owners and addresses with an
 allowance above 0 to create organizations ([§3.3](#33-tenants)) always may. Staging runs invite-only until public
 sign-up opens ([§10 Phase 6](10-roadmap.md)). The sign-in form answers every address alike, "if it
 can sign in here, a link is on its way", at the same speed and under the same hourly limit, and
@@ -97,7 +97,7 @@ A refusal is said only after a sign-in proves the address is the person's (an em
 or Microsoft): the sign-in page then says the WhatBuild is invite-only.
 
 **Signing up as a guest** (◆ [decision](../decisions/guests-come-into-the-example-organization-while-there-is-room.md)).
-While an instance owner lets guests sign up themselves (the guests' `self_serve`, on `/instance`),
+While an instance owner lets guests sign up themselves (the guests' `self_serve`, in Instance admin → Guests),
 anyone may create an account, whatever the allowlist says. An account in no organization, with no
 allowance and not an instance owner's is a **guest account**: it reads the example organization,
 and comes into it only while there is room ([§3.10](#310-the-example-organization)).
@@ -267,9 +267,9 @@ concept.
 
 **Renaming a tenant** (◆ [decision](../decisions/an-organizations-owners-rename-it-and-its-former-slugs-still-reach-it.md)).
 `products.rename_tenant` (`PATCH /api/v1/tenants/:tenant`) changes the name, the slug, or both.
-Its owners change them, the example organization's included, under Organization name on its
-Members page; an admin or a member is refused `403`. An instance owner changes them in any tenant,
-as one of its owners, member or not, with Rename on `/instance`: the operation sets
+Its owners change them, the example organization's included, under Organization name in Settings
+(the organization's General); an admin or a member is refused `403`. An instance owner changes them in any tenant,
+as one of its owners, member or not, with Rename in Instance admin → Organizations: the operation sets
 `allowInstanceOwners`, which lets them in to that operation alone and gives them no grant. Only a
 person renames a tenant, in the web app: no agent is offered it, and a call to it is refused
 `403 web_only` (◆ [decision](../decisions/running-the-instance-is-done-in-the-web-app-never-by-an-agent.md)). Name and slug share one etag, `name_etag`, which
@@ -305,7 +305,7 @@ one to what the tenant already has writes nothing. A change is recorded in the t
   The check holds a lock on the account for the transaction, so two creations at once cannot both
   take the last place.
 - Only instance owners read and change allowances, in the web app only (Who can start
-  organizations and Waitlist on `/instance`; no agent is offered them, ◆
+  organizations and Waitlist, in Instance admin → Starting organizations; no agent is offered them, ◆
   [decision](../decisions/running-the-instance-is-done-in-the-web-app-never-by-an-agent.md)): `products.tenant_allowances`,
   `products.set_tenant_allowance` (guarded by the row's etag once it exists, and refusing one sent
   for an address that has none with `409 stale_etag` and `current_etag: null`; with `notify`, an
@@ -345,7 +345,7 @@ it moves. The limits and their refusals are in [§9.7](09-data-lifecycle.md).
 - Only instance owners change a plan's limits and its price, in the web app only, for every
   organization on it (`products.set_plan_limits`, `PATCH /api/v1/plans`, [§9.7](09-data-lifecycle.md)), over what the
   deployment's configuration defines; a plan it does not define is refused (`422 unknown_plan`).
-- Only instance owners, in the web app only (`/instance`), list every tenant with its plan, what
+- Only instance owners, in the web app only (Instance admin → Organizations), list every tenant with its plan, what
   it holds and today's use, with the deployment's `new_organization_plan` and the plans offered
   (`products.organizations`), and move
   a tenant to another plan (`products.set_plan`, `PATCH /api/v1/organizations/plan`): one the
@@ -371,7 +371,7 @@ it moves. The limits and their refusals are in [§9.7](09-data-lifecycle.md).
   year is up yet ([§10](10-roadmap.md#the-example-organization-and-the-plans)).
 - **Whoever runs the deployment sees** each tenant's name and plan, and the name and email of
   everyone in it, to write to its people and, where a plan has a price, to bill the organization
-  for it. Where the deployment offers plans, the new-organization form, a tenant's Plan page and the
+  for it. Where the deployment offers plans, the new-organization form, a tenant's Plan in Settings and the
   privacy page say so, speaking of billing only where a plan has a price; a deployment that offers
   none says nothing of plans or billing.
 
@@ -484,7 +484,7 @@ The addressed tenant and product are always explicit. Nothing on the server reme
 
 | Surface | Addressing |
 |---|---|
-| Web | `/t/<tenant>/<product>/<screen>`; the tenant's own pages are `/t/<tenant>/members`, `/plan` and `/limits` |
+| Web | `/t/<tenant>/<product>/<screen>`; `/t/<tenant>` opens one of its products, and its settings are Settings over it (`?settings=organization…`); `/t/<tenant>/members`, `/plan` and `/limits` lead there |
 | REST | `/api/v1/p/<tenant>/<product>/…` for product operations; `/api/v1/tenants/<tenant>/…` and `/api/v1/…` for the rest |
 | MCP | `/mcp` for everything the account can reach; `/mcp/t/<tenant>` scoped to one organization; `/mcp/t/<tenant>/<product>` scoped to one product |
 
@@ -611,8 +611,8 @@ No operation reaches it, so an agent cannot sign its person out. Ending an accou
 `"delete permanently"`); `products.accounts` lists every account for them there, in the web app
 only, with the organizations each is in and when it was last seen
 ([decision](../decisions/instance-owners-see-every-account-and-remove-any-but-their-own.md)). A
-person deletes their own in the Delete account section of Settings, which opens in place
-(`/settings?delete=account`) (`products.delete_account`, with their
+person deletes their own in the Delete account section of Settings, under Account, which opens in place
+(`?settings=account&delete=account`, where `/settings?delete=account` leads) (`products.delete_account`, with their
 address typed and the same `confirm`), after reading what it does and what stands in its way
 (`products.delete_account_impact`), and only from a browser session that signed in within the last
 15 minutes (`403 sign_in_again`, with `signed_in_at` and `minutes`): signing in again by any
@@ -665,7 +665,7 @@ the client.
 
 The consent page tells the person the agent will act as them, what it can reach (everything, one organization or one
 product, named), that what it reads goes to whoever runs the agent, and that they can
-disconnect it under Connect an agent, and asks what it may do there (below). Any
+disconnect it in Settings under Agents, and asks what it may do there (below). Any
 MCP client registers itself, so no client is configured in advance, and any client may call
 itself anything: the consent page shows the name in quotation marks as the name the agent gave
 itself, which WhatBuild has not verified, and says where Allow hands the connection, the redirect
@@ -697,13 +697,13 @@ and the ones inside it only: a token approved for `/mcp/t/acme` works on `/mcp/t
 Acme's product endpoints, and answers `401` on `/mcp` and on any other organization. A refresh
 keeps the resource. Connected agents are listed, each with what it can reach, its level and who
 holds the connection (the hosts of its client's redirect URIs, or an app on the person's
-computer), and changed or disconnected on the Connect an agent page.
+computer), and changed or disconnected in Settings under Agents.
 
 **A new connection is mailed to its person.** When a code is exchanged for a connection's first
 tokens, the exchange queues one email to the account, which the worker sends to its address then:
 the agent's self-given name, in quotation marks, as unverified; where it is held; what it reaches
-and its level, in the consent page's words; the time in UTC; and links to Connect an agent, to
-disconnect it, and to Settings, to sign out everywhere. A refresh makes no connection and sends
+and its level, in the consent page's words; the time in UTC; and a link to Settings, under Agents
+(`/connect`, which leads there), to disconnect it, where Sign out everywhere is too. A refresh makes no connection and sends
 nothing. ◆ Decision: an agent connecting again sends nothing either, where again means the account
 had another connection, live or ended, from a client of the same name held at the same place (the
 same `https` host, or an app on the computer), since some clients register afresh each time they
@@ -727,13 +727,13 @@ an editor, and an admin's Edit connection as one too.
   the level allows, so an Edit connection is never offered a permanent delete, and of those only
   what the person could do ([§6.5](06-operations-and-adapters.md#65-mcp)).
 - `products.list` gives `connection_level` and caps each `your_role` by it.
-- Only the person changes it, under Connect an agent (`PATCH /api/v1/me/agents/<connection>`,
+- Only the person changes it, in Settings under Agents (`PATCH /api/v1/me/agents/<connection>`,
   which takes the web app's session alone), and the change holds from the agent's next call. No
   operation an agent can call reaches a connection's level, so an agent cannot raise its own.
 - A connection made before levels existed is Edit.
 
 A connection also has a **feedback switch** (`oauth_tokens.feedback`), on unless the person turns
-it off under Connect an agent (`PATCH /api/v1/me/agents/<connection> { feedback }`, the session
+it off in Settings under Agents (`PATCH /api/v1/me/agents/<connection> { feedback }`, the session
 only), and kept by a refresh like the level. Off, MCP does not list `submit_feedback`, a call to it
 is refused with `403 feedback_off`, and the server's instructions say the person turned it off
 ([§6.9](06-operations-and-adapters.md#69-feedback)).
@@ -789,7 +789,7 @@ web app or an agent (`enterAsGuest`, [`packages/core/src/guests.ts`](../../packa
 from `execute` and the routes that send bytes). Someone in another organization reads the example
 as a guest too, and never waits.
 
-| Setting (the guests', on `/instance`) | Starts at | What it does |
+| Setting (the guests', in Instance admin → Guests) | Starts at | What it does |
 |---|---|---|
 | `self_serve` | off | Anyone may sign up as a guest ([§3.2](#32-accounts-and-sign-in)). |
 | `at_once` | 25 | Places: guest accounts in at once. Past it, a guest waits in line and comes in when they ask again once a place is free, in the order they started waiting, keeping their place while they ask at least every two minutes (the web app's waiting page asks when they press Try again or come back to the tab; it never asks on a timer). 0 lets no guest in. |
@@ -806,7 +806,7 @@ letting it in when there is room, and `{ guest: false, status: "in" }` to anyone
 a row of `guest_passes`; admissions are taken one at a time under one advisory lock, so two
 guests cannot both take the last place. Only instance owners read and change the settings, with how
 many guests are in, waiting, new today and ever (`products.guests`, `products.set_guests`,
-under their etag), in the web app only, under Guests on `/instance`; a change applies from the
+under their etag), in the web app only, in Instance admin → Guests; a change applies from the
 next call.
 
 `products.list` lists the example organization's products for every account, with

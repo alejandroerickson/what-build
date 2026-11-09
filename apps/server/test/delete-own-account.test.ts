@@ -92,7 +92,7 @@ describe("refusals", () => {
         const r = (await client.callTool({ name, arguments: { action, params: { email: "owen@example.com", confirm: "delete permanently" } } })) as { isError?: boolean; content: { text: string }[] };
         expect(r.isError).toBe(true);
         // Whichever of its noun's tools is called, the agent is told where the person does it, of the call it made.
-        expect(r.content[0]!.text).toMatch(new RegExp(`^403: No agent is offered ${name}\\(action="${action}"\\): a person does it in the web app, in their own Settings \\(\`/settings\`\\), Delete account\\.`));
+        expect(r.content[0]!.text).toMatch(new RegExp(`^403: No agent is offered ${name}\\(action="${action}"\\): a person does it in the web app, in their own Settings, under Account \\(\`/settings\`\\), Delete account\\.`));
       }
     }
     await client.close();

@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { READ_ONLY_ALLOWS } from "@whatbuild/core/read-only";
 import { useState, type ReactNode } from "react";
-import { Link, useParams, useSearchParams } from "react-router";
+import { Link, useSearchParams } from "react-router";
 import { api, ApiError } from "../lib/api.ts";
 import { formatBytes, formatDate, formatDateTime, plural, slugProblem, untilTime } from "../lib/format.ts";
 import {
@@ -9,9 +9,7 @@ import {
   type Amount, type DeploymentLimit, type Holdings, type InstanceOrganization, type InstanceOrganizations, type LimitValue, type OrganizationLimits, type Plan, type PlanEntry, type ReadOnly,
 } from "../lib/limits.ts";
 import { useMe, useProducts } from "../lib/session.tsx";
-import { usePageTitle } from "../shell/slots.tsx";
 import { Button, ButtonLink, Callout, ChoiceRow, Dialog, EmptyState, ErrorCallout, Glyph, ListRow, Loading, Sheet, SheetBody, SheetHeader, StatusBadge, TextField, useToast, tooLong } from "../ui/index.tsx";
-import { NotVisible } from "./auth.tsx";
 import { OrganizationDeleteDialog } from "./org.tsx";
 import { PlanComparison } from "./plan-comparison.tsx";
 import { PrivacyLink } from "../shell/privacy-link.tsx";
@@ -21,16 +19,16 @@ import "../styles/screens/limits.css";
 const PRICE_MAX = 60;
 const NAME_MAX = 100;
 
-// ---- /t/:tenant/plan ------------------------------------------------------------------------------
+// ---- Settings → the organization → Plan -----------------------------------------------------------
 
 /**
  * An organization's plan: what it is, what the organization holds against the plan's totals, each
- * person's daily allowances with what they used today, and the plans side by side. Limits belong to
- * plans, so nobody changes one here: an owner of this WhatBuild moves the organization to another
- * plan, on the instance's page, and sees every limit with the refusal a call over it gets.
+ * person's daily allowances with what they used today, and the plans side by side. It is the same for
+ * everyone who reads it, an owner of this WhatBuild included. Limits belong to plans, so nobody
+ * changes one here: an owner of this WhatBuild moves the organization to another plan in Instance
+ * admin, under Organizations, and reads every limit with the refusal a call over it gets under Plans.
  */
-export function PlanPage() {
-  const { tenant = "" } = useParams();
+export function OrganizationPlan({ tenant }: { tenant: string }) {
   const me = useMe();
   const products = useProducts();
   const here = products.data?.tenants.find((t) => t.slug === tenant);
@@ -38,18 +36,12 @@ export function PlanPage() {
   // Story is never refused (and their browser logs no refusal).
   const q = useOrganizationLimits(tenant, !products.isPending && !here?.story_only);
   const storyOnly = Boolean(here?.story_only) || (q.error instanceof ApiError && q.error.status === 403);
-  // An organization the person can't see answers as one that doesn't exist, and so does this page.
-  const notVisible = q.error instanceof ApiError && q.error.status === 404;
-  usePageTitle(notVisible ? null : "Plan");
-  if (notVisible) return <NotVisible what="organization" />;
   if (storyOnly)
     return (
       <Sheet labelledBy="plan-title">
-        <SheetHeader level={1} id="plan-title" title="Plan" />
+        <SheetHeader id="plan-title" title="Plan" />
         <SheetBody>
-          <EmptyState title="The plan isn’t shown to Story readers" action={<ButtonLink to="/">Go to your products</ButtonLink>}>
-            An admin of one of its products can give you more access.
-          </EmptyState>
+          <EmptyState title="The plan isn’t shown to Story readers">An admin of one of its products can give you more access.</EmptyState>
         </SheetBody>
       </Sheet>
     );
@@ -62,7 +54,7 @@ export function PlanPage() {
   if (q.isError)
     return (
       <Sheet labelledBy="plan-missing">
-        <SheetHeader level={1} id="plan-missing" title="The plan couldn’t be loaded" />
+        <SheetHeader id="plan-missing" title="The plan couldn’t be loaded" />
         <SheetBody>
           <ErrorCallout inset error={q.error} onRetry={() => q.refetch()} />
         </SheetBody>
@@ -77,15 +69,10 @@ export function PlanPage() {
       {l.holds ? <Holds l={l} holds={l.holds} /> : null}
       {l.you_meet_them === true ? <Today l={l} /> : null}
       {guest || l.read_only ? null : <WhatYouAdd l={l} />}
-      {owner ? <EveryLimit l={l} /> : null}
-      {owner ? <DeploymentLimits limits={l.deployment_limits} /> : null}
       <ComparePlans l={l} />
     </>
   );
 }
-
-/** Kept for the address the page had before plans set every limit. */
-export const LimitsPage = PlanPage;
 
 /** The plan in a line, what it means for the people in the organization, and how to move to another. */
 function PlanSummary({ l, owner }: { l: OrganizationLimits; owner: boolean }) {
@@ -100,19 +87,7 @@ function PlanSummary({ l, owner }: { l: OrganizationLimits; owner: boolean }) {
   const ask = contact ? <>write to <Contact to={contact} /></> : "ask whoever runs this WhatBuild";
   return (
     <Sheet labelledBy="plan-title">
-      <SheetHeader
-        level={1}
-        id="plan-title"
-        title="Plan"
-        count={org}
-        end={
-          owner && offered ? (
-            <ButtonLink to={`/instance?org=${encodeURIComponent(l.organization.slug)}`} size="sm" icon="pencil">
-              Change plan
-            </ButtonLink>
-          ) : null
-        }
-      />
+      <SheetHeader id="plan-title" title="Plan" count={org} />
       <SheetBody className="plan-summary">
         {guest ? (
           <p>This is the example organization. You can read it but not change it, so its plan sets nothing for you but how often you can call.</p>
@@ -326,9 +301,24 @@ function ComparePlans({ l }: { l: OrganizationLimits }) {
 }
 
 /**
- * For an owner of this WhatBuild: every limit of the organization's plan with what is used of it and
- * the refusal a call over it gets.
+ * Instance admin → Plans: every limit with the refusal a call over it gets, and the limits of this
+ * deployment, read through one of the owner's own organizations (the deployment's are the same for
+ * every organization). An owner in no organization of their own has the plans side by side only.
  */
+export function InstanceLimitsSheets() {
+  const products = useProducts();
+  const own = products.data?.tenants.find((t) => !t.example && !t.story_only);
+  const q = useOrganizationLimits(own?.slug ?? "", Boolean(own));
+  if (!own || !q.data) return null;
+  return (
+    <>
+      <EveryLimit l={q.data} />
+      <DeploymentLimits limits={q.data.deployment_limits} />
+    </>
+  );
+}
+
+/** Every limit of an organization's plan with what is used of it and the refusal a call over it gets. */
 function EveryLimit({ l }: { l: OrganizationLimits }) {
   const counted = l.limits.some((x) => x.used !== undefined);
   return (
@@ -396,9 +386,9 @@ export function heldLine(h: Holdings) {
 }
 
 /**
- * On the instance page: every organization with its plan and what it holds. Each row renames the
- * organization, and moves it to another plan, as `?org=<slug>` does, the address an organization's
- * Plan page links to.
+ * Instance admin → Organizations: every organization with its plan and what it holds. Each row
+ * renames the organization, moves it to another plan in a dialog over the list (`?org=<slug>`),
+ * which closes back onto it, and deletes it.
  */
 export function InstanceOrganizationsSheet() {
   const q = useQuery({ queryKey: ["instance-organizations"], queryFn: () => api<InstanceOrganizations>("GET", ORGS) });
@@ -459,7 +449,7 @@ export function InstanceOrganizationsSheet() {
               title={
                 <>
                   {mine.has(o.slug) ? (
-                    <Link to={`/t/${encodeURIComponent(o.slug)}/plan`} className="instance-row-link">
+                    <Link to={`/t/${encodeURIComponent(o.slug)}?settings=organization/plan`} className="instance-row-link">
                       {o.name}
                     </Link>
                   ) : (
@@ -491,7 +481,7 @@ export function InstanceOrganizationsSheet() {
                     Rename
                   </Button>
                   {offered ? (
-                    <ButtonLink size="sm" variant="quiet" to={`/instance?org=${encodeURIComponent(o.slug)}`} aria-label={`Change the plan of ${o.name}`}>
+                    <ButtonLink size="sm" variant="quiet" to={`/admin/organizations?org=${encodeURIComponent(o.slug)}`} aria-label={`Change the plan of ${o.name}`}>
                       Change plan
                     </ButtonLink>
                   ) : null}
@@ -514,7 +504,7 @@ export function InstanceOrganizationsSheet() {
 }
 
 /**
- * On the instance page: the plans this WhatBuild offers, side by side, each with **Edit** to change
+ * Instance admin → Plans: the plans this WhatBuild offers, side by side, each with **Edit** to change
  * its limits and price for every organization on it. Limits belong to plans, never to one
  * organization.
  */
@@ -525,7 +515,7 @@ export function InstancePlansSheet() {
   return (
     <Sheet labelledBy="instance-plans-title">
       <SheetHeader
-        level={2}
+        level={1}
         id="instance-plans-title"
         title="Plans"
         count={q.data ? q.data.plans.length : undefined}
@@ -699,7 +689,7 @@ interface GuestsView {
 }
 
 /**
- * On the instance page: guests, the accounts in no organization that read the example
+ * Instance admin → Guests: guests, the accounts in no organization that read the example
  * organization. How many are in, waiting and new today, and every setting that lets them in and
  * holds them, to raise as WhatBuild grows.
  */
@@ -724,7 +714,7 @@ export function InstanceGuestsSheet() {
   return (
     <Sheet labelledBy="instance-guests-title">
       <SheetHeader
-        level={2}
+        level={1}
         id="instance-guests-title"
         title="Guests"
         end={s ? <StatusBadge tone={s["at_once"] === 0 ? "neutral" : s["self_serve"] || q.data?.open_without_allowlist ? "positive" : "neutral"}>{s["at_once"] === 0 ? "Closed" : s["self_serve"] || q.data?.open_without_allowlist ? "Anyone can sign up" : "Invited only"}</StatusBadge> : null}

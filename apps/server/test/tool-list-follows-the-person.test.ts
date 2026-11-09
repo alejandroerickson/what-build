@@ -131,7 +131,7 @@ describe("the instance owners' actions", () => {
       expect(usage.json.error.message).toContain("usage report, `pnpm usage`");
       const move = result(await client.callTool({ name: "products_write", arguments: { action: "set_plan", params: { tenant: org, plan: "unlimited" } } }));
       expect(move.json.error.code).toBe("web_only");
-      expect(move.json.error.message).toMatch(/^No agent is offered products_write\(action="set_plan"\): a person does it in the web app, on Organizations \(`\/instance`\), Change plan on the organization's row\. .*Nothing was changed\.$/);
+      expect(move.json.error.message).toMatch(/^No agent is offered products_write\(action="set_plan"\): a person does it in the web app, in Instance admin, under Organizations \(`\/admin\/organizations`\), Change plan on the organization's row\. .*Nothing was changed\.$/);
       // Not a sign of an older tool list, so nothing sends the person to start a new session.
       expect(move.json.error.message).not.toMatch(/new session|restart/);
       // Nor described, nor told to move to another tool.

@@ -35,7 +35,8 @@ deletes only what it made itself in the run.
    front.
 3. **MCP, as Sam.** In a product with sources, add the first text as a source, then call
    `sources_delete(action="delete")` on it anyway with its etag, a reason and `confirm: "delete
-   permanently"`. *Expect:* `403 connection_level`, naming Admin and Connect an agent; the source
+   permanently"`. *Expect:* `403 connection_level`, naming Admin and where the person raises it
+   (WhatBuild's Settings, under Agents); the source
    is still there.
 4. **MCP, as Sam, at `--level admin`.** Repeat the delete. *Expect:* `403 forbidden` naming editor
    and admin: Sam's own role is editor, and the level never adds to it. Archive the source instead;
@@ -44,7 +45,7 @@ deletes only what it made itself in the run.
    an assumption's. *Expect:* the archived source offers Restore; the live source and the
    assumption offer Archive; none offers Delete permanently.
 6. **MCP, as Riley, at the default level.** Add the second text as a source. Then on the web, as
-   Riley, open Connect an agent: the connection says Edit. Raise it to Admin there.
+   Riley, open Settings → Agents: the connection says Edit. Raise it to Admin there.
    *Expect:* the change is confirmed with Undo, and listing the tools again as Riley, still without
    `--level` (the same connection), now shows the `_delete` tools.
 7. **MCP, as Riley, on the same connection, now at Admin.** `sources_read(action="delete_impact")` on the second source, then
@@ -62,16 +63,16 @@ deletes only what it made itself in the run.
 9. **Web, as Riley.** On a mockup that a Story page shows, open Delete permanently from the
    inspector. *Expect:* the dialog names the Story page that shows it, and the delete stays
    disabled. Cancel.
-10. **Web, as Riley.** Open the product's Settings and the organization's Members page.
+10. **Web, as Riley.** Open Settings → the product's General, then the organization's General.
     *Expect:* Delete this product and Delete this organization are there, each asking for the
     name to be typed; open each dialog, check the counts look right, and cancel. The product's
     dialog, the product being live, has Archive instead beside Cancel; the organization's, which
     can't be archived, has Cancel alone. Do not delete or archive.
-11. **The example organization, as Riley.** Open its Members page. *Expect:* no Delete this
+11. **The example organization, as Riley.** Open Settings → its General. *Expect:* no Delete this
     organization, since it is the example; Organization name shows its name and short name in
     links, and offers Save changes once either is changed. Do not change them. As a guest (`guest@example.com`) there, nothing offers
     an archive or a permanent delete.
-12. **Web, as Riley, then MCP on the same connection.** On Connect an agent, untick Can submit
+12. **Web, as Riley, then MCP on the same connection.** In Settings → Agents, untick Can submit
     feedback on the connection from step 6, then list the tools and call `submit_feedback` anyway.
     *Expect:* the change is confirmed with Undo; `submit_feedback` is not listed, the call answers
     `403 feedback_off`, and the server's instructions say the person turned it off. Tick it again.

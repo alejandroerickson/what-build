@@ -85,7 +85,7 @@ describe("what each level may do", () => {
     const del = result(await client.callTool({ name: "sources_delete", arguments: { action: "delete", product: path, params: { record_id: made.json.record_id, expected_etag: made.json.etag, reason: "x", confirm: "delete permanently" } } }));
     expect(del.status).toBe(403);
     expect(del.json.error).toMatchObject({ code: "connection_level", details: { level: "editor", needed: "admin" } });
-    expect(del.json.error.message).toContain("Connect an agent");
+    expect(del.json.error.message).toContain("Settings, under Agents");
     // It names the call the agent made, not the operation behind it.
     expect(del.json.error.message).toContain('sources_delete(action="delete") needs Admin');
     const list = result(await client.callTool({ name: "products_read", arguments: { action: "list" } }));

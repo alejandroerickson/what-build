@@ -3,7 +3,7 @@ type: System Concept
 title: Running WhatBuild locally, testing it, and checking the interface
 description: The one-command development setup, the test and build commands, and the browser scripts.
 tags: [development, testing, local]
-generated: {by: agent:claude, at: 2026-11-01}
+generated: {by: agent:claude, at: 2026-11-09}
 status: stable
 ---
 
@@ -92,12 +92,12 @@ the public does. The sample people are members
 of `harbor-labs` and work there as anywhere; to see it as a guest, use the development sign-in's "As
 the email above" with any other address, such as `guest@example.com`. Sam Okafor may start one
 organization, which starts on the example file's Free plan (two people, one product, 50 sources, 200 MB); Riley
-Chen, the instance's owner, moves it to another plan on `/instance`, where the plans are compared too.
+Chen, the instance's owner, moves it to another plan in Instance admin (`/admin`, in his account menu), under Organizations; the plans are compared under Plans.
 `WHATBUILD_EXAMPLE_TENANT=<slug>` names another organization, and an empty
 `WHATBUILD_EXAMPLE_TENANT=` turns the example off; `WHATBUILD_PLANS=<path>` offers other plans,
 and an empty `WHATBUILD_PLANS=` with `WHATBUILD_NEW_ORGANIZATION_PLAN=unlimited` offers none, as a
 self-hosted deployment does, so every organization is unlimited and the app says nothing of plans. Riley sets a plan's price and
-limits, and the guests' settings, on `/instance`. The plans page is at `/plans`, and the public
+limits under Plans, and the guests' settings under Guests. The plans page is at `/plans`, and the public
 site's at `/site/plans/`. Guests: with **Anyone can sign up as a guest** on, the development
 sign-in's "As the email above" with a new address is a guest account; with **Guests in at once** at
 1, a second guest in another browser sees the waiting page.

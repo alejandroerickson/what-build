@@ -11,23 +11,23 @@ import { ApiError, isMinuteRefusal, readDefaults, setUnauthenticatedHandler } fr
 import { LiveUpdates } from "./lib/live.tsx";
 import { loadNewRelease, releasedSinceLoad } from "./lib/new-release.ts";
 import { CurrentTenantAddress, productHome, ProductProvider, RequireSession, useProduct, useProductParams, type Product } from "./lib/session.tsx";
-import { BARE_PRODUCT_ROUTE, BareProductPath, FORMER_PRODUCT_ROUTE, FormerProductAddress, PRODUCT_ROUTE } from "./routes/addresses.tsx";
-import { ConnectPage } from "./routes/connect.tsx";
+import {
+  BARE_PRODUCT_ROUTE, BareProductPath, FORMER_PRODUCT_ROUTE, FormerProductAddress, OrganizationHome, OrganizationSettingsAddress, PRODUCT_ROUTE, ProductSettingsAddress, YourSettingsAddress,
+} from "./routes/addresses.tsx";
+import { AdminGate, AdminGuests, AdminOrganizations, AdminPlans } from "./routes/admin.tsx";
 import { CookiesPage } from "./routes/cookies.tsx";
 import { AcceptInvite, NotFound, NotVisible, SignIn } from "./routes/auth.tsx";
 import { IdeaPage } from "./routes/idea.tsx";
-import { MembersPage, Welcome } from "./routes/org.tsx";
+import { Welcome } from "./routes/org.tsx";
 import { OverviewPage } from "./routes/overview.tsx";
-import { ActivityPage, ProductSettingsPage } from "./routes/product-misc.tsx";
+import { ActivityPage } from "./routes/product-misc.tsx";
 import { EntryEditPage, RegisterEntryPage, RegisterListPage } from "./routes/registers.tsx";
-import { PlanPage } from "./routes/limits.tsx";
 import { PlansPage } from "./routes/plans.tsx";
 import { GuestGate } from "./shell/guest-gate.tsx";
 import { PeoplePage } from "./routes/people.tsx";
 import { SearchPage } from "./routes/search.tsx";
-import { InstancePage } from "./routes/instance.tsx";
+import { AdminStarting } from "./routes/instance.tsx";
 import { AccountDeletedPage } from "./routes/delete-account.tsx";
-import { SettingsPage } from "./routes/settings.tsx";
 import { SourceDetailPage } from "./routes/source-detail.tsx";
 import { SourceNewPage } from "./routes/source-new.tsx";
 import { EvidencePage } from "./routes/evidence.tsx";
@@ -117,6 +117,12 @@ function ProductsRedirect() {
   return <Navigate replace to={`/${search}`} />;
 }
 
+/** The instance's pages from before Instance admin: `/instance` (with `?org=` for a plan to change) and `/people`. */
+function InstanceRedirect({ to }: { to: string }) {
+  const { search } = useLocation();
+  return <Navigate replace to={`${to}${search}`} />;
+}
+
 /** Synthesis was renamed Exploration: an old link keeps working, with the rest of its path and its query. */
 function SynthesisLink() {
   const { app } = useProduct();
@@ -204,15 +210,29 @@ const router = createBrowserRouter([{ element: <Root />, errorElement: <RouteErr
       { path: "/welcome", element: <Welcome /> },
       { element: <PlainShell><Outlet /></PlainShell>, children: [
         { path: "/", element: <OverviewPage /> },
-        { path: "/products", element: <ProductsRedirect /> },
-        { path: "/connect", element: <ConnectPage /> },
-        { path: "/settings", element: <SettingsPage /> },
-        { path: "/instance", element: <InstancePage /> },
-        { path: "/people", element: <PeoplePage /> },
-        { path: "/t/:tenant/members", element: <CurrentTenantAddress><MembersPage /></CurrentTenantAddress> },
-        { path: "/t/:tenant/plan", element: <CurrentTenantAddress><PlanPage /></CurrentTenantAddress> },
-        { path: "/t/:tenant/limits", element: <CurrentTenantAddress><PlanPage /></CurrentTenantAddress> },
       ] },
+      { path: "/products", element: <ProductsRedirect /> },
+      { path: "/connect", element: <YourSettingsAddress section="agents" /> },
+      { path: "/settings", element: <YourSettingsAddress section="account" /> },
+      { path: "/instance", element: <InstanceRedirect to="/admin/organizations" /> },
+      { path: "/people", element: <InstanceRedirect to="/admin/people" /> },
+      {
+        path: "/admin",
+        element: <AdminGate />,
+        children: [
+          { index: true, element: <Navigate to="organizations" replace /> },
+          { path: "organizations", element: <AdminOrganizations /> },
+          { path: "people", element: <PeoplePage /> },
+          { path: "plans", element: <AdminPlans /> },
+          { path: "guests", element: <AdminGuests /> },
+          { path: "starting", element: <AdminStarting /> },
+          { path: "*", element: <NotFound /> },
+        ],
+      },
+      { path: "/t/:tenant", element: <CurrentTenantAddress><OrganizationHome /></CurrentTenantAddress> },
+      { path: "/t/:tenant/members", element: <CurrentTenantAddress><OrganizationSettingsAddress section="organization/people" /></CurrentTenantAddress> },
+      { path: "/t/:tenant/plan", element: <CurrentTenantAddress><OrganizationSettingsAddress section="organization/plan" /></CurrentTenantAddress> },
+      { path: "/t/:tenant/limits", element: <CurrentTenantAddress><OrganizationSettingsAddress section="organization/plan" /></CurrentTenantAddress> },
       ...devRoutes,
       {
         path: PRODUCT_ROUTE,
@@ -251,9 +271,9 @@ const router = createBrowserRouter([{ element: <Root />, errorElement: <RouteErr
                   { path: "decisions/*", element: <MovedToEvidence /> },
                 ],
               },
-              { path: "connect", element: <ConnectPage /> },
+              { path: "connect", element: <ProductSettingsAddress section="agents" /> },
               { path: "activity", element: <ActivityPage /> },
-              { path: "settings", element: <ProductSettingsPage /> },
+              { path: "settings", element: <ProductSettingsAddress section="product" /> },
             ],
           },
         ],

@@ -170,7 +170,7 @@ describe("Delete account, in Settings", () => {
     expect(host.querySelector("input")).toBeNull();
     expect(button(host, "Delete account")).toBeUndefined();
     const links = [...host.querySelectorAll(".farewell-block a")].map((a) => a.getAttribute("href"));
-    expect(links).toEqual(["/t/shared-co/members", "/t/shared-co/members#delete-org-title"]);
+    expect(links).toEqual(["/t/shared-co?settings=organization/people", "/t/shared-co?settings=organization"]);
   });
 
   it("shows every block at once: owning the instance and being an organization's only owner", async () => {

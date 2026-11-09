@@ -6,11 +6,11 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "../src/lib/api.ts";
 import { ToastProvider } from "../src/ui/index.tsx";
 
-// An organization's Members page offers only what the server would do: a role on a product or on all
-// products can be changed where it is shown, the dialog for someone's only role says what each choice
-// does, Give access offers all products, each product and the organization (with its product
-// creators) to those who may give them, gives many people roles in one call and forgets a refusal once
-// the choice changes, and a read-only organization offers no new role.
+// An organization's People and General, in Settings, offer only what the server would do: a role on a
+// product or on all products can be changed where it is shown, the dialog for someone's only role says
+// what each choice does, Add people offers all products, each product and the organization (with its
+// product creators) to those who may give them, gives many people roles in one call and forgets a
+// refusal once the choice changes, and a read-only organization offers no new role.
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 HTMLDialogElement.prototype.showModal ??= function (this: HTMLDialogElement) {
@@ -64,7 +64,7 @@ vi.mock("../src/lib/api.ts", async (original) => ({
   }),
 }));
 
-const { MembersPage } = await import("../src/routes/org.tsx");
+const { OrganizationGeneral, OrganizationPeople } = await import("../src/routes/org.tsx");
 
 let unmount: (() => void) | null = null;
 afterEach(() => {
@@ -85,9 +85,17 @@ async function page() {
     root.render(
       <QueryClientProvider client={qc}>
         <ToastProvider>
-          <MemoryRouter initialEntries={["/t/acme/members"]}>
+          <MemoryRouter initialEntries={["/t/acme/planner/idea?settings=organization/people"]}>
             <Routes>
-              <Route path="/t/:tenant/members" element={<MembersPage />} />
+              <Route
+                path="/t/:tenant/:product/idea"
+                element={
+                  <>
+                    <OrganizationPeople tenant="acme" />
+                    <OrganizationGeneral tenant="acme" />
+                  </>
+                }
+              />
             </Routes>
           </MemoryRouter>
         </ToastProvider>
@@ -100,7 +108,7 @@ async function page() {
 
 const buttons = (root: ParentNode, label: string) => [...root.querySelectorAll("button")].filter((b) => b.textContent?.trim() === label || b.getAttribute("aria-label") === label);
 const settle = () => act(() => new Promise((r) => setTimeout(r, 10)));
-/** Give access's choice of place: the select whose options name the places. */
+/** Add people's choice of place: the select whose options name the places. */
 const placeSelect = (dialog: ParentNode) => [...dialog.querySelectorAll<HTMLSelectElement>("select")].find((x) => [...x.options].some((o) => o.textContent?.startsWith("Product: ")))!;
 /** The roles someone joins with, as Join as offers them. */
 const joinAs = (dialog: ParentNode) => [...dialog.querySelector<HTMLSelectElement>('select[id$="-join"]')!.options].map((o) => o.textContent);
@@ -117,7 +125,7 @@ async function type(field: HTMLTextAreaElement | HTMLInputElement, text: string)
   });
 }
 
-describe("the Members page", () => {
+describe("an organization's People and General", () => {
   it("changes a product role from the role's own menu, and offers removing it there", async () => {
     const host = await page();
     const change = buttons(host, "Change or remove Pat Editor’s editor role on Planner")[0]!;
@@ -148,7 +156,7 @@ describe("the Members page", () => {
 
   it("gives people from the organization and pasted addresses their roles in one call", async () => {
     const host = await page();
-    await act(async () => buttons(host, "Give access")[0]!.click());
+    await act(async () => buttons(host, "Add people")[0]!.click());
     const dialog = document.querySelector("dialog[open]")!;
     // On all products, Olive is admin as the organization's owner; Pat, with a product role only, is offered.
     expect(dialog.querySelector('[aria-label="People on all products"]')!.textContent).toContain("Olive Owner");
@@ -186,7 +194,7 @@ describe("the Members page", () => {
 
   it("offers all products, each product and the organization, explaining each, with a product creator among the organization's roles", async () => {
     const host = await page();
-    await act(async () => buttons(host, "Give access")[0]!.click());
+    await act(async () => buttons(host, "Add people")[0]!.click());
     const dialog = document.querySelector("dialog[open]")!;
     const place = placeSelect(dialog);
     expect([...place.options].map((o) => o.textContent)).toEqual(["All products (every product, including ones made later)", "Product: Planner", "Organization: Acme"]);
@@ -210,7 +218,7 @@ describe("the Members page", () => {
   it("offers a product's admin only the products they administer: all products and the organization are its owners' and admins'", async () => {
     state.role = "member";
     const host = await page();
-    await act(async () => buttons(host, "Give access")[0]!.click());
+    await act(async () => buttons(host, "Add people")[0]!.click());
     const dialog = document.querySelector("dialog[open]")!;
     expect([...placeSelect(dialog).options].map((o) => o.textContent)).toEqual(["Product: Planner"]);
     expect(dialog.querySelector('[aria-label="People on Planner"]')!.textContent).toContain("Pat Editor");
@@ -236,10 +244,10 @@ describe("the Members page", () => {
     ]);
   });
 
-  it("forgets Give access's refusal as soon as the choice changes", async () => {
+  it("forgets Add people's refusal as soon as the choice changes", async () => {
     state.refuseGrant = true;
     const host = await page();
-    await act(async () => buttons(host, "Give access")[0]!.click());
+    await act(async () => buttons(host, "Add people")[0]!.click());
     const dialog = document.querySelector("dialog[open]")!;
     await act(async () => buttons(dialog, "Paste addresses")[0]!.click());
     await type(dialog.querySelector("textarea")!, "new@example.com");
@@ -260,7 +268,7 @@ describe("the Members page", () => {
     const host = await page();
     expect(host.textContent).toContain("Acme is read-only");
     expect(host.textContent).toContain("Nobody can be given access or a new role while it is. Everyone in it can still read, export and delete what it holds, and take people out, as their roles allow.");
-    expect(buttons(host, "Give access")).toHaveLength(0);
+    expect(buttons(host, "Add people")).toHaveLength(0);
     expect(buttons(host, "Change or remove Pat Editor’s editor role on Planner")).toHaveLength(0);
     // Taking a role away still works there.
     expect(buttons(host, "Remove Pat Editor’s editor role on Planner")).toHaveLength(1);

@@ -3,7 +3,7 @@ type: Decision
 title: Guests come into the example organization while there is room, under limits an instance owner sets
 description: An account in no organization is a guest; it may be made by anyone when an instance owner allows it, and holds one of a few places while it reads the example, waiting in line past them.
 tags: [decision, guests, example-organization, sign-up, cost, limits]
-generated: {by: agent:claude, at: 2026-10-28}
+generated: {by: agent:claude, at: 2026-11-09}
 status: stable
 ---
 
@@ -35,12 +35,13 @@ open neither holds a place nor keeps a database that suspends when idle awake.
   `at_once` 0 lets no guest in.
 - **Only guest accounts wait.** People in an organization, allowed to start one, or running the
   instance never do, the example's own people included.
-- **A guest's limits are the instance owner's** (`products.set_guests`, `/instance`): those above,
+- **A guest's limits are the instance owner's** (`products.set_guests`, Instance admin → Guests): those above,
   calls a minute and bytes downloaded a day (10 MB to start), stored with the deployment
   (`instance_settings`) over defaults in the code (`GUEST_DEFAULTS`). So are each plan's limits
   and price ([decision](limits-belong-to-plans-and-each-organization-is-on-a-plan-of-its-own.md)).
 - **A guest asks for an organization of their own** with one click, and joins the waitlist the
-  public site's form also feeds (`interest`). An instance owner reads it on `/instance` and lets
+  public site's form also feeds (`interest`). An instance owner reads it in Instance admin, under
+  Starting organizations, and lets
   someone in by giving them an allowance, which emails them; they are then no guest.
 - Rejected: limits measured from the deployment's load. Fixed numbers an instance owner raises are
   predictable and cost nothing to measure; adaptive admission can come later.

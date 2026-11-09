@@ -147,7 +147,7 @@ function consentPage(p: { client: string; redirect: string; account: string; ema
 <p>Signed in as <strong>${escapeHtml(p.account)}</strong> (${escapeHtml(p.email)}).</p>
 <p>${reachSentence(p.reach)} Its changes are recorded as yours, through the agent.</p>
 <p class="muted">What it reads goes to whoever runs the agent, under their terms.</p>
-<p class="muted">You can change or disconnect it later under Connect an agent in WhatBuild.</p>
+<p class="muted">You can change or disconnect it later in WhatBuild’s Settings, under Agents.</p>
 <form method="post" action="/oauth/authorize">${inputs}<input type="hidden" name="csrf" value="${escapeHtml(p.csrf)}">
 ${levelChoice()}
 ${

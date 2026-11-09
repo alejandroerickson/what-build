@@ -43,21 +43,26 @@ command. This file says how to do the work.
 
 ## Where each is done
 
-In the web app, by the instance owner, signed in. Organizations is `/instance` and People is
-`/people`, both in the account menu:
+In the web app, by the instance owner, signed in, in **Instance admin** (`/admin`, from Instance
+admin in the account menu, which only instance owners have; anyone else is told the page wasn't
+found). Its panel lists its sections:
 
-| To | Where, in the web app |
+| To | Where, in Instance admin |
 |---|---|
-| see every organization, its plan, what it holds, and the plans | Organizations |
-| move an organization to another plan | Organizations, Change plan on its row |
+| see every organization, its plan and what it holds | Organizations (`/admin/organizations`) |
+| move an organization to another plan | Organizations, Change plan on its row (a dialog over the list) |
 | rename an organization, or change its short name in links | Organizations, Rename on its row |
-| change a plan's limits or price, for every organization on it | Organizations, Plans, the plan's button |
-| see who may start organizations, and the waitlist | Organizations, Who can start organizations, Waitlist |
-| let someone start an organization | Organizations, Let them start one on the Waitlist, or Let someone start organizations |
-| see and set how guests come in | Organizations, Guests |
-| see every account | People |
+| see the plans, every limit with its refusal, and this deployment's limits | Plans (`/admin/plans`, where the deployment offers plans) |
+| change a plan's limits or price, for every organization on it | Plans, the plan's button |
+| see who may start organizations, and the waitlist | Starting organizations (`/admin/starting`), Who can start organizations, Waitlist |
+| let someone start an organization | Starting organizations, Let them start one on the Waitlist, or Let someone start organizations |
+| see and set how guests come in | Guests (`/admin/guests`, where there is an example organization) |
+| see every account | People (`/admin/people`) |
 | delete an organization | Organizations, Delete on its row |
 | remove an account | People, Remove on the account |
+
+An organization's own Plan, in Settings over any of its products (`?settings=organization/plan`),
+is the same for everyone, an instance owner included: it changes nothing.
 
 ## Procedure
 
@@ -76,27 +81,28 @@ In the web app, by the instance owner, signed in. Organizations is `/instance` a
      from the file leaves its organizations meeting no limit until they are moved: move them first.
    - The dev deployment takes production's plans when it is set up or refreshed
      (`rehearse-on-the-dev-deployment`).
-3. **Change limits or a price without a new revision**: the person opens Plans on Organizations
+3. **Change limits or a price without a new revision**: the person opens Plans in Instance admin
    and the plan's button. It applies to every organization on the plan from its next call, over
    what the file sets; Back to the configured limits goes back to the file.
-4. **Move an organization**: the person presses Change plan on its row. Moving it to the starting
+4. **Move an organization**: the person presses Change plan on its row in Instance admin →
+   Organizations. Moving it to the starting
    plan while its creator already has an organization there makes it read-only for a year rather
    than writable; the dialog says so, and say it before they choose. Moving it to any other plan,
    or to the starting plan once its creator has no other there, makes a read-only one writable
    again. Everyone has a place for one organization there, even someone never given an allowance.
-5. **Let people in**: the person reads the Waitlist on Organizations and presses Let them start one
+5. **Let people in**: the person reads the Waitlist under Starting organizations and presses Let them start one
    for whoever they choose, which gives an allowance of 1 and emails them. Being on the waitlist
    lets nobody in by itself.
-6. **Guests**: only with an example organization. The person changes them under Guests on
-   Organizations; suggest raising the numbers as the deployment grows, and leaving anyone may sign
+6. **Guests**: only with an example organization. The person changes them under Guests in
+   Instance admin; suggest raising the numbers as the deployment grows, and leaving anyone may sign
    up as a guest (`self_serve`) off unless they ask.
-7. **Deleting or removing**: tell the person to open Organizations and press Delete on the
+7. **Deleting or removing**: tell the person to open Instance admin → Organizations and press Delete on the
    organization (its name typed to confirm), or People and Remove on the person (their address
    typed). Removing the only owner of organizations deletes those too; the dialog lists them and what
    each holds.
 8. **Check and report**: read `/api/v1/plans` again and report what changed: the plans and starting
    plan, and the revision made, with what you told the person to do in the web app and what they
-   said Organizations shows now.
+   said Instance admin shows now.
 
 ## When the guide is wrong
 

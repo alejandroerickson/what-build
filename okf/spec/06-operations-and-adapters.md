@@ -3,7 +3,7 @@ type: Specification
 title: Every capability is one registered operation, reached identically over REST and MCP.
 description: The operation registry, the error model and bounds, the full catalogue of 122 operations with their REST routes and MCP tools, authorization and agent connection levels, upload flows, the guide and the Connect page.
 tags: [spec, operations, rest, mcp, registry, uploads, guide]
-generated: {by: agent:claude, at: 2026-11-03}
+generated: {by: agent:claude, at: 2026-11-09}
 status: stable
 ---
 
@@ -123,7 +123,7 @@ tenant.
   `403` with `{ role, needed }` in `details` ("You are a viewer on product …; outcomes.create
   needs editor"). With no role at all the answer is `404`, never `403`
   ([§3.5](03-accounts-and-identity.md)). `connection_level` carries `{ level, needed }`
-  and says that only the person raises it, under Connect an agent. A refusal to an agent names
+  and says that only the person raises it, in Settings under Agents. A refusal to an agent names
   the call it made, `sources_delete(action="delete")`, rather than the operation
   (`registry.ts` `callName`).
 - **`stale_etag`** carries `current_etag` in `details`: the etag the object has now, or `null`
@@ -667,7 +667,7 @@ GET  /api/v1/meta                                    release, MCP server name an
 GET  /api/v1/plans                                   the plans the deployment offers (none, if it defines none), every limit of each and its price, starting_plan, example, whether guests may sign up, and what the privacy page names (public)
 GET  /api/v1/me/guest-pass                           a guest account's place: let in when there is room, or why not and when to ask again
 POST /api/v1/me/ask-for-organization                 join the waitlist for an organization of one's own (§3.2)
-GET  /api/v1/connect                                 what the Connect page shows
+GET  /api/v1/connect                                 what Connect an agent shows
 GET|PATCH /api/v1/me; GET /api/v1/me/agents; PATCH|DELETE /api/v1/me/agents/:family; POST /api/v1/me/sign-out-everywhere
 GET  /api/v1/me/invitations                          the invitations waiting for this person's answer (§3.2)
 POST /api/v1/invitations/read                        what an invitation's link shows; it changes nothing
@@ -1014,8 +1014,8 @@ Rules:
   and is refused with what it needs (`403 connection_level`, `403 forbidden`,
   `403 example_read_only`, `403 tenant_allowance`); it is never `unknown_action`.
 - **Web-only, and said where.** An operation a person does only in the web app says where there
-  (`webOnly` in `registry.ts`: "a person does it in the web app, on Organizations (`/instance`),
-  Change plan on the organization's row"). A call to its action, in any of its noun's tools and
+  (`webOnly` in `registry.ts`: "a person does it in the web app, in Instance admin, under
+  Organizations (`/admin/organizations`), Change plan on the organization's row"). A call to its action, in any of its noun's tools and
   with `describe` too, is `403 web_only` before anything else is looked up, naming the call as it
   was made and giving that place for the agent to tell the person, saying it is in no agent's tool
   list and so not a sign of an older one, and naming the operation in `details.operation`; it is
@@ -1057,7 +1057,7 @@ Rules:
 - **REST answers the browser session only.** There are no personal access tokens: a bearer token
   on REST is refused, and scripts connect as agents over MCP. Connected agents are listed, their
   level and feedback switch changed (`PATCH /api/v1/me/agents/:family { level?, feedback? }`, the
-  session only) and disconnected on the Connect an agent page, one at a time, or all at once with
+  session only) and disconnected in Settings under Agents, one at a time, or all at once with
   every session by `POST /api/v1/me/sign-out-everywhere { keep_this_session? }`
   ([§3.8](03-accounts-and-identity.md#38-identity-of-the-caller)). The session cookie is `__Host-wb_session` over HTTPS
   and `wb_session` over HTTP ([§3.8](03-accounts-and-identity.md#38-identity-of-the-caller)).
@@ -1188,8 +1188,8 @@ embedded copy drifts.
   the `tools_version` answers give. Bump it when the tools, their actions or the guide change.
 - An operation's own guidance (`describe`) follows the same rule as the guide.
 
-**The Connect page** (`/connect`, and `…/connect` inside a product; "Connect an agent" in the app)
-lets a person connect an MCP client with no help from anyone who knows the system, and nothing to
+**Connect an agent** (Settings → Agents, `?settings=agents` over any screen; `/connect` leads
+there, its query kept) lets a person connect an MCP client with no help from anyone who knows the system, and nothing to
 configure but one address. It shows:
 
 - first, the one address every agent can use, `/mcp` (`mcp_url` from `/api/v1/connect`), to copy:
@@ -1203,11 +1203,11 @@ configure but one address. It shows:
   the choice in place of `/mcp`: an organization gives `/mcp/t/<tenant>` (`tenant_url_template`),
   a product its address (`bound_url_template`), filled in from the product's path, so nobody types
   a tenant or product. For one organization or product, a line suggests naming the connector after
-  it. Inside a product that product is picked first; elsewhere, the organization of the last
+  it. Over a product's screen that product is picked first; elsewhere, the organization of the last
   product opened. Closing the choices goes back to `/mcp`. The choice is in the URL:
   `?reach=product|organization|all` with `?product=<path>` or `?org=<slug>` (an older
-  `?product=all` means everything), and a page opened on a limited choice opens with the choices
-  shown ([decision](../decisions/the-connect-page-leads-with-one-address.md));
+  `?product=all` means everything), kept while Agents is open, and an address with a limited
+  choice opens with the choices shown ([decision](../decisions/the-connect-page-leads-with-one-address.md));
 - the three levels the client will ask the person to choose between when they sign in, each with
   what it may do (Read only; Edit, the default; Admin, which also deletes permanently and manages
   products, organizations and people), and a suggestion for a first request;
@@ -1220,7 +1220,8 @@ configure but one address. It shows:
   turns it off, with a line saying what it allows (with Undo), and a disconnect control;
 - **a plain statement about the agent's side of the trip**, above the steps: what the agent reads
   goes to whoever runs it, under their terms ([§9.1](09-data-lifecycle.md));
-- a line pointing to Sign out everywhere in Settings, which disconnects every agent at once.
+- under them, **Sign out everywhere**, which disconnects every agent and signs out every browser at
+  once.
 
 ## 6.9 Feedback
 

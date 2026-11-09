@@ -3,7 +3,7 @@ type: Decision
 title: Access is decided in the application, per product, by role
 description: Roles on the organization, on all its products and on each product; the highest applies; there are no per-object permissions.
 tags: [decision, access, security, roles]
-generated: {by: agent:claude, at: 2026-10-27}
+generated: {by: agent:claude, at: 2026-11-09}
 status: stable
 ---
 
@@ -32,6 +32,6 @@ The people working on a product are few, and work together. Per-object permissio
 ## Constrains
 
 - Operations declare their access level (`story`, `read`, `write`, `admin`, `owner`, `creator` or `any`); handlers do not re-implement role checks. A handler may leave out of its result what a reader may not see, through `readsOnlyTheStory`.
-- Product people are managed in Settings, and the organization's and all products' on Members, with `members.grant`, `members.grant_many` and `members.revoke`.
+- Product people are managed in Settings under the product's People, and the organization's and all products' under the organization's People, with `members.grant`, `members.grant_many` and `members.revoke`.
 
 Specified in: [03-accounts-and-identity](../spec/03-accounts-and-identity.md).
