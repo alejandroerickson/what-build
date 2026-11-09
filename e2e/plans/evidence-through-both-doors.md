@@ -119,7 +119,8 @@ plans file's Free plan, which the end-to-end instance offers, are tried.
     work. Sam's page says the plan is Free, what the organization holds against each total ("N of
     50" sources, people Full or not), what Sam used of each allowance today under You and under
     Everyone in the organization (changes as "N of 150"), what Sam can add, and the plans side by
-    side with Free marked as Sam's, with no refusal codes, no limits tables and no Change plan. The
+    side with Free marked as Sam's (its Every limit table, closed, without refusal codes), with no
+    Change plan and none of Instance admin's tables of refusals and of the deployment's own limits. The
     guest's account menu lists nothing for the example organization, and the old address opens
     Settings over one of its products with no section for the organization at all (no People, no
     Plan), only the product's and the guest's own. As Riley, move the organization back to Unlimited.

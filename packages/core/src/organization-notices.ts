@@ -65,7 +65,7 @@ export async function tellOwnersReadOnly(
         `It went back to the ${startName} plan while whoever started it already has a ${startName} organization, so nothing new can be added.\n\n` +
         `${READ_ONLY_ALLOWS}${readOnly.kept_until ? ` It is kept until ${utcDay(readOnly.kept_until)} (UTC).` : ""}\n\n` +
         `To work in it again, ask ${runner(ctx)} to move it to another plan.\n\n` +
-        `Its plan:\n${base}/t/${org.slug}/plan\n`,
+        `Its plan:\n${base}/t/${org.slug}?settings=organization/plan\n`,
     },
     "read-only organization",
   );

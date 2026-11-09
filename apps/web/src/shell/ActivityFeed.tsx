@@ -1,5 +1,5 @@
 import { useInfiniteQuery, type UseInfiniteQueryResult, type InfiniteData } from "@tanstack/react-query";
-import type { ReactNode } from "react";
+import { useId, type ReactNode } from "react";
 import { Link } from "react-router";
 import { api, qs } from "../lib/api.ts";
 import { formatDate, formatDateTime, formatTime, relativeTime } from "../lib/format.ts";
@@ -222,6 +222,8 @@ export function dayCount(loaded: number, more: boolean): string {
  * entry leads, if anywhere; empty is what shows before anything has happened.
  */
 export function ActivityLog({ query: q, linkOf, empty }: { query: ActivityPages; linkOf: (i: ActivityItem) => string | null; empty: ReactNode }) {
+  // Two logs can be on screen at once (Access changes, in Settings, over the product's Activity), so each names its days by its own ids.
+  const ids = useId();
   if (q.isPending) return <Loading label="Loading activity…" lines={6} />;
   if (q.isError)
     return (
@@ -240,8 +242,8 @@ export function ActivityLog({ query: q, linkOf, empty }: { query: ActivityPages;
   return (
     <div className="activity">
       {groups.map((g, gi) => (
-        <section key={`${g.day}-${gi}`} className="activity-group" aria-labelledby={`activity-day-${gi}`}>
-          <h2 className="activity-day" id={`activity-day-${gi}`}>
+        <section key={`${g.day}-${gi}`} className="activity-group" aria-labelledby={`${ids}-day-${gi}`}>
+          <h2 className="activity-day" id={`${ids}-day-${gi}`}>
             {g.day}
             <span className="activity-day-count num">{dayCount(g.items.length, Boolean(q.hasNextPage) && gi === groups.length - 1)}</span>
           </h2>

@@ -115,6 +115,8 @@ function SettingsLayer({ requested, product, tenantId }: { requested: string; pr
     boxRef.current?.focus({ preventScroll: true });
     return () => {
       if (before?.isConnected) before.focus({ preventScroll: true });
+      // Opened from a drawer that closed under it, the opener can't take focus back: the pill that opens the panel does.
+      if (document.activeElement !== before) document.querySelector<HTMLElement>(".show-pill:not([hidden])")?.focus({ preventScroll: true });
     };
   }, []);
 

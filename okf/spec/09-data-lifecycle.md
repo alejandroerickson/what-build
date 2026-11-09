@@ -514,7 +514,7 @@ instead, set on the same page ([§3.10](03-accounts-and-identity.md#310-the-exam
 | Calls, reads included | `requests_per_minute` | each person, each minute | `429 rate_limited` |
 | Writes | `writes_per_minute` | each person, each minute | `429 rate_limited` |
 | Writes | `writes_per_day` | each person, each day | `409 quota_exceeded` |
-| Sources created or copied in, each source of a batch (`attachments.create_uploads`) counted | `sources_per_day` | each person, each day | `409 quota_exceeded` |
+| Sources created, each source of a batch (`attachments.create_uploads`) counted | `sources_per_day` | each person, each day | `409 quota_exceeded` |
 | Exports | `exports_per_day` | each person, each day | `409 quota_exceeded` |
 | Bytes sent: attachments and mockup downloads, and exports, which are never refused | `sent_bytes_per_day` | each person, each day | `409 quota_exceeded` |
 | Writes | `org_writes_per_day` | everyone together, each day | `409 quota_exceeded` |

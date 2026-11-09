@@ -84,7 +84,7 @@ describe("a Pro organization no longer paid for", () => {
     expect(mail).toMatchObject({ to: "ana@example.com", subject: "Ana Works is read-only on WhatBuild" });
     expect(mail.text).toContain("Everyone in it can still read, export and delete what it holds, and take people out, as their roles allow.");
     expect(mail.text).toMatch(/is read-only since \d{1,2} [A-Z][a-z]{2} \d{4} \(UTC\)\. .* It is kept until \d{1,2} [A-Z][a-z]{2} \d{4} \(UTC\)\./s);
-    expect(mail.text).toContain(`/t/${first.slug}/plan`);
+    expect(mail.text).toContain(`/t/${first.slug}?settings=organization/plan`);
     expect(h.mailer.sent.some((m) => m.to === "ned@example.com" && m.subject.includes("read-only"))).toBe(false);
     const kept = Date.parse(moved.read_only.kept_until) - Date.parse(moved.read_only.since);
     expect(kept).toBe(365 * 86_400_000);

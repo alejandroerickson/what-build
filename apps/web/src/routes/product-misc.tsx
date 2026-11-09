@@ -172,7 +172,9 @@ function ProductDetails() {
       {!isAdmin ? (
         <div className="settings-note">
           <Callout inset tone="info">
-            Only admins can change these. You&rsquo;re {product.your_role === "editor" ? "an editor" : "a viewer"} here.
+            {product.your_role === "guest"
+              ? "This is a worked example to read, so nothing in it can be changed."
+              : <>Only admins can change these. You&rsquo;re {product.your_role === "editor" ? "an editor" : "a viewer"} here.</>}
           </Callout>
         </div>
       ) : archived ? (

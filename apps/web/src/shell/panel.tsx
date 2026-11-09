@@ -370,16 +370,22 @@ export function useLastProduct() {
   return hit ?? null;
 }
 
+/** How much of a product a person works in, for choosing the one the panel shows first: where they write before where they read. */
+const ROLE_RANK: Record<string, number> = { admin: 0, editor: 0, viewer: 1, guest: 2, reader: 3 };
+
 /**
  * What the panel shows on a screen that is no product's own (the overview, a page that wasn't
  * found): the product the person was last in, or else their first, their own organizations' before
- * the example organization's; with no product at all, their first organization, with Create a product.
+ * the example organization's and, within those, one they write in before one they only read; with
+ * no product at all, their first organization, with Create a product.
  */
 export function useContextProduct(): { product: ProductSummary | null; tenant: Tenant | null; pending: boolean } {
   const products = useProducts();
   const me = useMe();
   const last = useLastProduct();
-  const items = [...(products.data?.items ?? [])].sort((a, b) => Number(Boolean(a.tenant.example)) - Number(Boolean(b.tenant.example)));
+  const items = [...(products.data?.items ?? [])].sort(
+    (a, b) => Number(Boolean(a.tenant.example)) - Number(Boolean(b.tenant.example)) || (ROLE_RANK[a.your_role] ?? 9) - (ROLE_RANK[b.your_role] ?? 9),
+  );
   const product = last ?? items[0] ?? null;
   const tenants = ownFirst(products.data?.tenants ?? []).filter((t) => !(t.example && t.your_role === "guest" && me.data?.hide_example));
   const tenant = product ? (products.data?.tenants.find((t) => t.tenant_id === product.tenant.tenant_id) ?? null) : (tenants[0] ?? null);

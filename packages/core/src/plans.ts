@@ -178,7 +178,7 @@ export const LIMITS: LimitInfo[] = [
   { key: "requests_per_minute", group: "frequency", label: "Calls", unit: "calls", per: "Each person, each minute", refusal: "429 rate_limited", help: "Every call a person or their agent makes, reads included." },
   { key: "writes_per_minute", group: "frequency", label: "Writes", unit: "writes", per: "Each person, each minute", refusal: "429 rate_limited", help: "Calls that change something." },
   { key: "writes_per_day", group: "frequency", label: "Writes", unit: "writes", per: "Each person, each day", refusal: "409 quota_exceeded", help: "A day runs from midnight to midnight UTC." },
-  { key: "sources_per_day", group: "frequency", label: "Sources added", unit: "sources", per: "Each person, each day", refusal: "409 quota_exceeded", help: "Sources created or copied in, a batch counted source by source." },
+  { key: "sources_per_day", group: "frequency", label: "Sources added", unit: "sources", per: "Each person, each day", refusal: "409 quota_exceeded", help: "Sources created, a batch counted source by source." },
   { key: "exports_per_day", group: "frequency", label: "Exports", unit: "exports", per: "Each person, each day", refusal: "409 quota_exceeded", help: "Taking a whole product out as a ZIP." },
   { key: "sent_bytes_per_day", group: "frequency", label: "Data sent", unit: "bytes", per: "Each person, each day", refusal: "409 quota_exceeded", help: "Attachments, exports and pages opened or downloaded." },
   { key: "org_writes_per_day", group: "frequency", label: "Writes", unit: "writes", per: "Everyone together, each day", refusal: "409 quota_exceeded", help: "Everyone's writes added up." },

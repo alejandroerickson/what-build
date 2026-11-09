@@ -43,7 +43,8 @@ and **Cleo** are three such addresses, signed in with `pnpm e2e browser signin <
    the Free plan and that its name and plan, and the name and email of everyone in it, are visible
    to whoever runs this WhatBuild. The product opens. Open Settings from the panel and choose Plan
    under the organization (`?settings=organization/plan`). *Expect:* Free, with what it holds: 1 of
-   2 people, 1 of 1 products, and storage; no Change plan and no table of limits.
+   2 people, 1 of 1 products, and storage, and the plans side by side; no Change plan, and neither
+   the refusals nor the deployment's own limits, which are in Instance admin.
 4. **MCP, as Ana, on an Admin connection** (`--level admin`: starting an organization needs one).
    *Expect:* `create_tenant` is not among her tools, since she may not start another. Call
    `products_write(action="create_tenant")` with another name anyway. *Expect:* `403 tenant_allowance`,

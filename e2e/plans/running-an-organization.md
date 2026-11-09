@@ -48,8 +48,9 @@ are people she invites.
    *Expect:* a toast names the organization and role, and Eli sees it and edits its product: add a
    source with a short synthetic text written into the run's folder. **As Fay,** open the invitation's
    link and sign in. *Expect:* the page asks, and opening it changed nothing, as Dana's People in
-   Settings shows. Accept. *Expect:* the product opens on its Story and nothing else; its panel has
-   Story, then Settings. Open the link again. *Expect:* it says Fay is already in. Open
+   Settings shows. Accept. *Expect:* the overview opens, listing the product with its Story alone;
+   the panel beside it shows that product: Story, the No agent connected card (Fay has connected
+   none), then Settings. Open the link again. *Expect:* it says Fay is already in. Open
    `/t/<org>/plan`. *Expect:* Settings opens over the Story at Account, listing only Account and
    Agents: nothing of the organization (no People, no Plan) or of the product, and the browser's
    console shows no refused request. **As Morgan,** sign in, find the invitation among Morgan's
