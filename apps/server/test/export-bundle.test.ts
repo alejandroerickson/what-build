@@ -36,10 +36,10 @@ beforeAll(async () => {
   vic = await h.signIn("vic@example.com", "Vic Viewer");
   rita = await h.signIn("rita@example.com", "Rita Reader");
   const t = await alice.api("POST", "/api/v1/tenants", { name: "Bundle Co" });
-  const p = await alice.api("POST", `/api/v1/teams/${t.body.tenant.slug}/${t.body.team.slug}/products`, { name: "Crew board", concept: "Plan the week." });
+  const p = await alice.api("POST", `/api/v1/tenants/${t.body.tenant.slug}/products`, { name: "Crew board", concept: "Plan the week." });
   P = `/api/v1/p/${p.body.path}`;
   for (const [email, role] of [["vic@example.com", "viewer"], ["rita@example.com", "reader"]])
-    expect((await alice.api("POST", `/api/v1/tenants/${t.body.tenant.slug}/members`, { team: t.body.team.slug, product: "crew-board", email, role })).status).toBe(201);
+    expect((await alice.api("POST", `/api/v1/tenants/${t.body.tenant.slug}/members`, { product: "crew-board", email, role })).status).toBe(201);
 
   // Something of every kind a bundle holds, and an earlier text of each kind that keeps one.
   const product = await alice.api("GET", P);
@@ -107,12 +107,15 @@ describe("the bundle", () => {
 
   it("lists every kind of file in README.txt and in bundle.json's layout", () => {
     const readme = strFromU8(files["README.txt"]!);
-    expect(readme).toMatch(/^WhatBuild product bundle: Crew board \(Bundle Co \/ /);
+    expect(readme).toMatch(/^WhatBuild product bundle: Crew board \(Bundle Co\)\.\n/);
     for (const f of BUNDLE_LAYOUT) {
       expect(readme).toContain(`${f.path}\n    ${f.holds}\n`);
     }
     const bundle = JSON.parse(strFromU8(files["bundle.json"]!));
-    expect(bundle).toMatchObject({ format: "whatbuild-product-bundle", format_version: 2 });
+    expect(bundle).toMatchObject({ format: "whatbuild-product-bundle", format_version: 3, product: { name: "Crew board" } });
+    // An organization holds its products directly: the bundle names no team.
+    expect(bundle).not.toHaveProperty("team");
+    expect(Object.keys(bundle).sort()).toEqual(["exported_at", "exported_by", "format", "format_version", "layout", "product", "server_version", "tenant"]);
     expect(bundle.layout.split(" · ")).toEqual(BUNDLE_LAYOUT.map((f) => f.path));
   });
 

@@ -5,7 +5,7 @@ import { defineOperation } from "../registry.ts";
 
 /**
  * The kinds of object a product's log has entries about, and so all its entity_type filter offers.
- * What happens to the organization (its teams, its people and their access) belongs to no product
+ * What happens to the organization (its people and their access) belongs to no product
  * and is read with members.activity; someone joining the product through an invitation is the one
  * entry about people a product's log holds.
  */

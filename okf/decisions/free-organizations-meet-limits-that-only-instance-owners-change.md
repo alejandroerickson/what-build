@@ -58,4 +58,4 @@ and that paid organizations will have limits too.
   plan, so an organization moved to the free plan during a day meets what that day already used
   ([§9.7](../spec/09-data-lifecycle.md) rule 10).
 
-Specified in: [§3.3](../spec/03-accounts-teams-and-identity.md#33-tenants-and-teams), [§9.7](../spec/09-data-lifecycle.md).
+Specified in: [§3.3](../spec/03-accounts-and-identity.md#33-tenants), [§9.7](../spec/09-data-lifecycle.md).

@@ -431,7 +431,7 @@ Serve it with: pnpm dev:fixture   (later migrations run first, and the worker do
 
 /**
  * The development sign-in's one-click people, given the place in every organization of the copy
- * that they have in the sample: Riley owns each one, Sam edits every team's products, and Jordan
+ * that they have in the sample: Riley owns each one, Sam edits all its products, and Jordan
  * reads every product's Story. Run each time the copy is served, after its migrations; it adds only
  * what is missing, and records nothing in the activity log. The organizations `except` names (by
  * slug) are left as they are: the end-to-end golden master's synthetic one has people of its own.
@@ -445,11 +445,10 @@ export async function addSamplePeople(db: Db, except: readonly string[] = []) {
   const by = json({ account_id: "system", display_name: "WhatBuild", surface: null, client: null });
   const tenants = (await db.selectFrom("tenants").select(["tenant_id", "slug"]).execute()).filter((t) => !except.includes(t.slug));
   const kept = new Set(tenants.map((t) => t.tenant_id));
-  const teams = (await db.selectFrom("teams").select(["team_id", "tenant_id"]).execute()).filter((t) => kept.has(t.tenant_id));
   const products = (await db.selectFrom("products").select(["product_id", "tenant_id"]).execute()).filter((p) => kept.has(p.tenant_id));
   const grants = [
     ...tenants.map((t) => ({ tenant_id: t.tenant_id, scope_type: "tenant" as const, scope_id: t.tenant_id, account_id: owner, role: "owner" })),
-    ...teams.map((t) => ({ tenant_id: t.tenant_id, scope_type: "team" as const, scope_id: t.team_id, account_id: editor, role: "editor" })),
+    ...tenants.map((t) => ({ tenant_id: t.tenant_id, scope_type: "all_products" as const, scope_id: t.tenant_id, account_id: editor, role: "editor" })),
     ...products.map((p) => ({ tenant_id: p.tenant_id, scope_type: "product" as const, scope_id: p.product_id, account_id: reader, role: "reader" })),
   ];
   for (const g of grants)

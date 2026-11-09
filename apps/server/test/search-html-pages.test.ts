@@ -116,7 +116,7 @@ beforeAll(async () => {
   alice = await h.signIn("alice@example.com", "Alice Admin");
   const t = await alice.api("POST", "/api/v1/tenants", { name: "Pages Co" });
   tenantId = t.body.tenant.tenant_id;
-  const p = await alice.api("POST", `/api/v1/teams/${t.body.tenant.slug}/${t.body.team.slug}/products`, { name: "Crew board", concept: "Plan the week." });
+  const p = await alice.api("POST", `/api/v1/tenants/${t.body.tenant.slug}/products`, { name: "Crew board", concept: "Plan the week." });
   path = p.body.path;
   P = `/api/v1/p/${path}`;
 });
@@ -395,8 +395,8 @@ describe("a page's words", () => {
     let around = "";
     beforeAll(async () => {
       around = P;
-      const [tenant, team] = path.split("/");
-      const p = await alice.api("POST", `/api/v1/teams/${tenant}/${team}/products`, { name: "Unusual words", concept: "Words of every kind." });
+      const [tenant] = path.split("/");
+      const p = await alice.api("POST", `/api/v1/tenants/${tenant}/products`, { name: "Unusual words", concept: "Words of every kind." });
       expect(p.status, JSON.stringify(p.body)).toBe(201);
       P = `/api/v1/p/${p.body.path}`;
     });
@@ -561,8 +561,8 @@ describe("what has no stored vector", () => {
   const unusual = (n: number) => "a1@".repeat(Math.floor(n / 3));
   beforeAll(async () => {
     around = P;
-    const [tenant, team] = path.split("/");
-    const p = await alice.api("POST", `/api/v1/teams/${tenant}/${team}/products`, { name: "Long texts", concept: "Texts at their limits." });
+    const [tenant] = path.split("/");
+    const p = await alice.api("POST", `/api/v1/tenants/${tenant}/products`, { name: "Long texts", concept: "Texts at their limits." });
     expect(p.status, JSON.stringify(p.body)).toBe(201);
     P = `/api/v1/p/${p.body.path}`;
   });

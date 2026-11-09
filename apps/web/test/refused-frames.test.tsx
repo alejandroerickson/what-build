@@ -12,7 +12,7 @@ import { FrameStopped, Loading, MinuteAnnouncer } from "../src/ui/index.tsx";
 // time, and never before the minute has turned. Each new frame is a call, so a page that keeps being
 // replaced in its frame waits, and in time stops, and no page is gone for good.
 
-vi.mock("../src/lib/session.tsx", async (original) => ({ ...(await original<object>()), useProduct: () => ({ app: "/t/acme/core/planner", api: "/api/v1/p/acme/core/planner" }) }));
+vi.mock("../src/lib/session.tsx", async (original) => ({ ...(await original<object>()), useProduct: () => ({ app: "/t/acme/planner", api: "/api/v1/p/acme/planner" }) }));
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -894,7 +894,7 @@ describe("what a screen reader is told", () => {
 });
 
 describe("a Story page, refused", () => {
-  const story = () => draw(<StoryFrame title="Overview" scheme="light" src="/api/v1/p/acme/core/planner/story/pages/overview/versions/1/html?theme=light" />);
+  const story = () => draw(<StoryFrame title="Overview" scheme="light" src="/api/v1/p/acme/planner/story/pages/overview/versions/1/html?theme=light" />);
 
   it("keeps its sandbox and its address, comes back by itself, and shows the skeleton while it does", async () => {
     story();

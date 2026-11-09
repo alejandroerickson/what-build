@@ -1,4 +1,4 @@
-import { actorOf, createTenantWithTeam, execute, houseStyle, json, newEtag, OPERATIONS_BY_NAME, type Env, type Principal, type ScopeRef } from "@whatbuild/core";
+import { actorOf, createTenantFor, execute, houseStyle, json, newEtag, OPERATIONS_BY_NAME, type Env, type Principal, type ScopeRef } from "@whatbuild/core";
 import { sql } from "kysely";
 import { acceptInvitation, findOrCreateAccount, type AccountRow } from "./auth/identity.ts";
 import {
@@ -61,14 +61,13 @@ export async function seed(env: Env, worker: Worker, log: (m: string) => void = 
   const samAgent: Principal = { ...accounts[1]!, auth_kind: "dev", surface: "mcp", client: "claude-code" };
 
   const created = await env.db.transaction().execute((trx) =>
-    createTenantWithTeam(trx, { account_id: riley.account_id, display_name: riley.display_name, surface: "web", client: null }, { name: SAMPLE.tenant, slug: "harbor-labs", team_name: SAMPLE.team }),
+    createTenantFor(trx, { account_id: riley.account_id, display_name: riley.display_name, surface: "web", client: null }, { name: SAMPLE.tenant, slug: "harbor-labs" }),
   );
   const tenant = created.tenant.slug;
-  const team = created.team.slug;
-  await grantAndAccept(env, riley, { tenant, team, role: "editor" }, accounts[1]!);
-  const product = (await call(env, riley, "products.create", { tenant, team, name: SAMPLE.product, slug: "crewboard", concept: SAMPLE.concept, card_html: SAMPLE.concept_card })) as { product_id: string };
+  await grantAndAccept(env, riley, { tenant, all_products: true, role: "editor" }, accounts[1]!);
+  const product = (await call(env, riley, "products.create", { tenant, name: SAMPLE.product, slug: "crewboard", concept: SAMPLE.concept, card_html: SAMPLE.concept_card })) as { product_id: string };
   const ref: ScopeRef = { product: product.product_id };
-  await grantAndAccept(env, riley, { tenant, team, product: "crewboard", role: "reader" }, accounts[2]!);
+  await grantAndAccept(env, riley, { tenant, product: "crewboard", role: "reader" }, accounts[2]!);
 
   const outcomeIds: string[] = [];
   for (const o of SAMPLE.outcomes) outcomeIds.push(String((await call(env, riley, "outcomes.create", o, ref))["outcome_id"]));
@@ -103,7 +102,7 @@ export async function seed(env: Env, worker: Worker, log: (m: string) => void = 
   }
 
   const base = env.ports.config.publicBaseUrl;
-  const path = `${tenant}/${team}/crewboard`;
+  const path = `${tenant}/crewboard`;
   const assumption = await call(
     env,
     samAgent,
@@ -216,5 +215,5 @@ export async function seed(env: Env, worker: Worker, log: (m: string) => void = 
     .values({ email: sam, allowed: 1, note: "Sample: may start one organization", etag: newEtag(), created_by: json(actorOf(riley)), updated_by: json(actorOf(riley)) })
     .onConflict((oc) => oc.column("email").doNothing())
     .execute();
-  log(`seed: created ${SAMPLE.tenant} / ${SAMPLE.team} / ${SAMPLE.product} with ${people.map((a) => a.email).join(" and ")}.`);
+  log(`seed: created ${SAMPLE.tenant} / ${SAMPLE.product} with ${people.map((a) => a.email).join(" and ")}.`);
 }

@@ -6,9 +6,8 @@ import { planWord, usePlans } from "../lib/limits.ts";
 import { useMe } from "../lib/session.tsx";
 import { usePageTitle } from "../shell/slots.tsx";
 import {
-  Button, ButtonLink, ChoiceRow, Dialog, EmptyState, ErrorCallout, ListRow, Loading, Sheet, SheetBody, SheetHeader, StatusBadge, TextField, useToast, tooLong,
+  Button, ChoiceRow, Dialog, EmptyState, ErrorCallout, ListRow, Loading, Sheet, SheetBody, SheetHeader, StatusBadge, TextField, useToast, tooLong,
 } from "../ui/index.tsx";
-import { InstanceGuestsSheet, InstanceOrganizationsSheet, InstancePlansSheet } from "./limits.tsx";
 import "../styles/screens/instance.css";
 
 /** The limits the server sets on an allowance's address and note. */
@@ -52,20 +51,25 @@ function organizations(n: number, kindName?: string | null) {
   return n === 1 ? `1 ${kind}organization` : `${n.toLocaleString("en-US")} ${kind}organizations`;
 }
 
+/** Who may start organizations, and the waitlist: an instance owner's, and Instance admin's count of who is waiting. */
+export function useAllowances() {
+  const me = useMe();
+  return useQuery({ queryKey: ["tenant-allowances"], queryFn: () => api<Allowances>("GET", A), enabled: Boolean(me.data?.tenant_allowance.instance_owner) });
+}
+
 /**
- * `/instance`: for the owners of this WhatBuild, who decide who may create organizations and how
- * many (being in an organization never lets anyone create one, so this is the only way in), each
- * organization's plan, the plans offered and their limits, and how guests come in.
+ * Instance admin → Starting organizations: the owners of this WhatBuild decide who may create
+ * organizations and how many (being in an organization never lets anyone create one, so this is the
+ * only way in), and let in the people on the waitlist.
  */
-export function InstancePage() {
+export function AdminStarting() {
   const me = useMe();
   const qc = useQueryClient();
   const toast = useToast();
-  usePageTitle("Organizations");
+  usePageTitle("Starting organizations");
   const owner = me.data?.tenant_allowance.instance_owner ?? false;
   const plans = usePlans();
-  const offered = Boolean(plans.data?.plans.length);
-  const q = useQuery({ queryKey: ["tenant-allowances"], queryFn: () => api<Allowances>("GET", A), enabled: owner });
+  const q = useAllowances();
   const [editing, setEditing] = useState<Allowance | "new" | null>(null);
   const [removing, setRemoving] = useState<Allowance | null>(null);
   const remove = useMutation({
@@ -83,15 +87,7 @@ export function InstancePage() {
         <Loading label="Loading…" lines={3} />
       </Sheet>
     );
-  if (!owner)
-    return (
-      <Sheet labelledBy="instance-title">
-        <SheetHeader level={1} id="instance-title" title="Organizations" />
-        <EmptyState size="inline" action={<ButtonLink to="/">Your products</ButtonLink>}>
-          Only this WhatBuild&rsquo;s owners see every organization and decide who can start one.
-        </EmptyState>
-      </Sheet>
-    );
+  if (!owner) return null;
 
   const items = q.data?.items ?? [];
   // What an allowance counts: organizations on the plan new ones start on, named, where that is one the deployment defines.
@@ -99,13 +95,9 @@ export function InstancePage() {
   const kindName = start && start !== "unlimited" && plans.data ? planWord(start, plans.data.plans) : null;
   return (
     <>
-    <InstanceOrganizationsSheet />
-    {offered ? <InstancePlansSheet /> : null}
-    {/* Guests read the example organization, so there are none without one. */}
-    {plans.data?.example ? <InstanceGuestsSheet /> : null}
     <Sheet labelledBy="instance-title">
       <SheetHeader
-        level={2}
+        level={1}
         id="instance-title"
         title="Who can start organizations"
         count={q.data ? items.length : undefined}

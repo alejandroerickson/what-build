@@ -35,7 +35,7 @@ beforeAll(async () => {
   h = await startHarness();
   owner = await h.signIn(EMAIL, "Pat Everywhere");
   const t = await owner.api("POST", "/api/v1/tenants", { name: "Everywhere Co" });
-  path = (await owner.api("POST", `/api/v1/teams/${t.body.tenant.slug}/${t.body.team.slug}/products`, { name: "Atlas" })).body.path;
+  path = (await owner.api("POST", `/api/v1/tenants/${t.body.tenant.slug}/products`, { name: "Atlas" })).body.path;
 });
 afterAll(async () => h?.close());
 

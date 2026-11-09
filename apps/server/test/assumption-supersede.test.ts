@@ -36,10 +36,10 @@ beforeAll(async () => {
   alice = await h.signIn("alice@example.com", "Alice Admin");
   vic = await h.signIn("vic@example.com", "Vic Viewer");
   const t = await alice.api("POST", "/api/v1/tenants", { name: "Correction Co" });
-  const p = await alice.api("POST", `/api/v1/teams/${t.body.tenant.slug}/${t.body.team.slug}/products`, { name: "Planner" });
+  const p = await alice.api("POST", `/api/v1/tenants/${t.body.tenant.slug}/products`, { name: "Planner" });
   productPath = p.body.path;
   P = `/api/v1/p/${productPath}`;
-  expect((await alice.api("POST", `/api/v1/tenants/${t.body.tenant.slug}/members`, { team: t.body.team.slug, product: "planner", email: "vic@example.com", role: "viewer" })).status).toBe(201);
+  expect((await alice.api("POST", `/api/v1/tenants/${t.body.tenant.slug}/members`, { product: "planner", email: "vic@example.com", role: "viewer" })).status).toBe(201);
   client = new Client({ name: "correcting-agent", version: "1.0.0" });
   await client.connect(new StreamableHTTPClientTransport(new URL(`${h.baseUrl}/mcp`), { requestInit: { headers: { authorization: `Bearer ${await h.connectAgent(alice, "Correcting agent", "/mcp", "editor")}` } } }));
 });

@@ -103,20 +103,26 @@ export function slugProblem(s: string): string | null {
     : "Use 3 to 50 lower-case letters, digits and hyphens, starting and ending with a letter or digit.";
 }
 
-export const ROLE_WORD: Record<string, string> = { owner: "Owner", admin: "Admin", member: "Member", guest: "Guest", editor: "Editor", viewer: "Viewer", reader: "Reader" };
+export const ROLE_WORD: Record<string, string> = { owner: "Owner", admin: "Admin", creator: "Product creator", member: "Member", guest: "Guest", editor: "Editor", viewer: "Viewer", reader: "Reader" };
 
-/** A role with its article, for sentences: "an editor", "a viewer". */
+/** A role in words for sentences, lower case: "product creator" for `creator`, else the role itself. */
+export function roleWords(role: string): string {
+  return role === "creator" ? "product creator" : role;
+}
+
+/** A role with its article, for sentences: "an editor", "a viewer", "a product creator". */
 export function aRole(role: string): string {
-  return `${/^[aeiou]/.test(role) ? "an" : "a"} ${role}`;
+  const words = roleWords(role);
+  return `${/^[aeiou]/.test(words) ? "an" : "a"} ${words}`;
 }
 
 /**
- * Where a role applies, for sentences: "the organization", "the Core team" (a team already named
- * "Product team" is not called a team twice), or a product by its name alone.
+ * Where a role applies, for sentences: "the organization", "all products" (every product in the
+ * organization, products made later included), or a product by its name alone.
  */
 export function scopeWords(type: string, name: string): string {
   if (type === "tenant") return "the organization";
-  if (type === "team") return /\bteam$/i.test(name.trim()) ? `the ${name}` : `the ${name} team`;
+  if (type === "all_products") return "all products";
   return name;
 }
 

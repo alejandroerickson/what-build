@@ -418,7 +418,7 @@ export function StoryPage() {
         <Sheet label="Story">
           {storyOnly ? (
             <EmptyState title="No Story pages yet">
-              Pages appear here once the product&rsquo;s team publishes them.
+              Pages appear here once they&rsquo;re published.
             </EmptyState>
           ) : (
             <FirstUse title="No Story pages yet" ask={`Draft the first Story page for ${product.name} in WhatBuild from its outcomes and evidence.`}>

@@ -67,7 +67,7 @@ Four things keep a tab from hearing what it may not know, each holding if anothe
   while one is open: it can only hear.
 
 **Identity and sessions** in `apps/server/src/auth/` ([decision](../decisions/built-in-identity-and-oauth.md),
-[decision](../decisions/invitations-belong-to-their-address.md), [§3.2, §3.8](../spec/03-accounts-teams-and-identity.md)).
+[decision](../decisions/invitations-belong-to-their-address.md), [§3.2, §3.8](../spec/03-accounts-and-identity.md)).
 
 - No passwords. Opening an email link changes nothing: it shows a page with one button, so a mail
   scanner that fetches the link leaves it unused. The button's POST signs in, and is refused unless
@@ -200,8 +200,9 @@ Four things keep a tab from hearing what it may not know, each holding if anothe
 - A token serves its own MCP endpoint and those inside it (`resourceCovers`, `connector-reach.ts`);
   a scoped endpoint refuses every call outside it with `403 outside_connector_scope` before any
   handler runs (`packages/core/src/connector-scope.ts`). Over MCP the fence and the caller's role
-  are checked before the tool's input is validated; only a call that names no product, team or
-  tenant is told first that its input is malformed.
+  are checked before the tool's input is validated; only a call that names no product or
+  tenant is told first that its input is malformed. A token approved for a product's endpoint serves
+  that endpoint alone.
 - No organization lets strangers write where others' agents read. The example organization, which
   every account reads, is written by its own members alone; a guest's every write is refused
   ([decision](../decisions/every-account-reads-the-example-organization-which-only-its-staff-write.md)).
@@ -219,14 +220,14 @@ Four things keep a tab from hearing what it may not know, each holding if anothe
   `apps/server/test/access.test.ts` requires `404` from every operation for a non-member, and
   `tenant-isolation.test.ts` calls every operation from another organization over both doors.
 - Only an owner changes or removes an owner's role. Below an owner or admin of the organization,
-  `members.list` shows only the people on the teams and products the caller reads, with those
-  grants, and the invitations they could cancel (`partial: true`); every `members` operation
-  answers a team or product the caller has no role on with the same `404` as one that does not
+  `members.list` shows only the people on the products the caller reads and those with a role on
+  all products, with those grants, and the invitations they could cancel (`partial: true`); every
+  `members` operation answers a product the caller has no role on with the same `404` as one that does not
   exist (`packages/core/src/ops/products.ts`).
 - Row-level security is forced on every table of product content (`apps/server/src/migrations/`),
   and the server refuses to start in production as a role with `SUPERUSER` or `BYPASSRLS`
-  (`apps/server/src/database.ts`). Directory tables (accounts, sessions, OAuth, tenants, teams,
-  products, memberships, invitations, jobs) sit outside it; code that reads them filters by tenant.
+  (`apps/server/src/database.ts`). Directory tables (accounts, sessions, OAuth, tenants,
+  products, `team_addresses`, memberships, invitations, jobs) sit outside it; code that reads them filters by tenant.
 - Inside a tenant, handlers load an object by its id and its product (`loadRecord` and its kin),
   and references never cross products (`422 cross_product_reference`). The worker, baselines and
   resets each run in a transaction scoped to one tenant. Blob keys begin `t/<tenant_id>/`.
@@ -477,7 +478,7 @@ organization on it (`fetch_url`).
 ([decision](../decisions/every-account-reads-the-example-organization-which-only-its-staff-write.md),
 [decision](../decisions/limits-belong-to-plans-and-each-organization-is-on-a-plan-of-its-own.md),
 [decision](../decisions/the-deployment-defines-its-plans-and-billing-stays-outside-the-repository.md),
-[§3.10](../spec/03-accounts-teams-and-identity.md), [§9.7](../spec/09-data-lifecycle.md)).
+[§3.10](../spec/03-accounts-and-identity.md), [§9.7](../spec/09-data-lifecycle.md)).
 A guest's grant is made in `membershipsFor` alone, never stored, and only while the deployment
 names the example; it gives viewer, and `execute` refuses a guest every write before reading the
 input, as `resolveScope` refuses one an operation above viewer (`403 example_read_only`). A guest
@@ -529,7 +530,7 @@ may link anywhere, open new tabs and navigate its own frame. Every account sees 
 example organization's staff on what they wrote and in its activity log. These trade-offs are deliberate; each names what would change it:
 
 - Two refreshes of one agent connection at the same moment end it, as any reuse of a refresh token
-  does ([§3.8](../spec/03-accounts-teams-and-identity.md)).
+  does ([§3.8](../spec/03-accounts-and-identity.md)).
 - The limit on agent registrations is counted for the whole deployment, because behind the edge
   the service has no client address it can trust; per-client limits wait for one
   ([roadmap](../spec/10-roadmap.md)).

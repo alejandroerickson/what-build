@@ -18,7 +18,7 @@ It is lexical and says so. Semantic retrieval (§8.7) is planned, not built.
 
 ## 8.1 The search operation
 
-`search` is a standalone MCP tool and `GET /api/v1/p/<tenant>/<team>/<product>/search`
+`search` is a standalone MCP tool and `GET /api/v1/p/<tenant>/<product>/search`
 (`packages/core/src/ops/search.ts`):
 
 ```

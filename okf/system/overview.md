@@ -3,7 +3,7 @@ type: System Concept
 title: WhatBuild at three altitudes
 description: The whole system from the top down, the major parts, and the mechanics underneath, with links to the detail.
 tags: [overview, architecture, tenancy, access, mcp]
-generated: {by: agent:claude, at: 2026-10-31}
+generated: {by: agent:claude, at: 2026-11-09}
 status: stable
 ---
 
@@ -62,24 +62,26 @@ Google Cloud Storage behind a storage port; the official MCP SDK (stateless Stre
 React 19, React Router 7, TanStack Query 5, Vite 8; Vitest. Details in
 [architecture](../spec/02-architecture.md).
 
-**Operations.** 125 operations, each defined once and exposed through both REST and MCP, but for
+**Operations.** 122 operations, each defined once and exposed through both REST and MCP, but for
 eighteen: running the instance (its owners' ten actions on plans, organizations, guests,
 allowances, accounts and usage, and removing an account), renaming an organization or a product,
 which its owners or admins do, deleting an organization and previewing that delete, which only its
 owners or an instance owner do, and deleting one's own account and previewing that, which only its
 person does, all in the web app, and a person's browser giving a video or a web page its first
-picture. Agents are offered the other 107, as 29 tools
+picture. Agents are offered the other 104, as 29 tools
 ([decision](../decisions/one-registry-two-front-doors.md),
 [decision](../decisions/running-the-instance-is-done-in-the-web-app-never-by-an-agent.md)).
 
-**Tenancy.** Organization (tenant) → team → product. One shared database and schema; every content
+**Tenancy.** Organization (tenant) → product, with no teams between
+([decision](../decisions/an-organization-holds-its-products-directly-with-no-teams.md)). One shared database and schema; every content
 row carries `tenant_id`. Isolation is enforced three times: authorization before validation (`404`
 for outsiders), a transaction scoped to one tenant (`app.tenant_id`), and forced Postgres
 row-level security. Blob keys start with the tenant. References never cross products
 ([decision](../decisions/shared-schema-tenancy-with-row-level-security.md)).
 
-**Access.** Application-level, per product: roles at organization, team and product level, the
-highest applies, no per-object permissions. A reader, the lowest team or product role, reaches
+**Access.** Application-level, per product: roles on the organization, on all its products and on
+each product, the highest applies, no per-object permissions; an organization's product creators
+create products. A reader, the lowest product role, reaches
 only the Story ([decision](../decisions/a-reader-reads-only-the-story.md)); editors archive and
 admins delete ([decision](../decisions/archive-by-default-delete-guarded.md)). The database
 enforces only the tenant boundary. A token is the person, at most: each agent connection has the
@@ -111,7 +113,7 @@ anyone sign up as one
 ([decision](../decisions/guests-come-into-the-example-organization-while-there-is-room.md)).
 
 **MCP.** `/mcp` for every product the account can reach, `/mcp/t/<tenant>` for one organization,
-or `/mcp/t/<tenant>/<team>/<product>` for one product. A scoped endpoint is a fence: it refuses
+or `/mcp/t/<tenant>/<product>` for one product. A scoped endpoint is a fence: it refuses
 every call outside its scope, and its token works nowhere wider
 ([decision](../decisions/a-scoped-mcp-connector-is-a-fence.md)). 29 tools: for each noun a
 `_read`, a `_write` and, where something can be deleted for good, a `_delete` tool, each with
@@ -124,17 +126,20 @@ a time, with nothing to install
 ([decision](../decisions/agents-learn-whatbuild-from-the-servers-guide.md)). Source text is quoted
 material.
 
-**The experience.** One floating panel (Idea, Evidence, Exploration, Story, then Connect an agent,
-Activity and Settings) that hides fully; the screen beside it; an inspector on the Story, a mockup
-and a source page. No
+**The experience.** One floating panel that shows one product on every screen (Idea, Evidence,
+Exploration, Story, then Activity and Settings) and hides fully; the screen beside it; an inspector
+on the Story, a mockup and a source page. Settings is one dialog over any screen, for the product,
+its organization and the person; the instance's owners run it in Instance admin, a place of its own. No
 in-app tabs; rows are real links; works in a phone browser, light and dark
-([decision](../decisions/studio-design-system.md), [web app](../spec/07-web-app.md)).
+([decision](../decisions/studio-design-system.md),
+[decision](../decisions/the-panel-shows-one-product-and-everything-else-is-in-settings.md),
+[web app](../spec/07-web-app.md)).
 
 ## 100 ft: mechanics
 
 **One request.** Identify the caller (cookie on REST, OAuth token on MCP → account,
 surface, client, and for an agent its connection's level) → refuse an operation above that level
-(`403`) → resolve tenant, team and product → authorize (`404`/`403`) → refuse a guest's
+(`403`) → resolve tenant and product → authorize (`404`/`403`) → refuse a guest's
 write in the example organization, and on a plan with limits admit the call to them
 (`403`/`429`) → validate with the
 operation's schema (`422` lists every problem) → open a transaction with `app.tenant_id` set → run

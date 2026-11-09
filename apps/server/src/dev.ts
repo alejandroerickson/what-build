@@ -158,7 +158,7 @@ async function main() {
 
     App            http://localhost:${WEB_PORT}
     Sign in as     riley@example.com (owns the example and its copy), sam@example.com (edits
-                   their teams, reads the synthetic organization's Story) or jordan@example.com
+                   all their products, reads the synthetic organization's Story) or jordan@example.com
                    (reads their Stories); the synthetic organization's own morgan@, casey@ and
                    avery@example.com; pnpm e2e browser signin <name> does it in the test browser
     MCP endpoint   http://localhost:${WEB_PORT}/mcp   (pnpm e2e mcp connects to it as an agent)
@@ -171,7 +171,7 @@ async function main() {
 
     App            http://localhost:${WEB_PORT}
     Sign in as     riley@example.com (owner of every organization), sam@example.com (editor of
-                   every team) or jordan@example.com (reads every Story) — one click on the
+                   every product) or jordan@example.com (reads every Story) — one click on the
                    sign-in page — or "As the email above" with an account in the copy; nothing
                    is sent to anyone
     MCP endpoint   http://localhost:${WEB_PORT}/mcp

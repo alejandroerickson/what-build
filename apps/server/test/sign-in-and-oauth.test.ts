@@ -182,7 +182,7 @@ describe("the consent page", () => {
     expect(page).toContain("Let “Claude” work in WhatBuild as you?");
     expect(page).toContain("“Claude” is the name the agent gave itself. WhatBuild hasn’t verified it.");
     expect(page).toContain("Allow hands this connection to <strong>attacker.example</strong>.");
-    expect(page).toContain("You can change or disconnect it later under Connect an agent in WhatBuild.");
+    expect(page).toContain("You can change or disconnect it later in WhatBuild’s Settings, under Agents.");
     for (const local of ["http://127.0.0.1:9999/callback", "http://localhost:33418/", "cursor://anysphere.cursor-mcp/oauth/callback"]) {
       const id = await register(local, "Local agent");
       const html = await (await fetch(authorizeUrl(id, local, "x"), { headers: { cookie: alice.cookie } })).text();
@@ -416,14 +416,14 @@ function appWith(config: Partial<ServerConfig>) {
 }
 
 describe("request logs", () => {
-  it("mask invitation links, retired sandbox invitation codes, ids, and the names of organizations, teams and products", async () => {
+  it("mask invitation links, retired sandbox invitation codes, ids, and the names of organizations and products", async () => {
     const lines: string[] = [];
     const spy = vi.spyOn(console, "log").mockImplementation((line: unknown) => void lines.push(String(line)));
     try {
       const app = appWith({ env: "development" });
       await app.request("/invite/Inv1tati0n-Secret_Token");
       await app.request("/join/Sandb0x-Secret_Code");
-      await app.request("/api/v1/p/secret-org/core/planner/sources/01J0ABCDEFGHJKMNPQRSTVWXYZ");
+      await app.request("/api/v1/p/secret-org/planner/sources/01J0ABCDEFGHJKMNPQRSTVWXYZ");
     } finally {
       spy.mockRestore();
     }
@@ -435,7 +435,7 @@ describe("request logs", () => {
         return [];
       }
     });
-    expect(paths).toEqual(["/invite/:token", "/join/:code", "/api/v1/p/:org/:team/:product/sources/:id"]);
+    expect(paths).toEqual(["/invite/:token", "/join/:code", "/api/v1/p/:org/:product/sources/:id"]);
     expect(lines.join("\n")).not.toMatch(/Secret/);
   });
 });

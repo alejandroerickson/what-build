@@ -21,12 +21,12 @@ beforeAll(async () => {
   alice = await h.signIn("alice@example.com", "Alice Example");
   vic = await h.signIn("vic@example.com", "Vic Viewer");
   const t = await alice.api("POST", "/api/v1/tenants", { name: "Text Co" });
-  const p = await alice.api("POST", `/api/v1/teams/${t.body.tenant.slug}/${t.body.team.slug}/products`, { name: "Planner" });
+  const p = await alice.api("POST", `/api/v1/tenants/${t.body.tenant.slug}/products`, { name: "Planner" });
   productPath = p.body.path;
   P = `/api/v1/p/${productPath}`;
-  const a = await alice.api("POST", `/api/v1/teams/${t.body.tenant.slug}/${t.body.team.slug}/products`, { name: "Annex" });
+  const a = await alice.api("POST", `/api/v1/tenants/${t.body.tenant.slug}/products`, { name: "Annex" });
   annex = `/api/v1/p/${a.body.path}`;
-  await alice.api("POST", `/api/v1/tenants/${t.body.tenant.slug}/members`, { team: t.body.team.slug, product: "planner", email: "vic@example.com", role: "viewer" });
+  await alice.api("POST", `/api/v1/tenants/${t.body.tenant.slug}/members`, { product: "planner", email: "vic@example.com", role: "viewer" });
 });
 afterAll(async () => h?.close());
 
@@ -386,62 +386,17 @@ describe("telling a rewrite from an edit", () => {
   });
 });
 
-describe("copying a source to another product", () => {
-  it("carries the derived text, following the copied attachment, and indexes the copy at once", async () => {
+describe("another product in the organization", () => {
+  it("reads none of a source's words, and has no way to copy or move the source there", async () => {
     const s = await source("Dispatcher interview — Example Co");
     await attach(s, "call.txt", "We route crews by radio, mostly before seven.\n");
     await h.worker.drain();
-    await alice.api("PUT", `${P}/sources/${s}/agent-notes/summary`, { content: "Routing happens by radio." });
-    await alice.api("PUT", `${P}/sources/${s}/agent-notes/notes`, { content: "Ask for the dispatch log." });
-    await alice.api("POST", `${P}/sources/${s}/annotations`, { note: "Ask about the radio handsets." });
-    const original = await text(s);
-
-    const copy = await alice.api("POST", `${P}/sources/${s}/copy`, { to_product: "annex" });
-    expect(copy.status, JSON.stringify(copy.body)).toBe(200);
-    const c = copy.body.record_id as string;
-    const copied = await text(c, "", annex);
-    expect(copied.body).toMatchObject({ text: original.body.text, taken_from: { path: "call.txt" } });
-    expect(copied.body.taken_from.file_version_id).not.toBe(original.body.taken_from.file_version_id);
-    const full = await alice.api("GET", `${annex}/sources/${c}?detail=full`);
-    expect(full.body).toMatchObject({ derived_status: "ready", text_from: "call.txt", copied_from: { record_id: s }, annotations: [], agent_notes: [] });
-    expect(full.body.attachments).toEqual([expect.objectContaining({ path: "call.txt", is_text_source: true, file_version_id: copied.body.taken_from.file_version_id })]);
-
-    // Search in the other product finds the copy before the worker reads anything.
-    expect(await hits("route crews", annex)).toEqual([expect.objectContaining({ record_id: c, field: "text" })]);
-    expect((await hits("Dispatcher interview", annex)).map((x) => [x.record_id, x.field])).toEqual([[c, "title"]]);
-    // The summary, notes and comments stay with the original.
-    for (const words of ["happens by radio", "dispatch log", "radio handsets"]) {
-      expect(await hits(words, annex), words).toEqual([]);
-      expect((await hits(words)).map((x) => x.record_id), words).toEqual([s]);
-    }
-
-    // The copy's attachment is read afresh, and its text follows it; the original's is untouched.
-    await h.worker.drain();
-    expect((await text(c, "", annex)).body).toMatchObject({
-      text: original.body.text,
-      taken_from: { path: "call.txt", file_version_id: copied.body.taken_from.file_version_id },
-      updated_by: { client: "parser" },
-    });
-    expect((await text(s)).body.etag).toBe(original.body.etag);
-    expect(await hits("route crews", annex)).toEqual([expect.objectContaining({ record_id: c, field: "text" })]);
-    // The web app reads each whole under its own product, and neither under the other's.
-    expect((await alice.api("GET", `${annex}/sources/${c}/text`)).body).toBe(original.body.text);
+    expect(await hits("route crews")).toEqual([expect.objectContaining({ record_id: s, field: "text" })]);
+    expect(await hits("route crews", annex)).toEqual([]);
     expect((await alice.api("GET", `${annex}/sources/${s}/text`)).status).toBe(404);
-    expect((await alice.api("GET", `${P}/sources/${c}/text`)).status).toBe(404);
-  });
-
-  it("carries a text someone wrote as they wrote it, and no reading replaces it", async () => {
-    const s = await source("Typed-up notes — Example Co");
-    await attach(s, "scan.txt", "Scanned words.\n");
-    await h.worker.drain();
-    expect((await write(s, { content: "Typed up by hand.\n", expected_etag: await etagOf(s) })).status).toBe(200);
-    const copy = await alice.api("POST", `${P}/sources/${s}/copy`, { to_product: "annex" });
-    expect(copy.status).toBe(200);
-    await h.worker.drain();
-    const copied = await text(copy.body.record_id, "", annex);
-    expect(copied.body).toMatchObject({ text: "Typed up by hand.\n", taken_from: null, updated_by: { display_name: "Alice Example" } });
-    expect((await alice.api("GET", `${annex}/sources/${copy.body.record_id}?detail=full`)).body.attachments).toEqual([
-      expect.objectContaining({ path: "scan.txt", is_text_source: false, text: expect.objectContaining({ status: "ready" }) }),
-    ]);
+    expect((await text(s, "", annex)).status).toBe(404);
+    // Sources are no longer copied or moved between products: a source stays where it was added.
+    for (const verb of ["copy", "move"]) expect((await alice.api("POST", `${P}/sources/${s}/${verb}`, { record_id: s, to_product: "annex" })).status, verb).toBe(404);
+    expect((await text(s)).body.text).toContain("We route crews by radio");
   });
 });

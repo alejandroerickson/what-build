@@ -54,4 +54,4 @@ organization and set its plan, but hold no role in most of them.
 - An instance owner's way into a tenant operation is given in `resolveScope` alone, for an
   operation that sets `allowInstanceOwners`. Another operation that sets it needs a reason here.
 
-Specified in: [§3.3](../spec/03-accounts-teams-and-identity.md#33-tenants-and-teams).
+Specified in: [§3.3](../spec/03-accounts-and-identity.md#33-tenants).

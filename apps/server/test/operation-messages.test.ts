@@ -37,9 +37,9 @@ beforeAll(async () => {
   alice = await h.signIn("alice@example.com", "Alice Admin");
   ed = await h.signIn("ed@example.com", "Ed Editor");
   const t = await alice.api("POST", "/api/v1/tenants", { name: "Words Co" });
-  const p = await alice.api("POST", `/api/v1/teams/${t.body.tenant.slug}/${t.body.team.slug}/products`, { name: "Planner" });
+  const p = await alice.api("POST", `/api/v1/tenants/${t.body.tenant.slug}/products`, { name: "Planner" });
   P = `/api/v1/p/${p.body.path}`;
-  expect((await alice.api("POST", `/api/v1/tenants/${t.body.tenant.slug}/members`, { team: t.body.team.slug, product: "planner", email: "ed@example.com", role: "editor" })).status).toBe(201);
+  expect((await alice.api("POST", `/api/v1/tenants/${t.body.tenant.slug}/members`, { product: "planner", email: "ed@example.com", role: "editor" })).status).toBe(201);
 });
 afterAll(async () => h?.close());
 
@@ -131,7 +131,6 @@ describe("descriptions that say only what is true", () => {
 
   it("calls a source a source", () => {
     expect(op("sources.create").summary).not.toMatch(/record\)/);
-    expect(op("sources.move_to_product").description).toMatch(/^The source keeps its record_id/);
   });
 
   it("says what the products tools are for, export included, and nothing of running the instance", () => {

@@ -128,8 +128,8 @@ describe("a title on one line", () => {
   });
 
   it("of names joined by a dot is cut before the dot, not after it", async () => {
-    const context = "Harbor Labs · Product team";
-    expect(wordEnds(context).map((i) => context.slice(0, i))).toEqual(["Harbor", "Harbor Labs", "Harbor Labs · Product"]);
+    const context = "Example organization · Harbor Labs";
+    expect(wordEnds(context).map((i) => context.slice(0, i))).toEqual(["Example", "Example organization", "Example organization · Harbor"]);
   });
 
   it("is cut again when its room changes, and only then", async () => {

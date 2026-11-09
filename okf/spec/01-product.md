@@ -3,7 +3,7 @@ type: Specification
 title: WhatBuild turns a team's discovery material into insight and a story, with agents as first-class contributors.
 description: Who the product is for, the core loop, the four screens, the vocabulary, the non-negotiable behaviors, and what the product is not.
 tags: [spec, product, vocabulary, principles]
-generated: {by: agent:claude, at: 2026-10-26}
+generated: {by: agent:claude, at: 2026-11-09}
 status: stable
 ---
 
@@ -49,7 +49,7 @@ status: stable
    parallel, with attribution, optimistic concurrency, and an activity log throughout.
 
 A team can run several of these loops at once: each is a **product**
-([§3](03-accounts-teams-and-identity.md)).
+([§3](03-accounts-and-identity.md)).
 
 ## 1.3 The four screens
 
@@ -64,13 +64,15 @@ of one of them.
 | **Story** | The team's communication with its stakeholders: an ordered hierarchy of versioned, sandboxed HTML pages. |
 
 **Activity** is not a fifth destination: it is a quiet page reached from the product's panel, and from
-an item's "Activity on this …" link, filtered to that item ([§7](07-web-app.md)). Product settings
-(details, people, export, archive) are a page inside the product.
+an item's "Activity on this …" link, filtered to that item ([§7](07-web-app.md)).
 
-Outside a product there are only: the product list, **Members** of an organization, **Connect an
-agent** (the MCP address and the agents connected now), and the person's **Settings** (their display
-name). Routes are in
-[`apps/web/src/main.tsx`](../../apps/web/src/main.tsx).
+The panel always shows one product. Everything else is **Settings**, one dialog over whatever
+screen is open: the product's (details, people, export, archive), its organization's (people, plan,
+access changes, name) and the person's own (account, and **Connect an agent** with the agents
+connected now). Beside the products there is only the overview, the one list of products, and,
+for the instance's owners alone, **Instance admin**, where the instance is run
+([decision](../decisions/the-panel-shows-one-product-and-everything-else-is-in-settings.md)).
+Routes are in [`apps/web/src/main.tsx`](../../apps/web/src/main.tsx).
 
 ## 1.4 Vocabulary
 
@@ -80,10 +82,9 @@ Idea screen's terms are a decision: [A product starts with its idea](../decision
 | Term | Meaning |
 |---|---|
 | **account** | One person's sign-in. May belong to several tenants. |
-| **tenant** | An organization: the isolation boundary. Shown as "organization" in the UI. |
-| **team** | A group inside a tenant and the products it runs. Roles granted on a team apply to its products. Never "workspace". |
+| **tenant** | An organization: the isolation boundary, which holds its products directly. Shown as "organization" in the UI. Never "workspace", and never divided into teams ([decision](../decisions/an-organization-holds-its-products-directly-with-no-teams.md)). |
 | **product** | One discovery. Owns all of the objects below. |
-| **role** | reader, viewer, editor or admin on a team or product; owner, admin or member of a tenant. A reader reads only the Story. |
+| **role** | reader, viewer, editor or admin on a product or on all products of a tenant; owner, admin, product creator or member of a tenant. A reader reads only the Story; a product creator creates products. |
 | **source** | One discovery event or document, with metadata, its derived text and its attachments. Stored as a record: `record_id` in the API. The destination that holds them is **Evidence**; never "library", "document store", "bucket" or a storage path. |
 | **attachment** | A file kept with a source, in the app, the API, the MCP tools and the documentation alike, with no role. Every attachment is read and what was read kept, never searched. Never "file" for the concept ("file" is for bytes and formats); the database's tables keep the names `files` and `file_versions`. |
 | **derived text** | A source's words as one Markdown document, taken from an attachment's text until someone writes or edits it; in prose, "a source's text". What search reads, with the title, tags, summary, notes and comments. |
@@ -110,15 +111,15 @@ of them is now sources.
 
 ## 1.5 Non-negotiable behaviors
 
-1. **Roles, and nothing finer.** Access is a role on a tenant, team or product (reader, viewer,
-   editor, admin), checked in one policy module for both front doors
+1. **Roles, and nothing finer.** Access is a role on a tenant, on all its products or on a product
+   (reader, viewer, editor, admin), checked in one policy module for both front doors
    ([`packages/core/src/policy.ts`](../../packages/core/src/policy.ts)). No per-folder or
    per-object permissions, and no token that widens or narrows its person's role. An agent has
    exactly its person's role. What you cannot see is `404`; what you may see but not change is a
-   `403` naming both roles ([§3.5](03-accounts-teams-and-identity.md)).
+   `403` naming both roles ([§3.5](03-accounts-and-identity.md)).
 2. **Isolation is enforced twice.** The core only ever runs a handler in a transaction already
    scoped to one tenant; Postgres row-level security checks again. A cross-tenant read is `404`,
-   and a test attempts one through **every** product, team and tenant operation.
+   and a test attempts one through **every** product and tenant operation.
 3. **Destruction is never a side effect.** Editing, archiving and restoring never destroy anything.
    **Archive is the reversible default and always the first thing offered**: it takes an object out
    of listings, out of the UI's main views, and out of the search space an agent can reach, and

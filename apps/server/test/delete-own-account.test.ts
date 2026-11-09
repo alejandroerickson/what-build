@@ -46,8 +46,8 @@ beforeAll(async () => {
   owen = await h.signIn("owen@example.com", "Owen Owner");
   const t = await owen.api("POST", "/api/v1/tenants", { name: "Owen Co" });
   owenOrg = t.body.tenant.slug;
-  P = `/api/v1/p/${(await owen.api("POST", `/api/v1/teams/${owenOrg}/${t.body.team.slug}/products`, { name: "Orchard" })).body.path}`;
-  expect((await owen.api("POST", `/api/v1/tenants/${owenOrg}/members`, { email: "dana@example.com", role: "editor", team: t.body.team.slug })).status).toBe(201);
+  P = `/api/v1/p/${(await owen.api("POST", `/api/v1/tenants/${owenOrg}/products`, { name: "Orchard" })).body.path}`;
+  expect((await owen.api("POST", `/api/v1/tenants/${owenOrg}/members`, { email: "dana@example.com", role: "editor", all_products: true })).status).toBe(201);
   dana = await h.signIn("dana@example.com", "Dana Editor");
   danaId = await idOf("dana@example.com");
   const shared = await dana.api("POST", "/api/v1/tenants", { name: "Shared Co" });
@@ -92,7 +92,7 @@ describe("refusals", () => {
         const r = (await client.callTool({ name, arguments: { action, params: { email: "owen@example.com", confirm: "delete permanently" } } })) as { isError?: boolean; content: { text: string }[] };
         expect(r.isError).toBe(true);
         // Whichever of its noun's tools is called, the agent is told where the person does it, of the call it made.
-        expect(r.content[0]!.text).toMatch(new RegExp(`^403: No agent is offered ${name}\\(action="${action}"\\): a person does it in the web app, in their own Settings \\(\`/settings\`\\), Delete account\\.`));
+        expect(r.content[0]!.text).toMatch(new RegExp(`^403: No agent is offered ${name}\\(action="${action}"\\): a person does it in the web app, in their own Settings, under Account \\(\`/settings\`\\), Delete account\\.`));
       }
     }
     await client.close();

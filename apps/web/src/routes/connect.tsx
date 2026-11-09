@@ -1,20 +1,20 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState, type ReactNode } from "react";
-import { Link, useParams, useSearchParams } from "react-router";
+import { useSearchParams } from "react-router";
 import { AGENTS_KEY } from "../lib/agents.ts";
 import { api } from "../lib/api.ts";
 import { formatDate, relativeTime } from "../lib/format.ts";
 import { useProducts } from "../lib/session.tsx";
 import { useLastProduct } from "../shell/panel.tsx";
-import { usePageTitle } from "../shell/slots.tsx";
 import { AgentFace, Button, ChoiceRow, CopyField, Dialog, EmptyState, ErrorCallout, Glyph, Loading, Menu, MenuNote, MenuRadio, SelectField, Sheet, SheetBody, SheetHeader, useToast } from "../ui/index.tsx";
+import { SignOutEverywhere } from "./settings.tsx";
 import "../styles/screens/account.css";
 
 interface ConnectInfo {
   mcp_url: string;
   /** The address scoped to one organization, with `{tenant}` to fill in. */
   tenant_url_template: string;
-  /** The address scoped to one product, with `{tenant}/{team}/{product}` to fill in. */
+  /** The address scoped to one product, with `{tenant}/{product}` to fill in. */
   bound_url_template: string;
 }
 
@@ -48,6 +48,15 @@ interface ConnectedAgent {
 
 type ReachKind = "product" | "organization" | "all";
 
+/**
+ * A product's connector address, `/mcp/t/<organization>/<product>`: the product's path in place of
+ * whatever stands between `{tenant}` and `{product}` in the template, so a server that still names
+ * a middle part in it gives the same address.
+ */
+export function productConnectorUrl(template: string, path: string): string {
+  return template.replace(/\{tenant\}.*\{product\}/, path);
+}
+
 function reachLabel(r: Reach): string {
   if (r.kind === "all") return "Every product you can open";
   if (r.kind === "tenant") return `Only the organization ${r.name ?? r.path}`;
@@ -80,26 +89,23 @@ function Step({ n, title, children }: { n: number; title: string; children?: Rea
 }
 
 /**
- * `/connect`, and `…/connect` inside a product: the one address an MCP client needs, and the agents
- * connected now. It leads with `/mcp`, every product the person can open, which is the address a
+ * Settings → You → Agents (`?settings=agents`, where `/connect` leads): the one address an MCP client
+ * needs, the agents connected now, and signing out everywhere. It leads with `/mcp`, every product the person can open, which is the address a
  * connectors directory lists. Limiting the agent to one organization or one product is behind a
  * quiet button: it gives a scoped address, a fence the server refuses every call outside of. Opened
- * there, inside a product that product is chosen first; elsewhere, the organization of the last
- * product opened. The client finds sign-in on its own (OAuth discovery), and the server describes
+ * there, the product Settings is open over is chosen first (`herePath`); elsewhere, the organization of
+ * the last product opened. The client finds sign-in on its own (OAuth discovery), and the server describes
  * itself to the agent: its tools and its guide.
  */
-export function ConnectPage() {
+export function AgentsSettings({ herePath = null }: { herePath?: string | null }) {
   const info = useQuery({ queryKey: ["connect"], queryFn: () => api<ConnectInfo>("GET", "/api/v1/connect") });
   const products = useProducts();
   const last = useLastProduct();
-  const here = useParams();
   const [params, setParams] = useSearchParams();
-  usePageTitle("Connect an agent");
   const c = info.data;
   const items = products.data?.items ?? [];
   const tenants = products.data?.tenants ?? [];
   const orgs = new Set(items.map((p) => p.tenant.tenant_id)).size;
-  const herePath = here["product"] ? `${here["tenant"]}/${here["team"]}/${here["product"]}` : null;
   // The URL holds the choice: ?reach=product|organization|all, with ?product=<path> or ?org=<slug>.
   // An older ?product=all means everything.
   const productParam = params.get("product");
@@ -121,7 +127,7 @@ export function ConnectPage() {
   const url = !c
     ? ""
     : reach === "product" && product
-      ? c.bound_url_template.replace("{tenant}/{team}/{product}", product.path)
+      ? productConnectorUrl(c.bound_url_template, product.path)
       : reach === "organization" && org
         ? c.tenant_url_template.replace("{tenant}", org.slug)
         : c.mcp_url;
@@ -151,7 +157,7 @@ export function ConnectPage() {
   return (
     <>
       <Sheet className="agents-sheet" labelledBy="agents-title">
-        <SheetHeader level={1} id="agents-title" title="Connect an agent" />
+        <SheetHeader id="agents-title" title="Connect an agent" />
         <SheetBody className="agents-intro">
           <p className="muted">What your agent reads goes to whoever runs it, under their terms.</p>
         </SheetBody>
@@ -287,11 +293,7 @@ export function ConnectPage() {
         ) : null}
       </Sheet>
       <ConnectedSheet />
-      {c ? (
-        <p className="agents-foot">
-          To disconnect every agent at once, and sign out of every browser, use <Link to="/settings">Sign out everywhere</Link> in Settings.
-        </p>
-      ) : null}
+      <SignOutEverywhere />
     </>
   );
 }

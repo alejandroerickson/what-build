@@ -13,7 +13,7 @@ let alice: Browser;
 let vic: Browser;
 let P: string;
 let tenantId: string;
-let teamPath: string;
+let tenantSlug: string;
 
 const body = '<main class="page"><header class="opening"><h1>Crews plan on Fridays</h1><p class="lead">Why the week starts late.</p></header><section><h2>What we saw</h2><p>Text.</p></section></main>';
 
@@ -39,11 +39,11 @@ beforeAll(async () => {
   alice = await h.signIn("alice@example.com", "Alice Example");
   vic = await h.signIn("vic@example.com", "Vic Viewer");
   const t = await alice.api("POST", "/api/v1/tenants", { name: "Preview Co" });
-  const p = await alice.api("POST", `/api/v1/teams/${t.body.tenant.slug}/${t.body.team.slug}/products`, { name: "Planner" });
+  const p = await alice.api("POST", `/api/v1/tenants/${t.body.tenant.slug}/products`, { name: "Planner" });
   P = `/api/v1/p/${p.body.path}`;
   tenantId = t.body.tenant.tenant_id;
-  teamPath = `${t.body.tenant.slug}/${t.body.team.slug}`;
-  await alice.api("POST", `/api/v1/tenants/${t.body.tenant.slug}/members`, { team: t.body.team.slug, product: "planner", email: "vic@example.com", role: "viewer" });
+  tenantSlug = t.body.tenant.slug;
+  await alice.api("POST", `/api/v1/tenants/${t.body.tenant.slug}/members`, { product: "planner", email: "vic@example.com", role: "viewer" });
   // A house style names a typeface the server carries, so showing a page embeds it.
   expect((await alice.api("PUT", `${P}/story/style`, { house_style: "clear" })).status).toBe(200);
 });
@@ -149,7 +149,7 @@ describe("previewing a later version", () => {
   it("is refused to a viewer, and in an archived product", async () => {
     const viewer = await vic.api("POST", `${P}/story/pages/friday/preview`, { title: "Mine", body });
     expect(viewer.status).toBe(403);
-    const other = await alice.api("POST", `/api/v1/teams/${teamPath}/products`, { name: "Shelved" });
+    const other = await alice.api("POST", `/api/v1/tenants/${tenantSlug}/products`, { name: "Shelved" });
     const Q = `/api/v1/p/${other.body.path}`;
     expect((await alice.api("POST", `${Q}/archive`, { expected_etag: other.body.etag })).status).toBe(200);
     const archived = await alice.api("POST", `${Q}/story/pages/overview/preview`, { title: "Shelved", body });
@@ -246,7 +246,7 @@ describe("on the free plan, and in the example organization", () => {
     const t = await olive.api("POST", "/api/v1/tenants", { name: "Sample Free" });
     freeId = t.body.tenant.tenant_id;
     slug = t.body.tenant.slug;
-    const p = await olive.api("POST", `/api/v1/teams/${slug}/${t.body.team.slug}/products`, { name: "Showcase" });
+    const p = await olive.api("POST", `/api/v1/tenants/${slug}/products`, { name: "Showcase" });
     S = `/api/v1/p/${p.body.path}`;
     await h.db.updateTable("tenants").set({ plan: "free" }).where("tenant_id", "=", freeId).execute();
   });

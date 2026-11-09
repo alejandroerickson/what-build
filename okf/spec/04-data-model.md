@@ -10,7 +10,7 @@ status: stable
 # 4. Data model
 
 All objects are product-scoped unless stated. Every content row also carries `tenant_id`
-([§3.6](03-accounts-teams-and-identity.md)). Field names here are the wire names used by REST,
+([§3.6](03-accounts-and-identity.md)). Field names here are the wire names used by REST,
 MCP, and bundles. The schema is in [`apps/server/src/migrations`](../../apps/server/src/migrations);
 the operations that enforce the rules below are in [`packages/core/src/ops`](../../packages/core/src/ops).
 
@@ -21,9 +21,9 @@ Every editable object carries:
 | Field | Rule |
 |---|---|
 | `id` (named per type, e.g. `record_id`, `outcome_id`; `id` for assumptions) | ULID, immutable. Story pages are the exception: their `page_id` is a slug the author chooses (§4.11). |
-| `product_id` | Immutable except when a source moves ([§3.7](03-accounts-teams-and-identity.md)). `tenant_id` is on every content row and never appears in a request body: it comes from the addressed product. |
+| `product_id` | Immutable except when a source moves ([§3.7](03-accounts-and-identity.md)). `tenant_id` is on every content row and never appears in a request body: it comes from the addressed product. |
 | `etag` | Opaque string; changes on every successful mutation. |
-| `created_at`, `created_by` | Timestamp and actor snapshot ([§3.9](03-accounts-teams-and-identity.md)). Sources say `uploaded_at`, `uploaded_by`. |
+| `created_at`, `created_by` | Timestamp and actor snapshot ([§3.9](03-accounts-and-identity.md)). Sources say `uploaded_at`, `uploaded_by`. |
 | `updated_at`, `updated_by` | Same, for the latest mutation. |
 | `archived_at` | Where the type supports archive (sources, annotations, outcomes, assumptions, Story pages, mockups). Archived objects are excluded from lists and search unless asked for, and remain readable by id. |
 
@@ -101,7 +101,7 @@ slip in a re-sent text shows up in the result.
 ## 4.2 Outcomes
 
 An outcome is what the product's users should be able to achieve with it. Outcomes sit under the
-product concept ([§3.4](03-accounts-teams-and-identity.md)) on the Idea screen, and are the compass
+product concept ([§3.4](03-accounts-and-identity.md)) on the Idea screen, and are the compass
 the evidence, assumptions, mockups and Story are read against
 ([decision](../decisions/a-product-starts-with-an-idea-concept-and-outcomes.md)).
 
@@ -180,9 +180,9 @@ A source is one discovery event or document. It is stored as a **record**, so it
 | `date` | `YYYY-MM-DD`: the date of the **event or document** the discovery question turns on, never the upload date. `null` when genuinely unknown. The web app calls it the **date captured**. |
 | `slug` | Derived from the title. |
 | `tags` | ≤ 50, each 1–50 chars: what the material is, whom it concerns, what it bears on (§4.4). Stored NFKC-normalized, spacing collapsed, lower-case, without repeats. |
-| `copied_from` | `{ product_id, record_id }` when the source is a copy ([§3.7](03-accounts-teams-and-identity.md)). |
+| `copied_from` | `{ product_id, record_id }` when the source was copied from another product, as sources were until teams were removed; nothing copies one now ([§3.7](03-accounts-and-identity.md)). |
 | `uploaded_by`, `uploaded_at` | Actor snapshot and time of creation: the **date added**. |
-| `updated_by`, `updated_at` | Actor snapshot and time of the last change to the source's details, its move to another product ([§3.7](03-accounts-teams-and-identity.md)), archive or restore, each a change to the source itself, as for every object (§4.1): the **date updated**, which the web app calls **details updated** for what it covers. Adding an attachment changes the etag but not this, nor do its text, summary, notes and comments, which keep their own. |
+| `updated_by`, `updated_at` | Actor snapshot and time of the last change to the source's details, its move to another product ([§3.7](03-accounts-and-identity.md)), archive or restore, each a change to the source itself, as for every object (§4.1): the **date updated**, which the web app calls **details updated** for what it covers. Adding an attachment changes the etag but not this, nor do its text, summary, notes and comments, which keep their own. |
 | attachments | §4.5. `attachment_count` counts them. |
 | derived text | The source's words, one Markdown document with an etag of its own, at most one per source ([§5.4](05-derived-layer.md)). `text_chars` is its length in code points, 0 without one. |
 | `derived_status` | Where the derived text stands: `ready` (the source has one), `pending` (an attachment is arriving or being read), `awaiting_file` (no attachment), `awaiting_text` (an attachment has text the source does not use), or how its newest attachment was read: `needs_transcript`, `unsupported`, `too_large` or `failed` ([§5.5](05-derived-layer.md)). |
@@ -400,7 +400,7 @@ incomplete. An entry's id is `id` (the tool also accepts `assumption_id`,
 | `outcome_ids` | ≤ 20 outcome ids. |
 | `links` | ≤ 50 of `{ id, type }` to other assumptions; `type` is `supports`, `contradicts`, or `supersedes`. Reads also return `linked_from` and `superseded_by` (the ids of entries that supersede this one, newest first). |
 | `tags` | As sources. |
-| `author`, `author_type` | Actor snapshot, and a declared `human` or `agent` ([§3.9](03-accounts-teams-and-identity.md)). |
+| `author`, `author_type` | Actor snapshot, and a declared `human` or `agent` ([§3.9](03-accounts-and-identity.md)). |
 | `status` | `unconfirmed` (initial), `confirmed`, `refuted`, `superseded`: always the status of the latest review. |
 | `reviews` | Append-only, at most 500 per entry. |
 | `frozen` | Derived: true once the entry has a review. |
@@ -609,8 +609,9 @@ and flipping through the mockup pages, [§7.8](07-web-app.md)), unless the page 
 key itself, hands a link to another page of the same Story to the app, and turns a
 click on any other link that would replace the page in its frame into a new tab. For the second,
 the app tells the frame the address its Story's pages live under once the frame has loaded; on a
-plain click (no modifier key, the main button) on a link under that address the script stops the
-click and posts only the page's slug, which the app checks against the slug pattern before it
+plain click (no modifier key, the main button) on a link under that address, or under the address
+the same Story had when products were in teams (`/t/<tenant>/<team>/<product>/story/`, any team), the
+script stops the click and posts only the page's slug, which the app checks against the slug pattern before it
 shows that page in place. The app also tells the frame its product's own address, and a click on
 a link into that product written with another deployment's address (an agent writes the address it
 was given, and a copy of a deployment keeps it) is pointed at this deployment before it goes
@@ -993,7 +994,7 @@ agents, sends at most 10 a UTC day (`feedback_counts`, a count per account and d
 which reports, deleted once the day is over), and a deployment takes at most 200 a day; past
 either, `429 rate_limited`, whose message gives the moment the next UTC day begins (midnight UTC),
 when the allowance starts again; its `details` hold only the `limit`. An agent connection whose
-person turned feedback off is refused with `403 feedback_off` ([§3.8](03-accounts-teams-and-identity.md#38-identity-of-the-caller)).
+person turned feedback off is refused with `403 feedback_off` ([§3.8](03-accounts-and-identity.md#38-identity-of-the-caller)).
 
 **The digest.** With `WHATBUILD_FEEDBACK_EMAIL` set and mail configured, the worker mails what is
 unsent (`sent_at` null) to that address in one plain-text message, at most 100 reports, at most once
@@ -1005,7 +1006,7 @@ Otherwise reports stay in the database for whoever runs the deployment
 **Interest: the waitlist.** The public site's form (`POST /api/v1/interest { email, name?,
 organization?, note? }`, no sign-in) records someone asking for an organization of their own, and so
 does a signed-in person who may not start one (`POST /api/v1/me/ask-for-organization`,
-[§3.2](03-accounts-teams-and-identity.md#32-accounts-and-sign-in)), under their account's address
+[§3.2](03-accounts-and-identity.md#32-accounts-and-sign-in)), under their account's address
 and name: `email` ≤ 320 chars,
 `name` and `organization` ≤ 200, `note` ≤ 2,000. One row per address, compared without case; a
 repeat updates the fields it sends. The answer is the same `{ received: true }` for a new address,
@@ -1025,8 +1026,8 @@ lists their paths; both are made from one list (`BUNDLE_LAYOUT`), which a test h
 export writes.
 
 ```
-bundle.json                 format (whatbuild-product-bundle) and format version (2), exported_at/by,
-                            server version, tenant, team, product, layout
+bundle.json                 format (whatbuild-product-bundle) and format version (3), exported_at/by,
+                            server version, tenant, product, layout
 README.txt
 outcomes.json
 records/<record_id>/record.json                  the source, its derived text's details and its attachments with their versions
@@ -1067,15 +1068,15 @@ activity.jsonl
   revisions, activity events, tombstones)
   lives in its own tables and is never updated. Every content table has a row-level security
   policy keyed on the transaction-local `app.tenant_id`. Directory tables (accounts, sessions,
-  tokens, OAuth clients, tenants and their former slugs, teams, products, memberships, invitations) and the job queue,
+  tokens, OAuth clients, tenants and their former slugs, products and the addresses some had under a team (`team_addresses`), memberships, invitations) and the job queue,
   feedback and its daily counts, the public site's interest form, the usage counts, the limits'
   counters and `schema_migrations` have no
   row-level security and
   are reached only through the authorization layer. Policies are forced, because the app's role owns
   the tables. [`apps/server/test/row-level-security.test.ts`](../../apps/server/test/row-level-security.test.ts)
   lists each table without the policy with its reason, and fails on any other.
-- **The example organization, plans and limits** ([§3.3](03-accounts-teams-and-identity.md),
-  [§3.10](03-accounts-teams-and-identity.md), [§9.7](09-data-lifecycle.md),
+- **The example organization, plans and limits** ([§3.3](03-accounts-and-identity.md),
+  [§3.10](03-accounts-and-identity.md), [§9.7](09-data-lifecycle.md),
   [`0034_example_organization.sql`](../../apps/server/src/migrations/0034_example_organization.sql)):
   `tenants.example` (set by the server at start-up), `tenants.plan` (the id of a plan the
   deployment defines, or `unlimited`: any lowercase id, checked against its form and never against
@@ -1094,7 +1095,7 @@ activity.jsonl
   value of only what differs from the configuration or the defaults, an etag, who changed it and when;
   [`0038_guests_and_instance_settings.sql`](../../apps/server/src/migrations/0038_guests_and_instance_settings.sql)),
   a directory table without row-level security. So is `guest_passes`, a guest account's place
-  ([§3.10](03-accounts-teams-and-identity.md#310-the-example-organization)): its first time in,
+  ([§3.10](03-accounts-and-identity.md#310-the-example-organization)): its first time in,
   the UTC day and seconds in that day, its last call, and while waiting, since when and when it last
   asked; it goes with the account. `limit_counters` sits beside the directory
   tables, without row-level security: the counters behind the limits, keyed by tenant, account
@@ -1107,14 +1108,14 @@ activity.jsonl
   `accounts.hide_example`
   ([`0035_accounts_hide_example.sql`](../../apps/server/src/migrations/0035_accounts_hide_example.sql))
   is the person's choice to leave the example out of the app's panel.
-- **An organization's name and slug** ([§3.3](03-accounts-teams-and-identity.md#33-tenants-and-teams),
+- **An organization's name and slug** ([§3.3](03-accounts-and-identity.md#33-tenants),
   [`0036_organization_names.sql`](../../apps/server/src/migrations/0036_organization_names.sql)):
   `tenants.name_etag`, which guards the name and slug its owners and the instance's owners change;
   every tenant got one when the column was added, and its default gives one to any row written
   without it. `tenant_slugs` holds the slugs a tenant had before its current one (`slug` as its
   key, `tenant_id`, when and by whom it was left): a directory table without row-level security,
   read with `tenants` before a transaction is scoped, deleted with its tenant.
-- **Allowances to create organizations** ([§3.3](03-accounts-teams-and-identity.md),
+- **Allowances to create organizations** ([§3.3](03-accounts-and-identity.md),
   [`0010_tenant_allowances.sql`](../../apps/server/src/migrations/0010_tenant_allowances.sql)):
   `tenant_allowances`, a directory table without row-level security keyed by the lower-cased
   address (`allowed`, `note`, `etag`, who gave it and who last changed it), and an index on
@@ -1129,7 +1130,7 @@ activity.jsonl
   are keyed by product, object type and object id, since a Story page's id is unique only within
   its product, with an index on the object id. A product's own tombstone
   carries its id as both product and object.
-- **Agent connection levels** ([§3.8](03-accounts-teams-and-identity.md),
+- **Agent connection levels** ([§3.8](03-accounts-and-identity.md),
   [`0020_connection_levels.sql`](../../apps/server/src/migrations/0020_connection_levels.sql)):
   `oauth_codes.level` and `oauth_tokens.level`, one of `viewer`, `editor` (the default, for every
   connection made before levels existed) and `admin`.
@@ -1162,7 +1163,7 @@ activity.jsonl
   picture's copies, `t/<tenant_id>/r/<record_id>/d/<derivation_id>/{text.md,manifest.json}`
   for what each reading read, and
   `t/<tenant_id>/exports/<export_id>.zip` for exports. Keys never encode titles, tags or any other
-  metadata, so no metadata change ever moves bytes, and a key names its tenant. A copied source shares its
+  metadata, so no metadata change ever moves bytes, and a key names its tenant. A source copied when sources were still copied shares its
   original's attachment blobs; delete frees a blob only when no file version still refers to it.
 - **Card previews** ([`0033_card_previews.sql`](../../apps/server/src/migrations/0033_card_previews.sql)):
   `card_previews` holds each front `outcomes.card_preview` checked (`preview_id`, the product,

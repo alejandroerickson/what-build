@@ -26,4 +26,4 @@ An agent writes with its person's credentials, so identity alone cannot say whet
 
 - Never store an email address in attribution.
 
-Specified in: [03-accounts-teams-and-identity](../spec/03-accounts-teams-and-identity.md), [04-data-model](../spec/04-data-model.md).
+Specified in: [03-accounts-and-identity](../spec/03-accounts-and-identity.md), [04-data-model](../spec/04-data-model.md).

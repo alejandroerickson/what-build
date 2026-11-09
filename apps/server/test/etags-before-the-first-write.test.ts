@@ -24,7 +24,7 @@ beforeAll(async () => {
   h = await startHarness({ instanceOwners: ["owen@etags.example"] });
   owen = await h.signIn("owen@etags.example", "Owen Etags");
   const t = await owen.api("POST", "/api/v1/tenants", { name: "Etag Co" });
-  const p = await owen.api("POST", `/api/v1/teams/${t.body.tenant.slug}/${t.body.team.slug}/products`, { name: "First" });
+  const p = await owen.api("POST", `/api/v1/tenants/${t.body.tenant.slug}/products`, { name: "First" });
   P = `/api/v1/p/${p.body.path}`;
 });
 afterAll(async () => h?.close());

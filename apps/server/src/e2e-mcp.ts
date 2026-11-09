@@ -24,7 +24,7 @@ const PEOPLE: Record<string, string> = {
 };
 const REDIRECT = "http://127.0.0.1:9/callback";
 
-const HELP = `pnpm e2e mcp <command> [--as <person>|<email>] [--endpoint /mcp/t/<org>[/<team>/<product>]] [--level viewer|editor|admin]
+const HELP = `pnpm e2e mcp <command> [--as <person>|<email>] [--endpoint /mcp/t/<org>[/<product>]] [--level viewer|editor|admin]
 
   connect                 connect as that person (sam by default) through OAuth, as an agent would,
                           at the level chosen on the consent page (editor, Edit, unless --level says)
@@ -32,12 +32,12 @@ const HELP = `pnpm e2e mcp <command> [--as <person>|<email>] [--endpoint /mcp/t/
   tools [--full]          the tools, each with its title and hints, and their descriptions (--full adds each input schema)
   call <tool> '<json>'    call a tool with these arguments, and print its result
                           e.g. call products_read '{"action":"list"}'
-                               call story_read '{"action":"get_page","product":"harbor-labs/product-team/crewboard","params":{"page_id":"overview"}}'
+                               call story_read '{"action":"get_page","product":"harbor-labs/crewboard","params":{"page_id":"overview"}}'
                           Tools with actions (<noun>_read, <noun>_write, <noun>_delete, products_export) take action,
                           params (the action's fields), describe and product;
                           call <tool> '{"action":"…","describe":true}' prints an action's schema.
                                call guide '{"topic":"tools"}'   reads a topic of the guide
-                               call search '{"query":"gate code","product":"harbor-labs/product-team/crewboard"}'
+                               call search '{"query":"gate code","product":"harbor-labs/crewboard"}'
 
 A call connects first when it needs to. The endpoint defaults to /mcp (everything the person can reach).
 A saved token the server refuses is made again (a reset forgets every token), unless the person's

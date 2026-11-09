@@ -53,5 +53,5 @@ visitor, which removes the hostile text rather than what it could reach, is plan
 - `listWithoutSandboxes` (`packages/core/src/connector-scope.ts`) is the only other place `/mcp`
   filters a result; the MCP adapter never picks a sandbox's product as a default.
 
-Specified in: [§3.6](../spec/03-accounts-teams-and-identity.md#36-addressing-and-isolation),
-[§3.10](../spec/03-accounts-teams-and-identity.md), [§6.5](../spec/06-operations-and-adapters.md#65-mcp).
+Specified in: [§3.6](../spec/03-accounts-and-identity.md#36-addressing-and-isolation),
+[§3.10](../spec/03-accounts-and-identity.md), [§6.5](../spec/06-operations-and-adapters.md#65-mcp).

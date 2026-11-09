@@ -61,7 +61,7 @@ application's role, and shaped into three organizations
   the accounts that belonged only to them, and so are sessions, OAuth clients and tokens, sign-in
   links and the public site's interest list.
 - **The standard organization** (`<slug>-standard`, named "<name> (standard)"): a copy of the
-  example organization's teams, products, content, activity and memberships, under new ids, with every reference to an old id rewritten, in columns and in
+  example organization's products, content, activity and memberships, under new ids, with every reference to an old id rewritten, in columns and in
   JSON. Its sources' search index is copied with them, so search finds in it what it finds in the
   example organization. A new id keeps the time of the one it replaces, so lists ordered by id, such as activity,
   keep their order in the copy. It was never renamed: its name has an etag of its own, and the
@@ -69,14 +69,14 @@ application's role, and shaped into three organizations
   foreign key is checked.
 - **The synthetic organization** (`harbor-labs`, "Harbor Labs", with the product Crewboard): the
   development sample (`seed.ts`), made through the operations as its people would make it, by people
-  who belong to it alone: Morgan Reyes owns it, Casey Lindqvist edits its team, Avery Nakamura reads
+  who belong to it alone: Morgan Reyes owns it, Casey Lindqvist edits all its products, Avery Nakamura reads
   Crewboard's Story (`morgan@`, `casey@` and `avery@example.com`). Sam is given a reader's place on
   Crewboard, and nothing more there.
 
 So every plan can run the same products both ways, and a plan can check that one organization's
 people see nothing of another's, and that a person's role follows the organization. Each time it is
 served, the development sign-in's people are given their roles in the example and the standard
-organization: Riley owns each, Sam edits every team, Jordan reads every Story. The synthetic
+organization: Riley owns each, Sam edits all products, Jordan reads every Story. The synthetic
 organization is left as it was built. Its people are guests of the example, as any account that
 belongs to no part of it.
 

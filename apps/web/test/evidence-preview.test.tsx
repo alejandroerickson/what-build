@@ -11,10 +11,10 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 window.matchMedia = (() => ({ matches: false, addEventListener: () => {}, removeEventListener: () => {} })) as unknown as typeof window.matchMedia;
 Element.prototype.scrollIntoView = () => {};
 
-const BASE = "/api/v1/p/acme/core/crew";
-const APP = "/t/acme/core/crew";
+const BASE = "/api/v1/p/acme/crew";
+const APP = "/t/acme/crew";
 const by = { account_id: "a1", display_name: "Riley Chen", surface: "web", client: null };
-const product = { name: "Crewboard", path: "acme/core/crew", your_role: "editor", counts: { sources: 3 } };
+const product = { name: "Crewboard", path: "acme/crew", your_role: "editor", counts: { sources: 3 } };
 const base = {
   date: "2026-09-10", tags: ["van checks"], uploaded_by: by, uploaded_at: "2026-10-01T09:00:00.000Z", updated_at: "2026-10-01T09:00:00.000Z", updated_by: by,
   archived_at: null, derived_status: "ready", text_chars: 1200, etag: "e1",

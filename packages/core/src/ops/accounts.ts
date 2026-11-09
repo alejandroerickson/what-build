@@ -32,11 +32,11 @@ export const listAccounts = defineOperation({
   scope: "account",
   access: "any",
   instanceOwnersOnly: true,
-  webOnly: "a person does it in the web app, on People (`/people`)",
+  webOnly: "a person does it in the web app, in Instance admin, under People (`/admin/people`)",
   mutates: false,
   summary: "Every account on this instance, with the organizations each is in and when it was last seen (instance owners).",
   description:
-    "For the instance's owners: each account's name, address, when it was made and last seen (its newest browser session or agent connection), how many browser sessions and agent connections it holds now, whether it owns the instance, the allowance its address has to start organizations, and every organization it holds a role in, with its role on the organization (null when its roles are on teams or products only), how many team and product roles it holds there, and only_owner when nobody else owns it, so removing the account would delete it. query keeps the accounts whose name or address contains it. Names no product and holds none of an organization's content. Remove an account in the web app, on People.",
+    "For the instance's owners: each account's name, address, when it was made and last seen (its newest browser session or agent connection), how many browser sessions and agent connections it holds now, whether it owns the instance, the allowance its address has to start organizations, and every organization it holds a role in, with its role on the organization (null when its roles are on products only), how many roles on all products and on products it holds there, and only_owner when nobody else owns it, so removing the account would delete it. query keeps the accounts whose name or address contains it. Names no product and holds none of an organization's content. Remove an account in the web app, on People.",
   input: z.strictObject({ query: z.string().trim().max(200).optional() }),
   rest: { method: "GET", path: "/accounts" },
   mcp: { tool: "products", action: "accounts" },
@@ -219,7 +219,7 @@ async function endAccount(ctx: OpContext, account: Ending, self: boolean) {
     await db
       .insertInto("activity")
       .values({
-        activity_id: newId(), tenant_id: t.tenant_id, team_id: null, product_id: null, actor: json(ctx.actor), actor_account_id: ctx.actor.account_id,
+        activity_id: newId(), tenant_id: t.tenant_id, product_id: null, actor: json(ctx.actor), actor_account_id: ctx.actor.account_id,
         channel: ctx.actor.surface, action: self ? "account_deleted" : "account_removed", entity_type: "membership", entity_id: id, entity_title: account.display_name,
         summary: self ? `Left ${t.name} (${roles}) by deleting their account` : `Removed from ${t.name} (${roles}) with the account, by an owner of this instance`,
       })
@@ -292,7 +292,7 @@ export const removeAccount = defineOperation({
   instanceOwnersOnly: true,
   mutates: true,
   connection: "admin",
-  webOnly: "a person does it in the web app, on People (`/people`), Remove on the account",
+  webOnly: "a person does it in the web app, in Instance admin, under People (`/admin/people`), Remove on the account",
   summary: "REMOVE PERMANENTLY — cannot be undone. Remove an account from this instance (instance owners, in the web app).",
   description:
     `An instance owner's act in the web app, never an agent's. Needs the account's address typed exactly as email, and confirm set to exactly "${DELETE_CONFIRMATION}". ` +
@@ -345,7 +345,7 @@ export const accountDeleteImpact = defineOperation({
   scope: "account",
   access: "any",
   mutates: false,
-  webOnly: "a person does it in the web app, in their own Settings (`/settings`), Delete account",
+  webOnly: "a person does it in the web app, in their own Settings, under Account (`/settings`), Delete account",
   summary: "Preview what deleting your own account would do, and what stops it (in the web app).",
   description:
     "Read-only. What the web app shows a person before they delete their own account: their address, the organizations they hold roles in and the ones they are the only owner of (each blocks it until someone else owns it or it is deleted), whether they own the instance (which blocks it), how many browser sessions and agent connections end, the invitations and allowance their address loses, and until when this browser's sign-in is recent enough to delete (null: sign in again first).",
@@ -412,7 +412,7 @@ export const deleteAccount = defineOperation({
   access: "any",
   mutates: true,
   connection: "admin",
-  webOnly: "a person does it in the web app, in their own Settings (`/settings`), Delete account",
+  webOnly: "a person does it in the web app, in their own Settings, under Account (`/settings`), Delete account",
   summary: "DELETE PERMANENTLY — cannot be undone. Delete your own account (in the web app).",
   description:
     `A person's own act in the web app, never an agent's. Needs a browser that signed in within the last ${RECENT_SIGN_IN_MINUTES} minutes (403 sign_in_again otherwise), the account's address typed exactly as email, and confirm set to exactly "${DELETE_CONFIRMATION}". ` +

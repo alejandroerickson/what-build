@@ -172,7 +172,7 @@ async function buildGolden(args: string[]) {
       }
       const migration = (await c.query<{ name: string }>("select max(name) as name from schema_migrations")).rows[0]!.name;
       const products = (
-        await c.query<{ path: string }>("select t.slug || '/' || m.slug || '/' || p.slug as path from products p join teams m using (team_id) join tenants t on t.tenant_id = p.tenant_id order by 1")
+        await c.query<{ path: string }>("select t.slug || '/' || p.slug as path from products p join tenants t on t.tenant_id = p.tenant_id order by 1")
       ).rows.map((r) => r.path);
       // restorePull loads only a pull that checked an instance owner owns every organization in it.
       const synthetics = [SYNTHETIC, ...brought.filter((slug) => slug !== SYNTHETIC)];

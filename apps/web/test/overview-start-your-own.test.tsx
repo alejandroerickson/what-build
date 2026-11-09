@@ -31,7 +31,6 @@ const example = {
   example: true,
   plan: "unlimited",
   your_role: null,
-  teams: [{ team_id: "tm", slug: "team", name: "Team", your_role: null }],
 };
 
 vi.mock("../src/lib/api.ts", async (original) => ({

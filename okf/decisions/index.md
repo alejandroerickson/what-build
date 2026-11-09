@@ -3,7 +3,7 @@ type: Index
 title: Decisions
 description: Architectural decision records, each with its context, the choice, and what it constrains.
 tags: [index, decisions, adr]
-generated: {by: agent:claude, at: 2026-11-01}
+generated: {by: agent:claude, at: 2026-11-09}
 status: stable
 ---
 
@@ -33,6 +33,7 @@ name what replaced it, and date the change. Smaller decisions are marked
 - [A write that may create what it writes takes no etag the first time, and the current etag once it exists](a-write-that-may-create-its-object-needs-its-etag-once-it-exists.md)
 - [Tenants share one schema, partitioned by key and enforced three times](shared-schema-tenancy-with-row-level-security.md)
 - [Access is decided in the application, per product, by role](access-is-per-product-roles.md)
+- [An organization holds its products directly; there are no teams, and an address with a team still reaches its product](an-organization-holds-its-products-directly-with-no-teams.md)
 - [A reader reads only the Story, never the evidence behind it](a-reader-reads-only-the-story.md)
 - [WhatBuild runs its own sign-in and its own OAuth 2.1 server for agents](built-in-identity-and-oauth.md)
 - [A scoped MCP connector is a fence, not a default](a-scoped-mcp-connector-is-a-fence.md)
@@ -96,6 +97,7 @@ name what replaced it, and date the change. Smaller decisions are marked
 - [The product concept and each outcome is a card with a front for people and a back for agents, and agents write both](idea-cards-have-a-front-for-people-and-a-back-for-agents.md)
 - [The web app uses the Studio design system](studio-design-system.md)
 - [The overview is WhatBuild's front door, and the one screen with display type](the-overview-is-the-front-door.md)
+- [The panel shows one product; everything else is in a Settings dialog, the account menu is the person's, and running the instance is in Instance admin](the-panel-shows-one-product-and-everything-else-is-in-settings.md)
 - [The WhatBuild mark is one W in a rounded tile with a title-bar line, like one of the app's panels](the-mark-is-a-w-in-a-panel-with-a-title-bar.md)
 - [The public site is pages built with the app, served from Cloudflare's edge or by host from the image](the-public-site-is-pages-built-with-the-app.md)
 - [The app has one address, and a page opened on another of the deployment's names moves to it](the-app-has-one-address-and-pages-on-other-hosts-move-to-it.md)

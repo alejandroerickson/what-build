@@ -19,10 +19,12 @@ other plans will too.
    one product's Story; no archived product is among them.
 2. **Web, as Sam, in the standard organization.** Open a product that has sources and visit each
    section from the panel: Idea, Evidence, Exploration (mockups and assumptions), Story, Activity,
-   the product's settings, and Connect an agent; and search from the panel's Search field. Open one
+   and Settings, with each section it lists; open Connect an agent from the empty seat (or Settings
+   → Agents once an agent is connected); and search from the panel's Search field. Open one
    item in each list that has any: a source, a mockup, an assumption, a Story page. *Expect:* each
    screen loads with content or a designed empty state, and no command prints a `!` problem.
-   Connect an agent gives `/mcp` first, with **Limit this agent to one organization or product**
+   Settings opens over the screen it was opened on and closes back onto it (Esc, the close button,
+   or the scrim), leaving the address as it was. Connect an agent gives `/mcp` first, with **Limit this agent to one organization or product**
    closed; opening it and choosing **One product** gives this product's address, and closing it
    gives `/mcp` again.
 3. **Web, as Sam, in the example organization.** Open the same product and repeat a short tour:
@@ -32,13 +34,17 @@ other plans will too.
    then search for a word you can see in its text, from the panel's Search field. *Expect:* the
    search finds the source as you type, saying the word is in its text, and opening the hit shows
    its Text with the word marked.
-5. **Web, as Riley (owner).** Sign in. Open each organization's members page, and Organizations
-   from the account menu (Riley owns the instance). *Expect:* all load; Riley can manage members,
-   and the members page lists the organization's access changes; Organizations lists both
-   organizations with their plans, the example marked as such, and who may create organizations.
+5. **Web, as Riley (owner).** Sign in. In a product of each organization, open Settings and its
+   organization's People and Access changes; then open Instance admin from the account menu (Riley
+   owns the instance). *Expect:* all load; the panel has the same rows as Sam's, with nothing for
+   organizations or people; Riley can manage people, with Add people, and Access changes lists the
+   organization's access changes; Instance admin has its own panel, its Organizations lists both
+   organizations with their plans, the example marked as such, and Starting organizations who may
+   create organizations.
 6. **Web, as Riley.** Find an archived product among archived products, in either organization. If
-   neither has one, archive a product in the standard organization first, from its Settings.
-   *Expect:* it is listed as archived and can be opened; only its Settings offers to delete it,
+   neither has one, archive a product in the standard organization first, from Settings → the
+   product's General. *Expect:* it is listed as archived and can be opened; only Settings, under its
+   General, offers to delete it,
    to Riley as an admin: under the heading "Delete this product", a button reads "Delete <product
    name> permanently…", and its dialog asks for the product's name to be typed.
 7. **Web, as Jordan (reader).** Sign in, then open the product's Evidence, Exploration and a source
@@ -62,7 +68,8 @@ other plans will too.
     few at a time and offers **Ask for your own organization**; pressing it says they are on the
     waitlist since today and the sheet no longer tells them to ask, and after a reload the button is
     still gone and the sheet still doesn't. Its products open with a notice that
-    it is a worked example nothing in it can change; its Members shows no people.
+    it is a worked example nothing in it can change; Settings lists no section for the example
+    organization, so its people are shown nowhere.
     `products_read(action="list")` lists the example's products with `your_role` guest and the tenant
     `example: true`; the tool list offers no write but `submit_feedback`, and no `create_tenant`;
     reading a source works, and its `scope` says `your_role` guest; creating one anyway is refused

@@ -156,10 +156,12 @@ for (const device of ["desktop", "phone"]) {
     }
     await shoot("print-view", `${s.api}/story/print?page_ids=overview,hand-off-test`);
     await shoot("activity", "/activity");
-    await shoot("settings", "/settings");
-    await shoot("agents", `${base}/connect`);
-    await shoot("settings", `${base}/settings`);
-    await shoot("members", `${base}/t/${s.tenant}/members`);
+    // Settings, a dialog over the screen: the product's General, the organization's People and Plan, the person's own.
+    await shoot("settings-product", "/idea?settings=product", { full: false });
+    await shoot("settings-people", "/idea?settings=organization/people", { full: false });
+    await shoot("settings-plan", "/idea?settings=organization/plan", { full: false });
+    await shoot("settings-account", "/idea?settings=account", { full: false });
+    await shoot("agents", "/idea?settings=agents", { full: false });
     await shoot("not-found", "/no-such-screen", { full: false });
 
     if (device === "desktop" && wanted("panel-hidden")) {

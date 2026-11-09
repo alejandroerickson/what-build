@@ -147,7 +147,7 @@ function consentPage(p: { client: string; redirect: string; account: string; ema
 <p>Signed in as <strong>${escapeHtml(p.account)}</strong> (${escapeHtml(p.email)}).</p>
 <p>${reachSentence(p.reach)} Its changes are recorded as yours, through the agent.</p>
 <p class="muted">What it reads goes to whoever runs the agent, under their terms.</p>
-<p class="muted">You can change or disconnect it later under Connect an agent in WhatBuild.</p>
+<p class="muted">You can change or disconnect it later in WhatBuild’s Settings, under Agents.</p>
 <form method="post" action="/oauth/authorize">${inputs}<input type="hidden" name="csrf" value="${escapeHtml(p.csrf)}">
 ${levelChoice()}
 ${
@@ -279,7 +279,7 @@ export function oauthRoutes(deps: { db: Db; config: ServerConfig; notifyJobs?: (
     if (!q["code_challenge"] || q["code_challenge_method"] !== "S256") return refuse("invalid_request", "PKCE with S256 is required.");
     const resource = q["resource"] ?? `${base}/mcp`;
     if (!resource.startsWith(`${base}/mcp`) || connectorBound(new URL(resource).pathname) === undefined)
-      return refuse("invalid_target", "This server issues tokens only for its MCP endpoints: /mcp, /mcp/t/<organization> and /mcp/t/<organization>/<team>/<product>.");
+      return refuse("invalid_target", "This server issues tokens only for its MCP endpoints: /mcp, /mcp/t/<organization> and /mcp/t/<organization>/<product>.");
     const account = await sessionAccount(c, db, secure);
     if (!account) return c.redirect(`/signin?next=${encodeURIComponent(c.req.url.replace(/^https?:\/\/[^/]+/, ""))}`);
     const csrf = randomToken(16);

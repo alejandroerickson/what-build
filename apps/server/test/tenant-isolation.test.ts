@@ -9,7 +9,7 @@ import { buildOrganization, type Organization } from "./organization-fixture.ts"
 
 // Cross-tenant isolation for every operation in the registry. Someone who owns an organization of
 // their own calls each operation through both front doors, twice: once addressed to another
-// organization's product, team or tenant with that organization's real ids, and once inside their
+// organization's product or tenant with that organization's real ids, and once inside their
 // own organization with those ids. Every operation must be classified below, so a new one is
 // covered as soon as it is registered. access.test.ts covers a caller with no organization and
 // made-up ids; this file covers a member of another organization holding real ones.
@@ -33,7 +33,7 @@ async function etagOf(o: Organization, path: string): Promise<string> {
   return (await o.owner.api("GET", `/api/v1/p/${o.product.path}/${path}`)).body.etag;
 }
 
-/** Every product, team and tenant operation, with an attack on real ids. */
+/** Every product and tenant operation, with an attack on real ids. */
 const SCOPED: Record<string, Probe> = {
   "products.rename_tenant": {
     input: (a) => ({ name: "Renamed by an outsider", slug: "planted-slug", expected_etag: a.tenant.nameEtag }),
@@ -43,7 +43,6 @@ const SCOPED: Record<string, Probe> = {
       { slug: a.tenant.slug, expected_etag: (await b.owner.api("GET", "/api/v1/me/products")).body.tenants.find((t: { slug: string }) => t.slug === b.tenant.slug).name_etag },
     ],
   },
-  "products.create_team": { input: () => ({ name: "Planted team" }) },
   "products.create": { input: () => ({ name: "Planted product" }) },
   "products.get": { input: () => ({}) },
   "products.update": { input: (a) => ({ expected_etag: a.product.etag, name: "Renamed by an outsider" }) },
@@ -58,22 +57,27 @@ const SCOPED: Record<string, Probe> = {
   "products.exports": { input: () => ({}) },
   "members.list": { input: (a) => ({ product: a.product.id }) },
   "members.grant": {
-    input: (a) => ({ team: a.team.id, email: "planted@example.com", role: "admin" }),
+    input: (a) => ({ all_products: true, email: "planted@example.com", role: "admin" }),
+    // Their own organization, given the victim's product by its id and by its slug.
     inside: (a) => [
-      { team: a.team.id, email: "planted@example.com", role: "admin" },
       { product: a.product.id, email: "planted@example.com", role: "admin" },
+      { product: a.product.slug, email: "planted@example.com", role: "admin" },
     ],
   },
   "members.grant_many": {
-    input: (a) => ({ team: a.team.id, people: [{ email: "planted@example.com", role: "admin" }] }),
+    input: (a) => ({ all_products: true, people: [{ email: "planted@example.com", role: "admin" }] }),
     inside: (a) => [
-      { team: a.team.id, people: [{ email: "planted@example.com", role: "admin" }] },
       { product: a.product.id, people: [{ email: "planted@example.com", role: "admin" }] },
+      { product: a.product.slug, people: [{ email: "planted@example.com", role: "admin" }] },
     ],
   },
   "members.revoke": {
-    input: (a) => ({ account_id: a.member.accountId, team: a.team.id }),
-    inside: (a) => [{ account_id: a.member.accountId, team: a.team.id }, { account_id: a.ownerAccountId, whole_tenant: true }],
+    input: (a) => ({ account_id: a.member.accountId, all_products: true }),
+    inside: (a) => [
+      { account_id: a.member.accountId, all_products: true },
+      { account_id: a.member.accountId, product: a.product.id },
+      { account_id: a.ownerAccountId, whole_tenant: true },
+    ],
   },
   "members.cancel_invitation": { input: (a) => ({ invitation_id: a.invitationId }) },
   "members.activity": { input: () => ({}) },
@@ -106,18 +110,6 @@ const SCOPED: Record<string, Probe> = {
   "sources.list_annotations": { input: (a) => ({ record_id: a.source.id, include_archived: true }) },
   "sources.update_annotation": { input: (a) => ({ annotation_id: a.annotation.id, expected_etag: a.annotation.etag, note: "Changed by an outsider" }) },
   "sources.delete_annotation": { input: (a) => ({ annotation_id: a.annotation.id, expected_etag: a.annotation.etag, reason: "Removed by an outsider", confirm: "delete permanently" }) },
-  "sources.move_to_product": {
-    input: (a) => ({ record_id: a.source.id, to_product: a.annex.id, expected_etag: a.source.etag }),
-    // Their own source, moved into the victim's product.
-    inside: async (a, b) => [
-      { record_id: b.source.id, to_product: a.product.id, expected_etag: await etagOf(b, `sources/${b.source.id}`) },
-      { record_id: b.source.id, to_product: a.product.slug, expected_etag: await etagOf(b, `sources/${b.source.id}`) },
-    ],
-  },
-  "sources.copy_to_product": {
-    input: (a) => ({ record_id: a.source.id, to_product: a.annex.id }),
-    inside: (a, b) => [{ record_id: b.source.id, to_product: a.product.id }, { record_id: a.source.id, to_product: b.annex.id }],
-  },
   "sources.delete_impact": { input: (a) => ({ record_id: a.source.id }) },
   "sources.delete": { input: (a) => ({ record_id: a.source.id, expected_etag: a.source.etag, reason: "Removed by an outsider", confirm: "delete permanently" }) },
   "attachments.request_upload": { input: (a) => ({ record_id: a.source.id, path: "planted.md" }) },
@@ -288,17 +280,17 @@ function leaked(org: Organization, body: unknown, sent: string): string[] {
   return org.secrets.filter((s) => text.includes(s) && !sent.includes(s));
 }
 
-/** Where a call lands in an organization: its product, its team or its tenant. */
+/** Where a call lands in an organization: its product or its tenant. */
 function address(o: Organization) {
-  const [tenant, team, product] = o.product.path.split("/") as [string, string, string];
-  return { tenant, team, product, path: o.product.path };
+  const [tenant, product] = o.product.path.split("/") as [string, string];
+  return { tenant, product, path: o.product.path };
 }
 
 async function rest(op: OperationDef, o: Organization, input: Input) {
   const at = address(o);
   const fields = { ...input };
   const path = restPath(op).replace(/:([a-z_]+)/g, (_m, name: string) => {
-    if (name === "tenant" || name === "team" || name === "product") return encodeURIComponent(at[name]);
+    if (name === "tenant" || name === "product") return encodeURIComponent(at[name]);
     const v = fields[name];
     delete fields[name];
     return encodeURIComponent(String(v));
@@ -316,10 +308,7 @@ async function mcp(op: OperationDef, o: Organization, input: Input) {
   const at = address(o);
   const params: Input = { ...input };
   let args: Input;
-  if (op.scope === "tenant" || op.scope === "team") {
-    params["tenant"] = at.tenant;
-    if (op.scope === "team") params["team"] = at.team;
-  }
+  if (op.scope === "tenant") params["tenant"] = at.tenant;
   if (op.mcp.action) args = { action: op.mcp.action, params, ...(op.scope === "product" ? { product: at.path } : {}) };
   else args = { ...params, ...(op.scope === "product" ? { product: at.path } : {}) };
   const r = (await client.callTool({ name: mcpTool(op), arguments: args })) as { content: { text: string }[]; isError?: boolean };
@@ -358,7 +347,7 @@ describe("every operation is classified", () => {
   });
 });
 
-describe("another organization's product, team or tenant, with its real ids", () => {
+describe("another organization's product or tenant, with its real ids", () => {
   it("answers 404, and nothing of it, to every scoped operation over REST and MCP, and changes nothing", async () => {
     const before = await holdings(a);
     const failures: string[] = [];

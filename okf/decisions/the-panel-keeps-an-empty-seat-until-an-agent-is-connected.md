@@ -1,9 +1,9 @@
 ---
 type: Decision
 title: The panel keeps an empty seat for an agent until one is connected
-description: Until a person has an agent connected, Connect an agent's row in the panel is a card that says so and what a person misses without one, for every role, with no dismissal, because most of WhatBuild happens through an agent.
+description: Until a person has an agent connected, the panel holds a card that says so and what a person misses without one, opening Settings at Agents, for every role, with no dismissal, because most of WhatBuild happens through an agent.
 tags: [decision, web, design, onboarding, agents]
-generated: {by: agent:claude, at: 2026-11-01}
+generated: {by: agent:claude, at: 2026-11-09}
 status: stable
 ---
 
@@ -19,20 +19,22 @@ use the web app for weeks without learning that half of it is out of reach. Thre
 mocked up: a breathing mark on the row with a tooltip, a popover beside the panel shown once, and
 the row itself widened into a card. The maintainer chose the card on 2026-11-01, and chose that it
 shows for every kind of user until an agent is connected, rather than for editors only or with a
-dismissal.
+dismissal. Since 2026-11-08 agents are in Settings and the panel has no row for them
+([decision](the-panel-shows-one-product-and-everything-else-is-in-settings.md)), so the seat is
+the panel's only mention of agents, and only while none is connected.
 
 ## Decision
 
-- While the person's account-wide list of connected agents is empty, Connect an agent's row in
-  the panel is the **empty seat** (`AgentSeat` in `apps/web/src/shell/agent-seat.tsx`): a card in
-  the row's own place in the quiet group, saying "No agent connected", that without one a person sees
-  less than half of WhatBuild, and Connect an agent as the panel's one accent button.
-- It shows for **every role**, a reader included (under the Story, opening Connect an agent
-  outside the product), and in the panel outside a product. On Connect an agent itself the plain
-  row stays, marked current.
+- While the person's account-wide list of connected agents is empty, the panel's quiet group
+  starts with the **empty seat** (`AgentSeat` in `apps/web/src/shell/agent-seat.tsx`): a card
+  saying "No agent connected", that without one a person sees less than half of WhatBuild, and
+  Connect an agent as the panel's one accent button, which opens Settings at Agents over the screen.
+- It shows for **every role**, a reader included (under the Story), on every screen the panel is
+  on, an organization with no product included. Once an agent is connected nothing takes its
+  place: agents are in Settings.
 - **Nothing dismisses it.** Connecting an agent does. An agent connects from its own client, outside
   the tab, so while the list is empty the shared query (`apps/web/src/lib/agents.ts`) reads it again
-  when the person comes back to the tab, and the row returns. It never polls, and reads nothing on
+  when the person comes back to the tab, and the seat goes. It never polls, and reads nothing on
   coming back once there is an agent.
 - It never covers content, and never opens a drawer. A hidden desktop panel is shown for it once a
   visit; while the panel is away the pill carries a mark with the same words. Focus mode on the Story

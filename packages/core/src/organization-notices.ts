@@ -65,7 +65,7 @@ export async function tellOwnersReadOnly(
         `It went back to the ${startName} plan while whoever started it already has a ${startName} organization, so nothing new can be added.\n\n` +
         `${READ_ONLY_ALLOWS}${readOnly.kept_until ? ` It is kept until ${utcDay(readOnly.kept_until)} (UTC).` : ""}\n\n` +
         `To work in it again, ask ${runner(ctx)} to move it to another plan.\n\n` +
-        `Its plan:\n${base}/t/${org.slug}/plan\n`,
+        `Its plan:\n${base}/t/${org.slug}?settings=organization/plan\n`,
     },
     "read-only organization",
   );
@@ -82,7 +82,7 @@ export async function tellOwnersDeleted(ctx: Pick<OpContext, "ports" | "now">, t
       subject: `${name} was deleted from WhatBuild`,
       text:
         `${name}, an organization you owned on ${new URL(base).host}, was deleted on ${utcDay(ctx.now)} (UTC) by an owner of this WhatBuild, ` +
-        `with everything in it: its teams, products, sources, attachments and Story.\n\n` +
+        `with everything in it: its products, sources, attachments and Story.\n\n` +
         `Your account stays, with the other organizations you are in.\n\n` +
         `If you didn’t expect this, contact ${runner(ctx)}.\n`,
     },

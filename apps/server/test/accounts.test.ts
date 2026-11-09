@@ -29,8 +29,8 @@ beforeAll(async () => {
   olive = await h.signIn("olive@example.com", "Olive Owner");
   const t = await olive.api("POST", "/api/v1/tenants", { name: "Olive Co" });
   org = t.body.tenant.slug;
-  P = `/api/v1/p/${(await olive.api("POST", `/api/v1/teams/${org}/${t.body.team.slug}/products`, { name: "Grove" })).body.path}`;
-  expect((await olive.api("POST", `/api/v1/tenants/${org}/members`, { email: "pete@example.com", role: "editor", team: t.body.team.slug })).status).toBe(201);
+  P = `/api/v1/p/${(await olive.api("POST", `/api/v1/tenants/${org}/products`, { name: "Grove" })).body.path}`;
+  expect((await olive.api("POST", `/api/v1/tenants/${org}/members`, { email: "pete@example.com", role: "editor", all_products: true })).status).toBe(201);
   pete = await h.signIn("pete@example.com", "Pete Editor");
   source = (await pete.api("POST", `${P}/sources`, { title: "Pete's notes", tags: ["notes"] })).body.record_id;
   // Someone not yet signed up is invited to Olive Co at an address that is never Pete's, and Pete is invited elsewhere too.
@@ -68,12 +68,12 @@ describe("removing an account", () => {
     const r = (await client.callTool({ name: "products_write", arguments: { action: "remove_account", params: { account_id: peteId, email: "pete@example.com", confirm: "delete permanently" } } })) as { isError?: boolean; content: { text: string }[] };
     expect(r.isError).toBe(true);
     // A person's act in the web app: an agent is not even offered it, and is told where it is.
-    expect(r.content[0]!.text).toMatch(/^403: No agent is offered products_write\(action="remove_account"\): a person does it in the web app, on People \(`\/people`\), Remove on the account\./);
+    expect(r.content[0]!.text).toMatch(/^403: No agent is offered products_write\(action="remove_account"\): a person does it in the web app, in Instance admin, under People \(`\/admin\/people`\), Remove on the account\./);
     expect(JSON.parse(r.content[0]!.text.slice(r.content[0]!.text.indexOf("\n") + 1)).error.code).toBe("web_only");
-    // Nor the list of accounts, which is on People too.
+    // Nor the list of accounts, which is under People too.
     const listed = (await client.callTool({ name: "products_read", arguments: { action: "accounts" } })) as { isError?: boolean; content: { text: string }[] };
     expect(listed.isError).toBe(true);
-    expect(listed.content[0]!.text).toMatch(/^403: No agent is offered products_read\(action="accounts"\): a person does it in the web app, on People/);
+    expect(listed.content[0]!.text).toMatch(/^403: No agent is offered products_read\(action="accounts"\): a person does it in the web app, in Instance admin, under People/);
     await client.close();
   });
 
@@ -186,7 +186,7 @@ describe("an instance owner deleting an organization", () => {
     const quinn = await h.signIn("quinn@example.com", "Quinn Owner");
     const t = await quinn.api("POST", "/api/v1/tenants", { name: "Quinn Co" });
     const slug = t.body.tenant.slug as string;
-    await quinn.api("POST", `/api/v1/teams/${slug}/${t.body.team.slug}/products`, { name: "Quay" });
+    await quinn.api("POST", `/api/v1/tenants/${slug}/products`, { name: "Quay" });
     // Someone else in no role there is refused, as before.
     const rae = await h.signIn("rae@example.com");
     expect((await rae.api("GET", `/api/v1/tenants/${slug}/delete-impact`)).status).toBe(404);

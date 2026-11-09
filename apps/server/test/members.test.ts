@@ -4,8 +4,8 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { startHarness, type Browser, type Harness } from "./harness.ts";
 
 /**
- * Acme Labs has two teams. Planning holds Planner, which Pat views and Pam administers; Research
- * holds Secret Bets, which only Hal and the organization's owners and admins can open.
+ * Acme Labs has two products: Planner, which Pat views and Pam administers, and Secret Bets, which
+ * only Hal and the organization's owners and admins can open.
  */
 let h: Harness;
 let alice: Browser; // owner
@@ -15,10 +15,9 @@ let pat: Browser; // viewer of Planner
 let pam: Browser; // admin of Planner
 let hal: Browser; // editor of Secret Bets
 let T: string;
-let planning: string;
 let ids: Record<string, string>;
 
-const grant = (who: Browser, body: Record<string, string>) => who.api("POST", `/api/v1/tenants/${T}/members`, body);
+const grant = (who: Browser, body: Record<string, string | boolean>) => who.api("POST", `/api/v1/tenants/${T}/members`, body);
 const list = (who: Browser, query = "") => who.api("GET", `/api/v1/tenants/${T}/members${query}`);
 const emails = (r: { body: { members: { email: string }[] } }) => r.body.members.map((m) => m.email).sort();
 
@@ -32,17 +31,15 @@ beforeAll(async () => {
   hal = await h.signIn("hal@example.com", "Hal Hidden");
   const t = await alice.api("POST", "/api/v1/tenants", { name: "Acme Labs" });
   T = t.body.tenant.slug;
-  planning = t.body.team.slug;
-  await alice.api("POST", `/api/v1/teams/${T}/${planning}/products`, { name: "Planner" });
-  const research = await alice.api("POST", `/api/v1/tenants/${T}/teams`, { name: "Research" });
-  await alice.api("POST", `/api/v1/teams/${T}/${research.body.slug}/products`, { name: "Secret Bets" });
+  await alice.api("POST", `/api/v1/tenants/${T}/products`, { name: "Planner" });
+  await alice.api("POST", `/api/v1/tenants/${T}/products`, { name: "Secret Bets" });
   await grant(alice, { email: "olga@example.com", role: "owner" });
   await grant(alice, { email: "adam@example.com", role: "admin" });
-  await grant(alice, { team: planning, product: "planner", email: "pat@example.com", role: "viewer" });
-  await grant(alice, { team: planning, product: "planner", email: "pam@example.com", role: "admin" });
-  await grant(alice, { team: research.body.slug, product: "secret-bets", email: "hal@example.com", role: "editor" });
-  await grant(alice, { team: planning, product: "planner", email: "planner-invitee@example.com", role: "viewer" });
-  await grant(alice, { team: research.body.slug, product: "secret-bets", email: "secret-invitee@example.com", role: "editor" });
+  await grant(alice, { product: "planner", email: "pat@example.com", role: "viewer" });
+  await grant(alice, { product: "planner", email: "pam@example.com", role: "admin" });
+  await grant(alice, { product: "secret-bets", email: "hal@example.com", role: "editor" });
+  await grant(alice, { product: "planner", email: "planner-invitee@example.com", role: "viewer" });
+  await grant(alice, { product: "secret-bets", email: "secret-invitee@example.com", role: "editor" });
   await grant(alice, { email: "org-invitee@example.com", role: "member" });
   ids = Object.fromEntries((await list(alice)).body.members.map((m: { email: string; account_id: string }) => [m.email, m.account_id]));
 });
@@ -73,20 +70,20 @@ describe("who sees the organization's people", () => {
     expect(r.body.partial).toBeUndefined();
   });
 
-  it("shows anyone else only the people on the teams and products they can read, and nothing of the rest", async () => {
+  it("shows anyone else only the people on the products they can read, and nothing of the rest", async () => {
     const r = await list(pat);
     expect(r.status).toBe(200);
     expect(r.body.partial).toBe(true);
     expect(emails(r)).toEqual(["adam@example.com", "alice@example.com", "olga@example.com", "pam@example.com", "pat@example.com"]);
     expect(r.body.invitations).toEqual([]);
     const text = JSON.stringify(r.body);
-    for (const hidden of ["Secret Bets", "secret-bets", "Research", "research", "hal@", "invitee"]) expect(text, hidden).not.toContain(hidden);
+    for (const hidden of ["Secret Bets", "secret-bets", "hal@", "invitee"]) expect(text, hidden).not.toContain(hidden);
     const halSees = await list(hal);
     expect(emails(halSees)).toEqual(["adam@example.com", "alice@example.com", "hal@example.com", "olga@example.com"]);
     expect(JSON.stringify(halSees.body)).not.toMatch(/Planner|pat@|pam@/);
   });
 
-  it("gives someone whose roles are on products only the organization role member, as the Members page does", async () => {
+  it("gives someone whose roles are on products only the organization role member, as its People in Settings does", async () => {
     const tenant = (await pat.api("GET", "/api/v1/me/products")).body.tenants.find((t: { slug: string }) => t.slug === T);
     expect(tenant.your_role).toBe("member");
     expect((await adam.api("GET", "/api/v1/me/products")).body.tenants.find((t: { slug: string }) => t.slug === T).your_role).not.toBe("member");
@@ -99,13 +96,13 @@ describe("who sees the organization's people", () => {
   });
 
   it("answers a product the caller cannot open as if it did not exist", async () => {
-    const hidden = await list(pat, "?team=research&product=secret-bets");
+    const hidden = await list(pat, "?product=secret-bets");
     expect(hidden.status).toBe(404);
     expect(JSON.stringify(hidden.body)).not.toContain("Secret Bets");
-    const own = await list(pat, `?team=${planning}&product=planner`);
+    const own = await list(pat, "?product=planner");
     expect(own.status).toBe(200);
     expect(emails(own)).toEqual(["adam@example.com", "alice@example.com", "olga@example.com", "pam@example.com", "pat@example.com"]);
-    const granting = await grant(pam, { team: "research", product: "secret-bets", email: "pat@example.com", role: "viewer" });
+    const granting = await grant(pam, { product: "secret-bets", email: "pat@example.com", role: "viewer" });
     expect(granting.status).toBe(404);
     expect(JSON.stringify(granting.body)).not.toContain("Secret Bets");
   });
@@ -125,7 +122,7 @@ describe("an invitation email", () => {
   it("shows the inviter's name on one line, quoted and bounded, whatever they chose", async () => {
     const mallory = await h.signIn("mallory@example.com", "Mallory\r\nBcc: everyone@example.com‮ WhatBuild Security: your account is locked, reset it");
     await grant(alice, { email: "mallory@example.com", role: "admin" });
-    expect((await grant(mallory, { team: planning, product: "planner", email: "newcomer@example.com", role: "viewer" })).status).toBe(201);
+    expect((await grant(mallory, { product: "planner", email: "newcomer@example.com", role: "viewer" })).status).toBe(201);
     const mail = h.mailer.sent.at(-1)!;
     expect(mail.to).toBe("newcomer@example.com");
     expect(mail.subject).not.toMatch(/[\r\n‮]/);
@@ -142,18 +139,16 @@ describe("an invitation email", () => {
     const owner = await h.signIn("nia@example.com", "Nia Owner");
     const t = await owner.api("POST", "/api/v1/tenants", { name: "Harbor Works" });
     const org = t.body.tenant.slug;
-    const invite = (body: Record<string, string>) => owner.api("POST", `/api/v1/tenants/${org}/members`, body);
-    const product = await owner.api("POST", `/api/v1/teams/${org}/${t.body.team.slug}/products`, { name: "Tide Log" });
+    const invite = (body: Record<string, string | boolean>) => owner.api("POST", `/api/v1/tenants/${org}/members`, body);
+    const product = await owner.api("POST", `/api/v1/tenants/${org}/products`, { name: "Tide Log" });
     expect((await invite({ email: "joins-org@example.com", role: "admin" })).status).toBe(201);
     expect(sentTo("joins-org@example.com").subject).toBe('"Nia Owner" invited you to the organization "Harbor Works" on WhatBuild');
     expect(sentTo("joins-org@example.com").text.split("\n")[0]).toBe('"Nia Owner" invited you to the organization "Harbor Works" on WhatBuild, as an admin.');
-    // The team every organization starts with is named Product team, and reads as the screens read it.
-    expect((await invite({ team: t.body.team.slug, email: "joins-team@example.com", role: "editor" })).status).toBe(201);
-    expect(sentTo("joins-team@example.com").subject).toBe('"Nia Owner" invited you to the "Product team" in the organization "Harbor Works" on WhatBuild');
-    const other = await owner.api("POST", `/api/v1/tenants/${org}/teams`, { name: "Insights" });
-    expect((await invite({ team: other.body.slug, email: "joins-insights@example.com", role: "viewer" })).status).toBe(201);
-    expect(sentTo("joins-insights@example.com").subject).toBe('"Nia Owner" invited you to the "Insights" team in the organization "Harbor Works" on WhatBuild');
-    expect((await invite({ team: t.body.team.slug, product: product.body.slug, email: "joins-product@example.com", role: "reader" })).status).toBe(201);
+    // All products reads as the screens read it: every product in the organization.
+    expect((await invite({ all_products: true, email: "joins-everywhere@example.com", role: "editor" })).status).toBe(201);
+    expect(sentTo("joins-everywhere@example.com").subject).toBe('"Nia Owner" invited you to every product in the organization "Harbor Works" on WhatBuild');
+    expect(sentTo("joins-everywhere@example.com").text.split("\n")[0]).toBe('"Nia Owner" invited you to every product in the organization "Harbor Works" on WhatBuild, as an editor.');
+    expect((await invite({ product: product.body.slug, email: "joins-product@example.com", role: "reader" })).status).toBe(201);
     expect(sentTo("joins-product@example.com").text.split("\n")[0]).toBe('"Nia Owner" invited you to "Tide Log" in the organization "Harbor Works" on WhatBuild, as a reader.');
   });
 
@@ -162,9 +157,9 @@ describe("an invitation email", () => {
     // Names a person chose, trying to read as WhatBuild's own words, to close the quotation or to reach another header.
     const t = await owner.api("POST", "/api/v1/tenants", { name: 'Acme" on WhatBuild. Reset your account\r\nBcc: everyone@example.com‮ now' });
     expect(t.status, JSON.stringify(t.body)).toBe(201);
-    const p = await owner.api("POST", `/api/v1/teams/${t.body.tenant.slug}/${t.body.team.slug}/products`, { name: 'Tide"\u202e Log' });
+    const p = await owner.api("POST", `/api/v1/tenants/${t.body.tenant.slug}/products`, { name: 'Tide"\u202e Log' });
     expect(p.status, JSON.stringify(p.body)).toBe(201);
-    expect((await owner.api("POST", `/api/v1/tenants/${t.body.tenant.slug}/members`, { team: t.body.team.slug, product: p.body.slug, email: "wary@example.com", role: "viewer" })).status).toBe(201);
+    expect((await owner.api("POST", `/api/v1/tenants/${t.body.tenant.slug}/members`, { product: p.body.slug, email: "wary@example.com", role: "viewer" })).status).toBe(201);
     const mail = h.mailer.sent.filter((m) => m.to === "wary@example.com").at(-1)!;
     expect(mail.subject).not.toMatch(/[\r\n\u202e]/);
     expect(mail.subject).toBe(`"Orla" invited you to "Tide' Log" in the organization "Acme' on WhatBuild. Reset your account Bcc: everyone@example.com now" on WhatBuild`);
@@ -189,7 +184,7 @@ describe("the organization's access log", () => {
       await trx
         .insertInto("activity")
         .values({
-          activity_id: activityId, tenant_id, team_id: null, product_id: null,
+          activity_id: activityId, tenant_id, product_id: null,
           actor: json({ account_id: "someone", display_name: "Someone", surface: "web", client: null }),
           actor_account_id: "someone", channel: "web", action: "revoked", entity_type: "membership", entity_id: "someone", entity_title: "Someone", summary,
         })
@@ -200,11 +195,11 @@ describe("the organization's access log", () => {
   });
 
   it("shows owners and admins every change to who has access, newest first, with no email address", async () => {
-    await grant(alice, { team: planning, product: "planner", email: "pat@example.com", role: "editor" });
+    await grant(alice, { product: "planner", email: "pat@example.com", role: "editor" });
     const pending = (await list(alice)).body.invitations.find((i: { email: string }) => i.email === "org-invitee@example.com");
     expect((await alice.api("POST", `/api/v1/tenants/${T}/invitations/cancel`, { invitation_id: pending.invitation_id })).status).toBe(200);
     // Hal's only role: taking it takes them out of the organization, which the answer and the log say.
-    const revoked = await alice.api("POST", `/api/v1/tenants/${T}/members/revoke`, { account_id: ids["hal@example.com"], team: "research", product: "secret-bets" });
+    const revoked = await alice.api("POST", `/api/v1/tenants/${T}/members/revoke`, { account_id: ids["hal@example.com"], product: "secret-bets" });
     expect(revoked.status).toBe(200);
     expect(revoked.body.left_organization).toBe(true);
 
@@ -236,7 +231,7 @@ describe("the organization's access log", () => {
   });
 
   it("stays out of a product's own activity, all but someone joining it through an invitation", async () => {
-    const product = await pam.api("GET", `/api/v1/p/${T}/${planning}/planner/activity?limit=200`);
+    const product = await pam.api("GET", `/api/v1/p/${T}/planner/activity?limit=200`);
     expect(product.status).toBe(200);
     const access = product.body.items.filter((i: { entity_type: string }) => i.entity_type === "membership");
     expect(access.length).toBeGreaterThan(0);
@@ -246,7 +241,7 @@ describe("the organization's access log", () => {
 
 describe("giving many people roles at once", () => {
   const many = (who: Browser, body: Record<string, unknown>) => who.api("POST", `/api/v1/tenants/${T}/members/many`, body);
-  const onPlanner = { team: planning, product: "planner" };
+  const onPlanner = { product: "planner" };
 
   it("gives people already in the organization their role at once, and invites everyone else, in one call that sends each invitation", async () => {
     await h.signIn("bea@example.com", "Bea Batch");
@@ -274,7 +269,7 @@ describe("giving many people roles at once", () => {
     }
     expect(h.mailer.sent.slice(before).map((m) => m.to.toLowerCase()).sort()).toEqual(["bea@example.com", "cy@example.com", "dee-invitee@example.com", "eli-invitee@example.com"]);
     // Bea and Cy, signed in here, accepted; the others' invitations wait.
-    const people = await list(alice, `?team=${planning}&product=planner`);
+    const people = await list(alice, "?product=planner");
     const role = (email: string) => people.body.members.find((m: { email: string }) => m.email === email)?.product_access.role;
     expect([role("bea@example.com"), role("cy@example.com")]).toEqual(["editor", "reader"]);
     expect(people.body.invitations.map((i: { email: string }) => i.email)).toEqual(expect.arrayContaining(["dee-invitee@example.com", "eli-invitee@example.com"]));
@@ -316,7 +311,7 @@ describe("giving many people roles at once", () => {
   it("is refused to someone who doesn't administer the scope, and answers a product they can't see as missing", async () => {
     const own = await many(pat, { ...onPlanner, people: [{ email: "hank-invitee@example.com", role: "viewer" }] });
     expect(own.status).toBe(403);
-    const hidden = await many(pam, { team: "research", product: "secret-bets", people: [{ email: "pat@example.com", role: "viewer" }] });
+    const hidden = await many(pam, { product: "secret-bets", people: [{ email: "pat@example.com", role: "viewer" }] });
     expect(hidden.status).toBe(404);
     expect(JSON.stringify(hidden.body)).not.toContain("Secret Bets");
     const owners = await many(adam, { people: [{ email: "pat@example.com", role: "owner" }] });
@@ -354,8 +349,8 @@ describe("an address the giver can't already see in the organization", () => {
     try {
       const elsewhere = await h.signIn("otto@example.com", "Otto Elsewhere");
       await elsewhere.api("POST", "/api/v1/tenants", { name: "Otto's Own" });
-      const known = await grant(alice, { team: planning, product: "planner", email: "otto@example.com", role: "editor" });
-      const unknown = await grant(alice, { team: planning, product: "planner", email: "no-account@example.com", role: "editor" });
+      const known = await grant(alice, { product: "planner", email: "otto@example.com", role: "editor" });
+      const unknown = await grant(alice, { product: "planner", email: "no-account@example.com", role: "editor" });
       expect(known.status).toBe(201);
       expect(unknown.status).toBe(201);
       expect(shape(known.body)).toEqual(shape(unknown.body));
@@ -372,7 +367,7 @@ describe("an address the giver can't already see in the organization", () => {
       const log = await alice.api("GET", `/api/v1/tenants/${T}/members/activity?limit=200`);
       expect(JSON.stringify(log.body)).not.toContain("Otto Elsewhere");
 
-      const many = await alice.api("POST", `/api/v1/tenants/${T}/members/many`, { ...{ team: planning, product: "planner" }, people: [{ email: "otto@example.com", role: "viewer" }, { email: "no-account-2@example.com", role: "viewer" }] });
+      const many = await alice.api("POST", `/api/v1/tenants/${T}/members/many`, { ...{ product: "planner" }, people: [{ email: "otto@example.com", role: "viewer" }, { email: "no-account-2@example.com", role: "viewer" }] });
       expect(many.status).toBe(201);
       expect(many.body).toMatchObject({ granted: 0, invited: 2 });
       expect(shape(many.body.results[0])).toEqual(shape(many.body.results[1]));
@@ -391,16 +386,166 @@ describe("an address the giver can't already see in the organization", () => {
     h.acceptsInvitations = false;
     try {
       // Hal is on Secret Bets, which Pam, an admin of Planner only, can't see.
-      await grant(alice, { team: "research", product: "secret-bets", email: "hal@example.com", role: "editor" });
-      const hidden = await grant(pam, { team: planning, product: "planner", email: "hal@example.com", role: "viewer" });
+      await grant(alice, { product: "secret-bets", email: "hal@example.com", role: "editor" });
+      const hidden = await grant(pam, { product: "planner", email: "hal@example.com", role: "viewer" });
       expect(hidden.status).toBe(201);
       expect(hidden.body).toMatchObject({ invited: true });
       expect(JSON.stringify(hidden.body)).not.toContain("Hal Hidden");
       // Pat, on Planner, Pam sees: the role is given at once.
-      const seen = await grant(pam, { team: planning, product: "planner", email: "pat@example.com", role: "viewer" });
+      const seen = await grant(pam, { product: "planner", email: "pat@example.com", role: "viewer" });
       expect(seen.body).toMatchObject({ invited: false, display_name: "Pat Viewer" });
     } finally {
       h.acceptsInvitations = true;
     }
+  });
+});
+
+describe("a product creator", () => {
+  const create = (who: Browser, name: string) => who.api("POST", `/api/v1/tenants/${T}/products`, { name });
+  const grantsOf = async (email: string) => {
+    const account = await h.db.selectFrom("accounts").select("account_id").where("email", "=", email).executeTakeFirstOrThrow();
+    return h.db.selectFrom("memberships").select(["scope_type", "scope_id", "role"]).where("account_id", "=", account.account_id).orderBy("scope_type").execute();
+  };
+
+  it("creates a product, and is its admin by a grant on it, with no role on any other", async () => {
+    const cara = await h.signIn("cara@example.com", "Cara Creator");
+    expect((await grant(alice, { email: "cara@example.com", role: "creator" })).status).toBe(201);
+    expect((await cara.api("GET", "/api/v1/me/products")).body.tenants.find((t: { slug: string }) => t.slug === T)).toMatchObject({ your_role: "creator" });
+    // Being a product creator opens no product by itself.
+    expect((await cara.api("GET", `/api/v1/p/${T}/planner`)).status).toBe(404);
+    const made = await create(cara, "Cara's Bets");
+    expect(made.status, JSON.stringify(made.body)).toBe(201);
+    expect(made.body).toMatchObject({ path: `${T}/cara-s-bets`, your_role: "admin" });
+    const tenantId = (await h.db.selectFrom("tenants").select("tenant_id").where("slug", "=", T).executeTakeFirstOrThrow()).tenant_id;
+    expect(await grantsOf("cara@example.com")).toEqual([
+      { scope_type: "product", scope_id: made.body.product_id, role: "admin" },
+      { scope_type: "tenant", scope_id: tenantId, role: "creator" },
+    ]);
+    // An admin of it: they write there and give others roles on it.
+    expect((await cara.api("POST", `/api/v1/p/${made.body.path}/outcomes`, { title: "Bets get a second look" })).status).toBe(201);
+    expect((await grant(cara, { product: "cara-s-bets", email: "pat@example.com", role: "viewer" })).status).toBe(201);
+    const people = await list(cara, "?product=cara-s-bets");
+    expect(people.body.members.find((m: { email: string }) => m.email === "cara@example.com").product_access).toEqual({ role: "admin", via: "product" });
+    // Still nothing of the organization's own administration, nor anyone else's product.
+    expect((await grant(cara, { email: "someone@example.com", role: "member" })).status).toBe(403);
+    expect((await cara.api("GET", `/api/v1/tenants/${T}/members/activity`)).status).toBe(403);
+    expect((await cara.api("GET", `/api/v1/p/${T}/secret-bets`)).status).toBe(404);
+  });
+
+  it("is refused to a member, an editor of all products and a product's admin, with 403 naming the product creator", async () => {
+    const mo = await h.signIn("mo@example.com", "Mo Member");
+    expect((await grant(alice, { email: "mo@example.com", role: "member" })).status).toBe(201);
+    const ed = await h.signIn("ed@example.com", "Ed Everywhere");
+    expect((await grant(alice, { all_products: true, email: "ed@example.com", role: "editor" })).status).toBe(201);
+    const before = (await h.db.selectFrom("products").select("product_id").execute()).length;
+    for (const [who, role] of [[mo, "member"], [ed, null], [pam, null]] as const) {
+      const r = await create(who, "Not theirs to make");
+      expect(r.status, who.email).toBe(403);
+      expect(r.body.error.details, who.email).toEqual({ role, needed: "creator" });
+      expect(r.body.error.message).toBe("Creating a product in Acme Labs needs a product creator, admin or owner of it. Ask one of its owners or admins to make you a product creator.");
+    }
+    expect((await h.db.selectFrom("products").select("product_id").execute()).length).toBe(before);
+  });
+
+  it("is something an owner or admin of the organization already is, and they need no grant on what they make", async () => {
+    for (const [who, email, name] of [[alice, "alice@example.com", "Owner's Board"], [adam, "adam@example.com", "Admin's Board"]] as const) {
+      const before = await grantsOf(email);
+      const r = await create(who, name);
+      expect(r.status, email).toBe(201);
+      expect(r.body.your_role).toBe("admin");
+      expect(await grantsOf(email), email).toEqual(before);
+    }
+  });
+
+  it("is given and taken back by the organization's owners and admins, never by a product's admin", async () => {
+    expect((await grant(pam, { email: "pat@example.com", role: "creator" })).status).toBe(403);
+    expect((await grant(adam, { email: "pat@example.com", role: "creator" })).status).toBe(201);
+    expect((await pat.api("GET", "/api/v1/me/products")).body.tenants.find((t: { slug: string }) => t.slug === T).your_role).toBe("creator");
+    expect((await grant(adam, { email: "pat@example.com", role: "member" })).status).toBe(201);
+    expect((await create(pat, "Not any more")).status).toBe(403);
+  });
+});
+
+describe("a role on all products", () => {
+  let ava: Browser;
+  const products = () => ava.api("GET", "/api/v1/me/products");
+
+  beforeAll(async () => {
+    ava = await h.signIn("ava@example.com", "Ava Everywhere");
+    // Hal left when his only role went; he is back on Secret Bets.
+    expect((await grant(alice, { product: "secret-bets", email: "hal@example.com", role: "editor" })).status).toBe(201);
+    expect((await hal.api("GET", `/api/v1/p/${T}/secret-bets`)).body.your_role).toBe("editor");
+  });
+
+  it("is given only by the organization's owners and admins, and only as a product's role", async () => {
+    for (const who of [pam, pat, hal]) {
+      const r = await grant(who, { all_products: true, email: "ava@example.com", role: "viewer" });
+      expect(r.status, who.email).toBe(403);
+      expect(r.body.error.details).toMatchObject({ needed: "admin" });
+    }
+    expect((await grant(pam, { all_products: true, email: "ava@example.com", role: "viewer" })).body.error.message).toBe("Roles on all products are given and taken by the organization's owners and admins.");
+    for (const role of ["owner", "creator", "member"]) expect((await grant(adam, { all_products: true, email: "ava@example.com", role })).status, role).toBe(422);
+    expect((await grant(adam, { all_products: true, product: "planner", email: "ava@example.com", role: "viewer" })).status).toBe(422);
+    expect((await products()).body.items).toEqual([]);
+    const r = await grant(adam, { all_products: true, email: "ava@example.com", role: "editor" });
+    expect(r.status, JSON.stringify(r.body)).toBe(201);
+    expect(r.body).toMatchObject({ scope_type: "all_products", scope: "All products", role: "editor" });
+  });
+
+  it("applies to every product, products made later included", async () => {
+    for (const p of ["planner", "secret-bets"]) {
+      expect((await ava.api("GET", `/api/v1/p/${T}/${p}`)).body.your_role, p).toBe("editor");
+    }
+    expect((await ava.api("POST", `/api/v1/p/${T}/secret-bets/outcomes`, { title: "Bets pay off" })).status).toBe(201);
+    // Editors delete nothing for good, and administer nothing.
+    expect((await grant(ava, { product: "planner", email: "pat@example.com", role: "viewer" })).status).toBe(403);
+    const later = await alice.api("POST", `/api/v1/tenants/${T}/products`, { name: "Made Later" });
+    expect(later.status).toBe(201);
+    expect((await ava.api("GET", `/api/v1/p/${later.body.path}`)).body.your_role).toBe("editor");
+    const listed = (await products()).body;
+    expect(listed.items.map((i: { path: string }) => i.path)).toContain(later.body.path);
+    expect(listed.tenants.find((t: { slug: string }) => t.slug === T)).toMatchObject({ your_role: "member", all_products: "editor" });
+    // A product's own grant raises it there, and lowers it nowhere.
+    expect((await grant(alice, { product: "made-later", email: "ava@example.com", role: "admin" })).status).toBe(201);
+    expect((await ava.api("GET", `/api/v1/p/${later.body.path}`)).body.your_role).toBe("admin");
+    expect((await grant(alice, { product: "planner", email: "ava@example.com", role: "reader" })).status).toBe(201);
+    expect((await ava.api("GET", `/api/v1/p/${T}/planner`)).body.your_role).toBe("editor");
+  });
+
+  it("shows in members.list, for a product with via all_products, to its admins and to anyone who reads a product", async () => {
+    const forAdmin = await list(adam, "?product=secret-bets");
+    const avaThere = forAdmin.body.members.find((m: { email: string }) => m.email === "ava@example.com");
+    expect(avaThere.product_access).toEqual({ role: "editor", via: "all_products" });
+    expect(avaThere.grants).toEqual([expect.objectContaining({ scope_type: "all_products", scope: { name: "All products", slug: "" }, role: "editor" })]);
+    // Where a product's own grant is higher, it is the one the role comes from.
+    const later = (await list(adam, "?product=made-later")).body.members.find((m: { email: string }) => m.email === "ava@example.com");
+    expect(later.product_access).toEqual({ role: "admin", via: "product" });
+    // Pat views Planner only, and Hal edits Secret Bets only: each sees Ava's role on all products, and nothing of the other's product.
+    for (const [who, hidden] of [[pat, "Secret Bets"], [hal, "Planner"]] as const) {
+      const r = await list(who);
+      expect(r.body.partial, who.email).toBe(true);
+      const seen = r.body.members.find((m: { email: string }) => m.email === "ava@example.com");
+      expect(seen.grants.map((g: { scope_type: string }) => g.scope_type), who.email).toContain("all_products");
+      expect(JSON.stringify(r.body), who.email).not.toContain(hidden);
+    }
+    const viaProduct = await list(pat, "?product=planner");
+    expect(viaProduct.body.members.find((m: { email: string }) => m.email === "ava@example.com").product_access).toEqual({ role: "editor", via: "all_products" });
+  });
+
+  it("is taken back only by the organization's owners and admins, and with it every product it reached", async () => {
+    const avaId = (await list(alice)).body.members.find((m: { email: string }) => m.email === "ava@example.com").account_id;
+    const refused = await pam.api("POST", `/api/v1/tenants/${T}/members/revoke`, { account_id: avaId, all_products: true });
+    expect(refused.status).toBe(403);
+    expect(refused.body.error.details).toMatchObject({ needed: "admin" });
+    const r = await adam.api("POST", `/api/v1/tenants/${T}/members/revoke`, { account_id: avaId, all_products: true });
+    expect(r.status, JSON.stringify(r.body)).toBe(200);
+    expect(r.body).toMatchObject({ revoked: true, scope_type: "all_products", scope: "All products" });
+    expect(r.body.left_organization).toBeUndefined();
+    expect((await ava.api("GET", `/api/v1/p/${T}/secret-bets`)).status).toBe(404);
+    // The grants on products of their own stay.
+    expect((await ava.api("GET", `/api/v1/p/${T}/made-later`)).body.your_role).toBe("admin");
+    expect((await ava.api("GET", `/api/v1/p/${T}/planner`)).body.your_role).toBe("reader");
+    const log = (await alice.api("GET", `/api/v1/tenants/${T}/members/activity?limit=5`)).body.items;
+    expect(log[0]).toMatchObject({ action: "revoked", entity_title: "Ava Everywhere", summary: "Removed editor on all products" });
   });
 });

@@ -29,11 +29,10 @@ describe("the golden master's standard organization", () => {
     const owner = await h.signIn("owner@sample.example", "Sample Owner");
     const t = await owner.api("POST", "/api/v1/tenants", { name: "Sample Example" });
     const { slug, tenant_id: tenantId } = t.body.tenant;
-    const team = t.body.team.slug;
     const T = `/api/v1/tenants/${slug}`;
-    expect((await owner.api("POST", `/api/v1/teams/${slug}/${team}/products`, { name: "Showcase" })).status).toBe(201);
+    expect((await owner.api("POST", `/api/v1/tenants/${slug}/products`, { name: "Showcase" })).status).toBe(201);
     await h.signIn("editor@sample.example", "Sample Editor");
-    expect((await owner.api("POST", `${T}/members`, { email: "editor@sample.example", role: "editor", team })).status).toBe(201);
+    expect((await owner.api("POST", `${T}/members`, { email: "editor@sample.example", role: "editor", all_products: true })).status).toBe(201);
     expect(await syncExampleTenant(h.db, slug, () => {})).toBe(tenantId);
     // A guest holds no stored grant, so there is none to copy.
     const guest = await h.signIn("guest@sample.example", "Sample Guest");
@@ -46,7 +45,7 @@ describe("the golden master's standard organization", () => {
       [copy],
     );
     expect(held.rows).toEqual([
-      { email: "editor@sample.example", scope_type: "team", role: "editor" },
+      { email: "editor@sample.example", scope_type: "all_products", role: "editor" },
       { email: "owner@sample.example", scope_type: "tenant", role: "owner" },
     ]);
     expect((await admin.query<{ example: boolean }>("select example from tenants where tenant_id = $1", [copy])).rows[0]!.example).toBe(false);
@@ -57,7 +56,7 @@ describe("the golden master's standard organization", () => {
     const owner = await h.signIn("renamer@sample.example", "Sample Renamer");
     const t = await owner.api("POST", "/api/v1/tenants", { name: "First Sample" });
     const { slug: first, tenant_id: tenantId, name_etag: etag } = t.body.tenant;
-    expect((await owner.api("POST", `/api/v1/teams/${first}/${t.body.team.slug}/products`, { name: "Kept" })).status).toBe(201);
+    expect((await owner.api("POST", `/api/v1/tenants/${first}/products`, { name: "Kept" })).status).toBe(201);
     const renamed = await owner.api("PATCH", `/api/v1/tenants/${first}`, { name: "Renamed Sample", slug: `${first}-renamed`, expected_etag: etag });
     expect(renamed.status).toBe(200);
     // A slug changed on its own is recorded apart from a rename.
@@ -92,8 +91,7 @@ describe("the golden master's standard organization", () => {
     const owner = await h.signIn("indexer@sample.example", "Sample Indexer");
     const t = await owner.api("POST", "/api/v1/tenants", { name: "Indexed Sample" });
     const { slug, tenant_id: tenantId } = t.body.tenant;
-    const team = t.body.team.slug;
-    const product = await owner.api("POST", `/api/v1/teams/${slug}/${team}/products`, { name: "Yard" });
+    const product = await owner.api("POST", `/api/v1/tenants/${slug}/products`, { name: "Yard" });
     const P = `/api/v1/p/${product.body.path}`;
     const source = await owner.api("POST", `${P}/sources`, { title: "Yard walk — Example Co", tags: ["visit"] });
     const recordId = source.body.record_id as string;
@@ -131,7 +129,7 @@ describe("the golden master's synthetic organization", () => {
     const shared = (await owner.api("POST", "/api/v1/tenants", { name: "Shared People" })).body;
     const other = shared.tenant;
     // Jordan's place is on a product: a reader of its Story.
-    expect((await owner.api("POST", `/api/v1/teams/${other.slug}/${shared.team.slug}/products`, { name: "Shared" })).status).toBe(201);
+    expect((await owner.api("POST", `/api/v1/tenants/${other.slug}/products`, { name: "Shared" })).status).toBe(201);
     await addSamplePeople(h.db, [own.slug]);
     const held = async (tenantId: string) =>
       (

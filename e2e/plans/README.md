@@ -18,14 +18,16 @@ the tests. It holds three organizations:
   whose content is made up and whose people belong to it alone.
 
 `pnpm e2e run <plan>` prints their slugs and every product's path. The same three people are in
-the example and the standard organization: Riley owns each, Sam edits every team, and Jordan reads
+the example and the standard organization: Riley owns each, Sam edits all products, and Jordan reads
 every product's Story. Because they are members of the example, they work there as anywhere. The
-synthetic organization has its own: Morgan owns it, Casey edits its team and Avery reads its Story.
+synthetic organization has its own: Morgan owns it, Casey edits all its products and Avery reads its Story.
 None of them is a member of the other two, so each is a guest of the example and has nothing to do
 with the standard organization. Sam reads its Story, and nothing more there: one person with a
 different role in each organization. **A guest** of the example is
 anyone else: sign in with any address that is not one of theirs, such as `guest@example.com`
-(`pnpm e2e browser signin guest@example.com`, `pnpm e2e mcp --as guest@example.com …`). A guest
+(`pnpm e2e browser signin guest@example.com`, `pnpm e2e mcp --as guest@example.com …`; after the
+instance was served again, run `pnpm e2e mcp connect --as guest@example.com` first, since a guest's
+saved connection names an account the fresh copy no longer has). A guest
 reads every product of the example and is refused every write with `403 example_read_only`, and
 holds no organization of their own.
 

@@ -14,7 +14,8 @@ await page.getByRole("button", { name: /Sam Okafor/ }).click();
 await page.waitForURL((u) => u.pathname === "/");
 await page.getByRole("heading", { name: "WhatBuild", exact: true }).waitFor();
 step("signed in as an editor, onto the overview");
-await page.getByRole("navigation", { name: /Crewboard/ }).getByRole("link", { name: /^Idea/ }).click();
+// The overview's own entry for the product, not the panel beside it, which shows the same product.
+await page.getByRole("navigation", { name: "Crewboard: sections" }).getByRole("link", { name: /^Idea/ }).click();
 await page.waitForURL(/idea/);
 step("opened the sample product's Idea from the overview");
 const app = page.url().replace(/\/idea.*$/, "");
@@ -131,7 +132,7 @@ for (const width of [760, 390, 320]) {
 }
 await page.setViewportSize({ width: 1280, height: 900 });
 step("the canvas's toolbar stayed inside its board in a narrow window");
-await page.goto(`${app}/settings`);
+await page.goto(`${app}/idea?settings=product/export`);
 await page.getByRole("button", { name: "Export this product" }).click();
 await page.getByRole("link", { name: /Download/ }).first().waitFor({ timeout: 20000 });
 step("exported the product and got a download link");

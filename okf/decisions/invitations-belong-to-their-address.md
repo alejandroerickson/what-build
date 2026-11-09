@@ -64,4 +64,4 @@ their panel, and be counted and named in it without having been asked. The maint
 - Accepting and declining are a person's, in the web app: the routes take a browser's session alone,
   and neither is an operation, so no agent is offered them.
 
-Specified in: [03-accounts-teams-and-identity](../spec/03-accounts-teams-and-identity.md#invitations).
+Specified in: [03-accounts-and-identity](../spec/03-accounts-and-identity.md#invitations).

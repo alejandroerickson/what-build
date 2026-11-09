@@ -48,4 +48,4 @@ Sending. The maintainer chose Cloudflare Email Sending on 2026-10-11.
 - The sender's domain is one the provider sends for; re-running `setup.sh` on a deployment that
   sends mail passes `MAIL_FROM`.
 
-Specified in: [Mail](../operations/mail.md), [§3](../spec/03-accounts-teams-and-identity.md).
+Specified in: [Mail](../operations/mail.md), [§3](../spec/03-accounts-and-identity.md).

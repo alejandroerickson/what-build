@@ -3,7 +3,7 @@ type: Process
 title: What a deployment must do when it takes a release
 description: The changes a release asks of the people who run a deployment (settings, app registrations, behaviour they will notice), kept per release, with the unreleased ones on top until the next release carries them into its notes.
 tags: [operations, releases, upgrading, self-hosting, configuration]
-generated: {by: agent:claude, at: 2026-11-04}
+generated: {by: agent:claude, at: 2026-11-09}
 status: stable
 ---
 
@@ -23,7 +23,46 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
 
 ## Unreleased
 
-Nothing yet.
+- **Migration `0044_no_teams`: teams are removed.** An organization holds its products directly
+  ([decision](../decisions/an-organization-holds-its-products-directly-with-no-teams.md)). The
+  migration makes each team's role the same role on all the organization's products where it had one
+  team, and on each of the team's products where it had several; makes each team admin a product
+  creator; turns invitations to a team into invitations to all products (ending the open ones where
+  there were several teams); gives a product whose slug another product of its organization had, or
+  that names one of the organization's pages (`members`, `plan`, `limits`, `people`, `activity`,
+  `settings`), the slug `<slug>-2`; and drops the teams. It changes no content. Rehearse it on the dev
+  deployment as any release that migrates; going back past it needs the database restored
+  ([recovering](recovering-from-a-bad-release.md)). A deployment does nothing else.
+- **Addresses lose the team.** A product is `/t/<org>/<product>` in the web app,
+  `/api/v1/p/<org>/<product>` over REST and `org/product` over MCP; a product's connector is
+  `/mcp/t/<org>/<product>`. Addresses with the team keep working: the web app redirects them, and an
+  agent connected to a product's old connector address keeps working and is told the new one to give
+  its person. Links in Story pages, bookmarks and connectors need no change. A log query, alert or
+  dashboard that matches `/:org/:team/:product` in request paths now sees `/:org/:product`.
+- **Roles.** Add people offers the organization (owner, admin, the new **product creator**, member),
+  **all products** (admin, editor, viewer, reader: every product, later ones too) or one product.
+  Creating a product needs a product creator, admin or owner of the organization; a product creator
+  is made admin of each product they create.
+- **Sources are no longer moved or copied between products.** A source stays where it was added.
+- **Connected agents are asked to update their tools:** `products_write` loses `create_team`, and
+  `create` takes no `team`; `sources_write` loses `copy_to_product` and `move_to_product`; the
+  `members` actions take `all_products` and no `team`; paths have two parts. Calls with the old
+  actions are refused with what to do instead. An agent keeps the tools it had until a new session
+  brings version 0.61.0.
+- **A product export is format version 3:** `bundle.json` has no `team`.
+- **The web app has a new layout, and nothing is lost**
+  ([decision](../decisions/the-panel-shows-one-product-and-everything-else-is-in-settings.md)). The
+  panel always shows one product, the same on every screen and for every role, with its switcher
+  holding one organization and Switch organization below. Everything that is not the product's work
+  is in **Settings**, one dialog over the screen (`?settings=…`): the product's General, People and
+  Export; the organization's General, People, Plan and Access changes; the person's Account and
+  Agents (Connect an agent, connected agents, Sign out everywhere). The account menu holds only the
+  person's own things. **Add people** is the one way to give someone a role. Instance owners run the
+  instance in **Instance admin** (`/admin`, from the account menu): Organizations, People, Plans,
+  Guests and Starting organizations; an organization's Plan no longer has Change plan or the limits
+  tables for them. Old addresses redirect (`/connect`, `/settings`, `/t/<org>/members`, `/plan`,
+  `/limits`, a product's `/settings` and `/connect`, `/instance`, `/people`), so bookmarks and links
+  in mail already sent keep working. A deployment does nothing; tell its people where things went.
 
 ## v0.33.3
 

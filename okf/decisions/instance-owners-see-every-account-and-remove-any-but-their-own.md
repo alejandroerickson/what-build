@@ -3,7 +3,7 @@ type: Decision
 title: An instance's owners see every account and may remove any but an instance owner's, which forgets the address and keeps the name on what it wrote
 description: People lists every account for the instance's owners; removing one, in the web app only, signs it out everywhere, takes its roles with a record in each organization, forgets its address, and deletes the organizations it alone owns once each is named.
 tags: [decision, identity, accounts, instance, privacy, security]
-generated: {by: agent:claude, at: 2026-10-26}
+generated: {by: agent:claude, at: 2026-11-09}
 status: stable
 ---
 
@@ -21,7 +21,7 @@ the only owner of an organization, after a warning, and delete any organization.
 
 ## Decision
 
-- **People** (`/people`) lists every account for the instance's owners (`products.accounts`): its
+- **People** (Instance admin, `/admin/people`) lists every account for the instance's owners (`products.accounts`): its
   name and address, the organizations it is in with its roles, when it was last seen, its sessions
   and agents, and its address's allowance. In the web app only, as all of running the instance is
   ([decision](running-the-instance-is-done-in-the-web-app-never-by-an-agent.md)); it holds no
@@ -61,4 +61,4 @@ the only owner of an organization, after a warning, and delete any organization.
   deleted; deleting it and removing its only owner both use it.
 - Code that reads an account for sign-in, admission or mail skips one with `deleted_at` set.
 
-Specified in: [§3.2](../spec/03-accounts-teams-and-identity.md#32-accounts-and-sign-in), [§6](../spec/06-operations-and-adapters.md), [§7](../spec/07-web-app.md).
+Specified in: [§3.2](../spec/03-accounts-and-identity.md#32-accounts-and-sign-in), [§6](../spec/06-operations-and-adapters.md), [§7](../spec/07-web-app.md).

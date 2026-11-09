@@ -154,15 +154,15 @@ export const organizationLimits = defineOperation({
   mutates: false,
   summary: "An organization's plan, the limits it sets, what the organization holds against them, and what you have used of each today.",
   description:
-    "plan is the organization's plan, one this WhatBuild defines (plans lists them) or unlimited, and an organization is on one plan of its own. On a defined plan everyone in the organization meets the plan's limits, its owners included: limits lists each with its value (null for no limit), what it is counted over, the error a call over it receives and what is used of it (used): what you, or everyone together, used today for a daily one, a day being a UTC day that starts again at allowances_restart_at; what the organization holds for a total (people, products and sources, archived ones included, storage in bytes). holds gives the totals, with storage split into files (attachments, the text read from each attachment, which is kept as a file of its own, and prototypes' files) and text (what is written in WhatBuild itself: derived texts, notes, comments, Story and mockup pages, entries, outcomes and their earlier versions); what is archived still counts under products, sources and storage, and only deleting makes room under them. On the unlimited plan nobody meets them, and you_meet_them is false; so does an organization on a plan this WhatBuild no longer defines (undefined_plan), until it is moved. read_only, when present, means the organization went back to the plan new organizations start on while whoever started it already had one there: everyone in it may read, export, delete and take people out, as their roles allow, every other write is refused (409 organization_read_only), and it is kept until kept_until. In the example organization a guest meets only the guests' limits on calls a minute and bytes downloaded a day. deployment_limits are the ones every organization has, whatever its plan; file_max_bytes, in limits and in plans, is never more than the upload_max_bytes among them, the largest file this deployment can take. plans compares the plans this WhatBuild offers. Only an instance owner moves an organization to another plan; tell the person to ask whoever runs this WhatBuild. Someone who reads only the Story everywhere in the organization (a reader on its teams or products and nothing more) reads none of this: 403.",
+    "plan is the organization's plan, one this WhatBuild defines (plans lists them) or unlimited, and an organization is on one plan of its own. On a defined plan everyone in the organization meets the plan's limits, its owners included: limits lists each with its value (null for no limit), what it is counted over, the error a call over it receives and what is used of it (used): what you, or everyone together, used today for a daily one, a day being a UTC day that starts again at allowances_restart_at; what the organization holds for a total (people, products and sources, archived ones included, storage in bytes). holds gives the totals, with storage split into files (attachments, the text read from each attachment, which is kept as a file of its own, and prototypes' files) and text (what is written in WhatBuild itself: derived texts, notes, comments, Story and mockup pages, entries, outcomes and their earlier versions); what is archived still counts under products, sources and storage, and only deleting makes room under them. On the unlimited plan nobody meets them, and you_meet_them is false; so does an organization on a plan this WhatBuild no longer defines (undefined_plan), until it is moved. read_only, when present, means the organization went back to the plan new organizations start on while whoever started it already had one there: everyone in it may read, export, delete and take people out, as their roles allow, every other write is refused (409 organization_read_only), and it is kept until kept_until. In the example organization a guest meets only the guests' limits on calls a minute and bytes downloaded a day. deployment_limits are the ones every organization has, whatever its plan; file_max_bytes, in limits and in plans, is never more than the upload_max_bytes among them, the largest file this deployment can take. plans compares the plans this WhatBuild offers. Only an instance owner moves an organization to another plan; tell the person to ask whoever runs this WhatBuild. Someone who reads only the Story everywhere in the organization (a reader on its products and nothing more) reads none of this: 403.",
   input: z.strictObject({ tenant }),
   rest: { method: "GET", path: "/limits" },
   mcp: { tool: "products", action: "limits" },
   async handler(ctx) {
     const tid = ctx.scope.tenant!.tenant_id;
-    // How many people, products and sources it holds stays with the team, as its people and evidence do.
+    // How many people, products and sources it holds stays with those who read its evidence, as its people do.
     if (readsOnlyTheStoryIn(await membershipsFor(ctx.db, ctx.principal.account_id, tid), tid))
-      throw forbidden(`You read only the Story in ${ctx.scope.tenant!.name}, so you can’t see its plan’s limits or what it holds. Viewer access to one of its teams or products shows them.`, { role: "reader", needed: "viewer" });
+      throw forbidden(`You read only the Story in ${ctx.scope.tenant!.name}, so you can’t see its plan’s limits or what it holds. Viewer access to one of its products shows them.`, { role: "reader", needed: "viewer" });
     const state = await loadLimits(ctx.db, tid, new Date(ctx.now));
     const guest = ctx.scope.tenantRole === "guest";
     const meets = guest || Boolean(state.limits);
@@ -199,7 +199,7 @@ export const listOrganizations = defineOperation({
   scope: "account",
   access: "any",
   instanceOwnersOnly: true,
-  webOnly: "a person does it in the web app, on Organizations (`/instance`)",
+  webOnly: "a person does it in the web app, in Instance admin, under Organizations (`/admin/organizations`)",
   mutates: false,
   summary: "Every organization on this instance, with its plan, what it holds, who created it and what it used today (instance owners).",
   description:
@@ -265,7 +265,7 @@ export const setOrganizationPlan = defineOperation({
   scope: "account",
   access: "any",
   instanceOwnersOnly: true,
-  webOnly: "a person does it in the web app, on Organizations (`/instance`), Change plan on the organization's row",
+  webOnly: "a person does it in the web app, in Instance admin, under Organizations (`/admin/organizations`), Change plan on the organization's row",
   mutates: true,
   connection: "admin",
   summary: "Move an organization to another plan (instance owners).",
@@ -351,7 +351,7 @@ export const setPlanLimits = defineOperation({
   scope: "account",
   access: "any",
   instanceOwnersOnly: true,
-  webOnly: "a person does it in the web app, on Organizations (`/instance`), under Plans, the plan's button",
+  webOnly: "a person does it in the web app, in Instance admin, under Plans (`/admin/plans`), the plan's button",
   mutates: true,
   connection: "admin",
   summary: "Change a plan's limits or its price, for every organization on it (instance owners).",
@@ -397,7 +397,7 @@ export const guestSettings = defineOperation({
   scope: "account",
   access: "any",
   instanceOwnersOnly: true,
-  webOnly: "a person does it in the web app, on Organizations (`/instance`), under Guests",
+  webOnly: "a person does it in the web app, in Instance admin, under Guests (`/admin/guests`)",
   mutates: false,
   summary: "How guests come in and what they may do, with how many are in and waiting now (instance owners).",
   description:
@@ -419,7 +419,7 @@ export const setGuestSettings = defineOperation({
   scope: "account",
   access: "any",
   instanceOwnersOnly: true,
-  webOnly: "a person does it in the web app, on Organizations (`/instance`), under Guests",
+  webOnly: "a person does it in the web app, in Instance admin, under Guests (`/admin/guests`)",
   mutates: true,
   connection: "admin",
   summary: "Change how guests come in and what they may do (instance owners).",

@@ -205,7 +205,6 @@ const DAILY: Record<string, { counter: Counter; setting: LimitKey; unit: string;
     counter: "sources", setting: "sources_per_day", unit: "sources", what: (n) => `each person ${n} new sources a day`,
     takes: (input) => Math.max(1, (input as { sources?: unknown[] } | null)?.sources?.length ?? 1),
   },
-  "sources.copy_to_product": { counter: "sources", setting: "sources_per_day", unit: "sources", what: (n) => `each person ${n} new sources a day` },
   "products.export": { counter: "exports", setting: "exports_per_day", unit: "exports", what: (n) => `each person ${n} exports a day` },
 };
 
@@ -466,7 +465,6 @@ const ADDS: Record<string, { products?: number; sources?: (input: Record<string,
   "sources.create": { sources: () => 1 },
   "attachments.create_upload": { sources: () => 1 },
   "attachments.create_uploads": { sources: (i) => Math.max(1, (i["sources"] as unknown[] | undefined)?.length ?? 1) },
-  "sources.copy_to_product": { sources: () => 1 },
 };
 
 /**

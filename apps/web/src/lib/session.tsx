@@ -45,7 +45,8 @@ export interface ProductSummary {
   archived_at: string | null;
   updated_at: string;
   tenant: { tenant_id: string; slug: string; name: string; example?: boolean };
-  team: { team_id: string; slug: string; name: string };
+  /** Paths it had before (`tenant/team/product`, from when products were in teams) that still reach it: rare. */
+  former_paths?: string[];
   your_role: ProductRole;
   counts: Product["counts"];
   stage_counts: Product["stage_counts"];
@@ -58,8 +59,31 @@ export interface ProductsResponse {
    * role. story_only: the person reads only the Story everywhere in the organization, so its members
    * are not shown to them. `plan` is free, pro or unlimited. `name_etag` guards the name and slug, which
    * owners change; `former_slugs` are slugs it had before, which addresses may still name it by.
+   * `your_role` is the person's role in the organization itself (owner, admin, creator, member, or
+   * guest in the example organization); `all_products`, the role they hold on every product in it,
+   * products made later included.
    */
-  tenants: { tenant_id: string; slug: string; name: string; name_etag: string; former_slugs?: string[]; example?: boolean; plan: string; read_only?: ReadOnly; story_only?: boolean; your_role: string | null; teams: { team_id: string; slug: string; name: string; your_role: string | null }[] }[];
+  tenants: {
+    tenant_id: string;
+    slug: string;
+    name: string;
+    name_etag: string;
+    former_slugs?: string[];
+    example?: boolean;
+    plan: string;
+    read_only?: ReadOnly;
+    story_only?: boolean;
+    your_role: OrganizationRole | null;
+    all_products?: Exclude<ProductRole, "guest">;
+  }[];
+}
+
+/** A role in an organization itself: `creator` is a product creator, who creates products and is admin of each one they create. */
+export type OrganizationRole = "owner" | "admin" | "creator" | "member" | "guest";
+
+/** Who may create a product in an organization: its owners, admins and product creators. */
+export function mayCreateProducts(t: { your_role: string | null }): boolean {
+  return t.your_role === "owner" || t.your_role === "admin" || t.your_role === "creator";
 }
 
 /**
@@ -162,7 +186,6 @@ export interface Product {
   etag: string;
   path: string;
   tenant: { tenant_id: string; slug: string; name: string; example?: boolean; plan?: string; read_only?: ReadOnly };
-  team: { team_id: string; slug: string; name: string };
   your_role: ProductRole;
   /** A reader gets story_pages only. */
   counts: { story_pages: number } & Partial<Record<"sources" | "outcomes" | "assumptions" | "mockups", number>>;
@@ -191,12 +214,33 @@ interface ProductCtx {
 const ProductContext = createContext<ProductCtx | null>(null);
 
 export function useProductParams() {
-  const { tenant = "", team = "", product = "" } = useParams();
-  return { tenant, team, product, path: `${tenant}/${team}/${product}` };
+  const { tenant = "", product = "" } = useParams();
+  return { tenant, product, path: `${tenant}/${product}` };
 }
 
-export function ProductProvider({ children, fallback }: { children: (ctx: ProductCtx) => ReactNode; fallback: (error: unknown, retry: () => void) => ReactNode }) {
-  const { path } = useProductParams();
+/**
+ * Where a product's address from before teams were removed (`tenant/<middle>/product`) leads now:
+ * to the product that lists it among its former paths, where removing teams changed its slug, or
+ * else to the same address without its middle part, which never named anything else. Null when it
+ * is no such address but a screen the app doesn't have in a product the person has
+ * (`tenant/<product>/<no such screen>`), and the person has no product at the shorter path.
+ */
+export function currentProductPath(items: Pick<ProductSummary, "path" | "former_paths">[] | undefined, tenant: string, middle: string, product: string): string | null {
+  const old = `${tenant}/${middle}/${product}`;
+  const moved = items?.find((p) => p.former_paths?.includes(old));
+  if (moved) return moved.path;
+  const shorter = `${tenant}/${product}`;
+  if (items && !items.some((p) => p.path === shorter) && items.some((p) => p.path === `${tenant}/${middle}`)) return null;
+  return shorter;
+}
+
+/**
+ * Loads the product the address names, or the one `path` names (Settings, opened over a screen that
+ * is not the product's own), and gives its screens what they need of it.
+ */
+export function ProductProvider({ children, fallback, path: given }: { children: (ctx: ProductCtx) => ReactNode; fallback: (error: unknown, retry: () => void) => ReactNode; path?: string }) {
+  const params = useProductParams();
+  const path = given ?? params.path;
   const q = useQuery({ queryKey: ["product", path], queryFn: () => api<Product>("GET", `/api/v1/p/${path}`) });
   if (q.isPending) return <div className="center-page"><Loading /></div>;
   // A re-check refused for the minute's calls says nothing of the person's access, so the product the
@@ -215,11 +259,7 @@ export function ProductProvider({ children, fallback }: { children: (ctx: Produc
     canDelete: product.your_role === "admin" && !product.archived_at,
     storyOnly: product.your_role === "reader",
   };
-  try {
-    localStorage.setItem("whatbuild.last-product", path);
-  } catch {
-    // Storage may be blocked; the URL still carries the product.
-  }
+  if (!given) rememberProduct(product);
   return <ProductContext.Provider value={ctx}>{children(ctx)}</ProductContext.Provider>;
 }
 
@@ -242,5 +282,24 @@ export function lastProduct(): string | null {
     return localStorage.getItem("whatbuild.last-product");
   } catch {
     return null;
+  }
+}
+
+/** The product the person last opened in an organization, which switching to that organization opens again. */
+export function lastProductIn(tenantId: string): string | null {
+  try {
+    return localStorage.getItem(`whatbuild.last-product.${tenantId}`);
+  } catch {
+    return null;
+  }
+}
+
+/** Keeps the product just opened as the last one, everywhere and in its organization. */
+function rememberProduct(product: Pick<Product, "path" | "tenant">) {
+  try {
+    localStorage.setItem("whatbuild.last-product", product.path);
+    localStorage.setItem(`whatbuild.last-product.${product.tenant.tenant_id}`, product.path);
+  } catch {
+    // Storage may be blocked; the URL still carries the product.
   }
 }

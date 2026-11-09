@@ -63,20 +63,33 @@ const CONTENT_SITE_PATHS = /^\/(prototypes\/|documents\/|api\/v1\/downloads\/(st
 /** The paths whose responses carry people's material, their identity or credentials, which no cache, the browser's included, may keep. */
 const PRIVATE_PATHS = /^\/(api|mcp|auth|oauth)(\/|$)/;
 
-/** Where a path names an organization, a team and a product: the REST routes, the MCP connectors (and the OAuth and OpenID metadata clients ask for beside them), and the app's screens. */
-const SCOPED_PATH = /^(\/api\/v1\/p|\/api\/v1\/teams|\/api\/v1\/tenants|(?:\/\.well-known\/[^/]+)?\/mcp\/t|\/t)\/([^/]+)(?:\/([^/]+)(?:\/([^/]+))?)?/;
+/** Where a path names an organization and a product: the REST routes, the MCP connectors (and the OAuth and OpenID metadata clients ask for beside them), and the app's screens. */
+const SCOPED_PATH = /^(\/api\/v1\/p|\/api\/v1\/tenants|(?:\/\.well-known\/[^/]+)?\/mcp\/t|\/t)\/([^/]+)(?:\/([^/]+)(?:\/([^/]+))?)?/;
 /**
- * The first words of the server's and the app's own paths. Any other path of three or more parts is
- * a product's path typed without /t/ (the app sends it on), so its first three are names.
+ * The first words of the server's and the app's own paths. Any other path of two or more parts is
+ * a product's path typed without /t/ (the app sends it on), so its first names are names.
  */
 const OWN_FIRST = new Set(["api", "mcp", "auth", "oauth", "t", ".well-known", "assets", "invite", "join", "signin", "cookies", "site", "settings", "connect", "instance", "people", "welcome", "products", "health", "_system", "prototypes", "documents"]);
-const BY_KIND = ["", ":org", ":team", ":product"];
-/** The app's screens directly under an organization: /t/<org>/members and /t/<org>/limits. */
-const ORG_SCREENS = new Set(["members", "limits"]);
+/** What the names in a path are, by how many there are: an address written when products were in teams has three. */
+const BY_KIND: Record<number, string[]> = { 1: [":org"], 2: [":org", ":product"], 3: [":org", ":team", ":product"] };
+/** The app's screens directly under an organization: /t/<org>/members, /t/<org>/plan and /t/<org>/limits. */
+const ORG_SCREENS = new Set(["members", "plan", "limits"]);
+/** The first words of a product's screens in the app, after /t/<org>/<product>. */
+const PRODUCT_SCREENS = new Set(["idea", "evidence", "exploration", "synthesis", "story", "search", "connect", "activity", "settings"]);
 
 /**
- * A request's path as its log line holds it: ids masked; organizations, teams and products named
- * only by kind; and the links that are credentials themselves, an invitation's (/invite/<token>), a
+ * How many of an app address's names are an organization and a product: one before an
+ * organization's screen, two before a product's screen or at its end, and three in an address
+ * written when products were in teams (/t/<org>/<team>/<product>).
+ */
+function appDepth(names: (string | undefined)[]): number {
+  if (ORG_SCREENS.has(names[1] ?? "")) return 1;
+  return names[2] === undefined || PRODUCT_SCREENS.has(names[2]) ? 2 : 3;
+}
+
+/**
+ * A request's path as its log line holds it: ids masked; organizations and products named only by
+ * kind; and the links that are credentials themselves, an invitation's (/invite/<token>), a
  * retired sandbox invitation's (/join/<code>), a prototype's (/prototypes/<grant>/…, whose file
  * names are a team's too) and a document's on the content site (/documents/<grant>/…, which names a
  * file too).
@@ -88,12 +101,15 @@ export function loggedPath(path: string): string {
   return path
     .replace(/^\/invite\/[^/]+/, "/invite/:token")
     .replace(/^\/join\/[^/]+/, "/join/:code")
-    .replace(SCOPED_PATH, (whole, prefix: string, ...names: (string | undefined)[]) => {
-      // How many of the names after the prefix are an organization, a team and a product.
-      const depth = prefix === "/api/v1/tenants" || (prefix === "/t" && ORG_SCREENS.has(names[1] ?? "")) ? 1 : prefix === "/api/v1/teams" ? 2 : 3;
-      return [prefix, ...names.slice(0, 3).map((n, i) => (n === undefined ? undefined : i < depth ? BY_KIND[i + 1] : n))].filter((n) => n !== undefined).join("/");
+    .replace(SCOPED_PATH, (whole, prefix: string, ...captured: unknown[]) => {
+      const names = captured.slice(0, 3) as (string | undefined)[];
+      // How many of the names after the prefix are an organization and a product; a connector's are all names.
+      const depth = prefix === "/api/v1/tenants" ? 1 : prefix === "/api/v1/p" ? 2 : prefix === "/t" ? appDepth(names) : names.filter((n) => n !== undefined).length;
+      return [prefix, ...names.map((n, i) => (n === undefined ? undefined : i < depth ? BY_KIND[depth]![i] : n))].filter((n) => n !== undefined).join("/");
     })
-    .replace(/^\/([^/]+)\/[^/]+\/[^/]+(?=\/|$)/, (whole, first: string) => (OWN_FIRST.has(first) ? whole : "/:org/:team/:product"))
+    .replace(/^\/([^/]+)\/([^/]+)(?:\/([^/]+))?(?=\/|$)/, (whole, first: string, second: string, third: string | undefined) =>
+      OWN_FIRST.has(first) ? whole : appDepth([first, second, third]) === 3 ? "/:org/:team/:product" : `/:org/:product${third === undefined ? "" : `/${third}`}`,
+    )
     .replace(/[0-9A-HJKMNP-TV-Z]{26}/g, ":id");
 }
 

@@ -1,6 +1,6 @@
 # Evidence: sources, attachments and their text
 
-Sources and their attachments, getting files in, the derived text, summaries, cards, notes, comments, finding and moving sources.
+Sources and their attachments, getting files in, the derived text, summaries, cards, notes, comments, and finding sources.
 
 ## Sources
 
@@ -154,10 +154,4 @@ person's), `added_since` (a date or a time), `date_from` and `date_to` (the sour
 `query` (words in the title, tags or attachment names). `search` reads what sources say
 (`guide(topic="search")`).
 
-## Moving between products
-
-`sources_write(action="copy_to_product")` copies a source, with its attachments and its derived text,
-into another product in the same team, with a new id and a `copied_from` link; its summary, notes and
-comments stay behind. `sources_write(action="move_to_product")`, with the source's etag, keeps the
-id, and its attachments, text, summary, notes and comments go with it; a link to it from the product
-it left stops opening.
+A source stays in the product it was added to: sources are not moved or copied between products.

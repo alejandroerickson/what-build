@@ -3,7 +3,7 @@ type: Decision
 title: Running the instance is done in the web app, never by an agent; the MCP server is for discovery work
 description: The instance owners' actions (organizations and their plans, plans' limits, guests, allowances and the waitlist, accounts, usage) and renaming an organization or a product are web-only, so no MCP connection lists them, and an agent's call to one is told where a person does it.
 tags: [decision, mcp, agents, instance, security]
-generated: {by: agent:claude, at: 2026-10-26}
+generated: {by: agent:claude, at: 2026-11-09}
 status: stable
 ---
 
@@ -23,7 +23,8 @@ an agent its tool list is from another version. The maintainer set the rule belo
 
 - **The MCP server is for discovery work**, and for work whose amount does not scale for people
   and should be done by agents. Running the instance is neither: an instance owner does it in the
-  web app, on Organizations (`/instance`) and People (`/people`).
+  web app, in Instance admin (`/admin`: Organizations, People, Plans, Guests and Starting
+  organizations; [decision](the-panel-shows-one-product-and-everything-else-is-in-settings.md)).
 - **Every operation only the instance's owners have is web-only** (`instanceOwnersOnly` with
   `webOnly`): `organizations`, `set_plan`, `set_plan_limits`, `guests`, `set_guests`,
   `tenant_allowances`, `set_tenant_allowance`, `remove_tenant_allowance`, `accounts` and `usage`,
@@ -34,9 +35,10 @@ an agent its tool list is from another version. The maintainer set the rule belo
   sign of an older tool list. `unknown_action` keeps meaning a list from another version.
 - How the instance is used is read with its usage report (`pnpm usage`), never over MCP.
 - **Nor does an agent rename an organization or a product** (`rename_tenant`, `update`), which
-  the maintainer added the same day: its owners rename an organization on its Members page, a
-  product's admins rename it in its Settings, and an instance owner renames any organization on
-  Organizations. Both are web-only, and refused as above.
+  the maintainer added the same day: its owners rename an organization in Settings, under the
+  organization's General, a product's admins rename it in Settings, under the product's General, and
+  an instance owner renames any organization in Instance admin, under Organizations. Both are
+  web-only, and refused as above.
 - **An instance owner reaches an organization they are not in only in the web app**
   (`allowInstanceOwners`, `asInstanceOwner`), so no agent of theirs reaches one.
 - Rejected: keeping them on an Admin connection. A write would still reach every organization on a
@@ -63,4 +65,4 @@ which listed the instance owners' actions to them alone, and
 [An organization's owners, and the instance's owners, rename it](an-organizations-owners-rename-it-and-its-former-slugs-still-reach-it.md),
 whose owners renamed it through either door.
 
-Specified in: [§6.5](../spec/06-operations-and-adapters.md#65-mcp), [§3.3](../spec/03-accounts-teams-and-identity.md#33-tenants-and-teams).
+Specified in: [§6.5](../spec/06-operations-and-adapters.md#65-mcp), [§3.3](../spec/03-accounts-and-identity.md#33-tenants).

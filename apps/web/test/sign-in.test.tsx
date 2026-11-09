@@ -45,7 +45,7 @@ async function returnsTo(next: string): Promise<string> {
 
 describe("where the sign-in page returns to", () => {
   it("keeps a path on this origin", async () => {
-    expect(await returnsTo("/t/acme/core/onboarding/story?page=intro#top")).toBe("/t/acme/core/onboarding/story?page=intro#top");
+    expect(await returnsTo("/t/acme/onboarding/story?page=intro#top")).toBe("/t/acme/onboarding/story?page=intro#top");
     expect(await returnsTo("/join/AbC-123_x")).toBe("/join/AbC-123_x");
   });
 

@@ -49,7 +49,7 @@ describe("Google sign-in", () => {
   it("leaves an invitation to the address waiting: signing in accepts nothing", async () => {
     const owner = await h.signIn("owner@example.com", "Owner");
     const t = await owner.api("POST", "/api/v1/tenants", { name: "Work" });
-    await owner.api("POST", `/api/v1/tenants/${t.body.tenant.slug}/members`, { team: t.body.team.slug, email: "g-invited@example.com", role: "viewer" });
+    await owner.api("POST", `/api/v1/tenants/${t.body.tenant.slug}/members`, { all_products: true, email: "g-invited@example.com", role: "viewer" });
     claims = { aud: CLIENT_ID, email: "G-Invited@example.com", email_verified: true, name: "Invited Person" };
     const r = await signInWithGoogle("/");
     const session = /((?:__Host-)?wb_session=[^;]+)/.exec(r.setCookie)![1]!;

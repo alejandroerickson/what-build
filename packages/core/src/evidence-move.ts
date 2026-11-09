@@ -82,7 +82,7 @@ async function writeFile(db: Tx, ports: Ports, tenantId: string, recordId: strin
 /** Move every insight and decision a product holds into Evidence. Returns how many of each moved, or null when the product is gone. */
 export async function runEvidenceMove(db: Tx, ports: Ports, job: { tenant_id: string; product_id: string }): Promise<{ insights: number; decisions: number } | null> {
   const pid = job.product_id;
-  const product = await db.selectFrom("products").select(["team_id"]).where("product_id", "=", pid).executeTakeFirst();
+  const product = await db.selectFrom("products").select(["product_id"]).where("product_id", "=", pid).executeTakeFirst();
   if (!product) return null;
   const insights = await db.selectFrom("insights").selectAll().where("product_id", "=", pid).orderBy("insight_id").forUpdate().execute();
   const decisions = await db.selectFrom("register_entries").selectAll().where("product_id", "=", pid).where("kind", "=", "decision").orderBy("entry_id").forUpdate().execute();
@@ -109,7 +109,7 @@ export async function runEvidenceMove(db: Tx, ports: Ports, job: { tenant_id: st
     await db
       .insertInto("records")
       .values({
-        record_id: v.record_id, tenant_id: job.tenant_id, team_id: product.team_id, product_id: pid, title: v.title, date: null,
+        record_id: v.record_id, tenant_id: job.tenant_id, product_id: pid, title: v.title, date: null,
         tags: v.tags, slug: slugify(v.title), copied_from: json(null),
         archived_at: v.archived?.at ?? null, archived_by: v.archived ? json(v.archived.by) : json(null), etag: newEtag(),
         uploaded_at: v.uploaded.at, uploaded_by: json(v.uploaded.by), updated_at: v.updated.at, updated_by: json(v.updated.by),
@@ -118,7 +118,7 @@ export async function runEvidenceMove(db: Tx, ports: Ports, job: { tenant_id: st
     await db
       .insertInto("activity")
       .values({
-        activity_id: newId(), tenant_id: job.tenant_id, team_id: product.team_id, product_id: pid, actor: json(MOVER), actor_account_id: MOVER.account_id, channel: null,
+        activity_id: newId(), tenant_id: job.tenant_id, product_id: pid, actor: json(MOVER), actor_account_id: MOVER.account_id, channel: null,
         action: "moved_to_evidence", entity_type: "source", entity_id: v.record_id, entity_title: collapse(v.title, 200),
         summary: `Moved this ${v.tags.includes("insight") ? "insight" : "decision"} into Evidence as a source`,
       })

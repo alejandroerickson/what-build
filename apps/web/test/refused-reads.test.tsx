@@ -284,10 +284,10 @@ describe("the region that says so", () => {
   });
 });
 
-const PATH = "acme/core/planner";
+const PATH = "acme/planner";
 const HELD: Product = {
   product_id: "p1", slug: "planner", name: "Planner", archived_at: null, etag: "e1", path: PATH,
-  tenant: { tenant_id: "t1", slug: "acme", name: "Acme" }, team: { team_id: "c1", slug: "core", name: "Core" },
+  tenant: { tenant_id: "t1", slug: "acme", name: "Acme" },
   your_role: "viewer", counts: { story_pages: 0 }, stage_counts: { story: 0 },
 };
 
@@ -305,7 +305,7 @@ async function productScreen(opts: { held?: boolean } = {}) {
         <MemoryRouter initialEntries={[`/t/${PATH}`]}>
           <Routes>
             <Route
-              path="/t/:tenant/:team/:product"
+              path="/t/:tenant/:product"
               element={
                 <ProductProvider
                   fallback={(e, retry) => {

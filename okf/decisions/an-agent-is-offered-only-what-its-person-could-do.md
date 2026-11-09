@@ -30,8 +30,8 @@ actions left MCP altogether
   ([decision](running-the-instance-is-done-in-the-web-app-never-by-an-agent.md)).
 - A connector scoped to a product or an organization lists only what its fence answers
   ([decision](a-scoped-mcp-connector-is-a-fence.md)) and what the person's roles reach there:
-  their role on the product, or the highest they hold in the organization, on its teams for a
-  team's operations. An organization's operation whose handler checks a role where the call
+  their role on the product, or the highest they hold in the organization, its own role for
+  creating a product. An organization's operation whose handler checks a role where the call
   points declares it (`needsSomewhere`), so managing people is listed only to an admin of
   something there.
 - The unscoped connector lists what the highest roles the person holds in any one organization

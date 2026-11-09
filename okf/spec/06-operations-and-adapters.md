@@ -1,9 +1,9 @@
 ---
 type: Specification
 title: Every capability is one registered operation, reached identically over REST and MCP.
-description: The operation registry, the error model and bounds, the full catalogue of 125 operations with their REST routes and MCP tools, authorization and agent connection levels, upload flows, the guide and the Connect page.
+description: The operation registry, the error model and bounds, the full catalogue of 122 operations with their REST routes and MCP tools, authorization and agent connection levels, upload flows, the guide and the Connect page.
 tags: [spec, operations, rest, mcp, registry, uploads, guide]
-generated: {by: agent:claude, at: 2026-11-03}
+generated: {by: agent:claude, at: 2026-11-09}
 status: stable
 ---
 
@@ -20,8 +20,8 @@ Every operation is declared once in `core` (`packages/core/src/registry.ts`):
 ```ts
 defineOperation({
   name: "assumptions.review",            // <tool>.<action>, or a bare name for a standalone tool
-  scope: "product",                      // "product" | "team" | "tenant" | "account"
-  access: "write",                       // "story" | "read" | "write" | "admin" | "owner" | "any"
+  scope: "product",                      // "product" | "tenant" | "account"
+  access: "write",                       // "story" | "read" | "write" | "admin" | "owner" | "creator" | "any"
   mutates: true,                         // writes an activity event
   summary: "One line, shown in the tool's action list.",
   description: "Guidance returned by describe: when to use it, what it returns, pitfalls.",
@@ -36,7 +36,7 @@ defineOperation({
 });
 ```
 
-`OPERATIONS` in `packages/core/src/index.ts` lists all 125. From that list, and from nothing else,
+`OPERATIONS` in `packages/core/src/index.ts` lists all 122. From that list, and from nothing else,
 the server builds the REST routes, the MCP tools with their `action` enums and JSON Schemas (via
 `z.toJSONSchema`), and the `describe` responses. The web app calls the same REST routes through
 one small hand-written client (`apps/web/src/lib/api.ts`); there is no generated client and no
@@ -54,23 +54,23 @@ call came through:
 
 1. **Refuse what the caller may not call at all**, before anything about a product is resolved:
    an operation only a person does in the web app (`403 web_only`), and, for an agent, one above
-   its connection's level (`403 connection_level`, [§3.8](03-accounts-teams-and-identity.md)) or
+   its connection's level (`403 connection_level`, [§3.8](03-accounts-and-identity.md)) or
    `submit_feedback` when the person turned it off for the connection (`403 feedback_off`, §6.9),
    whatever was sent with it. None says anything about any product.
-2. **Resolve and authorize the scope** ([§3.6](03-accounts-teams-and-identity.md)): a caller
+2. **Resolve and authorize the scope** ([§3.6](03-accounts-and-identity.md)): a caller
    who cannot see the product gets `404` before their input is even validated. A tenant is named
    by its id, its slug or a slug it had before (`tenantNamed`). An instance owner
    calling a tenant operation that sets `allowInstanceOwners` (renaming an organization) acts in
    any organization as one of its owners, member or not. For an agent the
-   role in the scope is then capped by its connection's level. A tenant, team or product named
+   role in the scope is then capped by its connection's level. A tenant or product named
    with a null character (U+0000) is refused first (`422 invalid_input`, naming it): no scope's
    name holds one, and Postgres reads no text that does.
 3. **Refuse a guest's write, and admit the call to its organization's limits.** A guest of the
    example organization is refused every operation that writes (`403 example_read_only`,
-   [§3.10](03-accounts-teams-and-identity.md)). In a read-only organization, one moved back to the
+   [§3.10](03-accounts-and-identity.md)). In a read-only organization, one moved back to the
    starting plan while its creator has another there, every operation that writes is refused (`409 organization_read_only`), except
    those marked `allowReadOnlyOrganization`: an export, a permanent delete and taking someone out
-   ([§3.3](03-accounts-teams-and-identity.md#33-tenants-and-teams)). In an organization on a plan with limits, and for a
+   ([§3.3](03-accounts-and-identity.md#33-tenants)). In an organization on a plan with limits, and for a
    guest of the example, the call then meets what the plan switches off and the limits on calls
    and writes a minute ([§9.7](09-data-lifecycle.md); `403 plan_restricted`, `429`). This runs
    before validation, so a call that is refused still counts as a call.
@@ -96,7 +96,7 @@ call came through:
    exists, as `<tool>.(unknown)` for an action that does not, and as `(unknown tool)`.
 
 `ctx` carries the principal, the actor snapshot, the tenant-scoped transaction, the resolved scope
-(tenant, team, product, the caller's role), the limits the call meets (or null), the ports, the
+(tenant, product, the caller's role), the limits the call meets (or null), the ports, the
 request time, and `enqueue`. Handlers receive no transport details and no way to reach another
 tenant.
 
@@ -122,8 +122,8 @@ tenant.
 - **`403` names the role.** A caller with a role on the product but too low for the action gets
   `403` with `{ role, needed }` in `details` ("You are a viewer on product …; outcomes.create
   needs editor"). With no role at all the answer is `404`, never `403`
-  ([§3.5](03-accounts-teams-and-identity.md)). `connection_level` carries `{ level, needed }`
-  and says that only the person raises it, under Connect an agent. A refusal to an agent names
+  ([§3.5](03-accounts-and-identity.md)). `connection_level` carries `{ level, needed }`
+  and says that only the person raises it, in Settings under Agents. A refusal to an agent names
   the call it made, `sources_delete(action="delete")`, rather than the operation
   (`registry.ts` `callName`).
 - **`stale_etag`** carries `current_etag` in `details`: the etag the object has now, or `null`
@@ -210,7 +210,7 @@ tenant.
   once the token is checked); file bytes and mockup canvases go through upload grants
   (§6.7). Sign-in (`/auth/*`) and OAuth (`/oauth/*`) bodies are limited to 64 KB (`413`).
 - OAuth client registration: at most 50 an hour waiting for their first connection
-  (`429 rate_limited`), 10 redirect URIs of 500 characters each ([§3.8](03-accounts-teams-and-identity.md)).
+  (`429 rate_limited`), 10 redirect URIs of 500 characters each ([§3.8](03-accounts-and-identity.md)).
 
 ## 6.4 REST
 
@@ -219,8 +219,7 @@ operation's scope (`SCOPE_PREFIX` in `apps/server/src/rest.ts`):
 
 | Scope | Prefix |
 |---|---|
-| product | `/api/v1/p/:tenant/:team/:product` (written `P` below) |
-| team | `/api/v1/teams/:tenant/:team` |
+| product | `/api/v1/p/:tenant/:product` (written `P` below) |
 | tenant | `/api/v1/tenants/:tenant` |
 | account | `/api/v1` |
 
@@ -246,15 +245,15 @@ it always has.
 
 ### The operation catalogue
 
-All 125 operations, generated from `OPERATIONS`. The MCP tool is the operation name's first half;
+All 122 operations, generated from `OPERATIONS`. The MCP tool is the operation name's first half;
 standalone tools (—) take their fields directly. "Needs" is the minimum role
-([§3.5](03-accounts-teams-and-identity.md)); `members` write actions check admin at the level
+([§3.5](03-accounts-and-identity.md)); `members` write actions check admin at the level
 being changed inside the handler.
 
 | Tool | Action | REST | Needs |
 |---|---|---|---|
 | `products` | `list` | `GET /api/v1/me/products` | signed in |
-| `products` | `create_tenant` | `POST /api/v1/tenants` | an instance owner, or an allowance with room ([§3.3](03-accounts-teams-and-identity.md)) |
+| `products` | `create_tenant` | `POST /api/v1/tenants` | an instance owner, or an allowance with room ([§3.3](03-accounts-and-identity.md)) |
 | `products` | `tenant_allowances` | `GET /api/v1/tenant-allowances` | instance owner, in the web app only |
 | `products` | `set_tenant_allowance` | `PUT /api/v1/tenant-allowances` | instance owner, in the web app only |
 | `products` | `remove_tenant_allowance` | `POST /api/v1/tenant-allowances/remove` | instance owner, in the web app only |
@@ -269,9 +268,8 @@ being changed inside the handler.
 | `products` | `remove_account` | `POST /api/v1/accounts/remove` | instance owner, in the web app only |
 | `products` | `delete_account_impact` | `GET /api/v1/me/delete-impact` | signed in, of their own account, in the web app only |
 | `products` | `delete_account` | `POST /api/v1/me/delete` | signed in within the last 15 minutes, of their own account, in the web app only |
-| `products` | `rename_tenant` | `PATCH /api/v1/tenants/:tenant` | tenant owner, or an instance owner, in the web app only ([§3.3](03-accounts-teams-and-identity.md#33-tenants-and-teams)) |
-| `products` | `create_team` | `POST /api/v1/tenants/:tenant/teams` | tenant admin |
-| `products` | `create` | `POST /api/v1/teams/:tenant/:team/products` | team admin |
+| `products` | `rename_tenant` | `PATCH /api/v1/tenants/:tenant` | tenant owner, or an instance owner, in the web app only ([§3.3](03-accounts-and-identity.md#33-tenants)) |
+| `products` | `create` | `POST /api/v1/tenants/:tenant/products` | product creator, admin or owner of the tenant |
 | `products` | `get` | `GET P` | reader |
 | `products` | `update` | `PATCH P` | admin, in the web app only |
 | `products` | `update_concept` | `PATCH P/idea/concept` | editor |
@@ -284,7 +282,7 @@ being changed inside the handler.
 | `products` | `export` | `POST P/exports` | viewer |
 | `products` | `exports` | `GET P/exports` | viewer |
 | `members` | `list` | `GET /api/v1/tenants/:tenant/members` | tenant member |
-| `members` | `grant` | `POST /api/v1/tenants/:tenant/members` | admin at the target |
+| `members` | `grant` | `POST /api/v1/tenants/:tenant/members` | admin at the target: product admin on a product, tenant admin on the tenant and on all products |
 | `members` | `grant_many` | `POST /api/v1/tenants/:tenant/members/many` | admin at the target |
 | `members` | `revoke` | `POST /api/v1/tenants/:tenant/members/revoke` | admin at the target; tenant admin with `whole_tenant` |
 | `members` | `cancel_invitation` | `POST /api/v1/tenants/:tenant/invitations/cancel` | admin at the target |
@@ -313,8 +311,6 @@ being changed inside the handler.
 | `sources` | `list_annotations` | `GET P/sources/:record_id/annotations` | viewer |
 | `sources` | `update_annotation` | `PATCH P/annotations/:annotation_id` | editor |
 | `sources` | `delete_annotation` | `DELETE P/annotations/:annotation_id` | admin |
-| `sources` | `move_to_product` | `POST P/sources/:record_id/move` | editor |
-| `sources` | `copy_to_product` | `POST P/sources/:record_id/copy` | editor |
 | `sources` | `delete_impact` | `GET P/sources/:record_id/delete-impact` | viewer |
 | `sources` | `delete` | `DELETE P/sources/:record_id` | admin |
 | `attachments` | `request_upload` | `POST P/sources/:record_id/uploads` | editor |
@@ -451,7 +447,6 @@ Notes on recent actions:
   piece of work rests on is said in words (an assumption's body, a Story page's notes, a source's
   notes), naming a source by its id where it helps. `assumptions.list` has no
   `record_id` filter, and `search` with `record_id` searches no assumptions.
-  `sources.move_to_product` is never refused for what mentions the source, and
   `sources.delete_impact` reports its attachments' versions, bytes, readings and comments
   ([§4.3](04-data-model.md)).
 - `assumptions.update` takes `edits` (exact replacements that must match once) and returns
@@ -502,7 +497,7 @@ Notes on recent actions:
   ([§4.1](04-data-model.md)).
 - A reader's `story.get_page` leaves out `agent_notes`, and a reader's `products.get` and
   `products.list` leave out `concept` and count only `story_pages` (and `stage_counts.story`)
-  ([§3.5](03-accounts-teams-and-identity.md)). `story.list_pages` leaves archived pages out unless
+  ([§3.5](03-accounts-and-identity.md)). `story.list_pages` leaves archived pages out unless
   `include_archived`, and counts them in `archived_hidden` (with a `note` when there are any); a
   reader is given neither the archived pages nor their count ([§4.11](04-data-model.md)).
 - `mockups.publish` creates a mockup, or publishes the next version of one: the whole canvas,
@@ -580,7 +575,7 @@ Notes on recent actions:
   in the web app.
 - `products.rename_tenant` renames an organization and changes its slug, for its owners and for an
   instance owner in any organization, in the web app; a slug it had before still names it everywhere, and no other
-  organization may take one (`409 slug_taken`) ([§3.3](03-accounts-teams-and-identity.md#33-tenants-and-teams)).
+  organization may take one (`409 slug_taken`) ([§3.3](03-accounts-and-identity.md#33-tenants)).
 - `outcomes.card_preview` takes a front (`card_html`, `kind` outcome or concept, and optionally the
   `title` and `back` it goes with) and makes every check a write of it makes, refusing with the
   same errors; it writes nothing anyone sees. It returns `card_advice`, the `frame` the front shows
@@ -606,16 +601,20 @@ Notes on recent actions:
 - `members.list` takes an optional `product` to list only the people who can reach it, each with
   `product_access { role, via }`. It answers `403` to someone who reads only the Story everywhere
   in the organization, and `products.list` marks such an organization `story_only: true`
-  ([§3.5](03-accounts-teams-and-identity.md)). Owners and admins of the organization get everyone,
+  ([§3.5](03-accounts-and-identity.md)). Owners and admins of the organization get everyone,
   every grant and every invitation. Anyone else gets `partial: true` and only the people on the
-  teams and products they read (viewer or above), with those grants and their organization role,
+  products they read (viewer or above) and those with a role on all products, with those grants
+  and their organization role,
   and only the invitations they could cancel; a `product` they cannot read answers `404`, or
   `403` where they are its reader.
-- The `members` writes answer a team or product the caller has no role on with the same `404` as
+- The `members` writes answer a product the caller has no role on with the same `404` as
   one that does not exist, before anything else is checked, so they never name it.
+- The `members` writes name their place as `product`, as `all_products: true` (a role on every
+  product of the tenant, later ones included), or neither for the tenant's own role (`owner`,
+  `admin`, `creator`, `member`); both together are `422`.
 - `members.grant` gives one person a role at one scope, replacing the one they hold there, when the
   caller already sees them in the organization; anyone else is invited by email, account or not,
-  with the same answer either way ([§3.5](03-accounts-teams-and-identity.md)). The role they already hold there changes
+  with the same answer either way ([§3.5](03-accounts-and-identity.md)). The role they already hold there changes
   nothing and answers `unchanged: true`, with no entry in the access log. `members.grant_many`
   does the same for up to 100 people at one scope, each with their own role, in one transaction
   that counts as one write: a refusal of any of them (a role that does not apply there, an
@@ -623,7 +622,7 @@ Notes on recent actions:
   and names the address in `details.email`. Its invitations are emailed once every role is given;
   one that could not be emailed answers `emailed: false` and keeps its `invite_link`.
 - `members.revoke` removes the grant at exactly the scope named; with `whole_tenant: true` (and no
-  team or product) it removes every grant the person holds in the tenant, which takes them out of
+  product or `all_products`) it removes every grant the person holds in the tenant, which takes them out of
   it. That needs tenant admin, or owner when they are an owner.
 - `activity.list` takes `by: "people" | "agents"`, besides `entity_type`, `entity_id`, `actor`,
   `channel` and `since`. `people` is what people did in the app or, in entries from when personal
@@ -668,7 +667,7 @@ GET  /api/v1/meta                                    release, MCP server name an
 GET  /api/v1/plans                                   the plans the deployment offers (none, if it defines none), every limit of each and its price, starting_plan, example, whether guests may sign up, and what the privacy page names (public)
 GET  /api/v1/me/guest-pass                           a guest account's place: let in when there is room, or why not and when to ask again
 POST /api/v1/me/ask-for-organization                 join the waitlist for an organization of one's own (§3.2)
-GET  /api/v1/connect                                 what the Connect page shows
+GET  /api/v1/connect                                 what Connect an agent shows
 GET|PATCH /api/v1/me; GET /api/v1/me/agents; PATCH|DELETE /api/v1/me/agents/:family; POST /api/v1/me/sign-out-everywhere
 GET  /api/v1/me/invitations                          the invitations waiting for this person's answer (§3.2)
 POST /api/v1/invitations/read                        what an invitation's link shows; it changes nothing
@@ -806,7 +805,7 @@ the JSON, and a tab the plain words.
 view: exactly the pages named, each at its current version, in the Story's order — a depth-first
 walk of the tree, then the pages not yet placed, and
 archived pages last, by title; a reader is given no archived page, which is missing for them
-([§3.5](03-accounts-teams-and-identity.md)). A page that shows a whole canvas prints page by page,
+([§3.5](03-accounts-and-identity.md)). A page that shows a whole canvas prints page by page,
 each section a level below its heading, listed as `canvas_pages`; a print view holds at most 100
 sections in all (`422 print_too_long`). Each page
 carries `depth` (its depth in the hierarchy) and `level` (its outline level among the chosen
@@ -841,16 +840,17 @@ JavaScript does not appear.
 **Transport.** Stateless Streamable HTTP (`apps/server/src/mcp.ts`), JSON responses, at:
 
 - `/mcp` — everything the account can reach, the example organization included;
-- `/mcp/t/:tenant` — scoped to one organization. Tenant- and team-scoped calls default to it;
-- `/mcp/t/:tenant/:team/:product` — scoped to one product. Product-scoped calls may then omit
-  `product`.
+- `/mcp/t/:tenant` — scoped to one organization. Tenant-scoped calls default to it;
+- `/mcp/t/:tenant/:product` — scoped to one product. Product-scoped calls may then omit
+  `product`. `/mcp/t/:tenant/:team/:product`, a product's address from when products were in teams,
+  still reaches it ([§3.11](03-accounts-and-identity.md#311-when-there-were-teams)).
 
 A scoped endpoint refuses every call outside its scope with `403 outside_connector_scope`, lists
 only what is inside it, and accepts only a token approved for it or for an endpoint containing it
-([§3.6](03-accounts-teams-and-identity.md#36-addressing-and-isolation),
-[§3.8](03-accounts-teams-and-identity.md#38-identity-of-the-caller)). The example organization is
+([§3.6](03-accounts-and-identity.md#36-addressing-and-isolation),
+[§3.8](03-accounts-and-identity.md#38-identity-of-the-caller)). The example organization is
 read-only to its guests on every endpoint
-([§3.10](03-accounts-teams-and-identity.md#310-the-example-organization)).
+([§3.10](03-accounts-and-identity.md#310-the-example-organization)).
 
 Each `POST` builds a fresh server; there is no session and any replica serves any call. `GET` and
 `DELETE` answer `405` (no server-initiated stream, no session to end). An unauthenticated call gets
@@ -905,7 +905,7 @@ owner's included: running the instance is done in the web app.
 | Tool | Actions |
 |---|---|
 | `products_read` | `list`, `get`, `delete_impact`, `exports`, `limits` |
-| `products_write` | `create_tenant`, `create_team`, `create`, `update_concept`, `archive`, `restore` |
+| `products_write` | `create_tenant`, `create`, `update_concept`, `archive`, `restore` |
 | `products_delete` | `delete` |
 | `products_export` | `export` |
 | `members_read` | `list`, `activity` |
@@ -914,7 +914,7 @@ owner's included: running the instance is done in the web app.
 | `outcomes_write` | `create`, `update`, `archive`, `restore`, `restore_revision` |
 | `outcomes_delete` | `delete` |
 | `sources_read` | `facets`, `list`, `get`, `list_annotations`, `delete_impact` |
-| `sources_write` | `create`, `update`, `archive`, `restore`, `annotate`, `update_annotation`, `move_to_product`, `copy_to_product` |
+| `sources_write` | `create`, `update`, `archive`, `restore`, `annotate`, `update_annotation` |
 | `sources_delete` | `delete`, `delete_annotation` |
 | `attachments_read` | `get_download` |
 | `attachments_write` | `request_upload`, `create_upload`, `create_uploads`, `complete_upload`, `fetch_url` |
@@ -935,7 +935,7 @@ owner's included: running the instance is done in the web app.
 | `submit_feedback` | standalone |
 
 Tools with actions take exactly four arguments: `action` (an enum), `params` (the action's fields),
-`describe`, and `product` — a `product_id` or `tenant/team/product`. Standalone tools take their
+`describe`, and `product` — a `product_id` or `tenant/product`. Standalone tools take their
 fields directly, plus `product` when product-scoped. Tools are listed noun by noun, each noun's
 read, write, delete and export together.
 
@@ -987,23 +987,23 @@ Rules:
 - **Product resolution.** A product-scoped call resolves its product from the `product` argument,
   then the endpoint's product, then the only product the caller can reach inside the endpoint's
   scope (on the unscoped endpoint, leaving out the example organization's, which every account
-  reaches); otherwise `422 product_required` listing up to 50 of those products ([§3.6](03-accounts-teams-and-identity.md)).
-  An organization's or a team's action takes its `tenant` (and `team`) from `params`, and on a
+  reaches); otherwise `422 product_required` listing up to 50 of those products ([§3.6](03-accounts-and-identity.md)).
+  An organization's action takes its `tenant` from `params`, and on a
   scoped endpoint defaults to the endpoint's. Named with `product` instead, it acts on the
-  organization, and team, that the product is in, once the product is found visible to the
+  organization that the product is in, once the product is found visible to the
   caller (`404` otherwise), as `products_read(action="limits", product=…)` does; an action that takes a
   product of its own in `params` (`members` `list`, `grant`, `grant_many` and `revoke`) does not read `product`
-  so. Naming none is `422 invalid_input`, saying `tenant` (or `team`) is missing, where to read it
-  (the first parts of a product's path) and, where it applies, that `product` names it too.
+  so. Naming none is `422 invalid_input`, saying `tenant` is missing, where to read it
+  (the first part of a product's path) and, where it applies, that `product` names it too.
 - **Scoped means scoped.** On a scoped endpoint the scope is checked in `execute`, after
   authorization and before the handler, so a refused call changes nothing and writes no activity.
 - **Listed by level and by the person.** `tools/list` answers each connection with only the
-  actions its level allows ([§3.8](03-accounts-teams-and-identity.md)): Read only is offered
+  actions its level allows ([§3.8](03-accounts-and-identity.md)): Read only is offered
   reads, `products_export` and `submit_feedback`, Edit also writes and archives, Admin also permanent deletes and managing products and
   people. Of those, it offers only what the person's roles reach, and never what a person does
   only in the web app (`webOnly`), the instance owners' actions included. A scoped connector offers only what its fence answers and
   their roles inside it reach: their role on the product, or in an organization the highest they
-  hold anywhere in it (on its teams, for a team's actions). The unscoped connector offers what the
+  hold anywhere in it (its own role, for creating a product). The unscoped connector offers what the
   highest roles they hold in any one organization they are in reach, the example organization's
   guest grant among them, and not `products.create_tenant` (`needsTenantAllowance`); someone who
   may start an organization (an instance owner, or an allowance with room) is offered everything
@@ -1014,19 +1014,22 @@ Rules:
   and is refused with what it needs (`403 connection_level`, `403 forbidden`,
   `403 example_read_only`, `403 tenant_allowance`); it is never `unknown_action`.
 - **Web-only, and said where.** An operation a person does only in the web app says where there
-  (`webOnly` in `registry.ts`: "a person does it in the web app, on Organizations (`/instance`),
-  Change plan on the organization's row"). A call to its action, in any of its noun's tools and
+  (`webOnly` in `registry.ts`: "a person does it in the web app, in Instance admin, under
+  Organizations (`/admin/organizations`), Change plan on the organization's row"). A call to its action, in any of its noun's tools and
   with `describe` too, is `403 web_only` before anything else is looked up, naming the call as it
   was made and giving that place for the agent to tell the person, saying it is in no agent's tool
   list and so not a sign of an older one, and naming the operation in `details.operation`; it is
   counted under the operation.
 - **Results** are JSON in one text content block. Product-scoped results add `scope`
-  (tenant, team, product with its path, `your_role` capped by the connection's level and `guest`
+  (tenant, product with its path, `your_role` capped by the connection's level and `guest`
   for a guest of the example organization,
   `connection_level`, `example: true` in the example organization, and `tools_version`, the
   server's tools version now). Every result through a scoped endpoint whose address names its
-  organization by a former slug adds `connector_address`, the current address, for the agent to
-  tell the person once.
+  organization by a former slug, or its product by the address it had when products were in teams,
+  adds `connector_address`, the current address, for the agent to tell the person once.
+- **Retired actions.** A call to an action earlier versions offered and this one does not
+  (`products_write` `create_team`, `sources_write` `copy_to_product` and `move_to_product`) is
+  `422 unknown_action`, saying what to do instead (`RETIRED_ACTIONS` in `mcp.ts`).
 - **Source text is data.** The server instructions and the guide state that text returned from
   sources is quoted material, never instructions to the agent.
 - **Delete is on the MCP surface for an Admin connection, and guarded there.** An agent whose
@@ -1042,7 +1045,7 @@ Rules:
 
 ## 6.6 Authorization
 
-([§3.8](03-accounts-teams-and-identity.md) has the details.)
+([§3.8](03-accounts-and-identity.md) has the details.)
 
 - **OAuth 2.1** per the MCP authorization specification (`apps/server/src/auth/oauth.ts`):
   protected-resource metadata, authorization-server metadata, dynamic client registration,
@@ -1054,14 +1057,14 @@ Rules:
 - **REST answers the browser session only.** There are no personal access tokens: a bearer token
   on REST is refused, and scripts connect as agents over MCP. Connected agents are listed, their
   level and feedback switch changed (`PATCH /api/v1/me/agents/:family { level?, feedback? }`, the
-  session only) and disconnected on the Connect an agent page, one at a time, or all at once with
+  session only) and disconnected in Settings under Agents, one at a time, or all at once with
   every session by `POST /api/v1/me/sign-out-everywhere { keep_this_session? }`
-  ([§3.8](03-accounts-teams-and-identity.md#38-identity-of-the-caller)). The session cookie is `__Host-wb_session` over HTTPS
-  and `wb_session` over HTTP ([§3.8](03-accounts-teams-and-identity.md#38-identity-of-the-caller)).
+  ([§3.8](03-accounts-and-identity.md#38-identity-of-the-caller)). The session cookie is `__Host-wb_session` over HTTPS
+  and `wb_session` over HTTP ([§3.8](03-accounts-and-identity.md#38-identity-of-the-caller)).
 - **Sign-in endpoints** (`apps/server/src/auth/routes.ts`): `POST /auth/email` sends a link to an
   address that may sign in, and answers every address alike (`{ received: true }`, or `429` past
   five an hour, counted for any address), sending the mail after the answer
-  ([§3.2](03-accounts-teams-and-identity.md));
+  ([§3.2](03-accounts-and-identity.md));
   `GET /auth/verify?token=` shows its page and changes nothing, and `POST /auth/verify` (form field
   `token`, same origin only) uses it and signs in; `GET /auth/google`, `/auth/microsoft` and their
   `/callback`s run OpenID Connect; `POST /auth/dev-sign-in`, and `GET /auth/dev-accounts`, which
@@ -1070,7 +1073,7 @@ Rules:
   `signed_in` and, when true, what `GET /api/v1/me` returns, so being signed out is a `200` there
   and not an error the browser logs (`/api/v1/me` and every operation still answer `401` without a
   session); `GET /auth/methods` lists what is on
-  ([§3.2](03-accounts-teams-and-identity.md#32-accounts-and-sign-in)).
+  ([§3.2](03-accounts-and-identity.md#32-accounts-and-sign-in)).
 - Both adapters build the actor snapshot from the authenticated identity and the transport
   (`web` or `mcp`, plus the client's name; activity from before tokens were removed may say
   `rest`). No input field can set or alter it.
@@ -1185,13 +1188,13 @@ embedded copy drifts.
   the `tools_version` answers give. Bump it when the tools, their actions or the guide change.
 - An operation's own guidance (`describe`) follows the same rule as the guide.
 
-**The Connect page** (`/connect`, and `…/connect` inside a product; "Connect an agent" in the app)
-lets a person connect an MCP client with no help from anyone who knows the system, and nothing to
+**Connect an agent** (Settings → Agents, `?settings=agents` over any screen; `/connect` leads
+there, its query kept) lets a person connect an MCP client with no help from anyone who knows the system, and nothing to
 configure but one address. It shows:
 
 - first, the one address every agent can use, `/mcp` (`mcp_url` from `/api/v1/connect`), to copy:
   every product the person can open, the example organization included, which an agent reads and
-  never writes ([§3.10](03-accounts-teams-and-identity.md#310-the-example-organization)). It is the
+  never writes ([§3.10](03-accounts-and-identity.md#310-the-example-organization)). It is the
   address a connectors directory lists. A client that supports MCP authorization finds sign-in on
   its own from the server's OAuth discovery metadata, registers itself and opens the browser;
 - under it, a quiet **Limit this agent to one organization or product** button
@@ -1199,12 +1202,12 @@ configure but one address. It shows:
   organization** or **One product**, with an organization or product picker, and the address for
   the choice in place of `/mcp`: an organization gives `/mcp/t/<tenant>` (`tenant_url_template`),
   a product its address (`bound_url_template`), filled in from the product's path, so nobody types
-  a tenant or team. For one organization or product, a line suggests naming the connector after
-  it. Inside a product that product is picked first; elsewhere, the organization of the last
+  a tenant or product. For one organization or product, a line suggests naming the connector after
+  it. Over a product's screen that product is picked first; elsewhere, the organization of the last
   product opened. Closing the choices goes back to `/mcp`. The choice is in the URL:
   `?reach=product|organization|all` with `?product=<path>` or `?org=<slug>` (an older
-  `?product=all` means everything), and a page opened on a limited choice opens with the choices
-  shown ([decision](../decisions/the-connect-page-leads-with-one-address.md));
+  `?product=all` means everything), kept while Agents is open, and an address with a limited
+  choice opens with the choices shown ([decision](../decisions/the-connect-page-leads-with-one-address.md));
 - the three levels the client will ask the person to choose between when they sign in, each with
   what it may do (Read only; Edit, the default; Admin, which also deletes permanently and manages
   products, organizations and people), and a suggestion for a first request;
@@ -1217,7 +1220,8 @@ configure but one address. It shows:
   turns it off, with a line saying what it allows (with Undo), and a disconnect control;
 - **a plain statement about the agent's side of the trip**, above the steps: what the agent reads
   goes to whoever runs it, under their terms ([§9.1](09-data-lifecycle.md));
-- a line pointing to Sign out everywhere in Settings, which disconnects every agent at once.
+- under them, **Sign out everywhere**, which disconnects every agent and signs out every browser at
+  once.
 
 ## 6.9 Feedback
 

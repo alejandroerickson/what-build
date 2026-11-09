@@ -2,7 +2,7 @@ import { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "react-router";
 import { api } from "../lib/api.ts";
-import { pageView, placePage, startAnalytics, useCookieChoice } from "../lib/analytics.ts";
+import { pageView, placePage, settingsScreen, startAnalytics, useCookieChoice } from "../lib/analytics.ts";
 import { ButtonLink } from "../ui/index.tsx";
 import { CookieChoice } from "./CookieChoice.tsx";
 
@@ -25,7 +25,9 @@ export function useAnalyticsId(): string | null | undefined {
 export function CookieNotice() {
   const id = useAnalyticsId();
   const choice = useCookieChoice();
-  const { pathname } = useLocation();
+  const { pathname, search } = useLocation();
+  // Settings, open over a screen, is a screen of its own: its section is counted, not the one under it.
+  const screen = settingsScreen(search) ?? pathname;
   const on = Boolean(id) && choice === "accepted";
   useEffect(() => {
     if (on && id) startAnalytics(id);
@@ -35,10 +37,10 @@ export function CookieNotice() {
     // The masked address goes on every event at once; the page view waits until the screen has
     // stayed a moment, so an old address that only sends the person on (a renamed screen, a product
     // path without /t/) is never counted as a screen of its own.
-    placePage(pathname);
-    const counting = setTimeout(() => pageView(pathname), SETTLED_MS);
+    placePage(screen);
+    const counting = setTimeout(() => pageView(screen), SETTLED_MS);
     return () => clearTimeout(counting);
-  }, [on, pathname]);
+  }, [on, screen]);
   if (!id) return null;
   return (
     <CookieChoice

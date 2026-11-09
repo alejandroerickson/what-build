@@ -33,7 +33,8 @@ export function withStoryTheme(html: string, theme: "light" | "dark"): string {
  * - Hands a plain click on a link to another page of the same Story to the app, which shows that
  *   page in place: a Story is a set of pages, and a reader moving between them should not collect
  *   tabs. The app tells the frame where its Story lives; only a page's slug is sent back, and the
- *   app checks it. A click with a modifier key, or on any other link, is left alone.
+ *   app checks it. A link written when products were in teams (/t/<tenant>/<team>/<product>/story/…)
+ *   is one too. A click with a modifier key, or on any other link, is left alone.
  * - Points a link into the product being read, written with another deployment's address, at this
  *   one (the app tells the frame its product's address), so a page on a copy of a deployment never
  *   sends the reader to the original's records. A root-relative link (/t/…) goes to the app too:
@@ -73,6 +74,12 @@ export function frameScript(prototype?: { base: string; inPlace: boolean }): str
   "function typing(t){return t&&(t.isContentEditable||/^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName));}" +
   'function relative(u){u=u.trim();return !!u&&u.charAt(0)!=="#"&&u.charAt(0)!=="/"&&!/^[a-z][a-z0-9+.-]*:/i.test(u);}' +
   'function send(m){parent.postMessage(m,"*");}' +
+  // What follows the Story's address in a link to one of its pages, or null. A link written when products were in teams,
+  // …/t/<tenant>/<team>/<product>/story/<page>, names a page of the same Story.
+  'function storyPage(u){if(u.indexOf(story)===0)return u.slice(story.length);' +
+  'var s=/^(.*\\/t\\/[^\\/?#]+\\/)([^\\/?#]+\\/story\\/)$/.exec(story);' +
+  'if(!s||u.indexOf(s[1])!==0)return null;var r=u.slice(s[1].length),i=r.indexOf("/");' +
+  'return i>0&&r.slice(i+1).indexOf(s[2])===0?r.slice(i+1+s[2].length):null;}' +
   'var used=0;function using(){var n=Date.now();if(n-used<30000)return;used=n;send({whatbuild:"frame-active"});}' +
   '["pointerdown","keydown","wheel","touchstart","scroll"].forEach(function(t){addEventListener(t,using,{capture:true,passive:true});});' +
   'addEventListener("message",function(e){' +
@@ -116,8 +123,8 @@ export function frameScript(prototype?: { base: string; inPlace: boolean }): str
   'if(h&&h[1].toLowerCase()!==home[1].toLowerCase()&&(h[2]===home[2]||(h[2]||"").indexOf(home[2]+"/")===0))a.href=home[1]+a.href.slice(h[1].length);' +
   'var r=a.getAttribute("href");' +
   'if(home&&r.charAt(0)==="/"&&r.charAt(1)!=="/")a.href=home[1]+r;' +
-  'if(story&&!e.defaultPrevented&&e.button===0&&!e.metaKey&&!e.ctrlKey&&!e.shiftKey&&!e.altKey&&!a.hasAttribute("download")&&a.href.indexOf(story)===0){' +
-  "var m=/^([a-z0-9][a-z0-9-]{0,79})\\/?(?:[?#].*)?$/.exec(a.href.slice(story.length));" +
+  'if(story&&!e.defaultPrevented&&e.button===0&&!e.metaKey&&!e.ctrlKey&&!e.shiftKey&&!e.altKey&&!a.hasAttribute("download")){var sp=storyPage(a.href);' +
+  "var m=sp===null?null:/^([a-z0-9][a-z0-9-]{0,79})\\/?(?:[?#].*)?$/.exec(sp);" +
   'if(m){e.preventDefault();parent.postMessage({whatbuild:"story-page",page:m[1]},"*");return;}}' +
   'var t=(a.getAttribute("target")||"").toLowerCase();' +
   'if(!t||t==="_self"||t==="_parent"||t==="_top"){a.setAttribute("target","_blank");a.setAttribute("rel","noopener noreferrer");}' +

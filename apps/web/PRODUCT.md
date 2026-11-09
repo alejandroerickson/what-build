@@ -59,8 +59,11 @@ permissions and one activity log.
 
 - Four destinations inside a product: **Idea, Evidence, Exploration, Story**. Everything else is
   a sub-view.
-- Hierarchy: tenant (organization) → team → product (one discovery). Roles at each level; a person
-  without a role on a product cannot see it at all.
+- Hierarchy: tenant (organization) → product (one discovery), with no level between them. Roles
+  are given in three places: in the organization (owner, admin, product creator, who creates
+  products and is admin of each one they create, or member), on all its products (every product,
+  including ones made later), and on one product. A person without a role on a product cannot see
+  it at all.
 - A source is described by a title and tags (what it is, whom it concerns, what it bears on),
   reusing the tags the team already has; there are no kinds to choose and no folders.
 - A source's words are one derived text, taken from one of its attachments until someone edits it;
@@ -99,6 +102,14 @@ permissions and one activity log.
    interpretation look like human agreement, and say plainly what search did not examine.
 5. **Agents are teammates.** Attribution, activity and review make an agent's work as inspectable
    as a colleague's.
+6. **The product is the app; everything else is Settings.** The panel shows one product of one
+   organization (its switcher, Idea, Evidence, Exploration, Story, its Activity, and one Settings
+   row) and is the same on every screen and for every role, an instance owner's included; it never
+   turns into another panel. The product's settings, its organization's (people, plan, access
+   changes, name) and the person's own (account, agents) open in Settings, a large dialog over the
+   product, never as screens in the panel. The account menu is only about the person. Running the
+   instance happens in Instance admin, a place of its own outside every product, which only
+   instance owners reach and nobody else learns exists. _(The maintainer's rule from 2026-11-08.)_
 
 ## Accessibility & Inclusion
 

@@ -1,16 +1,20 @@
-import { usePlansOffered } from "../lib/limits.ts";
 import { useState } from "react";
-import { Link, NavLink, useLocation, useNavigate } from "react-router";
+import { Link, NavLink, useLocation, useNavigate, useSearchParams } from "react-router";
 import { useHasNoAgent } from "../lib/agents.ts";
-import { ROLE_WORD } from "../lib/format.ts";
-import { lastProduct, ownFirst, productHome, useHideExample, useMe, useProducts, useSignOut, type Product } from "../lib/session.tsx";
-import { Avatar, Glyph, IconButton, Menu, MenuGroup, MenuItem, MenuLabel, MenuRadio, MenuSeparator, OneLine, type GlyphName } from "../ui/index.tsx";
+import { usePlans } from "../lib/limits.ts";
+import {
+  currentProductPath, lastProduct, mayCreateProducts, ownFirst, productHome, useMe, useProducts, useSignOut,
+  type Product, type ProductsResponse, type ProductSummary,
+} from "../lib/session.tsx";
+import { Avatar, Button, Glyph, IconButton, Menu, MenuGroup, MenuItem, MenuLabel, MenuRadio, MenuSeparator, OneLine, type GlyphName } from "../ui/index.tsx";
 import { shortcutLabel } from "../ui/media.ts";
 import { CreateProductDialog } from "../routes/new-product.tsx";
+import { useAllowances } from "../routes/instance.tsx";
 import { AgentSeat } from "./agent-seat.tsx";
 import { BrandMark } from "./brand.tsx";
 import { FeedbackDialog } from "./feedback-dialog.tsx";
 import { ReleaseItem, useRelease } from "./release.tsx";
+import { SETTINGS_PARAM, useSettingsTo } from "./settings-link.ts";
 import { useTheme } from "./theme.ts";
 
 /** The four L1 destinations, in the order that tells the product's story. */
@@ -20,6 +24,11 @@ export const L1 = [
   { id: "exploration", label: "Exploration", icon: "blend" },
   { id: "story", label: "Story", icon: "book-open" },
 ] as const satisfies readonly { id: keyof Product["stage_counts"]; label: string; icon: GlyphName }[];
+
+/** What the panel shows of a product: the product's own screens and the overview give it the same. */
+export type PanelProduct = Pick<ProductSummary, "product_id" | "name" | "path" | "your_role" | "stage_counts"> & { tenant: Pick<ProductSummary["tenant"], "tenant_id" | "slug" | "name" | "example"> };
+
+type Tenant = ProductsResponse["tenants"][number];
 
 /** Which L1 (or quiet) item a product screen belongs to, from the first path segment after the product. */
 export function productSection(segment: string | undefined): { id: string; label: string } {
@@ -31,19 +40,15 @@ export function productSection(segment: string | undefined): { id: string; label
       return { id: "exploration", label: "Exploration" };
     case "story":
       return { id: "story", label: "Story" };
-    case "connect":
-      return { id: "connect", label: "Connect an agent" };
     case "activity":
       return { id: "activity", label: "Activity" };
-    case "settings":
-      return { id: "settings", label: "Settings" };
     default:
       return { id: "idea", label: "Idea" };
   }
 }
 
 /** Screens that exist in every product, so switching product can keep the person on the same one. */
-const KEEP_ON_SWITCH = new Set(["idea", "evidence", "exploration", "story", "connect", "activity", "search", "settings"]);
+const KEEP_ON_SWITCH = new Set(["idea", "evidence", "exploration", "story", "activity", "search"]);
 
 export function BrandRow({ to, label, current, onHide, hideLabel }: { to: string; label: string; current?: boolean; onHide: () => void; hideLabel: string }) {
   return (
@@ -57,24 +62,75 @@ export function BrandRow({ to, label, current, onHide, hideLabel }: { to: string
   );
 }
 
-export function ProductSwitcher({ current }: { current: Product }) {
+/** How the app names an organization where one is named alone: the example organization says so. */
+function organizationLabel(t: Pick<Tenant, "name" | "example">): string {
+  return t.example ? `Example organization · ${t.name}` : t.name;
+}
+
+/**
+ * The panel's one organization's menu: its products, New product where the person may create one,
+ * then the person's other organizations, each opening the product they last had open there, and New
+ * organization where they may start one. The example organization is left out for a guest who hid it.
+ */
+function OrganizationMenu({ tenant, current, onCreate }: { tenant: Pick<Tenant, "tenant_id" | "name" | "example"> & { your_role?: Tenant["your_role"] }; current?: PanelProduct; onCreate: () => void }) {
   const products = useProducts();
+  const me = useMe();
   const loc = useLocation();
   const navigate = useNavigate();
-  const [creating, setCreating] = useState(false);
-  const segment = loc.pathname.split("/")[5] ?? "idea";
+  const segment = loc.pathname.split("/")[4] ?? "idea";
   const keep = KEEP_ON_SWITCH.has(segment) ? segment : "idea";
-  // The person's own products first, the example organization's last, as everywhere.
-  const items = [...(products.data?.items ?? [])].sort((a, b) => Number(Boolean(a.tenant.example)) - Number(Boolean(b.tenant.example)));
-  const groups = new Map<string, typeof items>();
-  for (const p of items) {
-    const key = p.tenant.example ? `Example organization · ${p.tenant.name}` : `${p.tenant.name} · ${p.team.name}`;
-    groups.set(key, [...(groups.get(key) ?? []), p]);
-  }
+  const here = products.data?.tenants.find((t) => t.tenant_id === tenant.tenant_id);
+  const inOrg = (products.data?.items ?? []).filter((p) => p.tenant.tenant_id === tenant.tenant_id);
+  const others = ownFirst(products.data?.tenants ?? []).filter((t) => t.tenant_id !== tenant.tenant_id && !(t.example && t.your_role === "guest" && me.data?.hide_example));
+  const mayCreate = here ? mayCreateProducts(here) : false;
+  const mayStart = Boolean(me.data) && me.data?.tenant_allowance.remaining !== 0;
+  return (
+    <>
+      {inOrg.length ? (
+        <MenuGroup label={organizationLabel(tenant)}>
+          {inOrg.map((p) => (
+            <MenuRadio key={p.product_id} checked={p.product_id === current?.product_id} onSelect={() => navigate(`/t/${p.path}/${p.your_role === "reader" ? "story" : keep}`)}>
+              {p.name}
+            </MenuRadio>
+          ))}
+        </MenuGroup>
+      ) : products.isPending ? (
+        <MenuLabel>Loading products…</MenuLabel>
+      ) : (
+        <MenuLabel>No products in {tenant.name} yet</MenuLabel>
+      )}
+      {mayCreate ? (
+        <MenuItem icon="plus" onSelect={onCreate}>
+          New product
+        </MenuItem>
+      ) : null}
+      {others.length || mayStart ? <MenuSeparator /> : null}
+      {others.length ? (
+        <MenuGroup label="Switch organization">
+          {others.map((t) => (
+            <MenuItem key={t.tenant_id} icon={t.example ? "library" : "building"} to={`/t/${t.slug}`}>
+              {t.example ? `${t.name} (example)` : t.name}
+            </MenuItem>
+          ))}
+        </MenuGroup>
+      ) : null}
+      {mayStart ? (
+        <MenuItem icon="plus" to="/welcome">
+          New organization
+        </MenuItem>
+      ) : null}
+    </>
+  );
+}
+
+/** The product's name and its organization's, opening the organization's menu. */
+export function ProductSwitcher({ current }: { current: PanelProduct }) {
+  const products = useProducts();
+  const [creating, setCreating] = useState(false);
   return (
     <div className="panel-product">
       <Menu
-        label={`Product: ${current.name}. Switch product`}
+        label={`Product: ${current.name}, in ${current.tenant.name}. Switch product or organization`}
         triggerClassName="product-switch"
         align="start"
         minWidth={240}
@@ -84,29 +140,13 @@ export function ProductSwitcher({ current }: { current: Product }) {
               <OneLine text={current.name} />
               <Glyph name="chevron-down" size="sm" />
             </span>
-            <OneLine
-              className="product-context"
-              text={current.tenant.example ? `Example organization · ${current.tenant.name}` : `${current.tenant.name} · ${current.team.name}`}
-            />
+            <OneLine className="product-context" text={organizationLabel(current.tenant)} />
           </>
         }
       >
-        {[...groups.entries()].map(([label, list]) => (
-          <MenuGroup key={label} label={label}>
-            {list.map((p) => (
-              <MenuRadio key={p.product_id} checked={p.product_id === current.product_id} onSelect={() => navigate(`/t/${p.path}/${p.your_role === "reader" ? "story" : keep}`)}>
-                {p.name}
-              </MenuRadio>
-            ))}
-          </MenuGroup>
-        ))}
-        {products.isPending ? <MenuLabel>Loading products…</MenuLabel> : null}
-        <MenuSeparator />
-        <MenuItem icon="plus" onSelect={() => setCreating(true)}>
-          New product
-        </MenuItem>
+        <OrganizationMenu tenant={current.tenant} current={current} onCreate={() => setCreating(true)} />
       </Menu>
-      {creating && products.data ? <CreateProductDialog tenants={products.data.tenants} onClose={() => setCreating(false)} /> : null}
+      {creating && products.data ? <CreateProductDialog tenants={products.data.tenants} tenant={current.tenant.slug} onClose={() => setCreating(false)} /> : null}
     </div>
   );
 }
@@ -121,118 +161,142 @@ function NavNode({ to, icon, label, count, quiet, current }: { to: string; icon:
   );
 }
 
-export function ProductNav({ product, app, section }: { product: Product; app: string; section: string }) {
-  // Until the person has an agent connected, Connect an agent's row is the empty seat, in its place;
-  // on Connect an agent itself the row stays, marked current.
-  const seat = useHasNoAgent() && section !== "connect";
-  // A reader has only the Story: no other stage, and nothing in the quiet group but the seat, which
-  // opens Connect an agent outside the product, since every other product screen sends them back.
-  if (product.your_role === "reader")
-    return (
-      <>
-        <div className="nav-l1">
-          <NavNode to={`${app}/story`} icon="book-open" label="Story" count={product.stage_counts.story} current={section === "story"} />
-        </div>
-        {seat ? (
-          <div className="nav-quiet">
-            <AgentSeat to="/connect" />
-          </div>
-        ) : null}
-      </>
-    );
+/** The panel's Settings row: it opens Settings over the screen, at the product's sections where the person has them. */
+function SettingsRow({ to }: { to: string }) {
+  const open = useSearchParams()[0].has(SETTINGS_PARAM);
+  return (
+    <Link to={to} className="nav-node nav-node-quiet" data-open={open ? "" : undefined}>
+      <Glyph name="settings" />
+      <OneLine text="Settings" />
+    </Link>
+  );
+}
+
+/**
+ * The panel's rows for one product, the same on every screen and for every role, an instance
+ * owner's included: Idea, Evidence, Exploration and Story with their counts (a reader has the Story
+ * alone), then the quiet group: the empty seat while the person has no agent connected, the product's
+ * Activity, and Settings. `section` marks the screen's own row; the overview marks none.
+ */
+export function ProductNav({ product, section }: { product: PanelProduct; section: string | null }) {
+  const app = `/t/${product.path}`;
+  const seat = useHasNoAgent();
+  const settingsTo = useSettingsTo();
+  const reader = product.your_role === "reader";
+  const stages = reader ? L1.filter((d) => d.id === "story") : L1;
   return (
     <>
       <div className="nav-l1">
-        {L1.map((d) => (
+        {stages.map((d) => (
           <NavNode key={d.id} to={`${app}/${d.id}`} icon={d.icon} label={d.label} count={product.stage_counts[d.id]} current={section === d.id} />
         ))}
       </div>
       <div className="nav-quiet">
-        {seat ? <AgentSeat to={`${app}/connect`} /> : <NavNode to={`${app}/connect`} icon="bot" label="Connect an agent" quiet current={section === "connect"} />}
-        <NavNode to={`${app}/activity`} icon="activity" label="Activity" quiet current={section === "activity"} />
-        <NavNode to={`${app}/settings`} icon="settings" label="Settings" quiet current={section === "settings"} />
+        {seat ? <AgentSeat to={settingsTo("agents")} /> : null}
+        {reader ? null : <NavNode to={`${app}/activity`} icon="activity" label="Activity" quiet current={section === "activity"} />}
+        <SettingsRow to={settingsTo(reader ? "account" : "product")} />
       </div>
     </>
   );
 }
 
 /**
- * The panel outside a product (the overview, Connect an agent, members, settings). It is the same on
- * every one of these screens, so it never depends on where the person came from: each organization's
- * name, headed "Products" over its products, then Connect an agent (the empty seat until an agent is
- * connected), and for an owner of the instance its Organizations and People. The example organization comes last, headed as the example, and a
- * guest may hide it here; the overview still shows it.
+ * The panel for an organization with no product the person can open: its name, opening the same
+ * menu as a product's, then Create a product where the four sections would be, for whoever may
+ * create one, or who to ask, and Settings.
  */
-export function PlainNav({ section }: { section: string }) {
+export function EmptyOrganizationNav({ tenant }: { tenant: Tenant }) {
   const products = useProducts();
-  const me = useMe();
-  const hide = useHideExample();
-  const seat = useHasNoAgent() && section !== "connect";
-  const instanceOwner = Boolean(me.data?.tenant_allowance.instance_owner);
-  const items = products.data?.items ?? [];
-  const tenants = ownFirst(products.data?.tenants ?? []).filter((t) => !(t.example && t.your_role === "guest" && me.data?.hide_example));
+  const seat = useHasNoAgent();
+  const settingsTo = useSettingsTo();
+  const [creating, setCreating] = useState(false);
+  const mayCreate = mayCreateProducts(tenant);
   return (
     <>
-      {tenants.map((t) => {
-        const orgId = `nav-org-${t.tenant_id}`;
-        const labelId = `nav-org-products-${t.tenant_id}`;
-        const guest = t.your_role === "guest";
-        return (
-          <div key={t.tenant_id} className={`nav-l1 nav-products${t.example ? " nav-example" : ""}`} role="group" aria-labelledby={`${orgId} ${labelId}`}>
-            <div className="nav-org">
-              {t.example ? (
-                <div id={orgId} className="nav-org-name ellipsis">
-                  <Glyph name="library" size="sm" />
-                  Example organization
-                </div>
-              ) : (
-                <div id={orgId} className="nav-org-name">
-                  <OneLine text={t.name} />
-                </div>
-              )}
-              <div id={labelId} className="nav-org-label">
-                <OneLine text={t.example ? `${t.name} · ${items.some((p) => p.tenant.tenant_id === t.tenant_id && (p.your_role === "editor" || p.your_role === "admin")) ? "you’re an author" : "read only"}` : "Products"} />
-              </div>
-              {t.example && guest ? (
-                <IconButton className="nav-org-hide" size="sm" icon="x" label="Hide the example organization from the panel" title="Hide from the panel" disabled={hide.isPending} onClick={() => hide.mutate(true)} />
-              ) : null}
-            </div>
-            {items
-              .filter((p) => p.tenant.tenant_id === t.tenant_id)
-              .map((p) => (
-                <NavNode key={p.product_id} to={`/t/${p.path}/${productHome(p.your_role)}`} icon="box" label={p.name} />
-              ))}
-          </div>
-        );
-      })}
-      <div className="nav-quiet">
-        {seat ? <AgentSeat to="/connect" /> : <NavNode to="/connect" icon="bot" label="Connect an agent" quiet current={section === "connect"} />}
-        {instanceOwner ? (
+      <div className="panel-product">
+        <Menu
+          label={`Organization: ${tenant.name}. Switch organization`}
+          triggerClassName="product-switch"
+          align="start"
+          minWidth={240}
+          trigger={
+            <>
+              <span className="product-name">
+                <OneLine text={organizationLabel(tenant)} />
+                <Glyph name="chevron-down" size="sm" />
+              </span>
+              <OneLine className="product-context" text="No products yet" />
+            </>
+          }
+        >
+          <OrganizationMenu tenant={tenant} onCreate={() => setCreating(true)} />
+        </Menu>
+      </div>
+      <div className="nav-empty">
+        {mayCreate ? (
           <>
-            <NavNode to="/instance" icon="building" label="Organizations" quiet current={section === "instance"} />
-            <NavNode to="/people" icon="users" label="People" quiet current={section === "people"} />
+            <p className="nav-empty-title">Start your first product</p>
+            {/* The page beside it carries the screen's one accent button, and the empty seat the panel's. */}
+            <Button size="sm" icon="plus" onClick={() => setCreating(true)}>
+              Create a product
+            </Button>
           </>
-        ) : null}
+        ) : (
+          <p className="nav-empty-text">Nothing to open yet. An admin of {tenant.name} can give you a role on a product.</p>
+        )}
+      </div>
+      <div className="nav-quiet">
+        {seat ? <AgentSeat to={settingsTo("agents")} /> : null}
+        <SettingsRow to={settingsTo("organization")} />
+      </div>
+      {creating && products.data ? <CreateProductDialog tenants={products.data.tenants} tenant={tenant.slug} onClose={() => setCreating(false)} /> : null}
+    </>
+  );
+}
+
+/**
+ * Instance admin's panel, for the owners of this WhatBuild only: its sections, with how many people
+ * are waiting for an organization, and the way back to the product they had open.
+ */
+export function AdminNav() {
+  const plans = usePlans();
+  const allowances = useAllowances();
+  const back = useContextProduct().product;
+  const waiting = allowances.data?.waitlist.length ?? 0;
+  return (
+    <>
+      <div className="panel-product admin-head">
+        <span className="product-name">
+          <Glyph name="building" size="sm" />
+          <OneLine text="Instance admin" />
+        </span>
+        <OneLine className="product-context" text="Only this WhatBuild’s owners see this" />
+      </div>
+      <div className="nav-l1">
+        <NavNode to="/admin/organizations" icon="building" label="Organizations" />
+        <NavNode to="/admin/people" icon="users" label="People" />
+        {plans.data?.plans.length ? <NavNode to="/admin/plans" icon="scale" label="Plans" /> : null}
+        {plans.data?.example ? <NavNode to="/admin/guests" icon="library" label="Guests" /> : null}
+        <NavNode to="/admin/starting" icon="user-plus" label="Starting organizations" count={waiting || undefined} />
+      </div>
+      <div className="nav-quiet">
+        <NavNode to={back ? `/t/${back.path}/${productHome(back.your_role)}` : "/"} icon="arrow-left" label={back ? `Back to ${back.name}` : "Back to WhatBuild"} quiet />
       </div>
     </>
   );
 }
 
 /**
- * The panel footer: the signed-in person, and the account menu: their email, their role in each
- * organization with its members and its plan, the theme, their settings,
- * feedback, and sign out. An organization where the person reads only the Story is left out: its
- * members are not shown to them.
+ * The panel footer: the signed-in person, and the account menu, which is only about them: their
+ * email, their Settings (opening on Account), the theme, Instance admin for an owner of this
+ * WhatBuild, feedback, and sign out. Joining another organization adds nothing to it.
  */
 export function AccountMenu() {
-  const offered = usePlansOffered();
   const me = useMe();
   const signOut = useSignOut();
   const [theme, setTheme] = useTheme();
+  const settingsTo = useSettingsTo();
   const instanceOwner = Boolean(me.data?.tenant_allowance.instance_owner);
-  // A guest of the example organization has nothing here: its members are not shown to them, and they
-  // change nothing there, so have no allowances to see. An instance owner sees every plan.
-  const tenants = (useProducts().data?.tenants ?? []).filter((t) => !t.story_only && (t.your_role !== "guest" || instanceOwner));
   const release = useRelease();
   const name = me.data?.display_name ?? "Signed in";
   // Mounted on first use and kept, so a draft survives closing the dialog.
@@ -258,26 +322,9 @@ export function AccountMenu() {
             <MenuSeparator />
           </>
         ) : null}
-        {tenants.map((t) => {
-          const guest = t.your_role === "guest";
-          // Everyone in an organization reads its plan, where the deployment offers plans; an owner of the instance moves any of them to another.
-          const showPlan = offered === true && (!guest || instanceOwner);
-          return (
-            <MenuGroup key={t.tenant_id} label={t.your_role ? `${t.name} · ${ROLE_WORD[t.your_role] ?? t.your_role}` : t.name}>
-              {!guest ? (
-                <MenuItem icon="users" to={`/t/${t.slug}/members`}>
-                  Members
-                </MenuItem>
-              ) : null}
-              {showPlan ? (
-                <MenuItem icon="scale" to={`/t/${t.slug}/plan`}>
-                  Plan
-                </MenuItem>
-              ) : null}
-            </MenuGroup>
-          );
-        })}
-        {tenants.length ? <MenuSeparator /> : null}
+        <MenuItem icon="settings" to={settingsTo("account")}>
+          Settings
+        </MenuItem>
         <MenuGroup label="Theme">
           <MenuRadio checked={theme === "light"} onSelect={() => setTheme("light")} icon="sun" keepOpen>
             Light
@@ -289,25 +336,15 @@ export function AccountMenu() {
             System
           </MenuRadio>
         </MenuGroup>
-        <MenuSeparator />
-        {me.data && me.data.tenant_allowance.remaining !== 0 ? (
-          <MenuItem icon="plus" to="/welcome">
-            New organization
-          </MenuItem>
-        ) : null}
-        {me.data?.tenant_allowance.instance_owner ? (
+        {instanceOwner ? (
           <>
-            <MenuItem icon="building" to="/instance">
-              Organizations
-            </MenuItem>
-            <MenuItem icon="users" to="/people">
-              People
+            <MenuSeparator />
+            <MenuItem icon="building" to="/admin">
+              Instance admin
             </MenuItem>
           </>
         ) : null}
-        <MenuItem icon="settings" to="/settings">
-          Settings
-        </MenuItem>
+        <MenuSeparator />
         <MenuItem icon="message-square" onSelect={() => setFeedback("open")}>
           Submit feedback
         </MenuItem>
@@ -325,7 +362,32 @@ export function AccountMenu() {
 /** The product the person was last in, if they can still reach it. */
 export function useLastProduct() {
   const products = useProducts();
-  const path = lastProduct();
-  const hit = path ? products.data?.items.find((p) => p.path === path) : undefined;
+  const items = products.data?.items;
+  const kept = lastProduct()?.split("/") ?? [];
+  // A path kept from before teams were removed has three parts: it leads where its address does now.
+  const path = kept.length === 3 ? currentProductPath(items, kept[0]!, kept[1]!, kept[2]!) : kept.join("/");
+  const hit = path ? items?.find((p) => p.path === path) : undefined;
   return hit ?? null;
+}
+
+/** How much of a product a person works in, for choosing the one the panel shows first: where they write before where they read. */
+const ROLE_RANK: Record<string, number> = { admin: 0, editor: 0, viewer: 1, guest: 2, reader: 3 };
+
+/**
+ * What the panel shows on a screen that is no product's own (the overview, a page that wasn't
+ * found): the product the person was last in, or else their first, their own organizations' before
+ * the example organization's and, within those, one they write in before one they only read; with
+ * no product at all, their first organization, with Create a product.
+ */
+export function useContextProduct(): { product: ProductSummary | null; tenant: Tenant | null; pending: boolean } {
+  const products = useProducts();
+  const me = useMe();
+  const last = useLastProduct();
+  const items = [...(products.data?.items ?? [])].sort(
+    (a, b) => Number(Boolean(a.tenant.example)) - Number(Boolean(b.tenant.example)) || (ROLE_RANK[a.your_role] ?? 9) - (ROLE_RANK[b.your_role] ?? 9),
+  );
+  const product = last ?? items[0] ?? null;
+  const tenants = ownFirst(products.data?.tenants ?? []).filter((t) => !(t.example && t.your_role === "guest" && me.data?.hide_example));
+  const tenant = product ? (products.data?.tenants.find((t) => t.tenant_id === product.tenant.tenant_id) ?? null) : (tenants[0] ?? null);
+  return { product, tenant, pending: products.isPending };
 }

@@ -10,14 +10,14 @@ import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
 const ID = "01K8A2B3C4D5E6F7G8H9J0K1M2";
-const BASE = "/api/v1/p/acme/core/crew";
+const BASE = "/api/v1/p/acme/crew";
 const by = { account_id: "a1", display_name: "Riley Chen", surface: "web", client: null };
 /** Whether the source the page shows is archived. */
 const source = { archived_at: null as string | null };
 /** The product its Settings show, to an admin. */
 const product = {
-  product_id: "p1", name: "Crewboard", slug: "crew", concept: "", archived_at: null as string | null, etag: "product-etag", path: "acme/core/crew",
-  tenant: { tenant_id: "t1", slug: "acme", name: "Acme" }, team: { team_id: "tm1", slug: "core", name: "Core" }, your_role: "admin",
+  product_id: "p1", name: "Crewboard", slug: "crew", concept: "", archived_at: null as string | null, etag: "product-etag", path: "acme/crew",
+  tenant: { tenant_id: "t1", slug: "acme", name: "Acme" }, your_role: "admin",
 };
 
 vi.mock("../src/lib/api.ts", async (original) => {
@@ -30,7 +30,7 @@ vi.mock("../src/lib/api.ts", async (original) => {
       if (method === "POST" && path === `${BASE}/archive`) return { product_id: product.product_id, archived_at: "2026-10-02T09:00:00.000Z" };
       if (path === `${BASE}/exports`) return { items: [] };
       if (path.startsWith("/api/v1/me/products")) return { items: [], tenants: [] };
-      if (path.startsWith("/api/v1/tenants/acme/members")) return { product: { product_id: product.product_id, name: product.name, team_id: "tm1", team: "Core" }, members: [], invitations: [] };
+      if (path.startsWith("/api/v1/tenants/acme/members")) return { product: { product_id: product.product_id, name: product.name }, members: [], invitations: [] };
       if (path === `${BASE}/sources/${ID}?detail=full`)
         return {
           record_id: ID, title: "Crew lead interview — Example Co", date: null, tags: [], uploaded_by: by, uploaded_at: "2026-10-01T09:00:00.000Z",
@@ -46,7 +46,7 @@ vi.mock("../src/lib/api.ts", async (original) => {
 });
 vi.mock("../src/lib/session.tsx", async (original) => ({
   ...(await original<typeof import("../src/lib/session.tsx")>()),
-  useProduct: () => ({ api: BASE, app: "/t/acme/core/crew", canWrite: true, canDelete: true, isAdmin: true, product }),
+  useProduct: () => ({ api: BASE, app: "/t/acme/crew", canWrite: true, canDelete: true, isAdmin: true, product }),
 }));
 
 // The theme module reads the system's scheme as it loads, and the Idea screen brings it in.
@@ -54,7 +54,7 @@ window.matchMedia ??= (query: string) => ({ matches: false, media: query, onchan
 
 const { api } = await import("../src/lib/api.ts");
 const { DeleteDialog } = await import("../src/routes/delete-dialog.tsx");
-const { ProductSettingsPage } = await import("../src/routes/product-misc.tsx");
+const { ProductGeneralSettings } = await import("../src/routes/product-misc.tsx");
 const { entryImpactWords } = await import("../src/routes/registers.tsx");
 const { DeletePage } = await import("../src/routes/story-actions.tsx");
 const { outcomeGoes, servedBy } = await import("../src/routes/idea.tsx");
@@ -148,9 +148,9 @@ describe("deleting a source", () => {
   it("asks, as every delete does, whether to delete this source permanently, and can be cancelled", async () => {
     await render(
       <Routes>
-        <Route path="/t/acme/core/crew/evidence/:recordId" element={<SourceDetailPage />} />
+        <Route path="/t/acme/crew/evidence/:recordId" element={<SourceDetailPage />} />
       </Routes>,
-      `/t/acme/core/crew/evidence/${ID}`,
+      `/t/acme/crew/evidence/${ID}`,
     );
     await act(async () => (document.querySelector('[aria-label="Source actions"]') as HTMLButtonElement).click());
     await act(async () => button("Delete permanently…").click());
@@ -177,18 +177,18 @@ describe("what a delete dialog counts", () => {
 
   it("leaves an organization's counts of none out", () => {
     const products = (n: number) => Array.from({ length: n }, (_, i) => ({ product_id: `p${i}`, name: `Product ${i}`, archived: false }));
-    const none = { teams: 0, products: [], sources: 0, stored_files: 0, bytes: 0, people: 0, pending_invitations: 0 };
-    expect(organizationImpactWords("Acme", { ...none, teams: 2, products: products(3), sources: 5, stored_files: 1, bytes: 2048, people: 4, pending_invitations: 2 })).toEqual({
-      goes: "Everything in Acme goes at once: its 2 teams and all 3 of its products, with 5 sources and 1 stored file (2.0 KB).",
+    const none = { products: [], sources: 0, stored_files: 0, bytes: 0, people: 0, pending_invitations: 0 };
+    expect(organizationImpactWords("Acme", { ...none, products: products(3), sources: 5, stored_files: 1, bytes: 2048, people: 4, pending_invitations: 2 })).toEqual({
+      goes: "Everything in Acme goes at once: all 3 of its products, with 5 sources and 1 stored file (2.0 KB).",
       people: "4 people lose their roles here, and 2 invitations stop working. Their accounts, and their roles in other organizations, stay.",
     });
-    // A new organization: one team, one product, nothing in it yet, and its owner.
-    expect(organizationImpactWords("Acme", { ...none, teams: 1, products: products(1), people: 1 })).toEqual({
-      goes: "Everything in Acme goes at once: its team and its product.",
+    // A new organization: one product, nothing in it yet, and its owner.
+    expect(organizationImpactWords("Acme", { ...none, products: products(1), people: 1 })).toEqual({
+      goes: "Everything in Acme goes at once: its product.",
       people: "1 person loses their roles here. Their account, and their roles in other organizations, stay.",
     });
-    expect(organizationImpactWords("Acme", { ...none, teams: 1, sources: 2, people: 1, pending_invitations: 1 })).toEqual({
-      goes: "Everything in Acme goes at once: its team, with 2 sources.",
+    expect(organizationImpactWords("Acme", { ...none, products: products(1), sources: 2, people: 1, pending_invitations: 1 })).toEqual({
+      goes: "Everything in Acme goes at once: its product, with 2 sources.",
       people: "1 person loses their roles here, and 1 invitation stops working. Their account, and their roles in other organizations, stay.",
     });
     expect(organizationImpactWords("Acme", none)).toEqual({ goes: "Everything in Acme goes at once.", people: null });
@@ -215,9 +215,9 @@ describe("deleting what is already archived", () => {
     source.archived_at = "2026-10-02T09:00:00.000Z";
     await render(
       <Routes>
-        <Route path="/t/acme/core/crew/evidence/:recordId" element={<SourceDetailPage />} />
+        <Route path="/t/acme/crew/evidence/:recordId" element={<SourceDetailPage />} />
       </Routes>,
-      `/t/acme/core/crew/evidence/${ID}`,
+      `/t/acme/crew/evidence/${ID}`,
     );
     await act(async () => (document.querySelector('[aria-label="Source actions"]') as HTMLButtonElement).click());
     await act(async () => button("Delete permanently…").click());
@@ -239,7 +239,7 @@ describe("deleting what is already archived", () => {
 
 describe("deleting a product", () => {
   it("offers Archive instead while the product is live, as the dialogs of everything else that can be archived do, and it archives the product", async () => {
-    await render(<ProductSettingsPage />);
+    await render(<ProductGeneralSettings />);
     await act(async () => button("Delete Crewboard permanently…").click());
     await settle();
     expect(document.querySelector("dialog[open] .dialog-title")?.textContent).toBe("Delete Crewboard permanently?");
@@ -253,7 +253,7 @@ describe("deleting a product", () => {
 
   it("leaves Archive instead out once the product is archived", async () => {
     product.archived_at = "2026-10-02T09:00:00.000Z";
-    await render(<ProductSettingsPage />);
+    await render(<ProductGeneralSettings />);
     await act(async () => button("Delete Crewboard permanently…").click());
     await settle();
     expect(footer()).toEqual(["Cancel", "Delete permanently"]);

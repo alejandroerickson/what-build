@@ -23,13 +23,13 @@ const TOOL_TEXT: Record<string, { title: string; parts: Parts; forStoryReader?: 
   products_read: {
     title: "Read products and organizations",
     parts: [
-      ["Find the products (discoveries) you can reach, the example organization's among them, and the tenants and teams they are in; read a product and its concept."],
+      ["Find the products (discoveries) you can reach, the example organization's among them, and the tenants they are in; read a product and its concept."],
       ["Read an organization's plan and limits.", "limits"],
       ["Get a download grant for a finished export.", "exports"],
       ["Read what deleting a product would destroy.", "delete_impact"],
     ],
     forStoryReader: [
-      ["Find the products (discoveries) you can reach and the tenants and teams they are in; read a product: your role in it and how many Story pages it has."],
+      ["Find the products (discoveries) you can reach and the tenants they are in; read a product: your role in it and how many Story pages it has."],
     ],
   },
   products_write: {
@@ -37,7 +37,7 @@ const TOOL_TEXT: Record<string, { title: string; parts: Parts; forStoryReader?: 
     parts: [
       ["Write the product concept and its card.", "update_concept"],
       ["Archive or restore a product.", "archive", "restore"],
-      ["Start a product or a team.", "create", "create_team"],
+      ["Start a product.", "create"],
       ["Start an organization of your own.", "create_tenant"],
     ],
   },
@@ -52,14 +52,14 @@ const TOOL_TEXT: Record<string, { title: string; parts: Parts; forStoryReader?: 
   members_read: {
     title: "Read people and roles",
     parts: [
-      ["See who belongs to an organization, a team or a product.", "list"],
+      ["See who belongs to an organization or a product.", "list"],
       ["Read the organization's history of roles and invitations.", "activity"],
     ],
   },
   members_write: {
     title: "Grant and revoke roles",
     parts: [
-      ["Grant or revoke roles on the organization, a team or a product; granting invites people by email.", "grant", "revoke"],
+      ["Grant or revoke roles on the organization, on all its products or on a product; granting invites people by email.", "grant", "revoke"],
       ["Cancel an invitation not yet accepted.", "cancel_invitation"],
     ],
   },
@@ -76,7 +76,6 @@ const TOOL_TEXT: Record<string, { title: string; parts: Parts; forStoryReader?: 
       ["Create sources and change their details.", "create", "update"],
       ["Comment on a source, and edit or archive a comment.", "annotate", "update_annotation"],
       ["Archive and restore sources.", "archive", "restore"],
-      ["Move or copy a source to another product.", "move_to_product", "copy_to_product"],
     ],
   },
   sources_delete: {
@@ -227,7 +226,7 @@ function annotations(title: string, kind: ToolKind, ops: OperationDef[]) {
 const PRODUCT_PARAM = {
   type: "string",
   description:
-    'The product: its product_id or tenant/team/product path, as products_read(action="list") shows. Optional on a connector scoped to one product, or when only one is reachable outside the example organization. For an organization\'s or a team\'s action, it names the organization and team the product is in, unless params names them or the action takes a product of its own.',
+    'The product: its product_id or tenant/product path, as products_read(action="list") shows. Optional on a connector scoped to one product, or when only one is reachable outside the example organization. For an organization\'s action, it names the organization the product is in, unless params names it or the action takes a product of its own.',
 };
 
 function jsonSchema(op: Pick<OperationDef, "input">): Record<string, unknown> {
@@ -316,6 +315,13 @@ const WEB_ONLY = new Map(OPERATIONS.filter((o) => o.webOnly && o.mcp.action).map
  * What a call to a tool name from before version 0.42.0 is told: each noun's actions were one
  * tool, and the skill was fetched with get_skill. A client that connected before then still lists them.
  */
+/** Actions earlier versions offered and this one does not, with what to do instead, said in an unknown action's refusal. */
+const RETIRED_ACTIONS: Record<string, string> = {
+  "products_write.create_team": " There are no teams any more: an organization holds its products directly. Create a product with products_write(action=\"create\"), and give someone a role on every product with members_write(action=\"grant\", params={\"all_products\": true, …}).",
+  "sources_write.copy_to_product": " Sources are no longer copied or moved between products: a source stays in the product it was added to. To have it in another, add it there.",
+  "sources_write.move_to_product": " Sources are no longer copied or moved between products: a source stays in the product it was added to. To put it in another, add it there and archive it here.",
+};
+
 function retiredTool(name: string, tools: string[]): string {
   if (name === "get_skill") return " The skill is retired: the guide tool describes how WhatBuild works.";
   const split = tools.filter((t) => t !== name && nounOf(t) === name);
@@ -366,7 +372,7 @@ function listedTools(principal: Principal, offered: Definitions) {
 const FEEDBACK_OFF = " The person turned off submit_feedback for this connection, so it is not listed: that is not an older tool list.";
 
 export const SERVER_INSTRUCTIONS =
-  "WhatBuild holds a team's product discovery. Organizations (tenants) hold teams, and teams hold products. Each product has its Idea (a product concept and outcomes), " +
+  "WhatBuild holds product discovery. Organizations (tenants) hold products. Each product has its Idea (a product concept and outcomes), " +
   "its Evidence (sources, with their attachments and text), its Exploration (assumptions and mockups) and its Story (pages for the people the team works with). " +
   "Each kind of object has a _read tool, a _write tool that creates, changes, archives and restores, and, where it can be deleted for good, a _delete tool; a product also has products_export, which takes a copy away and changes nothing in it. " +
   "Each takes an action, the action's fields in params, and the product; describe=true returns an action's schema and guidance without running it. " +
@@ -398,22 +404,28 @@ export function addressInstruction(base: string, content: string | null = null):
 
 /** The sentence a scoped connector adds to the instructions. The path comes from the address, so only plain slugs are repeated. */
 function scopeInstruction(bound: ScopeRef): string {
-  const path = [bound.tenant, bound.team, bound.product].filter(Boolean).join("/");
+  const path = [bound.tenant, bound.formerTeam, bound.product].filter(Boolean).join("/");
   const what = bound.product ? "product" : "organization";
   const named = /^[A-Za-z0-9_-]+(\/[A-Za-z0-9_-]+){0,2}$/.test(path) ? `the ${what} ${path}` : `one ${what}`;
   return ` This connector is scoped to ${named}: every call outside it is refused with 403 outside_connector_scope. A connector scoped elsewhere, or the unscoped one, reaches the rest.`;
 }
 
 /**
- * What a scoped connector's answers add when its address names the organization by a slug it had
- * before: the address still works, and the person may copy the current one. Undefined otherwise.
+ * What a scoped connector's answers add when its address is not the current one: it names the
+ * organization by a slug it had before, or the product by the address it had when products were in
+ * teams. The address still works, and the person may copy the current one. Undefined otherwise.
  */
 function connectorMoved(base: string, bound: ScopeRef, fence: ConnectorScope): string | undefined {
-  if (bound.tenant === fence.tenant.slug || bound.tenant === fence.tenant.tenant_id) return undefined;
+  const formerSlug = bound.tenant !== fence.tenant.slug && bound.tenant !== fence.tenant.tenant_id;
+  const underTeam = bound.formerTeam !== undefined && fence.product !== null;
+  if (!formerSlug && !underTeam) return undefined;
   const path = fence.product ? fence.product.path : fence.tenant.slug;
+  const names = underTeam
+    ? `names ${fence.product!.name} by the address it had when products were in teams (${bound.tenant}/${bound.formerTeam}/${bound.product})`
+    : `names ${fence.tenant.name} by a slug it had before (${bound.tenant})`;
   return (
-    `This connector's address names ${fence.tenant.name} by a slug it had before (${bound.tenant}). It still works; its address is now ${base}/mcp/t/${path}. ` +
-    "Tell the person once, and suggest they update the connector when convenient (Connect an agent in WhatBuild gives the address)."
+    `This connector's address ${names}. It still works; its address is now ${base}/mcp/t/${path}. ` +
+    "Tell the person once, and suggest they update the connector when convenient (WhatBuild’s Settings, under Agents, gives the address)."
   );
 }
 
@@ -425,56 +437,50 @@ async function resolveProduct(env: Env, principal: Principal, given: string | un
   const products = tenantIds.length
     ? await env.db
         .selectFrom("products as p")
-        .innerJoin("teams as tm", "tm.team_id", "p.team_id")
         .innerJoin("tenants as tn", "tn.tenant_id", "p.tenant_id")
-        .select(["p.product_id", "p.name", "p.slug", "p.team_id", "p.tenant_id", "tm.slug as team_slug", "tn.slug as tenant_slug", "tn.example"])
+        .select(["p.product_id", "p.name", "p.slug", "p.tenant_id", "tn.slug as tenant_slug", "tn.example"])
         .where("p.tenant_id", "in", tenantIds)
         .where("p.archived_at", "is", null)
         .execute()
     : [];
-  const reachable = products.filter((p) => effectiveRole(memberships, { tenant_id: p.tenant_id, team_id: p.team_id, product_id: p.product_id }).role);
+  const reachable = products.filter((p) => effectiveRole(memberships, { tenant_id: p.tenant_id, product_id: p.product_id }).role);
   // Every account reads the example organization, so only a connector scoped to it picks one of its products by itself.
   const own = connector ? reachable : reachable.filter((p) => !p.example);
   if (own.length === 1) return { product: own[0]!.product_id };
-  throw invalid("product_required", "Say which product: pass `product` as a product_id or tenant/team/product. Ask the person if unsure.", {
-    products: reachable.slice(0, 50).map((p) => ({ product_id: p.product_id, path: `${p.tenant_slug}/${p.team_slug}/${p.slug}`, name: p.name })),
+  throw invalid("product_required", "Say which product: pass `product` as a product_id or its path, tenant/product. Ask the person if unsure.", {
+    products: reachable.slice(0, 50).map((p) => ({ product_id: p.product_id, path: `${p.tenant_slug}/${p.slug}`, name: p.name })),
   });
 }
 
-/** Refusals for a call that names no product, team or tenant (or names one in a form that is not a reference). */
-const UNADDRESSED = new Set(["product_required", "team_required", "tenant_required", "invalid_product"]);
+/** Refusals for a call that names no product or tenant (or names one in a form that is not a reference). */
+const UNADDRESSED = new Set(["product_required", "tenant_required", "invalid_product"]);
 
 /** An operation that takes a product of its own in its fields, which the `product` argument is then not read as naming its place. */
 const takesProduct = (op: OperationDef) => "product" in ((op.input as unknown as { shape?: Record<string, unknown> }).shape ?? {});
 
 /**
- * For an organization's or a team's action named with `product` and no tenant: the organization,
- * and for a team's action the team, that the product is in, as the other tools take a product.
- * The product must be one the caller can see. An action that takes a product of its own in params
- * (granting a role on a product, listing its people) is left to say what it needs instead.
+ * For an organization's action named with `product` and no tenant: the organization the product
+ * is in, as the other tools take a product. The product must be one the caller can see. An action
+ * that takes a product of its own in params (granting a role on a product, listing its people) is
+ * left to say what it needs instead.
  */
 async function placeOfProduct(env: Env, principal: Principal, op: OperationDef, fields: Record<string, unknown>, product: string): Promise<void> {
   if (takesProduct(op)) return;
   const where = await resolveScope(env.db, principal, "product", "any", parseProductRef(product), op.name);
   fields["tenant"] = where.tenant!.slug;
-  if (op.scope === "team" && fields["team"] === undefined) fields["team"] = where.team!.slug;
 }
 
 /**
- * The refusal of an organization's or a team's action that names neither, saying what to pass. It
- * is `422 invalid_input`, as the field it lacks always answered, now with where to find it.
+ * The refusal of an organization's action that names none, saying what to pass. It is
+ * `422 invalid_input`, as the field it lacks always answered, now with where to find it.
  */
-function whereToAct(op: OperationDef, code: "tenant_required" | "team_required"): AppError {
+function whereToAct(op: OperationDef): AppError {
   const call = `${mcpTool(op)}(action="${op.mcp.action}")`;
   const own = takesProduct(op);
-  const missing = code === "team_required" ? "`team` is missing" : "`tenant` is missing";
-  const pass =
-    op.scope === "team"
-      ? "Pass params.tenant and params.team, the first two parts of a product's path as products_read(action=\"list\") shows it (acme and core in acme/core/onboarding)"
-      : "Pass params.tenant, the organization's slug or id: the first part of a product's path as products_read(action=\"list\") shows it (acme in acme/core/onboarding)";
+  const pass = "Pass params.tenant, the organization's slug or id: the first part of a product's path as products_read(action=\"list\") shows it (acme in acme/onboarding)";
   return invalid(
     "invalid_input",
-    `${missing}: ${call} acts on ${op.scope === "team" ? "a team" : "an organization"}. ${pass}${own ? "; params.product names a product of its own here, so the product argument does not stand for it" : ", or name any product in it with product"}. Nothing was changed.`,
+    `\`tenant\` is missing: ${call} acts on an organization. ${pass}${own ? "; params.product names a product of its own here, so the product argument does not stand for it" : ", or name any product in it with product"}. Nothing was changed.`,
     { operation: op.name },
   );
 }
@@ -490,8 +496,7 @@ function scopeEcho(scope: Scope, level: ConnectionLevel | undefined) {
   if (!scope.product) return undefined;
   return {
     tenant: scope.tenant?.slug,
-    team: scope.team?.slug,
-    product: { product_id: scope.product.product_id, name: scope.product.name, path: `${scope.tenant?.slug}/${scope.team?.slug}/${scope.product.slug}` },
+    product: { product_id: scope.product.product_id, name: scope.product.name, path: `${scope.tenant?.slug}/${scope.product.slug}` },
     // The person's role there, capped by the connection's level; a guest of the example organization's is guest.
     your_role: reportedRole(scope.role, scope.tenantRole),
     ...(level ? { connection_level: level } : {}),
@@ -578,7 +583,7 @@ function buildServer(env: Env, principal: Principal, bound: ScopeRef | null, sig
           const actions = await offeredActions();
           throw invalid(
             "unknown_action",
-            `Unknown ${name} action: ${String(args["action"])}. This server, version ${TOOLS_VERSION}, offers this connection these ${name} actions: ${actions.join(", ")}.${STALE_LIST}`,
+            `Unknown ${name} action: ${String(args["action"])}.${RETIRED_ACTIONS[`${name}.${String(args["action"])}`] ?? ""} This server, version ${TOOLS_VERSION}, offers this connection these ${name} actions: ${actions.join(", ")}.${STALE_LIST}`,
             { tools_version: TOOLS_VERSION, actions },
           );
         }
@@ -602,32 +607,31 @@ function buildServer(env: Env, principal: Principal, bound: ScopeRef | null, sig
         productArg = product;
       }
       if (productArg !== undefined && typeof productArg !== "string") throw invalid("invalid_product", "product must be a string.");
-      // On a scoped connector, tenant and team calls default to its own.
-      if ((op.scope === "team" || op.scope === "tenant") && bound && rawInput && typeof rawInput === "object") {
+      // On a scoped connector, an organization's calls default to its own.
+      if (op.scope === "tenant" && bound && rawInput && typeof rawInput === "object") {
         const r = rawInput as Record<string, unknown>;
         if (r["tenant"] === undefined) r["tenant"] = bound.tenant;
-        if (op.scope === "team" && r["team"] === undefined && bound.team) r["team"] = bound.team;
       }
       // The scope is authorized, and a connector's fence applied, before the input is validated, in
       // execute's order: someone who cannot see the product learns nothing, not even whether their
-      // input was valid. A call that names no product, team or tenant addresses nothing to hide, so
+      // input was valid. A call that names no product or tenant addresses nothing to hide, so
       // a malformed one is reported as malformed rather than as missing its scope.
       const fence = await connectorScope();
       let ref: ScopeRef = {};
       let ran: Awaited<ReturnType<typeof execute>>;
       try {
         if (op.scope === "product") ref = await resolveProduct(env, principal, productArg as string | undefined, fence);
-        else if ((op.scope === "team" || op.scope === "tenant") && productArg !== undefined && rawInput && typeof rawInput === "object" && (rawInput as Record<string, unknown>)["tenant"] === undefined)
+        else if (op.scope === "tenant" && productArg !== undefined && rawInput && typeof rawInput === "object" && (rawInput as Record<string, unknown>)["tenant"] === undefined)
           await placeOfProduct(env, principal, op, rawInput as Record<string, unknown>, productArg as string);
         reached = true;
         ran = await execute(env, principal, op, rawInput, ref, fence, signal);
       } catch (e) {
-        if (e instanceof AppError && (e.code === "tenant_required" || e.code === "team_required")) {
+        if (e instanceof AppError && e.code === "tenant_required") {
           // The rest of the input is checked as it stands, and the place it lacks then says what to pass.
           const placed = { ...(rawInput && typeof rawInput === "object" ? (rawInput as Record<string, unknown>) : {}) };
-          for (const k of ["tenant", "team"]) if (placed[k] === undefined && k in ((op.input as unknown as { shape?: object }).shape ?? {})) placed[k] = "-";
+          if (placed["tenant"] === undefined && "tenant" in ((op.input as unknown as { shape?: object }).shape ?? {})) placed["tenant"] = "-";
           parseInput(op, placed);
-          throw whereToAct(op, e.code);
+          throw whereToAct(op);
         }
         if (e instanceof AppError && UNADDRESSED.has(e.code)) parseInput(op, rawInput);
         throw e;
@@ -699,7 +703,9 @@ export function mcpRoutes(env: Env & { config: ServerConfig }) {
 
   app.all("/mcp", (c) => handle(c, null));
   app.all("/mcp/t/:tenant", (c) => handle(c, { tenant: c.req.param("tenant") }));
-  app.all("/mcp/t/:tenant/:team/:product", (c) => handle(c, { tenant: c.req.param("tenant"), team: c.req.param("team"), product: c.req.param("product") }));
+  app.all("/mcp/t/:tenant/:product", (c) => handle(c, { tenant: c.req.param("tenant"), product: c.req.param("product") }));
+  // A product's connector as its address was written when products were in teams: it still reaches the product.
+  app.all("/mcp/t/:tenant/:team/:product", (c) => handle(c, { tenant: c.req.param("tenant"), formerTeam: c.req.param("team"), product: c.req.param("product") }));
   return app;
 }
 

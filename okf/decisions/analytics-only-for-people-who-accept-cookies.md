@@ -30,7 +30,7 @@ everything strictly necessary and offered no choice.
   Google's script loads only after Accept; declining later (`/cookies`, or Cookies in the site's
   footer) stops it and removes its cookies. Advertising signals and Google signals are off.
 - What reaches Google names the page and the action, never the organization, product, record or
-  content: page views carry masked paths (`/t/:org/:team/:product/story/:id`) and a fixed title,
+  content: page views carry masked paths (`/t/:org/:product/story/:id`) and a fixed title,
   each change the app makes is an event named by the operation the server ran (`assumptions_create`,
   `files_fetch_url`), and search is counted by what was followed, never by its words. A request to
   hear from us on the site is `generate_lead`.

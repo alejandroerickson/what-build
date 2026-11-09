@@ -1,9 +1,9 @@
 ---
 type: Decision
 title: Connect an agent leads with one address, and limiting an agent is a choice behind it
-description: The page gives `/mcp` first, the address a connectors directory lists; the scoped addresses stay, behind a quiet button.
+description: Connect an agent, in Settings under Agents, gives `/mcp` first, the address a connectors directory lists; the scoped addresses stay, behind a quiet button.
 tags: [decision, mcp, agents, web]
-generated: {by: agent:claude, at: 2026-10-26}
+generated: {by: agent:claude, at: 2026-11-09}
 status: stable
 ---
 
@@ -17,7 +17,9 @@ connectors directory lists one address per server, `/mcp`, and most people have 
 of their own and read the example organization, which `/mcp` already reaches safely. Scoped
 connectors still matter to someone in several organizations who wants an agent kept to one
 ([decision](a-scoped-mcp-connector-is-a-fence.md)). The maintainer chose this layout from a
-wireframe on 2026-10-26.
+wireframe on 2026-10-26. Since 2026-11-08 Connect an agent is the head of Settings → Agents
+(`?settings=agents`), and `/connect` leads there
+([decision](the-panel-shows-one-product-and-everything-else-is-in-settings.md)).
 
 ## Decision
 
@@ -31,11 +33,13 @@ wireframe on 2026-10-26.
 ## Consequences
 
 - Scoped connectors work as before; only how often people choose one changes.
-- A link that names a limited choice (`?reach=organization&org=…`) opens with the choices shown.
+- A link that names a limited choice (`?reach=organization&org=…`, on `/connect` or with
+  `?settings=agents`) opens with the choices shown. Opened over a product's screen, that product is
+  the one chosen first.
 
 ## Constrains
 
-- `apps/web/src/routes/connect.tsx`; `apps/web/test/connect-page.test.tsx` checks the default and
-  the choices.
+- `AgentsSettings` in `apps/web/src/routes/connect.tsx`; `apps/web/test/connect-page.test.tsx`
+  checks the default and the choices.
 
 Specified in: [06-operations-and-adapters](../spec/06-operations-and-adapters.md) §6.8, [07-web-app](../spec/07-web-app.md).

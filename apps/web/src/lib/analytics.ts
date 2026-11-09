@@ -48,7 +48,7 @@ export function useCookieChoice(): CookieChoice | null {
 
 /**
  * A path with names and ids taken out, so what reaches Google says which screen, not whose:
- * `/t/acme/core/planner/story/launch-plan` becomes `/t/:org/:team/:product/story/:id`.
+ * `/t/acme/planner/story/launch-plan` becomes `/t/:org/:product/story/:id`.
  */
 const SCREEN_WORDS = new Set(["idea", "evidence", "new", "search", "exploration", "mockups", "assumptions", "edit", "story", "connect", "activity", "settings", "members", "limits", "plan", "plans"]);
 
@@ -56,11 +56,24 @@ export function screenPath(pathname: string): string {
   const parts = pathname.split("/").filter(Boolean);
   if (parts[0] === "t") {
     if (parts.length === 3 && SCREEN_WORDS.has(parts[2]!)) return `/t/:org/${parts[2]}`;
-    const rest = parts.slice(4).map((p) => (SCREEN_WORDS.has(p) ? p : ":id"));
-    return `/${[...["t", ":org", ":team", ":product"].slice(0, parts.length), ...rest].join("/")}`;
+    const rest = parts.slice(3).map((p) => (SCREEN_WORDS.has(p) ? p : ":id"));
+    return `/${[...["t", ":org", ":product"].slice(0, parts.length), ...rest].join("/")}`;
   }
   if (parts[0] === "join" || parts[0] === "invite") return `/${parts[0]}/:code`;
   return pathname;
+}
+
+/** Settings' sections, the only values of `?settings=` that are counted as a screen. */
+const SETTINGS_SECTIONS = new Set(["product", "product/people", "product/export", "organization", "organization/people", "organization/plan", "organization/access", "account", "agents"]);
+
+/**
+ * The screen Settings is, while it is open over another (`?settings=organization/plan` is
+ * `/settings/organization/plan`), or null when it is closed. A value it does not know is plain `/settings`.
+ */
+export function settingsScreen(search: string): string | null {
+  const key = new URLSearchParams(search).get("settings");
+  if (key === null) return null;
+  return SETTINGS_SECTIONS.has(key) ? `/settings/${key}` : "/settings";
 }
 
 /**

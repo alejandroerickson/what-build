@@ -54,7 +54,7 @@ Read it before the first command. This file says how to conduct the work.
    the database.
 5. **Sign in** with one of the sample people:
    - Riley Chen (`riley@example.com`) owns every organization;
-   - Sam Okafor (`sam@example.com`) is an editor on every team;
+   - Sam Okafor (`sam@example.com`) is an editor of all products in every organization;
    - Jordan Ellis (`jordan@example.com`) reads only the Stories.
 
    Prefer them over an account from the copy, so that nothing you do is attributed to a real

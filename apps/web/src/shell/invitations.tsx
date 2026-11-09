@@ -13,7 +13,8 @@ export interface Invitation {
   tenant: { slug: string; name: string } | null;
   /** A read-only organization takes nobody new: it can be declined, not accepted, for now. */
   read_only?: boolean;
-  scope_type: "tenant" | "team" | "product";
+  /** `all_products`: a role on every product in the organization, products made later included; its scope is "All products". */
+  scope_type: "tenant" | "all_products" | "product";
   scope: string | null;
   role: string;
   invited_by: string;
@@ -43,7 +44,8 @@ const ROLE_MEANS: Record<string, string> = {
   editor: "You could add and change what’s there.",
   viewer: "You could read everything there.",
   reader: "You could read the Story and nothing else.",
-  member: "You’d be in the organization, and its admins give roles on its teams and products.",
+  creator: "You could create products, and you’d be admin of each one you create.",
+  member: "You’d be in the organization, and its admins give roles on its products.",
 };
 
 /** Names are others' to choose, so each is in quotation marks and never reads as WhatBuild's own words. */
@@ -51,9 +53,10 @@ const quoted = (name: string) => `"${name.replace(/["“”„‟＂]/g, "'")}"`
 
 export const orgOf = (i: Pick<Invitation, "tenant">) => (i.tenant ? quoted(i.tenant.name) : "the organization");
 
-/** The role and where it applies: "an admin of the organization", "an editor on the Core team". */
+/** The role and where it applies: "an admin of the organization", "an editor on every product in the organization", "a viewer on "Rota"". */
 export function roleWords(i: Pick<Invitation, "scope_type" | "scope" | "role">): string {
-  return i.scope_type === "tenant" || !i.scope ? `${aRole(i.role)} of the organization` : `${aRole(i.role)} on ${i.scope_type === "team" ? (/\bteam$/i.test(i.scope.trim()) ? `the ${quoted(i.scope)}` : `the ${quoted(i.scope)} team`) : quoted(i.scope)}`;
+  if (i.scope_type === "all_products") return `${aRole(i.role)} on every product in the organization`;
+  return i.scope_type === "tenant" || !i.scope ? `${aRole(i.role)} of the organization` : `${aRole(i.role)} on ${quoted(i.scope)}`;
 }
 
 /** The choice in words: who asks, for what role and where, what it lets them do, and until when. */

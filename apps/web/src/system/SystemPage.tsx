@@ -267,7 +267,7 @@ function Specimen() {
             <TextField label="Slug" defaultValue="crewboard" readOnly hint="Set when the product was made." />
             <TextField label="Organization" optional placeholder="Greenline Landscaping" />
             <TextField label="Date" defaultValue="2026-13-40" error="Use a real date, like 2026-08-14." />
-            <TextField label="Team" defaultValue="Product team" disabled />
+            <TextField label="Owner" defaultValue="Ana Ruiz" disabled />
             <SelectField label="Kind" defaultValue="interview">
               <option value="interview">Interview transcript</option>
               <option value="notes">Interviewer notes</option>
@@ -319,7 +319,7 @@ function Specimen() {
                     </MenuRadio>
                   ))}
                 </MenuGroup>
-                <MenuCheckbox checked={menuCheck} onChange={setMenuCheck} meta="3 people">Product team</MenuCheckbox>
+                <MenuCheckbox checked={menuCheck} onChange={setMenuCheck} meta="3 people">Researchers</MenuCheckbox>
                 <MenuSeparator />
                 <MenuNote>Subpages keep their place when a page is archived.</MenuNote>
                 <MenuItem icon="archive" meta="Reversible" tone="danger">Archive</MenuItem>
@@ -385,7 +385,7 @@ function Specimen() {
         <Callout tone="positive" title="Uploaded">Its text is read in a moment.</Callout>
         <ErrorCallout error={new ApiError(0, "network", "WhatBuild couldn’t be reached. Check your connection and try again.")} onRetry={() => {}} />
         <ErrorCallout error={new ApiError(409, "stale_etag", "That changed since you loaded it.")} onRetry={() => {}} />
-        <ErrorCallout error={new ApiError(409, "quota_exceeded", "This team has used its 5 GB of file storage.")} />
+        <ErrorCallout error={new ApiError(409, "quota_exceeded", "This organization has used its 5 GB of file storage.")} />
         <EmptyState title="No sources yet" action={<Button variant="primary" icon="plus">Add a source</Button>}>
           Add one, or ask your agent to.
         </EmptyState>

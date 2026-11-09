@@ -107,21 +107,23 @@ plans file's Free plan, which the end-to-end instance offers, are tried.
     export are refused with `403 example_read_only`, saying that, since the guest may not start an
     organization and has not asked for one, they ask whoever runs this WhatBuild for one (never to
     call `create_tenant`), and nothing changed; the two organizations stay separate.
-15. **The Free plan (the example file's), as Riley and then Sam.** As Riley, on Organizations, choose Change plan on the
+15. **The Free plan (the example file's), as Riley and then Sam.** As Riley, in Instance admin → Organizations, choose Change plan on the
     standard organization and move it to Free; the dialog says by how much it already holds more
     than Free allows, if it does. As Sam, read `products_read(action="limits")` for it over MCP, then
-    open Plan from the account menu in the web app. As Riley at `--level admin`, try to add a person
+    open Settings → the organization's Plan in the web app. As Riley at `--level admin`, try to add a person
     as an editor (`members_write(action="grant")`) and a second product. Then sign in to the web app as `guest@example.com`,
-    open the account menu, and go to the example organization's `/t/<slug>/plan`. *Expect:* the
+    open the account menu, and go to the example organization's old address `/t/<slug>/plan`. *Expect:* the
     limits say the plan is free and that Sam meets them, with what Sam used today and what the
     organization holds (`holds`); adding a third person or a second product is refused with
     `409 quota_exceeded`, naming the total and what makes room; reading, search and export still
     work. Sam's page says the plan is Free, what the organization holds against each total ("N of
     50" sources, people Full or not), what Sam used of each allowance today under You and under
     Everyone in the organization (changes as "N of 150"), what Sam can add, and the plans side by
-    side with Free marked as Sam's, with no refusal codes and no settings. The guest's account menu
-    lists nothing for the example organization, and its page says its plan sets nothing for them but
-    how often they can call. As Riley, move the organization back to Unlimited.
+    side with Free marked as Sam's (its Every limit table, closed, without refusal codes), with no
+    Change plan and none of Instance admin's tables of refusals and of the deployment's own limits. The
+    guest's account menu lists nothing for the example organization, and the old address opens
+    Settings over one of its products with no section for the organization at all (no People, no
+    Plan), only the product's and the guest's own. As Riley, move the organization back to Unlimited.
 
 ## Look out for
 

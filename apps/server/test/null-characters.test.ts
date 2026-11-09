@@ -32,7 +32,7 @@ beforeAll(async () => {
   h = await startHarness();
   alice = await h.signIn("alice@nul.example", "Alice Nul");
   const t = await alice.api("POST", "/api/v1/tenants", { name: "Nul Co" });
-  const p = await alice.api("POST", `/api/v1/teams/${t.body.tenant.slug}/${t.body.team.slug}/products`, { name: "Gate" });
+  const p = await alice.api("POST", `/api/v1/tenants/${t.body.tenant.slug}/products`, { name: "Gate" });
   path = p.body.path;
   P = `/api/v1/p/${path}`;
   const s = await alice.api("POST", `${P}/sources`, { title: "Gate notes — Example Co", tags: ["notes"] });
@@ -65,8 +65,8 @@ describe("a null character over REST", () => {
     const id = await alice.api("GET", `${P}/assumptions/ab%00c`);
     expect(id.status).toBe(422);
     refusesNul(id.body, "id");
-    const [tenant, team, product] = path.split("/");
-    const scoped = await alice.api("GET", `/api/v1/p/${tenant}/${team}/${product}%00/sources`);
+    const [tenant, product] = path.split("/");
+    const scoped = await alice.api("GET", `/api/v1/p/${tenant}/${product}%00/sources`);
     expect(scoped.status).toBe(422);
     refusesNul(scoped.body, "product");
     const members = await alice.api("GET", `/api/v1/tenants/${tenant}%00/members`);

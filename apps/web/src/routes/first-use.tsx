@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from "react";
 import { useConnectedAgentCount } from "../lib/agents.ts";
 import { useProduct } from "../lib/session.tsx";
+import { useSettingsTo } from "../shell/settings-link.ts";
 import { Button, ButtonLink, useToast } from "../ui/index.tsx";
 
 /**
@@ -12,7 +13,8 @@ import { Button, ButtonLink, useToast } from "../ui/index.tsx";
  * `ask` is the request for an agent. It is left out for people who cannot write here.
  */
 export function FirstUse({ title, children, ask }: { title: string; children: ReactNode; ask?: string }) {
-  const { app, canWrite } = useProduct();
+  const { canWrite } = useProduct();
+  const settingsTo = useSettingsTo();
   const toast = useToast();
   const [copied, setCopied] = useState(false);
   // The person's connected agents are account-wide; Connect an agent and the panel share this query.
@@ -39,7 +41,7 @@ export function FirstUse({ title, children, ask }: { title: string; children: Re
           </p>
           <div className="empty-action">
             {connected ? null : (
-              <ButtonLink to={`${app}/connect`} variant="primary" icon="bot">
+              <ButtonLink to={settingsTo("agents")} variant="primary" icon="bot">
                 Connect an agent
               </ButtonLink>
             )}

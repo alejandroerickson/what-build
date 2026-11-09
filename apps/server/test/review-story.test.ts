@@ -27,7 +27,6 @@ let stranger: Browser;
 let P: string;
 let productPath: string;
 let tenantSlug: string;
-let teamSlug: string;
 let recordId: string;
 
 const html = (title: string, body: string) =>
@@ -37,16 +36,15 @@ beforeAll(async () => {
   h = await startHarness();
   alice = await h.signIn("alice@example.com", "Alice Example");
   vic = await h.signIn("vic@example.com", "Vic Viewer");
-  bob = await h.signIn("bob@example.com", "Bob Team");
+  bob = await h.signIn("bob@example.com", "Bob Everywhere");
   carol = await h.signIn("carol@example.com", "Carol Member");
   stranger = await h.signIn("stranger@example.com", "Stranger");
   const t = await alice.api("POST", "/api/v1/tenants", { name: "Review Co" });
   tenantSlug = t.body.tenant.slug;
-  teamSlug = t.body.team.slug;
-  const p = await alice.api("POST", `/api/v1/teams/${tenantSlug}/${teamSlug}/products`, { name: "Planner" });
+  const p = await alice.api("POST", `/api/v1/tenants/${tenantSlug}/products`, { name: "Planner" });
   productPath = p.body.path;
   P = `/api/v1/p/${productPath}`;
-  await alice.api("POST", `/api/v1/tenants/${tenantSlug}/members`, { team: teamSlug, product: "planner", email: "vic@example.com", role: "viewer" });
+  await alice.api("POST", `/api/v1/tenants/${tenantSlug}/members`, { product: "planner", email: "vic@example.com", role: "viewer" });
   const created = await alice.api("POST", `${P}/sources/with-upload`, { tags: ["interview"], title: "Finance lead interview — Example Co, Sep 2026", date: "2026-09-03", path: "call.vtt" });
   recordId = created.body.record.record_id;
   const up = created.body.upload;
@@ -259,7 +257,7 @@ describe("the Story's navigation", () => {
   let N: string;
   const ids = (items: { page_id: string; children?: unknown[] }[]) => items.map((x) => x.page_id);
   beforeAll(async () => {
-    const p = await alice.api("POST", `/api/v1/teams/${tenantSlug}/${teamSlug}/products`, { name: "Navigation" });
+    const p = await alice.api("POST", `/api/v1/tenants/${tenantSlug}/products`, { name: "Navigation" });
     N = `/api/v1/p/${p.body.path}`;
     for (const [id, title] of [["overview", "Overview"], ["plan", "Plan"]] as const) {
       expect((await alice.api("POST", `${N}/story/pages/${id}/versions`, { title, html: html(title, "<p>A page.</p>") })).status).toBe(201);
@@ -384,30 +382,30 @@ describe("Story print view", () => {
 
 describe("people on one product", () => {
   it("lists everyone who can reach the product, with the role and where it comes from", async () => {
-    await alice.api("POST", `/api/v1/tenants/${tenantSlug}/members`, { team: teamSlug, email: "bob@example.com", role: "editor" });
+    await alice.api("POST", `/api/v1/tenants/${tenantSlug}/members`, { all_products: true, email: "bob@example.com", role: "editor" });
     await alice.api("POST", `/api/v1/tenants/${tenantSlug}/members`, { email: "carol@example.com", role: "member" });
-    await alice.api("POST", `/api/v1/tenants/${tenantSlug}/members`, { team: teamSlug, product: "planner", email: "bob@example.com", role: "viewer" });
-    await alice.api("POST", `/api/v1/tenants/${tenantSlug}/members`, { team: teamSlug, product: "planner", email: "invitee@example.com", role: "editor" });
+    await alice.api("POST", `/api/v1/tenants/${tenantSlug}/members`, { product: "planner", email: "bob@example.com", role: "viewer" });
+    await alice.api("POST", `/api/v1/tenants/${tenantSlug}/members`, { product: "planner", email: "invitee@example.com", role: "editor" });
     await alice.api("POST", `/api/v1/tenants/${tenantSlug}/members`, { email: "tenant-invitee@example.com", role: "member" });
-    const r = await vic.api("GET", `/api/v1/tenants/${tenantSlug}/members?team=${teamSlug}&product=planner`);
+    const r = await vic.api("GET", `/api/v1/tenants/${tenantSlug}/members?product=planner`);
     expect(r.status).toBe(200);
-    expect(r.body.product).toMatchObject({ name: "Planner" });
+    expect(r.body.product).toEqual({ product_id: expect.any(String), name: "Planner" });
     const access = Object.fromEntries(r.body.members.map((m: { email: string; product_access: unknown }) => [m.email, m.product_access]));
     expect(access).toEqual({
       "alice@example.com": { role: "admin", via: "tenant" },
-      "bob@example.com": { role: "editor", via: "team" },
+      "bob@example.com": { role: "editor", via: "all_products" },
       "vic@example.com": { role: "viewer", via: "product" },
     });
     const bobGrants = r.body.members.find((m: { email: string }) => m.email === "bob@example.com").grants.map((g: { scope_type: string; role: string }) => `${g.scope_type}:${g.role}`);
-    expect(bobGrants.sort()).toEqual(["product:viewer", "team:editor"]);
+    expect(bobGrants.sort()).toEqual(["all_products:editor", "product:viewer"]);
     // Invitations are shown to whoever could cancel them: the product's admins, not its viewers.
     expect(r.body.invitations).toEqual([]);
-    const forAdmin = await alice.api("GET", `/api/v1/tenants/${tenantSlug}/members?team=${teamSlug}&product=planner`);
+    const forAdmin = await alice.api("GET", `/api/v1/tenants/${tenantSlug}/members?product=planner`);
     expect(forAdmin.body.invitations.map((i: { email: string }) => i.email)).toEqual(["invitee@example.com"]);
     const all = await carol.api("GET", `/api/v1/tenants/${tenantSlug}/members`);
     expect(all.body.members.map((m: { email: string }) => m.email)).toContain("carol@example.com");
     expect(all.body.product).toBeUndefined();
-    const unknown = await vic.api("GET", `/api/v1/tenants/${tenantSlug}/members?team=${teamSlug}&product=nope`);
+    const unknown = await vic.api("GET", `/api/v1/tenants/${tenantSlug}/members?product=nope`);
     expect(unknown.status).toBe(404);
     void bob;
   });

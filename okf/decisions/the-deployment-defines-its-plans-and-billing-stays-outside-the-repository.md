@@ -3,7 +3,7 @@ type: Decision
 title: The deployment defines its plans, and billing stays outside the repository
 description: The code enforces plans but defines none; each deployment names its plans, their limits and prices in its own configuration, a self-hosted one offers none and sees nothing of them, and payment is a separate service that moves organizations between plans.
 tags: [decision, plans, billing, deployment, self-hosting, configuration]
-generated: {by: agent:claude, at: 2026-10-26}
+generated: {by: agent:claude, at: 2026-11-09}
 status: stable
 ---
 
@@ -23,12 +23,12 @@ machinery and each deployment its plans, and that payment lives elsewhere.
 
 - **The code holds the machinery**: an organization is on a plan; a plan is a set of limits, every
   one of them enforced; an instance owner moves an organization between plans and changes a plan's
-  limits and price on `/instance`; the rules that follow from plans (one organization each on the
+  limits and price in Instance admin; the rules that follow from plans (one organization each on the
   starting plan, the read-only year). It defines no plan but `unlimited`, which sets no limit.
 - **The deployment defines its plans** in `WHATBUILD_PLANS`: each one's id, name, what it is for,
   every limit and its price, as JSON or a JSON file; anything wrong stops the server from starting.
   `deploy/plans.example.json` is an example, which local development, the tests and the end-to-end
-  instance use. What an instance owner sets on `/instance` is stored with the deployment, over it.
+  instance use. What an instance owner sets in Instance admin is stored with the deployment, over it.
 - **A deployment that defines no plans offers none**: every organization is unlimited, and the app
   shows no plan, price or billing wording anywhere. That is a self-hosted deployment's default.
 - **No price, and nothing true of one deployment's plans, is written in the repository.**
@@ -57,4 +57,4 @@ machinery and each deployment its plans, and that payment lives elsewhere.
 - The web app shows plans only when `GET /api/v1/plans` lists some, and billing words only when
   one of them has a price.
 
-Specified in: [§3.3](../spec/03-accounts-teams-and-identity.md#33-tenants-and-teams), [§9.7](../spec/09-data-lifecycle.md#97-plans-and-limits), [§10](../spec/10-roadmap.md).
+Specified in: [§3.3](../spec/03-accounts-and-identity.md#33-tenants), [§9.7](../spec/09-data-lifecycle.md#97-plans-and-limits), [§10](../spec/10-roadmap.md).

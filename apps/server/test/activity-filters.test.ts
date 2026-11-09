@@ -34,11 +34,11 @@ beforeAll(async () => {
   vic = await h.signIn("vic@example.com", "Vic Viewer");
   const t = await alice.api("POST", "/api/v1/tenants", { name: "Log Co" });
   tenantId = t.body.tenant.tenant_id;
-  const p = await alice.api("POST", `/api/v1/teams/${t.body.tenant.slug}/${t.body.team.slug}/products`, { name: "Logbook" });
+  const p = await alice.api("POST", `/api/v1/tenants/${t.body.tenant.slug}/products`, { name: "Logbook" });
   productPath = p.body.path;
   productId = p.body.product_id;
   P = `/api/v1/p/${productPath}`;
-  expect((await alice.api("POST", `/api/v1/tenants/${t.body.tenant.slug}/members`, { team: t.body.team.slug, product: "logbook", email: "vic@example.com", role: "viewer" })).status).toBe(201);
+  expect((await alice.api("POST", `/api/v1/tenants/${t.body.tenant.slug}/members`, { product: "logbook", email: "vic@example.com", role: "viewer" })).status).toBe(201);
 
   // One change to every kind of object a product's log holds entries about.
   expect((await alice.api("POST", `${P}/outcomes`, { title: "Plan the week in ten minutes" })).status).toBe(201);
@@ -54,7 +54,7 @@ beforeAll(async () => {
   const page = '<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Board</title></head><body><h1>Board</h1></body></html>';
   expect((await alice.api("POST", `${P}/mockups`, { title: "Board", pages: [{ page_id: "board", title: "Board", html: page }] })).status).toBe(201);
   // Someone invited to the product joins it by signing in with the address and accepting (the harness does, as they would).
-  expect((await alice.api("POST", `/api/v1/tenants/${t.body.tenant.slug}/members`, { team: t.body.team.slug, product: "logbook", email: "newcomer@example.com", role: "viewer" })).status).toBe(201);
+  expect((await alice.api("POST", `/api/v1/tenants/${t.body.tenant.slug}/members`, { product: "logbook", email: "newcomer@example.com", role: "viewer" })).status).toBe(201);
   await h.signIn("newcomer@example.com", "Nia Newcomer");
   expect((await alice.api("POST", `${P}/exports`, {})).status).toBe(201);
 
@@ -112,7 +112,7 @@ describe("filtering a product's log by who made the change", () => {
       await trx
         .insertInto("activity")
         .values({
-          activity_id: activityId, tenant_id: tenantId, team_id: null, product_id: productId,
+          activity_id: activityId, tenant_id: tenantId, product_id: productId,
           actor: json({ account_id: "someone", display_name: "Someone", surface: "rest", client: "curl" }),
           actor_account_id: "someone", channel: "rest", action: "updated", entity_type: "outcome", entity_id: null, entity_title: "Plan the week in ten minutes", summary: "Edited the outcome",
         })
@@ -137,7 +137,7 @@ async function recorded(action: string, entity_type: string, summary: string) {
     await trx
       .insertInto("activity")
       .values({
-        activity_id: activityId, tenant_id: tenantId, team_id: null, product_id: productId,
+        activity_id: activityId, tenant_id: tenantId, product_id: productId,
         actor: json({ account_id: "someone", display_name: "Someone", surface: "web", client: null }),
         actor_account_id: "someone", channel: "web", action, entity_type, entity_id: null, entity_title: "Something", summary,
       })
@@ -224,7 +224,7 @@ describe("what an entry says", () => {
       await trx
         .insertInto("activity")
         .values({
-          activity_id: activityId, tenant_id: tenantId, team_id: null, product_id: productId,
+          activity_id: activityId, tenant_id: tenantId, product_id: productId,
           actor: json({ account_id: "someone", display_name: "Someone", surface: "web", client: null }),
           actor_account_id: "someone", channel: "web", action: "note_archived", entity_type: "source", entity_id: null, entity_title: "Sample crew call",
           summary: "Archived a comment: The crew lead asked us to drop it.",

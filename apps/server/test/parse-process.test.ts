@@ -495,7 +495,7 @@ describe("through the server", () => {
     h = await startHarness({ relayMaxBytes: 2 * MiB });
     owner = await h.signIn("dana@example.com", "Dana Example");
     const t = await owner.api("POST", "/api/v1/tenants", { name: "Boundary Co" });
-    P = `/api/v1/p/${(await owner.api("POST", `/api/v1/teams/${t.body.tenant.slug}/${t.body.team.slug}/products`, { name: "Intake" })).body.path}`;
+    P = `/api/v1/p/${(await owner.api("POST", `/api/v1/tenants/${t.body.tenant.slug}/products`, { name: "Intake" })).body.path}`;
   });
   afterAll(async () => h?.close());
 

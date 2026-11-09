@@ -13,7 +13,6 @@ let rita: Browser;
 let P: string;
 let tenantSlug: string;
 let tenantId: string;
-let teamSlug: string;
 
 const page = (heading: string) => `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>${heading}</title><style>body{font:16px system-ui}</style></head><body><h1>${heading}</h1></body></html>`;
 
@@ -23,13 +22,12 @@ beforeAll(async () => {
   vic = await h.signIn("vic@example.com", "Vic Viewer");
   rita = await h.signIn("rita@example.com", "Rita Reader");
   const t = await alice.api("POST", "/api/v1/tenants", { name: "Canvas Co" });
-  const p = await alice.api("POST", `/api/v1/teams/${t.body.tenant.slug}/${t.body.team.slug}/products`, { name: "Planner", concept: "A planner for finance teams." });
+  const p = await alice.api("POST", `/api/v1/tenants/${t.body.tenant.slug}/products`, { name: "Planner", concept: "A planner for finance teams." });
   P = `/api/v1/p/${p.body.path}`;
   tenantSlug = t.body.tenant.slug;
   tenantId = t.body.tenant.tenant_id ?? t.body.tenant.id;
-  teamSlug = t.body.team.slug;
   for (const [email, role] of [["vic@example.com", "viewer"], ["rita@example.com", "reader"]])
-    expect((await alice.api("POST", `/api/v1/tenants/${t.body.tenant.slug}/members`, { team: t.body.team.slug, product: "planner", email, role })).status).toBe(201);
+    expect((await alice.api("POST", `/api/v1/tenants/${t.body.tenant.slug}/members`, { product: "planner", email, role })).status).toBe(201);
 });
 afterAll(async () => h?.close());
 
@@ -212,15 +210,6 @@ describe("a mockup beside the product's sources", () => {
     expect(v2.status).toBe(201);
   });
 
-  it("lets a source move to another product whatever a mockup was built from", async () => {
-    await alice.api("POST", `/api/v1/teams/${tenantSlug}/${teamSlug}/products`, { name: "Elsewhere" });
-    const etag = (await alice.api("GET", `${P}/sources/${recordId}`)).body.etag;
-    const moved = await alice.api("POST", `${P}/sources/${recordId}/move`, { record_id: recordId, to_product: "elsewhere", expected_etag: etag });
-    expect(moved.status, JSON.stringify(moved.body)).toBe(200);
-    expect(moved.body).toMatchObject({ record_id: recordId, product: "Elsewhere" });
-    expect((await alice.api("GET", `${P}/mockups/${mockupId}`)).body.current_version).toBe(2);
-  });
-
   it("goes into the product export: every version, with its brief, pages and notes", async () => {
     expect((await alice.api("POST", `${P}/exports`, {})).status).toBe(201);
     await h.worker.drain();
@@ -240,7 +229,7 @@ describe("a mockup beside the product's sources", () => {
   });
 
   it("holds at most 50 mockups in a product, archived ones included", async () => {
-    const t = await alice.api("POST", `/api/v1/teams/${tenantSlug}/${teamSlug}/products`, { name: "Crowded" });
+    const t = await alice.api("POST", `/api/v1/tenants/${tenantSlug}/products`, { name: "Crowded" });
     const Q = `/api/v1/p/${t.body.path}`;
     for (let i = 0; i < 50; i++) expect((await alice.api("POST", `${Q}/mockups`, { title: `M${i}`, pages: [{ page_id: "a", title: "A", html: page("A") }] })).status).toBe(201);
     const full = await alice.api("GET", `${Q}/mockups`);
@@ -373,9 +362,9 @@ describe("which page a result on several pages names", () => {
   };
 
   beforeAll(async () => {
-    const p = await alice.api("POST", `/api/v1/teams/${tenantSlug}/${teamSlug}/products`, { name: "Titled pages" });
+    const p = await alice.api("POST", `/api/v1/tenants/${tenantSlug}/products`, { name: "Titled pages" });
     S = `/api/v1/p/${p.body.path}`;
-    expect((await alice.api("POST", `/api/v1/tenants/${tenantSlug}/members`, { team: teamSlug, product: "titled-pages", email: "rita@example.com", role: "reader" })).status).toBe(201);
+    expect((await alice.api("POST", `/api/v1/tenants/${tenantSlug}/members`, { product: "titled-pages", email: "rita@example.com", role: "reader" })).status).toBe(201);
     const m = await alice.api("POST", `${S}/mockups`, {
       title: "Yard planning",
       pages: [
@@ -626,10 +615,10 @@ describe("searching for what a Story page shows of a mockup", () => {
   const kinds = async (b: Browser, words: string, extra = "") => (await find(b, words, extra)).results.map((x) => `${x.kind}:${x.id}`);
 
   beforeAll(async () => {
-    const p = await alice.api("POST", `/api/v1/teams/${tenantSlug}/${teamSlug}/products`, { name: "Findable" });
+    const p = await alice.api("POST", `/api/v1/tenants/${tenantSlug}/products`, { name: "Findable" });
     S = `/api/v1/p/${p.body.path}`;
     for (const [email, role] of [["vic@example.com", "viewer"], ["rita@example.com", "reader"]])
-      expect((await alice.api("POST", `/api/v1/tenants/${tenantSlug}/members`, { team: teamSlug, product: "findable", email, role })).status).toBe(201);
+      expect((await alice.api("POST", `/api/v1/tenants/${tenantSlug}/members`, { product: "findable", email, role })).status).toBe(201);
     const one = await alice.api("POST", `${S}/mockups`, {
       title: "Harbour walk",
       brief: "Only the team reads briefword.",
@@ -754,7 +743,7 @@ describe("pages from a mockup in the Story's tree", () => {
   const etagOf = async (page: string) => (await alice.api("GET", `${Q}/story/pages/${page}?include_html=false`)).body.etag as string;
 
   beforeAll(async () => {
-    const p = await alice.api("POST", `/api/v1/teams/${tenantSlug}/${teamSlug}/products`, { name: "Flipbook" });
+    const p = await alice.api("POST", `/api/v1/tenants/${tenantSlug}/products`, { name: "Flipbook" });
     Q = `/api/v1/p/${p.body.path}`;
     const m = await alice.api("POST", `${Q}/mockups`, {
       title: "Directions",
@@ -843,7 +832,7 @@ describe("pages from a mockup in the Story's tree", () => {
     });
 
     it("gives a reader what the canvas draws and each page's HTML, and nothing else of the mockup", async () => {
-      expect((await alice.api("POST", `/api/v1/tenants/${tenantSlug}/members`, { team: teamSlug, product: "flipbook", email: "rita@example.com", role: "reader" })).status).toBe(201);
+      expect((await alice.api("POST", `/api/v1/tenants/${tenantSlug}/members`, { product: "flipbook", email: "rita@example.com", role: "reader" })).status).toBe(201);
       const read = await rita.api("GET", `${Q}/story/pages/${canvas.page_id}?include_html=false`);
       expect(read.status, JSON.stringify(read.body)).toBe(200);
       const m = read.body.current.mockup;
@@ -1103,7 +1092,7 @@ describe("publishing a canvas uploaded as a ZIP", () => {
 
   it("gives a viewer no upload grant, and keeps an upload to its product", async () => {
     expect((await vic.api("POST", `${P}/mockups/uploads`, {})).status).toBe(403);
-    const other = await alice.api("POST", `/api/v1/teams/${tenantSlug}/${teamSlug}/products`, { name: "Elsewhere", concept: "Another product." });
+    const other = await alice.api("POST", `/api/v1/tenants/${tenantSlug}/products`, { name: "Elsewhere", concept: "Another product." });
     const uploadId = await upload(alice, { "manifest.json": JSON.stringify({ title: "X", pages: [{ page_id: "a", title: "A" }] }), "pages/a.html": page("A") });
     const r = await alice.api("POST", `/api/v1/p/${other.body.path}/mockups`, { upload_id: uploadId });
     expect(r.status).toBe(404);
@@ -1179,7 +1168,7 @@ describe("a working prototype on a canvas", () => {
   let mockupId: string;
 
   beforeAll(async () => {
-    const p = await alice.api("POST", `/api/v1/teams/${tenantSlug}/${teamSlug}/products`, { name: "Prototypes" });
+    const p = await alice.api("POST", `/api/v1/tenants/${tenantSlug}/products`, { name: "Prototypes" });
     Q = `/api/v1/p/${p.body.path}`;
   });
 
@@ -1279,7 +1268,7 @@ describe("what publishing an upload tells and keeps", () => {
   const sha = (b: Uint8Array | string) => createHash("sha256").update(b).digest("hex");
 
   beforeAll(async () => {
-    const p = await alice.api("POST", `/api/v1/teams/${tenantSlug}/${teamSlug}/products`, { name: "Uploads" });
+    const p = await alice.api("POST", `/api/v1/tenants/${tenantSlug}/products`, { name: "Uploads" });
     Q = `/api/v1/p/${p.body.path}`;
   });
 

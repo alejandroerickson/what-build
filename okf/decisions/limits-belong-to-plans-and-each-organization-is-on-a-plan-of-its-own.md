@@ -3,7 +3,7 @@ type: Decision
 title: Limits belong to plans, never to one organization, and each organization is on a plan of its own
 description: A plan sets every limit, the totals an organization holds included; an instance owner moves an organization between plans and changes no organization's limits.
 tags: [decision, limits, plans, tenancy, billing, cost]
-generated: {by: agent:claude, at: 2026-10-31}
+generated: {by: agent:claude, at: 2026-11-09}
 status: stable
 ---
 
@@ -27,7 +27,7 @@ that stops being paid for, and that the plans themselves are the deployment's
   `unlimited`, never offered, which sets none: the deployment's own organizations, and every
   organization of a deployment that defines no plans.
 - **An instance owner changes a plan's limits and price** (`products.set_plan_limits`,
-  `/instance`), in the web app and never through an agent
+  Instance admin → Plans), in the web app and never through an agent
   ([decision](running-the-instance-is-done-in-the-web-app-never-by-an-agent.md)), for every
   organization on it, and raises them as the deployment grows. What they set is stored with the
   deployment (`instance_settings`), over what its configuration defines.
@@ -65,7 +65,7 @@ that stops being paid for, and that the plans themselves are the deployment's
   instance owner; the repository never holds one. Billing, when it comes, is a service of its own.
 - **Who runs the deployment sees** an organization's name and plan, and the name and email of
   everyone in it, to bill the organization and write to its people; where the deployment offers
-  plans, the new-organization form, an organization's Plan page and the privacy page say so.
+  plans, the new-organization form, an organization's Plan in Settings and the privacy page say so.
 
 ## Consequences
 
@@ -91,4 +91,4 @@ that stops being paid for, and that the plans themselves are the deployment's
 - A plan's limits are read through `readPlans` (`packages/core/src/settings.ts`), never from the
   configured definitions directly, so what an instance owner set applies everywhere.
 
-Specified in: [§3.3](../spec/03-accounts-teams-and-identity.md#33-tenants-and-teams), [§9.2](../spec/09-data-lifecycle.md#92-limits-and-quotas), [§9.7](../spec/09-data-lifecycle.md#97-plans-and-limits).
+Specified in: [§3.3](../spec/03-accounts-and-identity.md#33-tenants), [§9.2](../spec/09-data-lifecycle.md#92-limits-and-quotas), [§9.7](../spec/09-data-lifecycle.md#97-plans-and-limits).

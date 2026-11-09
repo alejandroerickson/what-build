@@ -2,21 +2,22 @@
 
 What WhatBuild holds, how it is organized, who may do what, and the other topics of this guide.
 
-WhatBuild holds a team's product-discovery material and what the team makes of it. People work in
+WhatBuild holds product-discovery material and what the people working on a product make of it. People work in
 the web app; agents work through this MCP server. Both reach the same operations and the same data,
 under the person's own account. WhatBuild contains no AI: it parses, stores, searches and checks
 deterministically.
 
-## Organizations, teams and products
+## Organizations and products
 
-Everything lives in a **product** (one discovery), inside a **team**, inside a **tenant** (an
-organization). `products_read(action="list")` lists the products you can reach, with the tenants and
-teams they are in. Every product-scoped call takes `product`: a `product_id` or its path
-(`tenant/team/product`). It may be left out when the connector is scoped to one product, or when you
-can reach only one product outside the example organization; otherwise the call is refused with
-`product_required` and a list of the products you can reach.
+Everything lives in a **product** (one discovery), inside a **tenant** (an organization).
+`products_read(action="list")` lists the products you can reach, with the tenants they are in. Every
+product-scoped call takes `product`: a `product_id` or its path (`tenant/product`). It may be left
+out when the connector is scoped to one product, or when you can reach only one product outside the
+example organization; otherwise the call is refused with `product_required` and a list of the
+products you can reach. There are no teams: a path written when there were, `tenant/team/product`,
+still reaches its product.
 
-Every product-scoped answer carries `scope`: the tenant, team and product the call ran in, your role
+Every product-scoped answer carries `scope`: the tenant and product the call ran in, your role
 there (`your_role`), the connection's level, `example: true` in the example organization, and
 `tools_version`.
 
@@ -44,10 +45,16 @@ Each product gives your person a role, as `your_role`:
 | editor | read, write and archive |
 | admin | also delete permanently, manage people and change product settings |
 
+A role comes from one of three places: the product itself; **all products** of the organization,
+which gives that role on every product in it, products made later included; or the organization's
+own role, whose owners and admins are admins of every product. An organization's **product
+creators** (`creator`) may create products, and are admins of each one they create; its members
+hold nothing by that alone. The highest role that applies is yours.
+
 A connection also has a **level** the person chose when connecting: Read only, Edit or Admin. You act
 as the lower of the two, and `your_role` is already capped by the level. Anything above it is refused
-with `403 connection_level`; only the person can raise the level, under Connect an agent in the web
-app. A `403` names the role you have and the one needed.
+with `403 connection_level`; only the person can raise the level, in the web app's Settings, under
+Agents. A `403` names the role you have and the one needed.
 
 The tools a connection is offered follow both: a Read only connection gets the `_read` tools,
 `products_export` and `submit_feedback`, an Edit connection also the `_write` tools, and only an Admin
@@ -57,7 +64,7 @@ and actions the person's roles cannot reach are left out as well (see `guide(top
 ## Scoped connectors
 
 A connector may be scoped to one organization (`…/mcp/t/<tenant>`) or one product
-(`…/mcp/t/<tenant>/<team>/<product>`), and the server's instructions say so. It lists only what is
+(`…/mcp/t/<tenant>/<product>`), and the server's instructions say so. It lists only what is
 inside its scope and refuses everything else with `403 outside_connector_scope`, which changes
 nothing. Work elsewhere needs a connector scoped there, or the unscoped one (`/mcp`).
 

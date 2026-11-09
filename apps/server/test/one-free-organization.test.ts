@@ -11,7 +11,7 @@ let h: Harness;
 let root: Browser; // an instance owner
 let ana: Browser; // allowed one organization
 let ned: Browser; // an editor in Ana's first
-let first: { slug: string; team: string; P: string; source: string };
+let first: { slug: string; P: string; source: string };
 let second: { slug: string };
 const etags = new Map<string, string>();
 
@@ -35,10 +35,10 @@ beforeAll(async () => {
   ana = await h.signIn("ana@example.com", "Ana Owner");
   const t = await start(ana, "Ana Works");
   expect(t.status, JSON.stringify(t.body)).toBe(201);
-  const P = `/api/v1/p/${(await ana.api("POST", `/api/v1/teams/${t.body.tenant.slug}/${t.body.team.slug}/products`, { name: "Field Notes" })).body.path}`;
+  const P = `/api/v1/p/${(await ana.api("POST", `/api/v1/tenants/${t.body.tenant.slug}/products`, { name: "Field Notes" })).body.path}`;
   const source = (await ana.api("POST", `${P}/sources`, { title: "Sample interview", tags: ["notes"] })).body.record_id;
-  first = { slug: t.body.tenant.slug, team: t.body.team.slug, P, source };
-  expect((await ana.api("POST", `/api/v1/tenants/${first.slug}/members`, { email: "ned@example.com", role: "editor", team: first.team })).status).toBe(201);
+  first = { slug: t.body.tenant.slug, P, source };
+  expect((await ana.api("POST", `/api/v1/tenants/${first.slug}/members`, { email: "ned@example.com", role: "editor", all_products: true })).status).toBe(201);
   ned = await h.signIn("ned@example.com", "Ned Editor");
 }, 120_000);
 afterAll(async () => h?.close());
@@ -84,7 +84,7 @@ describe("a Pro organization no longer paid for", () => {
     expect(mail).toMatchObject({ to: "ana@example.com", subject: "Ana Works is read-only on WhatBuild" });
     expect(mail.text).toContain("Everyone in it can still read, export and delete what it holds, and take people out, as their roles allow.");
     expect(mail.text).toMatch(/is read-only since \d{1,2} [A-Z][a-z]{2} \d{4} \(UTC\)\. .* It is kept until \d{1,2} [A-Z][a-z]{2} \d{4} \(UTC\)\./s);
-    expect(mail.text).toContain(`/t/${first.slug}/plan`);
+    expect(mail.text).toContain(`/t/${first.slug}?settings=organization/plan`);
     expect(h.mailer.sent.some((m) => m.to === "ned@example.com" && m.subject.includes("read-only"))).toBe(false);
     const kept = Date.parse(moved.read_only.kept_until) - Date.parse(moved.read_only.since);
     expect(kept).toBe(365 * 86_400_000);
@@ -108,7 +108,7 @@ describe("a Pro organization no longer paid for", () => {
     expect(write.body.error.details).toMatchObject({ read_only_since: expect.any(String), kept_until: expect.any(String) });
     // An owner meets it too: nobody adds to it.
     expect((await ana.api("PATCH", `${first.P}/sources/${first.source}`, { title: "Renamed" })).body.error?.code).toBe("organization_read_only");
-    expect((await ana.api("POST", `/api/v1/tenants/${first.slug}/members`, { email: "new@example.com", role: "editor", team: first.team })).body.error?.code).toBe("organization_read_only");
+    expect((await ana.api("POST", `/api/v1/tenants/${first.slug}/members`, { email: "new@example.com", role: "editor", all_products: true })).body.error?.code).toBe("organization_read_only");
     const exported = await ned.api("POST", `${first.P}/exports`, {});
     expect(exported.status, JSON.stringify(exported.body)).toBeLessThan(300);
   });

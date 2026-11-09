@@ -11,7 +11,7 @@ import { isInstanceOwner } from "../tenant-allowance.ts";
 
 /**
  * Deleting what holds everything else: a product, with everything in it, and an organization, with
- * every team, product and grant in it. Both are typed by name as well as guarded like every other
+ * every product and grant in it. Both are typed by name as well as guarded like every other
  * delete. Closing an organization is a person's act in the web app alone.
  */
 
@@ -89,13 +89,13 @@ async function productDeletion(ctx: OpContext) {
   return {
     product_id: p.product_id,
     name: p.name,
-    path: `${ctx.scope.tenant!.slug}/${ctx.scope.team!.slug}/${ctx.scope.product!.slug}`,
+    path: `${ctx.scope.tenant!.slug}/${ctx.scope.product!.slug}`,
     etag: p.etag,
     archived: Boolean(p.archived_at),
     contents,
     after_delete:
       "Everything in the product goes, archived or not: its concept, outcomes, sources with their attachments, derived texts, summaries, notes and comments, assumptions with their reviews, mockups, the Story, exports and activity. " +
-      "Roles given on this product go with it; roles on its team and organization stay. A connector scoped to this product reaches nothing.",
+      "Roles given on this product go with it; roles on all products and on the organization stay. A connector scoped to this product reaches nothing.",
     reversible_alternative: 'products_write(action="archive") hides it and makes it read-only, and erases nothing; export it first to keep a copy.',
   };
 }
@@ -178,7 +178,7 @@ export const deleteProduct = defineOperation({
     await dropBlobs(ctx, keys.filter((k) => !stillUsed.has(k)), [...derivations.map((d) => d.blob_prefix), ...pictures]);
 
     await leaveTombstone(ctx, { object_type: "product", object_id: pid, title: p.name, reason: input.reason });
-    // Recorded on the team, since the product's own log is gone with it.
+    // Recorded on the organization, since the product's own log is gone with it.
     await recordActivity({ ...ctx, scope: { ...ctx.scope, product: null } }, { action: "deleted", entity_type: "product", entity_id: pid, entity_title: p.name, summary: "Deleted the product permanently" });
     const { etag, reversible_alternative, ...rest } = impact;
     void etag;
@@ -205,7 +205,6 @@ export async function organizationDeletion(ctx: OpContext, tid: string = tenantI
     name: t.name,
     example: t.example,
     contents: {
-      teams: await count(db.selectFrom("teams").select((eb) => eb.fn.countAll<number>().as("n")).where("tenant_id", "=", tid).executeTakeFirst()),
       products: products.map((p) => ({ product_id: p.product_id, name: p.name, archived: Boolean(p.archived_at) })),
       sources: await count(db.selectFrom("records").select((eb) => eb.fn.countAll<number>().as("n")).where("tenant_id", "=", tid).executeTakeFirst()),
       stored_files: files.n,
@@ -216,7 +215,7 @@ export async function organizationDeletion(ctx: OpContext, tid: string = tenantI
       ),
     },
     after_delete:
-      "Everything in the organization goes at once: every team and product with all they hold, archived or not, its activity, and every role and invitation in it. Its people keep their accounts and their roles in other organizations. Its slug, and any it had before, are free for another organization to take.",
+      "Everything in the organization goes at once: every product with all it holds, archived or not, its activity, and every role and invitation in it. Its people keep their accounts and their roles in other organizations. Its slug, and any it had before, are free for another organization to take.",
   };
 }
 
@@ -229,10 +228,10 @@ export const organizationDeleteImpact = defineOperation({
   scope: "tenant",
   access: "owner",
   mutates: false,
-  webOnly: "a person does it in the web app: one of its owners on the organization's Members page (`/t/<organization>/members`), Delete this organization, or an owner of this WhatBuild on Organizations (`/instance`), Delete on its row",
+  webOnly: "a person does it in the web app: one of its owners in Settings, under the organization's General (`/t/<organization>?settings=organization`), Delete this organization, or an owner of this WhatBuild in Instance admin, under Organizations (`/admin/organizations`), Delete on its row",
   allowInstanceOwners: true,
   summary: "Preview exactly what deleting an organization would destroy (its owners and the instance's, in the web app).",
-  description: "Read-only. What the web app shows before an organization is deleted, to one of its owners or an owner of this instance: its teams, products, sources, files and people.",
+  description: "Read-only. What the web app shows before an organization is deleted, to one of its owners or an owner of this instance: its products, sources, files and people.",
   input: z.strictObject({ tenant: z.string().min(1) }),
   rest: { method: "GET", path: "/delete-impact" },
   mcp: { tool: "products", action: "delete_tenant_impact" },
@@ -247,7 +246,7 @@ export const deleteOrganization = defineOperation({
   access: "owner",
   mutates: true,
   allowReadOnlyOrganization: true,
-  webOnly: "a person does it in the web app: one of its owners on the organization's Members page (`/t/<organization>/members`), Delete this organization, or an owner of this WhatBuild on Organizations (`/instance`), Delete on its row",
+  webOnly: "a person does it in the web app: one of its owners in Settings, under the organization's General (`/t/<organization>?settings=organization`), Delete this organization, or an owner of this WhatBuild in Instance admin, under Organizations (`/admin/organizations`), Delete on its row",
   allowInstanceOwners: true,
   summary: "DELETE PERMANENTLY — cannot be undone. Destroys an organization and everything in it (its owners and the instance's, in the web app).",
   description:

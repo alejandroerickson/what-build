@@ -16,7 +16,7 @@ import { buildOrganization, type Organization } from "./organization-fixture.ts"
 const DIRECTORY_WITH_TENANT_ID: Record<string, string> = {
   tenants: "directory: the organization itself, resolved before a transaction is scoped to it",
   tenant_slugs: "directory: the slugs an organization had before, resolved with it",
-  teams: "directory: resolved by the policy module before a transaction is scoped",
+  team_addresses: "directory: a product's address from when products were in teams, resolved by the policy module before a transaction is scoped",
   products: "directory: resolved by the policy module before a transaction is scoped",
   memberships: "directory: the grants authorization reads",
   invitations: "directory: looked up by token before the invitee belongs to the organization",
@@ -123,6 +123,8 @@ describe("row-level security in the migrated schema", () => {
       expect(t!.has_tenant, `${name} is listed as exempt but has no tenant_id`).toBe(true);
       expect(t!.rls, `${name} now has row-level security: take it off the exempt list`).toBe(false);
     }
+    // An organization holds its products directly: there is no table of teams to exempt or guard.
+    expect(tables.map((t) => t.name)).not.toContain("teams");
   });
 
   it("gives every guarded table a policy that reads and writes only the transaction's tenant, and none that widens it", () => {

@@ -2092,6 +2092,11 @@
         "section": "layout"
       },
       {
+        "name": "The One Product Panel Rule",
+        "body": "The panel is the product's and nothing else's. It shows one product of one organization: the product switcher, Search, Idea, Evidence, Exploration and Story with their counts, the product's Activity, Settings, and the account at its foot (a Story reader's has the Story alone). It keeps the same rows on every screen and for every role, an instance owner's included, and never turns into another panel; an organization with no product yet shows Create a product where the sections would be. Admin never takes a row in it: the product's settings, its organization's (people, plan, access changes, name) and the person's own (account, agents) open in the Settings dialog over the product, and the account menu holds only the person. Running the instance happens in Instance admin, a place of its own outside every product, which only instance owners reach and nobody else learns exists. *(Set 2026-11-08.)*",
+        "section": "layout"
+      },
+      {
         "name": "The Two Heights Rule",
         "body": "A surface either rests in the layout or lifts above it. Use no other shadow values, and use no offset or coloured shadows. The one exception is the search palette's passing flash.",
         "section": "elevation"
@@ -2124,6 +2129,7 @@
     ],
     "donts": [
       "**Don't** add a top bar, a second rail, an app-level tab strip or extra drawers beside the panel. On phones the panel itself is the drawer.",
+      "**Don't** give admin a row in the panel, a screen beside the product, or a place in the account menu: a setting, a person, a plan or an agent belongs in the Settings dialog, and running the instance in Instance admin. Don't let the panel change with where the person is or which role they hold (the One Product Panel Rule).",
       "**Don't** set app type above 20px outside the overview's intro, and don't add a display face to the app: the display step is Inter at 600. An Idea card's front is a picture in the card kit, not app type.",
       "**Don't** use the accent for decoration, category colour, large fills or more than one filled button in a view.",
       "**Don't** use shadows outside the resting, lifted and paper set, including hard offset, coloured or glow shadows.",

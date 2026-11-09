@@ -11,9 +11,9 @@ import { forgetMinute } from "../src/lib/minute.ts";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
-const BASE = "/api/v1/p/acme/core/crew";
-const APP = "/t/acme/core/crew";
-const product = { name: "Crewboard", path: "acme/core/crew", your_role: "editor" };
+const BASE = "/api/v1/p/acme/crew";
+const APP = "/t/acme/crew";
+const product = { name: "Crewboard", path: "acme/crew", your_role: "editor" };
 
 vi.mock("../src/lib/session.tsx", async (original) => ({
   ...(await original<typeof import("../src/lib/session.tsx")>()),

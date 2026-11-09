@@ -1,6 +1,7 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { connectorBound, resourceCovers } from "../src/auth/connector-reach.ts";
 import { syncExampleTenant } from "../src/example-organization.ts";
 import { startHarness, type Browser, type Harness } from "./harness.ts";
 
@@ -41,11 +42,11 @@ beforeAll(async () => {
   alice = await h.signIn("alice@example.com", "Alice");
   const a = await alice.api("POST", "/api/v1/tenants", { name: "Acme" });
   acme = a.body.tenant.slug;
-  onboarding = (await alice.api("POST", `/api/v1/teams/${acme}/${a.body.team.slug}/products`, { name: "Onboarding" })).body.path;
-  billing = (await alice.api("POST", `/api/v1/teams/${acme}/${a.body.team.slug}/products`, { name: "Billing" })).body.path;
+  onboarding = (await alice.api("POST", `/api/v1/tenants/${acme}/products`, { name: "Onboarding" })).body.path;
+  billing = (await alice.api("POST", `/api/v1/tenants/${acme}/products`, { name: "Billing" })).body.path;
   const g = await alice.api("POST", "/api/v1/tenants", { name: "Globex" });
   globex = g.body.tenant.slug;
-  payroll = (await alice.api("POST", `/api/v1/teams/${globex}/${g.body.team.slug}/products`, { name: "Payroll" })).body.path;
+  payroll = (await alice.api("POST", `/api/v1/tenants/${globex}/products`, { name: "Payroll" })).body.path;
   token = await h.connectAgent(alice);
 });
 afterAll(async () => h?.close());
@@ -115,14 +116,16 @@ describe("a connector scoped to a product", () => {
     await c.close();
   });
 
-  it("refuses organization and team calls and moving work to another product, but answers the organization's limits", async () => {
+  it("refuses the organization's calls, creating a product among them, but answers the organization's limits", async () => {
     const c = await connect(`/mcp/t/${onboarding}`);
     expect(body(await c.callTool({ name: "members_read", arguments: { action: "list", params: {} } })).json.error.code).toBe("outside_connector_scope");
-    expect(body(await c.callTool({ name: "products_write", arguments: { action: "create", params: { name: "Third" } } })).json.error.code).toBe("outside_connector_scope");
+    const made = body(await c.callTool({ name: "products_write", arguments: { action: "create", params: { name: "Third" } } }));
+    expect(made.json.error.code).toBe("outside_connector_scope");
+    expect((await alice.api("GET", "/api/v1/me/products")).body.items.map((i: { name: string }) => i.name)).not.toContain("Third");
+    // A source added here stays here: nothing moves or copies it to another product.
     const src = body(await c.callTool({ name: "sources_write", arguments: { action: "create", params: { tags: ["interview"], title: "Interview", date: "2026-09-01" } } }));
     expect(src.status).toBe(200);
-    const copy = body(await c.callTool({ name: "sources_write", arguments: { action: "copy_to_product", params: { record_id: src.json.record_id, to_product: billing.split("/")[2] } } }));
-    expect(copy.json.error.code).toBe("outside_connector_scope");
+    expect(src.json.scope.product.path).toBe(onboarding);
     // The caller's own standing in the organization: the fence lets it through for the product's organization.
     const limits = body(await c.callTool({ name: "products_read", arguments: { action: "limits", params: {} } }));
     expect(limits.status).toBe(200);
@@ -143,6 +146,18 @@ describe("a token approved for a scoped connector", () => {
     expect((await post(`/mcp/t/${acme}`, token)).status).toBe(200);
   });
 
+  it("for a product serves that product's endpoint alone: nothing below it, and not its organization", async () => {
+    const scoped = await h.connectAgent(alice, "One product agent", `/mcp/t/${onboarding}`);
+    expect((await post(`/mcp/t/${onboarding}`, scoped)).status).toBe(200);
+    // Below a product's address is another address, which a product's token never covers.
+    expect((await post(`/mcp/t/${onboarding}/x`, scoped)).status).toBe(401);
+    // Deeper still is no endpoint at all.
+    expect((await post(`/mcp/t/${onboarding}/x/y`, scoped)).status).toBe(404);
+    expect((await post(`/mcp/t/${acme}`, scoped)).status).toBe(401);
+    expect((await post(`/mcp/t/${billing}`, scoped)).status).toBe(401);
+    expect((await post("/mcp", scoped)).status).toBe(401);
+  });
+
   it("names its scope on the consent page and in the connected agents", async () => {
     const authorize = (resource: string) =>
       `${h.baseUrl}/oauth/authorize?response_type=code&client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent("http://127.0.0.1:9999/callback")}&code_challenge=x&code_challenge_method=S256&resource=${encodeURIComponent(`${h.baseUrl}${resource}`)}`;
@@ -158,13 +173,125 @@ describe("a token approved for a scoped connector", () => {
     const bad = await fetch(authorize("/mcp/elsewhere"), { headers: { cookie: alice.cookie }, redirect: "manual" });
     expect(bad.status).toBe(400);
     expect(bad.headers.get("location")).toBeNull();
-    expect(await bad.text()).toContain("invalid_target");
+    const refusal = await bad.text();
+    expect(refusal).toContain("invalid_target");
+    expect(refusal).toContain("/mcp, /mcp/t/<organization> and /mcp/t/<organization>/<product>.");
 
     await h.connectAgent(alice, "Product agent", `/mcp/t/${onboarding}`);
     const agents = (await alice.api("GET", "/api/v1/me/agents")).body.items as { client_name: string; reach: Record<string, unknown> }[];
     expect(agents.find((a) => a.client_name === "Org agent")!.reach).toEqual({ kind: "tenant", path: acme, name: "Acme" });
     expect(agents.find((a) => a.client_name === "Product agent")!.reach).toEqual({ kind: "product", path: onboarding, name: "Onboarding", tenant_name: "Acme" });
     expect(agents.find((a) => a.client_name === "test-agent")!.reach).toEqual({ kind: "all" });
+  });
+});
+
+describe("a token's resource", () => {
+  const base = "https://app.example.com";
+  it("reads an endpoint's path as the organization, the product, or a product's address from when products were in teams", () => {
+    expect(connectorBound("/mcp")).toBeNull();
+    expect(connectorBound("/mcp/t/acme")).toEqual({ tenant: "acme" });
+    expect(connectorBound("/mcp/t/acme/crew/")).toEqual({ tenant: "acme", product: "crew" });
+    expect(connectorBound("/mcp/t/acme/core/crew")).toEqual({ tenant: "acme", formerTeam: "core", product: "crew" });
+    for (const path of ["/mcp/t/acme/core/crew/x", "/mcp/t", "/mcp/t//crew", "/mcp/elsewhere", "/api/v1/me"]) expect(connectorBound(path), path).toBeUndefined();
+  });
+
+  it("covers its own endpoint, and for an organization or the unscoped connector the endpoints inside it, never a product's sub-path", () => {
+    const covers = (resource: string, endpoint: string) => resourceCovers(`${base}${resource}`, `${base}${endpoint}`);
+    expect(covers("/mcp", "/mcp/t/acme/crew")).toBe(true);
+    expect(covers("/mcp/t/acme", "/mcp/t/acme")).toBe(true);
+    expect(covers("/mcp/t/acme", "/mcp/t/acme/crew")).toBe(true);
+    expect(covers("/mcp/t/acme", "/mcp/t/acme/core/crew")).toBe(true);
+    expect(covers("/mcp/t/acme/crew", "/mcp/t/acme/crew")).toBe(true);
+    expect(covers("/mcp/t/acme/crew", "/mcp/t/acme/crew/")).toBe(true);
+    expect(covers("/mcp/t/acme/core/crew", "/mcp/t/acme/core/crew")).toBe(true);
+    // A product's endpoint has none inside it: below it is another product's address, or nothing.
+    expect(covers("/mcp/t/acme/crew", "/mcp/t/acme/crew/x")).toBe(false);
+    expect(covers("/mcp/t/acme/core/crew", "/mcp/t/acme/core/crew/x")).toBe(false);
+    // Never a wider one, a neighbour, another site, or a path that is no endpoint.
+    expect(covers("/mcp/t/acme/crew", "/mcp/t/acme")).toBe(false);
+    expect(covers("/mcp/t/acme", "/mcp")).toBe(false);
+    expect(covers("/mcp/t/acme", "/mcp/t/acme-labs")).toBe(false);
+    expect(covers("/mcp/t/acme/crew", "/mcp/t/acme/crewboard")).toBe(false);
+    expect(covers("/mcp/elsewhere", "/mcp/elsewhere/x")).toBe(false);
+    expect(resourceCovers(`${base}/mcp/t/acme`, "https://elsewhere.example.com/mcp/t/acme")).toBe(false);
+  });
+
+  it("is offered to the web app as organization/product for a product's connector", async () => {
+    const r = await alice.api("GET", "/api/v1/connect");
+    expect(r.status).toBe(200);
+    expect(r.body).toMatchObject({ mcp_url: `${h.baseUrl}/mcp`, tenant_url_template: `${h.baseUrl}/mcp/t/{tenant}`, bound_url_template: `${h.baseUrl}/mcp/t/{tenant}/{product}` });
+  });
+});
+
+describe("an address written when products were in teams", () => {
+  // Every organization had a team, named Product team, whose slug sat in every product's address.
+  const slugOf = (path: string) => path.split("/")[1]!;
+
+  it("reaches the product through MCP as tenant/<anything>/product, and a slug no product has as nothing", async () => {
+    const c = await connect("/mcp");
+    for (const middle of ["product-team", "whatever-it-was"]) {
+      const r = body(await c.callTool({ name: "outcomes_read", arguments: { action: "list", product: `${acme}/${middle}/${slugOf(onboarding)}`, params: {} } }));
+      expect(r.status, middle).toBe(200);
+      expect(r.json.scope.product.path).toBe(onboarding);
+      expect(r.json.connector_address).toBeUndefined();
+    }
+    const missing = body(await c.callTool({ name: "outcomes_read", arguments: { action: "list", product: `${acme}/product-team/no-such-product`, params: {} } }));
+    expect(missing.status).toBe(404);
+    // Someone outside the organization learns nothing by the old address either.
+    const outsider = await connect("/mcp", await h.connectAgent(await h.signIn("olaf@example.com", "Olaf Outside"), "Outside agent"));
+    const outside = body(await outsider.callTool({ name: "outcomes_read", arguments: { action: "list", product: `${acme}/product-team/${slugOf(onboarding)}`, params: {} } }));
+    expect(outside.status).toBe(404);
+    expect(JSON.stringify(outside.json)).not.toContain("Onboarding");
+    await outsider.close();
+    await c.close();
+  });
+
+  it("keeps an old product connector's address working, its token too, and tells its agent the new address", async () => {
+    const old = `/mcp/t/${acme}/product-team/${slugOf(onboarding)}`;
+    const oldToken = await h.connectAgent(alice, "Old product agent", old);
+    const c = await connect(old, oldToken);
+    expect(c.getInstructions()).toContain(`scoped to the product ${acme}/product-team/${slugOf(onboarding)}`);
+    const r = body(await c.callTool({ name: "outcomes_read", arguments: { action: "list", params: {} } }));
+    expect(r.status, JSON.stringify(r.json)).toBe(200);
+    expect(r.json.scope.product.path).toBe(onboarding);
+    expect(r.json.connector_address).toContain(`by the address it had when products were in teams (${acme}/product-team/${slugOf(onboarding)})`);
+    expect(r.json.connector_address).toContain(`its address is now ${h.baseUrl}/mcp/t/${onboarding}.`);
+    // Still a fence around that one product.
+    const other = body(await c.callTool({ name: "outcomes_read", arguments: { action: "list", product: billing, params: {} } }));
+    expect(other.json.error.code).toBe("outside_connector_scope");
+    const list = body(await c.callTool({ name: "products_read", arguments: { action: "list" } })).json;
+    expect(list.items.map((i: { path: string }) => i.path)).toEqual([onboarding]);
+    await c.close();
+    const agents = (await alice.api("GET", "/api/v1/me/agents")).body.items as { client_name: string; reach: Record<string, unknown> }[];
+    expect(agents.find((a) => a.client_name === "Old product agent")!.reach).toEqual({ kind: "product", path: `${acme}/product-team/${slugOf(onboarding)}`, name: "Onboarding", tenant_name: "Acme" });
+    // The current address answers without the notice.
+    const current = await connect(`/mcp/t/${onboarding}`);
+    expect(body(await current.callTool({ name: "outcomes_read", arguments: { action: "list", params: {} } })).json.connector_address).toBeUndefined();
+    await current.close();
+  });
+
+  it("reaches a product whose slug the migration changed by the address it had under its team, which the product lists", async () => {
+    const billingId = (await alice.api("GET", `/api/v1/p/${billing}`)).body.product_id as string;
+    const tenantId = (await h.db.selectFrom("tenants").select("tenant_id").where("slug", "=", acme).executeTakeFirstOrThrow()).tenant_id;
+    // As the migration left it where two teams each had a product of this slug: the later one's slug changed.
+    await h.db.insertInto("team_addresses").values({ tenant_id: tenantId, team_slug: "research", product_slug: "ledger", product_id: billingId }).execute();
+    const c = await connect("/mcp");
+    const r = body(await c.callTool({ name: "outcomes_read", arguments: { action: "list", product: `${acme}/research/ledger`, params: {} } }));
+    expect(r.status, JSON.stringify(r.json)).toBe(200);
+    expect(r.json.scope.product.path).toBe(billing);
+    // Only under that team: elsewhere the slug names no product.
+    expect(body(await c.callTool({ name: "outcomes_read", arguments: { action: "list", product: `${acme}/product-team/ledger`, params: {} } })).status).toBe(404);
+    expect(body(await c.callTool({ name: "outcomes_read", arguments: { action: "list", product: `${acme}/ledger`, params: {} } })).status).toBe(404);
+    const listed = body(await c.callTool({ name: "products_read", arguments: { action: "list" } })).json.items.find((i: { path: string }) => i.path === billing);
+    expect(listed.former_paths).toEqual([`${acme}/research/ledger`]);
+    await c.close();
+
+    const old = `/mcp/t/${acme}/research/ledger`;
+    const scoped = await connect(old, await h.connectAgent(alice, "Moved product agent", old));
+    const viaConnector = body(await scoped.callTool({ name: "outcomes_read", arguments: { action: "list", params: {} } }));
+    expect(viaConnector.json.scope.product.path).toBe(billing);
+    expect(viaConnector.json.connector_address).toContain(`its address is now ${h.baseUrl}/mcp/t/${billing}.`);
+    await scoped.close();
   });
 });
 
@@ -179,13 +306,13 @@ describe("the example organization", () => {
   beforeAll(async () => {
     const t = await alice.api("POST", "/api/v1/tenants", { name: "Commons" });
     commons = t.body.tenant.slug;
-    showcase = (await alice.api("POST", `/api/v1/teams/${commons}/${t.body.team.slug}/products`, { name: "Showcase" })).body.path;
+    showcase = (await alice.api("POST", `/api/v1/tenants/${commons}/products`, { name: "Showcase" })).body.path;
     expect((await alice.api("POST", `/api/v1/p/${showcase}/outcomes`, { title: "Plan the week in ten minutes" })).status).toBe(201);
     expect(await syncExampleTenant(h.db, commons, () => {})).toBe(t.body.tenant.tenant_id);
     gus = await h.signIn("gus@guest.example", "Gus Guest");
     dee = await h.signIn("dee@own.example", "Dee Own");
     const d = await dee.api("POST", "/api/v1/tenants", { name: "Solo" });
-    solo = (await dee.api("POST", `/api/v1/teams/${d.body.tenant.slug}/${d.body.team.slug}/products`, { name: "Only one" })).body.path;
+    solo = (await dee.api("POST", `/api/v1/tenants/${d.body.tenant.slug}/products`, { name: "Only one" })).body.path;
   });
   afterAll(async () => {
     await syncExampleTenant(h.db, null, () => {});

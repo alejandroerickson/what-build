@@ -10,10 +10,10 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 window.matchMedia = (() => ({ matches: false, addEventListener: () => {}, removeEventListener: () => {} })) as unknown as typeof window.matchMedia;
 
-const BASE = "/api/v1/p/acme/core/crew";
-const APP = "/t/acme/core/crew";
+const BASE = "/api/v1/p/acme/crew";
+const APP = "/t/acme/crew";
 const by = { account_id: "a1", display_name: "Riley Chen", surface: "web", client: null };
-const product = { name: "Crewboard", path: "acme/core/crew", your_role: "editor", counts: { sources: 2 } };
+const product = { name: "Crewboard", path: "acme/crew", your_role: "editor", counts: { sources: 2 } };
 const source = {
   record_id: "01K8A2B3C4D5E6F7G8H9J0K1M2", title: "Crew lead interview — Example Co", date: "2026-09-10", tags: ["van checks"], uploaded_by: by,
   uploaded_at: "2026-10-01T09:00:00.000Z", updated_at: "2026-10-01T09:00:00.000Z", updated_by: by, archived_at: null, derived_status: "ready",

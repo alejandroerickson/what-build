@@ -8,7 +8,7 @@ surfaces: [web, mcp]
 # Organizations kept apart
 
 Every organization's people share one database, and what keeps them apart is the server's
-checks and Postgres's row-level security ([spec §3.6](../../okf/spec/03-accounts-teams-and-identity.md)).
+checks and Postgres's row-level security ([spec §3.6](../../okf/spec/03-accounts-and-identity.md)).
 The server's tests call every operation across organizations; this plan does what a person and their
 agent would actually try, through the web app and MCP, with people who belong to one organization
 only, and with Sam, who edits in two organizations and only reads the Story in the third.
@@ -21,8 +21,8 @@ it exists. The example organization is the exception everyone reads.
 1. **Web, as Morgan (owner of the synthetic organization).** Sign in. *Expect:* the overview lists
    the synthetic organization with its one product, and the example organization as a worked
    example, Read only; the standard organization is nowhere: not on the overview, the account menu
-   or the organization switcher. Note the address of a source in Crewboard for later steps.
-2. **Web, as Morgan.** Open the synthetic organization's members page. *Expect:* Morgan, Casey,
+   or Switch organization in the product switch. Note the address of a source in Crewboard for later steps.
+2. **Web, as Morgan.** Open Settings → the synthetic organization's People. *Expect:* Morgan, Casey,
    Avery and Sam are listed with their roles (Sam a reader of Crewboard's Story), and nobody from
    the other organizations.
 3. **Web, as Morgan.** Open, by its address, a product of the standard organization (its path is in
@@ -39,7 +39,7 @@ it exists. The example organization is the exception everyone reads.
 6. **MCP, as Casey, at the standard organization's endpoint** (`--endpoint /mcp/t/<standard slug>`).
    *Expect:* the connection is refused, or every call answers as for something absent; never a list
    of its products.
-7. **MCP, as Casey, with a scoped endpoint** (`--endpoint /mcp/t/harbor-labs/<team>/crewboard`).
+7. **MCP, as Casey, with a scoped endpoint** (`--endpoint /mcp/t/harbor-labs/crewboard`).
    Call `products_read(action="list")`, then `sources_read` `list` for a product in the example organization.
    *Expect:* the list holds Crewboard alone; the example's product is refused with
    `403 outside_connector_scope`, even though Casey may read it elsewhere.
@@ -60,7 +60,7 @@ it exists. The example organization is the exception everyone reads.
     standard product (works) and in Crewboard (refused, as a reader's).
 12. **Web, as Morgan.** Open Crewboard's Activity. *Expect:* Casey's source and comment from step 8
     are there; nothing from Sam's step 10 in the standard organization is. An organization has no
-    activity screen of its own, only Access changes on Members.
+    activity screen of its own, only Access changes in Settings.
 
 ## Look out for
 
@@ -69,5 +69,5 @@ it exists. The example organization is the exception everyone reads.
 - `403` where the plan expects `404`, which says the thing exists.
 - Sam's role in one organization leaking into another: editing in Crewboard, or reading only the
   Story in the standard organization.
-- The overview's tiles and the organization switcher disagreeing about which organizations a person
+- The overview's tiles and Switch organization in the product switch disagreeing about which organizations a person
   has.

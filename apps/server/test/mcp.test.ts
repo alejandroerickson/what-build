@@ -28,7 +28,7 @@ beforeAll(async () => {
   h = await startHarness();
   alice = await h.signIn("alice@example.com", "Alice");
   const t = await alice.api("POST", "/api/v1/tenants", { name: "Acme" });
-  const p = await alice.api("POST", `/api/v1/teams/${t.body.tenant.slug}/${t.body.team.slug}/products`, { name: "Onboarding" });
+  const p = await alice.api("POST", `/api/v1/tenants/${t.body.tenant.slug}/products`, { name: "Onboarding" });
   path = p.body.path;
   agentToken = await h.connectAgent(alice);
 });
@@ -185,6 +185,30 @@ describe("MCP", () => {
     await client.close();
   });
 
+  it("answers an action earlier versions offered with unknown_action and what to do instead, and changes nothing", async () => {
+    const client = await connect(agentToken);
+    const source = await alice.api("POST", `/api/v1/p/${path}/sources`, { title: "Kept where it was added" });
+    const products = (await alice.api("GET", "/api/v1/me/products")).body.items.length;
+    const said = (r: unknown) => (r as { content: { text: string }[] }).content[0]!.text;
+    const team = await client.callTool({ name: "products_write", arguments: { action: "create_team", params: { tenant: path.split("/")[0], name: "Research" } } });
+    expect(team.isError).toBe(true);
+    expect(said(team)).toMatch(/^422: Unknown products_write action: create_team\. There are no teams any more: an organization holds its products directly\. Create a product with products_write\(action="create"\), and give someone a role on every product with members_write\(action="grant", params=\{"all_products": true, …\}\)\. This server, version [\d.]+, offers this connection these products_write actions: /);
+    expect(text(team).error).toMatchObject({ code: "unknown_action", details: { tools_version: TOOLS_VERSION, actions: expect.arrayContaining(["create"]) } });
+    expect(text(team).error.details.actions).not.toContain("create_team");
+    for (const action of ["copy_to_product", "move_to_product"]) {
+      const r = await client.callTool({ name: "sources_write", arguments: { action, product: path, params: { record_id: source.body.record_id, to_product: "elsewhere" } } });
+      expect(r.isError, action).toBe(true);
+      expect(said(r)).toMatch(new RegExp(`^422: Unknown sources_write action: ${action}\\. Sources are no longer copied or moved between products: a source stays in the product it was added to\\. To (have|put) it in another, add it there`));
+      expect(text(r).error.code).toBe("unknown_action");
+      expect(text(r).error.details.actions).not.toContain(action);
+    }
+    // In another noun's tool, an action that never was says nothing of them.
+    expect(said(await client.callTool({ name: "outcomes_write", arguments: { action: "create_team", product: path } }))).not.toMatch(/teams/);
+    expect((await alice.api("GET", "/api/v1/me/products")).body.items).toHaveLength(products);
+    expect((await alice.api("GET", `/api/v1/p/${path}/sources/${source.body.record_id}`)).status).toBe(200);
+    await client.close();
+  });
+
   it("says in products list and in every product's answer which tools version it runs now", async () => {
     // A client keeps the tool list it connected with, so an upgrade made since shows only in answers.
     const client = await connect(agentToken);
@@ -253,8 +277,7 @@ describe("MCP", () => {
   it("asks which product when more than one is reachable", async () => {
     const t = await alice.api("GET", "/api/v1/me/products");
     const tenant = t.body.items[0].tenant.slug;
-    const team = t.body.items[0].team.slug;
-    await alice.api("POST", `/api/v1/teams/${tenant}/${team}/products`, { name: "Second" });
+    await alice.api("POST", `/api/v1/tenants/${tenant}/products`, { name: "Second" });
     const client = await connect(agentToken);
     const r = await client.callTool({ name: "outcomes_read", arguments: { action: "list", params: {} } });
     expect(r.isError).toBe(true);
@@ -270,7 +293,7 @@ describe("MCP", () => {
   });
 
   it("answers a non-member 404 before looking at the input, as REST does, and a member's malformed call 422 as before", async () => {
-    const [tenant, team] = path.split("/");
+    const [tenant] = path.split("/");
     const mallory = await h.signIn("mallory@example.com", "Mallory");
     const outsider = await connect(await h.connectAgent(mallory));
     const member = await connect(agentToken);
@@ -280,7 +303,7 @@ describe("MCP", () => {
       { name: "outcomes_write", arguments: { action: "create", product: path, params: { title: 7 } } },
       { name: "search", arguments: { product: path, colour: "red" } },
       { name: "members_read", arguments: { action: "list", params: { tenant, colour: "red" } } },
-      { name: "products_write", arguments: { action: "create", params: { tenant, team, name: "" } } },
+      { name: "products_write", arguments: { action: "create", params: { tenant, name: "" } } },
     ];
     for (const call of calls) {
       const r = await outsider.callTool(call);
@@ -393,7 +416,7 @@ describe("OAuth for MCP clients", () => {
   });
 });
 
-describe("an organization's or a team's action named with a product", () => {
+describe("an organization's action named with a product", () => {
   let examplePath: string;
   let tenantSlug: string;
   let plainPath: string;
@@ -403,12 +426,12 @@ describe("an organization's or a team's action named with a product", () => {
   beforeAll(async () => {
     const t = await alice.api("POST", "/api/v1/tenants", { name: "Try Co" });
     tenantSlug = t.body.tenant.slug;
-    const p = await alice.api("POST", `/api/v1/teams/${tenantSlug}/${t.body.team.slug}/products`, { name: "Showcase" });
+    const p = await alice.api("POST", `/api/v1/tenants/${tenantSlug}/products`, { name: "Showcase" });
     examplePath = p.body.path;
     expect(await syncExampleTenant(h.db, tenantSlug, () => {})).toBe(t.body.tenant.tenant_id);
     const o = await alice.api("POST", "/api/v1/tenants", { name: "Plain Co" });
     plainSlug = o.body.tenant.slug;
-    plainPath = (await alice.api("POST", `/api/v1/teams/${plainSlug}/${o.body.team.slug}/products`, { name: "Workbench" })).body.path;
+    plainPath = (await alice.api("POST", `/api/v1/tenants/${plainSlug}/products`, { name: "Workbench" })).body.path;
     // Several products are reachable now, so nothing is guessed.
     token = await h.connectAgent(alice, "Unscoped agent");
   });
@@ -425,7 +448,7 @@ describe("an organization's or a team's action named with a product", () => {
     const example = await client.callTool({ name: "products_read", arguments: { action: "limits", product: examplePath } });
     expect(text(example)).toMatchObject({ organization: { slug: tenantSlug } });
     // A product the caller cannot see names nothing.
-    const other = await client.callTool({ name: "products_read", arguments: { action: "limits", product: "nowhere/team/product" } });
+    const other = await client.callTool({ name: "products_read", arguments: { action: "limits", product: "nowhere/product" } });
     expect((other.content as { text: string }[])[0]!.text).toMatch(/^404: /);
     await client.close();
   });
@@ -446,9 +469,8 @@ describe("an organization's or a team's action named with a product", () => {
   });
 
   it("on a connector scoped to the product, takes the organization from the connector", async () => {
-    const [tn, tm, pr] = examplePath.split("/");
-    const scoped = await h.connectAgent(alice, "Scoped product agent", `/mcp/t/${tn}/${tm}/${pr}`);
-    const client = await connect(scoped, `${h.baseUrl}/mcp/t/${tn}/${tm}/${pr}`);
+    const scoped = await h.connectAgent(alice, "Scoped product agent", `/mcp/t/${examplePath}`);
+    const client = await connect(scoped, `${h.baseUrl}/mcp/t/${examplePath}`);
     const status = await client.callTool({ name: "products_read", arguments: { action: "limits" } });
     expect(status.isError, JSON.stringify(status.content)).toBeFalsy();
     expect(text(status)).toMatchObject({ organization: { slug: tenantSlug } });

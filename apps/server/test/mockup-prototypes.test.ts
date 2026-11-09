@@ -82,10 +82,10 @@ beforeAll(async () => {
   mallory = await h.signIn("mallory@example.com", "Mallory Elsewhere");
   const t = await alice.api("POST", "/api/v1/tenants", { name: "Prototype Co" });
   tenantId = t.body.tenant.tenant_id ?? t.body.tenant.id;
-  const p = await alice.api("POST", `/api/v1/teams/${t.body.tenant.slug}/${t.body.team.slug}/products`, { name: "Crews" });
+  const p = await alice.api("POST", `/api/v1/tenants/${t.body.tenant.slug}/products`, { name: "Crews" });
   P = `/api/v1/p/${p.body.path}`;
   productId = p.body.product_id;
-  expect((await alice.api("POST", `/api/v1/tenants/${t.body.tenant.slug}/members`, { team: t.body.team.slug, product: "crews", email: "rita@example.com", role: "reader" })).status).toBe(201);
+  expect((await alice.api("POST", `/api/v1/tenants/${t.body.tenant.slug}/members`, { product: "crews", email: "rita@example.com", role: "reader" })).status).toBe(201);
   // Mallory has an organization of her own, and nothing in Alice's.
   await mallory.api("POST", "/api/v1/tenants", { name: "Elsewhere Ltd" });
 });
@@ -546,7 +546,7 @@ describe("on a content site of its own", () => {
     content = c.config.contentUrl!;
     owner = await c.signIn("olive@example.com", "Olive Owner");
     const t = await owner.api("POST", "/api/v1/tenants", { name: "Content Co" });
-    const p = await owner.api("POST", `/api/v1/teams/${t.body.tenant.slug}/${t.body.team.slug}/products`, { name: "Site" });
+    const p = await owner.api("POST", `/api/v1/tenants/${t.body.tenant.slug}/products`, { name: "Site" });
     const Q = `/api/v1/p/${p.body.path}`;
     const g = await owner.api("POST", `${Q}/mockups/uploads`, {});
     const zip = zipSync({ "manifest.json": strToU8(manifest([{ page_id: "a", title: "A", entry: "index.html" }])), "prototype/index.html": strToU8("<p>on the content site</p>") });

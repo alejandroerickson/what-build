@@ -11,22 +11,23 @@ import { ApiError, isMinuteRefusal, readDefaults, setUnauthenticatedHandler } fr
 import { LiveUpdates } from "./lib/live.tsx";
 import { loadNewRelease, releasedSinceLoad } from "./lib/new-release.ts";
 import { CurrentTenantAddress, productHome, ProductProvider, RequireSession, useProduct, useProductParams, type Product } from "./lib/session.tsx";
-import { ConnectPage } from "./routes/connect.tsx";
+import {
+  BARE_PRODUCT_ROUTE, BareProductPath, FORMER_PRODUCT_ROUTE, FormerProductAddress, OrganizationHome, OrganizationSettingsAddress, PRODUCT_ROUTE, ProductSettingsAddress, YourSettingsAddress,
+} from "./routes/addresses.tsx";
+import { AdminGate, AdminGuests, AdminOrganizations, AdminPlans } from "./routes/admin.tsx";
 import { CookiesPage } from "./routes/cookies.tsx";
 import { AcceptInvite, NotFound, NotVisible, SignIn } from "./routes/auth.tsx";
 import { IdeaPage } from "./routes/idea.tsx";
-import { MembersPage, Welcome } from "./routes/org.tsx";
+import { Welcome } from "./routes/org.tsx";
 import { OverviewPage } from "./routes/overview.tsx";
-import { ActivityPage, ProductSettingsPage } from "./routes/product-misc.tsx";
+import { ActivityPage } from "./routes/product-misc.tsx";
 import { EntryEditPage, RegisterEntryPage, RegisterListPage } from "./routes/registers.tsx";
-import { PlanPage } from "./routes/limits.tsx";
 import { PlansPage } from "./routes/plans.tsx";
 import { GuestGate } from "./shell/guest-gate.tsx";
 import { PeoplePage } from "./routes/people.tsx";
 import { SearchPage } from "./routes/search.tsx";
-import { InstancePage } from "./routes/instance.tsx";
+import { AdminStarting } from "./routes/instance.tsx";
 import { AccountDeletedPage } from "./routes/delete-account.tsx";
-import { SettingsPage } from "./routes/settings.tsx";
 import { SourceDetailPage } from "./routes/source-detail.tsx";
 import { SourceNewPage } from "./routes/source-new.tsx";
 import { EvidencePage } from "./routes/evidence.tsx";
@@ -116,20 +117,10 @@ function ProductsRedirect() {
   return <Navigate replace to={`/${search}`} />;
 }
 
-/**
- * A product's path typed or pasted without the /t/ prefix (organization/team/product) opens the
- * product rather than a dead end. A three-part path that starts with t/ is not a product.
- */
-function BareProductPath() {
-  const { tenant, team, product, "*": rest } = useParams();
-  const { search, hash } = useLocation();
-  if (tenant === "t")
-    return (
-      <PlainShell>
-        <NotFound />
-      </PlainShell>
-    );
-  return <Navigate replace to={`/t/${tenant}/${team}/${product}${rest ? `/${rest}` : ""}${search}${hash}`} />;
+/** The instance's pages from before Instance admin: `/instance` (with `?org=` for a plan to change) and `/people`. */
+function InstanceRedirect({ to }: { to: string }) {
+  const { search } = useLocation();
+  return <Navigate replace to={`${to}${search}`} />;
 }
 
 /** Synthesis was renamed Exploration: an old link keeps working, with the rest of its path and its query. */
@@ -150,10 +141,11 @@ function MovedToEvidence() {
   return <Navigate replace to={id && id !== "new" ? `${app}/evidence/${id}` : `${app}/exploration`} />;
 }
 
-/** A product opens on Idea, or on the Story for a reader. */
+/** A product opens on Idea, or on the Story for a reader, with what its address asked (Settings, say) kept. */
 function ProductHome() {
   const { product } = useProduct();
-  return <Navigate to={productHome(product.your_role)} replace />;
+  const { search, hash } = useLocation();
+  return <Navigate to={`${productHome(product.your_role)}${search}${hash}`} replace />;
 }
 
 /** Every screen of a product but the Story: a reader, who has only the Story, is taken there, with a toast saying why. */
@@ -219,18 +211,32 @@ const router = createBrowserRouter([{ element: <Root />, errorElement: <RouteErr
       { path: "/welcome", element: <Welcome /> },
       { element: <PlainShell><Outlet /></PlainShell>, children: [
         { path: "/", element: <OverviewPage /> },
-        { path: "/products", element: <ProductsRedirect /> },
-        { path: "/connect", element: <ConnectPage /> },
-        { path: "/settings", element: <SettingsPage /> },
-        { path: "/instance", element: <InstancePage /> },
-        { path: "/people", element: <PeoplePage /> },
-        { path: "/t/:tenant/members", element: <CurrentTenantAddress><MembersPage /></CurrentTenantAddress> },
-        { path: "/t/:tenant/plan", element: <CurrentTenantAddress><PlanPage /></CurrentTenantAddress> },
-        { path: "/t/:tenant/limits", element: <CurrentTenantAddress><PlanPage /></CurrentTenantAddress> },
       ] },
+      { path: "/products", element: <ProductsRedirect /> },
+      { path: "/connect", element: <YourSettingsAddress section="agents" /> },
+      { path: "/settings", element: <YourSettingsAddress section="account" /> },
+      { path: "/instance", element: <InstanceRedirect to="/admin/organizations" /> },
+      { path: "/people", element: <InstanceRedirect to="/admin/people" /> },
+      {
+        path: "/admin",
+        element: <AdminGate />,
+        children: [
+          { index: true, element: <Navigate to="organizations" replace /> },
+          { path: "organizations", element: <AdminOrganizations /> },
+          { path: "people", element: <PeoplePage /> },
+          { path: "plans", element: <AdminPlans /> },
+          { path: "guests", element: <AdminGuests /> },
+          { path: "starting", element: <AdminStarting /> },
+          { path: "*", element: <NotFound /> },
+        ],
+      },
+      { path: "/t/:tenant", element: <CurrentTenantAddress><OrganizationHome /></CurrentTenantAddress> },
+      { path: "/t/:tenant/members", element: <CurrentTenantAddress><OrganizationSettingsAddress section="organization/people" /></CurrentTenantAddress> },
+      { path: "/t/:tenant/plan", element: <CurrentTenantAddress><OrganizationSettingsAddress section="organization/plan" /></CurrentTenantAddress> },
+      { path: "/t/:tenant/limits", element: <CurrentTenantAddress><OrganizationSettingsAddress section="organization/plan" /></CurrentTenantAddress> },
       ...devRoutes,
       {
-        path: "/t/:tenant/:team/:product",
+        path: PRODUCT_ROUTE,
         element: (
           <CurrentTenantAddress>
             <ProductProvider fallback={(e, retry) => <ProductNotFound error={e} retry={retry} />}>
@@ -243,6 +249,9 @@ const router = createBrowserRouter([{ element: <Root />, errorElement: <RouteErr
           { path: "story", element: <StoryPage /> },
           { path: "story/:pageId", element: <StoryPage /> },
           { path: "search", element: <SearchPage /> },
+          // Settings' addresses from before it was a dialog: a reader, who has Settings too, follows them as well.
+          { path: "connect", element: <ProductSettingsAddress section="agents" /> },
+          { path: "settings", element: <ProductSettingsAddress section="product" /> },
           {
             element: <NotForStoryReaders />,
             children: [
@@ -266,14 +275,14 @@ const router = createBrowserRouter([{ element: <Root />, errorElement: <RouteErr
                   { path: "decisions/*", element: <MovedToEvidence /> },
                 ],
               },
-              { path: "connect", element: <ConnectPage /> },
               { path: "activity", element: <ActivityPage /> },
-              { path: "settings", element: <ProductSettingsPage /> },
             ],
           },
         ],
       },
-      { path: "/:tenant/:team/:product/*", element: <BareProductPath /> },
+      // An address from before teams were removed: a product's own screens above rank first.
+      { path: FORMER_PRODUCT_ROUTE, element: <CurrentTenantAddress><FormerProductAddress /></CurrentTenantAddress> },
+      { path: BARE_PRODUCT_ROUTE, element: <BareProductPath /> },
       { path: "*", element: <PlainShell><NotFound /></PlainShell> },
     ],
   },

@@ -20,7 +20,6 @@ let rita: Browser;
 let P: string;
 let productPath: string;
 let tenantSlug: string;
-let teamSlug: string;
 let recordId: string;
 
 const html = (title: string, body: string) =>
@@ -32,8 +31,7 @@ beforeAll(async () => {
   rita = await h.signIn("rita@example.com", "Rita Reader");
   const t = await alice.api("POST", "/api/v1/tenants", { name: "Reader Co" });
   tenantSlug = t.body.tenant.slug;
-  teamSlug = t.body.team.slug;
-  const p = await alice.api("POST", `/api/v1/teams/${tenantSlug}/${teamSlug}/products`, { name: "Planner", concept: "A planner for finance teams." });
+  const p = await alice.api("POST", `/api/v1/tenants/${tenantSlug}/products`, { name: "Planner", concept: "A planner for finance teams." });
   productPath = p.body.path;
   P = `/api/v1/p/${productPath}`;
   await alice.api("POST", `${P}/outcomes`, { title: "Close the books faster" });
@@ -51,16 +49,15 @@ beforeAll(async () => {
   const page = await alice.api("GET", `${P}/story/pages/overview?include_html=false`);
   await alice.api("PUT", `${P}/story/pages/overview/notes`, { notes: "Fold in the pricing interviews next.", expected_etag: page.body.agent_notes.etag });
   await alice.api("POST", `${P}/story/pages/overview/versions`, { title: "Overview", html: html("Overview", "<h1>Overview</h1><p>Second version.</p>"), expected_etag: v1.body.etag });
-  const g = await alice.api("POST", `/api/v1/tenants/${tenantSlug}/members`, { team: teamSlug, product: "planner", email: "rita@example.com", role: "reader" });
+  const g = await alice.api("POST", `/api/v1/tenants/${tenantSlug}/members`, { product: "planner", email: "rita@example.com", role: "reader" });
   expect(g.status).toBe(201);
 });
 afterAll(async () => h?.close());
 
 function fill(p: string) {
-  const [tenant, team, product] = productPath.split("/");
+  const [tenant, product] = productPath.split("/");
   return p
     .replace(":tenant", tenant!)
-    .replace(":team", team!)
     .replace(":product", product!)
     .replace(/:[a-z_]+/g, "01ARZ3NDEKTSV4RRFFQ69G5FAV");
 }
@@ -177,22 +174,22 @@ describe("a Story reader", () => {
     await client.close();
   });
 
-  it("is granted on a team or a product only, and is invited like any other role", async () => {
+  it("is granted on all products or a product only, and is invited like any other role", async () => {
     const tenantWide = await alice.api("POST", `/api/v1/tenants/${tenantSlug}/members`, { email: "rita@example.com", role: "reader" });
     expect(tenantWide.status).toBe(422);
     expect(tenantWide.body.error.code).toBe("invalid_role");
-    const inv = await alice.api("POST", `/api/v1/tenants/${tenantSlug}/members`, { team: teamSlug, email: "stakeholder@example.com", role: "reader" });
+    const inv = await alice.api("POST", `/api/v1/tenants/${tenantSlug}/members`, { all_products: true, email: "stakeholder@example.com", role: "reader" });
     expect(inv.body.invited).toBe(true);
     const stakeholder = await h.signIn("stakeholder@example.com");
     const list = await stakeholder.api("GET", "/api/v1/me/products");
     expect(list.body.items.find((i: { path: string }) => i.path === productPath)).toMatchObject({ your_role: "reader" });
-    const people = await alice.api("GET", `/api/v1/tenants/${tenantSlug}/members?product=${encodeURIComponent(productPath.split("/")[2]!)}&team=${teamSlug}`);
+    const people = await alice.api("GET", `/api/v1/tenants/${tenantSlug}/members?product=${encodeURIComponent(productPath.split("/")[1]!)}`);
     const listed = people.body.members.find((m: { email: string }) => m.email === "rita@example.com");
     expect(listed.product_access).toEqual({ role: "reader", via: "product" });
   });
 
   it("sees none of the organization's people", async () => {
-    for (const path of [`/api/v1/tenants/${tenantSlug}/members`, `/api/v1/tenants/${tenantSlug}/members?team=${teamSlug}&product=planner`]) {
+    for (const path of [`/api/v1/tenants/${tenantSlug}/members`, `/api/v1/tenants/${tenantSlug}/members?product=planner`]) {
       const r = await rita.api("GET", path);
       expect(r.status, path).toBe(403);
       expect(r.body.error.details).toEqual({ role: "reader", needed: "viewer" });
@@ -202,7 +199,7 @@ describe("a Story reader", () => {
   });
 
   it("reads everything once another grant makes them a viewer, since the highest role applies", async () => {
-    await alice.api("POST", `/api/v1/tenants/${tenantSlug}/members`, { team: teamSlug, email: "rita@example.com", role: "viewer" });
+    await alice.api("POST", `/api/v1/tenants/${tenantSlug}/members`, { all_products: true, email: "rita@example.com", role: "viewer" });
     expect((await rita.api("GET", `/api/v1/tenants/${tenantSlug}/members`)).status).toBe(200);
     expect((await rita.api("GET", "/api/v1/me/products")).body.tenants.find((t: { slug: string }) => t.slug === tenantSlug).story_only).toBeUndefined();
     const product = await rita.api("GET", P);
@@ -213,13 +210,13 @@ describe("a Story reader", () => {
   });
 
   it("cannot finish an upload with a grant they were given as an editor", async () => {
-    const before = await alice.api("POST", `/api/v1/tenants/${tenantSlug}/members`, { team: teamSlug, product: "planner", email: "eddie@example.com", role: "editor" });
+    const before = await alice.api("POST", `/api/v1/tenants/${tenantSlug}/members`, { product: "planner", email: "eddie@example.com", role: "editor" });
     expect(before.status).toBe(201);
     const eddie = await h.signIn("eddie@example.com", "Eddie Editor");
     const created = await eddie.api("POST", `${P}/sources/with-upload`, { tags: ["interview"], title: "Second interview", date: "2026-09-04", path: "call.vtt" });
     expect(created.status).toBe(201);
     const up = created.body.upload;
-    await alice.api("POST", `/api/v1/tenants/${tenantSlug}/members`, { team: teamSlug, product: "planner", email: "eddie@example.com", role: "reader" });
+    await alice.api("POST", `/api/v1/tenants/${tenantSlug}/members`, { product: "planner", email: "eddie@example.com", role: "reader" });
     const put = await fetch(up.url, { method: "PUT", headers: up.headers, body: VTT });
     expect(put.status).toBe(403);
     expect(((await put.json()) as { error: { details: { role: string } } }).error.details.role).toBe("reader");
@@ -231,7 +228,7 @@ describe("a Story reader", () => {
 describe("an organization's plan and what it holds", () => {
   const LIMITS = () => `/api/v1/tenants/${tenantSlug}/limits`;
   /** Who is in which role here, each made for this test so the others' roles stay as they are. */
-  const person = async (name: string, grants: Record<string, string>[]) => {
+  const person = async (name: string, grants: Record<string, string | boolean>[]) => {
     const email = `${name}@example.com`;
     const who = await h.signIn(email, name);
     for (const g of grants) expect((await alice.api("POST", `/api/v1/tenants/${tenantSlug}/members`, { ...g, email })).status).toBe(201);
@@ -245,7 +242,7 @@ describe("an organization's plan and what it holds", () => {
   const textOf = (r: unknown) => (r as { content: { text: string }[] }).content[0]!.text;
   let rhea: Browser; // reads the one product's Story, as the tests above raised Rita above that
   beforeAll(async () => {
-    rhea = await person("rhea", [{ team: teamSlug, product: "planner", role: "reader" }]);
+    rhea = await person("rhea", [{ product: "planner", role: "reader" }]);
   });
 
   it("are refused to someone who reads only the Story there, through REST, naming both roles and holding nothing of it", async () => {
@@ -267,16 +264,18 @@ describe("an organization's plan and what it holds", () => {
     }
   });
 
-  it("are refused to a reader of a whole team, and to a member who reads one product, as to a reader of one product", async () => {
-    const team = await person("tess", [{ team: teamSlug, role: "reader" }]);
-    expect((await team.api("GET", LIMITS())).status).toBe(403);
-    const member = await person("mo", [{ role: "member" }, { team: teamSlug, product: "planner", role: "reader" }]);
+  it("are refused to a reader of all products, to a product creator and to a member who reads one product, as to a reader of one product", async () => {
+    const everywhere = await person("tess", [{ all_products: true, role: "reader" }]);
+    expect((await everywhere.api("GET", LIMITS())).status).toBe(403);
+    const creator = await person("cy", [{ role: "creator" }, { product: "planner", role: "reader" }]);
+    expect((await creator.api("GET", LIMITS())).status).toBe(403);
+    const member = await person("mo", [{ role: "member" }, { product: "planner", role: "reader" }]);
     expect((await member.api("GET", LIMITS())).status).toBe(403);
   });
 
   it("are given to anyone who reads more than the Story somewhere there, and to an organization's member", async () => {
-    const other = await alice.api("POST", `/api/v1/teams/${tenantSlug}/${teamSlug}/products`, { name: "Second Product" });
-    const both = await person("vera", [{ team: teamSlug, product: "planner", role: "reader" }, { team: teamSlug, product: other.body.slug, role: "viewer" }]);
+    const other = await alice.api("POST", `/api/v1/tenants/${tenantSlug}/products`, { name: "Second Product" });
+    const both = await person("vera", [{ product: "planner", role: "reader" }, { product: other.body.slug, role: "viewer" }]);
     const hers = await both.api("GET", LIMITS());
     expect(hers.status).toBe(200);
     expect(hers.body.holds.sources).toBeGreaterThan(0);
@@ -286,9 +285,9 @@ describe("an organization's plan and what it holds", () => {
   });
 
   it("stop being refused once the person reads more", async () => {
-    const riser = await person("ravi", [{ team: teamSlug, product: "planner", role: "reader" }]);
+    const riser = await person("ravi", [{ product: "planner", role: "reader" }]);
     expect((await riser.api("GET", LIMITS())).status).toBe(403);
-    expect((await alice.api("POST", `/api/v1/tenants/${tenantSlug}/members`, { team: teamSlug, product: "planner", email: "ravi@example.com", role: "viewer" })).status).toBe(201);
+    expect((await alice.api("POST", `/api/v1/tenants/${tenantSlug}/members`, { product: "planner", email: "ravi@example.com", role: "viewer" })).status).toBe(201);
     expect((await riser.api("GET", LIMITS())).status).toBe(200);
   });
 
@@ -304,7 +303,7 @@ describe("a reader's search", () => {
   let rory: Browser;
   beforeAll(async () => {
     rory = await h.signIn("rory@example.com", "Rory Reader");
-    expect((await alice.api("POST", `/api/v1/tenants/${tenantSlug}/members`, { team: teamSlug, product: "planner", email: "rory@example.com", role: "reader" })).status).toBe(201);
+    expect((await alice.api("POST", `/api/v1/tenants/${tenantSlug}/members`, { product: "planner", email: "rory@example.com", role: "reader" })).status).toBe(201);
     expect((await alice.api("POST", `${P}/story/pages/assumption-notes/versions`, { title: "Assumption notes", html: html("Assumption notes", "<h1>Assumption notes</h1><p>Our sources and outcomes, quayside.</p>") })).status).toBeLessThan(300);
   });
 
@@ -333,12 +332,14 @@ describe("a reader's search", () => {
 describe("reading only the Story in an organization", () => {
   const g = (scope_type: string, role: string, tenant_id = "t1") => ({ tenant_id, scope_type, scope_id: "x", role });
   it("holds for a reader with no higher role there, whatever they hold elsewhere", () => {
-    expect(readsOnlyTheStoryIn([g("product", "reader"), g("team", "reader")], "t1")).toBe(true);
+    expect(readsOnlyTheStoryIn([g("product", "reader"), g("all_products", "reader")], "t1")).toBe(true);
     expect(readsOnlyTheStoryIn([g("tenant", "member"), g("product", "reader")], "t1")).toBe(true);
+    expect(readsOnlyTheStoryIn([g("tenant", "creator"), g("all_products", "reader")], "t1")).toBe(true);
     expect(readsOnlyTheStoryIn([g("product", "reader"), g("product", "editor", "t2")], "t1")).toBe(true);
   });
-  it("does not hold for a higher role on any team or product, an organization admin, or someone with no reader role", () => {
+  it("does not hold for a higher role on all products or any product, an organization admin, or someone with no reader role", () => {
     expect(readsOnlyTheStoryIn([g("product", "reader"), g("product", "viewer")], "t1")).toBe(false);
+    expect(readsOnlyTheStoryIn([g("product", "reader"), g("all_products", "viewer")], "t1")).toBe(false);
     expect(readsOnlyTheStoryIn([g("tenant", "admin"), g("product", "reader")], "t1")).toBe(false);
     expect(readsOnlyTheStoryIn([g("tenant", "member")], "t1")).toBe(false);
     expect(readsOnlyTheStoryIn([], "t1")).toBe(false);

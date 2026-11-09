@@ -9,7 +9,7 @@ import type { PageView } from "../src/routes/story-flip.tsx";
 // The canvas's view, what it does as the board around it changes, and what its labels are called.
 // The board is laid out by hand here: the document this runs in has no layout.
 
-vi.mock("../src/lib/session.tsx", async (original) => ({ ...(await original<object>()), useProduct: () => ({ app: "/t/acme/core/planner", api: "/api/v1/p/acme/core/planner" }) }));
+vi.mock("../src/lib/session.tsx", async (original) => ({ ...(await original<object>()), useProduct: () => ({ app: "/t/acme/planner", api: "/api/v1/p/acme/planner" }) }));
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 

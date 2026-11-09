@@ -7,16 +7,16 @@ import { Avatar, Button, Callout, Dialog, ErrorCallout, FindField, Glyph, IconBu
 import "../styles/screens/people-editor.css";
 
 /**
- * Who has a role on a product, a team or the organization, changed many at a time. People picked
- * from the organization, or read from a pasted list of addresses, move across to the target with a
- * role each, beside the people already there, whose roles change and who come off it the same way.
- * Nothing changes until it is saved, and then in one call (`members.grant_many`), with a
- * `members.revoke` for each person taken off.
+ * Who has a role on a product, on all products or in the organization, changed many at a time.
+ * People picked from the organization, or read from a pasted list of addresses, move across to the
+ * target with a role each, beside the people already there, whose roles change and who come off it
+ * the same way. Nothing changes until it is saved, and then in one call (`members.grant_many`), with
+ * a `members.revoke` for each person taken off.
  */
 
 export interface Grant {
   membership_id: string;
-  scope_type: "tenant" | "team" | "product";
+  scope_type: "tenant" | "all_products" | "product";
   scope_id: string;
   scope: { name: string; slug?: string };
   role: string;
@@ -33,16 +33,16 @@ export interface PendingInvitation {
   scope_id: string;
 }
 
-/** Where the roles are given, as the members operations name it. */
+/**
+ * Where the roles are given, as the members operations name it: the organization, all its products
+ * (every one, products made later included), or one product.
+ */
 export interface EditorTarget {
-  scope_type: "tenant" | "team" | "product";
+  scope_type: "tenant" | "all_products" | "product";
   scope_id: string;
-  /** The team a product is in, whose roles reach it. */
-  team_id: string | null;
-  team_name?: string;
   name: string;
   /** The request fields that name it: none for the organization. */
-  body: { team?: string; product?: string };
+  body: { product?: string; all_products?: boolean };
   /** The roles the caller may give there, highest first. */
   roles: string[];
   /** The role someone added joins with until it is changed. */
@@ -55,10 +55,11 @@ export interface InvitationMade {
   emailed: boolean;
 }
 
-const RANK: Record<string, number> = { reader: 0, member: 0, viewer: 1, editor: 2, admin: 3, owner: 4 };
+const RANK: Record<string, number> = { reader: 0, member: 0, creator: 0, viewer: 1, editor: 2, admin: 3, owner: 4 };
 export const ROLE_HINT: Record<string, string> = {
   owner: "Admin of everything, and makes owners",
   admin: "Also manages people and settings",
+  creator: "Creates products, and is admin of each one they create",
   member: "Opens only what they have a role on",
   editor: "Reads and writes",
   viewer: "Reads",
@@ -73,8 +74,8 @@ interface Holder {
   email: string;
   /** Their role at exactly this scope, if they hold one. */
   own: string | null;
-  /** Access from a broader grant that outranks any role of their own here: their team's, or the organization's. */
-  through: { role: string; kind: "tenant" | "team"; words: string; keeps: string } | null;
+  /** Access from a broader grant that outranks any role of their own here: their role on all products, or in the organization. */
+  through: { role: string; kind: "tenant" | "all_products"; words: string; keeps: string } | null;
   /** Whether the caller may change their role here (give one, when they have none of their own). */
   editable: boolean;
   /** Their one role in the organization, so taking it takes them out of it. */
@@ -97,10 +98,9 @@ function holdersOf(people: OrgPerson[], target: EditorTarget, canEdit: (p: OrgPe
     let through: Holder["through"] = null;
     if (target.scope_type !== "tenant") {
       const org = p.grants.find((g) => g.scope_type === "tenant" && (g.role === "owner" || g.role === "admin"));
-      const team = target.scope_type === "product" ? p.grants.find((g) => g.scope_type === "team" && g.scope_id === target.team_id) : undefined;
-      const teamWords = scopeWords("team", target.team_name ?? team?.scope.name ?? "");
+      const every = target.scope_type === "product" ? p.grants.find((g) => g.scope_type === "all_products") : undefined;
       if (org) through = { role: "admin", kind: "tenant", words: `Organization ${org.role}`, keeps: `stays admin as an organization ${org.role}` };
-      else if (team) through = { role: team.role, kind: "team", words: `${ROLE_WORD[team.role]} on ${teamWords}`, keeps: `stays ${team.role} on ${teamWords}` };
+      else if (every) through = { role: every.role, kind: "all_products", words: `${ROLE_WORD[every.role]} on all products`, keeps: `stays ${every.role} on all products` };
       // A broader role that doesn't outrank theirs here changes nothing.
       if (through && own && RANK[own.role]! >= RANK[through.role]!) through = null;
     }
@@ -296,9 +296,8 @@ export function PeopleEditor({ tenant, orgName, target, title, description, abov
   const own = holders.filter((h) => !h.through);
   const via = holders.filter((h) => h.through);
   const viaKinds = new Set(via.map((h) => h.through!.kind));
-  const teamWords = scopeWords("team", target.team_name ?? "");
   const labelled = [added.length, own.length, via.length].filter(Boolean).length > 1;
-  const viaLabel = viaKinds.size === 2 ? `Through ${teamWords} or ${orgName}` : viaKinds.has("team") ? `Through ${teamWords}` : `Through ${orgName}`;
+  const viaLabel = viaKinds.size === 2 ? `Through all products or ${orgName}` : viaKinds.has("all_products") ? "Through all products" : `Through ${orgName}`;
 
   if (made)
     return (
@@ -339,7 +338,7 @@ export function PeopleEditor({ tenant, orgName, target, title, description, abov
           <RoleSelect
             label={`Role for ${h.name}`}
             roles={h.own && !target.roles.includes(h.own) ? [h.own, ...target.roles] : target.roles}
-            none={h.own ? undefined : `${ROLE_WORD[h.through!.role]} (team)`}
+            none={h.own ? undefined : `${ROLE_WORD[h.through!.role]} (all products)`}
             value={role}
             onChange={(r) => setRoleOf((x) => ({ ...x, [h.account_id]: r }))}
           />
@@ -450,7 +449,7 @@ export function PeopleEditor({ tenant, orgName, target, title, description, abov
                     </Button>
                   </div>
                 )}
-                {partial ? <p className="pe-note">Only the people on the teams and products you can open are listed.</p> : null}
+                {partial ? <p className="pe-note">Only the people on the products you can open, and on all products, are listed.</p> : null}
               </>
             ) : (
               <>

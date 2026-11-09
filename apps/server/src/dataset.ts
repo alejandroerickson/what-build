@@ -42,7 +42,7 @@ const EXAMPLE_PLANS = resolve(root, "deploy/plans.example.json");
 /**
  * The synthetic organization of the end-to-end golden master and of every dataset: the development
  * sample (`seed.ts`), made by people who belong to it alone, so plans can check that one
- * organization's people see nothing of another's. Sam, who edits the example's teams, only reads
+ * organization's people see nothing of another's. Sam, who edits the example's products, only reads
  * its Story: one person with a different role in each.
  */
 export const SYNTHETIC = "harbor-labs";
@@ -64,8 +64,7 @@ export async function addHarborLabs(env: Env, worker: Worker, admin: pg.Client, 
   const [riley, sam] = SEED_ACCOUNTS;
   const owner = (await findOrCreateAccount(env.db, SYNTHETIC_PEOPLE[0].email, SYNTHETIC_PEOPLE[0].display_name)).account;
   const samAccount = (await findOrCreateAccount(env.db, sam.email, sam.display_name)).account;
-  const team = (await admin.query<{ slug: string }>("select m.slug from teams m join tenants t using (tenant_id) where t.slug = $1", [SYNTHETIC])).rows[0]!.slug;
-  await grantAndAccept(env, { ...owner, auth_kind: "dev", surface: "web", client: null }, { tenant: SYNTHETIC, team, product: "crewboard", role: "reader" }, samAccount);
+  await grantAndAccept(env, { ...owner, auth_kind: "dev", surface: "web", client: null }, { tenant: SYNTHETIC, product: "crewboard", role: "reader" }, samAccount);
   // The editor's allowance to start an organization comes from the instance's owner, Riley, as in
   // development, not from the organization's owner.
   const instanceOwner = (await findOrCreateAccount(env.db, riley.email, riley.display_name)).account;
@@ -255,7 +254,7 @@ export async function addSyntheticOrganizations(opts: { env: Env; worker: Worker
     let sources = 0;
     for (const [rank, org] of plan.organizations.entries()) {
       const limits = configured.find((p) => p.id === org.plan)?.limits ?? null;
-      const tenant = (await opts.admin.query<{ tenant_id: string; team: string }>("select t.tenant_id, m.slug as team from tenants t join teams m using (tenant_id) where t.slug = $1 order by m.created_at limit 1", [org.slug])).rows[0]!;
+      const tenant = (await opts.admin.query<{ tenant_id: string }>("select t.tenant_id from tenants t where t.slug = $1", [org.slug])).rows[0]!;
       const writers: Principal[] = [];
       for (const p of plan.people.filter((p) => p.kind !== "invited" && p.organizations.some((o) => o.slug === org.slug && o.role !== "member"))) {
         const account = (await findOrCreateAccount(opts.env.db, p.email, p.name)).account;
@@ -263,7 +262,7 @@ export async function addSyntheticOrganizations(opts: { env: Env; worker: Worker
       }
       const owner = writers[0]!;
       for (const product of syntheticProducts(rank, limits)) {
-        const made = (await call(opts.env, owner, "products.create", { tenant: org.slug, team: tenant.team, name: product.name, slug: product.slug, concept: product.concept })) as { product_id: string };
+        const made = (await call(opts.env, owner, "products.create", { tenant: org.slug, name: product.name, slug: product.slug, concept: product.concept })) as { product_id: string };
         const ref = { product: made.product_id };
         for (const title of product.outcomes) await call(opts.env, owner, "outcomes.create", { title }, ref);
         for (const [i, s] of product.sources.entries()) {

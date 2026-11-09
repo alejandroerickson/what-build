@@ -15,15 +15,28 @@ import "../styles/screens/account.css";
 /** The limit the server sets on a person's name. */
 const NAME_MAX = 100;
 
-/** `/settings`: the person's own settings, reached from the account menu. */
+/**
+ * `/settings` for a guest still waiting for a place, who reaches no product to open Settings over:
+ * their account, and signing out everywhere, on a page of their own.
+ */
 export function SettingsPage() {
+  usePageTitle("Settings");
+  return (
+    <>
+      <AccountSettings level={1} />
+      <SignOutEverywhere />
+    </>
+  );
+}
+
+/** Settings → You → Account: the person's name and address, the example organization's place, deleting the account. */
+export function AccountSettings({ level = 2 }: { level?: 1 | 2 }) {
   const me = useMe();
   const qc = useQueryClient();
   const toast = useToast();
-  usePageTitle("Settings");
   const [name, setName] = useState(me.data?.display_name ?? "");
   useEffect(() => {
-    if (me.data && !name) setName(me.data.display_name);
+    if (me.data && !name) setName(me.data.display_name ?? "");
     // Fill once when the account arrives; never overwrite typing.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [me.data]);
@@ -38,7 +51,7 @@ export function SettingsPage() {
   return (
     <>
       <Sheet className="account-sheet" labelledBy="account-title">
-        <SheetHeader level={1} id="account-title" title="Settings" />
+        <SheetHeader level={level} id="account-title" title="Account" />
         <form
           onSubmit={(e) => {
             e.preventDefault();
@@ -68,8 +81,7 @@ export function SettingsPage() {
           </div>
         </form>
       </Sheet>
-      <ExampleInPanel />
-      <SignOutEverywhere />
+      <ExampleInSwitcher />
       <DeleteAccount />
       <p className="agents-foot">
         <Link to="/cookies">Cookies and analytics</Link> · <PrivacyLink />
@@ -78,8 +90,8 @@ export function SettingsPage() {
   );
 }
 
-/** For a guest of the example organization: whether the panel shows it. The overview always does. */
-function ExampleInPanel() {
+/** For a guest of the example organization: whether the product switcher offers it. The overview always shows it. */
+function ExampleInSwitcher() {
   const me = useMe();
   const example = useProducts().data?.tenants.find((t) => t.example && t.your_role === "guest");
   const hide = useHideExample();
@@ -89,7 +101,7 @@ function ExampleInPanel() {
       <SheetHeader id="example-title" title="Example organization" />
       <SheetBody>
         <ChoiceRow
-          label="Show the example organization in the panel"
+          label="Offer the example organization in the product switcher"
           hint="It stays on the overview either way."
           checked={!me.data.hide_example}
           disabled={hide.isPending}
@@ -105,7 +117,7 @@ function ExampleInPanel() {
  * Sign out everywhere: every browser this person is signed in on, and every agent they connected,
  * at once. This browser signs out too unless they keep it, since it may be the one at risk.
  */
-function SignOutEverywhere() {
+export function SignOutEverywhere() {
   const qc = useQueryClient();
   const toast = useToast();
   const [open, setOpen] = useState(false);

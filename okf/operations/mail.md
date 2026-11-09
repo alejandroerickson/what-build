@@ -3,7 +3,7 @@ type: System Concept
 title: Mail - what WhatBuild sends, how each deployment sends it, and sending it through Cloudflare Email Sending
 description: The messages the server sends (four while a request waits, and the daily feedback digest), the settings that choose a mailer, which deployments send mail and which never do, setting up Cloudflare Email Sending over SMTP, checking it, rotating its token, changing provider, and what breaks it.
 tags: [operations, mail, smtp, cloudflare, invitations, sign-in, cloud-run, azure, runbook]
-generated: {by: agent:claude, at: 2026-10-31}
+generated: {by: agent:claude, at: 2026-11-09}
 status: stable
 ---
 
@@ -34,7 +34,7 @@ Two are sent by the worker, not a request:
 
 Nothing else sends mail: not the site's interest form. A mail gives its days as UTC days, and
 says so ([decision](../decisions/times-are-utc-in-data-and-local-where-shown.md)). Sign-in links and invitations are
-specified in [§3](../spec/03-accounts-teams-and-identity.md), feedback in
+specified in [§3](../spec/03-accounts-and-identity.md), feedback in
 [§4.13](../spec/04-data-model.md#413-feedback).
 
 **A message that cannot be sent fails its request.** An invitation or an allowance runs in one
@@ -49,7 +49,7 @@ since the person asked for it; the answer's `notice_sent` says whether it went.
 
 **A connection's notice that cannot be sent is tried again**, as any job is, a few times with
 growing waits; the agent's connection is made either way. With no mailer none is queued, and the
-connection still shows under Connect an agent.
+connection still shows in Settings, under Agents.
 
 **A digest that cannot be sent waits.** Its reports are marked sent in the same transaction as the
 message, so a failed send leaves them unsent, the service logs `feedback digest:` with the provider

@@ -3,7 +3,7 @@ type: Decision
 title: A person deletes their own account in the web app after a recent sign-in, and ending an account either way deletes what is kept about them and forgets their address
 description: Self-serve deletion is a web-only act behind a sign-in from the last 15 minutes and the typed address; it does exactly what an instance owner's removal does, which deletes the person's counts and name and mails a record.
 tags: [decision, identity, accounts, privacy, security]
-generated: {by: agent:claude, at: 2026-10-26}
+generated: {by: agent:claude, at: 2026-11-09}
 status: stable
 ---
 
@@ -23,7 +23,7 @@ paths, and telling the person nothing about backups.
 
 ## Decision
 
-- **A person deletes their own account** in the Delete account section of Settings
+- **A person deletes their own account** in the Delete account section of Settings, under Account
   (`products.delete_account_impact`, `products.delete_account`), web only, never through an agent.
   It needs a browser session that signed in within the last 15 minutes (`403 sign_in_again`), by
   any method the deployment offers, the address typed exactly, and `confirm`.
@@ -53,4 +53,4 @@ paths, and telling the person nothing about backups.
 - Anything new that keeps data about a person is deleted or cleared in `endAccount`, and the
   terms say so.
 
-Specified in: [§3.2](../spec/03-accounts-teams-and-identity.md#32-accounts-and-sign-in), [§9.5](../spec/09-data-lifecycle.md#delete-an-account), [§7.11](../spec/07-web-app.md#711-organization-product-and-account-screens).
+Specified in: [§3.2](../spec/03-accounts-and-identity.md#32-accounts-and-sign-in), [§9.5](../spec/09-data-lifecycle.md#delete-an-account), [§7.11](../spec/07-web-app.md#711-organization-product-and-account-screens).

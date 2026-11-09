@@ -12,8 +12,8 @@ import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
 const ID = "01K8A2B3C4D5E6F7G8H9J0K1M2";
-const BASE = "/api/v1/p/acme/core/crew";
-const APP = "/t/acme/core/crew";
+const BASE = "/api/v1/p/acme/crew";
+const APP = "/t/acme/crew";
 const riley = { account_id: "a1", display_name: "Riley Chen", surface: "web", client: null };
 
 interface Comment {

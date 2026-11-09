@@ -40,5 +40,5 @@ or the API is out of scope.
 - Levels live on `oauth_tokens.level`; `connectionNeeds`, `levelAllows` and `capRole` in
   `packages/core/src/registry.ts` decide them, applied in `execute` and `apps/server/src/mcp.ts`.
 
-Specified in: [§3.8](../spec/03-accounts-teams-and-identity.md#38-identity-of-the-caller),
+Specified in: [§3.8](../spec/03-accounts-and-identity.md#38-identity-of-the-caller),
 [§6.5](../spec/06-operations-and-adapters.md#65-mcp).

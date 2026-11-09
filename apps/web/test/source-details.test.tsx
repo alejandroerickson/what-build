@@ -13,8 +13,8 @@ window.matchMedia ??= (query: string) => ({ matches: false, media: query, onchan
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
 const ID = "01K8A2B3C4D5E6F7G8H9J0K1M2";
-const BASE = "/api/v1/p/acme/core/crew";
-const APP = "/t/acme/core/crew";
+const BASE = "/api/v1/p/acme/crew";
+const APP = "/t/acme/crew";
 const by = { account_id: "a1", display_name: "Riley Chen", surface: "web", client: null };
 const record = { updated_at: "2026-10-01T09:00:00.000Z", uploaded_by: by as Record<string, unknown> };
 

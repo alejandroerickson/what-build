@@ -7,14 +7,14 @@ import { startHarness, type Browser, type Harness } from "./harness.ts";
 let h: Harness;
 let owner: Browser;
 let tenantId: string;
-let slugs: { tenant: string; team: string };
+let slugs: { tenant: string };
 
 beforeAll(async () => {
   h = await startHarness();
   owner = await h.signIn("olive@example.com", "Olive Owner");
   const t = await owner.api("POST", "/api/v1/tenants", { name: "Queue Co" });
   tenantId = t.body.tenant.tenant_id;
-  slugs = { tenant: t.body.tenant.slug, team: t.body.team.slug };
+  slugs = { tenant: t.body.tenant.slug };
 });
 afterAll(async () => h?.close());
 
@@ -146,7 +146,7 @@ describe("a job whose last attempt fails as a later version's migration is recor
   });
 
   it("leaves an export, which is given up at its first failure, pending for that version, and records its failure with the give-up once there is no such migration", async () => {
-    const p = await owner.api("POST", `/api/v1/teams/${slugs.tenant}/${slugs.team}/products`, { name: "Export board" });
+    const p = await owner.api("POST", `/api/v1/tenants/${slugs.tenant}/products`, { name: "Export board" });
     expect(p.status, JSON.stringify(p.body)).toBe(201);
     const P = `/api/v1/p/${p.body.path}`;
     const started = await owner.api("POST", `${P}/exports`, {});

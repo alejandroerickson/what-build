@@ -27,7 +27,7 @@ person: a mail from the account's address, or a reply to one sent there.
 ## Their content
 
 What they wrote belongs to each organization, under the name they had
-([§3.9](../spec/03-accounts-teams-and-identity.md#39-attribution)). A request to delete it goes to
+([§3.9](../spec/03-accounts-and-identity.md#39-attribution)). A request to delete it goes to
 that organization's owners or admins, who delete it in the product. Do not delete an
 organization's content on one member's word.
 

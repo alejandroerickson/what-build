@@ -111,11 +111,11 @@ Settle these with the person; each changes what is built.
    ([§2.4](../spec/02-architecture.md)).
 6. **Who may sign up** (`WB_ALLOWLIST`: addresses and `@domains`) and **who runs the instance**
    (`WB_OWNERS`: addresses; they create organizations and let others;
-   [§3.3](../spec/03-accounts-teams-and-identity.md)). A self-hosted deployment serves its own
+   [§3.3](../spec/03-accounts-and-identity.md)). A self-hosted deployment serves its own
    people, so it sets none of `WHATBUILD_EXAMPLE_TENANT`, `WHATBUILD_PLANS` and
    `WHATBUILD_NEW_ORGANIZATION_PLAN`: it has no example organization, which is the maintainer's
    public deployment's alone, it offers no plans, and every organization in it is unlimited, with
-   nothing in the app about plans or billing ([§3.10](../spec/03-accounts-teams-and-identity.md#310-the-example-organization),
+   nothing in the app about plans or billing ([§3.10](../spec/03-accounts-and-identity.md#310-the-example-organization),
    [§9.7](../spec/09-data-lifecycle.md)).
 7. **The address.** The Container Apps address (`https://whatbuild.<generated>.<region>.azurecontainerapps.io`)
    or [a domain of the organization's](#a-custom-domain).
@@ -399,7 +399,7 @@ A production server never logs a sign-in link, so one of these must be on before
 in. `GET /api/v1/meta` reports which are.
 
 **Microsoft work accounts** is the method a self-hosted deployment in a Microsoft organization
-wants ([§3.2](../spec/03-accounts-teams-and-identity.md#sign-in-with-microsoft-work-accounts)).
+wants ([§3.2](../spec/03-accounts-and-identity.md#sign-in-with-microsoft-work-accounts)).
 It admits accounts of one directory only, the one whose ID is `WHATBUILD_MICROSOFT_TENANT`; a
 workforce directory and an Entra External ID directory work alike, and so do guests invited into
 either. With the identity directory active (`az account set`; `az ad` takes no `--subscription`):
@@ -433,7 +433,7 @@ rm -rf "$T"
   assignment on the enterprise application and assign people or groups.
 - **Which addresses it takes.** A directory's administrators can set any email attribute on its
   people, so WhatBuild takes an address from the directory only with evidence for its domain
-  ([§3.2](../spec/03-accounts-teams-and-identity.md#sign-in-with-microsoft-work-accounts)): the
+  ([§3.2](../spec/03-accounts-and-identity.md#sign-in-with-microsoft-work-accounts)): the
   optional claim `xms_edov` above, which Entra sets true when the domain's owner verified it (a
   domain verified in the person's own directory, or a Microsoft or Google account, or a one-time
   passcode), or a domain listed in `WHATBUILD_MICROSOFT_DOMAINS`. List the directory's own
@@ -578,7 +578,7 @@ claim's value. `domains_listed` counts the domains in `WHATBUILD_MICROSOFT_DOMAI
 
 Never list a domain in `WHATBUILD_MICROSOFT_DOMAINS` just to make a refusal go away: it tells
 WhatBuild to take every address the directory gives in that domain
-([§3.2](../spec/03-accounts-teams-and-identity.md#sign-in-with-microsoft-work-accounts)). Then ask
+([§3.2](../spec/03-accounts-and-identity.md#sign-in-with-microsoft-work-accounts)). Then ask
 the person to sign in again; each attempt has a reference of its own. "That sign-in didn't work",
 with no reference, is a sign-in that never got an identity back (a missing cookie, a wrong
 `state`, or a refused token request, most often an expired client secret), and logs nothing.

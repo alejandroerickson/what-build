@@ -1,9 +1,9 @@
 ---
 type: Specification
 title: The web app is a person's way to run the same operations an agent runs, one screen at a time.
-description: Principles, the shell and product switching, the overview, routes, first run, and the behavior of every screen (Idea, Evidence, Exploration, Story, Activity, archive and delete, organization and account screens).
+description: Principles, the shell and product switching, the overview, routes, first run, and the behavior of every screen (Idea, Evidence, Exploration, Story, Activity, archive and delete, Settings, Instance admin).
 tags: [spec, web, ui, routes, shell]
-generated: {by: agent:claude, at: 2026-11-02}
+generated: {by: agent:claude, at: 2026-11-09}
 status: stable
 ---
 
@@ -37,7 +37,8 @@ design system: tokens, type, components and the rules for using them — is docu
   again, and closed, it comes back only for a newer change. A change to another page of the Story
   brings no toast, nor does the person's own edit. A reader hears only of the Story. A tab listens
   while it is in view and used in the last ten minutes, for two minutes once hidden, and looks for
-  what it missed when it listens again. A screen outside a product does not listen. Where a deployment
+  what it missed when it listens again. A screen that is no product's own (the overview, Instance
+  admin) does not listen, whatever product its panel shows. Where a deployment
   turned this off, or a guest of the example organization reads, nothing is different but that people
   refresh to see a change.
 - **A field's limit never cuts what is typed or pasted.** Past a limit the text stays as it is, the
@@ -104,9 +105,9 @@ design system: tokens, type, components and the rules for using them — is docu
   REST answers honestly: a source, assumption or other object that does not exist answers `404`,
   and its page says it was not found while the browser's console reports the `404` of the request.
   A `404` is final, so the app never asks for it again (a request that did not reach WhatBuild,
-  or a `5xx`, is asked again twice). A product, or an organization's Members or Plan,
-  that answers `404` says at once that it doesn't exist or the person can't see it, as the server
-  does of both, with a way back to their products.
+  or a `5xx`, is asked again twice). A product that answers `404`, or an organization
+  (`/t/<organization>`) that is not among the person's, says at once that it doesn't exist or the
+  person can't see it, as the server does of both, with a way back to their products.
   ◆ Decision: that console line is by design; the API is not bent to hide it.
 - **Times are shown in the viewer's own time zone**, though the API gives them in UTC, except the
   days the server states too (a read-only organization's since and kept until, the allowances'
@@ -133,7 +134,7 @@ design system: tokens, type, components and the rules for using them — is docu
   source's files are its "attachments" and its words its "text", people "start" an organization
   and "can" do things, and something
   happens "right away". Contractions and typographic apostrophes are used throughout. A role's
-  place is written as a person would say it: "editor on the Core team", "editor on Crewboard"
+  place is written as a person would say it: "editor on all products", "editor on Crewboard"
   (`scopeWords` in `apps/web/src/lib/format.ts`).
 - Agents are teammates: attribution in the UI shows who wrote something **and through which
   surface** (for example "Sam · via claude-desktop").
@@ -149,20 +150,21 @@ the browser's back button and "open in new tab" both work.
   and the "WhatBuild" wordmark, linking to the overview (`/`)
   from every screen, with the button that hides the panel at the row's far end. Only the mark and
   wordmark are the link, so a click that misses the hide button does not leave the screen. Then the
-  product switch, showing the product and its organization and team, and under it the **Search**
+  product switch, showing the product and its organization (Switching, below), and under it the **Search**
   field, "Search <product>" with its shortcut, or for a reader "Search the Story", which opens the search palette (below).
 - **L1**, exactly and in this order: **Idea, Evidence, Exploration, Story**, each with its count:
   every item the stage holds (`stage_counts`, [§4.2](04-data-model.md),
   [decision](../decisions/each-stage-counts-every-item-it-holds.md)). Idea counts outcomes, Evidence
   sources, Exploration mockups and current assumptions together, and Story its pages, of every kind.
-  Below them, quieter: **Connect an agent**, **Activity** (§7.9) and the product's **Settings**.
-  Until the person has an agent connected, Connect an agent's row is the **empty seat**
-  ([decision](../decisions/the-panel-keeps-an-empty-seat-until-an-agent-is-connected.md)): a card in
-  the row's place, for everyone, saying "No agent connected", that without one a person sees less than half of WhatBuild, and
-  Connect an agent as the panel's one accent button. Nothing dismisses it; it goes once an agent is
-  connected (the account-wide list, `GET /api/v1/me/agents`, which while empty is read again when the
-  person comes back to the tab, with no polling), and the row returns. On Connect an agent itself the
-  row stays, marked current. A hidden panel is shown for the seat once a visit,
+  Below them, quieter: the **empty seat** while the person has no agent connected, the product's
+  **Activity** (§7.9) and **Settings**, which opens the Settings dialog (§7.11) over the screen, at
+  the product's General. The empty seat
+  ([decision](../decisions/the-panel-keeps-an-empty-seat-until-an-agent-is-connected.md)) is a card,
+  for everyone, saying "No agent connected", that without one a person sees less than half of WhatBuild, and
+  Connect an agent as the panel's one accent button, which opens Settings at Agents. Nothing
+  dismisses it; it goes once an agent is connected (the account-wide list, `GET /api/v1/me/agents`,
+  which while empty is read again when the person comes back to the tab, with no polling), and
+  nothing takes its place: agents are in Settings. A hidden panel is shown for the seat once a visit,
   never on a phone, where the drawer opens only by hand; while the panel is away the pill carries a
   mark with the same words.
   Exploration opens on its mockups; the mockups, then the assumptions, are listed in its panel. The app's URLs follow the areas
@@ -212,32 +214,25 @@ the browser's back button and "open in new tab" both work.
   "Showing the best 60 of N. Add a word to narrow them.", and the palette's All N results counts
   every match. Nothing holding the words says "Nothing matches" and suggests another word or fewer
   words. An outcome found opens Idea scrolled to it and marked (`?outcome`). A reader searches the Story alone ([§8.2](08-search.md)).
-- **A reader** ([§3.5](03-accounts-teams-and-identity.md)) has only the Story: L1 is **Story**
-  alone with its count, and the quiet group is gone, but for the empty seat under the Story until
-  they have an agent connected, which opens Connect an agent outside the product. The product opens on the Story, and any other
+- **A reader** ([§3.5](03-accounts-and-identity.md)) has only the Story: L1 is **Story**
+  alone with its count, and the quiet group holds only the empty seat, until they have an agent
+  connected, and Settings, which opens at Account. The product opens on the Story, and any other
   product screen, opened by a link or typed, takes a reader to the Story, with a toast saying they
   can read only this product's Story.
 - **A context slot** under the navigation, which the screen fills: the page tree on Story, the
   filters on Evidence, the mockups and the three lists with their filters on Exploration.
   Each of its sections is a group named by its title, a heading, so a screen reader can move
   between them as it does between the inspector's groups.
-- **The footer** holds the account menu, which is about the person: their email; each
-  organization they belong to, with their role in it, a link to its **Members** (left out where they
-  read only the Story) and, where the deployment offers plans, to its **Plan**; the example
-  organization is left out for its guests,
-  who see neither its members nor any allowance there, unless the guest is an owner of the
-  instance, who sees its Plan;
-  the theme (Light, Dark or System, which is the default; remembered
-  per browser); **New organization**, while they may still create one; **Organizations** and
-  **People**, for an owner of the instance;
-  **Settings** (their own display name, and **Sign out everywhere**, which asks first and offers
-  Everywhere else to keep this browser signed in; signed out here too, the person lands on sign-in;
-  and, closed until opened, **Delete account**);
-  **Submit feedback**; and Sign out. Last, under a hairline, is the release this
+- **The footer** holds the account menu, which is only about the person: their email;
+  **Settings**, which opens the Settings dialog at Account; the theme (Light, Dark or System, which
+  is the default; remembered per browser); **Instance admin**, for an owner of the instance only
+  (§7.11); **Submit feedback**; and **Sign out**. Joining an organization adds nothing to it: an
+  organization's people and plan are in Settings, and starting another organization is in the
+  product switch. Last, under a hairline, is the release this
   WhatBuild runs, from `/api/v1/meta`: "Release v0.3.1", or "Commit 1a2b3c4" for a
   build that is not a release, linking to the release notes or the commit on GitHub in a new tab;
   the commit and build time stay in `/api/v1/meta`. A development
-  server says so instead. Nothing in it is also in the panel.
+  server says so instead.
 - **Submit feedback** opens a dialog: a kind (Bug, Improvement, Feature request or Other; none
   chosen sends Other, and choosing one again clears it), the message, whose label and prompt follow
   the kind, and a well that says what is sent (their words, the kind, the release and the part of
@@ -260,77 +255,99 @@ the browser's back button and "open in new tab" both work.
   starts hidden, and it hides again whenever the window crosses 1100px.
 - **On a phone** (760px and below) the panel and the inspector are drawers with a scrim, one open
   at a time: focus is trapped, Esc closes the open one, and it closes on navigation.
-- **Outside a product** (the overview, Connect an agent, the person's Settings, organization
-  Members) the panel is the same on every screen, whatever the person came from: each
-  organization's name, over the label "Products" and then its products (a long name ends in an
-  ellipsis after a whole word, §7.1); the example organization last, headed **Example organization** with the library glyph,
-  on a neutral wash, over its name and "read only" (to its authors, "you're an author"), with a ×
-  that hides it from the panel for a guest; then a quiet link to Connect an agent (the empty seat
-  until an agent is connected) and, for an owner of the instance, to
-  **Organizations** and **People**, with the current screen marked. It never offers a way "back" to a product, because it cannot know the person came
-  from one; the product is in the list.
-- **The panel changes only on entering or leaving a product.** Connect an agent is in both panels,
-  and inside a product it opens in the product's shell (`…/connect`), so the product's navigation
-  stays put.
+- **One panel everywhere**
+  ([decision](../decisions/the-panel-shows-one-product-and-everything-else-is-in-settings.md)). The
+  panel always shows one product of one organization, with the same rows on every screen and for
+  every role, an instance owner's included; it never turns into another panel, and only Instance
+  admin, a place of its own, has a different one (§7.11). On a screen that is
+  no product's own (the overview, a page that wasn't found) it shows the product the person was last
+  in, or else their first, their own organizations' before the example organization's, and marks
+  none of its rows current; its Search reaches that product. An organization with no product the
+  person can open (`/t/<organization>`, or the overview for someone with no product at all) shows
+  the organization's name in the switch, over "No products yet", and where the four sections would
+  be, **Start your first product** with **Create a product** for its owners, admins and product
+  creators, or "Nothing to open yet. An admin of <organization> can give you a role on a product."
+  for anyone else; then the empty seat while no agent is connected, and Settings, at the
+  organization's General (its People for someone who is not an owner or admin).
 - A skip link leads to the content; on a route change focus moves to the new heading and the page
   is announced politely.
 
-**Switching.** An account may belong to several organizations (tenants) and teams, and a team
+**Switching.** An account may belong to several organizations (tenants), and an organization
 holds several products. A person must always know where they are, and move without losing their
 place.
 
-1. The current product, with its organization and team, is shown at the top of the panel on every
-   product screen.
-2. The product switch is one interaction away on every product screen. It lists every reachable
-   product grouped by organization and team, and offers New product, which opens in place.
+1. The current product, with its organization, is shown at the top of the panel on every
+   screen but Instance admin's.
+2. The product switch is one interaction away on every screen, and shows one organization: its
+   products, the current one checked; **New product** where the person may create products there,
+   which opens in place on that organization; then **Switch organization**, the person's other
+   organizations (their own before the example organization, which is left out for a guest who
+   chose to hide it), each opening the product they last had open there, or else its first; and
+   **New organization** while they may start one (`/welcome`).
 3. **Switching product keeps the section**: from Evidence in product A to Evidence in product B.
-   Idea, Evidence, Exploration, Story, Connect an agent, Activity, Search and Settings carry over; anything else
+   Idea, Evidence, Exploration, Story, Activity and Search carry over; anything else
    (a record id, an assumption, a mockup) lands on Idea. Switching to a product where the person is a reader
    lands on its Story.
-4. The product is in the URL path (`/t/<tenant>/<team>/<product>/…`). Opening a link to another
-   product simply works, and becomes the remembered one.
+4. The product is in the URL path (`/t/<tenant>/<product>/…`). Opening a link to another
+   product simply works, and becomes the remembered one. An address written when products were in
+   teams (`/t/<tenant>/<team>/<product>/…`) is taken to the product's address with the rest of its
+   path, its query and its fragment, once `products.list` has loaded: to the product whose
+   `former_paths` names it, and otherwise to the same address without the middle part
+   (`FormerProductAddress`, `apps/web/src/routes/addresses.tsx`;
+   [§3.11](03-accounts-and-identity.md#311-when-there-were-teams)). A path that is neither answers
+   Not found.
 5. `/` opens the overview for anyone in an organization, and first run for anyone in none. The
-   last-used product is remembered per browser until the person signs out or their session ends
-   ([§9.1](09-data-lifecycle.md)); Connect an agent names it in its example request.
+   last-used product is remembered per browser, and so is the last one in each organization, until
+   the person signs out or their session ends ([§9.1](09-data-lifecycle.md)); Connect an agent
+   names it in its example request. `/t/<organization>` opens the product the person last had open
+   in that organization, or else its first, keeping the address's query (so
+   `/t/<organization>?settings=organization/people` opens Settings over it); with none they can
+   open, it is the organization's own screen (One panel everywhere, above), whose page says the same.
 6. Archived products appear only on the overview, behind "Show archived products" under each
    organization that has any, which opens that organization's alone (`?archived=<organization
-   slug>`, repeated for each organization opened), read-only, and an admin restores them from the product's
-   Settings. Inside one, no control offers a change the server would refuse: outcomes are not
+   slug>`, repeated for each organization opened), read-only, and an admin restores them in the product's
+   Settings, under General. Inside one, no control offers a change the server would refuse: outcomes are not
    dragged and have no actions menu, as for a viewer. Roles are access, not content, and
    `members.grant` and `members.revoke` still work on an archived product, so its Settings keep
-   People on this product for admins and say so above the list.
+   People for admins and say so above the list.
    A read-only organization, one moved back to the plan new organizations start on while whoever
-   started it has another there ([§3.3](03-accounts-teams-and-identity.md#33-tenants-and-teams)),
+   started it has another there ([§3.3](03-accounts-and-identity.md#33-tenants)),
    says so above every screen of its products: that nothing new can be added, what everyone can
    still do there (one sentence the server's refusal shares, `packages/core/src/read-only.ts`:
    read, export and delete what it holds, and take people out, as their roles allow), how long it
    is kept, and **See plan** for anyone who reads more than the Story there. Inside one, as on an archived product, no control offers a change the
    server would refuse (`409 organization_read_only`), and a screen that would invite one (Add a
-   source, a new entry) says why in its place; deleting and export stay. Its Members page says so
+   source, a new entry) says why in its place; deleting and export stay. **See plan** opens
+   Settings at the organization's Plan. Its People in Settings says so
    too, and offers only what still works there: removing a role, taking someone out and cancelling
-   an invitation, with no Give access, no change of role and no change of its name.
-7. On the overview, an organization where the person has no team or product role says so, and that
+   an invitation, with no Add people, no change of role and no change of its name.
+7. On the overview, an organization where the person has no product role says so, and that
    there is nothing to open until an admin gives them one.
-8. Organization-level screens (the overview, Connect an agent, Settings, Members) use a different
-   panel, so they are not mistaken for belonging to one product.
+8. No screen but Instance admin has a panel of its own, and nothing about an organization or the
+   person is a screen in the panel: it is in Settings (§7.11).
 
 **The overview** (`/`, [decision](../decisions/the-overview-is-the-front-door.md)). The page that
 introduces WhatBuild and is good to share as a screenshot. An intro sheet carries the mark and
 wordmark, the question "What to build?", the tagline "Product discovery at the speed of AI
-Engineering.", two sentences on what the app does, and a link to Connect an agent. Beside it, small and
+Engineering.", two sentences on what the app does, and a link to Connect an agent, which opens
+Settings at Agents over it. Beside the overview the panel shows the product the person was last in
+(One panel everywhere, above), marking no row current. Beside the intro, small and
 quiet, "From idea to story": Idea, Evidence, Exploration and Story, each with a line on what a
 team does there. It carries no counts; those are on each product below. Below, one sheet per organization, headed by its name alone, lists its active products (name,
-product concept as plain words clamped to two lines, its Markdown markers dropped, last update, and the team only when the organization has more than one), each
+product concept as plain words clamped to two lines, its Markdown markers dropped, last update), each
 with links to Idea, Evidence, Exploration and Story and their counts, so any section of any product
 is one click away. A product where the person is a reader says "You can read its Story."
-in place of its concept, and links to the Story alone, with its count. Team admins get **New product**, a dialog on the overview (`?create=1`), so
-cancelling leaves the person there; it asks for a team only when they can create in more than one,
+in place of its concept, and links to the Story alone, with its count. An organization's owners,
+admins and product creators get **New product**, a dialog on the overview
+(`?create=<organization slug>`, or `?create=1` for the first organization they may create in), so
+cancelling leaves the person there; it asks for the organization only when they can create in more
+than one; a product creator is told they will be its admin;
 and when the organization already holds all the products its plan allows it says so, and how to
 make room, in place of Create.
 An organization with no product the person can see says so, and, to someone who cannot create
 one, whom to ask. The
-overview is the only list of products: `/products` redirects to it. Roles are not shown here; the
-person's organization role is in the account menu, and who has which role is on Members.
+overview is the only list of products: `/products` redirects to it. Roles are not shown here: who
+has which role, the person's own included, is in Settings under the organization's People.
 
 ## 7.3 Routes
 
@@ -341,16 +358,30 @@ person's organization role is in the account menu, and who has which role is on 
 /plans                                        Plans: the plans offered side by side, with their prices; readable signed out
 /                   ?archived=1&create=1      the overview: what WhatBuild is, and every product; new product; first run with no organization
 /products                                     → / (with its query)
-/t/:tenant/members                            people and roles in an organization
-/t/:tenant/plan                               Plan: an organization's plan, what it holds against it, what is used today, and the plans side by side
-/t/:tenant/limits                             the same page, at the address it had before plans set every limit
-/connect            ?product                  Connect an agent: the MCP server URL for a product or all, and the agents connected now
-/settings                                     Settings: the person's display name, Sign out everywhere, and Delete account (?delete=account opens it)
 /account-deleted                              Your account has been deleted (signed out)
-/instance                                     Organizations: every organization's plan and what it holds, the plans, and who may create organizations (instance owners)
-/people                                       People: every account, and removing one (instance owners)
 
-/t/:tenant/:team/:product                     → …/idea
+any screen          ?settings=<section>       Settings, the dialog over the screen (§7.11): product, product/people,
+                                              product/export, organization, organization/people, organization/plan,
+                                              organization/access, account, agents; a section keeps its own query
+                                              (agents: ?reach&product&org; account: ?delete=account)
+
+/admin                                        → /admin/organizations (Instance admin, instance owners only; anyone else: Not found)
+  /organizations    ?org=<slug>               every organization with its plan; org: the plan dialog over the list
+  /people                                     every account, and removing one
+  /plans                                      the plans, every limit with its refusal, this deployment's limits (where plans are offered)
+  /guests                                     how guests come into the example organization (where there is one)
+  /starting                                   who can start organizations, and the waitlist
+
+/t/:tenant                                    → the product last open in it, or its first, query kept; with none, the organization's own screen
+/t/:tenant/members                            → /t/:tenant?settings=organization/people (#delete-org-title: ?settings=organization)
+/t/:tenant/plan  /t/:tenant/limits            → /t/:tenant?settings=organization/plan
+/connect                                      → /?settings=agents, query kept
+/settings                                     → /?settings=account, query kept; a page of its own for a guest still
+                                              waiting for a place, or someone in no organization
+/instance                                     → /admin/organizations, query kept
+/people                                       → /admin/people
+
+/t/:tenant/:product                           → …/idea
   /idea               ?status&outcome         the product concept, outcomes with counts (outcome: one a search opened, marked)
   /evidence           ?tags&added_by&date_from&date_to&query&include_archived&sort&order
                       (date_from, date_to: the date captured; query: words in titles, tags or attachment
@@ -370,10 +401,14 @@ person's organization role is in the account menu, and who has which role is on 
   /exploration/insights  /exploration/decisions          → /exploration
   /synthesis/…                                → the same path and query under /exploration
   /story[/:page]      ?v=N &page=<page_id>  a page, at a version; on a whole canvas, with one of its pages selected
-  /connect            ?product                Connect an agent, in the product's shell, with this product picked
   /activity           ?entity_type &entity_id
-  /settings                                   name, slug, people, export, organization, archive
+  /connect                                    → the product's first screen ?settings=agents, query kept
+  /settings                                   → the product's first screen ?settings=product (#people: product/people)
 ```
+
+An address from before Settings was a dialog opens it at the section that took the old screen's
+place, with the old address's query kept (`apps/web/src/routes/addresses.tsx`), so links in mail
+already sent, and bookmarks, keep working.
 
 **The public site** is not part of the app: on the site's domain (served by the Cloudflare Worker,
 or by the image on the host named by `WHATBUILD_SITE_URL`), `/` is a
@@ -400,29 +435,30 @@ in its footer to change it; a request to hear from us is counted as `generate_le
 An address under `/t/:tenant` that names an organization by a slug it had before moves to the same
 address with its current slug, query and fragment kept (`CurrentTenantAddress`), once the person's
 organizations have loaded and show that slug among the organization's `former_slugs`; meanwhile
-the server answers the old slug too ([§3.6](03-accounts-teams-and-identity.md#36-addressing-and-isolation)).
+the server answers the old slug too ([§3.6](03-accounts-and-identity.md#36-addressing-and-isolation)).
 
 Older source links resolve too: `?view=passages` opens Text, and `?view=original` and
 `?view=files` open Attachments, where an attachment is shown; `?tab=passages` opens Text,
 `?tab=preview` and `?tab=files` Attachments, `?tab=notes` Notes, and `?tab=connected` the
-inspector. A product path without the `/t/` prefix (`/<tenant>/<team>/<product>[/…]`, as people type
-or paste it) redirects to the same path under `/t/`.
+inspector. A product path without the `/t/` prefix (`/<tenant>/<product>[/…]`, as people type
+or paste it, or the three-part path from when products were in teams) redirects to the same path
+under `/t/`.
 
 The document title is "<screen> · <section> · <product> · WhatBuild", with a screen named after
 its section ("Evidence") said once. A screen shown in place of another names itself, never the one
 it stands in for: an address the app doesn't know is "Not found · WhatBuild", a product that
-answers `404` "Product not found · WhatBuild", an organization that does "Organization not found"
-with its section (Members, Plan), and an error no screen handles "Something went
-wrong · WhatBuild".
+answers `404` "Product not found · WhatBuild", and an error no screen handles "Something went
+wrong · WhatBuild". Instance admin's screens are "<section> · Instance admin · WhatBuild". Settings
+leaves the title of the screen under it as it is.
 
 The Story print view is served by the API, not the app: `GET
-/api/v1/p/<tenant>/<team>/<product>/story/print?page_ids=…` returns one HTML document, opened in a
+/api/v1/p/<tenant>/<product>/story/print?page_ids=…` returns one HTML document, opened in a
 new tab ([§7.8](#78-story), [§6](06-operations-and-adapters.md)).
 
 ## 7.4 Sign-in, and the first ten minutes
 
 1. **Sign in** (`/signin`) with an email link, Microsoft or Google, whichever the deployment configures
-   ([§3.2](03-accounts-teams-and-identity.md)); in development, one click signs in as any account on
+   ([§3.2](03-accounts-and-identity.md)); in development, one click signs in as any account on
    the server (`GET /auth/dev-accounts`): the sample's people first, then the newest, each with what
    it is there ("Owns Fieldnote Studio (Pro)", "Guest, on the waitlist"), the first 40 of them, or as
    any address typed above. An
@@ -432,17 +468,17 @@ new tab ([§7.8](#78-story), [§6](06-operations-and-adapters.md)).
    and links to Privacy, the notice of what is kept and why ([§9.1](09-data-lifecycle.md)), and
    to Cookies.
 2. **The example organization first.** A new account with no organization of its own lands on the
-   overview, where the example organization ([§3.10](03-accounts-teams-and-identity.md)) is listed,
+   overview, where the example organization ([§3.10](03-accounts-and-identity.md)) is listed,
    tagged Example organization and Read only, under a sheet, **Your own organization**, that says
    the example is there to read and to point an agent at, and offers **Start your organization**
    where the account may create one. Where it may not, it says organizations open a few at a time,
    to ask for one or be invited to someone's, and offers **Ask for your own organization**, which puts them on the
-   waitlist with one click ([§3.2](03-accounts-teams-and-identity.md#32-accounts-and-sign-in));
+   waitlist with one click ([§3.2](03-accounts-and-identity.md#32-accounts-and-sign-in));
    then it says since when they have been on it and that an email will tell them when they can
    start one, and the sheet no longer tells them to ask, only that someone who uses WhatBuild can
    invite them meanwhile.
 3. **First run** (`/welcome`): name the organization and the first product in one form, for an
-   account that may create one ([§3.3](03-accounts-teams-and-identity.md)); for someone who is not
+   account that may create one ([§3.3](03-accounts-and-identity.md)); for someone who is not
    an instance owner, where the deployment offers plans, it adds which plan the organization starts
    on, with its totals and a link to compare the plans, and that whoever runs this WhatBuild sees
    its name and plan and the name and email of everyone in it, to write to its people, and to bill
@@ -452,9 +488,10 @@ new tab ([§7.8](#78-story), [§6](06-operations-and-adapters.md)).
    example organization for someone with none of their own. A person who was invited finds the
    invitation wherever they land once signed in, here too, or follows its link
    (`/invite/:token`), and joins by accepting it.
-4. Invite colleagues from the organization's Members or the product's Settings, by email or a
-   single-use link.
-5. **Connect an agent** (`/connect`): paste one address into an MCP client and sign in when it asks
+4. Invite colleagues with **Add people**, in Settings under the organization's People or the
+   product's, by email or a single-use link.
+5. **Connect an agent** (Settings → Agents, which the empty seat opens, and `/connect` leads to):
+   paste one address into an MCP client and sign in when it asks
    ([§6.8](06-operations-and-adapters.md)).
 
 No page is readable without an account. Someone who wants to look before committing to anything
@@ -518,7 +555,7 @@ picture and text). Nothing on the screen prescribes an order of steps.
 **Empty lists** ([decision](../decisions/empty-lists-lead-with-the-agent.md)). Outcomes, Sources,
 Mockups, Assumptions and the Story share one first-use state: "No … yet", what belongs
 there, and a request naming the product for the person to copy to their agent, with Connect an
-agent (opening Connect an agent for this product) until they have one connected. Where people add by hand, that
+agent (opening Settings at Agents, with this product chosen) until they have one connected. Where people add by hand, that
 is the header's create action, a default button, as when the list has items; outcomes have none,
 since agents write them. A filter over a list
 with nothing in it shows the same state. Viewers see the words without the request.
@@ -920,7 +957,8 @@ page of a mockup reaches it by promotion, from the mockup (§7.7).
   keys on unless the page used them). Not while typing, with a dialog or menu open, or in a control
   that uses the arrows itself, such as the page tree. It stops at the first and the last; focus
   mode stays as it was.
-- **Links.** A link in a page to another page of the same Story shows that page in place: the
+- **Links.** A link in a page to another page of the same Story shows that page in place, written
+  with the Story's address or as it was when products were in teams (`/t/<tenant>/<team>/<product>/story/…`): the
   address, the tree and the inspector follow, and focus mode stays as it was. A click with a
   modifier key, and every other link, opens in a new tab ([§4.11](04-data-model.md)).
 - **Focus mode.** Both side panels and their show buttons step aside so the rest of the app falls
@@ -980,7 +1018,7 @@ page of a mockup reaches it by promotion, from the mockup (§7.7).
     update after publishing (what it is for, sources still to fold in, choices about its structure).
     Read-only here, and not versioned with the page.
   - A reader gets About alone: Shows and Notes for agents are left out, since the server sends a
-    reader neither ([§3.5](03-accounts-teams-and-identity.md)). The Story
+    reader neither ([§3.5](03-accounts-and-identity.md)). The Story
     style row under the tree is left out too, and so are **Archived pages** in the tree and the
     export, since the server gives a reader no archived page; a Story with no pages says that they
     appear once the product's team publishes them. A reader or viewer arranges, archives and
@@ -1044,8 +1082,8 @@ a product that isn't archived (`canDelete`). One dialog serves every delete
 | Outcome | its card's menu on Idea | its card's menu |
 | Story page | its row's menu in the tree, and the inspector's About | its row's menu, and the inspector's About |
 | Mockup | in its delete dialog, as the alternative | the inspector's Version, under Download |
-| Product | Settings, Archive this product, and in its delete dialog | Settings, Delete this product |
-| Organization | — | Members, Delete this organization, for owners, never the example organization |
+| Product | Settings → the product's General, Archive this product, and in its delete dialog | Settings → the product's General, Delete this product |
+| Organization | — | Settings → the organization's General, Delete this organization, for owners; Delete on its row in Instance admin → Organizations, for an instance owner; never the example organization |
 
 1. The visible control is **Archive**. It is a plain, ordinary action with no confirmation beyond
    an undo toast, because it is reversible. Its tooltip says what archiving does: takes this out of
@@ -1074,97 +1112,87 @@ Copy rules: the word is **delete**, never "remove", "dismiss", "clear" or "hide"
 never described as deleting. A list row showing an archived object says *Archived*, not
 *Deleted*.
 
-## 7.11 Organization, product and account screens
+## 7.11 Settings, Instance admin, and the person's own screens
 
-- **Members** (`/t/<tenant>/members`, from the organization in the account menu, titled
-  "Members"). A key to the roles (organization: owner, admin, member;
-  team or product: admin, editor, viewer, reader), then everyone in the organization in two layers: their
-  **organization** role (member when they have none of their own) and their **access**, the team
-  and product roles that decide which products they can open. A member with no access says so and
-  offers Give access. Each team or product role someone may manage has **Change**, a menu of the
-  roles there, each described in words (granting again at that scope replaces the role, with
-  Undo), and **Remove role**. Removing one takes effect at once with Undo, except a
-  person's only role: that asks first, because it also takes them out of the organization, and a
-  tenant admin may instead keep them as a member; the dialog then asks to remove the role, and
-  offers both. Tenant admins get a menu per person: give access,
-  change the organization role, and **Remove from the organization**, which asks first and lists
-  every role they lose (`members.revoke` with `whole_tenant`). Outstanding invitations ("Waiting
-  to join") show their expiry and a cancel control. **Give access** opens the people editor
-  (below) for a team, a product or the organization itself, chosen first (teams first; the
-  organization's member role says that it opens no product); from a person's own Give access,
-  that person is already chosen. Your own organization role is not changed there. The person's writes and their attribution stay after any removal.
-  Someone who is not an owner or admin of the organization sees only the people on the teams and
-  products they can open, and the owners and admins, as the page says; since they may not see
-  every role a person holds, removing one never asks as if it were the last
-  ([§3.5](03-accounts-teams-and-identity.md)). Below, owners and admins of the organization see
-  **Access changes**: the organization's access log (`members.activity`), drawn as the Activity
-  feed is (§7.9), newest first, with a rename as "renamed the organization to …", someone
-  whose last role was removed as removed from the organization, someone who deleted their own
-  account as "deleted their account and left the organization", and an instance owner's removal of
-  an account as "removed the account of …".
-  Then **Organization name**, for its owners and admins: the name and its short name in links (the
-  slug), each in a field, the short name checked as typed against the server's rule and saying that
-  every product's address begins with it and that links with the old one still lead here. Owners
-  Save changes (`products.rename_tenant`, under the name's etag) or Discard changes; a new short name
-  is confirmed in a toast, and the page's own address then moves to it. Admins read both, told only
-  its owners change them. A change made elsewhere starts the form again from what it is now.
-  Someone who reads only the Story in the organization who opens the address gets a page saying
-  that members aren't shown to Story readers, with a way back to their products
-  ([§3.5](03-accounts-teams-and-identity.md)). The page knows this from `products.list`'s
-  `story_only` and asks for the members only once that has loaded, so it is never refused.
-  Someone outside the organization, or at an address that names none, is told at once that it
-  doesn't exist or they can't see it (§7.1); until the members answer, the page for an
-  organization that isn't theirs shows only that it is loading, not the key to the roles.
-  A guest of the example organization sees a callout that it is the example organization and that
-  its people aren't shown to its guests, and no list.
-  Last, an organization's owners see **Delete this organization** (never the example organization):
-  the dialog lists its products and counts its sources, files (with their size, the files its Plan
-  page counts) and people, and needs a reason and
-  the organization's name typed (§7.10, [§9.5](09-data-lifecycle.md)). It is the only place an
-  organization is deleted; afterwards the overview opens.
-- **Invitation** (`/invite/:token`). Opening the link changes nothing: it asks "Join <organization>?",
-  naming who invited them (in quotation marks, as the name they gave WhatBuild), the role and where
-  it applies, what the role lets them do and until when it is open, with **Accept** (the primary
-  action), **Decline** and **Not now**. Accepting opens the overview with a toast naming the
-  organization and role. Declining stays here and says what it did: they won't join, the link no
-  longer works, the organization's admins see that an invitation was declined and not by whom, and
-  they can ask for a new one. A link they accepted earlier says they are already in, with their
-  role. Otherwise it names why the link can't be used and offers signing in with another address,
-  which returns to the link; an invitation for another address makes that the primary action. Its
-  loading state names nothing, and a failed load offers Try again. Signed out, the link opens
-  sign-in titled "Sign in to see your invitation". It stands outside the guests' gate, so someone
-  invited takes no guest's place to read it and never waits in line for it.
-- **Invitations waiting** ([§3.2](03-accounts-teams-and-identity.md#invitations)). Once signed in, a
-  person sees the invitations waiting for them wherever they land, without the emailed link: above
-  the content of every screen in the shell, in a sheet titled Invitations for you on the first-run
-  screen (`/welcome`) and on the guests' waiting page, where accepting ends the wait. Each row asks
-  "Join <organization>?" in the same words as the link's page, with **Accept** and **Decline**; a
-  screen shows three, and Show more invitations brings the rest. It says nothing while it loads or
-  when none wait, and a failed load offers Try again. Accepting opens the overview with the same
-  toast. Declining says in a toast what the organization sees, and focus moves to the next row's
-  Accept, or to the screen once none is left. A refusal (cancelled meanwhile, say) says why in a
-  toast, and the list is asked for again. On a phone the buttons take a line under the words.
-- **Connect an agent** (`/connect`, or `…/connect` inside a product). [§6.8](06-operations-and-adapters.md):
-  what the agent can reach (one product, one organization, or everything) and the MCP server URL for
-  that scope; sign-in; a first request
-  to try, after saying the agent will ask what it may do (Read only, Edit or Admin); connected
-  agents, each with what it can reach, who holds the connection, its level with a menu to change
-  it, a **Can submit feedback** checkbox under its details (when a tool fails or confuses it, it may
-  tell the developer of WhatBuild), and disconnect; the plain statement about
-  where an agent sends what it reads. Connected agents appear here
-  and nowhere else.
-- **Product settings** (`…/settings`, in the product's shell): name, slug and product concept; **People**;
-  export; the organization; and, for admins, archive or restore and **Delete this product**,
-  whose dialog counts everything in it, needs a reason and the product's name typed, and offers
-  Archive instead while the product is live (§7.10). **People** lists everyone who can reach this
-  product and how, in words: a product role, or a role inherited from the team or the
-  organization (`members.list` with `product`). Product admins get a role picker (admin, editor,
-  viewer, reader) for product roles, **Add people** (the people editor, below, for the product),
-  Remove (revokes the product role only), and
-  outstanding invitations with a cancel control. An inherited role links to the organization's
-  Members, where it is changed. Access is per product; nothing is granted per page or per source.
+- **Settings** (`apps/web/src/shell/settings-dialog.tsx`,
+  [decision](../decisions/the-panel-shows-one-product-and-everything-else-is-in-settings.md)) is
+  one large dialog over the screen the person is on, for everything that is not the product's own
+  work. It is addressed by `?settings=<section>` on whatever screen it is opened over, so a link
+  opens it and reload keeps it; closing it (Esc, its close button or the scrim) takes `?settings`,
+  and what its sections keep in the address, away and leaves the screen as it was, with focus back
+  where it was. Esc first closes a menu or a dialog opened from inside it. Its sections are listed
+  down its left, grouped by whose they are, each group headed by its name; only the sections the
+  person may use are listed:
+  - **the product** the panel shows (not for someone who reads only its Story): General
+    (`product`), People (`product/people`) and Export (`product/export`);
+  - **its organization** (not for someone who reads only the Story there, nor for a guest of the
+    example organization): General (`organization`) and Access changes (`organization/access`) for
+    its owners and admins, People (`organization/people`) for everyone, and Plan
+    (`organization/plan`) where the deployment offers plans;
+  - **You**: Account (`account`) and Agents (`agents`).
+
+  A section asked for that the person can't use opens the first of its group they can, else the
+  first of all. It is opened from the panel's Settings (the product's General; a reader's Account;
+  for an organization with no product, its General, or its People for someone who is not an owner
+  or admin), the account menu's Settings (Account), the empty seat and every Connect an agent
+  button (Agents), the read-only notice's See plan (Plan), Activity entries about the product's
+  settings or its people, Delete account's ways out and Instance admin's organization names, links
+  between sections, and the older addresses that lead to it (§7.3). Another section starts at its top. On a phone it fills the screen and the sections are a
+  select at its head. Over the overview or a page that wasn't found, it is about the product the
+  panel shows there.
+- **The product's General** (`?settings=product`). The product's name and its short name in links
+  (the slug), which its admins change (`products.update`, in the web app only), and its
+  organization, read-only; for admins, archive or restore and **Delete this
+  product**, whose dialog counts everything in it, needs a reason and the product's name typed, and
+  offers Archive instead while the product is live (§7.10). A new short name moves the screen under
+  Settings to the product's new address when that screen is the product's own.
+- **The product's People** (`?settings=product/people`), titled "People on this product". It lists
+  everyone who can reach this product and how, in words: a product role, or a role that comes from
+  all products ("Editor through all products") or from the organization (`members.list` with
+  `product`). Product admins get a role picker (admin, editor, viewer, reader) for product roles,
+  **Add people** (the people editor, below, for the product), Remove (revokes the product role
+  only), and outstanding invitations with a cancel control. An inherited role links to People in
+  the organization, where it is changed; so does the head, for someone who is not an admin. Access
+  is per product; nothing is granted per page or per source.
+- **The product's Export** (`?settings=product/export`): a copy of the whole product to download
+  ([§9.4](09-data-lifecycle.md)).
+- **The organization's General** (`?settings=organization`, for its owners and admins).
+  **Organization name**: the name and its short name in links (the slug), each in a field, the
+  short name checked as typed against the server's rule and saying that every product's address
+  begins with it and that links with the old one still lead here. Owners Save changes
+  (`products.rename_tenant`, under the name's etag) or Discard changes; a new short name is
+  confirmed in a toast. Admins read both, told only its owners change them. A change made elsewhere
+  starts the form again from what it is now. Then, for its owners (never the example
+  organization), **Delete this organization**: the dialog lists its products and counts its
+  sources, files (with their size, the files its Plan counts) and people, and needs a reason and the
+  organization's name typed (§7.10, [§9.5](09-data-lifecycle.md)). Afterwards the overview opens.
+- **The organization's People** (`?settings=organization/people`). A key to the roles
+  (organization: owner, admin, product creator, which creates products and is admin of each one it
+  creates, and member; all products or a product: admin, editor, viewer, reader), then everyone in
+  the organization in two layers: their **organization** role (member when they have none of their
+  own) and their **access**, the roles on all products and on each product that decide which
+  products they can open. A member with no access says so. Each role on all products or on a
+  product someone may manage (only the organization's owners and admins manage roles on all
+  products) has **Change**, a menu of the roles there, each described in words (granting again at
+  that scope replaces the role, with Undo), and **Remove role**. Removing one takes effect at once
+  with Undo, except a person's only role: that asks first, because it also takes them out of the
+  organization, and a tenant admin may instead keep them as a member; the dialog then asks to
+  remove the role, and offers both. Tenant admins get a menu per person: the organization role,
+  and **Remove from the organization**, which asks first and lists every role they lose
+  (`members.revoke` with `whole_tenant`). Outstanding invitations ("Waiting to join") show their
+  expiry and a cancel control. **Add people** opens the people editor (below), titled for where it
+  adds ("Add people to all products", "Add people to Crewboard", "Add people to <organization>"),
+  with **Where** above it: all products (every product, including ones made later) first, then each
+  product, then the organization, whose roles are owner, admin, product creator and member, the
+  last saying that it opens no product. It opens on all products for the organization's owners and
+  admins; a product admin is offered only their products. Your own organization role is not
+  changed there. The person's writes and their attribution stay after any removal.
+  Someone who is not an owner or admin of the organization sees only the people on the products
+  they can open, those with a role on all products, and the owners and admins, as the section
+  says; since they may not see every role a person holds, removing one never asks as if it were
+  the last ([§3.5](03-accounts-and-identity.md)).
 - **The people editor** (`apps/web/src/routes/people-editor.tsx`), a wide dialog that changes who
-  has a role on one product, team or the organization, many people at a time. On the left, under a
+  has a role on one product, on all products or on the organization, many people at a time. On the left, under a
   segmented head: **From the organization**, everyone in it the person can see who has no role
   there, each with a checkbox (a find field above more than six, and **Select all**); or **Paste
   addresses**, a field that reads any list of addresses as it is pasted (separated by commas,
@@ -1175,11 +1203,11 @@ never described as deleting. A list row showing an archived object says *Archive
   opens on Paste addresses. Under either, **Join as**, the role they arrive with, described in
   words. Two arrow buttons between the lists move the people chosen across, and back. On the
   right, everyone there, in groups: **To add**, each with a role picker; **Already here**, each
-  with their role (a picker where the person may change it); and those with access through the
-  team or the organization, each with that role, and a picker that gives a team's people a role
-  of their own here. A group is labelled when there is more than one, and always when its access
+  with their role (a picker where the person may change it); and those with access through all
+  products or the organization ("Through all products", "Through <organization>"), each with that
+  role, and a picker that gives them a role of their own here. A group is labelled when there is more than one, and always when its access
   is inherited. Choosing people on the right puts **Set role…** for all of them in its head, and
-  the left arrow takes them off (struck through, with **Keep**; at a team or product only, saying
+  the left arrow takes them off (struck through, with **Keep**; on all products or a product only, saying
   "Taken off when you save" and when it is their only role there). Nothing changes until **Add N
   people** or **Save changes**, which the foot summarizes beside it: one `members.grant_many` for
   every role given or changed (100 a call), then `members.revoke` for each person taken off. A
@@ -1187,111 +1215,15 @@ never described as deleting. A list row showing an archived object says *Archive
   that only adds says so in a toast ("Added 3 people to Crewboard"); invitations made are then
   listed, each with **Copy link**, and **Copy every link**; one that could not be emailed says so.
   At phone width the lists stack and the arrows point down and up.
-- **Settings** (`/settings`, from the account menu). Display name, and the email the person signs
-  in with (read-only); Sign out everywhere; **Delete account**; below them, quiet links to Cookies
-  and Privacy.
-- **Delete account**, the last section of Settings (`apps/web/src/routes/delete-account.tsx`).
-  Closed, one line says it deletes the account permanently and that the person sees what happens
-  before anything is deleted, over **Delete account…**, which opens it in place
-  (`?delete=account`, so signing in again comes back to it) and reads
-  `products.delete_account_impact`. Open, it says what deleting will do, in the words of
-  `packages/core/src/account-deletion.ts`, naming the organizations the person loses access to,
-  and what stays. Below that, the one step left: every block at once (owning the instance; being
-  the only owner of an organization, each with **Make someone else owner** and **Delete
-  organization**, to its Members at Delete this organization); otherwise, for a browser that signed
-  in more than 15 minutes ago, **Sign in again to continue**, with each sign-in method the
-  deployment offers (the section reads again when a recent sign-in lapses while it is open); then
-  the address typed exactly and **Delete account**, the one danger button, beside **Cancel**,
-  which closes it. A refused delete says the account wasn't deleted, where the form was. Deleted,
-  the browser forgets the person's state and opens **Your account has been deleted**
-  (`/account-deleted`, signed out), which says what stays and that a confirmation was emailed
-  ([§3.2](03-accounts-teams-and-identity.md#32-accounts-and-sign-in)).
-- **Cookies** (`/cookies`, readable signed out; `apps/web/src/routes/cookies.tsx`). What cookies
-  are for, by kind: needed for WhatBuild to work (always on), and, when the deployment uses
-  analytics, Google Analytics with the person's choice, which they change here at any time. Then
-  how the server counts use without cookies, and how to clear them ([§9.1](09-data-lifecycle.md)).
-  It lists no individual cookies.
-- **Privacy** is not a screen of the app: it is a page of the public site
-  ([§7.3](#73-routes), [§9.1](09-data-lifecycle.md)), at the address `privacy_url` in
-  `GET /api/v1/meta` gives (`apps/web/src/shell/privacy-link.tsx`). The sign-in page, Settings,
-  Cookies, an organization's Plan page, the new-organization form and the account-deletion page
-  link to it, opening it in a new tab.
-- **The cookie notice** (`apps/web/src/shell/CookieNotice.tsx`). When the deployment sets an
-  analytics ID (`analytics_id` from `GET /auth/methods`), every screen, signed in or not, carries a
-  small note at the bottom-right inset (flush along the bottom on phones) until the person presses
-  Accept or Decline, which carry equal weight and are remembered in the `wb_cookies` cookie, shared
-  with the public site. It says that cookies keep the person signed in and asks whether analytics
-  cookies may also be used to see how WhatBuild is used, so Accept and Decline plainly answer the
-  analytics question, with a Cookies link to `/cookies`. It blocks nothing and never takes focus;
-  the app works the same whichever is pressed. Without an analytics ID it does not appear; the
-  server gives none to the instance's owners, or on an address that is not the deployment's own.
-  After Accept, each screen is a page view with its path masked, sent once the screen has stayed a
-  moment so that a redirect is not counted; each change the app makes is an event named by the
-  operation the server ran (`X-WhatBuild-Operation`); and search is counted by what was opened and
-  followed, never by its words (`apps/web/src/lib/analytics.ts`, [§9.1](09-data-lifecycle.md)).
-- **Organizations** (`/instance`, from the panel and the account menu, for the instance's owners
-  only; `apps/web/src/routes/instance.tsx`). First **Organizations**, every organization on the
-  instance (`products.organizations`), under a line saying each is on a plan of its own and what
-  plan a new organization starts on here, or, where the deployment offers no plans, that every
-  organization is Unlimited, both set where the service is deployed (`WHATBUILD_PLANS` and
-  `WHATBUILD_NEW_ORGANIZATION_PLAN`): each row its name (a link to its Plan page where the instance owner is in it and reads more than the Story), whether it is
-  the example, what it holds (people besides readers of the Story, whom the plan doesn't count, with
-  invitations waiting; products, sources and storage), who
-  created it and when, how long a read-only one is kept, and today's writes, ending in a Read-only
-  badge where it is, "Plan no longer defined" for one on a plan the deployment no longer defines,
-  its plan's badge and **Change plan** where the deployment offers plans, **Rename** and, but for the example,
-  **Delete**, which opens the dialog an owner's Settings use (what goes, why, its name typed;
-  `products.delete_tenant`, which an instance owner may call in any organization); the line above the rows
-  adds, where new organizations start on a plan the deployment defines, that each person has one
-  organization on it, that moving it to another plan lets them start another, and that one moved
-  back while they have another is read-only for a year; a row says the short names in links it had before. Rename opens a dialog with the name
-  and the short name in links (with those it had before beneath), which says links with its current
-  short name keep leading to it and its access log records the change, and saves under the name's
-  etag (`products.rename_tenant`; an instance owner renames any organization, member or not).
-  Change plan is a link to `/instance?org=<slug>`, which opens **Plan of** the organization: what it
-  holds, then a choice between the deployment's plans and Unlimited, each with its price where the
-  deployment names one, what it is for and its totals in words, the current one marked; when the
-  organization holds more than the chosen plan's totals, a note says by how much and that nothing
-  is removed; when the starting plan would make it read-only (`starting_plan_is_read_only`), a
-  note says so instead: its creator already has an organization on that plan, its people keep
-  reading, exporting and deleting for a year, and another plan makes it writable again; a
-  read-only organization says since when and until when, and choosing the starting plan once its
-  creator has a place for it offers **Make it writable**;
-  **Move to** the chosen plan saves under the plan's etag (`products.set_plan`), and the toast says
-  when it is read-only and until when; closing it takes
-  `org` off the address. Then, where the deployment offers plans, **Plans**: that limits belong to
-  plans, never to one organization, to raise as WhatBuild grows; the plans side by side (below);
-  and in the head a button for each plan, which opens **The** plan: its price, as people read it,
-  then every limit in a field (bytes in MB; a total, or the bytes sent a day, with **No limit**
-  beside it) next to what the deployment's configuration sets, saved under the plan's etag
-  (`products.set_plan_limits`) for every organization on it, with **Back to the configured
-  limits**. Then, where the deployment has an example organization, **Guests**: what a guest is, a badge for whether anyone can sign up as one,
-  how many are in (of the places), waiting, new today (of the day's) and ever, refreshed every half
-  minute, then each setting in a field next to its default, saved together under their etag
-  (`products.set_guests`). Then **Who can start
-  organizations**: what the rule is, the default for every other address and who the owners are;
-  then each address with an allowance: its person or "no account yet", how many it may create and
-  has created, who gave it and when, the note, and what is left. **Let someone start
-  organizations** opens a dialog for an address, a number, a note and whether to tell them by
-  email; Change edits the number and note under the row's etag; Remove returns the address to the
-  default after a confirmation. Where new organizations start on a plan the deployment defines, an
-  allowance counts organizations on it, named by the plan, and moving one to another plan frees its
-  place. Then, where the deployment has an example organization or someone is on it, **Waitlist**:
-  the people who asked for
-  an organization of their own, in the app or on the public site, earliest first, each with their
-  name and address, their organization, when they asked, whether they have signed up, and what
-  they wrote; **Let them start one** gives them an allowance of 1 and emails them, which takes
-  them off it. Anyone
-  else reaching the address is told only instance owners see this.
-- **Plan** (`/t/:tenant/plan`, and `/t/:tenant/limits` as before, in the account menu for every
-  organization the person is in, but one where they read only the Story, where the deployment
-  offers plans; `apps/web/src/routes/limits.tsx`). What a person sees is said in
+- **The organization's Plan** (`?settings=organization/plan`, where `/t/<organization>/plan` and
+  `…/limits` lead; listed where the deployment offers plans; `apps/web/src/routes/limits.tsx`). It
+  is the same for everyone who reads it, an instance owner included. What a person sees is said in
   words, for someone using WhatBuild rather than running it. **Plan**: the plan's name and price,
   what it is for, that everyone in the organization meets its limits, owners and their agents
   included (an unlimited organization has none, and one on a plan the deployment no longer defines
   meets none until it is moved); for a read-only organization, a Read-only mark and a note headed
   with how long it is kept ("Kept until 26 Oct 2027 · 365 days left", the day in UTC, as every
-  refusal and the Organizations page give it) that says it went back to the
+  refusal and Instance admin's Organizations give it) that says it went back to the
   starting plan while whoever started it already has an organization there, what everyone can still
   do there (the sentence every read-only notice gives), and how to move it to another plan, in place of **What you can add**; on
   the starting plan, where there is another, how to move to another plan (write to the deployment's
@@ -1310,15 +1242,74 @@ never described as deleting. A list row showing an archived object says *Archive
   smaller, attachments on a source, mockups and Story pages in a product, and, where the plan says
   so, that files must be in a format WhatBuild reads (a plan with `documents_only` off keeps any
   file) or that adding a file from a link is off. Then **Plans**, the plans side by side with this
-  one marked **Your plan**, where the deployment offers plans.
-  The refusal a call over a limit gets, the deployment's other limits and what sets them are shown
-  only to an owner of the instance, who also sees **Change plan** where the deployment offers plans, a link to the organization's
-  dialog on the instance's page, **Limits of the** plan (one row each: what it counts and over
-  what, what it allows, what is used, the refusal) and **Limits of this deployment**, with what sets
-  each. A guest of the example reaching the address is told its plan sets nothing for them but how
-  often they can call. Someone who reads only the Story there reaching the address is told the plan
-  isn't shown to Story readers, with a way back to their products, as Members tells them, and the
-  page never asks for it, since `products.list` marks that organization `story_only`.
+  one marked **Your plan**. Nothing here changes a plan or a limit: an instance owner moves an
+  organization to another plan, and reads every limit with the refusal a call over it gets, in
+  Instance admin. Settings knows from `products.list`'s `story_only` whom to leave Plan out for, so
+  it never asks for a plan it would be refused.
+- **The organization's Access changes** (`?settings=organization/access`, for its owners and
+  admins): the organization's access log (`members.activity`), drawn as the Activity feed is
+  (§7.9), newest first, with a rename as "renamed the organization to …", someone whose last role
+  was removed as removed from the organization, someone who deleted their own account as "deleted
+  their account and left the organization", and an instance owner's removal of an account as
+  "removed the account of …".
+- **Account** (`?settings=account`). Display name, and the email the person signs in with
+  (read-only); for a guest of the example organization, **Example organization**, whether the
+  product switch offers it ("It stays on the overview either way"; the account's `hide_example`);
+  **Delete account** (below); then quiet links to Cookies and Privacy.
+- **Delete account**, in Settings under Account (`apps/web/src/routes/delete-account.tsx`).
+  Closed, one line says it deletes the account permanently and that the person sees what happens
+  before anything is deleted, over **Delete account…**, which opens it in place
+  (`?delete=account`, so signing in again comes back to it) and reads
+  `products.delete_account_impact`. Open, it says what deleting will do, in the words of
+  `packages/core/src/account-deletion.ts`, naming the organizations the person loses access to,
+  and what stays. Below that, the one step left: every block at once (owning the instance; being
+  the only owner of an organization, each with **Make someone else owner**, opening Settings at that
+  organization's People, and **Delete organization**, at its General); otherwise, for a browser that signed
+  in more than 15 minutes ago, **Sign in again to continue**, with each sign-in method the
+  deployment offers (the section reads again when a recent sign-in lapses while it is open); then
+  the address typed exactly and **Delete account**, the one danger button, beside **Cancel**,
+  which closes it. A refused delete says the account wasn't deleted, where the form was. Deleted,
+  the browser forgets the person's state and opens **Your account has been deleted**
+  (`/account-deleted`, signed out), which says what stays and that a confirmation was emailed
+  ([§3.2](03-accounts-and-identity.md#32-accounts-and-sign-in)).
+- **Agents** (`?settings=agents`, where `/connect` leads). **Connect an agent**
+  ([§6.8](06-operations-and-adapters.md)): the one address to paste, `/mcp`, then, behind a quiet
+  button, what the agent can reach (one product, one organization, or everything) and the MCP
+  server URL for that scope, the product Settings is open over chosen first; sign-in; a first
+  request to try, after saying the agent will ask what it may do (Read only, Edit or Admin); the
+  plain statement about where an agent sends what it reads. Then **Connected agents**, each with
+  what it can reach, who holds the connection, its level with a menu to change it, a **Can submit
+  feedback** checkbox under its details (when a tool fails or confuses it, it may tell the
+  developer of WhatBuild), and disconnect. Connected agents appear here and nowhere else. Last,
+  **Sign out everywhere**: every browser the person is signed in on and every agent they
+  connected, at once, which asks first and offers Everywhere else to keep this browser signed in;
+  signed out here too, the person lands on sign-in. The choice of reach is held in the address
+  (`?reach=product|organization|all`, with `&product=<path>` or `&org=<slug>`).
+- **`/settings` as a page of its own**, for someone with no product to open Settings over (a guest
+  still waiting for a place, or someone in no organization on a WhatBuild without an example
+  organization): Account and Sign out everywhere, on the plain stage.
+- **Invitation** (`/invite/:token`). Opening the link changes nothing: it asks "Join <organization>?",
+  naming who invited them (in quotation marks, as the name they gave WhatBuild), the role and where
+  it applies, what the role lets them do and until when it is open, with **Accept** (the primary
+  action), **Decline** and **Not now**. Accepting opens the overview with a toast naming the
+  organization and role. Declining stays here and says what it did: they won't join, the link no
+  longer works, the organization's admins see that an invitation was declined and not by whom, and
+  they can ask for a new one. A link they accepted earlier says they are already in, with their
+  role. Otherwise it names why the link can't be used and offers signing in with another address,
+  which returns to the link; an invitation for another address makes that the primary action. Its
+  loading state names nothing, and a failed load offers Try again. Signed out, the link opens
+  sign-in titled "Sign in to see your invitation". It stands outside the guests' gate, so someone
+  invited takes no guest's place to read it and never waits in line for it.
+- **Invitations waiting** ([§3.2](03-accounts-and-identity.md#invitations)). Once signed in, a
+  person sees the invitations waiting for them wherever they land, without the emailed link: above
+  the content of every screen in the shell, in a sheet titled Invitations for you on the first-run
+  screen (`/welcome`) and on the guests' waiting page, where accepting ends the wait. Each row asks
+  "Join <organization>?" in the same words as the link's page, with **Accept** and **Decline**; a
+  screen shows three, and Show more invitations brings the rest. It says nothing while it loads or
+  when none wait, and a failed load offers Try again. Accepting opens the overview with the same
+  toast. Declining says in a toast what the organization sees, and focus moves to the next row's
+  Accept, or to the screen once none is left. A refusal (cancelled meanwhile, say) says why in a
+  toast, and the list is asked for again. On a phone the buttons take a line under the words.
 - **The waiting page** (any signed-in address, for a guest account that is not in; `GuestGate` in
   `apps/web/src/shell/guest-gate.tsx`). A guest account sees the app only while it holds a place
   (`GET /api/v1/me/guest-pass`). The app asks only when the guest does something: when it opens,
@@ -1332,23 +1323,104 @@ never described as deleting. A list row showing an archived object says *Archive
   or **You've used today's time**, with when it starts again; or that no guests are let in, with
   **Try again**. Then what a guest may
   do, that organizations of one's own open a few at a time, **Ask for your own organization** (or,
-  once asked, since when they are on the waitlist), **Sign out** and **Settings**, which a waiting
-  guest still reaches. A guest that is in sees, on the example's one-line notice, the time
+  once asked, since when they are on the waitlist), **Sign out** and **Settings** (`/settings`, a
+  page of its own for them), which a waiting guest still reaches. A guest that is in sees, on the example's one-line notice, the time
   left today.
-- **Plans** (`/plans`, readable signed out; `apps/web/src/routes/plans.tsx`, and the public site's
-  `/plans`). The plans the deployment offers side by side (`GET /api/v1/plans`), as one table
-  (`apps/web/src/routes/plan-comparison.tsx`) the site, the app's page, an organization's Plan and
-  the instance's page all show: each plan's name, its price as the deployment writes it (none shown
-  where it gives none: "No charge" is a price a deployment may write), what it is for; then a few rows anyone reads at
-  a glance (people, products, sources, storage, the largest file, whether recordings, images and
-  any file are kept, an agent through MCP, readers who see only the Story, taking everything out,
-  changes a day), each with a short note where a word needs it, an included feature as a check and
-  one left out as a dash, each read aloud as a word; a line that each organization has a plan of its
-  own, billed on its own where a plan has a price; and **Every limit** behind a disclosure, every limit of every plan with
-  what it is counted over. Where the deployment offers no plans, `/plans` says so and compares
-  nothing, and the public site leaves out its link to Plans.
-- **People** (`/people`, from the panel and the account menu, for the instance's owners only;
-  `apps/web/src/routes/people.tsx`). Every account (`products.accounts`): its name and address,
+- **Cookies** (`/cookies`, readable signed out; `apps/web/src/routes/cookies.tsx`). What cookies
+  are for, by kind: needed for WhatBuild to work (always on), and, when the deployment uses
+  analytics, Google Analytics with the person's choice, which they change here at any time. Then
+  how the server counts use without cookies, and how to clear them ([§9.1](09-data-lifecycle.md)).
+  It lists no individual cookies.
+- **Privacy** is not a screen of the app: it is a page of the public site
+  ([§7.3](#73-routes), [§9.1](09-data-lifecycle.md)), at the address `privacy_url` in
+  `GET /api/v1/meta` gives (`apps/web/src/shell/privacy-link.tsx`). The sign-in page, Account in
+  Settings, Cookies, an organization's Plan, the new-organization form and the account-deletion page
+  link to it, opening it in a new tab.
+- **The cookie notice** (`apps/web/src/shell/CookieNotice.tsx`). When the deployment sets an
+  analytics ID (`analytics_id` from `GET /auth/methods`), every screen, signed in or not, carries a
+  small note at the bottom-right inset (flush along the bottom on phones) until the person presses
+  Accept or Decline, which carry equal weight and are remembered in the `wb_cookies` cookie, shared
+  with the public site. It says that cookies keep the person signed in and asks whether analytics
+  cookies may also be used to see how WhatBuild is used, so Accept and Decline plainly answer the
+  analytics question, with a Cookies link to `/cookies`. It blocks nothing and never takes focus;
+  the app works the same whichever is pressed. Without an analytics ID it does not appear; the
+  server gives none to the instance's owners, or on an address that is not the deployment's own.
+  After Accept, each screen is a page view with its path masked, sent once the screen has stayed a
+  moment so that a redirect is not counted; each change the app makes is an event named by the
+  operation the server ran (`X-WhatBuild-Operation`); and search is counted by what was opened and
+  followed, never by its words (`apps/web/src/lib/analytics.ts`, [§9.1](09-data-lifecycle.md)).
+- **Instance admin** (`/admin`, for the instance's owners only; `apps/web/src/routes/admin.tsx`,
+  [decision](../decisions/the-panel-shows-one-product-and-everything-else-is-in-settings.md)).
+  Running this WhatBuild is a place of its own, outside every product, reached from the account
+  menu's Instance admin. Anyone else at any address under `/admin` is told the page wasn't found, so
+  nobody else learns it exists. It has its own panel: a head, "Instance admin", over "Only this
+  WhatBuild's owners see this"; its sections, **Organizations**, **People**, **Plans** where the
+  deployment offers plans, **Guests** where it has an example organization, and **Starting
+  organizations**, with how many people are waiting for an organization beside it; then **Back to**
+  the product the person was last in (or Back to WhatBuild, the overview); and the account menu at
+  its foot. `/admin` opens Organizations.
+  - **Organizations** (`/admin/organizations`): every organization on the
+  instance (`products.organizations`), under a line saying each is on a plan of its own and what
+  plan a new organization starts on here, or, where the deployment offers no plans, that every
+  organization is Unlimited, both set where the service is deployed (`WHATBUILD_PLANS` and
+  `WHATBUILD_NEW_ORGANIZATION_PLAN`): each row its name (a link opening Settings at its Plan where the instance owner is in it and reads more than the Story), whether it is
+  the example, what it holds (people besides readers of the Story, whom the plan doesn't count, with
+  invitations waiting; products, sources and storage), who
+  created it and when, how long a read-only one is kept, and today's writes, ending in a Read-only
+  badge where it is, "Plan no longer defined" for one on a plan the deployment no longer defines,
+  its plan's badge and **Change plan** where the deployment offers plans, **Rename** and, but for the example,
+  **Delete**, which opens the dialog an owner's Settings use (what goes, why, its name typed;
+  `products.delete_tenant`, which an instance owner may call in any organization); the line above the rows
+  adds, where new organizations start on a plan the deployment defines, that each person has one
+  organization on it, that moving it to another plan lets them start another, and that one moved
+  back while they have another is read-only for a year; a row says the short names in links it had before. Rename opens a dialog with the name
+  and the short name in links (with those it had before beneath), which says links with its current
+  short name keep leading to it and its access log records the change, and saves under the name's
+  etag (`products.rename_tenant`; an instance owner renames any organization, member or not).
+  Change plan opens **Plan of** the organization, a dialog over the list (`?org=<slug>`): what it
+  holds, then a choice between the deployment's plans and Unlimited, each with its price where the
+  deployment names one, what it is for and its totals in words, the current one marked; when the
+  organization holds more than the chosen plan's totals, a note says by how much and that nothing
+  is removed; when the starting plan would make it read-only (`starting_plan_is_read_only`), a
+  note says so instead: its creator already has an organization on that plan, its people keep
+  reading, exporting and deleting for a year, and another plan makes it writable again; a
+  read-only organization says since when and until when, and choosing the starting plan once its
+  creator has a place for it offers **Make it writable**;
+  **Move to** the chosen plan saves under the plan's etag (`products.set_plan`), and the toast says
+  when it is read-only and until when; closing it takes
+  `org` off the address and leaves the list as it was.
+  - **People** (`/admin/people`; `apps/web/src/routes/people.tsx`): every account, below.
+  - **Plans** (`/admin/plans`, where the deployment offers plans; elsewhere it says this WhatBuild
+    offers none and every organization is Unlimited): that limits belong to
+  plans, never to one organization, to raise as WhatBuild grows; the plans side by side (below);
+  and in the head a button for each plan, which opens **The** plan: its price, as people read it,
+  then every limit in a field (bytes in MB; a total, or the bytes sent a day, with **No limit**
+  beside it) next to what the deployment's configuration sets, saved under the plan's etag
+  (`products.set_plan_limits`) for every organization on it, with **Back to the configured
+  limits**. Then **Limits of the** plan of one of the owner's own organizations (one row each: what
+  it counts and over what, what it allows, what is used, the refusal a call over it gets) and
+  **Limits of this deployment**, with what sets each, which are the same for every organization;
+  an owner in no organization of their own has the plans side by side only.
+  - **Guests** (`/admin/guests`, where the deployment has an example organization): what a guest is, a badge for whether anyone can sign up as one,
+  how many are in (of the places), waiting, new today (of the day's) and ever, refreshed every half
+  minute, then each setting in a field next to its default, saved together under their etag
+  (`products.set_guests`).
+  - **Starting organizations** (`/admin/starting`; `apps/web/src/routes/instance.tsx`): **Who can start
+  organizations**: what the rule is, the default for every other address and who the owners are;
+  then each address with an allowance: its person or "no account yet", how many it may create and
+  has created, who gave it and when, the note, and what is left. **Let someone start
+  organizations** opens a dialog for an address, a number, a note and whether to tell them by
+  email; Change edits the number and note under the row's etag; Remove returns the address to the
+  default after a confirmation. Where new organizations start on a plan the deployment defines, an
+  allowance counts organizations on it, named by the plan, and moving one to another plan frees its
+  place. Then, where the deployment has an example organization or someone is on it, **Waitlist**:
+  the people who asked for
+  an organization of their own, in the app or on the public site, earliest first, each with their
+  name and address, their organization, when they asked, whether they have signed up, and what
+  they wrote; **Let them start one** gives them an allowance of 1 and emails them, which takes
+  them off it.
+- **People** in Instance admin (`/admin/people`; `apps/web/src/routes/people.tsx`), whose line
+  says that letting someone in is an allowance under Starting organizations. Every account (`products.accounts`): its name and address,
   where it stands in each organization, when it joined and was last seen, how many browsers and
   agents it has signed in, and its address's allowance, with a badge for the person themselves and
   for an owner of the instance; a find field once the list is long. **Remove** (on every account
@@ -1359,9 +1431,20 @@ never described as deleting. A list row showing an archived object says *Archive
   a note above says they are deleted too, one line each with what it holds (its products by name,
   sources, files) and how many other people lose their roles there, and the button says "Remove
   account and delete" them; the only owner of the example organization can't be removed
-  ([§3.2](03-accounts-teams-and-identity.md#32-accounts-and-sign-in)). Anyone else reaching the
-  address is told only instance owners see it.
-- **The example organization** ([§3.10](03-accounts-teams-and-identity.md)), in
+  ([§3.2](03-accounts-and-identity.md#32-accounts-and-sign-in)).
+- **Plans** (`/plans`, readable signed out; `apps/web/src/routes/plans.tsx`, and the public site's
+  `/plans`). The plans the deployment offers side by side (`GET /api/v1/plans`), as one table
+  (`apps/web/src/routes/plan-comparison.tsx`) the site, the app's page, an organization's Plan and
+  Instance admin's Plans all show: each plan's name, its price as the deployment writes it (none shown
+  where it gives none: "No charge" is a price a deployment may write), what it is for; then a few rows anyone reads at
+  a glance (people, products, sources, storage, the largest file, whether recordings, images and
+  any file are kept, an agent through MCP, readers who see only the Story, taking everything out,
+  changes a day), each with a short note where a word needs it, an included feature as a check and
+  one left out as a dash, each read aloud as a word; a line that each organization has a plan of its
+  own, billed on its own where a plan has a price; and **Every limit** behind a disclosure, every limit of every plan with
+  what it is counted over. Where the deployment offers no plans, `/plans` says so and compares
+  nothing, and the public site leaves out its link to Plans.
+- **The example organization** ([§3.10](03-accounts-and-identity.md)), in
   `apps/web/src/shell/ExampleBanner.tsx`. Every screen of a product in it carries a notice above
   its content. To a guest, under "This is the example organization", it says it is a worked
   discovery to read, search and point an agent at, and that nothing in it can be changed, with
@@ -1372,11 +1455,12 @@ never described as deleting. A list row showing an archived object says *Archive
   one of its authors and that what they change there is what everyone who signs in sees. It shows nothing while it loads, so no screen waits for it. The
   overview lists the example organization after the person's own, headed **Example organization**
   with its name after it and Read only for a guest, over a line on what it is for (to a guest: a
-  worked discovery to read in order, Idea, Evidence, Exploration and Story); a guest's head offers **Hide from the panel** or **Show in the panel**, the
-  account's own choice (`hide_example`), and so does **Example organization** in their Settings.
-  Inside a product of the example, the product switcher's line says "Example organization · " and
-  its name. The account menu leaves its Members out for a guest.
+  worked discovery to read in order, Idea, Evidence, Exploration and Story); a guest's head offers **Hide from the switcher** or **Show in the switcher**,
+  whether the product switch offers it under Switch organization, the account's own choice
+  (`hide_example`), and so does **Example organization** in Settings under Account. Inside a
+  product of the example, the product switch's line says "Example organization · " and its name.
+  Settings leaves the organization's sections out for a guest.
 - **Planned:** organization settings with usage against every limit shown as fractions
   ([§9.2](09-data-lifecycle.md)), organization export, and a danger zone
   holding only owner-gated actions (transfer ownership, close the organization), each behind a
-  typed confirmation; active sessions and delete account in the person's Settings.
+  typed confirmation; active sessions in the person's Settings.

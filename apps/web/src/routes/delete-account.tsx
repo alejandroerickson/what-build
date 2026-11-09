@@ -187,11 +187,11 @@ function OnlyOwner({ orgs }: { orgs: AccountDeleteImpact["organizations"] }) {
           <li key={o.slug} className="farewell-block">
             <OneLine className="farewell-block-name" text={o.name} />
             <div className="farewell-block-actions">
-              <ButtonLink size="sm" to={`/t/${o.slug}/members`} aria-label={`Make someone else owner of ${o.name}`}>
+              <ButtonLink size="sm" to={`/t/${o.slug}?settings=organization/people`} aria-label={`Make someone else owner of ${o.name}`}>
                 Make someone else owner
               </ButtonLink>
               {o.example ? null : (
-                <ButtonLink size="sm" variant="quiet" to={`/t/${o.slug}/members#delete-org-title`} aria-label={`Delete organization ${o.name}`}>
+                <ButtonLink size="sm" variant="quiet" to={`/t/${o.slug}?settings=organization`} aria-label={`Delete organization ${o.name}`}>
                   Delete organization
                 </ButtonLink>
               )}

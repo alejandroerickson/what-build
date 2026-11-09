@@ -3,7 +3,7 @@ type: System Concept
 title: Copying an organization out of a deployment, into a local copy, the golden master, the dev deployment or another deployment's new database
 description: What a copy of one or more organizations holds and leaves behind, which organizations a copy outside production may hold (only those an instance owner owns), taking one with pnpm fixture pull, where each kind of copy goes, moving an organization into another deployment, and what a copy cannot do.
 tags: [operations, production, privacy, tenancy, fixture, dev, migrations]
-generated: {by: agent:claude, at: 2026-10-27}
+generated: {by: agent:claude, at: 2026-11-09}
 status: draft
 ---
 
@@ -44,7 +44,7 @@ production's own accounts.
 
 | Holds | Leaves behind |
 |---|---|
-| the organizations: settings, teams, products and everything in them, invitations, activity, queued jobs | every other organization |
+| the organizations: settings, products and everything in them, invitations, activity, queued jobs | every other organization |
 | the accounts their rows refer to, chiefly their members, with addresses and names | every other account |
 | the record of migrations, so the database it lands in knows its schema | sessions, agents' connections and tokens, sign-in links |
 | their files: everything under `t/<tenant_id>/` in the bucket | allowances to create organizations, the public site's interest list, usage counts, feedback and its daily counts |
@@ -125,7 +125,7 @@ production.
 5. **People** sign in by the same address and find their places. Sessions and agents'
    connections stay behind, so each agent connects again. Instance owners and the sign-up allowlist
    are the target's own settings. A copied organization keeps its plan; an instance owner of the
-   target changes it on `/instance`. The target names no example organization unless it is the
+   target changes it in Instance admin, under Organizations. The target names no example organization unless it is the
    maintainer's public deployment ([Cloud Run](cloud-run.md)).
 6. **Delete the copy:** `rm -r $D`.
 

@@ -1,9 +1,9 @@
 ---
 type: Decision
 title: A reader reads only the Story, never the evidence behind it
-description: A team or product role below viewer for stakeholders, enforced by the server: Story pages, their versions and their export, without the notes agents keep on them.
+description: A product role, given on a product or on all products, below viewer for stakeholders, enforced by the server: Story pages, their versions and their export, without the notes agents keep on them.
 tags: [decision, access, roles, story, stakeholders]
-generated: {by: agent:claude, at: 2026-10-31}
+generated: {by: agent:claude, at: 2026-11-09}
 status: stable
 ---
 
@@ -20,19 +20,19 @@ product as anyone else does. It revises one consequence of
 
 ## Decision
 
-- `reader` is a team and product role below `viewer`. It is not an organization role.
+- `reader` is a product role below `viewer`, given on a product or on all products. It is not an organization role.
 - Operations declare a fourth access level, `story`, which a reader meets: reading Story pages,
   their versions and the hierarchy, a page's HTML, and the print view (export). `products.get` is
   `story` too, and `products.list` lists every product the caller holds a role on, so a reader can
   find and open the product.
 - Everything else needs `viewer` at least, and answers a reader `403` naming both roles.
 - That includes the organization's people. Someone who reads only the Story everywhere in an
-  organization (a reader on its teams or products, with no higher role there and no organization
-  role but member) is refused its members and invitations (`members.list`, `403`), and the app
-  leaves its Members out for them. The maintainer chose this on 2026-10-10: a Story is often read
+  organization (a reader on all its products or on some of them, with no higher role there and no
+  organization role but member or product creator) is refused its members and invitations (`members.list`, `403`), and the app's
+  Settings leaves the organization's sections out for them. The maintainer chose this on 2026-10-10: a Story is often read
   outside the team, and who works on it stays with the team.
 - That includes what the organization holds. The same person is refused its plan's limits and its
-  totals (`products.limits`, `403`), and the app's Plan says it isn't shown to them: how many people,
+  totals (`products.limits`, `403`), and the app's Settings does not list its Plan for them: how many people,
   products and sources it holds stays with the team, as a reader's product reads count Story pages
   only.
 - A reader is given only the Story's live pages. An archived page, one the team took out of the
@@ -72,10 +72,10 @@ product as anyone else does. It revises one consequence of
 - An evidence link inside a page leads a reader nowhere they can read: the app takes them back to
   the Story, with a toast saying they can read only the Story, so the return is never silent.
 - The app's Story shows a reader no Archived pages group, since the server gives them none.
-- The highest role still applies: a reader on a product who is a viewer on its team is a viewer,
+- The highest role still applies: a reader on a product who is a viewer on all products is a viewer,
   and a reader on one product who is a viewer on another in the same organization sees the people
   on that other product, never those of the one they only read
-  ([§3.5](../spec/03-accounts-teams-and-identity.md)).
+  ([§3.5](../spec/03-accounts-and-identity.md)).
 
 ## Constrains
 
@@ -87,4 +87,4 @@ product as anyone else does. It revises one consequence of
 - A write on a grant given earlier checks the requester's role again when it lands: the upload
   relay stores nothing for someone made a reader since (`apps/server/src/uploads.ts`).
 
-Specified in: [03-accounts-teams-and-identity](../spec/03-accounts-teams-and-identity.md) §3.5.
+Specified in: [03-accounts-and-identity](../spec/03-accounts-and-identity.md) §3.5.

@@ -67,4 +67,4 @@ of every row and a product-cloning feature that does not exist.
   (`packages/core/src/public-sandbox-baseline.ts`); a test fails otherwise.
 - Code that writes attribution uses `ctx.actor`, never the account's own name.
 
-Specified in: [§3.10](../spec/03-accounts-teams-and-identity.md), [§9.7](../spec/09-data-lifecycle.md), [§6](../spec/06-operations-and-adapters.md).
+Specified in: [§3.10](../spec/03-accounts-and-identity.md), [§9.7](../spec/09-data-lifecycle.md), [§6](../spec/06-operations-and-adapters.md).

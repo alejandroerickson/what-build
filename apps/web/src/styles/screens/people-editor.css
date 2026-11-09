@@ -1,4 +1,4 @@
-/* Who has a role on a product, a team or the organization, changed many at a time (people-editor.tsx). */
+/* Who has a role on a product, on all products or in the organization, changed many at a time (people-editor.tsx). */
 
 .dialog.pe-dialog {
   width: min(960px, calc(100vw - 32px));
