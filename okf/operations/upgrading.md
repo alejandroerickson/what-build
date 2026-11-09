@@ -25,6 +25,13 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
 
 Nothing yet.
 
+## v0.33.3
+
+- **Nothing needs doing.** No migration, setting or step. The tools are unchanged (version 0.60.0).
+- **It changes parsing:** `@napi-rs/canvas`, which the PDF parser loads while it parses, is now
+  1.1.0. A deployment that rehearses a release that changes parsing before taking it
+  ([releasing](releasing.md#moving-production)) rehearses this one.
+
 ## v0.33.2
 
 - **Nothing needs doing.** No migration, setting or step. The tools are unchanged (version 0.60.0).
