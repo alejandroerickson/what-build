@@ -16,8 +16,7 @@ export interface Organization {
   ownerAccountId: string;
   /** Its tenant, with the etag that guards its name. */
   tenant: { id: string; slug: string; nameEtag: string };
-  team: { id: string; slug: string };
-  /** Its main product, and a second one in the same team (a target for moving and copying sources). */
+  /** Its main product, and a second one in the same organization. */
   product: { id: string; slug: string; path: string; etag: string };
   annex: { id: string; path: string };
   outcome: { id: string; etag: string };
@@ -50,9 +49,8 @@ export async function buildOrganization(h: Harness, owner: Browser, name: string
   const me = ok(await owner.api("GET", "/api/v1/me"), 200);
   const t = ok(await owner.api("POST", "/api/v1/tenants", { name }));
   const tenant = { id: t.tenant.tenant_id as string, slug: t.tenant.slug as string, nameEtag: t.tenant.name_etag as string };
-  const team = { id: t.team.team_id as string, slug: t.team.slug as string };
-  const p = ok(await owner.api("POST", `/api/v1/teams/${tenant.slug}/${team.slug}/products`, { name: `${marker} Atlas`, concept: `${marker} concept: what the product is for.` }));
-  const a = ok(await owner.api("POST", `/api/v1/teams/${tenant.slug}/${team.slug}/products`, { name: `${marker} Annex` }));
+  const p = ok(await owner.api("POST", `/api/v1/tenants/${tenant.slug}/products`, { name: `${marker} Atlas`, concept: `${marker} concept: what the product is for.` }));
+  const a = ok(await owner.api("POST", `/api/v1/tenants/${tenant.slug}/products`, { name: `${marker} Annex` }));
   const P = `/api/v1/p/${p.path}`;
 
   const o = ok(await owner.api("POST", `${P}/outcomes`, { title: `${marker} outcome: crews plan the week`, description: `${marker} outcome description.` }));
@@ -119,7 +117,7 @@ export async function buildOrganization(h: Harness, owner: Browser, name: string
   await h.worker.drain();
 
   const memberEmail = `${marker.toLowerCase()}-member@example.com`;
-  ok(await owner.api("POST", `/api/v1/tenants/${tenant.slug}/members`, { team: team.slug, email: memberEmail, role: "viewer" }));
+  ok(await owner.api("POST", `/api/v1/tenants/${tenant.slug}/members`, { all_products: true, email: memberEmail, role: "viewer" }));
   const member = await h.signIn(memberEmail, `${marker} Member`);
   const memberId = ok(await member.api("GET", "/api/v1/me"), 200).account_id as string;
   const invited = ok(await owner.api("POST", `/api/v1/tenants/${tenant.slug}/members`, { product: p.product_id, email: `${marker.toLowerCase()}-invitee@example.com`, role: "editor" }));
@@ -136,8 +134,7 @@ export async function buildOrganization(h: Harness, owner: Browser, name: string
     owner,
     ownerAccountId: me.account_id,
     tenant,
-    team,
-    product: { id: p.product_id, slug: p.path.split("/")[2], path: p.path, etag: product.etag },
+    product: { id: p.product_id, slug: p.path.split("/")[1], path: p.path, etag: product.etag },
     annex: { id: a.product_id, path: a.path },
     outcome: { id: o.outcome_id, etag: o2.etag },
     source: {
@@ -167,7 +164,6 @@ export async function buildOrganization(h: Harness, owner: Browser, name: string
     tenant.id,
     tenant.slug,
     tenant.nameEtag,
-    team.id,
     org.product.id,
     org.product.slug,
     org.annex.id,

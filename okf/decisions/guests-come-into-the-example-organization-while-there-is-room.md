@@ -59,4 +59,4 @@ open neither holds a place nor keeps a database that suspends when idle awake.
 - The web app shows a guest account the waiting page (`GuestGate`) while it is not in, and asks
   for the place only when the guest does something, never on a timer.
 
-Specified in: [§3.2](../spec/03-accounts-teams-and-identity.md#32-accounts-and-sign-in), [§3.10](../spec/03-accounts-teams-and-identity.md#310-the-example-organization), [§9.7](../spec/09-data-lifecycle.md#97-plans-and-limits).
+Specified in: [§3.2](../spec/03-accounts-and-identity.md#32-accounts-and-sign-in), [§3.10](../spec/03-accounts-and-identity.md#310-the-example-organization), [§9.7](../spec/09-data-lifecycle.md#97-plans-and-limits).

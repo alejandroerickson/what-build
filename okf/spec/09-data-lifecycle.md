@@ -53,10 +53,10 @@ Supporting commitments, each of which is a rule elsewhere in this spec:
 
 | We say | Enforced by |
 |---|---|
-| Operational telemetry stays about the service | [§2.8](02-architecture.md) — request logs carry method, path with ids masked and organizations, teams and products named only by kind, status, duration and the request's ID; never content, email addresses or tokens (`apps/server/src/app.ts`). Traces, when a deployment sends them, carry less: patterns, names of operations, kinds and codes, never a statement's text or an error's message (`apps/server/src/telemetry.ts`). On Cloud Run, the platform's own request log keeps no address with a query or an invitation link in it ([log exclusion](../operations/cloud-run.md)), and its own request spans are not kept, because traces go to a project that runs nothing ([decision](../decisions/alerts-watch-the-platform-and-traces-go-to-a-project-of-their-own.md)) |
+| Operational telemetry stays about the service | [§2.8](02-architecture.md) — request logs carry method, path with ids masked and organizations and products named only by kind, status, duration and the request's ID; never content, email addresses or tokens (`apps/server/src/app.ts`). Traces, when a deployment sends them, carry less: patterns, names of operations, kinds and codes, never a statement's text or an error's message (`apps/server/src/telemetry.ts`). On Cloud Run, the platform's own request log keeps no address with a query or an invitation link in it ([log exclusion](../operations/cloud-run.md)), and its own request spans are not kept, because traces go to a project that runs nothing ([decision](../decisions/alerts-watch-the-platform-and-traces-go-to-a-project-of-their-own.md)) |
 | Use is counted without naming anyone | Below: counts by operation, and people under a keyed pseudonym kept 14 months, read only by the instance's owners (`packages/core/src/usage.ts`, [decision](../decisions/the-server-counts-how-whatbuild-is-used-naming-nobody.md)) |
 | No model training on your content | [§2.8](02-architecture.md) — there is no language model in the product (`/api/v1/meta` says so) |
-| Isolation per organization | [§3.6](03-accounts-teams-and-identity.md) — three layers, tested on every operation |
+| Isolation per organization | [§3.6](03-accounts-and-identity.md) — three layers, tested on every operation |
 | Export is complete and always available | [§9.4](#94-taking-it-with-you) and [§1.5](01-product.md) |
 | Analytics only for people who accept | The notice and `/cookies` ([§7.11](07-web-app.md)); Google's script loads only after Accept (`apps/web/src/lib/analytics.ts`) |
 | We say who else handles it | The privacy page says so in the deployment's own words (`WHATBUILD_PROVIDERS`), above; the sign-in page links to it. Keeping it true before a provider changes is the operator's. |
@@ -65,7 +65,7 @@ Supporting commitments, each of which is a rule elsewhere in this spec:
 **Cookies and browser storage.** WhatBuild uses cookies and browser storage of two kinds. The
 needed kind is always on: the session cookie that keeps a person signed in, two short-lived ones
 that protect a sign-in with Google or Microsoft and an agent's connection while they happen
-([§3.8](03-accounts-teams-and-identity.md)), display choices kept in the browser under
+([§3.8](03-accounts-and-identity.md)), display choices kept in the browser under
 `whatbuild.*`, and `wb_cookies`, which remembers the person's answer below. A browser can pass
 from one person to the next, so the display state that is one person's (the product they had open,
 their place in each Story and mockup, the Story's focus, the example organization's notice they have read, their
@@ -79,7 +79,7 @@ domain, so one answer covers both. Google Analytics loads only after Accept. Eve
 same either way, and `/cookies` (or Cookies in the site's footer) changes the answer later
 ([§7.11](07-web-app.md)). What reaches Google names the page and the action, never the
 organization, product, record or content: page views carry a masked path such as
-`/t/:org/:team/:product/story/:id` and a fixed title; each change the app makes is an event named
+`/t/:org/:product/story/:id` and a fixed title; each change the app makes is an event named
 by the operation the server ran, such as `assumptions_create`; search is counted by what was
 followed (the kind of result and its place in the list) and whether it found anything, never by
 its words; a request to hear from us is `generate_lead`. The instance's owners are never measured,
@@ -100,7 +100,7 @@ content. Only the instance's owners read the totals (`products.usage`), which le
 unless asked. `/cookies` says so under Counting without cookies.
 
 **In the example organization** nobody but its own members writes, and every account reads what
-they write; every screen there says so ([§3.10](03-accounts-teams-and-identity.md#310-the-example-organization)).
+they write; every screen there says so ([§3.10](03-accounts-and-identity.md#310-the-example-organization)).
 
 **About agents.** What a connected agent reads goes to whoever runs it, under their terms, not
 ours. The Connect page says so above the address a person is about to paste ([§6.8](06-operations-and-adapters.md)). We make no claims on
@@ -168,7 +168,7 @@ Rules:
 
 **Abuse limits**, which are not quotas but belong beside them. Built: the sign-in link limit,
 the limits on OAuth client registration and on sign-in and OAuth request bodies
-([§3.8](03-accounts-teams-and-identity.md)), invite-only mode (`WHATBUILD_SIGNUP_ALLOWLIST`, [§3.2](03-accounts-teams-and-identity.md)), in
+([§3.8](03-accounts-and-identity.md)), invite-only mode (`WHATBUILD_SIGNUP_ALLOWLIST`, [§3.2](03-accounts-and-identity.md)), in
 which an instance owner lets people in one at a time with an allowance, and a guest's limit on calls
 a minute in the example organization (§9.7).
 The operator's view of usage by organization is built: `products.organizations` and `/instance`
@@ -253,7 +253,7 @@ format, no API required to make sense of it.
 
 **Planned:**
 
-- **Organization export** — every product's bundle plus the organization, its teams, its members
+- **Organization export** — every product's bundle plus the organization, its members
   and their grants. Built by a job, downloadable through a short-lived grant for seven days, then
   deleted. Rate-limited to two per day.
 - **Import** — the same path in reverse, into this instance or into one someone runs themselves
@@ -309,11 +309,11 @@ Everything that can be archived can also be deleted, and so can an organization:
 | Product | `products.delete_impact` | `products.delete` |
 | Organization | `products.delete_tenant_impact` | `products.delete_tenant` (its owners and the instance's, web app only) |
 
-- **Admins delete** ([§3.5](03-accounts-teams-and-identity.md)): product admins, and so team admins
-  and organization owners and admins for what they administer. Editors archive and never delete.
+- **Admins delete** ([§3.5](03-accounts-and-identity.md)): product admins, and so admins of all
+  products and organization owners and admins for what they administer. Editors archive and never delete.
   ◆ [Decision](../decisions/archive-by-default-delete-guarded.md).
 - **Through both adapters**, but an agent deletes only on a connection its person set to Admin
-  ([§3.8](03-accounts-teams-and-identity.md)): on Read only or Edit it is not offered a delete,
+  ([§3.8](03-accounts-and-identity.md)): on Read only or Edit it is not offered a delete,
   and a call to one is refused with `403 connection_level`. Deleting an organization is never
   offered to an agent.
 - **Permanent. Immediately.** There is no trash and no grace period. Every surface that offers it
@@ -363,9 +363,9 @@ Everything that can be archived can also be deleted, and so can an organization:
   - A product: everything in it, archived or not (concept, outcomes, sources, comments,
     assumptions, mockups and canvases uploaded for them, the Story, exports, revisions, its
     activity and its tombstones), the
-    roles and invitations on it alone, and its bytes, except those a copy in another product still
-    uses. Allowed while it is archived.
-  - An organization: every team and product with all they hold, its activity, every role and
+    roles and invitations on it alone, and its bytes, except those a source copied into another product, when sources were still
+    copied, still uses. Allowed while it is archived.
+  - An organization: every product with all it holds, its activity, every role and
     invitation in it, its jobs, its uploads in progress, and its bytes. Its people keep their accounts and their roles
     elsewhere; feedback sent to the maintainers is kept. The example organization can't be deleted
     while the deployment names it (`409 example_organization`).
@@ -378,7 +378,7 @@ Everything that can be archived can also be deleted, and so can an organization:
   `outcome_deleted`, `story_page_deleted`, `mockup_deleted`, `annotation_deleted`) for the rest,
   except that a reader is answered `404` for a deleted Story page, as for an archived one. The
   activity log records it. A deleted product leaves its tombstone and a `deleted`
-  event on its team; an addressed call to it answers `404`. A deleted organization leaves nothing.
+  event on its organization; an addressed call to it answers `404`. A deleted organization leaves nothing.
 - **Backups.** Deleted content is gone from the product at once. In the Cloud Run deployment,
   deleted bytes linger as noncurrent bucket versions for 30 days, and deleted rows age out of
   database backups as they roll. We say that rather than claim instant erasure, because instant
@@ -390,7 +390,7 @@ Everything that can be archived can also be deleted, and so can an organization:
 ### Delete an organization
 
 An owner-only operation, because it is organization lifecycle, not content
-([§3.5](03-accounts-teams-and-identity.md)), offered in the web app only: the Members page shows
+([§3.5](03-accounts-and-identity.md)), offered in the web app only: the Members page shows
 an owner Delete this organization, behind its typed name. `execute` refuses it to anything but a
 person in the web app (`403 web_only`), and MCP lists neither it nor its preview.
 
@@ -406,12 +406,12 @@ person in the web app (`403 web_only`), and MCP lists neither it nor its preview
 
 A person deletes their own account in the web app, in the Delete account section of Settings, and
 an instance owner removes anyone's on People; both do the same thing
-([§3.2](03-accounts-teams-and-identity.md#32-accounts-and-sign-in),
+([§3.2](03-accounts-and-identity.md#32-accounts-and-sign-in),
 [decision](../decisions/a-person-deletes-their-own-account-after-a-recent-sign-in.md)). It removes
 the person from every organization, deletes their sign-in, sessions and tokens, and deletes what is
 kept about them: their counts against limits and feedback, their counted days of use (§9.1), their
 name on the account, and their address wherever it is kept. It does **not** delete organization
-content, and actor snapshots survive ([§3.9](03-accounts-teams-and-identity.md)): attribution on a
+content, and actor snapshots survive ([§3.9](03-accounts-and-identity.md)): attribution on a
 colleague's assumption is part of that organization's record, not personal data we can silently
 rewrite. Whoever wants their content gone too deletes it first, or asks the organization's admins.
 A sole owner must make someone else owner or delete the organization first, and Settings names
@@ -448,7 +448,7 @@ Planned, a deliverable of [Phase 6](10-roadmap.md):
 ## 9.7 Plans and limits
 
 Every organization is on a plan of its own: one the deployment defines, or `unlimited`, which sets
-no limit and is never offered ([§3.3](03-accounts-teams-and-identity.md) says which an
+no limit and is never offered ([§3.3](03-accounts-and-identity.md) says which an
 organization gets: the deployment's `WHATBUILD_NEW_ORGANIZATION_PLAN`, unlimited unless it names
 one of its plans, for one made on an allowance; and who moves it;
 ◆ [decision](../decisions/limits-belong-to-plans-and-each-organization-is-on-a-plan-of-its-own.md),
@@ -457,7 +457,7 @@ Limits belong to plans, never to one organization. On a plan the deployment defi
 organization, its owners included, meets the plan's limits below, beside the ones every
 organization has (§9.2), whichever is lower; on the unlimited plan nobody does. A guest of the
 example organization meets only the guests' calls a minute and bytes downloaded a day
-([§3.10](03-accounts-teams-and-identity.md#310-the-example-organization)). The code is
+([§3.10](03-accounts-and-identity.md#310-the-example-organization)). The code is
 [`packages/core/src/plans.ts`](../../packages/core/src/plans.ts) (what a plan is, and the plans
 this process serves), [`apps/server/src/plans-config.ts`](../../apps/server/src/plans-config.ts)
 (reading them from the deployment's configuration),
@@ -483,7 +483,7 @@ plan the deployment no longer defines: it meets no limit until an instance owner
 `products.limits` and `products.organizations` mark it `undefined_plan`.
 
 `products.limits` gives everyone in the organization, but someone who reads only the Story everywhere
-in it ([§3.5](03-accounts-teams-and-identity.md#35-roles)), each limit of its plan with its value (null
+in it ([§3.5](03-accounts-and-identity.md#35-roles)), each limit of its plan with its value (null
 for none, and `file_max_bytes` never more than the deployment's `upload_max_bytes`), what it is counted over, its refusal and what is used of it: for a daily one what the
 caller and everyone together used today (on every plan, rule 10), for a total what the organization
 holds; the plans offered side by side; and the deployment's own limits, each with a key that stays
@@ -502,7 +502,7 @@ configured limits is stored (`instance_settings`, key `plan:<plan>`), so the lim
 through `readPlans`; reset goes back to the configured limits. A price set or cleared there
 replaces the configured one. A plan the deployment does not define is refused (`422
 unknown_plan`). A guest of the example meets the guests' calls a minute and bytes downloaded a day
-instead, set on the same page ([§3.10](03-accounts-teams-and-identity.md#310-the-example-organization)).
+instead, set on the same page ([§3.10](03-accounts-and-identity.md#310-the-example-organization)).
 
 | Limit | Setting | Counted over | Refusal |
 |---|---|---|---|
@@ -613,7 +613,7 @@ Rules:
     totals keeps it all, and can add nothing more of that kind until enough is deleted, or people
     taken out. It stays writable in every other way; a total never makes an organization read-only.
     An organization moved back to the starting plan while its creator already has one there is
-    read-only instead, kept a year ([§3.3](03-accounts-teams-and-identity.md#33-tenants-and-teams)): it keeps
+    read-only instead, kept a year ([§3.3](03-accounts-and-identity.md#33-tenants)): it keeps
     everything, its people read, export, delete and take people out, and every other write is
     refused with `409 organization_read_only`, whatever its totals.
 14. **Bytes sent** are counted for the person who opens or downloads them, on every plan, on the
@@ -622,7 +622,7 @@ Rules:
     and an export is sent all the same.
 
 **The example organization** keeps no baseline and is never reset: its content changes only when
-its own members change it ([§3.10](03-accounts-teams-and-identity.md#310-the-example-organization)).
+its own members change it ([§3.10](03-accounts-and-identity.md#310-the-example-organization)).
 Its plan is whatever an instance owner set; its members meet its plan's limits, unless it is unlimited.
 
 ## 9.8 Retired insights and decisions

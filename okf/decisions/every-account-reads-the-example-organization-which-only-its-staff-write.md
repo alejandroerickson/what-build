@@ -64,4 +64,4 @@ and [its connector rule](the-public-sandbox-is-reached-only-through-its-own-conn
 - Code that lists people or invitations reads `memberships` and `invitations`, never
   `membershipsFor`, so no guest is ever listed.
 
-Specified in: [§3.10](../spec/03-accounts-teams-and-identity.md), [§6](../spec/06-operations-and-adapters.md), [§9.7](../spec/09-data-lifecycle.md).
+Specified in: [§3.10](../spec/03-accounts-and-identity.md), [§6](../spec/06-operations-and-adapters.md), [§9.7](../spec/09-data-lifecycle.md).

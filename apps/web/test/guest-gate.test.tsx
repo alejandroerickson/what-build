@@ -85,12 +85,12 @@ describe("the guest gate", () => {
 
   it("shows a waiting guest the invitations waiting for them, since accepting one ends the wait", async () => {
     state.pass = { guest: true, status: "waiting", reason: "full", position: 3, in_now: 25 };
-    state.invitations = [{ invitation_id: "i", tenant: { slug: "acme", name: "Acme Labs" }, scope_type: "team", scope: "Research", role: "editor", invited_by: '"Riley Chen"', expires_at: "2026-11-07T12:00:00.000Z" }];
+    state.invitations = [{ invitation_id: "i", tenant: { slug: "acme", name: "Acme Labs" }, scope_type: "product", scope: "Research", role: "editor", invited_by: '"Riley Chen"', expires_at: "2026-11-07T12:00:00.000Z" }];
     const host = await gate();
     await act(() => new Promise((r) => setTimeout(r, 20)));
     expect(host.textContent).toContain("WhatBuild is full right now");
     expect(host.textContent).toContain('Join "Acme Labs"?');
-    expect(host.textContent).toContain('"Riley Chen" invited you as an editor on the "Research" team.');
+    expect(host.textContent).toContain('"Riley Chen" invited you as an editor on "Research".');
     expect(host.querySelector(`[aria-label='Accept the invitation to "Acme Labs"']`)).toBeTruthy();
   });
 

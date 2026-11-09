@@ -33,4 +33,4 @@ MCP clients expect OAuth discovery and dynamic registration against the server t
 
 - Identity code lives in `apps/server/src/auth/`.
 
-Specified in: [03-accounts-teams-and-identity](../spec/03-accounts-teams-and-identity.md).
+Specified in: [03-accounts-and-identity](../spec/03-accounts-and-identity.md).

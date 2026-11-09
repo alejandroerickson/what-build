@@ -10,7 +10,6 @@ let bob: Browser;
 let vic: Browser;
 let path: string;
 let tenantSlug: string;
-let teamSlug: string;
 
 beforeAll(async () => {
   h = await startHarness();
@@ -19,8 +18,7 @@ beforeAll(async () => {
   vic = await h.signIn("vic@example.com", "Vic");
   const t = await alice.api("POST", "/api/v1/tenants", { name: "Alpha" });
   tenantSlug = t.body.tenant.slug;
-  teamSlug = t.body.team.slug;
-  const p = await alice.api("POST", `/api/v1/teams/${tenantSlug}/${teamSlug}/products`, { name: "Secret product" });
+  const p = await alice.api("POST", `/api/v1/tenants/${tenantSlug}/products`, { name: "Secret product" });
   path = p.body.path;
   await alice.api("POST", `/api/v1/p/${path}/outcomes`, { title: "Private goal" });
   await bob.api("POST", "/api/v1/tenants", { name: "Beta" });
@@ -28,16 +26,15 @@ beforeAll(async () => {
 afterAll(async () => h?.close());
 
 function fill(p: string) {
-  const [tenant, team, product] = path.split("/");
+  const [tenant, product] = path.split("/");
   return p
     .replace(":tenant", tenant!)
-    .replace(":team", team!)
     .replace(":product", product!)
     .replace(/:[a-z_]+/g, "01ARZ3NDEKTSV4RRFFQ69G5FAV");
 }
 
 describe("isolation", () => {
-  it("answers 404 — never 403, never data — to a non-member, through every product, team and tenant operation", async () => {
+  it("answers 404 — never 403, never data — to a non-member, through every product and tenant operation", async () => {
     const probed: string[] = [];
     for (const op of OPERATIONS) {
       if (op.scope === "account") continue;
@@ -66,7 +63,7 @@ describe("isolation", () => {
 
 describe("roles", () => {
   it("lets a viewer read, refuses their writes with 403 naming the role, and lets an editor write", async () => {
-    const g = await alice.api("POST", `/api/v1/tenants/${tenantSlug}/members`, { team: teamSlug, product: path.split("/")[2], email: "vic@example.com", role: "viewer" });
+    const g = await alice.api("POST", `/api/v1/tenants/${tenantSlug}/members`, { product: path.split("/")[1], email: "vic@example.com", role: "viewer" });
     expect(g.status).toBe(201);
     const read = await vic.api("GET", `/api/v1/p/${path}/outcomes`);
     expect(read.status).toBe(200);
@@ -74,10 +71,10 @@ describe("roles", () => {
     const write = await vic.api("POST", `/api/v1/p/${path}/outcomes`, { title: "Nope" });
     expect(write.status).toBe(403);
     expect(write.body.error.message).toMatch(/viewer.*needs editor/);
-    await alice.api("POST", `/api/v1/tenants/${tenantSlug}/members`, { team: teamSlug, email: "vic@example.com", role: "editor" });
+    await alice.api("POST", `/api/v1/tenants/${tenantSlug}/members`, { all_products: true, email: "vic@example.com", role: "editor" });
     const now = await vic.api("POST", `/api/v1/p/${path}/outcomes`, { title: "Now allowed" });
     expect(now.status).toBe(201);
-    // A team editor is not a product admin.
+    // An editor of all products is not a product's admin.
     const admin = await vic.api("POST", `/api/v1/p/${path}/archive`, { expected_etag: "x" });
     expect(admin.status).toBe(403);
     const members = await vic.api("GET", `/api/v1/tenants/${tenantSlug}/members`);
@@ -85,7 +82,7 @@ describe("roles", () => {
   });
 
   it("invites someone without an account, who joins by signing in with that address and accepting", async () => {
-    const inv = await alice.api("POST", `/api/v1/tenants/${tenantSlug}/members`, { team: teamSlug, email: "newcomer@example.com", role: "viewer" });
+    const inv = await alice.api("POST", `/api/v1/tenants/${tenantSlug}/members`, { all_products: true, email: "newcomer@example.com", role: "viewer" });
     expect(inv.body.invited).toBe(true);
     expect(h.mailer.sent.at(-1)!.text).toContain("/invite/");
     const newcomer = await h.signIn("newcomer@example.com");
@@ -94,13 +91,13 @@ describe("roles", () => {
   });
 
   it("answers an invitation link already accepted as such, for the same person, and refuses it to anyone else", async () => {
-    const inv = await alice.api("POST", `/api/v1/tenants/${tenantSlug}/members`, { team: teamSlug, email: "linked@example.com", role: "editor" });
+    const inv = await alice.api("POST", `/api/v1/tenants/${tenantSlug}/members`, { all_products: true, email: "linked@example.com", role: "editor" });
     const token = String(inv.body.invite_link).split("/invite/")[1];
     // They accepted from their list on signing in (the harness does, as they would); the link then lands on /invite/:token.
     const linked = await h.signIn("linked@example.com");
     const again = await linked.api("POST", "/api/v1/invitations/accept", { token });
     expect(again.status).toBe(200);
-    expect(again.body).toMatchObject({ accepted: true, already: true, scope_type: "team", role: "editor", tenant: { slug: tenantSlug } });
+    expect(again.body).toMatchObject({ accepted: true, already: true, scope_type: "all_products", role: "editor", tenant: { slug: tenantSlug } });
     const other = await vic.api("POST", "/api/v1/invitations/accept", { token });
     expect(other.status).toBe(410);
     expect(other.body.error.code).toBe("invitation_used");
@@ -109,7 +106,7 @@ describe("roles", () => {
   });
 
   it("accepts an invitation link only for the address it was sent to", async () => {
-    const inv = await alice.api("POST", `/api/v1/tenants/${tenantSlug}/members`, { team: teamSlug, email: "Intended@Example.com", role: "viewer" });
+    const inv = await alice.api("POST", `/api/v1/tenants/${tenantSlug}/members`, { all_products: true, email: "Intended@Example.com", role: "viewer" });
     const token = String(inv.body.invite_link).split("/invite/")[1];
     const wrong = await vic.api("POST", "/api/v1/invitations/accept", { token });
     expect(wrong.status).toBe(403);
@@ -127,8 +124,8 @@ describe("roles", () => {
     await alice.api("POST", `/api/v1/tenants/${tenantSlug}/members`, { email: "leaver@example.com", role: "member" });
     const leaver = await h.signIn("leaver@example.com");
     const id = (await leaver.api("GET", "/api/v1/me")).body.account_id;
-    await alice.api("POST", `/api/v1/tenants/${tenantSlug}/members`, { team: teamSlug, email: "leaver@example.com", role: "editor" });
-    const mixed = await alice.api("POST", `/api/v1/tenants/${tenantSlug}/members/revoke`, { account_id: id, team: teamSlug, whole_tenant: true });
+    await alice.api("POST", `/api/v1/tenants/${tenantSlug}/members`, { all_products: true, email: "leaver@example.com", role: "editor" });
+    const mixed = await alice.api("POST", `/api/v1/tenants/${tenantSlug}/members/revoke`, { account_id: id, all_products: true, whole_tenant: true });
     expect(mixed.status).toBe(422);
     const r = await alice.api("POST", `/api/v1/tenants/${tenantSlug}/members/revoke`, { account_id: id, whole_tenant: true });
     expect(r.status).toBe(200);

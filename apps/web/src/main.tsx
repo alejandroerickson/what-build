@@ -11,6 +11,7 @@ import { ApiError, isMinuteRefusal, readDefaults, setUnauthenticatedHandler } fr
 import { LiveUpdates } from "./lib/live.tsx";
 import { loadNewRelease, releasedSinceLoad } from "./lib/new-release.ts";
 import { CurrentTenantAddress, productHome, ProductProvider, RequireSession, useProduct, useProductParams, type Product } from "./lib/session.tsx";
+import { BARE_PRODUCT_ROUTE, BareProductPath, FORMER_PRODUCT_ROUTE, FormerProductAddress, PRODUCT_ROUTE } from "./routes/addresses.tsx";
 import { ConnectPage } from "./routes/connect.tsx";
 import { CookiesPage } from "./routes/cookies.tsx";
 import { AcceptInvite, NotFound, NotVisible, SignIn } from "./routes/auth.tsx";
@@ -116,22 +117,6 @@ function ProductsRedirect() {
   return <Navigate replace to={`/${search}`} />;
 }
 
-/**
- * A product's path typed or pasted without the /t/ prefix (organization/team/product) opens the
- * product rather than a dead end. A three-part path that starts with t/ is not a product.
- */
-function BareProductPath() {
-  const { tenant, team, product, "*": rest } = useParams();
-  const { search, hash } = useLocation();
-  if (tenant === "t")
-    return (
-      <PlainShell>
-        <NotFound />
-      </PlainShell>
-    );
-  return <Navigate replace to={`/t/${tenant}/${team}/${product}${rest ? `/${rest}` : ""}${search}${hash}`} />;
-}
-
 /** Synthesis was renamed Exploration: an old link keeps working, with the rest of its path and its query. */
 function SynthesisLink() {
   const { app } = useProduct();
@@ -230,7 +215,7 @@ const router = createBrowserRouter([{ element: <Root />, errorElement: <RouteErr
       ] },
       ...devRoutes,
       {
-        path: "/t/:tenant/:team/:product",
+        path: PRODUCT_ROUTE,
         element: (
           <CurrentTenantAddress>
             <ProductProvider fallback={(e, retry) => <ProductNotFound error={e} retry={retry} />}>
@@ -273,7 +258,9 @@ const router = createBrowserRouter([{ element: <Root />, errorElement: <RouteErr
           },
         ],
       },
-      { path: "/:tenant/:team/:product/*", element: <BareProductPath /> },
+      // An address from before teams were removed: a product's own screens above rank first.
+      { path: FORMER_PRODUCT_ROUTE, element: <CurrentTenantAddress><FormerProductAddress /></CurrentTenantAddress> },
+      { path: BARE_PRODUCT_ROUTE, element: <BareProductPath /> },
       { path: "*", element: <PlainShell><NotFound /></PlainShell> },
     ],
   },

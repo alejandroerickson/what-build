@@ -21,7 +21,6 @@ let bob: Browser;
 let rita: Browser;
 let mallory: Browser;
 let T: string;
-let team: string;
 let P: string;
 let mockupId: string;
 let outcomeId: string;
@@ -95,8 +94,7 @@ beforeAll(async () => {
   mallory = await h.signIn("mallory@example.com", "Mallory Elsewhere");
   const t = await alice.api("POST", "/api/v1/tenants", { name: "Content Co" });
   T = `/api/v1/tenants/${t.body.tenant.slug}`;
-  team = t.body.team.slug;
-  const p = await alice.api("POST", `/api/v1/teams/${t.body.tenant.slug}/${team}/products`, { name: "Planner", concept: "A planner for crews." });
+  const p = await alice.api("POST", `/api/v1/tenants/${t.body.tenant.slug}/products`, { name: "Planner", concept: "A planner for crews." });
   P = `/api/v1/p/${p.body.path}`;
   await mallory.api("POST", "/api/v1/tenants", { name: "Elsewhere Co" });
   for (const id of ["overview", "aside"])
@@ -113,8 +111,8 @@ beforeAll(async () => {
   pdfSource = await upload("plan.pdf", PDF);
   htmlSource = await upload("page.html", UPLOADED);
   await h.worker.drain();
-  expect((await alice.api("POST", `${T}/members`, { email: "bob@example.com", role: "editor", team })).status).toBeLessThan(300);
-  expect((await alice.api("POST", `${T}/members`, { email: "rita@example.com", role: "reader", team })).status).toBeLessThan(300);
+  expect((await alice.api("POST", `${T}/members`, { email: "bob@example.com", role: "editor", all_products: true })).status).toBeLessThan(300);
+  expect((await alice.api("POST", `${T}/members`, { email: "rita@example.com", role: "reader", all_products: true })).status).toBeLessThan(300);
 });
 afterAll(async () => h?.close());
 
@@ -318,17 +316,17 @@ describe("a document on the content site", () => {
         }
       }
     } finally {
-      expect((await alice.api("POST", `${T}/members`, { email: "bob@example.com", role: "editor", team })).status).toBeLessThan(300);
+      expect((await alice.api("POST", `${T}/members`, { email: "bob@example.com", role: "editor", all_products: true })).status).toBeLessThan(300);
     }
   });
 
   it("gives someone lowered to reader the live Story and nothing else", async () => {
     const held = await Promise.all(kinds().map(async ([what, path]) => [what, await addressFor(bob, path)] as const));
-    expect((await alice.api("POST", `${T}/members`, { email: "bob@example.com", role: "reader", team })).status).toBeLessThan(300);
+    expect((await alice.api("POST", `${T}/members`, { email: "bob@example.com", role: "reader", all_products: true })).status).toBeLessThan(300);
     try {
       for (const [what, address] of held) expect((await open(address)).status, what).toBe(what.startsWith("a Story page") || what === "the print view" ? 200 : 403);
     } finally {
-      expect((await alice.api("POST", `${T}/members`, { email: "bob@example.com", role: "editor", team })).status).toBeLessThan(300);
+      expect((await alice.api("POST", `${T}/members`, { email: "bob@example.com", role: "editor", all_products: true })).status).toBeLessThan(300);
     }
   });
 
@@ -437,7 +435,7 @@ describe("a document in the example organization", () => {
   it("reaches a guest through the hand-off, counted once, and stops once the organization is no longer the example", async () => {
     const owner = await h.signIn("owen@example.com", "Owen Owner");
     const t = await owner.api("POST", "/api/v1/tenants", { name: "Example Co" });
-    const p = await owner.api("POST", `/api/v1/teams/${t.body.tenant.slug}/${t.body.team.slug}/products`, { name: "Open" });
+    const p = await owner.api("POST", `/api/v1/tenants/${t.body.tenant.slug}/products`, { name: "Open" });
     const Q = `/api/v1/p/${p.body.path}`;
     expect((await owner.api("POST", `${Q}/story/pages/welcome/versions`, { title: "Welcome", html: page("Welcome", "<h1>Welcome</h1>") })).status).toBe(201);
     expect(await syncExampleTenant(h.db, t.body.tenant.slug, () => {})).toBeTruthy();

@@ -14,10 +14,10 @@ beforeAll(async () => {
   alice = await h.signIn("alice@example.com", "Alice Admin");
   rita = await h.signIn("rita@example.com", "Rita Reader");
   const t = await alice.api("POST", "/api/v1/tenants", { name: "Stage Co" });
-  const p = await alice.api("POST", `/api/v1/teams/${t.body.tenant.slug}/${t.body.team.slug}/products`, { name: "Staged", concept: "A product to count." });
+  const p = await alice.api("POST", `/api/v1/tenants/${t.body.tenant.slug}/products`, { name: "Staged", concept: "A product to count." });
   P = `/api/v1/p/${p.body.path}`;
   productId = p.body.product_id;
-  expect((await alice.api("POST", `/api/v1/tenants/${t.body.tenant.slug}/members`, { team: t.body.team.slug, product: "staged", email: "rita@example.com", role: "reader" })).status).toBe(201);
+  expect((await alice.api("POST", `/api/v1/tenants/${t.body.tenant.slug}/members`, { product: "staged", email: "rita@example.com", role: "reader" })).status).toBe(201);
 });
 afterAll(async () => h?.close());
 

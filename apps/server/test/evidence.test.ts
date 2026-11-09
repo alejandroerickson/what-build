@@ -18,7 +18,7 @@ beforeAll(async () => {
   alice = await h.signIn("alice@example.com", "Alice Example");
   const t = await alice.api("POST", "/api/v1/tenants", { name: "Example Research" });
   tenantId = t.body.tenant.tenant_id;
-  const p = await alice.api("POST", `/api/v1/teams/${t.body.tenant.slug}/${t.body.team.slug}/products`, { name: "Scheduling" });
+  const p = await alice.api("POST", `/api/v1/tenants/${t.body.tenant.slug}/products`, { name: "Scheduling" });
   P = `/api/v1/p/${p.body.path}`;
 });
 afterAll(async () => h?.close());
@@ -372,7 +372,7 @@ describe("what a reading records beyond the text", () => {
     h2 = await startHarness({ parseCapBytes: 4000 });
     bob = await h2.signIn("bob@example.com", "Bob Example");
     const t = await bob.api("POST", "/api/v1/tenants", { name: "Example Field Research" });
-    const p = await bob.api("POST", `/api/v1/teams/${t.body.tenant.slug}/${t.body.team.slug}/products`, { name: "Dispatch" });
+    const p = await bob.api("POST", `/api/v1/tenants/${t.body.tenant.slug}/products`, { name: "Dispatch" });
     Q = `/api/v1/p/${p.body.path}`;
   });
   afterAll(async () => h2?.close());
@@ -415,7 +415,7 @@ describe("Word .doc uploads", () => {
 
   beforeAll(async () => {
     const t = await alice.api("POST", "/api/v1/tenants", { name: "Example Archive Research" });
-    const p = await alice.api("POST", `/api/v1/teams/${t.body.tenant.slug}/${t.body.team.slug}/products`, { name: "Rostering" });
+    const p = await alice.api("POST", `/api/v1/tenants/${t.body.tenant.slug}/products`, { name: "Rostering" });
     R = `/api/v1/p/${p.body.path}`;
   });
 

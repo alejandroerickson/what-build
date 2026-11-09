@@ -54,8 +54,8 @@ export async function keepOnlyTenants(c: pg.Client, tenantIds: string[]) {
 }
 
 /**
- * Copy one organization's content into a new organization that is not the example: its teams,
- * products and everything in them, the search index of their sources, the activity log and its
+ * Copy one organization's content into a new organization that is not the example: its products
+ * and everything in them, the search index of their sources, the activity log and its
  * memberships, with every id made new and every reference to an old
  * id, in any column or JSON, pointing at the new one. Files are shared. The copy was never
  * renamed: its name gets an etag of its own, and the original's renames and slug changes stay out
@@ -66,7 +66,8 @@ export async function copyTenant(c: pg.Client, fromTenantId: string, slug: strin
   const present = new Set(await tablesWith(c, "tenant_id"));
   // The index is copied with what it indexes, as it stands once the build's jobs are done, so the
   // copy finds what the original finds. A piece's offsets hold, since a new id is as long as the old.
-  const tables = [...CONTENT_TABLES, "text_chunks", "memberships"].filter((t) => present.has(t));
+  // A copy from before teams were removed still has them, which its products refer to until its migrations run.
+  const tables = ["teams", ...CONTENT_TABLES, "text_chunks", "memberships"].filter((t) => present.has(t));
   const people = (await c.query<{ account_id: string }>("select account_id from accounts")).rows;
   const accounts = new Set(people.map((p) => p.account_id));
   const rows = new Map<string, Record<string, unknown>[]>();

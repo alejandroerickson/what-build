@@ -150,7 +150,7 @@ only elsewhere does not count.
   `WHATBUILD_MICROSOFT_CLIENT_ID` and `WHATBUILD_MICROSOFT_CLIENT_SECRET` (from the secret) on the
   service. An address is taken from the directory only when the token's `xms_edov` says its domain
   is verified, or its domain is listed in `WHATBUILD_MICROSOFT_DOMAINS`
-  ([§3.2](../spec/03-accounts-teams-and-identity.md#sign-in-with-microsoft-work-accounts)). A
+  ([§3.2](../spec/03-accounts-and-identity.md#sign-in-with-microsoft-work-accounts)). A
   refused sign-in shows a reference; the service's log line with it says which check failed and
   how to fix it ([When Microsoft sign-in is refused](azure.md#when-microsoft-sign-in-is-refused);
   on Cloud Run, `gcloud logging read 'jsonPayload.reference="<reference>"'`).
@@ -168,7 +168,7 @@ can always join. Widen it when public sign-up opens.
 `gcloud` account that ran the script) names the people who run the instance. They create any
 number of organizations, and on **Organization creators** (`/instance`, in the account menu) let
 anyone else create a number of their own; being in an organization never lets anyone create one
-([§3.3](../spec/03-accounts-teams-and-identity.md#33-tenants-and-teams)). An address given an
+([§3.3](../spec/03-accounts-and-identity.md#33-tenants)). An address given an
 allowance may also sign up. `TENANT_ALLOWANCE` sets how many any other address may create (0 by
 default). **A service deployed before this setting existed has no instance owner**, so nobody can
 create an organization until it is set:
@@ -218,7 +218,7 @@ defines, or the service does not start. Left out, they are unlimited. Instance o
 organizations are always unlimited, and they move any organization to another plan on `/instance`.
 There too they change a plan's limits and price over what the file sets, for every organization on
 it, and set the guests' settings: whether anyone may sign up as a guest, and how many come in
-([§3.10](../spec/03-accounts-teams-and-identity.md#310-the-example-organization)). The guests'
+([§3.10](../spec/03-accounts-and-identity.md#310-the-example-organization)). The guests'
 settings start closed to self-serve sign-up, with the defaults in the code; raise them as the
 deployment grows. Nothing in WhatBuild takes payment: an instance owner moves an organization to a
 paid plan by hand, and a billing service would be the deployment's own, kept outside this
@@ -240,7 +240,7 @@ gcloud run services update whatbuild --region $R --update-secrets WHATBUILD_PLAN
 **The example organization** is for the maintainer's public deployment only: any other deployment
 leaves it out and has none. `EXAMPLE_TENANT=<slug>` (`WHATBUILD_EXAMPLE_TENANT`) names one
 organization that every signed-in account reads and only its members change
-([§3.10](../spec/03-accounts-teams-and-identity.md#310-the-example-organization)); the
+([§3.10](../spec/03-accounts-and-identity.md#310-the-example-organization)); the
 organization must exist, and the service reads the name when it starts. On a service that is
 already deployed:
 

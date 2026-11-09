@@ -601,7 +601,6 @@ export async function insertRecord(
     .values({
       record_id,
       tenant_id: tenantId(ctx),
-      team_id: ctx.scope.team!.team_id,
       product_id: productId(ctx),
       title: input.title,
       date,
@@ -912,99 +911,6 @@ export const deleteAnnotation = defineOperation({
   },
 });
 
-// ---- Move and copy between products ------------------------------------------------------------
-
-async function targetProduct(ctx: OpContext, ref: string) {
-  const tid = tenantId(ctx);
-  const row = await ctx.db
-    .selectFrom("products")
-    .select(["product_id", "team_id", "name", "slug", "archived_at"])
-    .where("tenant_id", "=", tid)
-    .where(sql<boolean>`(product_id = ${ref} or slug = ${ref})`)
-    .where("team_id", "=", ctx.scope.team!.team_id)
-    .executeTakeFirst();
-  if (!row) throw notFound(`No product "${ref}" in this team. Sources move and copy only between products of the same team.`);
-  if (row.product_id === productId(ctx)) throw invalid("same_product", "The source is already in that product.");
-  if (row.archived_at) throw conflict("product_archived", `Product ${row.name} is archived.`);
-  const memberships = await membershipsFor(ctx.db, ctx.principal.account_id, tid);
-  const { role } = effectiveRole(memberships, { tenant_id: tid, team_id: row.team_id, product_id: row.product_id });
-  if (!roleAtLeast(role, "editor")) throw notFound(`No product "${ref}" you can write to in this team.`);
-  return row;
-}
-
-export const moveSource = defineOperation({
-  name: "sources.move_to_product",
-  scope: "product",
-  access: "write",
-  mutates: true,
-  summary: "Move a source, with its attachments, derived text, summary, notes and comments, to another product in the same team.",
-  description:
-    "The source keeps its record_id, so its attachments and their versions, its derived text, summary, notes and comments move intact. Copy instead to keep it in both.",
-  input: z.strictObject({ record_id: id("source"), to_product: z.string().min(1).describe("Target product id or slug, in the same team."), expected_etag: expectedEtag }),
-  rest: { method: "POST", path: "/sources/:record_id/move" },
-  mcp: { tool: "sources", action: "move_to_product" },
-  async handler(ctx, input) {
-    const r = await loadRecord(ctx, input.record_id, { lock: true });
-    checkEtag(input.expected_etag, r.etag, "source");
-    const target = await targetProduct(ctx, input.to_product);
-    await ctx.db.updateTable("records").set({ product_id: target.product_id, etag: newEtag(), updated_at: ctx.now, updated_by: json(ctx.actor) }).where("record_id", "=", r.record_id).execute();
-    await ctx.db.updateTable("annotations").set({ product_id: target.product_id }).where("record_id", "=", r.record_id).execute();
-    await ctx.db.updateTable("upload_grants").set({ product_id: target.product_id }).where("record_id", "=", r.record_id).execute();
-    await recordActivity(ctx, { action: "moved_out", entity_type: "source", entity_id: r.record_id, entity_title: r.title, summary: `Moved to product ${target.name}` });
-    await recordActivity(
-      { ...ctx, scope: { ...ctx.scope, product: { product_id: target.product_id, slug: target.slug, name: target.name, archived_at: null } } },
-      { action: "moved_in", entity_type: "source", entity_id: r.record_id, entity_title: r.title, summary: `Moved here from product ${ctx.scope.product!.name}` },
-    );
-    return { record_id: r.record_id, product_id: target.product_id, product: target.name };
-  },
-});
-
-export const copySource = defineOperation({
-  name: "sources.copy_to_product",
-  scope: "product",
-  access: "write",
-  mutates: true,
-  summary: "Copy a source into another product in the same team, with a new id and a copied_from link.",
-  description:
-    "The copy shares the original's stored attachments (blobs are immutable), which are read afresh in the target, and takes its derived text. The summary, notes and comments stay with the original. Returns the new record id.",
-  input: z.strictObject({ record_id: id("source"), to_product: z.string().min(1) }),
-  rest: { method: "POST", path: "/sources/:record_id/copy" },
-  mcp: { tool: "sources", action: "copy_to_product" },
-  async handler(ctx, input) {
-    const r = await loadRecord(ctx, input.record_id);
-    const target = await targetProduct(ctx, input.to_product);
-    const targetCtx: OpContext = { ...ctx, scope: { ...ctx.scope, product: { product_id: target.product_id, slug: target.slug, name: target.name, archived_at: null } } };
-    const copy = await insertRecord(targetCtx, r, { product_id: productId(ctx), record_id: r.record_id });
-    const files = await ctx.db.selectFrom("files").selectAll().where("record_id", "=", r.record_id).execute();
-    const text = await ctx.db.selectFrom("source_texts").selectAll().where("record_id", "=", r.record_id).executeTakeFirst();
-    // The copy's derived text is still the text of the attachment it was taken from: its copy.
-    let textFrom: string | null = null;
-    for (const f of files) {
-      if (!f.current_version_id) continue;
-      const v = await ctx.db.selectFrom("file_versions").selectAll().where("file_version_id", "=", f.current_version_id).executeTakeFirstOrThrow();
-      const file_id = newId();
-      const file_version_id = newId();
-      await ctx.db.insertInto("files").values({ file_id, tenant_id: tenantId(ctx), record_id: copy.record_id, path: f.path, current_version_id: file_version_id, added_by: json(ctx.actor) }).execute();
-      await ctx.db.insertInto("file_versions").values({ file_version_id, tenant_id: tenantId(ctx), record_id: copy.record_id, file_id, blob_key: v.blob_key, size: v.size, sha256: v.sha256, media_type: v.media_type, created_by: json(ctx.actor) }).execute();
-      if (text?.from_file_version_id) {
-        const was = await ctx.db.selectFrom("file_versions").select("file_id").where("file_version_id", "=", text.from_file_version_id).executeTakeFirst();
-        if (was?.file_id === f.file_id) textFrom = file_version_id;
-      }
-      await ctx.enqueue("derive", { record_id: copy.record_id, file_version_id });
-      if (pictureSource(f.path, v.media_type)) await ctx.enqueue("make_picture", { record_id: copy.record_id, file_version_id });
-    }
-    if (text) {
-      await ctx.db
-        .insertInto("source_texts")
-        .values({ record_id: copy.record_id, tenant_id: tenantId(ctx), content: text.content, chars: text.chars, from_file_version_id: textFrom, updated_at: text.updated_at, updated_by: json(text.updated_by), etag: newEtag() })
-        .execute();
-      await indexSource(ctx.db, copy.record_id);
-    }
-    await recordActivity(ctx, { action: "copied_out", entity_type: "source", entity_id: r.record_id, entity_title: r.title, summary: `Copied to product ${target.name}` });
-    return { record_id: copy.record_id, product_id: target.product_id, copied_from: { product_id: productId(ctx), record_id: r.record_id } };
-  },
-});
-
 // ---- Delete: permanent, guarded, and said plainly ----------------------------------------------
 
 async function impact(ctx: OpContext, r: RecordRow) {
@@ -1083,5 +989,5 @@ export const deleteSource = defineOperation({
 
 export const sourceOps = [
   sourceFacets, listSources, getSource, createSource, updateSource, archiveSources, restoreSources,
-  annotate, listAnnotations, updateAnnotation, deleteAnnotation, moveSource, copySource, deleteImpact, deleteSource,
+  annotate, listAnnotations, updateAnnotation, deleteAnnotation, deleteImpact, deleteSource,
 ];

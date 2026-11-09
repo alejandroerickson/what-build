@@ -23,7 +23,8 @@ function safeHref(href: string | undefined): string | null {
   return SAFE_HREF.test(cleaned) ? cleaned : null;
 }
 
-const PRODUCT_PATH = /^\/t\/[^/?#]+\/[^/?#]+\/[^/?#]+/;
+/** A product's own address, `/t/<organization>/<product>`: never one of the organization's own pages, whose names no product may have. */
+const PRODUCT_PATH = /^\/t\/[^/?#]+\/(?!(?:members|plan|limits|people|activity|settings)(?:[/?#]|$))[^/?#]+/;
 const ABSOLUTE = /^https?:\/\/[^/?#]+(\/[^?#]*)?([?#].*)?$/i;
 
 /**

@@ -75,8 +75,7 @@ describe("the example organization, for a guest", () => {
     expect(list.items.map((i: { path: string }) => i.path).sort()).toEqual([ex.product.path, ex.annex.path].sort());
     for (const item of list.items) expect(item).toMatchObject({ tenant: { slug: ex.tenant.slug, example: true }, your_role: "guest" });
     expect(list.tenants).toEqual([expect.objectContaining({ slug: ex.tenant.slug, example: true, your_role: "guest" })]);
-    expect(list.tenants[0].teams.length).toBeGreaterThan(0);
-    for (const team of list.tenants[0].teams) expect(team.your_role).toBe("guest");
+    expect(list.tenants[0].teams).toBeUndefined();
     // A product's own answer says the same; the guest reads it as a viewer, with its concept and every count.
     const product = await gus.api("GET", P);
     expect(product.body).toMatchObject({ your_role: "guest", counts: { sources: expect.any(Number) } });
@@ -111,8 +110,8 @@ describe("the example organization, for a guest", () => {
       ["POST", `${P}/story/pages/guest-page/versions`, { title: "A guest's page", body: "<p>No.</p>" }],
       ["POST", `${P}/exports`, {}],
       ["POST", `${P}/mockups/uploads`, {}],
-      ["POST", `${T}/members`, { email: "gus@guest.example", role: "editor", team: ex.team.slug }],
-      ["POST", `${T}/teams`, { name: "A guest's team" }],
+      ["POST", `${T}/members`, { email: "gus@guest.example", role: "editor", all_products: true }],
+      ["POST", `${T}/products`, { name: "A guest's product" }],
     ];
     for (const [method, path, body] of writes) {
       const r = await gus.api(method, path, body);
@@ -125,10 +124,10 @@ describe("the example organization, for a guest", () => {
   });
 
   it("tells a guest who may start no organization to ask whoever runs this WhatBuild, one on the waitlist that they are on it, and one with an organization to work there", async () => {
-    // Refused as a product's write, an organization's admin action and an export: each place a guest's write is refused.
+    // Refused as a product's write, an organization's action (creating a product) and an export: each place a guest's write is refused.
     const writes: [string, string, unknown][] = [
       ["POST", `${P}/sources`, { title: "A guest's source", tags: ["notes"] }],
-      ["POST", `${T}/teams`, { name: "A guest's team" }],
+      ["POST", `${T}/products`, { name: "A guest's product" }],
       ["POST", `${P}/exports`, {}],
     ];
     const refusals = async (who: Browser) =>

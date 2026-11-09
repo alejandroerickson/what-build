@@ -1,7 +1,7 @@
 ---
 type: Decision
 title: Access is decided in the application, per product, by role
-description: Roles at organization, team and product level; the highest applies; there are no per-object permissions.
+description: Roles on the organization, on all its products and on each product; the highest applies; there are no per-object permissions.
 tags: [decision, access, security, roles]
 generated: {by: agent:claude, at: 2026-10-27}
 status: stable
@@ -11,11 +11,11 @@ status: stable
 
 ## Context
 
-Teams are small and work together on a product. Per-object permissions would make "who can see this?" hard to answer and add little.
+The people working on a product are few, and work together. Per-object permissions would make "who can see this?" hard to answer and add little.
 
 ## Decision
 
-- Roles: organization owner, admin, member; team and product admin, editor, viewer, reader. Organization owners and admins are admins everywhere in it; a team role applies to all its products.
+- Roles: organization owner, admin, product creator (`creator`), member; all products and product admin, editor, viewer, reader. Organization owners and admins are admins everywhere in it; a role on all products applies to every product, later ones included; a product creator creates products and is admin of each one it creates. Teams, which once held products and gave a role on all of a team's products, are gone ([decision](an-organization-holds-its-products-directly-with-no-teams.md), 2026-11-08).
 - A reader reads only the Story, without the notes agents keep on its pages ([decision](a-reader-reads-only-the-story.md)).
 - A fourth organization role, guest, exists only in the [example organization](every-account-reads-the-example-organization-which-only-its-staff-write.md): a viewer of every product there, held by every account with no other grant there, never stored, and refused every write.
 - The effective role is the highest that applies. There are no negative overrides.
@@ -31,7 +31,7 @@ Teams are small and work together on a product. Per-object permissions would mak
 
 ## Constrains
 
-- Operations declare their access level (`story`, `read`, `write`, `admin`, `owner` or `any`); handlers do not re-implement role checks. A handler may leave out of its result what a reader may not see, through `readsOnlyTheStory`.
-- Product people are managed in Settings with `members.grant`, `members.grant_many` and `members.revoke`.
+- Operations declare their access level (`story`, `read`, `write`, `admin`, `owner`, `creator` or `any`); handlers do not re-implement role checks. A handler may leave out of its result what a reader may not see, through `readsOnlyTheStory`.
+- Product people are managed in Settings, and the organization's and all products' on Members, with `members.grant`, `members.grant_many` and `members.revoke`.
 
-Specified in: [03-accounts-teams-and-identity](../spec/03-accounts-teams-and-identity.md).
+Specified in: [03-accounts-and-identity](../spec/03-accounts-and-identity.md).

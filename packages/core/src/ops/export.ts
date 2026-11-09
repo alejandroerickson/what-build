@@ -10,7 +10,7 @@ import { requesterClaims } from "./attachments.ts";
 import { newId } from "../util.ts";
 
 export const EXPORT_FORMAT = "whatbuild-product-bundle";
-export const EXPORT_FORMAT_VERSION = 2;
+export const EXPORT_FORMAT_VERSION = 3;
 const EXPORT_DAYS = 7;
 
 /**
@@ -139,7 +139,6 @@ export async function runExport(db: Tx, ports: Ports, job: { tenant_id: string; 
   if (!ex || ex.status !== "pending") return null;
   const pid = ex.product_id;
   const product = await db.selectFrom("products").selectAll().where("product_id", "=", pid).executeTakeFirstOrThrow();
-  const team = await db.selectFrom("teams").select(["slug", "name"]).where("team_id", "=", product.team_id).executeTakeFirstOrThrow();
   const tenant = await db.selectFrom("tenants").select(["slug", "name"]).where("tenant_id", "=", product.tenant_id).executeTakeFirstOrThrow();
 
   let files = 0;
@@ -180,7 +179,6 @@ export async function runExport(db: Tx, ports: Ports, job: { tenant_id: string; 
       exported_by: ex.created_by,
       server_version: ports.config.serverVersion,
       tenant,
-      team,
       product: { product_id: product.product_id, slug: product.slug, name: product.name, concept: product.concept, created_at: product.created_at, archived_at: product.archived_at },
       layout: BUNDLE_LAYOUT.map((f) => f.path).join(" · "),
     }),
@@ -276,7 +274,7 @@ export async function runExport(db: Tx, ports: Ports, job: { tenant_id: string; 
   add("tombstones.json", j(await db.selectFrom("tombstones").selectAll().where("product_id", "=", pid).execute()));
   const activity = await db.selectFrom("activity").selectAll().where("product_id", "=", pid).orderBy("activity_id").execute();
   add("activity.jsonl", activity.map((a) => JSON.stringify(a)).join("\n") + (activity.length ? "\n" : ""));
-  add("README.txt", bundleReadme(`${product.name} (${tenant.name} / ${team.name})`));
+  add("README.txt", bundleReadme(`${product.name} (${tenant.name})`));
   zip.end();
   const stored = await upload;
   await db.updateTable("exports").set({ status: "ready", blob_key: key, size: stored.size, file_count: files, completed_at: new Date().toISOString() }).where("export_id", "=", ex.export_id).execute();

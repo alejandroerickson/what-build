@@ -12,10 +12,9 @@ let h: Harness;
 let root: Browser; // an instance owner, in no organization but the ones they start
 let olga: Browser; // owns Acme
 let adam: Browser; // an admin of Acme
-let mia: Browser; // a member of Acme, with a role on its team
+let mia: Browser; // a member of Acme, with a role on all its products
 let bob: Browser; // in no organization
 let acme: string; // Acme's slug
-let team: string;
 let product: string; // a product's path in Acme
 
 const T = () => `/api/v1/tenants/${acme}`;
@@ -52,10 +51,9 @@ beforeAll(async () => {
   expect(t.status, JSON.stringify(t.body)).toBe(201);
   expect(t.body.tenant.name_etag).toEqual(expect.any(String));
   acme = t.body.tenant.slug;
-  team = t.body.team.slug;
-  product = (await olga.api("POST", `/api/v1/teams/${acme}/${team}/products`, { name: "Onboarding" })).body.path;
+  product = (await olga.api("POST", `/api/v1/tenants/${acme}/products`, { name: "Onboarding" })).body.path;
   expect((await olga.api("POST", `${T()}/members`, { email: "adam@example.com", role: "admin" })).status).toBe(201);
-  expect((await olga.api("POST", `${T()}/members`, { email: "mia@example.com", role: "editor", team })).status).toBe(201);
+  expect((await olga.api("POST", `${T()}/members`, { email: "mia@example.com", role: "editor", all_products: true })).status).toBe(201);
   adam = await h.signIn("adam@example.com", "Adam Admin");
   mia = await h.signIn("mia@example.com", "Mia Member");
   bob = await h.signIn("bob@example.com", "Bob Outsider");
@@ -224,14 +222,14 @@ describe("the example organization", () => {
 });
 
 describe("changing an organization's slug", () => {
-  let ini: { slug: string; team: string; product: string };
+  let ini: { slug: string; product: string };
   const etagOf = async (who: Browser, slug: string) => (await who.api("GET", "/api/v1/me/products")).body.tenants.find((t: { slug: string }) => t.slug === slug).name_etag;
 
   beforeAll(async () => {
     const t = await olga.api("POST", "/api/v1/tenants", { name: "Initech" });
     expect(t.body.tenant.slug).toBe("initech");
-    const p = await olga.api("POST", `/api/v1/teams/initech/${t.body.team.slug}/products`, { name: "Payroll" });
-    ini = { slug: "initech", team: t.body.team.slug, product: p.body.slug };
+    const p = await olga.api("POST", `/api/v1/tenants/initech/products`, { name: "Payroll" });
+    ini = { slug: "initech", product: p.body.slug };
   });
 
   it("changes every product's path, keeps the old slug as a former one, and logs it", async () => {
@@ -241,21 +239,21 @@ describe("changing an organization's slug", () => {
     expect(r.body.previous_name).toBeUndefined();
     const list = (await olga.api("GET", "/api/v1/me/products")).body;
     expect(list.tenants.find((t: { tenant_id: string }) => t.tenant_id === r.body.tenant_id)).toMatchObject({ slug: "initech-labs", former_slugs: ["initech"] });
-    expect(list.items.find((i: { name: string }) => i.name === "Payroll").path).toBe(`initech-labs/${ini.team}/${ini.product}`);
+    expect(list.items.find((i: { name: string }) => i.name === "Payroll").path).toBe(`initech-labs/${ini.product}`);
     const log = (await olga.api("GET", "/api/v1/tenants/initech-labs/members/activity")).body.items;
     expect(log[0]).toMatchObject({ action: "slug_changed", entity_type: "tenant", entity_title: "Initech", summary: "Short name in links was initech, now initech-labs" });
   });
 
   it("still answers every address that names the old slug, with the new one in its answers", async () => {
-    const p = await olga.api("GET", `/api/v1/p/initech/${ini.team}/${ini.product}`);
+    const p = await olga.api("GET", `/api/v1/p/initech/${ini.product}`);
     expect(p.status).toBe(200);
-    expect(p.body).toMatchObject({ path: `initech-labs/${ini.team}/${ini.product}`, tenant: { slug: "initech-labs" } });
+    expect(p.body).toMatchObject({ path: `initech-labs/${ini.product}`, tenant: { slug: "initech-labs" } });
     expect((await olga.api("GET", "/api/v1/tenants/initech/members")).status).toBe(200);
-    expect((await olga.api("POST", `/api/v1/p/initech/${ini.team}/${ini.product}/outcomes`, { title: "Pay runs on time" })).status).toBe(201);
+    expect((await olga.api("POST", `/api/v1/p/initech/${ini.product}/outcomes`, { title: "Pay runs on time" })).status).toBe(201);
     const c = await connect(olga);
-    const viaPath = body(await c.callTool({ name: "outcomes_read", arguments: { action: "list", product: `initech/${ini.team}/${ini.product}`, params: {} } }));
+    const viaPath = body(await c.callTool({ name: "outcomes_read", arguments: { action: "list", product: `initech/${ini.product}`, params: {} } }));
     expect(viaPath.status).toBe(200);
-    expect(viaPath.json.scope.product.path).toBe(`initech-labs/${ini.team}/${ini.product}`);
+    expect(viaPath.json.scope.product.path).toBe(`initech-labs/${ini.product}`);
     const viaTenant = body(await c.callTool({ name: "members_read", arguments: { action: "list", params: { tenant: "initech" } } }));
     expect(viaTenant.status).toBe(200);
     expect(viaTenant.json.connector_address).toBeUndefined();
@@ -263,11 +261,11 @@ describe("changing an organization's slug", () => {
   });
 
   it("keeps a connector scoped by the old slug working, and tells its agent the new address", async () => {
-    for (const path of ["/mcp/t/initech", `/mcp/t/initech/${ini.team}/${ini.product}`]) {
+    for (const path of ["/mcp/t/initech", `/mcp/t/initech/${ini.product}`]) {
       const c = await connect(olga, path);
       const r = body(await c.callTool({ name: "outcomes_read", arguments: { action: "list", params: {} } }));
       expect(r.status, `${path} ${JSON.stringify(r.json)}`).toBe(200);
-      expect(r.json.connector_address).toContain(`${h.baseUrl}/mcp/t/initech-labs${path.endsWith(ini.product) ? `/${ini.team}/${ini.product}` : ""}.`);
+      expect(r.json.connector_address).toContain(`${h.baseUrl}/mcp/t/initech-labs${path.endsWith(ini.product) ? `/${ini.product}` : ""}.`);
       expect(r.json.connector_address).toContain("a slug it had before (initech)");
       await c.close();
     }
@@ -277,7 +275,7 @@ describe("changing an organization's slug", () => {
   });
 
   it("tells someone outside the organization nothing, old slug or new", async () => {
-    for (const path of ["/api/v1/tenants/initech/members", `/api/v1/p/initech/${ini.team}/${ini.product}`]) {
+    for (const path of ["/api/v1/tenants/initech/members", `/api/v1/p/initech/${ini.product}`]) {
       const r = await bob.api("GET", path);
       expect(r.status).toBe(404);
       expect(JSON.stringify(r.body)).not.toContain("initech-labs");
@@ -305,7 +303,7 @@ describe("changing an organization's slug", () => {
     const r = await olga.api("PATCH", "/api/v1/tenants/initech-labs", { slug: "initech", expected_etag: await etagOf(olga, "initech-labs") });
     expect(r.status, JSON.stringify(r.body)).toBe(200);
     expect(r.body).toMatchObject({ slug: "initech", former_slugs: ["initech-labs"] });
-    expect((await olga.api("GET", `/api/v1/p/initech-labs/${ini.team}/${ini.product}`)).body.path).toBe(`initech/${ini.team}/${ini.product}`);
+    expect((await olga.api("GET", `/api/v1/p/initech-labs/${ini.product}`)).body.path).toBe(`initech/${ini.product}`);
   });
 
   it("changes the name and slug together, and refuses a slug that breaks the rule or a call that changes nothing", async () => {
@@ -355,5 +353,52 @@ describe("the example organization's slug", () => {
     expect(said.join("\n")).toMatch(/WHATBUILD_EXAMPLE_TENANT names "example-works", a slug the example organization had before its current one, "worked-example"/);
     expect((await h.db.selectFrom("tenants").select("example").where("tenant_id", "=", e.body.tenant.tenant_id).executeTakeFirstOrThrow()).example).toBe(true);
     await syncExampleTenant(h.db, null, () => {});
+  });
+});
+
+describe("a product's slug", () => {
+  // A product's address is /t/<organization>/<product>, beside the organization's own pages.
+  const RESERVED = ["members", "plan", "limits", "people", "activity", "settings"];
+  let W: string;
+
+  beforeAll(async () => {
+    const w = await olga.api("POST", "/api/v1/tenants", { name: "Slug Works" });
+    W = `/api/v1/tenants/${w.body.tenant.slug}`;
+  });
+
+  it("is refused on create with 409 slug_taken when a product in the organization has it, or it names one of the organization's pages", async () => {
+    const billing = await olga.api("POST", `${W}/products`, { name: "Billing" });
+    expect(billing.status).toBe(201);
+    expect(billing.body.slug).toBe("billing");
+    for (const slug of RESERVED) {
+      const r = await olga.api("POST", `${W}/products`, { name: `The ${slug} product`, slug });
+      expect(r.status, slug).toBe(409);
+      expect(r.body.error.code).toBe("slug_taken");
+      expect(r.body.error.message).toBe(`"${slug}" names one of the organization's own pages, so no product may have it; choose another slug.`);
+    }
+    const twice = await olga.api("POST", `${W}/products`, { name: "Billing again", slug: "billing" });
+    expect(twice.status).toBe(409);
+    expect(twice.body.error).toMatchObject({ code: "slug_taken", message: `A product with slug "billing" exists in this organization; choose another.` });
+    // A slug made from a name steps past them.
+    expect((await olga.api("POST", `${W}/products`, { name: "Billing" })).body.slug).toBe("billing-2");
+    expect((await olga.api("POST", `${W}/products`, { name: "Members" })).body.slug).toBe("members-2");
+    // Another organization's products are no matter: Acme has onboarding.
+    expect((await olga.api("POST", `${W}/products`, { name: "Onboarding", slug: product.split("/")[1] })).status).toBe(201);
+  });
+
+  it("is refused on rename the same way, and changes nothing", async () => {
+    const made = await olga.api("POST", `${W}/products`, { name: "Ledger" });
+    const P = `/api/v1/p/${made.body.path}`;
+    for (const slug of [...RESERVED, "billing"]) {
+      const r = await olga.api("PATCH", P, { slug, expected_etag: made.body.etag });
+      expect(r.status, slug).toBe(409);
+      expect(r.body.error.code, slug).toBe("slug_taken");
+    }
+    expect((await olga.api("GET", P)).body).toMatchObject({ slug: "ledger", etag: made.body.etag });
+    // Its own slug changes nothing; a free one is taken at once.
+    expect((await olga.api("PATCH", P, { slug: "ledger", expected_etag: made.body.etag })).status).toBe(200);
+    const moved = await olga.api("PATCH", P, { slug: "books", expected_etag: made.body.etag });
+    expect(moved.status, JSON.stringify(moved.body)).toBe(200);
+    expect(moved.body.path).toBe(`${made.body.path.split("/")[0]}/books`);
   });
 });

@@ -19,10 +19,10 @@ beforeAll(async () => {
   rita = await h.signIn("rita@example.com", "Rita Reader");
   eddie = await h.signIn("eddie@example.com", "Eddie Editor");
   const t = await alice.api("POST", "/api/v1/tenants", { name: "Card Co" });
-  const p = await alice.api("POST", `/api/v1/teams/${t.body.tenant.slug}/${t.body.team.slug}/products`, { name: "Carded", concept: "A product with cards." });
+  const p = await alice.api("POST", `/api/v1/tenants/${t.body.tenant.slug}/products`, { name: "Carded", concept: "A product with cards." });
   P = `/api/v1/p/${p.body.path}`;
-  expect((await alice.api("POST", `/api/v1/tenants/${t.body.tenant.slug}/members`, { team: t.body.team.slug, product: "carded", email: "rita@example.com", role: "reader" })).status).toBe(201);
-  expect((await alice.api("POST", `/api/v1/tenants/${t.body.tenant.slug}/members`, { team: t.body.team.slug, product: "carded", email: "eddie@example.com", role: "editor" })).status).toBe(201);
+  expect((await alice.api("POST", `/api/v1/tenants/${t.body.tenant.slug}/members`, { product: "carded", email: "rita@example.com", role: "reader" })).status).toBe(201);
+  expect((await alice.api("POST", `/api/v1/tenants/${t.body.tenant.slug}/members`, { product: "carded", email: "eddie@example.com", role: "editor" })).status).toBe(201);
 });
 afterAll(async () => h?.close());
 

@@ -70,7 +70,7 @@ export function publicRoutes(deps: { db: Db; config: ServerConfig; release: Rele
     return c.json({
       mcp_url: `${base}/mcp`,
       tenant_url_template: `${base}/mcp/t/{tenant}`,
-      bound_url_template: `${base}/mcp/t/{tenant}/{team}/{product}`,
+      bound_url_template: `${base}/mcp/t/{tenant}/{product}`,
       oauth: { authorization_server: base, protected_resource_metadata: `${base}/.well-known/oauth-protected-resource/mcp`, dynamic_client_registration: true },
       agent_data_statement: "What your agent reads goes to whoever runs it, under their terms.",
     });

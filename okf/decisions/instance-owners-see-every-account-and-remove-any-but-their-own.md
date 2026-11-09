@@ -61,4 +61,4 @@ the only owner of an organization, after a warning, and delete any organization.
   deleted; deleting it and removing its only owner both use it.
 - Code that reads an account for sign-in, admission or mail skips one with `deleted_at` set.
 
-Specified in: [§3.2](../spec/03-accounts-teams-and-identity.md#32-accounts-and-sign-in), [§6](../spec/06-operations-and-adapters.md), [§7](../spec/07-web-app.md).
+Specified in: [§3.2](../spec/03-accounts-and-identity.md#32-accounts-and-sign-in), [§6](../spec/06-operations-and-adapters.md), [§7](../spec/07-web-app.md).

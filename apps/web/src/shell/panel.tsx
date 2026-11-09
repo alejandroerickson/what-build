@@ -3,7 +3,7 @@ import { useState } from "react";
 import { Link, NavLink, useLocation, useNavigate } from "react-router";
 import { useHasNoAgent } from "../lib/agents.ts";
 import { ROLE_WORD } from "../lib/format.ts";
-import { lastProduct, ownFirst, productHome, useHideExample, useMe, useProducts, useSignOut, type Product } from "../lib/session.tsx";
+import { currentProductPath, lastProduct, ownFirst, productHome, useHideExample, useMe, useProducts, useSignOut, type Product } from "../lib/session.tsx";
 import { Avatar, Glyph, IconButton, Menu, MenuGroup, MenuItem, MenuLabel, MenuRadio, MenuSeparator, OneLine, type GlyphName } from "../ui/index.tsx";
 import { shortcutLabel } from "../ui/media.ts";
 import { CreateProductDialog } from "../routes/new-product.tsx";
@@ -62,13 +62,13 @@ export function ProductSwitcher({ current }: { current: Product }) {
   const loc = useLocation();
   const navigate = useNavigate();
   const [creating, setCreating] = useState(false);
-  const segment = loc.pathname.split("/")[5] ?? "idea";
+  const segment = loc.pathname.split("/")[4] ?? "idea";
   const keep = KEEP_ON_SWITCH.has(segment) ? segment : "idea";
   // The person's own products first, the example organization's last, as everywhere.
   const items = [...(products.data?.items ?? [])].sort((a, b) => Number(Boolean(a.tenant.example)) - Number(Boolean(b.tenant.example)));
   const groups = new Map<string, typeof items>();
   for (const p of items) {
-    const key = p.tenant.example ? `Example organization · ${p.tenant.name}` : `${p.tenant.name} · ${p.team.name}`;
+    const key = p.tenant.example ? `Example organization · ${p.tenant.name}` : p.tenant.name;
     groups.set(key, [...(groups.get(key) ?? []), p]);
   }
   return (
@@ -86,7 +86,7 @@ export function ProductSwitcher({ current }: { current: Product }) {
             </span>
             <OneLine
               className="product-context"
-              text={current.tenant.example ? `Example organization · ${current.tenant.name}` : `${current.tenant.name} · ${current.team.name}`}
+              text={current.tenant.example ? `Example organization · ${current.tenant.name}` : current.tenant.name}
             />
           </>
         }
@@ -106,7 +106,7 @@ export function ProductSwitcher({ current }: { current: Product }) {
           New product
         </MenuItem>
       </Menu>
-      {creating && products.data ? <CreateProductDialog tenants={products.data.tenants} onClose={() => setCreating(false)} /> : null}
+      {creating && products.data ? <CreateProductDialog tenants={products.data.tenants} tenant={current.tenant.slug} onClose={() => setCreating(false)} /> : null}
     </div>
   );
 }
@@ -325,7 +325,10 @@ export function AccountMenu() {
 /** The product the person was last in, if they can still reach it. */
 export function useLastProduct() {
   const products = useProducts();
-  const path = lastProduct();
-  const hit = path ? products.data?.items.find((p) => p.path === path) : undefined;
+  const items = products.data?.items;
+  const kept = lastProduct()?.split("/") ?? [];
+  // A path kept from before teams were removed has three parts: it leads where its address does now.
+  const path = kept.length === 3 ? currentProductPath(items, kept[0]!, kept[1]!, kept[2]!) : kept.join("/");
+  const hit = path ? items?.find((p) => p.path === path) : undefined;
   return hit ?? null;
 }

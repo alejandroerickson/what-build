@@ -25,7 +25,7 @@ example organization took the sandbox's place as the default when it replaced th
 
 - **A pull takes organizations, not the deployment**: the example organization, or those named with
   `--org`. Their rows are read in one snapshot through the read-only backup role, and only theirs
-  leave production: teams, products, content, jobs, the accounts their rows refer to, and the
+  leave production: products, content, jobs, the accounts their rows refer to, and the
   record of migrations. The deployment's own rows stay: sessions, connections, sign-in links,
   allowances, the interest list, usage counts, and feedback with its daily counts. Their files are their folders, `t/<tenant_id>/`.
 - **A pull is an ordinary dump** of a database holding only them, so the local copy, the golden

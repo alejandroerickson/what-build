@@ -44,7 +44,7 @@ production's own accounts.
 
 | Holds | Leaves behind |
 |---|---|
-| the organizations: settings, teams, products and everything in them, invitations, activity, queued jobs | every other organization |
+| the organizations: settings, products and everything in them, invitations, activity, queued jobs | every other organization |
 | the accounts their rows refer to, chiefly their members, with addresses and names | every other account |
 | the record of migrations, so the database it lands in knows its schema | sessions, agents' connections and tokens, sign-in links |
 | their files: everything under `t/<tenant_id>/` in the bucket | allowances to create organizations, the public site's interest list, usage counts, feedback and its daily counts |

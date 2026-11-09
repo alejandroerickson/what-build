@@ -199,7 +199,7 @@ export class LiveHub implements LiveChanges {
   }
 }
 
-const LIVE_PATH = /^\/api\/v1\/p\/[^/]+\/[^/]+\/[^/]+\/live$/;
+const LIVE_PATH = /^\/api\/v1\/p\/[^/]+\/[^/]+\/live$/;
 
 /** Whether a path is a live stream's, which stays open and wakes nothing. */
 export const isLiveStream = (path: string) => LIVE_PATH.test(path);
@@ -236,8 +236,8 @@ export function liveRoutes(env: Env & { config: ServerConfig }) {
       if (!fromTheApp(c, env.config)) throw new AppError(403, "forbidden_origin", "Only WhatBuild's own pages may listen here.");
       const principal = await restPrincipal(c, env.db, env.config);
       if (!principal) throw unauthenticated();
-      const { tenant, team, product } = c.req.param() as Record<string, string>;
-      const scope = await resolveScope(env.db, principal, "product", "story", { tenant, team, product }, "live");
+      const { tenant, product } = c.req.param() as Record<string, string>;
+      const scope = await resolveScope(env.db, principal, "product", "story", { tenant, product }, "live");
       // The example organization rarely changes and is read by anyone who drops in, so its guests do not hold a stream open for it.
       if (isGuest(scope)) return c.body(null, 204);
       await admitRead(env, principal, scope, "live");

@@ -15,7 +15,9 @@ const css = (text: string) => [{ path: "a.css", media_type: "text/css", data: ne
 
 describe("patterns over text a caller writes take linear time", () => {
   it("trims the slashes around a product reference", () => {
-    expect(parseProductRef("//acme/team/crm//")).toEqual({ tenant: "acme", team: "team", product: "crm" });
+    expect(parseProductRef("//acme/crm//")).toEqual({ tenant: "acme", product: "crm" });
+    // An address written when products were in teams keeps its middle part, which findProduct reads.
+    expect(parseProductRef("//acme/core/crm//")).toEqual({ tenant: "acme", formerTeam: "core", product: "crm" });
     const start = performance.now();
     expect(() => parseProductRef(`${"/".repeat(200_000)}x`)).toThrow(/not a product reference/);
     expect(performance.now() - start).toBeLessThan(1000);

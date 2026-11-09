@@ -18,7 +18,6 @@ let unlimited: { slug: string };
 let P: string; // the free organization's product
 let U: string; // the unlimited organization's product
 let seeded: string; // a source in the free organization
-let team: string; // the free organization's team
 let etag: string | undefined; // the free organization's plan etag, once it has been changed
 
 const L = "/api/v1/organizations/plan";
@@ -60,16 +59,15 @@ beforeAll(async () => {
   const u = await root.api("POST", "/api/v1/tenants", { name: "Unlimited Co" });
   expect(u.body.tenant.plan).toBe("unlimited");
   unlimited = { slug: u.body.tenant.slug };
-  U = `/api/v1/p/${(await root.api("POST", `/api/v1/teams/${unlimited.slug}/${u.body.team.slug}/products`, { name: "Roomy" })).body.path}`;
+  U = `/api/v1/p/${(await root.api("POST", `/api/v1/tenants/${unlimited.slug}/products`, { name: "Roomy" })).body.path}`;
 
   expect((await root.api("PUT", "/api/v1/tenant-allowances", { email: "fay@example.com", allowed: 1, notify: false })).status).toBeLessThan(300);
   fay = await h.signIn("fay@example.com", "Fay Free");
   const f = await fay.api("POST", "/api/v1/tenants", { name: "Free Co" });
   expect(f.status, JSON.stringify(f.body)).toBe(201);
   free = { slug: f.body.tenant.slug, id: f.body.tenant.tenant_id };
-  team = f.body.team.slug;
-  P = `/api/v1/p/${(await fay.api("POST", `/api/v1/teams/${free.slug}/${team}/products`, { name: "Snug" })).body.path}`;
-  expect((await fay.api("POST", `/api/v1/tenants/${free.slug}/members`, { email: "ned@example.com", role: "editor", team })).status).toBe(201);
+  P = `/api/v1/p/${(await fay.api("POST", `/api/v1/tenants/${free.slug}/products`, { name: "Snug" })).body.path}`;
+  expect((await fay.api("POST", `/api/v1/tenants/${free.slug}/members`, { email: "ned@example.com", role: "editor", all_products: true })).status).toBe(201);
   ned = await h.signIn("ned@example.com", "Ned Editor");
   seeded = (await fay.api("POST", `${P}/sources`, { title: "Sample visit notes", tags: ["notes"] })).body.record_id;
 }, 120_000);
@@ -699,7 +697,7 @@ describe("the totals of a plan", () => {
   afterAll(() => reset());
 
   it("count the people who do more than read the Story, invitations included, and refuse one more", async () => {
-    const add = (email: string, role: string) => fay.api("POST", `/api/v1/tenants/${free.slug}/members`, { email, role, team });
+    const add = (email: string, role: string) => fay.api("POST", `/api/v1/tenants/${free.slug}/members`, { email, role, all_products: true });
     // The free plan allows 2: Fay and Ned.
     const third = await add("ola@example.com", "editor");
     expect(third.status).toBe(409);
@@ -731,7 +729,7 @@ describe("the totals of a plan", () => {
   const holds = async () => (await limitsOf(fay)).holds as { products: number; sources: number; storage: { total: number } };
 
   it("count products whether archived or not, so archiving makes no room, restoring is free, and deleting makes room", async () => {
-    const products = `/api/v1/teams/${free.slug}/${team}/products`;
+    const products = `/api/v1/tenants/${free.slug}/products`;
     const second = await fay.api("POST", products, { name: "Second thoughts" });
     expect(second.status).toBe(409);
     expect(second.body.error).toMatchObject({ code: "quota_exceeded", details: { quota: "products_max", limit: 1, used: 1 } });
@@ -837,13 +835,13 @@ describe("the totals of a plan", () => {
 
     // The day's writes, past each of the other totals.
     tweak({ writes_per_day: await used(fay, "writes_per_day"), org_writes_per_day: 100_000 });
-    const product = await fay.api("POST", `/api/v1/teams/${free.slug}/${team}/products`, { name: "Past the day and the total" });
+    const product = await fay.api("POST", `/api/v1/tenants/${free.slug}/products`, { name: "Past the day and the total" });
     expect(product.body.error.details).toMatchObject({ quota: "products_max", also: { quota: "writes_per_day" } });
-    const person = await fay.api("POST", `/api/v1/tenants/${free.slug}/members`, { email: "sol@example.com", role: "editor", team });
+    const person = await fay.api("POST", `/api/v1/tenants/${free.slug}/members`, { email: "sol@example.com", role: "editor", all_products: true });
     expect(person.body.error.details).toMatchObject({ quota: "members_max", also: { quota: "writes_per_day" } });
     expect(person.body.error.message).toMatch(/Removing someone or cancelling an invitation makes room/);
     // A role that takes no place is refused for the day alone.
-    const reader = await fay.api("POST", `/api/v1/tenants/${free.slug}/members`, { email: "ren@example.com", role: "reader", team });
+    const reader = await fay.api("POST", `/api/v1/tenants/${free.slug}/members`, { email: "ren@example.com", role: "reader", all_products: true });
     expect(reader.body.error.details).toMatchObject({ quota: "writes_per_day" });
     expect(reader.body.error.details.also).toBeUndefined();
     tweak({ storage_max_bytes: 1 });
@@ -859,7 +857,7 @@ describe("the totals of a plan", () => {
   });
 
   it("leave an organization past its totals with everything it holds: read, searched, exported, restored and deleted, and adding refused with what makes room", async () => {
-    const products = `/api/v1/teams/${free.slug}/${team}/products`;
+    const products = `/api/v1/tenants/${free.slug}/products`;
     tweak({ products_max: 2, sources_per_day: 1000, exports_per_day: 1000 });
     const made = await fay.api("POST", products, { name: "Shelved discovery" });
     expect(made.status, JSON.stringify(made.body)).toBe(201);

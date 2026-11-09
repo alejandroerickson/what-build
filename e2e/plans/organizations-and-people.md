@@ -81,7 +81,7 @@ and **Cleo** are three such addresses, signed in with `pnpm e2e browser signin <
 10. **Web, as Riley.** Move it back to Pro. *Expect:* Read-only is gone from its row; as Ana, the
     notice is gone after a reload and adding a source works.
 11. **Web, as Riley.** Find Ana's second organization (Free, not read-only) on Organizations and
-    press **Delete**. *Expect:* the dialog says everything in it goes at once (its team and product)
+    press **Delete**. *Expect:* the dialog says everything in it goes at once (its product)
     and that one person loses their roles there, asks why, and asks for its name to be typed;
     Delete permanently stays disabled until the name matches. Delete it. *Expect:* a toast, and the
     row is gone, and Who can start organizations shows Ana with "has 0" without a reload: its place
@@ -91,8 +91,8 @@ and **Cleo** are three such addresses, signed in with `pnpm e2e browser signin <
     nowhere. Open Change plan for the synthetic organization and choose Free. *Expect:* no note that
     it will be read-only: Morgan, who started it, has no Free organization, and everyone has a place
     for one even without an allowance to start one. Cancel.
-13. **Web, as Ana, in her remaining organization (Pro).** Invite Ben by address as an editor of its
-    team. Then **web, as Ben,** sign in and accept the invitation shown: the organization and its
+13. **Web, as Ana, in her remaining organization (Pro).** Invite Ben by address as an editor of all
+    its products. Then **web, as Ben,** sign in and accept the invitation shown: the organization and its
     product are there.
 14. **Web, as Riley.** Open People (account menu). *Expect:* every account, Ana as owner of her
     organization and Ben with a role in it; Riley marked You and Owns this WhatBuild, with no

@@ -13,8 +13,8 @@ import { orgOf } from "../src/shell/invitations.tsx";
 const invitation = (over: Record<string, unknown> = {}) => ({
   invitation_id: "inv-1",
   tenant: { slug: "acme", name: "Acme Labs" },
-  scope_type: "team",
-  scope: "Research",
+  scope_type: "all_products",
+  scope: "All products",
   role: "editor",
   invited_by: '"Riley Chen"',
   expires_at: "2026-11-07T12:00:00.000Z",
@@ -102,7 +102,7 @@ describe("an invitation's link", () => {
     const host = await open((_m, path) => (path.endsWith("/read") ? { ...invitation(), accepted: false } : {}));
     expect(host.querySelector("h1")?.textContent).toBe('Join "Acme Labs"?');
     const text = host.textContent ?? "";
-    expect(text).toContain('"Riley Chen" invited you as an editor on the "Research" team.');
+    expect(text).toContain('"Riley Chen" invited you as an editor on every product in the organization.');
     expect(text).toContain("add and change");
     expect(text).toContain("You join only if you accept.");
     expect(sent("/api/v1/invitations/read")).toEqual([{ method: "POST", path: "/api/v1/invitations/read", body: { token: "secret-token" } }]);
@@ -202,6 +202,12 @@ describe("the invitations waiting for a person", () => {
     expect(rows[1]!.textContent).toContain('"Sam" invited you as a reader on "Planner".');
     expect(button(host, /^Accept the invitation to "Beta"$/)).toBeTruthy();
     expect(button(host, /^Decline the invitation to "Acme Labs"$/)).toBeTruthy();
+  });
+
+  it("name a product creator, and what one does, in words", async () => {
+    state.answer = list([invitation({ scope_type: "tenant", scope: "Acme Labs", role: "creator" })]);
+    const host = await show(<InvitationsBanner />);
+    expect(host.textContent).toContain('"Riley Chen" invited you as a product creator of the organization. You could create products, and you’d be admin of each one you create.');
   });
 
   it("are answered by their id, and accepting opens the overview", async () => {

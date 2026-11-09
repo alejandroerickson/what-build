@@ -56,7 +56,7 @@ const held = (key: string) =>
 
 const plans = () => [
   { id: "free", name: "Free", about: "For trying WhatBuild on one discovery.", price: null, limits: FREE },
-  { id: "pro", name: "Pro", about: "For a product team and its discoveries.", price: "$10 a month", limits: PRO },
+  { id: "pro", name: "Pro", about: "For a few products and their discoveries.", price: "$10 a month", limits: PRO },
 ];
 
 vi.mock("../src/lib/api.ts", async (original) => ({

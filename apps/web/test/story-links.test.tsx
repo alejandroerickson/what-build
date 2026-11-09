@@ -8,7 +8,7 @@ import { storyLinkPath } from "../src/routes/story-model.ts";
 // A mockup page shown alone on the Story has no canvas to fly over: its link to another page of the
 // canvas goes to the Story page that shows that page, which the server names, and nowhere else.
 
-vi.mock("../src/lib/session.tsx", async (original) => ({ ...(await original<object>()), useProduct: () => ({ app: "/t/acme/core/planner", api: "/api/v1/p/acme/core/planner" }) }));
+vi.mock("../src/lib/session.tsx", async (original) => ({ ...(await original<object>()), useProduct: () => ({ app: "/t/acme/planner", api: "/api/v1/p/acme/planner" }) }));
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 window.matchMedia ??= (query: string) => ({ matches: false, media: query, onchange: null, addListener() {}, removeListener() {}, addEventListener() {}, removeEventListener() {}, dispatchEvent: () => false }) as never;
 const { StoryFrame } = await import("../src/routes/story.tsx");
@@ -55,7 +55,7 @@ describe("a mockup page's frame on the Story", () => {
     act(() =>
       root!.render(
         <MemoryRouter>
-          <StoryFrame title="One" scheme="light" src="/api/v1/p/acme/core/planner/story/pages/step-one/versions/1/html" size={{ width: 400, height: 300 }} onLink={onLink} />
+          <StoryFrame title="One" scheme="light" src="/api/v1/p/acme/planner/story/pages/step-one/versions/1/html" size={{ width: 400, height: 300 }} onLink={onLink} />
         </MemoryRouter>,
       ),
     );

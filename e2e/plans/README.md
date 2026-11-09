@@ -18,9 +18,9 @@ the tests. It holds three organizations:
   whose content is made up and whose people belong to it alone.
 
 `pnpm e2e run <plan>` prints their slugs and every product's path. The same three people are in
-the example and the standard organization: Riley owns each, Sam edits every team, and Jordan reads
+the example and the standard organization: Riley owns each, Sam edits all products, and Jordan reads
 every product's Story. Because they are members of the example, they work there as anywhere. The
-synthetic organization has its own: Morgan owns it, Casey edits its team and Avery reads its Story.
+synthetic organization has its own: Morgan owns it, Casey edits all its products and Avery reads its Story.
 None of them is a member of the other two, so each is a guest of the example and has nothing to do
 with the standard organization. Sam reads its Story, and nothing more there: one person with a
 different role in each organization. **A guest** of the example is

@@ -13,21 +13,21 @@ window.matchMedia ??= (query: string) => ({ matches: false, media: query, onchan
 const BASE = "https://app.example.com";
 const acme = { tenant_id: "t1", slug: "acme", name: "Acme", example: false };
 const example = { tenant_id: "t2", slug: "exemplar", name: "Exemplar", example: true };
-const product = (id: string, name: string, path: string, tenant: typeof acme) => ({ product_id: id, name, path, tenant, team: { slug: path.split("/")[1] } });
+const product = (id: string, name: string, path: string, tenant: typeof acme) => ({ product_id: id, name, path, tenant, your_role: "editor" });
 
 vi.mock("../src/lib/api.ts", async (original) => ({
   ...(await original<typeof import("../src/lib/api.ts")>()),
   api: vi.fn(async (_method: string, path: string) => {
     if (path === "/api/v1/connect")
-      return { mcp_url: `${BASE}/mcp`, tenant_url_template: `${BASE}/mcp/t/{tenant}`, bound_url_template: `${BASE}/mcp/t/{tenant}/{team}/{product}` };
+      return { mcp_url: `${BASE}/mcp`, tenant_url_template: `${BASE}/mcp/t/{tenant}`, bound_url_template: `${BASE}/mcp/t/{tenant}/{product}` };
     if (path === "/api/v1/me/agents") return { items: [] };
     if (path.startsWith("/api/v1/me/products"))
-      return { items: [product("p1", "Harvest", "acme/core/harvest", acme), product("p2", "Showcase", "exemplar/core/showcase", example)], tenants: [acme, example] };
+      return { items: [product("p1", "Harvest", "acme/harvest", acme), product("p2", "Showcase", "exemplar/showcase", example)], tenants: [acme, example] };
     throw new Error(`unexpected ${path}`);
   }),
 }));
 
-const { ConnectPage } = await import("../src/routes/connect.tsx");
+const { ConnectPage, productConnectorUrl } = await import("../src/routes/connect.tsx");
 const { ShellContext } = await import("../src/shell/slots.tsx");
 
 const slots = {
@@ -55,7 +55,7 @@ async function page(at = "/connect") {
           <MemoryRouter initialEntries={[at]}>
             <Routes>
               <Route path="/connect" element={<ConnectPage />} />
-              <Route path="/t/:tenant/:team/:product/connect" element={<ConnectPage />} />
+              <Route path="/t/:tenant/:product/connect" element={<ConnectPage />} />
             </Routes>
           </MemoryRouter>
         </ShellContext.Provider>
@@ -87,13 +87,13 @@ describe("Connect an agent", () => {
   });
 
   it("opens on the same address inside a product, and offers that product once the person limits the agent", async () => {
-    const host = await page("/t/acme/core/harvest/connect");
+    const host = await page("/t/acme/harvest/connect");
     expect(address(host)).toBe(`${BASE}/mcp`);
     await act(async () => limit(host).click());
     expect(limit(host).getAttribute("aria-expanded")).toBe("true");
     expect(choice(host, "Everything you can reach").checked).toBe(true);
     await act(async () => choice(host, "One product").click());
-    expect(address(host)).toBe(`${BASE}/mcp/t/acme/core/harvest`);
+    expect(address(host)).toBe(`${BASE}/mcp/t/acme/harvest`);
     expect(host.textContent).toContain("Name the connector after Harvest, so you can tell your connectors apart and turn one off.");
     await act(async () => choice(host, "One organization").click());
     expect(address(host)).toBe(`${BASE}/mcp/t/acme`);
@@ -101,6 +101,11 @@ describe("Connect an agent", () => {
     await act(async () => limit(host).click());
     expect(address(host)).toBe(`${BASE}/mcp`);
     expect(host.querySelectorAll("input[type=radio]")).toHaveLength(0);
+  });
+
+  it("gives a product's connector address as the organization and the product, whatever else the template names between them", () => {
+    expect(productConnectorUrl(`${BASE}/mcp/t/{tenant}/{product}`, "acme/harvest")).toBe(`${BASE}/mcp/t/acme/harvest`);
+    expect(productConnectorUrl(`${BASE}/mcp/t/{tenant}/{middle}/{product}`, "acme/harvest")).toBe(`${BASE}/mcp/t/acme/harvest`);
   });
 
   it("opens with the limits shown when the address asks for one organization", async () => {

@@ -1,7 +1,7 @@
 import { Link, Navigate, useSearchParams } from "react-router";
 import { plural, relativeTime } from "../lib/format.ts";
 import { markdownText } from "../lib/markdown.tsx";
-import { ownFirst, productHome, useHideExample, useMe, useProducts, type ProductsResponse, type ProductSummary } from "../lib/session.tsx";
+import { mayCreateProducts, ownFirst, productHome, useHideExample, useMe, useProducts, type ProductsResponse, type ProductSummary } from "../lib/session.tsx";
 import { AskForOrganization } from "../shell/ask-for-organization.tsx";
 import { BrandMark } from "../shell/brand.tsx";
 import { Journey } from "../shell/journey.tsx";
@@ -14,7 +14,8 @@ const UNIT: Record<string, [string, string]> = { idea: ["outcome", "outcomes"], 
 
 /**
  * The overview at `/`: what WhatBuild is for, the loop a discovery moves through, and every product with a direct link to each of its four sections. It is the one list of products: New
- * product (`?create=1`) and an organization's archived products (`?archived=<organization slug>`, one
+ * product (`?create=<organization slug>`, or `?create=1` for the first organization the person may
+ * create products in) and an organization's archived products (`?archived=<organization slug>`, one
  * parameter per organization shown) open here. The person's own organizations come first and the
  * example organization last; someone with none of their own is offered to start one.
  */
@@ -22,15 +23,15 @@ export function OverviewPage() {
   const [params, setParams] = useSearchParams();
   const products = useProducts(true);
   const me = useMe();
-  const setParam = (key: string, on: boolean) =>
+  const setParam = (key: string, value: string | null) =>
     setParams(
       (p) => {
         const next = new URLSearchParams(p);
-        if (on) next.set(key, "1");
+        if (value) next.set(key, value);
         else next.delete(key);
         return next;
       },
-      { replace: !on },
+      { replace: !value },
     );
   if (products.data && !products.data.tenants.length) return <Navigate to="/welcome" replace />;
   const tenants = ownFirst(products.data?.tenants ?? []);
@@ -96,12 +97,12 @@ export function OverviewPage() {
             products={all.filter((p) => p.tenant.tenant_id === t.tenant_id)}
             showArchived={archivedIn.has(t.slug)}
             onShowArchived={(on) => setArchived(t.slug, on)}
-            onCreate={() => setParam("create", true)}
+            onCreate={() => setParam("create", t.slug)}
           />
           ))}
         </>
       )}
-      {params.get("create") === "1" && products.data ? <CreateProductDialog tenants={products.data.tenants} onClose={() => setParam("create", false)} /> : null}
+      {params.get("create") && products.data ? <CreateProductDialog tenants={products.data.tenants} tenant={params.get("create") ?? undefined} onClose={() => setParam("create", null)} /> : null}
     </div>
   );
 }
@@ -114,12 +115,10 @@ function Organization({ tenant, products, showArchived, onShowArchived, onCreate
   onShowArchived: (on: boolean) => void;
   onCreate: () => void;
 }) {
-  const canCreate = tenant.teams.some((tm) => tm.your_role === "admin");
+  const canCreate = mayCreateProducts(tenant);
   const active = products.filter((p) => !p.archived_at);
   const archived = products.filter((p) => p.archived_at);
   const shown = showArchived ? [...active, ...archived] : active;
-  // With one team the team's name says nothing the organization's doesn't.
-  const showTeam = tenant.teams.length > 1;
   const headId = `overview-org-${tenant.tenant_id}`;
   const me = useMe();
   const hide = useHideExample();
@@ -168,16 +167,14 @@ function Organization({ tenant, products, showArchived, onShowArchived, onCreate
       {shown.length ? (
         <ul className="overview-products">
           {shown.map((p) => (
-            <ProductEntry key={p.product_id} product={p} showTeam={showTeam} />
+            <ProductEntry key={p.product_id} product={p} />
           ))}
         </ul>
-      ) : !tenant.teams.length ? (
-        <EmptyState size="inline" title="Nothing to open yet">
-          Ask an admin of {tenant.name} for a role on a team or product.
-        </EmptyState>
+      ) : canCreate ? (
+        <EmptyState size="inline" title="No products yet" />
       ) : (
-        <EmptyState size="inline" title="No products yet">
-          {canCreate ? null : "Ask a team admin to add you to one."}
+        <EmptyState size="inline" title="Nothing to open yet">
+          Ask an admin of {tenant.name} for a role on a product.
         </EmptyState>
       )}
       {archived.length ? (
@@ -223,7 +220,7 @@ function StartYourOwn({ mayStart, asked }: { mayStart: boolean; asked: boolean }
   );
 }
 
-function ProductEntry({ product: p, showTeam }: { product: ProductSummary; showTeam: boolean }) {
+function ProductEntry({ product: p }: { product: ProductSummary }) {
   const nameId = `overview-product-${p.product_id}`;
   // A reader has only the Story, so the other stages are neither linked nor counted.
   const reader = p.your_role === "reader";
@@ -243,7 +240,7 @@ function ProductEntry({ product: p, showTeam }: { product: ProductSummary; showT
         )}
         <p className="overview-product-meta">
           {p.archived_at ? <StatusBadge tone="neutral">Archived</StatusBadge> : null}
-          {showTeam ? `${p.team.name} · ` : null}Updated <span className="num">{relativeTime(p.updated_at)}</span>
+          Updated <span className="num">{relativeTime(p.updated_at)}</span>
         </p>
       </div>
       <nav className="overview-product-go" aria-label={`${p.name}: sections`}>

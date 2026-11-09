@@ -101,8 +101,8 @@ describe("an organization someone can't see", () => {
     expect(plainSection("/t/elsewhere/members")).toBe("members");
     expect(plainSection("/t/elsewhere/limits/")).toBe("limits");
     // A product that didn't open, and an address the app doesn't know, are in no section.
-    expect(plainSection("/t/elsewhere/team/product")).toBe("");
-    expect(plainSection("/t/elsewhere/team/product/idea")).toBe("");
+    expect(plainSection("/t/elsewhere/product")).toBe("");
+    expect(plainSection("/t/elsewhere/product/idea")).toBe("");
     expect(plainSection("/t/elsewhere/whatever")).toBe("");
     expect(plainSection("/connect/whatever")).toBe("");
     expect(plainSection("/connect")).toBe("connect");

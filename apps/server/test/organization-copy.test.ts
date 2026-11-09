@@ -40,7 +40,7 @@ beforeAll(async () => {
   expect(await syncExampleTenant(h.db, kept.tenant.slug, () => {})).toBe(kept.tenant.id);
   // Someone who belongs only to the organization left behind, signed in, with an agent connected.
   const other = await h.signIn("ideas@sample.example", "Left9Z Ideas Person");
-  expect((await owner.api("POST", `/api/v1/tenants/${left.tenant.slug}/members`, { email: "ideas@sample.example", role: "editor", team: left.team.slug })).status).toBe(201);
+  expect((await owner.api("POST", `/api/v1/tenants/${left.tenant.slug}/members`, { email: "ideas@sample.example", role: "editor", all_products: true })).status).toBe(201);
   await h.connectAgent(other);
   loner = (await other.api("GET", "/api/v1/me")).body.account_id;
   // The organization left behind is owned by a customer too, beside the instance owner.

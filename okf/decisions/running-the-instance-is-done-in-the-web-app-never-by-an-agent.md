@@ -63,4 +63,4 @@ which listed the instance owners' actions to them alone, and
 [An organization's owners, and the instance's owners, rename it](an-organizations-owners-rename-it-and-its-former-slugs-still-reach-it.md),
 whose owners renamed it through either door.
 
-Specified in: [§6.5](../spec/06-operations-and-adapters.md#65-mcp), [§3.3](../spec/03-accounts-teams-and-identity.md#33-tenants-and-teams).
+Specified in: [§6.5](../spec/06-operations-and-adapters.md#65-mcp), [§3.3](../spec/03-accounts-and-identity.md#33-tenants).

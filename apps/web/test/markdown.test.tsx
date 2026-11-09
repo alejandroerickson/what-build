@@ -23,14 +23,16 @@ describe("safe Markdown", () => {
     expect(out).toContain("[pic]");
   });
   it("opens a link into the product being read in place, whichever deployment wrote it", () => {
-    const here = { origin: "https://dev.example.com", pathname: "/t/acme/core/planner/exploration/mockups/01ABC" };
+    const here = { origin: "https://dev.example.com", pathname: "/t/acme/planner/exploration/mockups/01ABC" };
     expect(inAppHref("https://dev.example.com/settings", here)).toBe("/settings");
-    expect(inAppHref("https://app.example.com/t/acme/core/planner/evidence/01DEF?view=text&find=pricing", here)).toBe("/t/acme/core/planner/evidence/01DEF?view=text&find=pricing");
-    expect(inAppHref("https://app.example.com/t/acme/core/planner", here)).toBe("/t/acme/core/planner");
+    expect(inAppHref("https://app.example.com/t/acme/planner/evidence/01DEF?view=text&find=pricing", here)).toBe("/t/acme/planner/evidence/01DEF?view=text&find=pricing");
+    expect(inAppHref("https://app.example.com/t/acme/planner", here)).toBe("/t/acme/planner");
     // Another product, another part of the original, or a page outside any product: left as written.
-    for (const href of ["https://app.example.com/t/acme/core/other/evidence/01DEF", "https://app.example.com/t/acme/core/planner-2", "https://app.example.com/settings"])
+    for (const href of ["https://app.example.com/t/acme/other/evidence/01DEF", "https://app.example.com/t/acme/planner-2", "https://app.example.com/settings"])
       expect(inAppHref(href, here)).toBe(href);
-    expect(inAppHref("https://app.example.com/t/acme/core/planner/idea", { origin: "https://dev.example.com", pathname: "/t/acme/members" })).toBe("https://app.example.com/t/acme/core/planner/idea");
+    expect(inAppHref("https://app.example.com/t/acme/planner/idea", { origin: "https://dev.example.com", pathname: "/t/acme/members" })).toBe("https://app.example.com/t/acme/planner/idea");
+    // An organization's own page is no product, whatever follows it in a link.
+    expect(inAppHref("https://app.example.com/t/acme/members/x", { origin: "https://dev.example.com", pathname: "/t/acme/members" })).toBe("https://app.example.com/t/acme/members/x");
   });
   it("renders tables, task lists and headings shifted below the page title", () => {
     const out = html("# Title\n\n| a | b |\n|---|--:|\n| 1 | 2 |\n\n- [x] done\n- [ ] not");

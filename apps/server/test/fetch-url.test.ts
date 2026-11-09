@@ -158,9 +158,9 @@ describe("attachments.fetch_url", () => {
     alice = await h.signIn("alice@example.com", "Alice Example");
     bob = await h.signIn("bob@example.com", "Bob Example");
     const t = await alice.api("POST", "/api/v1/tenants", { name: "Fetch Co" });
-    const p = await alice.api("POST", `/api/v1/teams/${t.body.tenant.slug}/${t.body.team.slug}/products`, { name: "Planner" });
+    const p = await alice.api("POST", `/api/v1/tenants/${t.body.tenant.slug}/products`, { name: "Planner" });
     P = `/api/v1/p/${p.body.path}`;
-    await alice.api("POST", `/api/v1/tenants/${t.body.tenant.slug}/members`, { team: t.body.team.slug, email: "bob@example.com", role: "editor" });
+    await alice.api("POST", `/api/v1/tenants/${t.body.tenant.slug}/members`, { all_products: true, email: "bob@example.com", role: "editor" });
     recordId = (await alice.api("POST", `${P}/sources`, { tags: ["wiki"], title: "Crew planning notes — Example Co" })).body.record_id;
   });
   afterAll(async () => {

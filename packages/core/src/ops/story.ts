@@ -30,7 +30,7 @@ const pageId = z
   .describe("The page's stable slug, chosen by the author, e.g. overview.");
 
 function productPath(ctx: OpContext) {
-  return `${ctx.scope.tenant!.slug}/${ctx.scope.team!.slug}/${ctx.scope.product!.slug}`;
+  return `${ctx.scope.tenant!.slug}/${ctx.scope.product!.slug}`;
 }
 
 async function loadPage(ctx: OpContext, page: string, lock = false) {

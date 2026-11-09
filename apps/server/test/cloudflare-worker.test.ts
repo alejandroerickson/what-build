@@ -55,16 +55,18 @@ describe("the Cloudflare Worker", () => {
     const own = [
       "/",
       "/.well-known/oauth-authorization-server",
-      "/.well-known/oauth-protected-resource/mcp/t/acme/core/planner",
+      "/.well-known/oauth-protected-resource/mcp/t/acme/planner",
       "/favicon.svg",
       "/theme-boot.js",
       "/robots.txt",
       "/api/v1/meta",
       "/mcp",
+      "/t/acme/planner",
+      "/acme/planner",
+      // An address from when products were in teams, which the app sends on to the product's.
       "/t/acme/core/planner",
-      "/acme/core/planner",
       "/prototypes/grant/app/server.php",
-      "/api/v1/p/acme/core/planner/sources/01ABC/files/notes.json",
+      "/api/v1/p/acme/planner/sources/01ABC/files/notes.json",
     ];
     for (const p of own) {
       const res = await worker.fetch(new Request(`https://app.example.com${p}`), env);
@@ -91,7 +93,7 @@ describe("the Cloudflare Worker", () => {
       },
     });
     vi.stubGlobal("fetch", vi.fn(async () => new Response(stream, { headers: { "Content-Type": "text/event-stream; charset=utf-8", "Cache-Control": "no-store, no-transform", "X-Accel-Buffering": "no" } })));
-    const answer = await worker.fetch(new Request("https://app.example.com/api/v1/p/acme/team/planner/live"), env);
+    const answer = await worker.fetch(new Request("https://app.example.com/api/v1/p/acme/planner/live"), env);
     expect(answer.headers.get("content-type")).toBe("text/event-stream; charset=utf-8");
     expect(answer.headers.get("cache-control")).toBe("no-store, no-transform");
     const reader = answer.body!.getReader();

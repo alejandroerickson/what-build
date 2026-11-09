@@ -6,7 +6,6 @@
 
 export const SAMPLE = {
   tenant: "Harbor Labs",
-  team: "Product team",
   product: "Crewboard",
   // The product concept's card: the back, which agents read, and the front, which people see.
   concept: [

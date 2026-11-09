@@ -53,4 +53,4 @@ paths, and telling the person nothing about backups.
 - Anything new that keeps data about a person is deleted or cleared in `endAccount`, and the
   terms say so.
 
-Specified in: [§3.2](../spec/03-accounts-teams-and-identity.md#32-accounts-and-sign-in), [§9.5](../spec/09-data-lifecycle.md#delete-an-account), [§7.11](../spec/07-web-app.md#711-organization-product-and-account-screens).
+Specified in: [§3.2](../spec/03-accounts-and-identity.md#32-accounts-and-sign-in), [§9.5](../spec/09-data-lifecycle.md#delete-an-account), [§7.11](../spec/07-web-app.md#711-organization-product-and-account-screens).

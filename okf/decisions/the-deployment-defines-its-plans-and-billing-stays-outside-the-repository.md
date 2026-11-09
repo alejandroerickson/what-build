@@ -57,4 +57,4 @@ machinery and each deployment its plans, and that payment lives elsewhere.
 - The web app shows plans only when `GET /api/v1/plans` lists some, and billing words only when
   one of them has a price.
 
-Specified in: [§3.3](../spec/03-accounts-teams-and-identity.md#33-tenants-and-teams), [§9.7](../spec/09-data-lifecycle.md#97-plans-and-limits), [§10](../spec/10-roadmap.md).
+Specified in: [§3.3](../spec/03-accounts-and-identity.md#33-tenants), [§9.7](../spec/09-data-lifecycle.md#97-plans-and-limits), [§10](../spec/10-roadmap.md).

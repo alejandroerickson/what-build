@@ -31,7 +31,7 @@ That is how it is developed and how CI runs it.
 |---|---|---|
 | 1 | [Product](01-product.md) | The core loop, the four screens, vocabulary, non-negotiable behaviors |
 | 2 | [Architecture](02-architecture.md) | Technology stack, ports and adapters, production and development environments, repository layout |
-| 3 | [Accounts, tenants, teams, products, roles](03-accounts-teams-and-identity.md) | Sign-in, the tenant → team → product hierarchy, roles, isolation, who the caller is |
+| 3 | [Accounts, tenants, products, roles](03-accounts-and-identity.md) | Sign-in, the tenant → product hierarchy, roles, isolation, who the caller is |
 | 4 | [Data model](04-data-model.md) | Every object, field, limit and invariant |
 | 5 | [Derived layer](05-derived-layer.md) | Reading attachments, the parsers, a source's derived text and its reads and writes |
 | 6 | [Operations and adapters](06-operations-and-adapters.md) | The operation registry, REST, MCP tools, the agents' guide, upload flows |
@@ -58,18 +58,18 @@ That is how it is developed and how CI runs it.
 1. **One hosted application, multi-tenant from the first migration.** Stateless Node processes in
    front of Postgres and an object store, serving many tenants. Every content row and every blob
    key carries the tenant; isolation is enforced in the core and again by the database.
-   → [Architecture](02-architecture.md), [Accounts and tenants](03-accounts-teams-and-identity.md)
+   → [Architecture](02-architecture.md), [Accounts and tenants](03-accounts-and-identity.md)
 2. **The whole thing runs on a laptop in one command.** No accounts, no API keys, no cloud services
    to provision, and nothing to install but Node. Development may substitute an adapter, never a
    behavior. → [Architecture §2.6](02-architecture.md)
 3. **Operations are defined once.** A single operation registry generates the REST routes, the MCP
    tools, and their self-descriptions, so the two adapters cannot drift.
    → [Operations](06-operations-and-adapters.md)
-4. **Tenant → team → product → everything.** A product is one discovery. Every object belongs to
+4. **Tenant → product → everything.** A product is one discovery. Every object belongs to
    exactly one product; the product is explicit in every request.
-   → [Accounts, tenants, teams, products, roles](03-accounts-teams-and-identity.md)
-5. **Roles, checked in one place.** Viewer, editor and admin at the team or product, owner and admin
-   at the tenant; the highest applies. What you cannot see answers `404`; what you can see but may
+   → [Accounts, tenants, products, roles](03-accounts-and-identity.md)
+5. **Roles, checked in one place.** Reader, viewer, editor and admin on a product or on all
+   products, owner, admin, product creator and member of the tenant; the highest applies. What you cannot see answers `404`; what you can see but may
    not change answers `403` with both roles named. Agents act with exactly their person's role.
 6. **Destruction is never a side effect.** Archive is the reversible default; delete is permanent,
    guarded, available to admins through both adapters (to an agent only at Admin), and leaves a

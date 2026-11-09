@@ -22,7 +22,7 @@ beforeAll(async () => {
   h = await startHarness({ relayMaxBytes: MiB });
   alice = await h.signIn("alice@example.com", "Alice Example");
   const t = await alice.api("POST", "/api/v1/tenants", { name: "Hostile Co" });
-  const p = await alice.api("POST", `/api/v1/teams/${t.body.tenant.slug}/${t.body.team.slug}/products`, { name: "Intake" });
+  const p = await alice.api("POST", `/api/v1/tenants/${t.body.tenant.slug}/products`, { name: "Intake" });
   P = `/api/v1/p/${p.body.path}`;
 });
 afterAll(async () => h?.close());
@@ -324,7 +324,7 @@ function withLimits(limits: Partial<ServerConfig>) {
     at.h = await startHarness({ relayMaxBytes: 8 * MiB, ...limits });
     at.owner = await at.h.signIn("dana@example.com", "Dana Example");
     const t = await at.owner.api("POST", "/api/v1/tenants", { name: "Limits Co" });
-    at.product = `/api/v1/p/${(await at.owner.api("POST", `/api/v1/teams/${t.body.tenant.slug}/${t.body.team.slug}/products`, { name: "Intake" })).body.path}`;
+    at.product = `/api/v1/p/${(await at.owner.api("POST", `/api/v1/tenants/${t.body.tenant.slug}/products`, { name: "Intake" })).body.path}`;
   });
   afterAll(async () => at.h?.close());
   /** Uploads each file as the first attachment of a new source; their ids, in order. */

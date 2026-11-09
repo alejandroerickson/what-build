@@ -5,7 +5,6 @@ import { startHarness, withPlanLimits, type Browser, type Harness } from "./harn
 let h: Harness;
 let owner: Browser;
 let tenant: string;
-let team: string;
 let path: string;
 
 /** Whoever is invited here answers for themselves: nothing is accepted on their behalf. */
@@ -15,12 +14,11 @@ beforeAll(async () => {
   owner = await h.signIn("owner@example.com", "Olive Owner");
   const t = await owner.api("POST", "/api/v1/tenants", { name: "Acme Labs" });
   tenant = t.body.tenant.slug;
-  team = t.body.team.slug;
-  path = (await owner.api("POST", `/api/v1/teams/${tenant}/${team}/products`, { name: "Crewboard" })).body.path;
+  path = (await owner.api("POST", `/api/v1/tenants/${tenant}/products`, { name: "Crewboard" })).body.path;
 });
 afterAll(async () => h?.close());
 
-const invite = async (email: string, role = "editor", where: Record<string, string> = { team }) => {
+const invite = async (email: string, role = "editor", where: Record<string, string | boolean> = { all_products: true }) => {
   const r = await owner.api("POST", `/api/v1/tenants/${tenant}/members`, { ...where, email, role });
   expect(r.status, JSON.stringify(r.body)).toBe(201);
   return { id: String(r.body.invitation_id), token: String(r.body.invite_link).split("/invite/")[1]!, link: String(r.body.invite_link) };
@@ -74,7 +72,7 @@ describe("signing in", () => {
 
 describe("the person's list", () => {
   it("names the organization, the place, the role and who invited them, and never the token", async () => {
-    const { id, token } = await invite("Listed@Example.com", "viewer", { team, product: "crewboard" });
+    const { id, token } = await invite("Listed@Example.com", "viewer", { product: "crewboard" });
     const listed = await h.signIn("listed@example.com");
     const [i] = await pending(listed);
     expect(i).toMatchObject({ invitation_id: id, tenant: { slug: tenant, name: "Acme Labs" }, scope_type: "product", scope: "Crewboard", role: "viewer", invited_by: '"Olive Owner"' });
@@ -91,15 +89,15 @@ describe("the person's list", () => {
 
   it("leaves out what is cancelled, past its time, accepted or sent to someone else", async () => {
     const seer = await h.signIn("seer@example.com");
-    const cancelled = await invite("seer@example.com", "editor", { team });
+    const cancelled = await invite("seer@example.com", "editor", { all_products: true });
     expect((await owner.api("POST", `/api/v1/tenants/${tenant}/invitations/cancel`, { invitation_id: cancelled.id })).status).toBe(200);
     expect(await pending(seer)).toEqual([]);
-    const lapsed = await invite("seer@example.com", "viewer", { team });
+    const lapsed = await invite("seer@example.com", "viewer", { all_products: true });
     await h.db.updateTable("invitations").set({ expires_at: new Date(Date.now() - 1000).toISOString() }).where("invitation_id", "=", lapsed.id).execute();
     expect(await pending(seer)).toEqual([]);
     await invite("someone-else@example.com");
     expect(await pending(seer)).toEqual([]);
-    const open = await invite("seer@example.com", "viewer", { team });
+    const open = await invite("seer@example.com", "viewer", { all_products: true });
     expect((await seer.api("POST", "/api/v1/invitations/accept", { invitation_id: open.id })).status).toBe(200);
     expect(await pending(seer)).toEqual([]);
   });
@@ -112,7 +110,7 @@ describe("opening the link", () => {
     const before = (await log()).length;
     const opened = await opener.api("POST", "/api/v1/invitations/read", { token });
     expect(opened.status).toBe(200);
-    expect(opened.body).toMatchObject({ accepted: false, invitation_id: id, tenant: { name: "Acme Labs" }, scope_type: "team", role: "editor", invited_by: '"Olive Owner"' });
+    expect(opened.body).toMatchObject({ accepted: false, invitation_id: id, tenant: { name: "Acme Labs" }, scope_type: "all_products", role: "editor", invited_by: '"Olive Owner"' });
     expect((await row(id)).accepted_at).toBeNull();
     expect(await reaches(opener)).toBe(false);
     expect((await log()).length).toBe(before);
@@ -143,7 +141,7 @@ describe("accepting", () => {
     const me = (await joiner.api("GET", "/api/v1/me")).body;
     const r = await joiner.api("POST", "/api/v1/invitations/accept", { invitation_id: id });
     expect(r.status).toBe(200);
-    expect(r.body).toMatchObject({ accepted: true, already: false, scope_type: "team", role: "editor", tenant: { slug: tenant } });
+    expect(r.body).toMatchObject({ accepted: true, already: false, scope_type: "all_products", role: "editor", tenant: { slug: tenant } });
     expect(await reaches(joiner)).toBe(true);
     expect((await row(id)).accepted_by).toBe(me.account_id);
     expect((await log()).filter((e) => e.action === "joined" && e.entity_id === me.account_id)).toEqual([expect.objectContaining({ entity_title: "Jo Joiner", summary: "Accepted an invitation as editor" })]);
@@ -267,7 +265,7 @@ describe("accepting", () => {
 
 describe("declining", () => {
   it("ends it, gives no role, and is logged under nobody's name", async () => {
-    const { id, token } = await invite("decliner@example.com", "editor", { team, product: "crewboard" });
+    const { id, token } = await invite("decliner@example.com", "editor", { product: "crewboard" });
     const decliner = await h.signIn("decliner@example.com", "Dee Decliner");
     const r = await decliner.api("POST", "/api/v1/invitations/decline", { invitation_id: id });
     expect(r.status).toBe(200);
@@ -359,13 +357,13 @@ describe("an address's invitation to one place", () => {
   });
 
   it("ends when the role is given at once", async () => {
-    const onProduct = await invite("seen-later@example.com", "reader", { team, product: "crewboard" });
-    const onTeam = await invite("seen-later@example.com", "viewer", { team });
+    const onProduct = await invite("seen-later@example.com", "reader", { product: "crewboard" });
+    const onAll = await invite("seen-later@example.com", "viewer", { all_products: true });
     const seen = await h.signIn("seen-later@example.com");
-    expect((await seen.api("POST", "/api/v1/invitations/accept", { invitation_id: onTeam.id })).status).toBe(200);
+    expect((await seen.api("POST", "/api/v1/invitations/accept", { invitation_id: onAll.id })).status).toBe(200);
     expect((await pending(seen)).map((i) => i.invitation_id)).toEqual([onProduct.id]);
     // Now in the organization, the owner sees them, so a role on the product is given at once and the invitation there is moot.
-    expect((await owner.api("POST", `/api/v1/tenants/${tenant}/members`, { team, product: "crewboard", email: "seen-later@example.com", role: "editor" })).body).toMatchObject({ invited: false, role: "editor" });
+    expect((await owner.api("POST", `/api/v1/tenants/${tenant}/members`, { product: "crewboard", email: "seen-later@example.com", role: "editor" })).body).toMatchObject({ invited: false, role: "editor" });
     expect(await pending(seen)).toEqual([]);
     expect((await seen.api("POST", "/api/v1/invitations/accept", { token: onProduct.token })).body.error.code).toBe("invitation_expired");
   });
@@ -435,6 +433,35 @@ describe("who may answer", () => {
   });
 });
 
+describe("an invitation to all products", () => {
+  it("says every product in the organization, and accepting gives the role on all of them, products made later included", async () => {
+    const { id, token } = await invite("everywhere@example.com", "viewer", { all_products: true });
+    const mail = h.mailer.sent.at(-1)!;
+    expect(mail.to).toBe("everywhere@example.com");
+    expect(mail.subject).toBe(`"Olive Owner" invited you to every product in the organization "Acme Labs" on WhatBuild`);
+    expect(mail.text).toContain(`invited you to every product in the organization "Acme Labs" on WhatBuild, as a viewer.`);
+    expect(mail.text).not.toMatch(/\bteam\b/i);
+
+    const everywhere = await h.signIn("everywhere@example.com", "Eve Everywhere");
+    const [listed] = await pending(everywhere);
+    expect(listed).toMatchObject({ invitation_id: id, scope_type: "all_products", scope: "All products", role: "viewer" });
+    expect((await everywhere.api("POST", "/api/v1/invitations/read", { token })).body).toMatchObject({ scope_type: "all_products", role: "viewer" });
+    const accepted = await everywhere.api("POST", "/api/v1/invitations/accept", { invitation_id: id });
+    expect(accepted.status, JSON.stringify(accepted.body)).toBe(200);
+    expect(accepted.body).toMatchObject({ accepted: true, scope_type: "all_products", role: "viewer" });
+
+    const me = (await everywhere.api("GET", "/api/v1/me")).body;
+    const tenantId = (await h.db.selectFrom("tenants").select("tenant_id").where("slug", "=", tenant).executeTakeFirstOrThrow()).tenant_id;
+    const grants = await h.db.selectFrom("memberships").select(["scope_type", "scope_id", "role"]).where("account_id", "=", me.account_id).execute();
+    expect(grants).toEqual([{ scope_type: "all_products", scope_id: tenantId, role: "viewer" }]);
+    expect(await reaches(everywhere)).toBe(true);
+    // A product made after they joined is theirs to read too, and still not to write.
+    const later = (await owner.api("POST", `/api/v1/tenants/${tenant}/products`, { name: "Made Later" })).body.path as string;
+    expect((await everywhere.api("GET", `/api/v1/p/${later}`)).body).toMatchObject({ your_role: "viewer" });
+    expect((await everywhere.api("POST", `/api/v1/p/${later}/outcomes`, { title: "Not mine to write" })).status).toBe(403);
+  });
+});
+
 describe("what else an answer meets", () => {
   it("lets a new invitation replace an open one only for someone who could cancel it, and the log says so", async () => {
     const admin = await h.signIn("second-admin@example.com", "Ada Admin");
@@ -475,9 +502,9 @@ describe("what else an answer meets", () => {
   it("ends what is still open to someone removed from the organization, so accepting cannot undo it", async () => {
     const who = await h.signIn("removed-person@example.com", "Rob Removed");
     // Both while they are outside it, since someone already seen there is given a role at once.
-    const left = await invite("removed-person@example.com", "editor", { team, product: "crewboard" });
-    const onTeam = await invite("removed-person@example.com");
-    expect((await who.api("POST", "/api/v1/invitations/accept", { token: onTeam.token })).status).toBe(200);
+    const left = await invite("removed-person@example.com", "editor", { product: "crewboard" });
+    const onAll = await invite("removed-person@example.com");
+    expect((await who.api("POST", "/api/v1/invitations/accept", { token: onAll.token })).status).toBe(200);
     const account = (await who.api("GET", "/api/v1/me")).body.account_id as string;
     expect((await owner.api("POST", `/api/v1/tenants/${tenant}/members/revoke`, { account_id: account, whole_tenant: true })).status).toBe(200);
     expect(await pending(who)).toEqual([]);

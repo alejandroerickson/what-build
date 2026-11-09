@@ -22,7 +22,7 @@ model listed this as an accepted trade-off for a clearer message. The maintainer
 
 - `members.grant` and `members.grant_many` give the role at once only to someone the giver already
   sees in the organization, as `members.list` shows them: anyone in it, to its owners and admins;
-  the people on the teams and products they read, to anyone else.
+  the people on the products they read, and those with a role on all products, to anyone else.
 - Anyone else is invited, whether or not they have an account, and joins only by accepting, from
   their list of invitations or the link
   ([decision](invitations-belong-to-their-address.md)). The answer, the email, the people lists and the access log are
@@ -41,8 +41,8 @@ model listed this as an accepted trade-off for a clearer message. The maintainer
 - `grantOne` and `seenByCaller` in `packages/core/src/ops/products.ts` decide it; the members
   tests check the answer for an account elsewhere matches the one for no account.
 - The sign-in form follows the same rule: it answers every address alike and mails a link only to
-  one that may sign in ([§3.2](../spec/03-accounts-teams-and-identity.md)).
+  one that may sign in ([§3.2](../spec/03-accounts-and-identity.md)).
 - Two people in one organization see each other as `members.list` shows them; that rule is
-  unchanged ([§3.5](../spec/03-accounts-teams-and-identity.md)).
+  unchanged ([§3.5](../spec/03-accounts-and-identity.md)).
 
-Specified in: [§3.5](../spec/03-accounts-teams-and-identity.md).
+Specified in: [§3.5](../spec/03-accounts-and-identity.md).

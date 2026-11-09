@@ -19,10 +19,8 @@ export interface ConnectorScope {
 const ACCOUNT_OPS_ALLOWED = new Set(["products.list", "guide", "submit_feedback"]);
 /** Organization-level operations a product connector still answers: the caller's own standing there. */
 const TENANT_OPS_FOR_PRODUCT = new Set(["products.limits"]);
-/** Product operations that reach a second product, which a product connector never can. */
-const CROSS_PRODUCT_OPS = new Set(["sources.move_to_product", "sources.copy_to_product"]);
 
-/** The connector's own name for itself in messages: `organization Acme (acme)` or `product Crewboard (acme/core/crewboard)`. */
+/** The connector's own name for itself in messages: `organization Acme (acme)` or `product Crewboard (acme/crewboard)`. */
 export function describeConnectorScope(c: ConnectorScope): string {
   return c.product ? `product ${c.product.name} (${c.product.path})` : `organization ${c.tenant.name} (${c.tenant.slug})`;
 }
@@ -45,18 +43,18 @@ export async function resolveConnectorScope(db: Db, principal: Principal, bound:
   const product = Boolean(bound.product);
   const scope = await resolveScope(db, principal, product ? "product" : "tenant", "any", bound, "connect").catch((e: unknown) => {
     if (e instanceof AppError && e.status === 404) {
-      const path = [bound.tenant, bound.team, bound.product].filter(Boolean).join("/");
+      const path = [bound.tenant, bound.formerTeam, bound.product].filter(Boolean).join("/");
       throw new AppError(404, "not_found", `This connector is scoped to ${product ? "product" : "organization"} ${path}, which you cannot reach. It may have been renamed, or you may have left it. Copy its address again from Connect an agent.`);
     }
     throw e;
   });
-  // A product connector offers no team's operation, so only the product's role and the organization's count.
+  // A product connector offers the product's operations, so only the product's role and the organization's count.
   const standing = product
-    ? { role: scope.role, teamRole: null, tenantRole: scope.tenantRole }
+    ? { role: scope.role, tenantRole: scope.tenantRole }
     : highestRolesIn(await membershipsFor(db, principal.account_id, scope.tenant!.tenant_id), scope.tenant!.tenant_id);
   return {
     tenant: { tenant_id: scope.tenant!.tenant_id, slug: scope.tenant!.slug, name: scope.tenant!.name },
-    product: scope.product ? { product_id: scope.product.product_id, path: `${scope.tenant!.slug}/${scope.team!.slug}/${scope.product.slug}`, name: scope.product.name } : null,
+    product: scope.product ? { product_id: scope.product.product_id, path: `${scope.tenant!.slug}/${scope.product.slug}`, name: scope.product.name } : null,
     standing,
   };
 }
@@ -66,7 +64,7 @@ export function connectorOffers(c: ConnectorScope, op: Pick<OperationDef, "name"
   if (op.scope === "account") return ACCOUNT_OPS_ALLOWED.has(op.name);
   if (!c.product) return true;
   if (op.scope !== "product") return TENANT_OPS_FOR_PRODUCT.has(op.name);
-  return !CROSS_PRODUCT_OPS.has(op.name);
+  return true;
 }
 
 /** Refuse a call whose resolved scope lies outside the connector's. Runs after authorization, before the handler. */
@@ -80,21 +78,17 @@ export function checkConnectorScope(c: ConnectorScope, op: OperationDef, scope: 
   if (!c.product) return;
   if (op.scope !== "product") {
     if (TENANT_OPS_FOR_PRODUCT.has(op.name)) return;
-    throw outsideConnectorScope(c, `${op.name}, which acts on the whole ${op.scope === "team" ? "team" : "organization"},`);
+    throw outsideConnectorScope(c, `${op.name}, which acts on the whole organization,`);
   }
   if (scope.product!.product_id !== c.product.product_id) throw outsideConnectorScope(c, `product ${scope.product!.name}`);
-  if (CROSS_PRODUCT_OPS.has(op.name)) throw outsideConnectorScope(c, "another product");
 }
 
 /** `products.list` as a scoped connector sees it: only what lies inside. */
-export function narrowProductList<T extends { items: { product_id: string; tenant: { tenant_id: string }; team: { team_id: string } }[]; tenants: { tenant_id: string; teams: { team_id: string }[] }[] }>(
+export function narrowProductList<T extends { items: { product_id: string; tenant: { tenant_id: string } }[]; tenants: { tenant_id: string }[] }>(
   c: ConnectorScope,
   list: T,
 ): T {
   const items = list.items.filter((i) => i.tenant.tenant_id === c.tenant.tenant_id && (!c.product || i.product_id === c.product.product_id));
-  const teams = new Set(items.map((i) => i.team.team_id));
-  const tenants = list.tenants
-    .filter((t) => t.tenant_id === c.tenant.tenant_id)
-    .map((t) => (c.product ? { ...t, teams: t.teams.filter((tm) => teams.has(tm.team_id)) } : t));
+  const tenants = list.tenants.filter((t) => t.tenant_id === c.tenant.tenant_id);
   return { ...list, items, tenants };
 }

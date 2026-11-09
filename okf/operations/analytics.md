@@ -173,7 +173,7 @@ in reports; `…:runRealtimeReport` shows the last 30 minutes.
 
 ## What the app sends
 
-- **Page views:** the masked path (`/t/:org/:team/:product/story/:id`) and a fixed title, once a
+- **Page views:** the masked path (`/t/:org/:product/story/:id`) and a fixed title, once a
   screen has stayed 0.7 seconds, so an old address that only redirects is not counted. The masked
   address is set before Google's first event and again the moment the screen changes, so no event
   carries the real one.

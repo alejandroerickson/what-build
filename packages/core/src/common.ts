@@ -5,7 +5,6 @@ import { collapse, newId, normalizeKey, sameEtag, uniq } from "./util.ts";
 
 export type EntityType =
   | "product"
-  | "team"
   | "tenant"
   | "membership"
   | "source"
@@ -143,7 +142,6 @@ export async function recordActivity(
     .values({
       activity_id: newId(),
       tenant_id: tenantId,
-      team_id: ctx.scope.team?.team_id ?? null,
       product_id: ctx.scope.product?.product_id ?? null,
       actor: json(ctx.actor),
       actor_account_id: ctx.actor.account_id,

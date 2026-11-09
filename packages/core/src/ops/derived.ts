@@ -606,11 +606,10 @@ export async function runDerivation(
     }
   }
   if (!job.quiet) {
-    const product = await db.selectFrom("products").select(["team_id"]).where("product_id", "=", record.product_id).executeTakeFirst();
     await db
       .insertInto("activity")
       .values({
-        activity_id: newId(), tenant_id: job.tenant_id, team_id: product?.team_id ?? null, product_id: record.product_id,
+        activity_id: newId(), tenant_id: job.tenant_id, product_id: record.product_id,
         actor: json(PARSER), actor_account_id: "system", channel: null,
         action: result.status === "ready" ? "derived" : "derivation_" + result.status, entity_type: "source", entity_id: record.record_id, entity_title: record.title,
         summary:

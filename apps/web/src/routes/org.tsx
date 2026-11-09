@@ -3,7 +3,7 @@ import { READ_ONLY_ALLOWS } from "@whatbuild/core/read-only";
 import { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router";
 import { api, ApiError, qs } from "../lib/api.ts";
-import { aRole, formatBytes, formatDate, plural, ROLE_WORD, scopeWords, slugProblem } from "../lib/format.ts";
+import { aRole, formatBytes, formatDate, plural, ROLE_WORD, roleWords, scopeWords, slugProblem } from "../lib/format.ts";
 import { anyPriced, keptLine, totalsInWords, usePlans, type Plan } from "../lib/limits.ts";
 import { useMe, useProducts } from "../lib/session.tsx";
 import { ActivityLog, type ActivityItem } from "../shell/ActivityFeed.tsx";
@@ -42,8 +42,8 @@ export function Welcome() {
   const ready = Boolean(org.trim()) && Boolean(product.trim()) && !tooLong(org, NAME_MAX) && !tooLong(product, NAME_MAX) && !tooLong(concept, CONCEPT_MAX);
   const create = useMutation({
     mutationFn: async () => {
-      const t = await api<{ tenant: { slug: string }; team: { slug: string } }>("POST", "/api/v1/tenants", { name: org.trim() });
-      const p = await api<{ path: string }>("POST", `/api/v1/teams/${t.tenant.slug}/${t.team.slug}/products`, { name: product.trim(), concept });
+      const t = await api<{ tenant: { slug: string } }>("POST", "/api/v1/tenants", { name: org.trim() });
+      const p = await api<{ path: string }>("POST", `/api/v1/tenants/${t.tenant.slug}/products`, { name: product.trim(), concept });
       return p.path;
     },
     onSuccess: async (path) => {
@@ -148,9 +148,15 @@ function NewOrganizationPlan({ plan, operator }: { plan: Plan; operator: boolean
 
 // ---- Members ------------------------------------------------------------------------------------
 
+/**
+ * Where a role is given: the organization itself, all its products (every one, products made later
+ * included), or one product.
+ */
+type GrantScope = "tenant" | "all_products" | "product";
+
 interface MemberGrant {
   membership_id: string;
-  scope_type: "tenant" | "team" | "product";
+  scope_type: GrantScope;
   scope_id: string;
   scope: { name: string; slug: string };
   role: string;
@@ -158,7 +164,7 @@ interface MemberGrant {
 }
 interface MembersResponse {
   members: { account_id: string; display_name: string; email: string; grants: MemberGrant[] }[];
-  invitations: { invitation_id: string; email: string; scope_type: "tenant" | "team" | "product"; scope_id: string; scope: { name: string }; role: string; expires_at: string }[];
+  invitations: { invitation_id: string; email: string; scope_type: GrantScope; scope_id: string; scope: { name: string }; role: string; expires_at: string }[];
   /** A guest of the example organization, who sees none of its people. */
   guest?: true;
   /** Below an owner or admin of the organization: only the people, roles and invitations on what this person reads. */
@@ -167,22 +173,25 @@ interface MembersResponse {
 
 type Member = MembersResponse["members"][number];
 
-/** The request body that names a grant's scope; the organization itself needs neither team nor product. */
+/** The request body that names a grant's scope; the organization itself needs neither product nor all_products. */
 function scopeBody(g: { scope_type: string; scope_id: string }) {
-  return g.scope_type === "team" ? { team: g.scope_id } : g.scope_type === "product" ? { product: g.scope_id } : {};
+  return g.scope_type === "all_products" ? { all_products: true } : g.scope_type === "product" ? { product: g.scope_id } : {};
 }
 
-/** Everyone listed is in the organization; with no organization role of their own, they are a member through their team and product roles. */
+/** Everyone listed is in the organization; with no organization role of their own, they are a member through their product roles. */
 function orgRoleOf(m: Member) {
   return m.grants.find((g) => g.scope_type === "tenant")?.role ?? "member";
 }
 
 const ORG_ROLE_HINT: Record<string, string> = {
   owner: "Admin of everything, and can make other owners",
-  admin: "Admin of every team and product",
+  admin: "Admin of every product",
+  creator: "Creates products, and is admin of each one they create",
   member: "Opens only what they have a role on",
 };
-/** A team or product role in a few words, as the key to the roles and the role menus give it. */
+/** The organization's roles, lowest first, as its role menus offer them; only an owner makes owners. */
+const orgRolesFor = (owner: boolean) => (owner ? ["member", "creator", "admin", "owner"] : ["member", "creator", "admin"]);
+/** A role on a product or on all products in a few words, as the key to the roles and the role menus give it. */
 const SCOPE_ROLE_HINT: Record<string, string> = {
   admin: "Also manages its settings and people",
   editor: "Reads and writes",
@@ -224,12 +233,13 @@ export function MembersPage() {
   }, [drawn, hash]);
   const canManage = (g: { scope_type: string; scope_id: string; role: string }) => {
     if (g.scope_type === "tenant") return g.role === "owner" ? t?.your_role === "owner" : tenantAdmin;
-    if (g.scope_type === "team") return tenantAdmin || t?.teams.find((tm) => tm.team_id === g.scope_id)?.your_role === "admin";
+    // Roles on all products are the organization's owners' and admins' to give and take.
+    if (g.scope_type === "all_products") return tenantAdmin;
     return tenantAdmin || inOrg.find((p) => p.product_id === g.scope_id)?.your_role === "admin";
   };
   // A read-only organization takes nobody new and no new role, but its people can still be taken out.
   const readOnly = Boolean(t?.read_only);
-  const canGive = !readOnly && (tenantAdmin || Boolean(t?.teams.some((tm) => tm.your_role === "admin")) || inOrg.some((p) => p.your_role === "admin"));
+  const canGive = !readOnly && (tenantAdmin || inOrg.some((p) => p.your_role === "admin"));
   const refresh = () => void qc.invalidateQueries({ queryKey: ["members", tenant] });
   const grant = useMutation({
     mutationFn: (v: { email: string; role: string; scope_type: string; scope_id: string }) =>
@@ -264,7 +274,7 @@ export function MembersPage() {
       },
     );
   };
-  // Granting again at the same team or product replaces the role there.
+  // Granting again on the same product, or on all products, replaces the role there.
   const setScopeRole = (m: Member, g: MemberGrant, role: string) => {
     if (role === g.role) return;
     const where = scopeWords(g.scope_type, g.scope.name);
@@ -328,12 +338,12 @@ export function MembersPage() {
           ) : null}
           {guest ? null : (
           <>
-          {q.data?.partial ? <p className="muted">You see the people on the teams and products you can open, and the organization&rsquo;s owners and admins.</p> : null}
+          {q.data?.partial ? <p className="muted">You see the people on the products you can open, the people with a role on all products, and the organization&rsquo;s owners and admins.</p> : null}
           <div className="members-legend">
             <div className="members-legend-group">
               <p id="legend-org" className="members-legend-head">Roles in the organization</p>
               <dl aria-labelledby="legend-org">
-                {["owner", "admin", "member"].map((r) => (
+                {["owner", "admin", "creator", "member"].map((r) => (
                   <div key={r}>
                     <dt>{ROLE_WORD[r]}</dt>
                     <dd>{ORG_ROLE_HINT[r]}</dd>
@@ -342,7 +352,7 @@ export function MembersPage() {
               </dl>
             </div>
             <div className="members-legend-group">
-              <p id="legend-scope" className="members-legend-head">Roles on a team or product</p>
+              <p id="legend-scope" className="members-legend-head">Roles on a product, or on all products</p>
               <dl aria-labelledby="legend-scope">
                 {SCOPE_ROLES.map((r) => (
                   <div key={r}>
@@ -354,7 +364,7 @@ export function MembersPage() {
             </div>
           </div>
           <p className="members-legend-foot">
-            A team role covers every product in the team, and the highest role wins.
+            A role on all products covers every product in the organization, including ones made later, and the highest role wins.
           </p>
           </>
           )}
@@ -393,9 +403,9 @@ export function MembersPage() {
                     <div className="members-roles-line">
                       <dt>Access</dt>
                       <dd>
-                        {orgAdmin ? <span className="members-grant muted">Admin of every team and product, as an organization {orgRole}</span> : null}
+                        {orgAdmin ? <span className="members-grant muted">Admin of every product, as an organization {orgRole}</span> : null}
                         {access.length ? (
-                          <ul className="members-grants" aria-label={`${m.display_name}’s team and product roles`}>
+                          <ul className="members-grants" aria-label={`${m.display_name}’s product roles`}>
                             {access.map((g) => (
                               <li key={g.membership_id} className="members-grant">
                                 <span>
@@ -443,7 +453,11 @@ export function MembersPage() {
                           </ul>
                         ) : orgAdmin ? null : (
                           <span className="members-grant members-none">
-                            <span>No team or product yet, so {self ? "you can’t" : "they can’t"} open anything.</span>
+                            <span>
+                              {orgRole === "creator"
+                                ? `No product yet, though ${self ? "you" : "they"} can create one.`
+                                : `No product yet, so ${self ? "you can’t" : "they can’t"} open anything.`}
+                            </span>
                             {canGive ? (
                               <Button size="sm" variant="quiet" onClick={() => setGiving({ email: m.email })}>
                                 Give access
@@ -460,11 +474,11 @@ export function MembersPage() {
                         {readOnly ? null : (
                           <>
                             <MenuItem icon="user-plus" onSelect={() => setGiving({ email: m.email })}>
-                              Give access to a team or product…
+                              Give access to products…
                             </MenuItem>
                             <MenuSeparator />
                             <MenuGroup label={`Role in ${orgName}`}>
-                              {(t?.your_role === "owner" ? ["member", "admin", "owner"] : ["member", "admin"]).map((r) => (
+                              {orgRolesFor(t?.your_role === "owner").map((r) => (
                                 <MenuRadio key={r} checked={orgRole === r} meta={ORG_ROLE_HINT[r]} onSelect={() => setOrgRole(m, r)}>
                                   {ROLE_WORD[r]}
                                 </MenuRadio>
@@ -497,7 +511,7 @@ export function MembersPage() {
                 <div className="members-person">
                   <span className="members-name">{i.email}</span>
                   <span className="members-email">
-                    Invited as {i.role} on {scopeWords(i.scope_type, i.scope.name)} · expires {formatDate(i.expires_at)}
+                    Invited as {roleWords(i.role)} on {scopeWords(i.scope_type, i.scope.name)} · expires {formatDate(i.expires_at)}
                   </span>
                 </div>
                 <div className="members-grants">
@@ -622,24 +636,21 @@ function OrganizationNameSheet({ slug, name, etag, owner: isOwner, readOnly }: {
 
 /** What deleting an organization destroys, as products.delete_tenant_impact reports it. */
 export interface OrganizationImpact {
-  contents: { teams: number; products: { product_id: string; name: string; archived: boolean }[]; sources: number; stored_files: number; bytes: number; people: number; pending_invitations: number };
+  contents: { products: { product_id: string; name: string; archived: boolean }[]; sources: number; stored_files: number; bytes: number; people: number; pending_invitations: number };
 }
 
 /**
  * What deleting an organization takes, as its dialog says it, leaving out a count of none: what
- * goes (its teams and products, with their sources and stored files), and who loses what (the
+ * goes (its products, with their sources and stored files), and who loses what (the
  * people with roles here, and the invitations still open), or null when nobody does.
  */
 export function organizationImpactWords(name: string, c: OrganizationImpact["contents"]): { goes: string; people: string | null } {
-  const held = listed([
-    c.teams > 0 && (c.teams === 1 ? "its team" : `its ${c.teams} teams`),
-    c.products.length > 0 && (c.products.length === 1 ? "its product" : `all ${c.products.length} of its products`),
-  ]);
+  const held = listed([c.products.length > 0 && (c.products.length === 1 ? "its product" : `all ${c.products.length} of its products`)]);
   const within = listed([c.sources > 0 && plural(c.sources, "source"), c.stored_files > 0 && `${plural(c.stored_files, "stored file")} (${formatBytes(c.bytes)})`]);
   const lose = c.people > 0 && `${c.people === 1 ? "1 person loses" : `${c.people} people lose`} their roles here`;
   const stop = c.pending_invitations > 0 && (c.pending_invitations === 1 ? "1 invitation stops working" : `${c.pending_invitations} invitations stop working`);
   return {
-    goes: `Everything in ${name} goes at once${held ? `: ${held}${within ? `, with ${within}` : ""}` : ""}.`,
+    goes: `Everything in ${name} goes at once${held ? `: ${held}${within ? `, with ${within}` : ""}` : within ? `: ${within}` : ""}.`,
     people: lose ? `${lose}${stop ? `, and ${stop}` : ""}. ${c.people === 1 ? "Their account" : "Their accounts"}, and their roles in other organizations, stay.` : stop ? `${stop}.` : null,
   };
 }
@@ -655,7 +666,7 @@ function DeleteOrganizationSheet({ tenant, orgName }: { tenant: string; orgName:
     <Sheet labelledBy="delete-org-title">
       <SheetHeader id="delete-org-title" title="Delete this organization" />
       <SheetBody className="stack-sm">
-        <p className="muted">Deleting {orgName} erases every team and product in it, and every role and invitation. It can’t be undone.</p>
+        <p className="muted">Deleting {orgName} erases every product in it, and every role and invitation. It can’t be undone.</p>
         <div>
           <Button variant="danger" icon="trash" onClick={() => setOpen(true)}>
             Delete {orgName} permanently…
@@ -806,7 +817,7 @@ function RemoveMemberDialog({ tenant, orgName, member: m, lastGrant, keepAsMembe
       description={
         lastGrant
           ? canKeep
-            ? `${grantWords(lastGrant)} is ${m.display_name}’s only role here. Keep them in ${orgName} as a member, who opens nothing until given a team or product, or remove them from it.`
+            ? `${grantWords(lastGrant)} is ${m.display_name}’s only role here. Keep them in ${orgName} as a member, who opens nothing until given a role on a product, or remove them from it.`
             : `${grantWords(lastGrant)} is ${m.display_name}’s only role here, so removing it removes them from the organization.`
           : `${m.display_name} loses every role here.`
       }
@@ -844,12 +855,18 @@ function RemoveMemberDialog({ tenant, orgName, member: m, lastGrant, keepAsMembe
   );
 }
 
-/** The roles on a team or product, highest first, as the role menus offer them. */
+/** The roles on a product or on all products, highest first, as the role menus offer them. */
 const SCOPE_ROLES = ["admin", "editor", "viewer", "reader"];
 
+/** What a place to give access means, under the choice of it; a product names itself. */
+const PLACE_HINT: Partial<Record<GrantScope, string>> = {
+  all_products: "Every product in the organization, including ones made later.",
+  tenant: "A product creator creates products, and is admin of each one they create. A member opens only the products they have a role on.",
+};
+
 /**
- * Give people roles on a team, a product or the organization, many at a time, and change the roles
- * of the people who have one there: the target is chosen first, then the people.
+ * Give people roles on all products, a product or the organization, many at a time, and change the
+ * roles of the people who have one there: the place is chosen first, then the people.
  */
 function GiveAccessDialog({ tenant, orgName, initialEmail, members, partial, invitations, selfId, onClose, canManage, tenantAdmin, ownerHere }: {
   tenant: string;
@@ -866,16 +883,17 @@ function GiveAccessDialog({ tenant, orgName, initialEmail, members, partial, inv
 }) {
   const products = useProducts();
   const t = products.data?.tenants.find((x) => x.slug === tenant);
-  // Teams and products first: they are what lets someone open a product. The organization comes last.
+  // All products and each product first: they are what lets someone open a product. The organization comes last.
+  // Roles on all products are only the organization's owners' and admins' to give.
   const targets: (EditorTarget & { label: string })[] = [
-    ...(t?.teams ?? [])
-      .filter((tm) => canManage({ scope_type: "team", scope_id: tm.team_id, role: "editor" }))
-      .map((tm) => ({ scope_type: "team" as const, scope_id: tm.team_id, team_id: tm.team_id, name: tm.name, body: { team: tm.team_id }, roles: SCOPE_ROLES, defaultRole: "editor", label: `Team: ${tm.name} (every product in it)` })),
+    ...(tenantAdmin && t
+      ? [{ scope_type: "all_products" as const, scope_id: t.tenant_id, name: "All products", body: { all_products: true }, roles: SCOPE_ROLES, defaultRole: "editor", label: "All products (every product, including ones made later)" }]
+      : []),
     ...(products.data?.items ?? [])
       .filter((p) => p.tenant.slug === tenant && canManage({ scope_type: "product", scope_id: p.product_id, role: "editor" }))
-      .map((p) => ({ scope_type: "product" as const, scope_id: p.product_id, team_id: p.team.team_id, team_name: p.team.name, name: p.name, body: { product: p.product_id }, roles: SCOPE_ROLES, defaultRole: "editor", label: `Product: ${p.name}` })),
+      .map((p) => ({ scope_type: "product" as const, scope_id: p.product_id, name: p.name, body: { product: p.product_id }, roles: SCOPE_ROLES, defaultRole: "editor", label: `Product: ${p.name}` })),
     ...(tenantAdmin
-      ? [{ scope_type: "tenant" as const, scope_id: t?.tenant_id ?? "", team_id: null, name: orgName, body: {}, roles: ownerHere ? ["owner", "admin", "member"] : ["admin", "member"], defaultRole: "member", label: `Organization: ${orgName}` }]
+      ? [{ scope_type: "tenant" as const, scope_id: t?.tenant_id ?? "", name: orgName, body: {}, roles: ownerHere ? ["owner", "admin", "creator", "member"] : ["admin", "creator", "member"], defaultRole: "member", label: `Organization: ${orgName}` }]
       : []),
   ];
   const [chosen, setChosen] = useState(`${targets[0]?.scope_type}:${targets[0]?.scope_id}`);
@@ -883,7 +901,7 @@ function GiveAccessDialog({ tenant, orgName, initialEmail, members, partial, inv
   if (!target)
     return (
       <Dialog open onClose={onClose} title="Give people access">
-        {products.isError ? <ErrorCallout inset error={products.error} onRetry={() => products.refetch()} /> : products.isPending ? <Loading lines={2} /> : <p className="muted">There&rsquo;s no team or product here you can give access to.</p>}
+        {products.isError ? <ErrorCallout inset error={products.error} onRetry={() => products.refetch()} /> : products.isPending ? <Loading lines={2} /> : <p className="muted">There&rsquo;s no product here you can give access to.</p>}
       </Dialog>
     );
   return (
@@ -893,7 +911,7 @@ function GiveAccessDialog({ tenant, orgName, initialEmail, members, partial, inv
       title="Give people access"
       description="People from the organization get their role at once; anyone else is invited, and joins by accepting within 7 days."
       above={
-        <SelectField label="Give access to" value={chosen} onChange={(e) => setChosen(e.target.value)} hint={target.scope_type === "tenant" ? "A member opens only the teams and products they have a role on." : undefined}>
+        <SelectField label="Give access to" value={chosen} onChange={(e) => setChosen(e.target.value)} hint={PLACE_HINT[target.scope_type]}>
           {targets.map((x) => (
             <option key={`${x.scope_type}:${x.scope_id}`} value={`${x.scope_type}:${x.scope_id}`}>
               {x.label}

@@ -81,7 +81,7 @@ deletes only what it made itself in the run.
     WhatBuild. `products_read(action="usage")` called anyway answers each `403 web_only`, saying
     whoever runs this WhatBuild reads it with its usage report, never `unknown_action`.
 14. **MCP, as Jordan, on a connector scoped to a product of the standard organization**
-    (`--endpoint /mcp/t/<org>/<team>/<product>`). List the tools. *Expect:* `story_read` and
+    (`--endpoint /mcp/t/<org>/<product>`). List the tools. *Expect:* `story_read` and
     `products_read` and `search` (with `guide` and `submit_feedback`), and no `story_write`, no
     `sources_`, `outcomes_` or `members_` tool, and `products_read` has no `limits` action; `search`
     takes `plain` mode alone, over the Story, and its description and schema say nothing of sources;
@@ -90,7 +90,7 @@ deletes only what it made itself in the run.
     `sources_read(action="list")` and `products_read(action="limits")` called anyway each answer
     `403`, naming reader and viewer.
     Then as Sam on the organization's connector (`--endpoint /mcp/t/<org>`): writes and archives,
-    `members_read` `list`, and no `_delete` tool, no `members_write`, no `create_team`.
+    `members_read` `list`, and no `_delete` tool, no `members_write`, no `products_write` `create` (an editor of all products is no product creator).
 15. **MCP, as Jordan and as a guest, on the unscoped connector** (no `--endpoint`, `--level admin`;
     the guest is `guest@example.com`). List the tools. *Expect:* neither may start an organization,
     so neither is offered `create_tenant`. Jordan, a reader everywhere, is offered what step 14 lists;

@@ -34,7 +34,7 @@ Two are sent by the worker, not a request:
 
 Nothing else sends mail: not the site's interest form. A mail gives its days as UTC days, and
 says so ([decision](../decisions/times-are-utc-in-data-and-local-where-shown.md)). Sign-in links and invitations are
-specified in [§3](../spec/03-accounts-teams-and-identity.md), feedback in
+specified in [§3](../spec/03-accounts-and-identity.md), feedback in
 [§4.13](../spec/04-data-model.md#413-feedback).
 
 **A message that cannot be sent fails its request.** An invitation or an allowance runs in one

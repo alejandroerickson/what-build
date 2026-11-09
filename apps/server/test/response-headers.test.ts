@@ -71,7 +71,7 @@ beforeAll(async () => {
   h = await startHarness({ webDist: dist, siteUrl: `https://${site}` });
   alice = await h.signIn("alice@example.com", "Alice Example");
   const t = await alice.api("POST", "/api/v1/tenants", { name: "Header Co" });
-  const p = await alice.api("POST", `/api/v1/teams/${t.body.tenant.slug}/${t.body.team.slug}/products`, { name: "Planner" });
+  const p = await alice.api("POST", `/api/v1/tenants/${t.body.tenant.slug}/products`, { name: "Planner" });
   P = `/api/v1/p/${p.body.path}`;
   expect((await alice.api("POST", `${P}/story/pages/overview/versions`, { title: "Overview", html: "<!doctype html><title>t</title><h1>Hello</h1>" })).status).toBe(201);
   const m = await alice.api("POST", `${P}/mockups`, { title: "Board", brief: "One board.", pages: [{ page_id: "board", title: "Board", html: "<!doctype html><html lang=\"en\"><head><title>Board</title></head><body><p>Jobs</p></body></html>" }] });

@@ -30,7 +30,7 @@ as `leaver-<the run's time>@example.com`.
    but not for the example organization). There is no address field and no Delete account button.
    Cancel closes the section; nothing changed.
 3. **Web, as Riley.** Let the leaver's address start one organization (People or Organizations),
-   and in the standard organization's Members give it the editor role on a team. *Expect:* an
+   and in the standard organization's Members give it the editor role on all products. *Expect:* an
    invitation waiting, with its link shown.
 4. **Web, as the leaver.** Sign in with the leaver's address, and accept the invitation shown. Add a source to a product of the
    standard organization, with a synthetic text from the run's folder carrying a phrase of its

@@ -45,7 +45,7 @@ Observed in the `package.json` files, the [`deploy/Dockerfile`](../../deploy/Doc
 | Full-text | **Postgres** `tsvector` (`simple` configuration) + GIN; `pg_trgm` for substring, over one table of the pieces of what sources say (`text_chunks`, [§8.3](08-search.md)) | No second search engine, no external index. |
 | Queue | **Postgres** `jobs` table (`SELECT … FOR UPDATE SKIP LOCKED`) | No broker to run, pay for, or install to contribute. The worker ships in the same image. |
 | Blobs | `BlobStore` port with filesystem, in-memory and Google Cloud Storage adapters | Attachments, what each was read as, and exports are immutable, create-only blobs everywhere. |
-| Identity | **Built in** ([`apps/server/src/auth`](../../apps/server/src/auth)): email links, Google and Microsoft OpenID Connect, sessions, and WhatBuild's own OAuth 2.1 authorization server for MCP | Fewer moving parts and fully under test; no auth library. See [§3.8](03-accounts-teams-and-identity.md). |
+| Identity | **Built in** ([`apps/server/src/auth`](../../apps/server/src/auth)): email links, Google and Microsoft OpenID Connect, sessions, and WhatBuild's own OAuth 2.1 authorization server for MCP | Fewer moving parts and fully under test; no auth library. See [§3.8](03-accounts-and-identity.md). |
 | Mail | `nodemailer` over SMTP, or the ACS Email API with managed identity; the console in development | Any SMTP provider, or the Azure SDK for ACS. Each deployment's: [Mail](../operations/mail.md). |
 | Web UI | **React 19 + Vite**, SPA; **React Router 7** and **TanStack Query**; `lucide-react` icons | Static assets served by the same process; URL-held state through the router. |
 | Parsing | Own code for text/Markdown/VTT/SRT/CSV; `pdfjs-dist` for PDF; `fflate` + `saxes` for DOCX and XLSX; `parse5` for HTML; own code for legacy Word `.doc` (the OLE2 compound file and the Word binary format) | Pure functions of bytes → readable Markdown with no native dependencies: a small image, a fast cold start, and a contributor install that cannot fail on a toolchain. |
@@ -133,7 +133,7 @@ before the service moves to it, Cloud Storage for blobs, Secret Manager for secr
 - **The example organization is named by configuration.** `WHATBUILD_EXAMPLE_TENANT` names the
   organization every account reads, by its slug or one it had before, and is copied to
   `tenants.example` at start-up
-  ([§3.10](03-accounts-teams-and-identity.md#310-the-example-organization)). Nothing about it runs
+  ([§3.10](03-accounts-and-identity.md#310-the-example-organization)). Nothing about it runs
   on a schedule. A plan's limits are counted in Postgres (`limit_counters`), so every
   instance counts against the same totals ([§9.7](09-data-lifecycle.md)).
 - **The public site rides along.** Behind Cloudflare the Worker serves its pages (the front page,
@@ -220,7 +220,7 @@ Rules:
 
 - A handler only ever receives a transaction **already scoped to one tenant**: the transaction-local
   `app.tenant_id` is set before the handler runs, so row-level security applies to everything it
-  does ([`execute.ts`](../../packages/core/src/execute.ts), [§3.6](03-accounts-teams-and-identity.md)).
+  does ([`execute.ts`](../../packages/core/src/execute.ts), [§3.6](03-accounts-and-identity.md)).
 - Adapters are chosen from configuration at startup
   ([`config.ts`](../../apps/server/src/config.ts)); the core never branches on environment.
 - A conformance suite that runs unchanged against every blob adapter is planned; today the GCS
@@ -254,7 +254,7 @@ each file to the same key with the content type and hash from the `.meta.json` b
 
 Every operation is defined once in the registry
 ([`packages/core/src/registry.ts`](../../packages/core/src/registry.ts)) with a name, a scope
-(product, team, tenant or account), a required access level, a strict input schema, a REST method
+(product, tenant or account), a required access level, a strict input schema, a REST method
 and path, and an MCP tool and action. [`execute`](../../packages/core/src/execute.ts) is the one
 way an operation runs: resolve and authorize the scope, validate the input, do any slow work
 outside the database (a download) in the operation's `prepare` step, holding no connection, then
@@ -377,7 +377,7 @@ deployment is involved
 - **Migrations** are forward-only SQL, applied by `whatbuild migrate` as a separate step before a
   new image serves traffic. An export bundle records its format version.
 - **Observability:** one structured log line per request with method, path (ids masked,
-  organizations, teams and products named only by kind, and the invitation links,
+  organizations and products named only by kind, and the invitation links,
   `/invite/:token`, and the retired sandbox invitation links, `/join/:code`), status, duration and the request's ID, which the
   response carries in `X-Request-Id`. **Never** log source content, Markdown bodies, a source's
   text, email addresses, or tokens. An unexpected error is one line with severity ERROR that names

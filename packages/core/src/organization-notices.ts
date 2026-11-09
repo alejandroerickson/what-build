@@ -82,7 +82,7 @@ export async function tellOwnersDeleted(ctx: Pick<OpContext, "ports" | "now">, t
       subject: `${name} was deleted from WhatBuild`,
       text:
         `${name}, an organization you owned on ${new URL(base).host}, was deleted on ${utcDay(ctx.now)} (UTC) by an owner of this WhatBuild, ` +
-        `with everything in it: its teams, products, sources, attachments and Story.\n\n` +
+        `with everything in it: its products, sources, attachments and Story.\n\n` +
         `Your account stays, with the other organizations you are in.\n\n` +
         `If you didn’t expect this, contact ${runner(ctx)}.\n`,
     },

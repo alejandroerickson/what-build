@@ -15,7 +15,7 @@ beforeAll(async () => {
   h = await startHarness();
   alice = await h.signIn("alice@comments.example", "Alice Comments");
   const t = await alice.api("POST", "/api/v1/tenants", { name: "Comment Co" });
-  const p = await alice.api("POST", `/api/v1/teams/${t.body.tenant.slug}/${t.body.team.slug}/products`, { name: "Yard" });
+  const p = await alice.api("POST", `/api/v1/tenants/${t.body.tenant.slug}/products`, { name: "Yard" });
   P = `/api/v1/p/${p.body.path}`;
 });
 afterAll(async () => h?.close());

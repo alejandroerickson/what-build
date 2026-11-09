@@ -61,7 +61,7 @@ beforeAll(async () => {
   h = await startHarness();
   alice = await h.signIn("alice@example.com", "Alice Example");
   const t = await alice.api("POST", "/api/v1/tenants", { name: "Search Co" });
-  const p = await alice.api("POST", `/api/v1/teams/${t.body.tenant.slug}/${t.body.team.slug}/products`, { name: "Planner" });
+  const p = await alice.api("POST", `/api/v1/tenants/${t.body.tenant.slug}/products`, { name: "Planner" });
   P = `/api/v1/p/${p.body.path}`;
 
   // A call with a second attachment, a summary, notes and two comments, one of them archived.
@@ -254,7 +254,7 @@ describe("every place, as typed", () => {
 
   beforeAll(async () => {
     const t = await alice.api("POST", "/api/v1/tenants", { name: "Depot Co" });
-    const p = await alice.api("POST", `/api/v1/teams/${t.body.tenant.slug}/${t.body.team.slug}/products`, { name: "Depot" });
+    const p = await alice.api("POST", `/api/v1/tenants/${t.body.tenant.slug}/products`, { name: "Depot" });
     D = `/api/v1/p/${p.body.path}`;
     src.log = await source(D, alice, "Depot log — Example Co");
     expect((await alice.api("PUT", `${D}/sources/${src.log}/derived/text`, { content: GATE_LOG })).status).toBe(200);
@@ -454,7 +454,7 @@ describe("pages of a search of everything, and numbers in ranked mode", () => {
 
   beforeAll(async () => {
     const t = await alice.api("POST", "/api/v1/tenants", { name: "Yard Co" });
-    const p = await alice.api("POST", `/api/v1/teams/${t.body.tenant.slug}/${t.body.team.slug}/products`, { name: "Yard" });
+    const p = await alice.api("POST", `/api/v1/tenants/${t.body.tenant.slug}/products`, { name: "Yard" });
     Y = `/api/v1/p/${p.body.path}`;
     yard = await source(Y, alice, "Yard log — Example Co");
     expect((await alice.api("PUT", `${Y}/sources/${yard}/derived/text`, { content: "The gate opens at six. The gate closes at ten. The gate stays shut on Sunday.\n" })).status).toBe(200);

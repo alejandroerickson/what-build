@@ -157,9 +157,9 @@ describe("a canvas's links, through both doors", () => {
     alice = await h.signIn("alice@example.com", "Alice Admin");
     rita = await h.signIn("rita@example.com", "Rita Reader");
     const t = await alice.api("POST", "/api/v1/tenants", { name: "Links Co" });
-    const p = await alice.api("POST", `/api/v1/teams/${t.body.tenant.slug}/${t.body.team.slug}/products`, { name: "Planner", concept: "A planner." });
+    const p = await alice.api("POST", `/api/v1/tenants/${t.body.tenant.slug}/products`, { name: "Planner", concept: "A planner." });
     P = `/api/v1/p/${p.body.path}`;
-    expect((await alice.api("POST", `/api/v1/tenants/${t.body.tenant.slug}/members`, { team: t.body.team.slug, product: "planner", email: "rita@example.com", role: "reader" })).status).toBeLessThan(300);
+    expect((await alice.api("POST", `/api/v1/tenants/${t.body.tenant.slug}/members`, { product: "planner", email: "rita@example.com", role: "reader" })).status).toBeLessThan(300);
     const made = await alice.api("POST", `${P}/mockups`, {
       title: "Send the week",
       brief: "A flow.",

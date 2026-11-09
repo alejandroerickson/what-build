@@ -33,7 +33,7 @@ beforeAll(async () => {
   h = await startHarness();
   alice = await h.signIn("alice@example.com", "Alice Example");
   const t = await alice.api("POST", "/api/v1/tenants", { name: "Trace Co" });
-  const p = await alice.api("POST", `/api/v1/teams/${t.body.tenant.slug}/${t.body.team.slug}/products`, { name: "Yard Planner" });
+  const p = await alice.api("POST", `/api/v1/tenants/${t.body.tenant.slug}/products`, { name: "Yard Planner" });
   P = `/api/v1/p/${p.body.path}`;
   slugs = String(p.body.path).split("/");
   const client = new Client({ name: "test-agent", version: "1.0.0" });
@@ -61,12 +61,12 @@ describe("a request's trace", () => {
     expect(request.parentSpanContext).toBeUndefined();
     expect(request.attributes).toMatchObject({
       "http.request.method": "POST",
-      "http.route": "/api/v1/p/:tenant/:team/:product/sources/with-upload",
-      "url.path": "/api/v1/p/:org/:team/:product/sources/with-upload",
+      "http.route": "/api/v1/p/:tenant/:product/sources/with-upload",
+      "url.path": "/api/v1/p/:org/:product/sources/with-upload",
       "http.response.status_code": 201,
       "whatbuild.operation": created.headers.get("x-whatbuild-operation"),
     });
-    expect(request.name).toBe("POST /api/v1/p/:tenant/:team/:product/sources/with-upload");
+    expect(request.name).toBe("POST /api/v1/p/:tenant/:product/sources/with-upload");
 
     // The session is looked up before the operation runs, in the request's own span.
     expect(childrenOf(request).map((s) => s.name)).toContain("SELECT sessions");
@@ -99,7 +99,7 @@ describe("a request's trace", () => {
   it("names an agent's client by its family and a refusal by its code, which is not an error", async () => {
     spans.reset();
     expect((await agent.callTool({ name: "sources_read", arguments: { action: "list", product: slugs.join("/") } })).isError).toBeFalsy();
-    expect((await agent.callTool({ name: "sources_read", arguments: { action: "list", product: "no-such/team/product" } })).isError).toBe(true);
+    expect((await agent.callTool({ name: "sources_read", arguments: { action: "list", product: "no-such/product" } })).isError).toBe(true);
     const operations = finished().filter((s) => s.name === "sources.list");
     expect(operations.map((s) => s.attributes["whatbuild.outcome"])).toEqual(["ok", expect.not.stringMatching(/^ok$/)]);
     for (const s of operations) {
@@ -172,9 +172,9 @@ describe("an unexpected error", () => {
     process.env["NODE_ENV"] = "production";
     let traceId = "";
     try {
-      await tracer.startActiveSpan("GET /t/:org/:team/:product", async (span) => {
+      await tracer.startActiveSpan("GET /t/:org/:product", async (span) => {
         traceId = span.spanContext().traceId;
-        await withRequestId(requestIdOf(span), async () => logError("GET /t/:org/:team/:product", new URIError("URI malformed")));
+        await withRequestId(requestIdOf(span), async () => logError("GET /t/:org/:product", new URIError("URI malformed")));
         span.end();
       });
     } finally {
@@ -182,7 +182,7 @@ describe("an unexpected error", () => {
       spy.mockRestore();
     }
     expect(lines).toHaveLength(1);
-    expect(JSON.parse(lines[0]!)).toMatchObject({ severity: "ERROR", request_id: traceId, message: expect.stringMatching(/^GET \/t\/:org\/:team\/:product: URIError: URI malformed\n/) });
+    expect(JSON.parse(lines[0]!)).toMatchObject({ severity: "ERROR", request_id: traceId, message: expect.stringMatching(/^GET \/t\/:org\/:product: URIError: URI malformed\n/) });
     const span = inTrace(traceId)[0]!;
     expect(span.status.code).toBe(SpanStatusCode.ERROR);
     expect(span.attributes).toEqual({ "error.type": "URIError" });

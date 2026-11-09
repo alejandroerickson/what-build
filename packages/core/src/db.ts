@@ -142,20 +142,20 @@ export interface TenantSlugsTable {
   retired_by: Json<ActorSnapshot>;
 }
 
-export interface TeamsTable {
-  team_id: string;
+/**
+ * Where a product's slug changed when teams were removed: the address it had under its team
+ * (organization/team/product) still reaches it. Nothing writes to it.
+ */
+export interface TeamAddressesTable {
   tenant_id: string;
-  slug: string;
-  name: string;
-  archived_at: TsNull;
-  created_at: Ts;
-  created_by: Json<ActorSnapshot>;
+  team_slug: string;
+  product_slug: string;
+  product_id: string;
 }
 
 export interface ProductsTable {
   product_id: string;
   tenant_id: string;
-  team_id: string;
   slug: string;
   name: string;
   /** The back of the product concept's card, for agents: Markdown. */
@@ -170,10 +170,13 @@ export interface ProductsTable {
   updated_by: Json<ActorSnapshot>;
 }
 
+/** Where a grant or an invitation lands: the organization itself, every product in it, or one product. */
+export type GrantScope = "tenant" | "all_products" | "product";
+
 export interface MembershipsTable {
   membership_id: string;
   tenant_id: string;
-  scope_type: "tenant" | "team" | "product";
+  scope_type: GrantScope;
   scope_id: string;
   account_id: string;
   role: string;
@@ -184,7 +187,7 @@ export interface MembershipsTable {
 export interface InvitationsTable {
   invitation_id: string;
   tenant_id: string;
-  scope_type: "tenant" | "team" | "product";
+  scope_type: GrantScope;
   scope_id: string;
   email: string;
   role: string;
@@ -305,7 +308,6 @@ export interface UsagePeopleTable {
 export interface RecordsTable {
   record_id: string;
   tenant_id: string;
-  team_id: string;
   product_id: string;
   title: string;
   date: string | null;
@@ -756,7 +758,6 @@ export interface StoryStylesTable {
 export interface ActivityTable {
   activity_id: string;
   tenant_id: string;
-  team_id: string | null;
   product_id: string | null;
   occurred_at: Ts;
   actor: Json<ActorSnapshot>;
@@ -829,7 +830,7 @@ export interface DB {
   oauth_tokens: OauthTokensTable;
   tenants: TenantsTable;
   tenant_slugs: TenantSlugsTable;
-  teams: TeamsTable;
+  team_addresses: TeamAddressesTable;
   products: ProductsTable;
   memberships: MembershipsTable;
   invitations: InvitationsTable;

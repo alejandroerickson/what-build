@@ -27,7 +27,7 @@ beforeAll(async () => {
   const t = await alice.api("POST", "/api/v1/tenants", { name: "Pictures Co" });
   TENANT = t.body.tenant.slug as string;
   TENANT_ID = t.body.tenant.tenant_id as string;
-  const p = await alice.api("POST", `/api/v1/teams/${t.body.tenant.slug}/${t.body.team.slug}/products`, { name: "Gallery" });
+  const p = await alice.api("POST", `/api/v1/tenants/${t.body.tenant.slug}/products`, { name: "Gallery" });
   P = `/api/v1/p/${p.body.path}`;
 });
 afterAll(async () => h?.close());
@@ -280,9 +280,9 @@ describe("a video's frame", () => {
   it("comes first from whoever can read the source, in the web app; only someone who can write replaces it", async () => {
     const vera = await h.signIn("vera@example.com", "Vera Viewer");
     const rae = await h.signIn("rae@example.com", "Rae Reader");
-    const [team, product] = P.replace("/api/v1/p/", "").split("/").slice(1) as [string, string];
+    const [product] = P.replace("/api/v1/p/", "").split("/").slice(1) as [string];
     for (const [email, role] of [["vera@example.com", "viewer"], ["rae@example.com", "reader"]] as const) {
-      const invited = await alice.api("POST", `/api/v1/tenants/${TENANT}/members`, { team, product, email, role });
+      const invited = await alice.api("POST", `/api/v1/tenants/${TENANT}/members`, { product, email, role });
       expect(invited.status, JSON.stringify(invited.body)).toBeLessThan(300);
     }
     const id = await attach("walked.mp4", new Uint8Array(4096), "video/mp4");
@@ -315,7 +315,7 @@ describe("a video's frame", () => {
     try {
       const owner = await example.signIn("owner@example.com", "Olive Owner");
       const t = await owner.api("POST", "/api/v1/tenants", { name: "Example Co" });
-      const p = await owner.api("POST", `/api/v1/teams/${t.body.tenant.slug}/${t.body.team.slug}/products`, { name: "Sample" });
+      const p = await owner.api("POST", `/api/v1/tenants/${t.body.tenant.slug}/products`, { name: "Sample" });
       const base = `/api/v1/p/${p.body.path}`;
       const made = await owner.api("POST", `${base}/sources/with-upload`, { title: "A walk-round", path: "round.mp4", media_type: "video/mp4" });
       const upload = made.body.upload as { url: string; headers: Record<string, string> };

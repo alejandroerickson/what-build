@@ -273,7 +273,7 @@ export async function acceptInvitation(db: Db, invitationId: string, account: Ac
     await trx
       .insertInto("activity")
       .values({
-        activity_id: newId(), tenant_id: inv.tenant_id, team_id: inv.scope_type === "team" ? inv.scope_id : null, product_id: inv.scope_type === "product" ? inv.scope_id : null,
+        activity_id: newId(), tenant_id: inv.tenant_id, product_id: inv.scope_type === "product" ? inv.scope_id : null,
         actor: json(actor), actor_account_id: account.account_id, channel: "web", action: "joined", entity_type: "membership", entity_id: account.account_id,
         entity_title: account.display_name, summary: `Accepted an invitation as ${inv.role}`,
       })
@@ -296,7 +296,7 @@ export async function declineInvitation(db: Db, invitationId: string, account: A
     await trx
       .insertInto("activity")
       .values({
-        activity_id: newId(), tenant_id: inv.tenant_id, team_id: null, product_id: null,
+        activity_id: newId(), tenant_id: inv.tenant_id, product_id: null,
         actor: json(SOMEONE_INVITED), actor_account_id: SOMEONE_INVITED.account_id, channel: "web", action: "invitation_declined", entity_type: "membership", entity_id: inv.invitation_id,
         entity_title: scope ? collapse(scope, 200) : null, summary: `Declined an invitation as ${inv.role}`,
       })
@@ -305,14 +305,10 @@ export async function declineInvitation(db: Db, invitationId: string, account: A
   });
 }
 
-/** The organization an invitation is to, and the name of the place in it. */
+/** The organization an invitation is to, and the name of the place in it: the organization, all its products, or one product. */
 export async function invitationPlace(db: Db | Trx, inv: Pick<InvitationRow, "tenant_id" | "scope_type" | "scope_id">): Promise<{ tenant: { slug: string; name: string; read_only_since: string | null } | undefined; scope: string | null }> {
   const tenant = await db.selectFrom("tenants").select(["slug", "name", "read_only_since"]).where("tenant_id", "=", inv.tenant_id).executeTakeFirst();
-  const place =
-    inv.scope_type === "team"
-      ? await db.selectFrom("teams").select("name").where("team_id", "=", inv.scope_id).executeTakeFirst()
-      : inv.scope_type === "product"
-        ? await db.selectFrom("products").select("name").where("product_id", "=", inv.scope_id).executeTakeFirst()
-        : tenant;
+  if (inv.scope_type === "all_products") return { tenant, scope: "All products" };
+  const place = inv.scope_type === "product" ? await db.selectFrom("products").select("name").where("product_id", "=", inv.scope_id).executeTakeFirst() : tenant;
   return { tenant, scope: place?.name ?? null };
 }

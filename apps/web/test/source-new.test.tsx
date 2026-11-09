@@ -41,7 +41,7 @@ vi.mock("../src/lib/session.tsx", async (original) => ({
   ...(await original<typeof import("../src/lib/session.tsx")>()),
   useProduct: () => ({
     api: "/api/v1/products/p",
-    app: "/t/acme/core/app",
+    app: "/t/acme/app",
     canWrite: !product.readOnlyOrganization,
     readOnlyOrganization: product.readOnlyOrganization,
     product: { archived_at: null, tenant: { slug: "acme", name: "Acme" } },
@@ -122,9 +122,9 @@ describe("adding a source in the app", () => {
     await act(async () => {
       root.render(
         <QueryClientProvider client={qc}>
-          <MemoryRouter initialEntries={["/t/acme/core/app/evidence/new"]}>
+          <MemoryRouter initialEntries={["/t/acme/app/evidence/new"]}>
             <Routes>
-              <Route path="/t/acme/core/app/evidence/new" element={<SourceNewPage />} />
+              <Route path="/t/acme/app/evidence/new" element={<SourceNewPage />} />
               <Route path="*" element={<Where />} />
             </Routes>
           </MemoryRouter>
@@ -136,7 +136,7 @@ describe("adding a source in the app", () => {
     await act(async () => button(host, "Continue without attachments").click());
     await act(async () => button(host, "Create source").click());
     expect(calls).toContainEqual({ method: "POST", path: "/api/v1/products/p/sources" });
-    expect(host.querySelector("output")?.textContent).toBe("/t/acme/core/app/evidence/rec_1");
+    expect(host.querySelector("output")?.textContent).toBe("/t/acme/app/evidence/rec_1");
     expect(errors.mock.calls.map((c) => String(c[0])).filter((m) => m.includes("Cannot update a component"))).toEqual([]);
   });
 
@@ -150,9 +150,9 @@ describe("adding a source in the app", () => {
     await act(async () => {
       root.render(
         <QueryClientProvider client={qc}>
-          <MemoryRouter initialEntries={["/t/acme/core/app/evidence/new"]}>
+          <MemoryRouter initialEntries={["/t/acme/app/evidence/new"]}>
             <Routes>
-              <Route path="/t/acme/core/app/evidence/new" element={<SourceNewPage />} />
+              <Route path="/t/acme/app/evidence/new" element={<SourceNewPage />} />
               <Route path="*" element={<Where />} />
             </Routes>
           </MemoryRouter>
@@ -192,9 +192,9 @@ describe("adding a source in the app", () => {
     await act(async () => {
       root.render(
         <QueryClientProvider client={qc}>
-          <MemoryRouter initialEntries={["/t/acme/core/app/evidence/new"]}>
+          <MemoryRouter initialEntries={["/t/acme/app/evidence/new"]}>
             <Routes>
-              <Route path="/t/acme/core/app/evidence/new" element={<SourceNewPage />} />
+              <Route path="/t/acme/app/evidence/new" element={<SourceNewPage />} />
             </Routes>
           </MemoryRouter>
         </QueryClientProvider>,

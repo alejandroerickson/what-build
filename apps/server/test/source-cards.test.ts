@@ -25,11 +25,11 @@ beforeAll(async () => {
   rita = await h.signIn("rita@example.com", "Rita Reader");
   vic = await h.signIn("vic@example.com", "Vic Viewer");
   const t = await alice.api("POST", "/api/v1/tenants", { name: "Source Card Co" });
-  const p = await alice.api("POST", `/api/v1/teams/${t.body.tenant.slug}/${t.body.team.slug}/products`, { name: "Pictured" });
+  const p = await alice.api("POST", `/api/v1/tenants/${t.body.tenant.slug}/products`, { name: "Pictured" });
   product = p.body.path;
   P = `/api/v1/p/${product}`;
   for (const [email, role] of [["rita@example.com", "reader"], ["vic@example.com", "viewer"]] as const)
-    expect((await alice.api("POST", `/api/v1/tenants/${t.body.tenant.slug}/members`, { team: t.body.team.slug, product: "pictured", email, role })).status).toBe(201);
+    expect((await alice.api("POST", `/api/v1/tenants/${t.body.tenant.slug}/members`, { product: "pictured", email, role })).status).toBe(201);
 });
 afterAll(async () => h?.close());
 

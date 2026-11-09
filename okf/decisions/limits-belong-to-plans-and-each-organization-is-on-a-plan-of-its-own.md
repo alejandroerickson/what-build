@@ -91,4 +91,4 @@ that stops being paid for, and that the plans themselves are the deployment's
 - A plan's limits are read through `readPlans` (`packages/core/src/settings.ts`), never from the
   configured definitions directly, so what an instance owner set applies everywhere.
 
-Specified in: [§3.3](../spec/03-accounts-teams-and-identity.md#33-tenants-and-teams), [§9.2](../spec/09-data-lifecycle.md#92-limits-and-quotas), [§9.7](../spec/09-data-lifecycle.md#97-plans-and-limits).
+Specified in: [§3.3](../spec/03-accounts-and-identity.md#33-tenants), [§9.2](../spec/09-data-lifecycle.md#92-limits-and-quotas), [§9.7](../spec/09-data-lifecycle.md#97-plans-and-limits).

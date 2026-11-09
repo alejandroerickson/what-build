@@ -142,10 +142,10 @@ function summaryView(e: { mockup_id: string; title: string; summary: string; ver
   };
 }
 
-/** The product as addresses name it: tenant/team/product. */
+/** The product as addresses name it: tenant/product. */
 function productPathOf(ctx: OpContext) {
   const s = ctx.scope;
-  return `${s.tenant!.slug}/${s.team!.slug}/${s.product!.slug}`;
+  return `${s.tenant!.slug}/${s.product!.slug}`;
 }
 
 function htmlPath(ctx: OpContext, mockupId: string, n: number, pageId: string) {

@@ -31,8 +31,8 @@ export function screenOf(pathname: string): string | null {
   if (!parts.length) return "Overview";
   if (parts[0] === "t" && parts.length === 3 && parts[2] === "members") return "Members";
   if (parts[0] === "t" && parts.length === 3 && (parts[2] === "plan" || parts[2] === "limits")) return "Plan";
-  if (parts[0] === "t" && parts.length >= 4) {
-    const [segment, sub, item] = parts.slice(4);
+  if (parts[0] === "t" && parts.length >= 3) {
+    const [segment, sub, item] = parts.slice(3);
     if (segment === "search") return "Search";
     if (segment === "evidence" && sub) return sub === "new" ? "Evidence, adding a source" : "Evidence, a source";
     if (segment === "exploration" && sub === "mockups") return item ? "Exploration, a mockup" : "Exploration, mockups";

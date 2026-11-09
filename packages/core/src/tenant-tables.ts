@@ -4,7 +4,7 @@
  * decisions moved into Evidence still exists, and is listed.
  */
 export const CONTENT_TABLES = [
-  "teams", "products",
+  "products", "team_addresses",
   "records", "files", "file_versions", "attachment_pictures", "derivations", "source_texts", "annotations", "agent_notes",
   "outcomes", "insights", "revisions", "register_entries", "reviews",
   "story_pages", "story_versions", "story_hierarchies", "story_styles",

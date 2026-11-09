@@ -49,4 +49,4 @@ and that being in an organization never lets anyone create one.
 - `products.create_tenant` checks `requireTenantAllowance` (`packages/core/src/tenant-allowance.ts`)
   under a lock on the account; nothing else creates a tenant except the development seed.
 
-Specified in: [§3.3](../spec/03-accounts-teams-and-identity.md#33-tenants-and-teams).
+Specified in: [§3.3](../spec/03-accounts-and-identity.md#33-tenants).

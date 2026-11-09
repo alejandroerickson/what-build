@@ -1,13 +1,13 @@
 ---
 type: Specification
-title: Accounts belong to tenants, tenants hold teams, teams run products, and one role check decides every call.
-description: The account → tenant → team → product hierarchy, sign-in, roles and what they grant, plans and their limits, addressing and isolation, moving sources between products, caller identity, attribution, and the example organization every account reads.
+title: Accounts belong to tenants, tenants hold products, and one role check decides every call.
+description: The account → tenant → product hierarchy, sign-in, roles and what they grant, plans and their limits, addressing and isolation, caller identity, attribution, the example organization every account reads, and how teams were removed.
 tags: [spec, accounts, tenancy, roles, identity, oauth, isolation, example, limits]
 generated: {by: agent:claude, at: 2026-10-31}
 status: stable
 ---
 
-# 3. Accounts, tenants, teams, products, roles
+# 3. Accounts, tenants, products, roles
 
 Roles are resolved in one policy module
 ([`packages/core/src/policy.ts`](../../packages/core/src/policy.ts)) that both front doors go
@@ -19,23 +19,25 @@ through; identity lives in [`apps/server/src/auth`](../../apps/server/src/auth).
 ```
 account              one person's sign-in; may belong to several tenants
 tenant               an organization: the isolation boundary
-└── team             a group of people and the products they run
-    └── product      one discovery
-        ├── outcomes
-        ├── sources      records → attachments → readings; derived text, summary, notes, comments
-        ├── assumptions  (the register)
-        ├── mockups      versions, pages, files
-        ├── Story        pages, versions, hierarchy
-        └── activity     append-only event log
+└── product          one discovery
+    ├── outcomes
+    ├── sources      records → attachments → readings; derived text, summary, notes, comments
+    ├── assumptions  (the register)
+    ├── mockups      versions, pages, files
+    ├── Story        pages, versions, hierarchy
+    └── activity     append-only event log
 ```
 
-- Every object belongs to exactly one product (`product_id`), every product to one team, every team
-  to one tenant. Every content row also carries `tenant_id`, which is what isolation keys on.
+- Every object belongs to exactly one product (`product_id`), every product to one tenant. Every
+  content row also carries `tenant_id`, which is what isolation keys on.
+- **There are no teams** (◆ [decision](../decisions/an-organization-holds-its-products-directly-with-no-teams.md)).
+  An organization once held teams, which held its products; migration `0044` removed them
+  ([§3.11](#311-when-there-were-teams)).
 - **References never cross products.** A link from an assumption to another product's assumption
   is refused with `422 cross_product_reference`, and an outcome of another product is unknown
   (`422 unknown_reference`), which keeps a product exportable as a closed bundle.
-- **Moving and copying** a source between products is allowed **within one team**
-  ([§3.7](#37-moving-and-copying-between-products)).
+- **A source stays in its product**: nothing moves or copies a source to another product
+  ([§3.7](#37-a-source-stays-in-its-product)).
 - In the UI the tenant is called the **organization**. The API and MCP say `tenant`.
   ◆ Decision: two words for one concept is a known cost; see open question 7 in the
   [roadmap](10-roadmap.md).
@@ -85,7 +87,7 @@ signing in with the development sign-in, never leaves the origin either. Request
 **Invite-only mode.** `WHATBUILD_SIGNUP_ALLOWLIST` (emails and `@domains`) limits who may create an
 account. Without it there is no invite-only mode and anyone may, whatever the guests' `self_serve`
 says, and `/instance` says so. Existing accounts, invited addresses, the instance's owners and addresses with an
-allowance above 0 to create organizations ([§3.3](#33-tenants-and-teams)) always may. Staging runs invite-only until public
+allowance above 0 to create organizations ([§3.3](#33-tenants)) always may. Staging runs invite-only until public
 sign-up opens ([§10 Phase 6](10-roadmap.md)). The sign-in form answers every address alike, "if it
 can sign in here, a link is on its way", at the same speed and under the same hourly limit, and
 sends a link only to an address that may sign in, so it never says whether an address has an
@@ -102,7 +104,7 @@ and comes into it only while there is room ([§3.10](#310-the-example-organizati
 `GET /api/v1/me` gives `guest: true` for one.
 
 **Letting someone in.** While sign-up is limited, an instance owner lets a waiting person in by
-giving their address an allowance ([§3.3](#33-tenants-and-teams)): the same act lets them sign in
+giving their address an allowance ([§3.3](#33-tenants)): the same act lets them sign in
 and create an organization. The check is made when a sign-in link is asked for and again when it is
 followed, since what let the address in can be taken away in between. Every account, once in,
 reads the example organization ([§3.10](#310-the-example-organization)).
@@ -253,15 +255,13 @@ it, and the user principal name taken only in a listed domain; invite-only mode 
 address outside the allowlist; `404` when not configured; start-up refusing a tenant that is not a
 GUID and a listed domain that is not a domain; and `microsoft` reported by both endpoints.
 
-## 3.3 Tenants and teams
+## 3.3 Tenants
 
 | Object | Fields |
 |---|---|
 | Tenant | `tenant_id`, `slug` (3–50, `[a-z0-9-]`, starting and ending with a letter or digit, unique across every slug any tenant has or had), its former slugs, `name` (1–100 chars), `name_etag`, `plan` (one the deployment defines, or `unlimited`), `plan_etag` with who changed the plan last and when, `example`, `status` |
-| Team | `team_id`, `tenant_id`, `slug` (unique in the tenant), `name`, `archived_at` |
 
-Creating a tenant (`products.create_tenant`) creates its first team and makes the creator the
-tenant's **owner**. A new account lands in the example organization ([§3.10](#310-the-example-organization)),
+Creating a tenant (`products.create_tenant`) makes the creator the tenant's **owner**. A new account lands in the example organization ([§3.10](#310-the-example-organization)),
 and creates its own when ready: name the organization, then name the first product and its product
 concept.
 
@@ -380,21 +380,34 @@ it moves. The limits and their refusals are in [§9.7](09-data-lifecycle.md).
 | Field | Rule |
 |---|---|
 | `product_id` | ULID, immutable. |
-| `slug` | 3–50 chars, unique in the team. Mutable. |
+| `slug` | 3–50 chars, unique in the tenant, and none of the tenant's own pages in the web app: `members`, `plan`, `limits`, `people`, `activity`, `settings` (`409 slug_taken`, as for a slug another product has). Mutable. |
 | `name` | 1–100 chars. |
 | `concept` | The back of the product concept's card, for agents: Markdown, ≤ 8,000 chars, on who the product is for, their problem and how it solves it; written with `products.update_concept` by editors and admins; overwrites keep revisions ([§4.2.1](04-data-model.md)). |
 | `card_html` | The front of the product concept's card, for people: agent-written HTML, ≤ 40,000 chars, empty until drawn; heads the Idea screen ([§4.2.1](04-data-model.md)). |
 | `archived_at` | Archived products are hidden from lists and read-only (`409 product_archived`) until restored. |
 
-A product is addressed as `tenant/team/product` (slugs or ids at each level) or by `product_id`.
+A product is addressed as `tenant/product` (slugs or ids at each level) or by `product_id`. An
+address written when products were in teams, `tenant/team/product`, still reaches it
+([§3.11](#311-when-there-were-teams)).
+
+**Creating a product** (`products.create`, `POST /api/v1/tenants/<tenant>/products`) needs a
+**product creator**, admin or owner of the tenant (access `creator`; an agent needs an Admin
+connection). A product creator who creates one is given admin on it, a grant on the product like
+any other, since no other role of theirs reaches it; an owner or admin of the tenant, or an admin of
+all its products, already is one.
 
 ## 3.5 Roles
 
-| Level | Roles | What the role grants |
+| Place | Roles | What the role grants |
 |---|---|---|
-| Tenant | `owner`, `admin`, `member`, `guest` | owner and admin: admin of every team and product in the tenant; owner: tenant lifecycle (renaming the organization, deleting it). member: nothing by itself. guest: viewer of every product, in the example organization only, never stored and refused every write ([§3.10](#310-the-example-organization)) |
-| Team | `admin`, `editor`, `viewer`, `reader` | the same role on every product in the team |
+| Tenant | `owner`, `admin`, `creator`, `member`, `guest` | owner and admin: admin of every product in the tenant; owner: tenant lifecycle (renaming the organization, deleting it). creator (**product creator**): creates products, and is admin of each one it creates ([§3.4](#34-products)). member: nothing by itself. guest: viewer of every product, in the example organization only, never stored and refused every write ([§3.10](#310-the-example-organization)) |
+| All products | `admin`, `editor`, `viewer`, `reader` | the same role on every product in the tenant, products made later included |
 | Product | `admin`, `editor`, `viewer`, `reader` | that product only |
+
+A person holds at most one role at each place: one on the tenant, one on all products, one on each
+product (`memberships.scope_type`: `tenant`, `all_products` or `product`; a role on all products has
+the tenant's id as its `scope_id`). `products.list` gives a tenant's `your_role` and, where the
+person has one, its `all_products` role.
 
 - **Reader** reads only the Story: its live pages, every version of them, the hierarchy, and the
   print view to export it; an archived page is left out of their lists and print view and answers
@@ -408,9 +421,9 @@ A product is addressed as `tenant/team/product` (slugs or ids at each level) or 
   promoted from a mockup keep only its size, or for a whole canvas its layout and each page's title and size; their product reads leave out `concept` and count only `story_pages` (and `stage_counts.story`). A page's HTML is
   served to a reader exactly as published, and a promoted mockup page or canvas through the Story's own
   routes, so a reader sees that and nothing else of the mockup ([§4.11](04-data-model.md)).
-  Someone who reads only the Story everywhere in an organization (a reader on its teams or
-  products, with nothing higher there and no organization role but member) sees none of its
-  people, nor its plan's limits and what it holds: `members.list` and `products.limits` answer `403`
+  Someone who reads only the Story everywhere in an organization (a reader on all its products or
+  on some of them, with nothing higher there and no organization role but member or product
+  creator) sees none of its people, nor its plan's limits and what it holds: `members.list` and `products.limits` answer `403`
   naming both roles, and `products.list` marks that organization `story_only`, as it gives them the
   plan's name and whether the organization is read-only, which its banner says. A reader writes nothing: the upload relay checks the role of whoever requested a grant again
   when the bytes arrive, so a grant given to an editor stores nothing once they are a reader.
@@ -418,9 +431,9 @@ A product is addressed as `tenant/team/product` (slugs or ids at each level) or 
   and text, comments, outcomes, assumptions and reviews, mockups, the Story, and archives any of them. **Admin** also
   deletes permanently, anything that can be archived and the product itself (guarded,
   [§9.5](09-data-lifecycle.md)), and manages the product (rename, in the web app only, and archive) and its people.
-  Creating a product needs admin of its team (tenant owners and admins are admins of every team);
-  creating a team needs tenant admin. Renaming the organization needs its owner, or an instance
-  owner ([§3.3](#33-tenants-and-teams)); deleting it needs its owner. Both are done in the web
+  Creating a product needs a product creator, admin or owner of the tenant. Renaming the
+  organization needs its owner, or an instance
+  owner ([§3.3](#33-tenants)); deleting it needs its owner. Both are done in the web
   app, never by an agent.
 - **The effective role is the highest that applies.** A product grant can raise access but never
   lower an inherited one. ◆ Decision: no negative overrides — they make "who can see this?"
@@ -428,28 +441,34 @@ A product is addressed as `tenant/team/product` (slugs or ids at each level) or 
 - **Visibility:** with no role on a product, the product does not exist for you: `404`, never
   `403`, from every operation. With a role too low for an action, `403` names the role you have
   and the one needed ("You are a viewer on product Crewboard; outcomes.create needs editor").
-- **Membership administration:** admins grant and revoke where they are admin: product admins on
-  their product, team admins on their team, tenant admins on the tenant, and only owners grant
-  owner or change or remove an owner's role. A role is given at once only to someone the giver
-  already sees in the organization (everyone in it, to its owners and admins; the people on the
-  teams and products they read, to anyone else). Anyone else gets a 7-day invitation, whether or
+- **Membership administration:** product admins grant and revoke roles on their product; tenant
+  owners and admins grant and revoke the tenant's roles and the roles on all products; only owners
+  grant owner or change or remove an owner's role. `members.grant`, `grant_many` and `revoke` name
+  the place as `product`, as `all_products: true`, or neither for the tenant itself; both together
+  are refused (`422`). A role is given at once only to someone the giver already sees in the
+  organization (everyone in it, to its owners and admins; the people on the products they read, and
+  those with a role on all products, to anyone else). Anyone else gets a 7-day invitation, whether or
   not they have an account, and joins only by accepting it ([§3.2](#invitations)), so giving a role never says whether an
   address has an account, here or elsewhere, or whose it is
   ([decision](../decisions/a-role-is-given-at-once-only-to-someone-already-seen-in-the-organization.md)).
   An invitation is emailed where mail is configured and always returned to the inviter as a
-  single-use link. The email names the inviter, the organization, and the team or product in it.
+  single-use link. The email names the inviter, the organization, and the product in it, or says
+  every product in it.
   Each is a name someone gave WhatBuild, so each is shown on one line, without control or
   direction-changing characters, in quotation marks it cannot close, at most 60 characters for the
   inviter's display name and 100 for the others, and the email says they are names people gave
-  WhatBuild. A tenant keeps at least one owner (`409 last_owner`).
+  WhatBuild. A tenant keeps at least one owner (`409 last_owner`). An invitation to all products is
+  cancelled, as it is given, by the tenant's owners and admins.
 - **Who sees whom.** The tenant's owners and admins see all its people, their grants and its
   invitations. Anyone else, with a viewer role or above somewhere in it, sees only the people on
-  the teams and products they read, with only those grants and their tenant role, and only the
-  invitations they could cancel, where they are admin (`members.list` says `partial: true`). A
-  team or product they have no role on stays hidden there too: the `members` operations answer it
-  with the same `404` as one that does not exist.
-- **Being in a tenant** means holding at least one grant in it: a tenant role, or a role on one of
-  its teams or products. A tenant `member` grant adds nothing to that by itself, and `products.list`
+  the products they read and the people with a role on all products, with only those grants and
+  their tenant role, and only the invitations they could cancel, where they are admin
+  (`members.list` says `partial: true`). A product they have no role on stays hidden there too: the
+  `members` operations answer it with the same `404` as one that does not exist. With `product`,
+  `members.list` gives each person's `product_access`: the role and the place it comes from
+  (`via`: `product`, `all_products` or `tenant`).
+- **Being in a tenant** means holding at least one grant in it: a tenant role, or a role on all its
+  products or on one of them. A tenant `member` grant adds nothing to that by itself, and `products.list`
   gives such a person `member` as the tenant's `your_role`. Revoking a person's last grant takes
   them out of the tenant, which the answer (`left_organization`) and the access log say;
   `members.revoke` with `whole_tenant` removes every grant at once, and ends any invitation still open to their address there, which would undo it. A new invitation replacing one still open at the same place asks what cancelling that one asks, and the access log records it.
@@ -460,16 +479,16 @@ A product is addressed as `tenant/team/product` (slugs or ids at each level) or 
 
 ## 3.6 Addressing and isolation
 
-The addressed tenant, team and product are always explicit. Nothing on the server remembers a
+The addressed tenant and product are always explicit. Nothing on the server remembers a
 "current" product.
 
 | Surface | Addressing |
 |---|---|
-| Web | `/t/<tenant>/<team>/<product>/<screen>` |
-| REST | `/api/v1/p/<tenant>/<team>/<product>/…` for product operations; `/api/v1/teams/<tenant>/<team>/…`, `/api/v1/tenants/<tenant>/…` and `/api/v1/…` for the rest |
-| MCP | `/mcp` for everything the account can reach; `/mcp/t/<tenant>` scoped to one organization; `/mcp/t/<tenant>/<team>/<product>` scoped to one product |
+| Web | `/t/<tenant>/<product>/<screen>`; the tenant's own pages are `/t/<tenant>/members`, `/plan` and `/limits` |
+| REST | `/api/v1/p/<tenant>/<product>/…` for product operations; `/api/v1/tenants/<tenant>/…` and `/api/v1/…` for the rest |
+| MCP | `/mcp` for everything the account can reach; `/mcp/t/<tenant>` scoped to one organization; `/mcp/t/<tenant>/<product>` scoped to one product |
 
-A tenant is named by its id, its slug, or a slug it had before ([§3.3](#33-tenants-and-teams)),
+A tenant is named by its id, its slug, or a slug it had before ([§3.3](#33-tenants)),
 everywhere: a REST path, MCP's `product` and `tenant`, a scoped endpoint's address and its OAuth
 resource, and the web app's addresses. Its current slug outranks a slug another tenant had, though
 none may take one. Answers give the current slug. The web app takes an address with a former slug
@@ -478,20 +497,20 @@ person that slug among the tenant's `former_slugs`; to anyone who cannot see the
 slug answers `404` as an unknown one does.
 
 On MCP a product-scoped call resolves its product in this order: the `product` argument (an id or
-`tenant/team/product`); the product the endpoint is scoped to; the only unarchived product the
+`tenant/product`); the product the endpoint is scoped to; the only unarchived product the
 caller can reach inside the endpoint's scope, where the unscoped endpoint leaves the example
 organization's products out, since every account reaches them; otherwise `422 product_required`
-listing the products the caller reaches ([`apps/server/src/mcp.ts`](../../apps/server/src/mcp.ts)). An organization's or a team's
-call takes `tenant` (and `team`) from its params or the endpoint, and otherwise the organization
-and team of a `product` it names that the caller can see, unless it takes a product of its own
+listing the products the caller reaches ([`apps/server/src/mcp.ts`](../../apps/server/src/mcp.ts)). An organization's
+call takes `tenant` from its params or the endpoint, and otherwise the organization of a `product`
+it names that the caller can see, unless it takes a product of its own
 ([§6.5](06-operations-and-adapters.md)). Every product-scoped MCP
-result echoes `scope` (tenant, team, product, `your_role` capped by the connection's level,
+result echoes `scope` (tenant, product, `your_role` capped by the connection's level,
 `connection_level`, and the server's `tools_version`) so an agent and the person reading its
 transcript can see where a write landed and what it may do there.
 
 **A scoped endpoint is a fence, not a default**
 (◆ [decision](../decisions/a-scoped-mcp-connector-is-a-fence.md)). Whatever roles the person holds
-elsewhere, a call through `/mcp/t/<tenant>` or `/mcp/t/<tenant>/<team>/<product>` that lands
+elsewhere, a call through `/mcp/t/<tenant>` or `/mcp/t/<tenant>/<product>` that lands
 outside it is refused with `403 outside_connector_scope` before any handler runs
 ([`connector-scope.ts`](../../packages/core/src/connector-scope.ts)), and the message names the
 scope. A person who works in several organizations adds one connector per organization in their
@@ -501,8 +520,8 @@ agent and turns off the ones they are not using; for everything at once there is
 
 | Through | Answers | Refuses |
 |---|---|---|
-| an organization's endpoint | every product, team and tenant operation in that organization; `products.list` (narrowed to it), `guide`, `submit_feedback` | another organization; the other account-level operations (`products.create_tenant`, the instance's allowances, organizations and usage) |
-| a product's endpoint | that product's operations; `products.list` (narrowed to it); `products.limits` for its organization; the account reads above | every other product; team and tenant operations (`members.*`, `products.create`, `products.create_team`); moving or copying a source to another product |
+| an organization's endpoint | every product and tenant operation in that organization; `products.list` (narrowed to it), `guide`, `submit_feedback` | another organization; the other account-level operations (`products.create_tenant`, the instance's allowances, organizations and usage) |
+| a product's endpoint | that product's operations; `products.list` (narrowed to it); `products.limits` for its organization; the account reads above | every other product; tenant operations (`members.*`, `products.create`) |
 | `/mcp`, unscoped | every operation in every organization the person reaches, the example organization included; every account-level operation | nothing for being unscoped; the example organization refuses its guests' writes on every endpoint |
 
 What a connector offers is narrower than what it answers: an agent is listed only what the
@@ -515,15 +534,18 @@ instance owner, or an allowance with room), when nothing is cut for their roles.
 
 The scope is resolved for the caller on the first tool call; an endpoint naming an organization or
 product they cannot reach answers `404` to every call, saying so. An endpoint whose address names
-the organization by a former slug keeps working, and every answer through it carries
-`connector_address`: the current address, for the agent to tell the person once.
+the organization by a former slug, or the product by the address it had when products were in teams
+(`/mcp/t/<tenant>/<team>/<product>`, [§3.11](#311-when-there-were-teams)), keeps working, and every
+answer through it carries `connector_address`: the current address, for the agent to tell the
+person once. A token approved for an organization's endpoint serves the endpoints inside it; one
+approved for a product's endpoint serves that endpoint alone.
 
 Isolation is enforced three times:
 
 1. **Authorization** resolves the caller's role for the addressed product, or answers `404`. It runs
    before input validation on both doors, so a non-member learns nothing — not even whether their
    input was valid. Over MCP a connector's fence also applies first; only a call that names no
-   product, team or tenant at all, and so addresses nothing to hide, is told its input is malformed
+   product or tenant at all, and so addresses nothing to hide, is told its input is malformed
    before it is told to name one (`apps/server/test/mcp.test.ts`).
 2. **The core** receives a transaction already scoped to one tenant; handlers never see another.
 3. **Postgres row-level security** on every content table keys on the transaction-local setting
@@ -532,7 +554,7 @@ Isolation is enforced three times:
    elsewhere.
 
 Blob keys begin `t/<tenant_id>/…`. A test ([`apps/server/test/access.test.ts`](../../apps/server/test/access.test.ts))
-calls **every** product, team and tenant operation as someone with no membership and requires
+calls **every** product and tenant operation as someone with no membership and requires
 `404` from each. [`tenant-isolation.test.ts`](../../apps/server/test/tenant-isolation.test.ts)
 classifies every registered operation and calls each over REST and MCP as a member of another
 organization, both at the other organization's address and from the caller's own with the other's
@@ -542,18 +564,14 @@ unchanged; a new operation fails it until it is classified.
 migrated schema and requires forced row-level security and a policy on the current tenant for
 every table with `tenant_id`, except the directory tables it lists with their reasons.
 
-## 3.7 Moving and copying between products
+## 3.7 A source stays in its product
 
-- **Copy** (`sources.copy_to_product`): a new record id in another product of the same team, with
-  `copied_from`; attachments are shared (blobs are immutable) and read afresh in the target, and
-  the copy takes the derived text, which goes on following its attachment's copy if it was still
-  that attachment's text; the summary, notes and comments stay with the original.
-- **Move** (`sources.move_to_product`): keeps the record id, attachments, readings, derived text,
-  summary, notes and comments. Nothing
-  structural points at a source, so nothing refuses a move; a link to the source in the product it
-  left stops opening. Both products log the move.
-- Both need editor on the source's product and on the target. Moving assumptions, outcomes,
-  mockups and Story pages is planned, with the same closure rule.
+Nothing moves or copies a source, or anything else, to another product
+(◆ [decision](../decisions/an-organization-holds-its-products-directly-with-no-teams.md)). A source
+added to the wrong product is added again in the right one, and archived or deleted where it was.
+`sources.copy_to_product` and `sources.move_to_product`, which did so within one team, are gone:
+an agent calling either is told so (`422 unknown_action`). A source copied before then keeps its
+`copied_from`.
 
 ## 3.8 Identity of the caller
 
@@ -749,7 +767,7 @@ It shows what a discovery in WhatBuild looks like, and a person can always go ba
 [`apps/server/src/example-organization.ts`](../../apps/server/src/example-organization.ts)). A slug
 that matches no organization makes none the example, and the server says so in its log. A slug
 the example had before its current one still names it, and the server warns to set the current
-one ([§3.3](#33-tenants-and-teams)). A
+one ([§3.3](#33-tenants)). A
 deployment that still sets the retired `WHATBUILD_SANDBOX_TENANT` and not the new name is warned
 at start-up.
 
@@ -759,7 +777,7 @@ account is its guest**:
 
 | A guest | How |
 |---|---|
-| reads every product | `membershipsFor` adds a tenant grant `guest` for the example to every account that holds no grant there, and `effectiveRole` makes it viewer on every team and product. The grant is never stored. |
+| reads every product | `membershipsFor` adds a tenant grant `guest` for the example to every account that holds no grant there, and `effectiveRole` makes it viewer on every product. The grant is never stored. |
 | changes nothing | `execute` refuses every call that writes with `403 example_read_only` before reading its input, and `resolveScope` refuses the same way an operation whose access the guest's role is below (editor, admin, owner). Exporting a product and a Story or Idea card preview are refused too. The message says where the person's own work goes, as the web app's notice does: in an organization they are in, if they are in one; else in one they create (`products.create_tenant`, or New organization in the web app), if they may start one (an instance owner, or an allowance with room); else, if they are on the waitlist, that they are on it for one of their own, that organizations open a few at a time and that someone who uses WhatBuild can invite them to theirs meanwhile, as the overview does; else to ask whoever runs this WhatBuild, or to be invited to an organization; and, in both of these, not to call `products.create_tenant` (`exampleReadOnly` in `policy.ts`). |
 | sees no person | `members.list` answers an empty list with `guest: true`. Staff's names appear on what they wrote and in the activity log, as anywhere. |
 | meets the guests' limits | calls a minute and bytes downloaded a day, the guests' settings an instance owner sets ([§9.7](09-data-lifecycle.md)). |
@@ -793,8 +811,8 @@ next call.
 
 `products.list` lists the example organization's products for every account, with
 `tenant.example: true`, and the organization among `tenants` with `example: true`. To a guest,
-`your_role` is `guest` wherever it is reported: on the organization, on each of its teams and
-products in `products.list`, in `products.get`, and in a product-scoped MCP result's `scope`,
+`your_role` is `guest` wherever it is reported: on the organization, on each of its products in
+`products.list`, in `products.get`, and in a product-scoped MCP result's `scope`,
 which echoes `example: true` there too (`reportedRole` in `policy.ts`). Everything a guest may do
 is still decided as a viewer's.
 
@@ -810,5 +828,33 @@ connector is scoped to the example ([§3.6](#36-addressing-and-isolation)).
 
 **It cannot be deleted** while the deployment names it: `products.delete_tenant` answers
 `409 example_organization`. Its owners rename it and change its slug as any owners do, and so does
-an instance owner ([§3.3](#33-tenants-and-teams)); its former slug still names it in
+an instance owner ([§3.3](#33-tenants)); its former slug still names it in
 `WHATBUILD_EXAMPLE_TENANT` until the deployment is told the new one.
+
+## 3.11 When there were teams
+
+Until migration `0044`, an organization held **teams**, and teams held its products: a product was
+`tenant/team/product`, and a team's role applied to every product in it
+(◆ [decision](../decisions/an-organization-holds-its-products-directly-with-no-teams.md)). The
+migration ([`0044_no_teams.sql`](../../apps/server/src/migrations/0044_no_teams.sql)):
+
+- made each team's role the same role on all products where the organization had one team, as
+  nearly every one did, and on each of the team's products where it had several, keeping the higher
+  of two roles on one product, so nobody reaches a product they could not reach before;
+- made each team admin a product creator, unless they were an owner or admin of the organization;
+- made each invitation to a team one to all products, ending those still open where the
+  organization had several teams;
+- gave a product whose slug another product of its organization had first, or that named one of
+  the organization's pages, a new slug (`<slug>-2`, …), and kept the address it had under its team
+  in `team_addresses`, a directory table outside row-level security, as `tenant_slugs` is;
+- dropped the teams, `products.team_id`, `records.team_id` and `activity.team_id`.
+
+**An address with a team still reaches its product.** The middle part names nothing now: the
+product is the one `team_addresses` records for that address, and otherwise the one of that slug in
+the organization (`findProduct`, [`policy.ts`](../../packages/core/src/policy.ts)). MCP takes
+`product: "tenant/team/product"` and serves `/mcp/t/<tenant>/<team>/<product>`, whose answers carry
+`connector_address` ([§3.6](#36-addressing-and-isolation)). The web app takes
+`/t/<tenant>/<team>/<product>/…` to the product's address with the rest of the path, using the
+`former_paths` that `products.list` gives a product whose slug changed. REST keeps no old routes:
+only the web app calls it, and a page open across the release loads the new one at its next screen.
+Nothing writes to `team_addresses`, and nothing else reads it.

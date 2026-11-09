@@ -61,9 +61,9 @@ async function grants(c: Client, product?: string): Promise<Record<Kind, Grant>>
   return out;
 }
 
-/** Bob's role on the team: granting again replaces it. */
+/** Bob's role on all products: granting again replaces it. */
 async function setRole(role: "reader" | "editor") {
-  const r = await org.owner.api("POST", `/api/v1/tenants/${org.tenant.slug}/members`, { email: "bob@grants.example", role, team: org.team.slug });
+  const r = await org.owner.api("POST", `/api/v1/tenants/${org.tenant.slug}/members`, { email: "bob@grants.example", role, all_products: true });
   expect(r.status, JSON.stringify(r.body)).toBeLessThan(300);
 }
 
@@ -73,7 +73,7 @@ beforeAll(async () => {
   org = await buildOrganization(h, alice, "Grant Works", "GRANT7");
   await h.worker.drain();
   const T = `/api/v1/tenants/${org.tenant.slug}`;
-  expect((await alice.api("POST", `${T}/members`, { email: "bob@grants.example", role: "editor", team: org.team.slug })).status).toBeLessThan(300);
+  expect((await alice.api("POST", `${T}/members`, { email: "bob@grants.example", role: "editor", all_products: true })).status).toBeLessThan(300);
   bob = await h.signIn("bob@grants.example", "Bob Grants");
   bobId = (await bob.api("GET", "/api/v1/me")).body.account_id;
 }, 120_000);
@@ -134,7 +134,7 @@ describe("a download grant", () => {
     try {
       for (const [kind, g] of Object.entries(held)) expect((await use(g)).status, kind).toBe(403);
     } finally {
-      expect((await org.owner.api("POST", `${T}/members`, { email: "bob@grants.example", role: "editor", team: org.team.slug })).status).toBeLessThan(300);
+      expect((await org.owner.api("POST", `${T}/members`, { email: "bob@grants.example", role: "editor", all_products: true })).status).toBeLessThan(300);
     }
   });
 

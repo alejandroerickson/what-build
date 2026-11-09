@@ -14,7 +14,7 @@ interface ConnectInfo {
   mcp_url: string;
   /** The address scoped to one organization, with `{tenant}` to fill in. */
   tenant_url_template: string;
-  /** The address scoped to one product, with `{tenant}/{team}/{product}` to fill in. */
+  /** The address scoped to one product, with `{tenant}/{product}` to fill in. */
   bound_url_template: string;
 }
 
@@ -47,6 +47,15 @@ interface ConnectedAgent {
 }
 
 type ReachKind = "product" | "organization" | "all";
+
+/**
+ * A product's connector address, `/mcp/t/<organization>/<product>`: the product's path in place of
+ * whatever stands between `{tenant}` and `{product}` in the template, so a server that still names
+ * a middle part in it gives the same address.
+ */
+export function productConnectorUrl(template: string, path: string): string {
+  return template.replace(/\{tenant\}.*\{product\}/, path);
+}
 
 function reachLabel(r: Reach): string {
   if (r.kind === "all") return "Every product you can open";
@@ -99,7 +108,7 @@ export function ConnectPage() {
   const items = products.data?.items ?? [];
   const tenants = products.data?.tenants ?? [];
   const orgs = new Set(items.map((p) => p.tenant.tenant_id)).size;
-  const herePath = here["product"] ? `${here["tenant"]}/${here["team"]}/${here["product"]}` : null;
+  const herePath = here["product"] ? `${here["tenant"]}/${here["product"]}` : null;
   // The URL holds the choice: ?reach=product|organization|all, with ?product=<path> or ?org=<slug>.
   // An older ?product=all means everything.
   const productParam = params.get("product");
@@ -121,7 +130,7 @@ export function ConnectPage() {
   const url = !c
     ? ""
     : reach === "product" && product
-      ? c.bound_url_template.replace("{tenant}/{team}/{product}", product.path)
+      ? productConnectorUrl(c.bound_url_template, product.path)
       : reach === "organization" && org
         ? c.tenant_url_template.replace("{tenant}", org.slug)
         : c.mcp_url;

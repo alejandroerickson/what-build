@@ -133,7 +133,7 @@ design system: tokens, type, components and the rules for using them — is docu
   source's files are its "attachments" and its words its "text", people "start" an organization
   and "can" do things, and something
   happens "right away". Contractions and typographic apostrophes are used throughout. A role's
-  place is written as a person would say it: "editor on the Core team", "editor on Crewboard"
+  place is written as a person would say it: "editor on all products", "editor on Crewboard"
   (`scopeWords` in `apps/web/src/lib/format.ts`).
 - Agents are teammates: attribution in the UI shows who wrote something **and through which
   surface** (for example "Sam · via claude-desktop").
@@ -149,7 +149,7 @@ the browser's back button and "open in new tab" both work.
   and the "WhatBuild" wordmark, linking to the overview (`/`)
   from every screen, with the button that hides the panel at the row's far end. Only the mark and
   wordmark are the link, so a click that misses the hide button does not leave the screen. Then the
-  product switch, showing the product and its organization and team, and under it the **Search**
+  product switch, showing the product and its organization, and under it the **Search**
   field, "Search <product>" with its shortcut, or for a reader "Search the Story", which opens the search palette (below).
 - **L1**, exactly and in this order: **Idea, Evidence, Exploration, Story**, each with its count:
   every item the stage holds (`stage_counts`, [§4.2](04-data-model.md),
@@ -212,7 +212,7 @@ the browser's back button and "open in new tab" both work.
   "Showing the best 60 of N. Add a word to narrow them.", and the palette's All N results counts
   every match. Nothing holding the words says "Nothing matches" and suggests another word or fewer
   words. An outcome found opens Idea scrolled to it and marked (`?outcome`). A reader searches the Story alone ([§8.2](08-search.md)).
-- **A reader** ([§3.5](03-accounts-teams-and-identity.md)) has only the Story: L1 is **Story**
+- **A reader** ([§3.5](03-accounts-and-identity.md)) has only the Story: L1 is **Story**
   alone with its count, and the quiet group is gone, but for the empty seat under the Story until
   they have an agent connected, which opens Connect an agent outside the product. The product opens on the Story, and any other
   product screen, opened by a link or typed, takes a reader to the Story, with a toast saying they
@@ -275,20 +275,27 @@ the browser's back button and "open in new tab" both work.
 - A skip link leads to the content; on a route change focus moves to the new heading and the page
   is announced politely.
 
-**Switching.** An account may belong to several organizations (tenants) and teams, and a team
+**Switching.** An account may belong to several organizations (tenants), and an organization
 holds several products. A person must always know where they are, and move without losing their
 place.
 
-1. The current product, with its organization and team, is shown at the top of the panel on every
+1. The current product, with its organization, is shown at the top of the panel on every
    product screen.
 2. The product switch is one interaction away on every product screen. It lists every reachable
-   product grouped by organization and team, and offers New product, which opens in place.
+   product grouped by organization, and offers New product, which opens in place on the current
+   organization.
 3. **Switching product keeps the section**: from Evidence in product A to Evidence in product B.
    Idea, Evidence, Exploration, Story, Connect an agent, Activity, Search and Settings carry over; anything else
    (a record id, an assumption, a mockup) lands on Idea. Switching to a product where the person is a reader
    lands on its Story.
-4. The product is in the URL path (`/t/<tenant>/<team>/<product>/…`). Opening a link to another
-   product simply works, and becomes the remembered one.
+4. The product is in the URL path (`/t/<tenant>/<product>/…`). Opening a link to another
+   product simply works, and becomes the remembered one. An address written when products were in
+   teams (`/t/<tenant>/<team>/<product>/…`) is taken to the product's address with the rest of its
+   path, its query and its fragment, once `products.list` has loaded: to the product whose
+   `former_paths` names it, and otherwise to the same address without the middle part
+   (`FormerProductAddress`, `apps/web/src/routes/addresses.tsx`;
+   [§3.11](03-accounts-and-identity.md#311-when-there-were-teams)). A path that is neither answers
+   Not found.
 5. `/` opens the overview for anyone in an organization, and first run for anyone in none. The
    last-used product is remembered per browser until the person signs out or their session ends
    ([§9.1](09-data-lifecycle.md)); Connect an agent names it in its example request.
@@ -300,7 +307,7 @@ place.
    `members.grant` and `members.revoke` still work on an archived product, so its Settings keep
    People on this product for admins and say so above the list.
    A read-only organization, one moved back to the plan new organizations start on while whoever
-   started it has another there ([§3.3](03-accounts-teams-and-identity.md#33-tenants-and-teams)),
+   started it has another there ([§3.3](03-accounts-and-identity.md#33-tenants)),
    says so above every screen of its products: that nothing new can be added, what everyone can
    still do there (one sentence the server's refusal shares, `packages/core/src/read-only.ts`:
    read, export and delete what it holds, and take people out, as their roles allow), how long it
@@ -309,7 +316,7 @@ place.
    source, a new entry) says why in its place; deleting and export stay. Its Members page says so
    too, and offers only what still works there: removing a role, taking someone out and cancelling
    an invitation, with no Give access, no change of role and no change of its name.
-7. On the overview, an organization where the person has no team or product role says so, and that
+7. On the overview, an organization where the person has no product role says so, and that
    there is nothing to open until an admin gives them one.
 8. Organization-level screens (the overview, Connect an agent, Settings, Members) use a different
    panel, so they are not mistaken for belonging to one product.
@@ -320,11 +327,14 @@ wordmark, the question "What to build?", the tagline "Product discovery at the s
 Engineering.", two sentences on what the app does, and a link to Connect an agent. Beside it, small and
 quiet, "From idea to story": Idea, Evidence, Exploration and Story, each with a line on what a
 team does there. It carries no counts; those are on each product below. Below, one sheet per organization, headed by its name alone, lists its active products (name,
-product concept as plain words clamped to two lines, its Markdown markers dropped, last update, and the team only when the organization has more than one), each
+product concept as plain words clamped to two lines, its Markdown markers dropped, last update), each
 with links to Idea, Evidence, Exploration and Story and their counts, so any section of any product
 is one click away. A product where the person is a reader says "You can read its Story."
-in place of its concept, and links to the Story alone, with its count. Team admins get **New product**, a dialog on the overview (`?create=1`), so
-cancelling leaves the person there; it asks for a team only when they can create in more than one,
+in place of its concept, and links to the Story alone, with its count. An organization's owners,
+admins and product creators get **New product**, a dialog on the overview
+(`?create=<organization slug>`, or `?create=1` for the first organization they may create in), so
+cancelling leaves the person there; it asks for the organization only when they can create in more
+than one; a product creator is told they will be its admin;
 and when the organization already holds all the products its plan allows it says so, and how to
 make room, in place of Create.
 An organization with no product the person can see says so, and, to someone who cannot create
@@ -350,7 +360,7 @@ person's organization role is in the account menu, and who has which role is on 
 /instance                                     Organizations: every organization's plan and what it holds, the plans, and who may create organizations (instance owners)
 /people                                       People: every account, and removing one (instance owners)
 
-/t/:tenant/:team/:product                     → …/idea
+/t/:tenant/:product                           → …/idea
   /idea               ?status&outcome         the product concept, outcomes with counts (outcome: one a search opened, marked)
   /evidence           ?tags&added_by&date_from&date_to&query&include_archived&sort&order
                       (date_from, date_to: the date captured; query: words in titles, tags or attachment
@@ -400,13 +410,14 @@ in its footer to change it; a request to hear from us is counted as `generate_le
 An address under `/t/:tenant` that names an organization by a slug it had before moves to the same
 address with its current slug, query and fragment kept (`CurrentTenantAddress`), once the person's
 organizations have loaded and show that slug among the organization's `former_slugs`; meanwhile
-the server answers the old slug too ([§3.6](03-accounts-teams-and-identity.md#36-addressing-and-isolation)).
+the server answers the old slug too ([§3.6](03-accounts-and-identity.md#36-addressing-and-isolation)).
 
 Older source links resolve too: `?view=passages` opens Text, and `?view=original` and
 `?view=files` open Attachments, where an attachment is shown; `?tab=passages` opens Text,
 `?tab=preview` and `?tab=files` Attachments, `?tab=notes` Notes, and `?tab=connected` the
-inspector. A product path without the `/t/` prefix (`/<tenant>/<team>/<product>[/…]`, as people type
-or paste it) redirects to the same path under `/t/`.
+inspector. A product path without the `/t/` prefix (`/<tenant>/<product>[/…]`, as people type
+or paste it, or the three-part path from when products were in teams) redirects to the same path
+under `/t/`.
 
 The document title is "<screen> · <section> · <product> · WhatBuild", with a screen named after
 its section ("Evidence") said once. A screen shown in place of another names itself, never the one
@@ -416,13 +427,13 @@ with its section (Members, Plan), and an error no screen handles "Something went
 wrong · WhatBuild".
 
 The Story print view is served by the API, not the app: `GET
-/api/v1/p/<tenant>/<team>/<product>/story/print?page_ids=…` returns one HTML document, opened in a
+/api/v1/p/<tenant>/<product>/story/print?page_ids=…` returns one HTML document, opened in a
 new tab ([§7.8](#78-story), [§6](06-operations-and-adapters.md)).
 
 ## 7.4 Sign-in, and the first ten minutes
 
 1. **Sign in** (`/signin`) with an email link, Microsoft or Google, whichever the deployment configures
-   ([§3.2](03-accounts-teams-and-identity.md)); in development, one click signs in as any account on
+   ([§3.2](03-accounts-and-identity.md)); in development, one click signs in as any account on
    the server (`GET /auth/dev-accounts`): the sample's people first, then the newest, each with what
    it is there ("Owns Fieldnote Studio (Pro)", "Guest, on the waitlist"), the first 40 of them, or as
    any address typed above. An
@@ -432,17 +443,17 @@ new tab ([§7.8](#78-story), [§6](06-operations-and-adapters.md)).
    and links to Privacy, the notice of what is kept and why ([§9.1](09-data-lifecycle.md)), and
    to Cookies.
 2. **The example organization first.** A new account with no organization of its own lands on the
-   overview, where the example organization ([§3.10](03-accounts-teams-and-identity.md)) is listed,
+   overview, where the example organization ([§3.10](03-accounts-and-identity.md)) is listed,
    tagged Example organization and Read only, under a sheet, **Your own organization**, that says
    the example is there to read and to point an agent at, and offers **Start your organization**
    where the account may create one. Where it may not, it says organizations open a few at a time,
    to ask for one or be invited to someone's, and offers **Ask for your own organization**, which puts them on the
-   waitlist with one click ([§3.2](03-accounts-teams-and-identity.md#32-accounts-and-sign-in));
+   waitlist with one click ([§3.2](03-accounts-and-identity.md#32-accounts-and-sign-in));
    then it says since when they have been on it and that an email will tell them when they can
    start one, and the sheet no longer tells them to ask, only that someone who uses WhatBuild can
    invite them meanwhile.
 3. **First run** (`/welcome`): name the organization and the first product in one form, for an
-   account that may create one ([§3.3](03-accounts-teams-and-identity.md)); for someone who is not
+   account that may create one ([§3.3](03-accounts-and-identity.md)); for someone who is not
    an instance owner, where the deployment offers plans, it adds which plan the organization starts
    on, with its totals and a link to compare the plans, and that whoever runs this WhatBuild sees
    its name and plan and the name and email of everyone in it, to write to its people, and to bill
@@ -920,7 +931,8 @@ page of a mockup reaches it by promotion, from the mockup (§7.7).
   keys on unless the page used them). Not while typing, with a dialog or menu open, or in a control
   that uses the arrows itself, such as the page tree. It stops at the first and the last; focus
   mode stays as it was.
-- **Links.** A link in a page to another page of the same Story shows that page in place: the
+- **Links.** A link in a page to another page of the same Story shows that page in place, written
+  with the Story's address or as it was when products were in teams (`/t/<tenant>/<team>/<product>/story/…`): the
   address, the tree and the inspector follow, and focus mode stays as it was. A click with a
   modifier key, and every other link, opens in a new tab ([§4.11](04-data-model.md)).
 - **Focus mode.** Both side panels and their show buttons step aside so the rest of the app falls
@@ -980,7 +992,7 @@ page of a mockup reaches it by promotion, from the mockup (§7.7).
     update after publishing (what it is for, sources still to fold in, choices about its structure).
     Read-only here, and not versioned with the page.
   - A reader gets About alone: Shows and Notes for agents are left out, since the server sends a
-    reader neither ([§3.5](03-accounts-teams-and-identity.md)). The Story
+    reader neither ([§3.5](03-accounts-and-identity.md)). The Story
     style row under the tree is left out too, and so are **Archived pages** in the tree and the
     export, since the server gives a reader no archived page; a Story with no pages says that they
     appear once the product's team publishes them. A reader or viewer arranges, archives and
@@ -1077,11 +1089,13 @@ never described as deleting. A list row showing an archived object says *Archive
 ## 7.11 Organization, product and account screens
 
 - **Members** (`/t/<tenant>/members`, from the organization in the account menu, titled
-  "Members"). A key to the roles (organization: owner, admin, member;
-  team or product: admin, editor, viewer, reader), then everyone in the organization in two layers: their
-  **organization** role (member when they have none of their own) and their **access**, the team
-  and product roles that decide which products they can open. A member with no access says so and
-  offers Give access. Each team or product role someone may manage has **Change**, a menu of the
+  "Members"). A key to the roles (organization: owner, admin, product creator, which creates
+  products and is admin of each one it creates, and member; all products or a product: admin,
+  editor, viewer, reader), then everyone in the organization in two layers: their
+  **organization** role (member when they have none of their own) and their **access**, the roles
+  on all products and on each product that decide which products they can open. A member with no
+  access says so and offers Give access. Each role on all products or on a product someone may
+  manage (only the organization's owners and admins manage roles on all products) has **Change**, a menu of the
   roles there, each described in words (granting again at that scope replaces the role, with
   Undo), and **Remove role**. Removing one takes effect at once with Undo, except a
   person's only role: that asks first, because it also takes them out of the organization, and a
@@ -1090,13 +1104,16 @@ never described as deleting. A list row showing an archived object says *Archive
   change the organization role, and **Remove from the organization**, which asks first and lists
   every role they lose (`members.revoke` with `whole_tenant`). Outstanding invitations ("Waiting
   to join") show their expiry and a cancel control. **Give access** opens the people editor
-  (below) for a team, a product or the organization itself, chosen first (teams first; the
-  organization's member role says that it opens no product); from a person's own Give access,
+  (below) for all products (every product, including ones made later), a product or the
+  organization itself, chosen first: all products first, then each product, then the organization,
+  whose roles are owner, admin, product creator and member, the last saying that it opens no
+  product. It opens on all products for the organization's owners and admins; a product admin is
+  offered only their products. From a person's own Give access,
   that person is already chosen. Your own organization role is not changed there. The person's writes and their attribution stay after any removal.
-  Someone who is not an owner or admin of the organization sees only the people on the teams and
-  products they can open, and the owners and admins, as the page says; since they may not see
+  Someone who is not an owner or admin of the organization sees only the people on the products
+  they can open, those with a role on all products, and the owners and admins, as the page says; since they may not see
   every role a person holds, removing one never asks as if it were the last
-  ([§3.5](03-accounts-teams-and-identity.md)). Below, owners and admins of the organization see
+  ([§3.5](03-accounts-and-identity.md)). Below, owners and admins of the organization see
   **Access changes**: the organization's access log (`members.activity`), drawn as the Activity
   feed is (§7.9), newest first, with a rename as "renamed the organization to …", someone
   whose last role was removed as removed from the organization, someone who deleted their own
@@ -1110,7 +1127,7 @@ never described as deleting. A list row showing an archived object says *Archive
   its owners change them. A change made elsewhere starts the form again from what it is now.
   Someone who reads only the Story in the organization who opens the address gets a page saying
   that members aren't shown to Story readers, with a way back to their products
-  ([§3.5](03-accounts-teams-and-identity.md)). The page knows this from `products.list`'s
+  ([§3.5](03-accounts-and-identity.md)). The page knows this from `products.list`'s
   `story_only` and asks for the members only once that has loaded, so it is never refused.
   Someone outside the organization, or at an address that names none, is told at once that it
   doesn't exist or they can't see it (§7.1); until the members answer, the page for an
@@ -1134,7 +1151,7 @@ never described as deleting. A list row showing an archived object says *Archive
   loading state names nothing, and a failed load offers Try again. Signed out, the link opens
   sign-in titled "Sign in to see your invitation". It stands outside the guests' gate, so someone
   invited takes no guest's place to read it and never waits in line for it.
-- **Invitations waiting** ([§3.2](03-accounts-teams-and-identity.md#invitations)). Once signed in, a
+- **Invitations waiting** ([§3.2](03-accounts-and-identity.md#invitations)). Once signed in, a
   person sees the invitations waiting for them wherever they land, without the emailed link: above
   the content of every screen in the shell, in a sheet titled Invitations for you on the first-run
   screen (`/welcome`) and on the guests' waiting page, where accepting ends the wait. Each row asks
@@ -1157,14 +1174,14 @@ never described as deleting. A list row showing an archived object says *Archive
   export; the organization; and, for admins, archive or restore and **Delete this product**,
   whose dialog counts everything in it, needs a reason and the product's name typed, and offers
   Archive instead while the product is live (§7.10). **People** lists everyone who can reach this
-  product and how, in words: a product role, or a role inherited from the team or the
-  organization (`members.list` with `product`). Product admins get a role picker (admin, editor,
+  product and how, in words: a product role, or a role that comes from all products ("Editor
+  through all products") or from the organization (`members.list` with `product`). Product admins get a role picker (admin, editor,
   viewer, reader) for product roles, **Add people** (the people editor, below, for the product),
   Remove (revokes the product role only), and
   outstanding invitations with a cancel control. An inherited role links to the organization's
   Members, where it is changed. Access is per product; nothing is granted per page or per source.
 - **The people editor** (`apps/web/src/routes/people-editor.tsx`), a wide dialog that changes who
-  has a role on one product, team or the organization, many people at a time. On the left, under a
+  has a role on one product, on all products or on the organization, many people at a time. On the left, under a
   segmented head: **From the organization**, everyone in it the person can see who has no role
   there, each with a checkbox (a find field above more than six, and **Select all**); or **Paste
   addresses**, a field that reads any list of addresses as it is pasted (separated by commas,
@@ -1175,11 +1192,11 @@ never described as deleting. A list row showing an archived object says *Archive
   opens on Paste addresses. Under either, **Join as**, the role they arrive with, described in
   words. Two arrow buttons between the lists move the people chosen across, and back. On the
   right, everyone there, in groups: **To add**, each with a role picker; **Already here**, each
-  with their role (a picker where the person may change it); and those with access through the
-  team or the organization, each with that role, and a picker that gives a team's people a role
-  of their own here. A group is labelled when there is more than one, and always when its access
+  with their role (a picker where the person may change it); and those with access through all
+  products or the organization ("Through all products", "Through <organization>"), each with that
+  role, and a picker that gives them a role of their own here. A group is labelled when there is more than one, and always when its access
   is inherited. Choosing people on the right puts **Set role…** for all of them in its head, and
-  the left arrow takes them off (struck through, with **Keep**; at a team or product only, saying
+  the left arrow takes them off (struck through, with **Keep**; on all products or a product only, saying
   "Taken off when you save" and when it is their only role there). Nothing changes until **Add N
   people** or **Save changes**, which the foot summarizes beside it: one `members.grant_many` for
   every role given or changed (100 a call), then `members.revoke` for each person taken off. A
@@ -1205,7 +1222,7 @@ never described as deleting. A list row showing an archived object says *Archive
   which closes it. A refused delete says the account wasn't deleted, where the form was. Deleted,
   the browser forgets the person's state and opens **Your account has been deleted**
   (`/account-deleted`, signed out), which says what stays and that a confirmation was emailed
-  ([§3.2](03-accounts-teams-and-identity.md#32-accounts-and-sign-in)).
+  ([§3.2](03-accounts-and-identity.md#32-accounts-and-sign-in)).
 - **Cookies** (`/cookies`, readable signed out; `apps/web/src/routes/cookies.tsx`). What cookies
   are for, by kind: needed for WhatBuild to work (always on), and, when the deployment uses
   analytics, Google Analytics with the person's choice, which they change here at any time. Then
@@ -1359,9 +1376,9 @@ never described as deleting. A list row showing an archived object says *Archive
   a note above says they are deleted too, one line each with what it holds (its products by name,
   sources, files) and how many other people lose their roles there, and the button says "Remove
   account and delete" them; the only owner of the example organization can't be removed
-  ([§3.2](03-accounts-teams-and-identity.md#32-accounts-and-sign-in)). Anyone else reaching the
+  ([§3.2](03-accounts-and-identity.md#32-accounts-and-sign-in)). Anyone else reaching the
   address is told only instance owners see it.
-- **The example organization** ([§3.10](03-accounts-teams-and-identity.md)), in
+- **The example organization** ([§3.10](03-accounts-and-identity.md)), in
   `apps/web/src/shell/ExampleBanner.tsx`. Every screen of a product in it carries a notice above
   its content. To a guest, under "This is the example organization", it says it is a worked
   discovery to read, search and point an agent at, and that nothing in it can be changed, with

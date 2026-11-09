@@ -25,7 +25,7 @@ vi.mock("../src/lib/api.ts", async (original) => ({
 }));
 vi.mock("../src/lib/session.tsx", async (original) => ({
   ...(await original<typeof import("../src/lib/session.tsx")>()),
-  useProduct: () => ({ api: "/api/v1/p/acme/core/app", app: "/t/acme/core/app", canWrite: true, product: { archived_at: null, tenant: { name: "Acme" } } }),
+  useProduct: () => ({ api: "/api/v1/p/acme/app", app: "/t/acme/app", canWrite: true, product: { archived_at: null, tenant: { name: "Acme" } } }),
   useMe: () => ({ isPending: false, data: { email: "sam@example.com" } }),
 }));
 
@@ -176,7 +176,7 @@ describe("tooLong", () => {
 });
 
 describe("adding a source", () => {
-  const start = () => mount(<SourceNewPage />, "/t/acme/core/app/evidence/new");
+  const start = () => mount(<SourceNewPage />, "/t/acme/app/evidence/new");
 
   it("stays on its first step with a title that's too long, keeping it, and goes on once it fits", async () => {
     const host = await start();
@@ -192,14 +192,14 @@ describe("adding a source", () => {
     await act(async () => button(host, "Continue").click());
     await act(async () => button(host, "Continue without attachments").click());
     await act(async () => button(host, "Create source").click());
-    expect(posts()).toEqual([{ method: "POST", path: "/api/v1/p/acme/core/app/sources" }]);
+    expect(posts()).toEqual([{ method: "POST", path: "/api/v1/p/acme/app/sources" }]);
   });
 });
 
 describe("editing a source's details", () => {
   it("refuses a title that's too long, keeping it", async () => {
     const record = { record_id: "rec_1", title: "Crew lead interview", date: null, tags: [], etag: "e1" } as never;
-    const host = await mount(<EditDetails record={record} onClose={() => {}} onReload={() => {}} />, "/t/acme/core/app/evidence/rec_1");
+    const host = await mount(<EditDetails record={record} onClose={() => {}} onReload={() => {}} />, "/t/acme/app/evidence/rec_1");
     const title = document.querySelector<HTMLInputElement>('dialog input[required]')!;
     await act(async () => paste(title, words(301)));
     expect(title.value).toHaveLength(301);
@@ -216,7 +216,7 @@ describe("editing a source's details", () => {
 
 describe("recording an assumption", () => {
   const start = async () => {
-    const host = await mount(<EntryEditPage kind="assumptions" />, "/t/acme/core/app/exploration/assumptions/new");
+    const host = await mount(<EntryEditPage kind="assumptions" />, "/t/acme/app/exploration/assumptions/new");
     for (let i = 0; i < 4; i++) await act(async () => new Promise((r) => setTimeout(r, 0)));
     return { host, statement: host.querySelector<HTMLTextAreaElement>("textarea.entry-statement")!, form: host.querySelector("form")! };
   };
@@ -239,7 +239,7 @@ describe("recording an assumption", () => {
     expect(host.querySelector(".field-error")).toBeNull();
     expect(save(host).disabled).toBe(false);
     await act(async () => save(host).click());
-    expect(posts()).toEqual([{ method: "POST", path: "/api/v1/p/acme/core/app/assumptions" }]);
+    expect(posts()).toEqual([{ method: "POST", path: "/api/v1/p/acme/app/assumptions" }]);
   });
 
   it("refuses what is too long in Why too, the other field the form saves", async () => {

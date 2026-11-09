@@ -52,7 +52,7 @@ export { chunkText, indexSource, indexSources, indexText } from "./text-index.ts
 export { queueEvidenceMoves, runEvidenceMove } from "./evidence-move.ts";
 export { markExportFailed, runExport } from "./ops/export.ts";
 export { completeGrant, DOWNLOAD_GRANT_HEADER, UPLOAD_GRANT_HEADER, blobKeyFor, requesterClaims } from "./ops/attachments.ts";
-export { createTenantWithTeam, uniqueTenantSlug } from "./ops/products.ts";
+export { createTenantFor, RESERVED_PRODUCT_SLUGS, uniqueTenantSlug } from "./ops/products.ts";
 export { isInstanceOwner, tenantAllowanceOf, type TenantAllowance } from "./tenant-allowance.ts";
 export { PREVIEWS_KEPT, printDocument, printDocumentAt, printSelection, shownHtml, STORY_PREVIEW_PURPOSE } from "./ops/story.ts";
 export { CARD_PREVIEW_PURPOSE } from "./ops/outcomes.ts";

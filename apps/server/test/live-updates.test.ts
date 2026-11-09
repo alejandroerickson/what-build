@@ -28,7 +28,6 @@ let alice: Browser;
 let vic: Browser;
 let rita: Browser;
 let tenant: string;
-let team: string;
 let product: string;
 let path: string;
 let P: string;
@@ -103,13 +102,12 @@ beforeAll(async () => {
   rita = await h.signIn("rita@example.com", "Rita Reader");
   const t = await alice.api("POST", "/api/v1/tenants", { name: "Alpha" });
   tenant = t.body.tenant.slug;
-  team = t.body.team.slug;
-  const p = await alice.api("POST", `/api/v1/teams/${tenant}/${team}/products`, { name: "Planner" });
+  const p = await alice.api("POST", `/api/v1/tenants/${tenant}/products`, { name: "Planner" });
   path = p.body.path;
   product = p.body.slug;
   P = `/api/v1/p/${path}`;
-  await alice.api("POST", `/api/v1/tenants/${tenant}/members`, { team, product, email: vic.email, role: "viewer" });
-  await alice.api("POST", `/api/v1/tenants/${tenant}/members`, { team, product, email: rita.email, role: "reader" });
+  await alice.api("POST", `/api/v1/tenants/${tenant}/members`, { product, email: vic.email, role: "viewer" });
+  await alice.api("POST", `/api/v1/tenants/${tenant}/members`, { product, email: rita.email, role: "reader" });
 });
 afterEach(async () => {
   await Promise.all(open.splice(0).map((l) => l.stop()));
@@ -120,7 +118,7 @@ afterAll(async () => h?.close());
 /** Someone newly given a role on the product, who is taken away or changed by the test. */
 async function member(name: string, role: string): Promise<Browser & { id: string }> {
   const who = await h.signIn(`${name}@example.com`, name);
-  const grant = await alice.api("POST", `/api/v1/tenants/${tenant}/members`, { team, product, email: who.email, role });
+  const grant = await alice.api("POST", `/api/v1/tenants/${tenant}/members`, { product, email: who.email, role });
   expect(grant.status).toBe(201);
   return Object.assign(who, { id: (await who.api("GET", "/api/v1/me")).body.account_id as string });
 }
@@ -162,7 +160,7 @@ describe("who may start listening", () => {
     const stranger = await h.signIn("stranger@example.com", "Stranger");
     await stranger.api("POST", "/api/v1/tenants", { name: "Beta" });
     expect((await listen(stranger)).status).toBe(404);
-    expect((await listen(stranger, `${tenant}/${team}/no-such-product`)).status).toBe(404);
+    expect((await listen(stranger, `${tenant}/no-such-product`)).status).toBe(404);
     expect(hub.open).toBe(0);
   });
 
@@ -191,7 +189,7 @@ describe("who may start listening", () => {
   it("holds no stream open for a guest of the example organization, who is told to stop asking", async () => {
     const owner = await h.signIn("olive@example.com", "Olive");
     const t = await owner.api("POST", "/api/v1/tenants", { name: "Example Works" });
-    const p = await owner.api("POST", `/api/v1/teams/${t.body.tenant.slug}/${t.body.team.slug}/products`, { name: "Worked example" });
+    const p = await owner.api("POST", `/api/v1/tenants/${t.body.tenant.slug}/products`, { name: "Worked example" });
     await syncExampleTenant(h.db, t.body.tenant.slug, () => {});
     try {
       const guest = await h.signIn("gil@example.com", "Gil");
@@ -329,7 +327,7 @@ describe("who hears what", () => {
   });
 
   it("tells a tab nothing of another product", async () => {
-    const other = await alice.api("POST", `/api/v1/teams/${tenant}/${team}/products`, { name: "Another" });
+    const other = await alice.api("POST", `/api/v1/tenants/${tenant}/products`, { name: "Another" });
     const elsewhere = await listen(alice, other.body.path);
     const tab = await listen(vic);
     await addOutcome();
@@ -424,7 +422,7 @@ describe("someone who may no longer hear", () => {
     await addOutcome();
     await hears(theirs, "idea");
     await vi.waitFor(() => expect(others.heard().length).toBe(1));
-    expect((await alice.api("POST", `/api/v1/tenants/${tenant}/members`, { team, product, email: liv.email, role: "reader" })).status).toBeLessThan(300);
+    expect((await alice.api("POST", `/api/v1/tenants/${tenant}/members`, { product, email: liv.email, role: "reader" })).status).toBeLessThan(300);
     const before = theirs.heard().length;
     await addSource();
     await hears(others, "evidence");
@@ -541,7 +539,7 @@ describe("what a stream costs", () => {
     expect(isLiveStream(`/api/v1/p/${path}/live`)).toBe(true);
     expect(isLiveStream(`/api/v1/p/${path}/story/live`)).toBe(false);
     expect(isLiveStream("/live")).toBe(false);
-    expect(loggedPath(`/api/v1/p/${path}/live`)).toBe("/api/v1/p/:org/:team/:product/live");
+    expect(loggedPath(`/api/v1/p/${path}/live`)).toBe("/api/v1/p/:org/:product/live");
   });
 
   it("is told of use inside a frame, where the app can't see it, at most every half minute", () => {

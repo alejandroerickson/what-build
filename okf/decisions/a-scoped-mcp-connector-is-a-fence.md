@@ -20,7 +20,7 @@ nothing else, and reaching everything takes the unscoped connector.
 ## Decision
 
 - Three endpoints: `/mcp` (everything the account can reach), `/mcp/t/<tenant>` (one
-  organization) and `/mcp/t/<tenant>/<team>/<product>` (one product).
+  organization) and `/mcp/t/<tenant>/<product>` (one product; a product's address from when products were in teams, `/mcp/t/<tenant>/<team>/<product>`, still reaches it).
 - Through a scoped endpoint, a call whose resolved scope lies outside it is refused with
   `403 outside_connector_scope`, after authorization and before the handler, so it changes nothing.
   Account-level operations are refused too, except reads that reach no organization's content.
@@ -47,5 +47,5 @@ nothing else, and reaching everything takes the unscoped connector.
   `products.list`.
 - Token-to-endpoint checks go through `resourceCovers` in `apps/server/src/auth/connector-reach.ts`.
 
-Specified in: [§3.6 and §3.8](../spec/03-accounts-teams-and-identity.md#36-addressing-and-isolation),
+Specified in: [§3.6 and §3.8](../spec/03-accounts-and-identity.md#36-addressing-and-isolation),
 [§6.5 and §6.8](../spec/06-operations-and-adapters.md#65-mcp).

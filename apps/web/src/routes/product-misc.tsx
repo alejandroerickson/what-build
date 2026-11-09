@@ -188,7 +188,7 @@ function ProductDetails() {
           error={slugError}
           spellCheck={false}
         />
-        <TextField label="Team" value={`${product.team.name} · ${product.tenant.name}`} readOnly />
+        <TextField label="Organization" value={product.tenant.name} readOnly />
       </FormGrid>
       {save.isError ? (
         <div className="settings-note">
@@ -234,7 +234,7 @@ const ROLE_HINT: Record<Role, string> = { admin: "Also manages people and settin
 
 interface Grant {
   membership_id: string;
-  scope_type: "tenant" | "team" | "product";
+  scope_type: "tenant" | "all_products" | "product";
   scope_id: string;
   scope: { name: string; slug: string };
   role: string;
@@ -245,12 +245,13 @@ interface ProductMember {
   display_name: string;
   email: string;
   grants: Grant[];
-  product_access: { role: Role; via: "product" | "team" | "tenant" };
+  /** The role and the grant it comes from: the product's own, all products, or the organization (an owner or admin of it). */
+  product_access: { role: Role; via: "product" | "all_products" | "tenant" };
 }
 interface Invitation {
   invitation_id: string;
   email: string;
-  scope_type: "tenant" | "team" | "product";
+  scope_type: "tenant" | "all_products" | "product";
   scope_id: string;
   role: string;
   expires_at: string;
@@ -258,7 +259,7 @@ interface Invitation {
   scope: { name: string; slug: string };
 }
 interface ProductMembers {
-  product: { product_id: string; name: string; team_id: string; team: string | null };
+  product: { product_id: string; name: string };
   members: ProductMember[];
   invitations: Invitation[];
   /** A guest of the example organization, who sees none of its people. */
@@ -360,7 +361,7 @@ function PeopleSheet() {
                         <>
                           {ROLE_WORD[m.product_access.role]} through{" "}
                           <Link to={membersLink} title={`Change it in ${product.tenant.name} members`}>
-                            {from.scope.name}
+                            {via === "all_products" ? "all products" : from.scope.name}
                           </Link>
                           {via === "tenant" ? ` (${from.role})` : ""}
                           {own ? `, which outranks the product role ${own.role}` : ""}
@@ -416,7 +417,7 @@ function PeopleSheet() {
                   <span className="people-name">{i.email}</span>
                   <span className="people-sub">
                     Invited as {i.role}
-                    {i.scope_type !== "product" ? ` on ${i.scope_type === "team" ? scopeWords("team", i.scope.name) : i.scope.name}` : ""} · expires {formatDate(i.expires_at)}
+                    {i.scope_type !== "product" ? ` on ${scopeWords(i.scope_type, i.scope.name)}` : ""} · expires {formatDate(i.expires_at)}
                   </span>
                 </div>
                 <div className="people-end">
@@ -435,7 +436,7 @@ function PeopleSheet() {
             <p className="people-foot">The example organization&rsquo;s people aren&rsquo;t shown to its guests.</p>
           ) : (
             <p className="people-foot">
-              Change team and organization roles in <Link to={membersLink}>{product.tenant.name} members</Link>.
+              Change roles on all products and in the organization in <Link to={membersLink}>{product.tenant.name} members</Link>.
             </p>
           )}
         </>
@@ -466,8 +467,6 @@ function AddPeopleDialog({ onClose }: { onClose: () => void }) {
       target={{
         scope_type: "product",
         scope_id: product.product_id,
-        team_id: product.team.team_id,
-        team_name: product.team.name,
         name: product.name,
         body: { product: product.product_id },
         roles: ROLES,
@@ -556,7 +555,7 @@ function ExportSheet() {
   );
 }
 
-/** The organization this product is in: its teams, and every product in it the person can see, archived ones (this one, perhaps) marked. */
+/** The organization this product is in: every product in it the person can see, archived ones (this one, perhaps) marked. */
 function OrganizationSheet() {
   const { product } = useProduct();
   const products = useProducts(true);
@@ -570,8 +569,7 @@ function OrganizationSheet() {
       <SheetBody>
         {t ? (
           <p className="muted">
-            {t.name} has {t.teams.length === 1 ? "1 team" : `${t.teams.length} teams`}
-            {t.teams.length ? `, ${list(t.teams.map((x) => x.name))}` : ""}. You can see {inOrg.length === 1 ? "1 product" : `${inOrg.length} products`} in it: {list(inOrg.map((p) => (p.archived_at ? `${p.name} (archived)` : p.name)))}.
+            You can see {inOrg.length === 1 ? "1 product" : `${inOrg.length} products`} in {t.name}: {list(inOrg.map((p) => (p.archived_at ? `${p.name} (archived)` : p.name)))}.
           </p>
         ) : products.isError ? (
           <ErrorCallout inset title="The organization couldn’t be loaded" error={products.error} onRetry={() => products.refetch()} />

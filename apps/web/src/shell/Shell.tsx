@@ -375,7 +375,7 @@ export function ReadOnlyBanner({ tenant, readOnly }: { tenant: Pick<Product["ten
 /** Every screen inside a product: L1, the quiet group, the context slot, the account menu. */
 export function ProductShell({ product, app, children }: { product: Product; app: string; children: ReactNode }) {
   const loc = useLocation();
-  const section = productSection(loc.pathname.split("/")[5]);
+  const section = productSection(loc.pathname.split("/")[4]);
   const base = `/api/v1/p/${product.path}`;
   return (
     <FindProvider app={app} base={base} product={product}>

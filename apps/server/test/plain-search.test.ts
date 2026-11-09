@@ -330,7 +330,7 @@ describe("plain search's counts", () => {
   it("counts every source that matched, beyond the pieces its results are built from", async () => {
     const lee = await h.signIn("lee@example.com", "Lee Example");
     const t = await lee.api("POST", "/api/v1/tenants", { name: "Ledger Co" });
-    const p = await lee.api("POST", `/api/v1/teams/${t.body.tenant.slug}/${t.body.team.slug}/products`, { name: "Ledger" });
+    const p = await lee.api("POST", `/api/v1/tenants/${t.body.tenant.slug}/products`, { name: "Ledger" });
     const L = `/api/v1/p/${p.body.path}`;
     const source = async (title: string, content: string) => {
       const r = await lee.api("POST", `${L}/sources`, { title, tags: [] });
@@ -365,7 +365,7 @@ describe("plain search's excerpts", () => {
   beforeAll(async () => {
     lee = await h.signIn("lee.excerpts@example.com", "Lee Excerpts");
     const t = await lee.api("POST", "/api/v1/tenants", { name: "Excerpt Co" });
-    const p = await lee.api("POST", `/api/v1/teams/${t.body.tenant.slug}/${t.body.team.slug}/products`, { name: "Dispatch" });
+    const p = await lee.api("POST", `/api/v1/tenants/${t.body.tenant.slug}/products`, { name: "Dispatch" });
     L = `/api/v1/p/${p.body.path}`;
     const product = await lee.api("GET", L);
     const concept = "## Who it is for\n\n- **Crew leads** who send the morning dispatch\n- > Owners who read it later";

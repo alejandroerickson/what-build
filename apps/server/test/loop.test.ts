@@ -31,13 +31,13 @@ beforeAll(async () => {
 afterAll(async () => h?.close());
 
 describe("the discovery loop through REST", () => {
-  it("creates a tenant, a team and a product", async () => {
+  it("creates a tenant and a product", async () => {
     const t = await alice.api("POST", "/api/v1/tenants", { name: "Acme Research" });
     expect(t.status).toBe(201);
     expect(t.body.tenant.slug).toBe("acme-research");
-    const p = await alice.api("POST", `/api/v1/teams/${t.body.tenant.slug}/${t.body.team.slug}/products`, { name: "Onboarding", concept: "Make setup take minutes." });
+    const p = await alice.api("POST", `/api/v1/tenants/${t.body.tenant.slug}/products`, { name: "Onboarding", concept: "Make setup take minutes." });
     expect(p.status).toBe(201);
-    expect(p.body.path).toBe("acme-research/product-team/onboarding");
+    expect(p.body.path).toBe("acme-research/onboarding");
     P = `/api/v1/p/${p.body.path}`;
     const list = await alice.api("GET", "/api/v1/me/products");
     expect(list.body.items).toHaveLength(1);
@@ -324,7 +324,7 @@ describe("the discovery loop through REST", () => {
   });
   it("lists each product with the counts products.get reports, across organizations", async () => {
     const t = await alice.api("POST", "/api/v1/tenants", { name: "Beacon Labs" });
-    const p = await alice.api("POST", `/api/v1/teams/${t.body.tenant.slug}/${t.body.team.slug}/products`, { name: "Dispatch" });
+    const p = await alice.api("POST", `/api/v1/tenants/${t.body.tenant.slug}/products`, { name: "Dispatch" });
     await alice.api("POST", `/api/v1/p/${p.body.path}/outcomes`, { title: "Know who is on call" });
     const list = await alice.api("GET", "/api/v1/me/products");
     expect(list.body.items).toHaveLength(2);

@@ -20,14 +20,13 @@ async function inTenant<T>(env: Env, tenantId: string, fn: (trx: Tx) => Promise<
 
 /** Build an operation context for work done on a grant's authority: attributed to whoever requested the grant. */
 async function grantContext(env: Env, trx: Tx, productId: string, actor: ActorSnapshot, enqueued: { value: boolean }): Promise<OpContext> {
-  const p = await trx.selectFrom("products").select(["product_id", "slug", "name", "archived_at", "team_id", "tenant_id"]).where("product_id", "=", productId).executeTakeFirstOrThrow();
-  const team = await trx.selectFrom("teams").select(["team_id", "slug", "name"]).where("team_id", "=", p.team_id).executeTakeFirstOrThrow();
+  const p = await trx.selectFrom("products").select(["product_id", "slug", "name", "archived_at", "tenant_id"]).where("product_id", "=", productId).executeTakeFirstOrThrow();
   const tenant = await trx.selectFrom("tenants").select(["tenant_id", "slug", "name"]).where("tenant_id", "=", p.tenant_id).executeTakeFirstOrThrow();
   return {
     principal: { account_id: actor.account_id, email: "", display_name: actor.display_name, auth_kind: "upload_grant", surface: actor.surface, client: actor.client },
     actor,
     db: trx,
-    scope: { tenant, team, product: { product_id: p.product_id, slug: p.slug, name: p.name, archived_at: p.archived_at }, role: "editor", tenantRole: null },
+    scope: { tenant, product: { product_id: p.product_id, slug: p.slug, name: p.name, archived_at: p.archived_at }, role: "editor", tenantRole: null },
     ports: env.ports,
     now: new Date().toISOString(),
     async enqueue(kind, payload) {
@@ -165,10 +164,9 @@ export function uploadRoutes(env: Env & { config: ServerConfig }) {
         );
       if (Date.parse(grant.expires_at) < Date.now()) throw new AppError(401, "invalid_grant", "The upload grant has expired. Request a new one.");
       // A grant carries its requester's authority only while they may still write here: someone made a reader or viewer, or removed, since it was given stores nothing.
-      const role = await inTenant(env, tenantId, async (trx) => {
-        const product = await trx.selectFrom("products").select("team_id").where("product_id", "=", grant.product_id).executeTakeFirst();
-        return effectiveRole(await membershipsFor(trx, grant.principal.account_id, tenantId), { tenant_id: tenantId, team_id: product?.team_id ?? null, product_id: grant.product_id }).role;
-      });
+      const role = await inTenant(env, tenantId, async (trx) =>
+        effectiveRole(await membershipsFor(trx, grant.principal.account_id, tenantId), { tenant_id: tenantId, product_id: grant.product_id }).role,
+      );
       if (!roleAtLeast(role, "editor")) throw forbidden("Whoever requested this upload grant can no longer write to this product. Nothing was stored.", { role, needed: "editor" });
       const max = Math.min(Number(grant.max_bytes), env.config.relayMaxBytes);
       const declared = c.req.header("content-length");
@@ -203,10 +201,9 @@ export function uploadRoutes(env: Env & { config: ServerConfig }) {
       if (!upload) throw notFound("No such upload grant.");
       if (upload.uploaded_at) throw conflict("already_uploaded", "A ZIP already arrived under this grant. Publish it with upload_id, or request a new upload.");
       if (Date.parse(upload.expires_at) < Date.now()) throw new AppError(401, "invalid_grant", "The upload grant has expired. Request a new one.");
-      const role = await inTenant(env, tenantId, async (trx) => {
-        const product = await trx.selectFrom("products").select("team_id").where("product_id", "=", upload.product_id).executeTakeFirst();
-        return effectiveRole(await membershipsFor(trx, upload.principal.account_id, tenantId), { tenant_id: tenantId, team_id: product?.team_id ?? null, product_id: upload.product_id }).role;
-      });
+      const role = await inTenant(env, tenantId, async (trx) =>
+        effectiveRole(await membershipsFor(trx, upload.principal.account_id, tenantId), { tenant_id: tenantId, product_id: upload.product_id }).role,
+      );
       if (!roleAtLeast(role, "editor")) throw forbidden("Whoever requested this upload grant can no longer write to this product. Nothing was stored.", { role, needed: "editor" });
       const max = Math.min(Number(upload.max_bytes), env.config.relayMaxBytes);
       const declared = c.req.header("content-length");

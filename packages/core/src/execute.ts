@@ -33,11 +33,10 @@ export function actorOf(p: Principal): ActorSnapshot {
   return { account_id: p.account_id, display_name: p.display_name, surface: p.surface, client: p.client };
 }
 
-/** Scope fields that ride inside `input` for tenant- and team-scoped operations. */
+/** The scope field that rides inside `input` for an organization's operations. */
 function refFromInput(op: OperationDef, input: Record<string, unknown>, ref: ScopeRef): ScopeRef {
   const str = (v: unknown) => (typeof v === "string" && v ? v : undefined);
   if (op.scope === "tenant") return { tenant: str(input["tenant"]) ?? ref.tenant };
-  if (op.scope === "team") return { tenant: str(input["tenant"]) ?? ref.tenant, team: str(input["team"]) ?? ref.team };
   return ref;
 }
 

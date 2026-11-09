@@ -29,7 +29,7 @@ beforeAll(async () => {
   owner = await h.signIn("owen@example.com", "Owen Owner");
   ana = await h.signIn("ana@example.com", "Ana Planner");
   const t = await ana.api("POST", "/api/v1/tenants", { name: "Quillon Works" });
-  const p = await ana.api("POST", `/api/v1/teams/${t.body.tenant.slug}/${t.body.team.slug}/products`, { name: "Harbor Plan" });
+  const p = await ana.api("POST", `/api/v1/tenants/${t.body.tenant.slug}/products`, { name: "Harbor Plan" });
   path = p.body.path;
   // The name a client registers with is its own, and often carries the person's label for the connection.
   agent = await connect(await h.connectAgent(ana, "Claude Code (quillon-private-label)"));
@@ -47,7 +47,7 @@ describe("counting calls", () => {
     await agent.callTool({ name: "products_read", arguments: { action: "list" } });
     expect((await agent.callTool({ name: "products_read", arguments: { action: "explode" } })).isError).toBe(true);
     expect((await agent.callTool({ name: "products_read", arguments: { action: "get", product_id: "x" } })).isError).toBe(true);
-    expect((await agent.callTool({ name: "sources_read", arguments: { action: "list", product: "no-such/team/product" } })).isError).toBe(true);
+    expect((await agent.callTool({ name: "sources_read", arguments: { action: "list", product: "no-such/product" } })).isError).toBe(true);
     await usageSettled();
 
     const calls = await h.db.selectFrom("usage_calls").selectAll().execute();
@@ -83,25 +83,39 @@ describe("counting calls", () => {
     expect(clientFamily({ surface: "web", client: null })).toBe("");
   });
 
-  it("names organizations, teams and products in request logs only by kind", () => {
-    expect(loggedPath("/api/v1/p/acme/core/planner/assumptions/01HX0000000000000000000000/review")).toBe("/api/v1/p/:org/:team/:product/assumptions/:id/review");
-    expect(loggedPath("/api/v1/teams/acme/core/products")).toBe("/api/v1/teams/:org/:team/products");
+  it("names organizations and products in request logs only by kind", () => {
+    expect(loggedPath("/api/v1/p/acme/planner/assumptions/01HX0000000000000000000000/review")).toBe("/api/v1/p/:org/:product/assumptions/:id/review");
+    expect(loggedPath("/api/v1/p/acme/planner")).toBe("/api/v1/p/:org/:product");
+    expect(loggedPath("/api/v1/tenants/acme/products")).toBe("/api/v1/tenants/:org/products");
     expect(loggedPath("/api/v1/tenants/acme/members")).toBe("/api/v1/tenants/:org/members");
     expect(loggedPath("/api/v1/tenants")).toBe("/api/v1/tenants");
-    expect(loggedPath("/mcp/t/acme/core/planner")).toBe("/mcp/t/:org/:team/:product");
+    expect(loggedPath("/mcp/t/acme/planner")).toBe("/mcp/t/:org/:product");
     expect(loggedPath("/mcp/t/acme")).toBe("/mcp/t/:org");
-    expect(loggedPath("/.well-known/oauth-protected-resource/mcp/t/acme/core/planner")).toBe("/.well-known/oauth-protected-resource/mcp/t/:org/:team/:product");
-    expect(loggedPath("/t/acme/core/planner/story/01HX0000000000000000000000")).toBe("/t/:org/:team/:product/story/:id");
+    expect(loggedPath("/.well-known/oauth-protected-resource/mcp/t/acme/planner")).toBe("/.well-known/oauth-protected-resource/mcp/t/:org/:product");
+    expect(loggedPath("/t/acme/planner")).toBe("/t/:org/:product");
+    expect(loggedPath("/t/acme/planner/story/01HX0000000000000000000000")).toBe("/t/:org/:product/story/:id");
+    expect(loggedPath("/t/acme/planner/settings")).toBe("/t/:org/:product/settings");
     expect(loggedPath("/t/acme/members")).toBe("/t/:org/members");
+    expect(loggedPath("/t/acme/plan")).toBe("/t/:org/plan");
+    expect(loggedPath("/t/acme/limits")).toBe("/t/:org/limits");
     expect(loggedPath("/invite/secret-token")).toBe("/invite/:token");
     expect(loggedPath("/api/v1/me/products")).toBe("/api/v1/me/products");
     // The OAuth and OpenID metadata clients ask for beside a scoped connector, and a product's path typed without /t/.
-    expect(loggedPath("/.well-known/oauth-authorization-server/mcp/t/acme/core/planner")).toBe("/.well-known/oauth-authorization-server/mcp/t/:org/:team/:product");
+    expect(loggedPath("/.well-known/oauth-authorization-server/mcp/t/acme/planner")).toBe("/.well-known/oauth-authorization-server/mcp/t/:org/:product");
     expect(loggedPath("/.well-known/openid-configuration/mcp/t/acme")).toBe("/.well-known/openid-configuration/mcp/t/:org");
-    expect(loggedPath("/acme/core/planner/story")).toBe("/:org/:team/:product/story");
+    expect(loggedPath("/acme/planner/story")).toBe("/:org/:product/story");
+    expect(loggedPath("/acme/planner")).toBe("/:org/:product");
     expect(loggedPath("/assets/index-abc/x.js")).toBe("/assets/index-abc/x.js");
     expect(loggedPath("/api/v1/organizations/limits")).toBe("/api/v1/organizations/limits");
-    expect(loggedPath("/t/acme/limits")).toBe("/t/:org/limits");
+  });
+
+  it("names the parts of an address written when products were in teams only by kind too", () => {
+    expect(loggedPath("/t/acme/core/planner")).toBe("/t/:org/:team/:product");
+    expect(loggedPath("/t/acme/core/planner/story/01HX0000000000000000000000")).toBe("/t/:org/:team/:product/story/:id");
+    expect(loggedPath("/mcp/t/acme/core/planner")).toBe("/mcp/t/:org/:team/:product");
+    expect(loggedPath("/.well-known/oauth-protected-resource/mcp/t/acme/core/planner")).toBe("/.well-known/oauth-protected-resource/mcp/t/:org/:team/:product");
+    expect(loggedPath("/acme/core/planner/story")).toBe("/:org/:team/:product/story");
+    for (const path of ["/t/acme/core/planner", "/mcp/t/acme/core/planner", "/acme/core/planner"]) expect(loggedPath(path), path).not.toMatch(/acme|core|planner/);
   });
 });
 

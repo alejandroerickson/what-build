@@ -79,12 +79,12 @@ characters or more), takes only the `smtp`, `acs` or `none` mailer, offers no de
 refuses to start as a database role that bypasses row-level security.
 
 Over plain HTTP the session cookie is `wb_session`; a deployment served over HTTPS uses
-`__Host-wb_session` ([§3.8](../spec/03-accounts-teams-and-identity.md#38-identity-of-the-caller)).
+`__Host-wb_session` ([§3.8](../spec/03-accounts-and-identity.md#38-identity-of-the-caller)).
 
 ## The example organization and the plans, locally
 
 `pnpm dev` makes the sample organization, `harbor-labs`, the example organization every account
-reads ([§3.10](../spec/03-accounts-teams-and-identity.md#310-the-example-organization)), offers
+reads ([§3.10](../spec/03-accounts-and-identity.md#310-the-example-organization)), offers
 the plans in [`deploy/plans.example.json`](../../deploy/plans.example.json), Free and Pro
 (`WHATBUILD_PLANS`), and puts every organization someone other than an instance owner creates on
 its `free` plan ([§9.7](../spec/09-data-lifecycle.md#97-plans-and-limits)), as a deployment open to

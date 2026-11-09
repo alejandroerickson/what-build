@@ -124,7 +124,7 @@ After the migrations, it gives the development sign-in's three people a place in
 organization of the copy, with the roles they have in the sample:
 
 - **Riley Chen** owns each organization.
-- **Sam Okafor** is an editor on every team.
+- **Sam Okafor** is an editor of all products in every organization.
 - **Jordan Ellis** reads every product's Story.
 
 They are one click on the sign-in page, as with `pnpm dev`. It adds only what is missing, and

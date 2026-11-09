@@ -6,13 +6,14 @@ import type { LimitContext, Plan } from "./limits.ts";
 /** `reader` reads only the Story: its pages, their versions and their export. */
 export type ProductRole = "reader" | "viewer" | "editor" | "admin";
 /**
- * `guest` exists only in the example organization: a viewer of every product there, which every
- * account without a grant there holds. It is never stored, and it writes nothing.
+ * A role in the organization itself. `creator` creates products, and is admin of each one it
+ * creates. `guest` exists only in the example organization: a viewer of every product there, which
+ * every account without a grant there holds. It is never stored, and it writes nothing.
  */
-export type TenantRole = "guest" | "member" | "admin" | "owner";
+export type TenantRole = "guest" | "member" | "creator" | "admin" | "owner";
 /**
- * A role on a product or a team as answers report it (`your_role`): a guest of the example
- * organization is `guest` there, though everything it may do is decided as a viewer's.
+ * A role on a product as answers report it (`your_role`): a guest of the example organization is
+ * `guest` there, though everything it may do is decided as a viewer's.
  */
 export type ReportedRole = ProductRole | "guest";
 /**
@@ -51,11 +52,6 @@ export interface TenantRef {
   /** Read-only: back on the starting plan while its creator has another there. People read and export it until kept_until. */
   read_only?: { since: string; kept_until: string | null };
 }
-export interface TeamRef {
-  team_id: string;
-  slug: string;
-  name: string;
-}
 export interface ProductRef {
   product_id: string;
   slug: string;
@@ -66,9 +62,8 @@ export interface ProductRef {
 /** Where a call lands and what the caller may do there. Resolved before any handler runs. */
 export interface Scope {
   tenant: TenantRef | null;
-  team: TeamRef | null;
   product: ProductRef | null;
-  /** The effective content role at the addressed team or product (tenant admins are admins everywhere). */
+  /** The effective content role at the addressed product, or on all products for an organization's call (its owners and admins are admins everywhere). */
   role: ProductRole | null;
   tenantRole: TenantRole | null;
 }
@@ -102,9 +97,13 @@ export interface PrepareContext {
   read<T>(fn: (ctx: OpContext) => Promise<T>): Promise<T>;
 }
 
-export type OpScope = "product" | "team" | "tenant" | "account";
-/** `story`: a Story read, open to readers; `read`: everything else a viewer may read. */
-export type OpAccess = "story" | "read" | "write" | "admin" | "owner" | "any";
+export type OpScope = "product" | "tenant" | "account";
+/**
+ * `story`: a Story read, open to readers; `read`: everything else a viewer may read. On an
+ * organization's operation, `creator` needs a product creator, admin or owner of it, and `admin`
+ * and `owner` that role in it.
+ */
+export type OpAccess = "story" | "read" | "write" | "admin" | "owner" | "creator" | "any";
 
 export interface OperationDef<I extends z.ZodType = z.ZodType, O = unknown, P = unknown> {
   /** `<group>.<action>`. The MCP tool and action default to the two halves. */
@@ -200,7 +199,7 @@ export const LEVEL_NAMES: Record<ConnectionLevel, string> = { viewer: "Read only
 /** The connection level an operation needs. */
 export function connectionNeeds(op: Pick<OperationDef, "access" | "mutates" | "connection">): ConnectionLevel {
   if (op.connection) return op.connection;
-  if (op.access === "admin" || op.access === "owner") return "admin";
+  if (op.access === "admin" || op.access === "owner" || op.access === "creator") return "admin";
   if (op.access === "write" || (op.access === "any" && op.mutates)) return "editor";
   return "viewer";
 }

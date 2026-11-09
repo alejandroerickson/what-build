@@ -8,7 +8,7 @@ surfaces: [web, mcp]
 # Organizations kept apart
 
 Every organization's people share one database, and what keeps them apart is the server's
-checks and Postgres's row-level security ([spec §3.6](../../okf/spec/03-accounts-teams-and-identity.md)).
+checks and Postgres's row-level security ([spec §3.6](../../okf/spec/03-accounts-and-identity.md)).
 The server's tests call every operation across organizations; this plan does what a person and their
 agent would actually try, through the web app and MCP, with people who belong to one organization
 only, and with Sam, who edits in two organizations and only reads the Story in the third.
@@ -39,7 +39,7 @@ it exists. The example organization is the exception everyone reads.
 6. **MCP, as Casey, at the standard organization's endpoint** (`--endpoint /mcp/t/<standard slug>`).
    *Expect:* the connection is refused, or every call answers as for something absent; never a list
    of its products.
-7. **MCP, as Casey, with a scoped endpoint** (`--endpoint /mcp/t/harbor-labs/<team>/crewboard`).
+7. **MCP, as Casey, with a scoped endpoint** (`--endpoint /mcp/t/harbor-labs/crewboard`).
    Call `products_read(action="list")`, then `sources_read` `list` for a product in the example organization.
    *Expect:* the list holds Crewboard alone; the example's product is refused with
    `403 outside_connector_scope`, even though Casey may read it elsewhere.

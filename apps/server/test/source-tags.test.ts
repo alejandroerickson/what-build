@@ -16,10 +16,10 @@ beforeAll(async () => {
   h = await startHarness();
   alice = await h.signIn("alice@example.com", "Alice Example");
   const t = await alice.api("POST", "/api/v1/tenants", { name: "Example Research" });
-  const p = await alice.api("POST", `/api/v1/teams/${t.body.tenant.slug}/${t.body.team.slug}/products`, { name: "Scheduling" });
+  const p = await alice.api("POST", `/api/v1/tenants/${t.body.tenant.slug}/products`, { name: "Scheduling" });
   P = `/api/v1/p/${p.body.path}`;
   vic = await h.signIn("vic@example.com", "Vic Example");
-  const g = await alice.api("POST", `/api/v1/tenants/${t.body.tenant.slug}/members`, { team: t.body.team.slug, email: "vic@example.com", role: "editor" });
+  const g = await alice.api("POST", `/api/v1/tenants/${t.body.tenant.slug}/members`, { all_products: true, email: "vic@example.com", role: "editor" });
   expect(g.status).toBe(201);
 });
 afterAll(async () => h?.close());

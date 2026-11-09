@@ -416,14 +416,14 @@ function appWith(config: Partial<ServerConfig>) {
 }
 
 describe("request logs", () => {
-  it("mask invitation links, retired sandbox invitation codes, ids, and the names of organizations, teams and products", async () => {
+  it("mask invitation links, retired sandbox invitation codes, ids, and the names of organizations and products", async () => {
     const lines: string[] = [];
     const spy = vi.spyOn(console, "log").mockImplementation((line: unknown) => void lines.push(String(line)));
     try {
       const app = appWith({ env: "development" });
       await app.request("/invite/Inv1tati0n-Secret_Token");
       await app.request("/join/Sandb0x-Secret_Code");
-      await app.request("/api/v1/p/secret-org/core/planner/sources/01J0ABCDEFGHJKMNPQRSTVWXYZ");
+      await app.request("/api/v1/p/secret-org/planner/sources/01J0ABCDEFGHJKMNPQRSTVWXYZ");
     } finally {
       spy.mockRestore();
     }
@@ -435,7 +435,7 @@ describe("request logs", () => {
         return [];
       }
     });
-    expect(paths).toEqual(["/invite/:token", "/join/:code", "/api/v1/p/:org/:team/:product/sources/:id"]);
+    expect(paths).toEqual(["/invite/:token", "/join/:code", "/api/v1/p/:org/:product/sources/:id"]);
     expect(lines.join("\n")).not.toMatch(/Secret/);
   });
 });

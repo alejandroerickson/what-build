@@ -13,10 +13,9 @@ import {
 } from "./documents.ts";
 import { logError } from "./telemetry.ts";
 
-/** Where each scope's routes live. The addressed tenant, team and product are always in the path. */
+/** Where each scope's routes live. The addressed tenant and product are always in the path. */
 export const SCOPE_PREFIX: Record<OperationDef["scope"], string> = {
-  product: "/api/v1/p/:tenant/:team/:product",
-  team: "/api/v1/teams/:tenant/:team",
+  product: "/api/v1/p/:tenant/:product",
   tenant: "/api/v1/tenants/:tenant",
   account: "/api/v1",
 };
@@ -103,7 +102,7 @@ export function restRoutes(env: Env & { config: ServerConfig }) {
         // Identity first: an unauthenticated call with a bad body is a 401, not a 422.
         const principal = await principalOf(c);
         const params = c.req.param() as Record<string, string>;
-        const { tenant, team, product, ...pathParams } = params;
+        const { tenant, product, ...pathParams } = params;
         let input: Record<string, unknown>;
         if (op.rest.method === "GET") input = coerceQuery(op, c.req.query());
         else if (op.rest.method === "DELETE" && !c.req.header("content-type")) input = coerceQuery(op, c.req.query());
@@ -115,14 +114,11 @@ export function restRoutes(env: Env & { config: ServerConfig }) {
           input = body as Record<string, unknown>;
         }
         for (const [k, v] of Object.entries(pathParams)) input[k] = coerceQuery(op, { [k]: v })[k];
-        if (op.scope === "team" || op.scope === "tenant") {
-          if (tenant) input["tenant"] = tenant;
-          if (team && op.scope === "team") input["team"] = team;
-        }
+        if (op.scope === "tenant" && tenant) input["tenant"] = tenant;
         const ifMatch = c.req.header("if-match");
         const shape = (op.input as unknown as { shape?: Record<string, unknown> }).shape ?? {};
         if (ifMatch && "expected_etag" in shape && input["expected_etag"] === undefined) input["expected_etag"] = ifMatch;
-        const ref: ScopeRef = op.scope === "product" ? { tenant, team, product } : {};
+        const ref: ScopeRef = op.scope === "product" ? { tenant, product } : {};
         const { result } = await execute(env, principal, op, input, ref, null, op.bounded ? c.req.raw.signal : undefined);
         const etag = (result as { etag?: unknown } | null)?.etag;
         if (typeof etag === "string") c.header("ETag", `"${etag}"`);
@@ -146,8 +142,8 @@ export function restRoutes(env: Env & { config: ServerConfig }) {
   // A Story page's HTML is a Story read, open to readers; attachments, exports and style specimens are not.
   const scoped = async (c: Context, access: "story" | "read" = "read") => {
     const principal = await principalOf(c);
-    const { tenant, team, product } = c.req.param() as Record<string, string>;
-    const scope = await resolveScope(env.db, principal, "product", access, { tenant, team, product }, "read");
+    const { tenant, product } = c.req.param() as Record<string, string>;
+    const scope = await resolveScope(env.db, principal, "product", access, { tenant, product }, "read");
     await admitRead(env, principal, scope, "attachments.read");
     return { principal, scope, productId: scope.product!.product_id };
   };
@@ -364,13 +360,13 @@ export function restRoutes(env: Env & { config: ServerConfig }) {
   app.get(`${SCOPE_PREFIX.product}/story/print`, async (c) => {
     try {
       const principal = await principalOf(c);
-      const { tenant, team, product } = c.req.param() as Record<string, string>;
+      const { tenant, product } = c.req.param() as Record<string, string>;
       const input = coerceQuery(printDocument as OperationDef, c.req.query());
       if (site) {
-        const { result, scope } = await execute(env, principal, printSelection as OperationDef, input, { tenant, team, product });
+        const { result, scope } = await execute(env, principal, printSelection as OperationDef, input, { tenant, product });
         return handOff(c, env, principal, scope, { purpose: "print", vs: (result as { versions: string[] }).versions }, "story.html");
       }
-      const { result } = await execute(env, principal, printDocument as OperationDef, input, { tenant, team, product });
+      const { result } = await execute(env, principal, printDocument as OperationDef, input, { tenant, product });
       const { html, nonce } = result as { html: string; nonce: string };
       return printView(c, html, nonce);
     } catch (e) {

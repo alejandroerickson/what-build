@@ -12,7 +12,7 @@ import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
 const ID = "01K8A2B3C4D5E6F7G8H9J0K1M2";
-const BASE = "/api/v1/p/acme/core/crew";
+const BASE = "/api/v1/p/acme/crew";
 const by = { account_id: "a1", display_name: "Riley Chen", surface: "web", client: null };
 const read = { status: "ready", status_detail: null, chars: 120, duration_ms: null, parser: "text", derivation_id: "d1", read_at: "2026-10-01T09:00:00.000Z" };
 const attachment = { path: "interview.txt", media_type: "text/plain", size: 120, file_version_id: "f1", versions: [], added_at: "2026-10-01T09:00:00.000Z", added_by: by, text: read, is_text_source: false };
@@ -40,7 +40,7 @@ vi.mock("../src/lib/api.ts", async (original) => ({
 }));
 vi.mock("../src/lib/session.tsx", async (original) => ({
   ...(await original<typeof import("../src/lib/session.tsx")>()),
-  useProduct: () => ({ api: BASE, app: "/t/acme/core/crew", canWrite: true, canDelete: false }),
+  useProduct: () => ({ api: BASE, app: "/t/acme/crew", canWrite: true, canDelete: false }),
 }));
 
 const { api } = await import("../src/lib/api.ts");
@@ -81,9 +81,9 @@ async function openAttachments() {
   await act(async () => {
     root.render(
       <QueryClientProvider client={qc}>
-        <MemoryRouter initialEntries={[`/t/acme/core/crew/evidence/${ID}?view=attachments`]}>
+        <MemoryRouter initialEntries={[`/t/acme/crew/evidence/${ID}?view=attachments`]}>
           <Routes>
-            <Route path="/t/acme/core/crew/evidence/:recordId" element={<SourceDetailPage />} />
+            <Route path="/t/acme/crew/evidence/:recordId" element={<SourceDetailPage />} />
           </Routes>
         </MemoryRouter>
       </QueryClientProvider>,

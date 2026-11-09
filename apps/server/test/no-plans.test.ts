@@ -47,8 +47,7 @@ describe("a deployment with no plans", () => {
     const listed = (await root.api("GET", "/api/v1/organizations")).body.items.find((o: { slug: string }) => o.slug === slug);
     expect(listed).toMatchObject({ plan: "gold", undefined_plan: true });
     // It works as any organization does.
-    const team = (await ada.api("GET", "/api/v1/me/products")).body.tenants.find((t: { slug: string }) => t.slug === slug).teams[0].slug;
-    expect((await ada.api("POST", `/api/v1/teams/${slug}/${team}/products`, { name: "Goldfinch" })).status).toBe(201);
+    expect((await ada.api("POST", `/api/v1/tenants/${slug}/products`, { name: "Goldfinch" })).status).toBe(201);
     // Moving it to unlimited is always possible.
     expect((await root.api("PATCH", "/api/v1/organizations/plan", { tenant: slug, plan: "unlimited" })).status).toBe(200);
   });

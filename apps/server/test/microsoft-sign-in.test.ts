@@ -94,7 +94,7 @@ describe("Microsoft sign-in", () => {
   it("creates the account, leaves its invitations waiting, starts a session and returns to next", async () => {
     const owner = await h.signIn("owner@work.example", "Owner");
     const t = await owner.api("POST", "/api/v1/tenants", { name: "Work" });
-    await owner.api("POST", `/api/v1/tenants/${t.body.tenant.slug}/members`, { team: t.body.team.slug, email: "invited@outside.example", role: "viewer" });
+    await owner.api("POST", `/api/v1/tenants/${t.body.tenant.slug}/members`, { all_products: true, email: "invited@outside.example", role: "viewer" });
 
     // Outside the listed domains, so taken on the directory's word that it verified the domain.
     claims = work("Invited@Outside.example", { name: "Invited Person", xms_edov: true });

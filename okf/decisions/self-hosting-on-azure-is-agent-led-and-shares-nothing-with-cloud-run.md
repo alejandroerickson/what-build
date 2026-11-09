@@ -57,4 +57,4 @@ none of it may disturb the hosted service's deployments.
 - Nothing that identifies an operator's organization, subscription or directory is committed.
 
 Specified in: [azure](../operations/azure.md), [02-architecture §2.4, §2.7](../spec/02-architecture.md),
-[03-accounts-teams-and-identity §3.2](../spec/03-accounts-teams-and-identity.md).
+[03-accounts-and-identity §3.2](../spec/03-accounts-and-identity.md).

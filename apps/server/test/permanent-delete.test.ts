@@ -34,7 +34,7 @@ beforeAll(async () => {
   owner = await h.signIn("olga@delta.example", "Olga Delta");
   org = await buildOrganization(h, owner, "Delta Works", "DELTA3");
   P = `/api/v1/p/${org.product.path}`;
-  await owner.api("POST", `/api/v1/tenants/${org.tenant.slug}/members`, { team: org.team.slug, email: "eddie@delta.example", role: "editor" });
+  await owner.api("POST", `/api/v1/tenants/${org.tenant.slug}/members`, { all_products: true, email: "eddie@delta.example", role: "editor" });
   editor = await h.signIn("eddie@delta.example", "Eddie Delta");
   await owner.api("POST", `/api/v1/tenants/${org.tenant.slug}/members`, { product: org.product.id, email: "rita@delta.example", role: "reader" });
   reader = await h.signIn("rita@delta.example", "Rita Delta");
@@ -179,9 +179,14 @@ describe("deleting a product", () => {
     expect((await owner.api("GET", `/api/v1/tenants/${org.tenant.slug}/delete-impact`)).body.contents).toMatchObject({ stored_files: product.stored_files, bytes: held.files });
   });
 
-  it("needs its name typed, deletes everything in it, and keeps the bytes a copy elsewhere still uses", async () => {
-    const copy = await owner.api("POST", `${P}/sources/${org.source.id}/copy`, { to_product: org.annex.id });
-    expect(copy.status, JSON.stringify(copy.body)).toBe(200);
+  it("needs its name typed, deletes everything in it, and leaves the organization's other products as they were", async () => {
+    // A source in another product of the organization, with an attachment of its own.
+    const annex = `/api/v1/p/${org.annex.path}`;
+    const kept = await owner.api("POST", `${annex}/sources`, { title: "Kept in the annex" });
+    expect(kept.status, JSON.stringify(kept.body)).toBe(201);
+    const grant = await owner.api("POST", `${annex}/sources/${kept.body.record_id}/uploads`, { record_id: kept.body.record_id, path: "kept.md" });
+    expect(grant.status, JSON.stringify(grant.body)).toBe(201);
+    expect((await fetch(grant.body.url, { method: "PUT", headers: grant.body.headers, body: "# Kept\n\nStill here after the other product went.\n" })).status).toBe(201);
     const impact = await owner.api("GET", `${P}/delete-impact`);
     expect(impact.status).toBe(200);
     expect(impact.body.contents.sources).toBeGreaterThan(0);
@@ -204,14 +209,13 @@ describe("deleting a product", () => {
     for (const table of ["source_texts", "text_chunks"]) expect(await rowsIn(org.tenant.id, table, sql`record_id = ${org.source.id}`), table).toBe(0);
 
     await h.worker.drain();
-    // The copy in the other product reads the same bytes, which stay.
-    const annex = `/api/v1/p/${org.annex.path}`;
-    const copied = await owner.api("GET", `${annex}/sources/${copy.body.record_id}?detail=full`);
-    const file = copied.body.attachments[0];
-    const download = await owner.api("POST", `${annex}/sources/${copy.body.record_id}/downloads`, { path: file.path });
+    // The other product keeps its source and the bytes of its attachment.
+    expect((await owner.api("GET", annex)).status).toBe(200);
+    const download = await owner.api("POST", `${annex}/sources/${kept.body.record_id}/downloads`, { path: "kept.md" });
     expect(download.status, JSON.stringify(download.body)).toBe(200);
     const bytes = await fetch(download.body.url, { headers: download.body.headers });
     expect(bytes.status).toBe(200);
+    expect(await bytes.text()).toContain("Still here after the other product went.");
     // The product's own export is gone from the store.
     expect([...h.blobs.blobs.keys()].some((k) => k.includes(org.exportId))).toBe(false);
   });

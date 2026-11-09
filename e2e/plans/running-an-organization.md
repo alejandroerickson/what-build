@@ -27,10 +27,10 @@ are people she invites.
    "Can have 1 Free organization; has 0" and "no account yet". The server's log prints the email.
 2. **Web, as Dana.** Sign in and start an organization with a product. *Expect:* it starts on
    Free; the panel shows it and its product; its Plan page says Free, "1 of 2" people.
-3. **Web, as Dana.** On the organization's Members, invite Eli as an editor of its team. *Expect:*
+3. **Web, as Dana.** On the organization's Members, invite Eli as an editor of all its products. *Expect:*
    the invitation is listed as waiting, and the Plan page now says "2 of 2" people: an invitation
-   holds a place. The server's log prints the email: its subject and first line name Dana, the team
-   and the organization, each in quotation marks.
+   holds a place. The server's log prints the email: its subject and first line name Dana and the
+   organization, each in quotation marks, and say every product in it.
 4. **Web, as Dana.** Invite Fay as an editor too. *Expect:* refused: the organization holds all
    the people Free allows, and the message says what makes room (removing someone or cancelling an
    invitation) or that a larger plan would. Nothing is added.
@@ -85,7 +85,7 @@ are people she invites.
     way to start a second organization on the web; over MCP, `products_write(action="create_tenant")` is
     not offered, or is refused with `403 tenant_allowance` saying who decides.
 13. **Web, as Dana.** On the organization's Members page, delete it: the dialog lists what goes
-    (its team, its product with its sources, and how many people lose their roles), asks why and
+    (its product with its sources, and how many people lose their roles), asks why and
     for its name typed. *Expect:* it goes, and Dana's overview offers Start your organization
     again without a reload; as Fay, its Story is gone; as Riley, Organizations no longer lists it
     and Who can start organizations shows Dana with "has 0" again.

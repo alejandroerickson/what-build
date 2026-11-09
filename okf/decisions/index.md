@@ -33,6 +33,7 @@ name what replaced it, and date the change. Smaller decisions are marked
 - [A write that may create what it writes takes no etag the first time, and the current etag once it exists](a-write-that-may-create-its-object-needs-its-etag-once-it-exists.md)
 - [Tenants share one schema, partitioned by key and enforced three times](shared-schema-tenancy-with-row-level-security.md)
 - [Access is decided in the application, per product, by role](access-is-per-product-roles.md)
+- [An organization holds its products directly; there are no teams, and an address with a team still reaches its product](an-organization-holds-its-products-directly-with-no-teams.md)
 - [A reader reads only the Story, never the evidence behind it](a-reader-reads-only-the-story.md)
 - [WhatBuild runs its own sign-in and its own OAuth 2.1 server for agents](built-in-identity-and-oauth.md)
 - [A scoped MCP connector is a fence, not a default](a-scoped-mcp-connector-is-a-fence.md)

@@ -11,14 +11,14 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 window.matchMedia ??= (query: string) => ({ matches: false, media: query, onchange: null, addListener() {}, removeListener() {}, addEventListener() {}, removeEventListener() {}, dispatchEvent: () => false });
 
 let agents: unknown[] = [];
-const acme = { tenant_id: "t1", slug: "acme", name: "Acme", example: false, your_role: "member", teams: [] };
+const acme = { tenant_id: "t1", slug: "acme", name: "Acme", example: false, your_role: "member" };
 
 vi.mock("../src/lib/api.ts", async (original) => ({
   ...(await original<typeof import("../src/lib/api.ts")>()),
   api: vi.fn(async (_method: string, path: string) => {
     if (path === "/api/v1/me/agents") return { items: agents };
     if (path.startsWith("/api/v1/me/products"))
-      return { items: [{ product_id: "p1", name: "Harvest", path: "acme/core/harvest", tenant: acme, team: { slug: "core" }, your_role: "editor" }], tenants: [acme] };
+      return { items: [{ product_id: "p1", name: "Harvest", path: "acme/harvest", tenant: acme, your_role: "editor" }], tenants: [acme] };
     if (path === "/api/v1/me") return { display_name: "Sam", tenant_allowance: { remaining: 1, instance_owner: false } };
     throw new Error(`unexpected ${path}`);
   }),
@@ -31,11 +31,10 @@ const product = (role: "editor" | "reader") =>
   ({
     product_id: "p1",
     name: "Harvest",
-    path: "acme/core/harvest",
+    path: "acme/harvest",
     your_role: role,
     stage_counts: { idea: 3, evidence: 12, exploration: 4, story: 2 },
     tenant: { ...acme },
-    team: { team_id: "tm1", slug: "core", name: "Core" },
   }) as never;
 
 let unmount: (() => void) | null = null;
@@ -45,7 +44,7 @@ afterEach(() => {
   document.body.innerHTML = "";
 });
 
-async function mount(ui: React.ReactNode, at = "/t/acme/core/harvest/evidence") {
+async function mount(ui: React.ReactNode, at = "/t/acme/harvest/evidence") {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const host = document.createElement("div");
   document.body.append(host);
@@ -69,9 +68,9 @@ const row = (host: HTMLElement) => [...host.querySelectorAll("a.nav-node")].find
 describe("the empty seat", () => {
   it("takes the row's place in a product while no agent is connected, and opens Connect an agent for this product", async () => {
     agents = [];
-    const host = await mount(<ProductNav product={product("editor")} app="/t/acme/core/harvest" section="evidence" />);
+    const host = await mount(<ProductNav product={product("editor")} app="/t/acme/harvest" section="evidence" />);
     expect(seat(host)?.textContent).toContain("No agent connected");
-    expect(seatLink(host)).toBe("/t/acme/core/harvest/connect");
+    expect(seatLink(host)).toBe("/t/acme/harvest/connect");
     expect(row(host)).toBeUndefined();
     // Activity and Settings keep their places under it.
     expect([...host.querySelectorAll("a.nav-node-quiet")].map((a) => a.textContent)).toEqual(["Activity", "Settings"]);
@@ -79,14 +78,14 @@ describe("the empty seat", () => {
 
   it("gives way to the plain row once an agent is connected", async () => {
     agents = [{ family_id: "f1" }];
-    const host = await mount(<ProductNav product={product("editor")} app="/t/acme/core/harvest" section="evidence" />);
+    const host = await mount(<ProductNav product={product("editor")} app="/t/acme/harvest" section="evidence" />);
     expect(seat(host)).toBeNull();
-    expect(row(host)?.getAttribute("href")).toBe("/t/acme/core/harvest/connect");
+    expect(row(host)?.getAttribute("href")).toBe("/t/acme/harvest/connect");
   });
 
   it("goes when the person comes back to the tab having connected an agent elsewhere, and stops asking", async () => {
     agents = [];
-    const host = await mount(<ProductNav product={product("editor")} app="/t/acme/core/harvest" section="evidence" />);
+    const host = await mount(<ProductNav product={product("editor")} app="/t/acme/harvest" section="evidence" />);
     expect(seat(host)).not.toBeNull();
     agents = [{ family_id: "f1" }];
     const comeBack = async () => {
@@ -98,7 +97,7 @@ describe("the empty seat", () => {
     };
     await comeBack();
     expect(seat(host)).toBeNull();
-    expect(row(host)?.getAttribute("href")).toBe("/t/acme/core/harvest/connect");
+    expect(row(host)?.getAttribute("href")).toBe("/t/acme/harvest/connect");
     // With an agent connected, coming back reads nothing.
     vi.mocked(api).mockClear();
     await comeBack();
@@ -108,14 +107,14 @@ describe("the empty seat", () => {
 
   it("leaves the row, marked current, on Connect an agent itself", async () => {
     agents = [];
-    const host = await mount(<ProductNav product={product("editor")} app="/t/acme/core/harvest" section="connect" />, "/t/acme/core/harvest/connect");
+    const host = await mount(<ProductNav product={product("editor")} app="/t/acme/harvest" section="connect" />, "/t/acme/harvest/connect");
     expect(seat(host)).toBeNull();
     expect(row(host)?.getAttribute("aria-current")).toBe("page");
   });
 
   it("shows a reader the seat under the Story, opening Connect an agent outside the product", async () => {
     agents = [];
-    const host = await mount(<ProductNav product={product("reader")} app="/t/acme/core/harvest" section="story" />);
+    const host = await mount(<ProductNav product={product("reader")} app="/t/acme/harvest" section="story" />);
     expect([...host.querySelectorAll("a.nav-node")].map((a) => a.textContent)).toEqual(["Story2"]);
     expect(seatLink(host)).toBe("/connect");
   });

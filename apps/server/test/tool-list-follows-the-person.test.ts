@@ -19,8 +19,9 @@ let root: Browser; // owns this WhatBuild
 let olive: Browser; // owns the organization
 let vic: Browser; // a viewer of one product
 let rita: Browser; // a reader of one product
-let eddie: Browser; // an editor of the team
+let eddie: Browser; // an editor of all products
 let paula: Browser; // an admin of one product, and nothing more
+let cora: Browser; // a product creator, with no role on any product
 let org: string;
 let path: string;
 
@@ -94,17 +95,19 @@ beforeAll(async () => {
   olive = await h.signIn("olive@example.com", "Olive");
   const t = await olive.api("POST", "/api/v1/tenants", { name: "Orchard" });
   org = t.body.tenant.slug;
-  const made = await olive.api("POST", `/api/v1/teams/${org}/${t.body.team.slug}/products`, { name: "Harvest" });
+  const made = await olive.api("POST", `/api/v1/tenants/${org}/products`, { name: "Harvest" });
   path = made.body.path;
-  const product = path.split("/")[2]!;
-  await olive.api("POST", `/api/v1/tenants/${org}/members`, { team: t.body.team.slug, product, email: "vic@example.com", role: "viewer" });
-  await olive.api("POST", `/api/v1/tenants/${org}/members`, { team: t.body.team.slug, product, email: "rita@example.com", role: "reader" });
-  await olive.api("POST", `/api/v1/tenants/${org}/members`, { team: t.body.team.slug, email: "eddie@example.com", role: "editor" });
-  await olive.api("POST", `/api/v1/tenants/${org}/members`, { team: t.body.team.slug, product, email: "paula@example.com", role: "admin" });
+  const product = path.split("/")[1]!;
+  await olive.api("POST", `/api/v1/tenants/${org}/members`, { product, email: "vic@example.com", role: "viewer" });
+  await olive.api("POST", `/api/v1/tenants/${org}/members`, { product, email: "rita@example.com", role: "reader" });
+  await olive.api("POST", `/api/v1/tenants/${org}/members`, { all_products: true, email: "eddie@example.com", role: "editor" });
+  await olive.api("POST", `/api/v1/tenants/${org}/members`, { product, email: "paula@example.com", role: "admin" });
+  await olive.api("POST", `/api/v1/tenants/${org}/members`, { email: "cora@example.com", role: "creator" });
   vic = await h.signIn("vic@example.com", "Vic");
   rita = await h.signIn("rita@example.com", "Rita");
   eddie = await h.signIn("eddie@example.com", "Eddie");
   paula = await h.signIn("paula@example.com", "Paula");
+  cora = await h.signIn("cora@example.com", "Cora");
 });
 afterAll(async () => h?.close());
 
@@ -157,7 +160,7 @@ describe("a connector scoped to a product", () => {
   it("lists a viewer's reads, and what the fence answers, but no write", async () => {
     const actions = await offeredAt(vic, `/mcp/t/${path}`);
     expect(actions).toEqual(expect.arrayContaining(["sources.list", "search", "story.list_pages", "products.list", "products.limits", "guide"]));
-    for (const a of ["sources.create", "outcomes.create", "story.publish", "sources.delete", "products.create_tenant", "members.list", "members.grant", "sources.move_to_product"])
+    for (const a of ["sources.create", "outcomes.create", "story.publish", "sources.delete", "products.create_tenant", "products.create", "members.list", "members.grant"])
       expect(actions, a).not.toContain(a);
   });
 
@@ -192,9 +195,10 @@ describe("a connector scoped to an organization", () => {
     const actions = await offeredAt(eddie, `/mcp/t/${org}`);
     expect(actions).toEqual(expect.arrayContaining(["sources.create", "members.list"]));
     // An editor deletes nothing, manages nobody, and the organization's own administration is its admins'.
-    for (const a of ["sources.delete", "members.grant", "members.grant_many", "members.revoke", "members.cancel_invitation", "members.activity", "products.create", "products.create_team"]) expect(actions, a).not.toContain(a);
+    for (const a of ["sources.delete", "members.grant", "members.grant_many", "members.revoke", "members.cancel_invitation", "members.activity", "products.create"]) expect(actions, a).not.toContain(a);
     const owner = await offeredAt(olive, `/mcp/t/${org}`);
-    expect(owner).toEqual(expect.arrayContaining(["sources.delete", "members.activity", "members.grant", "products.create", "products.create_team"]));
+    expect(owner).toEqual(expect.arrayContaining(["sources.delete", "members.activity", "members.grant", "products.create"]));
+    for (const a of ["products.create_team", "sources.copy_to_product", "sources.move_to_product"]) expect(owner, a).not.toContain(a);
     // Renaming the organization is its owners', in the web app.
     for (const a of ["products.rename_tenant", "products.update"]) expect(owner, a).not.toContain(a);
   });
@@ -202,8 +206,26 @@ describe("a connector scoped to an organization", () => {
   it("lists a product's admin its people to manage, but no product of their own to make", async () => {
     const actions = await offeredAt(paula, `/mcp/t/${org}`);
     expect(actions).toEqual(expect.arrayContaining(["sources.delete", "members.list", "members.grant", "members.grant_many", "members.revoke"]));
-    // A team's admin creates its products; a product's grant reaches no team.
-    for (const a of ["products.create", "products.create_team", "members.activity"]) expect(actions, a).not.toContain(a);
+    // Making a product takes a product creator, or an owner or admin of the organization: a product's grant gives neither.
+    for (const a of ["products.create", "members.activity"]) expect(actions, a).not.toContain(a);
+  });
+
+  it("lists a product creator a product to make, and then that product's admin's actions", async () => {
+    const at = `/mcp/t/${org}`;
+    const before = await offeredWith(cora, at);
+    expect(before.actions).toContain("products.create");
+    expect(said(before.descriptions["products_write"]!)).toBe("Start a product.");
+    // No role on any product yet, so nothing of a product's to read or write, and nobody to manage.
+    for (const a of ["sources.list", "sources.create", "members.grant", "members.activity", "products.create_tenant"]) expect(before.actions, a).not.toContain(a);
+    const client = await connect(await h.connectAgent(cora, "Cora's agent", at), at);
+    const made = result(await client.callTool({ name: "products_write", arguments: { action: "create", params: { name: "Cora's Orchard" } } }));
+    expect(made.status, JSON.stringify(made.json)).toBe(200);
+    expect(made.json).toMatchObject({ path: `${org}/cora-s-orchard`, your_role: "admin" });
+    await client.close();
+    const after = await offeredAt(cora, at);
+    expect(after).toEqual(expect.arrayContaining(["products.create", "sources.create", "sources.delete", "members.grant"]));
+    // The organization's own administration is still its owners' and admins'.
+    expect(after).not.toContain("members.activity");
   });
 
   it("lists a reader none of the organization's people, nor its plan and what it holds", async () => {
@@ -255,7 +277,14 @@ describe("the unscoped connector, for someone who may start no organization", ()
   it("lists an editor somewhere their writes, and no one to manage, no product to make and no organization to start", async () => {
     const actions = await offeredAt(eddie, "/mcp");
     expect(actions).toEqual(expect.arrayContaining(["sources.create", "outcomes.create", "products.update_concept", "story.publish", "members.list"]));
-    for (const a of ["members.grant", "members.revoke", "members.activity", "sources.delete", "products.create", "products.create_team", "products.create_tenant"]) expect(actions, a).not.toContain(a);
+    for (const a of ["members.grant", "members.revoke", "members.activity", "sources.delete", "products.create", "products.create_tenant"]) expect(actions, a).not.toContain(a);
+  });
+
+  it("lists a product creator a product to make, though no organization to start", async () => {
+    await noAllowance("cora@example.com");
+    const actions = await offeredAt(cora, "/mcp");
+    expect(actions).toContain("products.create");
+    expect(actions).not.toContain("products.create_tenant");
   });
 
   it("still tells a call beyond the person's role what it needs, never that it is unknown", async () => {
@@ -283,7 +312,7 @@ describe("a connector scoped to a product of the example organization", () => {
   let gus: Browser; // holds no grant there: its guest
   beforeAll(async () => {
     const t = await root.api("POST", "/api/v1/tenants", { name: "Exemplar" });
-    example = (await root.api("POST", `/api/v1/teams/${t.body.tenant.slug}/${t.body.team.slug}/products`, { name: "Showcase" })).body.path;
+    example = (await root.api("POST", `/api/v1/tenants/${t.body.tenant.slug}/products`, { name: "Showcase" })).body.path;
     await syncExampleTenant(h.db, t.body.tenant.slug, () => {});
     gus = await h.signIn("gus@guest.example", "Gus Guest");
   });
@@ -409,19 +438,20 @@ describe("search, for someone who reads only the Story", () => {
 describe("each tool's description", () => {
   const levels: ConnectionLevel[] = ["viewer", "editor", "admin"];
   const standings: Record<string, Standing> = {
-    "a product's reader": { role: "reader", teamRole: null, tenantRole: null },
-    "a product's viewer": { role: "viewer", teamRole: null, tenantRole: null },
-    "a product's editor": { role: "editor", teamRole: null, tenantRole: null },
-    "a product's admin": { role: "admin", teamRole: null, tenantRole: null },
-    "a team's editor": { role: "editor", teamRole: "editor", tenantRole: null },
-    "a team's admin": { role: "admin", teamRole: "admin", tenantRole: null },
-    "an organization's admin": { role: "admin", teamRole: "admin", tenantRole: "admin" },
-    "an organization's owner": { role: "admin", teamRole: "admin", tenantRole: "owner" },
-    "a guest of the example": { role: "viewer", teamRole: "viewer", tenantRole: "guest" },
+    "a product's reader": { role: "reader", tenantRole: null },
+    "a product's viewer": { role: "viewer", tenantRole: null },
+    "a product's editor": { role: "editor", tenantRole: null },
+    "a product's admin": { role: "admin", tenantRole: null },
+    "an editor of all products": { role: "editor", tenantRole: null },
+    "an admin of all products": { role: "admin", tenantRole: null },
+    "a product creator": { role: null, tenantRole: "creator" },
+    "an organization's admin": { role: "admin", tenantRole: "admin" },
+    "an organization's owner": { role: "admin", tenantRole: "owner" },
+    "a guest of the example": { role: "viewer", tenantRole: "guest" },
   };
   const fence = (product: boolean, standing: Standing): ConnectorScope => ({
     tenant: { tenant_id: "t", slug: "acme", name: "Acme" },
-    product: product ? { product_id: "p", path: "acme/core/crewboard", name: "Crewboard" } : null,
+    product: product ? { product_id: "p", path: "acme/crewboard", name: "Crewboard" } : null,
     standing,
   });
 
@@ -450,10 +480,10 @@ describe("each tool's description", () => {
   it("speaks of starting an organization only to someone offered it, and opens with the work on a product", async () => {
     // Olive owns an organization: a connector scoped to it reaches no other, so she starts none there.
     const scoped = await offeredWith(olive, `/mcp/t/${org}`);
-    expect(scoped.actions).toEqual(expect.arrayContaining(["products.create", "products.create_team"]));
+    expect(scoped.actions).toContain("products.create");
     expect(scoped.actions).not.toContain("products.create_tenant");
-    expect(said(scoped.descriptions["products_write"]!)).not.toMatch(/organization/i);
-    expect(said(scoped.descriptions["products_write"]!)).toMatch(/Start a product or a team/);
+    expect(said(scoped.descriptions["products_write"]!)).not.toMatch(/organization|team/i);
+    expect(said(scoped.descriptions["products_write"]!)).toMatch(/Start a product\./);
     // An editor writes the concept, and is told of nothing else.
     const editing = (await offeredWith(eddie, "/mcp", "editor")).descriptions["products_write"]!;
     expect(said(editing)).toBe("Write the product concept and its card.");

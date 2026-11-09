@@ -41,8 +41,8 @@ beforeAll(async () => {
   h = await startHarness();
   olga = await h.signIn("olga@levels.example", "Olga Levels");
   const t = await olga.api("POST", "/api/v1/tenants", { name: "Levels" });
-  path = (await olga.api("POST", `/api/v1/teams/${t.body.tenant.slug}/${t.body.team.slug}/products`, { name: "Ledger" })).body.path;
-  await olga.api("POST", `/api/v1/tenants/${t.body.tenant.slug}/members`, { team: t.body.team.slug, email: "eddie@levels.example", role: "editor" });
+  path = (await olga.api("POST", `/api/v1/tenants/${t.body.tenant.slug}/products`, { name: "Ledger" })).body.path;
+  await olga.api("POST", `/api/v1/tenants/${t.body.tenant.slug}/members`, { all_products: true, email: "eddie@levels.example", role: "editor" });
   eddie = await h.signIn("eddie@levels.example", "Eddie Levels");
 });
 afterAll(async () => h?.close());

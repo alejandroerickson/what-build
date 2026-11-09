@@ -25,7 +25,7 @@ beforeAll(async () => {
   alice = await h.signIn("alice@example.com", "Alice Example");
   const t = await alice.api("POST", "/api/v1/tenants", { name: "Direct Co" });
   tenantId = t.body.tenant.tenant_id as string;
-  const p = await alice.api("POST", `/api/v1/teams/${t.body.tenant.slug}/${t.body.team.slug}/products`, { name: "Planner" });
+  const p = await alice.api("POST", `/api/v1/tenants/${t.body.tenant.slug}/products`, { name: "Planner" });
   P = `/api/v1/p/${p.body.path}`;
 });
 afterAll(async () => h?.close());
@@ -147,7 +147,7 @@ describe("a deployment whose store signs no uploads", () => {
     plain = await startHarness({ fileMaxBytes: 1000, relayMaxBytes: 500 });
     const carol = await plain.signIn("carol@example.com", "Carol Example");
     const t = await carol.api("POST", "/api/v1/tenants", { name: "Plain Co" });
-    const p = await carol.api("POST", `/api/v1/teams/${t.body.tenant.slug}/${t.body.team.slug}/products`, { name: "Plain" });
+    const p = await carol.api("POST", `/api/v1/tenants/${t.body.tenant.slug}/products`, { name: "Plain" });
     const path = `/api/v1/p/${p.body.path}`;
     const past = await carol.api("POST", `${path}/sources/with-upload`, { tags: ["report"], title: "Past the relay — Example Co", path: "big.txt", size: 501 });
     expect(past.status).toBe(413);
@@ -173,7 +173,7 @@ describe("a file past what Cloud Run answers with a length", () => {
     };
     const dana = await large.signIn("dana@example.com", "Dana Example");
     const t = await dana.api("POST", "/api/v1/tenants", { name: "Large Co" });
-    const p = await dana.api("POST", `/api/v1/teams/${t.body.tenant.slug}/${t.body.team.slug}/products`, { name: "Large" });
+    const p = await dana.api("POST", `/api/v1/tenants/${t.body.tenant.slug}/products`, { name: "Large" });
     const path = `/api/v1/p/${p.body.path}`;
     const attach = async (name: string, size: number) => {
       const made = await dana.api("POST", `${path}/sources/with-upload`, { tags: ["deck"], title: `${name} — Example Co`, path: name, size });

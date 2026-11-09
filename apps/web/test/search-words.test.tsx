@@ -9,9 +9,9 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
-const BASE = "/api/v1/p/acme/core/crew";
-const APP = "/t/acme/core/crew";
-const product = { name: "Crewboard", path: "acme/core/crew", your_role: "editor" };
+const BASE = "/api/v1/p/acme/crew";
+const APP = "/t/acme/crew";
+const product = { name: "Crewboard", path: "acme/crew", your_role: "editor" };
 
 const SOURCE = "01K8A2B3C4D5E6F7G8H9J0K1M2";
 const LATE = "…the crews meet at the yard before seven, load the vans from the list on the board, check the mowers and the trimmers, and then the lead takes the pallet of mulch to the first job of the day.";

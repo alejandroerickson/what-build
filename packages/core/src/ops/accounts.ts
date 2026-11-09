@@ -36,7 +36,7 @@ export const listAccounts = defineOperation({
   mutates: false,
   summary: "Every account on this instance, with the organizations each is in and when it was last seen (instance owners).",
   description:
-    "For the instance's owners: each account's name, address, when it was made and last seen (its newest browser session or agent connection), how many browser sessions and agent connections it holds now, whether it owns the instance, the allowance its address has to start organizations, and every organization it holds a role in, with its role on the organization (null when its roles are on teams or products only), how many team and product roles it holds there, and only_owner when nobody else owns it, so removing the account would delete it. query keeps the accounts whose name or address contains it. Names no product and holds none of an organization's content. Remove an account in the web app, on People.",
+    "For the instance's owners: each account's name, address, when it was made and last seen (its newest browser session or agent connection), how many browser sessions and agent connections it holds now, whether it owns the instance, the allowance its address has to start organizations, and every organization it holds a role in, with its role on the organization (null when its roles are on products only), how many roles on all products and on products it holds there, and only_owner when nobody else owns it, so removing the account would delete it. query keeps the accounts whose name or address contains it. Names no product and holds none of an organization's content. Remove an account in the web app, on People.",
   input: z.strictObject({ query: z.string().trim().max(200).optional() }),
   rest: { method: "GET", path: "/accounts" },
   mcp: { tool: "products", action: "accounts" },
@@ -219,7 +219,7 @@ async function endAccount(ctx: OpContext, account: Ending, self: boolean) {
     await db
       .insertInto("activity")
       .values({
-        activity_id: newId(), tenant_id: t.tenant_id, team_id: null, product_id: null, actor: json(ctx.actor), actor_account_id: ctx.actor.account_id,
+        activity_id: newId(), tenant_id: t.tenant_id, product_id: null, actor: json(ctx.actor), actor_account_id: ctx.actor.account_id,
         channel: ctx.actor.surface, action: self ? "account_deleted" : "account_removed", entity_type: "membership", entity_id: id, entity_title: account.display_name,
         summary: self ? `Left ${t.name} (${roles}) by deleting their account` : `Removed from ${t.name} (${roles}) with the account, by an owner of this instance`,
       })

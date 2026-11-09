@@ -32,10 +32,10 @@ beforeAll(async () => {
   alice = await h.signIn("alice@example.com", "Alice Example");
   vic = await h.signIn("vic@example.com", "Vic Viewer");
   const t = await alice.api("POST", "/api/v1/tenants", { name: "Etag Co" });
-  const p = await alice.api("POST", `/api/v1/teams/${t.body.tenant.slug}/${t.body.team.slug}/products`, { name: "Planner" });
+  const p = await alice.api("POST", `/api/v1/tenants/${t.body.tenant.slug}/products`, { name: "Planner" });
   path = p.body.path;
   P = `/api/v1/p/${path}`;
-  await alice.api("POST", `/api/v1/tenants/${t.body.tenant.slug}/members`, { team: t.body.team.slug, product: "planner", email: "vic@example.com", role: "viewer" });
+  await alice.api("POST", `/api/v1/tenants/${t.body.tenant.slug}/members`, { product: "planner", email: "vic@example.com", role: "viewer" });
   agent = await connect(await h.connectAgent(alice, "Etag agent"));
   readOnlyAgent = await connect(await h.connectAgent(alice, "Read-only agent", "/mcp", "viewer"));
 });

@@ -35,10 +35,10 @@ beforeAll(async () => {
   alice = await h.signIn("alice@example.com", "Alice Example");
   vic = await h.signIn("vic@example.com", "Vic Viewer");
   const t = await alice.api("POST", "/api/v1/tenants", { name: "Edit Co" });
-  const p = await alice.api("POST", `/api/v1/teams/${t.body.tenant.slug}/${t.body.team.slug}/products`, { name: "Ledger" });
+  const p = await alice.api("POST", `/api/v1/tenants/${t.body.tenant.slug}/products`, { name: "Ledger" });
   productPath = p.body.path;
   P = `/api/v1/p/${productPath}`;
-  await alice.api("POST", `/api/v1/tenants/${t.body.tenant.slug}/members`, { team: t.body.team.slug, product: "ledger", email: "vic@example.com", role: "viewer" });
+  await alice.api("POST", `/api/v1/tenants/${t.body.tenant.slug}/members`, { product: "ledger", email: "vic@example.com", role: "viewer" });
   const created = await alice.api("POST", `${P}/sources/with-upload`, { tags: ["interview"], title: "Finance lead interview — Example Co, Sep 2026", date: "2026-09-03", path: "call.vtt" });
   recordId = created.body.record.record_id;
   const up = created.body.upload;
@@ -124,8 +124,8 @@ describe("register edits", () => {
   });
 
   it("refuses an outcome from another product when outcomes change, as when the entry is created", async () => {
-    const [tenant, team] = productPath.split("/");
-    const other = await alice.api("POST", `/api/v1/teams/${tenant}/${team}/products`, { name: "Elsewhere" });
+    const [tenant] = productPath.split("/");
+    const other = await alice.api("POST", `/api/v1/tenants/${tenant}/products`, { name: "Elsewhere" });
     const outcome = await alice.api("POST", `/api/v1/p/${other.body.path}/outcomes`, { title: "Belongs to Elsewhere" });
     const created = await alice.api("POST", `${P}/assumptions`, { statement: "x", outcome_ids: [outcome.body.outcome_id] });
     expect(created.body.error.code).toBe("unknown_reference");
@@ -164,7 +164,7 @@ describe("register lists", () => {
 
   it("list the current entries by default, the ones the counts count, and say how many they left out", async () => {
     const t = await alice.api("POST", "/api/v1/tenants", { name: "Count Co" });
-    const p = await alice.api("POST", `/api/v1/teams/${t.body.tenant.slug}/${t.body.team.slug}/products`, { name: "Counted" });
+    const p = await alice.api("POST", `/api/v1/tenants/${t.body.tenant.slug}/products`, { name: "Counted" });
     const Q = `/api/v1/p/${p.body.path}`;
     const outcome = await alice.api("POST", `${Q}/outcomes`, { title: "Plan the week" });
     const on = { outcome_ids: [outcome.body.outcome_id] };

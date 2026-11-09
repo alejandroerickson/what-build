@@ -20,15 +20,14 @@ The kinds are `products`, `members`, `sources`, `attachments`, `derived`, `outco
 action's exact schema and guidance without running it:
 
     assumptions_write(action="create", describe=true)
-    assumptions_write(action="create", product="acme/core/onboarding", params={"statement": "…"})
+    assumptions_write(action="create", product="acme/onboarding", params={"statement": "…"})
 
 `search`, `guide` and `submit_feedback` stand alone: their fields are their arguments, with no
 `action`, `params` or `describe`.
 
-An action that acts on an organization or a team (such as `products_read(action="limits")`) takes
-`tenant`, and `team`, in params. Naming any product in it with `product` stands for its organization
-and team, unless the action takes a product of its own in params. On a scoped connector they default
-to the connector's own.
+An action that acts on an organization (such as `products_read(action="limits")`) takes `tenant` in
+params. Naming any product in it with `product` stands for its organization, unless the action takes
+a product of its own in params. On a scoped connector it defaults to the connector's own.
 
 ## Paging, ids and times
 
@@ -45,7 +44,7 @@ to the connector's own.
 Changing something that exists takes the `etag` of your last read of it as `expected_etag`. A stale
 one is refused with `409 stale_etag` and the `current_etag`.
 
-- A source has four: its own (for `sources_write(action="update")` and `move_to_product`), and one
+- A source has four: its own (for `sources_write(action="update")`), and one
   each on its derived text, its summary and its notes.
 - A write that may create what it writes (a source's summary, notes or text, a Story page's first
   version, the first Story style or hierarchy, a new mockup, an allowance) takes none the first time,
@@ -76,9 +75,9 @@ not have landed.
   `upload_id`, since an upload publishes once (`409 upload_used`).
 - A write without an etag may make a second object when sent again: creating an outcome, an
   assumption or a source (`sources_write(action="create")`, `attachments_write(action="create_upload")`,
-  `create_uploads`), a comment (`annotate`), a copy of a source (`copy_to_product`), a mockup
+  `create_uploads`), a comment (`annotate`), a mockup
   (`publish` without `mockup_id` or `upload_id`), a Story page from a mockup (`promote_mockup`
-  without `page_id`), and a product, team or organization without a `slug`. The item's list and
+  without `page_id`), and a product or organization without a `slug`. The item's list and
   `activity_read(action="list")` show what landed.
 - Reads change nothing and can always be repeated, `story_read(action="preview")` and
   `outcomes_read(action="card_preview")` included.
