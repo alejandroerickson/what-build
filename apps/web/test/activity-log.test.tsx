@@ -29,7 +29,7 @@ function render(items: ActivityItem[], more: boolean) {
   act(() =>
     root.render(
       <MemoryRouter>
-        <ActivityLog query={query as never} linkOf={() => null} empty={null} />
+        <ActivityLog query={query as never} linkOf={() => null} empty={null} dayLevel={2} />
       </MemoryRouter>,
     ),
   );
@@ -69,6 +69,16 @@ describe("an account's ending in the access log", () => {
   it("still says a role was removed when one was", () => {
     render([{ ...entry(1, "2026-09-01T12:00:00Z"), actor: { ...leaver, display_name: "Riley Chen" }, action: "revoked", entity_type: "membership", entity_id: "acc_3", entity_title: "Pete Editor", summary: "Removed editor on product Planner" }], false);
     expect(sentence()).toBe("Riley Chen removed a role from Pete Editor");
+  });
+
+  it("says someone whose last role went was removed from the organization", () => {
+    render([{ ...entry(1, "2026-09-01T12:00:00Z"), actor: { ...leaver, display_name: "Riley Chen" }, action: "revoked", entity_type: "membership", entity_id: "acc_3", entity_title: "Pete Editor", summary: "Removed from Acme: editor on product Planner was their only role" }], false);
+    expect(sentence()).toBe("Riley Chen removed Pete Editor from the organization");
+  });
+
+  it("says someone whose every role went at once was removed from the organization", () => {
+    render([{ ...entry(1, "2026-09-01T12:00:00Z"), actor: { ...leaver, display_name: "Riley Chen" }, action: "revoked", entity_type: "membership", entity_id: "acc_3", entity_title: "Pete Editor", summary: "Removed from Acme (2 roles)" }], false);
+    expect(sentence()).toBe("Riley Chen removed Pete Editor from the organization");
   });
 });
 

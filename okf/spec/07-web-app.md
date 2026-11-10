@@ -969,7 +969,10 @@ page of a mockup reaches it by promotion, from the mockup (§7.7).
   first time a browser opens a Story that has a page, focus mode turns on by itself, with a hint
   beside the control that F or Esc brings the panels back; after that the browser remembers the
   last choice (`whatbuild.story.focus`). The control beside the crumbs (**Focus**, or **Show
-  panels** in focus mode, each with an F keycap) is always there. The panel shortcuts (⌘\ and
+  panels** in focus mode, each with an F keycap) is always there; a screen with no page to show
+  (a page loading, one that isn't in the Story or was deleted, a Story with no pages or that couldn't
+  be loaded, a mockup that isn't there) offers no
+  focus mode, but while it is on keeps **Show panels** and the keys there. The panel shortcuts (⌘\ and
   ⇧⌘\) also leave focus mode, and leaving the Story ends it; the panels come back as they were.
   At phone width, where the panels are drawers already, there is no focus mode.
 - **The tree.** A keyboard tree (one tab stop, arrow keys to move and to open or close a branch)
@@ -1061,7 +1064,8 @@ internal label (events recorded with one are read without it, over MCP as in the
 what changed in the words the app uses, "Changed the outcomes it bears on and the tags", never a
 field's name (events recorded with field names are read in the same words). The kind of object changed (`?entity_type=`) or
 one object (`&entity_id=`) narrows it, held in the URL. Entries are grouped by day, each with its
-count of changes, and load 50 at a time under "Show older changes"; the oldest day loaded may go on
+count of changes under a heading one level below the section's own (h2 under Activity's h1, h3
+under Access changes' h2, §7.11, and the same size in both), and load 50 at a time under "Show older changes"; the oldest day loaded may go on
 past them, so while older changes wait its count says only what is loaded ("37+ changes").
 
 This is how a person answers "what did my colleague's agent just do to my product" without reading
@@ -1249,7 +1253,8 @@ never described as deleting. A list row showing an archived object says *Archive
 - **The organization's Access changes** (`?settings=organization/access`, for its owners and
   admins): the organization's access log (`members.activity`), drawn as the Activity feed is
   (§7.9), newest first, with a rename as "renamed the organization to …", someone whose last role
-  was removed as removed from the organization, someone who deleted their own account as "deleted
+  was removed, or every role at once, as "removed … from the organization" (one role of several
+  as "removed a role from …"), someone who deleted their own account as "deleted
   their account and left the organization", and an instance owner's removal of an account as
   "removed the account of …".
 - **Account** (`?settings=account`). Display name, and the email the person signs in with

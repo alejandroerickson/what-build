@@ -391,11 +391,15 @@ export function StoryPage() {
     </>
   );
 
+  // A screen with no page to show offers no focus mode, but one that arrives in it keeps the way out.
+  const focusExit = focusMode.available ? <FocusToggle focus={focusMode.focus} hint={focusMode.hint} onToggle={focusMode.toggle} /> : null;
+
   if (h.isPending) return <Loading variant="lines" />;
   if (h.isError)
     return (
       <div className="stack">
         <h1 className="visually-hidden">Story</h1>
+        {focusExit ? <div className="story-bar">{focusExit}</div> : null}
         <ErrorCallout title="The Story couldn’t be loaded" error={h.error} onRetry={() => h.refetch()} />
       </div>
     );
@@ -414,7 +418,10 @@ export function StoryPage() {
     return (
       <div className="story-view">
         {tree}
-        <Crumbs label="Page location" currentAsHeading items={[{ label: "Story" }]} />
+        <div className="story-bar">
+          <Crumbs label="Page location" currentAsHeading items={[{ label: "Story" }]} />
+          {focusExit}
+        </div>
         <Sheet label="Story">
           {storyOnly ? (
             <EmptyState title="No Story pages yet">
@@ -453,7 +460,10 @@ export function StoryPage() {
     return (
       <div className="story-view">
         {tree}
-        <Crumbs label="Page location" currentAsHeading items={crumbs} />
+        <div className="story-bar">
+          <Crumbs label="Page location" currentAsHeading items={crumbs} />
+          {focusExit}
+        </div>
         {deleted ? (
           <EmptyState title="This page was deleted" action={root ? <ButtonLink to={`${app}/story/${root}`}>Open the Story</ButtonLink> : undefined}>
             {deleted}
@@ -492,7 +502,7 @@ export function StoryPage() {
         <Crumbs label="Page location" currentAsHeading items={crumbs} />
         {stop ? <PageViewToggle view={mockupView} onView={setMockupView} /> : null}
         {stop ? <MockupFlip {...stop} onFlip={flip} /> : null}
-        {focusMode.available ? <FocusToggle focus={focusMode.focus} hint={focusMode.hint} onToggle={focusMode.toggle} /> : null}
+        {focusExit}
       </div>
       {!p ? (
         <>
