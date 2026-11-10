@@ -345,7 +345,7 @@ export const accountDeleteImpact = defineOperation({
   scope: "account",
   access: "any",
   mutates: false,
-  webOnly: "a person does it in the web app, in their own Settings, under Account (`/settings`), Delete account",
+  webOnly: "a person does it in the web app, in their own Settings, under Account (`…?settings=account`), Delete account (`…?settings=account&delete=account`)",
   summary: "Preview what deleting your own account would do, and what stops it (in the web app).",
   description:
     "Read-only. What the web app shows a person before they delete their own account: their address, the organizations they hold roles in and the ones they are the only owner of (each blocks it until someone else owns it or it is deleted), whether they own the instance (which blocks it), how many browser sessions and agent connections end, the invitations and allowance their address loses, and until when this browser's sign-in is recent enough to delete (null: sign in again first).",
@@ -412,7 +412,7 @@ export const deleteAccount = defineOperation({
   access: "any",
   mutates: true,
   connection: "admin",
-  webOnly: "a person does it in the web app, in their own Settings, under Account (`/settings`), Delete account",
+  webOnly: "a person does it in the web app, in their own Settings, under Account (`…?settings=account`), Delete account (`…?settings=account&delete=account`)",
   summary: "DELETE PERMANENTLY — cannot be undone. Delete your own account (in the web app).",
   description:
     `A person's own act in the web app, never an agent's. Needs a browser that signed in within the last ${RECENT_SIGN_IN_MINUTES} minutes (403 sign_in_again otherwise), the account's address typed exactly as email, and confirm set to exactly "${DELETE_CONFIRMATION}". ` +

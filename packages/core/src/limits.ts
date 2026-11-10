@@ -181,7 +181,7 @@ function dayUsedUp(lc: LimitContext, name: LimitKey, used: number, unit: string,
 
 function quota(lc: LimitContext, name: LimitKey, used: number, unit: string, what: string, asked = 1) {
   const day = dayUsedUp(lc, name, used, unit, what, asked);
-  return conflict("quota_exceeded", `${day.allows} The allowance starts again at ${lc.day_end}. Reading, searching and what is already here are unaffected.`, day.details);
+  return conflict("quota_exceeded", `${day.allows} The allowance starts again at midnight UTC. Reading, searching and what is already here are unaffected.`, day.details);
 }
 
 /**
@@ -317,7 +317,7 @@ async function pastTheDay(trx: Db, lc: LimitContext, op: Pick<OperationDef, "nam
   const total = (await totalRefusal(trx, lc, op, input)) ?? (await laterTotalRefusal(trx, lc, op, input));
   if (!total) return quota(lc, name, used, unit, what, asked);
   const day = dayUsedUp(lc, name, used, unit, what, asked);
-  return conflict("quota_exceeded", `${total.message} Today's allowance is used up too. ${day.allows} It starts again at ${lc.day_end}.`, { ...total.details, also: day.details });
+  return conflict("quota_exceeded", `${total.message} Today's allowance is used up too. ${day.allows} It starts again at midnight UTC.`, { ...total.details, also: day.details });
 }
 
 /** A size as a person reads it, in the units limits are set in: 25 MB, 1.5 GB. A refusal also gives the exact figure, as `limit`. */
@@ -350,7 +350,7 @@ export async function uploadLimit(trx: Db, lc: LimitContext, accountId: string, 
         ? `The file is ${sizeInWords(file.size)}; this organization's plan takes files of at most ${sizeInWords(Math.min(fileMaxBytes, s.file_max_bytes))}.`
         : left < daily
           ? `The file is ${sizeInWords(file.size)}, and the organization's plan has ${sizeInWords(left)} of storage left. ${ROOM.storage_max_bytes}.`
-          : `The file is ${sizeInWords(file.size)}, and ${sizeInWords(limit)} are left in today's upload allowance, which starts again at ${lc.day_end}.`,
+          : `The file is ${sizeInWords(file.size)}, and ${sizeInWords(limit)} are left in today's upload allowance, which starts again at midnight UTC.`,
       { limit },
     );
   return limit;
@@ -369,7 +369,7 @@ export async function countSent(db: Db, at: Tally, lc: LimitContext | null, acco
     if (used + bytes > limit)
       throw conflict(
         "quota_exceeded",
-        `${HERE(lc)} sends each person ${sizeWords(limit)} a day of attachments, exports and downloads; ${sizeWords(Math.max(0, limit - used))} is left today, and this is ${sizeWords(bytes)}. It starts again at ${lc.day_end}. Reading in the app, searching and the rest are unaffected.`,
+        `${HERE(lc)} sends each person ${sizeWords(limit)} a day of attachments, exports and downloads; ${sizeWords(Math.max(0, limit - used))} is left today, and this is ${sizeWords(bytes)}. It starts again at midnight UTC. Reading in the app, searching and the rest are unaffected.`,
         { quota: "sent_bytes_per_day", limit, used, unit: "bytes", resets_at: lc.day_end },
       );
   }

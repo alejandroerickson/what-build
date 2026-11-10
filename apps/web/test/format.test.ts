@@ -45,11 +45,17 @@ describe("fileTypeName", () => {
     expect(fileTypeName("application/vnd.openxmlformats-officedocument.wordprocessingml.document")).toBe("Word document");
     expect(fileTypeName("application/vnd.openxmlformats-officedocument.presentationml.presentation")).toBe("PowerPoint presentation");
     expect(fileTypeName("text/plain; charset=utf-8")).toBe("Plain text");
+    expect(fileTypeName("application/vnd.apple.keynote")).toBe("Keynote presentation");
+    expect(fileTypeName("application/x-iwork-keynote-sffkey")).toBe("Keynote presentation");
+    expect(fileTypeName("application/vnd.apple.pages")).toBe("Pages document");
+    expect(fileTypeName("application/vnd.apple.numbers")).toBe("Numbers spreadsheet");
+    // Sent with no type of its own, a Keynote file is still named by its extension.
+    expect(fileTypeName("application/octet-stream", "Pitch.key")).toBe("Keynote presentation");
     expect(fileTypeName("text/vtt")).toBe("WebVTT transcript");
   });
   it("falls back to the family, then the extension, then the media type", () => {
     expect(fileTypeName("audio/mpeg")).toBe("Audio (MPEG)");
-    expect(fileTypeName("application/octet-stream", "notes.key")).toBe("KEY file");
+    expect(fileTypeName("application/octet-stream", "notes.xyz")).toBe("XYZ file");
     expect(fileTypeName("application/x-thing")).toBe("application/x-thing");
     expect(fileTypeName(null)).toBe("Unknown type");
   });

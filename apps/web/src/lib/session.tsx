@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { READ_ONLY_ALLOWS } from "@whatbuild/core/read-only";
 import { createContext, useContext, type ReactNode } from "react";
 import { Navigate, useLocation, useParams } from "react-router";
 import { Loading } from "../ui/index.tsx";
@@ -202,7 +203,7 @@ interface ProductCtx {
   canWrite: boolean;
   /** May give a video or a web page its first picture: anyone who reads the sources, but not a guest of the example organization, who changes nothing there. */
   canGivePicture: boolean;
-  /** The organization is read-only: nothing can be added or changed, whatever the role, but deletes still work. */
+  /** The organization is read-only: nothing new can be added, whatever the role, but reading, exporting, deleting and taking people out still work. */
   readOnlyOrganization: boolean;
   isAdmin: boolean;
   /** An admin, in a product that isn't archived: may delete permanently. */
@@ -265,7 +266,7 @@ export function ProductProvider({ children, fallback, path: given }: { children:
 
 /** Why someone can't add or change anything in this product, for a screen that would otherwise invite it. */
 export function cannotWriteReason(ctx: Pick<ProductCtx, "product" | "readOnlyOrganization">): string {
-  if (ctx.readOnlyOrganization) return `${ctx.product.tenant.name} is read-only, so nothing new can be added to it or changed until it moves to another plan.`;
+  if (ctx.readOnlyOrganization) return `${ctx.product.tenant.name} is read-only, so nothing new can be added to it until it moves to another plan. ${READ_ONLY_ALLOWS}`;
   if (ctx.product.archived_at) return "This product is archived. An admin can restore it in Settings.";
   if (ctx.product.your_role === "guest") return "This is a worked example to read, so nothing in it can be added or changed.";
   return "You’re a viewer here. An admin of this product can make you an editor.";

@@ -135,7 +135,8 @@ and **Cleo** are three such addresses, signed in with `pnpm e2e browser signin <
     under Organizations, and its name is unchanged: Riley renames it only on the web.
 19. **MCP and web, as Morgan.** Morgan owns the synthetic organization and runs nothing else. List
     the tools. *Expect:* none of the actions in step 18; `products_read(action="accounts")` called
-    anyway answers `403 web_only` too, naming People. On the web, Morgan's account menu has no
+    anyway answers `403 web_only` too, saying only an owner of this WhatBuild does it, in Instance
+    admin under People, and to ask whoever runs this WhatBuild. On the web, Morgan's account menu has no
     Instance admin, and `/admin`, `/admin/people`, `/instance` and `/people` each say the page
     wasn't found, naming nothing of what is there; Settings → the synthetic organization's General
     offers Morgan, as its owner, to delete it, and Riley's Instance admin → Organizations offers it too.

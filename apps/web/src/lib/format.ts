@@ -168,6 +168,12 @@ const FILE_TYPES: Record<string, string> = {
   "application/vnd.oasis.opendocument.text": "OpenDocument text",
   "application/vnd.oasis.opendocument.spreadsheet": "OpenDocument spreadsheet",
   "application/vnd.oasis.opendocument.presentation": "OpenDocument presentation",
+  "application/vnd.apple.pages": "Pages document",
+  "application/x-iwork-pages-sffpages": "Pages document",
+  "application/vnd.apple.numbers": "Numbers spreadsheet",
+  "application/x-iwork-numbers-sffnumbers": "Numbers spreadsheet",
+  "application/vnd.apple.keynote": "Keynote presentation",
+  "application/x-iwork-keynote-sffkey": "Keynote presentation",
   "application/rtf": "Rich text document",
   "application/json": "JSON file",
   "application/zip": "ZIP archive",
@@ -179,6 +185,13 @@ const FILE_TYPES: Record<string, string> = {
   "text/tab-separated-values": "TSV spreadsheet",
   "text/vtt": "WebVTT transcript",
   "image/svg+xml": "SVG image",
+};
+
+/** Types often sent with no media type of their own (`application/octet-stream`), named by extension. */
+const FILE_EXTENSIONS: Record<string, string> = {
+  pages: "Pages document",
+  numbers: "Numbers spreadsheet",
+  key: "Keynote presentation",
 };
 
 /**
@@ -193,7 +206,7 @@ export function fileTypeName(mediaType: string | null | undefined, path?: string
   const words: Record<string, string> = { audio: "Audio", video: "Video", image: "Image" };
   if (family && sub && words[family]) return `${words[family]} (${sub.replace(/^x-/, "").toUpperCase()})`;
   const ext = path?.match(/\.([a-z0-9]{1,8})$/i)?.[1];
-  if (ext) return `${ext.toUpperCase()} file`;
+  if (ext) return FILE_EXTENSIONS[ext.toLowerCase()] ?? `${ext.toUpperCase()} file`;
   return t || "Unknown type";
 }
 

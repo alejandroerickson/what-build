@@ -201,6 +201,6 @@ describe("adding a source in the app", () => {
       );
     });
     expect(host.querySelector("input")).toBeNull();
-    expect(host.textContent).toContain("Acme is read-only, so nothing new can be added to it or changed until it moves to another plan.");
+    expect(host.textContent).toContain("Acme is read-only, so nothing new can be added to it until it moves to another plan. Everyone in it can still read, export and delete what it holds, and take people out, as their roles allow.");
   });
 });
