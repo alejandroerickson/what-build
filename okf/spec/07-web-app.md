@@ -1252,7 +1252,8 @@ never described as deleting. A list row showing an archived object says *Archive
 - **The organization's Access changes** (`?settings=organization/access`, for its owners and
   admins): the organization's access log (`members.activity`), drawn as the Activity feed is
   (§7.9), newest first, with a rename as "renamed the organization to …", someone whose last role
-  was removed as removed from the organization, someone who deleted their own account as "deleted
+  was removed, or every role at once, as "removed … from the organization" (one role of several
+  as "removed a role from …"), someone who deleted their own account as "deleted
   their account and left the organization", and an instance owner's removal of an account as
   "removed the account of …".
 - **Account** (`?settings=account`). Display name, and the email the person signs in with

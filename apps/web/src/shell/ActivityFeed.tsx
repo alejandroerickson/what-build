@@ -93,6 +93,7 @@ const VERBS: Record<string, string> = {
   "product:export_requested": "exported",
   "membership:granted": "gave a role to",
   "membership:role_changed": "changed the role of",
+  // Someone whose last role went left the organization, and the entry says so (`leftOrganization`).
   "membership:revoked": "removed a role from",
   "membership:account_deleted": "deleted their account and left the organization",
   "membership:account_removed": "removed the account of",
@@ -218,6 +219,15 @@ export function dayCount(loaded: number, more: boolean): string {
 }
 
 /**
+ * Whether a removal took the person out of the organization: their last role, or every role at once.
+ * The server records both as "revoked", with a summary that begins "Removed from <organization>";
+ * removing one role of several reads "Removed <role> on <place>".
+ */
+export function leftOrganization(i: Pick<ActivityItem, "entity_type" | "action" | "summary">): boolean {
+  return i.entity_type === "membership" && i.action === "revoked" && i.summary.startsWith("Removed from ");
+}
+
+/**
  * Any log drawn as the feed: a product's, or an organization's access changes. linkOf says where an
  * entry leads, if anywhere; empty is what shows before anything has happened.
  */
@@ -249,10 +259,11 @@ export function ActivityLog({ query: q, linkOf, empty }: { query: ActivityPages;
           </h2>
           <ol className="activity-list">
             {g.items.map((i) => {
-              const verb = VERBS[`${i.entity_type}:${i.action}`] ?? i.action.replace(/_/g, " ");
+              const left = leftOrganization(i);
+              const verb = left ? "removed" : VERBS[`${i.entity_type}:${i.action}`] ?? i.action.replace(/_/g, " ");
               const href = linkOf(i);
               // A cancelled invitation names nobody, and someone who joined or deleted their own account is the actor: the sentence ends at its verb.
-              const title = i.entity_type === "membership" && (i.action === "joined" || i.action === "account_deleted") ? null : i.entity_title ?? (i.entity_type === "membership" ? null : ENTITY_LABEL[i.entity_type] ?? i.entity_type.replace(/_/g, " "));
+              const title = i.entity_type === "membership" && (i.action === "joined" || i.action === "account_deleted") ? null : i.entity_title ?? (left ? "someone" : i.entity_type === "membership" ? null : ENTITY_LABEL[i.entity_type] ?? i.entity_type.replace(/_/g, " "));
               const today = g.day === "Today";
               return (
                 <li key={i.activity_id} className="activity-row">
@@ -260,6 +271,7 @@ export function ActivityLog({ query: q, linkOf, empty }: { query: ActivityPages;
                   <div className="activity-main">
                     <p className="activity-sentence">
                       <b>{i.actor.display_name}</b> {verb}{title ? <> {href ? <Link to={href}>{title}</Link> : <span>{title}</span>}</> : null}
+                      {left ? " from the organization" : null}
                     </p>
                     <p className="activity-sub">
                       {surfaceWords(i)}
