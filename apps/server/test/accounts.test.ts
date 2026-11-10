@@ -82,7 +82,7 @@ describe("removing an account", () => {
       const tool = action === "accounts" ? "products_read" : "products_write";
       const refused = (await theirs.callTool({ name: tool, arguments: { action, params: action === "accounts" ? {} : { account_id: peteId, email: "pete@example.com", confirm: "delete permanently" } } })) as { isError?: boolean; content: { text: string }[] };
       expect(refused.isError).toBe(true);
-      expect(refused.content[0]!.text).toMatch(new RegExp(`^403: No agent is offered ${tool}\\(action="${action}"\\): only an owner of this WhatBuild does this\\. For them: a person does it in the web app, in Instance admin, under People \\(\`/admin/people\`\\).*\\. Tell the person to ask whoever runs this WhatBuild, if they need it done\\.`));
+      expect(refused.content[0]!.text).toMatch(new RegExp(`^403: No agent is offered ${tool}\\(action="${action}"\\): only an owner of this WhatBuild does this\\. For them: a person does it in the web app, in Instance admin, under People \\(\`/admin/people\`\\).*\\. Tell the person to ask whoever runs this WhatBuild, if they need it\\.`));
       expect(refused.content[0]!.text).not.toMatch(/Tell the person where it is/);
     }
     await theirs.close();

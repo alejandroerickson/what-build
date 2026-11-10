@@ -316,7 +316,7 @@ export function organizationReadOnly(name: string, readOnly: { since: string; ke
  */
 export function webOnlyRefusal(op: Pick<OperationDef, "name" | "mutates" | "rest" | "mcp" | "copiesOut" | "webOnly" | "instanceOwnersOnly">, surface: Principal["surface"], called: string | undefined, owner: boolean): AppError {
   const where = op.instanceOwnersOnly && !owner
-    ? `only an owner of this WhatBuild does this. For them: ${op.webOnly}. Tell the person to ask whoever runs this WhatBuild, if they need it done. `
+    ? `only an owner of this WhatBuild does this. For them: ${op.webOnly}. Tell the person to ask whoever runs this WhatBuild, if they need it. `
     : `${op.webOnly}. Tell the person where it is. `;
   return new AppError(
     403,

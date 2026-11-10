@@ -137,8 +137,8 @@ describe("the instance owners' actions", () => {
       } else {
         // Anyone else would find no Instance admin there: it is an owner's, and they ask whoever runs this WhatBuild.
         for (const r of [usage, move]) expect(r.json.error.message).not.toMatch(/Tell the person where it is/);
-        expect(usage.json.error.message).toMatch(/^No agent is offered products_read\(action="usage"\): only an owner of this WhatBuild does this\. For them: .*usage report, `pnpm usage`.*Tell the person to ask whoever runs this WhatBuild, if they need it done\. /);
-        expect(move.json.error.message).toMatch(/^No agent is offered products_write\(action="set_plan"\): only an owner of this WhatBuild does this\. For them: a person does it in the web app, in Instance admin, under Organizations \(`\/admin\/organizations`\), Change plan on the organization's row\. Tell the person to ask whoever runs this WhatBuild, if they need it done\. .*Nothing was changed\.$/);
+        expect(usage.json.error.message).toMatch(/^No agent is offered products_read\(action="usage"\): only an owner of this WhatBuild does this\. For them: .*usage report, `pnpm usage`.*Tell the person to ask whoever runs this WhatBuild, if they need it\. /);
+        expect(move.json.error.message).toMatch(/^No agent is offered products_write\(action="set_plan"\): only an owner of this WhatBuild does this\. For them: a person does it in the web app, in Instance admin, under Organizations \(`\/admin\/organizations`\), Change plan on the organization's row\. Tell the person to ask whoever runs this WhatBuild, if they need it\. .*Nothing was changed\.$/);
       }
       // Not a sign of an older tool list, so nothing sends the person to start a new session.
       expect(move.json.error.message).not.toMatch(/new session|restart/);
