@@ -39,6 +39,8 @@ function saveChoice(on: boolean) {
  *   it on a phone too (`onPhone`). There it never turns on by itself, since its hint is about keys,
  *   but the remembered choice holds.
  * - Leaving the Story ends it; the panels come back as they were.
+ * - While it is on, the control and the keys stay, whatever the screen shows (a page loading, a
+ *   page that isn't in the Story, no pages at all), so the way back is always on screen.
  */
 export function useStoryFocus(ready: boolean, { onPhone = false }: { onPhone?: boolean } = {}) {
   const slots = useSlots();
@@ -79,7 +81,7 @@ export function useStoryFocus(ready: boolean, { onPhone = false }: { onPhone?: b
     return () => clearTimeout(t);
   }, [hint]);
 
-  const available = ready && !blocked && Boolean(setShellFocus);
+  const available = (ready || focus) && !blocked && Boolean(setShellFocus);
   const onKey = useCallback(
     (key: StoryKey) => {
       if (!available) return;

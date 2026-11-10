@@ -555,7 +555,11 @@ export function MockupPage() {
     const deleted = deletedSentence(e.error);
     return (
       <div className="mockup-view">
-        <Crumbs label="Location" currentAsHeading items={crumbs} />
+        <div className="story-bar">
+          <Crumbs label="Location" currentAsHeading items={crumbs} />
+          {/* A missing mockup offers no focus mode, but one that arrives in it keeps the way out. */}
+          {focusMode.available ? <FocusToggle focus={focusMode.focus} hint={focusMode.hint} onToggle={focusMode.toggle} /> : null}
+        </div>
         {deleted ? (
           <EmptyState title="This mockup was deleted" action={<ButtonLink to={`${app}/exploration/mockups`}>Open mockups</ButtonLink>}>
             {deleted}

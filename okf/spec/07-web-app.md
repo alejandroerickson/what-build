@@ -969,7 +969,10 @@ page of a mockup reaches it by promotion, from the mockup (§7.7).
   first time a browser opens a Story that has a page, focus mode turns on by itself, with a hint
   beside the control that F or Esc brings the panels back; after that the browser remembers the
   last choice (`whatbuild.story.focus`). The control beside the crumbs (**Focus**, or **Show
-  panels** in focus mode, each with an F keycap) is always there. The panel shortcuts (⌘\ and
+  panels** in focus mode, each with an F keycap) is always there; a screen with no page to show
+  (a page loading, one that isn't in the Story or was deleted, a Story with no pages or that couldn't
+  be loaded, a mockup that isn't there) offers no
+  focus mode, but while it is on keeps **Show panels** and the keys there. The panel shortcuts (⌘\ and
   ⇧⌘\) also leave focus mode, and leaving the Story ends it; the panels come back as they were.
   At phone width, where the panels are drawers already, there is no focus mode.
 - **The tree.** A keyboard tree (one tab stop, arrow keys to move and to open or close a branch)
