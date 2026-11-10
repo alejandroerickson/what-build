@@ -14,10 +14,17 @@ describe("how plain search reads a query", () => {
     expect("Nothing was noted in the notes".match(findPattern("note")!)).toEqual(["noted", "notes"]);
   });
 
+  it("marks what search matches for a word that ends in ee, which doubled no letter", () => {
+    // Search reads "employee" as employe and matches it as a prefix, so its find marks employer too.
+    expect(wordRoot("employee")).toBe("employe");
+    expect("An employer, two employees and the employed".match(findPattern("employee")!)).toEqual(["employer", "employees", "employed"]);
+    expect("They agreed on an agreement, and agree".match(findPattern("agree")!)).toEqual(["agreed", "agreement", "agree"]);
+  });
+
   it("reads the pieces a find may mark from a root that starts each root the find marks from", () => {
     // Counting a source's matches reads the pieces its terms match as prefixes, so every place the
     // find marks is in one of them: the find's root of a word starts with search's.
-    for (const w of ["pricing", "prices", "price", "planning", "planned", "note", "notes", "lies", "crew", "crews", "messages", "message", "ux", "scheduling", "quotes", "cb26-20734", "2026"]) {
+    for (const w of ["pricing", "prices", "price", "planning", "planned", "note", "notes", "lies", "crew", "crews", "messages", "message", "employee", "agree", "ux", "scheduling", "quotes", "cb26-20734", "2026"]) {
       for (const marked of /\(\?:(.*)\)$/.exec(findPattern(w)!.source)![1]!.replace(/\\/g, "").split("|")) expect(marked.startsWith(wordRoot(w)), `${w}: ${marked} from ${wordRoot(w)}`).toBe(true);
     }
   });
@@ -453,6 +460,15 @@ describe("plain search's excerpts", () => {
     expect(phrase.results[0]).toMatchObject({ id: rota.body.record_id, match_count: 1 });
     const yard = (await lee.api("GET", `${L}/search?mode=plain&query=crew&record_id=${note}`)).body;
     expect(yard.results[0].match_count).toBe(findCount(YARD, findPattern("crew")!));
+  });
+
+  it("marks in a source's text the word that ends in ee that search found there", async () => {
+    const hiring = await lee.api("POST", `${L}/sources`, { title: "Hiring — Example Co", tags: [] });
+    const text = "The employer posts the role on Mondays.\n";
+    expect((await lee.api("PUT", `${L}/sources/${hiring.body.record_id}/derived/text`, { content: text })).status).toBe(200);
+    const r = (await lee.api("GET", `${L}/search?mode=plain&query=employee&record_id=${hiring.body.record_id}`)).body;
+    expect(r.results[0]).toMatchObject({ id: hiring.body.record_id, match_count: 1 });
+    expect(findCount(text, findPattern(findWords(r.terms))!)).toBe(1);
   });
 
   describe("where a hit's match starts", () => {

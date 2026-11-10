@@ -12,11 +12,15 @@ const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 const ANY_ENDING = "[\\p{L}\\p{N}]*";
 
+/** A letter whose doubling an ending undoes, as search's root does ("planning" to "plan"). */
+const CONSONANT = /^[b-df-hj-np-tv-z]$/;
+
 /**
  * What a find marks for a word: its root, as search reads words ("pricing" marks "priced"), with any
  * ending. It stays narrower than search where a root alone would mark unrelated words. A word whose
  * ending doubled a letter marks its own forms ("planning" marks "plan", "plans" and "planned"; not
- * "plane", nor, for "better", "between"). A word of four letters, and one whose root would be shorter,
+ * "plane", nor, for "better", "between"); a word that ends in "ee" doubled no letter, so "employee" marks
+ * what search finds, "employer" too. A word of four letters, and one whose root would be shorter,
  * stays whole, so "note" and "notes" mark notes, and not every word that starts with "not". An id or a
  * number is taken as written, as search takes it.
  */
@@ -24,7 +28,7 @@ function wordPattern(word: string): string {
   const w = word.toLowerCase();
   if (w.length <= 4 || idLike(w)) return `${escape(w)}${ANY_ENDING}`;
   const root = wordRoot(w);
-  if (w.startsWith(root + root.at(-1))) return `${escape(root + root.at(-1))}${ANY_ENDING}|${escape(root)}(?:e?s)?(?![\\p{L}\\p{N}])`;
+  if (CONSONANT.test(root.at(-1)!) && w.startsWith(root + root.at(-1))) return `${escape(root + root.at(-1))}${ANY_ENDING}|${escape(root)}(?:e?s)?(?![\\p{L}\\p{N}])`;
   if (root.length < 4) return `${escape(w.replace(/s$/, ""))}${ANY_ENDING}`;
   return `${escape(root)}${ANY_ENDING}`;
 }
