@@ -408,6 +408,8 @@ describe("the free plan's limits", () => {
     expect(over.status).toBe(409);
     expect(over.body.error).toMatchObject({ code: "quota_exceeded", details: { quota: "writes_per_day", limit: before + 1, used: before + 1, unit: "writes" } });
     expect(over.body.error.details.resets_at).toBe(dayOf(new Date()).day_end);
+    expect(over.body.error.message).toMatch(/The allowance starts again at midnight UTC\./);
+    expect(over.body.error.message).not.toMatch(/\d{4}-\d{2}-\d{2}T/);
     // A refused write took nothing from the allowance, and reads and search go on.
     expect(await used(ned, "writes_per_day")).toBe(before + 1);
     expect((await ned.api("GET", `${P}/search?query=visit`)).status).toBe(200);
@@ -822,7 +824,7 @@ describe("the totals of a plan", () => {
       details: { quota: "sources_max", limit: held, used: held, unit: "sources", also: { quota: "sources_per_day", limit: today, used: today, unit: "sources", resets_at: dayOf(new Date()).day_end } },
     });
     expect(both.body.error.message).toMatch(/Deleting sources no longer needed makes room/);
-    expect(both.body.error.message).toMatch(new RegExp(`Today's allowance is used up too\\. This organization's plan allows each person ${today} new sources a day\\. It starts again at ${dayOf(new Date()).day_end}\\.$`));
+    expect(both.body.error.message).toMatch(new RegExp(`Today's allowance is used up too\\. This organization's plan allows each person ${today} new sources a day\\. It starts again at midnight UTC\\.$`));
     // A refused call took nothing from the day.
     expect(await used(ned, "sources_per_day")).toBe(today);
     // With room under the total, waiting for tomorrow is the whole truth.
