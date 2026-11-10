@@ -787,6 +787,7 @@ function AccessChanges({ tenant }: { tenant: string }) {
       <ActivityLog
         query={q}
         linkOf={() => null}
+        dayLevel={3}
         empty={<EmptyState size="inline" title="No access changes yet" />}
       />
     </Sheet>

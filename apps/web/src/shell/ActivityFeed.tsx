@@ -185,6 +185,7 @@ export function useActivity(filter: ActivityFilter) {
 /**
  * The day-grouped feed, drawn as rows inside a sheet: who (a face, the name), what they did with a
  * link to it, through which surface, and when. Put it inside a <Sheet>; it brings its own states.
+ * It sits under the Activity screen's h1, so its days are h2.
  */
 export function ActivityFeed(filter: ActivityFilter & { query?: ReturnType<typeof useActivity> }) {
   const own = useActivity(filter);
@@ -196,6 +197,7 @@ export function ActivityFeed(filter: ActivityFilter & { query?: ReturnType<typeo
     <ActivityLog
       query={q}
       linkOf={(i) => linkFor(app, i, settingsTo)}
+      dayLevel={2}
       empty={
         <EmptyState
           size="inline"
@@ -229,11 +231,14 @@ export function leftOrganization(i: Pick<ActivityItem, "entity_type" | "action" 
 
 /**
  * Any log drawn as the feed: a product's, or an organization's access changes. linkOf says where an
- * entry leads, if anywhere; empty is what shows before anything has happened.
+ * entry leads, if anywhere; empty is what shows before anything has happened. dayLevel is the level
+ * of the days' headings, one below the heading of the section that shows the log; they look the
+ * same at any level.
  */
-export function ActivityLog({ query: q, linkOf, empty }: { query: ActivityPages; linkOf: (i: ActivityItem) => string | null; empty: ReactNode }) {
+export function ActivityLog({ query: q, linkOf, empty, dayLevel }: { query: ActivityPages; linkOf: (i: ActivityItem) => string | null; empty: ReactNode; dayLevel: 2 | 3 | 4 }) {
   // Two logs can be on screen at once (Access changes, in Settings, over the product's Activity), so each names its days by its own ids.
   const ids = useId();
+  const Day = `h${dayLevel}` as const;
   if (q.isPending) return <Loading label="Loading activity…" lines={6} />;
   if (q.isError)
     return (
@@ -253,10 +258,10 @@ export function ActivityLog({ query: q, linkOf, empty }: { query: ActivityPages;
     <div className="activity">
       {groups.map((g, gi) => (
         <section key={`${g.day}-${gi}`} className="activity-group" aria-labelledby={`${ids}-day-${gi}`}>
-          <h2 className="activity-day" id={`${ids}-day-${gi}`}>
+          <Day className="activity-day" id={`${ids}-day-${gi}`}>
             {g.day}
             <span className="activity-day-count num">{dayCount(g.items.length, Boolean(q.hasNextPage) && gi === groups.length - 1)}</span>
-          </h2>
+          </Day>
           <ol className="activity-list">
             {g.items.map((i) => {
               const left = leftOrganization(i);

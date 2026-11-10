@@ -29,7 +29,7 @@ function render(items: ActivityItem[], more: boolean) {
   act(() =>
     root.render(
       <MemoryRouter>
-        <ActivityLog query={query as never} linkOf={() => null} empty={null} />
+        <ActivityLog query={query as never} linkOf={() => null} empty={null} dayLevel={2} />
       </MemoryRouter>,
     ),
   );

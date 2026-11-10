@@ -1064,7 +1064,8 @@ internal label (events recorded with one are read without it, over MCP as in the
 what changed in the words the app uses, "Changed the outcomes it bears on and the tags", never a
 field's name (events recorded with field names are read in the same words). The kind of object changed (`?entity_type=`) or
 one object (`&entity_id=`) narrows it, held in the URL. Entries are grouped by day, each with its
-count of changes, and load 50 at a time under "Show older changes"; the oldest day loaded may go on
+count of changes under a heading one level below the section's own (h2 under Activity's h1, h3
+under Access changes' h2, §7.11, and the same size in both), and load 50 at a time under "Show older changes"; the oldest day loaded may go on
 past them, so while older changes wait its count says only what is loaded ("37+ changes").
 
 This is how a person answers "what did my colleague's agent just do to my product" without reading
