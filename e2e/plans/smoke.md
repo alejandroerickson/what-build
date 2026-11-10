@@ -38,9 +38,9 @@ other plans will too.
    organization's People and Access changes; then open Instance admin from the account menu (Riley
    owns the instance). *Expect:* all load; the panel has the same rows as Sam's, with nothing for
    organizations or people; Riley can manage people, with Add people, and Access changes lists the
-   organization's access changes; Instance admin has its own panel, its Organizations lists both
-   organizations with their plans, the example marked as such, and Starting organizations who may
-   create organizations.
+   organization's access changes; Instance admin has its own panel, its Organizations lists every organization
+   on the instance (on a fresh golden master, all three, the synthetic one among them) with their
+   plans, the example marked as such, and Starting organizations who may create organizations.
 6. **Web, as Riley.** Find an archived product among archived products, in either organization. If
    neither has one, archive a product in the standard organization first, from Settings → the
    product's General. *Expect:* it is listed as archived and can be opened; only Settings, under its
@@ -52,10 +52,14 @@ other plans will too.
    takes Jordan back to the Story (`okf/decisions/a-reader-reads-only-the-story.md`), without
    errors or a broken screen on the way.
 8. **MCP, as Sam.** `info`, then `tools`. *Expect:* the server names itself `whatbuild` with its
-   tools version; each kind of object has a `_read` and a `_write` tool, and no `_delete` tool at
-   the default level; `attachments_write` is among them and there is no `files`, `sandbox`,
-   `read_passage`, `sources` or `get_skill`; every tool has a title, and each `_read` tool is marked
-   read-only and each `_write` tool destructive. The instructions name `products_read(action="list")`
+   tools version; each kind of object has a `_read` tool, and each kind Sam changes a `_write`
+   tool too, while people (`members_read`) and activity (`activity_read`) have only `_read` at the
+   default (Edit) level, since `members_write` needs an Admin connection; there
+   is `products_export`, and no `_delete` tool at the default level; `attachments_write` is among
+   them and there is no `files`, `sandbox`, `read_passage`, `sources` or `get_skill`; every tool has
+   a title; each `_read` tool, `search` and `guide` is marked read-only, each `_write` tool
+   destructive, and `products_export` and `submit_feedback` neither, since they change nothing the
+   team has. The instructions name `products_read(action="list")`
    and the `guide` tool, and ask nothing to be installed. Call `guide` and compare its
    `tools_version` with the server's.
 9. **MCP, as Sam.** List products, then list sources, assumptions, mockups and Story pages
@@ -64,14 +68,17 @@ other plans will too.
    same titles and counts, and the same words the source's Text showed.
 10. **Web and MCP, as a guest.** Sign in as `guest@example.com` on the web, then connect over MCP as
     the same address. *Expect:* the overview lists the example organization, marked Example
-    organization and Read only, and, since the guest may not start one, says organizations open a
-    few at a time and offers **Ask for your own organization**; pressing it says they are on the
-    waitlist since today and the sheet no longer tells them to ask, and after a reload the button is
-    still gone and the sheet still doesn't. Its products open with a notice that
-    it is a worked example nothing in it can change; Settings lists no section for the example
-    organization, so its people are shown nowhere.
+    organization and Read only, and, since the guest may not start one, its **Your own
+    organization** box says organizations open a few at a time and offers **Ask for your own
+    organization**; pressing it, the box says "On the waitlist since" today's date and that an email
+    follows, and no longer tells them to ask, and after a reload the button is still gone and the
+    box still doesn't. Its products open with a notice that it is a worked example nothing in it
+    can change. Settings lists the product's General, People and Export, and no section for the
+    example organization; the product's People lists no one and says the example organization's
+    people aren't shown to its guests, so nobody's details are shown to a guest
+    (`okf/spec/03-accounts-and-identity.md` §3.10).
     `products_read(action="list")` lists the example's products with `your_role` guest and the tenant
-    `example: true`; the tool list offers no write but `submit_feedback`, and no `create_tenant`;
+    `example: true`; `members_read(action="list")` in the example returns no one, with `guest: true`; the tool list offers no write but `submit_feedback`, and no `create_tenant`;
     reading a source works, and its `scope` says `your_role` guest; creating one anyway is refused
     with `403 example_read_only`, which says that the guest may not start an organization and,
     since they asked above, is on the waitlist for one (organizations open a few at a time), that
@@ -82,14 +89,16 @@ other plans will too.
     `products_read` and `search` (with `guide` and `submit_feedback`), and no `sources_`, `outcomes_`
     or `members_` tool; the products are listed with the role reader; listing sources and a search
     with no mode are refused with a clear error naming reader and viewer, not an empty result and
-    never `unknown_action` or `unknown_tool`; `plain` mode answers with Story pages alone.
+    never `unknown_action` or `unknown_tool`; `plain` mode answers with Story pages alone, and its
+    `hits_matched` is 0 when only Story pages match, since it counts the matching pieces of
+    sources' summaries, texts, notes and comments (`okf/spec/08-search.md`), not a fault.
 12. **Web, any person.** At phone width (390 × 844) and in the dark theme, revisit the overview, a
     source and a Story page. *Expect:* nothing overflows, overlaps or becomes unreadable, and the
     overview's tiles under each product show each section's name and count whole.
 13. **Web, as Sam.** On a source, choose Submit feedback in the account menu, choose Bug, write a
-    line saying it is an end-to-end test in the text box, and send it. Find the box after choosing
-    Bug, labelled "What happened?". *Expect:* the dialog says it sends the
-    words, "its kind" once a kind is chosen (not before), the release (on a development server
+    line saying it is an end-to-end test in the text box, and send it. The box is labelled "Your
+    feedback" until a kind is chosen, and "What happened?" once Bug is. *Expect:* the dialog says
+    it sends "your feedback", "its kind" once a kind is chosen (not before), the release (on a development server
     that names none, such as `pnpm dev:e2e`, "that it is a development server" instead; on the
     Docker host, the release its image is) and
     the screen, "Evidence, a source"; and not Sam's name or address unless the box to share it

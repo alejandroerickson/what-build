@@ -120,7 +120,13 @@ that what one door writes the other finds at once, and that a reader searches th
     search of step 3 and the queries of step 6, and the MCP search of step 10. *Expect:* the same
     results as in the standard organization, which holds the same content, and the made-up word of
     step 11 is not found in the example organization.
-13. **Web and MCP, as Jordan (reader).** Open the product, showing the panels if focus mode hid them.
+13. **MCP, as Sam, in the standard organization.** In the product from step 1, make what step 14
+    searches if the Story lacks it: if no Story page shows a whole canvas, show the mockup from
+    step 1 whole with `story_write(action="promote_mockup")` and no `mockup_page_id`; if no Story
+    page says "sources", publish one with `story_write(action="publish")` of synthetic text saying
+    "sources" beside a made-up word (such as "brindlewick"), and use that word in step 14. Say in
+    the report what you made.
+14. **Web and MCP, as Jordan (reader).** Open that product, showing the panels if focus mode hid them.
     *Expect:* the panel's Search field reads "Search the Story". Search for a Story page's title, then for a word on a page of a whole canvas on
     the Story, then for a source's title and an assumption's statement, as a palette search and over
     MCP's `search` in `plain` mode. *Expect:* the Story page, and the canvas opening at that page; the
@@ -128,13 +134,13 @@ that what one door writes the other finds at once, and that a reader searches th
     that says the same words is found. A Story page's word beside `sources` finds a page that says
     both, with `kind_hint` null, and beside `story` finds it with `kind_hint` `story`. `search` in
     another mode, or with `kind: "source"`, is refused with a permission error naming reader and viewer.
-14. **Web, as Sam.** Search for a word on a mockup page that is promoted to the Story, and for the
+15. **Web, as Sam.** Search for a word on a mockup page that is promoted to the Story, and for the
     mockup's title. *Expect:* the mockup is listed once, under Exploration, with no Story result for it.
-15. **Web, as Sam.** At phone width (390 × 844) and in the dark theme, open the palette, search, and
+16. **Web, as Sam.** At phone width (390 × 844) and in the dark theme, open the palette, search, and
     open the Search screen. *Expect:* the palette fits the screen and its results are readable;
     every line of matching text under a result shows a marked word within its two lines, and
     marked words stand out in both themes; nothing overflows or overlaps.
-16. **MCP, then web, as Sam.** Over MCP, create a mockup of synthetic text with three pages: the first
+17. **MCP, then web, as Sam.** Over MCP, create a mockup of synthetic text with three pages: the first
     titled "Introduction" and saying a made-up word and `caf&eacute; cr&#232;me l'ann&#xE9;e
     &lt;script&gt;alert(1)&lt;/script&gt; <&#115;cript>alert(2)</&#115;cript> &#0; &#xD800;`, the second
     titled with the made-up word and a little more, and the third titled with the made-up word alone
@@ -143,7 +149,7 @@ that what one door writes the other finds at once, and that a reader searches th
     page, in both doors; the other words find the first page and show as those letters, marked; the
     excerpt shows `script` and `< script>` as plain text and nothing runs. `cafe` finds it too;
     `annee` does not, since the index keeps accents.
-17. **Web, as Sam.** Create an assumption whose statement is longer than the palette's line, with a
+18. **Web, as Sam.** Create an assumption whose statement is longer than the palette's line, with a
     made-up word near its end and the word before it said earlier in the statement too, and search
     for the made-up word in the palette, on a desktop and at phone
     width. *Expect:* its title starts near the word, after an ellipsis, with the word marked; hovering
