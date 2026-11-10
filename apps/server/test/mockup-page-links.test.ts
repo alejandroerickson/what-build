@@ -1,4 +1,4 @@
-import { clickableCanvas, FRAME_SCRIPT, frameScript, linkedPageName, mockupIndexHtml } from "@whatbuild/core";
+import { clickableCanvas, FRAME_SCRIPT, frameScript, hrefsIn, linkedPageName, mockupIndexHtml } from "@whatbuild/core";
 import { strFromU8, unzipSync, zipSync } from "fflate";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { startHarness, type Browser, type Harness } from "./harness.ts";
@@ -31,6 +31,23 @@ describe("what a canvas's pages say of each other", () => {
     expect(clickableCanvas([{ page_id: "a", entry: null, html: page("A", '<a href="b.html">B</a>') }]).viewable).toBe(false);
   });
 
+  it("counts only the links a person clicks and the frame follows, an <a>, and no script that goes to an address", () => {
+    const scripted = [
+      { page_id: "a", entry: null, html: page("A", `<script>document.querySelector("button").onclick = () => { location.href = 'b.html'; };</script><button onclick="location.href='b.html'">Next</button>`) },
+      { page_id: "b", entry: null, html: page("B", `<script>window.location.href="a.html"</script><link rel="stylesheet" href="c.html"><!-- <a href="a.html">old</a> -->`) },
+    ];
+    expect(clickableCanvas(scripted)).toMatchObject({ viewable: false, links_between_pages: 0, broken: [], how: expect.stringContaining("page_id.html") });
+    const linked = [
+      { page_id: "a", entry: null, html: page("A", '<A class="go" HREF=b.html>B</A>') },
+      { page_id: "b", entry: null, html: page("B", '<a href="a.html">A</a>') },
+    ];
+    expect(clickableCanvas(linked)).toEqual({ viewable: true, links_between_pages: 2, broken: [] });
+    expect(hrefsIn(`<img usemap="#m" src="data:,"><map name="m"><area shape="rect" coords="0,0,9,9" href="no.html" alt="A"></map>`)).toEqual([]);
+    expect(hrefsIn(`<iframe><a href="no.html"></a></iframe><a href="yes.html">`)).toEqual(["yes.html"]);
+    expect(hrefsIn(`<a title="x > y" data-href="no.html" href='yes.html'>`)).toEqual(["yes.html"]);
+    expect(hrefsIn(`<script>const s = '<a href="no.html">';</script><style>a[href="no.html"]{}</style><a href="yes.html">`)).toEqual(["yes.html"]);
+  });
+
   it("counts a page that enters a prototype as clickable, since the prototype holds its links", () => {
     const pages = [
       { page_id: "a", entry: "index.html", html: null },
@@ -44,6 +61,11 @@ describe("what a canvas's pages say of each other", () => {
     const started = performance.now();
     clickableCanvas([{ page_id: "a", entry: null, html: hostile }, { page_id: "b", entry: null, html: "" }]);
     expect(performance.now() - started).toBeLessThan(1000);
+    for (const hostile of ["<a ".repeat(100_000), '<a href="'.repeat(100_000), "<script>".repeat(100_000), "<!--".repeat(100_000), "<a b=c ".repeat(100_000)]) {
+      const at = performance.now();
+      hrefsIn(hostile);
+      expect(performance.now() - at, hostile.slice(0, 12)).toBeLessThan(1000);
+    }
   });
 
   it("makes an index that escapes what it names and starts at the first page", () => {

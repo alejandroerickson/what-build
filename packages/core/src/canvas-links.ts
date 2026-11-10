@@ -4,12 +4,57 @@ import { encodePrototypePath, splitEntry } from "./prototype.ts";
 
 /**
  * Links between a canvas's pages. A page links to another as files side by side in a folder do,
- * `<a href="checkout.html">`, which is also how they sit in a version's ZIP. The canvas flies to the
+ * `<a href="checkout.html">`, which is also how they sit in a version's
+ * ZIP. Only those count, as they are what the canvas follows (an image map's `<area>` is not): a script that goes to an address is not a link a person follows. The canvas flies to the
  * page a link names, and a canvas whose pages link can be viewed as a clickable prototype.
  */
 
-// An href's value in any quoting. Each attempt ends at the next quote or space, so it runs in linear time.
-const HREF = /\bhref\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'>]+))/gi;
+// Where a tag or a comment starts. Each match is a few characters, and the scan moves on from where the
+// tag it read ends, so reading a page takes time in step with its length.
+const TAG_START = /<(!--|[a-z][a-z0-9-]*)/gi;
+const SPACE = /[\t\n\f\r /]/;
+const NAME_ENDS = /[\t\n\f\r />=]/;
+/** Elements whose content is text, not tags: an `<a href>` written there is not a link. */
+const RAW_TEXT = new Map(["script", "style", "textarea", "title", "xmp", "noscript", "iframe", "noembed", "noframes"].map((t) => [t, new RegExp(`</${t}`, "gi")]));
+const LINKS = new Set(["a"]);
+
+/**
+ * Reads the attributes of the tag whose name ends at `at`, as a browser does, up to its `>`: where the
+ * tag ends, and its href, if any (the first, as a browser keeps it).
+ */
+function readTag(html: string, at: number): { end: number; href?: string } {
+  let i = at;
+  let href: string | undefined;
+  const n = html.length;
+  while (i < n) {
+    while (i < n && SPACE.test(html[i]!)) i++;
+    if (i >= n) break;
+    if (html[i] === ">") return { end: i + 1, href };
+    const nameStart = i;
+    i++;
+    while (i < n && !NAME_ENDS.test(html[i]!)) i++;
+    const name = html.slice(nameStart, i).toLowerCase();
+    let j = i;
+    while (j < n && SPACE.test(html[j]!) && html[j] !== "/") j++;
+    if (html[j] !== "=") continue;
+    i = j + 1;
+    while (i < n && SPACE.test(html[i]!) && html[i] !== "/") i++;
+    let value: string;
+    const q = html[i];
+    if (q === '"' || q === "'") {
+      const close = html.indexOf(q, i + 1);
+      if (close < 0) return { end: n, href };
+      value = html.slice(i + 1, close);
+      i = close + 1;
+    } else {
+      const start = i;
+      while (i < n && html[i] !== ">" && !/[\t\n\f\r ]/.test(html[i]!)) i++;
+      value = html.slice(start, i);
+    }
+    if (name === "href" && href === undefined) href = value;
+  }
+  return { end: n, href };
+}
 
 /**
  * The page a relative address names: its last part, without .html or .htm. Null for what is not a
@@ -24,9 +69,33 @@ export function linkedPageName(href: string): string | null {
   return name || null;
 }
 
-/** Every href in a page's HTML, as written. */
+/**
+ * The href of every link in a page's HTML, as written: of each `<a>`, which a person clicks and the
+ * page's frame follows (it follows no image map's `<area>`). A script that sets `location.href`, an `onclick`, and any `href=` in a script, a style, a
+ * comment or another element's attribute are not links.
+ */
 export function hrefsIn(html: string): string[] {
-  return [...html.matchAll(HREF)].map((m) => m[1] ?? m[2] ?? m[3] ?? "");
+  const out: string[] = [];
+  TAG_START.lastIndex = 0;
+  for (let m = TAG_START.exec(html); m; m = TAG_START.exec(html)) {
+    const after = m.index + m[0].length;
+    if (m[1] === "!--") {
+      const close = html.indexOf("-->", after);
+      TAG_START.lastIndex = close < 0 ? html.length : close + 3;
+      continue;
+    }
+    const name = m[1]!.toLowerCase();
+    const tag = readTag(html, after);
+    if (LINKS.has(name) && tag.href !== undefined) out.push(tag.href);
+    let next = tag.end;
+    const closing = RAW_TEXT.get(name);
+    if (closing) {
+      closing.lastIndex = next;
+      next = closing.exec(html)?.index ?? html.length;
+    }
+    TAG_START.lastIndex = next;
+  }
+  return out;
 }
 
 /** The other pages a page's relative links name, each once, in the order the page first names them. */
@@ -60,8 +129,7 @@ export function clickableCanvas(pages: { page_id: string; html: string | null; e
   let links = 0;
   for (const p of pages) {
     if (p.html === null) continue;
-    for (const m of p.html.matchAll(HREF)) {
-      const href = m[1] ?? m[2] ?? m[3] ?? "";
+    for (const href of hrefsIn(p.html)) {
       const name = linkedPageName(href);
       if (name === null || name === p.page_id) continue;
       if (ids.has(name)) links++;
