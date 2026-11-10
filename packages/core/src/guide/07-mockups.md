@@ -48,9 +48,10 @@ at the first page.
 - `clickable` in `publish` and `get` says whether a version can be viewed that way (`viewable`), counts
   `links_between_pages`, lists `broken` links that name no page, and from `publish` gives the `url` to
   hand the person. A version with no links says `how`.
-- Use real links, for a person to click: only an `<a href>` counts (an image map's `<area href>` is not followed). A
-  script that goes to an address (`location.href = ...`, in a `<script>` or an `onclick`) is no link,
-  is not followed on its own, and moves nothing unless a person did something moments ago.
+- Use real links, for a person to click: only an `<a href>` counts (not an image map's
+  `<area href>`, nor an `<a download>`, which are not followed). A script that goes to an address
+  (`location.href = ...`, in a `<script>` or an `onclick`) is no link, is not followed on its own,
+  and moves nothing unless a person did something moments ago.
 - A `#fragment` moves within the page a link opens. A `?query` does not reach it, and browser storage is
   unavailable, as everywhere in the sandbox.
 - On the Story, a whole canvas keeps its links flying between its pages. A page promoted alone takes a

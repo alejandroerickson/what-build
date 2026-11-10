@@ -44,6 +44,7 @@ describe("what a canvas's pages say of each other", () => {
     expect(clickableCanvas(linked)).toEqual({ viewable: true, links_between_pages: 2, broken: [] });
     expect(hrefsIn(`<img usemap="#m" src="data:,"><map name="m"><area shape="rect" coords="0,0,9,9" href="no.html" alt="A"></map>`)).toEqual([]);
     expect(hrefsIn(`<iframe><a href="no.html"></a></iframe><a href="yes.html">`)).toEqual(["yes.html"]);
+    expect(hrefsIn(`<a href="no.html" download>Save</a><a download="b.html" href="no.html">Save</a><a href="yes.html">`)).toEqual(["yes.html"]);
     expect(hrefsIn(`<a title="x > y" data-href="no.html" href='yes.html'>`)).toEqual(["yes.html"]);
     expect(hrefsIn(`<script>const s = '<a href="no.html">';</script><style>a[href="no.html"]{}</style><a href="yes.html">`)).toEqual(["yes.html"]);
   });

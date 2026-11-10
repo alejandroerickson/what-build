@@ -773,8 +773,8 @@ canvas explores, for whom, the questions it should answer, what each page tries)
 pages side by side before the canvas wraps, or null for one row), the `pages` in order, the
 `files` it carries, its `prototype` if it carries one, `published_at` and `published_by`, and,
 computed on read, `clickable { viewable, links_between_pages, broken, how? }`: whether people can
-view it as a clickable prototype, read from its pages' links (the `href` of each `<a>`,
-never an image map's `<area>` or a script that goes to an address) ([decision](../decisions/a-canvas-whose-pages-link-is-viewed-as-a-clickable-prototype.md)). The
+view it as a clickable prototype, read from its pages' links (the `href` of each `<a>` but an
+`<a download>`, never an image map's `<area>` or a script that goes to an address) ([decision](../decisions/a-canvas-whose-pages-link-is-viewed-as-a-clickable-prototype.md)). The
 database keeps each page's words beside its HTML for search ([§8.3](08-search.md)), in no answer and
 no export. A
 page:

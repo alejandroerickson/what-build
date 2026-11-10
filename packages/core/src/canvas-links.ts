@@ -4,9 +4,10 @@ import { encodePrototypePath, splitEntry } from "./prototype.ts";
 
 /**
  * Links between a canvas's pages. A page links to another as files side by side in a folder do,
- * `<a href="checkout.html">`, which is also how they sit in a version's
- * ZIP. Only those count, as they are what the canvas follows (an image map's `<area>` is not): a script that goes to an address is not a link a person follows. The canvas flies to the
- * page a link names, and a canvas whose pages link can be viewed as a clickable prototype.
+ * `<a href="checkout.html">`, which is also how they sit in a version's ZIP. Only those count, as
+ * they are what the canvas follows (not an image map's `<area>`, nor an `<a download>`): a script
+ * that goes to an address is not a link a person follows. The canvas flies to the page a link
+ * names, and a canvas whose pages link can be viewed as a clickable prototype.
  */
 
 // Where a tag or a comment starts. Each match is a few characters, and the scan moves on from where the
@@ -20,20 +21,22 @@ const LINKS = new Set(["a"]);
 
 /**
  * Reads the attributes of the tag whose name ends at `at`, as a browser does, up to its `>`: where the
- * tag ends, and its href, if any (the first, as a browser keeps it).
+ * tag ends, its href, if any (the first, as a browser keeps it), and whether it has `download`.
  */
-function readTag(html: string, at: number): { end: number; href?: string } {
+function readTag(html: string, at: number): { end: number; href?: string; download: boolean } {
   let i = at;
   let href: string | undefined;
+  let download = false;
   const n = html.length;
   while (i < n) {
     while (i < n && SPACE.test(html[i]!)) i++;
     if (i >= n) break;
-    if (html[i] === ">") return { end: i + 1, href };
+    if (html[i] === ">") return { end: i + 1, href, download };
     const nameStart = i;
     i++;
     while (i < n && !NAME_ENDS.test(html[i]!)) i++;
     const name = html.slice(nameStart, i).toLowerCase();
+    if (name === "download") download = true;
     let j = i;
     while (j < n && SPACE.test(html[j]!) && html[j] !== "/") j++;
     if (html[j] !== "=") continue;
@@ -43,7 +46,7 @@ function readTag(html: string, at: number): { end: number; href?: string } {
     const q = html[i];
     if (q === '"' || q === "'") {
       const close = html.indexOf(q, i + 1);
-      if (close < 0) return { end: n, href };
+      if (close < 0) return { end: n, href, download };
       value = html.slice(i + 1, close);
       i = close + 1;
     } else {
@@ -53,7 +56,7 @@ function readTag(html: string, at: number): { end: number; href?: string } {
     }
     if (name === "href" && href === undefined) href = value;
   }
-  return { end: n, href };
+  return { end: n, href, download };
 }
 
 /**
@@ -71,8 +74,9 @@ export function linkedPageName(href: string): string | null {
 
 /**
  * The href of every link in a page's HTML, as written: of each `<a>`, which a person clicks and the
- * page's frame follows (it follows no image map's `<area>`). A script that sets `location.href`, an `onclick`, and any `href=` in a script, a style, a
- * comment or another element's attribute are not links.
+ * page's frame follows (it follows no image map's `<area>`, and no `<a download>`). A script that
+ * sets `location.href`, an `onclick`, and any `href=` in a script, a style, a comment or another
+ * element's attribute are not links.
  */
 export function hrefsIn(html: string): string[] {
   const out: string[] = [];
@@ -86,7 +90,7 @@ export function hrefsIn(html: string): string[] {
     }
     const name = m[1]!.toLowerCase();
     const tag = readTag(html, after);
-    if (LINKS.has(name) && tag.href !== undefined) out.push(tag.href);
+    if (LINKS.has(name) && tag.href !== undefined && !tag.download) out.push(tag.href);
     let next = tag.end;
     const closing = RAW_TEXT.get(name);
     if (closing) {
