@@ -75,6 +75,17 @@ describe("removing an account", () => {
     expect(listed.isError).toBe(true);
     expect(listed.content[0]!.text).toMatch(/^403: No agent is offered products_read\(action="accounts"\): a person does it in the web app, in Instance admin, under People/);
     await client.close();
+    // Someone who does not own this WhatBuild would find no Instance admin: they hear it is an owner's, and whom to ask.
+    const theirs = new Client({ name: "accounts-agent", version: "1.0.0" });
+    await theirs.connect(new StreamableHTTPClientTransport(new URL(`${h.baseUrl}/mcp`), { requestInit: { headers: { authorization: `Bearer ${await h.connectAgent(olive, "Olive's agent")}` } } }));
+    for (const action of ["accounts", "remove_account"]) {
+      const tool = action === "accounts" ? "products_read" : "products_write";
+      const refused = (await theirs.callTool({ name: tool, arguments: { action, params: action === "accounts" ? {} : { account_id: peteId, email: "pete@example.com", confirm: "delete permanently" } } })) as { isError?: boolean; content: { text: string }[] };
+      expect(refused.isError).toBe(true);
+      expect(refused.content[0]!.text).toMatch(new RegExp(`^403: No agent is offered ${tool}\\(action="${action}"\\): only an owner of this WhatBuild does this\\. For them: a person does it in the web app, in Instance admin, under People \\(\`/admin/people\`\\).*\\. Tell the person to ask whoever runs this WhatBuild, if they need it done\\.`));
+      expect(refused.content[0]!.text).not.toMatch(/Tell the person where it is/);
+    }
+    await theirs.close();
   });
 
   it("needs the confirmation and the address typed exactly", async () => {

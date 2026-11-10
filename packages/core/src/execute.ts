@@ -225,7 +225,7 @@ async function run(
   // A refusal names the operation as the caller calls it: an agent by its tool and action.
   const called = callName(op, principal.surface);
   // What the operation is comes before where it lands: refusing a call for its kind tells nothing about any product.
-  if (op.webOnly && principal.surface !== "web") throw webOnlyRefusal(op, principal.surface);
+  if (op.webOnly && principal.surface !== "web") throw webOnlyRefusal(op, principal.surface, undefined, isInstanceOwner(env.ports.config, principal.email));
   if (!levelAllows(principal.level, op)) throw connectionLevelTooLow(op, principal);
   // Nor one the person turned off for this connection, whatever was sent with it.
   if (op.name === "submit_feedback" && principal.feedback === false) throw feedbackOff();
@@ -309,13 +309,19 @@ export function organizationReadOnly(name: string, readOnly: { since: string; ke
  * The refusal of a call, through any door but the web app, to what a person does only there. It
  * says where, for the agent to tell the person, and that no tool list holds it, so the agent does
  * not take it for a list from another version. `called` is the tool the agent called it in, which
- * it names: no tool holds the action, so naming another would send the agent looking there.
+ * it names: no tool holds the action, so naming another would send the agent looking there. What
+ * only an instance owner does is said where it is to an instance owner (`owner`); anyone else, who
+ * would find no Instance admin there, is told that only an owner of this WhatBuild does it, and
+ * where they do, and to ask whoever runs this WhatBuild.
  */
-export function webOnlyRefusal(op: Pick<OperationDef, "name" | "mutates" | "rest" | "mcp" | "copiesOut" | "webOnly">, surface: Principal["surface"], called?: string): AppError {
+export function webOnlyRefusal(op: Pick<OperationDef, "name" | "mutates" | "rest" | "mcp" | "copiesOut" | "webOnly" | "instanceOwnersOnly">, surface: Principal["surface"], called: string | undefined, owner: boolean): AppError {
+  const where = op.instanceOwnersOnly && !owner
+    ? `only an owner of this WhatBuild does this. For them: ${op.webOnly}. Tell the person to ask whoever runs this WhatBuild, if they need it done. `
+    : `${op.webOnly}. Tell the person where it is. `;
   return new AppError(
     403,
     "web_only",
-    `No agent is offered ${called ? `${called}(action="${op.mcp.action}")` : callName(op, surface)}: ${op.webOnly}. Tell the person where it is. ` +
+    `No agent is offered ${called ? `${called}(action="${op.mcp.action}")` : callName(op, surface)}: ${where}` +
       `It is in no agent's tool list, so this is not a list from another version.${op.mutates ? " Nothing was changed." : ""}`,
     { operation: op.name },
   );

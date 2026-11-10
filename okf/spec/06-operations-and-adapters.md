@@ -1019,7 +1019,9 @@ Rules:
   with `describe` too, is `403 web_only` before anything else is looked up, naming the call as it
   was made and giving that place for the agent to tell the person, saying it is in no agent's tool
   list and so not a sign of an older one, and naming the operation in `details.operation`; it is
-  counted under the operation.
+  counted under the operation. An operation only an instance owner does (`instanceOwnersOnly`)
+  gives anyone else, who would find no Instance admin, that place as where an owner of this
+  WhatBuild does it, and tells them to ask whoever runs this WhatBuild.
 - **Results** are JSON in one text content block. Product-scoped results add `scope`
   (tenant, product with its path, `your_role` capped by the connection's level and `guest`
   for a guest of the example organization,

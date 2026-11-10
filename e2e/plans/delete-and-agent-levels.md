@@ -79,8 +79,9 @@ deletes only what it made itself in the run.
 13. **MCP, as Sam, then as Riley on the connection from step 6.** List the tools. *Expect:*
     neither's `products_read` or `products_write` offers `usage`, `organizations`, `accounts`,
     `set_plan` or the allowances, and their descriptions name none of them, though Riley owns this
-    WhatBuild. `products_read(action="usage")` called anyway answers each `403 web_only`, saying
-    whoever runs this WhatBuild reads it with its usage report, never `unknown_action`.
+    WhatBuild. `products_read(action="usage")` called anyway answers each `403 web_only`, never
+    `unknown_action`, saying it is read with the usage report: to Sam, as something only an owner of
+    this WhatBuild does, to ask whoever runs it about; to Riley, as where it is.
 14. **MCP, as Jordan, on a connector scoped to a product of the standard organization**
     (`--endpoint /mcp/t/<org>/<product>`). List the tools. *Expect:* `story_read` and
     `products_read` and `search` (with `guide` and `submit_feedback`), and no `story_write`, no

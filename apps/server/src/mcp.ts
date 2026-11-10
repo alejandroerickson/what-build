@@ -569,7 +569,7 @@ function buildServer(env: Env, principal: Principal, bound: ScopeRef | null, sig
           const webOnly = WEB_ONLY.get(`${nounOf(name)}.${String(args["action"])}`);
           if (webOnly) {
             op = webOnly;
-            throw webOnlyRefusal(webOnly, principal.surface, name);
+            throw webOnlyRefusal(webOnly, principal.surface, name, owner);
           }
           // An action of this noun's other tool: said where it is, and counted under it.
           const elsewhere = BY_ACTION.get(`${nounOf(name)}.${String(args["action"])}`);
