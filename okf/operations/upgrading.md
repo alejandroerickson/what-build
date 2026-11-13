@@ -3,7 +3,7 @@ type: Process
 title: What a deployment must do when it takes a release
 description: The changes a release asks of the people who run a deployment (settings, app registrations, behaviour they will notice), kept per release, with the unreleased ones on top until the next release carries them into its notes.
 tags: [operations, releases, upgrading, self-hosting, configuration]
-generated: {by: agent:claude, at: 2026-11-09}
+generated: {by: agent:claude, at: 2026-11-12}
 status: stable
 ---
 
@@ -24,6 +24,12 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
 ## Unreleased
 
 Nothing yet.
+
+## v0.34.2
+
+- **Nothing needs doing.** No migration, setting or step, and the server and web app are as in
+  v0.34.1: only documentation changed (the release guide and the smoke plan). The tools are
+  unchanged (version 0.61.0).
 
 ## v0.34.1
 
