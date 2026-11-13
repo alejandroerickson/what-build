@@ -25,6 +25,10 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
 
 Nothing yet.
 
+## v0.34.1
+
+- **Nothing needs doing.** No migration, setting or step. The tools are unchanged (version 0.61.0).
+
 ## v0.34.0
 
 - **Migration `0044_no_teams`: teams are removed.** An organization holds its products directly
