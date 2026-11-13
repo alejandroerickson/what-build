@@ -29,9 +29,12 @@ other plans will too.
    gives `/mcp` again.
 3. **Web, as Sam, in the example organization.** Open the same product and repeat a short tour:
    Idea, Evidence, a source, Story. *Expect:* the same content as in step 2, and one line above
-   each screen saying that everyone who signs in reads what Sam writes there.
+   each screen naming the example organization and saying that everyone who signs in sees what its
+   authors change.
 4. **Web, as Sam.** On a source, open each of its sections, Text, Notes, Comments and Attachments,
-   then search for a word you can see in its text, from the panel's Search field. *Expect:* the
+   then search for a word you can see in its text and seldom in the product's other sources, from
+   the panel's Search field (the suggestions as you type are the few best matches, so a word common
+   elsewhere can leave this source to All results). *Expect:* the
    search finds the source as you type, saying the word is in its text, and opening the hit shows
    its Text with the word marked.
 5. **Web, as Riley (owner).** Sign in. In a product of each organization, open Settings and its

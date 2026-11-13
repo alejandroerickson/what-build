@@ -3,7 +3,7 @@ type: System Concept
 title: A release is a version tag on main, published as a GitHub release with its image; a deployment that follows releases moves when one is published.
 description: For the agent asked to release a version or move production; what a release is, how versions are numbered, publishing one with gh, what the Release workflow adds, and approving the Cloud Run deploy it starts.
 tags: [operations, releases, versions, tags, deployment, cloud-run]
-generated: {by: agent:claude, at: 2026-11-08}
+generated: {by: agent:claude, at: 2026-11-12}
 status: stable
 ---
 
@@ -115,9 +115,14 @@ B=<build id>
 curl -s -X POST -H "Authorization: Bearer $(gcloud auth print-access-token)" -H 'Content-Type: application/json' \
   "https://cloudbuild.googleapis.com/v1/projects/${P}/locations/${R}/builds/${B}:approve" \
   -d '{"approvalResult":{"decision":"APPROVED","comment":"<version>, asked for by <who>"}}'
-gcloud builds log $B --project $P --region $R --stream
+gcloud beta builds log $B --project $P --region $R --stream     # each step's output, to the end
+gcloud builds describe $B --project $P --region $R --format 'table(steps.id,steps.status)'
 curl -s https://app.what-build.com/api/v1/meta                    # release.version is the tag
 ```
+
+The build writes its log to Cloud Logging. `gcloud builds log --stream` shows only logs kept in
+Cloud Storage, so it waits for the build and prints nothing of it; `gcloud beta builds log --stream`
+reads Cloud Logging. Its first use may install gcloud's `beta` component.
 
 **Then deploy the Worker.** Behind Cloudflare, the public site comes from the Worker, which serves
 the web app built when it was last deployed, never from the image
