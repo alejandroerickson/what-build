@@ -32,11 +32,10 @@ other plans will too.
    each screen naming the example organization and saying that everyone who signs in sees what its
    authors change.
 4. **Web, as Sam.** On a source, open each of its sections, Text, Notes, Comments and Attachments,
-   then search for a word you can see in its text and seldom in the product's other sources, from
-   the panel's Search field (the suggestions as you type are the few best matches, so a word common
-   elsewhere can leave this source to All results). *Expect:* the
-   search finds the source as you type, saying the word is in its text, and opening the hit shows
-   its Text with the word marked.
+   then search for a word you can see in its text and seldom elsewhere in the product, from the
+   panel's Search field. *Expect:* the search finds the source as you type, saying the word is in
+   its text, and opening the hit shows its Text with the word marked. The suggestions as you type
+   are the eight best matches, so a word common elsewhere can leave this source to All results.
 5. **Web, as Riley (owner).** Sign in. In a product of each organization, open Settings and its
    organization's People and Access changes; then open Instance admin from the account menu (Riley
    owns the instance). *Expect:* all load; the panel has the same rows as Sam's, with nothing for
