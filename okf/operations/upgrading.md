@@ -25,6 +25,13 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
 
 Nothing yet.
 
+## v0.34.1
+
+- **Nothing needs doing.** No migration, setting or step. The tools are unchanged (version 0.61.0).
+- **The image no longer carries eight medium and low advisories:** `hono` is now 4.13.16,
+  `@hono/node-server` 2.1.6 and `fast-xml-parser` 5.12.0. A deployment that scans its image stops
+  seeing them.
+
 ## v0.34.0
 
 - **Migration `0044_no_teams`: teams are removed.** An organization holds its products directly
