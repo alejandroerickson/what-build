@@ -6,14 +6,6 @@ let pgServer: LocalPg | null = null;
 /** One Postgres for the whole run; each test file gets its own database in it. */
 export async function setup(project: TestProject) {
   keepTheExitCode();
-  try {
-    await startPostgres(project);
-  } catch (error) {
-    throw withItsStack(error);
-  }
-}
-
-async function startPostgres(project: TestProject) {
   if (process.env["TEST_DATABASE_ADMIN_URL"]) {
     project.provide("adminUrl", process.env["TEST_DATABASE_ADMIN_URL"]);
     project.provide("appUrlTemplate", process.env["TEST_DATABASE_APP_URL_TEMPLATE"] ?? process.env["TEST_DATABASE_ADMIN_URL"]);
@@ -27,28 +19,6 @@ async function startPostgres(project: TestProject) {
 
 export async function teardown() {
   await pgServer?.stop();
-}
-
-/**
- * The error with its stack written out, so that vitest prints its message. Vitest 5.0 keeps a
- * cached module of the global setup as bytes, not text, and the source maps Vite puts on every
- * stack fail on it: a stack written when vitest prints the error comes out as `TypeError:
- * code.charCodeAt is not a function` in place of the error, whatever it was (a port another
- * checkout holds, say). Written here, without Vite's source maps, the stack is the plain one. Its
- * line numbers are the compiled module's, so the code frame vitest shows beside it may point at
- * another line of the source; the message and the files are right. Vitest 5.1 reads the module as
- * text, and this can go when the suite runs on it.
- */
-function withItsStack(error: unknown): unknown {
-  if (!(error instanceof Error)) return error;
-  const prepare = Error.prepareStackTrace;
-  (Error as { prepareStackTrace?: unknown }).prepareStackTrace = undefined;
-  try {
-    error.stack = String(error.stack);
-  } finally {
-    Error.prepareStackTrace = prepare;
-  }
-  return error;
 }
 
 /**
