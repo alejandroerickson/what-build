@@ -62,7 +62,7 @@ async function grants(c: Client, product?: string): Promise<Record<Kind, Grant>>
 }
 
 /** Bob's role on all products: granting again replaces it. */
-async function setRole(role: "reader" | "editor") {
+async function setRole(role: "story_reader" | "editor") {
   const r = await org.owner.api("POST", `/api/v1/tenants/${org.tenant.slug}/members`, { email: "bob@grants.example", role, all_products: true });
   expect(r.status, JSON.stringify(r.body)).toBeLessThan(300);
 }
@@ -112,7 +112,7 @@ describe("a download grant", () => {
     const { c } = await agent(bob);
     const held = await grants(c);
     await c.close();
-    await setRole("reader");
+    await setRole("story_reader");
     try {
       for (const [kind, g] of Object.entries(held)) {
         const r = await use(g);

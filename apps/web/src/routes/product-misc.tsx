@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router";
 import { api, ApiError, qs } from "../lib/api.ts";
-import { formatBytes, formatDate, formatDateTime, plural, relativeTime, scopeWords } from "../lib/format.ts";
+import { formatBytes, formatDate, formatDateTime, plural, relativeTime, roleWords, scopeWords } from "../lib/format.ts";
 import { useOrganizationLimits } from "../lib/limits.ts";
 import { useHoldRefresh } from "../lib/live.tsx";
 import { useProduct } from "../lib/session.tsx";
@@ -232,10 +232,10 @@ function ProductDetails() {
 
 // ---- People on this product ---------------------------------------------------------------------
 
-type Role = "admin" | "editor" | "viewer" | "reader";
-const ROLES: Role[] = ["admin", "editor", "viewer", "reader"];
-const ROLE_WORD: Record<string, string> = { admin: "Admin", editor: "Editor", viewer: "Viewer", reader: "Reader", owner: "Owner", member: "Member", guest: "Guest" };
-const ROLE_HINT: Record<Role, string> = { admin: "Also manages people and settings", editor: "Reads and writes", viewer: "Reads", reader: "Reads only the Story" };
+type Role = "admin" | "editor" | "viewer" | "story_reader";
+const ROLES: Role[] = ["admin", "editor", "viewer", "story_reader"];
+const ROLE_WORD: Record<string, string> = { admin: "Admin", editor: "Editor", viewer: "Viewer", story_reader: "Story reader", owner: "Owner", member: "Member", guest: "Guest" };
+const ROLE_HINT: Record<Role, string> = { admin: "Also manages people and settings", editor: "Reads and writes", viewer: "Reads everything, changes nothing", story_reader: "Reads only the Story’s live pages" };
 
 interface Grant {
   membership_id: string;
@@ -369,7 +369,7 @@ function PeopleSheet() {
                             {via === "all_products" ? "all products" : from.scope.name}
                           </Link>
                           {via === "tenant" ? ` (${from.role})` : ""}
-                          {own ? `, which outranks the product role ${own.role}` : ""}
+                          {own ? `, which outranks the product role ${roleWords(own.role)}` : ""}
                         </>
                       ) : (
                         "Role on this product"
@@ -421,7 +421,7 @@ function PeopleSheet() {
                 <div className="people-main">
                   <span className="people-name">{i.email}</span>
                   <span className="people-sub">
-                    Invited as {i.role}
+                    Invited as {roleWords(i.role)}
                     {i.scope_type !== "product" ? ` on ${scopeWords(i.scope_type, i.scope.name)}` : ""} · expires {formatDate(i.expires_at)}
                   </span>
                 </div>

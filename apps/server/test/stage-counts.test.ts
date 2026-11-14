@@ -17,7 +17,7 @@ beforeAll(async () => {
   const p = await alice.api("POST", `/api/v1/tenants/${t.body.tenant.slug}/products`, { name: "Staged", concept: "A product to count." });
   P = `/api/v1/p/${p.body.path}`;
   productId = p.body.product_id;
-  expect((await alice.api("POST", `/api/v1/tenants/${t.body.tenant.slug}/members`, { product: "staged", email: "rita@example.com", role: "reader" })).status).toBe(201);
+  expect((await alice.api("POST", `/api/v1/tenants/${t.body.tenant.slug}/members`, { product: "staged", email: "rita@example.com", role: "story_reader" })).status).toBe(201);
 });
 afterAll(async () => h?.close());
 
@@ -41,7 +41,7 @@ describe("stage counts", () => {
     expect((await alice.api("POST", `${P}/story/pages/gone/archive`, { expected_etag: gone.body.etag })).status).toBe(200);
     expect((await alice.api("POST", `${P}/story/promote-mockup`, { mockup_id: m.body.mockup_id, mockup_page_id: "phone" })).status).toBe(201);
 
-    // What a reader sees in the Story: the tree, with the pages not yet placed at its end.
+    // What a Story reader sees in the Story: the tree, with the pages not yet placed at its end.
     const tree = await alice.api("GET", `${P}/story/hierarchy`);
     const flat = (nodes: { page_id: string; children: unknown[] }[]): string[] => nodes.flatMap((n) => [n.page_id, ...flat(n.children as never)]);
     const seen = flat(tree.body.items).length + tree.body.unplaced.length;
@@ -55,7 +55,7 @@ describe("stage counts", () => {
     expect(listed.stage_counts).toEqual(got.stage_counts);
     expect(listed.counts).toEqual(got.counts);
 
-    // A reader gets the Story's count alone.
+    // A Story reader gets the Story's count alone.
     const theirs = (await rita.api("GET", P)).body;
     expect(theirs.counts).toEqual({ story_pages: 3 });
     expect(theirs.stage_counts).toEqual({ story: 3 });

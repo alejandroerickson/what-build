@@ -3,11 +3,11 @@ import { z } from "zod";
 import { changedSummary, checkEtag, keepRevision, recordActivity } from "../common.ts";
 import { json, type Db, type GrantScope } from "../db.ts";
 import { AppError, conflict, forbidden, invalid, notFound } from "../errors.ts";
-import { effectiveRole, membershipsFor, PRODUCT_ROLES, readsOnlyTheStory, readsOnlyTheStoryIn, reportedRole, roleAtLeast, tenantRoleAtLeast } from "../policy.ts";
+import { effectiveRole, membershipsFor, PRODUCT_ROLES, readsOnlyTheStory, readsOnlyTheStoryIn, reportedRole, roleAtLeast, roleWords, tenantRoleAtLeast } from "../policy.ts";
 import { capRole, defineOperation, type OpContext, type ProductRole, type ReportedRole, type TenantRole } from "../registry.ts";
 import { checkMembers, type Plan } from "../limits.ts";
 import { isInstanceOwner, requireTenantAllowance } from "../tenant-allowance.ts";
-import { expectedEtag, slug } from "../schemas.ts";
+import { expectedEtag, slug, withArticle } from "../schemas.ts";
 import { newEtag, newId, quotedName, randomToken, sha256Hex, slugify } from "../util.ts";
 import { adviseIdeaCard, CARD_HTML_MAX, checkCardSides, checkIdeaCard } from "../idea-card.ts";
 import { actionAsRead } from "./activity.ts";
@@ -160,7 +160,7 @@ function stageCounts(c: ProductCounts) {
   return { idea: c.outcomes, evidence: c.sources, exploration: c.mockups + c.assumptions, story: c.story_pages };
 }
 
-/** What a role may count: a reader sees only how many Story pages there are, never what the evidence holds. */
+/** What a role may count: a Story reader sees only how many Story pages there are, never what the evidence holds. */
 function countsFor(role: ReportedRole | null, c: ProductCounts) {
   return readsOnlyTheStory(role)
     ? { counts: { story_pages: c.story_pages }, stage_counts: { story: c.story_pages } }
@@ -178,12 +178,12 @@ export const listProducts = defineOperation({
   mutates: false,
   summary: "List every product you can reach, across your tenants, with your role and counts of what each holds.",
   description:
-    "Start here when you do not know which product to work in. Each item has `path` (tenant/product slugs) and `product_id`; pass either as `product` on product-scoped calls. Confirm the product with the person before your first write in a conversation. Archived products are left out unless include_archived is true. Each item's `counts` (one number per kind) and `stage_counts` (their totals per stage) are the ones products_read(action=\"get\") reports. Through an agent, your_role is the person's role capped by the connection's level, which connection_level gives (viewer reads, editor also writes and archives, admin also deletes permanently and manages products and people). Where your_role is reader you may read only the Story: such an item has no concept and counts only story_pages. A tenant's your_role is your role in the organization itself: owner, admin, creator (a product creator, who creates products and is admin of each one they create), or member for someone whose roles are on its products only (guest in the example organization); all_products, when present, is the role you hold on every product in it, products made later included. A tenant marked story_only is one where you read only the Story everywhere, so its members are not listed to you. A tenant with `example: true` is the example organization: a worked example that every account reads, as its guest (your_role guest, viewer on every product), and that nobody but its authors changes, so every write there is refused with 403 example_read_only. Read it to learn how a discovery is done; do the person's own work in an organization of theirs. A tenant's plan is one this WhatBuild defines, whose limits everyone in it meets (products_read(action=\"limits\") lists them with what is used today), or unlimited, which sets none. A tenant with read_only is one that went back to the plan new organizations start on while whoever started it already had one there: everyone in it may read, export, delete and take people out, as their roles allow, and every other write is refused (409 organization_read_only) until it moves to another plan; it is kept until kept_until. A tenant's name_etag guards its name and slug, which its owners change in the web app; former_slugs, when present, are slugs it had before, which still reach it. An item's former_paths, when present, are paths it had before (tenant/team/product, from when products were in teams), which still reach it.",
+    "Start here when you do not know which product to work in. Each item has `path` (tenant/product slugs) and `product_id`; pass either as `product` on product-scoped calls. Confirm the product with the person before your first write in a conversation. Archived products are left out unless include_archived is true. Each item's `counts` (one number per kind) and `stage_counts` (their totals per stage) are the ones products_read(action=\"get\") reports. Through an agent, your_role is the person's role capped by the connection's level, which connection_level gives (viewer reads, editor also writes and archives, admin also deletes permanently and manages products and people). A viewer reads everything in the product and changes nothing. Where your_role is story_reader (a Story reader) you may read only the Story's live pages: such an item has no concept and counts only story_pages. A tenant's your_role is your role in the organization itself: owner, admin, creator (a product creator, who creates products and is admin of each one they create), or member for someone whose roles are on its products only (guest in the example organization); all_products, when present, is the role you hold on every product in it, products made later included. A tenant marked story_only is one where you read only the Story everywhere, so its members are not listed to you. A tenant with `example: true` is the example organization: a worked example that every account reads, as its guest (your_role guest, viewer on every product), and that nobody but its authors changes, so every write there is refused with 403 example_read_only. Read it to learn how a discovery is done; do the person's own work in an organization of theirs. A tenant's plan is one this WhatBuild defines, whose limits everyone in it meets (products_read(action=\"limits\") lists them with what is used today), or unlimited, which sets none. A tenant with read_only is one that went back to the plan new organizations start on while whoever started it already had one there: everyone in it may read, export, delete and take people out, as their roles allow, and every other write is refused (409 organization_read_only) until it moves to another plan; it is kept until kept_until. A tenant's name_etag guards its name and slug, which its owners change in the web app; former_slugs, when present, are slugs it had before, which still reach it. An item's former_paths, when present, are paths it had before (tenant/team/product, from when products were in teams), which still reach it.",
   input: listInput,
   forStoryReader: {
     summary: "List every product you can reach, across your tenants, with your role and how many Story pages each has.",
     description:
-      "Each item has `path` (tenant/product slugs) and `product_id`; pass either as `product` on product-scoped calls. Archived products are left out unless include_archived is true. Where your_role is reader you read only the product's Story, and the item's `counts` and `stage_counts` give how many Story pages it has (story_pages, story), leaving out archived ones. Through an agent, your_role is the person's role capped by the connection's level, which connection_level gives. A tenant's your_role is your role in the organization itself: member for someone whose roles are on its products only. A tenant marked story_only is one where you read only the Story everywhere, so its members are not listed to you. A tenant's former_slugs, when present, are slugs it had before, which still reach it.",
+      "Each item has `path` (tenant/product slugs) and `product_id`; pass either as `product` on product-scoped calls. Archived products are left out unless include_archived is true. Where your_role is story_reader (a Story reader) you read only the product's Story, and the item's `counts` and `stage_counts` give how many Story pages it has (story_pages, story), leaving out archived ones. Through an agent, your_role is the person's role capped by the connection's level, which connection_level gives. A tenant's your_role is your role in the organization itself: member for someone whose roles are on its products only. A tenant marked story_only is one where you read only the Story everywhere, so its members are not listed to you. A tenant's former_slugs, when present, are slugs it had before, which still reach it.",
     input: listInput,
   },
   rest: { method: "GET", path: "/me/products" },
@@ -453,14 +453,14 @@ export const getProduct = defineOperation({
   access: "story",
   mutates: false,
   summary: "Read a product: its concept, etag, your role, and counts of what it holds.",
-  description: "concept is the back of the product concept's card, the text agents read; include_card adds card_html, its front, the picture people see first (card_chars says how long it is, 0 when there is none). Read both before changing either. Use the counts to decide where to look first. They leave out archived items, and assumptions count only current (unconfirmed or confirmed) ones, the ones assumptions_read(action=\"list\") returns by default. counts has one number per kind; stage_counts totals them per stage, as the web app shows them: idea (outcomes), evidence (sources), exploration (mockups and current assumptions) and story (Story pages, of every kind). The etag guards products_write(action=\"update\") and (action=\"update_concept\"). A reader (the Story-only role) gets no concept, and counts of Story pages only.",
+  description: "concept is the back of the product concept's card, the text agents read; include_card adds card_html, its front, the picture people see first (card_chars says how long it is, 0 when there is none). Read both before changing either. Use the counts to decide where to look first. They leave out archived items, and assumptions count only current (unconfirmed or confirmed) ones, the ones assumptions_read(action=\"list\") returns by default. counts has one number per kind; stage_counts totals them per stage, as the web app shows them: idea (outcomes), evidence (sources), exploration (mockups and current assumptions) and story (Story pages, of every kind). The etag guards products_write(action=\"update\") and (action=\"update_concept\"). A Story reader (story_reader) gets no concept, and counts of Story pages only.",
   input: z.strictObject({
     include_card: z.boolean().default(false).describe("Include card_html, the front of the concept's card."),
   }),
   forStoryReader: {
     summary: "Read a product: its name and path, your role, and how many Story pages it has.",
     description:
-      "A reader (the Story-only role) gets, among the product's fields, its product_id, name, slug, path, tenant, archived_at and your_role, and counts of its Story pages only: counts.story_pages and stage_counts.story, which leave out archived pages. story_read lists and reads the pages themselves.",
+      "A Story reader (your_role story_reader, the role that reads only the Story) gets, among the product's fields, its product_id, name, slug, path, tenant, archived_at and your_role, and counts of its Story pages only: counts.story_pages and stage_counts.story, which leave out archived pages. story_read lists and reads the pages themselves.",
     input: z.strictObject({}),
   },
   rest: { method: "GET", path: "" },
@@ -673,7 +673,7 @@ function placeOf(target: GrantTarget): string {
   return target.scope_type === "tenant" ? `organization ${target.name}` : target.scope_type === "all_products" ? "all products" : `product ${target.name}`;
 }
 
-const RANK: Record<string, number> = { reader: 0, viewer: 1, editor: 2, admin: 3 };
+const RANK: Record<string, number> = { story_reader: 0, viewer: 1, editor: 2, admin: 3 };
 
 export const listMembers = defineOperation({
   name: "members.list",
@@ -683,7 +683,7 @@ export const listMembers = defineOperation({
   mutates: false,
   summary: "List the tenant's members with every grant they hold, and outstanding invitations; or, with product, the people who can reach one product.",
   description:
-    "Each member lists grants as {scope_type, scope, role}: scope_type tenant (the organization's own role: owner, admin, creator or member), all_products (that role on every product, later ones too) or product. Effective access is the highest role that applies. Pass product (a slug or an id) to list only the people with access to that product: each then carries product_access {role, via} — via is product, all_products or tenant, the grant the role comes from (the broadest one when grants tie) — and grants are limited to the ones that apply to that product. Invitations are limited the same way. Owners and admins of the tenant see everyone. Anyone else sees only the people on the products they read (viewer or above) and the people with a role on all products, with only those grants and their tenant role, and the invitations they could cancel (where they are admin); the result then says partial: true, and a product they cannot read answers 404. A guest of the example organization sees none of its people: the result is empty and says guest: true. Someone who reads only the Story everywhere in the tenant (a reader on its products and nothing more) sees none of its people: 403.",
+    "Each member lists grants as {scope_type, scope, role}: scope_type tenant (the organization's own role: owner, admin, creator or member), all_products (that role on every product, later ones too) or product. Effective access is the highest role that applies. Pass product (a slug or an id) to list only the people with access to that product: each then carries product_access {role, via} — via is product, all_products or tenant, the grant the role comes from (the broadest one when grants tie) — and grants are limited to the ones that apply to that product. Invitations are limited the same way. Owners and admins of the tenant see everyone. Anyone else sees only the people on the products they read (viewer or above) and the people with a role on all products, with only those grants and their tenant role, and the invitations they could cancel (where they are admin); the result then says partial: true, and a product they cannot read answers 404. A guest of the example organization sees none of its people: the result is empty and says guest: true. Someone who reads only the Story everywhere in the tenant (a story_reader on its products and nothing more) sees none of its people: 403.",
   input: z.strictObject({
     tenant: z.string().min(1),
     product: z.string().optional().describe("Product slug or id: list only the people who can reach this product."),
@@ -695,7 +695,7 @@ export const listMembers = defineOperation({
     const me = ctx.principal.account_id;
     const mine = await membershipsFor(ctx.db, me, tid);
     if (readsOnlyTheStoryIn(mine, tid))
-      throw forbidden(`You read only the Story in ${ctx.scope.tenant!.name}, so you can’t see its members. Viewer access to one of its products shows them.`, { role: "reader", needed: "viewer" });
+      throw forbidden(`You read only the Story in ${ctx.scope.tenant!.name}, so you can’t see its members. Viewer access to one of its products shows them.`, { role: "story_reader", needed: "viewer" });
     // A guest of the example organization holds no stored grant, so is nobody there, and sees nobody.
     if (ctx.scope.tenantRole === "guest") return { members: [], invitations: [], guest: true };
     const products = await ctx.db.selectFrom("products").select(["product_id", "slug", "name"]).where("tenant_id", "=", tid).execute();
@@ -706,7 +706,7 @@ export const listMembers = defineOperation({
       target = await resolveGrantTarget(ctx, { product: input.product }).catch(() => null);
       const role = target ? effectiveRole(mine, { tenant_id: tid, product_id: target.product_id }).role : null;
       if (!target || !role) throw hiddenProduct();
-      if (!roleAtLeast(role, "viewer")) throw forbidden(`You’re a reader on product ${target.name}; members.list needs viewer.`, { role, needed: "viewer" });
+      if (!roleAtLeast(role, "viewer")) throw forbidden(`You’re a Story reader on product ${target.name}; members.list needs viewer.`, { role, needed: "viewer" });
     } else if (input.product) target = await resolveGrantTarget(ctx, { product: input.product });
     const all = await ctx.db
       .selectFrom("memberships as m")
@@ -777,7 +777,7 @@ export const listMembers = defineOperation({
 });
 
 type Mail = { to: string; subject: string; text: string };
-const GRANT_ROLES = ["owner", "admin", "creator", "member", "editor", "viewer", "reader"] as const;
+const GRANT_ROLES = ["owner", "admin", "creator", "member", "editor", "viewer", "story_reader"] as const;
 /** The most people one members.grant_many call names. */
 export const GRANTS_PER_CALL = 100;
 
@@ -869,12 +869,12 @@ async function grantOne(ctx: OpContext, target: GrantTarget, email: string, role
       to: email,
       subject: `${who} invited you to ${where} on WhatBuild`,
       text:
-        `${who} invited you to ${where} on WhatBuild, as ${/^[aeiou]/.test(role) ? "an" : "a"} ${role}.\n\n` +
+        `${who} invited you to ${where} on WhatBuild, as ${withArticle(roleWords(role))}.\n\n` +
         `You join only if you accept. Accept or decline it here:\n${link}\n\n` +
         `The link works within 7 days, when you sign in with this email. The invitation also waits for you there whenever you sign in.\n` +
         `The names in quotation marks are the ones people gave WhatBuild.\n`,
     };
-    await recordActivity(ctx, { action: "invited", entity_type: "membership", entity_id: invitation_id, entity_title: target.name, summary: `Invited someone as ${role}` });
+    await recordActivity(ctx, { action: "invited", entity_type: "membership", entity_id: invitation_id, entity_title: target.name, summary: `Invited someone as ${roleWords(role)}` });
     // The link is returned to the inviter too, so an invitation works even where no email is sent.
     return { mail, result: { invited: true as const, invitation_id, invite_link: link, expires_at: expires, scope_type: target.scope_type, scope: target.name, role } };
   }
@@ -899,7 +899,7 @@ async function grantOne(ctx: OpContext, target: GrantTarget, email: string, role
     entity_type: "membership",
     entity_id: account.account_id,
     entity_title: account.display_name,
-    summary: `${existing ? "Changed role to" : "Granted"} ${role} on ${placeOf(target)}`,
+    summary: `${existing ? "Changed role to" : "Granted"} ${roleWords(role)} on ${placeOf(target)}`,
   });
   return { mail: null, result: { ...granted, ...(existing ? { previous_role: existing.role } : {}) } };
 }
@@ -913,7 +913,7 @@ export const grantMember = defineOperation({
   connection: "admin",
   summary: "Give someone a role on the tenant, on all its products, or on a product; invites by email anyone not already in the organization.",
   description:
-    "Name the place: the tenant itself (leave product and all_products out), all_products: true for every product in it, products made later included, or one product. Tenant owners and admins give the tenant's roles (owners give owner) and roles on all products; product admins give roles on their product. Roles: tenant owner|admin|creator|member, where creator is a product creator, who creates products and is admin of each one they create; on all products or a product admin|editor|viewer|reader. A reader reads only the Story: its pages, their versions and their export, without the evidence, assumptions and mockups behind them. Someone you already see in the organization (everyone, for its owners and admins; otherwise the people on the products you read) gets the role at once: granting again replaces the role at that scope, and granting the role they already hold there changes nothing and says unchanged. Anyone else gets an invitation by email, valid 7 days, whether or not they have an account, and joins only if they accept it in the web app, which no agent can do for them: the answer never says whether an address has an account. A new invitation to the same address at the same place replaces one still open. To give many people roles at once, use grant_many.",
+    "Name the place: the tenant itself (leave product and all_products out), all_products: true for every product in it, products made later included, or one product. Tenant owners and admins give the tenant's roles (owners give owner) and roles on all products; product admins give roles on their product. Roles: tenant owner|admin|creator|member, where creator is a product creator, who creates products and is admin of each one they create; on all products or a product admin|editor|viewer|story_reader. A viewer reads everything in the product (Idea, Evidence, Exploration, Story, activity) and changes nothing. A story_reader (a Story reader) reads only the Story's live pages, their versions and their export, without the evidence, assumptions and mockups behind them. Someone you already see in the organization (everyone, for its owners and admins; otherwise the people on the products you read) gets the role at once: granting again replaces the role at that scope, and granting the role they already hold there changes nothing and says unchanged. Anyone else gets an invitation by email, valid 7 days, whether or not they have an account, and joins only if they accept it in the web app, which no agent can do for them: the answer never says whether an address has an account. A new invitation to the same address at the same place replaces one still open. To give many people roles at once, use grant_many.",
   input: grantScope.extend({
     email: z.string().email().max(320),
     role: z.enum(GRANT_ROLES),

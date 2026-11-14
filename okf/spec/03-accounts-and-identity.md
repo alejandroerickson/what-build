@@ -3,7 +3,7 @@ type: Specification
 title: Accounts belong to tenants, tenants hold products, and one role check decides every call.
 description: The account → tenant → product hierarchy, sign-in, roles and what they grant, plans and their limits, addressing and isolation, caller identity, attribution, the example organization every account reads, and how teams were removed.
 tags: [spec, accounts, tenancy, roles, identity, oauth, isolation, example, limits]
-generated: {by: agent:claude, at: 2026-11-09}
+generated: {by: agent:claude, at: 2026-11-13}
 status: stable
 ---
 
@@ -401,33 +401,38 @@ all its products, already is one.
 | Place | Roles | What the role grants |
 |---|---|---|
 | Tenant | `owner`, `admin`, `creator`, `member`, `guest` | owner and admin: admin of every product in the tenant; owner: tenant lifecycle (renaming the organization, deleting it). creator (**product creator**): creates products, and is admin of each one it creates ([§3.4](#34-products)). member: nothing by itself. guest: viewer of every product, in the example organization only, never stored and refused every write ([§3.10](#310-the-example-organization)) |
-| All products | `admin`, `editor`, `viewer`, `reader` | the same role on every product in the tenant, products made later included |
-| Product | `admin`, `editor`, `viewer`, `reader` | that product only |
+| All products | `admin`, `editor`, `viewer`, `story_reader` | the same role on every product in the tenant, products made later included |
+| Product | `admin`, `editor`, `viewer`, `story_reader` | that product only |
 
 A person holds at most one role at each place: one on the tenant, one on all products, one on each
 product (`memberships.scope_type`: `tenant`, `all_products` or `product`; a role on all products has
 the tenant's id as its `scope_id`). `products.list` gives a tenant's `your_role` and, where the
 person has one, its `all_products` role.
 
-- **Reader** reads only the Story: its live pages, every version of them, the hierarchy, and the
-  print view to export it; an archived page is left out of their lists and print view and answers
-  them `404` by its address (◆ [decision](../decisions/a-reader-reads-only-the-story.md)). These
+- **Story reader** (`story_reader`; the app says "Story reader") reads only the Story: its live
+  pages, every version of them, the hierarchy, and the print view to export it; an archived page is left out of their lists and print view and answers
+  them `404` by its address (◆ [decision](../decisions/a-story-reader-reads-only-the-story.md)). These
   operations, and `products.get`, declare the access level `story` (`products.list` lists every
   product the caller holds a role on); every
-  other product operation needs viewer and answers a reader `403` ("You are a reader on product
-  Crewboard; sources.list needs viewer"), except `search` in plain mode, which reads only the Story
-  for a reader ([§8.2](08-search.md)), and so do a source's attachment and text, an export's
-  file, a Story style specimen and a mockup's page. A reader's Story reads leave out `agent_notes`, and of a page
+  other product operation needs viewer and answers a Story reader `403` ("You are a Story reader on
+  product Crewboard; sources.list needs viewer", with `details` `{ role: "story_reader", needed:
+  "viewer" }`), except `search` in plain mode, which reads only the Story for a Story reader
+  ([§8.2](08-search.md)), and so do a source's attachment and text, an export's
+  file, a Story style specimen and a mockup's page. A Story reader's Story reads leave out `agent_notes`, and of a page
   promoted from a mockup keep only its size, or for a whole canvas its layout and each page's title and size; their product reads leave out `concept` and count only `story_pages` (and `stage_counts.story`). A page's HTML is
-  served to a reader exactly as published, and a promoted mockup page or canvas through the Story's own
-  routes, so a reader sees that and nothing else of the mockup ([§4.11](04-data-model.md)).
-  Someone who reads only the Story everywhere in an organization (a reader on all its products or
+  served to a Story reader exactly as published, and a promoted mockup page or canvas through the Story's own
+  routes, so a Story reader sees that and nothing else of the mockup ([§4.11](04-data-model.md)).
+  Someone who reads only the Story everywhere in an organization (a Story reader on all its products or
   on some of them, with nothing higher there and no organization role but member or product
   creator) sees none of its people, nor its plan's limits and what it holds: `members.list` and `products.limits` answer `403`
   naming both roles, and `products.list` marks that organization `story_only`, as it gives them the
-  plan's name and whether the organization is read-only, which its banner says. A reader writes nothing: the upload relay checks the role of whoever requested a grant again
-  when the bytes arrive, so a grant given to an editor stores nothing once they are a reader.
-- **Viewer** reads everything in the product. **Editor** also writes: sources, their attachments
+  plan's name and whether the organization is read-only, which its banner says. A Story reader writes nothing: the upload relay checks the role of whoever requested a grant again
+  when the bytes arrive, so a grant given to an editor stores nothing once they are a Story reader.
+  The role was named `reader` until migration `0045_story_reader_role` renamed every grant and
+  invitation; the server accepts no other name for it, and a call that sends `reader` is refused
+  `422 invalid_input` naming the roles there are.
+- **Viewer** reads everything in the product (Idea, Evidence, Exploration, Story, activity) and
+  changes nothing. **Editor** also writes: sources, their attachments
   and text, comments, outcomes, assumptions and reviews, mockups, the Story, and archives any of them. **Admin** also
   deletes permanently, anything that can be archived and the product itself (guarded,
   [§9.5](09-data-lifecycle.md)), and manages the product (rename, in the web app only, and archive) and its people.
@@ -475,7 +480,7 @@ person has one, its `all_products` role.
 - ◆ Decision: reviewing (confirm, refute) is an editor right; there is no separate reviewer role.
 - ◆ Decision: permanent delete is an admin right; there is no separate delete permission. An
   editor archives ([decision](../decisions/archive-by-default-delete-guarded.md)).
-- ◆ Decision: every role but reader can read the product's activity log.
+- ◆ Decision: every role but Story reader can read the product's activity log.
 
 ## 3.6 Addressing and isolation
 
@@ -819,7 +824,7 @@ is still decided as a viewer's.
 **The grant fails closed.** The guest grant exists only while `tenants.example` is set, so taking
 `WHATBUILD_EXAMPLE_TENANT` away and restarting takes every guest's access with it, and naming the
 organization again gives it back. Someone given a role there holds that role, not the guest grant:
-a reader on one of its products reads that product's Story and nothing else of it.
+a Story reader on one of its products reads that product's Story and nothing else of it.
 
 **Agents.** The example is reached through the unscoped connector like any organization, and
 through one scoped to it: only its members write there, so an agent reading it reads nothing a

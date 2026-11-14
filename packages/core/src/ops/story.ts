@@ -38,7 +38,7 @@ async function loadPage(ctx: OpContext, page: string, lock = false) {
   if (lock) q = q.forUpdate();
   const row = await q.executeTakeFirst();
   if (!row) {
-    // A reader is told no more of a deleted page than of an archived one.
+    // A Story reader is told no more of a deleted page than of an archived one.
     if (!readsOnlyTheStory(ctx.scope.role)) await refuseIfDeleted(ctx, "story_page", page, `Story page "${page}"`);
     throw notFound(`Story page "${page}" has never been published in this product.`);
   }
@@ -47,7 +47,7 @@ async function loadPage(ctx: OpContext, page: string, lock = false) {
 
 /**
  * A page as its reader may read it. A Story reader is given only live pages: an archived page is
- * what the team took out of the Story, so for a reader it is not found, by id as in the lists.
+ * what the team took out of the Story, so for a Story reader it is not found, by id as in the lists.
  */
 async function loadReadablePage(ctx: OpContext, page: string) {
   const row = await loadPage(ctx, page);
@@ -239,14 +239,14 @@ export const listPages = defineOperation({
   mutates: false,
   summary: "The Story's pages, without HTML: title, summary, current version and etag.",
   description:
-    "Archived pages are left out unless include_archived; archived_hidden says how many were left out. A reader (the Story-only role) is never given archived pages, nor their count. The hierarchy (get_hierarchy) is the reader's navigation.",
+    "Archived pages are left out unless include_archived; archived_hidden says how many were left out. A Story reader (story_reader) is never given archived pages, nor their count. The hierarchy (get_hierarchy) is the reader's navigation.",
   input: z.strictObject({ include_archived: z.boolean().default(false) }),
   rest: { method: "GET", path: "/story/pages" },
   mcp: { tool: "story", action: "list_pages" },
   async handler(ctx, input) {
     const rows = await ctx.db.selectFrom("story_pages").selectAll().where("product_id", "=", productId(ctx)).orderBy("title").execute();
     const live = rows.filter((r) => !r.archived_at);
-    // What the team archived is not part of a reader's Story, so a reader is not told it exists.
+    // What the team archived is not part of a Story reader's Story, so a Story reader is not told it exists.
     if (readsOnlyTheStory(ctx.scope.role)) return { items: live.map(pageSummary) };
     const shown = input.include_archived ? rows : live;
     const archived_hidden = rows.length - shown.length;
@@ -311,7 +311,7 @@ function shownDigest(v: { mockup: MockupPageRef | null }, html: string) {
   return sha256Hex(v.mockup?.page_id === null ? `canvas:${v.mockup.mockup_version_id}` : html);
 }
 
-/** Which mockup and version a Story page shows, for the team; a reader is not told. */
+/** Which mockup and version a Story page shows, for the team; a Story reader is not told. */
 async function mockupOrigin(ctx: OpContext, ref: MockupPageRef) {
   const m = await ctx.db.selectFrom("mockups").select(["title", "version_count", "archived_at"]).where("product_id", "=", productId(ctx)).where("mockup_id", "=", ref.mockup_id).executeTakeFirst();
   return {
@@ -325,7 +325,7 @@ async function mockupOrigin(ctx: OpContext, ref: MockupPageRef) {
 }
 
 /**
- * What a reader needs to draw a whole canvas: the layout, each page's title and size, and for pages
+ * What a Story reader needs to draw a whole canvas: the layout, each page's title and size, and for pages
  * that enter the version's prototype the address their frames open. Each page's HTML comes from the
  * Story page's own route (`pages/<page_id>/html`). The brief, the notes, the files and every other
  * version of the mockup stay with the team.
@@ -350,8 +350,8 @@ async function canvasView(ctx: OpContext, ref: MockupPageRef) {
 }
 
 /**
- * What a reader needs to lay out a mockup page (its size) and, for an entry into a prototype, the
- * address its frame opens: a reader reaches that version's whole prototype, which is what the
+ * What a Story reader needs to lay out a mockup page (its size) and, for an entry into a prototype, the
+ * address its frame opens: a Story reader reaches that version's whole prototype, which is what the
  * prototype is, and nothing else of the mockup. The team also sees which mockup and version it is.
  */
 async function mockupView(ctx: OpContext, ref: MockupPageRef) {
@@ -375,7 +375,7 @@ async function mockupView(ctx: OpContext, ref: MockupPageRef) {
  * Where a mockup page's links to the other pages of its canvas lead on the Story, since a page shown
  * alone has no canvas to fly over: to a Story page that shows the page a link names (one of the same
  * mockup version first), or else to one that shows a whole canvas holding it, opened at that page.
- * An archived Story page leads nowhere, since a reader cannot open it. `off` names the pages linked to
+ * An archived Story page leads nowhere, since a Story reader cannot open it. `off` names the pages linked to
  * that no Story page shows, which the team's agents are told so they can promote them.
  */
 async function linksOnTheStory(ctx: OpContext, ref: MockupPageRef & { page_id: string }, html: string) {
@@ -476,7 +476,7 @@ export const getPage = defineOperation({
   mutates: false,
   summary: "Read a Story page's current version, with its HTML, notes for agents, and its etag.",
   description:
-    "404 means the page has never been published. An archived page stays readable here, except to a reader (the Story-only role), who gets 404 for it. Read this before revising a page, and keep what is useful. agent_notes holds what agents keep about the page — its purpose, sources still to fold in, choices about its structure — with its own etag for write_notes; read it before revising. include_html false leaves out the HTML (html_chars and html_sha256 stay). A reader (the Story-only role) gets the page without agent_notes.",
+    "404 means the page has never been published. An archived page stays readable here, except to a Story reader (story_reader), who gets 404 for it. Read this before revising a page, and keep what is useful. agent_notes holds what agents keep about the page — its purpose, sources still to fold in, choices about its structure — with its own etag for write_notes; read it before revising. include_html false leaves out the HTML (html_chars and html_sha256 stay). A Story reader (story_reader) gets the page without agent_notes.",
   input: getPageInput,
   forStoryReader: {
     summary: "Read a Story page's current version, with its HTML and its etag.",
@@ -499,7 +499,7 @@ export const listVersions = defineOperation({
   mutates: false,
   summary: "A page's published versions, newest first, without HTML.",
   description:
-    "Versions are immutable and numbered 1, 2, 3…; read any one with get_version, and restore one with publish from_version. html_sha256 tells versions with identical HTML apart without reading it. A reader (the Story-only role) gets 404 for an archived page.",
+    "Versions are immutable and numbered 1, 2, 3…; read any one with get_version, and restore one with publish from_version. html_sha256 tells versions with identical HTML apart without reading it. A Story reader (story_reader) gets 404 for an archived page.",
   input: z.strictObject({ page_id: pageId, limit: z.number().int().min(1).max(100).default(25), before: z.number().int().min(1).optional().describe("Only versions numbered below this.") }),
   rest: { method: "GET", path: "/story/pages/:page_id/versions" },
   mcp: { tool: "story", action: "list_versions" },
@@ -526,7 +526,7 @@ export const getVersion = defineOperation({
   access: "story",
   mutates: false,
   summary: "Read one published version of a page, by number.",
-  description: "Includes the page's current archived_at, so someone browsing history still sees an archive notice. A reader (the Story-only role) gets 404 for an archived page.",
+  description: "Includes the page's current archived_at, so someone browsing history still sees an archive notice. A Story reader (story_reader) gets 404 for an archived page.",
   input: z.strictObject({ page_id: pageId, version: z.number().int().min(1), include_html: z.boolean().default(true) }),
   rest: { method: "GET", path: "/story/pages/:page_id/versions/:version" },
   mcp: { tool: "story", action: "get_version" },
@@ -906,7 +906,7 @@ export const archivePage = defineOperation({
   access: "write",
   mutates: true,
   summary: "Archive a Story page: out of the navigation, its sub-pages promoted into its place. Erases nothing.",
-  description: "The page and all its versions stay readable by id, except to a reader (the Story-only role), who is given no archived page. Restore returns it unplaced. Pass the page's etag.",
+  description: "The page and all its versions stay readable by id, except to a Story reader (story_reader), who is given no archived page. Restore returns it unplaced. Pass the page's etag.",
   input: z.strictObject({ page_id: pageId, expected_etag: expectedEtag }),
   rest: { method: "POST", path: "/story/pages/:page_id/archive" },
   mcp: { tool: "story", action: "archive_page" },
@@ -1124,7 +1124,7 @@ async function printVersions(ctx: OpContext, ids: string[]): Promise<string[]> {
     .where("product_id", "=", productId(ctx))
     .where("page_id", "in", wanted)
     .execute()
-    // A reader is given only live pages, so an archived one is missing for them.
+    // A Story reader is given only live pages, so an archived one is missing for them.
     .then((rs) => (readsOnlyTheStory(ctx.scope.role) ? rs.filter((r) => !r.archived_at) : rs));
   const missing = wanted.filter((w) => !rows.some((r) => r.page_id === w));
   if (missing.length) throw notFound(`These Story pages have never been published in this product: ${missing.join(", ")}.`, { missing });
@@ -1146,7 +1146,7 @@ async function canvasPageCount(ctx: OpContext, versionIds: string[]) {
 /**
  * The pages at these versions, in tree order with outline levels. The print view's own address
  * names the versions it was issued for (content-address.ts): a page deleted since, or archived
- * since for a reader, is missing.
+ * since for a Story reader, is missing.
  */
 async function printPages(ctx: OpContext, versionIds: string[]) {
   const wanted = uniq(versionIds);
@@ -1201,7 +1201,7 @@ export const printView = defineOperation({
   mutates: false,
   summary: "Plan a print view of chosen Story pages, to save as PDF from a browser: their order, heading levels and the view's address.",
   description:
-    `Includes exactly the pages named, each at its current version, in the Story's order: a depth-first walk of the tree, then the pages not yet placed; archived pages after, by title; a reader (the Story-only role) is never given an archived page, which is missing for them. level is the page's outline level among the chosen pages: 1 for a page with no chosen ancestor. A page that shows a whole canvas prints page by page, each under its heading a level down: canvas_pages lists them, and a print view holds at most ${PRINT_MAX_SECTIONS} sections in all (422 print_too_long). url opens one HTML document — a title block, contents, then each page — that a person prints to PDF from their browser; page scripts do not run there, so content a page draws with JavaScript is left out. 404 lists pages that have never been published.`,
+    `Includes exactly the pages named, each at its current version, in the Story's order: a depth-first walk of the tree, then the pages not yet placed; archived pages after, by title; a Story reader (story_reader) is never given an archived page, which is missing for them. level is the page's outline level among the chosen pages: 1 for a page with no chosen ancestor. A page that shows a whole canvas prints page by page, each under its heading a level down: canvas_pages lists them, and a print view holds at most ${PRINT_MAX_SECTIONS} sections in all (422 print_too_long). url opens one HTML document — a title block, contents, then each page — that a person prints to PDF from their browser; page scripts do not run there, so content a page draws with JavaScript is left out. 404 lists pages that have never been published.`,
   input: printInput,
   rest: { method: "GET", path: "/story/print-view" },
   mcp: { tool: "story", action: "print_view" },
@@ -1301,7 +1301,7 @@ export const deletePage = defineOperation({
   description:
     'Archiving (story_write(action="archive_page")) is the reversible alternative and almost always what is wanted. ' +
     DELETE_GUIDANCE.replace("the matching delete_impact", "delete_page_impact").replace("read delete_impact first", "read delete_page_impact first") +
-    " Leaves a tombstone: reads return 410 with who, when and why, except to a reader, who is told only that there is no such page.",
+    " Leaves a tombstone: reads return 410 with who, when and why, except to a Story reader, who is told only that there is no such page.",
   input: z.strictObject({ page_id: pageId, ...deleteGuards }),
   rest: { method: "DELETE", path: "/story/pages/:page_id" },
   mcp: { tool: "story", action: "delete_page" },

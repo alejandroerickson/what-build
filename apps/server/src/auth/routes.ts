@@ -15,7 +15,7 @@ const DEV_SAMPLE_PEOPLE = ["riley@example.com", "sam@example.com", "jordan@examp
 /** How many accounts the development sign-in page offers; the rest are signed in by typing their email. */
 const DEV_ACCOUNTS_SHOWN = 40;
 /** A person's highest role in an organization, as the development sign-in page says it. */
-const DEV_ROLE_ORDER = ["owner", "admin", "creator", "editor", "viewer", "member", "reader"] as const;
+const DEV_ROLE_ORDER = ["owner", "admin", "creator", "editor", "viewer", "member", "story_reader"] as const;
 const DEV_ROLE_WORDS: Record<(typeof DEV_ROLE_ORDER)[number], string> = {
   owner: "Owns",
   admin: "Admin in",
@@ -23,7 +23,7 @@ const DEV_ROLE_WORDS: Record<(typeof DEV_ROLE_ORDER)[number], string> = {
   editor: "Editor in",
   viewer: "Viewer in",
   member: "Member of",
-  reader: "Reads the Story in",
+  story_reader: "Story reader in",
 };
 
 /**

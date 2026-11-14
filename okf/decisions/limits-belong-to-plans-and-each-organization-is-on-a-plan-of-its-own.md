@@ -3,7 +3,7 @@ type: Decision
 title: Limits belong to plans, never to one organization, and each organization is on a plan of its own
 description: A plan sets every limit, the totals an organization holds included; an instance owner moves an organization between plans and changes no organization's limits.
 tags: [decision, limits, plans, tenancy, billing, cost]
-generated: {by: agent:claude, at: 2026-11-09}
+generated: {by: agent:claude, at: 2026-11-13}
 status: stable
 ---
 
@@ -31,7 +31,7 @@ that stops being paid for, and that the plans themselves are the deployment's
   ([decision](running-the-instance-is-done-in-the-web-app-never-by-an-agent.md)), for every
   organization on it, and raises them as the deployment grows. What they set is stored with the
   deployment (`instance_settings`), over what its configuration defines.
-- **Totals beside the days:** people with more than the Story-only reader role (an invitation holds
+- **Totals beside the days:** people with more than the Story reader role (an invitation holds
   a place), products and sources, archived or not, and storage (files, and text as stored, every
   version), all per organization; and the bytes sent to each person a day.
 - **Archived products and sources count.** Otherwise someone archives what they hold, adds as much

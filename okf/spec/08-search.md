@@ -3,7 +3,7 @@ type: Specification
 title: Search reads what a source says, its title, tags, summary, derived text, notes and comments, and never its attachments; it is lexical, bounded, and says exactly what it examined.
 description: The search operation as built (substring, ranked and plain modes, scopes, filters, hits with their field and offsets, every place in substring mode, coverage), the search index of a source's texts, earlier readings, and the planned semantic retrieval.
 tags: [spec, search, retrieval, coverage, index]
-generated: {by: agent:claude, at: 2026-10-31}
+generated: {by: agent:claude, at: 2026-11-13}
 status: stable
 ---
 
@@ -130,7 +130,7 @@ with it (dates, tags, a cursor, `include_archived`, a `scope` other than `source
     that kind's results first, ahead of any that score higher, then the rest, each best first,
     and is returned as `kind_hint`; "passage", "passages", "quote" and "quotes" hint `source`. The order
     is the operation's, so the palette, the Search screen and an agent see the hinted kind first
-    alike, and a result's `score` does not count the hint. For a reader only `story` is a kind
+    alike, and a result's `score` does not count the hint. For a Story reader only `story` is a kind
     word: any other is searched for in the Story like the rest, so `kind_hint` never names what
     they cannot search;
   - a word that matches nothing is replaced by the closest word the product holds (at most one
@@ -162,10 +162,10 @@ with it (dates, tags, a cursor, `include_archived`, a `scope` other than `source
   only if the mockup's current version still has that page, under the title it has there. A mockup's
   result speaks of its current version, and a Story page's of the version it stays on, which is the
   one its readers see, so a whole canvas's result names a page of that version even once the mockup has
-  dropped it, and opens the Story page on it. A reader searches the Story alone
+  dropped it, and opens the Story page on it. A Story reader searches the Story alone
   (`kind` is `story` for them): a result on a whole canvas gives the page the words are on in `meta`,
   corrections come only from the Story's titles, and any other mode, kind or `record_id` is `403`
-  ([decision](../decisions/a-reader-reads-only-the-story.md)). Of
+  ([decision](../decisions/a-story-reader-reads-only-the-story.md)). Of
   an outcome's card and the concept's, it reads the back, the text; a card's front, a picture in
   HTML, is not searched. A source holds every word
   when its title, tags and pieces hold them between them, and is returned once, with the best

@@ -3,8 +3,12 @@ import type { ActorSnapshot, Tx } from "./db.ts";
 import type { Ports } from "./ports.ts";
 import type { LimitContext, Plan } from "./limits.ts";
 
-/** `reader` reads only the Story: its pages, their versions and their export. */
-export type ProductRole = "reader" | "viewer" | "editor" | "admin";
+/**
+ * A role on a product, or on all products. `story_reader` (a Story reader) reads only the Story's
+ * live pages, their versions and their export; `viewer` reads everything in the product and changes
+ * nothing; `editor` writes; `admin` also manages its settings and people.
+ */
+export type ProductRole = "story_reader" | "viewer" | "editor" | "admin";
 /**
  * A role in the organization itself. `creator` creates products, and is admin of each one it
  * creates. `guest` exists only in the example organization: a viewer of every product there, which
@@ -99,7 +103,7 @@ export interface PrepareContext {
 
 export type OpScope = "product" | "tenant" | "account";
 /**
- * `story`: a Story read, open to readers; `read`: everything else a viewer may read. On an
+ * `story`: a Story read, open to Story readers; `read`: everything else a viewer may read. On an
  * organization's operation, `creator` needs a product creator, admin or owner of it, and `admin`
  * and `owner` that role in it.
  */
@@ -213,8 +217,8 @@ export function levelAllows(level: ConnectionLevel | undefined, op: Pick<Operati
 
 /** The lower of a role and a connection level: what an agent may do where the person holds `role`. */
 export function capRole(role: ProductRole | null, level: ConnectionLevel | undefined): ProductRole | null {
-  if (!level || !role || role === "reader") return role;
-  const rank: Record<ProductRole, number> = { reader: -1, viewer: 0, editor: 1, admin: 2 };
+  if (!level || !role || role === "story_reader") return role;
+  const rank: Record<ProductRole, number> = { story_reader: -1, viewer: 0, editor: 1, admin: 2 };
   return rank[role] <= LEVEL_RANK[level] ? role : level;
 }
 

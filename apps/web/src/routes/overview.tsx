@@ -224,16 +224,16 @@ function StartYourOwn({ mayStart, asked }: { mayStart: boolean; asked: boolean }
 
 function ProductEntry({ product: p }: { product: ProductSummary }) {
   const nameId = `overview-product-${p.product_id}`;
-  // A reader has only the Story, so the other stages are neither linked nor counted.
-  const reader = p.your_role === "reader";
-  const stages = reader ? L1.filter((d) => d.id === "story") : L1;
+  // A Story reader has only the Story, so the other stages are neither linked nor counted.
+  const storyOnly = p.your_role === "story_reader";
+  const stages = storyOnly ? L1.filter((d) => d.id === "story") : L1;
   return (
     <li className="overview-product" aria-labelledby={nameId}>
       <div className="overview-product-main">
         <h3 id={nameId} className="overview-product-name">
           <Link to={`/t/${p.path}/${productHome(p.your_role)}`}>{p.name}</Link>
         </h3>
-        {reader ? (
+        {storyOnly ? (
           <p className="overview-product-concept faint">You can read its Story.</p>
         ) : p.concept?.trim() ? (
           <p className="overview-product-concept">{markdownText(p.concept)}</p>

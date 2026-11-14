@@ -193,13 +193,13 @@ describe("the invitations waiting for a person", () => {
   });
 
   it("each name the organization, the role and who invited them, with Accept and Decline named for it", async () => {
-    state.answer = list([invitation({ invitation_id: "a", scope_type: "tenant", scope: "Acme Labs", role: "admin" }), invitation({ invitation_id: "b", tenant: { slug: "b", name: "Beta" }, scope_type: "product", scope: "Planner", role: "reader", invited_by: '"Sam"' })]);
+    state.answer = list([invitation({ invitation_id: "a", scope_type: "tenant", scope: "Acme Labs", role: "admin" }), invitation({ invitation_id: "b", tenant: { slug: "b", name: "Beta" }, scope_type: "product", scope: "Planner", role: "story_reader", invited_by: '"Sam"' })]);
     const host = await show(<InvitationsBanner />);
     expect(host.querySelector("section")?.getAttribute("aria-label")).toBe("Invitations waiting for your answer");
     const rows = [...host.querySelectorAll("li")];
     expect(rows).toHaveLength(2);
     expect(rows[0]!.textContent).toContain('"Riley Chen" invited you as an admin of the organization.');
-    expect(rows[1]!.textContent).toContain('"Sam" invited you as a reader on "Planner".');
+    expect(rows[1]!.textContent).toContain('"Sam" invited you as a Story reader on "Planner".');
     expect(button(host, /^Accept the invitation to "Beta"$/)).toBeTruthy();
     expect(button(host, /^Decline the invitation to "Acme Labs"$/)).toBeTruthy();
   });

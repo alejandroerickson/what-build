@@ -109,7 +109,7 @@ export function StoryInspectorBody({ page, shown, versions, onExport, actions }:
 
       {shown.mockup?.mockup_id ? <Shows mockup={shown.mockup} /> : null}
 
-      {/* A reader is sent no notes for agents, so the group is left out for them. */}
+      {/* A Story reader is sent no notes for agents, so the group is left out for them. */}
       {notes ? (
         <Group title="Notes for agents">
           {notes.content ? (

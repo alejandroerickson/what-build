@@ -62,7 +62,7 @@ function relayed(body: ReadableStream<Uint8Array>): ReadableStream<Uint8Array> {
 /**
  * The operation each kind of grant to read comes from, or, for a document on the content site
  * (content-address.ts), the operation that needs what the app's own route for it needs: its
- * requester must still be allowed that. A card is outcomes.get, never products.get, which a reader
+ * requester must still be allowed that. A card is outcomes.get, never products.get, which a Story reader
  * may call and the card's own route refuses.
  */
 const ISSUED_BY: Record<string, string> = {
@@ -90,7 +90,7 @@ const noLongerReads = () => forbidden("Whoever requested this grant can no longe
  * connected. A download counts as a call against the limits they meet there (their organization's
  * plan, or a guest's in the example organization); a document does not, since the app's own route
  * counted it when it handed the document off.
- * Returns them, and the product as they reach it now, whose role decides what a reader is given.
+ * Returns them, and the product as they reach it now, whose role decides what a Story reader is given.
  */
 export async function requesterMayRead(env: Env, claims: Record<string, unknown>, productId: string): Promise<{ principal: Principal; scope: Scope }> {
   const op = OPERATIONS.find((o) => o.name === ISSUED_BY[String(claims["purpose"])])!;
@@ -163,7 +163,7 @@ export function uploadRoutes(env: Env & { config: ServerConfig }) {
             : `Bytes for ${grant.path} already arrived under this grant. Call attachments_write(action="complete_upload") with record_id ${grant.record_id} and path ${grant.path} to attach them.`,
         );
       if (Date.parse(grant.expires_at) < Date.now()) throw new AppError(401, "invalid_grant", "The upload grant has expired. Request a new one.");
-      // A grant carries its requester's authority only while they may still write here: someone made a reader or viewer, or removed, since it was given stores nothing.
+      // A grant carries its requester's authority only while they may still write here: someone made a Story reader or viewer, or removed, since it was given stores nothing.
       const role = await inTenant(env, tenantId, async (trx) =>
         effectiveRole(await membershipsFor(trx, grant.principal.account_id, tenantId), { tenant_id: tenantId, product_id: grant.product_id }).role,
       );

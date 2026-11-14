@@ -15,7 +15,7 @@ import { logError } from "./telemetry.ts";
  * What each tool is called in a client's list, and what it says it does, part by part: a sentence,
  * and the actions it speaks of. A part that names actions is said only when the connection is
  * offered one of them, so a tool never describes what it does not offer: members_write at the Edit
- * level grants nobody, a reader's story_write publishes nothing. A tool that reads differently for
+ * level grants nobody, a Story reader's story_write publishes nothing. A tool that reads differently for
  * someone who reads only the Story says so to them in `forStoryReader`, in place of `parts`.
  */
 type Parts = [text: string, ...actions: string[]][];

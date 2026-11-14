@@ -90,12 +90,12 @@ deletes only what it made itself in the run.
     `products_read`'s description, its action lines and `describe=true` on `get` say nothing of the
     concept, and `story_read`'s `get_page` line says nothing of notes for agents;
     `sources_read(action="list")` and `products_read(action="limits")` called anyway each answer
-    `403`, naming reader and viewer.
+    `403`, naming `story_reader` and viewer.
     Then as Sam on the organization's connector (`--endpoint /mcp/t/<org>`): writes and archives,
     `members_read` `list`, and no `_delete` tool, no `members_write`, no `products_write` `create` (an editor of all products is no product creator).
 15. **MCP, as Jordan and as a guest, on the unscoped connector** (no `--endpoint`, `--level admin`;
     the guest is `guest@example.com`). List the tools. *Expect:* neither may start an organization,
-    so neither is offered `create_tenant`. Jordan, a reader everywhere, is offered what step 14 lists;
+    so neither is offered `create_tenant`. Jordan, a Story reader everywhere, is offered what step 14 lists;
     the guest every read of the example and no write but `submit_feedback`, and `story_read`'s
     description says nothing of publishing to Jordan. Casey, who may start an organization (the
     golden master's sample allowance goes to the synthetic organization's editor), is offered

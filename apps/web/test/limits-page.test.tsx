@@ -222,7 +222,7 @@ describe("Plan", () => {
     expect(text).toContain("Acme’s name and plan, and the name and email of everyone in it, are visible to whoever runs this WhatBuild");
     // A total that is reached says so, one that is nearly reached says so, and storage says what frees it.
     expect(rows(host, "holds-title")).toEqual([
-      "PeopleReaders of the Story don’t count.2 of 2Full",
+      "PeopleStory readers don’t count.2 of 2Full",
       "ProductsArchived ones count. Deleting one makes room.1 of 1Full",
       "SourcesArchived ones count. Deleting one makes room.41 of 50Nearly full",
       "Storage30 MB of files (attachments, the text read from each, kept as a file of its own, and prototypes), 4 MB of text. Archiving keeps it; deleting frees it.34 MB of 200 MB",
@@ -253,7 +253,7 @@ describe("Plan", () => {
     const host = await page();
     const text = host.textContent ?? "";
     expect(text).toContain("Acme has no limits: nobody in it meets any.");
-    expect(rows(host, "holds-title")[0]).toBe("PeopleReaders of the Story don’t count.2 · no limit");
+    expect(rows(host, "holds-title")[0]).toBe("PeopleStory readers don’t count.2 · no limit");
     expect(host.querySelector('[aria-labelledby="today-title"]')).toBeNull();
     expect(text).toContain("Files up to 25 MB each.");
     // The deployment reads less of a file than it takes.
@@ -320,7 +320,7 @@ describe("the plans side by side", () => {
 });
 
 describe("what an organization holds, in a line", () => {
-  it("says its people leave out readers of the Story, as its plan does and its People in Settings doesn't", async () => {
+  it("says its people leave out Story readers, as its plan does and its People in Settings doesn't", async () => {
     const { heldLine } = await import("../src/routes/limits.tsx");
     const line = heldLine({ members: 4, invited: 1, products: 2, sources: 3, storage: { files: 0, text: 0, total: 0 } });
     expect(line).toMatch(/^4 people besides Story readers \(\+1 invited\) · 2 products · 3 sources · /);

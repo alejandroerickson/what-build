@@ -128,7 +128,7 @@ describe("the golden master's synthetic organization", () => {
     const own = (await owner.api("POST", "/api/v1/tenants", { name: "Own People" })).body.tenant;
     const shared = (await owner.api("POST", "/api/v1/tenants", { name: "Shared People" })).body;
     const other = shared.tenant;
-    // Jordan's place is on a product: a reader of its Story.
+    // Jordan's place is on a product: a Story reader of its product.
     expect((await owner.api("POST", `/api/v1/tenants/${other.slug}/products`, { name: "Shared" })).status).toBe(201);
     await addSamplePeople(h.db, [own.slug]);
     const held = async (tenantId: string) =>

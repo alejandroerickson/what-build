@@ -37,7 +37,7 @@ export function linkTemplates(base: string, path: string) {
 
 /** Who can follow a link made from linkTemplates, so an author links knowing what each reader meets. */
 export const LINKS_NOTE =
-  "Everyone on the team opens each of these. A reader (the role that may read only the Story) opens story_page links and links outside WhatBuild; a link into Idea, Evidence or Exploration takes them back to the Story, with a notice that they may read only the Story.";
+  "Everyone on the team opens each of these. A Story reader (story_reader, the role that may read only the Story) opens story_page links and links outside WhatBuild; a link into Idea, Evidence or Exploration takes them back to the Story, with a notice that they may read only the Story.";
 
 /** A house style as the catalogue lists it: everything but the stylesheet and rules. */
 export function catalogue(styles: HouseStyle[] = HOUSE_STYLES) {

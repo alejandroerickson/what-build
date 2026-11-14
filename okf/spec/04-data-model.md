@@ -3,7 +3,7 @@ type: Specification
 title: Every object in a product, with its fields, limits and invariants, as the REST and MCP wire sees it.
 description: The common envelope (ids, etags, attribution, revisions), outcomes, sources and their tags, attachments, comments, summaries and notes, evidence links, the assumption register, views, activity, Story, mockups, feedback, the product bundle, and the storage layout.
 tags: [spec, data-model, schema, revisions, story, mockups, export]
-generated: {by: agent:claude, at: 2026-11-04}
+generated: {by: agent:claude, at: 2026-11-13}
 status: stable
 ---
 
@@ -483,8 +483,8 @@ An append-only event log, written in the same transaction as the mutation that c
   the web app, and for the REST API in entries from when personal tokens reached it; `agents` for
   MCP; what WhatBuild does by itself, which has no channel, is in neither) and `since`, with the
   usual bounds. `entity_type` offers exactly the kinds of object a product's log has entries about
-  ([§6.4](06-operations-and-adapters.md)). Every role on the product but a reader, who reads only
-  the Story, can read it.
+  ([§6.4](06-operations-and-adapters.md)). Every role on the product but a Story reader, who reads
+  only the Story, can read it.
 - Events are immutable and are retained for the life of the tenant, with one exception: when an
   insight or a decision became a source (§4.7), its events were relabelled as the source's. They
   are included in a product export.
@@ -517,7 +517,7 @@ can be read by number. Limit: 50 pages per product (`409 quota_exceeded`). Agent
 and people arrange, archive and restore them, and admins delete them
 ([decision](../decisions/agents-write-the-story-people-arrange-it.md)). `story.list_pages` leaves
 archived pages out unless `include_archived`, and says how many it left out (`archived_hidden`, with
-a `note` when there are any); a reader is given neither the archived pages nor their count.
+a `note` when there are any); a Story reader is given neither the archived pages nor their count.
 ◆ Decision: a version has no change note. What changed is in the activity log, and an agent's
 working context is in the page's notes. The `story_versions.note` column stays for versions
 published before the note was removed, and is neither written nor returned; a product export
@@ -555,7 +555,7 @@ version, the current one by default. The version stores `mockup` (`mockup_id`, `
 `version`, and `page_id`, null for a whole canvas) and no HTML: mockup versions are immutable, so
 what it shows is read from the mockup when it is shown and is never copied. It stays on that mockup
 version until it is promoted again; reading it returns `mockup` with the page's `width` and `height`
-and, for every role but a reader, the mockup's title, the version shown and the mockup's current
+and, for every role but a Story reader, the mockup's title, the version shown and the mockup's current
 version. A promoted page has no special place in the Story: it is unplaced until it is placed, and
 an existing page keeps its place (Hierarchy, below).
 A page shown alone has no canvas to fly over, so its relative links to the other pages of its canvas
@@ -753,7 +753,7 @@ team wants its stakeholders to read), not a quoted or cited record of how decisi
 It sets no rule about how a page quotes, paraphrases, attributes or links what is in the product
 ([decision](../decisions/evidence-is-searched-not-cited.md)): `links` gives a template for a link
 to a source, the outcomes, an assumption, a mockup and a Story page, and `links_note` says who can
-follow each (everyone on the team; a reader only Story pages and links outside WhatBuild). It keeps
+follow each (everyone on the team; a Story reader only Story pages and links outside WhatBuild). It keeps
 what a page must not misstate: no person, date, quotation, count, measurement or decision the
 sources do not establish, interpretation labelled as such, a plan's dates presented as the team's
 plan with their origin kept in the page's notes; and it asks for pages placed in the hierarchy
@@ -944,7 +944,7 @@ nothing of the app's, and the app's `frame-src` names its `/prototypes/`.
 with the Story's sandbox and one addition, `allow-forms`, in the Content-Security-Policy and in
 the app's frame alike, and with the same frame script with `?frame=1` (§4.11). The Story's own
 HTML route serves a page that shows a mockup page in the same mockup sandbox. It takes no `?theme`, because a mockup carries its own look. Any role but
-a reader may read it. A page's frame is its `width` × `height`; content taller than `height`
+a Story reader may read it. A page's frame is its `width` × `height`; content taller than `height`
 scrolls inside the frame, on the canvas in interact mode and on the Story ([§7.7](07-web-app.md),
 [§7.8](07-web-app.md)). A long document can be one page that scrolls or several pages side by
 side; the choice is how people will read it. With a content site, the route hands the frame to
@@ -974,8 +974,8 @@ shows and the Story page's etag. The Story serves what it shows through its own 
 Story reader sees that and nothing else of the mockup: never its brief, notes, files or other
 versions; a promoted page of an archived mockup stays readable. A promoted entry's
 version gives, in its `mockup`, the `entry`, its `prototype_url`, `prototype_sandbox` and
-`prototype_expires_at`, to a reader too, whose address reaches that version's whole prototype and
-nothing else of the mockup ([decision](../decisions/a-reader-reads-only-the-story.md)); its HTML,
+`prototype_expires_at`, to a Story reader too, whose address reaches that version's whole prototype and
+nothing else of the mockup ([decision](../decisions/a-story-reader-reads-only-the-story.md)); its HTML,
 where HTML is needed, is a notice, with the poster in the print view.
 
 ## 4.13 Feedback
@@ -1019,7 +1019,7 @@ the waitlist in `products.tenant_allowances`, which leaves out anyone given an a
 ## 4.14 The product bundle
 
 A product exports to a single ZIP (`products.export`, open to every role on the product but a
-reader, who reads only the Story; a plan may limit how many exports each person makes a day,
+Story reader, who reads only the Story; a plan may limit how many exports each person makes a day,
 and a guest of the example organization exports nothing, [§9.7](09-data-lifecycle.md)).
 A worker job builds it; it can be downloaded for seven days ([`export.ts`](../../packages/core/src/ops/export.ts)).
 Its README.txt names every kind of file below and what each holds, and `bundle.json`'s `layout`

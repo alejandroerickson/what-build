@@ -150,7 +150,7 @@ function Holds({ l, holds }: { l: OrganizationLimits; holds: Holdings }) {
       used: holds.members + holds.invited,
       limit: value(l, "members_max"),
       unit: "",
-      note: holds.invited ? `Counts ${plural(holds.invited, "invitation")} not yet accepted. Readers of the Story don’t count.` : "Readers of the Story don’t count.",
+      note: holds.invited ? `Counts ${plural(holds.invited, "invitation")} not yet accepted. Story readers don’t count.` : "Story readers don’t count.",
     },
     { label: "Products", used: holds.products, limit: value(l, "products_max"), unit: "", note: value(l, "products_max") === null ? undefined : "Archived ones count. Deleting one makes room." },
     { label: "Sources", used: holds.sources, limit: value(l, "sources_max"), unit: "", note: value(l, "sources_max") === null ? undefined : "Archived ones count. Deleting one makes room." },
@@ -378,7 +378,7 @@ const ORGS = "/api/v1/organizations";
 
 /**
  * What an organization holds, in a line: the numbers its plan's totals count. Its people leave out
- * readers of the Story, as the plan does, so the line says so beside a Members page that lists them.
+ * Story readers, as the plan does, so the line says so beside a Members page that lists them.
  */
 export function heldLine(h: Holdings) {
   const people = plural(h.members, "person", "people") + " besides Story readers" + (h.invited ? ` (+${h.invited} invited)` : "");

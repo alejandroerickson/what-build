@@ -3,7 +3,7 @@ type: Decision
 title: Mockups are versioned canvases of agent-made HTML, in a stage called Exploration
 description: Agents build directions as sandboxed HTML pages on a canvas under a brief, versioned as a whole and downloadable to build the next one; the third stage is named Exploration.
 tags: [decision, mockups, exploration, story, security, web, agents]
-generated: {by: agent:claude, at: 2026-11-02}
+generated: {by: agent:claude, at: 2026-11-13}
 status: stable
 ---
 
@@ -88,7 +88,7 @@ the names Mockups and Exploration on 2026-10-09.
 - **A page from a mockup is found once.** It is one thing in two places, so whoever may read the
   mockup finds it there, in Exploration, ranked as the Story page would be; the Story page is listed
   too only for a word the mockup does not hold, its own title, say, or one on the version it stays
-  on. A reader, who has no Exploration, finds it on the Story. The maintainer chose this on
+  on. A Story reader, who has no Exploration, finds it on the Story. The maintainer chose this on
   2026-10-30.
 - The third stage is **Exploration**: mockups and assumptions (insights and decisions, which it
   also held, were retired: [decision](insights-and-decisions-are-retired-into-evidence.md)). Its
@@ -136,7 +136,7 @@ the names Mockups and Exploration on 2026-10-09.
 - What kind of page a row is follows its current version (`story_versions.mockup`, whose `page_id` is
   null for a whole canvas); `story.set_hierarchy` treats every kind alike
   (`packages/core/src/ops/story.ts`).
-- A reader reaches a canvas's pages only through the Story page that shows it
+- A Story reader reaches a canvas's pages only through the Story page that shows it
   (`findStoryCanvasPage` in `apps/server/src/documents.ts`), never through the mockup's own routes.
 
 Specified in: [04-data-model §4.12](../spec/04-data-model.md), [06-operations-and-adapters](../spec/06-operations-and-adapters.md), [07-web-app §7.7](../spec/07-web-app.md).

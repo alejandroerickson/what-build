@@ -3,7 +3,7 @@ type: Specification
 title: WhatBuild turns a team's discovery material into insight and a story, with agents as first-class contributors.
 description: Who the product is for, the core loop, the four screens, the vocabulary, the non-negotiable behaviors, and what the product is not.
 tags: [spec, product, vocabulary, principles]
-generated: {by: agent:claude, at: 2026-11-09}
+generated: {by: agent:claude, at: 2026-11-13}
 status: stable
 ---
 
@@ -84,7 +84,7 @@ Idea screen's terms are a decision: [A product starts with its idea](../decision
 | **account** | One person's sign-in. May belong to several tenants. |
 | **tenant** | An organization: the isolation boundary, which holds its products directly. Shown as "organization" in the UI. Never "workspace", and never divided into teams ([decision](../decisions/an-organization-holds-its-products-directly-with-no-teams.md)). |
 | **product** | One discovery. Owns all of the objects below. |
-| **role** | reader, viewer, editor or admin on a product or on all products of a tenant; owner, admin, product creator or member of a tenant. A reader reads only the Story; a product creator creates products. |
+| **role** | Story reader (`story_reader`), viewer, editor or admin on a product or on all products of a tenant; owner, admin, product creator or member of a tenant. A Story reader reads only the Story's live pages; a viewer reads everything in the product and changes nothing; a product creator creates products. |
 | **source** | One discovery event or document, with metadata, its derived text and its attachments. Stored as a record: `record_id` in the API. The destination that holds them is **Evidence**; never "library", "document store", "bucket" or a storage path. |
 | **attachment** | A file kept with a source, in the app, the API, the MCP tools and the documentation alike, with no role. Every attachment is read and what was read kept, never searched. Never "file" for the concept ("file" is for bytes and formats); the database's tables keep the names `files` and `file_versions`. |
 | **derived text** | A source's words as one Markdown document, taken from an attachment's text until someone writes or edits it; in prose, "a source's text". What search reads, with the title, tags, summary, notes and comments. |
@@ -112,7 +112,7 @@ of them is now sources.
 ## 1.5 Non-negotiable behaviors
 
 1. **Roles, and nothing finer.** Access is a role on a tenant, on all its products or on a product
-   (reader, viewer, editor, admin), checked in one policy module for both front doors
+   (Story reader, viewer, editor, admin), checked in one policy module for both front doors
    ([`packages/core/src/policy.ts`](../../packages/core/src/policy.ts)). No per-folder or
    per-object permissions, and no token that widens or narrows its person's role. An agent has
    exactly its person's role. What you cannot see is `404`; what you may see but not change is a

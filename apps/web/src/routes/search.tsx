@@ -23,7 +23,7 @@ export function SearchPage() {
   const q = params.get("q") ?? "";
   const area = FIND_AREAS.find((a) => a.id === params.get("show"));
   const show = area?.id ?? "";
-  // A reader has only the Story, so an address for one source searches it instead.
+  // A Story reader has only the Story, so an address for one source searches it instead.
   const recordId = storyOnly ? "" : (params.get("record_id") ?? "");
   const strict = params.get("strict") === "1";
   const [text, setText] = useState(q);

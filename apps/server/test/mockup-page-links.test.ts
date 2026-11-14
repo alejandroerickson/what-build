@@ -182,7 +182,7 @@ describe("a canvas's links, through both doors", () => {
     const t = await alice.api("POST", "/api/v1/tenants", { name: "Links Co" });
     const p = await alice.api("POST", `/api/v1/tenants/${t.body.tenant.slug}/products`, { name: "Planner", concept: "A planner." });
     P = `/api/v1/p/${p.body.path}`;
-    expect((await alice.api("POST", `/api/v1/tenants/${t.body.tenant.slug}/members`, { product: "planner", email: "rita@example.com", role: "reader" })).status).toBeLessThan(300);
+    expect((await alice.api("POST", `/api/v1/tenants/${t.body.tenant.slug}/members`, { product: "planner", email: "rita@example.com", role: "story_reader" })).status).toBeLessThan(300);
     const made = await alice.api("POST", `${P}/mockups`, {
       title: "Send the week",
       brief: "A flow.",
@@ -261,16 +261,16 @@ describe("a canvas's links, through both doors", () => {
     const both = { two: { page_id: "step-two", on_canvas: false }, three: { page_id: "all-steps", on_canvas: true } };
     expect((await shown(alice)).story_links).toEqual(both);
     expect(await shown(alice)).not.toHaveProperty("links_off_story");
-    // A reader is given where the links lead, and nothing of which pages lead nowhere.
+    // A Story reader is given where the links lead, and nothing of which pages lead nowhere.
     expect((await shown(rita)).story_links).toEqual(both);
 
-    // An archived Story page leads nowhere, since a reader can't open it: the whole canvas takes its place.
+    // An archived Story page leads nowhere, since a Story reader can't open it: the whole canvas takes its place.
     const two = await alice.api("GET", `${P}/story/pages/step-two?include_html=false`);
     expect((await alice.api("POST", `${P}/story/pages/step-two/archive`, { expected_etag: two.body.etag })).status).toBe(200);
     expect((await shown(rita)).story_links).toEqual({ two: { page_id: "all-steps", on_canvas: true }, three: { page_id: "all-steps", on_canvas: true } });
   });
 
-  it("names the Story pages a published page links to that a reader can't open, in preview and publish", async () => {
+  it("names the Story pages a published page links to that a Story reader can't open, in preview and publish", async () => {
     const path = P.replace("/api/v1/p/", "");
     expect((await alice.api("POST", `${P}/story/pages/there/versions`, { title: "There", body: '<main class="page"><h1>There</h1></main>' })).status).toBe(201);
     const shelved = await alice.api("POST", `${P}/story/pages/shelved/versions`, { title: "Shelved", body: '<main class="page"><h1>Shelved</h1></main>' });

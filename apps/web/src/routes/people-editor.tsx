@@ -2,7 +2,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useId, useMemo, useState, type ReactNode } from "react";
 import { api } from "../lib/api.ts";
 import { readAddressList } from "../lib/address-list.ts";
-import { plural, ROLE_WORD, scopeWords } from "../lib/format.ts";
+import { plural, ROLE_WORD, roleWords, scopeWords } from "../lib/format.ts";
 import { Avatar, Button, Callout, Dialog, ErrorCallout, FindField, Glyph, IconButton, Segmented, StatusBadge, TextArea, useToast } from "../ui/index.tsx";
 import "../styles/screens/people-editor.css";
 
@@ -55,15 +55,15 @@ export interface InvitationMade {
   emailed: boolean;
 }
 
-const RANK: Record<string, number> = { reader: 0, member: 0, creator: 0, viewer: 1, editor: 2, admin: 3, owner: 4 };
+const RANK: Record<string, number> = { story_reader: 0, member: 0, creator: 0, viewer: 1, editor: 2, admin: 3, owner: 4 };
 export const ROLE_HINT: Record<string, string> = {
   owner: "Admin of everything, and makes owners",
   admin: "Also manages people and settings",
   creator: "Creates products, and is admin of each one they create",
   member: "Opens only what they have a role on",
   editor: "Reads and writes",
-  viewer: "Reads",
-  reader: "Reads only the Story",
+  viewer: "Reads everything, changes nothing",
+  story_reader: "Reads only the Story’s live pages",
 };
 /** The most people one `members.grant_many` call takes; more go in calls of this many. */
 const PER_CALL = 100;
@@ -100,7 +100,7 @@ function holdersOf(people: OrgPerson[], target: EditorTarget, canEdit: (p: OrgPe
       const org = p.grants.find((g) => g.scope_type === "tenant" && (g.role === "owner" || g.role === "admin"));
       const every = target.scope_type === "product" ? p.grants.find((g) => g.scope_type === "all_products") : undefined;
       if (org) through = { role: "admin", kind: "tenant", words: `Organization ${org.role}`, keeps: `stays admin as an organization ${org.role}` };
-      else if (every) through = { role: every.role, kind: "all_products", words: `${ROLE_WORD[every.role]} on all products`, keeps: `stays ${every.role} on all products` };
+      else if (every) through = { role: every.role, kind: "all_products", words: `${ROLE_WORD[every.role]} on all products`, keeps: `stays ${roleWords(every.role)} on all products` };
       // A broader role that doesn't outrank theirs here changes nothing.
       if (through && own && RANK[own.role]! >= RANK[through.role]!) through = null;
     }
@@ -217,7 +217,7 @@ export function PeopleEditor({ tenant, orgName, target, title, description, abov
       setPasted("");
       setSkipped(new Set());
     }
-    setSaid(`Moved ${people(chosen.length)} across as ${ROLE_WORD[joinAs]?.toLowerCase()}. Nothing changes until you save.`);
+    setSaid(`Moved ${people(chosen.length)} across as ${roleWords(joinAs)}. Nothing changes until you save.`);
   };
 
   const removable = target.scope_type !== "tenant";
@@ -241,7 +241,7 @@ export function PeopleEditor({ tenant, orgName, target, title, description, abov
       for (const h of holders) if (pickedRight.has(h.account_id) && pickable(h)) next[h.account_id] = role;
       return next;
     });
-    setSaid(`${people(rightPicked.length)} set to ${ROLE_WORD[role]?.toLowerCase()}.`);
+    setSaid(`${people(rightPicked.length)} set to ${roleWords(role)}.`);
   };
 
   const changed = holders.filter((h) => !removed.has(h.account_id) && roleOf[h.account_id] && roleOf[h.account_id] !== (h.own ?? ""));

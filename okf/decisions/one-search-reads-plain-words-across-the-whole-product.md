@@ -3,7 +3,7 @@ type: Decision
 title: One search covers the whole product and reads plain words, with no model
 description: People search everything in a product from one place, as they type, by deterministic word matching on the database's own text search, so no search calls a model.
 tags: [decision, search, web]
-generated: {by: agent:claude, at: 2026-10-30}
+generated: {by: agent:claude, at: 2026-11-13}
 status: stable
 ---
 
@@ -32,9 +32,9 @@ which would cost money on every search. The maintainer chose one plain-word sear
   same index of sources' texts the other modes read (`text_chunks`) and the words kept beside each
   page's HTML ([decision](a-pages-words-are-kept-beside-its-html-and-a-search-runs-within-limits.md)):
   no model, no embeddings, no call that costs per search.
-- A page from a mockup is listed once, and a reader searches the Story alone
+- A page from a mockup is listed once, and a Story reader searches the Story alone
   ([decision](mockups-are-versioned-canvases-in-exploration.md),
-  [decision](a-reader-reads-only-the-story.md)).
+  [decision](a-story-reader-reads-only-the-story.md)).
 - Rejected: semantic search as the default, which needs a model and an index of embeddings; and
   separate searches per screen, which make people know where something lives first.
 

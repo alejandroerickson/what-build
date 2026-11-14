@@ -39,8 +39,8 @@ Each product gives your person a role, as `your_role`:
 
 | Role | May |
 |---|---|
-| reader | read the Story, without the notes agents keep on its pages |
-| viewer | read everything |
+| story_reader | a Story reader: read only the Story's live pages, without the notes agents keep on them; nothing of Idea, Evidence or Exploration |
+| viewer | read everything in the product (Idea, Evidence, Exploration, Story, activity) and change nothing |
 | guest | a viewer of the example organization (below) |
 | editor | read, write and archive |
 | admin | also delete permanently, manage people and change product settings |

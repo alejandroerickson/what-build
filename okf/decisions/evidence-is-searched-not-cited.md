@@ -3,7 +3,7 @@ type: Decision
 title: Evidence is found by searching, not kept as citations
 description: Nothing structural points from an assumption, a Story page or a mockup to a source; agents search the evidence when they need it, and a Story page uses the product's material however suits its readers.
 tags: [decision, evidence, citations, assumptions, story, mockups, agents]
-generated: {by: agent:claude, at: 2026-10-26}
+generated: {by: agent:claude, at: 2026-11-13}
 status: stable
 ---
 
@@ -17,7 +17,7 @@ related sources, a view's lineage, and what used each source. Keeping it true co
 every write, and its reports of drift were noise more often than news. An agent reads far more
 than a team can keep linked, and finds what bears on a piece of work by searching; the
 stakeholders who read the Story cannot open the evidence at all
-([decision](a-reader-reads-only-the-story.md)). The maintainer chose on 2026-10-16 to remove
+([decision](a-story-reader-reads-only-the-story.md)). The maintainer chose on 2026-10-16 to remove
 citations and the graph around them: WhatBuild is where a team collaborates and keeps its ideas,
 not where it builds a case. This replaces [the citation snapshots](citations-snapshot-and-report-drift.md)
 and [assumptions that start uncited](register-entries-may-start-uncited.md).
@@ -50,7 +50,7 @@ stakeholders to read), not a quoted or cited record of how decisions were reache
 - Writing is cheaper, there is no drift to report, and a source moves between products freely.
 - Nothing checks a quote against its source: whether a conclusion still holds is answered by
   reading and searching the evidence.
-- A link from a Story page into the rest of the product takes a reader back to the Story; the
+- A link from a Story page into the rest of the product takes a Story reader back to the Story; the
   guidance says so beside its link templates, and whether to link is the author's choice.
 
 ## Constrains

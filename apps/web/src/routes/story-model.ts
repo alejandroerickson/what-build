@@ -297,7 +297,7 @@ export interface PageView {
   archived_at: string | null;
   etag: string;
   updated_at: string;
-  /** Absent for a reader. */
+  /** Absent for a Story reader. */
   agent_notes?: AgentNotes;
   current: VersionView;
 }

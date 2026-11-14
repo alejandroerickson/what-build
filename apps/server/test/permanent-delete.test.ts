@@ -36,7 +36,7 @@ beforeAll(async () => {
   P = `/api/v1/p/${org.product.path}`;
   await owner.api("POST", `/api/v1/tenants/${org.tenant.slug}/members`, { all_products: true, email: "eddie@delta.example", role: "editor" });
   editor = await h.signIn("eddie@delta.example", "Eddie Delta");
-  await owner.api("POST", `/api/v1/tenants/${org.tenant.slug}/members`, { product: org.product.id, email: "rita@delta.example", role: "reader" });
+  await owner.api("POST", `/api/v1/tenants/${org.tenant.slug}/members`, { product: org.product.id, email: "rita@delta.example", role: "story_reader" });
   reader = await h.signIn("rita@delta.example", "Rita Delta");
 }, 120_000);
 afterAll(async () => h?.close());
@@ -127,7 +127,7 @@ describe("deleting what is in a product", () => {
     expect(JSON.stringify(after.body.items)).not.toContain('"plan"');
     expect(after.body.items.map((n: { page_id: string }) => n.page_id)).toContain("plan-detail");
     expect((await owner.api("GET", `${P}/story/pages/plan`)).status).toBe(410);
-    // A reader learns no more of a deleted page than of an archived one.
+    // A Story reader learns no more of a deleted page than of an archived one.
     expect((await reader.api("GET", `${P}/story/pages/plan`)).status).toBe(404);
 
     const again = await owner.api("POST", `${P}/story/pages/plan/versions`, page("The plan, again"));

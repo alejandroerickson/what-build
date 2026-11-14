@@ -28,7 +28,7 @@ beforeAll(async () => {
   const p = await alice.api("POST", `/api/v1/tenants/${t.body.tenant.slug}/products`, { name: "Pictured" });
   product = p.body.path;
   P = `/api/v1/p/${product}`;
-  for (const [email, role] of [["rita@example.com", "reader"], ["vic@example.com", "viewer"]] as const)
+  for (const [email, role] of [["rita@example.com", "story_reader"], ["vic@example.com", "viewer"]] as const)
     expect((await alice.api("POST", `/api/v1/tenants/${t.body.tenant.slug}/members`, { product: "pictured", email, role })).status).toBe(201);
 });
 afterAll(async () => h?.close());
@@ -90,7 +90,7 @@ describe("a source's card", () => {
     expect(again.body).not.toHaveProperty("note");
   });
 
-  it("is served on its board, in the card kit's sandbox, to a viewer and not to a reader", async () => {
+  it("is served on its board, in the card kit's sandbox, to a viewer and not to a Story reader", async () => {
     const s = await source("Owner call, autumn");
     await write(s.record_id, { content: CARD });
     const card = await vic.api("GET", `${P}/sources/${s.record_id}/card?theme=dark`);
