@@ -6,6 +6,7 @@ import { useProduct } from "../lib/session.tsx";
 import { PanelContext, PanelSection } from "../shell/slots.tsx";
 import { Button, Callout, FindField, Glyph, Menu, MenuItem, MenuSeparator, OneLine, useToast, type GlyphName } from "../ui/index.tsx";
 import type { PageActions, PageRef } from "./story-actions.tsx";
+import { DragGhost, holdOf, type Hold } from "./tree-drag.tsx";
 import {
   applyMove, arrangement, count, describePosition, filterTree, flatten, keyboardMove, locate, positionOf, refusal, toServer, trail,
   type ArrowKey, type Hierarchy, type Move, type MoveResult, type PageKind, type StoryNode,
@@ -115,8 +116,14 @@ type Zone = "before" | "after" | "into" | "end";
 interface Drag {
   page: string;
   title: string;
+  kind: PageKind;
+  /** Where the press began, and where the pointer is now. */
   x: number;
   y: number;
+  px: number;
+  py: number;
+  /** Where in the row the person took hold of it. */
+  hold: Hold;
   active: boolean;
   /** Where it would land; refused is why it can't, or "" for a drop on itself, which does nothing. */
   over: { page: string | null; zone: Zone; refused: string | null } | null;
@@ -267,7 +274,7 @@ export function StoryTree({ arrange, archived, refOf, current, onExport, actions
     if (e.button !== 0 || !arranging) return;
     e.preventDefault();
     e.currentTarget.setPointerCapture(e.pointerId);
-    setDragState({ page: node.page_id, title: node.title, x: e.clientX, y: e.clientY, active: false, over: null });
+    setDragState({ page: node.page_id, title: node.title, kind: node.kind, x: e.clientX, y: e.clientY, px: e.clientX, py: e.clientY, hold: holdOf(e), active: false, over: null });
   };
   const onGripMove = (e: ReactPointerEvent<HTMLElement>) => {
     const d = dragRef.current;
@@ -280,7 +287,7 @@ export function StoryTree({ arrange, archived, refOf, current, onExport, actions
       if (e.clientY < r.top + 24) scroller.scrollBy(0, -8);
       else if (e.clientY > r.bottom - 24) scroller.scrollBy(0, 8);
     }
-    setDragState({ ...d, active: true, over: zoneAt(e.clientX, e.clientY, d) });
+    setDragState({ ...d, px: e.clientX, py: e.clientY, active: true, over: zoneAt(e.clientX, e.clientY, d) });
   };
   const onGripUp = () => {
     const d = dragRef.current;
@@ -401,6 +408,7 @@ export function StoryTree({ arrange, archived, refOf, current, onExport, actions
         <p className="visually-hidden" aria-live="polite">
           {announcement}
         </p>
+        {drag?.active ? <DragGhost hold={drag.hold} x={drag.px} y={drag.py} glyph={PAGE_KINDS[drag.kind].glyph} title={drag.title} /> : null}
       </div>
     </PanelContext>
   );

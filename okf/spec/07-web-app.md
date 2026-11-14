@@ -759,8 +759,9 @@ first-use state.
   shows on hover and focus (always on touch): a mockup onto the upper or lower half of another
   mockup to go before or after it, or onto a folder to go last in it; a folder onto the upper or
   lower half of another folder. While a mockup that is in a folder is dragged, a dashed row under
-  the mockups in no folder reads "Move out of its folder". A bar or a ring shows where it would
-  land, Escape cancels, and a toast names where it went, with Undo. With a row focused, Alt and
+  the mockups in no folder reads "Move out of its folder". The row dims where it stands and a
+  lifted copy of it follows the pointer, held where it was taken hold of, under a grabbing hand; a
+  bar or a ring shows where it would land, Escape cancels, and a toast names where it went, with Undo. With a row focused, Alt and
   Up or Down move a mockup among those beside it, or a folder among the folders, and Alt and Left
   take a mockup out of its folder; each move, or why none was made, is announced. A mockup's "…"
   menu names the folder it is in (No folder, or one of the folders) and puts it in another, and
@@ -977,7 +978,8 @@ page of a mockup reaches it by promotion, from the mockup (§7.7).
 - **Arranging by hand.** For an editor, each row has a handle (shown on hover, focus and the
   current row, always on touch): dragging it puts the page before or after another, or inside one
   to nest it, with a bar or a ring showing where it lands, and a strip at the end of the tree for
-  the end of the top level; Esc cancels. With a row focused, Alt and ↑ or ↓ swap it with its
+  the end of the top level; Esc cancels. While it is dragged the row dims where it stands and a
+  lifted copy of it follows the pointer, held where it was taken hold of, under a grabbing hand. With a row focused, Alt and ↑ or ↓ swap it with its
   neighbour, Alt and → nests it under the page above, and Alt and ← moves it out to follow its
   parent; the move is announced and the page keeps focus. Every kind of page moves alike, and any
   may hold any other. A move shows at once and saves the whole arrangement

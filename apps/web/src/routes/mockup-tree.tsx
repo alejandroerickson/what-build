@@ -10,6 +10,7 @@ import {
   type ArrowKey, type MockupFolder, type MockupList, type MockupMove, type MockupSummary,
 } from "./mockup-folders-model.ts";
 import { useMockupList } from "./mockups.tsx";
+import { DragGhost, holdOf, type Hold } from "./tree-drag.tsx";
 
 /**
  * The mockups in the panel: those in no folder, then each folder with its own, one level deep.
@@ -70,8 +71,14 @@ type Zone = "before" | "after" | "into" | "out";
 interface Drag {
   kind: RowKind;
   id: string;
+  title: string;
+  /** Where the press began, and where the pointer is now. */
   x: number;
   y: number;
+  px: number;
+  py: number;
+  /** Where in the row the person took hold of it. */
+  hold: Hold;
   active: boolean;
   /** Where it would land: the row that shows it, how, and the move a release makes. Null over nothing, or where a drop would change nothing. */
   over: { row: string | null; zone: Zone; move: MockupMove } | null;
@@ -198,7 +205,8 @@ export function MockupTree() {
     if (e.button !== 0 || !canWrite) return;
     e.preventDefault();
     e.currentTarget.setPointerCapture(e.pointerId);
-    setDragState({ kind, id, x: e.clientX, y: e.clientY, active: false, over: null });
+    const title = (kind === "folder" ? list?.folders.find((f) => f.folder_id === id)?.name : list?.items.find((m) => m.mockup_id === id)?.title) ?? "";
+    setDragState({ kind, id, title, x: e.clientX, y: e.clientY, px: e.clientX, py: e.clientY, hold: holdOf(e), active: false, over: null });
   };
   const onGripMove = (e: ReactPointerEvent<HTMLElement>) => {
     const d = dragRef.current;
@@ -211,7 +219,7 @@ export function MockupTree() {
       if (e.clientY < r.top + 24) scroller.scrollBy(0, -8);
       else if (e.clientY > r.bottom - 24) scroller.scrollBy(0, 8);
     }
-    setDragState({ ...d, active: true, over: overAt(e.clientX, e.clientY, d) });
+    setDragState({ ...d, px: e.clientX, py: e.clientY, active: true, over: overAt(e.clientX, e.clientY, d) });
   };
   const onGripUp = () => {
     const d = dragRef.current;
@@ -454,6 +462,7 @@ export function MockupTree() {
         <p className="visually-hidden" aria-live="polite">
           {announcement}
         </p>
+        {dragged ? <DragGhost hold={dragged.hold} x={dragged.px} y={dragged.py} glyph={dragged.kind === "folder" ? "folder" : "layout-grid"} title={dragged.title} /> : null}
       </div>
       {asking?.kind === "new" || asking?.kind === "rename" ? (
         <FolderDialog
