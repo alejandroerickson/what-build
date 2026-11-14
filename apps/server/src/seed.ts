@@ -2,7 +2,7 @@ import { actorOf, createTenantFor, execute, houseStyle, json, newEtag, OPERATION
 import { sql } from "kysely";
 import { acceptInvitation, findOrCreateAccount, type AccountRow } from "./auth/identity.ts";
 import {
-  MOCKUP, MOCKUP_LINKED_PAGES, HANDOFF_HTML, HANDOFF_NOTES, INTERVIEW_AGENT_NOTES, INTERVIEW_RECORDER_EXPORT, INTERVIEW_TXT, INTERVIEW_VTT, OVERVIEW_NOTES, OWNER_NOTES_MD, RESEARCH_EXPORT_MD, SAMPLE, SOURCE_CARDS, SOURCE_SUMMARIES, STORY_HTML,
+  MOCKUP, MOCKUP_LATE_BOOKING, MOCKUP_LINKED_PAGES, HANDOFF_HTML, HANDOFF_NOTES, INTERVIEW_AGENT_NOTES, INTERVIEW_RECORDER_EXPORT, INTERVIEW_TXT, INTERVIEW_VTT, OVERVIEW_NOTES, OWNER_NOTES_MD, RESEARCH_EXPORT_MD, SAMPLE, SOURCE_CARDS, SOURCE_SUMMARIES, STORY_HTML,
 } from "./seed-content.ts";
 import type { Worker } from "./worker.ts";
 
@@ -169,6 +169,24 @@ export async function seed(env: Env, worker: Worker, log: (m: string) => void = 
         { page_id: "jobs-board", notes: MOCKUP.notes.jobsRevised, html: MOCKUP_LINKED_PAGES.jobs },
         { page_id: "day-planner", html: MOCKUP_LINKED_PAGES.days },
         { page_id: "crew-message", title: "Crew message", notes: MOCKUP.notes.message, width: 390, height: 760, html: MOCKUP_LINKED_PAGES.message },
+      ],
+    },
+    ref,
+  );
+  // The mockups arranged by hand: the planning canvas in a folder, and a newer, smaller one in none.
+  const planning = await call(env, samAgent, "mockups.create_folder", { name: MOCKUP_LATE_BOOKING.folder }, ref);
+  await call(env, samAgent, "mockups.move", { mockup_id: mockup["mockup_id"], folder_id: planning["folder_id"] }, ref);
+  await call(
+    env,
+    samAgent,
+    "mockups.publish",
+    {
+      title: MOCKUP_LATE_BOOKING.title,
+      summary: MOCKUP_LATE_BOOKING.summary,
+      brief: MOCKUP_LATE_BOOKING.brief,
+      pages: [
+        { page_id: "on-the-plan", title: "On the plan", notes: MOCKUP_LATE_BOOKING.notes.plan, html: MOCKUP_LATE_BOOKING.pages.plan },
+        { page_id: "crew-message", title: "A message to the crew", notes: MOCKUP_LATE_BOOKING.notes.message, width: 390, height: 760, html: MOCKUP_LATE_BOOKING.pages.message },
       ],
     },
     ref,

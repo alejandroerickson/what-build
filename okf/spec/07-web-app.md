@@ -743,9 +743,38 @@ The sources, and everything for reading them.
 ## 7.7 Exploration
 
 Exploration holds the team's **mockups**, and opens on them. The panel's context slot lists every
-mockup that is not archived, by name, most recently changed first
-([decision](../decisions/lists-filter-from-the-panel.md)); each opens its canvas. With none, one
-quiet line says so and opens the first-use state.
+mockup that is not archived, by name ([decision](../decisions/lists-filter-from-the-panel.md)), as
+the team arranged them
+([decision](../decisions/mockups-are-arranged-by-hand-in-folders-one-level-deep.md),
+[§4.12](04-data-model.md)): the mockups in no folder first, then each folder with its own, one
+level deep. Each mockup opens its canvas. With none, one quiet line says so and opens the
+first-use state.
+
+- **A folder** is a row with a caret, a folder icon, its name and how many mockups it holds;
+  pressing it opens or closes it. Which folders are closed is each person's own, kept in the
+  browser (`whatbuild.mockup-folders-collapsed.<product>`); the folder of the mockup on screen is
+  always open, so a link never lands on a row that is folded away. An open folder with nothing in
+  it says "No mockups in this folder".
+- **Arranging**, for anyone who can write. A mockup or a folder is dragged by the handle its row
+  shows on hover and focus (always on touch): a mockup onto the upper or lower half of another
+  mockup to go before or after it, or onto a folder to go last in it; a folder onto the upper or
+  lower half of another folder. While a mockup that is in a folder is dragged, a dashed row under
+  the mockups in no folder reads "Move out of its folder". The row dims where it stands and a
+  lifted copy of it follows the pointer, held where it was taken hold of, under a grabbing hand; a
+  bar or a ring shows where it would land, Escape cancels, and a toast names where it went, with Undo. With a row focused, Alt and
+  Up or Down move a mockup among those beside it, or a folder among the folders, and Alt and Left
+  take a mockup out of its folder; each move, or why none was made, is announced. A mockup's "…"
+  menu names the folder it is in (No folder, or one of the folders) and puts it in another, and
+  its **New folder…** makes a folder and puts the mockup in it. A folder's menu has **Rename…**
+  and **Remove folder**, which asks first when the folder holds mockups and says that they stay,
+  in no folder. **New folder**, an icon button on the section's head, asks for a name.
+- A move shows at once and is saved after; if what it named has gone, because someone else
+  rearranged the mockups at the same time, a toast says so and the list shows them as they are.
+  A viewer sees the same arrangement, opens and closes folders, and is offered nothing that
+  changes it. Up, Down, Home and End move between rows, Right opens a folder or goes into it,
+  and Left closes it or returns to it.
+- The crumbs above a canvas name the folder the mockup is in: Exploration, Mockups, the folder,
+  the mockup.
 
 Exploration once held an assumption register too. Assumptions are removed
 ([decision](../decisions/assumptions-are-removed-and-every-one-is-deleted.md)): an address under
@@ -949,7 +978,8 @@ page of a mockup reaches it by promotion, from the mockup (§7.7).
 - **Arranging by hand.** For an editor, each row has a handle (shown on hover, focus and the
   current row, always on touch): dragging it puts the page before or after another, or inside one
   to nest it, with a bar or a ring showing where it lands, and a strip at the end of the tree for
-  the end of the top level; Esc cancels. With a row focused, Alt and ↑ or ↓ swap it with its
+  the end of the top level; Esc cancels. While it is dragged the row dims where it stands and a
+  lifted copy of it follows the pointer, held where it was taken hold of, under a grabbing hand. With a row focused, Alt and ↑ or ↓ swap it with its
   neighbour, Alt and → nests it under the page above, and Alt and ← moves it out to follow its
   parent; the move is announced and the page keeps focus. Every kind of page moves alike, and any
   may hold any other. A move shows at once and saves the whole arrangement

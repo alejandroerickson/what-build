@@ -665,6 +665,24 @@ export interface MockupsTable {
   current_version_id: string;
   version_count: number;
   archived_at: TsNull;
+  /** The folder it sits in, or null for none. */
+  folder_id: string | null;
+  /** Its place among the mockups of its folder, or of those in none: lower first. Left out of an insert, it is 0. */
+  position: Generated<number>;
+  etag: string;
+  created_at: Ts;
+  created_by: Json<ActorSnapshot>;
+  updated_at: Ts;
+  updated_by: Json<ActorSnapshot>;
+}
+
+/** A folder of a product's mockups, one level deep: a name and a place among the product's folders. */
+export interface MockupFoldersTable {
+  folder_id: string;
+  tenant_id: string;
+  product_id: string;
+  name: string;
+  position: number;
   etag: string;
   created_at: Ts;
   created_by: Json<ActorSnapshot>;
@@ -867,6 +885,7 @@ export interface DB {
   story_styles: StoryStylesTable;
   story_previews: StoryPreviewsTable;
   card_previews: CardPreviewsTable;
+  mockup_folders: MockupFoldersTable;
   mockups: MockupsTable;
   mockup_versions: MockupVersionsTable;
   mockup_pages: MockupPagesTable;

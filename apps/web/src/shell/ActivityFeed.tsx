@@ -75,6 +75,11 @@ const VERBS: Record<string, string> = {
   "mockup:archived": "archived the mockup",
   "mockup:restored": "restored the mockup",
   "mockup:deleted": "deleted the mockup",
+  "mockup:moved": "moved the mockup",
+  "mockup:folder_created": "made the mockup folder",
+  "mockup:folder_renamed": "renamed the mockup folder to",
+  "mockup:folder_moved": "moved the mockup folder",
+  "mockup:folder_removed": "removed the mockup folder",
   "story_hierarchy:organized": "rearranged",
   "story_style:created": "set the Story style to",
   "story_style:updated": "changed the Story style to",
@@ -119,7 +124,8 @@ function linkFor(app: string, i: ActivityItem, settingsTo: ReturnType<typeof use
     case "story_page":
       return `${app}/story/${i.entity_id}`;
     case "mockup":
-      return `${app}/exploration/mockups/${i.entity_id}`;
+      // An entry about a folder names the folder, which has no page of its own: it leads to the mockups.
+      return i.action.startsWith("folder_") ? `${app}/exploration/mockups` : `${app}/exploration/mockups/${i.entity_id}`;
     case "story_hierarchy":
     case "story_style":
       return `${app}/story`;

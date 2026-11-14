@@ -24,7 +24,8 @@ The maintainer chose these rules on 2026-09-28.
   Evidence's panel filters its sources. Exploration, which once held insights, decisions and
   assumptions as lists filtered so, now holds only the mockups, listed in its panel by name with no
   filters ([decision](mockups-are-versioned-canvases-in-exploration.md),
-  [decision](assumptions-are-removed-and-every-one-is-deleted.md)).
+  [decision](assumptions-are-removed-and-every-one-is-deleted.md)), in the folders and the order
+  the team gave them ([decision](mockups-are-arranged-by-hand-in-folders-one-level-deep.md)).
 - A list is filtered from the panel. Controls above a table's rows either sort it (Evidence's
   sources) or search it; they never filter.
 - Search is not a list's: one search covers the whole product, from the panel's Search field on

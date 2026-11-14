@@ -490,6 +490,48 @@ How these pages are built, so the next version looks like it belongs.
   },
 };
 
+/** A second, smaller canvas, so the sample product shows mockups arranged: this one in no folder, the first in a folder. */
+export const MOCKUP_LATE_BOOKING = {
+  title: "A late booking: where the change shows",
+  summary: "Two places a crew lead could learn that Thursday changed.",
+  brief: `# A late booking: where the change shows
+
+## What this canvas explores
+
+A booking that arrives after the week is sent moves someone's Thursday. This canvas tries two places to say so: a line on the plan itself, and a short message to the crew it touches.
+
+## Questions it should answer
+
+1. Does a crew lead notice the change on the plan without being told to look?
+2. Is a message enough by itself, or do crews open the plan to check it?
+
+## What it draws on
+
+The first walk-through of the planning canvas, where the late booking was found but its effect on another crew was not.`,
+  folder: "Weekly planning",
+  pages: {
+    plan: mock(
+      "On the plan",
+      `<header><b>Crewboard</b><span>Week of 12 Oct · changed Wednesday</span></header><main><h2>Thursday</h2><div class="cols">
+<div class="card"><b>Crew A · Mulch beds</b><span class="meta">8:00 · Library, 3 Main St · 3 h</span></div>
+<div class="card"><b>Crew B · Storm clean-up, Oak Ct</b><span class="meta">Added Wednesday · 9:00 · 4 h</span><br><span class="tag">New this week</span></div>
+<div class="card"><b>Crew B · Spring clean-up</b><span class="meta">Moved to Friday</span></div>
+</div></main>`,
+    ),
+    message: mock(
+      "A message to the crew",
+      `<header><b>Crewboard</b><span>Crew B · a change</span></header><main><h2>Hi Dev, Thursday changed</h2><div class="cols">
+<div class="card"><b>Thursday · Storm clean-up</b><span class="meta">9:00 · 8 Oak Ct · 4 h</span></div>
+<div class="card"><b>Friday · Spring clean-up</b><span class="meta">Moved from Thursday · 8:00 · 4 h</span></div>
+</div><p style="margin-top:16px"><span class="btn">Got it</span></p></main>`,
+    ),
+  },
+  notes: {
+    plan: "The change sits where the job is. Watch whether anyone sees the tag without being pointed to it.",
+    message: "Phone width. Only the crew the change touches gets it.",
+  },
+};
+
 /** The canvas's pages in its second version, linked as files side by side in a folder are. */
 export const MOCKUP_LINKED_PAGES = {
   jobs: MOCKUP.pages.jobs.replace("</div></main>", '</div><p style="margin-top:16px"><a class="btn" href="day-planner.html">Plan by day</a></p></main>'),

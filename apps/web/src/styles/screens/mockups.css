@@ -589,3 +589,53 @@
     transition: none;
   }
 }
+
+/* ---- The mockups in the panel -------------------------------------------------------------------
+   Folders, one level deep, on the Story tree's rows (story.css): a folder's mockups sit under its
+   name, a caret and an icon further in. */
+.mockup-tree .story-indent {
+  width: calc(var(--level, 0) * 20px);
+}
+.mockup-tree .story-row[data-drop="before"]::before,
+.mockup-tree .story-row[data-drop="after"]::after {
+  left: calc(14px + var(--level, 0) * 20px);
+}
+.mockup-tree .story-drop-end {
+  margin-bottom: var(--s-1);
+}
+/* A folder's name is a button that opens and closes it. */
+.mockup-folder {
+  padding: 0 var(--s-1) 0 0;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.mockup-folder > .story-caret {
+  width: 14px;
+}
+.mockup-folder-count {
+  flex: none;
+  margin-left: auto;
+  padding-left: var(--s-1);
+  color: var(--faint);
+  font-size: var(--fs-xs);
+}
+.story-row:hover .mockup-folder-count,
+.story-row:focus-within .mockup-folder-count {
+  display: none;
+}
+@media (hover: none) {
+  .mockup-folder-count {
+    display: none;
+  }
+}
+.mockup-folder-empty {
+  padding: var(--s-1) var(--s-2) var(--s-1) 48px;
+  color: var(--faint);
+  font-size: var(--fs-xs);
+}
+.mockup-tree > .story-tree-hint {
+  margin-top: var(--s-2);
+}

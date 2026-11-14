@@ -1,7 +1,7 @@
 ---
 type: Specification
 title: Every capability is one registered operation, reached identically over REST and MCP.
-description: The operation registry, the error model and bounds, the full catalogue of 111 operations with their REST routes and MCP tools, authorization and agent connection levels, upload flows, the guide and the Connect page.
+description: The operation registry, the error model and bounds, the full catalogue of 116 operations with their REST routes and MCP tools, authorization and agent connection levels, upload flows, the guide and the Connect page.
 tags: [spec, operations, rest, mcp, registry, uploads, guide]
 generated: {by: agent:claude, at: 2026-11-13}
 status: stable
@@ -112,10 +112,10 @@ tenant.
 | 401 | No or invalid identity or grant | `unauthenticated`, `invalid_grant` |
 | 403 | A role too low for the action; an agent connection's level too low for it; feedback turned off for an agent connection; something only a person does in the web app; a call outside a scoped MCP connector; a write by a guest of the example organization; a cross-origin cookie write; deleting an account from a browser that has not signed in recently; something an organization's plan switches off | `forbidden`, `connection_level`, `feedback_off`, `web_only`, `outside_connector_scope`, `example_read_only`, `forbidden_origin`, `invitation_wrong_address`, `plan_restricted`, `tenant_allowance`, `sign_in_again` |
 | 404 | Absent — including everything the caller has no role on | `not_found` |
-| 409 | Conflict with current state | `stale_etag`, `product_archived`, `record_archived`, `mockup_archived`, `slug_taken`, `too_many_attachments`, `no_text`, `no_file`, `mockup_on_story`, `already_uploaded`, `upload_used`, `example_organization`, `export_in_progress`, `last_owner`, `instance_owner`, `quota_exceeded`, `organization_read_only` |
+| 409 | Conflict with current state | `stale_etag`, `product_archived`, `record_archived`, `mockup_archived`, `slug_taken`, `too_many_attachments`, `no_text`, `no_file`, `mockup_on_story`, `folder_name_taken`, `already_uploaded`, `upload_used`, `example_organization`, `export_in_progress`, `last_owner`, `instance_owner`, `quota_exceeded`, `organization_read_only` |
 | 410 | Deliberately deleted, with a tombstone; an invitation no longer usable | `record_deleted`, `outcome_deleted`, `story_page_deleted`, `mockup_deleted`, `annotation_deleted`, `invitation_used`, `invitation_expired` |
 | 413 | Body or file beyond a limit | `too_large` |
-| 422 | Invalid input | `invalid_input`, `edit_not_found`, `edit_ambiguous`, `unknown_field`, `unknown_action`, `unknown_tool`, `wrong_tool`, `product_required`, `too_long`, `outcome_cites_a_record`, `invalid_query`, `invalid_cursor`, `invalid_filter`, `invalid_html`, `invalid_patch`, `invalid_upload`, `fetch_failed`, `confirmation_required`, `name_mismatch`, `typed_email`, `may_start_one`, `unknown_plan` |
+| 422 | Invalid input | `invalid_input`, `edit_not_found`, `edit_ambiguous`, `unknown_field`, `unknown_action`, `unknown_tool`, `wrong_tool`, `product_required`, `too_long`, `outcome_cites_a_record`, `invalid_query`, `invalid_cursor`, `invalid_filter`, `invalid_html`, `invalid_patch`, `invalid_move`, `invalid_upload`, `fetch_failed`, `confirmation_required`, `name_mismatch`, `typed_email`, `may_start_one`, `unknown_plan` |
 | 429 | Rate limited | `rate_limited` |
 | 503 | Too busy to answer, or a search stopped ([§8.8](08-search.md)), with nothing changed | `search_timed_out`, `search_busy`, `database_busy` |
 
@@ -245,7 +245,7 @@ it always has.
 
 ### The operation catalogue
 
-All 111 operations, generated from `OPERATIONS`. The MCP tool is the operation name's first half;
+All 116 operations, generated from `OPERATIONS`. The MCP tool is the operation name's first half;
 standalone tools (—) take their fields directly. "Needs" is the minimum role
 ([§3.5](03-accounts-and-identity.md)); `members` write actions check admin at the level
 being changed inside the handler.
@@ -355,6 +355,11 @@ being changed inside the handler.
 | `mockups` | `get_version` | `GET P/mockups/:mockup_id/versions/:version` | viewer |
 | `mockups` | `request_upload` | `POST P/mockups/uploads` | editor |
 | `mockups` | `publish` | `POST P/mockups` | editor |
+| `mockups` | `create_folder` | `POST P/mockup-folders` | editor |
+| `mockups` | `rename_folder` | `PATCH P/mockup-folders/:folder_id` | editor |
+| `mockups` | `move_folder` | `POST P/mockup-folders/:folder_id/move` | editor |
+| `mockups` | `remove_folder` | `POST P/mockup-folders/:folder_id/remove` | editor |
+| `mockups` | `move` | `POST P/mockups/:mockup_id/move` | editor |
 | `mockups` | `archive` | `POST P/mockups/:mockup_id/archive` | editor |
 | `mockups` | `restore` | `POST P/mockups/:mockup_id/restore` | editor |
 | `mockups` | `get_download` | `POST P/mockups/:mockup_id/downloads` | viewer |
@@ -514,7 +519,9 @@ Notes on recent actions:
   descriptions state what a page may hold and what is refused, that a refused publish changes
   nothing and leaves an upload unused, and what a frame does with a page taller than its height.
   `mockups.list` returns `archived_hidden` (and a `note` when it is not zero) and
-  `quota { used, limit, unit, archived_included }`. A version may carry a prototype, uploaded under
+  `quota { used, limit, unit, archived_included }`, with `items` in the order the team arranged
+  them and `folders` in theirs; `create_folder`, `rename_folder`, `move_folder`, `remove_folder`
+  and `move` arrange them, and change no mockup ([§4.12](04-data-model.md), Folders and order). A version may carry a prototype, uploaded under
   `prototype/` in the ZIP, and a page may give `entry` (and `poster`) instead of `html`; reads give
   the version's `prototype { file_count, bytes, base_url, expires_at, sandbox }` (with its files
   under `include_files`) and each entry page's `prototype_url`, and `publish` answers with
@@ -918,7 +925,7 @@ owner's included: running the instance is done in the web app.
 | `story_write` | `set_style`, `publish`, `promote_mockup`, `write_notes`, `set_hierarchy`, `archive_page`, `restore_page` |
 | `story_delete` | `delete_page` |
 | `mockups_read` | `list`, `get`, `list_versions`, `get_version`, `get_download`, `delete_impact` |
-| `mockups_write` | `request_upload`, `publish`, `archive`, `restore` |
+| `mockups_write` | `request_upload`, `publish`, `create_folder`, `rename_folder`, `move_folder`, `remove_folder`, `move`, `archive`, `restore` |
 | `mockups_delete` | `delete` |
 | `activity_read` | `list` |
 | `search` | standalone |

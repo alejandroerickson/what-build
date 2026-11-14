@@ -116,3 +116,4 @@ name what replaced it, and date the change. Smaller decisions are marked
 - [A release that migrates is rehearsed on a dev deployment that holds a copy of production, before production's deploy is approved](releases-are-rehearsed-on-a-dev-deployment-holding-a-copy-of-production.md)
 - [Mail is set up through Cloudflare Email Sending over SMTP, any SMTP provider can take its place, and a dev deployment sends none](mail-is-set-up-through-cloudflare-email-sending-and-a-dev-deployment-sends-none.md)
 - [Times are UTC in data and the API, and shown in the viewer's own time zone](times-are-utc-in-data-and-local-where-shown.md)
+- [Mockups are arranged by hand, in folders one level deep that everyone in the product shares](mockups-are-arranged-by-hand-in-folders-one-level-deep.md)

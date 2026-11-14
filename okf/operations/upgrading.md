@@ -28,7 +28,7 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
   now report and accept `story_reader` (`your_role`, members and invitations, and refusals'
   `details`, `{ "role": "story_reader", "needed": "viewer" }`). A script or agent that sends
   `role: "reader"` must send `story_reader`: `reader` is refused (`422 invalid_input`) naming the
-  roles there are. An MCP client gets the new tool list (version 0.62.0) in a new session. Nothing
+  roles there are. An MCP client gets the new tool list (version 0.63.0) in a new session. Nothing
   else needs doing.
 - **Migration `0046_no_assumptions` deletes every assumption, for good.** In every product of every
   organization it deletes every assumption, archived or not, with its reviews, its earlier wordings,
@@ -39,7 +39,7 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
   the product's Settings in the web app, or `products_export` over MCP; a bundle made before it holds
   them in `assumptions.json`. Tell the deployment's people before upgrading. The MCP tools
   `assumptions_read`, `assumptions_write` and `assumptions_delete` and the REST routes under
-  `/assumptions` are gone; an MCP client gets the new tool list, version 0.62.0, in a new session,
+  `/assumptions` are gone; an MCP client gets the new tool list, version 0.63.0, in a new session,
   and until then a call to one of the old tools is told that assumptions are retired. Rehearse the
   release on the dev deployment as any release that migrates; going back past it needs the database
   restored ([recovering](recovering-from-a-bad-release.md)), since running the previous image
@@ -50,6 +50,24 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
   old link to an assumption, in a Story page or a bookmark, opens Exploration's mockups with a toast
   saying WhatBuild no longer keeps assumptions. A deployment does nothing.
 - **A product export is format version 4:** it has no `assumptions.json`.
+- **Migration `0047_mockup_folders`: mockups are arranged in folders.** A product's mockups sit in
+  folders, one level deep, in an order people and agents give by hand
+  ([decision](../decisions/mockups-are-arranged-by-hand-in-folders-one-level-deep.md)). The
+  migration adds the `mockup_folders` table and a folder and a place to each mockup, and leaves
+  every mockup in no folder, in the order the list showed until now, most recently changed first.
+  It changes no content. Rehearse it on the dev deployment as any release that migrates; going back
+  past it needs the database restored ([recovering](recovering-from-a-bad-release.md)). A
+  deployment does nothing else.
+- **People will notice:** in Exploration, the panel's mockups no longer reorder themselves when one
+  is published, a new mockup appears first, and anyone who can write drags mockups and folders into
+  place. A mockup's address does not change when it moves.
+- **Connected agents are offered five more actions** in `mockups_write` (`create_folder`,
+  `rename_folder`, `move_folder`, `remove_folder`, `move`); `mockups_read(action="list")` gives the
+  mockups in the arranged order with `folder_id` and `folders`, no longer most recently changed
+  first; `publish` takes `folder_id` for a new mockup. An agent keeps the tools it had until a new
+  session brings version 0.63.0.
+- **A product export also holds `mockups/folders.json`**, and each `mockup.json` its `folder_id` and
+  `position`.
 
 ## v0.34.2
 

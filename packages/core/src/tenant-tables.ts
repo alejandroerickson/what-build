@@ -8,7 +8,7 @@ export const CONTENT_TABLES = [
   "records", "files", "file_versions", "attachment_pictures", "derivations", "source_texts", "annotations", "agent_notes",
   "outcomes", "insights", "revisions", "register_entries", "reviews",
   "story_pages", "story_versions", "story_hierarchies", "story_styles",
-  "mockups", "mockup_versions", "mockup_pages", "mockup_files", "mockup_prototype_files",
+  "mockup_folders", "mockups", "mockup_versions", "mockup_pages", "mockup_files", "mockup_prototype_files",
   "activity", "tombstones",
 ] as const;
 

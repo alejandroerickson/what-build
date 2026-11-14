@@ -11,6 +11,7 @@ import { Inspector, usePageTitle } from "../shell/slots.tsx";
 import { Button, ButtonLink, Callout, Crumbs, Dialog, EmptyState, ErrorCallout, Glyph, Group, KeyValue, Loading, Menu, MenuRadio, Segmented, TextField, useToast, tooLong } from "../ui/index.tsx";
 import { DeleteDialog } from "./delete-dialog.tsx";
 import { FirstUse } from "./first-use.tsx";
+import type { MockupList, MockupSummary } from "./mockup-folders-model.ts";
 import { Canvas, pageAddress, usePinnedPrototype, type CanvasPage, type CanvasVersion, type PrototypeAddress } from "./mockup-canvas.tsx";
 import { usePageView } from "./story-flip.tsx";
 import { backSteps } from "./page-moves.ts";
@@ -40,17 +41,6 @@ async function saveResponse(res: Response, fallback: string) {
   a.download = name;
   a.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
-}
-
-export interface MockupSummary {
-  mockup_id: string;
-  title: string;
-  summary: string;
-  current_version: number;
-  archived_at: string | null;
-  etag: string;
-  updated_at: string;
-  page_count: number;
 }
 
 interface MockupPageView extends CanvasPage {
@@ -92,6 +82,8 @@ interface StoryShowing {
 }
 
 interface MockupView extends MockupSummary {
+  /** The folder it sits in, or null for none. */
+  folder: { folder_id: string; name: string } | null;
   current: MockupVersion;
   story_pages: StoryShowing[];
 }
@@ -104,7 +96,7 @@ interface VersionItem {
 
 export function useMockupList() {
   const { api: base } = useProduct();
-  return useQuery({ queryKey: ["mockups", base], queryFn: () => api<{ items: MockupSummary[] }>("GET", `${base}/mockups`) });
+  return useQuery({ queryKey: ["mockups", base], queryFn: () => api<MockupList>("GET", `${base}/mockups`) });
 }
 
 function rememberKey(productId: string) {
@@ -538,7 +530,10 @@ export function MockupPage() {
     setParams(next);
   };
 
-  const crumbs = [{ label: "Exploration" }, { label: "Mockups" }, { label: e.isError ? "Not found" : (e.data?.title ?? "…") }];
+  // The folder the mockup sits in, from the list, which follows a move at once; an archived mockup is not in the list, and names its own.
+  const listed = mockups.data?.items.find((m) => m.mockup_id === mockupId);
+  const folderName = listed ? mockups.data?.folders.find((f) => f.folder_id === listed.folder_id)?.name : e.data?.folder?.name;
+  const crumbs = [{ label: "Exploration" }, { label: "Mockups" }, ...(folderName && !e.isError ? [{ label: folderName }] : []), { label: e.isError ? "Not found" : (e.data?.title ?? "…") }];
 
   if (e.isPending)
     return (
