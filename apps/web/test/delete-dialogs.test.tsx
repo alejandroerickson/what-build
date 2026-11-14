@@ -26,7 +26,7 @@ vi.mock("../src/lib/api.ts", async (original) => {
     ...real,
     api: vi.fn(async (method: string, path: string) => {
       if (path === `${BASE}/delete-impact`)
-        return { etag: "product-impact-etag", contents: { sources: 2, stored_files: 0, bytes: 0, comments: 0, outcomes: 0, assumptions: 0, story_pages: 0, mockups: 0, exports: 0, people: 0 } };
+        return { etag: "product-impact-etag", contents: { sources: 2, stored_files: 0, bytes: 0, comments: 0, outcomes: 0, story_pages: 0, mockups: 0, exports: 0, people: 0 } };
       if (method === "POST" && path === `${BASE}/archive`) return { product_id: product.product_id, archived_at: "2026-10-02T09:00:00.000Z" };
       if (path === `${BASE}/exports`) return { items: [] };
       if (path.startsWith("/api/v1/me/products")) return { items: [], tenants: [] };
@@ -55,9 +55,8 @@ window.matchMedia ??= (query: string) => ({ matches: false, media: query, onchan
 const { api } = await import("../src/lib/api.ts");
 const { DeleteDialog } = await import("../src/routes/delete-dialog.tsx");
 const { ProductGeneralSettings } = await import("../src/routes/product-misc.tsx");
-const { entryImpactWords } = await import("../src/routes/registers.tsx");
 const { DeletePage } = await import("../src/routes/story-actions.tsx");
-const { outcomeGoes, servedBy } = await import("../src/routes/idea.tsx");
+const { outcomeGoes } = await import("../src/routes/idea.tsx");
 const { SourceDetailPage, sourceImpactWords } = await import("../src/routes/source-detail.tsx");
 const { organizationImpactWords } = await import("../src/routes/org.tsx");
 const { mockupImpactWords } = await import("../src/routes/mockups.tsx");
@@ -123,11 +122,11 @@ describe("a permanent delete's dialog", () => {
     const onArchive = vi.fn();
     await render(
       <DeleteDialog
-        title="Delete this assumption permanently?"
-        impactPath={`${BASE}/assumptions/a1/delete-impact`}
-        deletePath={`${BASE}/assumptions/a1`}
+        title="Delete this outcome permanently?"
+        impactPath={`${BASE}/outcomes/o1/delete-impact`}
+        deletePath={`${BASE}/outcomes/o1`}
         alternative={{ label: "Archive instead", onSelect: onArchive }}
-        renderImpact={() => <p>This deletes the assumption.</p>}
+        renderImpact={() => <p>This deletes the outcome.</p>}
         onDeleted={() => {}}
         onClose={onClose}
       />,
@@ -196,20 +195,6 @@ describe("what a delete dialog counts", () => {
   });
 });
 
-describe("deleting an assumption", () => {
-  const link = (id: string) => ({ id, statement: "Crews share vans.", type: "assumption" });
-  it("says what it deletes as the other dialogs do, the links to it from other assumptions among it", () => {
-    expect(entryImpactWords("assumption", { review_count: 0, linked_from: [] })).toBe("This deletes the assumption.");
-    expect(entryImpactWords("assumption", { review_count: 2, linked_from: [link("a1")] })).toBe(
-      "This deletes the assumption, its 2 reviews and the links to it from 1 other assumption.",
-    );
-    expect(entryImpactWords("assumption", { review_count: 0, linked_from: [link("a1"), link("a2")] })).toBe(
-      "This deletes the assumption and the links to it from 2 other assumptions.",
-    );
-    expect(entryImpactWords("assumption", { review_count: 1, linked_from: [link("a1")] })).not.toMatch(/remove/i);
-  });
-});
-
 describe("deleting what is already archived", () => {
   it("offers Cancel alone for an archived source, with nothing to archive instead, and says nothing of archiving it", async () => {
     source.archived_at = "2026-10-02T09:00:00.000Z";
@@ -268,11 +253,6 @@ describe("deleting a mockup", () => {
 });
 
 describe("deleting an outcome", () => {
-  it("counts the assumptions that serve it in good grammar, one or more", () => {
-    expect(servedBy(1)).toBe("1 assumption serves it, and will no longer be linked to it.");
-    expect(servedBy(3)).toBe("3 assumptions serve it, and will no longer be linked to it.");
-  });
-
   it("names its picture and its text only when it has them", () => {
     const o = { title: "Crews plan the week in minutes", card_chars: 1200, description: "What success looks like." };
     expect(outcomeGoes(o)).toBe("This deletes “Crews plan the week in minutes” with its picture and text.");

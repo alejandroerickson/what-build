@@ -30,7 +30,6 @@ export const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "a date as yyyy-m
 export const tags = z.array(z.string().min(1).max(50)).max(50).describe("Up to 50 tags, stored lower-case.");
 
 /** Tags sent to an update: the whole list, never an addition to it. */
-export const replacingTags = tags.describe("The whole list of tags, which replaces the current one: send every tag to keep, or [] for none. Up to 50, stored lower-case.");
 
 export const authorType = z
   .enum(["human", "agent"])
@@ -136,8 +135,8 @@ function sentAs(value: unknown): string {
 
 /**
  * A list field sent as something else, in one sentence that says what it takes, with an example
- * made from what was sent where it can be: "`status` takes a list of any of unconfirmed,
- * confirmed, refuted and superseded, such as ["confirmed"], not a string."
+ * made from what was sent where it can be: "`tags` takes a list of strings, such as ["planning"], not
+ * a string."
  */
 function notAList(path: PropertyKey[], list_: z.ZodType, value: unknown): string {
   const element = unwrapped((list_ as unknown as { def: { element: z.ZodType } }).def.element);

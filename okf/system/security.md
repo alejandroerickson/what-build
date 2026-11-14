@@ -3,7 +3,7 @@ type: System Concept
 title: WhatBuild keeps each organization's material to its own people, and treats agent-written HTML, uploads and source text as hostile
 description: The threat model: what is protected, who the attackers are, the trust boundaries, and each control with where it lives in code and the decision that governs it.
 tags: [security, threat-model, tenancy, identity, oauth, example, limits, uploads]
-generated: {by: agent:claude, at: 2026-11-03}
+generated: {by: agent:claude, at: 2026-11-13}
 status: draft
 ---
 
@@ -16,7 +16,7 @@ holds each one; the linked decisions say why. Observed in the code on 2026-10-10
 ## What is protected
 
 - **Discovery material and what is built from it**: sources, their attachments and text, outcomes,
-  assumptions, mockups and the Story. Transcripts carry customers' words and personal data.
+  mockups and the Story. Transcripts carry customers' words and personal data.
 - **The boundaries** between organizations, between products in one, and between roles.
 - **Who people are** (to a guest of the example organization, who its people are), and **credentials**:
   sessions, OAuth tokens, grants, invitation links.
@@ -28,7 +28,7 @@ holds each one; the linked decisions say why. Observed in the code on 2026-10-10
 |---|---|---|
 | Anyone on the internet | The public endpoints: sign-in, OAuth discovery and registration, the site | An account, a foothold, the service down |
 | A member of another organization | An account, a session or an agent's token | Another organization's material |
-| A member with a lower role | A reader, viewer or product-only grant | More than the role allows; another product |
+| A member with a lower role | A Story reader, viewer or product-only grant | More than the role allows; another product |
 | Any signed-in account | A session or an agent's token, and with it a guest's read of the example organization; anyone, while guests may sign up themselves | To change the example, see who is in it, or spend more than its share of a free plan or of the guests' places |
 | A misled or malicious agent | Its person's token; instructions possibly planted in a source by someone in an organization its person belongs to | What its person can reach, used against them |
 | An author of hostile content | A Story or mockup page, an uploaded or fetched file | Script in the app's origin; the parsers; the network behind the server |
@@ -61,8 +61,8 @@ Four things keep a tab from hearing what it may not know, each holding if anothe
   `Cross-Origin-Resource-Policy: same-origin`. Its channel is the id that check resolved. A guest of
   the example organization gets no stream.
 - Before anything is sent, the session (not signed out, not expired, its account not deleted) and the
-  role are asked again, and anything going wrong in asking ends the stream. A reader hears `story` alone,
-  and a kind of operation nobody labelled is `other`, which no reader hears.
+  role are asked again, and anything going wrong in asking ends the stream. A Story reader hears `story` alone,
+  and a kind of operation nobody labelled is `other`, which no Story reader hears.
 - A stream ends after `WHATBUILD_LIVE_STREAM_MINUTES`, so going on means passing the first check again. Nothing changes
   while one is open: it can only hear.
 
@@ -210,13 +210,13 @@ Four things keep a tab from hearing what it may not know, each holding if anothe
   reads there is what the example's staff wrote.
 
 **Tenancy and access** ([decision](../decisions/shared-schema-tenancy-with-row-level-security.md),
-[decision](../decisions/access-is-per-product-roles.md), [decision](../decisions/a-reader-reads-only-the-story.md)).
+[decision](../decisions/access-is-per-product-roles.md), [decision](../decisions/a-story-reader-reads-only-the-story.md)).
 
 - Every operation, REST or MCP, goes through `execute` (`packages/core/src/execute.ts`): authorize
   the scope (`404` without a role, before validation, on both doors, so a non-member's malformed
   MCP call gets `404` as over REST), apply a connector's fence, refuse a guest's write and apply a plan's limits, validate
   strictly, then run in a transaction with `app.tenant_id` set. Roles are in
-  `packages/core/src/policy.ts`; a reader's Story reads are trimmed by `readsOnlyTheStory`.
+  `packages/core/src/policy.ts`; a Story reader's Story reads are trimmed by `readsOnlyTheStory`.
   `apps/server/test/access.test.ts` requires `404` from every operation for a non-member, and
   `tenant-isolation.test.ts` calls every operation from another organization over both doors.
 - Only an owner changes or removes an owner's role. Below an owner or admin of the organization,
@@ -274,7 +274,7 @@ Four things keep a tab from hearing what it may not know, each holding if anothe
   that changes in place, and the requester, for the grant lifetime (30 minutes); every load of
   the app's address mints a new one. The content route reads no cookie or `Authorization` header,
   sets no cookie, never redirects and answers on the content host alone. It checks the requester
-  again before the first byte (`requesterMayRead`), so someone removed or lowered to reader stops
+  again before the first byte (`requesterMayRead`), so someone removed or lowered to Story reader stops
   loading at once, finds the document with the same function as the app's route
   (`apps/server/src/documents.ts`), and serves it with the same headers, framed by the app's
   origin alone, with CORP `cross-origin` and `private, no-store`. A document's load counts once
@@ -383,7 +383,7 @@ Four things keep a tab from hearing what it may not know, each holding if anothe
   picture, so a viewer can choose what such an attachment shows until someone who can write replaces
   it with `attachments.set_frame`. It is the web app's alone. The worker makes its own copies from what
   is sent, and the picture is seen only by those who can read the source. A guest of the example
-  organization, an agent and a reader of the Story cannot send one.
+  organization, an agent and a Story reader cannot send one.
 - A mockup canvas uploaded as a ZIP comes through the relay only, under a grant of its own purpose
   (`mockup_upload`), and is refused on a plan with limits, whose text is capped field by field. Publish unpacks it with the parsers' `zipEntries`, which stops at 96 MB unpacked
   however the archive claims its sizes and refuses more than 2,148 entries before inflating any;

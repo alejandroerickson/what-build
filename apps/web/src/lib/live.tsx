@@ -12,7 +12,7 @@ import { noteServerCommit, serverCommit } from "./new-release.ts";
  *
  * What a screen does with that depends on what a person may be in the middle of:
  *
- * - Lists and cards (Idea, Evidence, assumptions, the Story's tree, activity) refresh by themselves
+ * - Lists and cards (Idea, Evidence, mockups, the Story's tree, activity) refresh by themselves
  *   (`AUTOMATIC`), and never while someone is typing, dragging or in a dialog (`refreshHeld`).
  * - A Story page and a mockup's canvas never change by themselves: a frame reloading would lose
  *   someone's place, and what they entered in a mockup. They look, and say a newer one is there with
@@ -47,8 +47,8 @@ const AUTOMATIC: Record<LiveArea, readonly string[]> = {
   story: ["story-tree", "story-pages"],
   idea: ["outcomes"],
   evidence: ["sources", "source", "source-comments"],
-  exploration: ["mockups", "register", "entry"],
-  other: ["story-tree", "story-pages", "outcomes", "sources", "source", "source-comments", "mockups", "register", "entry"],
+  exploration: ["mockups"],
+  other: ["story-tree", "story-pages", "outcomes", "sources", "source", "source-comments", "mockups"],
 };
 
 /** The areas a block of the stream names: nothing but those this app knows, and nothing for anything else it might say. */

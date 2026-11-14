@@ -18,17 +18,17 @@ const outcomeId = id("outcome").describe("The outcome id. id is accepted as anot
 
 /**
  * What an outcome is, said once for every operation that writes one. Outcomes are the product's
- * compass: the evidence, the assumptions, the mockups and the Story are all read against them, so
+ * compass: the evidence, the mockups and the Story are all read against them, so
  * an outcome says where the product is going and never retells how the team found out.
  */
 const WHAT_AN_OUTCOME_IS =
-  "An outcome is what the product's users should be able to achieve with it: the compass the evidence, assumptions, mockups and Story are read against, so write it to last. " +
+  "An outcome is what the product's users should be able to achieve with it: the compass the evidence, mockups and Story are read against, so write it to last. " +
   "Each outcome is a card on the Idea screen. Title: what the user achieves, from their side (\"The crew lead plans next week in minutes\"), shown in the card's head. " +
   "card_html is the front, which people see first: a picture of the outcome that someone new to the team takes in at a glance; call outcomes_read(action=\"card_guidance\") before drawing one, and outcomes_read(action=\"card_preview\") to look at it before writing it. " +
   "description is the back: what success looks like for the users and what it means, in depth (Markdown, up to 6,000 characters), which agents read first and people open with More info. " +
   "The two sides say the same thing and change together: a call that changes one sends the other too, unchanged if it still agrees, and one that sends only one side is refused with card_sides_together. " +
-  "Neither side cites or retells evidence: no sources, quotes, calls, emails, dates, named customers or people who asked, journeys, assumptions or mockups. " +
-  "Evidence belongs in sources, and what it suggests in assumptions, which point at the outcome through outcome_ids. An id or a link to a record is refused. Keep the set small.";
+  "Neither side cites or retells evidence: no sources, quotes, calls, emails, dates, named customers or people who asked, journeys or mockups. " +
+  "Evidence belongs in sources. An id or a link to a record is refused. Keep the set small.";
 
 /** The most characters an outcome's back holds. */
 const DESCRIPTION_MAX = 6000;
@@ -52,7 +52,7 @@ function written(row: Row, touchedCard: boolean) {
   return card_advice.length ? { ...row, card_advice } : row;
 }
 
-/** Any id names a record (a source, an assumption, a mockup, a Story page), and an outcome names none. */
+/** Any id names a record (a source, a mockup, a Story page), and an outcome names none. */
 const RECORD_ID = /\b[0-9A-HJKMNP-TV-Z]{26}\b/;
 
 function refuseReferences(text: { title?: string; description?: string; card_html?: string }) {
@@ -61,7 +61,7 @@ function refuseReferences(text: { title?: string; description?: string; card_htm
     if (found)
       throw invalid(
         "outcome_cites_a_record",
-        `An outcome cites nothing: its ${field} names the record ${found[0]}. Say what the users achieve and what success looks like for them, and put the evidence in an assumption that points at this outcome through outcome_ids.`,
+        `An outcome cites nothing: its ${field} names the record ${found[0]}. Say what the users achieve and what success looks like for them, and keep the evidence in sources.`,
         { field, id: found[0] },
       );
   }
@@ -78,13 +78,6 @@ async function load(ctx: OpContext, outcomeId: string, lock = false) {
   return row as Row;
 }
 
-/** Referenced outcomes that are archived: hidden from the outcomes list, but still linkable. */
-export async function archivedOutcomeIds(ctx: OpContext, ids: string[]): Promise<Set<string>> {
-  if (!ids.length) return new Set();
-  const rows = await ctx.db.selectFrom("outcomes").select("outcome_id").where("product_id", "=", productId(ctx)).where("archived_at", "is not", null).where("outcome_id", "in", [...new Set(ids)]).execute();
-  return new Set(rows.map((r) => r.outcome_id));
-}
-
 export const listOutcomes = defineOperation({
   name: "outcomes.list",
   scope: "product",
@@ -93,8 +86,8 @@ export const listOutcomes = defineOperation({
   summary: "List the product's outcomes in order: the compass every other part of the product is read against.",
   description:
     "Outcomes are what the product's users should be able to achieve with it, under the product concept. Read them at the start of any work in a product, and check what you write against them. " +
-    "Assumptions point at them through outcome_ids; an outcome points at nothing. To see the assumptions that serve one, list assumptions with its outcome_id. " +
-    "Archived outcomes are left out unless include_archived; archived_hidden says how many were left out. An archived outcome can still be linked, and assumptions flag such links in archived_outcome_ids. " +
+    "An outcome points at nothing. " +
+    "Archived outcomes are left out unless include_archived; archived_hidden says how many were left out. " +
     "Each item's description is the back of its card, the text agents read; card_chars is the length of its front, the picture people see first (0 when it has none), and outcomes_read(action=\"get\") returns the front itself.",
   input: z.strictObject({
     include_archived: z.boolean().default(false),
@@ -187,7 +180,7 @@ export const updateOutcome = defineOperation({
   summary: "Change an outcome's title, the two sides of its card, or its position. Pass only what changes, and both sides when either changes.",
   description:
     `Requires expected_etag from your latest read. Fields you omit keep their values. The previous title and both sides are kept as a revision. ${WHAT_AN_OUTCOME_IS} ` +
-    "An outcome says what the product is for, not what evidence found: evidence goes in sources and assumptions. Each change keeps the wording it replaced as a revision. To retire one, archive it.",
+    "An outcome says what the product is for, not what evidence found: evidence goes in sources. Each change keeps the wording it replaced as a revision. To retire one, archive it.",
   input: z.strictObject({
     outcome_id: outcomeId,
     expected_etag: expectedEtag,
@@ -274,8 +267,8 @@ export const archiveOutcome = defineOperation({
   scope: "product",
   access: "write",
   mutates: true,
-  summary: "Archive an outcome the product no longer aims at: out of the list, still linkable, its text kept.",
-  description: "Pass the outcome's etag. Assumptions that point at it flag it in archived_outcome_ids. Restore brings it back.",
+  summary: "Archive an outcome the product no longer aims at: out of the list, its text kept.",
+  description: "Pass the outcome's etag. Restore brings it back.",
   input: z.strictObject({ outcome_id: outcomeId, expected_etag: expectedEtag }),
   rest: { method: "POST", path: "/outcomes/:outcome_id/archive" },
   mcp: { tool: "outcomes", action: "archive" },
@@ -299,23 +292,15 @@ export const restoreOutcome = defineOperation({
   },
 });
 
-/** What deleting an outcome destroys, and what points at it. */
-async function deletion(ctx: OpContext, row: Row) {
-  const assumptions = await ctx.db
-    .selectFrom("register_entries")
-    .select(["entry_id", "statement"])
-    .where("product_id", "=", productId(ctx))
-    .where(sql<boolean>`${row.outcome_id} = any(outcome_ids)`)
-    .orderBy("entry_id", "desc")
-    .execute();
+/** What deleting an outcome destroys. */
+function deletion(row: Row) {
   return {
     outcome_id: row.outcome_id,
     title: row.title,
     etag: row.etag,
     archived: Boolean(row.archived_at),
-    assumptions: assumptions.map((a) => ({ id: a.entry_id, statement: a.statement })),
-    after_delete: "Its title, both sides of its card and its earlier versions go. It is removed from the outcome_ids of the assumptions that serve it.",
-    reversible_alternative: 'outcomes_write(action="archive") takes it out of the list and keeps it linkable.',
+    after_delete: "Its title, both sides of its card and its earlier versions go.",
+    reversible_alternative: 'outcomes_write(action="archive") takes it out of the list and keeps its text.',
   };
 }
 
@@ -324,14 +309,14 @@ export const outcomeDeleteImpact = defineOperation({
   scope: "product",
   access: "read",
   mutates: false,
-  summary: "Preview exactly what deleting an outcome would destroy, and what points at it.",
+  summary: "Preview exactly what deleting an outcome would destroy.",
   description:
-    "Read-only. Show the person this result before proposing a delete. assumptions lists the assumptions it would be removed from. Pass this result's etag as the delete's expected_etag.",
+    "Read-only. Show the person this result before proposing a delete. Pass this result's etag as the delete's expected_etag.",
   input: z.strictObject({ outcome_id: outcomeId }),
   rest: { method: "GET", path: "/outcomes/:outcome_id/delete-impact" },
   mcp: { tool: "outcomes", action: "delete_impact" },
   async handler(ctx, input) {
-    return deletion(ctx, await load(ctx, input.outcome_id));
+    return deletion(await load(ctx, input.outcome_id));
   },
 });
 
@@ -353,14 +338,7 @@ export const deleteOutcome = defineOperation({
     checkConfirmation(input.confirm, 'archive it with outcomes_write(action="archive")');
     const row = await load(ctx, input.outcome_id, true);
     checkEtag(input.expected_etag, row.etag, "outcome");
-    const impact = await deletion(ctx, row);
-    // The assumptions that served it stop naming it; their etags change, so no stale write names it again.
-    for (const a of impact.assumptions)
-      await ctx.db
-        .updateTable("register_entries")
-        .set({ outcome_ids: sql`array_remove(outcome_ids, ${row.outcome_id})`, etag: newEtag(), updated_at: ctx.now, updated_by: json(ctx.actor) })
-        .where("entry_id", "=", a.id)
-        .execute();
+    const impact = deletion(row);
     await leaveTombstone(ctx, { object_type: "outcome", object_id: row.outcome_id, title: row.title, reason: input.reason });
     await dropRevisions(ctx, "outcome", [row.outcome_id]);
     await ctx.db.deleteFrom("outcomes").where("outcome_id", "=", row.outcome_id).execute();

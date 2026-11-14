@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router";
 import { api, ApiError, qs } from "../lib/api.ts";
-import { formatBytes, formatDate, formatDateTime, plural, relativeTime, scopeWords } from "../lib/format.ts";
+import { formatBytes, formatDate, formatDateTime, plural, relativeTime, roleWords, scopeWords } from "../lib/format.ts";
 import { useOrganizationLimits } from "../lib/limits.ts";
 import { useHoldRefresh } from "../lib/live.tsx";
 import { useProduct } from "../lib/session.tsx";
@@ -28,7 +28,6 @@ const TYPE_FILTERS = [
   { id: "source", label: "Sources" },
   { id: "outcome", label: "Outcomes" },
   { id: "mockup", label: "Mockups" },
-  { id: "assumption", label: "Assumptions" },
   { id: "story_page", label: "Story pages" },
   { id: "story_hierarchy", label: "Story tree" },
   { id: "story_style", label: "Story style" },
@@ -232,10 +231,10 @@ function ProductDetails() {
 
 // ---- People on this product ---------------------------------------------------------------------
 
-type Role = "admin" | "editor" | "viewer" | "reader";
-const ROLES: Role[] = ["admin", "editor", "viewer", "reader"];
-const ROLE_WORD: Record<string, string> = { admin: "Admin", editor: "Editor", viewer: "Viewer", reader: "Reader", owner: "Owner", member: "Member", guest: "Guest" };
-const ROLE_HINT: Record<Role, string> = { admin: "Also manages people and settings", editor: "Reads and writes", viewer: "Reads", reader: "Reads only the Story" };
+type Role = "admin" | "editor" | "viewer" | "story_reader";
+const ROLES: Role[] = ["admin", "editor", "viewer", "story_reader"];
+const ROLE_WORD: Record<string, string> = { admin: "Admin", editor: "Editor", viewer: "Viewer", story_reader: "Story reader", owner: "Owner", member: "Member", guest: "Guest" };
+const ROLE_HINT: Record<Role, string> = { admin: "Also manages people and settings", editor: "Reads and writes", viewer: "Reads everything, changes nothing", story_reader: "Reads only the Story’s live pages" };
 
 interface Grant {
   membership_id: string;
@@ -369,7 +368,7 @@ function PeopleSheet() {
                             {via === "all_products" ? "all products" : from.scope.name}
                           </Link>
                           {via === "tenant" ? ` (${from.role})` : ""}
-                          {own ? `, which outranks the product role ${own.role}` : ""}
+                          {own ? `, which outranks the product role ${roleWords(own.role)}` : ""}
                         </>
                       ) : (
                         "Role on this product"
@@ -421,7 +420,7 @@ function PeopleSheet() {
                 <div className="people-main">
                   <span className="people-name">{i.email}</span>
                   <span className="people-sub">
-                    Invited as {i.role}
+                    Invited as {roleWords(i.role)}
                     {i.scope_type !== "product" ? ` on ${scopeWords(i.scope_type, i.scope.name)}` : ""} · expires {formatDate(i.expires_at)}
                   </span>
                 </div>
@@ -563,7 +562,7 @@ function ExportSheet() {
 /** What deleting a product destroys, as products.delete_impact reports it. */
 interface ProductImpact {
   etag: string;
-  contents: { sources: number; stored_files: number; bytes: number; comments: number; outcomes: number; assumptions: number; story_pages: number; mockups: number; exports: number; people: number };
+  contents: { sources: number; stored_files: number; bytes: number; comments: number; outcomes: number; story_pages: number; mockups: number; exports: number; people: number };
 }
 
 /** Delete the whole product, with its name typed, one step past archiving it, which `onArchive` offers instead. */
@@ -597,7 +596,7 @@ function DeleteProductSheet({ onArchive }: { onArchive?: () => void }) {
                 [plural(c.sources, "source"), listed([c.stored_files > 0 && `${plural(c.stored_files, "stored file")} (${formatBytes(c.bytes)})`, c.comments > 0 && plural(c.comments, "comment")])]
                   .filter(Boolean)
                   .join(", with "),
-              listed([c.outcomes > 0 && plural(c.outcomes, "outcome"), c.assumptions > 0 && plural(c.assumptions, "assumption")]),
+              c.outcomes > 0 && plural(c.outcomes, "outcome"),
               listed([c.mockups > 0 && plural(c.mockups, "mockup"), c.story_pages > 0 && plural(c.story_pages, "Story page")]),
               c.exports > 0 && plural(c.exports, "export"),
               "its activity log",

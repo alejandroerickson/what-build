@@ -284,10 +284,10 @@ describe("refusals of retired inputs", () => {
     // Another value of the field gets no word about outlines.
     expect((await note(s.record_id, "draft", { content: "x" })).body.error.message).not.toMatch(/outline/);
 
-    const a = (await alice.api("POST", `${P}/assumptions`, { statement: "Crew leads plan by the week." })).body;
+    const o = (await alice.api("POST", `${P}/outcomes`, { title: "Crew leads plan the week in minutes" })).body;
     const cited = /Nothing takes citations, refs or related sources any more: evidence is found by searching, not cited\. Say in words what the work rests on/;
     for (const r of [
-      await alice.api("PATCH", `${P}/assumptions/${a.id}`, { expected_etag: a.etag, citations: [] }),
+      await alice.api("PATCH", `${P}/outcomes/${o.outcome_id}`, { expected_etag: o.etag, citations: [] }),
       await alice.api("POST", `${P}/story/pages/overview/versions`, { title: "Overview", body: "<p>Hi</p>", refs: { sources: [s.record_id] } }),
       await alice.api("POST", `${P}/sources`, { title: "Related — Example Co", related_records: [s.record_id] }),
       await alice.api("PATCH", `${P}/sources/${s.record_id}`, { expected_etag: s.etag, related_records: [] }),
@@ -311,11 +311,11 @@ describe("refusals of retired inputs", () => {
     expect(r.body.error.message).toMatch(hint);
   });
 
-  it("name the filter dimensions gave way to: tags on sources, tag on assumptions", async () => {
+  it("name the filter dimensions gave way to: tags on sources and search", async () => {
     const sources = await alice.api("GET", `${P}/sources?customer=example`);
-    expect(sources.body.error.message).toMatch(/no dimensions .* any more: .* with tags, and filter by `tags`\.$/);
-    const assumptions = await alice.api("GET", `${P}/assumptions?customer=example`);
-    expect(assumptions.body.error.message).toMatch(/no dimensions .* any more: .* with tags, and filter by `tag`\.$/);
+    expect(sources.body.error.message).toMatch(/Sources have no dimensions .* any more: .* with tags, and filter by `tags`\.$/);
+    const search = await alice.api("GET", `${P}/search?query=crews&lifecycle_stage=discovery`);
+    expect(search.body.error.message).toMatch(/Sources have no dimensions .* any more: .* with tags, and filter by `tags`\.$/);
   });
 });
 

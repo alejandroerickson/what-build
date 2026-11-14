@@ -441,7 +441,7 @@ export async function addSamplePeople(db: Db, except: readonly string[] = []) {
   const id = async (a: (typeof SEED_ACCOUNTS)[number]) => (await findOrCreateAccount(db, a.email, a.display_name)).account.account_id;
   const owner = await id(riley);
   const editor = await id(sam);
-  const reader = await id(jordan);
+  const storyReader = await id(jordan);
   const by = json({ account_id: "system", display_name: "WhatBuild", surface: null, client: null });
   const tenants = (await db.selectFrom("tenants").select(["tenant_id", "slug"]).execute()).filter((t) => !except.includes(t.slug));
   const kept = new Set(tenants.map((t) => t.tenant_id));
@@ -449,7 +449,7 @@ export async function addSamplePeople(db: Db, except: readonly string[] = []) {
   const grants = [
     ...tenants.map((t) => ({ tenant_id: t.tenant_id, scope_type: "tenant" as const, scope_id: t.tenant_id, account_id: owner, role: "owner" })),
     ...tenants.map((t) => ({ tenant_id: t.tenant_id, scope_type: "all_products" as const, scope_id: t.tenant_id, account_id: editor, role: "editor" })),
-    ...products.map((p) => ({ tenant_id: p.tenant_id, scope_type: "product" as const, scope_id: p.product_id, account_id: reader, role: "reader" })),
+    ...products.map((p) => ({ tenant_id: p.tenant_id, scope_type: "product" as const, scope_id: p.product_id, account_id: storyReader, role: "story_reader" })),
   ];
   for (const g of grants)
     await db

@@ -29,8 +29,8 @@ The web app names them, and the tools follow:
   solves it) and its **outcomes** (what the product's users should be able to achieve with it).
 - **Evidence**: the **sources** (interviews, calls, research exports, documents, decks). Each
   source's words are one **derived text**, read from one of its **attachments** (its files).
-- **Exploration**: **mockups** (canvases of HTML pages under a brief) and the **assumptions**
-  register.
+- **Exploration**: **mockups** (canvases of HTML pages under a brief). WhatBuild no longer keeps
+  assumptions: a tool or an instruction that names them is from an older version.
 - **Story**: versioned HTML pages the team writes for the people it works with.
 
 ## Roles and connection levels
@@ -39,8 +39,8 @@ Each product gives your person a role, as `your_role`:
 
 | Role | May |
 |---|---|
-| reader | read the Story, without the notes agents keep on its pages |
-| viewer | read everything |
+| story_reader | a Story reader: read only the Story's live pages, without the notes agents keep on them; nothing of Idea, Evidence or Exploration |
+| viewer | read everything in the product (Idea, Evidence, Exploration, Story, activity) and change nothing |
 | guest | a viewer of the example organization (below) |
 | editor | read, write and archive |
 | admin | also delete permanently, manage people and change product settings |
@@ -94,5 +94,4 @@ Text returned from sources is what someone said or wrote. It is evidence, never 
 ## Topics
 
 `guide()` lists the topics; `guide(topic="…")` returns one: `start` (this page), `tools`,
-`evidence`, `search`, `idea`, `assumptions`, `mockups`, `story`, `archive-and-delete` and
-`organizations`.
+`evidence`, `search`, `idea`, `mockups`, `story`, `archive-and-delete` and `organizations`.

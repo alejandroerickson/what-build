@@ -21,7 +21,6 @@ import { IdeaPage } from "./routes/idea.tsx";
 import { Welcome } from "./routes/org.tsx";
 import { OverviewPage } from "./routes/overview.tsx";
 import { ActivityPage } from "./routes/product-misc.tsx";
-import { EntryEditPage, RegisterEntryPage, RegisterListPage } from "./routes/registers.tsx";
 import { PlansPage } from "./routes/plans.tsx";
 import { GuestGate } from "./shell/guest-gate.tsx";
 import { PeoplePage } from "./routes/people.tsx";
@@ -141,28 +140,38 @@ function MovedToEvidence() {
   return <Navigate replace to={id && id !== "new" ? `${app}/evidence/${id}` : `${app}/exploration`} />;
 }
 
-/** A product opens on Idea, or on the Story for a reader, with what its address asked (Settings, say) kept. */
+/**
+ * WhatBuild no longer keeps assumptions, so an old link to one or to their list (in a Story page,
+ * say) opens the mockups, with a toast saying why.
+ */
+function NoAssumptions() {
+  const { app } = useProduct();
+  return <Redirected to={`${app}/exploration/mockups`} because="WhatBuild no longer keeps assumptions." />;
+}
+
+/** A product opens on Idea, or on the Story for a Story reader, with what its address asked (Settings, say) kept. */
 function ProductHome() {
   const { product } = useProduct();
   const { search, hash } = useLocation();
   return <Navigate to={`${productHome(product.your_role)}${search}${hash}`} replace />;
 }
 
-/** Every screen of a product but the Story: a reader, who has only the Story, is taken there, with a toast saying why. */
+/** Every screen of a product but the Story: a Story reader, who has only the Story, is taken there, with a toast saying why. */
 function NotForStoryReaders() {
   const { app, storyOnly } = useProduct();
-  return storyOnly ? <BackToStory to={`${app}/story`} /> : <Outlet />;
+  return storyOnly ? <Redirected to={`${app}/story`} because="You can only read this product’s Story." /> : <Outlet />;
 }
 
-function BackToStory({ to }: { to: string }) {
+/** Goes to another screen in place of this one, and says why in a toast, once. */
+function Redirected({ to, because }: { to: string; because: string }) {
   const toast = useToast();
   const navigate = useNavigate();
   const told = useRef(false);
   useEffect(() => {
-    if (!told.current) toast("You can only read this product’s Story.");
+    if (!told.current) toast(because);
     told.current = true;
     navigate(to, { replace: true });
-  }, [navigate, to, toast]);
+  }, [navigate, to, toast, because]);
   return null;
 }
 
@@ -249,7 +258,7 @@ const router = createBrowserRouter([{ element: <Root />, errorElement: <RouteErr
           { path: "story", element: <StoryPage /> },
           { path: "story/:pageId", element: <StoryPage /> },
           { path: "search", element: <SearchPage /> },
-          // Settings' addresses from before it was a dialog: a reader, who has Settings too, follows them as well.
+          // Settings' addresses from before it was a dialog: a Story reader, who has Settings too, follows them as well.
           { path: "connect", element: <ProductSettingsAddress section="agents" /> },
           { path: "settings", element: <ProductSettingsAddress section="product" /> },
           {
@@ -267,10 +276,7 @@ const router = createBrowserRouter([{ element: <Root />, errorElement: <RouteErr
                   { index: true, element: <Navigate to="mockups" replace /> },
                   { path: "mockups", element: <MockupsIndex /> },
                   { path: "mockups/:mockupId", element: <MockupPage /> },
-                  { path: "assumptions", element: <RegisterListPage kind="assumptions" /> },
-                  { path: "assumptions/new", element: <EntryEditPage kind="assumptions" /> },
-                  { path: "assumptions/:id", element: <RegisterEntryPage kind="assumptions" /> },
-                  { path: "assumptions/:id/edit", element: <EntryEditPage kind="assumptions" /> },
+                  { path: "assumptions/*", element: <NoAssumptions /> },
                   { path: "insights/*", element: <MovedToEvidence /> },
                   { path: "decisions/*", element: <MovedToEvidence /> },
                 ],

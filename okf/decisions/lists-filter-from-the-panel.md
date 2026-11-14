@@ -1,7 +1,7 @@
 ---
 type: Decision
 title: Lists filter from the panel; a table's header only sorts or searches
-description: Exploration's lists are filtered from the panel, each with one set of filters, and no list puts filters above its rows.
+description: Lists are filtered from the panel, each with one set of filters, and no list puts filters above its rows.
 tags: [decision, web, design, navigation, exploration]
 generated: {by: agent:claude, at: 2026-11-13}
 status: stable
@@ -20,14 +20,14 @@ The maintainer chose these rules on 2026-09-28.
 
 ## Decision
 
-- Exploration's panel context names each list as a section, with one set of filters (its review
-  state) and a count on each, as Evidence's panel filters its sources. Since insights and decisions
-  were retired ([decision](insights-and-decisions-are-retired-into-evidence.md)), that is the
-  assumptions. The mockups are listed above them, by name, with no filters
-  ([decision](mockups-are-versioned-canvases-in-exploration.md)), in the folders and the order
+- A list's panel context names it as a section, with one set of filters and a count on each, as
+  Evidence's panel filters its sources. Exploration, which once held insights, decisions and
+  assumptions as lists filtered so, now holds only the mockups, listed in its panel by name with no
+  filters ([decision](mockups-are-versioned-canvases-in-exploration.md),
+  [decision](assumptions-are-removed-and-every-one-is-deleted.md)), in the folders and the order
   the team gave them ([decision](mockups-are-arranged-by-hand-in-folders-one-level-deep.md)).
 - A list is filtered from the panel. Controls above a table's rows either sort it (Evidence's
-  sources) or search it (Exploration's title search); they never filter.
+  sources) or search it; they never filter.
 - Search is not a list's: one search covers the whole product, from the panel's Search field on
   every product screen ([decision](one-search-reads-plain-words-across-the-whole-product.md)). Its
   Search screen is filtered from the panel too, by area. The maintainer chose this on 2026-10-11,
@@ -40,8 +40,8 @@ The maintainer chose these rules on 2026-09-28.
 ## Consequences
 
 - Every list is one click away, and its counts are always in view.
-- The panel loads each Exploration list whole to count it; a product with thousands of entries would
-  need counts from the server instead.
+- A panel that counts a list loads it whole; a list of thousands would need counts from the
+  server instead.
 
 ## Constrains
 

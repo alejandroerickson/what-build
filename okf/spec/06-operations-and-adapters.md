@@ -1,7 +1,7 @@
 ---
 type: Specification
 title: Every capability is one registered operation, reached identically over REST and MCP.
-description: The operation registry, the error model and bounds, the full catalogue of 127 operations with their REST routes and MCP tools, authorization and agent connection levels, upload flows, the guide and the Connect page.
+description: The operation registry, the error model and bounds, the full catalogue of 116 operations with their REST routes and MCP tools, authorization and agent connection levels, upload flows, the guide and the Connect page.
 tags: [spec, operations, rest, mcp, registry, uploads, guide]
 generated: {by: agent:claude, at: 2026-11-13}
 status: stable
@@ -19,15 +19,15 @@ Every operation is declared once in `core` (`packages/core/src/registry.ts`):
 
 ```ts
 defineOperation({
-  name: "assumptions.review",            // <tool>.<action>, or a bare name for a standalone tool
+  name: "outcomes.update",               // <tool>.<action>, or a bare name for a standalone tool
   scope: "product",                      // "product" | "tenant" | "account"
   access: "write",                       // "story" | "read" | "write" | "admin" | "owner" | "creator" | "any"
   mutates: true,                         // writes an activity event
   summary: "One line, shown in the tool's action list.",
   description: "Guidance returned by describe: when to use it, what it returns, pitfalls.",
   input: z.strictObject({ … }),          // Zod; strict = unknown fields rejected
-  rest: { method: "POST", path: "/assumptions/:id/review" },
-  mcp: { tool: "assumptions", action: "review" },
+  rest: { method: "PATCH", path: "/outcomes/:outcome_id" },
+  mcp: { tool: "outcomes", action: "update" },
   allowArchivedProduct: false,           // true only for products.restore, products.export and deleting the product
   copiesOut: false,                      // true only for products.export: it takes a copy away, and is in a tool of its own
   connection: undefined,                 // the agent connection level it needs, when its access alone does not say
@@ -36,7 +36,7 @@ defineOperation({
 });
 ```
 
-`OPERATIONS` in `packages/core/src/index.ts` lists all 122. From that list, and from nothing else,
+`OPERATIONS` in `packages/core/src/index.ts` lists all 111. From that list, and from nothing else,
 the server builds the REST routes, the MCP tools with their `action` enums and JSON Schemas (via
 `z.toJSONSchema`), and the `describe` responses. The web app calls the same REST routes through
 one small hand-written client (`apps/web/src/lib/api.ts`); there is no generated client and no
@@ -112,10 +112,10 @@ tenant.
 | 401 | No or invalid identity or grant | `unauthenticated`, `invalid_grant` |
 | 403 | A role too low for the action; an agent connection's level too low for it; feedback turned off for an agent connection; something only a person does in the web app; a call outside a scoped MCP connector; a write by a guest of the example organization; a cross-origin cookie write; deleting an account from a browser that has not signed in recently; something an organization's plan switches off | `forbidden`, `connection_level`, `feedback_off`, `web_only`, `outside_connector_scope`, `example_read_only`, `forbidden_origin`, `invitation_wrong_address`, `plan_restricted`, `tenant_allowance`, `sign_in_again` |
 | 404 | Absent — including everything the caller has no role on | `not_found` |
-| 409 | Conflict with current state | `stale_etag`, `product_archived`, `record_archived`, `mockup_archived`, `slug_taken`, `frozen`, `too_many_attachments`, `no_text`, `no_file`, `mockup_on_story`, `folder_name_taken`, `already_uploaded`, `upload_used`, `example_organization`, `export_in_progress`, `last_owner`, `instance_owner`, `quota_exceeded`, `organization_read_only` |
-| 410 | Deliberately deleted, with a tombstone; an invitation no longer usable | `record_deleted`, `assumption_deleted`, `outcome_deleted`, `story_page_deleted`, `mockup_deleted`, `annotation_deleted`, `invitation_used`, `invitation_expired` |
+| 409 | Conflict with current state | `stale_etag`, `product_archived`, `record_archived`, `mockup_archived`, `slug_taken`, `too_many_attachments`, `no_text`, `no_file`, `mockup_on_story`, `folder_name_taken`, `already_uploaded`, `upload_used`, `example_organization`, `export_in_progress`, `last_owner`, `instance_owner`, `quota_exceeded`, `organization_read_only` |
+| 410 | Deliberately deleted, with a tombstone; an invitation no longer usable | `record_deleted`, `outcome_deleted`, `story_page_deleted`, `mockup_deleted`, `annotation_deleted`, `invitation_used`, `invitation_expired` |
 | 413 | Body or file beyond a limit | `too_large` |
-| 422 | Invalid input | `invalid_input`, `edit_not_found`, `edit_ambiguous`, `unknown_field`, `unknown_action`, `unknown_tool`, `wrong_tool`, `product_required`, `too_long`, `cross_product_reference`, `outcome_cites_a_record`, `invalid_query`, `invalid_cursor`, `invalid_filter`, `invalid_html`, `invalid_patch`, `invalid_move`, `invalid_upload`, `fetch_failed`, `confirmation_required`, `name_mismatch`, `typed_email`, `confidence_requires_human`, `may_start_one`, `unknown_plan` |
+| 422 | Invalid input | `invalid_input`, `edit_not_found`, `edit_ambiguous`, `unknown_field`, `unknown_action`, `unknown_tool`, `wrong_tool`, `product_required`, `too_long`, `outcome_cites_a_record`, `invalid_query`, `invalid_cursor`, `invalid_filter`, `invalid_html`, `invalid_patch`, `invalid_move`, `invalid_upload`, `fetch_failed`, `confirmation_required`, `name_mismatch`, `typed_email`, `may_start_one`, `unknown_plan` |
 | 429 | Rate limited | `rate_limited` |
 | 503 | Too busy to answer, or a search stopped ([§8.8](08-search.md)), with nothing changed | `search_timed_out`, `search_busy`, `database_busy` |
 
@@ -157,8 +157,7 @@ tenant.
   `notes`?"), then what is missing ("`notes` is required"), then any other problem with a value.
   A value of the wrong type is named once, without the checks the library also ran on it, and a
   list sent as something else says in one sentence what the list takes, with an example made from
-  what was sent ("`status` takes a list of any of unconfirmed, confirmed, refuted and superseded,
-  such as ["confirmed"], not a string"). A standalone tool called with `describe`, `action` or
+  what was sent ("`tags` takes a list of strings, such as ["interview"], not a string"). A standalone tool called with `describe`, `action` or
   `params` is told it is a tool of its own whose arguments are its fields, which it names, and
   that only the tools with actions take those three; no field is suggested in their place.
   It ends "Nothing was changed; correct the call and send it again", so a refusal never reads as a
@@ -169,9 +168,10 @@ tenant.
   and that there are no passages to read by number (`WRONG_FIELD_HINTS` in
   [`field-aliases.ts`](../../packages/core/src/field-aliases.ts)). So does a field the object no
   longer has, or a value a field no longer takes, naming what replaced it: a source's kind or
-  dimensions (tags, and the `tags` filter on sources and search, `tag` on assumptions), an
+  dimensions (tags, and the `tags` filter on sources and search), an
   attachment's role, citations, `refs` and related sources (search, and words), `note_kind`
-  `outline` (the summary and the notes); Notes on recent actions, below, and `retiredFieldHint` in
+  `outline` (the summary and the notes), `search`'s `scope` `assumptions` or `all` and `kind`
+  `assumption` (WhatBuild no longer keeps assumptions); Notes on recent actions, below, and `retiredFieldHint` in
   [`execute.ts`](../../packages/core/src/execute.ts). MCP
   returns the same object as a tool error (`isError: true`) whose text begins with
   the status (`"422: …"`) followed by the JSON.
@@ -180,7 +180,7 @@ tenant.
 
 - The lists that can grow without bound are paged with an opaque `cursor`, and their responses
   carry `next_cursor` or `null`: `sources.list`, `sources.list_annotations`, `outcomes.list`,
-  `assumptions.list`, `search`, `activity.list` and `members.activity`. A
+  `search`, `activity.list` and `members.activity`. A
   Story page's and a mockup's versions (`story.list_versions`, `mockups.list_versions`) page by
   version number instead: `before` returns the versions numbered below it, and responses carry
   `next_before` or `null`. Every other list answers in one response: those bounded by a product's
@@ -188,7 +188,7 @@ tenant.
   `outcomes.revisions` (the newest `limit`) among them.
   Page sizes are per operation: default 50, at most 200 for sources, comments, search, activity
   and outcome revisions (search's plain mode returns 60 results unless asked,
-  at most 200, in one answer that takes no cursor); default 25, at most 100 for assumptions and
+  at most 200, in one answer that takes no cursor); default 25, at most 100 for
   Story and mockup versions; outcomes default to 100, at most 100. Asking for more than the maximum
   is `422`, not a silent clamp.
 - `sources.list` orders by `sort`: `added` (newest added first, the default), `date` (the
@@ -245,7 +245,7 @@ it always has.
 
 ### The operation catalogue
 
-All 127 operations, generated from `OPERATIONS`. The MCP tool is the operation name's first half;
+All 116 operations, generated from `OPERATIONS`. The MCP tool is the operation name's first half;
 standalone tools (—) take their fields directly. "Needs" is the minimum role
 ([§3.5](03-accounts-and-identity.md)); `members` write actions check admin at the level
 being changed inside the handler.
@@ -270,7 +270,7 @@ being changed inside the handler.
 | `products` | `delete_account` | `POST /api/v1/me/delete` | signed in within the last 15 minutes, of their own account, in the web app only |
 | `products` | `rename_tenant` | `PATCH /api/v1/tenants/:tenant` | tenant owner, or an instance owner, in the web app only ([§3.3](03-accounts-and-identity.md#33-tenants)) |
 | `products` | `create` | `POST /api/v1/tenants/:tenant/products` | product creator, admin or owner of the tenant |
-| `products` | `get` | `GET P` | reader |
+| `products` | `get` | `GET P` | Story reader |
 | `products` | `update` | `PATCH P` | admin, in the web app only |
 | `products` | `update_concept` | `PATCH P/idea/concept` | editor |
 | `products` | `archive` | `POST P/archive` | admin |
@@ -330,31 +330,20 @@ being changed inside the handler.
 | `derived` | `read_note` | `GET P/sources/:record_id/agent-notes/:note_kind` | viewer |
 | `derived` | `card_guidance` | `GET P/evidence/card-guidance` | viewer |
 | `derived` | `card_preview` | `POST P/sources/:record_id/card-preview` | editor |
-| `search` | — | `GET P/search` | reader, for the Story alone in plain mode; viewer for the rest |
-| `assumptions` | `list` | `GET P/assumptions` | viewer |
-| `assumptions` | `get` | `GET P/assumptions/:id` | viewer |
-| `assumptions` | `create` | `POST P/assumptions` | editor |
-| `assumptions` | `update` | `PATCH P/assumptions/:id` | editor |
-| `assumptions` | `review` | `POST P/assumptions/:id/review` | editor |
-| `assumptions` | `supersede` | `POST P/assumptions/:id/supersede` | editor |
-| `assumptions` | `link` | `POST P/assumptions/:id/links` | editor |
-| `assumptions` | `unlink` | `POST P/assumptions/:id/unlink` | editor |
-| `assumptions` | `archive` | `POST P/assumptions/:id/archive` | editor |
-| `assumptions` | `delete_impact` | `GET P/assumptions/:id/delete-impact` | viewer |
-| `assumptions` | `delete` | `DELETE P/assumptions/:id` | admin |
+| `search` | — | `GET P/search` | Story reader, for the Story alone in plain mode; viewer for the rest |
 | `story` | `guidance` | `GET P/story/guidance` | viewer |
 | `story` | `get_style` | `GET P/story/style` | viewer |
 | `story` | `set_style` | `PUT P/story/style` | editor |
-| `story` | `list_pages` | `GET P/story/pages` | reader |
-| `story` | `get_page` | `GET P/story/pages/:page_id` | reader |
-| `story` | `list_versions` | `GET P/story/pages/:page_id/versions` | reader |
-| `story` | `get_version` | `GET P/story/pages/:page_id/versions/:version` | reader |
+| `story` | `list_pages` | `GET P/story/pages` | Story reader |
+| `story` | `get_page` | `GET P/story/pages/:page_id` | Story reader |
+| `story` | `list_versions` | `GET P/story/pages/:page_id/versions` | Story reader |
+| `story` | `get_version` | `GET P/story/pages/:page_id/versions/:version` | Story reader |
 | `story` | `preview` | `POST P/story/pages/:page_id/preview` | editor |
 | `story` | `publish` | `POST P/story/pages/:page_id/versions` | editor |
 | `story` | `promote_mockup` | `POST P/story/promote-mockup` | editor |
 | `story` | `write_notes` | `PUT P/story/pages/:page_id/notes` | editor |
-| `story` | `print_view` | `GET P/story/print-view` | reader |
-| `story` | `get_hierarchy` | `GET P/story/hierarchy` | reader |
+| `story` | `print_view` | `GET P/story/print-view` | Story reader |
+| `story` | `get_hierarchy` | `GET P/story/hierarchy` | Story reader |
 | `story` | `set_hierarchy` | `PUT P/story/hierarchy` | editor |
 | `story` | `archive_page` | `POST P/story/pages/:page_id/archive` | editor |
 | `story` | `restore_page` | `POST P/story/pages/:page_id/restore` | editor |
@@ -422,15 +411,14 @@ Notes on recent actions:
   archived_at }`) carry no kind. A call to a `sources`, `attachments` or
   `search` operation naming `kind`, `organization` or `folder` is `422 invalid_input`, with a hint
   to use tags and `sources_read(action="facets")`.
-- Sources and assumptions have no dimensions; tags say whom material concerns and what it bears
+- Sources have no dimensions; tags say whom material concerns and what it bears
   on ([decision](../decisions/sources-are-described-by-tags.md)). `sources.list` and `search` lost `customer`, `product_area` and
-  `lifecycle_stage`; `sources.create`, `sources.update`, `attachments.create_upload`,
-  `assumptions.create` and `assumptions.update` take no `dimensions`, and reads of sources and
-  assumptions carry none. A call to a `sources`, `attachments`, `search` or `assumptions` operation
-  naming one is `422 invalid_input`, with a hint to use tags and the filter that took their place:
-  `tags` on sources and search, `tag` on assumptions.
-- Sources have no `participants`, `source_system` or `provenance_depth`, and assumptions no
-  `provenance_depth` ([decision](../decisions/sources-are-described-by-tags.md)). `sources.list`
+  `lifecycle_stage`; `sources.create`, `sources.update` and `attachments.create_upload` take no
+  `dimensions`, and reads of sources carry none. A call to a `sources`, `attachments` or `search`
+  operation naming one is `422 invalid_input`, with a hint to use tags and the filter that took
+  their place, `tags`.
+- Sources have no `participants`, `source_system` or `provenance_depth`
+  ([decision](../decisions/sources-are-described-by-tags.md)). `sources.list`
   and `search` lost the `provenance_depth` filter, `sources.list`'s `query` reads the title, tags
   and attachment names, and none of these operations takes or returns the fields; naming one is
   `422 invalid_input`, with a hint that a source is described by its title, date and tags.
@@ -443,30 +431,34 @@ Notes on recent actions:
   `sources.get` with `detail: "full"` has no `outline`.
 - Insights and decisions are retired, with their operations and their MCP tools; what a product
   held of them became sources ([§4.7](04-data-model.md)).
+- Assumptions are removed, with their eleven operations (`assumptions.list`, `get`, `create`,
+  `update`, `review`, `supersede`, `link`, `unlink`, `archive`, `delete_impact` and `delete`),
+  their REST routes under `P/assumptions` and the MCP tools `assumptions_read`,
+  `assumptions_write` and `assumptions_delete`; migration `0046_no_assumptions.sql` deleted every
+  assumption ([§4.8](04-data-model.md),
+  [decision](../decisions/assumptions-are-removed-and-every-one-is-deleted.md)). A client holding
+  an older tool list that calls one of those tools is told that assumptions are retired and
+  WhatBuild no longer keeps them (§6.5). Product reads' `counts` have no `assumptions`, and
+  `stage_counts.exploration` counts the mockups alone. `outcomes.list` and `outcomes.get` say
+  nothing of what points at an outcome, and nothing returns `archived_outcome_ids`.
+  `outcomes.delete_impact` lists no assumptions. `search` reads no assumptions in any mode: its
+  `scope` takes only `sources`, and `assumptions` or `all` is `422 invalid_input` with a hint;
+  plain mode's `kind` takes no `assumption`, which is refused the same way, and the word
+  "assumptions" in a query names no kind ([§8](08-search.md)). An export has no
+  `assumptions.json` ([§4.14](04-data-model.md)).
 - Citations are retired, and so is the graph around them
-  ([decision](../decisions/evidence-is-searched-not-cited.md)): `assumptions`, `story` and
+  ([decision](../decisions/evidence-is-searched-not-cited.md)): `story` and
   `mockups` have no `check_citations`, the `lineage` tool and `sources.used_by` are gone, and no
   operation takes or returns `citations`, `citation_count`, `refs`, `resolved_refs` or
   `related_records`; a call that sends `citations`, `refs` or `related_records` is
   `422 invalid_input`, with a hint that evidence is found by searching, not cited, and that what a
-  piece of work rests on is said in words (an assumption's body, a Story page's notes, a source's
-  notes), naming a source by its id where it helps. `assumptions.list` has no
-  `record_id` filter, and `search` with `record_id` searches no assumptions.
+  piece of work rests on is said in words (a Story page's notes, a source's
+  notes), naming a source by its id where it helps.
   `sources.delete_impact` reports its attachments' versions, bytes, readings and comments
   ([§4.3](04-data-model.md)).
-- `assumptions.update` takes `edits` (exact replacements that must match once) and returns
-  `changed` and a short `diff` ([§4.1](04-data-model.md)); its `tags`, `outcome_ids` and `links`,
-  when sent, each replace the whole list, as `sources.update`'s and
-  `sources.update_annotation`'s `tags` do. `assumptions.supersede` takes `reviewer_type` for the
-  review it records on the old entry, defaulting as `review`'s does ([§4.8](04-data-model.md)).
-  Without `status`, the assumption list
-  returns the current entries (unconfirmed and confirmed), the ones every count counts, with
-  `not_current_hidden` (the refuted and superseded ones matching its other filters) and, when that
-  is not zero, a `note`; a `status` list names what to return instead. It returns
-  `frozen`, `superseded_by` (the ids of the entries whose `supersedes` link points at the entry, newest
-  first, so a list can show history under its correction without a `get` per entry),
-  `link_count` and `linked_from_count`; `outcomes.list` returns
-  `archived_hidden` ([§4.2](04-data-model.md), [§4.8](04-data-model.md)).
+- `derived.write_text` takes `edits` (exact replacements that must match once) and returns a
+  short `diff` ([§4.1](04-data-model.md)). `outcomes.list` returns `archived_hidden`
+  ([§4.2](04-data-model.md)).
 - `story.publish` takes the page as `body` (the markup inside `<body>`; the server adds the
   product's Story style) or as `html` (a whole document). A later version keeps the
   `title`, `summary` and page it omits, `patch_html` edits the HTML by exact
@@ -500,11 +492,11 @@ Notes on recent actions:
   and are not versioned with the page. While the notes are empty the etag may be omitted; once
   they hold anything, a write without it is `409 stale_etag`, as for a source's summary and notes
   ([§4.1](04-data-model.md)).
-- A reader's `story.get_page` leaves out `agent_notes`, and a reader's `products.get` and
+- A Story reader's `story.get_page` leaves out `agent_notes`, and their `products.get` and
   `products.list` leave out `concept` and count only `story_pages` (and `stage_counts.story`)
   ([§3.5](03-accounts-and-identity.md)). `story.list_pages` leaves archived pages out unless
   `include_archived`, and counts them in `archived_hidden` (with a `note` when there are any); a
-  reader is given neither the archived pages nor their count ([§4.11](04-data-model.md)).
+  Story reader is given neither the archived pages nor their count ([§4.11](04-data-model.md)).
 - `mockups.publish` creates a mockup, or publishes the next version of one: the whole canvas,
   with its brief, its pages in order and each page's notes and size, and the files it carries for
   collaborators. A later version keeps what it omits, and a page or file that keeps its id or path
@@ -613,7 +605,7 @@ Notes on recent actions:
   products they read (viewer or above) and those with a role on all products, with those grants
   and their organization role,
   and only the invitations they could cancel; a `product` they cannot read answers `404`, or
-  `403` where they are its reader.
+  `403` where they are its Story reader.
 - The `members` writes answer a product the caller has no role on with the same `404` as
   one that does not exist, before anything else is checked, so they never name it.
 - The `members` writes name their place as `product`, as `all_products: true` (a role on every
@@ -636,7 +628,7 @@ Notes on recent actions:
   tokens reached it, through the REST API (channel `web` or `rest`); `agents` is what agents did over
   MCP. What WhatBuild does by itself, such as reading an attachment, has no channel and is in
   neither. `entity_type` takes exactly the kinds of object a product's log has entries about:
-  `product`, `membership`, `source`, `outcome`, `assumption`, `story_page`, `story_hierarchy`,
+  `product`, `membership`, `source`, `outcome`, `story_page`, `story_hierarchy`,
   `story_style` and `mockup` (anything else is `422`).
 - `members.activity` is the organization's access log, for its owners and admins: roles given,
   changed and removed, people removed from the organization, accounts ended there
@@ -660,7 +652,7 @@ GET  P/live                                          a stream of which part of t
 GET  P/exports/:export_id/file                       an export ZIP for the web app
 GET  P/story/pages/:page_id/versions/:version/html?theme=light|dark   Story page HTML
 GET  P/story/print?page_ids=…                        the Story print view (HTML)
-GET  P/story/pages/:page_id/versions/:version/pages/:mockup_page_id/html   a page of the canvas that Story page's version shows; a reader may ask
+GET  P/story/pages/:page_id/versions/:version/pages/:mockup_page_id/html   a page of the canvas that Story page's version shows; a Story reader may ask
 GET  P/mockups/:mockup_id/versions/:version/pages/:page_id/html   a mockup page's HTML (`?download=1` to save it, from the app's own address)
 GET  P/idea/concept/card, P/outcomes/:outcome_id/card?theme=   an Idea card's front
 GET  P/sources/:record_id/card?theme=               a source's card, on its 640 × 480 board
@@ -747,7 +739,7 @@ view, viewer for the rest, which a guest of the example organization is; `403`, 
 without counting the load against the requester's limit on calls a minute again, since the app's
 route counted it (a preview, which no app route handed off, is counted here), and finds the document with the same function
 as the app's route, within the grant's product (`404` for one deleted, archived since for a
-reader, or changed since for a front or a style). It serves the document with the same function
+Story reader, or changed since for a front or a style). It serves the document with the same function
 and headers as the app's route, except that `frame-ancestors` names the app's origin (the print
 view keeps `'none'`), with `Cross-Origin-Resource-Policy: cross-origin` and
 `Cache-Control: private, no-store`. Refusals are `text/plain`. Agents' previews are served there
@@ -770,7 +762,7 @@ source has none. It needs viewer, as `derived.text` does; agents read the text i
 **Story page HTML** is served with a sandbox policy that allows the page's inline scripts but no
 network, no same-origin access and no framing outside the app. `?theme=light|dark` writes the
 app's resolved theme onto the page's `<html>` for that response only; the stored HTML is
-unchanged. It is a Story read, so a reader reaches it; a source's attachment and text, an
+unchanged. It is a Story read, so a Story reader reaches it; a source's attachment and text, an
 export's file, the style specimens and a mockup page's HTML need viewer. A mockup page's HTML is served in the same
 sandbox, with the same `?frame=1`, and without `?theme`: a mockup carries its own look. Its
 sandbox adds `allow-forms`, so a prototype's submit handler runs, here and on the Story's route
@@ -811,7 +803,7 @@ the JSON, and a tab the plain words.
 `story.print_view { page_ids }` (1–50 page ids, comma-separated in a query string) plans a print
 view: exactly the pages named, each at its current version, in the Story's order — a depth-first
 walk of the tree, then the pages not yet placed, and
-archived pages last, by title; a reader is given no archived page, which is missing for them
+archived pages last, by title; a Story reader is given no archived page, which is missing for them
 ([§3.5](03-accounts-and-identity.md)). A page that shows a whole canvas prints page by page,
 each section a level below its heading, listed as `canvas_pages`; a print view holds at most 100
 sections in all (`422 print_too_long`). Each page
@@ -888,12 +880,14 @@ name the server's version and the tools, or the tool's actions, the connection i
 `tools/list` names them (also in `details`: `tools_version`, `tools` or `actions`), so never
 `submit_feedback` where its person turned it off, and say the client may hold a list from another
 version. A call to a tool name from before the split (`sources`) says which tools its actions are
-in now, and one to `get_skill` that the skill is retired and `guide` replaces it.
+in now, one to `get_skill` that the skill is retired and `guide` replaces it, and one to
+`assumptions_read`, `assumptions_write` or `assumptions_delete` that assumptions are retired and
+WhatBuild no longer keeps them ([§4.8](04-data-model.md)).
 
-**Tools.** Twenty-nine tools over the 101 operations an agent may be offered (all 118 but the 17 a
+**Tools.** Twenty-six tools over the 93 operations an agent may be offered (all 111 but the 18 a
 person does only in the web app: renaming an organization or a product, deleting an organization
-and its preview, deleting one's own account and its preview, and running the instance, its owners'
-ten actions and removing an account,
+and its preview, deleting one's own account and its preview, running the instance, its owners'
+ten actions and removing an account, and a browser giving an attachment its first picture,
 [decision](../decisions/running-the-instance-is-done-in-the-web-app-never-by-an-agent.md)): for each noun a `_read` tool, a `_write` tool and, where something can be deleted for
 good, a `_delete` tool, `products_export`, and three standalone
 ([decision](../decisions/mcp-tools-are-split-into-read-write-and-delete.md)). An action is in its
@@ -927,9 +921,6 @@ owner's included: running the instance is done in the web app.
 | `attachments_write` | `request_upload`, `create_upload`, `create_uploads`, `complete_upload`, `fetch_url` |
 | `derived_read` | `manifest`, `text`, `list`, `read_note`, `card_guidance`, `card_preview` |
 | `derived_write` | `write_text`, `rederive`, `write_note` |
-| `assumptions_read` | `list`, `get`, `delete_impact` |
-| `assumptions_write` | `create`, `update`, `review`, `supersede`, `link`, `unlink`, `archive` |
-| `assumptions_delete` | `delete` |
 | `story_read` | `guidance`, `get_style`, `list_pages`, `get_page`, `list_versions`, `get_version`, `preview`, `print_view`, `get_hierarchy`, `delete_page_impact` |
 | `story_write` | `set_style`, `publish`, `promote_mockup`, `write_notes`, `set_hierarchy`, `archive_page`, `restore_page` |
 | `story_delete` | `delete_page` |
@@ -964,7 +955,7 @@ Rules:
 - **Self-describing.** A tool's description is a few sentences about what it does, a pointer
   to `describe`, and one line per action. Its sentences speak only of the actions the connection
   is offered (`TOOL_TEXT` in `mcp.ts`), as its lines do: an Edit connection is not listed
-  `members_write`, a reader's `story_read` says nothing of the style or the guidance, and
+  `members_write`, a Story reader's `story_read` says nothing of the style or the guidance, and
   `products_write` speaks of starting an organization only to someone offered `create_tenant`.
   A tool that reads differently for someone who reads only the Story says so to them
   (`forStoryReader` in `TOOL_TEXT`), and so does each action that does (`forStoryReader` on the
@@ -982,9 +973,8 @@ Rules:
   listing the tool's actions (also in `details.actions`). It, and `unknown_action`, list only the
   actions the connection is offered, as its `tools/list` does (below): never a permanent delete to
   an Edit connection, nor anything a person does only in the web app.
-- **Aliases for names a caller reads.** The id is `outcome_id` on `outcomes` but `id` on
-  `assumptions`. Each tool also accepts the other convention for its own entity: `id` on
-  `outcomes`, `assumption_id` on `assumptions`. A field may also be accepted under the name it is
+- **Aliases for names a caller reads.** The id is `outcome_id` on `outcomes`, and the tool also
+  accepts `id` for it. A field may also be accepted under the name it is
   read by: `story.write_notes` takes `content` for `notes`, since `get_page` returns the notes as
   `agent_notes.content`.
   `execute` renames each alias before strict validation
@@ -1014,7 +1004,7 @@ Rules:
   highest roles they hold in any one organization they are in reach, the example organization's
   guest grant among them, and not `products.create_tenant` (`needsTenantAllowance`); someone who
   may start an organization (an instance owner, or an allowance with room) is offered everything
-  their level allows, since they may create one and work in it in the same session. So a reader
+  their level allows, since they may create one and work in it in the same session. So a Story reader
   is offered the Story alone, a guest of the example organization no write, and an editor no one
   to manage. A list costs one lookup of those roles, and on the unscoped connector of the
   allowance. A call to anything not listed, from a client that knows it anyway, reaches `execute`
@@ -1107,7 +1097,7 @@ of preference for an agent (`packages/core/src/ops/attachments.ts`):
    local file's raw bytes to `url` (the service's own upload relay,
    `/api/v1/uploads/:grant_id`) with exactly those headers, using whatever shell or HTTP tool it
    has. The relay first checks that whoever requested the grant can still write to the product
-   (`403 forbidden` otherwise, for someone made a reader or viewer, or removed, since), then
+   (`403 forbidden` otherwise, for someone made a Story reader or viewer, or removed, since), then
    stores the bytes, records size and SHA-256 **from what arrived**, not from the
    agent's claims, adds the attachment at once (or a version of it, at a path it already has),
    changes the source's etag, and queues the attachment to be read
@@ -1184,7 +1174,7 @@ nothing to install ([decision](../decisions/agents-learn-whatbuild-from-the-serv
 Its topics are Markdown files, `packages/core/src/guide/NN-<topic>.md`, each opening with a title
 and a one-sentence summary: `start` (what WhatBuild holds, roles and levels, scoped connectors, the
 example organization), `tools` (the read, write and delete tools, paging, etags, refusals,
-retries, missing tools, activity, feedback), `evidence`, `search`, `idea`, `assumptions`,
+retries, missing tools, activity, feedback), `evidence`, `search`, `idea`,
 `mockups`, `story`, `archive-and-delete` and `organizations`. It describes what each object is,
 what people see, what the server enforces and refuses, limits, formats and the procedures a
 mechanism needs (an upload grant, a canvas ZIP, a preview grant); it prescribes no method, order of

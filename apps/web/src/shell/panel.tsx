@@ -89,7 +89,7 @@ function OrganizationMenu({ tenant, current, onCreate }: { tenant: Pick<Tenant, 
       {inOrg.length ? (
         <MenuGroup label={organizationLabel(tenant)}>
           {inOrg.map((p) => (
-            <MenuRadio key={p.product_id} checked={p.product_id === current?.product_id} onSelect={() => navigate(`/t/${p.path}/${p.your_role === "reader" ? "story" : keep}`)}>
+            <MenuRadio key={p.product_id} checked={p.product_id === current?.product_id} onSelect={() => navigate(`/t/${p.path}/${p.your_role === "story_reader" ? "story" : keep}`)}>
               {p.name}
             </MenuRadio>
           ))}
@@ -174,16 +174,16 @@ function SettingsRow({ to }: { to: string }) {
 
 /**
  * The panel's rows for one product, the same on every screen and for every role, an instance
- * owner's included: Idea, Evidence, Exploration and Story with their counts (a reader has the Story
- * alone), then the quiet group: the empty seat while the person has no agent connected, the product's
+ * owner's included: Idea, Evidence, Exploration and Story with their counts (a Story reader has the
+ * Story alone), then the quiet group: the empty seat while the person has no agent connected, the product's
  * Activity, and Settings. `section` marks the screen's own row; the overview marks none.
  */
 export function ProductNav({ product, section }: { product: PanelProduct; section: string | null }) {
   const app = `/t/${product.path}`;
   const seat = useHasNoAgent();
   const settingsTo = useSettingsTo();
-  const reader = product.your_role === "reader";
-  const stages = reader ? L1.filter((d) => d.id === "story") : L1;
+  const storyOnly = product.your_role === "story_reader";
+  const stages = storyOnly ? L1.filter((d) => d.id === "story") : L1;
   return (
     <>
       <div className="nav-l1">
@@ -193,8 +193,8 @@ export function ProductNav({ product, section }: { product: PanelProduct; sectio
       </div>
       <div className="nav-quiet">
         {seat ? <AgentSeat to={settingsTo("agents")} /> : null}
-        {reader ? null : <NavNode to={`${app}/activity`} icon="activity" label="Activity" quiet current={section === "activity"} />}
-        <SettingsRow to={settingsTo(reader ? "account" : "product")} />
+        {storyOnly ? null : <NavNode to={`${app}/activity`} icon="activity" label="Activity" quiet current={section === "activity"} />}
+        <SettingsRow to={settingsTo(storyOnly ? "account" : "product")} />
       </div>
     </>
   );
@@ -371,7 +371,7 @@ export function useLastProduct() {
 }
 
 /** How much of a product a person works in, for choosing the one the panel shows first: where they write before where they read. */
-const ROLE_RANK: Record<string, number> = { admin: 0, editor: 0, viewer: 1, guest: 2, reader: 3 };
+const ROLE_RANK: Record<string, number> = { admin: 0, editor: 0, viewer: 1, guest: 2, story_reader: 3 };
 
 /**
  * What the panel shows on a screen that is no product's own (the overview, a page that wasn't

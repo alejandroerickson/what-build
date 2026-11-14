@@ -3,7 +3,7 @@ type: Decision
 title: Open tabs hear of changes through a stream the server itself serves, which says only which part of a product changed
 description: A one-way stream built into the one image, on every host alike, with no new service and no tab polling; lists refresh by themselves, and a Story page or mockup waits for the person.
 tags: [decision, architecture, live-updates, security, cost, web-app]
-generated: {by: agent:claude, at: 2026-11-01}
+generated: {by: agent:claude, at: 2026-11-13}
 status: stable
 ---
 
@@ -34,8 +34,8 @@ feature, and chose how each screen treats a change.
   session only (no agent's token) and from the app's own pages only. Its channel is the product that
   check resolved, never a name from the address. Before anything is sent, the session and the role
   are asked again, so someone signed out, expired, deleted or taken out hears nothing and their stream
-  ends, and any failure in asking ends it too. A reader hears `story` alone. A kind of operation
-  nobody labelled is `other`, which no reader hears. A guest of the example organization gets no stream.
+  ends, and any failure in asking ends it too. A Story reader hears `story` alone. A kind of operation
+  nobody labelled is `other`, which no Story reader hears. A guest of the example organization gets no stream.
 - **What it costs.** A tab listens only while it is in view and used in the last ten minutes, and for
   two minutes after it is hidden. A stream that hears nothing asks the database nothing; the questions
   above come only after a write, when the database is awake. Changes to a product are gathered for
@@ -46,7 +46,7 @@ feature, and chose how each screen treats a change.
   failing to listen gives up until the page is loaded again, and one still on a revision a deploy
   replaced moves on at its next answer from the new one.
 - **What each screen does,** by what a person may be in the middle of. Lists and cards (Idea, Evidence
-  with a search's results, assumptions, the Story's tree, activity) refresh by themselves, and never
+  with a search's results, the list of mockups, the Story's tree, activity) refresh by themselves, and never
   while someone is typing, dragging or in a dialog. A Story page and a mockup's canvas never change by
   themselves: a toast that stays says this one was updated, and Refresh brings it, since a reload
   would lose someone's place and whatever they entered in a mockup.

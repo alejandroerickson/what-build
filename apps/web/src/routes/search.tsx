@@ -5,10 +5,9 @@ import { waitsForMinute } from "../lib/api.ts";
 import { nestQuotes } from "../lib/format.ts";
 import { byArea, FIND_AREAS, findWords, hitHref, hitMeta, kindOf, Marked, matchedCount, resultHref, resultMeta, useDebounced, useFind, useRecentSearches, type FindResponse, type FindResult } from "../lib/find.tsx";
 import { useProduct } from "../lib/session.tsx";
-import { REVIEW_STATUS } from "../lib/status.ts";
 import { searchLabel, understood } from "../shell/find-palette.tsx";
 import { PanelContext, PanelFilter, PanelSection, usePageTitle } from "../shell/slots.tsx";
-import { EmptyState, ErrorCallout, FindField, Glyph, Loading, MinuteWaitWords, OneLine, Sheet, SheetHeader, StatusBadge, useMeasure } from "../ui/index.tsx";
+import { EmptyState, ErrorCallout, FindField, Glyph, Loading, MinuteWaitWords, OneLine, Sheet, SheetHeader, useMeasure } from "../ui/index.tsx";
 import { shortcutLabel } from "../ui/media.ts";
 import "../styles/screens/search.css";
 
@@ -23,7 +22,7 @@ export function SearchPage() {
   const q = params.get("q") ?? "";
   const area = FIND_AREAS.find((a) => a.id === params.get("show"));
   const show = area?.id ?? "";
-  // A reader has only the Story, so an address for one source searches it instead.
+  // A Story reader has only the Story, so an address for one source searches it instead.
   const recordId = storyOnly ? "" : (params.get("record_id") ?? "");
   const strict = params.get("strict") === "1";
   const [text, setText] = useState(q);
@@ -220,8 +219,7 @@ function ResultList({ results, app, q, find }: { results: FindResult[]; app: str
                 <Marked text={r.title} marks={r.title_marks} />
               </span>
               <span className="find-meta">
-                {/* The badge at the row's end says an assumption's status. */}
-                {resultMeta(r, { status: false })}
+                {resultMeta(r)}
                 {r.missing.length ? <span className="find-missing"> · Missing: {r.missing.map((m, i) => <s key={i}>{(i ? ", " : "") + m}</s>)}</span> : null}
               </span>
               {r.snippet ? (
@@ -230,7 +228,6 @@ function ResultList({ results, app, q, find }: { results: FindResult[]; app: str
                 </span>
               ) : null}
             </span>
-            {r.kind === "assumption" && r.meta.status ? <StatusBadge tone={REVIEW_STATUS[r.meta.status]?.tone}>{REVIEW_STATUS[r.meta.status]?.label ?? r.meta.status}</StatusBadge> : null}
           </Link>
           {r.hits?.length ? <Hits r={r} app={app} find={find} more={`?q=${encodeURIComponent(q)}&record_id=${r.id}`} /> : null}
         </li>

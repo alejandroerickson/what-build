@@ -26,7 +26,7 @@ beforeAll(async () => {
   P = `/api/v1/p/${p.body.path}`;
   tenantSlug = t.body.tenant.slug;
   tenantId = t.body.tenant.tenant_id ?? t.body.tenant.id;
-  for (const [email, role] of [["vic@example.com", "viewer"], ["rita@example.com", "reader"]])
+  for (const [email, role] of [["vic@example.com", "viewer"], ["rita@example.com", "story_reader"]])
     expect((await alice.api("POST", `/api/v1/tenants/${t.body.tenant.slug}/members`, { product: "planner", email, role })).status).toBe(201);
 });
 afterAll(async () => h?.close());
@@ -364,7 +364,7 @@ describe("which page a result on several pages names", () => {
   beforeAll(async () => {
     const p = await alice.api("POST", `/api/v1/tenants/${tenantSlug}/products`, { name: "Titled pages" });
     S = `/api/v1/p/${p.body.path}`;
-    expect((await alice.api("POST", `/api/v1/tenants/${tenantSlug}/members`, { product: "titled-pages", email: "rita@example.com", role: "reader" })).status).toBe(201);
+    expect((await alice.api("POST", `/api/v1/tenants/${tenantSlug}/members`, { product: "titled-pages", email: "rita@example.com", role: "story_reader" })).status).toBe(201);
     const m = await alice.api("POST", `${S}/mockups`, {
       title: "Yard planning",
       pages: [
@@ -402,7 +402,7 @@ describe("which page a result on several pages names", () => {
     expect(await named(alice, "yard")).toEqual({ pages: 5 });
   });
 
-  it("is the same for a reader on the whole canvas", async () => {
+  it("is the same for a Story reader on the whole canvas", async () => {
     expect(await named(rita, "rota")).toEqual({ page_id: "rota", page_title: "Rota" });
     expect(await named(rita, "rota monday")).toEqual({ page_id: "intro", page_title: "Introduction" });
   });
@@ -518,7 +518,7 @@ describe("which page a result on several pages names", () => {
       expect(await hitFor(alice, "possumword", "possum-story")).toBeUndefined();
     });
 
-    it("names, for a reader of a whole canvas, the later page saying a word the Story page's summary says too", async () => {
+    it("names, for a Story reader of a whole canvas, the later page saying a word the Story page's summary says too", async () => {
       const id = await publish({ pages: twoPages("The wombatword runs.") });
       expect((await alice.api("POST", `${S}/story/promote-mockup`, { mockup_id: id, page_id: "wombat-canvas", summary: "About the wombatword." })).status).toBe(201);
       const hit = await hitFor(rita, "wombatword", "wombat-canvas");
@@ -526,7 +526,7 @@ describe("which page a result on several pages names", () => {
       expect(hit!.snippet).toBe("About the wombatword.");
     });
 
-    it("names no page, for a reader of a whole canvas, when only the Story page's summary says the word", async () => {
+    it("names no page, for a Story reader of a whole canvas, when only the Story page's summary says the word", async () => {
       const id = await publish({ pages: twoPages("Nothing here.") });
       expect((await alice.api("POST", `${S}/story/promote-mockup`, { mockup_id: id, page_id: "quoll-canvas", summary: "About the quollword." })).status).toBe(201);
       const hit = await hitFor(rita, "quollword", "quoll-canvas");
@@ -581,7 +581,7 @@ describe("which page a result on several pages names", () => {
       expect(hit!.meta).toEqual({ pages: 1, page_id: "stays", page_title: "Stays renamed" });
     });
 
-    it("keeps naming for a reader the page of the version their Story page stays on, which is the one they see", async () => {
+    it("keeps naming for a Story reader the page of the version their Story page stays on, which is the one they see", async () => {
       const { id, move } = await publishTwice("About the waratahword.", "The grevilleaword runs.");
       expect((await alice.api("POST", `${S}/story/promote-mockup`, { mockup_id: id, page_id: "moving-canvas" })).status).toBe(201);
       await move();
@@ -617,7 +617,7 @@ describe("searching for what a Story page shows of a mockup", () => {
   beforeAll(async () => {
     const p = await alice.api("POST", `/api/v1/tenants/${tenantSlug}/products`, { name: "Findable" });
     S = `/api/v1/p/${p.body.path}`;
-    for (const [email, role] of [["vic@example.com", "viewer"], ["rita@example.com", "reader"]])
+    for (const [email, role] of [["vic@example.com", "viewer"], ["rita@example.com", "story_reader"]])
       expect((await alice.api("POST", `/api/v1/tenants/${tenantSlug}/members`, { product: "findable", email, role })).status).toBe(201);
     const one = await alice.api("POST", `${S}/mockups`, {
       title: "Harbour walk",
@@ -640,7 +640,7 @@ describe("searching for what a Story page shows of a mockup", () => {
     expect((await alice.api("POST", `${S}/story/promote-mockup`, { mockup_id: oneId, mockup_page_id: "alpha", page_id: "alpha-page", title: "Stakeholder preview" })).status).toBe(201);
     expect((await alice.api("POST", `${S}/story/promote-mockup`, { mockup_id: boardId, page_id: "whole-board" })).status).toBe(201);
     expect((await alice.api("POST", `${S}/outcomes`, { title: "Reach outcomeword" })).status).toBeLessThan(300);
-    expect((await alice.api("POST", `${S}/assumptions`, { statement: "Crews want assumptionword." })).status).toBeLessThan(300);
+    expect((await alice.api("POST", `${S}/sources`, { title: "Crews want sourceword — Example Co" })).status).toBeLessThan(300);
   });
 
   it("lists a page from a mockup once, as the mockup, for whoever may read the mockup", async () => {
@@ -688,7 +688,7 @@ describe("searching for what a Story page shows of a mockup", () => {
     expect((await alice.api("POST", `${S}/mockups/${oneId}/restore`, { expected_etag: gone.body.etag })).status).toBe(200);
   });
 
-  it("lets a reader search the Story alone: every page by what it shows, and a canvas's page by its words", async () => {
+  it("lets a Story reader search the Story alone: every page by what it shows, and a canvas's page by its words", async () => {
     expect(await kinds(rita, "overviewword")).toEqual(["story:overview"]);
     expect(await kinds(rita, "alphaword")).toEqual(["story:alpha-page"]);
     const onCanvas = await find(rita, "deltaword");
@@ -698,7 +698,7 @@ describe("searching for what a Story page shows of a mockup", () => {
     expect((await find(rita, "quay")).results[0]?.meta).toEqual({});
   });
 
-  it("gives a reader a mockup page once when a canvas holds it too, unless another page of the canvas holds the words", async () => {
+  it("gives a Story reader a mockup page once when a canvas holds it too, unless another page of the canvas holds the words", async () => {
     const promoted = await alice.api("POST", `${S}/story/promote-mockup`, { mockup_id: boardId, mockup_page_id: "delta", version: 1, page_id: "delta-alone", title: "Delta alone" });
     expect(promoted.status, JSON.stringify(promoted.body)).toBe(201);
     expect(await kinds(rita, "deltaword")).toEqual(["story:delta-alone"]);
@@ -708,27 +708,27 @@ describe("searching for what a Story page shows of a mockup", () => {
     expect(await kinds(rita, "deltaword")).toEqual(["story:whole-board"]);
   });
 
-  it("gives a reader nothing else of the product, in results or in the words it offers back", async () => {
-    for (const word of ["briefword", "notesword", "unshownword", "outcomeword", "assumptionword"]) {
+  it("gives a Story reader nothing else of the product, in results or in the words it offers back", async () => {
+    for (const word of ["briefword", "notesword", "unshownword", "outcomeword", "sourceword"]) {
       const got = await find(rita, word);
       expect(got.results, word).toEqual([]);
       expect(got.corrections, word).toEqual([]);
     }
     // One letter away from words only the team holds, as a typo would be.
-    for (const word of ["outcomewors", "assumptionwors", "briefwors", "harbous"]) expect((await find(rita, word)).corrections, word).toEqual([]);
+    for (const word of ["outcomewors", "sourcewors", "briefwors", "harbous"]) expect((await find(rita, word)).corrections, word).toEqual([]);
     expect((await find(rita, "overvieu ")).corrections).toEqual([{ from: "overvieu", to: "overview" }]);
   });
 
-  it("refuses a reader every other search", async () => {
+  it("refuses a Story reader every other search", async () => {
     for (const q of ["query=alpha", "query=alpha&mode=ranked", "query=alpha&mode=plain&kind=mockup", "query=alpha&mode=plain&kind=source", "query=alpha&mode=plain&record_id=01ARZ3NDEKTSV4RRFFQ69G5FAV"]) {
       const r = await rita.api("GET", `${S}/search?${q}`);
       expect(r.status, q).toBe(403);
-      expect(r.body.error.details.role, q).toBe("reader");
+      expect(r.body.error.details.role, q).toBe("story_reader");
     }
     expect((await rita.api("GET", `${S}/search?mode=plain&query=alpha&kind=story`)).status).toBe(200);
   });
 
-  it("leaves an archived page out of a reader's search", async () => {
+  it("leaves an archived page out of a Story reader's search", async () => {
     const now = await alice.api("GET", `${S}/story/pages/whole-board?include_html=false`);
     expect((await alice.api("POST", `${S}/story/pages/whole-board/archive`, { expected_etag: now.body.etag })).status).toBe(200);
     expect(await kinds(rita, "deltaword")).toEqual([]);
@@ -831,8 +831,8 @@ describe("pages from a mockup in the Story's tree", () => {
       expect(m.body.story_pages.find((p: { page_id: string }) => p.page_id === r.body.page_id)).toMatchObject({ mockup_page_id: null });
     });
 
-    it("gives a reader what the canvas draws and each page's HTML, and nothing else of the mockup", async () => {
-      expect((await alice.api("POST", `/api/v1/tenants/${tenantSlug}/members`, { product: "flipbook", email: "rita@example.com", role: "reader" })).status).toBe(201);
+    it("gives a Story reader what the canvas draws and each page's HTML, and nothing else of the mockup", async () => {
+      expect((await alice.api("POST", `/api/v1/tenants/${tenantSlug}/members`, { product: "flipbook", email: "rita@example.com", role: "story_reader" })).status).toBe(201);
       const read = await rita.api("GET", `${Q}/story/pages/${canvas.page_id}?include_html=false`);
       expect(read.status, JSON.stringify(read.body)).toBe(200);
       const m = read.body.current.mockup;
@@ -856,7 +856,7 @@ describe("pages from a mockup in the Story's tree", () => {
       expect((await raw(alice, `${Q}/story/pages/plain/versions/1/pages/p1/html`)).status).toBe(404);
     });
 
-    it("stays on its mockup version until it is promoted again, and a reader follows only that", async () => {
+    it("stays on its mockup version until it is promoted again, and a Story reader follows only that", async () => {
       const m = await alice.api("GET", `${Q}/mockups/${mockupId}`);
       const next = await alice.api("POST", `${Q}/mockups`, { mockup_id: mockupId, expected_etag: m.body.etag, pages: [{ page_id: "p1" }, { page_id: "added", title: "Added", html: page("Added") }] });
       expect(next.status, JSON.stringify(next.body)).toBe(201);
@@ -877,7 +877,7 @@ describe("pages from a mockup in the Story's tree", () => {
       expect(kept.body.current.html_sha256).toBe(versions[0].html_sha256);
     });
 
-    it("hides an archived canvas from a reader, page by page too", async () => {
+    it("hides an archived canvas from a Story reader, page by page too", async () => {
       const now = await alice.api("GET", `${Q}/story/pages/${canvas.page_id}?include_html=false`);
       expect((await alice.api("POST", `${Q}/story/pages/${canvas.page_id}/archive`, { expected_etag: now.body.etag })).status).toBe(200);
       expect((await raw(rita, `${Q}/story/pages/${canvas.page_id}/versions/1/pages/p2/html`)).status).toBe(404);

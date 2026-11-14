@@ -36,7 +36,7 @@ beforeAll(async () => {
   P = `/api/v1/p/${org.product.path}`;
   await owner.api("POST", `/api/v1/tenants/${org.tenant.slug}/members`, { all_products: true, email: "eddie@delta.example", role: "editor" });
   editor = await h.signIn("eddie@delta.example", "Eddie Delta");
-  await owner.api("POST", `/api/v1/tenants/${org.tenant.slug}/members`, { product: org.product.id, email: "rita@delta.example", role: "reader" });
+  await owner.api("POST", `/api/v1/tenants/${org.tenant.slug}/members`, { product: org.product.id, email: "rita@delta.example", role: "story_reader" });
   reader = await h.signIn("rita@delta.example", "Rita Delta");
 }, 120_000);
 afterAll(async () => h?.close());
@@ -46,7 +46,6 @@ describe("who deletes", () => {
     const refused = [
       [`${P}/sources/${org.source.id}`, guards(org.source.etag)],
       [`${P}/annotations/${org.annotation.id}`, guards(org.annotation.etag)],
-      [`${P}/assumptions/${org.assumption.id}`, guards(org.assumption.etag)],
       [`${P}/outcomes/${org.outcome.id}`, guards(org.outcome.etag)],
       [`${P}/story/pages/${org.page.id}`, guards(org.page.etag)],
       [`${P}/mockups/${org.mockup.id}`, guards(org.mockup.etag)],
@@ -58,7 +57,7 @@ describe("who deletes", () => {
       expect(r.body.error.details).toMatchObject({ role: "editor", needed: "admin" });
     }
     expect((await editor.api("GET", `${P}/sources/${org.source.id}/delete-impact`)).status).toBe(200);
-    expect((await editor.api("GET", `${P}/assumptions/${org.assumption.id}/delete-impact`)).status).toBe(200);
+    expect((await editor.api("GET", `${P}/outcomes/${org.outcome.id}/delete-impact`)).status).toBe(200);
     // Deleting the whole organization is its owners' alone.
     const tenant = await editor.api("DELETE", `/api/v1/tenants/${org.tenant.slug}`, { name: "Delta Works", reason: "x", confirm: "delete permanently" });
     expect(tenant.status).toBe(403);
@@ -83,30 +82,11 @@ describe("deleting what is in a product", () => {
     expect(log.body.items.map((i: { action: string }) => i.action)).toContain("note_deleted");
   });
 
-  it("deletes an assumption: its links from others go", async () => {
-    const impact = await owner.api("GET", `${P}/assumptions/${org.linked.id}/delete-impact`);
-    expect(impact.status).toBe(200);
-    expect(impact.body.linked_from).toEqual([expect.objectContaining({ id: org.assumption.id, type: "supports" })]);
-
-    const before = await owner.api("GET", `${P}/assumptions/${org.assumption.id}`);
-    // A reviewed, frozen assumption is deleted like any other.
-    const del = await owner.api("DELETE", `${P}/assumptions/${org.linked.id}`, guards(impact.body.etag, "Duplicate of another"));
-    expect(del.status, JSON.stringify(del.body)).toBe(200);
-    const after = await owner.api("GET", `${P}/assumptions/${org.assumption.id}`);
-    expect(after.body.links).toEqual([]);
-    expect(after.body.etag).not.toBe(before.body.etag);
-    const gone = await owner.api("GET", `${P}/assumptions/${org.linked.id}`);
-    expect(gone.status).toBe(410);
-    expect(gone.body.error.code).toBe("assumption_deleted");
-    expect(await rowsIn(org.tenant.id, "reviews", sql`entry_id = ${org.linked.id}`)).toBe(0);
-  });
-
-  it("deletes an outcome: the assumptions that served it stop naming it", async () => {
+  it("deletes an outcome with its earlier wordings, and answers 410 afterwards", async () => {
     const impact = await owner.api("GET", `${P}/outcomes/${org.outcome.id}/delete-impact`);
-    expect(impact.body.assumptions.map((a: { id: string }) => a.id)).toEqual([org.assumption.id]);
+    expect(impact.body).not.toHaveProperty("assumptions");
     const del = await owner.api("DELETE", `${P}/outcomes/${org.outcome.id}`, guards(impact.body.etag));
     expect(del.status, JSON.stringify(del.body)).toBe(200);
-    expect((await owner.api("GET", `${P}/assumptions/${org.assumption.id}`)).body.outcome_ids).toEqual([]);
     expect((await owner.api("GET", `${P}/outcomes/${org.outcome.id}`)).status).toBe(410);
     expect(await rowsIn(org.tenant.id, "revisions", sql`object_id = ${org.outcome.id}`)).toBe(0);
   });
@@ -127,7 +107,7 @@ describe("deleting what is in a product", () => {
     expect(JSON.stringify(after.body.items)).not.toContain('"plan"');
     expect(after.body.items.map((n: { page_id: string }) => n.page_id)).toContain("plan-detail");
     expect((await owner.api("GET", `${P}/story/pages/plan`)).status).toBe(410);
-    // A reader learns no more of a deleted page than of an archived one.
+    // A Story reader learns no more of a deleted page than of an archived one.
     expect((await reader.api("GET", `${P}/story/pages/plan`)).status).toBe(404);
 
     const again = await owner.api("POST", `${P}/story/pages/plan/versions`, page("The plan, again"));

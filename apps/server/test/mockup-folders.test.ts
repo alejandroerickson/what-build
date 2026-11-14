@@ -54,7 +54,7 @@ beforeAll(async () => {
   rita = await h.signIn("rita@example.com", "Rita Reader");
   const made = await product("Planner");
   P = made.base;
-  for (const [email, role] of [["vic@example.com", "viewer"], ["rita@example.com", "reader"]])
+  for (const [email, role] of [["vic@example.com", "viewer"], ["rita@example.com", "story_reader"]])
     expect((await alice.api("POST", `/api/v1/tenants/${made.tenant}/members`, { product: "planner", email, role })).status).toBe(201);
 });
 afterAll(async () => h?.close());
@@ -244,7 +244,7 @@ describe("folders", () => {
 });
 
 describe("who may arrange", () => {
-  it("lets a viewer read the arrangement and change none of it, and gives a reader nothing", async () => {
+  it("lets a viewer read the arrangement and change none of it, and gives a Story reader nothing", async () => {
     const f = await folder(P, "Shared");
     const list = (await vic.api("GET", `${P}/mockups`)).body;
     expect(list.folders.map((x: { name: string }) => x.name)).toEqual(["Shared"]);
@@ -307,7 +307,7 @@ describe("the migration to arranged mockups", () => {
     await client.connect();
     const dir = fileURLToPath(new URL("../src/migrations/", import.meta.url));
     const files = readdirSync(dir).filter((f) => /^\d{4}_.*\.sql$/.test(f)).sort();
-    const at = files.indexOf("0045_mockup_folders.sql");
+    const at = files.indexOf("0047_mockup_folders.sql");
     expect(at).toBeGreaterThan(0);
     for (const f of files.slice(0, at)) await client.query(readFileSync(`${dir}${f}`, "utf8"));
 

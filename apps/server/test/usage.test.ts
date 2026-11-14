@@ -84,7 +84,7 @@ describe("counting calls", () => {
   });
 
   it("names organizations and products in request logs only by kind", () => {
-    expect(loggedPath("/api/v1/p/acme/planner/assumptions/01HX0000000000000000000000/review")).toBe("/api/v1/p/:org/:product/assumptions/:id/review");
+    expect(loggedPath("/api/v1/p/acme/planner/outcomes/01HX0000000000000000000000/archive")).toBe("/api/v1/p/:org/:product/outcomes/:id/archive");
     expect(loggedPath("/api/v1/p/acme/planner")).toBe("/api/v1/p/:org/:product");
     expect(loggedPath("/api/v1/tenants/acme/products")).toBe("/api/v1/tenants/:org/products");
     expect(loggedPath("/api/v1/tenants/acme/members")).toBe("/api/v1/tenants/:org/members");

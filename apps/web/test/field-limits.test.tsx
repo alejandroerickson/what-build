@@ -18,7 +18,6 @@ vi.mock("../src/lib/api.ts", async (original) => ({
   api: vi.fn(async (method: string, path: string) => {
     calls.push({ method, path });
     if (method === "POST" && path.endsWith("/sources")) return { record_id: "rec_1" };
-    if (method === "POST" && path.endsWith("/assumptions")) return { id: "asm_1" };
     if (path.endsWith("/feedback")) return { ok: true };
     return { items: [], records: [], tags: [], added_by: [], sources: 0 };
   }),
@@ -34,7 +33,6 @@ window.matchMedia ??= (query: string) => ({ matches: false, media: query, onchan
 
 const { SourceNewPage } = await import("../src/routes/source-new.tsx");
 const { EditDetails } = await import("../src/routes/source-detail.tsx");
-const { EntryEditPage } = await import("../src/routes/registers.tsx");
 const { FeedbackDialog } = await import("../src/shell/feedback-dialog.tsx");
 const { ShellContext } = await import("../src/shell/slots.tsx");
 
@@ -211,44 +209,6 @@ describe("editing a source's details", () => {
     await act(async () => paste(title, words(300)));
     expect(button(document, "Save").disabled).toBe(false);
     expect(host).toBeDefined();
-  });
-});
-
-describe("recording an assumption", () => {
-  const start = async () => {
-    const host = await mount(<EntryEditPage kind="assumptions" />, "/t/acme/app/exploration/assumptions/new");
-    for (let i = 0; i < 4; i++) await act(async () => new Promise((r) => setTimeout(r, 0)));
-    return { host, statement: host.querySelector<HTMLTextAreaElement>("textarea.entry-statement")!, form: host.querySelector("form")! };
-  };
-  const save = (host: HTMLElement) => button(host, "Save assumption");
-
-  it("refuses a statement that's too long, keeping it, even when the form is submitted anyway", async () => {
-    const { host, statement, form } = await start();
-    await act(async () => paste(statement, words(1140)));
-    expect(statement.value).toHaveLength(1140);
-    expect(host.querySelector(".field-error")?.textContent).toBe("140 characters over the limit of 1,000. Shorten it to save.");
-    expect(save(host).disabled).toBe(true);
-    await act(async () => form.requestSubmit());
-    expect(posts()).toEqual([]);
-    expect(statement.value).toHaveLength(1140);
-  });
-
-  it("saves a statement at the limit, whole", async () => {
-    const { host, statement } = await start();
-    await act(async () => paste(statement, words(1000)));
-    expect(host.querySelector(".field-error")).toBeNull();
-    expect(save(host).disabled).toBe(false);
-    await act(async () => save(host).click());
-    expect(posts()).toEqual([{ method: "POST", path: "/api/v1/p/acme/app/assumptions" }]);
-  });
-
-  it("refuses what is too long in Why too, the other field the form saves", async () => {
-    const { host, statement } = await start();
-    await act(async () => paste(statement, "Crew leads plan by the week."));
-    const why = [...host.querySelectorAll("textarea")].find((t) => t !== statement)!;
-    await act(async () => paste(why, words(10_001)));
-    expect(save(host).disabled).toBe(true);
-    expect(why.value).toHaveLength(10_001);
   });
 });
 

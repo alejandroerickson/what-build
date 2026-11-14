@@ -4,14 +4,13 @@ Archiving and restoring each kind of object, what an archived source refuses, an
 
 ## Archive
 
-Archiving is reversible: it takes a source, comment, assumption, outcome, mockup or Story page out of
+Archiving is reversible: it takes a source, comment, outcome, mockup or Story page out of
 lists and out of search, and erases nothing. Each comes back the same way it went:
 
 | Object | Archive | Restore |
 |---|---|---|
 | source | `sources_write(action="archive")`, by `record_ids` | `sources_write(action="restore")`, by `record_ids` |
 | comment | `sources_write(action="update_annotation")` with `archived: true` (and an optional `archive_reason`) | `update_annotation` with `archived: false` |
-| assumption | `assumptions_write(action="archive", archived: true)` | `assumptions_write(action="archive", archived: false)` |
 | outcome | `outcomes_write(action="archive")` | `outcomes_write(action="restore")` |
 | mockup | `mockups_write(action="archive")` | `mockups_write(action="restore")` |
 | Story page | `story_write(action="archive_page")` | `story_write(action="restore_page")` |
@@ -24,13 +23,12 @@ attachments or comments is refused with `409 record_archived` until it is restor
 
 A permanent delete cannot be undone. It needs the admin role and an Admin connection, so the `_delete`
 tools are offered only then. Each delete has an impact read that changes nothing and says exactly what
-would be destroyed (attachments and their versions, page or mockup versions, comments, reviews,
-links):
+would be destroyed (attachments and their versions, page or mockup versions, comments, what
+points at it):
 
 | Object | Impact | Delete |
 |---|---|---|
 | source | `sources_read(action="delete_impact")` | `sources_delete(action="delete")` |
-| assumption | `assumptions_read(action="delete_impact")` | `assumptions_delete(action="delete")` |
 | outcome | `outcomes_read(action="delete_impact")` | `outcomes_delete(action="delete")` |
 | mockup | `mockups_read(action="delete_impact")` | `mockups_delete(action="delete")` |
 | Story page | `story_read(action="delete_page_impact")` | `story_delete(action="delete_page")` |

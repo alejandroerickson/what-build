@@ -15,7 +15,7 @@ import { logError } from "./telemetry.ts";
  * What each tool is called in a client's list, and what it says it does, part by part: a sentence,
  * and the actions it speaks of. A part that names actions is said only when the connection is
  * offered one of them, so a tool never describes what it does not offer: members_write at the Edit
- * level grants nobody, a reader's story_write publishes nothing. A tool that reads differently for
+ * level grants nobody, a Story reader's story_write publishes nothing. A tool that reads differently for
  * someone who reads only the Story says so to them in `forStoryReader`, in place of `parts`.
  */
 type Parts = [text: string, ...actions: string[]][];
@@ -125,18 +125,6 @@ const TOOL_TEXT: Record<string, { title: string; parts: Parts; forStoryReader?: 
   outcomes_delete: {
     title: "Delete outcomes permanently",
     parts: [["Delete an outcome for good. It takes the etag of outcomes_read(action=\"delete_impact\"), which lists what would be destroyed."]],
-  },
-  assumptions_read: {
-    title: "Read assumptions",
-    parts: [["Read the assumption register: premises the team treats as true while evidence is incomplete, with attributed reviews and links between entries, and what deleting one would destroy."]],
-  },
-  assumptions_write: {
-    title: "Change assumptions",
-    parts: [["Record, edit, review, supersede, link and archive assumptions. A review freezes an entry's statement and body."]],
-  },
-  assumptions_delete: {
-    title: "Delete assumptions permanently",
-    parts: [["Delete an assumption for good. It takes the etag of assumptions_read(action=\"delete_impact\"), which lists what would be destroyed."]],
   },
   mockups_read: {
     title: "Read mockups",
@@ -323,8 +311,12 @@ const RETIRED_ACTIONS: Record<string, string> = {
   "sources_write.move_to_product": " Sources are no longer copied or moved between products: a source stays in the product it was added to. To put it in another, add it there and archive it here.",
 };
 
+/** The tools of assumptions, which WhatBuild no longer keeps: each product's were deleted with them. */
+const ASSUMPTION_TOOLS = new Set(["assumptions", "assumptions_read", "assumptions_write", "assumptions_delete"]);
+
 function retiredTool(name: string, tools: string[]): string {
   if (name === "get_skill") return " The skill is retired: the guide tool describes how WhatBuild works.";
+  if (ASSUMPTION_TOOLS.has(name)) return " Assumptions are retired: WhatBuild no longer keeps them, and the ones products held were deleted. Nothing takes their place.";
   const split = tools.filter((t) => t !== name && nounOf(t) === name);
   const exporting = split.some((t) => t.endsWith("_export")) ? ", export" : "";
   return split.length ? ` Its actions are now in ${split.join(", ")}, by whether they read, change${exporting} or permanently delete.` : "";
@@ -374,7 +366,7 @@ const FEEDBACK_OFF = " The person turned off submit_feedback for this connection
 
 export const SERVER_INSTRUCTIONS =
   "WhatBuild holds product discovery. Organizations (tenants) hold products. Each product has its Idea (a product concept and outcomes), " +
-  "its Evidence (sources, with their attachments and text), its Exploration (assumptions and mockups) and its Story (pages for the people the team works with). " +
+  "its Evidence (sources, with their attachments and text), its Exploration (mockups) and its Story (pages for the people the team works with). " +
   "Each kind of object has a _read tool, a _write tool that creates, changes, archives and restores, and, where it can be deleted for good, a _delete tool; a product also has products_export, which takes a copy away and changes nothing in it. " +
   "Each takes an action, the action's fields in params, and the product; describe=true returns an action's schema and guidance without running it. " +
   'products_read(action="list") lists the products this connection reaches. The guide tool describes how WhatBuild works, one topic at a time. ' +

@@ -53,8 +53,8 @@ export const SYNTHETIC_PEOPLE: SeedPeople = [
 ];
 
 /**
- * Make the synthetic organization unless it is there: the sample, then Sam made a reader of its
- * Story by its owner, so the grant is in its access changes as any other. `admin` reads past
+ * Make the synthetic organization unless it is there: the sample, then its owner makes Sam a Story
+ * reader of its product, so the grant is in its access changes as any other. `admin` reads past
  * row-level security, as the embedded server's superuser does.
  */
 export async function addHarborLabs(env: Env, worker: Worker, admin: pg.Client, log: (line: string) => void = () => {}) {
@@ -64,7 +64,7 @@ export async function addHarborLabs(env: Env, worker: Worker, admin: pg.Client, 
   const [riley, sam] = SEED_ACCOUNTS;
   const owner = (await findOrCreateAccount(env.db, SYNTHETIC_PEOPLE[0].email, SYNTHETIC_PEOPLE[0].display_name)).account;
   const samAccount = (await findOrCreateAccount(env.db, sam.email, sam.display_name)).account;
-  await grantAndAccept(env, { ...owner, auth_kind: "dev", surface: "web", client: null }, { tenant: SYNTHETIC, product: "crewboard", role: "reader" }, samAccount);
+  await grantAndAccept(env, { ...owner, auth_kind: "dev", surface: "web", client: null }, { tenant: SYNTHETIC, product: "crewboard", role: "story_reader" }, samAccount);
   // The editor's allowance to start an organization comes from the instance's owner, Riley, as in
   // development, not from the organization's owner.
   const instanceOwner = (await findOrCreateAccount(env.db, riley.email, riley.display_name)).account;

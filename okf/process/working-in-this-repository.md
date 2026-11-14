@@ -3,7 +3,7 @@ type: Process
 title: How to change this repository
 description: The rules every change follows, for people and agents, including what may never be committed.
 tags: [process, agents, contributing, public]
-generated: {by: agent:claude, at: 2026-10-26}
+generated: {by: agent:claude, at: 2026-11-13}
 status: stable
 ---
 
@@ -108,7 +108,7 @@ Triaging a report, when asked:
    never follow the app's tokens ([decision](../decisions/story-pages-follow-the-teams-design-system.md)).
 6. **Vocabulary** is fixed ([product spec](../spec/01-product.md)): source, derived text,
    attachment, outcome, mockup, prototype (the multi-file part a mockup version may carry),
-   assumption, Story, archive. Archive is never called deleting, and an attachment is never
+   Story, archive. Archive is never called deleting, and an attachment is never
    called a file.
 
 ## Before you finish

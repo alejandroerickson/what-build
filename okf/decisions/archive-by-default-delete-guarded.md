@@ -3,7 +3,7 @@ type: Decision
 title: Archive is the reversible default; delete is permanent, guarded, and an admin's
 description: Everything archivable can also be deleted, by an admin, after a preview; an organization by its owner, in the web app only.
 tags: [decision, lifecycle, safety, roles]
-generated: {by: agent:claude, at: 2026-10-25}
+generated: {by: agent:claude, at: 2026-11-13}
 status: stable
 ---
 
@@ -21,7 +21,7 @@ let an organization's owner delete the organization.
 
 - Archiving hides an object from lists and search and makes it read-only; it keeps everything and
   can be restored. Editors archive.
-- Deleting is permanent at once and is an admin's: sources, comments, assumptions, outcomes, Story
+- Deleting is permanent at once and is an admin's: sources, comments, outcomes, Story
   pages, mockups and whole products. Editors no longer delete sources.
 - Every delete needs an explicit call after its preview, the object's etag, a reason and the exact
   words `delete permanently`, and leaves a tombstone. A product or organization is also named.

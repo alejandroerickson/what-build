@@ -107,7 +107,7 @@ beforeAll(async () => {
   product = p.body.slug;
   P = `/api/v1/p/${path}`;
   await alice.api("POST", `/api/v1/tenants/${tenant}/members`, { product, email: vic.email, role: "viewer" });
-  await alice.api("POST", `/api/v1/tenants/${tenant}/members`, { product, email: rita.email, role: "reader" });
+  await alice.api("POST", `/api/v1/tenants/${tenant}/members`, { product, email: rita.email, role: "story_reader" });
 });
 afterEach(async () => {
   await Promise.all(open.splice(0).map((l) => l.stop()));
@@ -136,12 +136,12 @@ describe("what a message can say", () => {
   });
 
   it("names the Story's area to someone who reads only the Story, and no other", () => {
-    expect(areasFor("reader", LIVE_AREAS)).toEqual(["story"]);
-    expect(areasFor("reader", ["idea", "evidence", "exploration", "other"])).toEqual([]);
+    expect(areasFor("story_reader", LIVE_AREAS)).toEqual(["story"]);
+    expect(areasFor("story_reader", ["idea", "evidence", "exploration", "other"])).toEqual([]);
     for (const role of ["viewer", "editor", "admin"] as const) expect(areasFor(role, LIVE_AREAS)).toEqual([...LIVE_AREAS]);
   });
 
-  it("labels the Story's area only for the Story's operations, and a kind nobody labelled reaches no reader", () => {
+  it("labels the Story's area only for the Story's operations, and a kind nobody labelled reaches no Story reader", () => {
     for (const op of OPERATIONS) expect(liveArea(op) === "story", op.name).toBe(op.mcp.tool === "story");
     expect(liveArea({ mcp: { tool: "something_new" } })).toBe("other");
     expect(liveArea({ mcp: { tool: "constructor" } })).toBe("other");
@@ -311,7 +311,7 @@ describe("who hears what", () => {
     expect(tab.text()).not.toMatch(/[0-9A-HJKMNP-TV-Z]{26}/);
   });
 
-  it("tells a reader of the Story and of nothing else", async () => {
+  it("tells a Story reader of the Story and of nothing else", async () => {
     const reader = await listen(rita);
     const others = await listen(vic);
     await addOutcome();
@@ -415,14 +415,14 @@ describe("someone who may no longer hear", () => {
     await hearsNothingAfter(dan, () => h.db.updateTable("accounts").set({ deleted_at: new Date().toISOString() }).where("account_id", "=", dan.id).execute());
   });
 
-  it("made a reader hears of the Story alone from then on", async () => {
+  it("made a Story reader hears of the Story alone from then on", async () => {
     const liv = await member("liv", "viewer");
     const theirs = await listen(liv);
     const others = await listen(alice);
     await addOutcome();
     await hears(theirs, "idea");
     await vi.waitFor(() => expect(others.heard().length).toBe(1));
-    expect((await alice.api("POST", `/api/v1/tenants/${tenant}/members`, { product, email: liv.email, role: "reader" })).status).toBeLessThan(300);
+    expect((await alice.api("POST", `/api/v1/tenants/${tenant}/members`, { product, email: liv.email, role: "story_reader" })).status).toBeLessThan(300);
     const before = theirs.heard().length;
     await addSource();
     await hears(others, "evidence");

@@ -43,7 +43,7 @@ interface SettingsGroup {
  */
 export function settingsGroups(product: PanelProduct | null, tenant: Tenant | null, plansOffered: boolean): SettingsGroup[] {
   const groups: SettingsGroup[] = [];
-  if (product && product.your_role !== "reader")
+  if (product && product.your_role !== "story_reader")
     groups.push({
       id: "product",
       label: product.name,

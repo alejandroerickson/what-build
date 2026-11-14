@@ -12,7 +12,7 @@ export const SEED_ACCOUNTS = [
   { email: "jordan@example.com", display_name: "Jordan Ellis" },
 ] as const;
 
-/** The three people the sample is made with: its owner, the editor whose agent does most of the work, and the Story's reader. */
+/** The three people the sample is made with: its owner, the editor whose agent does most of the work, and the Story reader. */
 export type SeedPeople = readonly [{ email: string; display_name: string }, { email: string; display_name: string }, { email: string; display_name: string }];
 
 /** Run an operation as `who`, as the adapters do, and return its result. */
@@ -67,7 +67,7 @@ export async function seed(env: Env, worker: Worker, log: (m: string) => void = 
   await grantAndAccept(env, riley, { tenant, all_products: true, role: "editor" }, accounts[1]!);
   const product = (await call(env, riley, "products.create", { tenant, name: SAMPLE.product, slug: "crewboard", concept: SAMPLE.concept, card_html: SAMPLE.concept_card })) as { product_id: string };
   const ref: ScopeRef = { product: product.product_id };
-  await grantAndAccept(env, riley, { tenant, product: "crewboard", role: "reader" }, accounts[2]!);
+  await grantAndAccept(env, riley, { tenant, product: "crewboard", role: "story_reader" }, accounts[2]!);
 
   const outcomeIds: string[] = [];
   for (const o of SAMPLE.outcomes) outcomeIds.push(String((await call(env, riley, "outcomes.create", o, ref))["outcome_id"]));
@@ -103,20 +103,6 @@ export async function seed(env: Env, worker: Worker, log: (m: string) => void = 
 
   const base = env.ports.config.publicBaseUrl;
   const path = `${tenant}/crewboard`;
-  const assumption = await call(
-    env,
-    samAgent,
-    "assumptions.create",
-    {
-      statement: "Crew leads think about the week in jobs, not in time slots.",
-      body: "Marisol and the survey comments say jobs first; Dev and Priya plan day by day. If the split follows the trade, the first version may need both views.",
-      outcome_ids: [outcomeIds[2]!],
-      tags: ["planning-model"],
-      author_type: "agent",
-    },
-    ref,
-  );
-
   await call(env, samAgent, "story.set_style", { house_style: "clear" }, ref);
   const sampleStylesheet = houseStyle("clear")!.stylesheet;
   await call(
@@ -129,7 +115,6 @@ export async function seed(env: Env, worker: Worker, log: (m: string) => void = 
       summary: "Planning costs an afternoon a week; the hand-off is where mistakes happen.",
       html: STORY_HTML(
         {
-          assumption: `${base}/t/${path}/exploration/assumptions/${assumption["id"]}`,
           handOff: `${base}/t/${path}/story/hand-off-test`,
         },
         sampleStylesheet,

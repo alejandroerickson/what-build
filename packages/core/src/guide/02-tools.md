@@ -14,13 +14,13 @@ Each kind of object has up to three tools, named after it:
 product away and changes nothing in it, so it is neither a read nor a write, and a client is told it
 destroys nothing.
 
-The kinds are `products`, `members`, `sources`, `attachments`, `derived`, `outcomes`, `assumptions`,
-`mockups`, `story` and `activity`. Each of these tools takes `action`, `params` (the action's fields),
+The kinds are `products`, `members`, `sources`, `attachments`, `derived`, `outcomes`, `mockups`,
+`story` and `activity`. Each of these tools takes `action`, `params` (the action's fields),
 `product`, and `describe`. Called with an action, `describe: true` and no params, it returns that
 action's exact schema and guidance without running it:
 
-    assumptions_write(action="create", describe=true)
-    assumptions_write(action="create", product="acme/onboarding", params={"statement": "…"})
+    outcomes_write(action="create", describe=true)
+    outcomes_write(action="create", product="acme/onboarding", params={"title": "…"})
 
 `search`, `guide` and `submit_feedback` stand alone: their fields are their arguments, with no
 `action`, `params` or `describe`.
@@ -32,9 +32,9 @@ a product of its own in params. On a scoped connector it defaults to the connect
 ## Paging, ids and times
 
 - A list that pages answers `next_cursor`: pass it back as `cursor` (sources, comments, outcomes,
-  assumptions, search, activity). A Story page's or a mockup's versions page by number: pass
+  search, activity). A Story page's or a mockup's versions page by number: pass
   `next_before` back as `before`. Other lists come in one answer.
-- An outcome's id is `outcome_id`, an assumption's `id`; each also accepts the other form.
+- An outcome's id is `outcome_id`, and `id` is accepted for it.
 - `story_write(action="write_notes")` takes the notes as `notes`, and also as `content`, the name
   `get_page` returns them under.
 - Times in results are UTC (ISO 8601).
@@ -49,9 +49,7 @@ one is refused with `409 stale_etag` and the `current_etag`.
 - A write that may create what it writes (a source's summary, notes or text, a Story page's first
   version, the first Story style or hierarchy, a new mockup, an allowance) takes none the first time,
   and refuses one sent then (`409 stale_etag` with `current_etag: null`).
-- `tags` sent to `sources_write(action="update")`, `update_annotation` or
-  `assumptions_write(action="update")` replaces the whole list, as do an assumption's `outcome_ids`
-  and `links`.
+- `tags` sent to `sources_write(action="update")` or `update_annotation` replaces the whole list.
 
 ## Refusals
 
@@ -73,8 +71,8 @@ not have landed.
   `story_write(action="publish")`, `promote_mockup` with a new `page_id`, `write_notes` on empty
   notes, the first `set_hierarchy` and `set_style`, and `mockups_write(action="publish")` from an
   `upload_id`, since an upload publishes once (`409 upload_used`).
-- A write without an etag may make a second object when sent again: creating an outcome, an
-  assumption or a source (`sources_write(action="create")`, `attachments_write(action="create_upload")`,
+- A write without an etag may make a second object when sent again: creating an outcome or a
+  source (`sources_write(action="create")`, `attachments_write(action="create_upload")`,
   `create_uploads`), a comment (`annotate`), a mockup
   (`publish` without `mockup_id` or `upload_id`), a Story page from a mockup (`promote_mockup`
   without `page_id`), and a product or organization without a `slug`. The item's list and
@@ -98,7 +96,9 @@ now as `tools_version` in its `scope`, and `products_read(action="list")` gives 
 newer than the version the server's instructions named, or a call is answered `unknown_tool` or
 `unknown_action`, the client holds an older tool list: a new session (in Claude Code, a new
 conversation or a restart) brings the current one. An action missing only from a tool's description
-may still work: `describe: true` says.
+may still work: `describe: true` says. A call to `assumptions_read`, `assumptions_write` or
+`assumptions_delete`, from an older list, is refused: assumptions are retired, and WhatBuild no
+longer keeps them.
 
 ## Recent changes
 

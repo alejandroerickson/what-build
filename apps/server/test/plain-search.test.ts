@@ -283,7 +283,7 @@ describe("plain search over the sample product", () => {
     expect(crew.kind_hint).toBeNull();
     // Sources say "crew" more than the outcome does: by the words alone, one leads it.
     expect(crew.results.findIndex((x: { kind: string }) => x.kind === "outcome")).toBeGreaterThan(crew.results.findIndex((x: { kind: string }) => x.kind === "source"));
-    for (const [q, kind] of [["mockups crew", "mockup"], ["crew assumptions", "assumption"], ["outcomes crew", "outcome"]] as const) {
+    for (const [q, kind] of [["mockups crew", "mockup"], ["crew sources", "source"], ["outcomes crew", "outcome"]] as const) {
       const r = await find(q);
       expect(r.kind_hint).toBe(kind);
       const named = crew.results.filter((x: { kind: string }) => x.kind === kind);
@@ -377,26 +377,27 @@ describe("plain search's excerpts", () => {
     const product = await lee.api("GET", L);
     const concept = "## Who it is for\n\n- **Crew leads** who send the morning dispatch\n- > Owners who read it later";
     expect((await lee.api("PATCH", `${L}/idea/concept`, { expected_etag: product.body.etag, concept })).status).toBe(200);
-    const a = await lee.api("POST", `${L}/assumptions`, { statement: "Leads read the board first.", body: "## Why\n\n- The **dispatch** board is by the door.\n- > Quoted: every lead checks it." });
+    const a = await lee.api("POST", `${L}/outcomes`, { title: "Leads read the board first.", description: "## Why\n\n- The **dispatch** board is by the door.\n- > Quoted: every lead checks it." });
     expect(a.status, JSON.stringify(a.body)).toBe(201);
     const r = await lee.api("POST", `${L}/sources`, { title: "Yard notes — Example Co", tags: [] });
     note = r.body.record_id;
     expect((await lee.api("PUT", `${L}/sources/${note}/derived/text`, { content: YARD })).status).toBe(200);
   });
 
-  it("shows an assumption's body and the product concept as words, as a source's text is, without the Markdown", async () => {
+  it("shows an outcome's description and the product concept as words, as a source's text is, without the Markdown", async () => {
     const r = (await lee.api("GET", `${L}/search?mode=plain&query=dispatch`)).body;
-    const snippets = r.results.filter((x: { kind: string }) => x.kind === "assumption" || x.kind === "idea").map((x: { kind: string; snippet: string }) => [x.kind, x.snippet]);
+    const snippets = r.results.filter((x: { kind: string }) => x.kind === "outcome" || x.kind === "idea").map((x: { kind: string; snippet: string }) => [x.kind, x.snippet]);
     expect(snippets).toEqual([
-      ["assumption", "Why The dispatch board is by the door. Quoted: every lead checks it."],
+      ["outcome", "Why The dispatch board is by the door. Quoted: every lead checks it."],
       ["idea", "Who it is for Crew leads who send the morning dispatch Owners who read it later"],
     ].sort((a, b) => (r.results.findIndex((x: { kind: string }) => x.kind === a[0]) - r.results.findIndex((x: { kind: string }) => x.kind === b[0]))));
     for (const x of r.results) expect(x.snippet ?? "", x.kind).not.toMatch(/##|\*\*|(^|\s)[->] /);
   });
 
-  it("shows italics, code and a link as their words in an assumption's body, a mockup's notes and a source's text, its marks on the words shown", async () => {
+  it("shows italics, code and a link as their words in an outcome's description, a mockup's notes and a source's text, its marks on the words shown", async () => {
     const md = "The *night crew* keeps the rota in `rota_v2`, beside [the yard map](https://example.com/yard_map_(v2)), as _every_ lead does.";
-    expect((await lee.api("POST", `${L}/assumptions`, { statement: "Night crews keep their own rota.", body: md })).status).toBe(201);
+    const outcome = await lee.api("POST", `${L}/outcomes`, { title: "Night crews keep their own rota.", description: md });
+    expect(outcome.status, JSON.stringify(outcome.body)).toBe(201);
     const mockup = await lee.api("POST", `${L}/mockups`, { title: "Rota screen", pages: [{ page_id: "rota", title: "Rota", html: "<p>Shifts</p>", notes: md }] });
     expect(mockup.status, JSON.stringify(mockup.body)).toBe(201);
     const source = await lee.api("POST", `${L}/sources`, { title: "Shift notes — Example Co", tags: [] });
@@ -406,7 +407,7 @@ describe("plain search's excerpts", () => {
     const of = (kind: string) => r.results.find((x: { kind: string }) => x.kind === kind);
     const hits = of("source").hits as { text: string; marks: [number, number][]; char_start: number }[];
     const excerpts = [
-      { text: of("assumption").snippet, marks: of("assumption").snippet_marks },
+      { text: of("outcome").snippet, marks: of("outcome").snippet_marks },
       { text: of("mockup").snippet, marks: of("mockup").snippet_marks },
       ...hits.map((x) => ({ text: x.text, marks: x.marks })),
     ];
@@ -421,17 +422,19 @@ describe("plain search's excerpts", () => {
 
   it("shows an escaped character alone in an excerpt, its marks on the words shown", async () => {
     const md = "The \\*late\\* crew pins \\[the gate rota\\] by the hut, and \\_every\\_ lead reads the rota twice.";
-    expect((await lee.api("POST", `${L}/assumptions`, { statement: "Late crews read the hut first.", body: md })).status).toBe(201);
+    const created = await lee.api("POST", `${L}/outcomes`, { title: "Late crews read the hut first.", description: md });
+    expect(created.status, JSON.stringify(created.body)).toBe(201);
+    const outcomeId = created.body.outcome_id;
     const source = await lee.api("POST", `${L}/sources`, { title: "Hut notes — Example Co", tags: [] });
     // A first paragraph long enough to be pieces of its own, so the escaped one is a piece that starts after it.
     const first = "The hut opens at six and the crews come in one by one. ".repeat(30).trim();
     expect((await lee.api("PUT", `${L}/sources/${source.body.record_id}/derived/text`, { content: `${first}\n\n${md}\n` })).status).toBe(200);
 
     const r = (await lee.api("GET", `${L}/search?mode=plain&query=${encodeURIComponent('"gate rota" late')}`)).body;
-    const assumption = r.results.find((x: { kind: string }) => x.kind === "assumption");
+    const outcome = r.results.find((x: { kind: string; id: string }) => x.kind === "outcome" && x.id === outcomeId);
     const hit = r.results.find((x: { kind: string; id: string }) => x.kind === "source" && x.id === source.body.record_id).hits[0];
     const shown = "The *late* crew pins [the gate rota] by the hut, and _every_ lead reads the rota twice.";
-    for (const e of [{ text: assumption.snippet, marks: assumption.snippet_marks }, { text: hit.text, marks: hit.marks }]) {
+    for (const e of [{ text: outcome.snippet, marks: outcome.snippet_marks }, { text: hit.text, marks: hit.marks }]) {
       expect(e.text).toContain(shown);
       expect(e.marks.map(([a, b]: [number, number]) => e.text.slice(a, b))).toEqual(["late", "gate rota"]);
     }

@@ -49,7 +49,7 @@ beforeAll(async () => {
   const page = await alice.api("GET", `${P}/story/pages/overview?include_html=false`);
   await alice.api("PUT", `${P}/story/pages/overview/notes`, { notes: "Fold in the pricing interviews next.", expected_etag: page.body.agent_notes.etag });
   await alice.api("POST", `${P}/story/pages/overview/versions`, { title: "Overview", html: html("Overview", "<h1>Overview</h1><p>Second version.</p>"), expected_etag: v1.body.etag });
-  const g = await alice.api("POST", `/api/v1/tenants/${tenantSlug}/members`, { product: "planner", email: "rita@example.com", role: "reader" });
+  const g = await alice.api("POST", `/api/v1/tenants/${tenantSlug}/members`, { product: "planner", email: "rita@example.com", role: "story_reader" });
   expect(g.status).toBe(201);
 });
 afterAll(async () => h?.close());
@@ -66,12 +66,12 @@ describe("a Story reader", () => {
   it("sees the product in their list with their role, its name and how many Story pages it has, and nothing else it holds", async () => {
     const list = await rita.api("GET", "/api/v1/me/products");
     const item = list.body.items.find((i: { path: string }) => i.path === productPath);
-    expect(item).toMatchObject({ name: "Planner", your_role: "reader", counts: { story_pages: 1 } });
+    expect(item).toMatchObject({ name: "Planner", your_role: "story_reader", counts: { story_pages: 1 } });
     expect(item.counts).toEqual({ story_pages: 1 });
     expect(item).not.toHaveProperty("concept");
     const product = await rita.api("GET", P);
     expect(product.status).toBe(200);
-    expect(product.body).toMatchObject({ name: "Planner", your_role: "reader", counts: { story_pages: 1 } });
+    expect(product.body).toMatchObject({ name: "Planner", your_role: "story_reader", counts: { story_pages: 1 } });
     expect(product.body.counts).toEqual({ story_pages: 1 });
     expect(product.body).not.toHaveProperty("concept");
   });
@@ -123,7 +123,7 @@ describe("a Story reader", () => {
     expect((await alice.api("POST", `${P}/story/pages/old-plan/archive`, { expected_etag: old.body.etag })).status).toBe(200);
     const pages = await rita.api("GET", `${P}/story/pages?include_archived=true`);
     expect(pages.body.items.map((x: { page_id: string }) => x.page_id)).toEqual(["overview"]);
-    // Nor is a reader told that the team archived anything.
+    // Nor is a Story reader told that the team archived anything.
     expect(pages.body).not.toHaveProperty("archived_hidden");
     expect(pages.body).not.toHaveProperty("note");
     expect((await rita.api("GET", `${P}/story/pages`)).body).not.toHaveProperty("archived_hidden");
@@ -144,13 +144,13 @@ describe("a Story reader", () => {
       if (op.scope !== "product" || op.access === "story") continue;
       const r = await rita.api(op.rest.method, fill(restPath(op)), op.rest.method === "GET" ? undefined : {});
       expect(r.status, `${op.name} ${op.rest.method} ${restPath(op)} → ${JSON.stringify(r.body)}`).toBe(403);
-      expect(r.body.error.details.role, op.name).toBe("reader");
+      expect(r.body.error.details.role, op.name).toBe("story_reader");
       refused.push(op.name);
     }
-    for (const name of ["sources.list", "derived.text", "derived.write_text", "assumptions.list", "outcomes.list", "activity.list", "products.export", "story.get_style"])
+    for (const name of ["sources.list", "derived.text", "derived.write_text", "outcomes.list", "activity.list", "products.export", "story.get_style"])
       expect(refused).toContain(name);
     const sources = await rita.api("GET", `${P}/sources`);
-    expect(sources.body.error.message).toMatch(/reader.*needs viewer/);
+    expect(sources.body.error.message).toMatch(/You are a Story reader on product Planner; .*needs viewer/);
   });
 
   it("cannot download a source's attachment or derived text, an export or a style specimen", async () => {
@@ -170,29 +170,49 @@ describe("a Story reader", () => {
     expect(page.content[0]!.text).not.toContain("agent_notes");
     const sources = (await client.callTool({ name: "sources_read", arguments: { action: "list", product: productPath } })) as { isError?: boolean; content: { text: string }[] };
     expect(sources.isError).toBe(true);
-    expect(sources.content[0]!.text).toMatch(/reader.*needs viewer/);
+    expect(sources.content[0]!.text).toMatch(/You are a Story reader on product Planner; .*needs viewer/);
     await client.close();
   });
 
   it("is granted on all products or a product only, and is invited like any other role", async () => {
-    const tenantWide = await alice.api("POST", `/api/v1/tenants/${tenantSlug}/members`, { email: "rita@example.com", role: "reader" });
+    const tenantWide = await alice.api("POST", `/api/v1/tenants/${tenantSlug}/members`, { email: "rita@example.com", role: "story_reader" });
     expect(tenantWide.status).toBe(422);
     expect(tenantWide.body.error.code).toBe("invalid_role");
-    const inv = await alice.api("POST", `/api/v1/tenants/${tenantSlug}/members`, { all_products: true, email: "stakeholder@example.com", role: "reader" });
+    const inv = await alice.api("POST", `/api/v1/tenants/${tenantSlug}/members`, { all_products: true, email: "stakeholder@example.com", role: "story_reader" });
     expect(inv.body.invited).toBe(true);
     const stakeholder = await h.signIn("stakeholder@example.com");
     const list = await stakeholder.api("GET", "/api/v1/me/products");
-    expect(list.body.items.find((i: { path: string }) => i.path === productPath)).toMatchObject({ your_role: "reader" });
+    expect(list.body.items.find((i: { path: string }) => i.path === productPath)).toMatchObject({ your_role: "story_reader" });
     const people = await alice.api("GET", `/api/v1/tenants/${tenantSlug}/members?product=${encodeURIComponent(productPath.split("/")[1]!)}`);
     const listed = people.body.members.find((m: { email: string }) => m.email === "rita@example.com");
-    expect(listed.product_access).toEqual({ role: "reader", via: "product" });
+    expect(listed.product_access).toEqual({ role: "story_reader", via: "product" });
+  });
+
+  it("is story_reader on the wire: reader, its former name, is refused naming the roles there are", async () => {
+    const roles = /expected one of "owner"\|"admin"\|"creator"\|"member"\|"editor"\|"viewer"\|"story_reader"\. Nothing was changed/;
+    const rest = await alice.api("POST", `/api/v1/tenants/${tenantSlug}/members`, { product: "planner", email: "former@example.com", role: "reader" });
+    expect(rest.status).toBe(422);
+    expect(rest.body.error.code).toBe("invalid_input");
+    expect(rest.body.error.message).toMatch(new RegExp(`^\`role\`: Invalid option: ${roles.source}`));
+    const many = await alice.api("POST", `/api/v1/tenants/${tenantSlug}/members/many`, { product: "planner", people: [{ email: "former@example.com", role: "reader" }] });
+    expect(many.status).toBe(422);
+    expect(many.body.error.message).toMatch(new RegExp(`^\`people\\.0\\.role\`: Invalid option: ${roles.source}`));
+    const client = new Client({ name: "test-agent", version: "1.0.0" });
+    await client.connect(new StreamableHTTPClientTransport(new URL(`${h.baseUrl}/mcp`), { requestInit: { headers: { authorization: `Bearer ${await h.connectAgent(alice, "Admin agent", undefined, "admin")}` } } }));
+    const mcp = (await client.callTool({ name: "members_write", arguments: { action: "grant", params: { tenant: tenantSlug, product: "planner", email: "former@example.com", role: "reader" } } })) as { isError?: boolean; content: { text: string }[] };
+    expect(mcp.isError).toBe(true);
+    expect(mcp.content[0]!.text).toMatch(roles);
+    await client.close();
+    // Nobody was invited under the former name.
+    const people = await alice.api("GET", `/api/v1/tenants/${tenantSlug}/members`);
+    expect(people.body.invitations.some((i: { email: string }) => i.email === "former@example.com")).toBe(false);
   });
 
   it("sees none of the organization's people", async () => {
     for (const path of [`/api/v1/tenants/${tenantSlug}/members`, `/api/v1/tenants/${tenantSlug}/members?product=planner`]) {
       const r = await rita.api("GET", path);
       expect(r.status, path).toBe(403);
-      expect(r.body.error.details).toEqual({ role: "reader", needed: "viewer" });
+      expect(r.body.error.details).toEqual({ role: "story_reader", needed: "viewer" });
     }
     const list = await rita.api("GET", "/api/v1/me/products");
     expect(list.body.tenants.find((t: { slug: string }) => t.slug === tenantSlug)).toMatchObject({ story_only: true });
@@ -216,10 +236,10 @@ describe("a Story reader", () => {
     const created = await eddie.api("POST", `${P}/sources/with-upload`, { tags: ["interview"], title: "Second interview", date: "2026-09-04", path: "call.vtt" });
     expect(created.status).toBe(201);
     const up = created.body.upload;
-    await alice.api("POST", `/api/v1/tenants/${tenantSlug}/members`, { product: "planner", email: "eddie@example.com", role: "reader" });
+    await alice.api("POST", `/api/v1/tenants/${tenantSlug}/members`, { product: "planner", email: "eddie@example.com", role: "story_reader" });
     const put = await fetch(up.url, { method: "PUT", headers: up.headers, body: VTT });
     expect(put.status).toBe(403);
-    expect(((await put.json()) as { error: { details: { role: string } } }).error.details.role).toBe("reader");
+    expect(((await put.json()) as { error: { details: { role: string } } }).error.details.role).toBe("story_reader");
     const source = await alice.api("GET", `${P}/sources/${created.body.record.record_id}?detail=full`);
     expect(source.body.attachments).toEqual([]);
   });
@@ -242,13 +262,13 @@ describe("an organization's plan and what it holds", () => {
   const textOf = (r: unknown) => (r as { content: { text: string }[] }).content[0]!.text;
   let rhea: Browser; // reads the one product's Story, as the tests above raised Rita above that
   beforeAll(async () => {
-    rhea = await person("rhea", [{ product: "planner", role: "reader" }]);
+    rhea = await person("rhea", [{ product: "planner", role: "story_reader" }]);
   });
 
   it("are refused to someone who reads only the Story there, through REST, naming both roles and holding nothing of it", async () => {
     const r = await rhea.api("GET", LIMITS());
     expect(r.status).toBe(403);
-    expect(r.body.error.details).toMatchObject({ role: "reader", needed: "viewer" });
+    expect(r.body.error.details).toMatchObject({ role: "story_reader", needed: "viewer" });
     expect(r.body.error.message).toMatch(/read only the Story in Reader Co/);
     expect(JSON.stringify(r.body)).not.toMatch(/"holds"|members_max|sources_max|storage/);
   });
@@ -264,18 +284,18 @@ describe("an organization's plan and what it holds", () => {
     }
   });
 
-  it("are refused to a reader of all products, to a product creator and to a member who reads one product, as to a reader of one product", async () => {
-    const everywhere = await person("tess", [{ all_products: true, role: "reader" }]);
+  it("are refused to a Story reader on all products, to a product creator and to a member who reads one product, as to a Story reader of one product", async () => {
+    const everywhere = await person("tess", [{ all_products: true, role: "story_reader" }]);
     expect((await everywhere.api("GET", LIMITS())).status).toBe(403);
-    const creator = await person("cy", [{ role: "creator" }, { product: "planner", role: "reader" }]);
+    const creator = await person("cy", [{ role: "creator" }, { product: "planner", role: "story_reader" }]);
     expect((await creator.api("GET", LIMITS())).status).toBe(403);
-    const member = await person("mo", [{ role: "member" }, { product: "planner", role: "reader" }]);
+    const member = await person("mo", [{ role: "member" }, { product: "planner", role: "story_reader" }]);
     expect((await member.api("GET", LIMITS())).status).toBe(403);
   });
 
   it("are given to anyone who reads more than the Story somewhere there, and to an organization's member", async () => {
     const other = await alice.api("POST", `/api/v1/tenants/${tenantSlug}/products`, { name: "Second Product" });
-    const both = await person("vera", [{ product: "planner", role: "reader" }, { product: other.body.slug, role: "viewer" }]);
+    const both = await person("vera", [{ product: "planner", role: "story_reader" }, { product: other.body.slug, role: "viewer" }]);
     const hers = await both.api("GET", LIMITS());
     expect(hers.status).toBe(200);
     expect(hers.body.holds.sources).toBeGreaterThan(0);
@@ -285,37 +305,37 @@ describe("an organization's plan and what it holds", () => {
   });
 
   it("stop being refused once the person reads more", async () => {
-    const riser = await person("ravi", [{ product: "planner", role: "reader" }]);
+    const riser = await person("ravi", [{ product: "planner", role: "story_reader" }]);
     expect((await riser.api("GET", LIMITS())).status).toBe(403);
     expect((await alice.api("POST", `/api/v1/tenants/${tenantSlug}/members`, { product: "planner", email: "ravi@example.com", role: "viewer" })).status).toBe(201);
     expect((await riser.api("GET", LIMITS())).status).toBe(200);
   });
 
-  it("are not given away by what a reader's other reads answer", async () => {
+  it("are not given away by what a Story reader's other reads answer", async () => {
     const list = await rhea.api("GET", "/api/v1/me/products");
     const body = JSON.stringify({ ...list.body, items: list.body.items.filter((i: { path: string }) => i.path === productPath) });
     expect(body).not.toMatch(/"holds"|"sources":|"members":/);
   });
 });
 
-describe("a reader's search", () => {
+describe("a Story reader's search", () => {
   const S = () => `${P}/search?mode=plain&query=`;
   let rory: Browser;
   beforeAll(async () => {
     rory = await h.signIn("rory@example.com", "Rory Reader");
-    expect((await alice.api("POST", `/api/v1/tenants/${tenantSlug}/members`, { product: "planner", email: "rory@example.com", role: "reader" })).status).toBe(201);
-    expect((await alice.api("POST", `${P}/story/pages/assumption-notes/versions`, { title: "Assumption notes", html: html("Assumption notes", "<h1>Assumption notes</h1><p>Our sources and outcomes, quayside.</p>") })).status).toBeLessThan(300);
+    expect((await alice.api("POST", `/api/v1/tenants/${tenantSlug}/members`, { product: "planner", email: "rory@example.com", role: "story_reader" })).status).toBe(201);
+    expect((await alice.api("POST", `${P}/story/pages/quay-notes/versions`, { title: "Quay notes", html: html("Quay notes", "<h1>Quay notes</h1><p>Our sources and outcomes, quayside.</p>") })).status).toBeLessThan(300);
   });
 
   it("reads only the word story as naming a kind, so no answer speaks of another kind, and every other word is searched for", async () => {
-    for (const word of ["sources", "outcomes", "mockups", "assumptions", "idea", "concept", "passages", "quotes"]) {
+    for (const word of ["sources", "outcomes", "mockups", "idea", "concept", "passages", "quotes"]) {
       const r = await rory.api("GET", `${S()}${word}%20quayside&strict=true`);
       expect(r.status, word).toBe(200);
       expect(r.body.kind_hint, word).toBeNull();
       expect(r.body.terms.map((t: { text: string }) => t.text), word).toEqual([word, "quayside"]);
     }
     const found = await rory.api("GET", `${S()}sources%20quayside%20`);
-    expect(found.body.results.map((x: { id: string }) => x.id)).toEqual(["assumption-notes"]);
+    expect(found.body.results.map((x: { id: string }) => x.id)).toEqual(["quay-notes"]);
     expect(found.body.partial).toBe(false);
     const story = await rory.api("GET", `${S()}story%20quayside`);
     expect(story.body.kind_hint).toBe("story");
@@ -331,16 +351,16 @@ describe("a reader's search", () => {
 
 describe("reading only the Story in an organization", () => {
   const g = (scope_type: string, role: string, tenant_id = "t1") => ({ tenant_id, scope_type, scope_id: "x", role });
-  it("holds for a reader with no higher role there, whatever they hold elsewhere", () => {
-    expect(readsOnlyTheStoryIn([g("product", "reader"), g("all_products", "reader")], "t1")).toBe(true);
-    expect(readsOnlyTheStoryIn([g("tenant", "member"), g("product", "reader")], "t1")).toBe(true);
-    expect(readsOnlyTheStoryIn([g("tenant", "creator"), g("all_products", "reader")], "t1")).toBe(true);
-    expect(readsOnlyTheStoryIn([g("product", "reader"), g("product", "editor", "t2")], "t1")).toBe(true);
+  it("holds for a Story reader with no higher role there, whatever they hold elsewhere", () => {
+    expect(readsOnlyTheStoryIn([g("product", "story_reader"), g("all_products", "story_reader")], "t1")).toBe(true);
+    expect(readsOnlyTheStoryIn([g("tenant", "member"), g("product", "story_reader")], "t1")).toBe(true);
+    expect(readsOnlyTheStoryIn([g("tenant", "creator"), g("all_products", "story_reader")], "t1")).toBe(true);
+    expect(readsOnlyTheStoryIn([g("product", "story_reader"), g("product", "editor", "t2")], "t1")).toBe(true);
   });
-  it("does not hold for a higher role on all products or any product, an organization admin, or someone with no reader role", () => {
-    expect(readsOnlyTheStoryIn([g("product", "reader"), g("product", "viewer")], "t1")).toBe(false);
-    expect(readsOnlyTheStoryIn([g("product", "reader"), g("all_products", "viewer")], "t1")).toBe(false);
-    expect(readsOnlyTheStoryIn([g("tenant", "admin"), g("product", "reader")], "t1")).toBe(false);
+  it("does not hold for a higher role on all products or any product, an organization admin, or someone with no Story reader role", () => {
+    expect(readsOnlyTheStoryIn([g("product", "story_reader"), g("product", "viewer")], "t1")).toBe(false);
+    expect(readsOnlyTheStoryIn([g("product", "story_reader"), g("all_products", "viewer")], "t1")).toBe(false);
+    expect(readsOnlyTheStoryIn([g("tenant", "admin"), g("product", "story_reader")], "t1")).toBe(false);
     expect(readsOnlyTheStoryIn([g("tenant", "member")], "t1")).toBe(false);
     expect(readsOnlyTheStoryIn([], "t1")).toBe(false);
   });

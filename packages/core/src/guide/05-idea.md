@@ -8,16 +8,15 @@ The **product concept** says who the product is for, the problem they have, and 
 solves it (`products_read(action="get")`; `products_write(action="update_concept")` changes it).
 
 An **outcome** is what the product's users should be able to achieve with it, written from their
-side ("The crew lead plans next week in minutes"). In WhatBuild's model the rest of the product
-relates to the outcomes: assumptions point at the outcomes they bear on through `outcome_ids`, and
-listing assumptions with an `outcome_id` shows them. Outcomes are listed with
+side ("The crew lead plans next week in minutes"). In WhatBuild's model the rest of the product is
+read against the outcomes, but nothing points at one, and an outcome points at nothing. Outcomes
+are listed with
 `outcomes_read(action="list")` and written with `outcomes_write(action="create")` and `update`.
 
-- An outcome names no record: a title, description or front holding a record's id (a source, an
-  assumption, a mockup, a Story page) is refused with `outcome_cites_a_record`.
+- An outcome names no record: a title, description or front holding a record's id (a source, a
+  mockup, a Story page) is refused with `outcome_cites_a_record`.
 - An outcome is current or archived; there is no "achieved". `outcomes_write(action="archive")` and
-  `restore` move it between the two. `list` leaves archived ones out unless `include_archived`, and
-  they can still be linked.
+  `restore` move it between the two. `list` leaves archived ones out unless `include_archived`.
 - An update changes only the fields it passes and keeps the text it replaced as a revision:
   `outcomes_read(action="revisions")` lists them, `get_revision` reads one, and
   `outcomes_write(action="restore_revision")` brings one back as a new change.

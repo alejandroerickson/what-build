@@ -17,7 +17,7 @@ const CONFIRM = "delete permanently";
  * dismissed while it runs.
  */
 export function DeleteDialog<I extends object>({ title, impactPath, etag, deletePath, typeToConfirm, renderImpact, alternative, allowed, onDeleted, onClose }: {
-  /** "Delete this assumption permanently?" */
+  /** "Delete this outcome permanently?" */
   title: string;
   /** The delete_impact read; absent for what nothing else depends on, such as a comment. */
   impactPath?: string;

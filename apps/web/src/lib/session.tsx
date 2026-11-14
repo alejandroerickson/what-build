@@ -28,14 +28,15 @@ export interface Me {
 }
 
 /**
- * `reader` reads only the Story: the server sends it no concept, and counts of Story pages only.
+ * `viewer` reads everything in the product and changes nothing. `story_reader`, a Story reader,
+ * reads only the Story's live pages: the server sends it no concept, and counts of Story pages only.
  * `guest` is anyone the example organization gave no role, who reads there as a viewer.
  */
-export type ProductRole = "reader" | "viewer" | "editor" | "admin" | "guest";
+export type ProductRole = "story_reader" | "viewer" | "editor" | "admin" | "guest";
 
-/** Where a product opens for this role: a reader has only the Story. */
+/** Where a product opens for this role: a Story reader has only the Story. */
 export function productHome(role: ProductRole): "story" | "idea" {
-  return role === "reader" ? "story" : "idea";
+  return role === "story_reader" ? "story" : "idea";
 }
 
 export interface ProductSummary {
@@ -179,18 +180,18 @@ export interface Product {
   product_id: string;
   slug: string;
   name: string;
-  /** The back of the product concept's card, the text agents read. Absent for a reader. */
+  /** The back of the product concept's card, the text agents read. Absent for a Story reader. */
   concept?: string;
-  /** How long the concept card's front is, 0 when it has none. Absent for a reader. */
+  /** How long the concept card's front is, 0 when it has none. Absent for a Story reader. */
   card_chars?: number;
   archived_at: string | null;
   etag: string;
   path: string;
   tenant: { tenant_id: string; slug: string; name: string; example?: boolean; plan?: string; read_only?: ReadOnly };
   your_role: ProductRole;
-  /** A reader gets story_pages only. */
-  counts: { story_pages: number } & Partial<Record<"sources" | "outcomes" | "assumptions" | "mockups", number>>;
-  /** Each stage's total of every item it holds, as the panel and the overview show it; a reader gets story only. */
+  /** A Story reader gets story_pages only. */
+  counts: { story_pages: number } & Partial<Record<"sources" | "outcomes" | "mockups", number>>;
+  /** Each stage's total of every item it holds, as the panel and the overview show it; a Story reader gets story only. */
   stage_counts: { story: number } & Partial<Record<"idea" | "evidence" | "exploration", number>>;
 }
 
@@ -208,7 +209,7 @@ interface ProductCtx {
   isAdmin: boolean;
   /** An admin, in a product that isn't archived: may delete permanently. */
   canDelete: boolean;
-  /** A reader: the Story is all there is of the product for them. */
+  /** A Story reader: the Story is all there is of the product for them. */
   storyOnly: boolean;
 }
 
@@ -258,7 +259,7 @@ export function ProductProvider({ children, fallback, path: given }: { children:
     readOnlyOrganization: Boolean(product.tenant.read_only),
     isAdmin: product.your_role === "admin",
     canDelete: product.your_role === "admin" && !product.archived_at,
-    storyOnly: product.your_role === "reader",
+    storyOnly: product.your_role === "story_reader",
   };
   if (!given) rememberProduct(product);
   return <ProductContext.Provider value={ctx}>{children(ctx)}</ProductContext.Provider>;

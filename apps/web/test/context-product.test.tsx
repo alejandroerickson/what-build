@@ -21,7 +21,7 @@ vi.mock("../src/lib/api.ts", async (original) => ({
     if (path.startsWith("/api/v1/me/products")) {
       const [example, reads, writes] = [org("example", true), org("reads"), org("writes")];
       return {
-        items: [product("showcase", example, "guest"), product("brief", reads, "reader"), product("planner", writes, "editor")],
+        items: [product("showcase", example, "guest"), product("brief", reads, "story_reader"), product("planner", writes, "editor")],
         tenants: [example, reads, writes],
       };
     }

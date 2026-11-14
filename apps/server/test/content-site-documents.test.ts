@@ -112,7 +112,7 @@ beforeAll(async () => {
   htmlSource = await upload("page.html", UPLOADED);
   await h.worker.drain();
   expect((await alice.api("POST", `${T}/members`, { email: "bob@example.com", role: "editor", all_products: true })).status).toBeLessThan(300);
-  expect((await alice.api("POST", `${T}/members`, { email: "rita@example.com", role: "reader", all_products: true })).status).toBeLessThan(300);
+  expect((await alice.api("POST", `${T}/members`, { email: "rita@example.com", role: "story_reader", all_products: true })).status).toBeLessThan(300);
 });
 afterAll(async () => h?.close());
 
@@ -155,7 +155,7 @@ describe("the app's own address for a document", () => {
   });
 
   it("refuses as before what the session may not read, and mints nothing", async () => {
-    // A reader reads the Story, and nothing else here.
+    // A Story reader reads the Story, and nothing else here.
     for (const [what, path] of kinds()) {
       const r = await atApp(rita, path);
       const story = what.startsWith("a Story page") || what === "the print view";
@@ -320,9 +320,9 @@ describe("a document on the content site", () => {
     }
   });
 
-  it("gives someone lowered to reader the live Story and nothing else", async () => {
+  it("gives someone lowered to Story reader the live Story and nothing else", async () => {
     const held = await Promise.all(kinds().map(async ([what, path]) => [what, await addressFor(bob, path)] as const));
-    expect((await alice.api("POST", `${T}/members`, { email: "bob@example.com", role: "reader", all_products: true })).status).toBeLessThan(300);
+    expect((await alice.api("POST", `${T}/members`, { email: "bob@example.com", role: "story_reader", all_products: true })).status).toBeLessThan(300);
     try {
       for (const [what, address] of held) expect((await open(address)).status, what).toBe(what.startsWith("a Story page") || what === "the print view" ? 200 : 403);
     } finally {
@@ -330,7 +330,7 @@ describe("a document on the content site", () => {
     }
   });
 
-  it("gives a reader nothing of a page archived since its address was issued", async () => {
+  it("gives a Story reader nothing of a page archived since its address was issued", async () => {
     const page = await addressFor(rita, `${P}/story/pages/aside/versions/1/html`);
     const print = await addressFor(rita, `${P}/story/print?page_ids=overview,aside`);
     expect((await open(page)).status).toBe(200);

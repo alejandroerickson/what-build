@@ -12,15 +12,15 @@ A person searches everything in a product from one place, the palette (the panel
 `search`'s `plain` mode. This plan checks that every kind of thing can be found, that the words are
 read as the specification says (any order, forgiving endings, the last word as a prefix, typos
 corrected and said so, partial matches that name the missing words), that the web and MCP agree,
-that what one door writes the other finds at once, and that a reader searches the Story alone
+that what one door writes the other finds at once, and that a Story reader searches the Story alone
 (`okf/spec/08-search.md` §8.2, `okf/spec/07-web-app.md` §7.2).
 
 ## Steps
 
-1. **MCP, as Sam, in the standard organization.** In a product that has sources, mockups,
-   assumptions and Story pages, list each kind and note, for later steps: a word you can see in a
+1. **MCP, as Sam, in the standard organization.** In a product that has sources, mockups
+   and Story pages, list each kind and note, for later steps: a word you can see in a
    source's text (`derived_read(action="text")`) that it says in several places, far apart (more than
-   three if there is one), a word from an assumption's statement, a word from a mockup's page text,
+   three if there is one), a word from a mockup's page text,
    an outcome's title, a Story page's title, and a word from the product concept. If the product
    has no mockup, create one over MCP with two pages of synthetic text, one holding a made-up word.
    *Expect:* each of them exists; say in the report which product you used, by its path.
@@ -47,8 +47,8 @@ that what one door writes the other finds at once, and that a reader searches th
    palette opens. Clear the recent searches with Clear. *Expect:* the list is gone, and stays gone
    after reloading.
 5. **Web, as Sam.** In the palette, search each word noted in step 1 in turn. *Expect:* the
-   assumption, the mockup, the outcome, the Story page and the product concept are each found,
-   labelled as what they are (an assumption with its status, a mockup with the page the words are
+   mockup, the outcome, the Story page and the product concept are each found,
+   labelled as what they are (a mockup with the page the words are
    on), and opening each goes to that object (the mockup at that page, the outcome on Idea scrolled
    to and marked, the concept on Idea).
 6. **Web, as Sam.** Try how words are read, in the palette and on the Search screen:
@@ -110,11 +110,13 @@ that what one door writes the other finds at once, and that a reader searches th
     searched and ends "Attachments are never searched." Then plain mode with `kind: "mockup"`,
     with `record_id` of the source from step 8, and with `strict: true` and the typo. *Expect:* one
     kind only; that source's hits only; no correction and nothing found. Then `mode: "plain"` with
-    `tags`, `kind` with `mode: "substring"`, and `scope: "passages"`. *Expect:* each refused with
-    `invalid_filter` or `invalid_input` and a message that says why.
-11. **MCP, then web, as Sam.** Over MCP, create an assumption whose statement holds a made-up word
-    (synthetic, such as "zorbleflux"), with a body saying why. On the web, search
-    the made-up word straight away. *Expect:* the assumption is found, under Exploration on the
+    `tags`, `kind` with `mode: "substring"`, `scope: "passages"`, `scope: "assumptions"`, and plain
+    mode with `kind: "assumption"`. *Expect:* each refused with `invalid_filter` or
+    `invalid_input` and a message that says why; the last two say WhatBuild no longer keeps
+    assumptions.
+11. **MCP, then web, as Sam.** Over MCP, add a source whose title holds a made-up word
+    (synthetic, such as "zorbleflux"). On the web, search
+    the made-up word straight away. *Expect:* the source is found, under Evidence on the
     Search screen. Archive it on the web, then search the word over MCP. *Expect:* nothing is found.
 12. **Web and MCP, as Sam, in the example organization.** In the same product, repeat the palette
     search of step 3 and the queries of step 6, and the MCP search of step 10. *Expect:* the same
@@ -126,14 +128,14 @@ that what one door writes the other finds at once, and that a reader searches th
     page says "sources", publish one with `story_write(action="publish")` of synthetic text saying
     "sources" beside a made-up word (such as "brindlewick"), and use that word in step 14. Say in
     the report what you made.
-14. **Web and MCP, as Jordan (reader).** Open that product, showing the panels if focus mode hid them.
+14. **Web and MCP, as Jordan (Story reader).** Open that product, showing the panels if focus mode hid them.
     *Expect:* the panel's Search field reads "Search the Story". Search for a Story page's title, then for a word on a page of a whole canvas on
-    the Story, then for a source's title and an assumption's statement, as a palette search and over
+    the Story, then for a source's title and an outcome's title, as a palette search and over
     MCP's `search` in `plain` mode. *Expect:* the Story page, and the canvas opening at that page; the
-    source and the assumption are never listed and no correction names them, though a Story page
+    source and the outcome are never listed and no correction names them, though a Story page
     that says the same words is found. A Story page's word beside `sources` finds a page that says
     both, with `kind_hint` null, and beside `story` finds it with `kind_hint` `story`. `search` in
-    another mode, or with `kind: "source"`, is refused with a permission error naming reader and viewer.
+    another mode, or with `kind: "source"`, is refused with a permission error naming `story_reader` and viewer.
 15. **Web, as Sam.** Search for a word on a mockup page that is promoted to the Story, and for the
     mockup's title. *Expect:* the mockup is listed once, under Exploration, with no Story result for it.
 16. **Web, as Sam.** At phone width (390 × 844) and in the dark theme, open the palette, search, and
@@ -149,11 +151,11 @@ that what one door writes the other finds at once, and that a reader searches th
     page, in both doors; the other words find the first page and show as those letters, marked; the
     excerpt shows `script` and `< script>` as plain text and nothing runs. `cafe` finds it too;
     `annee` does not, since the index keeps accents.
-18. **Web, as Sam.** Create an assumption whose statement is longer than the palette's line, with a
-    made-up word near its end and the word before it said earlier in the statement too, and search
+18. **Web, as Sam.** Add a source whose title is longer than the palette's line, with a
+    made-up word near its end and the word before it said earlier in the title too, and search
     for the made-up word in the palette, on a desktop and at phone
     width. *Expect:* its title starts near the word, after an ellipsis, with the word marked; hovering
-    shows the whole statement. Search for the made-up word and the word before it, in quotes and then
+    shows the whole title. Search for the made-up word and the word before it, in quotes and then
     not. *Expect:* each time, both words show, marked. Search for its first word. *Expect:* its title
     starts where it starts.
 

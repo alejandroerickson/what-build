@@ -18,7 +18,7 @@ let h: Harness;
 let root: Browser; // owns this WhatBuild
 let olive: Browser; // owns the organization
 let vic: Browser; // a viewer of one product
-let rita: Browser; // a reader of one product
+let rita: Browser; // a Story reader of one product
 let eddie: Browser; // an editor of all products
 let paula: Browser; // an admin of one product, and nothing more
 let cora: Browser; // a product creator, with no role on any product
@@ -99,7 +99,7 @@ beforeAll(async () => {
   path = made.body.path;
   const product = path.split("/")[1]!;
   await olive.api("POST", `/api/v1/tenants/${org}/members`, { product, email: "vic@example.com", role: "viewer" });
-  await olive.api("POST", `/api/v1/tenants/${org}/members`, { product, email: "rita@example.com", role: "reader" });
+  await olive.api("POST", `/api/v1/tenants/${org}/members`, { product, email: "rita@example.com", role: "story_reader" });
   await olive.api("POST", `/api/v1/tenants/${org}/members`, { all_products: true, email: "eddie@example.com", role: "editor" });
   await olive.api("POST", `/api/v1/tenants/${org}/members`, { product, email: "paula@example.com", role: "admin" });
   await olive.api("POST", `/api/v1/tenants/${org}/members`, { email: "cora@example.com", role: "creator" });
@@ -172,12 +172,12 @@ describe("a connector scoped to a product", () => {
       expect(actions, a).not.toContain(a);
   });
 
-  it("lists a reader only the Story", async () => {
+  it("lists a Story reader only the Story", async () => {
     const actions = await offeredAt(rita, `/mcp/t/${path}`);
     expect(actions).toEqual(expect.arrayContaining(["story.list_pages", "story.get_page"]));
-    // Search is listed: for a reader it reads only the Story.
+    // Search is listed: for a Story reader it reads only the Story.
     expect(actions).toContain("search");
-    for (const a of ["sources.list", "outcomes.list", "assumptions.list", "mockups.list", "story.guidance", "activity.list", "products.limits"]) expect(actions, a).not.toContain(a);
+    for (const a of ["sources.list", "outcomes.list", "mockups.list", "story.guidance", "activity.list", "products.limits"]) expect(actions, a).not.toContain(a);
   });
 
   it("lists an admin what the connection's level allows", async () => {
@@ -236,7 +236,7 @@ describe("a connector scoped to an organization", () => {
     expect(after).not.toContain("members.activity");
   });
 
-  it("lists a reader none of the organization's people, nor its plan and what it holds", async () => {
+  it("lists a Story reader none of the organization's people, nor its plan and what it holds", async () => {
     const actions = await offeredAt(rita, `/mcp/t/${org}`);
     expect(actions).toEqual(expect.arrayContaining(["story.list_pages"]));
     for (const a of ["members.list", "sources.list", "products.limits"]) expect(actions, a).not.toContain(a);
@@ -262,7 +262,7 @@ describe("the unscoped connector, for someone who may start no organization", ()
     for (const email of ["rita@example.com", "eddie@example.com"]) await noAllowance(email);
   });
 
-  it("lists a reader everywhere the Story and the account's own reads", async () => {
+  it("lists a Story reader everywhere the Story and the account's own reads", async () => {
     const actions = await offeredAt(rita, "/mcp");
     expect(actions).toEqual(expect.arrayContaining(["story.list_pages", "story.get_page", "story.get_hierarchy", "products.list", "products.get", "guide"]));
     for (const a of ["sources.list", "outcomes.list", "mockups.list", "members.list", "story.guidance", "products.update_concept", "products.create_tenant", "products.create", "sources.create", "products.limits"])
@@ -274,7 +274,7 @@ describe("the unscoped connector, for someone who may start no organization", ()
     }
   });
 
-  it("tells a reader everywhere, with nothing but the Story to read, what search reads for them", async () => {
+  it("tells a Story reader everywhere, with nothing but the Story to read, what search reads for them", async () => {
     const at = "/mcp";
     const client = await connect(await h.connectAgent(rita, "Rita's agent, unscoped", at), at);
     const tool = (await client.listTools()).tools.find((t) => t.name === "search")!;
@@ -386,7 +386,7 @@ describe("an export, on a Read only connection", () => {
     await client.close();
   });
 
-  it("is offered at every level to someone who may make one, and not to a reader", async () => {
+  it("is offered at every level to someone who may make one, and not to a Story reader", async () => {
     for (const level of ["viewer", "editor", "admin"] as const) expect((await offeredAt(vic, `/mcp/t/${path}`, level)), level).toContain("products.export");
     expect((await offeredWith(olive, `/mcp/t/${path}`, "editor")).descriptions["products_export"]).toBeDefined();
     expect((await offeredWith(rita, `/mcp/t/${path}`)).descriptions["products_export"]).toBeUndefined();
@@ -405,7 +405,7 @@ describe("search, for someone who reads only the Story", () => {
     const tool = await searchTool(rita, `/mcp/t/${path}`);
     expect(tool.description).toMatch(/^Search this product's Story pages\./);
     expect(tool.description).toMatch(/It takes mode "plain".*any other is refused with 403/);
-    expect(tool.description).not.toMatch(/what a product's sources say|derived|record_id|attachment|assumptions come/i);
+    expect(tool.description).not.toMatch(/what a product's sources say|derived|record_id|attachment/i);
     // Nor does it name a kind of thing they cannot search, among the words it reads differently.
     expect(tool.description).not.toMatch(/\b(sources?|assumptions?|outcomes?|mockups?|ideas?|concepts?|passages?|quotes?)\b/i);
     expect(tool.description).toMatch(/the word story, beside other words, is not searched for/);
@@ -423,7 +423,7 @@ describe("search, for someone who reads only the Story", () => {
 
   it("says all of it on the unscoped connector once they read more somewhere: a guest of the example organization reads sources there", async () => {
     // The example organization exists by now, and every account is its guest, a viewer.
-    expect((await searchTool(rita, "/mcp")).description).toMatch(/^Search what a product's sources say.*A reader searches only the Story, in plain mode\./s);
+    expect((await searchTool(rita, "/mcp")).description).toMatch(/^Search what a product's sources say.*A Story reader searches only the Story, in plain mode\./s);
   });
 
   it("still says what it reads for sources to anyone who may read them", async () => {
@@ -446,7 +446,7 @@ describe("search, for someone who reads only the Story", () => {
 describe("each tool's description", () => {
   const levels: ConnectionLevel[] = ["viewer", "editor", "admin"];
   const standings: Record<string, Standing> = {
-    "a product's reader": { role: "reader", tenantRole: null },
+    "a product's Story reader": { role: "story_reader", tenantRole: null },
     "a product's viewer": { role: "viewer", tenantRole: null },
     "a product's editor": { role: "editor", tenantRole: null },
     "a product's admin": { role: "admin", tenantRole: null },
@@ -509,10 +509,10 @@ describe("each tool's description", () => {
     expect((await offeredWith(olive, "/mcp", "admin")).descriptions["members_write"]).toMatch(/Grant or revoke roles/);
   });
 
-  it("says nothing of publishing or the style's guidance to a reader, nor of writing to a viewer", async () => {
+  it("says nothing of publishing or the style's guidance to a Story reader, nor of writing to a viewer", async () => {
     const reader = (await offeredWith(rita, `/mcp/t/${path}`)).descriptions;
     expect(said(reader["story_read"]!)).not.toMatch(/publish|set_style|guidance|notes for agents/i);
-    // Nor its actions' lines: a reader gets a page without notes for agents.
+    // Nor its actions' lines: a Story reader gets a page without notes for agents.
     expect(reader["story_read"]).not.toMatch(/notes for agents/i);
     expect(reader["story_read"]).toMatch(/^- get_page: Read a Story page's current version, with its HTML and its etag\.$/m);
     expect(reader["story_write"]).toBeUndefined();
@@ -523,7 +523,7 @@ describe("each tool's description", () => {
     expect(said(viewer["story_read"]!)).not.toMatch(/set_style|publish/);
   });
 
-  it("tells a reader what products_read gives them, and nothing of a concept they do not get", async () => {
+  it("tells a Story reader what products_read gives them, and nothing of a concept they do not get", async () => {
     for (const at of [`/mcp/t/${path}`, `/mcp/t/${org}`]) {
       // The whole description, its actions' lines among it.
       const reader = (await offeredWith(rita, at)).descriptions["products_read"]!;
@@ -531,7 +531,7 @@ describe("each tool's description", () => {
       expect(said(reader), at).toMatch(/your role in it and how many Story pages it has/);
       expect(reader, at).toMatch(/^- list: .*your role and how many Story pages each has\.$/m);
       expect(reader, at).toMatch(/^- get: Read a product: its name and path, your role, and how many Story pages it has\.$/m);
-      // describe=true says the same: what a reader gets, with no field that asks for a card.
+      // describe=true says the same: what a Story reader gets, with no field that asks for a card.
       const client = await connect(await h.connectAgent(rita, `Rita's describing agent at ${at}`, at), at);
       for (const action of ["get", "list"]) {
         const described = result(await client.callTool({ name: "products_read", arguments: { action, describe: true } })).json;
@@ -543,7 +543,7 @@ describe("each tool's description", () => {
       // And the product is read as described.
       const read = result(await client.callTool({ name: "products_read", arguments: { action: "get", product: path } })).json;
       expect(read).not.toHaveProperty("concept");
-      expect(read).toMatchObject({ your_role: "reader", counts: { story_pages: 0 }, stage_counts: { story: 0 } });
+      expect(read).toMatchObject({ your_role: "story_reader", counts: { story_pages: 0 }, stage_counts: { story: 0 } });
       await client.close();
     }
     // Anyone who reads more than the Story is still told of the concept, in the description and by describe=true.

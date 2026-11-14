@@ -62,8 +62,8 @@ describe("the sections a person may use", () => {
     expect(keys(settingsGroups(product("editor"), tenant({ your_role: "member" }), false))[1]).toBe("Acme: People");
   });
 
-  it("gives a reader of the Story their own sections only", () => {
-    expect(keys(settingsGroups(product("reader"), tenant({ your_role: "member", story_only: true }), true))).toEqual(["You: Account, Agents"]);
+  it("gives a Story reader their own sections only", () => {
+    expect(keys(settingsGroups(product("story_reader"), tenant({ your_role: "member", story_only: true }), true))).toEqual(["You: Account, Agents"]);
   });
 
   it("gives a guest of the example organization nothing of the organization", () => {

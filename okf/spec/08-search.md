@@ -3,7 +3,7 @@ type: Specification
 title: Search reads what a source says, its title, tags, summary, derived text, notes and comments, and never its attachments; it is lexical, bounded, and says exactly what it examined.
 description: The search operation as built (substring, ranked and plain modes, scopes, filters, hits with their field and offsets, every place in substring mode, coverage), the search index of a source's texts, earlier readings, and the planned semantic retrieval.
 tags: [spec, search, retrieval, coverage, index]
-generated: {by: agent:claude, at: 2026-10-31}
+generated: {by: agent:claude, at: 2026-11-13}
 status: stable
 ---
 
@@ -25,7 +25,7 @@ It is lexical and says so. Semantic retrieval (§8.7) is planned, not built.
 search {
   query:     string (1–500)                  // required, as typed: never trimmed
   mode?:     "substring" (default) | "ranked" | "plain"
-  scope?:    "sources" (default) | "assumptions" | "all"
+  scope?:    "sources" (default, and the only one)
   record_id?, date_from?, date_to?, tags[]?,          // source filters
   include_archived? (false), limit? (50 hits; 60 results in plain mode; at most 200), cursor?
   kind?, strict? (false)                              // plain mode only
@@ -33,8 +33,9 @@ search {
 ```
 
 Plain mode (§8.2) takes only `query`, `record_id`, `kind`, `strict` and `limit`; any other filter
-with it (dates, tags, a cursor, `include_archived`, a `scope` other than `sources`), or `kind` or
-`strict` in another mode, is `422 invalid_filter`.
+with it (dates, tags, a cursor, `include_archived`), or `kind` or `strict` in another mode, is
+`422 invalid_filter`. `kind` is `idea`, `outcome`, `source`, `mockup` or `story`; `assumption` is
+`422 invalid_input`, with a hint that WhatBuild no longer keeps assumptions.
 
 - One product per call. There is no cross-product search, and there will never be a
   cross-tenant one.
@@ -42,17 +43,17 @@ with it (dates, tags, a cursor, `include_archived`, a `scope` other than `source
   text it matches, and in plain mode a space at its end says the last word is finished (§8.2).
   Ranked mode reads terms, so spaces around them change nothing. A query of nothing but spaces is
   `422 invalid_input`.
-- `scope` says what is searched: `sources`, what the product's sources say; `assumptions`, their
-  statements and bodies; `all`, both. The `passages` scope is gone (`422 invalid_input`). The
+- `scope` says what is searched, and takes only `sources`: what the product's sources say. The
+  `passages` scope is gone, and so are `assumptions` and `all`, since WhatBuild no longer keeps
+  assumptions ([decision](../decisions/assumptions-are-removed-and-every-one-is-deleted.md)): each
+  is `422 invalid_input`, with a hint to leave `scope` out or send `sources`. The
   answer repeats it as `search_scope`, and over REST as `scope` too: over MCP, `scope` is where the
   call ran, as on every product-scoped answer ([§6.5](06-operations-and-adapters.md)).
   ◆ Decision: a second name rather than a rename, so no caller that reads `scope` over REST breaks.
 - Date and tag filters apply to sources: `date_from` and `date_to` bound the source's own date,
-  and a source must carry every tag given. Combining them with `scope: "assumptions"` is
-  `422 invalid_filter`. `record_id` keeps the search to that one source, so with it no
-  assumption is searched. Sources have no kind, organization or folder to filter by, and sources
-  and assumptions have no dimensions (`customer`, `product_area`, `lifecycle_stage`) or
-  `provenance_depth` ([§4.4](04-data-model.md)); naming one is `422 invalid_input`.
+  and a source must carry every tag given. `record_id` keeps the search to that one source.
+  Sources have no kind, organization or folder to filter by, and no dimensions (`customer`,
+  `product_area`, `lifecycle_stage`) or `provenance_depth` ([§4.4](04-data-model.md)); naming one is `422 invalid_input`.
 - **Source hits:** `{ record_id, field, annotation_id?, char_start, char_end, snippet, score? }`.
   - `field` is where the words are: `title`, `tags`, `summary`, `text` (the derived text),
     `notes`, or `comment`, which adds the comment's `annotation_id`.
@@ -69,10 +70,6 @@ with it (dates, tags, a cursor, `include_archived`, a `scope` other than `source
   - Each source's `title`, `date`, `tags` and `archived_at` are sent once, in `records`.
   - Substring hits come by source, then by field in the order title, tags, summary, text, notes,
     comment, then by place; ranked hits by score.
-- Assumption hits come back as `assumptions` (id, statement, status, and score in ranked mode), at
-  most `limit` of them, on the first page only: assumptions are not paged, so with `scope: "all"`
-  the pages `next_cursor` gives carry source hits alone, and a search of assumptions alone answers
-  in one page and refuses a cursor (`422 invalid_cursor`).
 - Results are bounded and paged as everywhere ([§6.3](06-operations-and-adapters.md)): `limit`
   counts hits. The substring cursor is a keyset of the last hit, its piece and its place there, so
   a page may end inside a piece and the next one carry on in it; the ranked cursor is an offset. A
@@ -86,7 +83,7 @@ with it (dates, tags, a cursor, `include_archived`, a `scope` other than `source
 - **`substring`** (the default): exact, case-insensitive substring match (`ILIKE`), indexed with
   `pg_trgm`. Right for identifiers, part numbers, and quotes where tokenization gets in the way.
   The query is matched as typed: `%`, `_` and `\` in it are characters, never wildcards or an
-  escape. So is the `query` of every list that takes one (sources, assumptions, outcomes), through one helper, `likeContaining` in `packages/core/src/util.ts`.
+  escape. So is the `query` of every list that takes one (sources, outcomes), through one helper, `likeContaining` in `packages/core/src/util.ts`.
 - **`ranked`:** a small boolean grammar — terms, `"quoted phrases"`, `prefix*`, `AND`, `OR`, `NOT`
   and parentheses, adjacent terms implying AND, at most 64 tokens — compiled to a Postgres
   `tsquery` over the language-neutral `simple` configuration (no stemming), matched against a
@@ -101,9 +98,8 @@ with it (dates, tags, a cursor, `include_archived`, a `scope` other than `source
   `**Dana** (12:05):` labels, `#` headings and the pipes of a table are in it
   ([§5.3](05-derived-layer.md)), so a query searches for the words, not the markup. The `search`
   description says so too.
-- Archived sources and assumptions are excluded unless `include_archived`. So is an archived
+- Archived sources are excluded unless `include_archived`. So is an archived
   comment, which `include_archived` brings back with them.
-- Assumptions are searched over statement and body.
 - **`plain`:** everything in the product, the way a person types into a search box. It is the
   web app's search ([§7.2](07-web-app.md)) and needs no model: it runs on the stored `tsvector`s,
   a page's among them (§8.3), and `pg_trgm`. The words are read deterministically
@@ -126,11 +122,12 @@ with it (dates, tags, a cursor, `include_archived`, a `scope` other than `source
   - accents are folded when a match is marked and scored, but the search vectors keep them, so a
     word finds what its root starts as written: `café` finds `café` and not `cafe`, `cafe` finds
     both because its root is `caf`, and `resume` does not find `résumé`;
-  - a kind word (`mockups`, `assumptions`, …) beside other words is not searched for: it lists
+  - a kind word (`mockups`, `outcomes`, …) beside other words is not searched for: it lists
     that kind's results first, ahead of any that score higher, then the rest, each best first,
-    and is returned as `kind_hint`; "passage", "passages", "quote" and "quotes" hint `source`. The order
+    and is returned as `kind_hint`; "passage", "passages", "quote" and "quotes" hint `source`, and
+    "assumption" and "assumptions" name no kind and are searched for like any other word. The order
     is the operation's, so the palette, the Search screen and an agent see the hinted kind first
-    alike, and a result's `score` does not count the hint. For a reader only `story` is a kind
+    alike, and a result's `score` does not count the hint. For a Story reader only `story` is a kind
     word: any other is searched for in the Story like the rest, so `kind_hint` never names what
     they cannot search;
   - a word that matches nothing is replaced by the closest word the product holds (at most one
@@ -140,7 +137,7 @@ with it (dates, tags, a cursor, `include_archived`, a `scope` other than `source
     nor offered as a correction: one digit away is another thing, not a typo.
 
   It searches sources (their title and tags, and the pieces of their summary, derived text, notes
-  and comments, archived sources and comments left out), assumptions, outcomes (not archived),
+  and comments, archived sources and comments left out), outcomes (not archived),
   mockups (each page's text at the current version), Story pages (their title, summary and what they
   show: their own text, or the mockup page or whole canvas, with its pages' titles, at the version
   they stay on) and the product concept. A Story page that shows a mockup is one thing in two places,
@@ -162,10 +159,10 @@ with it (dates, tags, a cursor, `include_archived`, a `scope` other than `source
   only if the mockup's current version still has that page, under the title it has there. A mockup's
   result speaks of its current version, and a Story page's of the version it stays on, which is the
   one its readers see, so a whole canvas's result names a page of that version even once the mockup has
-  dropped it, and opens the Story page on it. A reader searches the Story alone
+  dropped it, and opens the Story page on it. A Story reader searches the Story alone
   (`kind` is `story` for them): a result on a whole canvas gives the page the words are on in `meta`,
   corrections come only from the Story's titles, and any other mode, kind or `record_id` is `403`
-  ([decision](../decisions/a-reader-reads-only-the-story.md)). Of
+  ([decision](../decisions/a-story-reader-reads-only-the-story.md)). Of
   an outcome's card and the concept's, it reads the back, the text; a card's front, a picture in
   HTML, is not searched. A source holds every word
   when its title, tags and pieces hold them between them, and is returned once, with the best
@@ -193,7 +190,7 @@ with it (dates, tags, a cursor, `include_archived`, a `scope` other than `source
   boundaries unless that would leave out a mark it was chosen for, never inside a character, and
   marks a match it cuts as far as it goes, so an excerpt of text that holds a match always holds a
   mark, in a text with an ellipsis or a ligature too (`plain-query.ts` `excerpt`). Markdown shows
-  as its words in every excerpt, a source's and those of an assumption's body, an outcome's
+  as its words in every excerpt, a source's and those of an outcome's
   description, a mockup's brief and notes and the product concept alike: heading marks, list and
   quote markers, a table's rule row and a code fence's lines are dropped, and so are the markers
   of bold, italics (`*words*`, `_words_`, never inside a word, so `snake_case` stays) and a code
@@ -310,7 +307,7 @@ every content table does.
 
 ## 8.4 No dimensions
 
-Sources and assumptions have no dimensions. Whom material concerns, what it bears on and which
+Sources have no dimensions. Whom material concerns, what it bears on and which
 stage of work it comes from are tags, filtered with `tags` (§8.1)
 ([decision](../decisions/sources-are-described-by-tags.md)). Migration `0027_drop_dimensions.sql`
 dropped the customer, product area and lifecycle stage they held.

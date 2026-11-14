@@ -1,7 +1,7 @@
 ---
 type: Specification
 title: Nothing is ever trapped - say what we promise, keep export open, and never let a limit block a read.
-description: What we tell people, limits and quotas (enforced and planned), backups and in-product versioning, export, archive and permanent delete of everything archivable and of an organization, the operator runbooks, plans and their limits, and how retired insights and decisions became sources.
+description: What we tell people, limits and quotas (enforced and planned), backups and in-product versioning, export, archive and permanent delete of everything archivable and of an organization, the operator runbooks, plans and their limits, how retired insights and decisions became sources, and how assumptions were removed.
 tags: [spec, lifecycle, quotas, backups, export, archive, delete, limits, plans]
 generated: {by: agent:claude, at: 2026-11-13}
 status: stable
@@ -80,7 +80,7 @@ same either way, and `/cookies` (or Cookies in the site's footer) changes the an
 ([§7.11](07-web-app.md)). What reaches Google names the page and the action, never the
 organization, product, record or content: page views carry a masked path such as
 `/t/:org/:product/story/:id` and a fixed title; each change the app makes is an event named
-by the operation the server ran, such as `assumptions_create`; search is counted by what was
+by the operation the server ran, such as `sources_create`; search is counted by what was
 followed (the kind of result and its place in the list) and whether it found anything, never by
 its words; a request to hear from us is `generate_lead`. The instance's owners are never measured,
 nor is any address but the deployment's own.
@@ -209,10 +209,8 @@ from backup on request. The product-level answer to "I broke it" is:
 | Readings — what every version of every attachment was read as, retained and readable by id | [§5.1](05-derived-layer.md) |
 | Story page versions — immutable, numbered | [§4.11](04-data-model.md) |
 | Mockup versions — immutable, numbered, each the whole canvas | [§4.12](04-data-model.md) |
-| Outcome and assumption revisions — the previous text, on every content change | [§4.1](04-data-model.md) |
-| Reviews — append-only, never edited | [§4.8](04-data-model.md) |
-| Superseded assumptions — corrections never overwrite | [§4.8](04-data-model.md) |
-| Archive and restore — for sources, assumptions, annotations, outcomes, Story pages, mockups, products | §9.5 |
+| Outcome revisions — the previous text, on every content change | [§4.1](04-data-model.md) |
+| Archive and restore — for sources, annotations, outcomes, Story pages, mockups, products | §9.5 |
 | Activity — who changed what, when, through which surface | [§4.10](04-data-model.md) |
 
 **Uploads on their way in are not kept.** A mockup canvas uploaded as a ZIP
@@ -236,14 +234,14 @@ whose earlier wording a write replaces; what an attachment was read as stays rea
 (`packages/core/src/ops/export.ts`); `products.exports` lists recent exports with a short-lived
 download grant for each ready one. A viewer, editor or admin may export, through **both
 adapters** (over MCP in `products_export`, which a Read only connection is offered too), and export is **never blocked** for them — not by a quota, and not by archiving the
-product. A reader, who reads only the Story, may not (`403`); the Story's own export is its print
+product. A Story reader, who reads only the Story, may not (`403`); the Story's own export is its print
 view ([§6.4](06-operations-and-adapters.md)). On a plan that limits it each person exports as many
 times a day as `exports_per_day` allows (§9.7), and a guest of the example organization exports nothing:
 the example is read where it is. A ready export is
 listed for seven days. The bundle holds a manifest with its format name and version, every
 source's metadata, its derived text, every attachment version's original bytes, what each was
 read as, comments, summaries and notes,
-outcomes, assumptions with their reviews, revisions,
+outcomes, revisions,
 the Story hierarchy, its style and every page version (JSON and HTML; a version that shows a
 mockup page names it rather than repeating it), every mockup version (its brief, each page's HTML
 and notes, its files and its prototype), tombstones, and the activity log, with a README that
@@ -277,7 +275,6 @@ been here".
 | Object | How |
 |---|---|
 | Sources | `sources.archive` / `sources.restore` (up to 200 at once) |
-| Assumptions | `assumptions.archive { archived: true | false }` |
 | Comments (annotations) | `sources.update_annotation { archived, archive_reason? }`, while their source is not archived |
 | Outcomes | `outcomes.archive` / `outcomes.restore` |
 | Story pages | `story.archive_page` / `story.restore_page` (subpages move up into its place) |
@@ -302,7 +299,6 @@ Everything that can be archived can also be deleted, and so can an organization:
 |---|---|---|
 | Source | `sources.delete_impact` | `sources.delete` |
 | Comment | — (nothing points at it: the comment itself is shown) | `sources.delete_annotation` |
-| Assumption | `assumptions.delete_impact` | `assumptions.delete` |
 | Outcome | `outcomes.delete_impact` | `outcomes.delete` |
 | Story page | `story.delete_page_impact` | `story.delete_page` |
 | Mockup | `mockups.delete_impact` | `mockups.delete` |
@@ -332,9 +328,8 @@ Everything that can be archived can also be deleted, and so can an organization:
   `422 name_mismatch`. The web app asks the person to type it.
 - **Preview first.** Each preview is read-only and returns exactly what would be destroyed and
   what points at it. For a source: its attachments' versions and bytes, its readings and its
-  comments. For an
-  assumption: its reviews and the other assumptions that link to it (`linked_from`). For an
-  outcome: the assumptions that serve it. For a Story page:
+  comments. For an outcome: its title, both sides of its card and its earlier versions, and
+  nothing that points at it, since nothing does. For a Story page:
   its versions and the sub-pages that would move up. For a mockup: its versions and the Story
   pages that show it. For a product or organization: everything it holds, counted, its stored
   files (`stored_files`, `bytes`) counted as its plan's storage counts files (§9.7): each distinct
@@ -350,10 +345,8 @@ Everything that can be archived can also be deleted, and so can an organization:
     attachments' bytes and what was read from them. Bytes still used by a copy in another product
     stay until nothing refers to them.
   - A comment: its text, tags and earlier text.
-  - An assumption: its statement, body, reviews and earlier text.
-    The links other assumptions hold to it are removed from them (their etags change).
-  - An outcome: its title, description and earlier text. Assumptions stop naming it in
-    `outcome_ids` (their etags change).
+  - An outcome: its title, description, card and earlier text. Nothing points at an outcome, so
+    nothing else changes.
   - A Story page: every version, with its HTML and notes; its sub-pages move up
     into its place, as when it is archived.
   - A mockup: every version, with its pages, notes, files and brief. Refused with
@@ -361,7 +354,7 @@ Everything that can be archived can also be deleted, and so can an organization:
     that page is deleted, or published with HTML of its own, first. An earlier Story page version
     that showed it then shows nothing.
   - A product: everything in it, archived or not (concept, outcomes, sources, comments,
-    assumptions, mockups and canvases uploaded for them, the Story, exports, revisions, its
+    mockups and canvases uploaded for them, the Story, exports, revisions, its
     activity and its tombstones), the
     roles and invitations on it alone, and its bytes, except those a source copied into another product, when sources were still
     copied, still uses. Allowed while it is archived.
@@ -369,14 +362,13 @@ Everything that can be archived can also be deleted, and so can an organization:
     invitation in it, its jobs, its uploads in progress, and its bytes. Its people keep their accounts and their roles
     elsewhere; feedback sent to the maintainers is kept. The example organization can't be deleted
     while the deployment names it (`409 example_organization`).
-- A Story page, a mockup or an assumption that mentions a deleted object keeps its text, as every
+- A Story page or a mockup that mentions a deleted object keeps its text, as every
   version does; a link to the object stops opening.
 - **Leaves a tombstone:** `{ object_type, object_id, product_id, title, reason, deleted_at,
   deleted_by }`, keyed by product, type and id, since a Story page's id is unique only within its
   product (a page deleted again under the same id keeps the latest). Reads return `410` with the
-  tombstone: `record_deleted` for a source, `<type>_deleted` (`assumption_deleted`,
-  `outcome_deleted`, `story_page_deleted`, `mockup_deleted`, `annotation_deleted`) for the rest,
-  except that a reader is answered `404` for a deleted Story page, as for an archived one. The
+  tombstone: `record_deleted` for a source, `<type>_deleted` (`outcome_deleted`, `story_page_deleted`, `mockup_deleted`, `annotation_deleted`) for the rest,
+  except that a Story reader is answered `404` for a deleted Story page, as for an archived one. The
   activity log records it. A deleted product leaves its tombstone and a `deleted`
   event on its organization; an addressed call to it answers `404`. A deleted organization leaves nothing.
 - **Backups.** Deleted content is gone from the product at once. In the Cloud Run deployment,
@@ -413,7 +405,7 @@ the person from every organization, deletes their sign-in, sessions and tokens, 
 kept about them: their counts against limits and feedback, their counted days of use (§9.1), their
 name on the account, and their address wherever it is kept. It does **not** delete organization
 content, and actor snapshots survive ([§3.9](03-accounts-and-identity.md)): attribution on a
-colleague's assumption is part of that organization's record, not personal data we can silently
+colleague's outcome is part of that organization's record, not personal data we can silently
 rewrite. Whoever wants their content gone too deletes it first, or asks the organization's admins.
 A sole owner must make someone else owner or delete the organization first, and Settings names
 each, with a link to each way out. It is final at once in the product, and Settings says it can't
@@ -592,17 +584,17 @@ Rules:
     second day's worth.
 
 11. **What an organization holds** is measured when a write could take it past a total
-    (`holdingsOf`): people with any role but reader, and pending invitations to anyone not already
+    (`holdingsOf`): people with any role but Story reader, and pending invitations to anyone not already
     counted, each holding a place; products and sources, archived or not; and storage, the distinct
     files of its attachments' every version, the text read from each, the distinct files of its
     mockups' prototypes, and the text it has written as the database stores it (sources' texts,
-    notes, comments, Story and mockup pages, assumptions, outcomes and earlier versions), every
+    notes, comments, Story and mockup pages, outcomes and earlier versions), every
     version kept. An invitation holds its place until it is accepted, declined, cancelled or runs out.
     A write is checked with the organization locked, so two at once cannot both take
     the last place: creating a product, adding or copying in sources, and any write whose input
     carries more than 4 KB of text, which meets the storage total; a smaller one (a title, a review,
     a tag) never does. Giving someone a role, or inviting them, is checked against the people total
-    (`members.grant`); a reader is never refused.
+    (`members.grant`); a Story reader is never refused.
 12. **Leaving, tidying and taking out are never refused by a total**: archiving, restoring, deleting,
     cancelling an invitation, removing someone, reviewing and linking, and exporting. Restoring adds
     nothing to a total, which already counts what is archived. A refusal says what makes room and who
@@ -639,11 +631,31 @@ The text goes to object storage, which only the worker reaches, so the move has 
    product per transaction: it writes each item's Markdown and earlier versions to storage as one
    attachment, adds the source with the same id, indexes its title and tags for search and queues
    its attachment to be read, which gives the source its derived text, points activity events at
-   it, drops assumptions' links to decisions, and deletes the item and its revisions and reviews. A
+   it, and deletes the item and its revisions and reviews. A
    decision's body already holds the quotes it cited, put there by migration
-   `0028_citations_refs_and_lineage_retired.sql` ([§4.8](04-data-model.md)). Run again, it finds
+   `0028_citations_refs_and_lineage_retired.sql` ([§4.7](04-data-model.md)). Run again, it finds
    nothing left to move.
 
-Until the job has run, a link to an item opens nothing. The `insights` table and the
-register's `kind` column stay, empty, until a later migration drops them
+Until the job has run, a link to an item opens nothing. The `insights`, `register_entries` and
+`reviews` tables stay, holding only what waits to be moved, until a later migration drops them
 ([roadmap](10-roadmap.md)).
+
+## 9.9 Assumptions removed
+
+Assumptions were removed on 2026-11-13
+([decision](../decisions/assumptions-are-removed-and-every-one-is-deleted.md)). Unlike insights
+and decisions, nothing of them is kept: migration `0046_no_assumptions.sql` deletes every assumption
+in every product, archived or not, with its reviews, its revisions, its activity entries and its
+tombstones, and narrows `register_entries.kind` to `decision` ([§4.8](04-data-model.md)). It is
+a permanent delete made by a release rather than by a person, so it leaves no tombstone and no
+activity entry, and nothing in the product can put an assumption back.
+
+- **A copy is taken before.** An organization that wants its assumptions exports its products
+  (§9.4) before its deployment takes the release; a bundle made before it holds them in
+  `assumptions.json` with their reviews. A bundle made after it has none (format version 4,
+  [§4.14](04-data-model.md)).
+- **Going back past it** needs the database restored from before the migration, as for any
+  release that migrates ([recovering](../operations/recovering-from-a-bad-release.md)); running
+  the previous image alone finds no assumptions. A deployment rehearses the release on its dev
+  deployment first ([dev deployment](../operations/dev-deployment.md)).
+- **Backups** age the deleted rows out as they roll (§9.5).

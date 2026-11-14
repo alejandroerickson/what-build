@@ -92,7 +92,6 @@ async function sample(page) {
   const P = `${base}/api/v1/p/${path}`;
   const sources = await get(`${P}/sources?limit=200`);
   const source = sources.records.find((r) => r.title.startsWith("Crew lead interview")) ?? sources.records[0];
-  const assumptions = await get(`${P}/assumptions`);
   const mockups = await get(`${P}/mockups`);
   return {
     app,
@@ -100,7 +99,6 @@ async function sample(page) {
     tenant: path.split("/")[0],
     source: source.record_id,
     mockup: mockups.items[0]?.mockup_id,
-    assumption: (assumptions.items ?? assumptions.entries)[0].id,
   };
 }
 
@@ -123,8 +121,7 @@ for (const device of ["desktop", "phone"]) {
     for (const view of ["text", "notes", "comments", "attachments"]) await shoot(`source-${view}`, `/evidence/${s.source}?view=${view}`);
     await shoot("search", "/search?q=spreadsheet");
     if (s.mockup) await shoot("mockup", `/exploration/mockups/${s.mockup}`, { full: false });
-    await shoot("assumptions", "/exploration/assumptions");
-    await shoot("assumption", `/exploration/assumptions/${s.assumption}`);
+    await shoot("mockups", "/exploration/mockups");
     await shoot("story", "/story/overview", { full: false });
     if (wanted("export-dialog")) {
       await page.goto(`${s.app}/story/overview`);

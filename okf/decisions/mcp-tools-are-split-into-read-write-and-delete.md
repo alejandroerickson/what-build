@@ -3,7 +3,7 @@ type: Decision
 title: Each kind of object has a read, a write and a delete tool, so no MCP tool both reads and changes data
 description: The noun-grouped tools are split by what they do to data, each with a title and a hint a client can ask the person by; actions, params and describe stay, and an export, which destroys nothing and a Read only connection may make, has a tool of its own; neither it nor feedback is marked destructive.
 tags: [decision, mcp, agents]
-generated: {by: agent:claude, at: 2026-11-05}
+generated: {by: agent:claude, at: 2026-11-13}
 status: stable
 ---
 
@@ -48,7 +48,8 @@ WhatBuild, the one such tool on a Read only connection.
 
 ## Consequences
 
-- 29 tools instead of 13. A Read only connection lists reads, `products_export` and
+- 29 tools instead of 13, and 26 since assumptions were removed
+  ([decision](assumptions-are-removed-and-every-one-is-deleted.md)). A Read only connection lists reads, `products_export` and
   `submit_feedback`, none of them marked destructive, and only an Admin connection lists the
   delete tools.
 - Every client that connected before the split holds the old list until a new session, and one

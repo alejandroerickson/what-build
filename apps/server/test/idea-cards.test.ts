@@ -21,7 +21,7 @@ beforeAll(async () => {
   const t = await alice.api("POST", "/api/v1/tenants", { name: "Card Co" });
   const p = await alice.api("POST", `/api/v1/tenants/${t.body.tenant.slug}/products`, { name: "Carded", concept: "A product with cards." });
   P = `/api/v1/p/${p.body.path}`;
-  expect((await alice.api("POST", `/api/v1/tenants/${t.body.tenant.slug}/members`, { product: "carded", email: "rita@example.com", role: "reader" })).status).toBe(201);
+  expect((await alice.api("POST", `/api/v1/tenants/${t.body.tenant.slug}/members`, { product: "carded", email: "rita@example.com", role: "story_reader" })).status).toBe(201);
   expect((await alice.api("POST", `/api/v1/tenants/${t.body.tenant.slug}/members`, { product: "carded", email: "eddie@example.com", role: "editor" })).status).toBe(201);
 });
 afterAll(async () => h?.close());
@@ -145,7 +145,7 @@ describe("an outcome's card", () => {
     expect(html).not.toContain('[data-icon="truck"]');
     expect(html).toContain(FRONT);
     expect((await alice.api("GET", `${P}/outcomes/${o.outcome_id}/card?theme=sepia`)).status).toBe(422);
-    // A reader reads only the Story.
+    // A Story reader reads only the Story.
     expect((await rita.api("GET", `${P}/outcomes/${o.outcome_id}/card`)).status).toBe(403);
     const bare = (await alice.api("POST", `${P}/outcomes`, { title: "Unshown" })).body;
     expect((await alice.api("GET", `${P}/outcomes/${bare.outcome_id}/card`)).status).toBe(404);
@@ -231,7 +231,7 @@ describe("the product concept's card", () => {
     expect(card.body).toContain(FRONT);
     expect(card.body).toContain("<title>Carded: product concept</title>");
     expect(card.body).not.toContain("data-limit=");
-    // A reader gets no concept and no card, and cannot write one.
+    // A Story reader gets no concept and no card, and cannot write one.
     const theirs = (await rita.api("GET", `${P}?include_card=true`)).body;
     expect(theirs).not.toHaveProperty("concept");
     expect(theirs).not.toHaveProperty("card_html");
@@ -300,7 +300,7 @@ describe("a card's preview", () => {
       expect((await fetch(url)).status).toBe(401);
       expect((await fetch(concept.body.preview.url, { headers: r.body.preview.headers })).status).toBe(401);
     }
-    // A reader writes no cards, so previews none.
+    // A Story reader writes no cards, so previews none.
     expect((await rita.api("POST", `${P}/idea/card-preview`, { card_html: FRONT })).status).toBe(403);
   });
 

@@ -52,7 +52,7 @@ able to arrange as people do.
 ## Constrains
 
 - The arrangement is `mockups.folder_id` and `position` and the `mockup_folders` table
-  (`apps/server/src/migrations/0045_mockup_folders.sql`); its operations are in
+  (`apps/server/src/migrations/0047_mockup_folders.sql`); its operations are in
   `packages/core/src/ops/mockup-folders.ts`, and no other write changes a mockup's place but
   `mockups.publish`, which places a new one.
 - The panel's tree is `apps/web/src/routes/mockup-tree.tsx`, its moves pure functions in

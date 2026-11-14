@@ -9,7 +9,6 @@ export type EntityType =
   | "membership"
   | "source"
   | "outcome"
-  | "assumption"
   | "story_page"
   | "mockup"
   | "story_hierarchy"
@@ -55,8 +54,7 @@ const CHANGED_WORDS: Readonly<Record<string, string>> = {
 /**
  * Words for one kind of object, ahead of CHANGED_WORDS. A source's fields that are gone are read
  * as a source's. Insights and decisions became sources, and their entries with them, so a source's
- * `body` (an insight's or a decision's text) and `links` (a decision's) keep the plain words, never
- * an assumption's.
+ * `body` (an insight's or a decision's text) and `links` (a decision's) keep the plain words.
  */
 const SOURCE_WORDS: Readonly<Record<string, string>> = {
   kind: "the kind of material",
@@ -65,7 +63,6 @@ const SOURCE_WORDS: Readonly<Record<string, string>> = {
   related_records: "the related sources",
 };
 const CHANGED_WORDS_OF: Readonly<Record<string, Readonly<Record<string, string>>>> = {
-  assumption: { body: "why the team holds it", links: "the links to other assumptions" },
   source: SOURCE_WORDS,
   insight: SOURCE_WORDS,
   decision: SOURCE_WORDS,

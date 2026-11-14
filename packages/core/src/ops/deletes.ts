@@ -73,7 +73,6 @@ async function productContents(ctx: OpContext) {
     bytes: files.bytes,
     comments: await count(db.selectFrom("annotations").select((eb) => eb.fn.countAll<number>().as("n")).where("product_id", "=", pid).executeTakeFirst()),
     outcomes: await count(db.selectFrom("outcomes").select((eb) => eb.fn.countAll<number>().as("n")).where("product_id", "=", pid).executeTakeFirst()),
-    assumptions: await count(db.selectFrom("register_entries").select((eb) => eb.fn.countAll<number>().as("n")).where("product_id", "=", pid).executeTakeFirst()),
     story_pages: await count(db.selectFrom("story_pages").select((eb) => eb.fn.countAll<number>().as("n")).where("product_id", "=", pid).executeTakeFirst()),
     mockups: await count(db.selectFrom("mockups").select((eb) => eb.fn.countAll<number>().as("n")).where("product_id", "=", pid).executeTakeFirst()),
     exports: await count(db.selectFrom("exports").select((eb) => eb.fn.countAll<number>().as("n")).where("product_id", "=", pid).executeTakeFirst()),
@@ -94,7 +93,7 @@ async function productDeletion(ctx: OpContext) {
     archived: Boolean(p.archived_at),
     contents,
     after_delete:
-      "Everything in the product goes, archived or not: its concept, outcomes, sources with their attachments, derived texts, summaries, notes and comments, assumptions with their reviews, mockups, the Story, exports and activity. " +
+      "Everything in the product goes, archived or not: its concept, outcomes, sources with their attachments, derived texts, summaries, notes and comments, mockups, the Story, exports and activity. " +
       "Roles given on this product go with it; roles on all products and on the organization stay. A connector scoped to this product reaches nothing.",
     reversible_alternative: 'products_write(action="archive") hides it and makes it read-only, and erases nothing; export it first to keep a copy.',
   };

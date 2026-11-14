@@ -84,7 +84,7 @@ const WAITLIST_NOTES = [
   "Looking for somewhere our agents can keep research between sessions.",
   "Saw the launch post. We'd try it with one team first.",
   "",
-  "Our PMs write assumptions in a spreadsheet nobody reads. Interested.",
+  "Our PMs keep discovery notes in a spreadsheet nobody reads. Interested.",
   "Would like to see how the Story works for stakeholders.",
 ];
 

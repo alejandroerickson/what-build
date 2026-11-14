@@ -9,7 +9,7 @@ import { defineOperation } from "../registry.ts";
  * and is read with members.activity; someone joining the product through an invitation is the one
  * entry about people a product's log holds.
  */
-export const ENTITY_TYPES = ["product", "membership", "source", "outcome", "assumption", "story_page", "story_hierarchy", "story_style", "mockup"] as const;
+export const ENTITY_TYPES = ["product", "membership", "source", "outcome", "story_page", "story_hierarchy", "story_style", "mockup"] as const;
 
 /** The channels people act through: the web app, and rest in entries from when a personal token could call the REST API. */
 const PEOPLE = ["web", "rest"];

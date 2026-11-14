@@ -103,7 +103,7 @@ describe("the example organization, for a guest", () => {
       ["POST", `${P}/outcomes`, { title: "A guest's outcome" }],
       ["POST", `${P}/sources`, { title: "A guest's source", tags: ["notes"] }],
       ["POST", `${P}/sources/${ex.source.id}/annotations`, { note: "A guest's comment." }],
-      ["POST", `${P}/assumptions`, { statement: "A guest's assumption." }],
+      ["POST", `${P}/mockups`, { title: "A guest's mockup", pages: [{ page_id: "guest", title: "Guest", html: "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><title>Guest</title></head><body><p>No.</p></body></html>" }] }],
       ["POST", `${P}/sources/archive`, { record_ids: [ex.source.id] }],
       ["POST", `${P}/sources/${ex.source.id}/uploads`, { path: "guest.md" }],
       ["POST", `${P}/story/pages/${ex.page.id}/preview`, { body: "<p>A guest's draft.</p>", expected_etag: ex.page.etag }],

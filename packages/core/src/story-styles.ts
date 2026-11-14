@@ -208,7 +208,7 @@ export function specimenBody(): string {
 <tr><th scope="row">2 · January</th><td>Confirm or flag in one tap</td><td>Sees which weeks still need a change</td><td><span class="status" data-state="caution">One interview</span></td></tr>
 <tr><th scope="row">3 · March</th><td>Place a late job from a phone</td><td>Sees what a late job moves</td><td><span class="status" data-state="open">Not yet tested</span></td></tr>
 </tbody></table></div>
-<aside class="callout" data-tone="caution"><p><strong>Assumption, unconfirmed.</strong> Crew leads think in jobs rather than days. If most plan by the day, the message needs a day-first shape, and Release 1 changes with it.</p></aside>
+<aside class="callout" data-tone="caution"><p><strong>Not yet confirmed.</strong> Crew leads think in jobs rather than days. If most plan by the day, the message needs a day-first shape, and Release 1 changes with it.</p></aside>
 </section>
 <section aria-labelledby="next">
 <h2 id="next">Before Release 1 ships, two questions get answers</h2>

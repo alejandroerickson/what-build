@@ -185,8 +185,8 @@ describe("Story guidance", () => {
     for (const rule of ["exact quotation", "exact words", "by role", "source reference", "source links", "No link", "Open the mockup", "analysis, not evidence", "consent note", "naming people", "passage", "evidence_wall"])
       expect(text, rule).not.toContain(rule);
     // Linking is the author's choice: every template stays, with who can follow each.
-    expect(Object.keys(g.body.links)).toEqual(["source", "outcome", "assumption", "mockup", "story_page"]);
-    expect(g.body.links_note).toContain("A reader (the role that may read only the Story) opens story_page links");
+    expect(Object.keys(g.body.links)).toEqual(["source", "outcome", "mockup", "story_page"]);
+    expect(g.body.links_note).toContain("A Story reader (story_reader, the role that may read only the Story) opens story_page links");
     // What a page must not misstate stays.
     expect(g.body.writing.fact_guardrails.join(" ")).toContain("Never add a person, owner, date, source, quote, count");
     expect(g.body.checklist.find((c: { check: string }) => c.check === "Accuracy").question).toContain("quotation");

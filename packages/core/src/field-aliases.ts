@@ -7,12 +7,11 @@ interface Alias {
 }
 
 /**
- * The entity id goes by `outcome_id` on outcomes but by `id` on assumptions. Each tool also accepts the other convention for its own entity id, so a caller who
+ * The entity id goes by `outcome_id` on outcomes. The tool also accepts `id` for it, so a caller who
  * guesses either name is understood.
  */
 const ID_ALIASES: Record<string, Alias> = {
   outcomes: { canonical: "outcome_id", alias: "id" },
-  assumptions: { canonical: "id", alias: "assumption_id" },
 };
 
 /** Fields an operation also accepts under the name a caller reads them by: a page's notes come back as `agent_notes.content`. */

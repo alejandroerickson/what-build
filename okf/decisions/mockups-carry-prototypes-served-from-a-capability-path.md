@@ -3,7 +3,7 @@ type: Decision
 title: A mockup version may carry a team's prototype as it is, served in the sandbox from a short-lived capability path
 description: Multi-file prototypes come in unchanged, stateless, and canvas pages enter them; every file is served under a signed path that the sandbox policy confines the prototype to, on the app's origin until a separate content site is set.
 tags: [decision, mockups, prototype, security, sandbox, storage, story, web, agents]
-generated: {by: agent:claude, at: 2026-11-02}
+generated: {by: agent:claude, at: 2026-11-13}
 status: stable
 ---
 
@@ -22,7 +22,7 @@ the multi-file part a mockup's **prototype** (the name "bundle" already names a 
 the [mockups decision](mockups-are-versioned-canvases-in-exploration.md) still rejects "prototype"
 as the name of a whole mockup. This record amends three rules: a page is one self-contained
 document; grants travel in a header, never a URL ([security](../system/security.md)); a Story reader
-sees the promoted page and nothing else of the mockup ([decision](a-reader-reads-only-the-story.md)).
+sees the promoted page and nothing else of the mockup ([decision](a-story-reader-reads-only-the-story.md)).
 
 ## Decision
 
@@ -64,7 +64,7 @@ sees the promoted page and nothing else of the mockup ([decision](a-reader-reads
   document another canvas page enters moves to that page
   ([decision](a-canvas-whose-pages-link-is-viewed-as-a-clickable-prototype.md)); a load that does
   not announce itself as one of its documents is put back.
-- **On the Story** a reader of a promoted entry reaches that version's whole prototype, which is
+- **On the Story** a Story reader of a promoted entry reaches that version's whole prototype, which is
   what the prototype is, and nothing else of the mockup (the maintainer's choice, 2026-10-14).
   Print shows the page's poster, or a notice.
 - **Limits** (accepted 2026-10-14): 48 pages a canvas; 2,000 files and 64 MB a prototype, 25 MB a

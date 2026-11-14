@@ -103,14 +103,14 @@ export function slugProblem(s: string): string | null {
     : "Use 3 to 50 lower-case letters, digits and hyphens, starting and ending with a letter or digit.";
 }
 
-export const ROLE_WORD: Record<string, string> = { owner: "Owner", admin: "Admin", creator: "Product creator", member: "Member", guest: "Guest", editor: "Editor", viewer: "Viewer", reader: "Reader" };
+export const ROLE_WORD: Record<string, string> = { owner: "Owner", admin: "Admin", creator: "Product creator", member: "Member", guest: "Guest", editor: "Editor", viewer: "Viewer", story_reader: "Story reader" };
 
-/** A role in words for sentences, lower case: "product creator" for `creator`, else the role itself. */
+/** A role in words for sentences, lower case but for the Story's name: "Story reader" for `story_reader`, "product creator" for `creator`, else the role itself. */
 export function roleWords(role: string): string {
-  return role === "creator" ? "product creator" : role;
+  return role === "story_reader" ? "Story reader" : role === "creator" ? "product creator" : role;
 }
 
-/** A role with its article, for sentences: "an editor", "a viewer", "a product creator". */
+/** A role with its article, for sentences: "an editor", "a viewer", "a Story reader", "a product creator". */
 export function aRole(role: string): string {
   const words = roleWords(role);
   return `${/^[aeiou]/.test(words) ? "an" : "a"} ${words}`;

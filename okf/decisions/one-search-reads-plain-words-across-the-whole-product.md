@@ -3,7 +3,7 @@ type: Decision
 title: One search covers the whole product and reads plain words, with no model
 description: People search everything in a product from one place, as they type, by deterministic word matching on the database's own text search, so no search calls a model.
 tags: [decision, search, web]
-generated: {by: agent:claude, at: 2026-10-30}
+generated: {by: agent:claude, at: 2026-11-13}
 status: stable
 ---
 
@@ -22,7 +22,7 @@ which would cost money on every search. The maintainer chose one plain-word sear
 
 - One search over everything in a product: sources (what each says: its title, tags, summary,
   derived text, notes and comments, [decision](a-sources-words-are-one-derived-text-and-attachments-are-never-searched.md)),
-  assumptions, outcomes, mockups, Story pages and the product concept. In the web app it is the palette (⌘K, `/`, or the
+  outcomes, mockups, Story pages and the product concept. In the web app it is the palette (⌘K, `/`, or the
   panel's Search field, on every product screen) and the Search screen, where results sit under
   the four areas, Idea, Evidence, Exploration and Story.
 - It reads words the way people type them, deterministically: any order, forgiving endings, the
@@ -32,9 +32,9 @@ which would cost money on every search. The maintainer chose one plain-word sear
   same index of sources' texts the other modes read (`text_chunks`) and the words kept beside each
   page's HTML ([decision](a-pages-words-are-kept-beside-its-html-and-a-search-runs-within-limits.md)):
   no model, no embeddings, no call that costs per search.
-- A page from a mockup is listed once, and a reader searches the Story alone
+- A page from a mockup is listed once, and a Story reader searches the Story alone
   ([decision](mockups-are-versioned-canvases-in-exploration.md),
-  [decision](a-reader-reads-only-the-story.md)).
+  [decision](a-story-reader-reads-only-the-story.md)).
 - Rejected: semantic search as the default, which needs a model and an index of embeddings; and
   separate searches per screen, which make people know where something lives first.
 

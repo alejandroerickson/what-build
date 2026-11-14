@@ -19,10 +19,12 @@ let productId: string;
 let P: string;
 let source: string;
 let outcome: string;
-let assumption: string;
 const insight = newId();
 const draft = newId();
 const decision = newId();
+const otherDecision = newId();
+/** An assumption an insight referred to, gone since assumptions were removed. */
+const goneAssumption = newId();
 
 const actor = (name: string, surface: string | null = "web") => JSON.stringify({ account_id: `acct-${name.toLowerCase()}`, display_name: name, surface, client: null });
 
@@ -60,18 +62,19 @@ beforeAll(async () => {
   await fetch(created.body.upload.url, { method: "PUT", headers: created.body.upload.headers, body: "# Visit\n\n- Crews text the office.\n- Nobody called it a crisis.\n" });
   await h.worker.drain();
   outcome = (await olive.api("POST", `${P}/outcomes`, { title: "Send the week in minutes" })).body.outcome_id;
-  assumption = (await olive.api("POST", `${P}/assumptions`, { statement: "Crews read texts before calls." })).body.id;
 
   await inTenant(async (trx) => {
-    await storeInsight(trx, insight, { title: "Texts carry the plan", status: "published", reviewed: true, refs: { outcomes: [outcome], sources: [source], insights: [draft], assumptions: [assumption], decisions: [decision] } });
+    await storeInsight(trx, insight, { title: "Texts carry the plan", status: "published", reviewed: true, refs: { outcomes: [outcome], sources: [source], insights: [draft], assumptions: [goneAssumption], decisions: [decision] } });
     await storeInsight(trx, draft, { title: "Calls follow the text", status: "draft", refs: { outcomes: [], sources: [], insights: [], assumptions: [], decisions: [] } });
     // A decision's cited passages are in its body, where the migration that retired citations put them.
     await sql`insert into register_entries (entry_id, tenant_id, product_id, kind, statement, body, links, outcome_ids, tags, author, author_type, status, review_count, etag, updated_by)
       values (${decision}, ${tenantId}, ${productId}, 'decision', 'Send each crew a generated message.', ${"Typed messages are where mistakes enter.\n\n**Passages cited**\n\n- “Crews text the office.” (Visit notes — Example Co, Sep 2026)"},
-        ${JSON.stringify([{ id: assumption, type: "supports" }])}::jsonb, ${[outcome]}, ${["hand-off"]}, ${actor("Riley")}::jsonb, 'human', 'confirmed', 1, 'e2', ${actor("Riley")}::jsonb)`.execute(trx);
+        ${JSON.stringify([{ id: otherDecision, type: "supports" }])}::jsonb, ${[outcome]}, ${["hand-off"]}, ${actor("Riley")}::jsonb, 'human', 'confirmed', 1, 'e2', ${actor("Riley")}::jsonb)`.execute(trx);
+    await sql`insert into register_entries (entry_id, tenant_id, product_id, kind, statement, body, links, outcome_ids, tags, author, author_type, status, review_count, etag, updated_by)
+      values (${otherDecision}, ${tenantId}, ${productId}, 'decision', 'Plan the week by the job.', 'Crews think in jobs.',
+        ${JSON.stringify([{ id: decision, type: "contradicts" }])}::jsonb, ${[]}, ${["planning"]}, ${actor("Riley")}::jsonb, 'human', 'unconfirmed', 0, 'e3', ${actor("Riley")}::jsonb)`.execute(trx);
     await sql`insert into reviews (review_id, tenant_id, entry_id, status, note, reviewer, reviewer_type, confidence)
       values (${newId()}, ${tenantId}, ${decision}, 'confirmed', 'Agreed on Thursday.', ${actor("Riley")}::jsonb, 'human', 'medium')`.execute(trx);
-    await sql`update register_entries set links = ${JSON.stringify([{ id: decision, type: "contradicts" }])}::jsonb where entry_id = ${assumption}`.execute(trx);
   });
 });
 afterAll(async () => h?.close());
@@ -101,6 +104,8 @@ describe("moving insights and decisions into Evidence", () => {
     expect(text).toContain(`Outcome: Send the week in minutes`);
     // The text is the moved document as it was written, Markdown and all.
     expect(text).toContain(`Decision, now a source: Send each crew a generated message. (\`${decision}\`)`);
+    // An assumption it referred to is gone, and is named by its id alone.
+    expect(text).toContain(`Assumption: an assumption (\`${goneAssumption}\`)`);
     const draftSource = (await olive.api("GET", `${P}/sources/${draft}`)).body;
     expect(draftSource.tags).toEqual(["analysis", "insight", "draft"]);
     const found = await olive.api("GET", `${P}/search?query=${encodeURIComponent("then call the office")}`);
@@ -113,15 +118,13 @@ describe("moving insights and decisions into Evidence", () => {
     const text = await derivedText(decision);
     expect(text).toContain("Typed messages are where mistakes enter.");
     expect(text).toContain("“Crews text the office.” (Visit notes — Example Co, Sep 2026)");
-    expect(text).toContain(`Supports the assumption “Crews read texts before calls.” (\`${assumption}\`)`);
-    expect(text).toContain(`Contradicted by the assumption “Crews read texts before calls.” (\`${assumption}\`)`);
+    expect(text).toContain(`Supports the decision “Plan the week by the job.” (\`${otherDecision}\`)`);
+    expect(text).toContain(`Contradicted by the decision “Plan the week by the job.” (\`${otherDecision}\`)`);
     expect(text).toContain("Riley, a person: confirmed, with medium confidence. Agreed on Thursday.");
     expect(text).toContain("Confirmed, after 1 review.");
   });
 
-  it("drops an assumption's link to a decision, and leaves nothing of them behind", async () => {
-    const a = (await olive.api("GET", `${P}/assumptions/${assumption}`)).body;
-    expect(a.links).toEqual([]);
+  it("leaves nothing of them behind", async () => {
     const left = await inTenant(async (trx) => ({
       insights: (await sql<{ n: number }>`select count(*)::int as n from insights`.execute(trx)).rows[0]!.n,
       decisions: (await sql<{ n: number }>`select count(*)::int as n from register_entries where kind = 'decision'`.execute(trx)).rows[0]!.n,

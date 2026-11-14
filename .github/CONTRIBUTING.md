@@ -25,7 +25,7 @@ Read [working in this repository](../okf/process/working-in-this-repository.md) 
 - A schema change is a new migration in `apps/server/src/migrations/`, never an edit to one
   already there.
 - The interface follows [`DESIGN.md`](../apps/web/DESIGN.md).
-- The words are fixed: source, derived text, attachment, outcome, mockup, assumption, Story,
+- The words are fixed: source, derived text, attachment, outcome, mockup, Story,
   archive ([product specification](../okf/spec/01-product.md)).
 
 Before you open a pull request, these pass:

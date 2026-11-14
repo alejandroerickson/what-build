@@ -18,10 +18,10 @@ other plans will too.
    organization, each with the same live products, and the synthetic organization, where Sam reads
    one product's Story; no archived product is among them.
 2. **Web, as Sam, in the standard organization.** Open a product that has sources and visit each
-   section from the panel: Idea, Evidence, Exploration (mockups and assumptions), Story, Activity,
+   section from the panel: Idea, Evidence, Exploration (mockups), Story, Activity,
    and Settings, with each section it lists; open Connect an agent from the empty seat (or Settings
    → Agents once an agent is connected); and search from the panel's Search field. Open one
-   item in each list that has any: a source, a mockup, an assumption, a Story page. *Expect:* each
+   item in each list that has any: a source, a mockup, a Story page. *Expect:* each
    screen loads with content or a designed empty state, and no command prints a `!` problem.
    Settings opens over the screen it was opened on and closes back onto it (Esc, the close button,
    or the scrim), leaving the address as it was. Connect an agent gives `/mcp` first, with **Limit this agent to one organization or product**
@@ -49,9 +49,9 @@ other plans will too.
    General, offers to delete it,
    to Riley as an admin: under the heading "Delete this product", a button reads "Delete <product
    name> permanently…", and its dialog asks for the product's name to be typed.
-7. **Web, as Jordan (reader).** Sign in, then open the product's Evidence, Exploration and a source
+7. **Web, as Jordan (Story reader).** Sign in, then open the product's Evidence, Exploration and a source
    by their addresses. *Expect:* Jordan reaches the Story and reads its pages; every other address
-   takes Jordan back to the Story (`okf/decisions/a-reader-reads-only-the-story.md`), without
+   takes Jordan back to the Story (`okf/decisions/a-story-reader-reads-only-the-story.md`), without
    errors or a broken screen on the way.
 8. **MCP, as Sam.** `info`, then `tools`. *Expect:* the server names itself `whatbuild` with its
    tools version; each kind of object has a `_read` tool, and each kind Sam changes a `_write`
@@ -64,7 +64,7 @@ other plans will too.
    team has. The instructions name `products_read(action="list")`
    and the `guide` tool, and ask nothing to be installed. Call `guide` and compare its
    `tools_version` with the server's.
-9. **MCP, as Sam.** List products, then list sources, assumptions, mockups and Story pages
+9. **MCP, as Sam.** List products, then list sources, mockups and Story pages
    (`story_read` `list_pages`) in the product from step 2, and read the first window of one source's
    text with `derived_read(action="text")`. *Expect:* the same items the web showed in step 2, with the
    same titles and counts, and the same words the source's Text showed.
@@ -89,8 +89,8 @@ other plans will too.
 11. **MCP, as Jordan.** List the tools and the products, then try to list sources in a product, and
     to search it, first with no mode and then in `plain` mode. *Expect:* the tools are `story_read`,
     `products_read` and `search` (with `guide` and `submit_feedback`), and no `sources_`, `outcomes_`
-    or `members_` tool; the products are listed with the role reader; listing sources and a search
-    with no mode are refused with a clear error naming reader and viewer, not an empty result and
+    or `members_` tool; the products are listed with the role `story_reader`; listing sources and a search
+    with no mode are refused with a clear error naming `story_reader` and viewer, not an empty result and
     never `unknown_action` or `unknown_tool`; `plain` mode answers with Story pages alone, and its
     `hits_matched` is 0 when only Story pages match, since it counts the matching pieces of
     sources' summaries, texts, notes and comments (`okf/spec/08-search.md`), not a fault.
