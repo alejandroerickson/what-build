@@ -11,8 +11,8 @@
   },
   "dependencies": {
     "fflate": "^0.8.2",
-    "parse5": "^8.0.0",
-    "pdfjs-dist": "^6.4.299",
+    "parse5": "^8.1.0",
+    "pdfjs-dist": "^6.5.438",
     "saxes": "^6.0.0"
   }
 }
