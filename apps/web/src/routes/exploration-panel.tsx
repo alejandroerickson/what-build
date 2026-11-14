@@ -6,12 +6,12 @@ import { useProduct } from "../lib/session.tsx";
 import type { RegisterSummary } from "../lib/types.ts";
 import { PanelContext, PanelFilter, PanelSection } from "../shell/slots.tsx";
 import { FindField } from "../ui/index.tsx";
-import { useMockupList } from "./mockups.tsx";
+import { MockupTree } from "./mockup-tree.tsx";
 import { searchWith } from "./exploration-common.tsx";
 
 /**
- * Exploration holds the mockups, then the assumptions. The panel lists the mockups and the
- * assumptions' one set of filters (their status), and the list's header has only a title search.
+ * Exploration holds the mockups, then the assumptions. The panel lists the mockups in their folders
+ * (mockup-tree.tsx) and the assumptions' one set of filters (their status), and the list's header has only a title search.
  * A product holds dozens of assumptions, not thousands, so the list loads whole, once, and the
  * panel's counts, the filters and the search all work on what is loaded.
  */
@@ -109,32 +109,6 @@ function Section<T>({ kind, title, views, items, archived }: {
   );
 }
 
-/** The mockups, flat, most recently changed first: each opens its canvas. */
-function MockupsSection() {
-  const { app } = useProduct();
-  const { pathname } = useLocation();
-  // The panel sits above the screen's route, so it reads the open mockup from the path.
-  const mockupId = /\/exploration\/mockups\/([^/]+)/.exec(pathname)?.[1];
-  const list = useMockupList();
-  const items = list.data?.items;
-  const onIndex = /\/exploration\/mockups\/?$/.test(pathname);
-  return (
-    <PanelSection title="Mockups">
-      {items?.length ? (
-        items.map((e) => (
-          <PanelFilter key={e.mockup_id} to={`${app}/exploration/mockups/${e.mockup_id}`} current={e.mockup_id === mockupId} replace={false}>
-            {e.title}
-          </PanelFilter>
-        ))
-      ) : (
-        <PanelFilter to={`${app}/exploration/mockups`} current={onIndex} replace={false}>
-          {list.isPending ? "Loading…" : "None yet"}
-        </PanelFilter>
-      )}
-    </PanelSection>
-  );
-}
-
 /** The Exploration panel context: the mockups, then the assumptions with their filters and counts. */
 export function ExplorationPanel() {
   const { outcome } = useWhere();
@@ -144,7 +118,7 @@ export function ExplorationPanel() {
   const forEntry = (e: RegisterSummary) => !outcome || e.outcome_ids.includes(outcome);
   return (
     <PanelContext label="Mockups and assumptions">
-      <MockupsSection />
+      <MockupTree />
       <Section kind="assumptions" title="Assumptions" views={entryViews("assumptions")} items={assumptions.data?.items.filter(forEntry)} archived={archivedAssumptions.data?.items.filter(forEntry).length} />
     </PanelContext>
   );

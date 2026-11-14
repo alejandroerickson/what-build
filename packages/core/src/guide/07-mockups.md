@@ -1,17 +1,18 @@
 # Mockups
 
-Mockup canvases: their pages and the rules a page meets, prototypes, shared files, versions, uploads and downloads, limits, and promoting a page or a whole canvas to the Story.
+Mockup canvases: their pages and the rules a page meets, prototypes, shared files, versions, the folders they are arranged in, uploads and downloads, limits, and promoting a page or a whole canvas to the Story.
 
 ## What a mockup is
 
 A mockup is a canvas of HTML pages (screens, flows or alternatives side by side), each page with
 design notes, under a Markdown **brief** that says what the canvas explores. People pan and zoom
 around it in Exploration, read a page's notes beside it, and click through a page in its sandbox. The
-web app shows, downloads and promotes mockups, and lets a product's admins archive or delete one; it
-cannot publish or restore a mockup, which agents do.
+web app shows, downloads and promotes mockups, lets anyone who can write arrange them in folders, and
+lets a product's admins archive or delete one; it cannot publish or restore a mockup, which agents do.
 
-`mockups_read` lists them (`list`, which leaves archived ones out and counts them in
-`archived_hidden`), reads one (`get`), and reads its versions (`list_versions`, `get_version`).
+`mockups_read` lists them in the order the team arranged them, with their folders (`list`, which
+leaves archived ones out and counts them in `archived_hidden`), reads one (`get`), and reads its
+versions (`list_versions`, `get_version`).
 
 ## Pages
 
@@ -104,6 +105,27 @@ keeps its `page_id` keeps its title, notes, size and HTML unless they are sent, 
 dropped from that version. `from_version: N` starts from an earlier version. Each publish makes a
 version.
 
+## Folders and order
+
+A product's mockups are arranged by hand, and everyone in the product sees the one arrangement. A
+mockup sits in one folder or in none; folders are one level deep and hold no folders. People see the
+mockups in no folder first, then each folder with its own, and `mockups_read(action="list")` gives
+`items` in that order (each with its `folder_id`, null for none) and `folders` in theirs. Nothing
+reorders them by itself: a new version leaves a mockup where it is.
+
+- `mockups_write(action="create_folder")` makes a folder, after the others; `rename_folder` renames
+  one, with the folder's etag; `move_folder` puts one in front of another folder, or last;
+  `remove_folder` removes one and leaves its mockups in no folder, after those already there. No
+  mockup is deleted with a folder.
+- `mockups_write(action="move")` puts a mockup in a folder (`folder_id`, null for none; omitted, it
+  stays in the folder it is in) in front of another mockup there (`before_mockup_id`), or last.
+- A new mockup goes first among the mockups in no folder, or first in the folder
+  `mockups_write(action="publish")` names in `folder_id`.
+
+Arranging changes no mockup: it makes no version, and the mockup's etag and its address in the web
+app stay as they were. People arrange the mockups in the web app too, by dragging, so an order read
+earlier may have changed.
+
 ## Download and upload
 
 `mockups_read(action="get_download")` gives a version as a ZIP through a short-lived grant (its header
@@ -151,7 +173,8 @@ gives each page's `html_sha256` and each file's `sha256`: they hash the text as 
 ## Limits
 
 A version holds at most 48 pages and 8,000,000 characters of HTML. A product holds at most 50 mockups,
-archived ones included; `list` gives `quota` with `used` and `limit`.
+archived ones included; `list` gives `quota` with `used` and `limit`. Folders are not limited; each
+has a name of its own in its product, whatever its capitals.
 
 ## Promoting a page or a whole canvas to the Story
 

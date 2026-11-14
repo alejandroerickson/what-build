@@ -3,7 +3,7 @@ type: System Concept
 title: WhatBuild at three altitudes
 description: The whole system from the top down, the major parts, and the mechanics underneath, with links to the detail.
 tags: [overview, architecture, tenancy, access, mcp]
-generated: {by: agent:claude, at: 2026-11-09}
+generated: {by: agent:claude, at: 2026-11-13}
 status: stable
 ---
 
@@ -62,13 +62,13 @@ Google Cloud Storage behind a storage port; the official MCP SDK (stateless Stre
 React 19, React Router 7, TanStack Query 5, Vite 8; Vitest. Details in
 [architecture](../spec/02-architecture.md).
 
-**Operations.** 122 operations, each defined once and exposed through both REST and MCP, but for
+**Operations.** 127 operations, each defined once and exposed through both REST and MCP, but for
 eighteen: running the instance (its owners' ten actions on plans, organizations, guests,
 allowances, accounts and usage, and removing an account), renaming an organization or a product,
 which its owners or admins do, deleting an organization and previewing that delete, which only its
 owners or an instance owner do, and deleting one's own account and previewing that, which only its
 person does, all in the web app, and a person's browser giving a video or a web page its first
-picture. Agents are offered the other 104, as 29 tools
+picture. Agents are offered the other 109, as 29 tools
 ([decision](../decisions/one-registry-two-front-doors.md),
 [decision](../decisions/running-the-instance-is-done-in-the-web-app-never-by-an-agent.md)).
 

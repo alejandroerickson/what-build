@@ -218,8 +218,32 @@ const SCOPED: Record<string, Probe> = {
   "mockups.get": { input: (a) => ({ mockup_id: a.mockup.id, include_html: true, include_files: true }) },
   "mockups.list_versions": { input: (a) => ({ mockup_id: a.mockup.id }) },
   "mockups.get_version": { input: (a) => ({ mockup_id: a.mockup.id, version: 1, include_html: true, include_files: true }) },
-  "mockups.publish": { input: (a) => ({ mockup_id: a.mockup.id, expected_etag: a.mockup.etag, title: "Changed by an outsider" }) },
+  "mockups.publish": {
+    input: (a) => ({ mockup_id: a.mockup.id, expected_etag: a.mockup.etag, title: "Changed by an outsider" }),
+    // The victim's mockup, and a new mockup of their own put in the victim's folder.
+    inside: (a) => [
+      { mockup_id: a.mockup.id, expected_etag: a.mockup.etag, title: "Changed by an outsider" },
+      { title: "Planted in a folder", folder_id: a.folder.id, pages: [{ page_id: "planted", title: "Planted", html: "<!doctype html><html lang=\"en\"><head><title>Planted</title></head><body><p>Planted</p></body></html>" }] },
+    ],
+  },
   "mockups.request_upload": { input: () => ({}) },
+  "mockups.create_folder": { input: () => ({ name: "Planted folder" }) },
+  "mockups.rename_folder": { input: (a) => ({ folder_id: a.folder.id, name: "Renamed by an outsider", expected_etag: a.folder.etag }) },
+  "mockups.move_folder": {
+    input: (a) => ({ folder_id: a.folder.id }),
+    // The victim's folder, and their own folder put in front of the victim's.
+    inside: (a, b) => [{ folder_id: a.folder.id }, { folder_id: b.folder.id, before_folder_id: a.folder.id }],
+  },
+  "mockups.remove_folder": { input: (a) => ({ folder_id: a.folder.id }) },
+  "mockups.move": {
+    input: (a) => ({ mockup_id: a.mockup.id, folder_id: null }),
+    // The victim's mockup into their own folder, and their own mockup into the victim's folder or in front of the victim's mockup.
+    inside: (a, b) => [
+      { mockup_id: a.mockup.id, folder_id: b.folder.id },
+      { mockup_id: b.mockup.id, folder_id: a.folder.id },
+      { mockup_id: b.mockup.id, before_mockup_id: a.mockup.id },
+    ],
+  },
   "mockups.archive": { input: (a) => ({ mockup_id: a.mockup.id, expected_etag: a.mockup.etag }) },
   "mockups.restore": { input: (a) => ({ mockup_id: a.mockup.id, expected_etag: a.mockup.etag }) },
   "mockups.get_download": { input: (a) => ({ mockup_id: a.mockup.id }) },
@@ -400,7 +424,7 @@ describe("the attacker's own organization, pointed at another's ids", () => {
   });
 
   it("answers 404 when the path names another organization's object", async () => {
-    const owned = [a.outcome.id, a.source.id, a.view.id, a.annotation.id, a.assumption.id, a.mockup.id];
+    const owned = [a.outcome.id, a.source.id, a.view.id, a.annotation.id, a.assumption.id, a.mockup.id, a.folder.id];
     const failures: string[] = [];
     for (const op of OPERATIONS.filter((o) => o.scope === "product" && o.name in SCOPED)) {
       const input = SCOPED[op.name]!.input(a);

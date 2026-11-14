@@ -420,7 +420,13 @@ describe("the sample product", () => {
     const path = products.body.items.find((p: { name: string }) => p.name === "Crewboard").path;
     const S = `/api/v1/p/${path}`;
     expect((await sam.api("GET", `${S}/assumptions`)).body.items).toHaveLength(1);
-    expect((await sam.api("GET", `${S}/mockups`)).body.items).toHaveLength(1);
+    // Two mockups, arranged by hand: the newer one in no folder, the planning canvas in a folder.
+    const mockups = (await sam.api("GET", `${S}/mockups`)).body;
+    expect(mockups.folders.map((f: { name: string; mockup_count: number }) => [f.name, f.mockup_count])).toEqual([["Weekly planning", 1]]);
+    expect(mockups.items.map((m: { title: string; folder_id: string | null }) => [m.title, m.folder_id])).toEqual([
+      ["A late booking: where the change shows", null],
+      ["Planning the week: jobs first or days first", mockups.folders[0].folder_id],
+    ]);
     const tree = await sam.api("GET", `${S}/story/hierarchy`);
     const canvas = tree.body.items.find((n: { kind: string }) => n.kind === "canvas");
     expect(canvas.children.map((m: { page_id: string; kind: string }) => [m.page_id, m.kind])).toEqual([["jobs-board", "mockup_page"], ["day-planner", "mockup_page"], ["crew-message", "mockup_page"]]);

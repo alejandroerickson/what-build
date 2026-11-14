@@ -3,7 +3,7 @@ type: Specification
 title: The web app is a person's way to run the same operations an agent runs, one screen at a time.
 description: Principles, the shell and product switching, the overview, routes, first run, and the behavior of every screen (Idea, Evidence, Exploration, Story, Activity, archive and delete, Settings, Instance admin).
 tags: [spec, web, ui, routes, shell]
-generated: {by: agent:claude, at: 2026-11-09}
+generated: {by: agent:claude, at: 2026-11-13}
 status: stable
 ---
 
@@ -748,8 +748,35 @@ panel's context slot lists the mockups first, then the assumptions
 ([decision](../decisions/lists-filter-from-the-panel.md)) as a section with one set of filters and
 a count on every filter, laid out like Evidence's filters:
 
-- **Mockups:** every mockup that is not archived, by name, most recently changed first; each
-  opens its canvas. With none, one quiet line says so and opens the first-use state.
+- **Mockups:** every mockup that is not archived, by name, as the team arranged them
+  ([decision](../decisions/mockups-are-arranged-by-hand-in-folders-one-level-deep.md),
+  [§4.12](04-data-model.md)): the mockups in no folder first, then each folder with its own, one
+  level deep. Each mockup opens its canvas. With none, one quiet line says so and opens the
+  first-use state.
+  - **A folder** is a row with a caret, a folder icon, its name and how many mockups it holds;
+    pressing it opens or closes it. Which folders are closed is each person's own, kept in the
+    browser (`whatbuild.mockup-folders-collapsed.<product>`); the folder of the mockup on screen is
+    always open, so a link never lands on a row that is folded away. An open folder with nothing in
+    it says "No mockups in this folder".
+  - **Arranging**, for anyone who can write. A mockup or a folder is dragged by the handle its row
+    shows on hover and focus (always on touch): a mockup onto the upper or lower half of another
+    mockup to go before or after it, or onto a folder to go last in it; a folder onto the upper or
+    lower half of another folder. While a mockup that is in a folder is dragged, a dashed row under
+    the mockups in no folder reads "Move out of its folder". A bar or a ring shows where it would
+    land, Escape cancels, and a toast names where it went, with Undo. With a row focused, Alt and
+    Up or Down move a mockup among those beside it, or a folder among the folders, and Alt and Left
+    take a mockup out of its folder; each move, or why none was made, is announced. A mockup's "…"
+    menu names the folder it is in (No folder, or one of the folders) and puts it in another, and
+    its **New folder…** makes a folder and puts the mockup in it. A folder's menu has **Rename…**
+    and **Remove folder**, which asks first when the folder holds mockups and says that they stay,
+    in no folder. **New folder**, an icon button on the section's head, asks for a name.
+  - A move shows at once and is saved after; if what it named has gone, because someone else
+    rearranged the mockups at the same time, a toast says so and the list shows them as they are.
+    A viewer sees the same arrangement, opens and closes folders, and is offered nothing that
+    changes it. Up, Down, Home and End move between rows, Right opens a folder or goes into it,
+    and Left closes it or returns to it.
+  - The crumbs above a canvas name the folder the mockup is in: Exploration, Mockups, the folder,
+    the mockup.
 - **Assumptions:** All, Unconfirmed, Confirmed, Refuted or replaced, Archived. "All" is the
   unconfirmed and confirmed ones, the ones every count of them in the app counts.
 

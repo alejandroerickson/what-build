@@ -165,7 +165,7 @@ export const deleteProduct = defineOperation({
       ...(await db.selectFrom("register_entries").select("entry_id").where("product_id", "=", pid).execute()).map((r) => r.entry_id),
     ];
     await db.deleteFrom("revisions").where("object_id", "in", authored).execute();
-    for (const table of ["mockup_uploads", "story_previews", "card_previews", "mockup_prototype_files", "mockup_files", "mockup_pages", "mockup_versions", "mockups", "story_versions", "story_pages", "story_hierarchies", "story_styles", "register_entries", "outcomes", "insights", "exports", "activity", "tombstones"] as const)
+    for (const table of ["mockup_uploads", "story_previews", "card_previews", "mockup_prototype_files", "mockup_files", "mockup_pages", "mockup_versions", "mockups", "mockup_folders", "story_versions", "story_pages", "story_hierarchies", "story_styles", "register_entries", "outcomes", "insights", "exports", "activity", "tombstones"] as const)
       await db.deleteFrom(table).where("product_id", "=", pid).execute();
     // A source takes its attachments, versions, uploads, readings, derived text, search index and notes with it.
     await db.deleteFrom("records").where("product_id", "=", pid).execute();

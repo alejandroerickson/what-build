@@ -31,6 +31,8 @@ export interface Organization {
   hierarchyEtag: string;
   styleEtag: string;
   mockup: { id: string; etag: string; pageId: string };
+  /** The folder the mockup sits in. */
+  folder: { id: string; etag: string };
   /** A mockup published from a ZIP, whose one page enters its prototype. */
   prototypeMockup: { id: string };
   exportId: string;
@@ -109,6 +111,9 @@ export async function buildOrganization(h: Harness, owner: Browser, name: string
   });
   expect((await fetch(g.url, { method: "PUT", headers: g.headers, body: zip })).status).toBe(201);
   const proto = ok(await owner.api("POST", `${P}/mockups`, { upload_id: g.upload_id }));
+  // The mockups arranged by hand: one in a folder, the other in none.
+  const folder = ok(await owner.api("POST", `${P}/mockup-folders`, { name: `${marker} folder` }));
+  ok(await owner.api("POST", `${P}/mockups/${m.mockup_id}/move`, { folder_id: folder.folder_id }), 200);
   // A canvas upload in progress: its grant, with nothing published from it yet.
   ok(await owner.api("POST", `${P}/mockups/uploads`, {}));
   const promoted = ok(await owner.api("POST", `${P}/story/promote-mockup`, { mockup_id: m.mockup_id, mockup_page_id: `${marker.toLowerCase()}-plan`, title: `${marker} promoted plan` }));
@@ -151,6 +156,7 @@ export async function buildOrganization(h: Harness, owner: Browser, name: string
     styleEtag: style.etag,
     mockup: { id: m.mockup_id, etag: m.etag, pageId: `${marker.toLowerCase()}-plan` },
     prototypeMockup: { id: proto.mockup_id },
+    folder: { id: folder.folder_id, etag: folder.etag },
     exportId: ex.export_id,
     invitationId,
     member: { accountId: memberId, email: memberEmail },
@@ -179,6 +185,7 @@ export async function buildOrganization(h: Harness, owner: Browser, name: string
     org.promotedPage.id,
     org.mockup.id,
     org.prototypeMockup.id,
+    org.folder.id,
     org.exportId,
     org.invitationId,
     org.ownerAccountId,

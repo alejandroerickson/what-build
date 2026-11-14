@@ -3,7 +3,7 @@ type: Process
 title: What a deployment must do when it takes a release
 description: The changes a release asks of the people who run a deployment (settings, app registrations, behaviour they will notice), kept per release, with the unreleased ones on top until the next release carries them into its notes.
 tags: [operations, releases, upgrading, self-hosting, configuration]
-generated: {by: agent:claude, at: 2026-11-12}
+generated: {by: agent:claude, at: 2026-11-13}
 status: stable
 ---
 
@@ -23,7 +23,24 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
 
 ## Unreleased
 
-Nothing yet.
+- **Migration `0045_mockup_folders`: mockups are arranged in folders.** A product's mockups sit in
+  folders, one level deep, in an order people and agents give by hand
+  ([decision](../decisions/mockups-are-arranged-by-hand-in-folders-one-level-deep.md)). The
+  migration adds the `mockup_folders` table and a folder and a place to each mockup, and leaves
+  every mockup in no folder, in the order the list showed until now, most recently changed first.
+  It changes no content. Rehearse it on the dev deployment as any release that migrates; going back
+  past it needs the database restored ([recovering](recovering-from-a-bad-release.md)). A
+  deployment does nothing else.
+- **People will notice:** in Exploration, the panel's mockups no longer reorder themselves when one
+  is published, a new mockup appears first, and anyone who can write drags mockups and folders into
+  place. A mockup's address does not change when it moves.
+- **Connected agents are offered five more actions** in `mockups_write` (`create_folder`,
+  `rename_folder`, `move_folder`, `remove_folder`, `move`); `mockups_read(action="list")` gives the
+  mockups in the arranged order with `folder_id` and `folders`, no longer most recently changed
+  first; `publish` takes `folder_id` for a new mockup. An agent keeps the tools it had until a new
+  session brings version 0.62.0.
+- **A product export also holds `mockups/folders.json`**, and each `mockup.json` its `folder_id` and
+  `position`.
 
 ## v0.34.2
 

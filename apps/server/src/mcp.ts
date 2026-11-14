@@ -140,12 +140,13 @@ const TOOL_TEXT: Record<string, { title: string; parts: Parts; forStoryReader?: 
   },
   mockups_read: {
     title: "Read mockups",
-    parts: [["Read mockups: canvases of agent-made HTML pages (screens, flows, alternatives) in Exploration, each page with design notes, under a Markdown brief. A version is the whole canvas, and downloads as a ZIP."]],
+    parts: [["Read mockups: canvases of agent-made HTML pages (screens, flows, alternatives) in Exploration, each page with design notes, under a Markdown brief. A version is the whole canvas, and downloads as a ZIP. The list gives the folders the team arranged them in, and their order."]],
   },
   mockups_write: {
     title: "Publish mockups",
     parts: [
       ["Publish a mockup's next version from an uploaded ZIP of the canvas, or create a mockup. Pages link to each other with ordinary relative links (href=\"checkout.html\", the other page's page_id); people can then view the canvas as a clickable prototype.", "request_upload", "publish"],
+      ["Arrange mockups in folders, one level deep: make, rename, reorder and remove folders, and put a mockup in one or give it another place.", "create_folder", "rename_folder", "move_folder", "remove_folder", "move"],
       ["Archive and restore mockups.", "archive", "restore"],
     ],
   },

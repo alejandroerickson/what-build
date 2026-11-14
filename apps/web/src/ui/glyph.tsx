@@ -1,6 +1,6 @@
 import {
   Activity, Archive, ArchiveRestore, ArrowLeft, ArrowRight, Blend, BookOpen, Bot, Box, Building, Check, ChevronDown, ChevronLeft, ChevronRight, ChevronsDownUp, ChevronsUpDown, ChevronUp,
-  CircleAlert, CircleCheck, CircleDashed, Clock, Cookie, Copy, CornerDownRight, Download, Ellipsis, ExternalLink, File, FileSpreadsheet, FileText, FileVideoCamera, FileVolume, FolderInput,
+  CircleAlert, CircleCheck, CircleDashed, Clock, Cookie, Copy, CornerDownRight, Download, Ellipsis, ExternalLink, File, FileSpreadsheet, FileText, FileVideoCamera, FileVolume, Folder, FolderInput, FolderPlus,
   FlaskConical, GitCommitHorizontal, GripVertical, Image, Images, Info, Keyboard, LayoutGrid, Library, Lightbulb, Link, LoaderCircle, LogOut, Maximize2, Menu, MessageSquare, Mic, Minimize2, Minus, Monitor, Moon, MoveHorizontal, Palette, PanelLeftClose, Paperclip, PanelLeftOpen,
   PanelRightClose, PanelRightOpen, Pencil, Play, Plus, Presentation, Quote, RotateCcw, Scale, Search, Settings, Signpost, Sun, Tag, Target, Trash, Triangle, TriangleAlert, Upload, UserPlus, Users, X, ZoomIn, ZoomOut, Scan, Hand, MousePointer2,
   type LucideIcon,
@@ -44,7 +44,9 @@ const GLYPHS = {
   "file-audio": FileVolume,
   flask: FlaskConical,
   fold: ChevronsDownUp,
+  folder: Folder,
   "folder-input": FolderInput,
+  "folder-plus": FolderPlus,
   "git-commit": GitCommitHorizontal,
   hand: Hand,
   grip: GripVertical,

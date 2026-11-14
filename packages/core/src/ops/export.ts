@@ -36,7 +36,8 @@ export const BUNDLE_LAYOUT: readonly { path: string; holds: string }[] = [
   { path: "story/pages/<page_id>/page.json", holds: "A Story page." },
   { path: "story/pages/<page_id>/v<n>.json", holds: "One version of the page. A version that shows a mockup page names it here and has no HTML of its own." },
   { path: "story/pages/<page_id>/v<n>.html", holds: "That version's HTML." },
-  { path: "mockups/<mockup_id>/mockup.json", holds: "A mockup." },
+  { path: "mockups/folders.json", holds: "The folders the mockups are arranged in, in their order." },
+  { path: "mockups/<mockup_id>/mockup.json", holds: "A mockup, with the folder it is in (folder_id) and its place there (position)." },
   { path: "mockups/<mockup_id>/v<n>/version.json", holds: "One version of its canvas: the pages in order, each without its HTML and notes." },
   { path: "mockups/<mockup_id>/v<n>/brief.md", holds: "The version's brief." },
   { path: "mockups/<mockup_id>/v<n>/pages/<page_id>.html", holds: "A page's HTML. A page that enters the prototype has none; version.json gives its entry." },
@@ -253,6 +254,7 @@ export async function runExport(db: Tx, ports: Ports, job: { tenant_id: string; 
       if (!v.mockup) add(`story/pages/${p.page_id}/v${v.n}.html`, html);
     }
   }
+  add("mockups/folders.json", j(await db.selectFrom("mockup_folders").selectAll().where("product_id", "=", pid).orderBy("position").orderBy("folder_id").execute()));
   for (const m of await db.selectFrom("mockups").selectAll().where("product_id", "=", pid).orderBy("mockup_id").execute()) {
     add(`mockups/${m.mockup_id}/mockup.json`, j(m));
     for (const v of await db.selectFrom("mockup_versions").selectAll().where("mockup_id", "=", m.mockup_id).orderBy("n").execute()) {

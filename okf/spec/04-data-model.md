@@ -3,7 +3,7 @@ type: Specification
 title: Every object in a product, with its fields, limits and invariants, as the REST and MCP wire sees it.
 description: The common envelope (ids, etags, attribution, revisions), outcomes, sources and their tags, attachments, comments, summaries and notes, evidence links, the assumption register, views, activity, Story, mockups, feedback, the product bundle, and the storage layout.
 tags: [spec, data-model, schema, revisions, story, mockups, export]
-generated: {by: agent:claude, at: 2026-11-04}
+generated: {by: agent:claude, at: 2026-11-13}
 status: stable
 ---
 
@@ -766,7 +766,8 @@ page when there is none.
 A mockup is a canvas of HTML pages an agent built from the evidence (screens, flows, alternatives
 side by side), each with design notes, and a brief that says what the canvas explores
 ([decision](../decisions/mockups-are-versioned-canvases-in-exploration.md)). Fields:
-`mockup_id`, `title` (1–200), `summary` (≤ 2,000, shown in the list), `archived_at`,
+`mockup_id`, `title` (1–200), `summary` (≤ 2,000, shown in the list), `folder_id` (the folder it
+sits in, or null; Folders and order, below), `archived_at`,
 `current_version`, `etag`, and an append-only list of **versions**. A version is immutable and is
 the whole canvas: `version` (1, 2, 3…), `title`, `summary`, `brief` (Markdown, ≤ 50,000: what the
 canvas explores, for whom, the questions it should answer, what each page tries), `columns` (1–12
@@ -787,6 +788,39 @@ frame's address, `prototype_url`, computed on read (Prototype, below). Limits: 4
 8,000,000 characters of HTML in a version; 50 mockups in a product,
 archived ones included (`409 quota_exceeded`, whose details give `used`, `limit` and how many are
 `archived`).
+
+**Folders and order.** A product's mockups are arranged by hand, in one arrangement everyone in
+the product sees
+([decision](../decisions/mockups-are-arranged-by-hand-in-folders-one-level-deep.md)). A mockup
+sits in one folder or in none; a folder holds mockups and no folders. A folder: `folder_id`,
+`name` (1–80, trimmed, one of a name in a product whatever its capitals:
+`409 folder_name_taken`, whose details give the folder that has it), `etag` (which a rename
+changes), and `mockup_count`, the mockups in it that are not archived, computed on read. A product holds
+as many folders as the team makes: there is no limit. The folders, the mockups in each and the mockups in none
+each keep the order they are given: `mockups.list` gives `items` in the order people see them (the
+mockups in no folder, then each folder's, folder by folder) and `folders` in theirs. Nothing
+reorders them by itself: a new version leaves a mockup where it is, and a new mockup goes first
+among the mockups in no folder, or first in the folder `mockups.publish { folder_id }` names
+(a `folder_id` with a `mockup_id` is `422`, naming `mockups.move`).
+
+- `mockups.create_folder { name }` makes a folder after the others. `mockups.rename_folder
+  { folder_id, name, expected_etag }` renames one. `mockups.move_folder { folder_id,
+  before_folder_id? }` puts one in front of another, or last. `mockups.remove_folder { folder_id }`
+  removes one and deletes no mockup: the ones in it, archived ones included, go after the mockups
+  in no folder, in the order they had.
+- `mockups.move { mockup_id, folder_id?, before_mockup_id? }` puts a mockup in a folder
+  (`folder_id` null for none; omitted, it stays in its folder) in front of a mockup there, or
+  last. A `before_mockup_id` that is somewhere else, or names the mockup itself, is
+  `422 invalid_move`; an archived mockup is `409 mockup_archived`, and keeps its folder and its
+  place until it is restored. A move that changes nothing answers `moved: false` and records no
+  activity.
+- ◆ Decision: arranging is no change to a mockup. A move makes no version and leaves the mockup's
+  `etag`, `updated_at` and address as they were, and takes no etag: it says where a mockup goes
+  beside what, so two people arranging at once each get the place they named, and an agent holding
+  an etag to publish the next version is never refused because someone tidied the list.
+- Each change is recorded in the activity log as a change to mockups: `moved` on the mockup, and
+  `folder_created`, `folder_renamed`, `folder_moved` and `folder_removed`, whose entry names the
+  folder.
 
 **Characters and hashes.** Every count of characters here, a limit, `html_chars` or a file's
 `chars`, is a JavaScript string's length: UTF-16 code units, so a character outside the Basic
@@ -1041,7 +1075,8 @@ revisions.json
 story/hierarchy.json  ·  story/style.{json,css} (when the product has a Story style)
 story/pages/<page_id>/page.json  ·  story/pages/<page_id>/v<n>.{json,html}
                             (a version that shows a mockup page has no .html; its JSON names the page)
-mockups/<mockup_id>/mockup.json
+mockups/folders.json        the folders the mockups are arranged in, in their order
+mockups/<mockup_id>/mockup.json   with its folder (folder_id) and its place there (position)
 mockups/<mockup_id>/v<n>/{version.json,brief.md}  ·  mockups/<mockup_id>/v<n>/pages/<page_id>.{html,notes.md}
 mockups/<mockup_id>/v<n>/files/<path>  ·  mockups/<mockup_id>/v<n>/prototype/<path>
 tombstones.json

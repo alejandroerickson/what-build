@@ -3,7 +3,7 @@ type: Decision
 title: Lists filter from the panel; a table's header only sorts or searches
 description: Exploration's lists are filtered from the panel, each with one set of filters, and no list puts filters above its rows.
 tags: [decision, web, design, navigation, exploration]
-generated: {by: agent:claude, at: 2026-10-24}
+generated: {by: agent:claude, at: 2026-11-13}
 status: stable
 ---
 
@@ -24,7 +24,8 @@ The maintainer chose these rules on 2026-09-28.
   state) and a count on each, as Evidence's panel filters its sources. Since insights and decisions
   were retired ([decision](insights-and-decisions-are-retired-into-evidence.md)), that is the
   assumptions. The mockups are listed above them, by name, with no filters
-  ([decision](mockups-are-versioned-canvases-in-exploration.md)).
+  ([decision](mockups-are-versioned-canvases-in-exploration.md)), in the folders and the order
+  the team gave them ([decision](mockups-are-arranged-by-hand-in-folders-one-level-deep.md)).
 - A list is filtered from the panel. Controls above a table's rows either sort it (Evidence's
   sources) or search it (Exploration's title search); they never filter.
 - Search is not a list's: one search covers the whole product, from the panel's Search field on
