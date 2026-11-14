@@ -148,8 +148,8 @@ describe("an invitation email", () => {
     expect((await invite({ all_products: true, email: "joins-everywhere@example.com", role: "editor" })).status).toBe(201);
     expect(sentTo("joins-everywhere@example.com").subject).toBe('"Nia Owner" invited you to every product in the organization "Harbor Works" on WhatBuild');
     expect(sentTo("joins-everywhere@example.com").text.split("\n")[0]).toBe('"Nia Owner" invited you to every product in the organization "Harbor Works" on WhatBuild, as an editor.');
-    expect((await invite({ product: product.body.slug, email: "joins-product@example.com", role: "reader" })).status).toBe(201);
-    expect(sentTo("joins-product@example.com").text.split("\n")[0]).toBe('"Nia Owner" invited you to "Tide Log" in the organization "Harbor Works" on WhatBuild, as a reader.');
+    expect((await invite({ product: product.body.slug, email: "joins-product@example.com", role: "story_reader" })).status).toBe(201);
+    expect(sentTo("joins-product@example.com").text.split("\n")[0]).toBe('"Nia Owner" invited you to "Tide Log" in the organization "Harbor Works" on WhatBuild, as a Story reader.');
   });
 
   it("shows the organization's and the product's names on one line, quoted and bounded, whatever they chose", async () => {
@@ -251,10 +251,10 @@ describe("giving many people roles at once", () => {
       ...onPlanner,
       people: [
         { email: "bea@example.com", role: "editor" },
-        { email: "CY@example.com", role: "reader" },
+        { email: "CY@example.com", role: "story_reader" },
         { email: "pat@example.com", role: "viewer" },
         { email: "dee-invitee@example.com", role: "viewer" },
-        { email: "eli-invitee@example.com", role: "reader" },
+        { email: "eli-invitee@example.com", role: "story_reader" },
       ],
     });
     expect(r.status, JSON.stringify(r.body)).toBe(201);
@@ -271,7 +271,7 @@ describe("giving many people roles at once", () => {
     // Bea and Cy, signed in here, accepted; the others' invitations wait.
     const people = await list(alice, "?product=planner");
     const role = (email: string) => people.body.members.find((m: { email: string }) => m.email === email)?.product_access.role;
-    expect([role("bea@example.com"), role("cy@example.com")]).toEqual(["editor", "reader"]);
+    expect([role("bea@example.com"), role("cy@example.com")]).toEqual(["editor", "story_reader"]);
     expect(people.body.invitations.map((i: { email: string }) => i.email)).toEqual(expect.arrayContaining(["dee-invitee@example.com", "eli-invitee@example.com"]));
   });
 
@@ -332,7 +332,7 @@ describe("giving many people roles at once", () => {
   });
 
   it("takes at most 100 people a call", async () => {
-    const people = Array.from({ length: 101 }, (_, i) => ({ email: `many-${i}@example.com`, role: "reader" }));
+    const people = Array.from({ length: 101 }, (_, i) => ({ email: `many-${i}@example.com`, role: "story_reader" }));
     expect((await many(alice, { ...onPlanner, people })).status).toBe(422);
     expect((await many(alice, { ...onPlanner, people: [] })).status).toBe(422);
   });
@@ -508,7 +508,7 @@ describe("a role on all products", () => {
     // A product's own grant raises it there, and lowers it nowhere.
     expect((await grant(alice, { product: "made-later", email: "ava@example.com", role: "admin" })).status).toBe(201);
     expect((await ava.api("GET", `/api/v1/p/${later.body.path}`)).body.your_role).toBe("admin");
-    expect((await grant(alice, { product: "planner", email: "ava@example.com", role: "reader" })).status).toBe(201);
+    expect((await grant(alice, { product: "planner", email: "ava@example.com", role: "story_reader" })).status).toBe(201);
     expect((await ava.api("GET", `/api/v1/p/${T}/planner`)).body.your_role).toBe("editor");
   });
 
@@ -544,7 +544,7 @@ describe("a role on all products", () => {
     expect((await ava.api("GET", `/api/v1/p/${T}/secret-bets`)).status).toBe(404);
     // The grants on products of their own stay.
     expect((await ava.api("GET", `/api/v1/p/${T}/made-later`)).body.your_role).toBe("admin");
-    expect((await ava.api("GET", `/api/v1/p/${T}/planner`)).body.your_role).toBe("reader");
+    expect((await ava.api("GET", `/api/v1/p/${T}/planner`)).body.your_role).toBe("story_reader");
     const log = (await alice.api("GET", `/api/v1/tenants/${T}/members/activity?limit=5`)).body.items;
     expect(log[0]).toMatchObject({ action: "revoked", entity_title: "Ava Everywhere", summary: "Removed editor on all products" });
   });

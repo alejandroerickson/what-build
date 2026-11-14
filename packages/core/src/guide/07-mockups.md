@@ -168,6 +168,6 @@ places it, and free to sit under another page or hold others. Its `kind` in the 
 shows: `mockup_page` or `canvas`. On a mockup page readers flip through the Story's mockup pages, in
 the tree's order, with the arrow keys. On a whole canvas they pan and zoom the board and the arrows
 move between its pages; `get_page` gives its layout and pages under `current.mockup`. A promoted entry
-shows its prototype, and a reader can move through that version's whole prototype from it. A reader
-sees nothing else of the mockup: never its brief, notes, files or other versions. People can promote a
+shows its prototype, and a Story reader can move through that version's whole prototype from it. A
+Story reader sees nothing else of the mockup: never its brief, notes, files or other versions. People can promote a
 page or the whole canvas from the mockup in the web app too.

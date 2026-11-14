@@ -23,7 +23,7 @@ it exists. The example organization is the exception everyone reads.
    example, Read only; the standard organization is nowhere: not on the overview, the account menu
    or Switch organization in the product switch. Note the address of a source in Crewboard for later steps.
 2. **Web, as Morgan.** Open Settings → the synthetic organization's People. *Expect:* Morgan, Casey,
-   Avery and Sam are listed with their roles (Sam a reader of Crewboard's Story), and nobody from
+   Avery and Sam are listed with their roles (Sam a Story reader of Crewboard), and nobody from
    the other organizations.
 3. **Web, as Morgan.** Open, by its address, a product of the standard organization (its path is in
    `pnpm e2e run`'s output), then one of its sources by its address, taken from a session as Sam.
@@ -48,7 +48,7 @@ it exists. The example organization is the exception everyone reads.
    Then try the same writes in the example organization. *Expect:* refused with
    `403 example_read_only`, which over MCP tells Casey to do their own work in an organization they
    are in, not to create one.
-9. **Web and MCP, as Avery (reader).** Sign in, and open Crewboard's Evidence by its address; over
+9. **Web and MCP, as Avery (Story reader).** Sign in, and open Crewboard's Evidence by its address; over
    MCP, list Crewboard's sources. *Expect:* the web takes Avery to the Story, which reads; MCP
    refuses the sources clearly (not an empty list). Avery sees nothing of the standard organization.
 10. **Web, as Sam.** Sign in. *Expect:* the overview shows the example and the standard organization
@@ -56,8 +56,8 @@ it exists. The example organization is the exception everyone reads.
     Story; opening Crewboard's Evidence by its address takes Sam to its Story. In the standard
     organization, Sam still edits: add a comment to a source, then archive it.
 11. **MCP, as Sam.** `products_read(action="list")`. *Expect:* `your_role` editor in the example and the
-    standard organization, reader for Crewboard. Over the same connection, list sources in a
-    standard product (works) and in Crewboard (refused, as a reader's).
+    standard organization, `story_reader` for Crewboard. Over the same connection, list sources in a
+    standard product (works) and in Crewboard (refused, as a Story reader's).
 12. **Web, as Morgan.** Open Crewboard's Activity. *Expect:* Casey's source and comment from step 8
     are there; nothing from Sam's step 10 in the standard organization is. An organization has no
     activity screen of its own, only Access changes in Settings.

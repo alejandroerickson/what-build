@@ -3,7 +3,7 @@ type: System Concept
 title: Agent-driven end-to-end tests on a golden master
 description: An agent follows a written test plan through the real web app and the real MCP server, on a local instance reset each time to a golden master made from production's example organization, and reports failures and anomalies.
 tags: [development, testing, qa, e2e, agents, mcp, browser]
-generated: {by: agent:claude, at: 2026-11-06}
+generated: {by: agent:claude, at: 2026-11-13}
 status: draft
 ---
 
@@ -70,7 +70,7 @@ application's role, and shaped into three organizations
 - **The synthetic organization** (`harbor-labs`, "Harbor Labs", with the product Crewboard): the
   development sample (`seed.ts`), made through the operations as its people would make it, by people
   who belong to it alone: Morgan Reyes owns it, Casey Lindqvist edits all its products, Avery Nakamura reads
-  Crewboard's Story (`morgan@`, `casey@` and `avery@example.com`). Sam is given a reader's place on
+  Crewboard's Story (`morgan@`, `casey@` and `avery@example.com`). Sam is given a Story reader's place on
   Crewboard, and nothing more there.
 
 So every plan can run the same products both ways, and a plan can check that one organization's
@@ -171,17 +171,17 @@ The plans:
   pages) look like themselves in the list of sources and its preview, and `e2e/hostile-page.html` can
   do nothing there. It says when to run it, which is seldom: see "Real files" below.
 - `assumptions-and-the-story`: an agent's assumption is reviewed by a person; a Story page
-  is published and read by a reader, who is refused everything else.
+  is published and read by a Story reader, who is refused everything else.
 - `search`: the palette and the Search screen find every kind of thing by plain words, read as the
   specification says; the web and MCP's plain mode agree; what one door writes the other finds; a
-  reader searches the Story alone.
+  Story reader searches the Story alone.
 - `organizations-and-people`: an owner of this WhatBuild lets someone in from the waitlist, moves
   their organization to Pro and back (read-only when they already have a Free one; the instance
   offers the example file's plans, Free and Pro), deletes an
   organization they are not in, and removes accounts, the only owner of an organization included,
   through the web, and checks that no agent, the instance owner's included, is offered any of it.
 - `running-an-organization`: an organization's owner starts it on an allowance, fills it to Free's
-  people total (an invitation holds a place, a reader of the Story is free), whose invited people
+  people total (an invitation holds a place, a Story reader is free), whose invited people
   sign in, find the invitation and accept or decline it, changes and takes roles, renames and
   deletes it; someone it no longer holds asks for, and starts, their own, where archiving makes no
   room under a total and deleting does.

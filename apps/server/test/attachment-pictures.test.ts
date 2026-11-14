@@ -281,7 +281,7 @@ describe("a video's frame", () => {
     const vera = await h.signIn("vera@example.com", "Vera Viewer");
     const rae = await h.signIn("rae@example.com", "Rae Reader");
     const [product] = P.replace("/api/v1/p/", "").split("/").slice(1) as [string];
-    for (const [email, role] of [["vera@example.com", "viewer"], ["rae@example.com", "reader"]] as const) {
+    for (const [email, role] of [["vera@example.com", "viewer"], ["rae@example.com", "story_reader"]] as const) {
       const invited = await alice.api("POST", `/api/v1/tenants/${TENANT}/members`, { product, email, role });
       expect(invited.status, JSON.stringify(invited.body)).toBeLessThan(300);
     }

@@ -3,7 +3,7 @@ type: Decision
 title: The panel keeps an empty seat for an agent until one is connected
 description: Until a person has an agent connected, the panel holds a card that says so and what a person misses without one, opening Settings at Agents, for every role, with no dismissal, because most of WhatBuild happens through an agent.
 tags: [decision, web, design, onboarding, agents]
-generated: {by: agent:claude, at: 2026-11-09}
+generated: {by: agent:claude, at: 2026-11-13}
 status: stable
 ---
 
@@ -29,7 +29,7 @@ the panel's only mention of agents, and only while none is connected.
   starts with the **empty seat** (`AgentSeat` in `apps/web/src/shell/agent-seat.tsx`): a card
   saying "No agent connected", that without one a person sees less than half of WhatBuild, and
   Connect an agent as the panel's one accent button, which opens Settings at Agents over the screen.
-- It shows for **every role**, a reader included (under the Story), on every screen the panel is
+- It shows for **every role**, a Story reader included (under the Story), on every screen the panel is
   on, an organization with no product included. Once an agent is connected nothing takes its
   place: agents are in Settings.
 - **Nothing dismisses it.** Connecting an agent does. An agent connects from its own client, outside
@@ -38,10 +38,10 @@ the panel's only mention of agents, and only while none is connected.
   coming back once there is an agent.
 - It never covers content, and never opens a drawer. A hidden desktop panel is shown for it once a
   visit; while the panel is away the pill carries a mark with the same words. Focus mode on the Story
-  keeps its panels away: someone in it, a reader on their first Story included, sees the seat on
+  keeps its panels away: someone in it, a Story reader on their first Story included, sees the seat on
   leaving it.
 - Rejected: a popover beside the panel (it covers content and needs a dismissal), and showing it
-  only to people who can write (a reader may connect a read-only agent too).
+  only to people who can write (a Story reader may connect a read-only agent too).
 
 ## Consequences
 

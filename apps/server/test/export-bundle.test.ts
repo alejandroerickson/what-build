@@ -38,7 +38,7 @@ beforeAll(async () => {
   const t = await alice.api("POST", "/api/v1/tenants", { name: "Bundle Co" });
   const p = await alice.api("POST", `/api/v1/tenants/${t.body.tenant.slug}/products`, { name: "Crew board", concept: "Plan the week." });
   P = `/api/v1/p/${p.body.path}`;
-  for (const [email, role] of [["vic@example.com", "viewer"], ["rita@example.com", "reader"]])
+  for (const [email, role] of [["vic@example.com", "viewer"], ["rita@example.com", "story_reader"]])
     expect((await alice.api("POST", `/api/v1/tenants/${t.body.tenant.slug}/members`, { product: "crew-board", email, role })).status).toBe(201);
 
   // Something of every kind a bundle holds, and an earlier text of each kind that keeps one.
@@ -77,18 +77,18 @@ beforeAll(async () => {
 afterAll(async () => h?.close());
 
 describe("who may export", () => {
-  it("lets a viewer export, and refuses a reader, who reads only the Story", async () => {
+  it("lets a viewer export, and refuses a Story reader, who reads only the Story", async () => {
     expect(Object.keys(await exportAs(vic))).toContain("bundle.json");
     const refused = await rita.api("POST", `${P}/exports`, {});
     expect(refused.status).toBe(403);
-    expect(refused.body.error.message).toMatch(/^You are a reader on product Crew board; products\.export needs viewer\./);
+    expect(refused.body.error.message).toMatch(/^You are a Story reader on product Crew board; products\.export needs viewer\./);
     expect((await rita.api("GET", `${P}/exports`)).status).toBe(403);
   });
 
   it("says so in its description, and never that any role may", () => {
     const op = OPERATIONS.find((o) => o.name === "products.export")!;
     expect(op.description).toMatch(/A viewer, editor or admin may export/);
-    expect(op.description).toMatch(/A reader, who reads only the Story, is refused \(403\)/);
+    expect(op.description).toMatch(/A Story reader, who reads only the Story, is refused \(403\)/);
     expect(op.description).toMatch(/On the free plan each person's exports are limited by exports_per_day/);
     expect(op.description).toMatch(/A guest of the example organization exports nothing \(403 example_read_only\)/);
     expect(op.description).not.toMatch(/Any role/);

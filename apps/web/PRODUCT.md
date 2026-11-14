@@ -25,8 +25,9 @@ Google Cloud Run. Recorded in `okf/spec/02-architecture.md`.
   path.
 - **Their AI agents**, connected over MCP, which do most of the intake and synthesis: upload and
   clean sources, read and correct their text, draft assumptions, build mockups, publish the Story.
-- **Stakeholders** who read the Story and rarely anything else _(inferred: whether they get their
-  own role or share links is an open question)_.
+- **Stakeholders** who read the Story and nothing else, as **Story readers**: a role that reads
+  only the Story's live pages, never the evidence behind them
+  ([decision](../../okf/decisions/a-story-reader-reads-only-the-story.md)).
 - **People evaluating the approach**, who should see a real, fully derived discovery (the example
   organization), which they read as a guest as soon as they sign up.
 
@@ -62,8 +63,10 @@ permissions and one activity log.
 - Hierarchy: tenant (organization) → product (one discovery), with no level between them. Roles
   are given in three places: in the organization (owner, admin, product creator, who creates
   products and is admin of each one they create, or member), on all its products (every product,
-  including ones made later), and on one product. A person without a role on a product cannot see
-  it at all.
+  including ones made later), and on one product. A product role is admin, editor, viewer (reads
+  everything in the product and changes nothing) or Story reader (reads only the Story's live
+  pages); each is named so it says what it reaches. A person without a role on a product cannot
+  see it at all.
 - A source is described by a title and tags (what it is, whom it concerns, what it bears on),
   reusing the tags the team already has; there are no kinds to choose and no folders.
 - A source's words are one derived text, taken from one of its attachments until someone edits it;

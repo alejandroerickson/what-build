@@ -3,7 +3,7 @@ type: Decision
 title: Manual QA and end-to-end tests may use a copy of production that stays on the maintainer's machine
 description: A copy of the deployment's example organization or other organizations its instance owners own, with their files, is pulled with a read-only role into an ignored folder, loaded into its own local database, and served with pending migrations applied; it is never committed, shared or quoted.
 tags: [decision, development, testing, qa, production, privacy]
-generated: {by: agent:claude, at: 2026-10-27}
+generated: {by: agent:claude, at: 2026-11-13}
 status: stable
 ---
 
@@ -36,7 +36,7 @@ agents could use again and again. The repository is public, and the copy is real
   migrations and their jobs as a release would, prints mail instead of sending it, and uses only
   local files.
 - The development sign-in's sample people are given their sample roles in every organization of
-  the copy: Riley an owner, Sam an editor, Jordan a reader. One click signs in to real data, as it
+  the copy: Riley an owner, Sam an editor, Jordan a Story reader. One click signs in to real data, as it
   does to the sample.
 - Rejected:
   - **An anonymized dump in the repository.** The repository is public, and free text cannot be

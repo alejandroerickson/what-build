@@ -14,7 +14,7 @@ import "../styles/screens/mockups.css";
 
 /**
  * A mockup's canvas: every page at its own size with its label above it, to pan and zoom around.
- * Exploration shows it for the team, and a Story page that shows a whole canvas shows it to readers,
+ * Exploration shows it for the team, and a Story page that shows a whole canvas shows it to Story readers,
  * each with the pages' addresses its reader may use.
  */
 

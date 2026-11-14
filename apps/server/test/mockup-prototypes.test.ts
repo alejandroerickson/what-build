@@ -85,7 +85,7 @@ beforeAll(async () => {
   const p = await alice.api("POST", `/api/v1/tenants/${t.body.tenant.slug}/products`, { name: "Crews" });
   P = `/api/v1/p/${p.body.path}`;
   productId = p.body.product_id;
-  expect((await alice.api("POST", `/api/v1/tenants/${t.body.tenant.slug}/members`, { product: "crews", email: "rita@example.com", role: "reader" })).status).toBe(201);
+  expect((await alice.api("POST", `/api/v1/tenants/${t.body.tenant.slug}/members`, { product: "crews", email: "rita@example.com", role: "story_reader" })).status).toBe(201);
   // Mallory has an organization of her own, and nothing in Alice's.
   await mallory.api("POST", "/api/v1/tenants", { name: "Elsewhere Ltd" });
 });

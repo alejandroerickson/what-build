@@ -3,7 +3,7 @@ type: Specification
 title: Every capability is one registered operation, reached identically over REST and MCP.
 description: The operation registry, the error model and bounds, the full catalogue of 122 operations with their REST routes and MCP tools, authorization and agent connection levels, upload flows, the guide and the Connect page.
 tags: [spec, operations, rest, mcp, registry, uploads, guide]
-generated: {by: agent:claude, at: 2026-11-09}
+generated: {by: agent:claude, at: 2026-11-13}
 status: stable
 ---
 
@@ -270,7 +270,7 @@ being changed inside the handler.
 | `products` | `delete_account` | `POST /api/v1/me/delete` | signed in within the last 15 minutes, of their own account, in the web app only |
 | `products` | `rename_tenant` | `PATCH /api/v1/tenants/:tenant` | tenant owner, or an instance owner, in the web app only ([§3.3](03-accounts-and-identity.md#33-tenants)) |
 | `products` | `create` | `POST /api/v1/tenants/:tenant/products` | product creator, admin or owner of the tenant |
-| `products` | `get` | `GET P` | reader |
+| `products` | `get` | `GET P` | Story reader |
 | `products` | `update` | `PATCH P` | admin, in the web app only |
 | `products` | `update_concept` | `PATCH P/idea/concept` | editor |
 | `products` | `archive` | `POST P/archive` | admin |
@@ -330,7 +330,7 @@ being changed inside the handler.
 | `derived` | `read_note` | `GET P/sources/:record_id/agent-notes/:note_kind` | viewer |
 | `derived` | `card_guidance` | `GET P/evidence/card-guidance` | viewer |
 | `derived` | `card_preview` | `POST P/sources/:record_id/card-preview` | editor |
-| `search` | — | `GET P/search` | reader, for the Story alone in plain mode; viewer for the rest |
+| `search` | — | `GET P/search` | Story reader, for the Story alone in plain mode; viewer for the rest |
 | `assumptions` | `list` | `GET P/assumptions` | viewer |
 | `assumptions` | `get` | `GET P/assumptions/:id` | viewer |
 | `assumptions` | `create` | `POST P/assumptions` | editor |
@@ -345,16 +345,16 @@ being changed inside the handler.
 | `story` | `guidance` | `GET P/story/guidance` | viewer |
 | `story` | `get_style` | `GET P/story/style` | viewer |
 | `story` | `set_style` | `PUT P/story/style` | editor |
-| `story` | `list_pages` | `GET P/story/pages` | reader |
-| `story` | `get_page` | `GET P/story/pages/:page_id` | reader |
-| `story` | `list_versions` | `GET P/story/pages/:page_id/versions` | reader |
-| `story` | `get_version` | `GET P/story/pages/:page_id/versions/:version` | reader |
+| `story` | `list_pages` | `GET P/story/pages` | Story reader |
+| `story` | `get_page` | `GET P/story/pages/:page_id` | Story reader |
+| `story` | `list_versions` | `GET P/story/pages/:page_id/versions` | Story reader |
+| `story` | `get_version` | `GET P/story/pages/:page_id/versions/:version` | Story reader |
 | `story` | `preview` | `POST P/story/pages/:page_id/preview` | editor |
 | `story` | `publish` | `POST P/story/pages/:page_id/versions` | editor |
 | `story` | `promote_mockup` | `POST P/story/promote-mockup` | editor |
 | `story` | `write_notes` | `PUT P/story/pages/:page_id/notes` | editor |
-| `story` | `print_view` | `GET P/story/print-view` | reader |
-| `story` | `get_hierarchy` | `GET P/story/hierarchy` | reader |
+| `story` | `print_view` | `GET P/story/print-view` | Story reader |
+| `story` | `get_hierarchy` | `GET P/story/hierarchy` | Story reader |
 | `story` | `set_hierarchy` | `PUT P/story/hierarchy` | editor |
 | `story` | `archive_page` | `POST P/story/pages/:page_id/archive` | editor |
 | `story` | `restore_page` | `POST P/story/pages/:page_id/restore` | editor |
@@ -495,11 +495,11 @@ Notes on recent actions:
   and are not versioned with the page. While the notes are empty the etag may be omitted; once
   they hold anything, a write without it is `409 stale_etag`, as for a source's summary and notes
   ([§4.1](04-data-model.md)).
-- A reader's `story.get_page` leaves out `agent_notes`, and a reader's `products.get` and
+- A Story reader's `story.get_page` leaves out `agent_notes`, and their `products.get` and
   `products.list` leave out `concept` and count only `story_pages` (and `stage_counts.story`)
   ([§3.5](03-accounts-and-identity.md)). `story.list_pages` leaves archived pages out unless
   `include_archived`, and counts them in `archived_hidden` (with a `note` when there are any); a
-  reader is given neither the archived pages nor their count ([§4.11](04-data-model.md)).
+  Story reader is given neither the archived pages nor their count ([§4.11](04-data-model.md)).
 - `mockups.publish` creates a mockup, or publishes the next version of one: the whole canvas,
   with its brief, its pages in order and each page's notes and size, and the files it carries for
   collaborators. A later version keeps what it omits, and a page or file that keeps its id or path
@@ -606,7 +606,7 @@ Notes on recent actions:
   products they read (viewer or above) and those with a role on all products, with those grants
   and their organization role,
   and only the invitations they could cancel; a `product` they cannot read answers `404`, or
-  `403` where they are its reader.
+  `403` where they are its Story reader.
 - The `members` writes answer a product the caller has no role on with the same `404` as
   one that does not exist, before anything else is checked, so they never name it.
 - The `members` writes name their place as `product`, as `all_products: true` (a role on every
@@ -653,7 +653,7 @@ GET  P/live                                          a stream of which part of t
 GET  P/exports/:export_id/file                       an export ZIP for the web app
 GET  P/story/pages/:page_id/versions/:version/html?theme=light|dark   Story page HTML
 GET  P/story/print?page_ids=…                        the Story print view (HTML)
-GET  P/story/pages/:page_id/versions/:version/pages/:mockup_page_id/html   a page of the canvas that Story page's version shows; a reader may ask
+GET  P/story/pages/:page_id/versions/:version/pages/:mockup_page_id/html   a page of the canvas that Story page's version shows; a Story reader may ask
 GET  P/mockups/:mockup_id/versions/:version/pages/:page_id/html   a mockup page's HTML (`?download=1` to save it, from the app's own address)
 GET  P/idea/concept/card, P/outcomes/:outcome_id/card?theme=   an Idea card's front
 GET  P/sources/:record_id/card?theme=               a source's card, on its 640 × 480 board
@@ -740,7 +740,7 @@ view, viewer for the rest, which a guest of the example organization is; `403`, 
 without counting the load against the requester's limit on calls a minute again, since the app's
 route counted it (a preview, which no app route handed off, is counted here), and finds the document with the same function
 as the app's route, within the grant's product (`404` for one deleted, archived since for a
-reader, or changed since for a front or a style). It serves the document with the same function
+Story reader, or changed since for a front or a style). It serves the document with the same function
 and headers as the app's route, except that `frame-ancestors` names the app's origin (the print
 view keeps `'none'`), with `Cross-Origin-Resource-Policy: cross-origin` and
 `Cache-Control: private, no-store`. Refusals are `text/plain`. Agents' previews are served there
@@ -763,7 +763,7 @@ source has none. It needs viewer, as `derived.text` does; agents read the text i
 **Story page HTML** is served with a sandbox policy that allows the page's inline scripts but no
 network, no same-origin access and no framing outside the app. `?theme=light|dark` writes the
 app's resolved theme onto the page's `<html>` for that response only; the stored HTML is
-unchanged. It is a Story read, so a reader reaches it; a source's attachment and text, an
+unchanged. It is a Story read, so a Story reader reaches it; a source's attachment and text, an
 export's file, the style specimens and a mockup page's HTML need viewer. A mockup page's HTML is served in the same
 sandbox, with the same `?frame=1`, and without `?theme`: a mockup carries its own look. Its
 sandbox adds `allow-forms`, so a prototype's submit handler runs, here and on the Story's route
@@ -804,7 +804,7 @@ the JSON, and a tab the plain words.
 `story.print_view { page_ids }` (1–50 page ids, comma-separated in a query string) plans a print
 view: exactly the pages named, each at its current version, in the Story's order — a depth-first
 walk of the tree, then the pages not yet placed, and
-archived pages last, by title; a reader is given no archived page, which is missing for them
+archived pages last, by title; a Story reader is given no archived page, which is missing for them
 ([§3.5](03-accounts-and-identity.md)). A page that shows a whole canvas prints page by page,
 each section a level below its heading, listed as `canvas_pages`; a print view holds at most 100
 sections in all (`422 print_too_long`). Each page
@@ -957,7 +957,7 @@ Rules:
 - **Self-describing.** A tool's description is a few sentences about what it does, a pointer
   to `describe`, and one line per action. Its sentences speak only of the actions the connection
   is offered (`TOOL_TEXT` in `mcp.ts`), as its lines do: an Edit connection is not listed
-  `members_write`, a reader's `story_read` says nothing of the style or the guidance, and
+  `members_write`, a Story reader's `story_read` says nothing of the style or the guidance, and
   `products_write` speaks of starting an organization only to someone offered `create_tenant`.
   A tool that reads differently for someone who reads only the Story says so to them
   (`forStoryReader` in `TOOL_TEXT`), and so does each action that does (`forStoryReader` on the
@@ -1007,7 +1007,7 @@ Rules:
   highest roles they hold in any one organization they are in reach, the example organization's
   guest grant among them, and not `products.create_tenant` (`needsTenantAllowance`); someone who
   may start an organization (an instance owner, or an allowance with room) is offered everything
-  their level allows, since they may create one and work in it in the same session. So a reader
+  their level allows, since they may create one and work in it in the same session. So a Story reader
   is offered the Story alone, a guest of the example organization no write, and an editor no one
   to manage. A list costs one lookup of those roles, and on the unscoped connector of the
   allowance. A call to anything not listed, from a client that knows it anyway, reaches `execute`
@@ -1100,7 +1100,7 @@ of preference for an agent (`packages/core/src/ops/attachments.ts`):
    local file's raw bytes to `url` (the service's own upload relay,
    `/api/v1/uploads/:grant_id`) with exactly those headers, using whatever shell or HTTP tool it
    has. The relay first checks that whoever requested the grant can still write to the product
-   (`403 forbidden` otherwise, for someone made a reader or viewer, or removed, since), then
+   (`403 forbidden` otherwise, for someone made a Story reader or viewer, or removed, since), then
    stores the bytes, records size and SHA-256 **from what arrived**, not from the
    agent's claims, adds the attachment at once (or a version of it, at a path it already has),
    changes the source's etag, and queues the attachment to be read

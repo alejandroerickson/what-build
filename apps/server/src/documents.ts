@@ -32,7 +32,7 @@ export function storyTheme(theme: string | undefined): "light" | "dark" | undefi
 
 /**
  * A Story page's version, by the page and its number (the app's address) or by the version's own id
- * (a grant's). A reader is given only live pages, as story.get_page gives them. A version that shows
+ * (a grant's). A Story reader is given only live pages, as story.get_page gives them. A version that shows
  * a mockup page is composed with that page (shownHtml).
  */
 export async function findStoryVersion(trx: Tx, productId: string, by: { pageId: string; n: number } | { versionId: string }, readerOnly: boolean) {
@@ -53,7 +53,7 @@ function storyVersionRow(trx: Tx, productId: string, by: { pageId: string; n: nu
 }
 
 /**
- * A page of the canvas a Story page's version shows. This is how a reader reaches a canvas's pages,
+ * A page of the canvas a Story page's version shows. This is how a Story reader reaches a canvas's pages,
  * so it finds nothing unless the version shows a whole canvas, and then only that one mockup
  * version's pages; a page the version does not show is not found.
  */

@@ -194,8 +194,8 @@ const orgRolesFor = (owner: boolean) => (owner ? ["member", "creator", "admin", 
 const SCOPE_ROLE_HINT: Record<string, string> = {
   admin: "Also manages its settings and people",
   editor: "Reads and writes",
-  viewer: "Reads",
-  reader: "Reads only the Story",
+  viewer: "Reads everything, changes nothing",
+  story_reader: "Reads only the Story’s live pages",
 };
 
 /**
@@ -247,7 +247,7 @@ export function OrganizationPeople({ tenant }: { tenant: string }) {
     onSuccess: (_r, { m, g }) => {
       refresh();
       toast(
-        `Removed ${m.display_name}’s ${g.role} role on ${scopeWords(g.scope_type, g.scope.name)}.`,
+        `Removed ${m.display_name}’s ${roleWords(g.role)} role on ${scopeWords(g.scope_type, g.scope.name)}.`,
         readOnly ? {} : { action: { label: "Undo", onClick: () => grant.mutate({ email: m.email, role: g.role, scope_type: g.scope_type, scope_id: g.scope_id }) } },
       );
     },
@@ -407,7 +407,7 @@ export function OrganizationPeople({ tenant }: { tenant: string }) {
                                 </span>
                                 {canManage(g) && !readOnly ? (
                                   <Menu
-                                    label={`Change or remove ${m.display_name}’s ${g.role} role on ${scopeWords(g.scope_type, g.scope.name)}`}
+                                    label={`Change or remove ${m.display_name}’s ${roleWords(g.role)} role on ${scopeWords(g.scope_type, g.scope.name)}`}
                                     triggerClassName="btn btn-quiet btn-sm"
                                     trigger={
                                       <>
@@ -435,7 +435,7 @@ export function OrganizationPeople({ tenant }: { tenant: string }) {
                                   <Button
                                     size="sm"
                                     variant="quiet"
-                                    aria-label={`Remove ${m.display_name}’s ${g.role} role on ${scopeWords(g.scope_type, g.scope.name)}`}
+                                    aria-label={`Remove ${m.display_name}’s ${roleWords(g.role)} role on ${scopeWords(g.scope_type, g.scope.name)}`}
                                     busy={revoke.isPending && revoke.variables?.g.membership_id === g.membership_id}
                                     onClick={() => removeGrant(m, g)}
                                   >
@@ -870,7 +870,7 @@ function RemoveMemberDialog({ tenant, orgName, member: m, lastGrant, keepAsMembe
 }
 
 /** The roles on a product or on all products, highest first, as the role menus offer them. */
-const SCOPE_ROLES = ["admin", "editor", "viewer", "reader"];
+const SCOPE_ROLES = ["admin", "editor", "viewer", "story_reader"];
 
 /** What a place to give access means, under the choice of it; a product names itself. */
 const PLACE_HINT: Partial<Record<GrantScope, string>> = {

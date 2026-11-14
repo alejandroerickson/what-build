@@ -139,7 +139,7 @@ export function restRoutes(env: Env & { config: ServerConfig }) {
   // show inline makes every check it makes, then hands the browser to the content site
   // (content-documents.ts) instead of sending it. The rest are served here as always.
 
-  // A Story page's HTML is a Story read, open to readers; attachments, exports and style specimens are not.
+  // A Story page's HTML is a Story read, open to Story readers; attachments, exports and style specimens are not.
   const scoped = async (c: Context, access: "story" | "read" = "read") => {
     const principal = await principalOf(c);
     const { tenant, product } = c.req.param() as Record<string, string>;
@@ -243,7 +243,7 @@ export function restRoutes(env: Env & { config: ServerConfig }) {
     }
   });
 
-  // A page of the canvas a Story page's version shows. Unlike the route below, a reader may ask:
+  // A page of the canvas a Story page's version shows. Unlike the route below, a Story reader may ask:
   // the Story page chose to show this canvas, and the address reaches only that version's pages.
   app.get(`${SCOPE_PREFIX.product}/story/pages/:page_id/versions/:version/pages/:mockup_page_id/html`, async (c) => {
     try {

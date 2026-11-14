@@ -8,7 +8,7 @@ surfaces: [web, mcp]
 # Running an organization of one's own
 
 What the owner of a Free organization does with it, start to finish: start it, invite people up to
-Free's totals (an invitation holds a place; a reader of the Story is free), change and take away
+Free's totals (an invitation holds a place; a Story reader is free), change and take away
 roles, cancel an invitation, rename it, read its Plan, and delete it, all in Settings. And what someone invited
 into it may do: find the invitation when they sign in, accept or decline it, and start one of their
 own, when they are allowed one. It makes its own people and
@@ -37,9 +37,9 @@ are people she invites.
 4. **Web, as Dana.** Invite Fay as an editor too. *Expect:* refused: the organization holds all
    the people Free allows, and the message says what makes room (removing someone or cancelling an
    invitation) or that a larger plan would. Nothing is added.
-5. **Web, as Dana.** Invite Fay as a reader of the product's Story instead. *Expect:* it works:
-   readers of the Story don't count, and Plan still says "2 of 2". Then invite Morgan,
-   who has an account in the synthetic organization, as a reader too. *Expect:* Morgan's address
+5. **Web, as Dana.** Invite Fay as a Story reader of the product instead. *Expect:* it works:
+   Story readers don't count, and Plan still says "2 of 2". Then invite Morgan,
+   who has an account in the synthetic organization, as a Story reader too. *Expect:* Morgan's address
    is treated as any other: an invitation waiting under its address, no name, nothing said of an
    account, and Morgan not among the members.
 6. **Web, as Eli.** Sign in with Eli's address, without the link. *Expect:* signing in joins
@@ -102,7 +102,7 @@ are people she invites.
 
 ## Look out for
 
-- The people total counting a reader of the Story, or not counting a waiting invitation.
+- The people total counting a Story reader, or not counting a waiting invitation.
 - Archiving or restoring that makes room under a total, where only deleting does.
 - Anyone in an organization they did not accept: after signing in, after opening a link, or after
   declining. An invitation shown to the wrong account, or one cancelled or expired still offered.

@@ -419,9 +419,9 @@ export async function holdingsOf(db: Db, tenantId: string): Promise<Holdings> {
   const row = await db
     .selectFrom("tenants as t")
     .select([
-      sql<number>`(SELECT count(DISTINCT account_id) FROM memberships WHERE tenant_id = t.tenant_id AND role <> 'reader')`.as("members"),
-      sql<number>`(SELECT count(DISTINCT lower(i.email)) FROM invitations i WHERE i.tenant_id = t.tenant_id AND i.role <> 'reader' AND i.accepted_at IS NULL AND i.expires_at > now()
-        AND NOT EXISTS (SELECT 1 FROM accounts a JOIN memberships m ON m.account_id = a.account_id AND m.tenant_id = t.tenant_id AND m.role <> 'reader' WHERE lower(a.email) = lower(i.email)))`.as("invited"),
+      sql<number>`(SELECT count(DISTINCT account_id) FROM memberships WHERE tenant_id = t.tenant_id AND role <> 'story_reader')`.as("members"),
+      sql<number>`(SELECT count(DISTINCT lower(i.email)) FROM invitations i WHERE i.tenant_id = t.tenant_id AND i.role <> 'story_reader' AND i.accepted_at IS NULL AND i.expires_at > now()
+        AND NOT EXISTS (SELECT 1 FROM accounts a JOIN memberships m ON m.account_id = a.account_id AND m.tenant_id = t.tenant_id AND m.role <> 'story_reader' WHERE lower(a.email) = lower(i.email)))`.as("invited"),
       sql<number>`(SELECT count(*) FROM products WHERE tenant_id = t.tenant_id)`.as("products"),
       sql<number>`(SELECT count(*) FROM records WHERE tenant_id = t.tenant_id)`.as("sources"),
       sql<number>`(SELECT coalesce(sum(size), 0) FROM (SELECT DISTINCT blob_key, size FROM file_versions WHERE tenant_id = t.tenant_id) f)
@@ -544,26 +544,26 @@ async function laterTotalRefusal(trx: Db, lc: LimitContext, op: Pick<OperationDe
 /**
  * The people a plan allows: refused when giving someone a role, or inviting them, would take the
  * organization past them. A pending invitation holds its place until it is accepted, declined,
- * cancelled or runs out; someone already in the organization, and a reader of the Story, take none.
+ * cancelled or runs out; someone already in the organization, and a Story reader, take none.
  */
 export async function checkMembers(trx: Db, lc: LimitContext | null, email: string, role: string): Promise<void> {
-  if (!lc || lc.guest || lc.limits.members_max === null || role === "reader") return;
+  if (!lc || lc.guest || lc.limits.members_max === null || role === "story_reader") return;
   await trx.selectFrom("tenants").select("tenant_id").where("tenant_id", "=", lc.tenant_id).forUpdate().execute();
   const row = await trx
     .selectFrom("tenants as t")
     .select([
-      sql<number>`(SELECT count(DISTINCT m.account_id) FROM memberships m WHERE m.tenant_id = t.tenant_id AND m.role <> 'reader')`.as("members"),
-      sql<number>`(SELECT count(DISTINCT lower(i.email)) FROM invitations i WHERE i.tenant_id = t.tenant_id AND i.role <> 'reader' AND i.accepted_at IS NULL AND i.expires_at > now()
-        AND NOT EXISTS (SELECT 1 FROM accounts a JOIN memberships m ON m.account_id = a.account_id AND m.tenant_id = t.tenant_id AND m.role <> 'reader' WHERE lower(a.email) = lower(i.email)))`.as("invited"),
-      sql<boolean>`EXISTS (SELECT 1 FROM accounts a JOIN memberships m ON m.account_id = a.account_id AND m.tenant_id = t.tenant_id AND m.role <> 'reader' WHERE lower(a.email) = lower(${email}))
-        OR EXISTS (SELECT 1 FROM invitations i WHERE i.tenant_id = t.tenant_id AND i.role <> 'reader' AND i.accepted_at IS NULL AND i.expires_at > now() AND lower(i.email) = lower(${email}))`.as("counted"),
+      sql<number>`(SELECT count(DISTINCT m.account_id) FROM memberships m WHERE m.tenant_id = t.tenant_id AND m.role <> 'story_reader')`.as("members"),
+      sql<number>`(SELECT count(DISTINCT lower(i.email)) FROM invitations i WHERE i.tenant_id = t.tenant_id AND i.role <> 'story_reader' AND i.accepted_at IS NULL AND i.expires_at > now()
+        AND NOT EXISTS (SELECT 1 FROM accounts a JOIN memberships m ON m.account_id = a.account_id AND m.tenant_id = t.tenant_id AND m.role <> 'story_reader' WHERE lower(a.email) = lower(i.email)))`.as("invited"),
+      sql<boolean>`EXISTS (SELECT 1 FROM accounts a JOIN memberships m ON m.account_id = a.account_id AND m.tenant_id = t.tenant_id AND m.role <> 'story_reader' WHERE lower(a.email) = lower(${email}))
+        OR EXISTS (SELECT 1 FROM invitations i WHERE i.tenant_id = t.tenant_id AND i.role <> 'story_reader' AND i.accepted_at IS NULL AND i.expires_at > now() AND lower(i.email) = lower(${email}))`.as("counted"),
     ])
     .where("t.tenant_id", "=", lc.tenant_id)
     .executeTakeFirstOrThrow();
   if (row.counted) return;
   const used = Number(row.members) + Number(row.invited);
   if (used >= lc.limits.members_max)
-    throw overTotal(lc, "members_max", used, "people", `This organization's plan allows ${lc.limits.members_max} ${lc.limits.members_max === 1 ? "person" : "people"}, and ${used === Number(row.members) ? `it has ${used}` : `it has ${row.members} and ${Number(row.invited)} invited`}. Readers of the Story don't count: invite them as readers.`);
+    throw overTotal(lc, "members_max", used, "people", `This organization's plan allows ${lc.limits.members_max} ${lc.limits.members_max === 1 ? "person" : "people"}, and ${used === Number(row.members) ? `it has ${used}` : `it has ${row.members} and ${Number(row.invited)} invited`}. Story readers don't count: invite someone who reads only the Story as a Story reader (story_reader).`);
 }
 
 /** The bytes of storage left on the organization's plan, for an upload grant; Infinity where it sets none. */

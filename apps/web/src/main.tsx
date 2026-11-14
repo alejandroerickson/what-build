@@ -141,14 +141,14 @@ function MovedToEvidence() {
   return <Navigate replace to={id && id !== "new" ? `${app}/evidence/${id}` : `${app}/exploration`} />;
 }
 
-/** A product opens on Idea, or on the Story for a reader, with what its address asked (Settings, say) kept. */
+/** A product opens on Idea, or on the Story for a Story reader, with what its address asked (Settings, say) kept. */
 function ProductHome() {
   const { product } = useProduct();
   const { search, hash } = useLocation();
   return <Navigate to={`${productHome(product.your_role)}${search}${hash}`} replace />;
 }
 
-/** Every screen of a product but the Story: a reader, who has only the Story, is taken there, with a toast saying why. */
+/** Every screen of a product but the Story: a Story reader, who has only the Story, is taken there, with a toast saying why. */
 function NotForStoryReaders() {
   const { app, storyOnly } = useProduct();
   return storyOnly ? <BackToStory to={`${app}/story`} /> : <Outlet />;
@@ -249,7 +249,7 @@ const router = createBrowserRouter([{ element: <Root />, errorElement: <RouteErr
           { path: "story", element: <StoryPage /> },
           { path: "story/:pageId", element: <StoryPage /> },
           { path: "search", element: <SearchPage /> },
-          // Settings' addresses from before it was a dialog: a reader, who has Settings too, follows them as well.
+          // Settings' addresses from before it was a dialog: a Story reader, who has Settings too, follows them as well.
           { path: "connect", element: <ProductSettingsAddress section="agents" /> },
           { path: "settings", element: <ProductSettingsAddress section="product" /> },
           {

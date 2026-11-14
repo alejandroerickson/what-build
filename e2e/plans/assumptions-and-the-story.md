@@ -1,5 +1,5 @@
 ---
-title: An agent records an assumption and publishes a Story page, a person reviews them, a reader reads them
+title: An agent records an assumption and publishes a Story page, a person reviews them, a Story reader reads them
 organizations: [standard]
 people: [sam, riley, jordan]
 surfaces: [web, mcp]
@@ -9,7 +9,7 @@ surfaces: [web, mcp]
 
 The loop the product exists for: an agent turns evidence into an assumption and a Story page, a
 person reviews the assumption, and a stakeholder who may read only the Story reads the result.
-Roles, finding the evidence again by searching, and what a reader can and cannot reach are all
+Roles, finding the evidence again by searching, and what a Story reader can and cannot reach are all
 checked on the way.
 
 ## Steps
@@ -41,10 +41,10 @@ checked on the way.
    page under the overview page in the hierarchy. *Expect:* the preview creates no page (the Story
    does not list it) and opens in the house style; the page is published as version 1 with the
    preview's `html_sha256`, and the hierarchy shows it where it was placed.
-7. **Web, as Jordan (reader).** Open the Story. *Expect:* the new page is in the tree where step 6
+7. **Web, as Jordan (Story reader).** Open the Story. *Expect:* the new page is in the tree where step 6
    put it; it renders in the house style, with its HTML as published; the page's details show its
-   About alone, without the notes for agents, which a reader is not given (the decision on
-   readers). Where the page links into Evidence, check that link: a driver cannot click inside
+   About alone, without the notes for agents, which a Story reader is not given (the decision on
+   Story readers). Where the page links into Evidence, check that link: a driver cannot click inside
    the page's sandboxed frame, so open the address the link points to at the top level, as Jordan.
    *Expect:* Jordan is taken back to the Story, with the toast "You can only read this product's
    Story."
@@ -72,6 +72,6 @@ checked on the way.
 - Story guidance, the guide or an operation's description that still tells an agent how to quote, attribute or link on a Story
   page (exact quotations only, attribution by role, no links to the evidence); the Story sets no
   such rule.
-- Anything a reader can see that the decision on readers says they cannot
-  (`okf/decisions/a-reader-reads-only-the-story.md`).
+- Anything a Story reader can see that the decision on Story readers says they cannot
+  (`okf/decisions/a-story-reader-reads-only-the-story.md`).
 - A Story page that looks different in the app's frame and in the print view.

@@ -268,7 +268,7 @@ function Palette({ app, base, product, text, setText, via, onClose }: { app: str
       {typed && res.isError && !searching ? <p className="find-pal-empty">{res.error instanceof ApiError ? res.error.message : "Search didn’t finish. Try again."}</p> : null}
       {typed && d && !d.results.length ? (
         <p className="find-pal-empty">
-          Nothing in {product.your_role === "reader" ? "the Story" : product.name} matches “{nestQuotes(text.trim())}”. Try another word.
+          Nothing in {product.your_role === "story_reader" ? "the Story" : product.name} matches “{nestQuotes(text.trim())}”. Try another word.
         </p>
       ) : null}
       {opts.length ? (
@@ -360,9 +360,9 @@ export function FindProvider({ app, base, product, children }: { app: string; ba
   );
 }
 
-/** What search covers, in words: the whole product, or for a reader the Story alone. */
+/** What search covers, in words: the whole product, or for a Story reader the Story alone. */
 export function searchLabel(product: Pick<Product, "name" | "your_role">): string {
-  return product.your_role === "reader" ? "Search the Story" : `Search ${product.name}`;
+  return product.your_role === "story_reader" ? "Search the Story" : `Search ${product.name}`;
 }
 
 /** The panel's Search field: a button that opens the palette, with its shortcut. */

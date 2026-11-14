@@ -3,7 +3,7 @@ type: Process
 title: What a deployment must do when it takes a release
 description: The changes a release asks of the people who run a deployment (settings, app registrations, behaviour they will notice), kept per release, with the unreleased ones on top until the next release carries them into its notes.
 tags: [operations, releases, upgrading, self-hosting, configuration]
-generated: {by: agent:claude, at: 2026-11-12}
+generated: {by: agent:claude, at: 2026-11-13}
 status: stable
 ---
 
@@ -23,7 +23,13 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
 
 ## Unreleased
 
-Nothing yet.
+- **Migration `0045_story_reader_role`: the Story-only role is named `story_reader`.** It renames
+  the role every grant and invitation held as `reader`; the web app says "Story reader". REST and MCP
+  now report and accept `story_reader` (`your_role`, members and invitations, and refusals'
+  `details`, `{ "role": "story_reader", "needed": "viewer" }`). A script or agent that sends
+  `role: "reader"` must send `story_reader`: `reader` is refused (`422 invalid_input`) naming the
+  roles there are. An MCP client gets the new tool list (version 0.62.0) in a new session. Nothing
+  else needs doing.
 
 ## v0.34.2
 

@@ -3,7 +3,7 @@ type: Specification
 title: Nothing is ever trapped - say what we promise, keep export open, and never let a limit block a read.
 description: What we tell people, limits and quotas (enforced and planned), backups and in-product versioning, export, archive and permanent delete of everything archivable and of an organization, the operator runbooks, plans and their limits, and how retired insights and decisions became sources.
 tags: [spec, lifecycle, quotas, backups, export, archive, delete, limits, plans]
-generated: {by: agent:claude, at: 2026-11-09}
+generated: {by: agent:claude, at: 2026-11-13}
 status: stable
 ---
 
@@ -236,7 +236,7 @@ whose earlier wording a write replaces; what an attachment was read as stays rea
 (`packages/core/src/ops/export.ts`); `products.exports` lists recent exports with a short-lived
 download grant for each ready one. A viewer, editor or admin may export, through **both
 adapters** (over MCP in `products_export`, which a Read only connection is offered too), and export is **never blocked** for them — not by a quota, and not by archiving the
-product. A reader, who reads only the Story, may not (`403`); the Story's own export is its print
+product. A Story reader, who reads only the Story, may not (`403`); the Story's own export is its print
 view ([§6.4](06-operations-and-adapters.md)). On a plan that limits it each person exports as many
 times a day as `exports_per_day` allows (§9.7), and a guest of the example organization exports nothing:
 the example is read where it is. A ready export is
@@ -376,7 +376,7 @@ Everything that can be archived can also be deleted, and so can an organization:
   product (a page deleted again under the same id keeps the latest). Reads return `410` with the
   tombstone: `record_deleted` for a source, `<type>_deleted` (`assumption_deleted`,
   `outcome_deleted`, `story_page_deleted`, `mockup_deleted`, `annotation_deleted`) for the rest,
-  except that a reader is answered `404` for a deleted Story page, as for an archived one. The
+  except that a Story reader is answered `404` for a deleted Story page, as for an archived one. The
   activity log records it. A deleted product leaves its tombstone and a `deleted`
   event on its organization; an addressed call to it answers `404`. A deleted organization leaves nothing.
 - **Backups.** Deleted content is gone from the product at once. In the Cloud Run deployment,
@@ -592,7 +592,7 @@ Rules:
     second day's worth.
 
 11. **What an organization holds** is measured when a write could take it past a total
-    (`holdingsOf`): people with any role but reader, and pending invitations to anyone not already
+    (`holdingsOf`): people with any role but Story reader, and pending invitations to anyone not already
     counted, each holding a place; products and sources, archived or not; and storage, the distinct
     files of its attachments' every version, the text read from each, the distinct files of its
     mockups' prototypes, and the text it has written as the database stores it (sources' texts,
@@ -602,7 +602,7 @@ Rules:
     the last place: creating a product, adding or copying in sources, and any write whose input
     carries more than 4 KB of text, which meets the storage total; a smaller one (a title, a review,
     a tag) never does. Giving someone a role, or inviting them, is checked against the people total
-    (`members.grant`); a reader is never refused.
+    (`members.grant`); a Story reader is never refused.
 12. **Leaving, tidying and taking out are never refused by a total**: archiving, restoring, deleting,
     cancelling an invitation, removing someone, reviewing and linking, and exporting. Restoring adds
     nothing to a total, which already counts what is archived. A refusal says what makes room and who

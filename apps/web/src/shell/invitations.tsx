@@ -42,8 +42,8 @@ const ROLE_MEANS: Record<string, string> = {
   owner: "You could run the organization with its other owners.",
   admin: "You could manage its people and permanently delete what’s in it.",
   editor: "You could add and change what’s there.",
-  viewer: "You could read everything there.",
-  reader: "You could read the Story and nothing else.",
+  viewer: "You could read everything there, and change nothing.",
+  story_reader: "You could read only the Story’s live pages, and nothing else.",
   creator: "You could create products, and you’d be admin of each one you create.",
   member: "You’d be in the organization, and its admins give roles on its products.",
 };

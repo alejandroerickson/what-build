@@ -357,7 +357,7 @@ describe("an address's invitation to one place", () => {
   });
 
   it("ends when the role is given at once", async () => {
-    const onProduct = await invite("seen-later@example.com", "reader", { product: "crewboard" });
+    const onProduct = await invite("seen-later@example.com", "story_reader", { product: "crewboard" });
     const onAll = await invite("seen-later@example.com", "viewer", { all_products: true });
     const seen = await h.signIn("seen-later@example.com");
     expect((await seen.api("POST", "/api/v1/invitations/accept", { invitation_id: onAll.id })).status).toBe(200);

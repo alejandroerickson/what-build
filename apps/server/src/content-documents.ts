@@ -40,7 +40,7 @@ export function handOff(
  * the only authority, as a prototype's is: the route reads no cookie or Authorization header, sets
  * no cookie, never redirects, and answers only on the content host. Before the first byte it checks
  * the grant's signature, expiry and purpose, then that its requester may still read the product
- * (requesterMayRead), so someone removed from the organization or lowered to reader stops loading
+ * (requesterMayRead), so someone removed from the organization or lowered to Story reader stops loading
  * at once. It finds the document with the same function as the app's own route, and serves
  * it with the same function and headers, framed by the app's origin alone.
  */

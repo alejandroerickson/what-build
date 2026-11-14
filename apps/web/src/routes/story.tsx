@@ -220,7 +220,7 @@ export function StoryFrame({
 /**
  * A Story page that shows a whole canvas: the mockup's board, for whoever reads the Story, with the
  * page chosen in the URL as on the mockup's own screen (?page=). Its pages come from the Story page's
- * own route, which a reader may use, and it holds only the mockup's pages, with no brief or notes.
+ * own route, which a Story reader may use, and it holds only the mockup's pages, with no brief or notes.
  */
 function StoryCanvas({ base, pageId, shown, mockup, onKey, canFocus, reread }: {
   base: string;

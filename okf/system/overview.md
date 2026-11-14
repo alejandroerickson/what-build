@@ -3,7 +3,7 @@ type: System Concept
 title: WhatBuild at three altitudes
 description: The whole system from the top down, the major parts, and the mechanics underneath, with links to the detail.
 tags: [overview, architecture, tenancy, access, mcp]
-generated: {by: agent:claude, at: 2026-11-09}
+generated: {by: agent:claude, at: 2026-11-13}
 status: stable
 ---
 
@@ -81,9 +81,9 @@ row-level security. Blob keys start with the tenant. References never cross prod
 
 **Access.** Application-level, per product: roles on the organization, on all its products and on
 each product, the highest applies, no per-object permissions; an organization's product creators
-create products. A reader, the lowest product role, reaches
-only the Story ([decision](../decisions/a-reader-reads-only-the-story.md)); editors archive and
-admins delete ([decision](../decisions/archive-by-default-delete-guarded.md)). The database
+create products. A Story reader (`story_reader`), the lowest product role, reaches only the
+Story's live pages ([decision](../decisions/a-story-reader-reads-only-the-story.md)); a viewer
+reads everything in the product and changes nothing; editors archive and admins delete ([decision](../decisions/archive-by-default-delete-guarded.md)). The database
 enforces only the tenant boundary. A token is the person, at most: each agent connection has the
 level its person chose (Read only, Edit or Admin), which caps their role and the actions the agent
 is offered, and an agent is offered only what its person could do

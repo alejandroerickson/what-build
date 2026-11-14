@@ -319,7 +319,7 @@ async function smallKinds(ctx: OpContext, p: ParsedFind, i: Input, q: string): P
       : null,
     want("story")
       // What a Story page shows: its own words, or those of the mockup page or whole canvas at the
-      // version it points at. Only a canvas's page titles are read, since a reader sees those alone;
+      // version it points at. Only a canvas's page titles are read, since a Story reader sees those alone;
       // a mockup's brief and notes never are.
       ? sql<{ page_id: string; title: string; summary: string; text: string; mockup: MockupPageRef | null; shown_id: string | null; shown_title: string | null; shown_text: string | null }>`
         select sp.page_id, sp.title, sp.summary, v.search_text as text, v.mockup, pg.page_id as shown_id, pg.title as shown_title, pg.search_text as shown_text
@@ -387,7 +387,7 @@ async function smallKinds(ctx: OpContext, p: ParsedFind, i: Input, q: string): P
   // One result for each Story page, a whole canvas's pages among them. A page from a mockup is one
   // thing in two places, so whoever finds the mockup finds it there, in Exploration: the Story page
   // is listed too only for a word the mockup does not hold, its own title, say, or one the version it
-  // stays on has and the current version does not. A reader is given no mockups, so a reader finds
+  // stays on has and the current version does not. A Story reader is given no mockups, so a Story reader finds
   // it on the Story.
   const byPage = new Map<string, NonNullable<typeof story>["rows"]>();
   for (const s of story?.rows ?? []) byPage.set(s.page_id, [...(byPage.get(s.page_id) ?? []), s]);
@@ -430,7 +430,7 @@ async function corrections(ctx: OpContext, p: ParsedFind, found: boolean[], typi
   // or a number is never guessed at: one digit away is another thing.
   const lost = p.terms.map((t, k) => ({ t, k })).filter(({ t, k }) => !found[k] && !t.phrase && !idLike(t.text) && fold(t.text).length >= (typing && k === p.terms.length - 1 ? 3 : 4));
   if (!lost.length) return [];
-  // A word offered back is a word the product holds, so a reader is offered only what the Story's titles say.
+  // A word offered back is a word the product holds, so a Story reader is offered only what the Story's titles say.
   const reader = readsOnlyTheStory(ctx.scope.role);
   const titles = reader
     ? await sql<{ t: string }>`select title as t from story_pages where product_id = ${pid} and archived_at is null`.execute(ctx.db)
@@ -482,7 +482,7 @@ const PLAIN_WORDS =
 const PARTIAL_RESULTS = "When nothing holds every word, results hold most of them and list the `missing` ones.";
 
 export const PLAIN_DESCRIPTION =
-  "mode \"plain\" searches everything in the product the way a person types into a search box, ranked: sources, each with the best places it says the words (its derived text, summary, notes or comments; hits give the field, where the piece starts in char_start and where the first match its excerpt marks starts in match_start), how many places in hit_count, and in match_count how many times its derived text says them, as the source's Find in the text in the web app counts them, assumptions, outcomes, mockups, Story pages and the product concept. A Story page that shows a mockup page or a whole canvas is searched by what it shows at the version it stays on, and is left out when the mockup is among the results and holds every word it does, so one thing is listed once, as the mockup. A reader (the Story-only role) searches the Story alone: every Story page, by what it shows, and for a whole canvas meta gives the page the words are on; never the mockup's brief or notes. " +
+  "mode \"plain\" searches everything in the product the way a person types into a search box, ranked: sources, each with the best places it says the words (its derived text, summary, notes or comments; hits give the field, where the piece starts in char_start and where the first match its excerpt marks starts in match_start), how many places in hit_count, and in match_count how many times its derived text says them, as the source's Find in the text in the web app counts them, assumptions, outcomes, mockups, Story pages and the product concept. A Story page that shows a mockup page or a whole canvas is searched by what it shows at the version it stays on, and is left out when the mockup is among the results and holds every word it does, so one thing is listed once, as the mockup. A Story reader (story_reader) searches the Story alone: every Story page, by what it shows, and for a whole canvas meta gives the page the words are on; never the mockup's brief or notes. " +
   PLAIN_WORDS +
   " a word naming a kind (mockups, assumptions, sources, outcomes, story, idea), beside other words, is not searched for but lists that kind's results first, ahead of any that score higher, and `kind_hint` names it; a word that matches nothing is replaced by the closest word the product holds, and `corrections` says so (`strict: true` turns that off), but an id or a number is never corrected. " +
   PARTIAL_RESULTS +
@@ -526,7 +526,7 @@ async function countMatches(ctx: OpContext, p: ParsedFind, results: FindResult[]
 }
 
 export async function plainSearch(ctx: OpContext, asked: PlainInput) {
-  // A reader has only the Story, so nothing else is searched for them, and only its word names a kind.
+  // A Story reader has only the Story, so nothing else is searched for them, and only its word names a kind.
   const reader = readsOnlyTheStory(ctx.scope.role);
   const i = reader ? { ...asked, kind: "story" as const } : asked;
   let p = parseFind(i.query, reader ? "story" : undefined);

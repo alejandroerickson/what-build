@@ -9,8 +9,8 @@ sources with their attachments, texts, summaries, notes and comments, outcomes, 
 earlier texts, mockups, Story versions, tombstones and activity. `products_read(action="exports")` gives a download grant once it
 is ready. The bundle's `README.txt` says what each file holds.
 
-A viewer, editor or admin can export at any time, an archived product too; a reader, who reads only
-the Story, cannot (`403`). A guest of the example organization exports nothing; its members do. On a
+A viewer, editor or admin can export at any time, an archived product too; a Story reader, who reads
+only the Story, cannot (`403`). A guest of the example organization exports nothing; its members do. On a
 plan that limits exports, each person exports as many times a day as it allows. An export is counted against what a person is
 sent a day, and always sent.
 
@@ -67,8 +67,8 @@ products and sources it holds.
   product whole.
 - An organization past a total keeps everything and stays writable: only adding more of that kind is
   refused.
-- A reader of the Story does not count among the people, so one can be invited when the people
-  total is reached.
+- A Story reader does not count among the people, so one can be invited when the people total is
+  reached.
 
 ### Read-only organizations
 

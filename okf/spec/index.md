@@ -3,7 +3,7 @@ type: Index
 title: The WhatBuild specification is ten documents, read in order.
 description: What WhatBuild is in one paragraph, the ten spec files with what each settles, the conventions they share, and the decisions that shape the rest.
 tags: [spec, index, conventions]
-generated: {by: agent:claude, at: 2026-10-26}
+generated: {by: agent:claude, at: 2026-11-13}
 status: stable
 ---
 
@@ -68,7 +68,7 @@ That is how it is developed and how CI runs it.
 4. **Tenant → product → everything.** A product is one discovery. Every object belongs to
    exactly one product; the product is explicit in every request.
    → [Accounts, tenants, products, roles](03-accounts-and-identity.md)
-5. **Roles, checked in one place.** Reader, viewer, editor and admin on a product or on all
+5. **Roles, checked in one place.** Story reader, viewer, editor and admin on a product or on all
    products, owner, admin, product creator and member of the tenant; the highest applies. What you cannot see answers `404`; what you can see but may
    not change answers `403` with both roles named. Agents act with exactly their person's role.
 6. **Destruction is never a side effect.** Archive is the reversible default; delete is permanent,

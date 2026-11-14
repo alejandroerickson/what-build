@@ -132,7 +132,7 @@ describe("an organization's People and General", () => {
     await act(async () => change.click());
     const menu = document.querySelector('[role="menu"]')!;
     expect([...menu.querySelectorAll('[role="menuitemradio"]')].map((r) => r.textContent)).toEqual([
-      expect.stringContaining("Admin"), expect.stringContaining("Editor"), expect.stringContaining("Viewer"), expect.stringContaining("Reader"),
+      expect.stringContaining("Admin"), expect.stringContaining("Editor"), expect.stringContaining("Viewer"), expect.stringContaining("Story reader"),
     ]);
     expect(menu.textContent).toContain("Remove role");
     const viewer = [...menu.querySelectorAll<HTMLElement>('[role="menuitemradio"]')].find((r) => r.textContent?.startsWith("Viewer"))!;
@@ -174,7 +174,7 @@ describe("an organization's People and General", () => {
     expect(dialog.textContent).toContain("Left out, not an address: ben@");
     const reader = dialog.querySelector<HTMLSelectElement>(`select[id$="-join"]`)!;
     await act(async () => {
-      reader.value = "reader";
+      reader.value = "story_reader";
       reader.dispatchEvent(new Event("change", { bubbles: true }));
     });
     await act(async () => buttons(dialog, "Add 1 person to all products")[0]!.click());
@@ -184,7 +184,7 @@ describe("an organization's People and General", () => {
       {
         method: "POST",
         path: "/api/v1/tenants/acme/members/many",
-        body: { all_products: true, people: [{ email: "ana@example.com", role: "reader" }, { email: "pat@example.com", role: "editor" }] },
+        body: { all_products: true, people: [{ email: "ana@example.com", role: "story_reader" }, { email: "pat@example.com", role: "editor" }] },
       },
     ]);
     // Ana had no account: her invitation's link is there to copy.
@@ -199,7 +199,7 @@ describe("an organization's People and General", () => {
     const place = placeSelect(dialog);
     expect([...place.options].map((o) => o.textContent)).toEqual(["All products (every product, including ones made later)", "Product: Planner", "Organization: Acme"]);
     expect(dialog.textContent).toContain("Every product in the organization, including ones made later.");
-    expect(joinAs(dialog)).toEqual(["Admin", "Editor", "Viewer", "Reader"]);
+    expect(joinAs(dialog)).toEqual(["Admin", "Editor", "Viewer", "Story reader"]);
     await choose(place, [...place.options].find((o) => o.textContent === "Organization: Acme")!.value);
     expect(joinAs(dialog)).toEqual(["Owner", "Admin", "Product creator", "Member"]);
     expect(dialog.textContent).toContain("A product creator creates products, and is admin of each one they create.");
@@ -257,7 +257,7 @@ describe("an organization's People and General", () => {
     expect(dialog.textContent).toContain("A limit was reached");
     const role = dialog.querySelector<HTMLSelectElement>('select[aria-label="Role for new@example.com"]')!;
     await act(async () => {
-      role.value = "reader";
+      role.value = "story_reader";
       role.dispatchEvent(new Event("change", { bubbles: true }));
     });
     expect(dialog.textContent).not.toContain("A limit was reached");

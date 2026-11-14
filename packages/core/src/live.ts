@@ -7,7 +7,7 @@ import type { OperationDef, ProductRole } from "./registry.ts";
  * the same operations as any other read, which decide what it may see.
  *
  * `story` alone reaches someone who reads only the Story. A change nobody labelled is `other`, which
- * does not reach them, so a new kind of operation tells a reader nothing until someone decides it should.
+ * does not reach them, so a new kind of operation tells a Story reader nothing until someone decides it should.
  */
 export const LIVE_AREAS = ["story", "idea", "evidence", "exploration", "other"] as const;
 export type LiveArea = (typeof LIVE_AREAS)[number];

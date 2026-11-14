@@ -10,7 +10,7 @@ place WhatBuild presents things to people; there is no separate to-do list. Page
 sandbox with no network. The app's components and theme are not available there, and a Story never
 uses WhatBuild's own look.
 
-A **reader** (the role that reads only the Story) opens links to Story pages and to places outside
+A **Story reader** (`story_reader`, the role that reads only the Story) opens links to Story pages and to places outside
 WhatBuild; a link into the rest of the product takes them back to the Story (`links_note` in the
 guidance).
 

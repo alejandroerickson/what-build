@@ -704,9 +704,9 @@ describe("the totals of a plan", () => {
     const third = await add("ola@example.com", "editor");
     expect(third.status).toBe(409);
     expect(third.body.error).toMatchObject({ code: "quota_exceeded", details: { quota: "members_max", limit: 2, used: 2, unit: "people" } });
-    expect(third.body.error.message).toMatch(/Readers of the Story don't count/);
-    // A reader takes no place, and someone already in it changes role without taking another.
-    expect((await add("rae@example.com", "reader")).status).toBe(201);
+    expect(third.body.error.message).toMatch(/Story readers don't count: invite someone who reads only the Story as a Story reader \(story_reader\)/);
+    // A Story reader takes no place, and someone already in it changes role without taking another.
+    expect((await add("rae@example.com", "story_reader")).status).toBe(201);
     expect((await add("ned@example.com", "editor")).status).toBeLessThan(300);
     // An invitation holds its place until it is accepted.
     tweak({ members_max: 3 });
@@ -843,7 +843,7 @@ describe("the totals of a plan", () => {
     expect(person.body.error.details).toMatchObject({ quota: "members_max", also: { quota: "writes_per_day" } });
     expect(person.body.error.message).toMatch(/Removing someone or cancelling an invitation makes room/);
     // A role that takes no place is refused for the day alone.
-    const reader = await fay.api("POST", `/api/v1/tenants/${free.slug}/members`, { email: "ren@example.com", role: "reader", all_products: true });
+    const reader = await fay.api("POST", `/api/v1/tenants/${free.slug}/members`, { email: "ren@example.com", role: "story_reader", all_products: true });
     expect(reader.body.error.details).toMatchObject({ quota: "writes_per_day" });
     expect(reader.body.error.details.also).toBeUndefined();
     tweak({ storage_max_bytes: 1 });

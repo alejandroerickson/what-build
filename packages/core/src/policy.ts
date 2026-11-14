@@ -13,22 +13,23 @@ import { ULID_PATTERN } from "./util.ts";
  * | Place         | Roles                                 | Grants                                                       |
  * |---------------|---------------------------------------|--------------------------------------------------------------|
  * | Tenant        | owner, admin, creator, member, guest  | owner/admin: admin of every product; creator: creates products |
- * | All products  | admin, editor, viewer, reader         | that role on every product in the tenant, later ones too     |
- * | Product       | admin, editor, viewer, reader         | that product only                                            |
+ * | All products  | admin, editor, viewer, story_reader   | that role on every product in the tenant, later ones too     |
+ * | Product       | admin, editor, viewer, story_reader   | that product only                                            |
  *
  * The effective role is the highest that applies; a product grant can raise access but never
  * lower an inherited one. A caller with no role on a product cannot see it at all: 404, never 403.
  * A caller who can see it but lacks the role gets 403 naming the role they have and the one needed.
- * A `reader` reaches only the operations whose access is `story`: the Story, never the evidence.
+ * A `viewer` reads everything in a product and changes nothing. A `story_reader` (a Story reader)
+ * reaches only the operations whose access is `story`: the Story's live pages, never the evidence.
  *
  * In the example organization, every account with no grant there is a `guest`: a viewer of every
  * product, a grant `membershipsFor` makes and nobody stores. A guest writes nothing (`execute`).
  */
 
-const RANK: Record<ProductRole, number> = { reader: 0, viewer: 1, editor: 2, admin: 3 };
+const RANK: Record<ProductRole, number> = { story_reader: 0, viewer: 1, editor: 2, admin: 3 };
 const TENANT_RANK: Record<TenantRole, number> = { guest: 0, member: 1, creator: 2, admin: 3, owner: 4 };
 
-export const PRODUCT_ROLES: ProductRole[] = ["reader", "viewer", "editor", "admin"];
+export const PRODUCT_ROLES: ProductRole[] = ["story_reader", "viewer", "editor", "admin"];
 export const TENANT_ROLES: TenantRole[] = ["member", "creator", "admin", "owner"];
 
 export function maxRole(a: ProductRole | null, b: ProductRole | null): ProductRole | null {
@@ -41,13 +42,18 @@ export function roleAtLeast(role: ProductRole | null, needed: ProductRole): bool
   return role !== null && RANK[role] >= RANK[needed];
 }
 
-/** A reader sees the Story without the notes agents keep about its pages, and nothing of the evidence behind it. */
+/** A Story reader sees the Story without the notes agents keep about its pages, and nothing of the evidence behind it. */
 export function readsOnlyTheStory(role: ReportedRole | null): boolean {
-  return role === "reader";
+  return role === "story_reader";
+}
+
+/** A role in words for sentences, lower case but for the Story's name: "Story reader" for `story_reader`, "product creator" for `creator`, else the role itself. */
+export function roleWords(role: string): string {
+  return role === "story_reader" ? "Story reader" : role === "creator" ? "product creator" : role;
 }
 
 /**
- * Whether someone reads only the Story wherever they are in an organization: a reader on all its
+ * Whether someone reads only the Story wherever they are in an organization: a Story reader on all its
  * products or on some of them, with no higher role there and no organization role but member or
  * product creator. Such a person sees none of the organization's people.
  */
@@ -55,7 +61,7 @@ export function readsOnlyTheStoryIn(memberships: MembershipRow[], tenantId: stri
   const here = memberships.filter((m) => m.tenant_id === tenantId);
   if (here.some((m) => m.scope_type === "tenant" && m.role !== "member" && m.role !== "creator")) return false;
   const roles = here.filter((m) => m.scope_type !== "tenant").map((m) => m.role);
-  return roles.length > 0 && roles.every((r) => r === "reader");
+  return roles.length > 0 && roles.every((r) => r === "story_reader");
 }
 
 /**
@@ -137,7 +143,7 @@ export function highestRolesIn(memberships: MembershipRow[], tenantId: string): 
 /**
  * Whether someone of this standing may call an operation, as `resolveScope` and `execute` decide
  * and as an organization's operation declares in `needsSomewhere`: a guest writes nothing, a
- * reader reads only the Story, and an organization's owner and admin actions need that role on
+ * Story reader reads only the Story, and an organization's owner and admin actions need that role on
  * it. Anything else a handler checks is not read, so such a call may be offered and then refused.
  */
 export function roleReaches(op: Pick<OperationDef, "scope" | "access" | "mutates" | "needsSomewhere">, standing: Standing): boolean {
@@ -248,7 +254,7 @@ export interface ScopeRef {
   formerTeam?: string;
 }
 
-const ACCESS_ROLE: Record<"story" | "read" | "write" | "admin", ProductRole> = { story: "reader", read: "viewer", write: "editor", admin: "admin" };
+const ACCESS_ROLE: Record<"story" | "read" | "write" | "admin", ProductRole> = { story: "story_reader", read: "viewer", write: "editor", admin: "admin" };
 
 /** The text without slashes at either end. A loop, since /\/+$/ takes quadratic time on a long run of them. */
 function trimSlashes(s: string): string {
@@ -378,7 +384,7 @@ export async function resolveScope(
       if (!roleAtLeast(role, needed) && tenantRole === "guest") throw await exampleReadOnly(db, allowances, principal, tenant.name, opName);
       if (!roleAtLeast(role, needed)) {
         throw forbidden(
-          `You are ${withArticle(role)} on product ${product!.name}; ${opName} needs ${needed}. Ask an admin of the product for ${needed} access.`,
+          `You are ${withArticle(roleWords(role))} on product ${product!.name}; ${opName} needs ${roleWords(needed)}. Ask an admin of the product for ${roleWords(needed)} access.`,
           { role, needed },
         );
       }

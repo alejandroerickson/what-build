@@ -3,7 +3,7 @@ type: Decision
 title: An organization holds its products directly; there are no teams, and an address with a team still reaches its product
 description: Teams are removed from the data, the roles and every address; a role on all products and a product creator role take over what teams did, and addresses written with a team keep working.
 tags: [decision, tenancy, roles, addressing, mcp, web]
-generated: {by: agent:claude, at: 2026-11-09}
+generated: {by: agent:claude, at: 2026-11-13}
 status: stable
 ---
 
@@ -26,7 +26,7 @@ The maintainer chose to remove teams on 2026-11-08.
 - **Organization → product.** No `teams` table, no `team_id`; a product's slug is unique in its
   organization and is none of the organization's own pages (`members`, `plan`, …).
 - **Roles.** Organization: owner, admin, product creator (`creator`: creates products, and is
-  admin of each one it creates), member. **All products**: admin, editor, viewer or reader on
+  admin of each one it creates), member. **All products**: admin, editor, viewer or Story reader on
   every product of the organization, now and later; only its owners and admins give it. Product:
   the same four ([decision](access-is-per-product-roles.md)).
 - **Moving and copying sources between products are removed**, not widened to the organization.

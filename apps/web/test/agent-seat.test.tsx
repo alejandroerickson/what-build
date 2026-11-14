@@ -27,7 +27,7 @@ vi.mock("../src/lib/api.ts", async (original) => ({
 const { api } = await import("../src/lib/api.ts");
 const { EmptyOrganizationNav, ProductNav } = await import("../src/shell/panel.tsx");
 
-const product = (role: "editor" | "reader") =>
+const product = (role: "editor" | "story_reader") =>
   ({
     product_id: "p1",
     name: "Harvest",
@@ -110,9 +110,9 @@ describe("the empty seat", () => {
     focusManager.setFocused(undefined);
   });
 
-  it("shows a reader the seat under the Story, and Settings at their own account", async () => {
+  it("shows a Story reader the seat under the Story, and Settings at their own account", async () => {
     agents = [];
-    const host = await mount(<ProductNav product={product("reader")} section="story" />, "/t/acme/harvest/story");
+    const host = await mount(<ProductNav product={product("story_reader")} section="story" />, "/t/acme/harvest/story");
     expect([...host.querySelectorAll("a.nav-node:not(.nav-node-quiet)")].map((a) => a.textContent)).toEqual(["Story2"]);
     expect(seatLink(host)).toBe("/t/acme/harvest/story?settings=agents");
     expect(quiet(host)).toEqual([["Settings", "/t/acme/harvest/story?settings=account"]]);
