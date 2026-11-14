@@ -3,7 +3,7 @@ type: System Concept
 title: The dev deployment is a second Cloud Run deployment, laid out like production and holding a copy of its example organization or other organizations its instance owners own, where a release is rehearsed before production moves.
 description: For the maintainer and the agent working for them; what the dev deployment is and how it differs from production, where its values are, rehearsing a release on it, putting it back, refreshing its copy of the instance owners' organizations, setting one up from nothing, and keeping its data private.
 tags: [operations, deployment, dev, rehearsal, migrations, cloud-run, neon, production]
-generated: {by: agent:claude, at: 2026-11-08}
+generated: {by: agent:claude, at: 2026-11-14}
 status: stable
 ---
 
@@ -236,9 +236,12 @@ After a rehearsal that passed, dev may stay on the new release; it is then what 
 To return dev to the copy as it was loaded, for example to rehearse a fix: delete the restore
 points rehearsals made, reset `main` to `prod-copy`, then deploy the release production runs.
 Name `prod-copy` rather than `^parent`: restoring `main` from a restore point leaves that restore
-point as its parent, and the reset would then go back to it instead of the copy. Neon refuses to
-reset a branch that still has children, and a deletion takes a few seconds to finish, so wait for
-it:
+point as its parent, and the reset would then go back to it instead of the copy. Neon archives
+a deleted branch first, and the archived branch still counts as a child of `main` after it has
+left `neon branches list`. So a plain `neon branches restore main prod-copy` is refused with
+`Branch has children, preserve_under_name is required`, and the reset keeps the old `main` under a
+name of its own. The restore points are still deleted first, so that none is left listed. The
+`main-before-` line shows a branch an earlier put-back kept: tell the maintainer it is there.
 
 ```bash
 for b in $(neon branches list --project-id $N -o json | python3 -c '
@@ -247,9 +250,25 @@ main = next(b["id"] for b in bs if b["name"] == "main")
 print(" ".join(b["id"] for b in bs if b.get("parent_id") == main))'); do
   neon branches delete $b --project-id $N >/dev/null
 done
-sleep 20
-neon branches restore main prod-copy --project-id $N
+neon branches list --project-id $N | grep main-before- || true   # kept earlier, if any
+K=main-before-putback-$(date -u +%Y%m%dT%H%M%SZ)
+neon branches restore main prod-copy --preserve-under-name $K --project-id $N
 ```
+
+`main` keeps its compute and connection string. The kept branch is the old `main`: Neon's
+documentation says it keeps the parent `main` had and takes over its children, and it holds the
+earlier copy, which is real people's data. Delete it when the maintainer agrees nothing needs it,
+by its name: `$K` in the shell that ran the block, or later as
+`neon branches list --project-id $N | grep main-before-` shows it:
+
+```bash
+neon branches delete main-before-putback-<time> --project-id $N
+```
+
+Neon's documentation also says such a branch cannot be deleted while it has children, and nobody
+has checked which children a kept branch has. If the delete is refused, leave the branch, tell the
+maintainer that it still holds a copy of real people's data, and try again at the next put-back,
+whose `main-before-` line lists it.
 
 Then deploy production's release as in [step 2](#rehearsing-a-release). The files bucket is not
 reset: files a rehearsal wrote stay, unreferenced and harmless.
