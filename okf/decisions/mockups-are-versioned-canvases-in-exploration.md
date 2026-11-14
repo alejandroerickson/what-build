@@ -22,7 +22,7 @@ the names Mockups and Exploration on 2026-10-09.
 
 - A **mockup** is a canvas of HTML pages, each with Markdown design notes (one free-form field,
   no categories), under a Markdown **brief** that says what the canvas explores, and which
-  outcomes and assumptions it tests.
+  outcomes it tests.
 - **A version is the whole canvas.** Every publish makes the next version; a later version keeps
   the fields and the pages it does not change.
 - Pages are untrusted, like Story pages, and shown only in the Story's sandbox
@@ -90,12 +90,12 @@ the names Mockups and Exploration on 2026-10-09.
   too only for a word the mockup does not hold, its own title, say, or one on the version it stays
   on. A Story reader, who has no Exploration, finds it on the Story. The maintainer chose this on
   2026-10-30.
-- The third stage is **Exploration**: mockups and assumptions (insights and decisions, which it
-  also held, were retired: [decision](insights-and-decisions-are-retired-into-evidence.md)). Its
-  URLs are `/exploration/…`, and old `/synthesis/…` links open the same place. Its count is its
-  mockups and its current assumptions together, as the Story's count includes its promoted pages
-  ([decision](each-stage-counts-every-item-it-holds.md), the maintainer's choice on
-  2026-10-10, replacing a count of the mockups alone).
+- The third stage is **Exploration**, and it holds the mockups alone: insights and decisions,
+  which it also held, were retired ([decision](insights-and-decisions-are-retired-into-evidence.md)),
+  and assumptions removed ([decision](assumptions-are-removed-and-every-one-is-deleted.md)). Its
+  URLs are `/exploration/…`, and old `/synthesis/…` links open the same place. Its count is every
+  item it holds, which is its mockups
+  ([decision](each-stage-counts-every-item-it-holds.md)).
 - Rejected names: "exploration" for the item (too abstract for people and for agents reading the
   tool list), "wireframe" (suggests grey boxes) and "prototype" (suggests a working product).
 

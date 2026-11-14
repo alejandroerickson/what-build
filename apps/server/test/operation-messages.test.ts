@@ -59,9 +59,9 @@ describe("English", () => {
     const outcome = await alice.api("GET", `${P}/outcomes/not-an-id`);
     expect(outcome.status).toBe(422);
     expect(outcome.body.error.message).toContain("must be an outcome id");
-    const assumption = await alice.api("POST", `${P}/assumptions/any/links`, { expected_etag: "x", target_id: "not-an-id", type: "supports" });
-    expect(assumption.status).toBe(422);
-    expect(assumption.body.error.message).toContain("must be an assumption id");
+    const comment = await alice.api("PATCH", `${P}/annotations/not-an-id`, { expected_etag: "x", note: "Changed." });
+    expect(comment.status).toBe(422);
+    expect(comment.body.error.message).toContain("must be an annotation id");
     const source = await alice.api("GET", `${P}/sources/not-an-id`);
     expect(source.body.error.message).toContain("must be a source id");
   });
@@ -92,6 +92,18 @@ describe("refusals that name what exists", () => {
     );
   });
 
+  it("says WhatBuild no longer keeps assumptions when a search asks for them", async () => {
+    for (const scope of ["assumptions", "all"]) {
+      const r = await alice.api("GET", `${P}/search?query=crews&scope=${scope}`);
+      expect(r.status, scope).toBe(422);
+      expect(r.body.error.message).toContain("WhatBuild no longer keeps assumptions, so the substring and ranked modes search sources alone");
+    }
+    const kind = await alice.api("GET", `${P}/search?query=crews&mode=plain&kind=assumption`);
+    expect(kind.status).toBe(422);
+    expect(kind.body.error.message).toContain("WhatBuild no longer keeps assumptions: kind is idea, outcome, source, mockup or story");
+    expect((await alice.api("GET", `${P}/search?query=crews&scope=sources`)).status).toBe(200);
+  });
+
   it("points a download without its grant at the operation that gives one", async () => {
     const file = await fetch(`${h.baseUrl}/api/v1/downloads/01J00000000000000000000000`);
     expect(file.status).toBe(401);
@@ -108,25 +120,14 @@ describe("descriptions that say only what is true", () => {
       if (!/kept as a revision/.test(o.description)) continue;
       expect(OPERATIONS.some((x) => x.name === `${o.mcp.tool}.revisions`), o.name).toBe(true);
     }
-    for (const name of ["products.update_concept", "assumptions.update", "sources.update_annotation"])
+    for (const name of ["products.update_concept", "sources.update_annotation"])
       expect(op(name).description, name).toMatch(/is kept, and a product export includes it, but no action reads it back yet|are kept, and a product export includes them, but no action reads them back yet/);
   });
 
   it("says a list sent to an update replaces the whole list", () => {
-    expect(fieldTexts(op("assumptions.update"))).toMatch(/The whole list of tags, which replaces the current one/);
-    expect(fieldTexts(op("assumptions.update"))).toMatch(/The whole list of outcomes it bears on, which replaces the current one/);
-    expect(fieldTexts(op("assumptions.update"))).toMatch(/The whole list of its links, which replaces the current one/);
     expect(fieldTexts(op("sources.update_annotation"))).toMatch(/The comment's whole list of tags, which replaces the current one/);
     expect(fieldTexts(op("sources.update_annotation"))).toMatch(/The comment's new text, which replaces it/);
     expect(fieldTexts(op("sources.annotate"))).toMatch(/The comment's text: Markdown/);
-  });
-
-  it("describes an assumption as the product's counts and the skill do", () => {
-    const list = op("assumptions.list");
-    expect(list.summary).not.toMatch(/quotes/);
-    expect(list.description).not.toMatch(/and outcomes count/);
-    expect(list.description).toContain('the ones products_read(action="list") and products_read(action="get") count');
-    expect(fieldTexts(op("assumptions.create"))).toMatch(/why the team holds it, in a sentence or two of your own: what it rests on, and what would change it/);
   });
 
   it("calls a source a source", () => {
@@ -167,24 +168,12 @@ describe("refusals each door words for its caller", () => {
   });
 
   it("says once, in a sentence, what a list takes when it is sent something else", async () => {
-    const client = await agent(await h.connectAgent(alice, "Listing agent"));
-    const product = P.slice("/api/v1/p/".length);
-    const status = result(await client.callTool({ name: "assumptions_read", arguments: { action: "list", product, params: { status: "confirmed" } } }));
-    expect(status.status).toBe(422);
-    expect(status.json.error.message).toBe(
-      '`status` takes a list of any of unconfirmed, confirmed, refuted and superseded, such as ["confirmed"], not a string. Nothing was changed; correct the call and send it again.',
-    );
-    // Other lists read the same way, with what was sent as the example where it fits.
-    const tags = await alice.api("POST", `${P}/assumptions`, { statement: "Crews plan on Mondays.", tags: "planning, crews" });
+    const tags = await alice.api("POST", `${P}/sources`, { title: "Crews plan on Mondays.", tags: "planning, crews" });
     expect(tags.status).toBe(422);
     expect(tags.body.error.message).toBe('`tags` takes a list of strings, such as ["planning","crews"], not a string. Nothing was changed; correct the call and send it again.');
-    const long = await alice.api("POST", `${P}/assumptions`, { statement: "Crews plan on Mondays.", tags: "x".repeat(60) });
+    const long = await alice.api("POST", `${P}/sources`, { title: "Crews plan on Mondays.", tags: "x".repeat(60) });
     expect(long.body.error.message).not.toMatch(/Too big|characters/);
-    const links = await alice.api("POST", `${P}/assumptions`, { statement: "Crews plan on Mondays.", links: 3 });
-    expect(links.body.error.message).toMatch(/^`links` takes a list of objects, not a number\./);
-    const wrong = result(await client.callTool({ name: "assumptions_read", arguments: { action: "list", product, params: { status: ["maybe"] } } }));
-    expect(wrong.status).toBe(422);
-    expect(wrong.json.error.message).toMatch(/^`status\.0`: Invalid option/);
-    await client.close();
+    const sources = await alice.api("POST", `${P}/sources/with-uploads`, { sources: 3 });
+    expect(sources.body.error.message).toMatch(/^`sources` takes a list of objects, not a number\./);
   });
 });

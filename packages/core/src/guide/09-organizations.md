@@ -5,7 +5,7 @@ Exporting a product, starting or joining an organization, plans with their limit
 ## Export
 
 `products_export(action="export")` builds a ZIP of the whole product and changes nothing in it:
-sources with their attachments, texts, summaries, notes and comments, outcomes, assumptions, reviews,
+sources with their attachments, texts, summaries, notes and comments, outcomes,
 earlier texts, mockups, Story versions, tombstones and activity. `products_read(action="exports")` gives a download grant once it
 is ready. The bundle's `README.txt` says what each file holds.
 

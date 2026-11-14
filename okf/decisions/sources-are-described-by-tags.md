@@ -3,7 +3,7 @@ type: Decision
 title: Sources are described by a title, a date and tags; there are no kinds, folders, organization field, dimensions, participants, source system or provenance
 description: What a source is, whom it concerns and what it bears on are tags, which people and agents reuse through sources.facets, because a closed list of kinds slowed intake and changed nothing about storage or search, and the other fields said what a tag or the source's notes say.
 tags: [decision, sources, evidence, tags, mcp, web, product]
-generated: {by: agent:claude, at: 2026-10-26}
+generated: {by: agent:claude, at: 2026-11-13}
 status: stable
 ---
 
@@ -43,12 +43,11 @@ chose on 2026-10-16 to remove them, keeping a source's tags and its three dates.
   when they were added, by their own date, and by words in the title, tags and attachment names.
 - Migration `0017_sources_are_tagged.sql` turns each kind and organization into tags in front of a
   source's own (`other` adds none), in sandbox baselines too, then drops the three columns.
-- Sources and assumptions have no `dimensions`, and `sources.list` and `search` no `customer`,
+- Sources have no `dimensions`, and `sources.list` and `search` no `customer`,
   `product_area` or `lifecycle_stage` filter; a call that names one is refused with `422` and a
   hint to use tags. Migration `0027_drop_dimensions.sql` drops both columns, and the field in
   sandbox baselines, without keeping the values anywhere: they were rarely set and never shown.
-- Sources have no `participants`, `source_system` or `provenance_depth`, and assumptions no
-  `provenance_depth`; `sources.list` and `search` have no provenance filter. A call that names one
+- Sources have no `participants`, `source_system` or `provenance_depth`; `sources.list` and `search` have no provenance filter. A call that names one
   is refused with `422` and a hint that a source is described by its title, date and tags, and
   that anything else worth keeping goes in its notes. Migration
   `0029_simplify_source_details.sql` drops the four columns, and the fields in sandbox baselines,
@@ -93,4 +92,4 @@ chose on 2026-10-16 to remove them, keeping a source's tags and its three dates.
   `sources.facets` is in `packages/core/src/ops/sources.ts`; the hint for retired fields is in
   `packages/core/src/execute.ts`.
 
-Specified in: [04-data-model §4.3, §4.4 and §4.8](../spec/04-data-model.md), [06-operations-and-adapters](../spec/06-operations-and-adapters.md), [07-web-app §7.6](../spec/07-web-app.md), [08-search §8.1 and §8.3](../spec/08-search.md).
+Specified in: [04-data-model §4.3 and §4.4](../spec/04-data-model.md), [06-operations-and-adapters](../spec/06-operations-and-adapters.md), [07-web-app §7.6](../spec/07-web-app.md), [08-search §8.1 and §8.3](../spec/08-search.md).

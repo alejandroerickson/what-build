@@ -103,20 +103,6 @@ export async function seed(env: Env, worker: Worker, log: (m: string) => void = 
 
   const base = env.ports.config.publicBaseUrl;
   const path = `${tenant}/crewboard`;
-  const assumption = await call(
-    env,
-    samAgent,
-    "assumptions.create",
-    {
-      statement: "Crew leads think about the week in jobs, not in time slots.",
-      body: "Marisol and the survey comments say jobs first; Dev and Priya plan day by day. If the split follows the trade, the first version may need both views.",
-      outcome_ids: [outcomeIds[2]!],
-      tags: ["planning-model"],
-      author_type: "agent",
-    },
-    ref,
-  );
-
   await call(env, samAgent, "story.set_style", { house_style: "clear" }, ref);
   const sampleStylesheet = houseStyle("clear")!.stylesheet;
   await call(
@@ -129,7 +115,6 @@ export async function seed(env: Env, worker: Worker, log: (m: string) => void = 
       summary: "Planning costs an afternoon a week; the hand-off is where mistakes happen.",
       html: STORY_HTML(
         {
-          assumption: `${base}/t/${path}/exploration/assumptions/${assumption["id"]}`,
           handOff: `${base}/t/${path}/story/hand-off-test`,
         },
         sampleStylesheet,

@@ -1,7 +1,7 @@
 ---
 type: Specification
 title: Every object in a product, with its fields, limits and invariants, as the REST and MCP wire sees it.
-description: The common envelope (ids, etags, attribution, revisions), outcomes, sources and their tags, attachments, comments, summaries and notes, evidence links, the assumption register, views, activity, Story, mockups, feedback, the product bundle, and the storage layout.
+description: The common envelope (ids, etags, attribution, revisions), outcomes, sources and their tags, attachments, comments, summaries and notes, evidence links, the retired insights, decisions and assumptions, views, activity, Story, mockups, feedback, the product bundle, and the storage layout.
 tags: [spec, data-model, schema, revisions, story, mockups, export]
 generated: {by: agent:claude, at: 2026-11-13}
 status: stable
@@ -20,14 +20,14 @@ Every editable object carries:
 
 | Field | Rule |
 |---|---|
-| `id` (named per type, e.g. `record_id`, `outcome_id`; `id` for assumptions) | ULID, immutable. Story pages are the exception: their `page_id` is a slug the author chooses (§4.11). |
+| `id` (named per type, e.g. `record_id`, `outcome_id`, `mockup_id`) | ULID, immutable. Story pages are the exception: their `page_id` is a slug the author chooses (§4.11). |
 | `product_id` | Immutable except when a source moves ([§3.7](03-accounts-and-identity.md)). `tenant_id` is on every content row and never appears in a request body: it comes from the addressed product. |
 | `etag` | Opaque string; changes on every successful mutation. |
 | `created_at`, `created_by` | Timestamp and actor snapshot ([§3.9](03-accounts-and-identity.md)). Sources say `uploaded_at`, `uploaded_by`. |
 | `updated_at`, `updated_by` | Same, for the latest mutation. |
-| `archived_at` | Where the type supports archive (sources, annotations, outcomes, assumptions, Story pages, mockups). Archived objects are excluded from lists and search unless asked for, and remain readable by id. |
+| `archived_at` | Where the type supports archive (sources, annotations, outcomes, Story pages, mockups). Archived objects are excluded from lists and search unless asked for, and remain readable by id. |
 
-**Concurrency.** Every update, review, link, single-object archive and restore requires the
+**Concurrency.** Every update, single-object archive and restore requires the
 current etag (`expected_etag` in the input, or `If-Match` in REST). Missing → `422`. Stale →
 `409 stale_etag`, with the current etag in `details.current_etag` so a caller can re-read and retry
 deliberately. Creates take no etag; neither do the batch `sources.archive` / `sources.restore`,
@@ -74,7 +74,6 @@ appended to an immutable revision list with who wrote it and who replaced it
 | Source | — (metadata only; the activity log names the operation and the actor) |
 | A source's derived text, summary and notes | — (none yet; the activity log names each write, and what each attachment was read as stays readable, [§5.4](05-derived-layer.md)) |
 | Annotation | `note` |
-| Assumption | `statement`, `body` (while still editable, §4.8) |
 | Story page | — (it has explicit, numbered, reader-visible versions instead, §4.11) |
 
 Outcomes have operations to read and restore revisions: `revisions` (list, bounded,
@@ -86,14 +85,13 @@ exported; operations to read them are planned.
 is explaining a retention rule to someone who just lost a paragraph to a well-meaning agent. They
 are excluded from search and included in exports.
 
-**Small edits and diffs.** `assumptions.update` and `derived.write_text` take `edits`: up to 20
+**Small edits and diffs.** `derived.write_text` takes `edits`: up to 20
 exact replacements `{ field?, old_text, new_text }`, applied in order, so a one-phrase correction
-does not mean re-sending a long body ([`text-edits.ts`](../../packages/core/src/text-edits.ts)).
-`field` is `body` by default, or `statement`, for an assumption, and `text` for a derived text.
-Each `old_text` must occur exactly once in its field at that point: no match is
-`422 edit_not_found`, more than one is `422 edit_ambiguous` (with the count), and editing a field
-the same call replaces whole is `422 invalid_input`. Any refusal changes nothing. The update
-returns `changed` (the fields that changed; `write_text` leaves it out) and `diff`: per changed text field, one hunk
+does not mean re-sending a long text ([`text-edits.ts`](../../packages/core/src/text-edits.ts)).
+`field` is `text`, the default. Each `old_text` must occur exactly once in the text at that point:
+no match is `422 edit_not_found`, more than one is `422 edit_ambiguous` (with the count), and
+sending `edits` with a whole `text` is `422 invalid_input`. Any refusal changes nothing. The write
+returns `diff`: per changed text field, one hunk
 `{ field, at, before, removed, added, after }` from the first to the last difference, with 40
 characters of unchanged context each side and the changed parts clipped at 300 characters, so a
 slip in a re-sent text shows up in the result.
@@ -102,7 +100,7 @@ slip in a re-sent text shows up in the result.
 
 An outcome is what the product's users should be able to achieve with it. Outcomes sit under the
 product concept ([§3.4](03-accounts-and-identity.md)) on the Idea screen, and are the compass
-the evidence, assumptions, mockups and Story are read against
+the evidence, mockups and Story are read against
 ([decision](../decisions/a-product-starts-with-an-idea-concept-and-outcomes.md)).
 
 | Field | Rule |
@@ -114,12 +112,10 @@ the evidence, assumptions, mockups and Story are read against
 | `archived_at` | Null while the outcome is current. An outcome is current or archived; it has no other state. |
 | `position` | Ordering key within the product. `create` takes one to place a new outcome (a value between two others' positions puts it between them); omitted, it goes last. Reorder is an update. |
 
-Assumptions point *to* outcomes (`outcome_ids`); an outcome points at nothing. Its
+An outcome points at nothing, and nothing structural points at an outcome. Its
 title, description and front may not hold a record id: `create` and `update` refuse one with `422
-outcome_cites_a_record`, naming the field and the id. Reads carry no count of what points at an
-outcome; `assumptions.list` with `outcome_id` lists the assumptions that serve one.
-`products.get` and `products.list` count only current (`unconfirmed` or `confirmed`) assumptions,
-the ones `assumptions.list` returns without a status.
+outcome_cites_a_record`, naming the field and the id. Reads carry no count or list of what serves
+an outcome.
 
 ### 4.2.1 Cards
 
@@ -154,19 +150,17 @@ offers no editor.
 - **Revisions** keep both sides: an outcome's `{ title, description, card_html }`, the product's
   `{ concept, card_html }`.
 
-Product reads return `counts`, one number per kind (`sources`, `outcomes`, `assumptions`,
-`mockups`, `story_pages`, archived items left out), and `stage_counts`, the total of every item each
+Product reads return `counts`, one number per kind (`sources`, `outcomes`, `mockups`,
+`story_pages`, archived items left out), and `stage_counts`, the total of every item each
 stage holds, which the web app shows beside each stage
 ([decision](../decisions/each-stage-counts-every-item-it-holds.md)): `idea` is the outcomes (the
-product concept is one field, not an item), `evidence` the sources, `exploration` the mockups plus
-the current assumptions, and `story` the live Story pages, which are exactly the pages in the tree
+product concept is one field, not an item), `evidence` the sources, `exploration` the mockups,
+and `story` the live Story pages, which are exactly the pages in the tree
 and the unplaced ones (§4.11).
 
 `outcomes.archive` and `outcomes.restore` set and clear `archived_at`. `outcomes.list` leaves
 archived outcomes out unless `include_archived`, and says how many it left out: `archived_hidden` (the count, honouring `query`) and, when it is not zero, a
-`note`. An archived outcome can still be referenced. Assumptions (`outcome_ids`) return
-`archived_outcome_ids`: the referenced outcomes that are archived, so a link to one is visible
-rather than accidental.
+`note`.
 
 ## 4.3 Sources
 
@@ -365,7 +359,7 @@ link as an evidence link, a quiet token that opens the source
 ([`apps/web/src/lib/markdown.tsx`](../../apps/web/src/lib/markdown.tsx)). A source mentioned in
 prose by its id alone ("source 01K…") stays as written, and so does one written while sources had
 passages ("source 01K…, segments 4–6"). A link is presentation
-only. Nothing structural points from an assumption, a Story page, a mockup or another source to a
+only. Nothing structural points from a Story page, a mockup or another source to a
 source, and nothing records what mentions what: what bears on a piece of work is found by
 searching the product ([§8](08-search.md),
 [decision](../decisions/evidence-is-searched-not-cited.md)).
@@ -381,71 +375,29 @@ or writes them. Each one a product still held becomes a source with the same id,
 | Was | Becomes |
 |---|---|
 | An insight | A source tagged `analysis` and `insight` (and `draft` for a draft), archived if it was. Its one attachment is Markdown, whose text becomes the source's derived text: the title, summary and body, then a note of its status, review mark, authors and what it referred to. Each earlier revision is an earlier version of the attachment; the summary is the source's summary note. |
-| A decision | A source tagged `decision` and with the entry's tags. Its Markdown attachment holds the statement, the body (which holds the quotes it cited, §4.8), the status, the outcomes, the links in and out, and every review. Earlier revisions are earlier versions of the attachment. |
+| A decision | A source tagged `decision` and with the entry's tags. Its Markdown attachment holds the statement, the body (which holds the quotes it cited, as migration `0028_citations_refs_and_lineage_retired.sql` put them there), the status, the outcomes, the links in and out, and every review. Earlier revisions are earlier versions of the attachment. |
 
-An assumption's link to a decision is dropped (the decision's document names it), and the item's
-history in the activity log becomes the source's.
+The item's history in the activity log becomes the source's. Until its job has run, a decision
+waits in `register_entries`, with its reviews in `reviews`, as an insight waits in `insights`
+([`evidence-move.ts`](../../packages/core/src/evidence-move.ts)). Those two tables hold nothing
+else, and the entries' `kind` allows only `decision` (§4.8).
 
-## 4.8 Assumptions
+## 4.8 Assumptions (retired)
 
-A product keeps one register: **assumptions**, what the team treats as true while the evidence is
-incomplete. An entry's id is `id` (the tool also accepts `assumption_id`,
-[§6.5](06-operations-and-adapters.md)).
+A product once also kept a reviewed register of **assumptions**: statements the team treated as
+true while the evidence was incomplete, each with its reviews, its links to other entries and the
+outcomes it pointed at. Assumptions are removed
+([decision](../decisions/assumptions-are-removed-and-every-one-is-deleted.md)): no operation reads
+or writes them, and a call to one from a client that still lists their tools is refused with a
+message saying assumptions are retired and WhatBuild no longer keeps them
+([§6.5](06-operations-and-adapters.md)).
 
-| Field | Rule |
-|---|---|
-| `id` | |
-| `statement` | 1–1,000 chars. The premise in one sentence. |
-| `body` | Markdown, 0–10,000 chars: why the team holds it, what it rests on, and what would change if it turned out false. An entry may be recorded before any evidence exists. |
-| `outcome_ids` | ≤ 20 outcome ids. |
-| `links` | ≤ 50 of `{ id, type }` to other assumptions; `type` is `supports`, `contradicts`, or `supersedes`. Reads also return `linked_from` and `superseded_by` (the ids of entries that supersede this one, newest first). |
-| `tags` | As sources. |
-| `author`, `author_type` | Actor snapshot, and a declared `human` or `agent` ([§3.9](03-accounts-and-identity.md)). |
-| `status` | `unconfirmed` (initial), `confirmed`, `refuted`, `superseded`: always the status of the latest review. |
-| `reviews` | Append-only, at most 500 per entry. |
-| `frozen` | Derived: true once the entry has a review. |
-
-List items carry the entry's state without a `get` per entry: `status`, `frozen`,
-`superseded_by`, `link_count` (links out), `linked_from_count` (links in), `review_count`,
-`human_review` and `archived_outcome_ids`. The list filters by one or more statuses; without
-one it returns the current entries (unconfirmed and confirmed), so it agrees with the counts on
-products and with the register's default view, and says in `not_current_hidden` how
-many refuted or superseded entries it left out.
-
-An assumption names no source structurally: its body says, in words, what it rests on, and an
-agent finds the evidence by searching
-([decision](../decisions/evidence-is-searched-not-cited.md)).
-Migration `0028_citations_refs_and_lineage_retired.sql` put the passages an entry had cited at the
-end of its body, under **Passages cited**: one line each, `- “quote” (source title)`, the quote on
-one line and cut to 500 characters, the title the source's, or its tombstone's once it was deleted,
-or "a source no longer in WhatBuild". Those entries took a new etag; their status, reviews and
-`updated_at` stayed as they were, and their kept revisions lost the citations they held.
-
-### Reviews
-
-`{ status, note, reviewer, reviewer_type, confidence?, created_at }`
-
-- `note` is required (1–2,000 chars). `reviewer` is the authenticated actor snapshot.
-- `reviewer_type` is `human` or `agent`, defaulting from the surface (web → human, otherwise
-  agent). An MCP caller MAY declare `human` only when relaying a judgment the person made in the
-  conversation; the declaration is recorded as made.
-- `confidence` (`low`, `medium`, `high`) is accepted only when `reviewer_type = human`; otherwise
-  `422 confidence_requires_human`. Lists filter by the latest human confidence.
-- Reviews are never edited or removed. A changed mind is a new review.
-- The review `supersede` records on the old entry (below) takes `reviewer_type` the same way, with
-  the same default, so a correction an agent relays from the person is recorded as the person's.
-
-### Corrections and links
-
-- ◆ Decision: `statement` and `body` are editable only while the entry has no
-  review. After the first review — any review, by a person or an agent, with any status, including
-  one that leaves it `unconfirmed` — they are frozen (`409 frozen`); the `review` guidance says
-  so: a correction is a **new entry**
-  created with `supersede`, which links `supersedes` → the old entry and records a `superseded`
-  review on the old entry in the same atomic operation. `tags`, `outcome_ids`, and `links` stay
-  editable.
-- Links are type-checked **before** any mutation: the target must exist in the same product, a
-  self-link is rejected, a duplicate `{id, type}` is rejected, and `supersedes` must be acyclic.
+Migration `0046_no_assumptions.sql` deleted every assumption in every product, with its reviews,
+its earlier wordings (revisions), its activity entries and its tombstones. Nothing was moved
+anywhere else; only a database restored from before the migration holds them
+([§9.6](09-data-lifecycle.md)). `register_entries` and `reviews` stay as retired tables, holding
+only the decisions still waiting to become sources and their reviews (§4.7), and the entries'
+`kind` allows only `decision`.
 
 ## 4.9 Views
 
@@ -464,18 +416,18 @@ An append-only event log, written in the same transaction as the mutation that c
 |---|---|
 | `activity_id` | ULID; ordering key. |
 | `occurred_at` | Timestamp. |
-| `action` | What happened, e.g. `created`, `reviewed`, `archived`, `derived`. |
+| `action` | What happened, e.g. `created`, `updated`, `archived`, `derived`. |
 | `entity_type`, `entity_id`, `entity_title` | What was touched. |
 | `actor`, `channel` | Actor snapshot; the surface (`web`, `rest`, `mcp`), or none for the system. |
-| `summary` | ≤ 280 chars, generated: "Marked confirmed with high confidence", "Read the text of call.vtt; it is the source’s derived text" (never the parser's name or version, which the reading's manifest holds), "Edited the derived text", "Added a comment", "Changed the outcomes it bears on and the tags" (the words the app uses for what changed, never a field's name). |
+| `summary` | ≤ 280 chars, generated: "Published version 3", "Read the text of call.vtt; it is the source’s derived text" (never the parser's name or version, which the reading's manifest holds), "Edited the derived text", "Added a comment", "Changed the title and the tags" (the words the app uses for what changed, never a field's name). |
 
 - **It never contains content.** No bodies, no source text, no HTML, no email addresses. The
   summary names objects; it does not quote them. An archived comment's entry once ended with the
   reason it was archived ("Archived a comment: …"); `activity.list` reads such an entry without it,
   as it reads an old parse entry without the parser's label and an old edit that named its fields
   ("Changed outcome_ids, tags") in the app's words for that kind of object, fields objects no
-  longer have included: an assumption's `body` is "why the team holds it", and a source's (an
-  insight's or a decision's text, from before they moved into Evidence) is "the text". A field with
+  longer have included: a source's `body` (an insight's or a decision's text, from before they
+  moved into Evidence) is "the text". A field with
   no words of its own is read as its name written out ("the source system"), never with an `_id` or
   an underscore; a word that is not a field ("Changed everything") is left as it is. The stored
   row, and so an export's `activity.jsonl`, still holds what was recorded.
@@ -485,8 +437,9 @@ An append-only event log, written in the same transaction as the mutation that c
   usual bounds. `entity_type` offers exactly the kinds of object a product's log has entries about
   ([§6.4](06-operations-and-adapters.md)). Every role on the product but a Story reader, who reads
   only the Story, can read it.
-- Events are immutable and are retained for the life of the tenant, with one exception: when an
-  insight or a decision became a source (§4.7), its events were relabelled as the source's. They
+- Events are immutable and are retained for the life of the tenant, with two exceptions: when an
+  insight or a decision became a source (§4.7), its events were relabelled as the source's; and
+  migration `0046_no_assumptions.sql` deleted every event about an assumption with it (§4.8). They
   are included in a product export.
 - An event about the organization's people and access (a role given, changed or removed, an
   invitation sent, accepted, cancelled or declined), and the organization's renaming (`tenant`, `renamed` or
@@ -752,7 +705,7 @@ works with (what to build and why, the pitch, the plan, where things stand, or w
 team wants its stakeholders to read), not a quoted or cited record of how decisions were reached.
 It sets no rule about how a page quotes, paraphrases, attributes or links what is in the product
 ([decision](../decisions/evidence-is-searched-not-cited.md)): `links` gives a template for a link
-to a source, the outcomes, an assumption, a mockup and a Story page, and `links_note` says who can
+to a source, the outcomes, a mockup and a Story page, and `links_note` says who can
 follow each (everyone on the team; a Story reader only Story pages and links outside WhatBuild). It keeps
 what a page must not misstate: no person, date, quotation, count, measurement or decision the
 sources do not establish, interpretation labelled as such, a plan's dates presented as the team's
@@ -1027,7 +980,7 @@ lists their paths; both are made from one list (`BUNDLE_LAYOUT`), which a test h
 export writes.
 
 ```
-bundle.json                 format (whatbuild-product-bundle) and format version (3), exported_at/by,
+bundle.json                 format (whatbuild-product-bundle) and format version (4), exported_at/by,
                             server version, tenant, product, layout
 README.txt
 outcomes.json
@@ -1036,7 +989,6 @@ records/<record_id>/text.md                      the source's derived text, when
 records/<record_id>/attachments/<file_version_id>/<path>   every version of every attachment
 records/<record_id>/derived/<derivation_id>/{text.md,manifest.json}   every reading (and segments.jsonl, in one made while sources had passages)
 records/<record_id>/annotations.json · agent-notes/{summary,notes}.md · agent-notes/card.html
-assumptions.json            with their reviews (every column but the search vector)
 revisions.json
 story/hierarchy.json  ·  story/style.{json,css} (when the product has a Story style)
 story/pages/<page_id>/page.json  ·  story/pages/<page_id>/v<n>.{json,html}
@@ -1052,10 +1004,12 @@ activity.jsonl
   person with a ZIP tool and nothing else. Its `text` gives the derived text's `chars`,
   `from_file_version_id`, `updated_at` and `updated_by` (or `null`), and its `attachments` each
   attachment with its versions.
-- Format version 2 holds each source's derived text as `text.md` and its attachments under
-  `attachments/`; version 1 had `files/`, and each parse's passages in `segments.jsonl`.
+- Format version 4 has no `assumptions.json`, which the versions before it held with each
+  assumption's reviews. Since version 2 a bundle holds each source's derived text as `text.md` and
+  its attachments under `attachments/`; version 1 had `files/`, and each parse's passages in
+  `segments.jsonl`.
 - Feedback is not part of an export.
-- Planned ([§9.4](09-data-lifecycle.md)): **import**, which preserves every id, version, review,
+- Planned ([§9.4](09-data-lifecycle.md)): **import**, which preserves every id, version,
   revision and actor snapshot, creates a product and never merges into one (`409` if the
   `product_id` exists, unless the caller asks for a copy, which re-mints the product id only); and
   a **tenant export** of every product's bundle plus members and outstanding invitations.
@@ -1065,7 +1019,7 @@ activity.jsonl
 - **Metadata** lives in Postgres: one table per object type with ordinary columns, JSONB for nested
   values (actor snapshots, links, a Story version's mockup page), and indexes for the filters in
   this spec.
-  Append-only data (reviews, Story versions, mockup versions and their pages, derivations,
+  Append-only data (Story versions, mockup versions and their pages, derivations,
   revisions, activity events, tombstones)
   lives in its own tables and is never updated. Every content table has a row-level security
   policy keyed on the transaction-local `app.tenant_id`. Directory tables (accounts, sessions,

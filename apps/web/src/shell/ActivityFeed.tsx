@@ -64,14 +64,6 @@ const VERBS: Record<string, string> = {
   "outcome:archived": "archived the outcome",
   "outcome:restored": "restored the outcome",
   "outcome:deleted": "deleted the outcome",
-  "assumption:created": "recorded the assumption",
-  "assumption:updated": "edited the assumption",
-  "assumption:linked": "linked the assumption",
-  "assumption:reviewed": "reviewed the assumption",
-  "assumption:superseded": "superseded the assumption",
-  "assumption:archived": "archived the assumption",
-  "assumption:restored": "restored the assumption",
-  "assumption:deleted": "deleted the assumption",
   "story_page:published": "published",
   "story_page:updated": "published a new version of",
   "story_page:archived": "archived the page",
@@ -109,7 +101,6 @@ const VERBS: Record<string, string> = {
 export const ENTITY_LABEL: Record<string, string> = {
   source: "sources",
   outcome: "outcomes",
-  assumption: "assumptions",
   story_page: "Story pages",
   mockup: "mockups",
   story_hierarchy: "the Story tree",
@@ -123,8 +114,6 @@ function linkFor(app: string, i: ActivityItem, settingsTo: ReturnType<typeof use
   switch (i.entity_type) {
     case "source":
       return i.action === "deleted" || i.action === "moved_out" ? null : `${app}/evidence/${i.entity_id}`;
-    case "assumption":
-      return `${app}/exploration/assumptions/${i.entity_id}`;
     case "outcome":
       return `${app}/idea`;
     case "story_page":

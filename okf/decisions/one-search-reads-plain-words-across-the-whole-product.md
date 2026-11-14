@@ -22,7 +22,7 @@ which would cost money on every search. The maintainer chose one plain-word sear
 
 - One search over everything in a product: sources (what each says: its title, tags, summary,
   derived text, notes and comments, [decision](a-sources-words-are-one-derived-text-and-attachments-are-never-searched.md)),
-  assumptions, outcomes, mockups, Story pages and the product concept. In the web app it is the palette (⌘K, `/`, or the
+  outcomes, mockups, Story pages and the product concept. In the web app it is the palette (⌘K, `/`, or the
   panel's Search field, on every product screen) and the Search screen, where results sit under
   the four areas, Idea, Evidence, Exploration and Story.
 - It reads words the way people type them, deterministically: any order, forgiving endings, the

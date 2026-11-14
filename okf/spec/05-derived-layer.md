@@ -3,7 +3,7 @@ type: Specification
 title: Every attachment is read into readable Markdown and kept, and each source has one derived text that people and agents read, edit and search.
 description: Reading attachments (when a reading runs, its process and limits, what it stores, its statuses), the parsers and how they lay text out, the derived text and how it follows its attachment, and the reads and writes of the derived layer.
 tags: [spec, derived-layer, parsers, derived-text, attachments]
-generated: {by: agent:claude, at: 2026-10-31}
+generated: {by: agent:claude, at: 2026-11-13}
 status: stable
 ---
 
@@ -394,7 +394,7 @@ removes the text, the next reading with text fills it again.
 - `content`: the whole text, Markdown, at most 2,000,000 code points (`422 too_long`, which
   suggests uploading it as an attachment and taking its text). Empty content removes the text.
 - `edits`: up to 20 exact replacements `{ field?, old_text, new_text }` (`field` is `text`, the
-  only one), applied in order, each matching exactly once, as `assumptions.update`'s do
+  only one), applied in order, each matching exactly once
   ([§4.1](04-data-model.md)). `404` when the source has no text to edit. The result adds a `diff`.
 - `from_attachment`: an attachment's path, to take the text of its latest reading of its current
   version, which the text then follows again; `404` for a path the source does not have, and

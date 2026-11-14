@@ -30,6 +30,26 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
   `role: "reader"` must send `story_reader`: `reader` is refused (`422 invalid_input`) naming the
   roles there are. An MCP client gets the new tool list (version 0.62.0) in a new session. Nothing
   else needs doing.
+- **Migration `0046_no_assumptions` deletes every assumption, for good.** In every product of every
+  organization it deletes every assumption, archived or not, with its reviews, its earlier wordings,
+  its activity entries and its tombstones; nothing is moved anywhere and nothing in WhatBuild can
+  bring them back
+  ([decision](../decisions/assumptions-are-removed-and-every-one-is-deleted.md)). **An organization
+  that wants a copy must export its products before the deployment takes this release**: Export in
+  the product's Settings in the web app, or `products_export` over MCP; a bundle made before it holds
+  them in `assumptions.json`. Tell the deployment's people before upgrading. The MCP tools
+  `assumptions_read`, `assumptions_write` and `assumptions_delete` and the REST routes under
+  `/assumptions` are gone; an MCP client gets the new tool list, version 0.62.0, in a new session,
+  and until then a call to one of the old tools is told that assumptions are retired. Rehearse the
+  release on the dev deployment as any release that migrates; going back past it needs the database
+  restored ([recovering](recovering-from-a-bad-release.md)), since running the previous image
+  finds no assumptions.
+- **Exploration holds mockups only, and search finds no assumptions.** A product's `counts` have no
+  `assumptions`, and Exploration's count is its mockups. `search` takes `scope` `sources` only:
+  `assumptions` or `all` is refused, and so is plain mode's `kind` `assumption`, each with a hint. An
+  old link to an assumption, in a Story page or a bookmark, opens Exploration's mockups with a toast
+  saying WhatBuild no longer keeps assumptions. A deployment does nothing.
+- **A product export is format version 4:** it has no `assumptions.json`.
 
 ## v0.34.2
 

@@ -46,6 +46,8 @@ const NOT_TENANT_DATA: Record<string, string> = {
 /** Guarded tables the organization below leaves empty, and why. */
 const EMPTY_HERE: Record<string, string> = {
   insights: "retired: what it held moved into sources, and nothing writes it",
+  register_entries: "retired: it holds only decisions waiting to move into sources, and nothing writes it",
+  reviews: "retired: it holds only the reviews of those decisions, and nothing writes it",
 };
 
 interface TableRow {

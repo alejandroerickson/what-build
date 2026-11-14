@@ -368,13 +368,6 @@ describe("every place, as typed", () => {
 
   it("finds %, _ and \\ as typed, in search and in every list's query", async () => {
     expect((await search("10%", "", D)).hits.map((x) => x.record_id)).toEqual([src.fuel]);
-    const a = await alice.api("POST", `${D}/assumptions`, { statement: "Idle time falls 10% when crews start at the yard.", body: "The fuel report says so." });
-    expect(a.status, JSON.stringify(a.body)).toBe(201);
-    expect((await alice.api("POST", `${D}/assumptions`, { statement: "Route 105 stays closed until spring.", body: "The route survey says so." })).status).toBe(201);
-    const found = await alice.api("GET", `${D}/search?scope=assumptions&query=${encodeURIComponent("10%")}`);
-    expect(found.body.assumptions.map((x: { id: string }) => x.id)).toEqual([a.body.id]);
-    const listed = await alice.api("GET", `${D}/assumptions?query=${encodeURIComponent("10%")}`);
-    expect(listed.body.items.map((x: { id: string }) => x.id)).toEqual([a.body.id]);
     const sources = await alice.api("GET", `${D}/sources?query=${encodeURIComponent("plan_b")}`);
     expect(sources.body.records.map((x: { record_id: string }) => x.record_id)).toEqual([src.planB]);
     const o = await alice.api("POST", `${D}/outcomes`, { title: "Crews spend 50% less time waiting at the gate" });
@@ -396,13 +389,17 @@ describe("every place, as typed", () => {
       expect(r.isError, JSON.stringify(r.content)).toBeFalsy();
       return JSON.parse((r.content as { text: string }[])[0]!.text);
     };
-    const all = await call({ query: "10%", scope: "all" });
-    expect(all).toMatchObject({ search_scope: "all", scope: { product: { path } } });
-    expect(all.hits.map((x: Hit) => x.record_id)).toEqual([src.fuel]);
-    expect(all.assumptions).toHaveLength(1);
+    const found = await call({ query: "10%", scope: "sources" });
+    expect(found).toMatchObject({ search_scope: "sources", scope: { product: { path } } });
+    expect(found.hits.map((x: Hit) => x.record_id)).toEqual([src.fuel]);
+    expect(found).not.toHaveProperty("assumptions");
     expect(await call({ query: "gate code" })).toMatchObject({ search_scope: "sources", scope: { product: { path } } });
+    // A scope of assumptions, from an agent that remembers them, is refused with what to send instead.
+    const retired = await client.callTool({ name: "search", arguments: { product: path, query: "gate", scope: "all" } });
+    expect(retired.isError).toBe(true);
+    expect((retired.content as { text: string }[])[0]!.text).toContain("no longer keeps assumptions");
     // Over REST there is no such echo, and search's own scope keeps its name there too.
-    expect((await alice.api("GET", `${D}/search?scope=all&query=gate`)).body).toMatchObject({ scope: "all", search_scope: "all" });
+    expect((await alice.api("GET", `${D}/search?scope=sources&query=gate`)).body).toMatchObject({ scope: "sources", search_scope: "sources" });
     await client.close();
   });
 
@@ -446,11 +443,10 @@ describe("every place, as typed", () => {
   });
 });
 
-describe("pages of a search of everything, and numbers in ranked mode", () => {
+describe("pages of a search, and numbers in ranked mode", () => {
   let Y: string;
   let yard: string;
   let ticket: string;
-  let idle: string;
 
   beforeAll(async () => {
     const t = await alice.api("POST", "/api/v1/tenants", { name: "Yard Co" });
@@ -460,37 +456,32 @@ describe("pages of a search of everything, and numbers in ranked mode", () => {
     expect((await alice.api("PUT", `${Y}/sources/${yard}/derived/text`, { content: "The gate opens at six. The gate closes at ten. The gate stays shut on Sunday.\n" })).status).toBe(200);
     ticket = await source(Y, alice, "Crane ticket — Example Co");
     expect((await alice.api("PUT", `${Y}/sources/${ticket}/derived/text`, { content: "Ticket CB26-20734 is open for the crane, logged 2026-05-01.\n" })).status).toBe(200);
-    idle = (await alice.api("POST", `${Y}/assumptions`, { statement: "Crews wait at the gate before six.", body: "Ticket CB26-20734 shows the wait." })).body.id;
-    expect((await alice.api("POST", `${Y}/assumptions`, { statement: "The gate code changes weekly." })).status).toBe(201);
   });
 
-  it("with scope all, gives the assumptions on the first page only, and refuses a cursor for assumptions alone", async () => {
-    const first = (await alice.api("GET", `${Y}/search?scope=all&query=gate&limit=1`)).body;
+  it("pages through every hit, and refuses a scope of assumptions, which WhatBuild no longer keeps", async () => {
+    const first = (await alice.api("GET", `${Y}/search?query=gate&limit=1`)).body;
     expect(first.hits).toHaveLength(1);
-    // At most limit of them, as of the hits.
-    expect(first.assumptions).toHaveLength(1);
-    expect((await alice.api("GET", `${Y}/search?scope=all&query=gate&limit=5`)).body.assumptions).toHaveLength(2);
+    expect(first).not.toHaveProperty("assumptions");
     expect(first.next_cursor).toBeTruthy();
     const seen = [...first.hits];
     let cursor: string | null = first.next_cursor;
     while (cursor) {
-      const page = (await alice.api("GET", `${Y}/search?scope=all&query=gate&limit=1&cursor=${cursor}`)).body;
+      const page = (await alice.api("GET", `${Y}/search?query=gate&limit=1&cursor=${cursor}`)).body;
       expect(page.hits).toHaveLength(1);
-      // The pages after the first carry source hits alone, never the first page's assumptions again.
-      expect(page).not.toHaveProperty("assumptions");
       seen.push(...page.hits);
       cursor = page.next_cursor;
     }
     expect(seen.map((x: Hit) => [x.field, x.char_start])).toEqual([["text", 4], ["text", 27], ["text", 51]]);
-    const alone = await alice.api("GET", `${Y}/search?scope=assumptions&query=gate&cursor=${first.next_cursor}`);
-    expect(alone.status).toBe(422);
-    expect(alone.body.error).toMatchObject({ code: "invalid_cursor", message: expect.stringContaining("answers in one page") });
+    for (const scope of ["assumptions", "all"]) {
+      const refused = await alice.api("GET", `${Y}/search?scope=${scope}&query=gate`);
+      expect(refused.status, scope).toBe(422);
+      expect(refused.body.error, scope).toMatchObject({ code: "invalid_input", message: expect.stringContaining("no longer keeps assumptions") });
+    }
   });
 
   it("in ranked mode, finds a bare number where a hyphen joins it to the rest of an id, as plain mode does", async () => {
     const ranked = async (q: string, extra = "") => (await alice.api("GET", `${Y}/search?mode=ranked&query=${encodeURIComponent(q)}${extra}`)).body;
     for (const q of ["20734", "2073*", "CB26-20734", "20734 AND crane", "05"]) expect((await ranked(q)).hits.map((x: Hit) => x.record_id), q).toEqual([ticket]);
-    expect((await ranked("20734", "&scope=assumptions")).assumptions.map((x: { id: string }) => x.id)).toEqual([idle]);
     // A number is still matched as a number: one the text does not hold is not found.
     expect((await ranked("20735")).hits).toEqual([]);
     expect((await ranked("NOT 20734 AND open")).hits).toEqual([]);

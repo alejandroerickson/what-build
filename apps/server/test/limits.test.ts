@@ -493,13 +493,13 @@ describe("the free plan's limits", () => {
   it("limit how much one call carries", async () => {
     tweak({ text_max_chars: 50, batch_max: 1 });
     try {
-      const long = await fay.api("POST", `${P}/assumptions`, { statement: "Too long", body: "x".repeat(51) });
+      const long = await fay.api("POST", `${P}/outcomes`, { title: "Too long", description: "x".repeat(51) });
       expect(long.status).toBe(413);
-      expect(long.body.error.details).toMatchObject({ field: "body", limit: 50, unit: "characters" });
+      expect(long.body.error.details).toMatchObject({ field: "description", limit: 50, unit: "characters" });
       const batch = await fay.api("POST", `${P}/sources/archive`, { record_ids: [seeded, "01ARZ3NDEKTSV4RRFFQ69G5FAV"] });
       expect(batch.status).toBe(413);
       expect(batch.body.error.details).toMatchObject({ field: "record_ids", limit: 1 });
-      expect((await root.api("POST", `${U}/assumptions`, { statement: "Unlimited writes at length", body: "x".repeat(500) })).status).toBe(201);
+      expect((await root.api("POST", `${U}/outcomes`, { title: "Unlimited writes at length", description: "x".repeat(500) })).status).toBe(201);
       // A canvas uploaded as a ZIP would carry text past the cap on a field.
       expect((await fay.api("POST", `${P}/mockups/uploads`, {})).body.error.code).toBe("plan_restricted");
     } finally {
@@ -849,7 +849,7 @@ describe("the totals of a plan", () => {
     tweak({ storage_max_bytes: 1 });
     const upload = await fay.api("POST", `${P}/sources/${seeded}/uploads`, { path: "past-both.md" });
     expect(upload.body.error.details).toMatchObject({ quota: "storage_max_bytes", also: { quota: "writes_per_day" } });
-    const long = await fay.api("POST", `${P}/assumptions`, { statement: "A premise at length", body: "x".repeat(6000) });
+    const long = await fay.api("POST", `${P}/outcomes`, { title: "An outcome at length", description: "x".repeat(6000) });
     expect(long.body.error.details).toMatchObject({ quota: "storage_max_bytes", also: { quota: "writes_per_day" } });
     // Without a total in play, the day's alone.
     const short = await fay.api("POST", `${P}/outcomes`, { title: "A short outcome past the day" });
@@ -914,7 +914,8 @@ describe("the totals of a plan", () => {
     const kept = await addSource(fay, "Sample source archived past the day");
     const shed = await addSource(fay, "Sample source deleted past the day");
     expect((await fay.api("POST", `${P}/sources/archive`, { record_ids: [kept.body.record_id] })).status).toBe(200);
-    const made = await fay.api("POST", `${P}/assumptions`, { statement: "Sample assumption flipped past the day" });
+    const noted = await addSource(fay, "Sample source commented past the day");
+    const made = await fay.api("POST", `${P}/sources/${noted.body.record_id}/annotations`, { record_id: noted.body.record_id, note: "Sample comment flipped past the day" });
     expect(made.body.etag).toBeTruthy();
     const allMine = await used(fay, "writes_per_day");
     tweak({ writes_per_day: allMine });
@@ -931,7 +932,7 @@ describe("the totals of a plan", () => {
     expect(noop.body.error.details).toMatchObject({ quota: "writes_per_day" });
 
     // An operation that archives also restores, so a flip cannot write past the day.
-    const flip = await fay.api("POST", `${P}/assumptions/${made.body.id}/archive`, { archived: true, expected_etag: made.body.etag });
+    const flip = await fay.api("PATCH", `${P}/annotations/${made.body.annotation_id}`, { archived: true, expected_etag: made.body.etag });
     expect(flip.status).toBe(409);
     expect(flip.body.error.details).toMatchObject({ quota: "writes_per_day" });
     expect(await used(fay, "writes_per_day")).toBe(allMine);
@@ -967,7 +968,7 @@ describe("the totals of a plan", () => {
   it("count storage, refuse a large write past it while small ones and reads go on, and bound an upload by what is left", async () => {
     const stored = (await limitsOf(fay)).holds.storage.total as number;
     tweak({ storage_max_bytes: stored + 5000 });
-    const big = await ned.api("POST", `${P}/assumptions`, { statement: "A premise written at length", body: "x".repeat(6000) });
+    const big = await ned.api("POST", `${P}/outcomes`, { title: "An outcome written at length", description: "x".repeat(6000) });
     expect(big.status).toBe(409);
     expect(big.body.error).toMatchObject({ code: "quota_exceeded", details: { quota: "storage_max_bytes", limit: stored + 5000 } });
     expect(big.body.error.message).toMatch(/Deleting what is no longer needed makes room, which a product's admins can do; archiving it does not\./);

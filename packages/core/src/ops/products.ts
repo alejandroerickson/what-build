@@ -100,19 +100,18 @@ function productView(p: {
 interface ProductCounts {
   sources: number;
   outcomes: number;
-  assumptions: number;
   mockups: number;
   story_pages: number;
 }
 
 /**
- * What each product holds, as products.get and products.list report it: archived items are left out,
- * and assumptions count only current (unconfirmed or confirmed) ones. Content tables
+ * What each product holds, as products.get and products.list report it: archived items are left out.
+ * Content tables
  * are tenant-isolated, so the caller's transaction must already be scoped to the products' tenant.
  */
 async function countProducts(db: Db, productIds: string[]): Promise<Map<string, ProductCounts>> {
   const counts = new Map<string, ProductCounts>(
-    productIds.map((id) => [id, { sources: 0, outcomes: 0, assumptions: 0, mockups: 0, story_pages: 0 }]),
+    productIds.map((id) => [id, { sources: 0, outcomes: 0, mockups: 0, story_pages: 0 }]),
   );
   if (!productIds.length) return counts;
   const add = (rows: { product_id: string; n: number | string | bigint }[], key: keyof ProductCounts) => {
@@ -142,22 +141,16 @@ async function countProducts(db: Db, productIds: string[]): Promise<Map<string, 
       .where("product_id", "in", productIds).where("archived_at", "is", null).groupBy("product_id").execute(),
     "story_pages",
   );
-  add(
-    await db.selectFrom("register_entries").select(["product_id", (eb) => eb.fn.countAll<number>().as("n")])
-      .where("product_id", "in", productIds).where("kind", "=", "assumption").where("archived_at", "is", null).where("status", "in", ["unconfirmed", "confirmed"])
-      .groupBy("product_id").execute(),
-    "assumptions",
-  );
   return counts;
 }
 
 /**
  * Each stage's count is every item the stage holds: Idea its outcomes (the concept is one field, not
- * an item), Evidence its sources, Exploration its mockups and current assumptions, and the Story its
+ * an item), Evidence its sources, Exploration its mockups, and the Story its
  * live pages, which are the pages in its tree.
  */
 function stageCounts(c: ProductCounts) {
-  return { idea: c.outcomes, evidence: c.sources, exploration: c.mockups + c.assumptions, story: c.story_pages };
+  return { idea: c.outcomes, evidence: c.sources, exploration: c.mockups, story: c.story_pages };
 }
 
 /** What a role may count: a Story reader sees only how many Story pages there are, never what the evidence holds. */
@@ -453,7 +446,7 @@ export const getProduct = defineOperation({
   access: "story",
   mutates: false,
   summary: "Read a product: its concept, etag, your role, and counts of what it holds.",
-  description: "concept is the back of the product concept's card, the text agents read; include_card adds card_html, its front, the picture people see first (card_chars says how long it is, 0 when there is none). Read both before changing either. Use the counts to decide where to look first. They leave out archived items, and assumptions count only current (unconfirmed or confirmed) ones, the ones assumptions_read(action=\"list\") returns by default. counts has one number per kind; stage_counts totals them per stage, as the web app shows them: idea (outcomes), evidence (sources), exploration (mockups and current assumptions) and story (Story pages, of every kind). The etag guards products_write(action=\"update\") and (action=\"update_concept\"). A Story reader (story_reader) gets no concept, and counts of Story pages only.",
+  description: "concept is the back of the product concept's card, the text agents read; include_card adds card_html, its front, the picture people see first (card_chars says how long it is, 0 when there is none). Read both before changing either. Use the counts to decide where to look first. They leave out archived items. counts has one number per kind; stage_counts totals them per stage, as the web app shows them: idea (outcomes), evidence (sources), exploration (mockups) and story (Story pages, of every kind). The etag guards products_write(action=\"update\") and (action=\"update_concept\"). A Story reader (story_reader) gets no concept, and counts of Story pages only.",
   input: z.strictObject({
     include_card: z.boolean().default(false).describe("Include card_html, the front of the concept's card."),
   }),
@@ -913,7 +906,7 @@ export const grantMember = defineOperation({
   connection: "admin",
   summary: "Give someone a role on the tenant, on all its products, or on a product; invites by email anyone not already in the organization.",
   description:
-    "Name the place: the tenant itself (leave product and all_products out), all_products: true for every product in it, products made later included, or one product. Tenant owners and admins give the tenant's roles (owners give owner) and roles on all products; product admins give roles on their product. Roles: tenant owner|admin|creator|member, where creator is a product creator, who creates products and is admin of each one they create; on all products or a product admin|editor|viewer|story_reader. A viewer reads everything in the product (Idea, Evidence, Exploration, Story, activity) and changes nothing. A story_reader (a Story reader) reads only the Story's live pages, their versions and their export, without the evidence, assumptions and mockups behind them. Someone you already see in the organization (everyone, for its owners and admins; otherwise the people on the products you read) gets the role at once: granting again replaces the role at that scope, and granting the role they already hold there changes nothing and says unchanged. Anyone else gets an invitation by email, valid 7 days, whether or not they have an account, and joins only if they accept it in the web app, which no agent can do for them: the answer never says whether an address has an account. A new invitation to the same address at the same place replaces one still open. To give many people roles at once, use grant_many.",
+    "Name the place: the tenant itself (leave product and all_products out), all_products: true for every product in it, products made later included, or one product. Tenant owners and admins give the tenant's roles (owners give owner) and roles on all products; product admins give roles on their product. Roles: tenant owner|admin|creator|member, where creator is a product creator, who creates products and is admin of each one they create; on all products or a product admin|editor|viewer|story_reader. A viewer reads everything in the product (Idea, Evidence, Exploration, Story, activity) and changes nothing. A story_reader (a Story reader) reads only the Story's live pages, their versions and their export, without the evidence and mockups behind them. Someone you already see in the organization (everyone, for its owners and admins; otherwise the people on the products you read) gets the role at once: granting again replaces the role at that scope, and granting the role they already hold there changes nothing and says unchanged. Anyone else gets an invitation by email, valid 7 days, whether or not they have an account, and joins only if they accept it in the web app, which no agent can do for them: the answer never says whether an address has an account. A new invitation to the same address at the same place replaces one still open. To give many people roles at once, use grant_many.",
   input: grantScope.extend({
     email: z.string().email().max(320),
     role: z.enum(GRANT_ROLES),

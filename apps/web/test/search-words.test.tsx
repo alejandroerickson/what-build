@@ -15,14 +15,14 @@ const product = { name: "Crewboard", path: "acme/crew", your_role: "editor" };
 
 const SOURCE = "01K8A2B3C4D5E6F7G8H9J0K1M2";
 const LATE = "…the crews meet at the yard before seven, load the vans from the list on the board, check the mowers and the trimmers, and then the lead takes the pallet of mulch to the first job of the day.";
-/** What plain search answers for a query, when it finds anything: a source whose title holds the words too, or an assumption. */
+/** What plain search answers for a query, when it finds anything: a source whose title holds the words too, or an outcome. */
 const found: Record<string, unknown> = {
   "two crews": {
     query: "two crews",
     terms: [{ text: "two", phrase: false }, { text: "crews", phrase: false }],
-    ignored: [], kind_hint: null, corrections: [], partial: false, counts: { assumption: 1 },
+    ignored: [], kind_hint: null, corrections: [], partial: false, counts: { outcome: 1 },
     results: [
-      { kind: "assumption", id: "a1", title: "Two crews share one van on Mondays.", title_marks: [[0, 9]], snippet: null, snippet_marks: [], missing: [], score: 1, meta: { status: "confirmed" } },
+      { kind: "outcome", id: "a1", title: "Two crews share one van on Mondays.", title_marks: [[0, 9]], snippet: null, snippet_marks: [], missing: [], score: 1, meta: {} },
     ],
   },
   // A piece whose words come late in its excerpt, past what two lines hold on a phone.
@@ -54,11 +54,11 @@ const found: Record<string, unknown> = {
   "schedulers": {
     query: "schedulers",
     terms: [{ text: "schedulers", phrase: false }],
-    ignored: [], kind_hint: null, corrections: [], partial: false, counts: { assumption: 1 },
+    ignored: [], kind_hint: null, corrections: [], partial: false, counts: { outcome: 1 },
     results: [
       {
-        kind: "assumption", id: "a2", title: "Quarterly planning review of the northern depots and their lead schedulers on call", title_marks: [[64, 74]], snippet: null, snippet_marks: [], missing: [], score: 1,
-        meta: { status: "unreviewed" },
+        kind: "outcome", id: "a2", title: "Quarterly planning review of the northern depots and their lead schedulers on call", title_marks: [[64, 74]], snippet: null, snippet_marks: [], missing: [], score: 1,
+        meta: {},
       },
     ],
   },
@@ -66,22 +66,22 @@ const found: Record<string, unknown> = {
   '"lead schedulers"': {
     query: '"lead schedulers"',
     terms: [{ text: "lead schedulers", phrase: true }],
-    ignored: [], kind_hint: null, corrections: [], partial: false, counts: { assumption: 1 },
+    ignored: [], kind_hint: null, corrections: [], partial: false, counts: { outcome: 1 },
     results: [
       {
-        kind: "assumption", id: "a2", title: "Quarterly planning review of the northern depots and their lead schedulers on call", title_marks: [[59, 74]], snippet: null, snippet_marks: [], missing: [], score: 1,
-        meta: { status: "unreviewed" },
+        kind: "outcome", id: "a2", title: "Quarterly planning review of the northern depots and their lead schedulers on call", title_marks: [[59, 74]], snippet: null, snippet_marks: [], missing: [], score: 1,
+        meta: {},
       },
     ],
   },
   "lead schedulers": {
     query: "lead schedulers",
     terms: [{ text: "lead", phrase: false }, { text: "schedulers", phrase: false }],
-    ignored: [], kind_hint: null, corrections: [], partial: false, counts: { assumption: 1 },
+    ignored: [], kind_hint: null, corrections: [], partial: false, counts: { outcome: 1 },
     results: [
       {
-        kind: "assumption", id: "a2", title: "Quarterly planning review of the northern depots and their lead schedulers on call", title_marks: [[59, 63], [64, 74]], snippet: null, snippet_marks: [], missing: [], score: 1,
-        meta: { status: "unreviewed" },
+        kind: "outcome", id: "a2", title: "Quarterly planning review of the northern depots and their lead schedulers on call", title_marks: [[59, 63], [64, 74]], snippet: null, snippet_marks: [], missing: [], score: 1,
+        meta: {},
       },
     ],
   },
@@ -89,11 +89,11 @@ const found: Record<string, unknown> = {
   "planning schedulers": {
     query: "planning schedulers",
     terms: [{ text: "planning", phrase: false }, { text: "schedulers", phrase: false }],
-    ignored: [], kind_hint: null, corrections: [], partial: false, counts: { assumption: 1 },
+    ignored: [], kind_hint: null, corrections: [], partial: false, counts: { outcome: 1 },
     results: [
       {
-        kind: "assumption", id: "a2", title: "Quarterly planning review of the northern depots and their lead schedulers on call", title_marks: [[10, 18], [64, 74]], snippet: null, snippet_marks: [], missing: [], score: 1,
-        meta: { status: "unreviewed" },
+        kind: "outcome", id: "a2", title: "Quarterly planning review of the northern depots and their lead schedulers on call", title_marks: [[10, 18], [64, 74]], snippet: null, snippet_marks: [], missing: [], score: 1,
+        meta: {},
       },
     ],
   },
@@ -115,8 +115,8 @@ const found: Record<string, unknown> = {
         {
           query,
           terms: words.map((text) => ({ text, phrase: false })),
-          ignored: [], kind_hint: null, corrections: [], partial: false, counts: { assumption: 1 },
-          results: [{ kind: "assumption", id: "a3", title, title_marks, snippet: null, snippet_marks: [], missing: [], score: 1, meta: { status: "unreviewed" } }],
+          ignored: [], kind_hint: null, corrections: [], partial: false, counts: { outcome: 1 },
+          results: [{ kind: "outcome", id: "a3", title, title_marks, snippet: null, snippet_marks: [], missing: [], score: 1, meta: {} }],
         },
       ];
     }),
@@ -456,24 +456,3 @@ describe("following a source in the palette", () => {
   });
 });
 
-describe("an assumption among the results", () => {
-  it("says its status once on the Search screen, as a badge, and once in the palette, in its line", async () => {
-    const host = await render(<SearchPage />, `${APP}/search?q=${encodeURIComponent("two crews")}`);
-    const row = host.querySelector(".find-item")!;
-    expect(row.querySelector(".find-meta")?.textContent).toBe("Assumption");
-    expect(row.querySelector(".status")?.textContent).toBe("Confirmed");
-    expect(row.textContent!.match(/Confirmed/g)).toHaveLength(1);
-    unmount?.();
-    await render(
-      <FindProvider app={APP} base={BASE} product={product as never}>
-        <FindLauncher product={product as never} />
-      </FindProvider>,
-      `${APP}/evidence`,
-    );
-    await act(async () => document.querySelector<HTMLButtonElement>(".find-launch")!.click());
-    await act(async () => type(document.querySelector<HTMLInputElement>("dialog.find-pal input")!, "two crews"));
-    await act(async () => new Promise((r) => setTimeout(r, 150)));
-    await settle();
-    expect(document.querySelector(".find-pal-meta")?.textContent).toBe("Assumption · Confirmed");
-  });
-});

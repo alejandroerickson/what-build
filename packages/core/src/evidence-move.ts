@@ -9,8 +9,8 @@ import { collapse, newEtag, newId, slugify, uniq } from "./util.ts";
  * Insights and decisions are retired. Each one still held in a product becomes a Markdown source in
  * Evidence with the same id, so every link and reference to it keeps working, tagged with what it
  * was: an insight as an analysis and an insight, a decision as a decision. Its earlier
- * revisions become earlier versions of the file, and an assumption's link to a decision becomes a
- * line in the decision's document. Its history in the activity log becomes the source's history.
+ * revisions become earlier versions of the file, and its links become lines in its document. Its
+ * history in the activity log becomes the source's history.
  * Then the original is deleted.
  *
  * The text goes to object storage, which only the worker reaches, so a migration or a restored copy
@@ -186,11 +186,6 @@ export async function runEvidenceMove(db: Tx, ports: Ports, job: { tenant_id: st
     await writeFile(db, ports, job.tenant_id, d.entry_id, `${slugify(d.statement)}.md`, versions);
   }
 
-  if (decisions.length) {
-    const gone = decisions.map((d) => d.entry_id);
-    for (const e of entries.filter((x) => x.kind === "assumption" && x.links.some((l) => gone.includes(l.id))))
-      await db.updateTable("register_entries").set({ links: json(e.links.filter((l) => !gone.includes(l.id))), etag: newEtag() }).where("entry_id", "=", e.entry_id).execute();
-  }
   if (moving.size) {
     await db.updateTable("activity").set({ entity_type: "source" }).where("product_id", "=", pid).where("entity_type", "in", ["insight", "decision"]).where("entity_id", "in", [...moving]).execute();
     await db.deleteFrom("revisions").where("object_type", "in", ["insight", "decision"]).where("object_id", "in", [...moving]).execute();

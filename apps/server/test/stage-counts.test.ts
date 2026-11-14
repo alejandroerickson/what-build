@@ -22,19 +22,16 @@ beforeAll(async () => {
 afterAll(async () => h?.close());
 
 describe("stage counts", () => {
-  it("total every item each stage holds, leaving out archived and not-current ones, as products.get and products.list report them", async () => {
+  it("total every item each stage holds, leaving out archived ones, as products.get and products.list report them", async () => {
     // Idea: outcomes, one of them archived.
     await alice.api("POST", `${P}/outcomes`, { title: "Plan the week" });
     const retired = await alice.api("POST", `${P}/outcomes`, { title: "Retired aim" });
     expect((await alice.api("POST", `${P}/outcomes/${retired.body.outcome_id}/archive`, { expected_etag: retired.body.etag })).status).toBe(200);
     // Evidence: sources.
     for (const n of [1, 2]) expect((await alice.api("POST", `${P}/sources/with-upload`, { tags: ["note"], title: `Note ${n}`, path: `note-${n}.md` })).status).toBe(201);
-    // Exploration: mockups and current assumptions; a superseded one is not counted.
+    // Exploration: mockups.
     const m = await alice.api("POST", `${P}/mockups`, { title: "Board", pages: [{ page_id: "phone", title: "Phone", html: page("Phone") }] });
     expect(m.status).toBe(201);
-    await alice.api("POST", `${P}/assumptions`, { statement: "Crews plan weekly." });
-    const old = await alice.api("POST", `${P}/assumptions`, { statement: "Crews plan daily." });
-    expect((await alice.api("POST", `${P}/assumptions/${old.body.id}/supersede`, { expected_etag: old.body.etag, note: "Wrong cadence.", statement: "Crews plan on Mondays." })).status).toBe(200);
     // Story: two pages of its own, one archived, and a promoted mockup page.
     for (const id of ["overview", "plan", "gone"]) expect((await alice.api("POST", `${P}/story/pages/${id}/versions`, { title: id, html: page(id) })).status).toBe(201);
     const gone = await alice.api("GET", `${P}/story/pages/gone`);
@@ -49,8 +46,8 @@ describe("stage counts", () => {
     expect(seen).toBe(3);
 
     const got = (await alice.api("GET", P)).body;
-    expect(got.counts).toEqual({ outcomes: 1, sources: 2, mockups: 1, assumptions: 2, story_pages: 3 });
-    expect(got.stage_counts).toEqual({ idea: 1, evidence: 2, exploration: 3, story: seen });
+    expect(got.counts).toEqual({ outcomes: 1, sources: 2, mockups: 1, story_pages: 3 });
+    expect(got.stage_counts).toEqual({ idea: 1, evidence: 2, exploration: 1, story: seen });
     const listed = (await alice.api("GET", "/api/v1/me/products")).body.items.find((i: { product_id: string }) => i.product_id === productId);
     expect(listed.stage_counts).toEqual(got.stage_counts);
     expect(listed.counts).toEqual(got.counts);

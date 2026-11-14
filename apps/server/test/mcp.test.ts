@@ -65,7 +65,7 @@ describe("adapter parity", () => {
         expect(o.rest.method === "DELETE", o.name).toBe(kind === "delete");
       }
     }
-    expect([...groups.keys()].filter((t) => t.endsWith("_delete")).sort()).toEqual(["assumptions_delete", "mockups_delete", "outcomes_delete", "products_delete", "sources_delete", "story_delete"]);
+    expect([...groups.keys()].filter((t) => t.endsWith("_delete")).sort()).toEqual(["mockups_delete", "outcomes_delete", "products_delete", "sources_delete", "story_delete"]);
   });
 
   it("gives every tool a title and says whether it only reads or changes data", () => {
@@ -130,19 +130,28 @@ describe("MCP", () => {
 
   it("describes an action without running it, and refuses unknown actions and fields", async () => {
     const client = await connect(agentToken);
-    const d = text(await client.callTool({ name: "assumptions_write", arguments: { action: "create", describe: true } }));
-    expect(d.input_schema.properties.statement).toBeDefined();
+    const d = text(await client.callTool({ name: "outcomes_write", arguments: { action: "create", describe: true } }));
+    expect(d.input_schema.properties.title).toBeDefined();
     expect(d.input_schema.additionalProperties).toBe(false);
-    const bad = await client.callTool({ name: "assumptions_write", arguments: { action: "explode" } });
+    const bad = await client.callTool({ name: "outcomes_write", arguments: { action: "explode" } });
     expect(bad.isError).toBe(true);
-    expect((bad.content as { text: string }[])[0]!.text).toMatch(/^422: Unknown assumptions_write action: explode\. This server, version [\d.]+, offers this connection these assumptions_write actions: create,/);
-    expect(text(bad).error.details).toMatchObject({ tools_version: TOOLS_VERSION, actions: expect.arrayContaining(["create", "review"]) });
+    expect((bad.content as { text: string }[])[0]!.text).toMatch(/^422: Unknown outcomes_write action: explode\. This server, version [\d.]+, offers this connection these outcomes_write actions: create,/);
+    expect(text(bad).error.details).toMatchObject({ tools_version: TOOLS_VERSION, actions: expect.arrayContaining(["create", "archive"]) });
     const field = await client.callTool({ name: "outcomes_write", arguments: { action: "create", product: path, params: { title: "x", colour: "red" } } });
     expect((field.content as { text: string }[])[0]!.text).toMatch(/^422: `colour` is not a field of this action\./);
     // A tool the server does not have: the refusal lists the server's tools and says the client's list may be out of date.
     const tool = await client.callTool({ name: "insights", arguments: { action: "list" } });
     expect((tool.content as { text: string }[])[0]!.text).toMatch(/^422: Unknown tool insights\. This server, version [\d.]+, offers this connection these tools: .*story_read.*start a new session/s);
     expect(text(tool).error).toMatchObject({ code: "unknown_tool", details: { tools_version: TOOLS_VERSION, tools: expect.arrayContaining(["story_read", "mockups_read"]) } });
+    // Assumptions are retired: a client holding an older list is told so, and that nothing takes their place.
+    for (const name of ["assumptions_read", "assumptions_write", "assumptions_delete"]) {
+      const gone = await client.callTool({ name, arguments: { action: "list" } });
+      expect(text(gone).error, name).toMatchObject({ code: "unknown_tool" });
+      expect((gone.content as { text: string }[])[0]!.text, name).toContain(
+        `Unknown tool ${name}. Assumptions are retired: WhatBuild no longer keeps them, and the ones products held were deleted. Nothing takes their place.`,
+      );
+      expect(text(gone).error.details.tools, name).not.toContain(name);
+    }
     await client.close();
   });
 
@@ -263,14 +272,13 @@ describe("MCP", () => {
     // The old tool is gone; the refusal names the tools there are.
     const old = await client.callTool({ name: "read_passage", arguments: { product: path, record_id: created.record.record_id, seq: 0 } });
     expect(text(old).error).toMatchObject({ code: "unknown_tool", details: { tools: expect.arrayContaining(["attachments_write", "derived_read"]) } });
-    const a = text(await client.callTool({
-      name: "assumptions_write",
-      arguments: { action: "create", product: path, params: { statement: "Approvals, not budgets, set the buying pace.", body: "The buyer says approvals come first." } },
+    const o = text(await client.callTool({
+      name: "outcomes_write",
+      arguments: { action: "create", product: path, params: { title: "Buyers get approvals in a day", description: "Approvals, not budgets, set the buying pace." } },
     }));
-    expect(a.author_type).toBe("agent");
-    expect(a.author.surface).toBe("mcp");
+    expect(o.created_by.surface).toBe("mcp");
     const act = await alice.api("GET", `/api/v1/p/${path}/activity`);
-    expect(act.body.items.find((i: { entity_type: string }) => i.entity_type === "assumption").through_agent).toBe(true);
+    expect(act.body.items.find((i: { entity_id: string }) => i.entity_id === o.outcome_id).through_agent).toBe(true);
     await client.close();
   });
 

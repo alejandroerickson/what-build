@@ -12,6 +12,7 @@ let alice: Browser;
 let P: string;
 let path: string;
 let client: Client;
+let sourceId: string;
 
 function result(r: unknown): { status: number; json: any } {
   const t = (r as { content: { text: string }[] }).content[0]!.text;
@@ -36,6 +37,7 @@ beforeAll(async () => {
   path = p.body.path;
   P = `/api/v1/p/${path}`;
   const s = await alice.api("POST", `${P}/sources`, { title: "Gate notes — Example Co", tags: ["notes"] });
+  sourceId = s.body.record_id;
   expect((await alice.api("PUT", `${P}/sources/${s.body.record_id}/derived/text`, { content: "The gate opens at nine.\n" })).status).toBe(200);
   client = new Client({ name: "nul-agent", version: "1.0.0" });
   await client.connect(new StreamableHTTPClientTransport(new URL(`${h.baseUrl}/mcp`), { requestInit: { headers: { authorization: `Bearer ${await h.connectAgent(alice)}` } } }));
@@ -53,7 +55,7 @@ describe("a null character over REST", () => {
       [`${P}/sources?query=ga%00te`, "query"],
       [`${P}/sources?cursor=x%00`, "cursor"],
       [`${P}/activity?cursor=01%00`, "cursor"],
-      [`${P}/assumptions?tag=a%00b`, "tag"],
+      [`${P}/outcomes?query=a%00b`, "query"],
     ] as const) {
       const r = await alice.api("GET", url);
       expect(r.status, url).toBe(422);
@@ -62,9 +64,6 @@ describe("a null character over REST", () => {
   });
 
   it("in the path is refused by name, the product's own address included", async () => {
-    const id = await alice.api("GET", `${P}/assumptions/ab%00c`);
-    expect(id.status).toBe(422);
-    refusesNul(id.body, "id");
     const [tenant, product] = path.split("/");
     const scoped = await alice.api("GET", `/api/v1/p/${tenant}/${product}%00/sources`);
     expect(scoped.status).toBe(422);
@@ -78,21 +77,21 @@ describe("a null character over REST", () => {
     const outcome = await alice.api("POST", `${P}/outcomes`, { title: "Open the\u0000 gate" });
     expect(outcome.status).toBe(422);
     refusesNul(outcome.body, "title");
-    const assumption = await alice.api("POST", `${P}/assumptions`, { statement: "Crews open the gate.", tags: ["gate", "ni\u0000ne"], body: "\u0000" });
-    expect(assumption.status).toBe(422);
-    refusesNul(assumption.body, "tags.1", "body");
+    const comment = await alice.api("POST", `${P}/sources/${sourceId}/annotations`, { tags: ["gate", "ni\u0000ne"], note: "\u0000" });
+    expect(comment.status).toBe(422);
+    refusesNul(comment.body, "tags.1", "note");
     expect((await alice.api("GET", `${P}/outcomes`)).body.items).toEqual([]);
-    expect((await alice.api("GET", `${P}/assumptions`)).body.items).toEqual([]);
+    expect((await alice.api("GET", `${P}/sources/${sourceId}/annotations`)).body.items).toEqual([]);
   });
 
   it("in an operation's body, is named beside the schema's own refusals, and left to them for a field they already refuse", async () => {
     const r = await alice.api("POST", `${P}/outcomes`, { title: "Gate\u0000", colour: "red" });
     expect(r.status).toBe(422);
     expect(r.body.error.message).toMatch(/^`colour` is not a field of this action\. `title` holds a null character/);
-    const link = await alice.api("POST", `${P}/assumptions`, { statement: "Crews open the gate.", links: [{ id: "01\u0000", type: "supports" }] });
-    expect(link.status).toBe(422);
-    expect(link.body.error.message).toContain("must be an assumption id");
-    expect(link.body.error.message).not.toContain("null character");
+    const archive = await alice.api("POST", `${P}/sources/archive`, { record_ids: ["01\u0000"] });
+    expect(archive.status).toBe(422);
+    expect(archive.body.error.message).toContain("must be a source id");
+    expect(archive.body.error.message).not.toContain("null character");
   });
 });
 

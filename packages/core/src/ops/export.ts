@@ -2,7 +2,7 @@ import { sql } from "kysely";
 import { Zip, ZipPassThrough, strToU8 } from "fflate";
 import { z } from "zod";
 import { productId, recordActivity, tenantId } from "../common.ts";
-import { json, type RegisterEntriesTable, type Tx } from "../db.ts";
+import { json, type Tx } from "../db.ts";
 import { conflict } from "../errors.ts";
 import type { Ports } from "../ports.ts";
 import { defineOperation } from "../registry.ts";
@@ -10,7 +10,7 @@ import { requesterClaims } from "./attachments.ts";
 import { newId } from "../util.ts";
 
 export const EXPORT_FORMAT = "whatbuild-product-bundle";
-export const EXPORT_FORMAT_VERSION = 3;
+export const EXPORT_FORMAT_VERSION = 4;
 const EXPORT_DAYS = 7;
 
 /**
@@ -28,8 +28,7 @@ export const BUNDLE_LAYOUT: readonly { path: string; holds: string }[] = [
   { path: "records/<record_id>/derived/<derivation_id>/<file>", holds: "What an attachment was read as: text.md and manifest.json, with segments.jsonl in readings made while sources had passages." },
   { path: "records/<record_id>/annotations.json", holds: "The source's comments." },
   { path: "records/<record_id>/agent-notes/<kind>.md", holds: "The source's summary (summary.md) and notes (notes.md); its card, the picture people recognise it by, is card.html." },
-  { path: "assumptions.json", holds: "The assumptions, each with its reviews." },
-  { path: "revisions.json", holds: "Earlier texts of the outcomes, the assumptions, the comments and the product concept." },
+  { path: "revisions.json", holds: "Earlier texts of the outcomes, the comments and the product concept." },
   { path: "story/hierarchy.json", holds: "The Story's page tree." },
   { path: "story/style.json", holds: "The Story style, when the product has one." },
   { path: "story/style.css", holds: "The Story style's stylesheet." },
@@ -47,16 +46,6 @@ export const BUNDLE_LAYOUT: readonly { path: string; holds: string }[] = [
   { path: "activity.jsonl", holds: "The activity log, one event a line." },
 ];
 
-/**
- * The columns of an assumption a bundle holds: every one but the search vector the database keeps
- * for itself. Listing them against the table's type makes a new column fail the typecheck until it
- * is added here.
- */
-const ASSUMPTION_COLUMNS = Object.keys({
-  entry_id: 1, tenant_id: 1, product_id: 1, kind: 1, statement: 1, body: 1, links: 1, outcome_ids: 1, tags: 1, author: 1, author_type: 1,
-  status: 1, review_count: 1, archived_at: 1, etag: 1, created_at: 1, updated_at: 1, updated_by: 1,
-} satisfies Record<keyof RegisterEntriesTable, 1>) as (keyof RegisterEntriesTable)[];
-
 export const exportProduct = defineOperation({
   name: "products.export",
   scope: "product",
@@ -67,7 +56,7 @@ export const exportProduct = defineOperation({
   // No archiving stops an export; only the free plan's daily allowance limits it.
   allowArchivedProduct: true,
   summary:
-    "Export the whole product to one ZIP: every source with its attachments, texts, summary, notes and comments, and the outcomes, assumptions with their reviews, earlier texts, Story versions, mockup versions, tombstones and activity.",
+    "Export the whole product to one ZIP: every source with its attachments, texts, summary, notes and comments, and the outcomes, earlier texts, Story versions, mockup versions, tombstones and activity.",
   description:
     "It changes nothing in the product; activity records that it was asked for. A viewer, editor or admin may export, at any time, and an archived product exports too. A Story reader, who reads only the Story, is refused (403). On the free plan each person's exports are limited by exports_per_day (409 quota_exceeded, or 403 plan_restricted when it is 0); writing's own allowance never stops an export. A guest of the example organization exports nothing (403 example_read_only). One export of a product is built at a time (409 export_in_progress). The bundle is built in the background; call products_read(action=\"exports\") to see when it is ready and get a download grant. Readable with a ZIP tool and nothing else: JSON, Markdown, HTML and the original files, each kind listed in the bundle's README.txt.",
   input: z.strictObject({}),
@@ -224,11 +213,7 @@ export async function runExport(db: Tx, ports: Ports, job: { tenant_id: string; 
     for (const a of agent) add(`${base}/agent-notes/${a.kind}.${a.kind === "card" ? "html" : "md"}`, a.content);
   }
 
-  const entries = await db.selectFrom("register_entries").select(ASSUMPTION_COLUMNS).where("product_id", "=", pid).where("kind", "=", "assumption").orderBy("entry_id").execute();
-  const reviews = entries.length ? await db.selectFrom("reviews").selectAll().where("entry_id", "in", entries.map((e) => e.entry_id)).orderBy("review_id").execute() : [];
-  add("assumptions.json", j(entries.map((e) => ({ ...e, reviews: reviews.filter((r) => r.entry_id === e.entry_id) }))));
-
-  const objectIds = [...entries.map((e) => e.entry_id), pid];
+  const objectIds = [pid];
   const outcomes = await db.selectFrom("outcomes").select("outcome_id").where("product_id", "=", pid).execute();
   const noteIds = (await db.selectFrom("annotations").select("annotation_id").where("product_id", "=", pid).execute()).map((a) => a.annotation_id);
   const revs = await db.selectFrom("revisions").selectAll().where("object_id", "in", [...objectIds, ...outcomes.map((o) => o.outcome_id), ...noteIds]).orderBy("object_id").orderBy("n").execute();

@@ -17,8 +17,8 @@ import { useReorder } from "./idea-reorder.ts";
 import "../styles/screens/idea.css";
 
 /**
- * An outcome is current or archived, and points at nothing: assumptions, mockups and Story pages
- * point at it, and are read against it. Like the product concept, it is a card: a picture of it
+ * An outcome is current or archived, and points at nothing: mockups and Story pages are read
+ * against it. Like the product concept, it is a card: a picture of it
  * (card_html, which the list gives only the length of) and, under More info, its text, the
  * description agents read. Agents write both, together; people read them, drag the outcomes into
  * order and retire them.
@@ -280,15 +280,9 @@ export function outcomeGoes(o: Pick<Outcome, "title" | "card_chars" | "descripti
   return sides.length ? `This deletes ${title.replace(/\.$/, "")} with its ${sides.join(" and ")}.` : `This deletes ${title}`;
 }
 
-/** What a deleted outcome's dialog says of the assumptions that serve it, which stay, unlinked from it. */
-export function servedBy(n: number): string {
-  return `${plural(n, "assumption")} ${n === 1 ? "serves" : "serve"} it, and will no longer be linked to it.`;
-}
-
 /** What deleting an outcome destroys, as outcomes.delete_impact reports it. */
 interface OutcomeImpact {
   etag: string;
-  assumptions: { id: string; statement: string }[];
 }
 
 export function IdeaPage() {
@@ -400,7 +394,7 @@ export function IdeaPage() {
                     : `Interview me about ${product.name}, then write its product concept and outcomes in WhatBuild, each as a card with its picture and text.`
                 }
               >
-                An outcome is what the product&rsquo;s users should be able to achieve. Outcomes are the compass: the evidence, assumptions, mockups and Story are read against them.
+                An outcome is what the product&rsquo;s users should be able to achieve. Outcomes are the compass: the evidence, mockups and Story are read against them.
               </FirstUse>
             )}
           </div>
@@ -505,12 +499,7 @@ export function IdeaPage() {
           impactPath={`${base}/outcomes/${deleting.outcome_id}/delete-impact`}
           deletePath={`${base}/outcomes/${deleting.outcome_id}`}
           alternative={deleting.archived_at ? undefined : { label: "Archive instead", onSelect: () => setArchived.mutate({ o: deleting, archived: true, undo: true }) }}
-          renderImpact={(i) => (
-            <>
-              <p>{outcomeGoes(deleting)}</p>
-              {i.assumptions.length ? <p>{servedBy(i.assumptions.length)}</p> : null}
-            </>
-          )}
+          renderImpact={() => <p>{outcomeGoes(deleting)}</p>}
           onDeleted={() => {
             refresh();
             toast(`Deleted ${quotedAtEnd(deleting.title)} The activity log records who, when and why.`);

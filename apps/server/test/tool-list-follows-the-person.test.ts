@@ -177,7 +177,7 @@ describe("a connector scoped to a product", () => {
     expect(actions).toEqual(expect.arrayContaining(["story.list_pages", "story.get_page"]));
     // Search is listed: for a Story reader it reads only the Story.
     expect(actions).toContain("search");
-    for (const a of ["sources.list", "outcomes.list", "assumptions.list", "mockups.list", "story.guidance", "activity.list", "products.limits"]) expect(actions, a).not.toContain(a);
+    for (const a of ["sources.list", "outcomes.list", "mockups.list", "story.guidance", "activity.list", "products.limits"]) expect(actions, a).not.toContain(a);
   });
 
   it("lists an admin what the connection's level allows", async () => {
@@ -405,7 +405,7 @@ describe("search, for someone who reads only the Story", () => {
     const tool = await searchTool(rita, `/mcp/t/${path}`);
     expect(tool.description).toMatch(/^Search this product's Story pages\./);
     expect(tool.description).toMatch(/It takes mode "plain".*any other is refused with 403/);
-    expect(tool.description).not.toMatch(/what a product's sources say|derived|record_id|attachment|assumptions come/i);
+    expect(tool.description).not.toMatch(/what a product's sources say|derived|record_id|attachment/i);
     // Nor does it name a kind of thing they cannot search, among the words it reads differently.
     expect(tool.description).not.toMatch(/\b(sources?|assumptions?|outcomes?|mockups?|ideas?|concepts?|passages?|quotes?)\b/i);
     expect(tool.description).toMatch(/the word story, beside other words, is not searched for/);

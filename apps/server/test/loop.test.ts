@@ -166,71 +166,6 @@ describe("the discovery loop through REST", () => {
     expect(bad.status).toBe(422);
   });
 
-  it("records an assumption with why the team holds it, reviews it, and supersedes it", async () => {
-    const a = await alice.api("POST", `${P}/assumptions`, {
-      statement: "Teams close their numbers on Fridays.",
-      body: "Dana says the numbers close on Friday, before the pricing review.",
-    });
-    expect(a.status).toBe(201);
-    expect(a.body.status).toBe("unconfirmed");
-    expect(a.body.author_type).toBe("human");
-    expect(a.body).not.toHaveProperty("citations");
-    const agentConfidence = await alice.api("POST", `${P}/assumptions/${a.body.id}/review`, { expected_etag: a.body.etag, status: "confirmed", note: "x", reviewer_type: "agent", confidence: "high" });
-    expect(agentConfidence.status).toBe(422);
-    const rv = await alice.api("POST", `${P}/assumptions/${a.body.id}/review`, { expected_etag: a.body.etag, status: "confirmed", note: "Heard in two calls.", confidence: "medium" });
-    expect(rv.status).toBe(200);
-    expect(rv.body.status).toBe("confirmed");
-    expect(rv.body.human_review.confidence).toBe("medium");
-    const frozen = await alice.api("PATCH", `${P}/assumptions/${a.body.id}`, { expected_etag: rv.body.etag, statement: "changed" });
-    expect(frozen.status).toBe(409);
-    expect(frozen.body.error.code).toBe("frozen");
-    const sup = await alice.api("POST", `${P}/assumptions/${a.body.id}/supersede`, {
-      expected_etag: rv.body.etag, note: "Narrower wording.", statement: "The numbers close on Fridays.",
-    });
-    expect(sup.status).toBe(200);
-    expect(sup.body.entry.links).toEqual([expect.objectContaining({ id: a.body.id, type: "supersedes" })]);
-    const old = await alice.api("GET", `${P}/assumptions/${a.body.id}`);
-    expect(old.body.status).toBe("superseded");
-    // The list names each entry's successors, so history can be shown under its correction.
-    const all = await alice.api("GET", `${P}/assumptions?status=superseded,confirmed,unconfirmed`);
-    const byId = (id: string) => all.body.items.find((x: { id: string }) => x.id === id);
-    expect(byId(a.body.id).superseded_by).toEqual([sup.body.entry.id]);
-    expect(byId(sup.body.entry.id).superseded_by).toEqual([]);
-  });
-
-  it("records assumptions before there is evidence, and takes no citations", async () => {
-    const a = await alice.api("POST", `${P}/assumptions`, { statement: "Crew leads plan on Sunday evenings." });
-    expect(a.status).toBe(201);
-    expect(a.body.status).toBe("unconfirmed");
-    const log = await alice.api("GET", `${P}/activity?entity_id=${a.body.id}`);
-    expect(log.body.items[0].summary).toBe("Recorded an unconfirmed assumption");
-    const cited = await alice.api("PATCH", `${P}/assumptions/${a.body.id}`, { expected_etag: a.body.etag, citations: [{ record_id: recordId, seq_start: 2, seq_end: 2 }] });
-    expect(cited.status).toBe(422);
-    expect(cited.body.error.code).toBe("invalid_input");
-    const said = await alice.api("PATCH", `${P}/assumptions/${a.body.id}`, { expected_etag: a.body.etag, body: "Two crew leads said so; nobody has checked it yet." });
-    expect(said.status).toBe(200);
-    expect(said.body.changed).toEqual(["body"]);
-  });
-
-  it("counts only current assumptions, as the default lists show them", async () => {
-    const o = await alice.api("POST", `${P}/outcomes`, { title: "Know when numbers close" });
-    const a = await alice.api("POST", `${P}/assumptions`, { statement: "Numbers close weekly.", outcome_ids: [o.body.outcome_id] });
-    const sup = await alice.api("POST", `${P}/assumptions/${a.body.id}/supersede`, {
-      expected_etag: a.body.etag, note: "Sharper.", statement: "Numbers close every Friday.", outcome_ids: [o.body.outcome_id],
-    });
-    expect(sup.status).toBe(200);
-    const d = await alice.api("POST", `${P}/assumptions`, { statement: "Plans move to Monday.", outcome_ids: [o.body.outcome_id] });
-    await alice.api("POST", `${P}/assumptions/${d.body.id}/review`, { expected_etag: d.body.etag, status: "refuted", note: "Friday stayed." });
-    // The outcome itself counts nothing; the assumptions list filtered by it shows what serves it.
-    const objs = await alice.api("GET", `${P}/outcomes`);
-    expect(objs.body.items.find((x: { outcome_id: string }) => x.outcome_id === o.body.outcome_id)).not.toHaveProperty("counts");
-    const onOutcome = await alice.api("GET", `${P}/assumptions?outcome_id=${o.body.outcome_id}`);
-    expect(onOutcome.body.items.map((x: { id: string }) => x.id)).toEqual([sup.body.entry.id]);
-    const product = await alice.api("GET", P);
-    const current = await alice.api("GET", `${P}/assumptions?status=unconfirmed,confirmed&limit=100`);
-    expect(product.body.counts.assumptions).toBe(current.body.items.length);
-  });
-
   it("publishes Story versions, validates HTML, and serves pages sandboxed", async () => {
     const bad = await alice.api("POST", `${P}/story/pages/overview/versions`, { title: "x", html: '<html><body><script src="https://x.test/a.js"></script><iframe></iframe></body></html>' });
     expect(bad.status).toBe(422);
@@ -274,7 +209,7 @@ describe("the discovery loop through REST", () => {
     expect(names.some((n) => n.startsWith(`records/${recordId}/attachments/`) && n.endsWith("/call.vtt"))).toBe(true);
     expect(names.some((n) => n.startsWith(`records/${recordId}/derived/`) && n.endsWith("/text.md"))).toBe(true);
     expect(new TextDecoder().decode(files[`records/${recordId}/text.md`]!)).toBe(TEXT);
-    expect(names).toContain("assumptions.json");
+    expect(names).not.toContain("assumptions.json");
     expect(names).toContain("story/pages/overview/v2.html");
     expect(names).toContain("activity.jsonl");
     expect(new TextDecoder().decode(files["bundle.json"]!)).toContain("whatbuild-product-bundle");
@@ -287,7 +222,7 @@ describe("the discovery loop through REST", () => {
     const actions = a.body.items.map((i: { entity_type: string; action: string }) => `${i.entity_type}:${i.action}`);
     expect(actions).toContain("source:created");
     expect(actions).toContain("source:derived");
-    expect(actions).toContain("assumption:reviewed");
+    expect(actions).toContain("outcome:created");
     expect(actions).toContain("story_page:published");
     // A reading's line says what a person understands: the attachment and what became of its text, never the parser's label.
     const parsed = a.body.items.find((i: { action: string }) => i.action === "derived");
@@ -315,10 +250,6 @@ describe("the discovery loop through REST", () => {
     const gone = await alice.api("GET", `${P}/sources/${recordId}`);
     expect(gone.status).toBe(410);
     expect(gone.body.error.details.tombstone.reason).toBe("wrong file");
-    // What the team wrote about the source stays as they wrote it.
-    const entries = await alice.api("GET", `${P}/assumptions?status=superseded,confirmed,unconfirmed`);
-    const read = await alice.api("GET", `${P}/assumptions/${entries.body.items.at(-1).id}`);
-    expect(read.body.body).toContain("numbers close on Friday");
     await h.worker.drain();
     expect([...h.blobs.blobs.keys()].some((k) => k.includes(recordId))).toBe(false);
   });
@@ -333,9 +264,9 @@ describe("the discovery loop through REST", () => {
       expect(item.counts).toEqual(one.body.counts);
     }
     const dispatch = list.body.items.find((i: { path: string }) => i.path === p.body.path);
-    expect(dispatch.counts).toEqual({ sources: 0, outcomes: 1, assumptions: 0, mockups: 0, story_pages: 0 });
+    expect(dispatch.counts).toEqual({ sources: 0, outcomes: 1, mockups: 0, story_pages: 0 });
     const onboarding = list.body.items.find((i: { path: string }) => i.path !== p.body.path);
-    expect(onboarding.counts.outcomes).toBeGreaterThan(1);
+    expect(onboarding.counts.outcomes).toBeGreaterThan(0);
   });
 
   it("creates several sources with a grant each, attached by their PUTs alone", async () => {

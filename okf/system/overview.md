@@ -15,8 +15,8 @@ Read from the top and stop when you have what you need.
 
 **What it is.** A product team's discovery material (interview transcripts, call notes, survey
 exports, documents) goes in. WhatBuild stores it, reads each source's attachments into one
-readable text, and gives people and their agents one place to turn it into outcomes, mockups,
-reviewed assumptions and a Story for stakeholders. Agents search what the sources say for what
+readable text, and gives people and their agents one place to turn it into outcomes, mockups
+and a Story for stakeholders. Agents search what the sources say for what
 bears on each piece of work.
 
 **Three traits define it.**
@@ -27,8 +27,8 @@ bears on each piece of work.
   ([decision](../decisions/evidence-is-searched-not-cited.md)).
 - There is no AI inside; agents bring the intelligence over MCP
   ([decision](../decisions/no-ai-in-the-product.md)).
-- Agents work in the open: every write is attributed, and agent work is never passed off as a
-  person's agreement ([decision](../decisions/attribution-and-declared-authorship.md)).
+- Agents work in the open: every write is attributed, with the surface and the agent it came
+  through ([decision](../decisions/attribution-and-declared-authorship.md)).
 
 **Who uses it.** The product trio (5 to 15 people per organization) reads in the browser; their
 agents do most intake and synthesis over MCP; stakeholders read the Story, often as a PDF.
@@ -37,10 +37,12 @@ agents do most intake and synthesis over MCP; stakeholders read the Story, often
 **Evidence** (sources, each described by a title and tags, with its derived text, its attachments, a summary, notes and comments;
 [decision](../decisions/sources-are-described-by-tags.md)) → **Exploration** (mockups: versioned canvases of
 pages built from the evidence, each under a brief, whose pages may enter a team's multi-file
-prototype carried as it is ([decision](../decisions/mockups-carry-prototypes-served-from-a-capability-path.md));
-and the assumption register, reviewed by people) → **Story** (versioned pages for stakeholders). Insights and decisions were retired, and
+prototype carried as it is ([decision](../decisions/mockups-carry-prototypes-served-from-a-capability-path.md)))
+→ **Story** (versioned pages for stakeholders). Insights and decisions were retired, and
 what a product held of them became sources
-([decision](../decisions/insights-and-decisions-are-retired-into-evidence.md)).
+([decision](../decisions/insights-and-decisions-are-retired-into-evidence.md)); assumptions were
+removed, and every one deleted
+([decision](../decisions/assumptions-are-removed-and-every-one-is-deleted.md)).
 
 **The system.** One stateless container image on Cloud Run serves the web app, REST (`/api/v1`),
 MCP (`/mcp`), OAuth (`/oauth`) and the upload relay, and runs the job worker. Postgres holds every
@@ -62,13 +64,13 @@ Google Cloud Storage behind a storage port; the official MCP SDK (stateless Stre
 React 19, React Router 7, TanStack Query 5, Vite 8; Vitest. Details in
 [architecture](../spec/02-architecture.md).
 
-**Operations.** 122 operations, each defined once and exposed through both REST and MCP, but for
+**Operations.** 111 operations, each defined once and exposed through both REST and MCP, but for
 eighteen: running the instance (its owners' ten actions on plans, organizations, guests,
 allowances, accounts and usage, and removing an account), renaming an organization or a product,
 which its owners or admins do, deleting an organization and previewing that delete, which only its
 owners or an instance owner do, and deleting one's own account and previewing that, which only its
 person does, all in the web app, and a person's browser giving a video or a web page its first
-picture. Agents are offered the other 104, as 29 tools
+picture. Agents are offered the other 93, as 26 tools
 ([decision](../decisions/one-registry-two-front-doors.md),
 [decision](../decisions/running-the-instance-is-done-in-the-web-app-never-by-an-agent.md)).
 
@@ -115,7 +117,7 @@ anyone sign up as one
 **MCP.** `/mcp` for every product the account can reach, `/mcp/t/<tenant>` for one organization,
 or `/mcp/t/<tenant>/<product>` for one product. A scoped endpoint is a fence: it refuses
 every call outside its scope, and its token works nowhere wider
-([decision](../decisions/a-scoped-mcp-connector-is-a-fence.md)). 29 tools: for each noun a
+([decision](../decisions/a-scoped-mcp-connector-is-a-fence.md)). 26 tools: for each noun a
 `_read`, a `_write` and, where something can be deleted for good, a `_delete` tool, each with
 `action`, `params`, `describe` and `product`, a title and a read-only or destructive hint, plus
 `products_export`, which is neither, and `search`, `guide` and `submit_feedback` (which is not
@@ -161,8 +163,7 @@ way.
 
 **An agent's session**, as one might go. `products_read list` → `guide` for a topic it needs →
 `sources_read facets` and upload through `attachments_write` → `search`, then `derived_read text`
-around a hit → `assumptions_write create`, saying why in its body →
-`mockups_write publish` a canvas with its brief, or `get_download` a version, build the next one in a
+around a hit → `mockups_write publish` a canvas with its brief, or `get_download` a version, build the next one in a
 project and publish the pages that changed
 ([decision](../decisions/mockups-are-versioned-canvases-in-exploration.md)) → read
 `story_read guidance` and the page's notes, `story_read preview` the call and look at the page it
@@ -171,6 +172,6 @@ would store, `story_write publish` the same call, update the notes, `set_hierarc
 [decision](../decisions/a-story-preview-is-the-document-publish-would-store.md)).
 
 **Data.** Identity, tenancy, evidence (records, attachments and their readings, derived texts,
-the search index, comments, summaries and notes), synthesis (outcomes, revisions, assumptions, reviews), mockups (versions,
+the search index, comments, summaries and notes), synthesis (outcomes and their revisions), mockups (versions,
 their pages and their files), Story (pages, versions, hierarchy) and operations (activity, jobs, exports, tombstones). Every table and
 field: [data model](../spec/04-data-model.md).

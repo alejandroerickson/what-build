@@ -3,7 +3,7 @@ type: Decision
 title: WhatBuild asks once whether a person accepts cookies, and runs Google Analytics only for those who do
 description: One Accept or Decline choice across the public site and the app; Google Analytics loads only after Accept and sees pages and actions, never names or content; the cookie page describes kinds of cookies without promises.
 tags: [decision, privacy, cookies, analytics, web, compliance]
-generated: {by: agent:claude, at: 2026-10-11}
+generated: {by: agent:claude, at: 2026-11-13}
 status: stable
 ---
 
@@ -31,7 +31,7 @@ everything strictly necessary and offered no choice.
   footer) stops it and removes its cookies. Advertising signals and Google signals are off.
 - What reaches Google names the page and the action, never the organization, product, record or
   content: page views carry masked paths (`/t/:org/:product/story/:id`) and a fixed title,
-  each change the app makes is an event named by the operation the server ran (`assumptions_create`,
+  each change the app makes is an event named by the operation the server ran (`sources_create`,
   `files_fetch_url`), and search is counted by what was followed, never by its words. A request to
   hear from us on the site is `generate_lead`.
 - The instance's owners are never measured, nor is any address but the deployment's own: the server

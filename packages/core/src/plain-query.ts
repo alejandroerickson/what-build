@@ -11,14 +11,14 @@
  *   with its ending forgiven, and never corrected into another. One with a letter in it is also
  *   found written as its words side by side: q3-planning in "Q3 planning", covid-19 in "COVID 19".
  * - Small words (the, of, how…) are left out when other words remain.
- * - A word naming a kind of thing ("mockups", "assumptions") brings that kind first instead of
+ * - A word naming a kind of thing ("mockups", "sources") brings that kind first instead of
  *   being searched for, when other words remain. Someone who can search only one kind has only that
  *   kind's word read this way: any other is a word like the rest.
  * - Case is ignored, and so are accents when a match is marked and scored; the search vectors keep
  *   them, so a word finds what its root starts as written (cafe finds café, resume not résumé).
  */
 
-export type FindKind = "idea" | "outcome" | "source" | "assumption" | "mockup" | "story";
+export type FindKind = "idea" | "outcome" | "source" | "mockup" | "story";
 
 export interface FindTerm {
   /** The word or phrase as typed, lowercased. */
@@ -58,8 +58,6 @@ const KIND_WORDS: Record<string, FindKind> = {
   passages: "source",
   quote: "source",
   quotes: "source",
-  assumption: "assumption",
-  assumptions: "assumption",
   mockup: "mockup",
   mockups: "mockup",
   story: "story",

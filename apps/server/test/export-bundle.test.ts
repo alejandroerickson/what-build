@@ -53,9 +53,6 @@ beforeAll(async () => {
   const c = await alice.api("POST", `${P}/sources/${recordId}/annotations`, { record_id: recordId, note: "Texts first." });
   expect((await alice.api("PATCH", `/api/v1/p/${p.body.path}/annotations/${c.body.annotation_id}`, { expected_etag: c.body.etag, note: "Texts come first." })).status).toBe(200);
   expect((await alice.api("PUT", `${P}/sources/${recordId}/agent-notes/summary`, { content: "Crews text before they call." })).status).toBe(200);
-  const a = await alice.api("POST", `${P}/assumptions`, { statement: "Crews read texts before calls.", body: "The call says so." });
-  const edited = await alice.api("PATCH", `${P}/assumptions/${a.body.id}`, { expected_etag: a.body.etag, body: "The call says so, once." });
-  expect((await alice.api("POST", `${P}/assumptions/${a.body.id}/review`, { expected_etag: edited.body.etag, status: "confirmed", note: "Heard it twice." })).status).toBe(200);
   expect((await alice.api("PUT", `${P}/story/style`, { house_style: "clear" })).status).toBe(200);
   expect((await alice.api("POST", `${P}/story/pages/overview/versions`, { title: "Overview", body: '<main class="page"><h1>Overview</h1></main>' })).status).toBe(201);
   expect((await alice.api("PUT", `${P}/story/hierarchy`, { items: [{ page_id: "overview", children: [] }] })).status).toBe(200);
@@ -112,19 +109,16 @@ describe("the bundle", () => {
       expect(readme).toContain(`${f.path}\n    ${f.holds}\n`);
     }
     const bundle = JSON.parse(strFromU8(files["bundle.json"]!));
-    expect(bundle).toMatchObject({ format: "whatbuild-product-bundle", format_version: 3, product: { name: "Crew board" } });
+    expect(bundle).toMatchObject({ format: "whatbuild-product-bundle", format_version: 4, product: { name: "Crew board" } });
     // An organization holds its products directly: the bundle names no team.
     expect(bundle).not.toHaveProperty("team");
     expect(Object.keys(bundle).sort()).toEqual(["exported_at", "exported_by", "format", "format_version", "layout", "product", "server_version", "tenant"]);
     expect(bundle.layout.split(" · ")).toEqual(BUNDLE_LAYOUT.map((f) => f.path));
   });
 
-  it("holds each assumption with its reviews, without the search vector the database keeps", () => {
-    const assumptions = JSON.parse(strFromU8(files["assumptions.json"]!));
-    expect(assumptions).toHaveLength(1);
-    expect(assumptions[0]).not.toHaveProperty("tsv");
-    expect(assumptions[0]).toMatchObject({ statement: "Crews read texts before calls.", body: "The call says so, once.", status: "confirmed", reviews: [expect.objectContaining({ status: "confirmed", note: "Heard it twice." })] });
-    expect(JSON.stringify(assumptions)).not.toMatch(/'crews':|'texts':/);
+  it("holds no assumptions, which WhatBuild no longer keeps", () => {
+    expect(Object.keys(files)).not.toContain("assumptions.json");
+    expect(BUNDLE_LAYOUT.map((f) => f.path)).not.toContain("assumptions.json");
   });
 
   it("holds a page's versions without the words and search vector the database keeps beside its HTML", () => {
@@ -140,9 +134,9 @@ describe("the bundle", () => {
     }
   });
 
-  it("holds the earlier texts of the product concept, an outcome, a comment and an assumption", () => {
+  it("holds the earlier texts of the product concept, an outcome and a comment", () => {
     const revisions = JSON.parse(strFromU8(files["revisions.json"]!)) as { object_type: string; content: Record<string, string> }[];
-    expect(revisions.map((r) => r.object_type).sort()).toEqual(["annotation", "assumption", "outcome", "product"]);
+    expect(revisions.map((r) => r.object_type).sort()).toEqual(["annotation", "outcome", "product"]);
     // The concept's card, both sides: it had no front yet.
     expect(revisions.find((r) => r.object_type === "product")!.content).toEqual({ concept: "Plan the week.", card_html: "" });
     expect(revisions.find((r) => r.object_type === "annotation")!.content).toEqual({ note: "Texts first." });

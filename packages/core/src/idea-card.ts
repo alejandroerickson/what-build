@@ -800,7 +800,7 @@ Markdown, read by every agent that works in the product and by anyone who opens 
 
 - **The concept's back:** who it is for; the problem they have; how the product solves it; what it is not; what is not known yet. Up to 8,000 characters.
 - **An outcome's back:** what the users can do, in a sentence; what success looks like for them (the sign, and the figure if the person gave one); what it means for them; what it leaves out. Up to 6,000 characters; most need far fewer.
-- **No evidence on an outcome's back,** as on its front: no sources, quotes, names, dates, ids or links to records. What the evidence says belongs in sources, and what it suggests in assumptions.
+- **No evidence on an outcome's back,** as on its front: no sources, quotes, names, dates, ids or links to records. What the evidence says belongs in sources.
 
 ## Keep the two sides in step
 

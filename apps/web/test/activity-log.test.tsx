@@ -85,7 +85,6 @@ describe("an account's ending in the access log", () => {
 describe("the words a deletion reads as in Activity", () => {
   it.each([
     ["note_deleted", "source", "deleted a comment on"],
-    ["deleted", "assumption", "deleted the assumption"],
     ["deleted", "mockup", "deleted the mockup"],
     ["deleted", "outcome", "deleted the outcome"],
     ["deleted", "story_page", "deleted the page"],

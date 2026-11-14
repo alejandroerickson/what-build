@@ -132,7 +132,7 @@ export function MockupsIndex() {
   return (
     <div className="mockup-view">
       <Crumbs label="Location" currentAsHeading items={[{ label: "Exploration" }, { label: "Mockups" }]} />
-      <FirstUse title="No mockups yet" ask={`Read the outcomes and assumptions of ${product.name} in WhatBuild, then mock up a few directions side by side in one mockup, with a brief.`}>
+      <FirstUse title="No mockups yet" ask={`Read the outcomes and sources of ${product.name} in WhatBuild, then mock up a few directions side by side in one mockup, with a brief.`}>
         A mockup is a canvas of pages your agent builds from the evidence: screens, flows or alternatives side by side.
       </FirstUse>
     </div>
