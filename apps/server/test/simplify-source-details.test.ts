@@ -25,20 +25,16 @@ describe("sources without participants, source system or provenance", () => {
     for (const k of ["participants", "source_system", "provenance_depth"]) expect(created.body).not.toHaveProperty(k);
     const full = await alice.api("GET", `${P}/sources/${created.body.record_id}?detail=full`);
     for (const k of ["participants", "source_system", "provenance_depth", "outline"]) expect(full.body).not.toHaveProperty(k);
-    const assumption = await alice.api("POST", `${P}/assumptions`, { statement: "Crew leads plan the week on Sunday evening." });
-    expect(assumption.status, JSON.stringify(assumption.body)).toBe(201);
-    expect(assumption.body).not.toHaveProperty("provenance_depth");
 
     const refusals = [
       await alice.api("POST", `${P}/sources`, { title: "Interview — Example Co", participants: ["Dana"] }),
       await alice.api("PATCH", `${P}/sources/${created.body.record_id}`, { expected_etag: created.body.etag, source_system: "a meeting tool" }),
       await alice.api("GET", `${P}/sources?provenance_depth=primary`),
       await alice.api("GET", `${P}/search?query=week&provenance_depth=primary`),
-      await alice.api("POST", `${P}/assumptions`, { statement: "Crew leads plan the week on Sunday evening.", provenance_depth: "derived" }),
     ];
     for (const r of refusals) {
       expect(r.status).toBe(422);
-      expect(r.body.error.message).toMatch(/no participants, source system or provenance, .* any more: a source is described by its title, date and tags/);
+      expect(r.body.error.message).toMatch(/no participants, source system or provenance any more: a source is described by its title, date and tags/);
     }
   });
 

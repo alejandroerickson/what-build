@@ -16,7 +16,7 @@ holds each one; the linked decisions say why. Observed in the code on 2026-10-10
 ## What is protected
 
 - **Discovery material and what is built from it**: sources, their attachments and text, outcomes,
-  assumptions, mockups and the Story. Transcripts carry customers' words and personal data.
+  mockups and the Story. Transcripts carry customers' words and personal data.
 - **The boundaries** between organizations, between products in one, and between roles.
 - **Who people are** (to a guest of the example organization, who its people are), and **credentials**:
   sessions, OAuth tokens, grants, invitation links.

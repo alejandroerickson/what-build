@@ -4,7 +4,6 @@ import { actionName, maskedPage, screenPath, settingsScreen } from "../src/lib/a
 describe("screenPath", () => {
   it("names the screen, never the organization, product or record", () => {
     expect(screenPath("/t/acme/planner/story/launch-plan")).toBe("/t/:org/:product/story/:id");
-    expect(screenPath("/t/acme/planner/exploration/assumptions/01HX/edit")).toBe("/t/:org/:product/exploration/assumptions/:id/edit");
     expect(screenPath("/t/acme/planner/exploration/mockups/01HX")).toBe("/t/:org/:product/exploration/mockups/:id");
     expect(screenPath("/t/acme/planner")).toBe("/t/:org/:product");
     expect(screenPath("/t/acme/members")).toBe("/t/:org/members");
@@ -18,8 +17,8 @@ describe("screenPath", () => {
 describe("actionName", () => {
   it("names a change by the operation the server ran, never by its address", () => {
     const P = "/api/v1/p/acme/planner";
-    expect(actionName(`${P}/assumptions`, "assumptions.create")).toBe("assumptions_create");
-    expect(actionName(`${P}/assumptions/01JABCDEF/review`, "assumptions.review")).toBe("assumptions_review");
+    expect(actionName(`${P}/outcomes`, "outcomes.create")).toBe("outcomes_create");
+    expect(actionName(`${P}/outcomes/01JABCDEF/archive`, "outcomes.archive")).toBe("outcomes_archive");
     expect(actionName(`${P}/sources/01J/fetch`, "attachments.fetch_url")).toBe("attachments_fetch_url");
     expect(actionName("/api/v1/tenant-allowances/remove", "products.remove_tenant_allowance")).toBe("products_remove_tenant_allowance");
   });

@@ -27,7 +27,7 @@ design system: tokens, type, components and the rules for using them — is docu
   teammate or their agent may be editing the same object.
 - **What someone else changes reaches an open tab**, from a stream that says only which part of the
   product changed ([decision](../decisions/open-tabs-hear-of-changes-through-a-stream-the-server-itself-serves.md)).
-  Idea, Evidence with a search's results, a source, assumptions, the list of mockups, the Story's
+  Idea, Evidence with a search's results, a source, the list of mockups, the Story's
   tree and activity refresh by themselves, at most every thirty seconds, and never while someone is
   typing, holding something in mid-drag, or in a dialog, or on a form that saves over what it opened:
   they refresh once that is over. A long list someone has read more than three pages into is read
@@ -102,7 +102,7 @@ design system: tokens, type, components and the rules for using them — is docu
 - **No request the app knows will be refused.** Where the app can tell in advance that the server
   would refuse (a Story reader asking for members or the plan, a guest of the example organization asking
   for its people, an address whose id is not an id at all), it says so without asking. Where it cannot, it asks, and
-  REST answers honestly: a source, assumption or other object that does not exist answers `404`,
+  REST answers honestly: a source, mockup or other object that does not exist answers `404`,
   and its page says it was not found while the browser's console reports the `404` of the request.
   A `404` is final, so the app never asks for it again (a request that did not reach WhatBuild,
   or a `5xx`, is asked again twice). A product that answers `404`, or an organization
@@ -155,7 +155,7 @@ the browser's back button and "open in new tab" both work.
 - **L1**, exactly and in this order: **Idea, Evidence, Exploration, Story**, each with its count:
   every item the stage holds (`stage_counts`, [§4.2](04-data-model.md),
   [decision](../decisions/each-stage-counts-every-item-it-holds.md)). Idea counts outcomes, Evidence
-  sources, Exploration mockups and current assumptions together, and Story its pages, of every kind.
+  sources, Exploration mockups, and Story its pages, of every kind.
   Below them, quieter: the **empty seat** while the person has no agent connected, the product's
   **Activity** (§7.9) and **Settings**, which opens the Settings dialog (§7.11) over the screen, at
   the product's General. The empty seat
@@ -167,11 +167,13 @@ the browser's back button and "open in new tab" both work.
   nothing takes its place: agents are in Settings. A hidden panel is shown for the seat once a visit,
   never on a phone, where the drawer opens only by hand; while the panel is away the pill carries a
   mark with the same words.
-  Exploration opens on its mockups; the mockups, then the assumptions, are listed in its panel. The app's URLs follow the areas
+  Exploration opens on its mockups, which are listed in its panel. The app's URLs follow the areas
   (`/evidence`, `/exploration/…`); REST and MCP name the objects (`sources`, `mockups`).
   Exploration was called Synthesis, and a link to `/synthesis/…` opens the same path under
   `/exploration/…`. Exploration once listed insights and decisions too; a link to one opens the
-  source it became ([§4.7](04-data-model.md)), and a link to either list opens Exploration.
+  source it became ([§4.7](04-data-model.md)), and a link to either list opens Exploration. It once
+  held assumptions too: a link to one or to their list opens Exploration's mockups with a toast
+  saying WhatBuild no longer keeps assumptions (§7.7).
 - **Search** covers the whole product in one place, by plain words ([§8.2](08-search.md), plain
   mode); for a Story reader, the Story alone, with the Search screen under the Story's panel. A page from a
   mockup is listed once: as the mockup, under Exploration, or for a Story reader on the Story. The **palette** opens from the panel's Search field, ⌘K / Ctrl+K, or `/` when not typing,
@@ -184,7 +186,7 @@ the browser's back button and "open in new tab" both work.
   before the rest), at most eight: each with its
   kind's glyph, its title with the words marked, what it is (Source with its date and its number
   of matches, counted as its Find in the text counts them for the same words, so opening it in its
-  text shows "… of" that number; Assumption with its status, Mockup with the page), and a source's
+  text shows "… of" that number; Mockup with the page), and a source's
   best place,
   saying where it is ("In its text", "In its summary", "In its notes", "In a comment"), or another
   result's matching text, in two lines; at phone width that text starts a few words before its
@@ -203,7 +205,7 @@ the browser's back button and "open in new tab" both work.
   results under the product's four areas, each a sheet in the panel's order: **Idea** (the product
   concept, then outcomes), **Evidence** (sources, each with the best three places it says the
   words, each saying where and opening there as the palette's do, and "N more places in this
-  source"), **Exploration** (mockups, then assumptions, each with its status as a badge, said once) and
+  source"), **Exploration** (mockups) and
   **Story**. A kind named in the query brings its area first. When nothing holds every word, each
   result also names the words it lacks ("Missing: …"), which the palette leaves to its line,
   "Nothing has all your words.". The panel shows Everything and each
@@ -286,7 +288,7 @@ place.
    **New organization** while they may start one (`/welcome`).
 3. **Switching product keeps the section**: from Evidence in product A to Evidence in product B.
    Idea, Evidence, Exploration, Story, Activity and Search carry over; anything else
-   (a record id, an assumption, a mockup) lands on Idea. Switching to a product where the person is a Story reader
+   (a record id, a mockup) lands on Idea. Switching to a product where the person is a Story reader
    lands on its Story.
 4. The product is in the URL path (`/t/<tenant>/<product>/…`). Opening a link to another
    product simply works, and becomes the remembered one. An address written when products were in
@@ -394,9 +396,7 @@ any screen          ?settings=<section>       Settings, the dialog over the scre
   /exploration                                → …/exploration/mockups
   /exploration/mockups                        → the mockup last opened here, or the most recent; first use with none
   /exploration/mockups/:id  ?v=N &page=<page_id>  a mockup's canvas, at a version, with a page selected
-  /exploration/assumptions[/new|/:id|/:id/edit]
-                      the list takes ?show&outcome_id&q; new takes ?outcome_id
-                      (show: unconfirmed, confirmed, refuted, archived; q: title search)
+  /exploration/assumptions[/…]                → /exploration/mockups, with a toast: WhatBuild no longer keeps assumptions
   /exploration/insights/:id  /exploration/decisions/:id   → /evidence/:id (the source it became)
   /exploration/insights  /exploration/decisions          → /exploration
   /synthesis/…                                → the same path and query under /exploration
@@ -539,11 +539,10 @@ shows.
   focus is, puts it back; clicking or tabbing away from the cards places it where it is. Each step
   is announced. Nothing is saved until the card is placed. With reduced motion nothing glides.
 - **An outcome's menu:** Archive or Restore, and Delete permanently for admins, whose dialog
-  names what goes with the outcome, its picture and its text, only those it has, and the
-  assumptions that serve it. A viewer has no menu. Earlier versions are kept, and agents read and
+  names what goes with the outcome, its picture and its text, only those it has. A viewer has no menu. Earlier versions are kept, and agents read and
   restore them (`outcomes_read(action="revisions")`); the screen does not offer them.
-- A card holds nothing that points away from it: no links or counts of the assumptions, mockups
-  or Story pages that serve it ([§4.2](04-data-model.md)).
+- A card holds nothing that points away from it: no links or counts of the mockups or Story pages
+  that serve it ([§4.2](04-data-model.md)).
 
 The panel's **Archived** section offers Hide archived (the default) and Include archived
 (`?include_archived=1`), as Evidence does for sources; an archived outcome shows an Archived badge
@@ -553,7 +552,7 @@ copy for an agent (interview the person, then write the concept and outcomes, ea
 picture and text). Nothing on the screen prescribes an order of steps.
 
 **Empty lists** ([decision](../decisions/empty-lists-lead-with-the-agent.md)). Outcomes, Sources,
-Mockups, Assumptions and the Story share one first-use state: "No … yet", what belongs
+Mockups and the Story share one first-use state: "No … yet", what belongs
 there, and a request naming the product for the person to copy to their agent, with Connect an
 agent (opening Settings at Agents, with this product chosen) until they have one connected. Where people add by hand, that
 is the header's create action, a default button, as when the list has items; outcomes have none,
@@ -743,25 +742,15 @@ The sources, and everything for reading them.
 
 ## 7.7 Exploration
 
-Exploration holds the team's **mockups** and its **assumptions**. It opens on the mockups. The
-panel's context slot lists the mockups first, then the assumptions
-([decision](../decisions/lists-filter-from-the-panel.md)) as a section with one set of filters and
-a count on every filter, laid out like Evidence's filters:
+Exploration holds the team's **mockups**, and opens on them. The panel's context slot lists every
+mockup that is not archived, by name, most recently changed first
+([decision](../decisions/lists-filter-from-the-panel.md)); each opens its canvas. With none, one
+quiet line says so and opens the first-use state.
 
-- **Mockups:** every mockup that is not archived, by name, most recently changed first; each
-  opens its canvas. With none, one quiet line says so and opens the first-use state.
-- **Assumptions:** All, Unconfirmed, Confirmed, Refuted or replaced, Archived. "All" is the
-  unconfirmed and confirmed ones, the ones every count of them in the app counts.
-
-The list has one filter dimension, its review status. Its header holds only its title, its count
-("n of N" once narrowed), a title search and its create action, New assumption. The search (`?q=`) matches titles as you type, forgiving
-case, accents, punctuation and one wrong, missing or extra letter in a longer word, puts the best
-matches first and marks the matched words. There are no filters in a list's header: where a
-table has controls above it they sort, as Evidence's do, or search. Under the header, chips name
-the filter and outcome in use, each removable, so the view stays legible while the panel is
-hidden. Following an outcome's links from Idea lists the entries for that outcome, and the
-panel's counts follow it. A product holds dozens of assumptions, so the list loads whole and the
-counts, filters and search work on what is loaded.
+Exploration once held an assumption register too. Assumptions are removed
+([decision](../decisions/assumptions-are-removed-and-every-one-is-deleted.md)): an address under
+`/exploration/assumptions/…`, from a Story page or a bookmark, say, opens Exploration's mockups
+with a toast saying WhatBuild no longer keeps assumptions.
 
 ### Mockups
 
@@ -879,30 +868,6 @@ restores one. Its writes are promoting a page to the Story, and, for a product's
   shown, as its next version. Under the version's details, the same goes for the whole canvas:
   **Promote canvas to Story**, with the mockup's title by default, and **Show version N**. A toast
   confirms that it is on the Story and says to drag it where it belongs, with Open to go to the page.
-
-### Assumptions
-
-- **Revision history** ([§4.1](04-data-model.md)): a list of revisions with author, surface and
-  time; a read-only view of any revision; and a restore that writes the old content as a new
-  revision. It exists for outcomes, the one object whose revisions the operations expose. Planned:
-  a diff against the current text, and the same control for the product concept, annotations and
-  unreviewed assumptions once their revisions are exposed.
-- **The register:** the assumptions list, filtered from the panel as above; the
-  default lists unconfirmed and confirmed entries. Where a view lists a superseded entry under the
-  entry that replaced it, it sits there, muted, marked "Replaced by the entry above"; while a
-  search is typed, rows are in match order instead. Each row says who drafted or recorded it and
-  when it was created, the same date its page shows, and adds "updated …" when it changed since. An
-  entry page shows the statement, the body (which says why the team holds it), the outcomes it
-  serves, links grouped by type, and the full review history. Actions: review
-  (status + required note, optional confidence; before the first review the form says that saving
-  freezes the wording, and always that reviews can't be edited), link, supersede (opens a prefilled new entry).
-  Frozen fields ([§4.8](04-data-model.md)) are shown as such, with "supersede" as the path to
-  change them.
-- **New and edit entries** ([decision](../decisions/evidence-is-searched-not-cited.md)):
-  New assumption (`…/assumptions/new`, with `?outcome_id=` preselecting an outcome) take a statement, an optional why (Markdown) and the outcomes it bears
-  on. An entry nobody has reviewed has Edit in its actions menu
-  (`…/:id/edit`); a reviewed one is frozen. When every entry in the default view is refuted
-  or replaced, the list says so and links to that view.
 
 ## 7.8 Story
 
@@ -1056,12 +1021,12 @@ A quiet **Activity page** (`…/activity`), not a drawer and not a destination: 
 **Activity** in the product's panel, and from a source's details, which open the page filtered to that
 source. It is one log for people and agents together, newest first ([§4.10](04-data-model.md)).
 Each entry reads as a sentence with the actor, the surface, and a link to the object: "Sam, via
-claude-desktop, confirmed an assumption — 14:02". The surface is "in the app", "through the API" or
+claude-desktop, published a new version of a mockup — 14:02". The surface is "in the app", "through the API" or
 "via <client>"; what WhatBuild does by itself, such as reading an attachment, has no surface and
 reads "on the server", however the attachment was uploaded, and says what came of it in a
 person's words: "Read the text of call.vtt; it is the source’s derived text", never the parser's
 internal label (events recorded with one are read without it, over MCP as in the app). An edit says
-what changed in the words the app uses, "Changed the outcomes it bears on and the tags", never a
+what changed in the words the app uses, "Changed the title and the tags", never a
 field's name (events recorded with field names are read in the same words). The kind of object changed (`?entity_type=`) or
 one object (`&entity_id=`) narrows it, held in the URL. Entries are grouped by day, each with its
 count of changes under a heading one level below the section's own (h2 under Activity's h1, h3
@@ -1082,7 +1047,6 @@ a product that isn't archived (`canDelete`). One dialog serves every delete
 |---|---|---|
 | Source | its actions menu | its actions menu |
 | Comment | its menu, with an optional reason, and in its delete dialog | its menu |
-| Assumption | its actions menu | its actions menu |
 | Outcome | its card's menu on Idea | its card's menu |
 | Story page | its row's menu in the tree, and the inspector's About | its row's menu, and the inspector's About |
 | Mockup | in its delete dialog, as the alternative | the inspector's Version, under Download |
@@ -1099,12 +1063,11 @@ a product that isn't archived (`canDelete`). One dialog serves every delete
 2. **Delete** sits inside the same menu, below a separator when anything is above it, styled as
    destructive, never pre-selected and never the primary button of any dialog. No menu begins or
    ends with a separator, or shows two together (`apps/web/src/styles/ui.css`).
-3. Choosing it opens a dialog titled as a question ("Delete this assumption permanently?"), that
+3. Choosing it opens a dialog titled as a question ("Delete this source permanently?"), that
    says it can't be undone and shows the object's preview as plain sentences before any control:
    *This deletes its attachments (4 stored versions, 218 MB), its text, summary and notes, and 1
-   comment.* A count of none is left out. For an assumption it says how many other
-   assumptions link to it, and that those links go with it; for an outcome, the assumptions it is
-   taken from. A mockup a Story page shows lists those pages, and its delete stays disabled.
+   comment.* A count of none is left out. A mockup a Story page shows lists those pages, and its
+   delete stays disabled.
 4. The dialog asks for a reason, which the button needs. A source also needs its title typed, and
    a whole product or organization its name. Every delete dialog has Cancel, and wherever the
    object can be archived, Archive instead beside it, offering it again; for what is already

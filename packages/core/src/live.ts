@@ -20,7 +20,6 @@ const AREA_OF_TOOL: Readonly<Record<string, LiveArea>> = {
   sources: "evidence",
   attachments: "evidence",
   derived: "evidence",
-  assumptions: "exploration",
   mockups: "exploration",
 };
 

@@ -26,7 +26,7 @@
 |---|---|
 | **Idea** | Say who it’s for and the outcomes you want. |
 | **Evidence** | Gather user research, team discussions and documents. |
-| **Exploration** | Mock up directions and review the assumptions behind them. |
+| **Exploration** | Mock up directions side by side. |
 | **Story** | Show stakeholders what to build, and why. |
 
 <p align="center">

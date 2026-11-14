@@ -46,7 +46,7 @@ feature, and chose how each screen treats a change.
   failing to listen gives up until the page is loaded again, and one still on a revision a deploy
   replaced moves on at its next answer from the new one.
 - **What each screen does,** by what a person may be in the middle of. Lists and cards (Idea, Evidence
-  with a search's results, assumptions, the Story's tree, activity) refresh by themselves, and never
+  with a search's results, the list of mockups, the Story's tree, activity) refresh by themselves, and never
   while someone is typing, dragging or in a dialog. A Story page and a mockup's canvas never change by
   themselves: a toast that stays says this one was updated, and Refresh brings it, since a reload
   would lose someone's place and whatever they entered in a mockup.

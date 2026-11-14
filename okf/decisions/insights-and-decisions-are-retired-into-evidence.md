@@ -1,9 +1,9 @@
 ---
 type: Decision
 title: Insights and decisions are retired, and what a product held of them becomes sources in Evidence
-description: Exploration holds mockups and assumptions only; existing insights and decisions are moved into Evidence as Markdown sources with the same ids, by a worker job a migration queues.
+description: Exploration no longer holds insights or decisions; existing insights and decisions are moved into Evidence as Markdown sources with the same ids, by a worker job a migration queues.
 tags: [decision, exploration, evidence, migration, mcp, product]
-generated: {by: agent:claude, at: 2026-10-25}
+generated: {by: agent:claude, at: 2026-11-13}
 status: stable
 ---
 
@@ -20,7 +20,8 @@ sources, without changing what a source is. This replaces the
 ## Decision
 
 - No operation, MCP tool, screen or agent guidance reads, writes or mentions insights or decisions.
-  Assumptions stay, as the one register.
+  Assumptions stayed, as the one register, until they too were removed, and deleted rather than
+  moved ([decision](assumptions-are-removed-and-every-one-is-deleted.md)).
 - Each insight or decision a product holds becomes a Markdown source with **the same id**: an
   insight tagged `analysis` and `insight`, a decision tagged `decision`
   ([sources are described by tags](sources-are-described-by-tags.md)). What the item's fields held
@@ -43,8 +44,9 @@ sources, without changing what a source is. This replaces the
 ## Consequences
 
 - MCP has 16 tools and the registry 108 operations. Agents that call the old tools get `422`.
-- The empty `insights` table and the register's `kind` column remain until a later migration drops
-  them ([roadmap](../spec/10-roadmap.md)).
+- The `insights`, `register_entries` and `reviews` tables, holding only what waits to be moved
+  (the entries' `kind` is `decision` alone since assumptions were deleted), remain until a later
+  migration drops them ([roadmap](../spec/10-roadmap.md)).
 
 ## Constrains
 

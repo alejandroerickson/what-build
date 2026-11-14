@@ -765,7 +765,7 @@ describe("many searches at once", () => {
       // People go on loading pages while every search is stuck.
       for (let i = 0; i < 5; i++) {
         const began = Date.now();
-        const ordinary = await Promise.all([alice.api("GET", `${P}/outcomes`), alice.api("GET", `${P}/assumptions`), alice.api("GET", `${P}/sources`)]);
+        const ordinary = await Promise.all([alice.api("GET", `${P}/outcomes`), alice.api("GET", `${P}/activity`), alice.api("GET", `${P}/sources`)]);
         for (const r of ordinary) expect(r.status).toBe(200);
         expect(Date.now() - began).toBeLessThan(1000);
       }

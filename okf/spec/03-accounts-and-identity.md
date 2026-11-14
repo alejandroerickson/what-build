@@ -22,7 +22,6 @@ tenant               an organization: the isolation boundary
 └── product          one discovery
     ├── outcomes
     ├── sources      records → attachments → readings; derived text, summary, notes, comments
-    ├── assumptions  (the register)
     ├── mockups      versions, pages, files
     ├── Story        pages, versions, hierarchy
     └── activity     append-only event log
@@ -33,9 +32,8 @@ tenant               an organization: the isolation boundary
 - **There are no teams** (◆ [decision](../decisions/an-organization-holds-its-products-directly-with-no-teams.md)).
   An organization once held teams, which held its products; migration `0044` removed them
   ([§3.11](#311-when-there-were-teams)).
-- **References never cross products.** A link from an assumption to another product's assumption
-  is refused with `422 cross_product_reference`, and an outcome of another product is unknown
-  (`422 unknown_reference`), which keeps a product exportable as a closed bundle.
+- **References never cross products.** Nothing in one product points at an object in another,
+  which keeps a product exportable as a closed bundle.
 - **A source stays in its product**: nothing moves or copies a source to another product
   ([§3.7](#37-a-source-stays-in-its-product)).
 - In the UI the tenant is called the **organization**. The API and MCP say `tenant`.
@@ -433,7 +431,7 @@ person has one, its `all_products` role.
   `422 invalid_input` naming the roles there are.
 - **Viewer** reads everything in the product (Idea, Evidence, Exploration, Story, activity) and
   changes nothing. **Editor** also writes: sources, their attachments
-  and text, comments, outcomes, assumptions and reviews, mockups, the Story, and archives any of them. **Admin** also
+  and text, comments, outcomes, mockups, the Story, and archives any of them. **Admin** also
   deletes permanently, anything that can be archived and the product itself (guarded,
   [§9.5](09-data-lifecycle.md)), and manages the product (rename, in the web app only, and archive) and its people.
   Creating a product needs a product creator, admin or owner of the tenant. Renaming the
@@ -754,10 +752,10 @@ Every mutation stores an actor snapshot — `{ account_id, display_name, surface
 not joined, so attribution survives renames and removals. `client` is the OAuth client's name. It never holds an email address.
 
 Authenticated identity says which account wrote; it does not say whether a person exercised
-judgment, because an agent writes with its person's credentials. Assumptions and reviews
-therefore carry a declared `author_type` / `reviewer_type` (`human` or `agent`), defaulting to
-`human` in the web app and `agent` everywhere else, and a human confidence rating is accepted only
-from a declared human reviewer ([§4.8](04-data-model.md)).
+judgment, because an agent writes with its person's credentials. The surface says which door a
+write came through (the web app is a person's), and nothing in a product now asks a writer to
+declare more: the assumptions and reviews that carried a declared `author_type` / `reviewer_type`
+are removed ([§4.8](04-data-model.md)).
 
 ## 3.10 The example organization
 

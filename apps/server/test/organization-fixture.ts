@@ -5,7 +5,7 @@ import type { Browser, Harness } from "./harness.ts";
 /**
  * An organization with something in every kind of row a product holds: outcomes and their
  * revisions, tagged sources with attachments, readings, derived texts and their search index, annotations and agent notes, a view,
- * assumptions with links and reviews, a Story with a style, a hierarchy, notes, a preview, a card preview and a promoted
+ * a Story with a style, a hierarchy, notes, a preview, a card preview and a promoted
  * mockup page, a mockup with files and a canvas upload, a mockup whose page enters a prototype, an export, an invitation and a second member. Every text it
  * writes carries `marker`, so a test can tell whether any of it reached someone else.
  */
@@ -24,8 +24,6 @@ export interface Organization {
   source: { id: string; etag: string; path: string; fileVersionId: string; derivationId: string; tag: string; textEtag: string; summaryEtag: string };
   view: { id: string; etag: string };
   annotation: { id: string; etag: string };
-  assumption: { id: string; etag: string };
-  linked: { id: string; etag: string };
   page: { id: string; etag: string; notesEtag: string };
   promotedPage: { id: string };
   hierarchyEtag: string;
@@ -71,10 +69,6 @@ export async function buildOrganization(h: Harness, owner: Browser, name: string
   const summary = ok(await owner.api("PUT", `${P}/sources/${src.record_id}/agent-notes/summary`, { content: `${marker} summary for agents.` }), 200);
   const ann = ok(await owner.api("POST", `${P}/sources/${src.record_id}/annotations`, { record_id: src.record_id, note: `${marker} annotation.` }));
 
-  const as = ok(await owner.api("POST", `${P}/assumptions`, { statement: `${marker} assumption: crews read texts first.`, body: `${marker} the interview notes say so.`, outcome_ids: [o.outcome_id], author_type: "human" }));
-  const linked = ok(await owner.api("POST", `${P}/assumptions`, { statement: `${marker} linked assumption.` }));
-  const link = ok(await owner.api("POST", `${P}/assumptions/${as.id}/links`, { expected_etag: as.etag, target_id: linked.id, type: "supports" }), 200);
-  ok(await owner.api("POST", `${P}/assumptions/${linked.id}/review`, { expected_etag: linked.etag, status: "confirmed", note: `${marker} review note.`, reviewer_type: "human" }), 200);
   // A source deleted for good leaves a tombstone.
   const gone = ok(await owner.api("POST", `${P}/sources`, { title: `${marker} mistaken upload` }));
   ok(await owner.api("DELETE", `${P}/sources/${gone.record_id}`, { expected_etag: gone.etag, reason: `${marker} uploaded by mistake`, confirm: "delete permanently" }), 200);
@@ -128,7 +122,6 @@ export async function buildOrganization(h: Harness, owner: Browser, name: string
   const product = ok(await owner.api("GET", P), 200);
   const source = ok(await owner.api("GET", `${P}/sources/${src.record_id}`), 200);
   const viewNow = ok(await owner.api("GET", `${P}/sources/${view.record_id}`), 200);
-  const linkedNow = ok(await owner.api("GET", `${P}/assumptions/${linked.id}`), 200);
   const org: Organization = {
     marker,
     owner,
@@ -143,8 +136,6 @@ export async function buildOrganization(h: Harness, owner: Browser, name: string
     },
     view: { id: view.record_id, etag: viewNow.etag },
     annotation: { id: ann.annotation_id, etag: ann.etag },
-    assumption: { id: as.id, etag: link.etag },
-    linked: { id: linked.id, etag: linkedNow.etag },
     page: { id: page.page_id, etag: page.etag, notesEtag: notes.etag ?? notes.agent_notes_etag },
     promotedPage: { id: promoted.page_id },
     hierarchyEtag: tree.etag,
@@ -173,8 +164,6 @@ export async function buildOrganization(h: Harness, owner: Browser, name: string
     org.source.derivationId,
     org.view.id,
     org.annotation.id,
-    org.assumption.id,
-    org.linked.id,
     org.page.id,
     org.promotedPage.id,
     org.mockup.id,

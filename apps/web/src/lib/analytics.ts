@@ -50,7 +50,7 @@ export function useCookieChoice(): CookieChoice | null {
  * A path with names and ids taken out, so what reaches Google says which screen, not whose:
  * `/t/acme/planner/story/launch-plan` becomes `/t/:org/:product/story/:id`.
  */
-const SCREEN_WORDS = new Set(["idea", "evidence", "new", "search", "exploration", "mockups", "assumptions", "edit", "story", "connect", "activity", "settings", "members", "limits", "plan", "plans"]);
+const SCREEN_WORDS = new Set(["idea", "evidence", "new", "search", "exploration", "mockups", "edit", "story", "connect", "activity", "settings", "members", "limits", "plan", "plans"]);
 
 export function screenPath(pathname: string): string {
   const parts = pathname.split("/").filter(Boolean);
@@ -78,7 +78,7 @@ export function settingsScreen(search: string): string | null {
 
 /**
  * What a change the app made was, as an event name: the operation the server says it ran
- * (`X-WhatBuild-Operation`), so `POST …/assumptions/01J…/review` is `assumptions_review` and
+ * (`X-WhatBuild-Operation`), so `POST …/outcomes/01J…/archive` is `outcomes_archive` and
  * `attachments.fetch_url` is `attachments_fetch_url`, never a name, id or slug from the address.
  * A change that is not an operation is sent only if it is one of a few named here, under that
  * name.

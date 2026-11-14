@@ -66,8 +66,8 @@ name it **Story reader** (`story_reader`), so the name says what it reaches on i
   team's choice per mockup.
 - A Story reader can search the Story, and nothing else: `search` in plain mode, over every Story
   page by what it shows, mockup pages and whole canvases among them. It reads no source,
-  assumption, outcome or concept, no mockup's brief or notes, and offers back only corrections from
-  the Story's own titles; every other mode, kind or source is refused. The maintainer chose this on
+  outcome or concept, no mockup's brief or notes, and offers back only corrections from the
+  Story's own titles; every other mode, kind or source is refused. The maintainer chose this on
   2026-10-30, so a stakeholder can find a page once a Story holds many. Their agent's tool list
   says only this of `search`, and for them only the word `story` reads as naming a kind: any other
   is searched for in the Story like the rest.

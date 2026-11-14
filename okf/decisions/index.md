@@ -3,7 +3,7 @@ type: Index
 title: Decisions
 description: Architectural decision records, each with its context, the choice, and what it constrains.
 tags: [index, decisions, adr]
-generated: {by: agent:claude, at: 2026-11-09}
+generated: {by: agent:claude, at: 2026-11-13}
 status: stable
 ---
 
@@ -61,7 +61,7 @@ name what replaced it, and date the change. Smaller decisions are marked
 - [Alerts watch Cloud Run's own signals, and the service's traces go over OpenTelemetry to a Google Cloud project that runs nothing](alerts-watch-the-platform-and-traces-go-to-a-project-of-their-own.md)
 - [At its spending cap, a Cloud Run deployment closes itself to the internet](at-its-spending-cap-a-deployment-closes-itself-to-the-internet.md)
 - [WhatBuild stores only what it needs, says so once, and keeps anything optional off until a person agrees](only-necessary-cookies-and-optional-ones-wait-for-consent.md) (superseded)
-- [Every write is attributed, and human or agent authorship is declared](attribution-and-declared-authorship.md)
+- [Every write is attributed, with the surface and the agent it came through](attribution-and-declared-authorship.md)
 - [Sources are described by a title, a date and tags; there are no kinds, folders, organization field, dimensions, participants, source system or provenance](sources-are-described-by-tags.md)
 - [A source carries a summary written for people, freeform notes and comments on the whole source, and no outline](a-source-carries-a-summary-notes-and-whole-source-comments.md)
 - [A source has a card, an agent-drawn picture people recognise it by, beside its text summary](a-source-has-a-card-people-recognise-it-by.md)
@@ -85,6 +85,7 @@ name what replaced it, and date the change. Smaller decisions are marked
 - [On a deployment with a content site, an agent's preview opens at an address that carries its grant](on-a-content-site-a-preview-opens-at-an-address-that-carries-its-grant.md)
 - [Each stage's count is the total of every item the stage holds](each-stage-counts-every-item-it-holds.md)
 - [Insights and decisions are retired, and what a product held of them becomes sources in Evidence](insights-and-decisions-are-retired-into-evidence.md)
+- [Assumptions are removed, and a migration deletes every one on every deployment](assumptions-are-removed-and-every-one-is-deleted.md)
 - [Archive is the reversible default; delete is permanent, guarded, and an admin's](archive-by-default-delete-guarded.md)
 - [An agent connection has a level the person chooses, which caps their role](an-agent-connection-has-a-level-the-person-chooses.md)
 - [Feedback names nobody and reaches the people who run WhatBuild in a daily digest](feedback-names-nobody-and-reaches-the-maintainers-in-a-daily-digest.md)

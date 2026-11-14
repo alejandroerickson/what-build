@@ -4,10 +4,9 @@ import { useCallback, useEffect, useState, type ReactNode } from "react";
 import type { GlyphName } from "../ui/index.tsx";
 import { api, qs, retryRefusedRead } from "./api.ts";
 import { formatDate } from "./format.ts";
-import { REVIEW_STATUS } from "./status.ts";
 
 /** What plain search returns: one ranked list over everything in a product (packages/core/src/ops/plain-search.ts). */
-export type FindKind = "idea" | "outcome" | "source" | "assumption" | "mockup" | "story";
+export type FindKind = "idea" | "outcome" | "source" | "mockup" | "story";
 export type Marks = [number, number][];
 
 /** Where a source says the words: a piece of its text, summary or notes, or one comment. */
@@ -55,7 +54,6 @@ export const FIND_KINDS: { id: FindKind; label: string; one: string; glyph: Glyp
   { id: "outcome", label: "Outcomes", one: "Outcome", glyph: "target" },
   { id: "source", label: "Sources", one: "Source", glyph: "library" },
   { id: "mockup", label: "Mockups", one: "Mockup", glyph: "blend" },
-  { id: "assumption", label: "Assumptions", one: "Assumption", glyph: "scale" },
   { id: "story", label: "Story", one: "Story page", glyph: "book-open" },
 ];
 
@@ -70,7 +68,7 @@ export function matchedCount(d: FindResponse): number {
 export const FIND_AREAS: { id: string; label: string; glyph: GlyphName; kinds: FindKind[] }[] = [
   { id: "idea", label: "Idea", glyph: "lightbulb", kinds: ["idea", "outcome"] },
   { id: "evidence", label: "Evidence", glyph: "library", kinds: ["source"] },
-  { id: "exploration", label: "Exploration", glyph: "blend", kinds: ["mockup", "assumption"] },
+  { id: "exploration", label: "Exploration", glyph: "blend", kinds: ["mockup"] },
   { id: "story", label: "Story", glyph: "book-open", kinds: ["story"] },
 ];
 
@@ -153,8 +151,6 @@ export function resultHref(app: string, r: FindResult): string {
   switch (r.kind) {
     case "source":
       return `${app}/evidence/${r.id}`;
-    case "assumption":
-      return `${app}/exploration/assumptions/${r.id}`;
     case "mockup":
       return `${app}/exploration/mockups/${r.id}${r.meta.page_id ? `?page=${encodeURIComponent(r.meta.page_id)}` : ""}`;
     case "story":
@@ -183,19 +179,14 @@ export function hitHref(app: string, recordId: string, h: FindHit, find: string)
   return `${app}/evidence/${recordId}?view=${view}${view === "text" && h.field === "text" && find ? `&find=${encodeURIComponent(find)}&at=${h.match_start}` : ""}`;
 }
 
-/**
- * The quiet line under a result's title: what it is, and what tells it apart. An assumption's
- * status is in it unless the row shows it as a status badge (`status: false`), as the Search
- * screen does, so it is said once.
- */
-export function resultMeta(r: FindResult, { status = true }: { status?: boolean } = {}): string {
+/** The quiet line under a result's title: what it is, and what tells it apart. */
+export function resultMeta(r: FindResult): string {
   const parts: string[] = [kindOf(r.kind).one];
   if (r.kind === "source") {
     if (r.meta.date) parts.push(formatDate(r.meta.date));
     // Counted as the source's Find in the text counts them, so the two numbers agree.
     if (r.match_count) parts.push(`${r.match_count} ${r.match_count === 1 ? "match" : "matches"}`);
   }
-  if (status && r.kind === "assumption" && r.meta.status) parts.push(REVIEW_STATUS[r.meta.status]?.label ?? r.meta.status);
   if ((r.kind === "mockup" || r.kind === "story") && r.meta.page_title) parts.push(`page “${r.meta.page_title}”`);
   return parts.join(" · ");
 }

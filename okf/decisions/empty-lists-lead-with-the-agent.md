@@ -3,7 +3,7 @@ type: Decision
 title: An empty list says what belongs in it and what to ask an agent; adding by hand stays in the header
 description: Every first-use list in a product has the same shape, leading with a request to copy for an agent, and nothing prescribes an order of steps.
 tags: [decision, web, design, onboarding, agents]
-generated: {by: agent:claude, at: 2026-10-14}
+generated: {by: agent:claude, at: 2026-11-13}
 status: stable
 ---
 
@@ -19,7 +19,7 @@ at agents and lets people start anywhere.
 
 ## Decision
 
-- Outcomes, Sources, Mockups, Assumptions and the Story share one first-use state
+- Outcomes, Sources, Mockups and the Story share one first-use state
   (`FirstUse` in `apps/web/src/routes/first-use.tsx`): "No … yet", one or two sentences on what
   belongs there, and a request for an agent naming the product, with Copy and, until the person
   has an agent connected, Connect an agent as the view's one accent button.

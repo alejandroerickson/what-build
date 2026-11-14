@@ -28,7 +28,6 @@ const TYPE_FILTERS = [
   { id: "source", label: "Sources" },
   { id: "outcome", label: "Outcomes" },
   { id: "mockup", label: "Mockups" },
-  { id: "assumption", label: "Assumptions" },
   { id: "story_page", label: "Story pages" },
   { id: "story_hierarchy", label: "Story tree" },
   { id: "story_style", label: "Story style" },
@@ -563,7 +562,7 @@ function ExportSheet() {
 /** What deleting a product destroys, as products.delete_impact reports it. */
 interface ProductImpact {
   etag: string;
-  contents: { sources: number; stored_files: number; bytes: number; comments: number; outcomes: number; assumptions: number; story_pages: number; mockups: number; exports: number; people: number };
+  contents: { sources: number; stored_files: number; bytes: number; comments: number; outcomes: number; story_pages: number; mockups: number; exports: number; people: number };
 }
 
 /** Delete the whole product, with its name typed, one step past archiving it, which `onArchive` offers instead. */
@@ -597,7 +596,7 @@ function DeleteProductSheet({ onArchive }: { onArchive?: () => void }) {
                 [plural(c.sources, "source"), listed([c.stored_files > 0 && `${plural(c.stored_files, "stored file")} (${formatBytes(c.bytes)})`, c.comments > 0 && plural(c.comments, "comment")])]
                   .filter(Boolean)
                   .join(", with "),
-              listed([c.outcomes > 0 && plural(c.outcomes, "outcome"), c.assumptions > 0 && plural(c.assumptions, "assumption")]),
+              c.outcomes > 0 && plural(c.outcomes, "outcome"),
               listed([c.mockups > 0 && plural(c.mockups, "mockup"), c.story_pages > 0 && plural(c.story_pages, "Story page")]),
               c.exports > 0 && plural(c.exports, "export"),
               "its activity log",

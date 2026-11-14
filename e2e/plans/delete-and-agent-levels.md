@@ -21,7 +21,7 @@ deletes only what it made itself in the run.
 1. **Run folder.** Write three short synthetic texts in the run's folder, each with a phrase of
    its own that appears nowhere in the product (search first).
 2. **MCP, as Sam, in the standard organization, at the default level.** Connect with no `--level`,
-   then list the tools. *Expect:* no `_delete` tool at all (`sources_delete`, `assumptions_delete`,
+   then list the tools. *Expect:* no `_delete` tool at all (`sources_delete`,
    `outcomes_delete`, `story_delete`, `mockups_delete`, `products_delete`), and no `members_write`:
    `members_read` offers `list` alone, and its description says nothing of granting, revoking or
    inviting. Every tool has a title; each `_read` tool is marked read-only and each `_write` tool
@@ -42,8 +42,8 @@ deletes only what it made itself in the run.
    and admin: Sam's own role is editor, and the level never adds to it. Archive the source instead;
    it leaves the list and search.
 5. **Web, as Sam.** On that source's page, archived in step 4, then on a live source's page and on
-   an assumption's. *Expect:* the archived source offers Restore; the live source and the
-   assumption offer Archive; none offers Delete permanently.
+   Idea, on an outcome's card. *Expect:* the archived source offers Restore; the live source and the
+   outcome offer Archive; none offers Delete permanently.
 6. **MCP, as Riley, at the default level.** Add the second text as a source. Then on the web, as
    Riley, open Settings → Agents: the connection says Edit. Raise it to Admin there.
    *Expect:* the change is confirmed with Undo, and listing the tools again as Riley, still without
@@ -53,8 +53,8 @@ deletes only what it made itself in the run.
    `deleted: true`; reading the source answers `410 record_deleted` with the reason; Activity on
    the web shows the delete, attributed to Riley through the agent.
 8. **Web, as Riley.** Add the third text as a source, comment on it, and
-   create an assumption; have the agent create an outcome (the web app adds none). Delete each from its own screen: the comment from its
-   menu, the assumption and the outcome from their menus, the source from its menu.
+   have the agent create an outcome (the web app adds none). Delete each from its own screen: the comment from its
+   menu, the outcome from its card's menu, the source from its menu.
    *Expect:* every dialog asks "Delete this … permanently?", says it can't be undone, shows what
    goes, needs a reason, has Cancel and Archive instead (each of these can be archived, the
    comment too), and only the source asks for its title typed. After each, the thing is gone and

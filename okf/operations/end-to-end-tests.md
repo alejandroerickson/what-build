@@ -170,8 +170,9 @@ The plans:
 - `attachment-previews`: real files (decks saved by PowerPoint, scans, phone photos, recordings, web
   pages) look like themselves in the list of sources and its preview, and `e2e/hostile-page.html` can
   do nothing there. It says when to run it, which is seldom: see "Real files" below.
-- `assumptions-and-the-story`: an agent's assumption is reviewed by a person; a Story page
-  is published and read by a Story reader, who is refused everything else.
+- `the-story`: an agent publishes a Story page from what it found by searching the evidence, and
+  a Story reader reads it and is refused everything else; a call to a retired assumptions tool, and an
+  old address of theirs, say WhatBuild no longer keeps assumptions.
 - `search`: the palette and the Search screen find every kind of thing by plain words, read as the
   specification says; the web and MCP's plain mode agree; what one door writes the other finds; a
   Story reader searches the Story alone.

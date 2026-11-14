@@ -277,7 +277,7 @@ export const writeText = defineOperation({
     else await ctx.db.insertInto("source_texts").values({ record_id: r.record_id, tenant_id: tenantId(ctx), ...row }).execute();
     await indexText(ctx.db, tenantId(ctx), r.record_id, "text", content);
     await recordActivity(ctx, { action: "text_written", entity_type: "source", entity_id: r.record_id, entity_title: r.title, summary });
-    // As assumptions.update reports it: one entry per text field that changed.
+    // One entry per text field that changed.
     const diff = cur && input.edits !== undefined ? [textDiff("text", cur.content, content)].filter((d) => d !== null) : null;
     return { record_id: r.record_id, chars, etag, updated_at: ctx.now, taken_from: await takenFrom(ctx.db, from), ...(diff ? { diff } : {}) };
   },

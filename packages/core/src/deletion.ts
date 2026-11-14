@@ -32,7 +32,7 @@ export function checkConfirmation(confirm: string, alternative: string): void {
     throw invalid("confirmation_required", `Deleting is permanent. Set confirm to exactly "${DELETE_CONFIRMATION}", or ${alternative} instead.`);
 }
 
-export type TombstoneType = "source" | "assumption" | "annotation" | "outcome" | "story_page" | "mockup" | "product";
+export type TombstoneType = "source" | "annotation" | "outcome" | "story_page" | "mockup" | "product";
 
 /** Leave the record of a delete. A Story page deleted again under the same id replaces its earlier tombstone. */
 export async function leaveTombstone(

@@ -640,7 +640,7 @@ describe("searching for what a Story page shows of a mockup", () => {
     expect((await alice.api("POST", `${S}/story/promote-mockup`, { mockup_id: oneId, mockup_page_id: "alpha", page_id: "alpha-page", title: "Stakeholder preview" })).status).toBe(201);
     expect((await alice.api("POST", `${S}/story/promote-mockup`, { mockup_id: boardId, page_id: "whole-board" })).status).toBe(201);
     expect((await alice.api("POST", `${S}/outcomes`, { title: "Reach outcomeword" })).status).toBeLessThan(300);
-    expect((await alice.api("POST", `${S}/assumptions`, { statement: "Crews want assumptionword." })).status).toBeLessThan(300);
+    expect((await alice.api("POST", `${S}/sources`, { title: "Crews want sourceword — Example Co" })).status).toBeLessThan(300);
   });
 
   it("lists a page from a mockup once, as the mockup, for whoever may read the mockup", async () => {
@@ -709,13 +709,13 @@ describe("searching for what a Story page shows of a mockup", () => {
   });
 
   it("gives a Story reader nothing else of the product, in results or in the words it offers back", async () => {
-    for (const word of ["briefword", "notesword", "unshownword", "outcomeword", "assumptionword"]) {
+    for (const word of ["briefword", "notesword", "unshownword", "outcomeword", "sourceword"]) {
       const got = await find(rita, word);
       expect(got.results, word).toEqual([]);
       expect(got.corrections, word).toEqual([]);
     }
     // One letter away from words only the team holds, as a typo would be.
-    for (const word of ["outcomewors", "assumptionwors", "briefwors", "harbous"]) expect((await find(rita, word)).corrections, word).toEqual([]);
+    for (const word of ["outcomewors", "sourcewors", "briefwors", "harbous"]) expect((await find(rita, word)).corrections, word).toEqual([]);
     expect((await find(rita, "overvieu ")).corrections).toEqual([{ from: "overvieu", to: "overview" }]);
   });
 

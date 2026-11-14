@@ -52,157 +52,47 @@ afterAll(async () => h?.close());
 describe("text edits", () => {
   let id: string;
   let etag: string;
+  const BODY = "## Friday\n\nNumbers close on Friday, and the pricing review follows on Friday afternoon.";
 
   it("replaces exact text and returns what changed with a short diff", async () => {
-    const a = await alice.api("POST", `${P}/assumptions`, { statement: "Friday close", body: "## Friday\n\nNumbers close on Friday, and the pricing review follows on Friday afternoon." });
-    expect(a.status).toBe(201);
-    id = a.body.id;
-    const r = await alice.api("PATCH", `${P}/assumptions/${id}`, { expected_etag: a.body.etag, edits: [{ old_text: "on Friday,", new_text: "on Thursday," }, { field: "statement", old_text: "Friday", new_text: "Thursday" }] });
-    expect(r.status).toBe(200);
-    expect(r.body.changed).toEqual(["statement", "body"]);
-    expect(r.body.diff).toEqual([
-      { field: "statement", at: 0, before: "", removed: "Fri", added: "Thurs", after: "day close" },
-      expect.objectContaining({ field: "body", removed: "Fri", added: "Thurs" }),
-    ]);
-    const got = await alice.api("GET", `${P}/assumptions/${id}`);
-    expect(got.body.statement).toBe("Thursday close");
-    expect(got.body.body).toBe("## Friday\n\nNumbers close on Thursday, and the pricing review follows on Friday afternoon.");
+    const s = await alice.api("POST", `${P}/sources`, { title: "Friday close" });
+    expect(s.status).toBe(201);
+    id = s.body.record_id;
+    const first = await alice.api("PUT", `${P}/sources/${id}/derived/text`, { content: BODY });
+    expect(first.status, JSON.stringify(first.body)).toBe(200);
+    const r = await alice.api("PUT", `${P}/sources/${id}/derived/text`, { expected_etag: first.body.etag, edits: [{ old_text: "on Friday,", new_text: "on Thursday," }] });
+    expect(r.status, JSON.stringify(r.body)).toBe(200);
+    expect(r.body.diff).toEqual([expect.objectContaining({ field: "text", removed: "Fri", added: "Thurs" })]);
+    const got = await alice.api("GET", `${P}/sources/${id}/derived/text`);
+    expect(got.body.text).toBe("## Friday\n\nNumbers close on Thursday, and the pricing review follows on Friday afternoon.");
     etag = got.body.etag;
   });
 
   it("refuses an edit that matches nothing, or more than once, and changes nothing", async () => {
-    const none = await alice.api("PATCH", `${P}/assumptions/${id}`, { expected_etag: etag, edits: [{ old_text: "Monday", new_text: "Tuesday" }] });
+    const none = await alice.api("PUT", `${P}/sources/${id}/derived/text`, { expected_etag: etag, edits: [{ old_text: "Monday", new_text: "Tuesday" }] });
     expect(none.status).toBe(422);
     expect(none.body.error.code).toBe("edit_not_found");
-    const twice = await alice.api("PATCH", `${P}/assumptions/${id}`, { expected_etag: etag, edits: [{ old_text: "close", new_text: "shut" }, { old_text: "Friday", new_text: "Sunday" }] });
+    const twice = await alice.api("PUT", `${P}/sources/${id}/derived/text`, { expected_etag: etag, edits: [{ old_text: "close", new_text: "shut" }, { old_text: "Friday", new_text: "Sunday" }] });
     expect(twice.status).toBe(422);
     expect(twice.body.error.code).toBe("edit_ambiguous");
     expect(twice.body.error.details).toMatchObject({ edit: 1, occurrences: 2 });
-    const both = await alice.api("PATCH", `${P}/assumptions/${id}`, { expected_etag: etag, body: "New body", edits: [{ old_text: "Numbers", new_text: "Totals" }] });
+    const both = await alice.api("PUT", `${P}/sources/${id}/derived/text`, { expected_etag: etag, content: "New text", edits: [{ old_text: "Numbers", new_text: "Totals" }] });
     expect(both.status).toBe(422);
-    const got = await alice.api("GET", `${P}/assumptions/${id}`);
+    const got = await alice.api("GET", `${P}/sources/${id}/derived/text`);
     expect(got.body.etag).toBe(etag);
   });
 
   it("refuses a viewer and a stale etag", async () => {
-    const viewer = await vic.api("PATCH", `${P}/assumptions/${id}`, { expected_etag: etag, edits: [{ old_text: "Numbers", new_text: "Totals" }] });
+    const viewer = await vic.api("PUT", `${P}/sources/${id}/derived/text`, { expected_etag: etag, edits: [{ old_text: "Numbers", new_text: "Totals" }] });
     expect(viewer.status).toBe(403);
-    const stale = await alice.api("PATCH", `${P}/assumptions/${id}`, { expected_etag: "stale", edits: [{ old_text: "Numbers", new_text: "Totals" }] });
+    const stale = await alice.api("PUT", `${P}/sources/${id}/derived/text`, { expected_etag: "stale", edits: [{ old_text: "Numbers", new_text: "Totals" }] });
     expect(stale.status).toBe(409);
     expect(stale.body.error.code).toBe("stale_etag");
-  });
-
-  it("gives a diff for a whole-body replacement too", async () => {
-    const r = await alice.api("PATCH", `${P}/assumptions/${id}`, { expected_etag: etag, body: "## Friday\n\nTotals close on Thursday, and the pricing review follows on Friday afternoon." });
-    expect(r.body.diff).toEqual([{ field: "body", at: 11, before: "## Friday\n\n", removed: "Number", added: "Total", after: "s close on Thursday, and the pricing rev" }]);
-  });
-});
-
-describe("register edits", () => {
-  let id: string;
-  let etag: string;
-
-  it("replaces exact text before the first review, with changed and diff", async () => {
-    const a = await alice.api("POST", `${P}/assumptions`, { statement: "Finance closes the numbers on Friday.", body: "Dana said so (see D1)." });
-    expect(a.status).toBe(201);
-    id = a.body.id;
-    const r = await alice.api("PATCH", `${P}/assumptions/${id}`, { expected_etag: a.body.etag, edits: [{ old_text: "(see D1)", new_text: "(see the export decision)" }], tags: ["finance"] });
-    expect(r.status).toBe(200);
-    expect(r.body.body).toBe("Dana said so (see the export decision).");
-    expect(r.body.changed).toEqual(["body", "tags"]);
-    expect(r.body.diff).toEqual([{ field: "body", at: 18, before: "Dana said so (see ", removed: "D1", added: "the export decision", after: ")." }]);
-    etag = r.body.etag;
-  });
-
-  it("refuses edits once any review has frozen the entry", async () => {
-    const rv = await alice.api("POST", `${P}/assumptions/${id}/review`, { expected_etag: etag, status: "unconfirmed", note: "Evidence mixed." });
-    expect(rv.body.frozen).toBe(true);
-    const r = await alice.api("PATCH", `${P}/assumptions/${id}`, { expected_etag: rv.body.etag, edits: [{ old_text: "Dana", new_text: "The finance lead" }] });
-    expect(r.status).toBe(409);
-    expect(r.body.error.code).toBe("frozen");
-    etag = rv.body.etag;
-  });
-
-  it("refuses an outcome from another product when outcomes change, as when the entry is created", async () => {
-    const [tenant] = productPath.split("/");
-    const other = await alice.api("POST", `/api/v1/tenants/${tenant}/products`, { name: "Elsewhere" });
-    const outcome = await alice.api("POST", `/api/v1/p/${other.body.path}/outcomes`, { title: "Belongs to Elsewhere" });
-    const created = await alice.api("POST", `${P}/assumptions`, { statement: "x", outcome_ids: [outcome.body.outcome_id] });
-    expect(created.body.error.code).toBe("unknown_reference");
-    // Outcomes and tags stay editable after a review, so the check must hold there too.
-    const r = await alice.api("PATCH", `${P}/assumptions/${id}`, { expected_etag: etag, outcome_ids: [outcome.body.outcome_id] });
-    expect(r.status).toBe(422);
-    expect(r.body.error.code).toBe("unknown_reference");
-    expect((await alice.api("GET", `${P}/assumptions/${id}`)).body.outcome_ids).toEqual([]);
-  });
-
-  it("says in the review guidance that any review freezes the entry", async () => {
-    const client = new Client({ name: "test-agent", version: "1.0.0" });
-    await client.connect(new StreamableHTTPClientTransport(new URL(`${h.baseUrl}/mcp`), { requestInit: { headers: { authorization: `Bearer ${agentToken}` } } }));
-    const d = text(await client.callTool({ name: "assumptions_write", arguments: { action: "review", describe: true } }));
-    expect(d.description).toContain("freezes the entry's statement and body");
-    await client.close();
-  });
-});
-
-describe("register lists", () => {
-  it("show frozen, superseded_by and link counts, and filter by status", async () => {
-    const old = await alice.api("POST", `${P}/assumptions`, { statement: "Exports run weekly." });
-    const other = await alice.api("POST", `${P}/assumptions`, { statement: "Exports stay in the spreadsheet.", links: [{ id: old.body.id, type: "supports" }] });
-    const s = await alice.api("POST", `${P}/assumptions/${old.body.id}/supersede`, { expected_etag: old.body.etag, note: "Wrong cadence.", statement: "Exports run every Friday." });
-    expect(s.status).toBe(200);
-    const list = await alice.api("GET", `${P}/assumptions?query=Exports&status=unconfirmed,confirmed,refuted,superseded`);
-    const byId = new Map(list.body.items.map((i: any) => [i.id, i]));
-    expect(byId.get(old.body.id)).toMatchObject({ frozen: true, status: "superseded", superseded_by: [s.body.entry.id], link_count: 0, linked_from_count: 2 });
-    expect(byId.get(other.body.id)).toMatchObject({ frozen: false, superseded_by: [], link_count: 1, linked_from_count: 0 });
-    expect(byId.get(s.body.entry.id)).toMatchObject({ frozen: false, link_count: 1, linked_from_count: 0 });
-    const current = await alice.api("GET", `${P}/assumptions?query=Exports&status=unconfirmed,confirmed`);
-    expect(current.body.items.map((i: any) => i.id).sort()).toEqual([other.body.id, s.body.entry.id].sort());
-    const got = await alice.api("GET", `${P}/assumptions/${old.body.id}`);
-    expect(got.body.superseded_by).toEqual([s.body.entry.id]);
-  });
-
-  it("list the current entries by default, the ones the counts count, and say how many they left out", async () => {
-    const t = await alice.api("POST", "/api/v1/tenants", { name: "Count Co" });
-    const p = await alice.api("POST", `/api/v1/tenants/${t.body.tenant.slug}/products`, { name: "Counted" });
-    const Q = `/api/v1/p/${p.body.path}`;
-    const outcome = await alice.api("POST", `${Q}/outcomes`, { title: "Plan the week" });
-    const on = { outcome_ids: [outcome.body.outcome_id] };
-    const kept = await alice.api("POST", `${Q}/assumptions`, { statement: "Crews plan weekly.", ...on });
-    const old = await alice.api("POST", `${Q}/assumptions`, { statement: "Crews plan daily.", ...on });
-    const replaced = await alice.api("POST", `${Q}/assumptions/${old.body.id}/supersede`, { expected_etag: old.body.etag, note: "Wrong cadence.", statement: "Crews plan every Monday.", ...on });
-    const wrong = await alice.api("POST", `${Q}/assumptions`, { statement: "Crews never plan.", ...on });
-    expect((await alice.api("POST", `${Q}/assumptions/${wrong.body.id}/review`, { expected_etag: wrong.body.etag, status: "refuted", note: "They do." })).status).toBe(200);
-
-    const current = [kept.body.id, replaced.body.entry.id].sort();
-    const list = await alice.api("GET", `${Q}/assumptions`);
-    expect(list.body.items.map((i: any) => i.id).sort()).toEqual(current);
-    expect(list.body.not_current_hidden).toBe(2);
-    expect(list.body.note).toContain("refuted or superseded");
-    const narrowed = await alice.api("GET", `${Q}/assumptions?query=weekly`);
-    expect(narrowed.body).toMatchObject({ not_current_hidden: 0 });
-    expect(narrowed.body.note).toBeUndefined();
-
-    // The same number everywhere: the list, the product's counts in products.list and get, and the list filtered by the outcome.
-    const listed = (await alice.api("GET", "/api/v1/me/products")).body.items.find((i: any) => i.product_id === p.body.product_id);
-    expect(listed.counts.assumptions).toBe(current.length);
-    expect((await alice.api("GET", Q)).body.counts.assumptions).toBe(current.length);
-    expect((await alice.api("GET", `${Q}/assumptions?outcome_id=${outcome.body.outcome_id}`)).body.items).toHaveLength(current.length);
-
-    // Over MCP too, and asking for every status lists every entry with nothing left out.
-    const client = new Client({ name: "count-test", version: "1" });
-    await client.connect(new StreamableHTTPClientTransport(new URL(`${h.baseUrl}/mcp`), { requestInit: { headers: { Authorization: `Bearer ${agentToken}` } } }));
-    const mcp = text(await client.callTool({ name: "assumptions_read", arguments: { action: "list", product: p.body.path } }));
-    expect(mcp.items.map((i: any) => i.id).sort()).toEqual(current);
-    const every = text(await client.callTool({ name: "assumptions_read", arguments: { action: "list", product: p.body.path, params: { status: ["unconfirmed", "confirmed", "refuted", "superseded"] } } }));
-    expect(every.items).toHaveLength(4);
-    expect(every.not_current_hidden).toBe(0);
-    await client.close();
   });
 });
 
 describe("archived outcomes", () => {
-  it("are counted when hidden from the list, listed when included, and flagged where they are referenced", async () => {
+  it("are counted when hidden from the list, and listed when included", async () => {
     const live = await alice.api("POST", `${P}/outcomes`, { title: "Close faster" });
     const made = await alice.api("POST", `${P}/outcomes`, { title: "Retired aim" });
     expect(made.body.archived_at).toBeNull();
@@ -221,11 +111,6 @@ describe("archived outcomes", () => {
     expect(all.body.items.map((o: any) => o.outcome_id)).toEqual([live.body.outcome_id, gone.body.outcome_id]);
     expect(all.body).toMatchObject({ archived_hidden: 0 });
     expect(all.body.note ?? "").not.toContain("include_archived");
-
-    const a = await alice.api("POST", `${P}/assumptions`, { statement: "Linked too.", outcome_ids: [gone.body.outcome_id] });
-    expect(a.body.archived_outcome_ids).toEqual([gone.body.outcome_id]);
-    const al = await alice.api("GET", `${P}/assumptions?query=Linked`);
-    expect(al.body.items[0].archived_outcome_ids).toEqual([gone.body.outcome_id]);
 
     const back = await alice.api("POST", `${P}/outcomes/${gone.body.outcome_id}/restore`, { expected_etag: gone.body.etag });
     expect(back.status).toBe(200);
@@ -246,7 +131,7 @@ describe("what an outcome holds", () => {
     const cited = await alice.api("POST", `${P}/outcomes`, { title: "Crews plan the week", description: `As source ${recordId}, its second paragraph, shows.` });
     expect(cited.status).toBe(422);
     expect(cited.body.error.code).toBe("outcome_cites_a_record");
-    expect(cited.body.error.message).toContain("outcome_ids");
+    expect(cited.body.error.message).toContain("keep the evidence in sources");
     expect(cited.body.error.details).toMatchObject({ field: "description", id: recordId });
     const linked = await alice.api("POST", `${P}/outcomes`, { title: `Plan the week [call](/t/a/b/c/evidence/${recordId})` });
     expect(linked.status).toBe(422);
@@ -260,25 +145,20 @@ describe("what an outcome holds", () => {
 });
 
 describe("id aliases", () => {
-  it("accept the other id convention on every entity tool, and refuse two different ids", async () => {
+  it("accept id for an outcome's id, and refuse two different ids", async () => {
     const client = new Client({ name: "test-agent", version: "1.0.0" });
     await client.connect(new StreamableHTTPClientTransport(new URL(`${h.baseUrl}/mcp`), { requestInit: { headers: { authorization: `Bearer ${agentToken}` } } }));
     const call = (name: string, action: string, params: Record<string, unknown>) => client.callTool({ name, arguments: { action, params, product: productPath } });
     const obj = await alice.api("POST", `${P}/outcomes`, { title: "Alias aim" });
     const other = await alice.api("POST", `${P}/outcomes`, { title: "Another aim" });
-    const as = await alice.api("POST", `${P}/assumptions`, { statement: "Alias premise." });
 
     expect(text(await call("outcomes_read", "get", { id: obj.body.outcome_id })).title).toBe("Alias aim");
     expect(text(await call("outcomes_read", "revisions", { id: obj.body.outcome_id })).items).toBeDefined();
-    expect(text(await call("assumptions_read", "get", { assumption_id: as.body.id })).statement).toBe("Alias premise.");
-    // The canonical names still work.
-    expect(text(await call("assumptions_read", "get", { id: as.body.id })).statement).toBe("Alias premise.");
+    // The canonical name still works.
     expect(text(await call("outcomes_read", "get", { outcome_id: obj.body.outcome_id })).title).toBe("Alias aim");
 
     const clash = await call("outcomes_read", "get", { id: obj.body.outcome_id, outcome_id: other.body.outcome_id });
     expect(clash.isError).toBe(true);
-    const wrongKind = await call("assumptions_read", "get", { outcome_id: obj.body.outcome_id });
-    expect(wrongKind.isError).toBe(true);
     // Over REST the path carries the canonical id; an agreeing alias in the body is accepted.
     const u = await alice.api("PATCH", `${P}/outcomes/${obj.body.outcome_id}`, { id: obj.body.outcome_id, expected_etag: obj.body.etag, description: "Faster." });
     expect(u.status).toBe(200);

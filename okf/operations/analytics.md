@@ -3,7 +3,7 @@ type: System Concept
 title: Analytics in production - the server's own counts, Google Analytics behind the cookie choice, Cloudflare Web Analytics on the site
 description: What each source measures and for whom, where every setting lives, how an agent reads them all (pnpm usage, products.usage), how a deployment connects its own analytics, the Google Analytics settings to keep, and how a person's counted days are found and removed.
 tags: [operations, analytics, usage, google-analytics, cloudflare, privacy]
-generated: {by: agent:claude, at: 2026-10-31}
+generated: {by: agent:claude, at: 2026-11-13}
 status: stable
 ---
 
@@ -178,14 +178,14 @@ in reports; `…:runRealtimeReport` shows the last 30 minutes.
   address is set before Google's first event and again the moment the screen changes, so no event
   carries the real one.
 - **Changes:** each change the app makes is an event named by the operation the server ran, which
-  every REST answer names in `X-WhatBuild-Operation`: `assumptions.review` is `assumptions_review`.
+  every REST answer names in `X-WhatBuild-Operation`: `sources.update` is `sources_update`.
   A few changes are not operations and have names of their own: the interest form is
   `generate_lead`, asking for a sign-in link `sign_in_link`, signing out `sign_out`, accepting an
   invitation `invitation_accept`, declining one `invitation_decline`, changing one's name `profile_update`, and disconnecting an agent
   `agent_disconnect`. Any other change that is not an operation is not sent. These are not in the
   server's counts, which count operations.
 - **Search,** never its words: `search_open` (`via`: `field` or `shortcut`), `search_result_open`
-  (`kind`: the result's kind, `source`, `assumption`, `outcome`, `mockup`, `story` or `idea`, or,
+  (`kind`: the result's kind, `source`, `outcome`, `mockup`, `story` or `idea`, or,
   for a place in a source that was followed, the field it is in, `text`, `summary`, `notes` or
   `comment`; `rank`; `from`: `palette` or `screen`), `search_all_results`, `search_recent_use`, and `search_close` when the
   search box closes without a result followed (`found`: `yes`, `no`, `waiting` for an answer, or

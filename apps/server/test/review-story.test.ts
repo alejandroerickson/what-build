@@ -237,7 +237,7 @@ describe("activity by people or agents", () => {
   it("splits what people did (the app) from what agents did (MCP)", async () => {
     const client = new Client({ name: "test-agent", version: "1.0.0" });
     await client.connect(new StreamableHTTPClientTransport(new URL(`${h.baseUrl}/mcp`), { requestInit: { headers: { authorization: `Bearer ${await h.connectAgent(alice)}` } } }));
-    const viaMcp = await client.callTool({ name: "assumptions_write", arguments: { action: "create", product: productPath, params: { statement: "Written by an agent" } } });
+    const viaMcp = await client.callTool({ name: "outcomes_write", arguments: { action: "create", product: productPath, params: { title: "Written by an agent" } } });
     expect(viaMcp.isError).toBeFalsy();
     await client.close();
     const people = await alice.api("GET", `${P}/activity?by=people&limit=200`);
@@ -412,14 +412,13 @@ describe("people on one product", () => {
 });
 
 describe("the sample product", () => {
-  it("seeds sources, an assumption, a mockup and Story pages with notes", async () => {
+  it("seeds sources, a mockup and Story pages with notes", async () => {
     const ports = createPorts(h.config, h.blobs, h.mailer);
     await seed({ db: h.db, ports }, h.worker, () => {});
     const sam = await h.signIn("sam@example.com", "Sam Okafor");
     const products = await sam.api("GET", "/api/v1/me/products");
     const path = products.body.items.find((p: { name: string }) => p.name === "Crewboard").path;
     const S = `/api/v1/p/${path}`;
-    expect((await sam.api("GET", `${S}/assumptions`)).body.items).toHaveLength(1);
     expect((await sam.api("GET", `${S}/mockups`)).body.items).toHaveLength(1);
     const tree = await sam.api("GET", `${S}/story/hierarchy`);
     const canvas = tree.body.items.find((n: { kind: string }) => n.kind === "canvas");

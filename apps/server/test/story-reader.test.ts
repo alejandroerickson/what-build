@@ -147,7 +147,7 @@ describe("a Story reader", () => {
       expect(r.body.error.details.role, op.name).toBe("story_reader");
       refused.push(op.name);
     }
-    for (const name of ["sources.list", "derived.text", "derived.write_text", "assumptions.list", "outcomes.list", "activity.list", "products.export", "story.get_style"])
+    for (const name of ["sources.list", "derived.text", "derived.write_text", "outcomes.list", "activity.list", "products.export", "story.get_style"])
       expect(refused).toContain(name);
     const sources = await rita.api("GET", `${P}/sources`);
     expect(sources.body.error.message).toMatch(/You are a Story reader on product Planner; .*needs viewer/);
@@ -324,18 +324,18 @@ describe("a Story reader's search", () => {
   beforeAll(async () => {
     rory = await h.signIn("rory@example.com", "Rory Reader");
     expect((await alice.api("POST", `/api/v1/tenants/${tenantSlug}/members`, { product: "planner", email: "rory@example.com", role: "story_reader" })).status).toBe(201);
-    expect((await alice.api("POST", `${P}/story/pages/assumption-notes/versions`, { title: "Assumption notes", html: html("Assumption notes", "<h1>Assumption notes</h1><p>Our sources and outcomes, quayside.</p>") })).status).toBeLessThan(300);
+    expect((await alice.api("POST", `${P}/story/pages/quay-notes/versions`, { title: "Quay notes", html: html("Quay notes", "<h1>Quay notes</h1><p>Our sources and outcomes, quayside.</p>") })).status).toBeLessThan(300);
   });
 
   it("reads only the word story as naming a kind, so no answer speaks of another kind, and every other word is searched for", async () => {
-    for (const word of ["sources", "outcomes", "mockups", "assumptions", "idea", "concept", "passages", "quotes"]) {
+    for (const word of ["sources", "outcomes", "mockups", "idea", "concept", "passages", "quotes"]) {
       const r = await rory.api("GET", `${S()}${word}%20quayside&strict=true`);
       expect(r.status, word).toBe(200);
       expect(r.body.kind_hint, word).toBeNull();
       expect(r.body.terms.map((t: { text: string }) => t.text), word).toEqual([word, "quayside"]);
     }
     const found = await rory.api("GET", `${S()}sources%20quayside%20`);
-    expect(found.body.results.map((x: { id: string }) => x.id)).toEqual(["assumption-notes"]);
+    expect(found.body.results.map((x: { id: string }) => x.id)).toEqual(["quay-notes"]);
     expect(found.body.partial).toBe(false);
     const story = await rory.api("GET", `${S()}story%20quayside`);
     expect(story.body.kind_hint).toBe("story");

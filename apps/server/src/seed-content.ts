@@ -1,7 +1,7 @@
 /**
  * The sample discovery. Entirely synthetic: the people, organizations and product are invented.
- * It exists so a new install shows the whole loop — sources and their texts, outcomes, an
- * assumption, a mockup and the Story — before anyone uploads anything.
+ * It exists so a new install shows the whole loop — sources and their texts, outcomes, a mockup
+ * and the Story — before anyone uploads anything.
  */
 
 export const SAMPLE = {
@@ -302,7 +302,7 @@ Spreadsheets were the main tool for 14 respondents, paper for 5, and scheduling 
 "Sending everybody their day is what takes forever."
 `;
 
-export const STORY_HTML = (links: { assumption: string; handOff: string }, css: string) => `<!doctype html>
+export const STORY_HTML = (links: { handOff: string }, css: string) => `<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -329,7 +329,7 @@ ${css}</style>
 <h2 id="next">What we are doing next</h2>
 <p><span class="status" data-state="evidence">Planned</span> <a href="${links.handOff}">Test the hand-off first</a>, before the planning grid.</p>
 <ol class="steps"><li>Prototype a message generated from the plan, and test it with two crews.</li><li>Interview two more cleaning-crew owners about how they think about the week.</li></ol>
-<aside class="callout" data-tone="caution"><p><strong>Assumption, unconfirmed.</strong> Whether leads think in jobs or in days is <a href="${links.assumption}" target="_blank" rel="noopener noreferrer">an open assumption</a>.</p></aside>
+<aside class="callout" data-tone="caution"><p><strong>Not yet confirmed.</strong> Whether leads think in jobs or in days is still open: the planning mockup puts both in front of crew leads.</p></aside>
 </section>
 </main>
 </body>
@@ -348,7 +348,7 @@ The one-screen summary of where Crewboard's discovery stands, for Riley and the 
 ## Structure decisions
 
 - Lead with the hand-off, not the planning grid: the plan to test generated crew messages is the headline.
-- Keep "jobs or days" labelled as an open assumption until someone reviews it.
+- Keep "jobs or days" labelled as open until crew leads have tried the planning mockup.
 `;
 
 export const HANDOFF_NOTES = `## Purpose
@@ -392,7 +392,7 @@ ${css}</style>
 </body>
 </html>`;
 
-/** The sample mockup: three pages that test the jobs-or-days assumption. Synthetic, like everything here. */
+/** The sample mockup: three pages that test the jobs-or-days question. Synthetic, like everything here. */
 const MOCK_CSS = `*{box-sizing:border-box}body{margin:0;font:15px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif;color:#1c2321;background:#f6f5f1}
 header{display:flex;align-items:center;gap:12px;padding:14px 24px;background:#1f3b34;color:#fff}header b{font-size:17px}header span{opacity:.75;font-size:13px}
 main{padding:20px 24px}h2{font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:#5b6662;margin:0 0 10px}
@@ -428,7 +428,7 @@ Version 2 links the pages, so a crew lead can click from the board to the messag
 
 ## What it draws on
 
-The assumption that crew leads think in jobs, not time slots; the Greenline call; the planning survey.`,
+The open question of whether crew leads think in jobs or in time slots; the Greenline call; the planning survey.`,
   pages: {
     jobs: mock(
       "Jobs board",

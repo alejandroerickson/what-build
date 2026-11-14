@@ -45,15 +45,15 @@ const RETIRED_SOURCE_FIELDS = new Set(["kind", "organization", "folder"]);
 const RETIRED_SOURCE_HINT =
   " Sources have no kind, organization or folder any more: say what the material is and whom it concerns with tags, reusing the ones sources_read(action=\"facets\") lists.";
 
-/** Dimensions and their filters, which sources and assumptions no longer have. The filter that took their place is `tags` on sources and search, `tag` on assumptions. */
+/** Dimensions and their filters, which sources no longer have. The filter that took their place is `tags` on sources and search. */
 const RETIRED_DIMENSION_FIELDS = new Set(["dimensions", "customer", "product_area", "lifecycle_stage"]);
-const retiredDimensionHint = (tool: string) =>
-  ` Sources and assumptions have no dimensions (customer, product area, lifecycle stage) any more: say whom the material concerns and what it bears on with tags, and filter by ${tool === "assumptions" ? "`tag`" : "`tags`"}.`;
+const RETIRED_DIMENSION_HINT =
+  " Sources have no dimensions (customer, product area, lifecycle stage) any more: say whom the material concerns and what it bears on with tags, and filter by `tags`.";
 
 /** Citations and the graph around them, which nothing takes any more (decision: evidence is searched, not cited). */
 const RETIRED_CITATION_FIELDS = new Set(["citations", "refs", "related_records"]);
 const RETIRED_CITATION_HINT =
-  " Nothing takes citations, refs or related sources any more: evidence is found by searching, not cited. Say in words what the work rests on (an assumption's body, a Story page's notes, a source's notes), naming a source by its id where it helps, and find what bears on it with search.";
+  " Nothing takes citations, refs or related sources any more: evidence is found by searching, not cited. Say in words what the work rests on (a Story page's notes, a source's notes), naming a source by its id where it helps, and find what bears on it with search.";
 
 /** Values a field no longer takes, and what took their place. */
 const RETIRED_VALUES: { ops: string[]; field: string; values: string[]; hint: string }[] = [
@@ -63,12 +63,30 @@ const RETIRED_VALUES: { ops: string[]; field: string; values: string[]; hint: st
     values: ["outline"],
     hint: " A source has no outline any more: note_kind is summary (what the source is and what it tells the team, which people read) or notes (anything else worth keeping). Find your way through a long source with search and derived_read(action=\"text\") windows.",
   },
+  {
+    ops: ["search"],
+    field: "scope",
+    values: ["assumptions", "all"],
+    hint: " WhatBuild no longer keeps assumptions, so the substring and ranked modes search sources alone: leave scope out, or send \"sources\". Mode \"plain\" searches everything else the product holds.",
+  },
+  {
+    ops: ["search"],
+    field: "kind",
+    values: ["assumption"],
+    hint: " WhatBuild no longer keeps assumptions: kind is idea, outcome, source, mockup or story, or none for all of them.",
+  },
+  {
+    ops: ["activity.list"],
+    field: "entity_type",
+    values: ["assumption"],
+    hint: " WhatBuild no longer keeps assumptions, and their entries in the log went with them.",
+  },
 ];
 
-/** Participants, where a source came from, and provenance, which sources and assumptions no longer have. */
+/** Participants, where a source came from, and provenance, which sources no longer have. */
 const RETIRED_DETAIL_FIELDS = new Set(["participants", "source_system", "provenance_depth"]);
 const RETIRED_DETAIL_HINT =
-  " Sources have no participants, source system or provenance, and assumptions no provenance, any more: a source is described by its title, date and tags, and anything else worth keeping goes in its notes.";
+  " Sources have no participants, source system or provenance any more: a source is described by its title, date and tags, and anything else worth keeping goes in its notes.";
 
 /** File roles and the provenance a file could carry, which attachments do not have. */
 const RETIRED_ATTACHMENT_FIELDS = new Set(["role", "derived_from", "derivation_note", "derived_by"]);
@@ -82,8 +100,8 @@ const RETIRED_ATTACHMENT_HINT =
 function retiredFieldHint(op: OperationDef, error: z.ZodError, input: unknown): string {
   const unknown = error.issues.filter((i) => i.code === "unrecognized_keys").flatMap((i) => (i as { keys: string[] }).keys);
   const retired = ["sources", "attachments", "search"].includes(op.mcp.tool) && unknown.some((k) => RETIRED_SOURCE_FIELDS.has(k));
-  const dimensions = ["sources", "attachments", "search", "assumptions"].includes(op.mcp.tool) && unknown.some((k) => RETIRED_DIMENSION_FIELDS.has(k));
-  const details = ["sources", "attachments", "search", "assumptions"].includes(op.mcp.tool) && unknown.some((k) => RETIRED_DETAIL_FIELDS.has(k));
+  const dimensions = ["sources", "attachments", "search"].includes(op.mcp.tool) && unknown.some((k) => RETIRED_DIMENSION_FIELDS.has(k));
+  const details = ["sources", "attachments", "search"].includes(op.mcp.tool) && unknown.some((k) => RETIRED_DETAIL_FIELDS.has(k));
   const attachment = op.mcp.tool === "attachments" && unknown.some((k) => RETIRED_ATTACHMENT_FIELDS.has(k));
   const cited = unknown.some((k) => RETIRED_CITATION_FIELDS.has(k));
   const anchored = op.name === "sources.annotate" && unknown.some((k) => k === "seq_start" || k === "seq_end");
@@ -92,7 +110,7 @@ function retiredFieldHint(op: OperationDef, error: z.ZodError, input: unknown): 
     (v) => v.ops.includes(op.name) && v.values.includes(String(sent(v.field))) && error.issues.some((i) => i.path.length === 1 && i.path[0] === v.field),
   );
   return (
-    (retired ? RETIRED_SOURCE_HINT : "") + (dimensions ? retiredDimensionHint(op.mcp.tool) : "") + (details ? RETIRED_DETAIL_HINT : "") + (attachment ? RETIRED_ATTACHMENT_HINT : "") +
+    (retired ? RETIRED_SOURCE_HINT : "") + (dimensions ? RETIRED_DIMENSION_HINT : "") + (details ? RETIRED_DETAIL_HINT : "") + (attachment ? RETIRED_ATTACHMENT_HINT : "") +
     (cited ? RETIRED_CITATION_HINT : "") + (anchored ? " A comment is on the whole source: it takes no segment range." : "") + values.map((v) => v.hint).join("") + wrongFieldHint(op, unknown)
   );
 }

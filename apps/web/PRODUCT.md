@@ -20,11 +20,11 @@ Google Cloud Run. Recorded in `okf/spec/02-architecture.md`.
 
 - **The product trio** — product managers, designers and an engineering lead exploring a product
   idea — about 5 to 15 people per organization. They browse evidence, read and correct sources'
-  text, review mockups and assumptions, and direct their agents. They work at a desk on a laptop or larger
+  text, review mockups, and direct their agents. They work at a desk on a laptop or larger
   screen; a phone is an occasional reading context. They do not use git and never learn a storage
   path.
 - **Their AI agents**, connected over MCP, which do most of the intake and synthesis: upload and
-  clean sources, read and correct their text, draft assumptions, build mockups, publish the Story.
+  clean sources, read and correct their text, write outcomes, build mockups, publish the Story.
 - **Stakeholders** who read the Story and nothing else, as **Story readers**: a role that reads
   only the Story's live pages, never the evidence behind them
   ([decision](../../okf/decisions/a-story-reader-reads-only-the-story.md)).
@@ -34,7 +34,7 @@ Google Cloud Run. Recorded in `okf/spec/02-architecture.md`.
 ## Product Purpose
 
 Turn a pile of discovery material — interviews, sales calls, research exports, documents, decks —
-into something a team can act on: outcomes, mockups, reviewed assumptions and a stakeholder Story,
+into something a team can act on: outcomes, mockups and a stakeholder Story,
 with the evidence behind them kept whole and searchable.
 Success is that a team keeps its discovery and its ideas in one place, where people and their
 agents find what they heard by searching, and that an agent's work is visible, attributed and
@@ -80,13 +80,13 @@ permissions and one activity log.
   people read it, export it to PDF, and arrange, archive and delete its pages by hand. Pages follow the product's Story style: the
   company's own design system, or a house style an agent adopted for the product. Never
   WhatBuild's own look, since a Story is often read outside the team.
-- Vocabulary is fixed: source, derived text, attachment, outcome, mockup, assumption, Story, archive. Never "findings", "claims", "document store", "file" for an attachment, or a storage path in the UI.
+- Vocabulary is fixed: source, derived text, attachment, outcome, mockup, Story, archive. Never "findings", "claims", "document store", "file" for an attachment, or a storage path in the UI.
 - WCAG 2.2 AA, fully keyboard-operable, usable at phone width.
 
 ## Evidence on Hand
 
 - A synthetic sample product ("Crewboard", in `apps/server/src/seed-content.ts`): four sources,
-  outcomes, an assumption, a mockup and two Story pages. All people and organizations are
+  outcomes, a mockup and two Story pages. All people and organizations are
   invented; no real customer material exists in this repository and none may be fabricated as real.
 - The brand is the W mark (`apps/web/public/favicon.svg`), a W in a rounded tile under a title-bar
   line like one of the app's panels, with the wordmark "WhatBuild". The type

@@ -190,7 +190,7 @@ export interface Product {
   tenant: { tenant_id: string; slug: string; name: string; example?: boolean; plan?: string; read_only?: ReadOnly };
   your_role: ProductRole;
   /** A Story reader gets story_pages only. */
-  counts: { story_pages: number } & Partial<Record<"sources" | "outcomes" | "assumptions" | "mockups", number>>;
+  counts: { story_pages: number } & Partial<Record<"sources" | "outcomes" | "mockups", number>>;
   /** Each stage's total of every item it holds, as the panel and the overview show it; a Story reader gets story only. */
   stage_counts: { story: number } & Partial<Record<"idea" | "evidence" | "exploration", number>>;
 }

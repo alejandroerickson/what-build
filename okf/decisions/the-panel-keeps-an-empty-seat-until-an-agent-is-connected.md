@@ -11,7 +11,7 @@ status: stable
 
 ## Context
 
-Agents do most of the work in WhatBuild: they add and read sources, draft assumptions, build
+Agents do most of the work in WhatBuild: they add and read sources, write outcomes, build
 mockups and write the Story, and two of those (publishing a mockup, writing a Story page) have no
 path in the web app at all. The first-use states point at an agent, but only in a product with
 nothing in it; someone who joins a product that already has evidence, or who reads the Story, could

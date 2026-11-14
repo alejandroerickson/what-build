@@ -3,13 +3,15 @@ type: Decision
 title: An assumption may be recorded before any evidence cites it
 description: Assumptions take 0 to 20 citations, so people and agents can start from an idea; citation integrity applies to every citation an assumption does carry.
 tags: [decision, registers, citations, product]
-generated: {by: agent:claude, at: 2026-10-26}
+generated: {by: agent:claude, at: 2026-11-13}
 status: deprecated
 ---
 
 # An assumption may be recorded before any evidence cites it
 
 Superseded on 2026-10-16 by [Evidence is found by searching, not kept as citations](evidence-is-searched-not-cited.md).
+Assumptions themselves were removed on 2026-11-13, and every one deleted:
+[Assumptions are removed, and a migration deletes every one on every deployment](assumptions-are-removed-and-every-one-is-deleted.md).
 
 ## Context
 
@@ -37,5 +39,5 @@ think freely, not a regulatory filing.
 - The schemas in `packages/core/src/ops/registers.ts` and the guide's topic on assumptions (`packages/core/src/guide/06-assumptions.md`).
 - The web form in `apps/web/src/routes/registers.tsx` (`EntryEditPage`).
 
-Specified in: [§4.8 Assumptions](../spec/04-data-model.md#48-assumptions) and
+Specified in: [§4.8 Assumptions (retired)](../spec/04-data-model.md#48-assumptions-retired) and
 [§7.7 Exploration](../spec/07-web-app.md#77-exploration).

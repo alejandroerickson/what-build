@@ -26,13 +26,13 @@ const { FindProvider, FindLauncher } = await import("../src/shell/find-palette.t
 const found = (query: string, title: string) => ({
   query,
   terms: [{ text: query, phrase: false }],
-  ignored: [], kind_hint: null, corrections: [], partial: false, counts: { assumption: 1 },
-  results: [{ kind: "assumption", id: `a-${query}`, title, title_marks: [], snippet: null, snippet_marks: [], missing: [], score: 1, meta: { status: "confirmed" } }],
+  ignored: [], kind_hint: null, corrections: [], partial: false, counts: { outcome: 1 },
+  results: [{ kind: "outcome", id: `o-${query}`, title, title_marks: [], snippet: null, snippet_marks: [], missing: [], score: 1, meta: {} }],
 });
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
 const refused = (seconds: number) => json({ error: { code: "rate_limited", message: "The example organization allows each person 50 calls a minute.", details: { limit: 50, per: "minute", retry_after_seconds: seconds } } }, 429);
 
-/** Which words are refused, for how long; anything else finds one assumption titled after its words. */
+/** Which words are refused, for how long; anything else finds one outcome titled after its words. */
 let refusing: Record<string, number> = {};
 const advance = (ms: number) => act(() => vi.advanceTimersByTimeAsync(ms));
 /** Past a field's debounce, through the address it writes and the answer it brings. */
@@ -187,7 +187,7 @@ describe("the Search screen, refused for the minute's calls", () => {
     await settle();
     expect(host.textContent).toContain("Waiting for the next minute");
     expect(host.textContent).not.toContain("Found by vans");
-    expect(host.querySelector('a[data-kind="assumption"]')).toBeNull();
+    expect(host.querySelector('a[data-kind="outcome"]')).toBeNull();
     refusing = {};
     await advance(26_000);
     expect(host.textContent).not.toContain("Waiting for the next minute");

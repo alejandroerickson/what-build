@@ -567,12 +567,16 @@ export interface RevisionsTable {
   written_by: Json<ActorSnapshot>;
 }
 
+/**
+ * Decisions and assumptions are retired. A row here is a decision waiting for the worker to move it
+ * into Evidence as a source (evidence-move.ts); assumptions were deleted (0046_no_assumptions), and
+ * nothing else reads or writes the table.
+ */
 export interface RegisterEntriesTable {
   entry_id: string;
   tenant_id: string;
   product_id: string;
-  /** Decisions are retired: a decision row is waiting for the worker to move it into Evidence. */
-  kind: "assumption" | "decision";
+  kind: "decision";
   statement: string;
   body: string;
   links: Json<RegisterLink[]>;
@@ -589,6 +593,7 @@ export interface RegisterEntriesTable {
   updated_by: Json<ActorSnapshot>;
 }
 
+/** The reviews of the decisions waiting in register_entries, which their move into Evidence writes into their documents. */
 export interface ReviewsTable {
   review_id: string;
   tenant_id: string;

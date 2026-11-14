@@ -3,7 +3,7 @@ type: Specification
 title: WhatBuild is one TypeScript application image over Postgres and an object store, and the same code runs on a laptop with only Node.
 description: The requirements behind the stack, the stack itself, the deployment shape, ports and adapters, the operation protocol, the local development contract, cross-cutting rules, and the repository layout.
 tags: [spec, architecture, stack, development, deployment]
-generated: {by: agent:claude, at: 2026-11-04}
+generated: {by: agent:claude, at: 2026-11-13}
 status: stable
 ---
 
@@ -49,7 +49,7 @@ Observed in the `package.json` files, the [`deploy/Dockerfile`](../../deploy/Doc
 | Mail | `nodemailer` over SMTP, or the ACS Email API with managed identity; the console in development | Any SMTP provider, or the Azure SDK for ACS. Each deployment's: [Mail](../operations/mail.md). |
 | Web UI | **React 19 + Vite**, SPA; **React Router 7** and **TanStack Query**; `lucide-react` icons | Static assets served by the same process; URL-held state through the router. |
 | Parsing | Own code for text/Markdown/VTT/SRT/CSV; `pdfjs-dist` for PDF; `fflate` + `saxes` for DOCX and XLSX; `parse5` for HTML; own code for legacy Word `.doc` (the OLE2 compound file and the Word binary format) | Pure functions of bytes → readable Markdown with no native dependencies: a small image, a fast cold start, and a contributor install that cannot fail on a toolchain. |
-| Markdown rendering | `marked`'s lexer, with tokens mapped to React elements ([`apps/web/src/lib/markdown.tsx`](../../apps/web/src/lib/markdown.tsx)) | Markdown that agents write (briefs, notes, assumption bodies) is untrusted input: no HTML string from it ever reaches the DOM; raw HTML shows as text and images never load. |
+| Markdown rendering | `marked`'s lexer, with tokens mapped to React elements ([`apps/web/src/lib/markdown.tsx`](../../apps/web/src/lib/markdown.tsx)) | Markdown that agents write (briefs, notes, outcomes' descriptions) is untrusted input: no HTML string from it ever reaches the DOM; raw HTML shows as text and images never load. |
 | Tooling | pnpm workspaces, `tsc` for type checks, Vitest, `tsx`, esbuild (server bundle), `playwright-core` for browser scripts | No linter or formatter is configured. |
 
 The design system and visual language are documented in [DESIGN.md](../../apps/web/DESIGN.md).

@@ -4,7 +4,7 @@ import { Glyph, type GlyphName } from "../ui/glyph.tsx";
 const JOURNEY: { id: string; label: string; icon: GlyphName; about: string }[] = [
   { id: "idea", label: "Idea", icon: "lightbulb", about: "Say who it’s for and the outcomes you want." },
   { id: "evidence", label: "Evidence", icon: "library", about: "Gather user research, team discussions and documents." },
-  { id: "exploration", label: "Exploration", icon: "blend", about: "Mock up directions and review the assumptions behind them." },
+  { id: "exploration", label: "Exploration", icon: "blend", about: "Mock up directions side by side and click through them." },
   { id: "story", label: "Story", icon: "book-open", about: "Show stakeholders what to build, and why." },
 ];
 

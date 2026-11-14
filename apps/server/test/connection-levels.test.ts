@@ -75,7 +75,7 @@ describe("what each level may do", () => {
     const actions = await offered(client);
     expect(actions).toContain("sources.create");
     expect(actions).toContain("sources.archive");
-    for (const a of ["sources.delete", "sources.delete_annotation", "assumptions.delete", "outcomes.delete", "story.delete_page", "mockups.delete", "products.delete", "products.archive", "members.grant"])
+    for (const a of ["sources.delete", "sources.delete_annotation", "outcomes.delete", "story.delete_page", "mockups.delete", "products.delete", "products.archive", "members.grant"])
       expect(actions, a).not.toContain(a);
     const made = await newSource(client, "Edited by an agent");
     expect(made.status).toBe(200);

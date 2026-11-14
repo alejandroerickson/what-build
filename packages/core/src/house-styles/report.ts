@@ -216,7 +216,7 @@ export const REPORT: HouseStyle = {
     "A plan is an ol.timeline of two to four milestones: data-state=\"done\" on those reached and aria-current=\"step\" on the one in progress; the rest read as planned. Follow it with ul.lines or a table for the detail.",
     "Put numbers in .figures, three or four in a row, each with what it counts written beneath; never a number without its denominator or unit.",
     "Navy carries structure (headings, figures, table heads, key shapes); amber is only ever a fill: figure bars, the current milestone, caution, mark and pins. Never set text in amber.",
-    "Use .callout for the one thing the reader should act on, and data-tone=\"caution\" for an assumption or risk that could change the plan; one or two a page, each starting with a bold label.",
+    "Use .callout for the one thing the reader should act on, and data-tone=\"caution\" for an unknown or risk that could change the plan; one or two a page, each starting with a bold label.",
   ])}\n`,
   stylesheet: CSS,
 };

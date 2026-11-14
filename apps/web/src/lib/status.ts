@@ -74,13 +74,6 @@ export function derivedStatusDetail(status: string, detail: string | null | unde
   return !known || known.detail ? detail : null;
 }
 
-export const REVIEW_STATUS: Record<string, { label: string; tone: StatusTone }> = {
-  unconfirmed: { label: "Unconfirmed", tone: "attention" },
-  confirmed: { label: "Confirmed", tone: "positive" },
-  refuted: { label: "Refuted", tone: "negative" },
-  superseded: { label: "Superseded", tone: "neutral" },
-};
-
 /**
  * The written map from every other domain status to a StatusBadge tone. positive: done and good;
  * attention: needs a person; negative: failed or refuted; progress: running; neutral: a plain state.

@@ -15,7 +15,7 @@
 import { STORY_FONTS } from "./story-fonts.ts";
 import { HOUSE_STYLES, VOCABULARY, pageDocument, type HouseStyle } from "./story-styles.ts";
 
-export const GUIDANCE_VERSION = "5.1.0";
+export const GUIDANCE_VERSION = "5.2.0";
 
 /** The typefaces the server embeds in a page that names them; no font file is ever sent for these. */
 export const CARRIED_TYPEFACES = {
@@ -29,7 +29,6 @@ export function linkTemplates(base: string, path: string) {
   return {
     source: `${p}/evidence/{record_id}`,
     outcome: `${p}/idea`,
-    assumption: `${p}/exploration/assumptions/{id}`,
     mockup: `${p}/exploration/mockups/{mockup_id}`,
     story_page: `${p}/story/{page_id}`,
   };
@@ -131,7 +130,7 @@ export function components(links: ReturnType<typeof linkTemplates>) {
     { id: "opening", use_when: "Every page. The conclusion, why it matters, a metadata line.", html: `<header class="opening"><p class="kicker">REPLACE: the section or theme</p><h1>REPLACE: the conclusion in one line</h1><p class="lead">REPLACE: why it matters to this reader, in two sentences.</p><p class="meta">Updated REPLACE_DATE · Working interpretation</p></header>`, adaptation: "State the status in words; a working interpretation must not look like agreement. The kicker is optional: leave it out when it would only repeat where the page sits." },
     { id: "quote", use_when: "Someone's words, set apart from the text.", html: `<figure class="quote"><blockquote><p>REPLACE: the words.</p></blockquote><figcaption>REPLACE: whose words they are, in as much detail as the page needs</figcaption></figure>`, adaptation: "The figcaption is optional. For a few words inside a sentence, quotation marks in the text do the job." },
     { id: "note", use_when: "A limit or a definition beside the text it qualifies.", html: `<aside class="note">REPLACE: the limit or definition.</aside>`, adaptation: "Place it just before the paragraph it annotates." },
-    { id: "callout", use_when: "An assumption, limitation or implication that changes how the page should be read.", html: `<aside class="callout" data-tone="caution"><p><strong>Assumption, unconfirmed.</strong> REPLACE: the premise and what would change it.</p></aside>`, adaptation: "Say the status in words." },
+    { id: "callout", use_when: "An unknown, limitation or implication that changes how the page should be read.", html: `<aside class="callout" data-tone="caution"><p><strong>Not yet confirmed.</strong> REPLACE: what the page takes as true and what would change it.</p></aside>`, adaptation: "Say in words how sure the team is." },
     { id: "status", use_when: "Label evidence or review state.", html: `<span class="status" data-state="open">Unconfirmed</span>`, adaptation: "evidence (what the sources show), caution (contested or thin), open (not yet reviewed)." },
     { id: "figures", use_when: "Two to four real numbers with what they count and their denominator or period. Omit when no measured value exists.", html: `<div class="figures"><p class="figure"><strong>REPLACE_VALUE</strong> REPLACE: what was counted, out of what</p></div>`, adaptation: "Never invent or estimate a number." },
     { id: "columns", use_when: "Comparable alternatives side by side.", html: `<div class="columns"><article><h3>REPLACE: option</h3><p>REPLACE</p></article><article><h3>REPLACE: option</h3><p>REPLACE</p></article></div>`, adaptation: "Give options equal weight; label a recommendation as a proposal." },
@@ -141,7 +140,7 @@ export function components(links: ReturnType<typeof linkTemplates>) {
     { id: "section_label", use_when: "A section's heading is a statement, and a short label would help a reader scan: a date, a release, a stage, 'Scope', 'Evidence'.", html: `<section aria-labelledby="REPLACE_ID"><h2 id="REPLACE_ID" data-label="REPLACE: two or three words">REPLACE: what this section shows, as a statement</h2><p>REPLACE</p></section>`, adaptation: "The label goes where the style puts it: above the heading, or in place of a section number. Label every section of a page or none." },
     { id: "wide_section", use_when: "A block needs the page's full width: a timeline, a line per item, a matrix, links to pages.", html: `<section class="wide" aria-labelledby="REPLACE_ID"><h2 id="REPLACE_ID">REPLACE</h2><p>REPLACE: one or two sentences.</p><ul class="lines"><li><strong>REPLACE</strong><span>REPLACE</span></li></ul></section>`, adaptation: "Prose in a wide section keeps its measure; only the blocks run wide." },
     { id: "timeline", use_when: "Two to four dated milestones in order: releases, the stages of a study, a roadmap.", html: `<ol class="timeline"><li data-state="done"><time datetime="REPLACE_YYYY-MM">REPLACE: month and year</time><strong>REPLACE: what was reached</strong><p>REPLACE</p></li><li aria-current="step"><time datetime="REPLACE_YYYY-MM">REPLACE</time><strong>REPLACE: what is true once it is reached</strong><p>REPLACE: one sentence on what it holds.</p></li></ol>`, adaptation: "A date only when a person or a source gave it. Say once on the page whether the dates are a plan, a proposal or a commitment. data-state=\"done\" marks a milestone reached and aria-current=\"step\" the one being worked towards; styles draw the rest as still planned." },
-    { id: "lines", use_when: "A list of like things the reader compares down the page: features, risks, requirements, assumptions.", html: `<ul class="lines"><li><strong>REPLACE: its name</strong><span>REPLACE: what it means for the reader, in one line.</span><span class="tag">REPLACE: its group</span></li></ul>`, adaptation: "One line each: if an item needs a paragraph it belongs in prose or on its own page. The last element is optional, and may be a .status instead of a .tag. Write a feature as what a user can do once it ships." },
+    { id: "lines", use_when: "A list of like things the reader compares down the page: features, risks, requirements, open questions.", html: `<ul class="lines"><li><strong>REPLACE: its name</strong><span>REPLACE: what it means for the reader, in one line.</span><span class="tag">REPLACE: its group</span></li></ul>`, adaptation: "One line each: if an item needs a paragraph it belongs in prose or on its own page. The last element is optional, and may be a .status instead of a .tag. Write a feature as what a user can do once it ships." },
     { id: "facts", use_when: "Labelled facts about one thing: what is in scope and out of it, what it serves, how it will be measured.", html: `<dl class="facts"><dt>In scope</dt><dd>REPLACE</dd><dt>Out of scope</dt><dd>REPLACE</dd><dt>Measured by</dt><dd>REPLACE: how it will be measured.</dd></dl>`, adaptation: "Three to five rows. Short labels; the value may hold a link." },
     { id: "quotes", use_when: "Several people's words side by side: many voices on one theme.", html: `<div class="quotes"><figure class="quote"><blockquote><p>REPLACE: the words, with <mark>the few that matter</mark> marked.</p></blockquote><figcaption>REPLACE</figcaption></figure><figure class="quote"><blockquote><p>REPLACE</p></blockquote><figcaption>REPLACE</figcaption></figure></div>`, adaptation: "Two to four side by side; more reads as a list. Mark a few words where it helps, never a whole sentence." },
     { id: "tally", use_when: "A count of people or things out of a whole, where seeing the share matters: 14 of 23 respondents.", html: `<p><span class="tally" style="--n: REPLACE_N; --of: REPLACE_TOTAL" role="img" aria-label="REPLACE_N of REPLACE_TOTAL"></span> <strong>REPLACE_N of REPLACE_TOTAL</strong> REPLACE: who or what was counted</p>`, adaptation: "Write the number out beside the marks. Up to about 40 in the whole; above that, use figures." },
@@ -170,7 +169,7 @@ export const WRITING = {
     "The Story is the team's own communication with the people it works with: what it means to build and why, the pitch, the plan, where things stand, or whatever else the team wants its stakeholders to read, kept current and consistent in one place. It is not a quoted or cited record of how decisions were reached. Draw on anything in the product, and quote it, paraphrase it, sum it up or link to it in whatever way suits the page, or as the person asks.",
   audiences: [
     { audience: "Leadership", need: "The conclusion and the decision it informs.", shape: "Lead with the conclusion; one paragraph of why; the decision and its criteria." },
-    { audience: "Product trio", need: "Current understanding and what could change the work.", shape: "Current understanding, the strongest evidence, and only the assumptions that could change the work." },
+    { audience: "Product trio", need: "Current understanding and what could change the work.", shape: "Current understanding, the strongest evidence, and only the open questions that could change the work." },
     { audience: "Delivery partners", need: "What is decided, what is not, and the criteria.", shape: "Name the decision and criteria early; a comparison or sequence only for a real trade-off." },
     { audience: "Mixed or external readers", need: "Enough context to follow.", shape: "Minimal context; define terms on first use." },
   ],
@@ -178,17 +177,17 @@ export const WRITING = {
     { type: "Observed evidence", instruction: "What the sources show, and no more than they show." },
     { type: "Interpretation", instruction: "What the team makes of it, labelled as interpretation." },
     { type: "Decision or proposal", instruction: "Call it a decision only when the sources or the person record it as one; otherwise it is a proposal." },
-    { type: "Assumption or unknown", instruction: "Name it as an assumption and say whether it is confirmed." },
+    { type: "Unknown or open question", instruction: "Say that it is not yet known, and what would settle it." },
   ],
   passes: [
-    { pass: "Clarify", checks: ["Choose the audience and the one fact it needs first.", "Give each section one job.", "Use the same terms as the sources and assumptions.", "Make every link say what it contains."] },
+    { pass: "Clarify", checks: ["Choose the audience and the one fact it needs first.", "Give each section one job.", "Use the same terms as the sources.", "Make every link say what it contains."] },
     { pass: "Distill", checks: ["Remove repeated introductions and decorative panels.", "Remove empty forward-looking statements.", "Keep caveats, decision criteria and uncertainty."] },
     { pass: "Polish", checks: ["Replace inflated or vague phrasing without adding facts.", "Check every quotation, count, date, owner and decision against the sources you read."] },
   ],
-  voice: ["Plain, direct sentences.", "The product's vocabulary: outcome, source, assumption, mockup, Story.", "Calm: no sales language and no generic optimistic closing.", "Sentence-case headings, written as statements where a section makes a point.", "Link text that makes sense out of context."],
+  voice: ["Plain, direct sentences.", "The product's vocabulary: outcome, source, mockup, Story.", "Calm: no sales language and no generic optimistic closing.", "Sentence-case headings, written as statements where a section makes a point.", "Link text that makes sense out of context."],
   fact_guardrails: [
     "Never add a person, owner, date, source, quote, count, measurement, customer claim, commitment or decision the sources you read do not establish. Read before you write: search the product for what bears on the page.",
-    "Never turn a working interpretation into agreement, or an unconfirmed assumption into a settled one.",
+    "Never turn a working interpretation into agreement, or something unconfirmed into a settled fact.",
     "When a detail is not established, name the limit or leave it out.",
     "A plan is the team's, not the sources'. When a person gives you dates or an order of delivery, use them, say on the page that they are a plan or a proposal, and record in the page's notes who set them and when.",
   ],
@@ -205,7 +204,7 @@ export const CHECKLIST = [
 ];
 
 export const WORKFLOW = [
-  "Read the outcomes, the relevant sources, assumptions and mockups first.",
+  "Read the outcomes, the relevant sources and mockups first.",
   "Settle the Story style (style_workflow) before the first page, and read it before every page.",
   "Read the current version of the page and its notes for agents (get_page → agent_notes) before revising it, keep what is useful, and pass its etag.",
   "On a later version send only what changes: the title, summary and html you omit carry forward from the current version. patch_html fixes a sentence by exact find and replace; from_version restores an earlier version as a new one. Compare html_sha256 to confirm identical HTML.",
@@ -221,7 +220,7 @@ export const WORKFLOW = [
 export const CONTENT_RULES = [
   "Explain the outcomes, current understanding, choices and next steps.",
   "Write for a busy stakeholder.",
-  "Name the few assumptions that shape the account, and say whether each is confirmed.",
+  "Name the few unknowns that shape the account, and say what would settle each.",
   "Separate observed evidence, interpretation and agreement.",
   "Never invent agreement, owners, dates, commitments or measurements.",
   "Leave breadcrumbs and navigation to the reader: the app provides them.",

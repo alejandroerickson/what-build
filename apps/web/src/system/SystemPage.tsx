@@ -352,7 +352,7 @@ function Specimen() {
               <Tag>Interview</Tag>
               <Tag>admin</Tag>
               <Chip to="/_system" icon="blend">I-1</Chip>
-              <Chip icon="scale">3 assumptions</Chip>
+              <Chip icon="library">3 sources</Chip>
               <a className="system-inline-link" href="#main">A link inside a sentence</a>
             </div>
           </Row>

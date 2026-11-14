@@ -18,10 +18,10 @@ other plans will too.
    organization, each with the same live products, and the synthetic organization, where Sam reads
    one product's Story; no archived product is among them.
 2. **Web, as Sam, in the standard organization.** Open a product that has sources and visit each
-   section from the panel: Idea, Evidence, Exploration (mockups and assumptions), Story, Activity,
+   section from the panel: Idea, Evidence, Exploration (mockups), Story, Activity,
    and Settings, with each section it lists; open Connect an agent from the empty seat (or Settings
    → Agents once an agent is connected); and search from the panel's Search field. Open one
-   item in each list that has any: a source, a mockup, an assumption, a Story page. *Expect:* each
+   item in each list that has any: a source, a mockup, a Story page. *Expect:* each
    screen loads with content or a designed empty state, and no command prints a `!` problem.
    Settings opens over the screen it was opened on and closes back onto it (Esc, the close button,
    or the scrim), leaving the address as it was. Connect an agent gives `/mcp` first, with **Limit this agent to one organization or product**
@@ -64,7 +64,7 @@ other plans will too.
    team has. The instructions name `products_read(action="list")`
    and the `guide` tool, and ask nothing to be installed. Call `guide` and compare its
    `tools_version` with the server's.
-9. **MCP, as Sam.** List products, then list sources, assumptions, mockups and Story pages
+9. **MCP, as Sam.** List products, then list sources, mockups and Story pages
    (`story_read` `list_pages`) in the product from step 2, and read the first window of one source's
    text with `derived_read(action="text")`. *Expect:* the same items the web showed in step 2, with the
    same titles and counts, and the same words the source's Text showed.

@@ -324,8 +324,11 @@
   display: grid;
   gap: var(--s-3);
 }
+.entry-form {
+  padding: var(--s-4) var(--sheet-px);
+}
 .entry-form .input {
-  max-width: none;
+  max-width: 560px;
 }
 .entry-form > p,
 .entry-form-inner > p {

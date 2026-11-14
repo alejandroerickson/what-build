@@ -7,7 +7,6 @@ import { attachmentOps } from "./ops/attachments.ts";
 import { metaOps } from "./ops/meta.ts";
 import { outcomeOps } from "./ops/outcomes.ts";
 import { productOps } from "./ops/products.ts";
-import { registerOpsList } from "./ops/registers.ts";
 import { revisionOpsList } from "./ops/revisions.ts";
 import { limitOps } from "./ops/limits.ts";
 import { accountOps } from "./ops/accounts.ts";
@@ -78,7 +77,6 @@ export const OPERATIONS: OperationDef[] = [
   ...attachmentOps,
   ...derivedOps,
   ...searchOps,
-  ...registerOpsList,
   ...revisionOpsList,
   ...storyOps,
   ...mockupOps,

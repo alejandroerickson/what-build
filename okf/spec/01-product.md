@@ -40,8 +40,7 @@ status: stable
    **derived text**, its words with speakers and cue times where they exist, which people and
    agents read, correct and search by exact character offsets
    ([decision](../decisions/a-sources-words-are-one-derived-text-and-attachments-are-never-searched.md)).
-4. **Explore.** Mock up directions as versioned canvases of HTML pages under a brief, and register
-   the consequential assumptions, each saying why the team holds it.
+4. **Explore.** Mock up directions as versioned canvases of HTML pages under a brief.
 5. **Tell the story.** Publish the team's communication with its stakeholders (what it means to
    build and why, the pitch, the plan, where things stand) as a set of versioned HTML pages
    organized in a hierarchy.
@@ -60,7 +59,7 @@ of one of them.
 |---|---|
 | **Idea** | The product concept, then the outcomes. The landing screen of a product: where a product idea becomes explicit direction. |
 | **Evidence** | The sources: upload with a title and tags, browse by tag, by who added and when, source pages with each source's text, notes, comments and attachments, search. |
-| **Exploration** | Mockups (canvases of agent-made HTML pages, each with design notes, under a brief) and the assumption register. Formerly called Synthesis. |
+| **Exploration** | Mockups: canvases of agent-made HTML pages, each with design notes, under a brief. Formerly called Synthesis. |
 | **Story** | The team's communication with its stakeholders: an ordered hierarchy of versioned, sandboxed HTML pages. |
 
 **Activity** is not a fifth destination: it is a quiet page reached from the product's panel, and from
@@ -94,12 +93,10 @@ Idea screen's terms are a decision: [A product starts with its idea](../decision
 | **product concept** | Who the product is for, the problem they have, and how the product solves it. A card that heads the **Idea** screen: its back is the product's `concept` field. |
 | **card** | The product concept or an outcome as the **Idea** screen shows it: a **front**, the picture people see first, which an agent draws (`card_html`), and a **back**, the text agents read first (`concept`, `description`), which people open with More info. Agents write both sides together ([decision](../decisions/idea-cards-have-a-front-for-people-and-a-back-for-agents.md)). |
 | **outcome** | What the product's users should be able to achieve with it, written from their side ("The crew lead plans next week in minutes"), not a feature, a task or a finding. Not the discovery's own goals. The outcomes are the compass everything else in a product is read against; an outcome cites no evidence. The destination that holds the product concept and the outcomes is **Idea**. |
-| **mockup** | A canvas of HTML pages an agent built from the evidence (screens, flows, alternatives side by side), each page with design notes, under a Markdown **brief** that says what the canvas explores. A version is the whole canvas. Never "exploration", "board" or "prototype". The destination that holds the mockups and the assumptions is **Exploration**. |
+| **mockup** | A canvas of HTML pages an agent built from the evidence (screens, flows, alternatives side by side), each page with design notes, under a Markdown **brief** that says what the canvas explores. A version is the whole canvas. Never "exploration", "board" or "prototype". The destination that holds the mockups is **Exploration**. |
 | **clickable prototype** | A way to view a canvas whose pages link to each other: one page at a time, each link changing the page in place. It is not a kind of mockup, and not the multi-file prototype below. |
 | **prototype** | The multi-file part a mockup version may carry: a team's clickable prototype as it is (HTML documents, scripts, styles, fonts, images, fixtures), which canvas pages enter. Only this part is a prototype; the mockup is never called one, and its download or export is never called a bundle of it. |
 | **revision** | The previous text of an authored body, kept immutably whenever that body is overwritten. |
-| **assumption** | What the team treats as true while the evidence is incomplete: an entry in the product's one reviewed **register**. |
-| **review** | An attributed status judgment on an assumption. |
 | **Story**, **page** | The team's communication with its stakeholders, and its versioned HTML pages. |
 | **view** | A derived source, tagged `analysis` (or `view`, `digest`), that says in its text what it was built from. |
 | **activity** | The append-only log of what changed in a product, and who changed it. |
@@ -107,7 +104,10 @@ Idea screen's terms are a decision: [A product starts with its idea](../decision
 "Findings" and "open questions" are deliberately **not** product types. Do not introduce them.
 "Insight" and "decision" were product types until they were retired
 ([decision](../decisions/insights-and-decisions-are-retired-into-evidence.md)); what a product held
-of them is now sources.
+of them is now sources. "Assumption" (an entry in a reviewed register) and "review" were product
+types until assumptions were removed and every one deleted
+([decision](../decisions/assumptions-are-removed-and-every-one-is-deleted.md)); a product keeps
+none, and the words no longer name anything in WhatBuild.
 
 ## 1.5 Non-negotiable behaviors
 
@@ -130,7 +130,7 @@ of them is now sources.
    it happens, and always leaves a tombstone so nothing that pointed at the object is left guessing
    ([§9.5](09-data-lifecycle.md)).
 4. **Authored text is never lost to an overwrite.** Every object with a body a person or an agent
-   writes (the product concept, outcomes, comments, and assumptions while still editable) keeps immutable **revisions** ([§4.1](04-data-model.md)). A well-meaning agent
+   writes (the product concept, outcomes and comments) keeps immutable **revisions** ([§4.1](04-data-model.md)). A well-meaning agent
    rewriting a paragraph must never be the way a team loses it.
 5. **Evidence stays as it was read.** Attachment versions and their readings are immutable and
    retained, so what an attachment was read as stays readable exactly as it was after it is read

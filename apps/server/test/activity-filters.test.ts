@@ -45,9 +45,6 @@ beforeAll(async () => {
   const created = await alice.api("POST", `${P}/sources/with-upload`, { title: "Sample crew call", tags: ["call"], path: "call.md" });
   expect((await fetch(created.body.upload.url, { method: "PUT", headers: created.body.upload.headers, body: "# Call\n\nCrews text the office.\n" })).status).toBe(201);
   await h.worker.drain();
-  const a = await alice.api("POST", `${P}/assumptions`, { statement: "Crews read texts before calls." });
-  const b = await alice.api("POST", `${P}/assumptions`, { statement: "Crews answer texts within the hour." });
-  expect((await alice.api("POST", `${P}/assumptions/${a.body.id}/links`, { expected_etag: a.body.etag, target_id: b.body.id, type: "supports" })).status).toBe(200);
   expect((await alice.api("POST", `${P}/story/pages/overview/versions`, { title: "Overview", body: '<main class="page"><h1>Overview</h1></main>' })).status).toBe(201);
   expect((await alice.api("PUT", `${P}/story/hierarchy`, { items: [{ page_id: "overview", children: [] }] })).status).toBe(200);
   expect((await alice.api("PUT", `${P}/story/style`, { house_style: "clear" })).status).toBe(200);
@@ -61,7 +58,7 @@ beforeAll(async () => {
   // An agent's change, over MCP.
   const client = new Client({ name: "log-agent", version: "1.0.0" });
   await client.connect(new StreamableHTTPClientTransport(new URL(`${h.baseUrl}/mcp`), { requestInit: { headers: { authorization: `Bearer ${await h.connectAgent(alice, "Log agent")}` } } }));
-  const viaMcp = await client.callTool({ name: "assumptions_write", arguments: { action: "create", product: productPath, params: { statement: "Written by an agent" } } });
+  const viaMcp = await client.callTool({ name: "outcomes_write", arguments: { action: "create", product: productPath, params: { title: "Written by an agent" } } });
   expect(viaMcp.isError).toBeFalsy();
   await client.close();
 });
@@ -84,6 +81,12 @@ describe("filtering a product's log by the kind of object", () => {
       expect(r.status, type).toBe(422);
     }
   });
+
+  it("says WhatBuild no longer keeps assumptions when asked for their entries", async () => {
+    const r = await alice.api("GET", `${P}/activity?entity_type=assumption`);
+    expect(r.status).toBe(422);
+    expect(r.body.error.message).toContain("WhatBuild no longer keeps assumptions, and their entries in the log went with them.");
+  });
 });
 
 describe("filtering a product's log by who made the change", () => {
@@ -99,7 +102,7 @@ describe("filtering a product's log by who made the change", () => {
     expect(new Set(people.map((i) => i.channel))).toEqual(new Set(["web"]));
     expect(people.some((i) => i.action === "derived")).toBe(false);
     const agents = await log("&by=agents");
-    expect(agents.map((i) => i.summary)).toContain("Recorded an unconfirmed assumption");
+    expect(agents.map((i) => i.summary)).toContain("Added an outcome");
     expect(agents.every((i) => i.channel === "mcp")).toBe(true);
     // Between them, everything but WhatBuild's own work.
     expect(people.length + agents.length).toBe(all.filter((i) => i.channel !== null).length);
@@ -123,7 +126,7 @@ describe("filtering a product's log by who made the change", () => {
   });
 
   it("is read by a viewer as by an admin", async () => {
-    const r = await vic.api("GET", `${P}/activity?by=people&entity_type=assumption`);
+    const r = await vic.api("GET", `${P}/activity?by=people&entity_type=outcome`);
     expect(r.status).toBe(200);
     expect(r.body.items.length).toBeGreaterThan(0);
   });
@@ -149,11 +152,6 @@ async function recorded(action: string, entity_type: string, summary: string) {
 describe("what an entry says", () => {
   it("says what changed in the app's words, never a field's name", async () => {
     const outcome = await alice.api("POST", `${P}/outcomes`, { title: "Read the log" });
-    const assumption = await alice.api("POST", `${P}/assumptions`, { statement: "Words read better than fields." });
-    const edited = await alice.api("PATCH", `${P}/assumptions/${assumption.body.id}`, { expected_etag: assumption.body.etag, body: "People said so.", outcome_ids: [outcome.body.outcome_id], tags: ["words"] });
-    expect(edited.status).toBe(200);
-    expect((await log("&entity_type=assumption")).find((i) => i.action === "updated")?.summary).toBe("Changed why the team holds it, the outcomes it bears on and the tags");
-
     const renamed = await alice.api("PATCH", `${P}/outcomes/${outcome.body.outcome_id}`, { expected_etag: outcome.body.etag, title: "Read the log in words", position: 99 });
     expect(renamed.status).toBe(200);
     expect((await log("&entity_type=outcome")).find((i) => i.action === "updated")?.summary).toBe("Changed the title and its place in the order");
@@ -170,21 +168,17 @@ describe("what an entry says", () => {
   });
 
   it.each([
-    ["updated", "assumption", "Changed outcome_ids, tags", "Changed the outcomes it bears on and the tags"],
-    ["updated", "assumption", "Changed statement, body, links", "Changed the statement, why the team holds it and the links to other assumptions"],
     ["updated", "outcome", "Changed title, description, front", "Changed the title, the text and the picture"],
     ["reordered", "outcome", "Changed position", "Changed its place in the order"],
     ["updated", "source", "Changed title, date, tags", "Changed the title, the date and the tags"],
     ["updated", "product", "Changed name, slug", "Changed the name and the short name in links"],
     ["updated", "product", "Changed concept, concept's front", "Changed the concept and the concept's picture"],
-    ["updated", "assumption", "Changed links, outcome_ids, dimensions, provenance_depth", "Changed the links to other assumptions, the outcomes it bears on, the dimensions and how far it is from the evidence"],
     ["updated", "source", "Changed kind, organization, participants, related_records", "Changed the kind of material, the organization it is from, the participants and the related sources"],
     ["updated", "source", "Changed title, summary, references (revision 3)", "Changed the title, the summary and what it cites"],
     ["updated", "source", "Refiled under Interviews; changed title, kind", "Refiled under Interviews; changed the title and the kind of material"],
     ["updated", "source", "Changed source_system, story_page_id, persona_ids", "Changed the source system, the story page and the personas"],
     ["updated", "source", "Changed title, body (revision 2)", "Changed the title and the text"],
     ["updated", "source", "Changed statement, body, citations, links, outcome_ids, tags", "Changed the statement, the text, what it cites, the links, the outcomes it bears on and the tags"],
-    ["updated", "assumption", "Changed statement, body, citations", "Changed the statement, why the team holds it and what it cites"],
     ["updated", "insight", "Changed title, body (revision 2)", "Changed the title and the text"],
     ["updated", "decision", "Changed body, links", "Changed the text and the links"],
   ])("reads an entry (%s, %s) recorded as %s in the same words", async (action, entityType, was, reads) => {
@@ -192,13 +186,13 @@ describe("what an entry says", () => {
   });
 
   it.each([
-    ["updated", "assumption", "Changed the tags"],
-    ["updated", "assumption", "Edited the entry"],
+    ["updated", "outcome", "Changed the tags"],
+    ["updated", "source", "Edited the entry"],
     ["updated", "story_page", "Published version 2"],
     ["archived", "source", "Changed title"],
     ["updated", "outcome", "Changed status from draft to current"],
     ["updated", "outcome", "Changed the title, the text and the picture"],
-    ["updated", "assumption", "Changed everything"],
+    ["updated", "outcome", "Changed everything"],
     ["updated", "source", "Changed title, everything"],
     ["updated", "source", "Refiled under Interviews; changed everything"],
   ])("leaves an entry (%s, %s) that names no field, %s, as it is", async (action, entityType, summary) => {
@@ -207,14 +201,9 @@ describe("what an entry says", () => {
 
   it("never shows a field's name, whatever field an entry names", async () => {
     for (const was of ["Changed outcome_ids", "Changed some_new_field, other_ids, a_thing_id", "Changed title, tags (revision 12)"]) {
-      const { summary } = await recorded("updated", "assumption", was);
+      const { summary } = await recorded("updated", "outcome", was);
       expect(summary).not.toMatch(/_ids?\b|\b[a-z]+_[a-z]+\b|\(revision/);
     }
-  });
-
-  it("names a link between assumptions in words", async () => {
-    const linked = (await log("&entity_type=assumption")).find((i) => i.action === "linked");
-    expect(linked?.summary).toBe("Linked to an assumption it supports");
   });
 
   it("never quotes why a comment was archived, in an entry recorded when it did", async () => {

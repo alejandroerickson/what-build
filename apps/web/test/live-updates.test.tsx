@@ -375,7 +375,7 @@ describe("what refreshes by itself", () => {
   it("refreshes each area's lists and cards, and never a Story page, a mockup, or anything of another product", async () => {
     const api = product.api;
     const stays = [["story-page", api, "p1"], ["story-versions", api, "p1"], ["story-version", api, "p1", 2], ["mockup", api, "m1"], ["mockup-versions", api, "m1"], ["mockup-version", api, "m1", 2], ["mockup-files", api, "m1", 2], ["delete-impact", api, "s1"], ["story-style", api], ["limits", "a"], ["me"]];
-    const follows = [["product", product.path], ["story-tree", api], ["story-pages", api], ["outcomes", api, false], ["sources", api, "facets", false], ["source", api, "s1"], ["source-comments", api, "s1"], ["mockups", api], ["register", api, "assumptions", "every", false], ["entry", api, "assumptions", "a1"]];
+    const follows = [["product", product.path], ["story-tree", api], ["story-pages", api], ["outcomes", api, false], ["sources", api, "facets", false], ["source", api, "s1"], ["source-comments", api, "s1"], ["mockups", api]];
     const elsewhere = [["product", "x/y/z"], ["outcomes", "/api/v1/p/x/y/z", false]];
     const { qc, reads, tree } = following([...stays, ...follows, ...elsewhere]);
     const root = await mount(tree);
@@ -391,10 +391,10 @@ describe("what refreshes by itself", () => {
     ["story", ["story-tree", "story-pages"]],
     ["idea", ["outcomes"]],
     ["evidence", ["sources", "source", "source-comments"]],
-    ["exploration", ["mockups", "register", "entry"]],
+    ["exploration", ["mockups"]],
   ] as const)("reads for a change to %s only what it changed, and the counts on every screen", async (area, names) => {
     const api = product.api;
-    const all = ["story-tree", "story-pages", "outcomes", "sources", "source", "source-comments", "mockups", "register", "entry"];
+    const all = ["story-tree", "story-pages", "outcomes", "sources", "source", "source-comments", "mockups"];
     const { qc, reads, tree } = following([["product", product.path], ...all.map((n) => [n, api])]);
     const root = await mount(tree);
     refreshAutomatically(qc, product, [area]);

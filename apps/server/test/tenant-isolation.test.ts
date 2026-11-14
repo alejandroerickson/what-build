@@ -158,37 +158,9 @@ const SCOPED: Record<string, Probe> = {
   "derived.card_guidance": { input: () => ({}) },
   "derived.card_preview": { input: (a) => ({ record_id: a.source.id, card_html: "<p class=\"wb-pitch\">Planted.</p>" }) },
   search: {
-    input: () => ({ query: "crews", scope: "all" }),
-    inside: (a) => [{ query: "crews", scope: "all" }, { query: "crews", record_id: a.source.id }],
+    input: () => ({ query: "crews" }),
+    inside: (a) => [{ query: "crews" }, { query: "crews", record_id: a.source.id }],
   },
-  "assumptions.list": { input: (a) => ({ outcome_id: a.outcome.id, include_archived: true }) },
-  "assumptions.get": { input: (a) => ({ id: a.assumption.id }) },
-  "assumptions.create": {
-    input: () => ({ statement: "Planted assumption." }),
-    inside: (a) => [
-      { statement: "Planted assumption.", outcome_ids: [a.outcome.id] },
-      { statement: "Planted assumption.", links: [{ id: a.assumption.id, type: "supports" }] },
-    ],
-  },
-  "assumptions.update": {
-    input: (a) => ({ id: a.assumption.id, expected_etag: a.assumption.etag, statement: "Changed by an outsider." }),
-    inside: async (a, b) => [
-      { id: a.assumption.id, expected_etag: a.assumption.etag, statement: "Changed by an outsider." },
-      { id: b.assumption.id, expected_etag: await etagOf(b, `assumptions/${b.assumption.id}`), outcome_ids: [a.outcome.id] },
-      { id: b.assumption.id, expected_etag: await etagOf(b, `assumptions/${b.assumption.id}`), links: [{ id: a.assumption.id, type: "supports" }] },
-    ],
-  },
-  "assumptions.review": { input: (a) => ({ id: a.assumption.id, expected_etag: a.assumption.etag, status: "refuted", note: "Refuted by an outsider." }) },
-  "assumptions.supersede": { input: (a) => ({ id: a.assumption.id, expected_etag: a.assumption.etag, note: "Superseded by an outsider.", statement: "Planted replacement." }) },
-  "assumptions.link": {
-    input: (a) => ({ id: a.assumption.id, expected_etag: a.assumption.etag, target_id: a.linked.id, type: "contradicts" }),
-    // Their own assumption, linked to the victim's.
-    inside: async (a, b) => [{ id: b.assumption.id, expected_etag: await etagOf(b, `assumptions/${b.assumption.id}`), target_id: a.assumption.id, type: "contradicts" }],
-  },
-  "assumptions.unlink": { input: (a) => ({ id: a.assumption.id, expected_etag: a.assumption.etag, target_id: a.linked.id, type: "supports" }) },
-  "assumptions.archive": { input: (a) => ({ id: a.assumption.id, expected_etag: a.assumption.etag, archived: true }) },
-  "assumptions.delete_impact": { input: (a) => ({ id: a.assumption.id }) },
-  "assumptions.delete": { input: (a) => ({ id: a.assumption.id, expected_etag: a.assumption.etag, reason: "Removed by an outsider", confirm: "delete permanently" }) },
   "story.guidance": { input: () => ({}) },
   "story.get_style": { input: () => ({ include_stylesheet: true }) },
   "story.set_style": { input: (a) => ({ house_style: "clear", expected_etag: a.styleEtag }) },
@@ -400,7 +372,7 @@ describe("the attacker's own organization, pointed at another's ids", () => {
   });
 
   it("answers 404 when the path names another organization's object", async () => {
-    const owned = [a.outcome.id, a.source.id, a.view.id, a.annotation.id, a.assumption.id, a.mockup.id];
+    const owned = [a.outcome.id, a.source.id, a.view.id, a.annotation.id, a.mockup.id];
     const failures: string[] = [];
     for (const op of OPERATIONS.filter((o) => o.scope === "product" && o.name in SCOPED)) {
       const input = SCOPED[op.name]!.input(a);

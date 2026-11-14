@@ -36,7 +36,6 @@ export function screenOf(pathname: string): string | null {
     if (segment === "search") return "Search";
     if (segment === "evidence" && sub) return sub === "new" ? "Evidence, adding a source" : "Evidence, a source";
     if (segment === "exploration" && sub === "mockups") return item ? "Exploration, a mockup" : "Exploration, mockups";
-    if (segment === "exploration" && sub === "assumptions") return item ? "Exploration, an assumption" : "Exploration, assumptions";
     if (segment === "story" && sub) return "Story, a page";
     return productSection(segment).label;
   }

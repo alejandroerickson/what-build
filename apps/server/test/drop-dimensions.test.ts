@@ -18,21 +18,17 @@ beforeAll(async () => {
 });
 afterAll(async () => h?.close());
 
-describe("sources and assumptions without dimensions", () => {
+describe("sources without dimensions", () => {
   it("returns no dimensions, and refuses them and their filters with a hint to use tags", async () => {
     const created = await alice.api("POST", `${P}/sources`, { title: "Interview — Example Co", tags: ["interview", "example co"] });
     expect(created.status, JSON.stringify(created.body)).toBe(201);
     expect(created.body).not.toHaveProperty("dimensions");
-    const assumption = await alice.api("POST", `${P}/assumptions`, { statement: "Crew leads plan the week on Sunday evening." });
-    expect(assumption.status, JSON.stringify(assumption.body)).toBe(201);
-    expect(assumption.body).not.toHaveProperty("dimensions");
 
     const refusals = [
       await alice.api("POST", `${P}/sources`, { title: "Interview — Example Co", dimensions: { customer: "Example Co" } }),
       await alice.api("PATCH", `${P}/sources/${created.body.record_id}`, { expected_etag: created.body.etag, dimensions: { lifecycle_stage: "discovery" } }),
       await alice.api("GET", `${P}/sources?customer=example%20co`),
       await alice.api("GET", `${P}/search?query=week&lifecycle_stage=discovery`),
-      await alice.api("POST", `${P}/assumptions`, { statement: "Crew leads plan the week on Sunday evening.", dimensions: { product_area: "planning" } }),
     ];
     for (const r of refusals) {
       expect(r.status).toBe(422);
