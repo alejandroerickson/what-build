@@ -11,7 +11,7 @@ import { Button, ButtonLink, EmptyState, ErrorCallout, Glyph, Loading, Sheet, Sh
 import { CreateProductDialog } from "./new-product.tsx";
 import "../styles/screens/overview.css";
 
-const UNIT: Record<string, [string, string]> = { idea: ["outcome", "outcomes"], evidence: ["source", "sources"], exploration: ["item", "items"], story: ["page", "pages"] };
+const UNIT: Record<string, [string, string]> = { idea: ["outcome", "outcomes"], evidence: ["source", "sources"], exploration: ["mockup", "mockups"], story: ["page", "pages"] };
 
 /**
  * The overview at `/`: what WhatBuild is for, the loop a discovery moves through, and every product with a direct link to each of its four sections. It is the one list of products: New
