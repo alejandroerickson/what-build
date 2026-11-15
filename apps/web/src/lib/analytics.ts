@@ -82,6 +82,7 @@ export function screenPath(pathname: string): string {
     return `/${[...["t", ":org", ":product"].slice(0, parts.length), ...rest].join("/")}`;
   }
   if (parts[0] === "join" || parts[0] === "invite") return `/${parts[0]}/:code`;
+  if (parts[0] === "invitations") return "/invitations/:id";
   return pathname;
 }
 

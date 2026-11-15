@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from "node:crypto";
-import { AppError, conflict, enterAsGuest, planName, escapeHtml, gone, invalid, isGuestAccount, isInstanceOwner, readGuests, tenantAllowanceOf, newId, notFound, oneLine, plainName, randomToken, safeNext, sha256Hex, SIGN_IN_LINK_MINUTES, SIGN_IN_LINK_SUBJECT, SIGN_IN_LINKS_PER_HOUR, unauthenticated, type Db, type InvitationsTable, type Mailer } from "@whatbuild/core";
+import { AppError, conflict, ENTRY_LINK_PATH, ENTRY_LINK_PURPOSES, enterAsGuest, invitationOfPath, invitedTo, planName, roleWords, withArticle, escapeHtml, gone, invalid, isGuestAccount, isInstanceOwner, readGuests, tenantAllowanceOf, newId, notFound, oneLine, plainName, randomToken, safeNext, sha256Hex, SIGN_IN_LINK_MINUTES, SIGN_IN_LINK_SUBJECT, SIGN_IN_LINKS_PER_HOUR, unauthenticated, type Db, type InvitationsTable, type Mailer } from "@whatbuild/core";
 import { Hono, type Context } from "hono";
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 import { sql, type Selectable } from "kysely";
@@ -42,6 +42,28 @@ function signInLinkPage(email: string, token: string): string {
 <div class="row"><button type="submit" class="primary">Sign in as ${address}</button></div>
 </form>
 <p class="muted after">Not you? Close this tab and nothing happens.</p>`,
+  );
+}
+
+/** What an entry link's page says: its heading, who let whom in where, and the line under its button. */
+type EntryView = { heading: string; lead: string; after: string };
+
+/**
+ * What opening an entry link shows (`entry-link.ts`): who invited whom, and one button that
+ * continues as the address. Like the sign-in link's page it changes nothing, and it stands on its
+ * own: it never speaks of a mail or a link, and says what pressing does and what to do if it isn't
+ * theirs. Where the deployment has a public site, a link to it lets someone unsure look first.
+ */
+function entryLinkPage(view: EntryView, email: string, token: string, site: string | null): string {
+  const address = escapeHtml(email);
+  return authPage(
+    view.heading.replace(/ on WhatBuild$/, ""),
+    `<h1>${escapeHtml(view.heading)}</h1>
+<p>${view.lead}</p>
+<form method="post" action="${ENTRY_LINK_PATH}"><input type="hidden" name="token" value="${escapeHtml(token)}">
+<div class="row"><button type="submit" class="primary">Continue as ${address}</button></div>
+</form>
+<p class="muted after">${view.after}</p>${site ? `\n<p class="muted"><a href="${escapeHtml(site)}" target="_blank" rel="noreferrer">What is WhatBuild?</a></p>` : ""}`,
   );
 }
 
@@ -131,6 +153,7 @@ export function authRoutes(deps: { db: Db; config: ServerConfig; mailer: Mailer 
     const recent = await db
       .selectFrom("email_tokens")
       .select((eb) => eb.fn.countAll<number>().as("n"))
+      .where("purpose", "=", "sign_in")
       .where(sql<boolean>`lower(email) = lower(${email})`)
       .where("created_at", ">", new Date(Date.now() - 3600_000).toISOString())
       .executeTakeFirst();
@@ -152,13 +175,14 @@ export function authRoutes(deps: { db: Db; config: ServerConfig; mailer: Mailer 
     return c.json({ received: true, ...(config.env !== "production" && config.mailer === "console" ? { dev_note: "In development, a link is printed in the server’s terminal." } : {}) });
   });
 
-  /** Opening the link: a page with one button, which posts it back. Nothing is read but the link's own row. */
+  /** Opening the link: a page with one button, which posts it back. Nothing is read but the link's own row, and only a sign-in link's. */
   app.get("/auth/verify", async (c) => {
     const token = c.req.query("token") ?? "";
     const row = await db
       .selectFrom("email_tokens")
       .select("email")
       .where("token_hash", "=", sha256Hex(token))
+      .where("purpose", "=", "sign_in")
       .where("used_at", "is", null)
       .where("expires_at", ">", new Date().toISOString())
       .executeTakeFirst();
@@ -178,12 +202,123 @@ export function authRoutes(deps: { db: Db; config: ServerConfig; mailer: Mailer 
       .updateTable("email_tokens")
       .set({ used_at: now })
       .where("token_hash", "=", sha256Hex(token))
+      .where("purpose", "=", "sign_in")
       .where("used_at", "is", null)
       .where("expires_at", ">", now)
       .returning(["email", "redirect"])
       .executeTakeFirst();
     if (!row) return c.redirect("/signin?error=link_expired", 303);
     // What let the address in may have gone since: an invitation can be cancelled while the email is in transit.
+    if (!(await mayJoin(row.email))) return c.redirect("/signin?error=invite_only", 303);
+    const { account } = await findOrCreateAccount(db, row.email);
+    await startSession(c, account.account_id);
+    return c.redirect(safeNext(row.redirect), 303);
+  });
+
+  // ---- Entry links: one link in from an invitation or an allowance (`entry-link.ts`) ---------------
+
+  /** An account an address already has, by any letter case; one that was deleted is none. */
+  const hasAccount = async (email: string) =>
+    Boolean(await db.selectFrom("accounts").select("account_id").where(sql<boolean>`lower(email) = lower(${email})`).where("deleted_at", "is", null).executeTakeFirst());
+
+  /** An account's address by its id, while it has one. */
+  const addressOf = async (accountId: string) =>
+    (await db.selectFrom("accounts").select("email").where("account_id", "=", accountId).where("deleted_at", "is", null).executeTakeFirst())?.email ?? null;
+
+  /** "Riley Chen (riley@example.com)": a chosen name, plainly, and the account's confirmed address while it has one. */
+  const named = async (who: { account_id: string; display_name: string }) => {
+    const address = await addressOf(who.account_id);
+    return `${escapeHtml(plainName(who.display_name))}${address ? ` (${escapeHtml(address)})` : ""}`;
+  };
+
+  /**
+   * What an entry link's page says, while what it was sent for still holds: the allowance is still
+   * above 0, or the invitation is still open (not accepted, cancelled, declined, replaced or past
+   * its time) and still for this address. Null when it no longer holds, which revokes the link.
+   */
+  const entryView = async (row: { email: string; purpose: string; redirect: string | null }): Promise<EntryView | null> => {
+    const address = `<strong>${escapeHtml(row.email)}</strong>`;
+    const not = `Not you? Close this tab and nothing happens.`;
+    if (row.purpose === "allowance" || row.purpose === "allowance_waitlist") {
+      const allowance = await db.selectFrom("tenant_allowances").select(["allowed", "updated_by"]).where("email", "=", row.email.toLowerCase()).executeTakeFirst();
+      if (!allowance || allowance.allowed <= 0) return null;
+      const after = `Continuing signs you in as ${escapeHtml(row.email)}. ${not}`;
+      if (row.purpose === "allowance_waitlist") return { heading: "Start on WhatBuild", lead: `${address} can now start an organization on WhatBuild.`, after };
+      const owner = allowance.updated_by as { account_id: string; display_name: string };
+      return { heading: "Start on WhatBuild", lead: `${await named(owner)} invited ${address} to start an organization.`, after };
+    }
+    const invitationId = row.purpose === "invitation" ? invitationOfPath(row.redirect) : null;
+    if (!invitationId) return null;
+    const inv = await db
+      .selectFrom("invitations")
+      .selectAll()
+      .where("invitation_id", "=", invitationId)
+      .where("accepted_at", "is", null)
+      .where("expires_at", ">", new Date().toISOString())
+      .where(sql<boolean>`lower(email) = lower(${row.email})`)
+      .executeTakeFirst();
+    if (!inv) return null;
+    const { tenant, scope } = await invitationPlace(db, inv);
+    if (!tenant) return null;
+    const organization = plainName(tenant.name, 100, "unnamed");
+    const where = invitedTo({ scope_type: inv.scope_type, name: scope ?? "" }, tenant.name);
+    return {
+      heading: `Join ${organization} on WhatBuild`,
+      lead: `${await named(inv.created_by)} invited ${address} to ${escapeHtml(where)}, as ${escapeHtml(withArticle(roleWords(inv.role)))}.`,
+      after: `Continuing signs you in as ${escapeHtml(row.email)}, and you can still decline. ${not}`,
+    };
+  };
+
+  /** Where someone who already has an account goes from an entry link: Sign in, then on to where the link points. */
+  const signInFirst = (to: string | null) => `/signin?next=${encodeURIComponent(safeNext(to))}`;
+
+  /**
+   * Opening an entry link: it changes nothing. A link used, past its time or revoked goes to Sign in
+   * with the expired notice; one for an address that already has an account goes to Sign in, then on
+   * to Welcome or the invitation, as signing in the usual way would. Otherwise, a page with one button.
+   */
+  app.get(ENTRY_LINK_PATH, async (c) => {
+    const token = c.req.query("token") ?? "";
+    const row = await db
+      .selectFrom("email_tokens")
+      .select(["email", "purpose", "redirect"])
+      .where("token_hash", "=", sha256Hex(token))
+      .where("purpose", "in", [...ENTRY_LINK_PURPOSES])
+      .where("used_at", "is", null)
+      .where("expires_at", ">", new Date().toISOString())
+      .executeTakeFirst();
+    if (!row) return c.redirect("/signin?error=link_expired");
+    if (await hasAccount(row.email)) return c.redirect(signInFirst(row.redirect));
+    const view = await entryView(row);
+    if (!view) return c.redirect("/signin?error=link_expired");
+    authPageHeaders(c);
+    return c.html(entryLinkPage(view, row.email, token, config.siteUrl));
+  });
+
+  /**
+   * Pressing Continue on an entry link's page: from this origin only, so no other site can sign
+   * someone in. Once: of presses that arrive together, only the one that marks the link used goes on.
+   * It never opens an existing account: an address that has one by then goes to Sign in. What let
+   * the address in must still hold (the allowance, the invitation, and who may join here), and then
+   * the account is made and signed in, as a first sign-in does, and it opens Welcome or the invitation.
+   */
+  app.post(ENTRY_LINK_PATH, async (c) => {
+    if (!isOwnOrigin(config, c.req.header("origin"))) throw new AppError(403, "forbidden_origin", "Cross-origin writes are refused.");
+    const form = (await c.req.parseBody()) as Record<string, unknown>;
+    const token = typeof form["token"] === "string" ? form["token"] : "";
+    const now = new Date().toISOString();
+    const row = await db
+      .updateTable("email_tokens")
+      .set({ used_at: now })
+      .where("token_hash", "=", sha256Hex(token))
+      .where("purpose", "in", [...ENTRY_LINK_PURPOSES])
+      .where("used_at", "is", null)
+      .where("expires_at", ">", now)
+      .returning(["email", "purpose", "redirect"])
+      .executeTakeFirst();
+    if (!row) return c.redirect("/signin?error=link_expired", 303);
+    if (await hasAccount(row.email)) return c.redirect(signInFirst(row.redirect), 303);
+    if (!(await entryView(row))) return c.redirect("/signin?error=link_expired", 303);
     if (!(await mayJoin(row.email))) return c.redirect("/signin?error=invite_only", 303);
     const { account } = await findOrCreateAccount(db, row.email);
     await startSession(c, account.account_id);

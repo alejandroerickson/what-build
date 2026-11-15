@@ -35,6 +35,7 @@ export * from "./registry.ts";
 export { safeNext } from "./safe-next.ts";
 export { aboutWhatBuild, WHATBUILD_IN_A_SENTENCE } from "./mail-words.ts";
 export { SIGN_IN_LINK_MINUTES, SIGN_IN_LINK_SUBJECT } from "./sign-in-link.ts";
+export { ENTRY_LINK_DAYS, ENTRY_LINK_PATH, ENTRY_LINK_PURPOSES, invitationOfPath, invitationPath, makeEntryLink, type EntryLinkPurpose } from "./entry-link.ts";
 export * from "./limits.ts";
 export * from "./guests.ts";
 export * from "./settings.ts";
@@ -54,7 +55,7 @@ export { chunkText, indexSource, indexSources, indexText } from "./text-index.ts
 export { queueEvidenceMoves, runEvidenceMove } from "./evidence-move.ts";
 export { markExportFailed, runExport } from "./ops/export.ts";
 export { completeGrant, DOWNLOAD_GRANT_HEADER, UPLOAD_GRANT_HEADER, blobKeyFor, requesterClaims } from "./ops/attachments.ts";
-export { createTenantFor, RESERVED_PRODUCT_SLUGS, uniqueTenantSlug } from "./ops/products.ts";
+export { createTenantFor, invitedTo, RESERVED_PRODUCT_SLUGS, uniqueTenantSlug } from "./ops/products.ts";
 export { isInstanceOwner, tenantAllowanceOf, type TenantAllowance } from "./tenant-allowance.ts";
 export { PREVIEWS_KEPT, printDocument, printDocumentAt, printSelection, shownHtml, STORY_PREVIEW_PURPOSE } from "./ops/story.ts";
 export { CARD_PREVIEW_PURPOSE } from "./ops/outcomes.ts";

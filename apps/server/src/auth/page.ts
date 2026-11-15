@@ -12,7 +12,8 @@ body{margin:0;background:var(--canvas);color:var(--text);font:13px/1.55 "Inter V
 main{max-width:30rem;margin:12vh auto;padding:24px;background:var(--panel);border-radius:12px;box-shadow:var(--shadow);overflow-wrap:anywhere}
 @media (max-width:32rem){main{margin:16px 10px}}
 h1{font-size:20px;font-weight:600;line-height:1.25;letter-spacing:-.01em;margin:0 0 16px}
-p{margin:0 0 12px}.muted{color:var(--muted);font-size:12px}p.after{margin:12px 0 0}
+p{margin:0 0 12px}.muted{color:var(--muted);font-size:12px}p.after{margin:12px 0 0}p.after+p{margin:12px 0 0}
+a{color:var(--accent);text-underline-offset:2px}a:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:2px}
 .attention{margin:16px 0 0;padding:10px 12px;border-radius:8px;background:var(--hover);color:var(--muted)}.attention strong{display:block;color:var(--warn);font-weight:600}
 .row{display:flex;gap:8px;margin-top:20px;flex-wrap:wrap}
 button{font:inherit;font-weight:500;line-height:18px;min-height:28px;max-width:100%;padding:4px 12px;overflow-wrap:anywhere;border-radius:6px;border:1px solid var(--line-2);background:var(--panel);color:var(--text);cursor:pointer}

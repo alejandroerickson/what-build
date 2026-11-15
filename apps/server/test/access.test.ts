@@ -84,7 +84,8 @@ describe("roles", () => {
   it("invites someone without an account, who joins by signing in with that address and accepting", async () => {
     const inv = await alice.api("POST", `/api/v1/tenants/${tenantSlug}/members`, { all_products: true, email: "newcomer@example.com", role: "viewer" });
     expect(inv.body.invited).toBe(true);
-    expect(h.mailer.sent.at(-1)!.text).toContain("/invite/");
+    expect(h.mailer.sent.at(-1)!.text).toContain("/auth/start?token=");
+    expect(inv.body.invite_link).toContain("/invite/");
     const newcomer = await h.signIn("newcomer@example.com");
     const list = await newcomer.api("GET", "/api/v1/me/products");
     expect(list.body.items.map((i: { path: string }) => i.path)).toContain(path);

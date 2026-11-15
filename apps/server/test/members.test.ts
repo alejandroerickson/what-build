@@ -132,8 +132,8 @@ describe("an invitation email", () => {
     const [first] = mail.text.split("\n");
     // The address WhatBuild confirmed follows the chosen name, which can't fake it.
     expect(first).toMatch(/^Mallory Bcc: [^(]*… \(mallory@example\.com\) invited you to Planner in Acme Labs on WhatBuild, as a viewer\.$/);
-    expect(mail.text).toContain("Accept or decline, signing in as newcomer@example.com:\n");
-    expect(mail.text).toContain("/invite/");
+    expect(mail.text).toContain("Accept or decline as newcomer@example.com:\n");
+    expect(mail.text).toContain("/auth/start?token=");
     expect(mail.text).not.toMatch(/quotation/);
   });
 
@@ -476,8 +476,8 @@ describe("an address the giver can't already see in the organization", () => {
       const [toKnown, toUnknown] = h.mailer.sent.slice(-2);
       expect(toKnown!.subject).toBe(toUnknown!.subject);
       // Each names the address it went to, and nothing else tells them apart.
-      const same = (m: typeof toKnown) => m!.text.replace(/\/invite\/\S+/, "").replace(` as ${m!.to}:`, " as <address>:");
-      expect(toKnown!.text).toContain("signing in as otto@example.com:");
+      const same = (m: typeof toKnown) => m!.text.replace(/token=\S+/, "").replaceAll(` as ${m!.to}`, " as <address>");
+      expect(toKnown!.text).toContain("Accept or decline as otto@example.com:");
       expect(same(toKnown)).toBe(same(toUnknown));
 
       // Not a member, and not named anywhere, until they accept.

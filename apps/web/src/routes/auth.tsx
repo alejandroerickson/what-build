@@ -97,6 +97,8 @@ export function SignIn() {
   const ref = params.get("ref");
   const reference = ref && SIGN_IN_REFERENCE.test(ref) ? ref : null;
   const emailLink = !methods.data || methods.data.email_link;
+  // On the way to an invitation: by its link, or by its id from an invitation's mail.
+  const invitationNext = next.startsWith("/invite/") || next.startsWith("/invitations/");
   // A refused Microsoft sign-in the person can do nothing about but pass on: to the deployment's contact, where it names one.
   const tellOperator = (
     <>
@@ -118,9 +120,9 @@ export function SignIn() {
   return (
     <EntryPage title="Sign in · WhatBuild">
       <Sheet labelledBy="signin-title">
-        <SheetHeader level={1} id="signin-title" title={next.startsWith("/invite/") ? "Sign in to see your invitation" : "Sign in to WhatBuild"} />
+        <SheetHeader level={1} id="signin-title" title={invitationNext ? "Sign in to see your invitation" : "Sign in to WhatBuild"} />
         <SheetBody className="entry-form">
-          {next.startsWith("/invite/") && !error ? <p className="muted">Use the email your invitation was sent to. You’ll choose whether to join once you’ve signed in.</p> : null}
+          {invitationNext && !error ? <p className="muted">Use the email your invitation was sent to. You’ll choose whether to join once you’ve signed in.</p> : null}
           {error === "link_expired" ? (
             <Callout inset tone="attention" title="That sign-in link has expired">
               Enter your email for a new one.
@@ -242,12 +244,16 @@ type OpenedInvitation = Invitation & { accepted: boolean };
  * accepts opens the overview with a toast; someone who declines stays here, told what it did.
  */
 export function AcceptInvite() {
-  const { token = "" } = useParams();
+  // By its link's token (`/invite/:token`, the link an inviter shares), or by its id
+  // (`/invitations/:id`, where an invitation's mail leads once its link has signed the person in).
+  const { token, id } = useParams();
+  const named = token ? { token } : { invitation_id: id ?? "" };
+  const here = token ? `/invite/${token}` : `/invitations/${id ?? ""}`;
   const me = useMe();
   const signOut = useSignOut();
   const opened = useQuery({
-    queryKey: ["invitation", token],
-    queryFn: () => api<OpenedInvitation>("POST", "/api/v1/invitations/read", { token }),
+    queryKey: ["invitation", token ?? id],
+    queryFn: () => api<OpenedInvitation>("POST", "/api/v1/invitations/read", named),
     retry: retryRead,
     staleTime: Infinity,
     gcTime: 0,
@@ -285,7 +291,7 @@ export function AcceptInvite() {
               <div className="entry-actions">
                 {wrongAddress ? (
                   <>
-                    <Button variant="primary" onClick={() => void signOut(`/invite/${token}`)}>
+                    <Button variant="primary" onClick={() => void signOut(here)}>
                       Sign in with that email
                     </Button>
                     <ButtonLink to="/" variant="quiet">Your products</ButtonLink>
@@ -293,7 +299,7 @@ export function AcceptInvite() {
                 ) : (
                   <>
                     <ButtonLink to="/">Your products</ButtonLink>
-                    <Button variant="quiet" onClick={() => void signOut(`/invite/${token}`)}>
+                    <Button variant="quiet" onClick={() => void signOut(here)}>
                       Sign in with another email
                     </Button>
                   </>
@@ -320,11 +326,11 @@ export function AcceptInvite() {
               {answerError ? <ErrorCallout inset error={answerError} /> : null}
               <div className="entry-actions">
                 {i.read_only ? null : (
-                  <Button variant="primary" busy={accept.isPending} busyLabel="Joining…" disabled={decline.isPending} onClick={() => accept.mutate({ token })}>
+                  <Button variant="primary" busy={accept.isPending} busyLabel="Joining…" disabled={decline.isPending} onClick={() => accept.mutate(named)}>
                     Accept
                   </Button>
                 )}
-                <Button busy={decline.isPending} busyLabel="Declining…" disabled={accept.isPending} onClick={() => decline.mutate({ token })}>
+                <Button busy={decline.isPending} busyLabel="Declining…" disabled={accept.isPending} onClick={() => decline.mutate(named)}>
                   Decline
                 </Button>
                 {pending ? null : <ButtonLink to="/" variant="quiet">Not now</ButtonLink>}

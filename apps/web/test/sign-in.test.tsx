@@ -126,6 +126,17 @@ describe("a refused Microsoft sign-in", () => {
   });
 });
 
+describe("signing in on the way to an invitation", () => {
+  it("says so, whether by the invitation's link or by its id", async () => {
+    for (const next of ["/invite/secret-token", "/invitations/01M7GNG6G4QN5YKXEBWBDXFJ0H"]) {
+      const host = await signInPageAt(`?next=${encodeURIComponent(next)}`);
+      expect(host.querySelector("h1")?.textContent, next).toBe("Sign in to see your invitation");
+      unmount?.();
+      unmount = null;
+    }
+  });
+});
+
 describe("a sign-in refused as invite-only", () => {
   it("points to the public site's waitlist, where the deployment has one", async () => {
     const host = await signInPageAt("?error=invite_only", undefined, { site: "https://site.example" });

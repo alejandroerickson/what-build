@@ -9,6 +9,7 @@ describe("screenPath", () => {
     expect(screenPath("/t/acme/members")).toBe("/t/:org/members");
     expect(screenPath("/join/abc123")).toBe("/join/:code");
     expect(screenPath("/invite/tok")).toBe("/invite/:code");
+    expect(screenPath("/invitations/01M7GNG6G4QN5YKXEBWBDXFJ0H")).toBe("/invitations/:id");
     expect(screenPath("/settings")).toBe("/settings");
     expect(screenPath("/")).toBe("/");
   });

@@ -442,9 +442,11 @@ describe("who may answer", () => {
     const [, , about, , sign, at, , lasts] = mail.text.split("\n");
     // No public site here, so nothing says where to read more.
     expect(about).toBe("WhatBuild turns a product team’s discovery material into outcomes, mockups and a Story for stakeholders.");
-    expect(sign).toBe("Accept or decline, signing in as mailed@example.com:");
-    expect(at).toBe(link);
-    expect(lasts).toBe("The link works for 7 days.");
+    expect(sign).toBe("Accept or decline as mailed@example.com:");
+    // The mail's link is its own, never the one the inviter was given (entry-links.test.ts).
+    expect(at).toMatch(new RegExp(`^${h.baseUrl}/auth/start\\?token=[A-Za-z0-9_-]{43}$`));
+    expect(mail.text).not.toContain(link);
+    expect(lasts).toBe(`The link works for 7 days. If you’d rather not use it, sign in at ${h.baseUrl} as mailed@example.com and the invitation is there.`);
     expect(mail.text).not.toMatch(/joins? (on|by|when) sign/i);
     expect(mail.text).not.toMatch(/quotation/);
   });

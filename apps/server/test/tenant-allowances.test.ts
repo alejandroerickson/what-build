@@ -50,7 +50,7 @@ describe("who may create an organization", () => {
     expect(given.status, JSON.stringify(given.body)).toBe(200);
     expect(given.body).toMatchObject({ email: "bob@staff.example", allowed: 2, created: 0, remaining: 2, account: { display_name: "Bob Member" }, notified: true });
     expect(h.mailer.sent.at(-1)).toMatchObject({ to: "bob@staff.example" });
-    expect(h.mailer.sent.at(-1)!.text).toContain("/welcome");
+    expect(h.mailer.sent.at(-1)!.text).toContain(`${h.baseUrl}/auth/start?token=`);
     expect(h.mailer.sent.at(-1)!.text.split("\n")[0]).toBe("Owen Owner (owen@staff.example) invited you to start up to 2 organizations on WhatBuild.");
     for (const name of ["Bob's first", "Bob's second"]) expect((await bob.api("POST", "/api/v1/tenants", { name })).status).toBe(201);
     const third = await bob.api("POST", "/api/v1/tenants", { name: "Bob's third" });
@@ -89,10 +89,12 @@ describe("who may create an organization", () => {
     // and where to start, signing in as the address it went to. No public site here, so no "more at".
     const notice = h.mailer.sent.find((m) => m.to === "nina@elsewhere.example")!;
     expect(notice.subject).toBe("Owen Owner invited you to WhatBuild");
-    expect(notice.text).toBe(
+    // Its link is its own (entry-links.test.ts), and signing in the usual way works as well.
+    expect(notice.text.replace(/token=\S+/, "token=<token>")).toBe(
       "Owen Owner (owen@staff.example) invited you to start an organization on WhatBuild.\n\n" +
         "WhatBuild turns a product team’s discovery material into outcomes, mockups and a Story for stakeholders.\n\n" +
-        `Start here, signing in as nina@elsewhere.example:\n${h.baseUrl}/welcome\n`,
+        `Start as nina@elsewhere.example:\n${h.baseUrl}/auth/start?token=<token>\n\n` +
+        `If you’d rather not use the link, sign in at ${h.baseUrl} as nina@elsewhere.example.\n`,
     );
     expect(await ask("nina@elsewhere.example")).toBe(true);
     const { response: verified } = await h.followSignInLink();
@@ -112,7 +114,11 @@ describe("who may create an organization", () => {
     expect(notice.to).toBe("wren@elsewhere.example");
     expect(notice.subject).toBe("Your place on WhatBuild is ready");
     // They asked; they never heard of the owner who let them in, so the owner isn't named.
-    expect(notice.text).toBe(`You joined the WhatBuild waitlist on 15 Nov 2026. Your place is ready.\n\nStart your organization, signing in as wren@elsewhere.example:\n${h.baseUrl}/welcome\n`);
+    expect(notice.text.replace(/token=\S+/, "token=<token>")).toBe(
+      "You joined the WhatBuild waitlist on 15 Nov 2026. Your place is ready.\n\n" +
+        `Start your organization as wren@elsewhere.example:\n${h.baseUrl}/auth/start?token=<token>\n\n` +
+        `If you’d rather not use the link, sign in at ${h.baseUrl} as wren@elsewhere.example.\n`,
+    );
     expect(notice.text).not.toContain("Owen");
     // Someone who asked today, given more than one: still no count, and the day as mail writes it.
     await h.db.insertInto("interest").values({ interest_id: "01M5TINTEREST0000000000WRO", email: "wynn@elsewhere.example", name: null, organization: null, note: null }).execute();

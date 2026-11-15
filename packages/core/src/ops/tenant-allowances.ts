@@ -6,6 +6,7 @@ import { conflict, forbidden, invalid, notFound } from "../errors.ts";
 import { defineOperation, type OpContext } from "../registry.ts";
 import { expectedEtag } from "../schemas.ts";
 import { isInstanceOwner } from "../tenant-allowance.ts";
+import { makeEntryLink } from "../entry-link.ts";
 import { aboutWhatBuild } from "../mail-words.ts";
 import { newEtag, plainName, utcDay } from "../util.ts";
 
@@ -52,16 +53,19 @@ async function waitlist(ctx: OpContext) {
  * The mail that lets an address start organizations. To someone on the waitlist, who asked but has
  * never heard of the owner who let them in: that their place is ready, since the day they asked. To
  * anyone else: which owner invited them, with that owner's own address, which no chosen name can
- * fake, and what WhatBuild is. Either way, where to start and the address to sign in as.
+ * fake, and what WhatBuild is. Either way, a link of its own that signs a new address in and opens
+ * Welcome (`entry-link.ts`), and the app's address to sign in at instead.
  */
-function allowanceMail(ctx: OpContext, to: string, allowed: number, waitlist: { asked_at: string | null } | null) {
-  const welcome = `${ctx.ports.config.publicBaseUrl}/welcome`;
+async function allowanceMail(ctx: OpContext, to: string, allowed: number, waitlist: { asked_at: string | null } | null) {
+  const base = ctx.ports.config.publicBaseUrl;
+  const link = await makeEntryLink(ctx, to, waitlist ? "allowance_waitlist" : "allowance", "/welcome");
+  const instead = `If you’d rather not use the link, sign in at ${base} as ${to}.\n`;
   if (waitlist) {
     const joined = waitlist.asked_at && /^\d{4}-\d{2}-\d{2}/.test(waitlist.asked_at) ? ` on ${utcDay(waitlist.asked_at)}` : "";
     return {
       to,
       subject: "Your place on WhatBuild is ready",
-      text: `You joined the WhatBuild waitlist${joined}. Your place is ready.\n\n` + `Start your organization, signing in as ${to}:\n${welcome}\n`,
+      text: `You joined the WhatBuild waitlist${joined}. Your place is ready.\n\n` + `Start your organization as ${to}:\n${link}\n\n` + instead,
     };
   }
   // Only an owner of the instance sends this. Their name is still theirs to choose: one line, bounded.
@@ -72,7 +76,8 @@ function allowanceMail(ctx: OpContext, to: string, allowed: number, waitlist: { 
     text:
       `${who} (${ctx.principal.email}) invited you to start ${allowed === 1 ? "an organization" : `up to ${allowed} organizations`} on WhatBuild.\n\n` +
       `${aboutWhatBuild(ctx.ports.config)}\n\n` +
-      `Start here, signing in as ${to}:\n${welcome}\n`,
+      `Start as ${to}:\n${link}\n\n` +
+      instead,
   };
 }
 
@@ -204,7 +209,7 @@ export const setTenantAllowance = defineOperation({
     if (input.notify && input.allowed > before && view!.remaining > 0 && ctx.ports.mailer) {
       // Someone let in from the waitlist asked for this; anyone else hears it from the owner who gave it.
       const asked = before > 0 ? undefined : await ctx.db.selectFrom("interest").select("created_at").where(sql<string>`lower(email)`, "=", input.email).executeTakeFirst();
-      await ctx.ports.mailer.send(allowanceMail(ctx, input.email, input.allowed, asked ? { asked_at: asked.created_at } : null));
+      await ctx.ports.mailer.send(await allowanceMail(ctx, input.email, input.allowed, asked ? { asked_at: asked.created_at } : null));
       notified = true;
     }
     return { ...view!, notified };

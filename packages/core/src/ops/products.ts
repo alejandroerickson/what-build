@@ -8,6 +8,7 @@ import { capRole, defineOperation, type OpContext, type ProductRole, type Report
 import { checkMembers, type Plan } from "../limits.ts";
 import { isInstanceOwner, requireTenantAllowance } from "../tenant-allowance.ts";
 import { expectedEtag, slug, withArticle } from "../schemas.ts";
+import { invitationPath, makeEntryLink } from "../entry-link.ts";
 import { aboutWhatBuild } from "../mail-words.ts";
 import { newEtag, newId, plainName, randomToken, sha256Hex, slugify } from "../util.ts";
 import { adviseIdeaCard, CARD_HTML_MAX, checkCardSides, checkIdeaCard } from "../idea-card.ts";
@@ -810,7 +811,7 @@ function seenByCaller(ctx: OpContext): (accountId: string) => Promise<boolean> {
  * name, for a role in it or on all its products, and for one product, the product in it. Each name
  * was chosen by someone, so each is on one line and bounded.
  */
-function invitedTo(target: GrantTarget, organization: string): string {
+export function invitedTo(target: Pick<GrantTarget, "scope_type" | "name">, organization: string): string {
   const named = (name: string) => plainName(name, 100, "unnamed");
   if (target.scope_type === "tenant" || target.scope_type === "all_products") return named(organization);
   return `${named(target.name)} in ${named(organization)}`;
@@ -854,6 +855,9 @@ async function grantOne(ctx: OpContext, target: GrantTarget, email: string, role
       .values({ invitation_id, tenant_id: tid, scope_type: target.scope_type, scope_id: target.scope_id, email, role, token_hash: sha256Hex(token), expires_at: expires, created_by: json(ctx.actor) })
       .execute();
     const link = `${ctx.ports.config.publicBaseUrl}/invite/${token}`;
+    // The mail's link is its own, not the one the inviter is given: it signs in an address that has
+    // no account yet and opens the invitation (`entry-link.ts`). It ends when the invitation does.
+    const entry = await makeEntryLink(ctx, email, "invitation", invitationPath(invitation_id), expires);
     // The inviter's name is theirs to choose, so it is one line and bounded, and their own account's
     // address follows it: one WhatBuild confirmed when they signed in, which no chosen name can fake.
     const who = plainName(ctx.actor.display_name);
@@ -864,8 +868,8 @@ async function grantOne(ctx: OpContext, target: GrantTarget, email: string, role
       text:
         `${who} (${ctx.principal.email}) invited you to ${where} on WhatBuild, as ${withArticle(roleWords(role))}.\n\n` +
         `${aboutWhatBuild(ctx.ports.config)}\n\n` +
-        `Accept or decline, signing in as ${email}:\n${link}\n\n` +
-        `The link works for 7 days.\n`,
+        `Accept or decline as ${email}:\n${entry}\n\n` +
+        `The link works for 7 days. If you’d rather not use it, sign in at ${ctx.ports.config.publicBaseUrl} as ${email} and the invitation is there.\n`,
     };
     await recordActivity(ctx, { action: "invited", entity_type: "membership", entity_id: invitation_id, entity_title: target.name, summary: `Invited someone as ${roleWords(role)}` });
     // The link is returned to the inviter too, so an invitation works even where no email is sent.

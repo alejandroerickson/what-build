@@ -71,6 +71,7 @@ async function show(element: React.ReactNode, at = "/somewhere") {
           <Where />
           <Routes>
             <Route path="/invite/:token" element={element} />
+            <Route path="/invitations/:id" element={element} />
             <Route path="*" element={element} />
           </Routes>
         </MemoryRouter>
@@ -172,6 +173,19 @@ describe("an invitation's link", () => {
     await press(button(host, /^Accept$/));
     expect(host.querySelector("h1")?.textContent).toBe("This invitation can’t be used");
     expect(button(host, /^Accept$/)).toBeUndefined();
+  });
+});
+
+describe("an invitation by its id, where its mail's link leads once it has signed the person in", () => {
+  it("asks in the same words, and answers by the id", async () => {
+    state.answer = (_m, path) => (path.endsWith("/read") ? { ...invitation({ invitation_id: "01M7GNG6G4QN5YKXEBWBDXFJ0H" }), accepted: false } : path.endsWith("/accept") ? { accepted: true, already: false, ...invitation() } : { items: [] });
+    const host = await show(<AcceptInvite />, "/invitations/01M7GNG6G4QN5YKXEBWBDXFJ0H");
+    expect(host.querySelector("h1")?.textContent).toBe("Join Acme Labs?");
+    expect(host.querySelector(".sheet-body p")?.textContent).toBe("Riley Chen (riley@example.com) invited you as an editor.");
+    expect(sent("/api/v1/invitations/read").map((c) => c.body)).toEqual([{ invitation_id: "01M7GNG6G4QN5YKXEBWBDXFJ0H" }]);
+    await press(button(host, /^Accept$/));
+    expect(sent("/api/v1/invitations/accept").map((c) => c.body)).toEqual([{ invitation_id: "01M7GNG6G4QN5YKXEBWBDXFJ0H" }]);
+    expect(host.querySelector('[data-testid="where"]')?.textContent).toBe("/");
   });
 });
 
