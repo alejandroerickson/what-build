@@ -38,8 +38,8 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
   person's day counts all of it when they download it. Its reading says `unsupported` ("WhatBuild no
   longer takes video…") where it said `needs_transcript`, and a source whose only attachment is a
   video says so in `derived_status`. `attachments.set_frame` and `give_picture` give HTML pages
-  their picture only: a video is refused with `415 video_not_accepted`, and anything else that is
-  not a page with `422 not_a_page`, where both were `422 not_a_video`.
+  their picture only: a video, which they used to take, is refused with `415 video_not_accepted`,
+  and anything else that is not a page with `422 not_a_page`, where it was `422 not_a_video`.
 - **Connected agents keep the tools they had until a new session brings version 0.64.0**, whose
   descriptions and guide say video is refused and what to send instead.
 
