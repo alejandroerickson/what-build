@@ -71,11 +71,11 @@ other plans will too.
 10. **Web and MCP, as a guest.** Sign in as `guest@example.com` on the web, then connect over MCP as
     the same address. *Expect:* the overview lists the example organization, marked Example
     organization and Read only, and, since the guest may not start one, its **Your own
-    organization** box says organizations open a few at a time and offers **Ask for your own
-    organization**; pressing it, the box says "On the waitlist since" today's date and that an email
-    follows, and no longer tells them to ask, and after a reload the button is still gone and the
-    box still doesn't. Its products open with a notice that it is a worked example nothing in it
-    can change. Settings lists the product's General, People and Export, and no section for the
+    organization** box says "Your team’s work goes in an organization of your own." and offers
+    **Ask for your own organization**; pressing it, the box says only "You’re on the waitlist.
+    We’ll email guest@example.com when you can start your organization.", and after a reload the
+    button is still gone. Its products open with a notice: "A worked example to learn from. Nothing
+    here can be changed." Settings lists the product's General, People and Export, and no section for the
     example organization; the product's People lists no one and says the example organization's
     people aren't shown to its guests, so nobody's details are shown to a guest
     (`okf/spec/03-accounts-and-identity.md` §3.10).

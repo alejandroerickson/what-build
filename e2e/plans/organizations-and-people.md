@@ -24,11 +24,12 @@ and **Cleo** are three such addresses, signed in with `pnpm e2e browser signin <
 ## Steps
 
 1. **Web, as Ana, a new address.** Sign in. *Expect:* the overview lists the example organization,
-   and a sheet, Your own organization, says organizations open a few at a time and offers **Ask
-   for your own organization**; there is no Start your organization. Press it. *Expect:* the button
-   gives way to "On the waitlist since <today>" and that an email will say when Ana can start one,
-   and the sheet no longer tells Ana to ask; a reload keeps both. The example's banner offers no
-   button to ask again.
+   and a sheet, Your own organization, says "Your team’s work goes in an organization of your
+   own." and offers **Ask for your own organization**; there is no Start your organization. Press
+   it. *Expect:* the sheet then says only "You’re on the waitlist. We’ll email <Ana's address> when
+   you can start your organization."; a reload keeps it. The example's banner offers no button to
+   ask again. Open `/welcome`. *Expect:* "You’re not in an organization yet." and the same
+   waitlist line, and nothing about this WhatBuild's owners.
 2. **Web, as Riley.** Open **Instance admin** from the account menu. *Expect:* it opens on
    Organizations (`/admin/organizations`), with a panel of its own listing Organizations, People,
    Plans, Guests and Starting organizations, the last with how many are waiting beside it, and a
@@ -37,8 +38,15 @@ and **Cleo** are three such addresses, signed in with `pnpm e2e browser signin <
    with her address, when she asked and "signed up". Press **Let them start one** for Ana.
    *Expect:* a toast says Ana can start an organization; Ana leaves the Waitlist and appears under
    Who can start organizations: "Can have 1 Free organization; has 0", with "1 left". The server's
-   log prints the email Ana is sent: "Riley Chen invited you to WhatBuild", with no quotation marks,
-   saying to start here signing in as Ana's address, with a link to `/welcome`.
+   log prints the email Ana is sent, which, since she asked, never names Riley: "Your place on
+   WhatBuild is ready", beginning "You joined the WhatBuild waitlist on <today>. Your place is
+   ready.", then "Start your organization, signing in as <Ana's address>:" and a link to
+   `/welcome`. Then press **Let someone start organizations**, give an address of the run's own
+   that never asked 1, and keep Tell them by email. *Expect:* the email is "Riley Chen invited you
+   to WhatBuild", with no quotation marks, its first line "Riley Chen (riley@example.com) invited
+   you to start an organization on WhatBuild.", then a sentence on what WhatBuild is (ending
+   "There’s more at <the site>." only where the deployment has a public site), then "Start here,
+   signing in as <that address>:" and the link to `/welcome`.
 3. **Web, as Ana.** Reload the overview, start an organization from Start your organization with a
    name of the run's own and a first product. *Expect:* the form says only "Name your organization
    and its first product." above its fields, and under its button "It starts on the Free plan.

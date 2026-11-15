@@ -45,9 +45,12 @@ as `leaver-<the run's time>@example.com`.
    organization. Delete it, then go back to Settings → Account and open Delete account. *Expect:* nothing blocks it now: the address field,
    Cancel, and Delete account, which stays disabled.
 6. **Web, as the leaver, only if the section says Sign in again to continue** (the leaver signed in
-   more than 15 minutes ago). Press Email me a sign-in link, take the link from the instance's
-   log (`.what-build/e2e/server.log`) and open it. *Expect:* back on Settings → Account with Delete
-   account open, now with the address field.
+   more than 15 minutes ago). Press Email me a sign-in link. *Expect:* "Look in <their address> for
+   an email from WhatBuild called “Your WhatBuild sign-in link”. Its link works for 15 minutes."
+   Take the link from the instance's log (`.what-build/e2e/server.log`) and open it. *Expect:* a
+   page that says "You’re about to sign in as <their address>.", a button **Sign in as <their
+   address>**, and under it "Not you? Close this tab and nothing happens." Press it. *Expect:*
+   back on Settings → Account with Delete account open, now with the address field.
 7. **Web, as the leaver.** Type another address and leave the field. *Expect:* it says the address
    doesn't match, and Delete account stays disabled. Type their own address in other letter case,
    and press Delete account. *Expect:* **Your account has been deleted**, signed out, saying what

@@ -34,7 +34,9 @@ are people she invites.
    editor. *Expect:* the invitation is listed as waiting, and Plan now says "2 of 2" people: an invitation
    holds a place. The server's log prints the email: its subject and first line name Dana and the
    organization as plain names, with no quotation marks, the first line with Dana's own address in
-   parentheses after her name, and the email says to accept or decline signing in as Eli's address.
+   parentheses after her name; a sentence on what WhatBuild is follows (with "There’s more at <the
+   site>." only where the deployment has a public site), then "Accept or decline, signing in as
+   <Eli's address>:", the link, and "The link works for 7 days."
 4. **Web, as Dana.** Invite Fay as an editor too. *Expect:* refused, in the app's own words: "<org>’s
    Free plan holds 2 people", then "To add <Fay's address>, cancel an invitation or remove someone.
    Story readers don’t count." and a Compare plans link that opens the plans in a new tab. No role

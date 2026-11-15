@@ -689,6 +689,20 @@ Each part is a class on ordinary elements.
 ### Pictograms
 The kit's pictograms are Lucide, a fixed set generated from lucide-react. A front names one with `data-icon`; a name outside the set is refused at write, and only the pictograms a front names travel with it. They draw as masks at a 1.9 stroke in the hue's ink or the text colour: 18px inside a 40px node, 13px in a chip, 14px before a list item, 1.15em inline. The kit's own marks (arrows, yes, no, quote, note) come from the same set, with a plain dash for partly. The glyph map and its 12 and 14px sizes govern Studio's chrome; this set lives only in fronts.
 
+## Words
+
+Interface text, and the mail WhatBuild sends, reads as a person would write it: short, plain, and with no explaining of how things work. The vocabulary and the rule that a heading states the fact and the body adds only what it did not are in the specification ([§7](../../okf/spec/07-web-app.md)).
+
+### Named Rules
+
+**The Next Step Rule.** Say what to do next. Terms, limits and conditions nobody has asked about yet stay out until they apply.
+
+**The Plan Once Rule.** A plan is named once, with a link to Compare plans. A limit is given when someone reaches it, in the words of the screen they reached it on.
+
+**The Plain Name Rule.** A name is written as a name: no quotation marks around it and no sentence about it. Where who sent something matters, their confirmed address goes beside the name.
+
+**The Stands Alone Rule.** Every screen and every email stands on its own. Its reader meets it later, among other tabs and other mail, and may not connect it to the step before. So it says who it is from and what happens next in its own words, never points at "this email" or "the link" from somewhere else, and gives someone unsure a way to look first: a page that signs someone in names the address and ends "Not you? Close this tab and nothing happens."
+
 ## Do's and Don'ts
 
 ### Do:

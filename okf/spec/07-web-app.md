@@ -144,7 +144,10 @@ design system: tokens, type, components and the rules for using them — is docu
   and "can" do things, and something
   happens "right away". Contractions and typographic apostrophes are used throughout. A role's
   place is written as a person would say it: "editor on all products", "editor on Crewboard"
-  (`scopeWords` in `apps/web/src/lib/format.ts`).
+  (`scopeWords` in `apps/web/src/lib/format.ts`). Screens and mail say what to do next and leave
+  out what nobody has asked about yet, name a plan once and a limit when it is reached, write
+  names without quotation marks, and each stands on its own, since its reader may not connect it
+  to the step before (the rules under Words in [DESIGN.md](../../apps/web/DESIGN.md)).
 - Agents are teammates: attribution in the UI shows who wrote something **and through which
   surface** (for example "Sam · via claude-desktop").
 
@@ -470,25 +473,29 @@ new tab ([§7.8](#78-story), [§6](06-operations-and-adapters.md)).
    ([§3.2](03-accounts-and-identity.md)); in development, one click signs in as any account on
    the server (`GET /auth/dev-accounts`): the sample's people first, then the newest, each with what
    it is there ("Owns Fieldnote Studio (Pro)", "Guest, on the waitlist"), the first 40 of them, or as
-   any address typed above. Asking for an email link answers, under "Check your email", "Look for
-   a sign-in link at <address>. It works for 15 minutes.", never that a link was sent, since the
-   page doesn't say who can sign in (in development, a note that the link is printed in the
-   server's terminal follows), with Use another email. An
-   email link opens a page the server renders, naming the address, whose one button, Sign in,
-   signs in and returns to `next`. Wherever sign-in returns to is a path on this origin or `/`,
+   any address typed above. Asking for an email link answers, under "Check your email", "Look
+   in <address> for an email from WhatBuild called “Your WhatBuild sign-in link”. Its link works
+   for 15 minutes.", the mail's own subject, so the person knows which mail to look for among the
+   rest, and never that a link was sent, since the page doesn't say who can sign in (in
+   development, a note that the link is printed in the server's terminal follows), with Use
+   another email. An email link opens a page the server renders, "You’re about to sign in as
+   <address>.", whose one button, Sign in as <address>, signs in and returns to `next`, with "Not
+   you? Close this tab and nothing happens." under it. A sign-in refused as invite-only says to
+   ask someone who uses WhatBuild for an invitation, and, on a deployment with a public site, to
+   join the waitlist at its address, linked to the site's form. A refused Microsoft sign-in says to
+   write to the deployment's contact, where it names one, with the reference. Wherever sign-in returns to is a path on this origin or `/`,
    by the server's rule (`safeNext`). Under the form, one line says WhatBuild is a free preview
    and links to Privacy, the notice of what is kept and why ([§9.1](09-data-lifecycle.md)), and
    to Cookies.
 2. **The example organization first.** A new account with no organization of its own lands on the
    overview, where the example organization ([§3.10](03-accounts-and-identity.md)) is listed,
    tagged Example organization and Read only, under a sheet, **Your own organization**, that says
-   the example is there to read and to point an agent at, and offers **Start your organization**
-   where the account may create one. Where it may not, it says organizations open a few at a time,
-   to ask for one or be invited to someone's, and offers **Ask for your own organization**, which puts them on the
-   waitlist with one click ([§3.2](03-accounts-and-identity.md#32-accounts-and-sign-in));
-   then it says since when they have been on it and that an email will tell them when they can
-   start one, and the sheet no longer tells them to ask, only that someone who uses WhatBuild can
-   invite them meanwhile.
+   "Your team’s work goes in an organization of your own." and offers **Start your organization**
+   where the account may create one, or, where it may not, **Ask for your own organization**,
+   which puts them on the waitlist with one click
+   ([§3.2](03-accounts-and-identity.md#32-accounts-and-sign-in)). Once they are on it, the sheet
+   says only "You’re on the waitlist. We’ll email <their address> when you can start your
+   organization.", as every screen that says they are on the waitlist does.
 3. **First run** (`/welcome`): name the organization and the first product in one form, for an
    account that may create one ([§3.3](03-accounts-and-identity.md)). The sheet holds the heading
    ("Welcome, <first name>"), "Name your organization and its first product.", the Organization
@@ -499,9 +506,14 @@ new tab ([§7.8](#78-story), [§6](06-operations-and-adapters.md)).
    stays. The plan's limits wait until one is reached, and what whoever runs this WhatBuild sees of
    an organization is on its Plan page; a deployment that offers no plans shows no line. Under the
    sheet are Privacy and, for someone with an organization of their own, Back to your products.
-   The same form, titled New organization, starts another. An account that may not says so: the
-   people who run the instance decide who may, and someone can invite them instead; its link back
-   leads to the example organization for someone with none of their own. A person who was invited
+   The same form, titled New organization, starts another. An account in no organization that may
+   not start one reads "You’re not in an organization yet." (with "Accept an invitation to join
+   one." when one waits) and the same **Ask for your own organization** as the overview, or the
+   waitlist line once asked. One that has started all it may reads, under "You can’t start another
+   organization", "To start another organization, write to <contact>." where the deployment names
+   a contact (`WHATBUILD_PRIVACY_CONTACT`, as the organization's Plan page uses it), or "ask this
+   WhatBuild’s owners" where it names none. Its link back leads to the example organization for
+   someone with none of their own. A person who was invited
    finds the invitation wherever they land once signed in, here too, or follows its link
    (`/invite/:token`), and joins by accepting it.
 4. Invite colleagues with **Add people**, in Settings under the organization's People or the
@@ -1345,14 +1357,13 @@ never described as deleting. A list row showing an archived object says *Archive
   and when they press **Try again**; never on a timer, so a tab left open neither holds a place
   nor keeps the database awake. The server decides the place on every call the guest makes, and a
   call refused with `guest_waiting` brings the waiting page at once, from the refusal's own
-  details. Otherwise one sheet says why, under any invitation waiting for them, in words: **WhatBuild is full right now**, how many
-  guests are exploring, its place in line with the progress mark, and that its place is kept for
-  two minutes after it last asks, with **Try again**; **Today's places for new guests are taken**
-  or **You've used today's time**, with when it starts again; or that no guests are let in, with
-  **Try again**. Then what a guest may
-  do, that organizations of one's own open a few at a time, **Ask for your own organization** (or,
-  once asked, since when they are on the waitlist), **Sign out** and **Settings** (`/settings`, a
-  page of its own for them), which a waiting guest still reaches. A guest that is in sees, on the example's one-line notice, the time
+  details. Otherwise one sheet says why, under any invitation waiting for them, in its title and
+  badge: **WhatBuild is full right now** with its place in line and the progress mark, then "Try
+  again within two minutes to keep your place." and **Try again**; **Today's places for new guests
+  are taken** or **You've used today's time**, the badge saying when it opens again, and no line
+  under it; or that no guests are let in, "Try again later.", with **Try again**. Then **Ask for
+  your own organization** (or, once asked, the waitlist line), **Sign out** and **Settings**
+  (`/settings`, a page of its own for them), which a waiting guest still reaches. A guest that is in sees, on the example's one-line notice, the time
   left today.
 - **Cookies** (`/cookies`, readable signed out; `apps/web/src/routes/cookies.tsx`). What cookies
   are for, by kind: needed for WhatBuild to work (always on), and, when the deployment uses
@@ -1481,8 +1492,8 @@ never described as deleting. A list row showing an archived object says *Archive
   its link to Plans.
 - **The example organization** ([§3.10](03-accounts-and-identity.md)), in
   `apps/web/src/shell/ExampleBanner.tsx`. Every screen of a product in it carries a notice above
-  its content. To a guest, under "This is the example organization", it says it is a worked
-  discovery to read, search and point an agent at, and that nothing in it can be changed, with
+  its content. To a guest, under "This is the example organization", it says "A worked example to
+  learn from. Nothing here can be changed.", with
   **Start your organization** while they have none of their own and may create one, or **Ask for
   your own organization** while they may not and are not on the waitlist yet; it shows in full until they
   press Got it, then as one line, "Example organization · read only" (remembered per organization
