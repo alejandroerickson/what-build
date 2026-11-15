@@ -100,7 +100,7 @@ export function AttachmentFace({ a, words, mark }: { a: ListedAttachment; words?
   return a.picture?.thumb_url ? <PictureFace key={a.picture.thumb_url} url={a.picture.thumb_url} fallback={next} mark={mark} /> : next;
 }
 
-/** The attachment a source is known by, with a picture to show: its first image, then a PDF's page, a deck's slide or a video's frame. */
+/** The attachment a source is known by, with a picture to show: its first image, then a PDF's page, a deck's slide, or a web page's picture or a stored video's frame. */
 function pictured(atts: ListedAttachment[]): ListedAttachment | undefined {
   const by = (from: string) => atts.find((a) => a.picture?.thumb_url && a.picture.made_from === from);
   return by("image") ?? by("pdf") ?? by("deck") ?? by("frame");
@@ -108,14 +108,14 @@ function pictured(atts: ListedAttachment[]): ListedAttachment | undefined {
 
 /**
  * What a source looks like in the list: the first it can show of a picture of the thing itself (an
- * image, a PDF's page, a deck's slide or card, a video's frame), the card an agent drew of it, a
+ * image, a PDF's page, a deck's slide or card, a web page's picture or a stored video's frame), the card an agent drew of it, a
  * small page of its own words, and an icon of what it holds.
  */
 export const SourceFace = memo(function SourceFace({ s, compact }: { s: ListedSource; compact: boolean }) {
   const { api: base } = useProduct();
   const card = useSourceCardUrl(base, s.record_id, s.card_etag);
   const atts = s.attachments;
-  const length = atts.find((a) => a.text.duration_ms && /^(audio|video)\//.test(a.media_type ?? ""))?.text.duration_ms;
+  const length = atts.find((a) => a.text.duration_ms && (a.media_type ?? "").startsWith("audio/"))?.text.duration_ms;
   const shown = pictured(atts) ?? atts.find((a) => a.picture?.card);
   const words = s.first_lines ?? s.summary;
   let mark: ReactNode = null;

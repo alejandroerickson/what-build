@@ -569,10 +569,13 @@ The sources, and everything for reading them.
   distinguishing it from today) and tags, offering the product's most used tags to add with one
   click ([§4.4](04-data-model.md)), and nothing else. **Add attachments** is one drop zone, optional,
   that takes any number of files, with no role to choose, and keeps out one past the largest file
-  that can be uploaded, saying so as it is picked, so that no source is made for it; it says that they are read in the order
+  that can be uploaded, and a video, which WhatBuild does not keep
+  ([decision](../decisions/whatbuild-takes-no-video-for-now.md)), saying so as it is picked (for a
+  video, to add its transcript, or a link to where it lives in the source's summary, instead), so
+  that no source is made for it; the same holds where attachments are added to a source. It says that they are read in the order
   listed and the first in which WhatBuild finds text becomes the source's text, which search reads
   ([§5.4](05-derived-layer.md)), which formats it reads, that a recording needs its transcript too,
-  and that no words are read from images or scanned pages. **Create** makes the source and uploads each
+  that no words are read from images or scanned pages, and that it keeps no video. **Create** makes the source and uploads each
   attachment with its progress, then opens the source, whose Text says how its attachment is being
   read ([decision](../decisions/a-sources-words-are-one-derived-text-and-attachments-are-never-searched.md)).
   Nothing asks what kind of material it is or where to file it.
@@ -611,7 +614,7 @@ The sources, and everything for reading them.
   they have, or none yet), so the twins can be told apart.
 - **A source's face** in a row ([decision](../decisions/evidence-is-a-list-of-what-sources-look-like-with-a-preview-beside-it.md)):
   the first it can show of its first image's picture, then a PDF's first page, a deck's own picture
-  or a picture of a video or an HTML page; a deck's card, drawn from slide one's title and its theme's colour; the
+  or a picture of an HTML page, or the frame a video stored before has; a deck's card, drawn from slide one's title and its theme's colour; the
   **card** an agent drew of the source ([§4.6](04-data-model.md), [decision](../decisions/a-source-has-a-card-people-recognise-it-by.md));
   a small page of its own words; and an icon of what it holds. A recording's length, or a label such as
   "VTT" for words read from anything but a page of text, marks the corner. A face is paper in dark
@@ -635,9 +638,12 @@ The sources, and everything for reading them.
   image viewer on its original. A PDF shows page one and **Show all N pages**. A deck shows its
   picture or card above its slides' text. A Word document, a workbook, a transcript and a text show
   the words read from them. An HTML page is framed from its own route, with no scripts and nothing
-  from elsewhere, which the preview says; past 4 MB it is treated as any other file. A recording plays in the
-  browser's own player, which fetches nothing until someone presses play, and says when it can't
-  play here, with a download. Anything else is an icon, its name, what WhatBuild can and can't do
+  from elsewhere, which the preview says; past 4 MB it is treated as any other file. Whoever may give
+  it a picture (anyone who reads the sources, but not a guest of the example organization) sends one
+  drawn in their browser when they stop on a page that has none. A recording (audio) plays in the
+  browser's own audio player, which fetches nothing until someone presses play, and says when it can't
+  play here, with a download. A video stored before WhatBuild stopped taking video is never played:
+  it shows the picture it has, if any, and says that WhatBuild no longer plays video, with a download. Anything else is an icon, its name, what WhatBuild can and can't do
   with it, and a download. A thumbnail for each page runs along the foot when there is more than one.
   Moving through sources costs no call: `sources.list` with `include_preview` holds what shows
   first, and what needs a call waits until someone has stopped on it for a moment.
@@ -722,7 +728,8 @@ The sources, and everything for reading them.
     from, its type in words (such as "Word document", not its media type), size, versions, and who
     added it when, adding "via <surface>" when it was not the web, as About does, with Download,
     and a menu with **Show it** (a PDF, an image, a recording, Markdown, HTML in a sandbox, or
-    plain text, in a dialog; a recording with its length; an HTML page framed from its own route,
+    plain text, in a dialog; a recording with its length; never a stored video, which only
+    downloads; an HTML page framed from its own route,
     `…/attachment/view`, in `<iframe sandbox="">`, never fetched into the app's page), **Use
     its text…** and **Read it again** for editors, the last not for pictures, which no reading
     finds words in. An image opens in a viewer with zoom (buttons, `+` `-`, `0` to fit, `1` for actual

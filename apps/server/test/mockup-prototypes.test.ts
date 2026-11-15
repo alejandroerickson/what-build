@@ -498,14 +498,37 @@ describe("what a prototype's ZIP may not hold", () => {
     expect(bomb.body.error.message).toBe(
       "Nothing was published: the ZIP unpacks to more than 96 MB, and a canvas's ZIP unpacks to at most that. Leave out what the canvas does not need and request a new upload.",
     );
-    const big = await publish(zipSync({ "manifest.json": strToU8(page), "prototype/index.html": strToU8("<p>a</p>"), "prototype/video.mp4": new Uint8Array(26 * MiB) }, { level: 9 }));
+    const big = await publish(zipSync({ "manifest.json": strToU8(page), "prototype/index.html": strToU8("<p>a</p>"), "prototype/dataset.bin": new Uint8Array(26 * MiB) }, { level: 9 }));
     expect(big.status).toBe(422);
-    expect(big.body.error.details.problems).toEqual(["prototype/video.mp4 is 27,262,976 bytes; a prototype file is at most 26,214,400."]);
+    expect(big.body.error.details.problems).toEqual(["prototype/dataset.bin is 27,262,976 bytes; a prototype file is at most 26,214,400."]);
     const entries: Record<string, Uint8Array> = { "manifest.json": strToU8(page) };
     for (let i = 0; i < 2200; i++) entries[`prototype/f${i}.txt`] = strToU8("x");
     const crowd = await publish(zipSync(entries));
     expect(crowd.status).toBe(422);
     expect(crowd.body.error.message).toMatch(/the archive holds 2201 entries; at most \d+ are read/);
+  });
+
+  it("refuses a video, which WhatBuild does not keep, naming it with every other problem; a recording goes in", async () => {
+    const refused = await publish(
+      zipSync({
+        "manifest.json": strToU8(page),
+        "prototype/index.html": strToU8("<p>a</p>"),
+        "prototype/media/intro.mp4": new Uint8Array(64),
+        "prototype/clip.WEBM": new Uint8Array(64),
+        "prototype/dataset.bin": new Uint8Array(26 * MiB),
+      }),
+    );
+    expect(refused.status, JSON.stringify(refused.body)).toBe(415);
+    expect(refused.body.error.code).toBe("video_not_accepted");
+    const problems = refused.body.error.details.problems as string[];
+    expect(problems).toContain("prototype/media/intro.mp4 is a video, and WhatBuild does not keep video: leave it out, and link to where the video lives instead.");
+    expect(problems).toContain("prototype/clip.WEBM is a video, and WhatBuild does not keep video: leave it out, and link to where the video lives instead.");
+    expect(problems).toContain("prototype/dataset.bin is 27,262,976 bytes; a prototype file is at most 26,214,400.");
+
+    const sound = await publish(
+      zipSync({ "manifest.json": strToU8(manifest([{ page_id: "a", title: "A", entry: "index.html" }], { title: "With a chime" })), "brief.md": strToU8("# A chime\n\nDoes a chime help?"), "prototype/index.html": strToU8("<p>a</p>"), "prototype/chime.mp3": new Uint8Array(64) }),
+    );
+    expect(sound.status, JSON.stringify(sound.body)).toBe(201);
   });
 });
 

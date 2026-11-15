@@ -5,8 +5,12 @@ import type { DerivationStatus } from "./types.ts";
  * status gives, and how a reading made by an earlier version is said now.
  */
 
-export const RECORDING_EXTENSIONS = [
-  ".mp3", ".mp4", ".m4a", ".wav", ".mov", ".webm", ".mkv", ".aac", ".flac", ".ogg", ".wma", ".m4v", ".opus",
+/** A recording is audio. Video is not taken (`VIDEO_EXTENSIONS`). */
+export const RECORDING_EXTENSIONS = [".mp3", ".m4a", ".wav", ".aac", ".flac", ".ogg", ".wma", ".opus"];
+
+/** The extensions that make a file a video, whatever media type it declares. */
+export const VIDEO_EXTENSIONS = [
+  ".mp4", ".m4v", ".mov", ".qt", ".webm", ".mkv", ".avi", ".wmv", ".asf", ".flv", ".f4v", ".mpg", ".mpeg", ".m2v", ".3gp", ".3g2", ".ogv", ".m2ts", ".vob",
 ];
 
 export const IMAGE_EXTENSIONS = [".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".tif", ".tiff", ".heic", ".heif", ".avif", ".svg"];
@@ -17,8 +21,21 @@ export function extensionOf(fileName: string): string {
   return i > 0 ? base.slice(i).toLowerCase() : "";
 }
 
+/**
+ * A video, by its extension or, when its extension is neither a video's nor a recording's, by its
+ * media type. A recording's extension wins over the type a browser or a server declares for it.
+ */
+export function isVideo(fileName: string, mediaType?: string | null): boolean {
+  const ext = extensionOf(fileName);
+  if (VIDEO_EXTENSIONS.includes(ext)) return true;
+  if (RECORDING_EXTENSIONS.includes(ext)) return false;
+  return Boolean(mediaType && /^video\//i.test(mediaType));
+}
+
+/** A recording: audio, by its media type or extension. A video is never one. */
 export function isRecording(fileName: string, mediaType?: string | null): boolean {
-  if (mediaType && /^(audio|video)\//.test(mediaType)) return true;
+  if (isVideo(fileName, mediaType)) return false;
+  if (mediaType && /^audio\//i.test(mediaType)) return true;
   return RECORDING_EXTENSIONS.includes(extensionOf(fileName));
 }
 
@@ -30,6 +47,10 @@ export function isImage(fileName: string, mediaType?: string | null): boolean {
 /** A recording's detail. */
 export const RECORDING_DETAIL = "a recording is stored and playable but has no text; add its transcript as another attachment";
 
+/** A video's detail: WhatBuild takes no video, and one stored before is kept, never played or read. */
+export const VIDEO_DETAIL =
+  "WhatBuild no longer takes video: a video stored before is kept and downloadable, but neither played nor read; add its transcript as another attachment";
+
 /** An image's detail: WhatBuild reads no words from a picture, and says how an agent gives it its words. */
 export const IMAGE_DETAIL =
   'WhatBuild reads no words from an image, as it performs no OCR; an agent that can see it should describe it in the source\'s summary, and write any words it shows as the source\'s text with derived_write(action="write_text") if search should find them';
@@ -40,6 +61,7 @@ export const SCAN_DETAIL =
 
 /** Why no parser reads a file. */
 export function unsupportedDetail(fileName: string, mediaType?: string | null): string {
+  if (isVideo(fileName, mediaType)) return VIDEO_DETAIL;
   return isImage(fileName, mediaType) ? IMAGE_DETAIL : `no parser reads ${extensionOf(fileName) || "(no extension)"} files`;
 }
 
@@ -75,9 +97,11 @@ const RETIRED: Record<string, { status: DerivationStatus; status_detail: string 
 /**
  * A stored reading's status and detail as this version says them. A reading is never rewritten;
  * one made before a status or its words changed (a row a backup or a sandbox's baseline brings back
- * among them) is read as a reading made now would say it.
+ * among them) is read as a reading made now would say it. `file`, when known, is what was read: a
+ * video read as a recording before video stopped being taken is said as a video is now.
  */
-export function currentReading(status: string, detail: string | null): { status: string; status_detail: string | null } {
+export function currentReading(status: string, detail: string | null, file?: { name: string; mediaType?: string | null }): { status: string; status_detail: string | null } {
+  if (file && status === "needs_transcript" && isVideo(file.name, file.mediaType)) return { status: "unsupported", status_detail: VIDEO_DETAIL };
   const retired = RETIRED[`${status} ${detail ?? ""}`];
   if (retired) return retired;
   // An image an earlier version said only "no parser reads .png files" of.

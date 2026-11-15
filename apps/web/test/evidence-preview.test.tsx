@@ -22,11 +22,11 @@ const base = {
 const picture = { made_from: "image", thumb_url: "/api/v1/pictures/thumb", preview_url: "/api/v1/pictures/preview", width: 1600, height: 1200, pages: null, card: null };
 const image = { path: "whiteboard.jpg", media_type: "image/jpeg", size: 2_000_000, file_version_id: "v1", text: { status: "unsupported", chars: 0, duration_ms: null }, picture };
 const notes = { path: "notes.docx", media_type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", size: 40_000, file_version_id: "v2", text: { status: "ready", chars: 900, duration_ms: null }, picture: null };
-const video = { path: "walkround.mp4", media_type: "video/mp4", size: 20_000_000, file_version_id: "v3", text: { status: "needs_transcript", chars: 0, duration_ms: 147_000 }, picture: null };
+const recording = { path: "crew-call.m4a", media_type: "audio/mp4", size: 2_400_000, file_version_id: "v3", text: { status: "needs_transcript", chars: 0, duration_ms: 147_000 }, picture: null };
 const unknown = { path: "rota.fig", media_type: "application/octet-stream", size: 900, file_version_id: "v4", text: { status: "unsupported", chars: 0, duration_ms: null }, picture: null };
 const sources = [
   { ...base, record_id: "S1", title: "Friday workshop", attachment_count: 2, text_from: "notes.docx", summary: "Crews plan on **Friday**.", first_lines: "# Notes\n\nCrews plan on Friday.", attachments: [image, notes] },
-  { ...base, record_id: "S2", title: "Site walk-round", derived_status: "needs_transcript", attachment_count: 1, text_from: null, summary: null, first_lines: null, attachments: [video] },
+  { ...base, record_id: "S2", title: "Crew call", derived_status: "needs_transcript", attachment_count: 1, text_from: null, summary: null, first_lines: null, attachments: [recording] },
   { ...base, record_id: "S3", title: "Rota working file", derived_status: "unsupported", attachment_count: 1, text_from: null, summary: null, first_lines: null, attachments: [unknown] },
 ];
 
@@ -50,7 +50,7 @@ vi.mock("../src/lib/session.tsx", async (original) => ({
   ...(await original<typeof import("../src/lib/session.tsx")>()),
   useProduct: () => ({ api: BASE, app: APP, product, canWrite: false, canDelete: false, canGivePicture: who.canGivePicture }),
 }));
-vi.mock("../src/lib/html-picture.ts", () => ({ pictureOfHtml: vi.fn(async () => "drawn") }));
+vi.mock("../src/lib/html-picture.ts", async (original) => ({ ...(await original<typeof import("../src/lib/html-picture.ts")>()), pictureOfHtml: vi.fn(async () => "drawn") }));
 
 const { EvidencePage } = await import("../src/routes/evidence.tsx");
 const { ShellContext } = await import("../src/shell/slots.tsx");
@@ -180,14 +180,13 @@ describe("the preview", () => {
 
   it("fetches nothing of a recording until someone presses play", async () => {
     await open("?source=S2");
-    expect(preview()!.querySelector("video")!.getAttribute("preload")).toBe("none");
+    expect(preview()!.querySelector("audio")!.getAttribute("preload")).toBe("none");
   });
 
-  it("says a recording can't play here when its browser plays only its sound", async () => {
+  it("says a recording can't play here when its browser can't play it", async () => {
     await open("?source=S2");
     await act(async () => {
-      const video = preview()!.querySelector("video")!;
-      video.dispatchEvent(new Event("loadedmetadata"));
+      preview()!.querySelector("audio")!.dispatchEvent(new Event("error"));
     });
     expect(preview()!.textContent).toMatch(/can’t be played here/);
     expect(preview()!.querySelector("a[href*='download=1']")).not.toBeNull();
@@ -289,6 +288,41 @@ describe("a web page with no picture yet", () => {
 
   it("is left alone by a guest of the example organization, and in a read-only organization", async () => {
     await stopOnIt("v6");
+    expect(sent).toEqual([]);
+  });
+});
+
+describe("a video stored before WhatBuild stopped taking video", () => {
+  const frame = { ...picture, made_from: "frame", thumb_url: "/api/v1/pictures/frame-thumb", preview_url: "/api/v1/pictures/frame-preview" };
+  const video = { path: "walkround.mp4", media_type: "video/mp4", size: 20_000_000, text: { status: "unsupported", chars: 0, duration_ms: 147_000 } };
+  async function openIt(file_version_id: string, pictured: boolean) {
+    sources.push({ ...base, record_id: "S4", title: "Site walk-round", derived_status: "unsupported", attachment_count: 1, text_from: null, summary: null, first_lines: null, attachments: [{ ...video, file_version_id, picture: pictured ? frame : null }] } as never);
+    try {
+      await open("?source=S4&page=1");
+      await act(async () => {
+        await new Promise((r) => setTimeout(r, 400));
+      });
+    } finally {
+      sources.pop();
+    }
+  }
+
+  it("keeps the picture it has, and is never played", async () => {
+    who.canGivePicture = true;
+    await openIt("v7", true);
+    expect(preview()!.querySelector("video")).toBeNull();
+    expect(preview()!.querySelector<HTMLImageElement>(".preview-stage img")!.getAttribute("src")).toBe("/api/v1/pictures/frame-preview");
+    expect(preview()!.textContent).toMatch(/no longer plays video/);
+    expect(preview()!.querySelector("a[href*='download=1']")).not.toBeNull();
+    expect(sent).toEqual([]);
+  });
+
+  it("without a picture, says so and offers the file to download", async () => {
+    who.canGivePicture = true;
+    await openIt("v8", false);
+    expect(preview()!.querySelector("video")).toBeNull();
+    expect(preview()!.querySelector(".preview-none")!.textContent).toMatch(/no longer plays video/);
+    expect(preview()!.querySelector(".preview-none a")!.getAttribute("href")).toContain("download=1");
     expect(sent).toEqual([]);
   });
 });

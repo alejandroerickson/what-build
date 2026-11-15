@@ -3,7 +3,7 @@ type: System Concept
 title: WhatBuild keeps each organization's material to its own people, and treats agent-written HTML, uploads and source text as hostile
 description: The threat model: what is protected, who the attackers are, the trust boundaries, and each control with where it lives in code and the decision that governs it.
 tags: [security, threat-model, tenancy, identity, oauth, example, limits, uploads]
-generated: {by: agent:claude, at: 2026-11-13}
+generated: {by: agent:claude, at: 2026-11-15}
 status: draft
 ---
 
@@ -379,9 +379,14 @@ Four things keep a tab from hearing what it may not know, each holding if anothe
   app's origin alone, and the app's pages may connect to that one bucket (`directUploadSource`), so a
   script that got into a page could not send anything to another. Bytes nobody completes go with
   their grant, a day after it expires, and until then count against no allowance.
-- `attachments.give_picture` lets someone who can read a source give a video or a web page its first
-  picture, so a viewer can choose what such an attachment shows until someone who can write replaces
-  it with `attachments.set_frame`. It is the web app's alone. The worker makes its own copies from what
+- No video comes in: the grants, the relay, `complete_upload`, `fetch_url` and a mockup's prototype
+  refuse a file a video's extension or a `video/*` type names, before a source is made or a byte is
+  stored (`isVideoFile` in `packages/core/src/video.ts`,
+  [decision](../decisions/whatbuild-takes-no-video-for-now.md)). A video stored before is served
+  only as a whole file to save, never in ranges or inline.
+- `attachments.give_picture` lets someone who can read a source give a web page its first picture,
+  so a viewer can choose what such an attachment shows until someone who can write replaces it with
+  `attachments.set_frame`. Both refuse any other attachment, a video stored before among them. It is the web app's alone. The worker makes its own copies from what
   is sent, and the picture is seen only by those who can read the source. A guest of the example
   organization, an agent and a Story reader cannot send one.
 - A mockup canvas uploaded as a ZIP comes through the relay only, under a grant of its own purpose
@@ -424,8 +429,8 @@ Four things keep a tab from hearing what it may not know, each holding if anothe
 - Files are served back with `nosniff`, `private, no-store` and a CSP `sandbox` with
   `default-src 'none'`, except PDFs, which browsers will not render sandboxed; only the app may
   frame them (`frame-ancestors 'self'`, or the app's origin from a content site, which serves a
-  PDF shown inline); HTML, XHTML and SVG only as an `application/octet-stream` attachment
-  (`streamFile` in `apps/server/src/documents.ts`). An uploaded HTML page is previewed from a route
+  PDF shown inline); HTML, XHTML and SVG only as an `application/octet-stream` attachment, and a
+  stored video only as an attachment, whole (`streamFile` in `apps/server/src/documents.ts`). An uploaded HTML page is previewed from a route
   of its own, `…/attachment/view`, as `text/html` in a CSP `sandbox` without `allow-scripts`,
   loading nothing it does not carry (`htmlView`), from the content site when there is one; the
   app's page never makes it a `srcdoc`, which would inherit the app's own policy. Where a Story page

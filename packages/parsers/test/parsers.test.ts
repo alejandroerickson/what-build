@@ -1,7 +1,10 @@
 import { strToU8, zipSync } from "fflate";
 import { describe, expect, it } from "vitest";
 import { cleanPayload } from "../src/cues.ts";
-import { clock, currentReading, derive, IMAGE_DETAIL, READING_LIMITS, RECORDING_DETAIL, recordingDurationMs, SCAN_DETAIL, settledReading, sliceCodePoints, tableMarkdown, type ParseResult } from "../src/index.ts";
+import {
+  clock, currentReading, derive, IMAGE_DETAIL, isRecording, isVideo, READING_LIMITS, RECORDING_DETAIL, recordingDurationMs, SCAN_DETAIL, settledReading, sliceCodePoints, tableMarkdown, VIDEO_DETAIL,
+  type ParseResult,
+} from "../src/index.ts";
 import { bytesReader } from "../src/media.ts";
 import { splitLong } from "../src/text.ts";
 import { builtinFormat, formatNumber, formatText, readFormat } from "../src/numfmt.ts";
@@ -1611,7 +1614,7 @@ describe("recording duration", () => {
   it("reads an M4A's mvhd, before or after the media data, in version 0 or 1", async () => {
     const late = await derive(makeMp4({ timescale: 44100, duration: 44100 * 147 + 11025 }), "call.m4a");
     expect(late).toMatchObject({ status: "needs_transcript", duration_ms: 147250, segments: [] });
-    expect((await derive(makeMp4({ timescale: 1000, duration: 2 ** 33, version: 1, fastStart: true }), "long.mp4")).duration_ms).toBe(2 ** 33);
+    expect((await derive(makeMp4({ timescale: 1000, duration: 2 ** 33, version: 1, fastStart: true }), "long.m4a")).duration_ms).toBe(2 ** 33);
   });
 
   it("finds a late moov without reading the media data", async () => {
@@ -1645,6 +1648,21 @@ describe("statuses", () => {
     const r = await derive(new Uint8Array(10), "call.m4a");
     expect(r.status).toBe("needs_transcript");
     expect(r.duration_ms).toBeNull();
+  });
+  it("takes a recording to be audio, and a video never one", () => {
+    for (const [name, type] of [["call.mp3", null], ["call.m4a", "video/mp4"], ["call.ogg", null], ["memo", "audio/mpeg"]] as const) {
+      expect(isRecording(name, type), name).toBe(true);
+      expect(isVideo(name, type), name).toBe(false);
+    }
+    for (const [name, type] of [["walk.mp4", "audio/mp4"], ["walk.mov", null], ["walk.webm", null], ["walk.MKV", null], ["walk", "video/mp4"]] as const) {
+      expect(isVideo(name, type), name).toBe(true);
+      expect(isRecording(name, type), name).toBe(false);
+    }
+  });
+  it("reads a video stored before WhatBuild stopped taking video as unsupported, saying what it is", async () => {
+    const r = await derive(makeMp4({ timescale: 1000, duration: 5000 }), "walk.mp4");
+    expect(r).toMatchObject({ status: "unsupported", status_detail: VIDEO_DETAIL, duration_ms: null });
+    expect(VIDEO_DETAIL).toMatch(/^WhatBuild no longer takes video: a video stored before is kept and downloadable, but neither played nor read; add its transcript as another attachment$/);
   });
   it("marks unknown formats unsupported", async () => {
     const r = await derive(new Uint8Array(10), "slides.key");
@@ -1683,6 +1701,10 @@ describe("statuses", () => {
     expect(currentReading("needs_transcript", "a recording is stored and playable but has no text; add a transcript as a new source")).toEqual({ status: "needs_transcript", status_detail: RECORDING_DETAIL });
     expect(currentReading("failed", "the PDF has no text layer (a scan?); no OCR is performed")).toEqual({ status: "unsupported", status_detail: SCAN_DETAIL });
     expect(currentReading("unsupported", "no parser reads .png files")).toEqual({ status: "unsupported", status_detail: IMAGE_DETAIL });
+    // A video read as a recording, before WhatBuild stopped taking video, wherever its file is known.
+    expect(currentReading("needs_transcript", RECORDING_DETAIL, { name: "walk.mp4" })).toEqual({ status: "unsupported", status_detail: VIDEO_DETAIL });
+    expect(currentReading("needs_transcript", RECORDING_DETAIL, { name: "walk", mediaType: "video/quicktime" })).toEqual({ status: "unsupported", status_detail: VIDEO_DETAIL });
+    expect(currentReading("needs_transcript", RECORDING_DETAIL, { name: "call.m4a", mediaType: "audio/mp4" })).toEqual({ status: "needs_transcript", status_detail: RECORDING_DETAIL });
     // Anything else is said as it was.
     expect(currentReading("unsupported", "no parser reads .key files")).toEqual({ status: "unsupported", status_detail: "no parser reads .key files" });
     expect(currentReading("failed", "Error: bad XRef entry")).toEqual({ status: "failed", status_detail: "Error: bad XRef entry" });

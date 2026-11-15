@@ -64,8 +64,10 @@ at the first page.
 ## Prototypes
 
 A clickable prototype of several files (HTML documents that link to one another, scripts,
-stylesheets, fonts, images, media, fixtures such as JSON or PDFs, iframes of its own documents) goes
-in as it is, under `prototype/` in the canvas ZIP. A canvas page then gives an `entry` in
+stylesheets, fonts, images, audio, fixtures such as JSON or PDFs, iframes of its own documents) goes
+in as it is, under `prototype/` in the canvas ZIP. It holds no video, which WhatBuild does not keep: a
+ZIP with one is refused with `415 video_not_accepted`, listing every video and every other problem,
+and the prototype links to where the video lives instead. A canvas page then gives an `entry` in
 `manifest.json` instead of HTML: the path of one of its HTML documents, with a `?query` and
 `#fragment` if the page starts somewhere particular (`app/checkout.html?plan=pro#step-2`). Several
 pages may enter one prototype. Its files are kept byte for byte, are not held to a page's rules, and

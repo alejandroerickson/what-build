@@ -163,7 +163,7 @@ export function restRoutes(env: Env & { config: ServerConfig }) {
       const found = await inTenant(scope, (trx) => findAttachment(trx, productId, { recordId: c.req.param("record_id")!, path, version: c.req.query("version") }));
       if (!found) throw new AppError(404, "not_found", "No such attachment on this source.");
       await admitSend(env, principal, scope, bytesAsked(c, found.v));
-      // A PDF shown inline is a document; images, audio and video stay subresources of the app's pages.
+      // A PDF shown inline is a document; images and audio stay subresources of the app's pages.
       if (site && !download && isPdf(found.v.media_type)) return handOff(c, env, principal, scope, { purpose: "attachment", fv: found.v.file_version_id }, nameOf(path));
       return streamFile(c, env, found.v, path, download);
     } catch (e) {

@@ -23,7 +23,8 @@ export { DEFAULT_PARSE_CAP_BYTES, ParseInterrupted, ParseStopped, READING_LIMITS
 export { HtmlLimitError, MAX_HTML_DEPTH, parseHtml } from "./html.ts";
 export { TooManyEntriesError, unzipParts, zipEntries, type ZipEntry } from "./zip.ts";
 export {
-  currentReading, extensionOf, IMAGE_DETAIL, IMAGE_EXTENSIONS, isImage, isRecording, RECORDING_DETAIL, RECORDING_EXTENSIONS, SCAN_DETAIL, tooLargeDetail,
+  currentReading, extensionOf, IMAGE_DETAIL, IMAGE_EXTENSIONS, isImage, isRecording, isVideo, RECORDING_DETAIL, RECORDING_EXTENSIONS, SCAN_DETAIL, tooLargeDetail,
+  VIDEO_DETAIL, VIDEO_EXTENSIONS,
 } from "./statuses.ts";
 
 const PARSERS: Record<string, FormatParser> = {

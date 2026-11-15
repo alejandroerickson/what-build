@@ -1,9 +1,9 @@
 ---
 type: Decision
 title: An attachment's picture is made by the worker in a process of its own and reached by a signed address that costs no call
-description: Small WebP copies of an image, a PDF's first page, a deck's own picture or a video's frame, filled in by every deployment itself; served by a grant naming nobody, which someone removed keeps until it expires; no LibreOffice and no ffmpeg.
+description: Small WebP copies of an image, a PDF's first page, a deck's own picture or a picture of an HTML page, filled in by every deployment itself; served by a grant naming nobody, which someone removed keeps until it expires; no LibreOffice and no ffmpeg.
 tags: [decision, architecture, attachments, security, cost, performance]
-generated: {by: agent:claude, at: 2026-11-02}
+generated: {by: agent:claude, at: 2026-11-15}
 status: stable
 ---
 
@@ -42,13 +42,15 @@ the worker, on as little as one CPU and 1 GiB.
   whose address they hold for up to about four hours. The address names one small copy, not the
   original, and a browser would hold what it already loaded regardless. A deleted source's pictures
   go when the job that releases its bytes has run.
-- **A video's or an HTML page's picture comes from a browser.** Whoever uploads one sends a frame from
-  the file, or a picture of the page, and agents may send one. Anyone who can read the source sends
-  the first picture one lacks: a frame from the player once it plays, or a picture of a page when they
-  stop on it. A picture must not wait for someone who can write to come by, since most who look at
-  evidence an agent gathered may only read it. The cost, accepted: a viewer can choose such an
+- **An HTML page's picture comes from a browser.** Whoever uploads one sends a picture of the page,
+  and agents may send one. Anyone who can read the source sends the first picture one lacks, when
+  they stop on it. A picture must not wait for someone who can write to come by, since most who look
+  at evidence an agent gathered may only read it. The cost, accepted: a viewer can choose such an
   attachment's picture until someone who can write replaces it, which only those who can read the
-  source see, and which the worker has made its own copies from. A guest of the example organization
+  source see, and which the worker has made its own copies from. A video's picture came the same way,
+  a frame from the file or the player, until WhatBuild stopped taking video
+  ([decision](whatbuild-takes-no-video-for-now.md)): a video stored before keeps the picture it has
+  and is given no other. A guest of the example organization
   sends none, since they change nothing there, and a viewer's agent has no tool for it, so `set_frame`
   stays an editor's and the web app's first picture is an operation of its own. A page is drawn inert: `DOMParser` makes a document
   nothing in which runs, and it is drawn as an SVG image, in which a browser runs no scripts and

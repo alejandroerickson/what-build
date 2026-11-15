@@ -14,7 +14,7 @@ const DECK_MEDIA_TYPE = "application/vnd.openxmlformats-officedocument.presentat
 /** How long at least an address given now keeps working. */
 const PICTURE_GRANT_SECONDS = 3 * 3600;
 
-/** What an attachment's picture is made from, or null for one the worker makes none of (a video's is sent by a browser or an agent). */
+/** What an attachment's picture is made from, or null for one the worker makes none of (an HTML page's is sent by a browser or an agent). */
 export function pictureSource(path: string, mediaType: string | null): PictureSource | null {
   const type = (mediaType ?? "").split(";")[0]!.trim().toLowerCase();
   const ext = extensionOf(path);
@@ -95,7 +95,7 @@ export async function pictureGivenUp(db: Tx, job: PictureJob): Promise<void> {
     .execute();
 }
 
-/** What a `make_picture` job says. `frame_key` is a frame someone sent, to use for this video. */
+/** What a `make_picture` job says. `frame_key` is a picture someone sent, to use for this HTML page. */
 export interface PictureJob {
   tenant_id: string;
   record_id: string;

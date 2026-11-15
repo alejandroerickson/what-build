@@ -3,7 +3,7 @@ type: Decision
 title: A source has a card, an agent-drawn picture people recognise it by, beside its text summary
 description: Beside its Markdown summary, a source carries a card, HTML in the Idea card kit on a 640 × 480 board, which heads its preview and page and is its face in the Evidence list when it has no picture of its own, so that sources are told apart at a glance rather than read.
 tags: [decision, sources, evidence, agents, design-system, web, mcp]
-generated: {by: agent:claude, at: 2026-11-02}
+generated: {by: agent:claude, at: 2026-11-15}
 status: stable
 ---
 
@@ -32,8 +32,9 @@ text summary, and preferred as the face over a page of words but never over the 
   scales it to fit: a thumbnail in the list, most of the preview's width beside it, 480 pixels on
   the source's page. Rejected: a responsive card like an Idea card's, which would recompose rather
   than shrink, so the thumbnail would not look like the large picture.
-- **The thing's own picture wins.** A photo, a PDF's page, a deck's slide or card and a video's
-  frame stay the face; the card comes next, before the small page of words.
+- **The thing's own picture wins.** A photo, a PDF's page, a deck's slide or card, a web page's
+  picture and the frame a stored video has stay the face; the card comes next, before the small page
+  of words.
 - **The Idea card kit and sandbox.** A card is checked against `IDEA_CARD_RULES` and served in the
   Idea cards' document and sandbox, in the reader's theme, so it adds no new kind of HTML.
 - **Agents draw it.** The web app shows it and offers no editor, as for Idea cards; people still

@@ -3,7 +3,7 @@ type: Process
 title: What a deployment must do when it takes a release
 description: The changes a release asks of the people who run a deployment (settings, app registrations, behaviour they will notice), kept per release, with the unreleased ones on top until the next release carries them into its notes.
 tags: [operations, releases, upgrading, self-hosting, configuration]
-generated: {by: agent:claude, at: 2026-11-14}
+generated: {by: agent:claude, at: 2026-11-15}
 status: stable
 ---
 
@@ -23,7 +23,25 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
 
 ## Unreleased
 
-Nothing yet.
+- **WhatBuild takes no video, and keeps the video it already holds**
+  ([decision](../decisions/whatbuild-takes-no-video-for-now.md)). No migration, and nothing is
+  deleted. A deployment does nothing; tell its people before upgrading. Every way a file comes in
+  refuses a video (a file with a video's extension, such as `.mp4`, `.mov`, `.webm`, `.mkv` or
+  `.m4v`, or a `video/*` type) with `415 video_not_accepted`, which says to add the video's
+  transcript, or a link to where it lives, instead: upload grants (`request_upload`, `create_upload`,
+  and `create_uploads`, which then creates no source), the upload relay and `complete_upload` for a
+  grant given for a video before the upgrade, `fetch_url`, and a mockup's prototype in a canvas ZIP
+  (`mockups.publish`). The web app turns a video away as it is picked. Audio is taken as before.
+- **People will notice: video already stored is kept and downloaded, but no longer played.** It is
+  listed with any picture it has, and the Evidence preview shows that picture with a download where
+  the player was. Every request for it gets the whole file to save, never a range, so a
+  person's day counts all of it when they download it. Its reading says `unsupported` ("WhatBuild no
+  longer takes video…") where it said `needs_transcript`, and a source whose only attachment is a
+  video says so in `derived_status`. `attachments.set_frame` and `give_picture` give HTML pages
+  their picture only: a video, which they used to take, is refused with `415 video_not_accepted`,
+  and anything else that is not a page with `422 not_a_page`, where it was `422 not_a_video`.
+- **Connected agents keep the tools they had until a new session brings version 0.64.0**, whose
+  descriptions and guide say video is refused and what to send instead.
 
 ## v0.35.0
 

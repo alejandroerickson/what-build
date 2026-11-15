@@ -101,7 +101,7 @@ describe("every response", () => {
       expect(r.headers.get("x-content-type-options"), what).toBe("nosniff");
       expect(r.headers.get("permissions-policy"), what).toBe(PERMISSIONS_POLICY);
     }
-    // What the app uses keeps its default: full screen for images and video, and the clipboard.
+    // What the app uses keeps its default: full screen for images, and the clipboard.
     for (const feature of ["camera", "microphone", "geolocation", "payment", "usb"]) expect(PERMISSIONS_POLICY).toContain(`${feature}=()`);
     for (const feature of ["fullscreen", "clipboard-write", "picture-in-picture"]) expect(PERMISSIONS_POLICY).not.toContain(feature);
   });

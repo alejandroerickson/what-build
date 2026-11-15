@@ -1,12 +1,12 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRef, useState, type Ref } from "react";
 import { useNavigate } from "react-router";
+import { isVideoFile } from "@whatbuild/core/video";
 import { api, putWithProgress } from "../lib/api.ts";
 import { formatBytes, formatDate, plural } from "../lib/format.ts";
 import { largestFile, size, useOrganizationLimits } from "../lib/limits.ts";
 import { cannotWriteReason, useProduct } from "../lib/session.tsx";
-import { pictureOfHtml } from "../lib/html-picture.ts";
-import { frameOfFile, sendFrame } from "../lib/video-frame.ts";
+import { pictureOfHtml, sendPicture } from "../lib/html-picture.ts";
 import { usePageTitle } from "../shell/slots.tsx";
 import {
   Button, ButtonLink, Callout, EmptyState, ErrorCallout, FormGrid, Glyph, IconButton, KeyValue, PageHeader, Sheet, SheetBody, SheetHeader,
@@ -24,7 +24,7 @@ export interface UploadItem {
 }
 type Item = UploadItem;
 
-const RECORDING = /^(audio|video)\//;
+const RECORDING = /^audio\//;
 
 /** Where a file's bytes go: the server's own route, and, for a file that may not fit it, straight to the store. */
 interface UploadGrant {
@@ -59,9 +59,8 @@ export async function uploadFiles(base: string, recordId: string, items: Item[],
         await putWithProgress(grant.url, grant.headers, it.file, onProgress);
       }
       update(i, { state: "done", loaded: it.file.size });
-      // What the server can't draw is drawn here, from the file on the person's own machine.
-      const picture = it.file.type.startsWith("video/") ? frameOfFile(it.file) : /\.html?$/i.test(it.file.name) ? it.file.text().then(pictureOfHtml) : null;
-      if (picture) void picture.then((frame) => (frame ? sendFrame(base, recordId, it.file.name, frame) : undefined));
+      // A web page the server can't draw is drawn here, from the file on the person's own machine.
+      if (/\.html?$/i.test(it.file.name)) void it.file.text().then(pictureOfHtml).then((picture) => (picture ? sendPicture(base, recordId, it.file.name, picture) : undefined));
     } catch (e) {
       update(i, { state: "failed", error: (e as Error).message });
       allDone = false;
@@ -71,9 +70,10 @@ export async function uploadFiles(base: string, recordId: string, items: Item[],
 }
 
 /**
- * Keeps what is past the largest file this organization takes out of a list as it is picked, so no
- * source is made for a file that could not arrive. Until the limits are read, or where they can't
- * be, the server refuses such a file when asked for its grant.
+ * Keeps videos, which WhatBuild does not take, and what is past the largest file this organization
+ * takes, out of a list as it is picked, so no source is made for a file that could not arrive.
+ * Until the limits are read, or where they can't be, the server refuses such a file when asked for
+ * its grant, as it refuses a video.
  */
 export function useFilesThatFit() {
   const { product, canWrite } = useProduct();
@@ -81,10 +81,20 @@ export function useFilesThatFit() {
   const [refused, setRefused] = useState<string | null>(null);
   const largest = limits.data ? largestFile(limits.data) : Number.POSITIVE_INFINITY;
   const fitting = (files: File[]) => {
-    const over = files.filter((f) => f.size > largest).map((f) => f.name);
-    const one = over.length === 1;
-    setRefused(over.length ? `${over.join(", ")} ${one ? "is" : "are"} over the ${size(largest)} a file can be here, so ${one ? "it wasn’t" : "they weren’t"} added.` : null);
-    return files.filter((f) => f.size <= largest);
+    const videos = files.filter((f) => isVideoFile(f.name, f.type)).map((f) => f.name);
+    const over = files.filter((f) => !isVideoFile(f.name, f.type) && f.size > largest).map((f) => f.name);
+    const said = (names: string[], why: string) => {
+      const one = names.length === 1;
+      return `${names.join(", ")} ${one ? "is" : "are"} ${why}, so ${one ? "it wasn’t" : "they weren’t"} added.`;
+    };
+    const lines = [
+      videos.length
+        ? `${said(videos, videos.length === 1 ? "a video, which WhatBuild doesn’t keep" : "videos, which WhatBuild doesn’t keep")} Add a video’s transcript instead (a VTT, SRT or text file), or a link to where it lives in the source’s summary.`
+        : null,
+      over.length ? said(over, `over the ${size(largest)} a file can be here`) : null,
+    ].filter(Boolean);
+    setRefused(lines.length ? lines.join(" ") : null);
+    return files.filter((f) => !isVideoFile(f.name, f.type) && f.size <= largest);
   };
   return { fitting, refused };
 }
@@ -253,7 +263,7 @@ export function SourceNewPage() {
           <div className="intake-files">
             <DropZone
               label="Attachments"
-              hint="They’re read in the order listed, and the first in which WhatBuild finds text becomes the source’s text, which search reads. It reads text, Markdown, transcripts (VTT, SRT), Word, PDF, spreadsheets and HTML, but no words in images or scanned pages, and it doesn’t transcribe recordings: add a recording’s transcript too."
+              hint="They’re read in the order listed, and the first in which WhatBuild finds text becomes the source’s text, which search reads. It reads text, Markdown, transcripts (VTT, SRT), Word, PDF, spreadsheets and HTML, but no words in images or scanned pages, and it doesn’t transcribe recordings: add a recording’s transcript too. It doesn’t keep video: add a video’s transcript, or a link to it, instead."
               multiple
               onFiles={(f) => setItems([...items, ...fitting(f).filter((file) => !items.some((i) => i.file.name === file.name)).map((file) => ({ file, state: "waiting" as const, loaded: 0 }))])}
             />

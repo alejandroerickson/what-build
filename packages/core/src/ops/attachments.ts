@@ -4,6 +4,7 @@ import { productId, recordActivity, tenantId } from "../common.ts";
 import { json } from "../db.ts";
 import { AppError, conflict, invalid, notFound, rateLimited, tooLarge } from "../errors.ts";
 import { extensionForMediaType, extensionOf, mediaTypeFor, validFilePath } from "../media.ts";
+import { isVideoFile, videoNotAccepted } from "../video.ts";
 import { pictureSource } from "../pictures.ts";
 import { defineOperation, type OpContext, type Principal, type PrepareContext } from "../registry.ts";
 import { countBytes, mayFetchUrl, sizeInWords, tallyOf, uploadLimit } from "../limits.ts";
@@ -31,9 +32,11 @@ export const MAX_ATTACHMENTS = 50;
 export const ATTACHMENT_RULE =
   "Each attachment's text is read and kept, never searched. A source's derived text, which search reads, is the text of the first of its attachments whose reading finds some text: attachments are read in the order they arrive, so usually the first to arrive in a format WhatBuild reads. It follows that attachment's new versions until someone writes or edits it; derived_write(action=\"write_text\", from_attachment) takes another's.";
 
-function checkPath(path: string) {
+/** A path a file may be added at, and a file WhatBuild takes: never a video. */
+function checkPath(path: string, mediaType?: string | null) {
   const problem = validFilePath(path);
   if (problem) throw invalid("invalid_path", `${problem}.`);
+  if (isVideoFile(path, mediaType)) throw videoNotAccepted(path);
 }
 
 /**
@@ -58,8 +61,8 @@ export function unreadableWarnings(path: string, declaredType?: string | null): 
 }
 
 /** Validate that `path` can receive a new attachment or version, before any grant or bytes. */
-async function checkTarget(ctx: OpContext, recordId: string, path: string) {
-  checkPath(path);
+async function checkTarget(ctx: OpContext, recordId: string, path: string, mediaType?: string | null) {
+  checkPath(path, mediaType);
   const existing = await ctx.db.selectFrom("files").select(["path"]).where("record_id", "=", recordId).execute();
   const count = existing.length + (existing.some((f) => f.path === path) ? 0 : 1);
   if (count > MAX_ATTACHMENTS) throw conflict("too_many_attachments", `A source holds at most ${MAX_ATTACHMENTS} attachments.`);
@@ -138,13 +141,13 @@ export const requestUpload = defineOperation({
   mutates: true,
   summary: "Get a short-lived grant to PUT one file's bytes to a source, as an attachment. Never pass file bytes through a tool call.",
   description:
-    `Returns {url, method: "PUT", headers, max_bytes, expires_at, warnings}; warnings flag a format no parser reads, and an image, before any bytes move. The file's bytes go to url in one PUT with exactly these headers (curl -T file -H …, for example); a 201 from url means the attachment is added. Only a PUT to a \`direct\` url needs complete_upload afterwards. A grant takes one file, once, and expires: it adds an attachment, or, at a path the source already has, a new version of it, the earlier versions kept. ${ATTACHMENT_RULE} File content never goes in a tool argument, base64 included; a person can also upload in the web app.`,
+    `Returns {url, method: "PUT", headers, max_bytes, expires_at, warnings}; warnings flag a format no parser reads, and an image, before any bytes move. A video is refused (415 video_not_accepted): WhatBuild does not keep video, so send its transcript, or a link to where it lives, instead. The file's bytes go to url in one PUT with exactly these headers (curl -T file -H …, for example); a 201 from url means the attachment is added. Only a PUT to a \`direct\` url needs complete_upload afterwards. A grant takes one file, once, and expires: it adds an attachment, or, at a path the source already has, a new version of it, the earlier versions kept. ${ATTACHMENT_RULE} File content never goes in a tool argument, base64 included; a person can also upload in the web app.`,
   input: z.strictObject({ record_id: id("source"), ...requestUploadInput }),
   rest: { method: "POST", path: "/sources/:record_id/uploads" },
   mcp: { tool: "attachments", action: "request_upload" },
   async handler(ctx, input) {
     await loadRecord(ctx, input.record_id, { live: true });
-    await checkTarget(ctx, input.record_id, input.path);
+    await checkTarget(ctx, input.record_id, input.path, input.media_type);
     const grant = await issueGrant(ctx, input.record_id, input);
     return { ...grant, warnings: unreadableWarnings(input.path, input.media_type) };
   },
@@ -154,7 +157,7 @@ const createUploadInput = z.strictObject({ ...recordMetadata, ...requestUploadIn
 
 /** Create one source and a grant for its first attachment. */
 async function createWithUpload(ctx: OpContext, input: z.output<typeof createUploadInput>) {
-  checkPath(input.path);
+  checkPath(input.path, input.media_type);
   const { path, media_type, size, ...meta } = input;
   const warnings = [...(await duplicateWarnings(ctx, meta)), ...unreadableWarnings(path, media_type)];
   const r = await insertRecord(ctx, meta);
@@ -171,7 +174,7 @@ export const createUpload = defineOperation({
   mutates: true,
   summary: "Create a source and get an upload grant for its first attachment, in one call.",
   description:
-    "Takes sources_write(action=\"create\")'s metadata plus the file's path. Returns {record, upload, warnings}; PUT the bytes to upload.url with upload.headers, and a 201 means the attachment is added; its text becomes the source's derived text once it is read. For several sources at once, use create_uploads. Read warnings first: they flag a format no parser reads, an image (whose words you give the source yourself, if you can see it), and an existing source with the same title and date.",
+    "Takes sources_write(action=\"create\")'s metadata plus the file's path. Returns {record, upload, warnings}; PUT the bytes to upload.url with upload.headers, and a 201 means the attachment is added; its text becomes the source's derived text once it is read. For several sources at once, use create_uploads. Read warnings first: they flag a format no parser reads, an image (whose words you give the source yourself, if you can see it), and an existing source with the same title and date. A video is refused (415 video_not_accepted) and no source is created: WhatBuild does not keep video.",
   input: createUploadInput,
   rest: { method: "POST", path: "/sources/with-upload" },
   mcp: { tool: "attachments", action: "create_upload" },
@@ -235,6 +238,8 @@ async function measureLanded(ctx: PrepareContext, g: { path: string; blob_key: s
 export async function completeGrant(ctx: OpContext, grantId: string, landed?: Landed) {
   const g = await ctx.db.selectFrom("upload_grants").selectAll().where("grant_id", "=", grantId).forUpdate().executeTakeFirstOrThrow();
   const record = await loadRecord(ctx, g.record_id);
+  // A grant given for a video before videos were refused adds nothing; its bytes go with the grant when it expires.
+  if (!g.completed_at && isVideoFile(g.path, g.media_type)) throw videoNotAccepted(g.path);
   if (!g.completed_at) {
     const direct = g.size === null;
     const size = direct ? landed?.size : Number(g.size);
@@ -340,7 +345,7 @@ export const completeUpload = defineOperation({
 });
 
 async function storeDirect(ctx: OpContext, recordId: string, path: string, bytes: Uint8Array, mediaType: string | null) {
-  await checkTarget(ctx, recordId, path);
+  await checkTarget(ctx, recordId, path, mediaType);
   const grant = await issueGrant(ctx, recordId, { path, media_type: mediaType ?? undefined, size: bytes.byteLength });
   const g = await ctx.db.selectFrom("upload_grants").selectAll().where("grant_id", "=", grant.grant_id).executeTakeFirstOrThrow();
   const stored = await ctx.ports.blobs.put(g.blob_key!, bytes, { contentType: g.media_type ?? "application/octet-stream" });
@@ -356,6 +361,16 @@ export function fragmentWarnings(url: string): string[] {
     `The URL's fragment (${hash}) never reaches the server, so the stored file is the page at the URL without it. ` +
       "If the fragment is a single-page app's route (…/#/page), the file is probably the app's empty shell: check its text once it is read, and prefer the document's own address, a PDF export, or an upload.",
   ];
+}
+
+/** The file name a URL's path ends in, as written when it does not decode. */
+function lastSegment(url: string): string {
+  const last = new URL(url).pathname.split("/").pop() ?? "";
+  try {
+    return decodeURIComponent(last);
+  } catch {
+    return last;
+  }
 }
 
 /** Fetches one account may have in progress at once, on each instance of the server. */
@@ -388,13 +403,16 @@ export const fetchUrl = defineOperation({
   mutates: true,
   summary: "Fetch a public HTTPS document into a source as an attachment, server-side (size-capped).",
   description:
-    `HTTPS only, public addresses only (an address written in the URL and every address a name resolves to), redirects re-checked, size and time capped, at most ${URL_FETCHES_PER_ACCOUNT} at once per person. The file name comes from the response, or pass path. Use for public material only; nothing is sent with the request. The part of a URL after # never reaches the server, so a single-page app's route (…/#/page) fetches only the app's empty shell; the result's warnings say so whenever the URL has a fragment.`,
+    `HTTPS only, public addresses only (an address written in the URL and every address a name resolves to), redirects re-checked, size and time capped, at most ${URL_FETCHES_PER_ACCOUNT} at once per person. The file name comes from the response, or pass path. Use for public material only; nothing is sent with the request. The part of a URL after # never reaches the server, so a single-page app's route (…/#/page) fetches only the app's empty shell; the result's warnings say so whenever the URL has a fragment. A video is refused (415 video_not_accepted), before it is fetched when the URL or path names one, and otherwise once its type is known; nothing is stored. WhatBuild does not keep video: add its transcript, or a link to where it lives, instead.`,
   input: z.strictObject({ record_id: id("source"), url: z.url().max(2000), path: z.string().min(1).max(200).optional() }),
   rest: { method: "POST", path: "/sources/:record_id/fetch" },
   mcp: { tool: "attachments", action: "fetch_url" },
   // The download happens here, before the transaction, so a slow server holds no database connection.
   async prepare(ctx, input) {
     await ctx.read((c) => loadRecord(c, input.record_id, { live: true }));
+    // A video named by the path or the URL is refused before anything is fetched.
+    const named = input.path ?? lastSegment(input.url);
+    if (named && isVideoFile(named)) throw videoNotAccepted(named);
     if (ctx.limits && !ctx.limits.guest) mayFetchUrl(ctx.limits);
     const fetcher = ctx.ports.fetcher;
     if (!fetcher) throw notFound("Fetching URLs isn’t available on this deployment.");
@@ -460,14 +478,16 @@ const frameInput = {
   image_base64: z.string().min(1).max(FRAME_MAX_CHARS).regex(/^[A-Za-z0-9+/]+={0,2}$/, "image_base64 is base64"),
 };
 
-/** Keep a frame as the picture of a video or an HTML page, unless it has one and this is not to replace it. The worker checks it and makes its copies. */
+/** Keep a picture of an HTML page, unless it has one and this is not to replace it. The worker checks it and makes its copies. */
 async function takeFrame(ctx: OpContext, input: { record_id: string; path: string; image_base64: string; replace: boolean }) {
   await loadRecord(ctx, input.record_id, { live: true });
   const f = await ctx.db.selectFrom("files").select("current_version_id").where("record_id", "=", input.record_id).where("path", "=", input.path).executeTakeFirst();
   if (!f?.current_version_id) throw notFound(`No attachment ${input.path} on this source.`);
   const v = await ctx.db.selectFrom("file_versions").select("media_type").where("file_version_id", "=", f.current_version_id).executeTakeFirstOrThrow();
-  if (!v.media_type.startsWith("video/") && v.media_type !== "text/html" && !/\.html?$/i.test(input.path))
-    throw invalid("not_a_video", `${input.path} is ${v.media_type}: only a video or an HTML page is given a picture this way. Another attachment's picture, if it can have one, is made when it arrives.`);
+  if (isVideoFile(input.path, v.media_type))
+    throw new AppError(415, "video_not_accepted", `${input.path} is a video. WhatBuild no longer takes video: a video stored before keeps the picture it has, and is given no other.`, { path: input.path });
+  if (v.media_type !== "text/html" && !/\.html?$/i.test(input.path))
+    throw invalid("not_a_page", `${input.path} is ${v.media_type}: only an HTML page is given a picture this way. Another attachment's picture, if it can have one, is made when it arrives.`);
   const has = await ctx.db.selectFrom("attachment_pictures").select("file_version_id").where("file_version_id", "=", f.current_version_id).where("status", "=", "ready").executeTakeFirst();
   if (has && !input.replace) return { record_id: input.record_id, path: input.path, made: false };
   const frame_key = `t/${tenantId(ctx)}/r/${input.record_id}/p/${newId()}/frame`;
@@ -481,10 +501,10 @@ export const setFrame = defineOperation({
   scope: "product",
   access: "write",
   mutates: true,
-  summary: "Give a video or an HTML page its picture, as a small image, which people see in the list of sources and the preview.",
+  summary: "Give an HTML page its picture, as a small image, which people see in the list of sources and the preview.",
   description:
-    `WhatBuild neither plays videos nor draws web pages itself, so these have no picture in the list until they are given one: the web app sends it when someone uploads the attachment or stops on it, and an agent can send one it took. image_base64 is an image of at most ${Math.floor((FRAME_MAX_CHARS * 3) / 4 / 1024)} KB, base64; it is checked and made small by the worker, and shows once that has run. One that already has its picture keeps it unless replace is true, and then made is false. Refuses any other attachment (a picture of an image, a PDF or a deck is made when it arrives). Changes neither the source's etag nor its activity: a picture says nothing of what the source holds.`,
-  input: z.strictObject({ ...frameInput, replace: z.boolean().default(false).describe("Replace the frame the video has.") }),
+    `WhatBuild draws no web page itself, so an HTML page has no picture in the list until it is given one: the web app sends it when someone uploads the page or stops on it, and an agent can send one it took. image_base64 is an image of at most ${Math.floor((FRAME_MAX_CHARS * 3) / 4 / 1024)} KB, base64; it is checked and made small by the worker, and shows once that has run. One that already has its picture keeps it unless replace is true, and then made is false. Refuses any other attachment: 422 not_a_page (a picture of an image, a PDF or a deck is made when it arrives), and 415 video_not_accepted for a video stored before WhatBuild stopped taking video, which keeps the picture it has. Changes neither the source's etag nor its activity: a picture says nothing of what the source holds.`,
+  input: z.strictObject({ ...frameInput, replace: z.boolean().default(false).describe("Replace the picture the page has.") }),
   rest: { method: "POST", path: "/sources/:record_id/frame" },
   mcp: { tool: "attachments", action: "set_frame" },
   async handler(ctx, input) {
@@ -493,8 +513,8 @@ export const setFrame = defineOperation({
 });
 
 /**
- * Whoever can read a source gives a video or a page the first picture it lacks, from their own
- * browser, because no server here draws them and most who look at evidence may only read it. It
+ * Whoever can read a source gives an HTML page the first picture it lacks, from their own browser,
+ * because no server here draws one and most who look at evidence may only read it. It
  * never replaces one, and an agent, which has `set_frame`, is not offered it: a viewer's agent has
  * no tool that writes.
  */
@@ -504,9 +524,9 @@ export const givePicture = defineOperation({
   access: "read",
   mutates: true,
   webOnly: "a person does it in the web app, by stopping on the attachment; an agent that may write sends a picture with attachments_write(action=\"set_frame\")",
-  summary: "Give a video or an HTML page that has no picture its first one, from a person's browser.",
+  summary: "Give an HTML page that has no picture its first one, from a person's browser.",
   description:
-    "What the web app sends when someone who can read a source uploads a video or a web page or stops on one. It takes what set_frame takes but replace: one that has its picture keeps it, and then made is false. Refused to a guest of the example organization, who changes nothing there.",
+    "What the web app sends when someone who can read a source uploads a web page or stops on one. It takes what set_frame takes but replace, and refuses what set_frame refuses: one that has its picture keeps it, and then made is false. Refused to a guest of the example organization, who changes nothing there.",
   input: z.strictObject(frameInput),
   rest: { method: "POST", path: "/sources/:record_id/first-picture" },
   mcp: { tool: "attachments", action: "give_picture" },
