@@ -71,7 +71,8 @@ from one person to the next, so the display state that is one person's (the prod
 their place in each Story and mockup, the Story's focus, the example organization's notice they have read, their
 recent searches in each product) is
 cleared when they sign out or the app finds their session ended; only the device's own choices
-(theme, hidden panels, the canvas's pan or interact mode) stay (`apps/web/src/lib/local-state.ts`).
+(theme, hidden panels, the canvas's pan or interact mode, the agent whose steps Connect an agent
+shows) stay (`apps/web/src/lib/local-state.ts`).
 The optional kind is
 analytics. A deployment with a Google Analytics measurement ID asks every person once, on the
 public site or in the app, with Accept and Decline of equal weight; `wb_cookies` sits on the parent

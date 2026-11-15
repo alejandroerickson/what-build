@@ -24,9 +24,14 @@ other plans will too.
    item in each list that has any: a source, a mockup, a Story page. *Expect:* each
    screen loads with content or a designed empty state, and no command prints a `!` problem.
    Settings opens over the screen it was opened on and closes back onto it (Esc, the close button,
-   or the scrim), leaving the address as it was. Connect an agent gives `/mcp` first, with **Limit this agent to one organization or product**
-   closed; opening it and choosing **One product** gives this product's address, and closing it
-   gives `/mcp` again.
+   or the scrim), leaving the address as it was. With no agent connected, Idea opens on **Connect
+   your agent**, above the product concept: "Not connected yet" at its right, a choice of Claude,
+   Claude Code or Another agent, and four numbered steps for the one chosen, the first with
+   `/mcp` (for Claude Code, the `claude mcp add` command for it) and Copy; the choice is still
+   made after a reload. The panel's seat says only "No agent connected", with Connect an agent.
+   Connect an agent in Settings gives the same choice and steps, `/mcp` first, with **Limit this
+   agent to one organization or product** closed; opening it and choosing **One product** gives
+   this product's address, and closing it gives `/mcp` again.
 3. **Web, as Sam, in the example organization.** Open the same product and repeat a short tour:
    Idea, Evidence, a source, Story. *Expect:* the same content as in step 2, and one line above
    each screen naming the example organization and saying that everyone who signs in sees what its
@@ -67,7 +72,9 @@ other plans will too.
 9. **MCP, as Sam.** List products, then list sources, mockups and Story pages
    (`story_read` `list_pages`) in the product from step 2, and read the first window of one source's
    text with `derived_read(action="text")`. *Expect:* the same items the web showed in step 2, with the
-   same titles and counts, and the same words the source's Text showed.
+   same titles and counts, and the same words the source's Text showed. Back in the web, Sam's Idea
+   no longer shows Connect your agent and the panel no longer shows the seat; wherever a list is
+   empty, the line over its request reads "In your agent, ask:".
 10. **Web and MCP, as a guest.** Sign in as `guest@example.com` on the web, then connect over MCP as
     the same address. *Expect:* the overview lists the example organization, marked Example
     organization and Read only, and, since the guest may not start one, its **Your own
