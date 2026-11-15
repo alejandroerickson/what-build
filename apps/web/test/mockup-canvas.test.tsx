@@ -117,6 +117,17 @@ function view() {
   return { x: Number(m[1]), y: Number(m[2]), z: Number(m[3]) };
 }
 
+/**
+ * A view to compare with `view()`, to the precision a style string keeps. Browsers write the numbers
+ * in a transform to six significant digits, so a view read back from the page and one worked out from
+ * an earlier read can differ in their last digit. Within 0.05px, and the scale within 0.00005, is far
+ * finer than any move of the board and coarser than that rounding while positions stay under 1000px,
+ * where six digits still keep three decimal places.
+ */
+function near(v: { x: number; y: number; z: number }) {
+  return { x: expect.closeTo(v.x, 1), y: expect.closeTo(v.y, 1), z: expect.closeTo(v.z, 4) };
+}
+
 const viewport = () => document.querySelector(".xc-viewport") as HTMLElement;
 const scroll = (deltaX: number, deltaY: number) => act(() => viewport().dispatchEvent(new WheelEvent("wheel", { deltaX, deltaY, bubbles: true, cancelable: true })));
 const handZoom = (deltaY: number) => act(() => viewport().dispatchEvent(new WheelEvent("wheel", { deltaY, ctrlKey: true, clientX: board.left + 100, clientY: board.top + 100, bubbles: true, cancelable: true })));
@@ -130,9 +141,9 @@ describe("a canvas placed by hand as the board around it changes", () => {
     scroll(40, 60);
     const placed = view();
     boardBecomes({ left: 0, top: 0, width: 1440, height: 900 });
-    expect(view()).toEqual({ x: placed.x + 304, y: placed.y + 100, z: placed.z });
+    expect(view()).toEqual(near({ x: placed.x + 304, y: placed.y + 100, z: placed.z }));
     boardBecomes({ left: 304, top: 100, width: 800, height: 600 });
-    expect(view()).toEqual(placed);
+    expect(view()).toEqual(near(placed));
   });
 
   it("holds them at each step of a panel sliding away", () => {
@@ -140,7 +151,7 @@ describe("a canvas placed by hand as the board around it changes", () => {
     scroll(0, 30);
     const placed = view();
     for (const left of [250, 120, 80]) boardBecomes({ left, width: 1104 - left });
-    expect(view()).toEqual({ ...placed, x: placed.x + 224 });
+    expect(view()).toEqual(near({ ...placed, x: placed.x + 224 }));
   });
 
   it("leaves the view alone when the board only grows or shrinks at its far side", () => {
@@ -148,7 +159,7 @@ describe("a canvas placed by hand as the board around it changes", () => {
     scroll(40, 60);
     const placed = view();
     boardBecomes({ width: 1000, height: 700 });
-    expect(view()).toEqual(placed);
+    expect(view()).toEqual(near(placed));
   });
 });
 
@@ -169,7 +180,7 @@ describe("a canvas nobody has moved as the board around it changes", () => {
     scroll(0, 10);
     const placed = view();
     boardBecomes({ left: 304, top: 100, width: 800, height: 600 });
-    expect(view()).toEqual({ ...placed, x: placed.x - 304, y: placed.y - 100 });
+    expect(view()).toEqual(near({ ...placed, x: placed.x - 304, y: placed.y - 100 }));
   });
 });
 
