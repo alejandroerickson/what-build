@@ -3,7 +3,7 @@ type: Index
 title: Decisions
 description: Architectural decision records, each with its context, the choice, and what it constrains.
 tags: [index, decisions, adr]
-generated: {by: agent:claude, at: 2026-11-13}
+generated: {by: agent:claude, at: 2026-11-15}
 status: stable
 ---
 
@@ -22,6 +22,7 @@ name what replaced it, and date the change. Smaller decisions are marked
 - [Open tabs hear of changes through a stream the server itself serves, which says only which part of a product changed](open-tabs-hear-of-changes-through-a-stream-the-server-itself-serves.md)
 - [Evidence is a list of what sources look like, with a preview beside it that is moved through by keys](evidence-is-a-list-of-what-sources-look-like-with-a-preview-beside-it.md)
 - [An attachment's picture is made by the worker in a process of its own and reached by a signed address that costs no call](attachments-pictures-are-made-by-the-worker-and-reached-by-signed-addresses.md)
+- [WhatBuild takes no video for now, and keeps the video it already holds as files to download](whatbuild-takes-no-video-for-now.md)
 - [A file past the relay goes straight to the bucket, from the web app too and on any plan](a-file-past-the-relay-goes-straight-to-the-bucket-from-the-web-app-too.md)
 - [Each file is parsed in a child process of its own, so a parse that ends in a fatal error ends only itself](each-file-is-parsed-in-a-process-of-its-own-so-a-parse-that-ends-in-a-fatal-error-ends-only-itself.md)
 - [Each file is parsed in a worker thread of its own, held to a memory and a time limit, so a file can fail but never take the server down](each-file-is-parsed-in-a-thread-of-its-own-with-memory-and-time-limits.md) (superseded)

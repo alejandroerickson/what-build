@@ -143,7 +143,7 @@ export const manifest = defineOperation({
       path: d.source_path,
       file_version_id: d.file_version_id,
       // A reading an earlier version made is said as this one would say it.
-      ...currentReading(d.status, d.status_detail),
+      ...currentReading(d.status, d.status_detail, { name: d.source_path }),
       parser: d.parser,
       parser_version: d.parser_version,
       text_chars: d.text_chars,
@@ -185,7 +185,7 @@ export const text = defineOperation({
         derivation_id: d.derivation_id,
         file_version_id: d.file_version_id,
         // A reading an earlier version made is said as this one would say it, as every other read says it.
-        ...currentReading(d.status, d.status_detail),
+        ...currentReading(d.status, d.status_detail, { name: d.source_path }),
         offset: input.offset,
         total_chars: total,
         truncated: input.offset + input.limit < total,
@@ -303,7 +303,7 @@ export const listDerivations = defineOperation({
       .limit(100)
       .execute();
     const current = new Set((await attachmentReadings(ctx.db, [r.record_id])).map((x) => x.derivation_id));
-    return { items: rows.map(({ source_path, ...x }) => ({ ...x, ...currentReading(x.status, x.status_detail), path: source_path, is_current: current.has(x.derivation_id) })) };
+    return { items: rows.map(({ source_path, ...x }) => ({ ...x, ...currentReading(x.status, x.status_detail, { name: source_path }), path: source_path, is_current: current.has(x.derivation_id) })) };
   },
 });
 

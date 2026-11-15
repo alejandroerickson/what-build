@@ -73,7 +73,7 @@ export async function attachmentReadings(db: Tx, recordIds: string[]) {
     order by f.record_id, f.added_at, f.path`.execute(db);
   return r.rows.map((x) => ({
     ...x,
-    ...(x.status ? currentReading(x.status, x.status_detail) : {}),
+    ...(x.status ? currentReading(x.status, x.status_detail, { name: x.path, mediaType: x.media_type }) : {}),
     size: x.size === null ? null : Number(x.size),
     duration_ms: x.duration_ms === null ? null : Number(x.duration_ms),
   }));

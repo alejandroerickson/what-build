@@ -339,7 +339,7 @@ describe("a frame refused for the minute's calls", () => {
         expect(html, route).toContain("Close this preview");
         expect(html, route).not.toContain("<script");
         expect(r.headers.get("content-security-policy"), route).toMatch(/^sandbox ?; default-src 'none';/);
-        // An image, a video or a download keeps the JSON, as an API caller's does.
+        // An image, a recording or a download keeps the JSON, as an API caller's does.
         const asImage = await ned.api("GET", `${P}/sources/${seeded}/${route}?path=notes.pdf`, undefined, { "sec-fetch-dest": "image" });
         expect(asImage.headers.get("content-type"), route).toMatch(/^application\/json/);
         // Its address says nothing here, since a link to an attachment can hold any query: only the browser's word counts.

@@ -88,7 +88,8 @@ const TYPES: Record<string, string> = {
   svg: "image/svg+xml", png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", gif: "image/gif", webp: "image/webp", avif: "image/avif",
   ico: "image/x-icon", bmp: "image/bmp",
   woff: "font/woff", woff2: "font/woff2", ttf: "font/ttf", otf: "font/otf",
-  mp4: "video/mp4", m4v: "video/mp4", webm: "video/webm", ogv: "video/ogg", ogg: "audio/ogg", oga: "audio/ogg", mp3: "audio/mpeg", wav: "audio/wav", m4a: "audio/mp4",
+  // No video: a prototype never takes one (mockups.ts), and one stored before keeps the type it was given.
+  ogg: "audio/ogg", oga: "audio/ogg", mp3: "audio/mpeg", wav: "audio/wav", m4a: "audio/mp4",
   vtt: "text/vtt", pdf: "application/pdf",
   // Text a browser would otherwise render as a document of its own (XML, XHTML, XSLT) is plain text.
   txt: "text/plain", csv: "text/plain", md: "text/plain", markdown: "text/plain", xml: "text/plain", xhtml: "text/plain", xht: "text/plain", xsl: "text/plain", xslt: "text/plain",

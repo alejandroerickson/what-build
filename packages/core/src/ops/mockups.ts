@@ -17,6 +17,7 @@ import {
   PROTOTYPE_PATH_MAX, PROTOTYPE_POSTER_MAX_BYTES, PROTOTYPE_PRODUCT_MAX_BYTES, prototypeAddress, prototypeMediaType, prototypePath, prototypeWarnings, splitEntry,
 } from "../prototype.ts";
 import { linkTemplates } from "../story-guidance.ts";
+import { isVideoFile } from "../video.ts";
 import { newEtag, newId, sha256Hex } from "../util.ts";
 import { inArrangedOrder, loadMockupFolder, mockupFolderOps, mockupFolders, topOfFolder } from "./mockup-folders.ts";
 import { storyPagesShowing } from "./story.ts";
@@ -58,7 +59,7 @@ const SAFE_CHECK_TEXT =
   "Every problem is listed at once (422), each naming the page, the rule and the element. A refused publish changes nothing and leaves an upload unused, so publishing is a safe way to check a canvas.";
 /** What a prototype is, what it may do, and what publish says about it. */
 const PROTOTYPE_TEXT =
-  `A version may also carry a prototype: a team's multi-file prototype as it is (HTML documents that link to one another, scripts, styles, fonts, images, media, fixtures), uploaded under prototype/ in the canvas ZIP and never sent in a call; at most ${fmt(PROTOTYPE_MAX_FILES)} files and ${PROTOTYPE_MAX_BYTES / MIB} MB, ${PROTOTYPE_FILE_MAX_BYTES / MIB} MB a file, and ${PROTOTYPE_PRODUCT_MAX_BYTES / MIB} MB of distinct prototype bytes in a product. Its files are any bytes, given back byte for byte, and are not held to a page's HTML rules: they are served in the sandbox under a short-lived address of their own, and load only one another, by relative address, with no network. A page with entry instead of html enters it: the path of one of its HTML documents, with a ?query and #fragment if wanted; several pages may enter one prototype, and its links move between its documents inside the page's frame. ` +
+  `A version may also carry a prototype: a team's multi-file prototype as it is (HTML documents that link to one another, scripts, styles, fonts, images, audio, fixtures), uploaded under prototype/ in the canvas ZIP and never sent in a call; never a video, which WhatBuild does not keep (415 video_not_accepted lists every video and every other problem); at most ${fmt(PROTOTYPE_MAX_FILES)} files and ${PROTOTYPE_MAX_BYTES / MIB} MB, ${PROTOTYPE_FILE_MAX_BYTES / MIB} MB a file, and ${PROTOTYPE_PRODUCT_MAX_BYTES / MIB} MB of distinct prototype bytes in a product. Its files are any bytes, given back byte for byte, and are not held to a page's HTML rules: they are served in the sandbox under a short-lived address of their own, and load only one another, by relative address, with no network. A page with entry instead of html enters it: the path of one of its HTML documents, with a ?query and #fragment if wanted; several pages may enter one prototype, and its links move between its documents inside the page's frame. ` +
   `A prototype is stateless: localStorage, sessionStorage, IndexedDB and document.cookie are unavailable in WhatBuild's sandbox and throw, so each document load starts fresh; keep state in script variables while a document is open, or in the address (query or hash) across its documents. Forms run their submit handlers and submit nowhere. A root-relative address (/assets/app.js) points outside the prototype and does not load: build with a relative base (./). ` +
   "Publish answers with prototype_warnings, naming each file: root-relative and remote addresses, addresses the prototype does not hold, and scripts that use browser storage or cookies. A warning never refuses.";
 /** How a canvas's pages link to each other, and what that gives people. */
@@ -432,6 +433,8 @@ export function readCanvasZip(uploadId: string, bytes: Uint8Array): CanvasUpload
   const proto: { path: string; data: Uint8Array }[] = [];
   const protoKeys = new Map<string, string>();
   let protoBytes = 0;
+  // WhatBuild keeps no video, in a prototype as anywhere else.
+  const videos: string[] = [];
   for (const name of names) {
     const rel = name.slice(prefix.length);
     if (rel.startsWith("prototype/")) {
@@ -441,6 +444,7 @@ export function readCanvasZip(uploadId: string, bytes: Uint8Array): CanvasUpload
         continue;
       }
       const data = entries[name]!;
+      if (isVideoFile(checked.path)) videos.push(rel);
       if (data.length > PROTOTYPE_FILE_MAX_BYTES) problems.push(`${rel} is ${fmt(data.length)} bytes; a prototype file is at most ${fmt(PROTOTYPE_FILE_MAX_BYTES)}.`);
       const key = checked.path.toLowerCase();
       const clash = protoKeys.get(key);
@@ -519,6 +523,10 @@ export function readCanvasZip(uploadId: string, bytes: Uint8Array): CanvasUpload
   });
   const brief = text.get("brief.md");
   if (brief !== undefined && brief.length > BRIEF_MAX) problems.push(`brief.md holds ${fmt(brief.length)} characters; a brief holds at most ${fmt(BRIEF_MAX)}.`);
+  if (videos.length) {
+    const all = [...videos.map((v) => `${v} is a video, and WhatBuild does not keep video: leave it out, and link to where the video lives instead.`), ...problems];
+    throw new AppError(415, "video_not_accepted", `Nothing was published: ${all.join(" ")}`, { problems: all });
+  }
   if (problems.length) throw invalid("invalid_upload", `Nothing was published: ${problems.join(" ")}`, { problems });
   const files = listedFiles ? manifest.files!.map((f) => ({ path: f.path, ...(text.has(`files/${f.path}`) ? { content: text.get(`files/${f.path}`)! } : {}) })) : carried.length ? carried.sort((a, b) => (a.path < b.path ? -1 : 1)) : undefined;
   return {

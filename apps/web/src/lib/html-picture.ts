@@ -1,4 +1,4 @@
-import { canvasAsBase64 } from "./video-frame.ts";
+import { api } from "./api.ts";
 
 /** A picture is drawn of a page this wide and tall, as a window would show its top. */
 const PAGE_WIDTH = 1280;
@@ -77,4 +77,22 @@ function isBlank(canvas: HTMLCanvasElement): boolean {
     squares += v * v;
   }
   return Math.sqrt(Math.max(0, squares / count - (sum / count) ** 2)) < BLANK_BELOW;
+}
+
+/** What a canvas holds, as a JPEG in base64. */
+async function canvasAsBase64(canvas: HTMLCanvasElement): Promise<string | null> {
+  const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.8));
+  if (!blob) return null;
+  const bytes = new Uint8Array(await blob.arrayBuffer());
+  let binary = "";
+  for (const b of bytes) binary += String.fromCharCode(b);
+  return btoa(binary);
+}
+
+/**
+ * Gives an HTML page its first picture. Nothing depends on it: a page with none shows the next thing
+ * it has, so a failure here says nothing to anyone.
+ */
+export async function sendPicture(base: string, recordId: string, path: string, picture: string): Promise<void> {
+  await api("POST", `${base}/sources/${recordId}/first-picture`, { path, image_base64: picture }).catch(() => undefined);
 }

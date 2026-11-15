@@ -2,13 +2,12 @@ import { useQuery } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import { api, qs } from "../lib/api.ts";
 import { attribution, clockLength, fileTypeName, formatBytes, formatDate } from "../lib/format.ts";
-import { pictureOfHtml } from "../lib/html-picture.ts";
+import { pictureOfHtml, sendPicture } from "../lib/html-picture.ts";
 import { Markdown } from "../lib/markdown.tsx";
 import { useProduct } from "../lib/session.tsx";
 import type { ListedAttachment, ListedSource } from "../lib/types.ts";
-import { frameOf, sendFrame } from "../lib/video-frame.ts";
 import { Button, ButtonLink, ErrorCallout, Glyph, IconButton, Loading, Tag } from "../ui/index.tsx";
-import { attachmentUrl, attachmentViewUrl, AttachmentPreview, previewKind, RecordingPlayer } from "./source-attachments.tsx";
+import { attachmentUrl, attachmentViewUrl, AttachmentPreview, isStoredVideo, previewKind, RecordingPlayer } from "./source-attachments.tsx";
 import { SourceCardFace, SourceCardStage, useSourceCardUrl } from "./source-card.tsx";
 import { AttachmentFace, attachmentGlyph, DeckCard, extensionLabel } from "./source-face.tsx";
 
@@ -158,14 +157,14 @@ function AttachmentPage({ s, a, settled, canGivePicture }: { s: ListedSource; a:
   const kind = pic?.made_from === "image" ? "image" : previewKind(a);
   const url = attachmentUrl(base, s.record_id, a.path);
 
-  // Whoever stops on an HTML page gives it its picture, as they do a video when it plays, and everyone in the product then sees it.
+  // Whoever stops on an HTML page gives it its picture, and everyone in the product then sees it.
   useEffect(() => {
     if (kind !== "html" || !settled || !canGivePicture || pic?.thumb_url || (a.size ?? 0) > HTML_DRAWN_MAX_BYTES || triedToDraw.has(a.file_version_id)) return;
     triedToDraw.add(a.file_version_id);
     void fetch(url)
       .then((r) => (r.ok ? r.text() : null))
       .then((html) => (html ? pictureOfHtml(html) : null))
-      .then((picture) => (picture ? sendFrame(base, s.record_id, a.path, picture) : undefined))
+      .then((picture) => (picture ? sendPicture(base, s.record_id, a.path, picture) : undefined))
       .catch(() => undefined);
   }, [kind, settled, canGivePicture, pic?.thumb_url, a.size, a.file_version_id, a.path, url, base, s.record_id]);
   const readable = a.text.status === "ready";
@@ -225,22 +224,19 @@ function AttachmentPage({ s, a, settled, canGivePicture }: { s: ListedSource; a:
         <p className="preview-note">Shown without its scripts, and without anything it loads from elsewhere.</p>
       </>
     );
-  } else if (kind === "audio" || kind === "video") {
-    body = (
-      <RecordingPlayer
-        key={a.file_version_id}
-        kind={kind}
-        url={url}
-        downloadUrl={attachmentUrl(base, s.record_id, a.path, true)}
-        poster={pic?.preview_url ?? null}
-        onPlaying={
-          kind === "video" && canGivePicture && !pic?.thumb_url
-            ? (video) => {
-                void frameOf(video).then((frame) => (frame ? sendFrame(base, s.record_id, a.path, frame) : undefined));
-              }
-            : undefined
-        }
-      />
+  } else if (kind === "audio") {
+    body = <RecordingPlayer key={a.file_version_id} url={url} downloadUrl={attachmentUrl(base, s.record_id, a.path, true)} />;
+  } else if (isStoredVideo(a)) {
+    // A video stored before WhatBuild stopped taking video keeps the picture it has, and is never played.
+    body = pic?.preview_url ? (
+      <>
+        <div className="preview-stage">
+          <img src={pic.preview_url} alt={`A frame of ${a.path}`} decoding="async" />
+        </div>
+        <p className="preview-note">WhatBuild no longer plays video. Download it to watch it.</p>
+      </>
+    ) : (
+      <NoPreview recordId={s.record_id} a={a}>WhatBuild no longer plays video. Download it to watch it, and add its transcript to this source so its words are read.</NoPreview>
     );
   } else if (isDeck) {
     body = (

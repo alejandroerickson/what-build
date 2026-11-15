@@ -300,24 +300,30 @@ export async function htmlView(c: Context, env: Env, v: FileVersion, site: strin
 }
 
 /**
- * The most one answer to a range request for a recording holds. A media player asks for everything
- * from where it is to the end of the file, reads what it needs and hangs up, and asks again when it
- * seeks. Answering in pieces, as a range request may be answered, means an answer holds a connection
- * only briefly and a person's day is counted about what they watched, never the whole file again for
- * each seek. Players ask for the next piece by themselves.
+ * The most one answer to a range request for a recording (audio) holds. A media player asks for
+ * everything from where it is to the end of the file, reads what it needs and hangs up, and asks
+ * again when it seeks. Answering in pieces, as a range request may be answered, means an answer
+ * holds a connection only briefly and a person's day is counted about what they listened to, never
+ * the whole file again for each seek. Players ask for the next piece by themselves.
  */
 export const RECORDING_PIECE_BYTES = 8 * 1024 * 1024;
+
+/**
+ * A video stored before WhatBuild stopped taking video. Nothing plays it: every request for it is
+ * answered with the whole file, as a download, and no range is answered.
+ */
+const storedVideo = (v: { media_type: string }) => /^video\//i.test(v.media_type);
 
 /** Where a range request's answer ends: within the file, and within a piece for a recording. */
 function rangeEnd(start: number, asked: string | undefined, v: { size: number; media_type: string }): number {
   const end = asked ? Math.min(Number(asked), v.size - 1) : v.size - 1;
-  return /^(audio|video)\//.test(v.media_type) ? Math.min(end, start + RECORDING_PIECE_BYTES - 1) : end;
+  return /^audio\//i.test(v.media_type) ? Math.min(end, start + RECORDING_PIECE_BYTES - 1) : end;
 }
 
 /** How many of a file's bytes a request's answer holds: the range it names, up to a piece of a recording, or the whole file. */
 export function bytesAsked(c: Context, v: { size: number; media_type: string }): number {
   const m = /^bytes=(\d+)-(\d*)$/.exec(c.req.header("range") ?? "");
-  if (!m) return v.size;
+  if (!m || storedVideo(v)) return v.size;
   const start = Number(m[1]);
   const end = rangeEnd(start, m[2], v);
   return start >= v.size || start > end ? 0 : end - start + 1;
@@ -336,13 +342,15 @@ function lengthHeader(bytes: number): Record<string, string> {
 /**
  * An attachment's bytes, in ranges when asked (as media players and PDF viewers ask). Uploaded HTML
  * and SVG are only ever an attachment to save; a PDF to show inline is the one document among them.
+ * A stored video is only ever the whole file, to save.
  */
 export async function streamFile(c: Context, env: Env, v: FileVersion, path: string, download: boolean, site: string | null = null) {
   const name = path.split("/").pop() ?? "file";
   const ascii = name.replace(/[^\x20-\x7e]|["\\]/g, "_");
   // Uploaded HTML and SVG are never served renderable, from the app's origin or the content site.
   const risky = /^(text\/html|application\/xhtml|image\/svg)/.test(v.media_type);
-  const disposition = download || risky ? "attachment" : "inline";
+  const video = storedVideo(v);
+  const disposition = download || risky || video ? "attachment" : "inline";
   const headers: Record<string, string> = {
     "Content-Type": risky ? "application/octet-stream" : v.media_type,
     "Content-Disposition": `${disposition}; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(name)}`,
@@ -350,13 +358,13 @@ export async function streamFile(c: Context, env: Env, v: FileVersion, path: str
     // Browsers will not render a PDF inside a sandboxed document, and their PDF viewers run no page script.
     "Content-Security-Policy": `${isPdf(v.media_type) ? "default-src 'none'; object-src 'self'" : "sandbox; default-src 'none'; img-src 'self' data:; media-src 'self'; style-src 'unsafe-inline'"}; base-uri 'none'; form-action 'none'; frame-ancestors ${ancestorOf(site)}`,
     ETag: `"${v.sha256}"`,
-    "Accept-Ranges": "bytes",
+    "Accept-Ranges": video ? "none" : "bytes",
     // People's material: no cache keeps it, the browser's included.
     ...served({ "Cache-Control": "private, no-store" }, site),
     ...(site ? { "Referrer-Policy": "no-referrer" } : {}),
   };
   const range = c.req.header("range");
-  const m = range ? /^bytes=(\d+)-(\d*)$/.exec(range) : null;
+  const m = range && !video ? /^bytes=(\d+)-(\d*)$/.exec(range) : null;
   if (m) {
     const start = Number(m[1]);
     const end = rangeEnd(start, m[2], v);

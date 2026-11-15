@@ -40,6 +40,16 @@ The ways in:
 
 The web app uploads files too, for an agent that cannot reach the upload URL.
 
+**No video.** WhatBuild does not keep video: video is large, and storing and serving it waits for a
+later release. Every way in refuses a file whose extension is a video's (`.mp4`, `.mov`, `.webm`,
+`.mkv`, `.m4v` and the like) or whose media type is `video/*`, with `415 video_not_accepted`, before
+a source is made or a byte moves: `request_upload`, `create_upload`, `create_uploads` (which then
+creates none), `fetch_url` (before it fetches, when the URL or path names a video) and a mockup's
+prototype. Add the video's transcript as an attachment instead (a `.vtt`, `.srt` or text file), or
+a link to where the video lives in the source's summary or its text. A recording (audio) is taken as
+before. A video stored before this is kept: it is listed with any picture it has and downloads as a
+file, whole, but nothing plays it, and its status is `unsupported`.
+
 Uploading to a path the source already has adds a new version of that attachment and keeps the
 earlier ones. An attachment cannot be removed or renamed.
 `attachments_read(action="get_download")` gives a short-lived grant to download an attachment.
@@ -61,17 +71,17 @@ text, the summary or the notes, and `sources_read(action="get")` names such an a
 `sources_read(action="get")` shows `derived_status`: `ready`, or why there is no text
 (`needs_transcript`, `unsupported`, `too_large`, `failed`).
 
-- A recording is stored and playable but never transcribed: it has no text until its transcript is
-  added as another attachment.
+- A recording (audio) is stored and playable but never transcribed: it has no text until its
+  transcript is added as another attachment.
 - An image, or a PDF whose pages are pictures (a scan), is kept and shown, but no words are read from
   it: its status is `unsupported`, and reading it again changes nothing. Its words can be written as
   the derived text with `write_text`.
 - Over 25 MB an attachment is stored but not read.
 - People see each source in their list by its picture: the worker makes one from an image, a PDF's
   first page or a deck's own preview, and a source with none shows a small page of its text, or an
-  icon. WhatBuild neither plays videos nor draws web pages, so a video or an HTML page goes without
-  until it is given a picture: a person who plays or opens it sends one, and
-  `attachments_write(action="set_frame")` takes one an agent has.
+  icon. WhatBuild draws no web page, so an HTML page goes without until it is given a picture: a
+  person who opens it sends one, and `attachments_write(action="set_frame")` takes one an agent has.
+  A video stored before WhatBuild stopped taking video keeps the picture it has, and is given no other.
 - A PowerPoint deck (.pptx) reads as its slides' words and speaker notes, never its pictures. No parser reads .ppt or .key; such a deck reads as its PDF export.
 
 ## The derived text

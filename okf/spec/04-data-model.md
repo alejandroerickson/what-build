@@ -3,7 +3,7 @@ type: Specification
 title: Every object in a product, with its fields, limits and invariants, as the REST and MCP wire sees it.
 description: The common envelope (ids, etags, attribution, revisions), outcomes, sources and their tags, attachments, comments, summaries and notes, evidence links, the retired insights, decisions and assumptions, views, activity, Story, mockups, feedback, the product bundle, and the storage layout.
 tags: [spec, data-model, schema, revisions, story, mockups, export]
-generated: {by: agent:claude, at: 2026-11-13}
+generated: {by: agent:claude, at: 2026-11-15}
 status: stable
 ---
 
@@ -276,7 +276,9 @@ each attachment as:
   goes in the source's notes. A call to an `attachments` action that sends `role`,
   `derived_from`, `derivation_note` or `derived_by` is refused with `422 invalid_input` and a hint
   that attachments have none.
-- A recording is stored and playable, never transcribed: its transcript is another attachment.
+- A recording (audio) is stored and playable, never transcribed: its transcript is another
+  attachment. A video is never added ([decision](../decisions/whatbuild-takes-no-video-for-now.md));
+  one stored before is listed, keeps the picture it has and downloads as a file, never played.
   An image, and a PDF whose pages are pictures, is stored and shown, and no words are read from
   it: an agent that can see it writes them as the source's derived text.
 
@@ -878,9 +880,13 @@ names one of its HTML documents (`index.html`, `app/checkout.html?plan=pro#step-
   `\ : * ? " < > | #` or a control character, no part ending in a space or a dot; two paths equal
   once case is set aside are refused), `size`, `sha256` of the bytes, `media_type` and `blob_key`.
   The type comes from the name, once, from an allowlist (HTML, CSS, JavaScript, JSON and source
-  maps, a web manifest, SVG, PNG, JPEG, GIF, WebP, AVIF, ICO, BMP, WOFF, WOFF2, TTF, OTF, MP4, WebM,
-  Ogg, MP3, WAV, M4A, WebVTT, PDF; text, CSV, Markdown, XML, XHTML and XSLT as `text/plain`), with
+  maps, a web manifest, SVG, PNG, JPEG, GIF, WebP, AVIF, ICO, BMP, WOFF, WOFF2, TTF, OTF, Ogg, MP3,
+  WAV, M4A, WebVTT, PDF; text, CSV, Markdown, XML, XHTML and XSLT as `text/plain`), with
   `charset=utf-8` only on text that is valid UTF-8; anything else is `application/octet-stream`.
+  A prototype holds no video: a ZIP with a file a video's extension names is refused with
+  `415 video_not_accepted`, listing every video and every other problem
+  ([decision](../decisions/whatbuild-takes-no-video-for-now.md)); a video a version stored before
+  keeps the type it was given, and carries forward with the rest of the base's prototype.
   Limits: 2,000 files and 64 MB in a prototype, 25 MB a file (`422 invalid_upload`); 500 MB of
   distinct prototype bytes in a product, a blob two versions share counted once
   (`409 quota_exceeded`, quota `prototype_bytes`).

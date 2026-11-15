@@ -126,8 +126,7 @@ hr {
 }
 
 img,
-svg,
-video {
+svg {
   max-width: 100%;
 }
 

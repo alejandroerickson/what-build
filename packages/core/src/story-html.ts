@@ -20,7 +20,7 @@ export function inspectStoryCss(css: string): string[] {
 
 /**
  * The browser features no WhatBuild page uses, turned off for the page and every frame in it. The
- * app's own, full screen for images and video and writing to the clipboard, keep their defaults.
+ * app's own, full screen for images and writing to the clipboard, keep their defaults.
  */
 export const PERMISSIONS_POLICY = [
   "accelerometer", "browsing-topics", "camera", "display-capture", "geolocation", "gyroscope", "hid", "idle-detection", "magnetometer",

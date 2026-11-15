@@ -10,8 +10,10 @@ import { PICTURE_LIMITS, processPictureMaker } from "../src/picture-process.ts";
 import { startHarness, type Browser, type Harness } from "./harness.ts";
 
 // An attachment's picture: made by the worker from an image, a PDF's first page or a deck, listed
-// by sources.list, served by an address that costs no call, and gone with its source. A video's is a
-// frame someone sends. A recording is served in pieces, each counted as what it holds.
+// by sources.list, served by an address that costs no call, and gone with its source. An HTML page's
+// is a picture someone sends. A video stored before WhatBuild stopped taking video keeps the picture
+// it has, gets no other, and is only ever downloaded whole. A recording is served in pieces, each
+// counted as what it holds.
 
 let h: Harness;
 let alice: Browser;
@@ -207,7 +209,7 @@ describe("an attachment's picture", () => {
     const r = await listed(id);
     const url = r.attachments[0]!.picture!.thumb_url as string;
     expect((await fetch(`${h.baseUrl}${url}`)).status).toBe(200);
-    const got = await alice.api("GET", `${P}/sources/${id}`);
+    const got = await alice.api("GET", `${P}/sources/${id}?detail=full`);
     const del = await alice.api("DELETE", `${P}/sources/${id}`, { confirm: "delete permanently", reason: "A test of what goes", expected_etag: got.body.etag });
     expect(del.status, JSON.stringify(del.body)).toBe(200);
     await h.worker.drain();
@@ -274,8 +276,9 @@ trailer << /Root 1 0 R >>
   });
 });
 
-describe("a video's frame", () => {
+describe("an HTML page's picture", () => {
   const frame = async () => (await sharp({ create: { width: 640, height: 360, channels: 3, background: "#884400" } }).jpeg().toBuffer()).toString("base64");
+  const page = () => new TextEncoder().encode("<h1>Crew report</h1><p>Crews plan on Friday.</p>");
 
   it("comes first from whoever can read the source, in the web app; only someone who can write replaces it", async () => {
     const vera = await h.signIn("vera@example.com", "Vera Viewer");
@@ -285,8 +288,8 @@ describe("a video's frame", () => {
       const invited = await alice.api("POST", `/api/v1/tenants/${TENANT}/members`, { product, email, role });
       expect(invited.status, JSON.stringify(invited.body)).toBeLessThan(300);
     }
-    const id = await attach("walked.mp4", new Uint8Array(4096), "video/mp4");
-    const path = "walked.mp4";
+    const id = await attach("walked.html", page(), "text/html");
+    const path = "walked.html";
     const give = (who: Browser, extra = {}) => frame().then((image_base64) => who.api("POST", `${P}/sources/${id}/first-picture`, { path, image_base64, ...extra }));
 
     expect((await give(rae)).status).toBe(403);
@@ -317,13 +320,13 @@ describe("a video's frame", () => {
       const t = await owner.api("POST", "/api/v1/tenants", { name: "Example Co" });
       const p = await owner.api("POST", `/api/v1/tenants/${t.body.tenant.slug}/products`, { name: "Sample" });
       const base = `/api/v1/p/${p.body.path}`;
-      const made = await owner.api("POST", `${base}/sources/with-upload`, { title: "A walk-round", path: "round.mp4", media_type: "video/mp4" });
+      const made = await owner.api("POST", `${base}/sources/with-upload`, { title: "A walk-round", path: "round.html", media_type: "text/html" });
       const upload = made.body.upload as { url: string; headers: Record<string, string> };
-      expect((await fetch(upload.url, { method: "PUT", headers: upload.headers, body: new Uint8Array(4096) })).status).toBe(201);
+      expect((await fetch(upload.url, { method: "PUT", headers: upload.headers, body: page() })).status).toBe(201);
       await example.worker.drain();
       await syncExampleTenant(example.db, t.body.tenant.slug, () => {});
       const guest = await example.signIn("gale@guest.example", "Gale Guest");
-      const refused = await guest.api("POST", `${base}/sources/${made.body.record.record_id}/first-picture`, { path: "round.mp4", image_base64: await frame() });
+      const refused = await guest.api("POST", `${base}/sources/${made.body.record.record_id}/first-picture`, { path: "round.html", image_base64: await frame() });
       expect(refused.status, JSON.stringify(refused.body)).toBe(403);
     } finally {
       await example.close();
@@ -331,9 +334,9 @@ describe("a video's frame", () => {
   });
 
   it("comes from whoever can write, is made small by the worker, and is kept unless replaced", async () => {
-    const id = await attach("walkround.mp4", new Uint8Array(4096), "video/mp4");
+    const id = await attach("report.html", page(), "text/html");
     expect((await listed(id)).attachments[0]!.picture).toBeNull();
-    const sent = await alice.api("POST", `${P}/sources/${id}/frame`, { path: "walkround.mp4", image_base64: await frame() });
+    const sent = await alice.api("POST", `${P}/sources/${id}/frame`, { path: "report.html", image_base64: await frame() });
     expect(sent.status, JSON.stringify(sent.body)).toBe(200);
     expect(sent.body.made).toBe(true);
     await h.worker.drain();
@@ -342,9 +345,9 @@ describe("a video's frame", () => {
     expect(pic.width).toBe(640);
     expect((await fetch(`${h.baseUrl}${pic.thumb_url as string}`)).status).toBe(200);
 
-    const again = await alice.api("POST", `${P}/sources/${id}/frame`, { path: "walkround.mp4", image_base64: await frame() });
+    const again = await alice.api("POST", `${P}/sources/${id}/frame`, { path: "report.html", image_base64: await frame() });
     expect(again.body.made).toBe(false);
-    const replaced = await alice.api("POST", `${P}/sources/${id}/frame`, { path: "walkround.mp4", image_base64: await frame(), replace: true });
+    const replaced = await alice.api("POST", `${P}/sources/${id}/frame`, { path: "report.html", image_base64: await frame(), replace: true });
     expect(replaced.body.made).toBe(true);
     await h.worker.drain();
     const next = (await listed(id)).attachments[0]!.picture!;
@@ -354,32 +357,95 @@ describe("a video's frame", () => {
     expect((await fetch(`${h.baseUrl}${pic.thumb_url as string}`)).status).toBe(404);
   });
 
-  it("keeps the frame it has when the next one cannot be read", async () => {
-    const id = await attach("kept.mp4", new Uint8Array(4096), "video/mp4");
-    await alice.api("POST", `${P}/sources/${id}/frame`, { path: "kept.mp4", image_base64: await frame() });
+  it("keeps the picture it has when the next one cannot be read", async () => {
+    const id = await attach("kept.html", page(), "text/html");
+    await alice.api("POST", `${P}/sources/${id}/frame`, { path: "kept.html", image_base64: await frame() });
     await h.worker.drain();
     const pic = (await listed(id)).attachments[0]!.picture!;
-    await alice.api("POST", `${P}/sources/${id}/frame`, { path: "kept.mp4", image_base64: Buffer.from("not a picture").toString("base64"), replace: true });
+    await alice.api("POST", `${P}/sources/${id}/frame`, { path: "kept.html", image_base64: Buffer.from("not a picture").toString("base64"), replace: true });
     await h.worker.drain();
     expect((await listed(id)).attachments[0]!.picture!.thumb_url).toBe(pic.thumb_url);
   });
 
-  it("is taken for an HTML page too, which the worker never draws itself", async () => {
-    const id = await attach("report.html", new TextEncoder().encode("<h1>Crew report</h1><p>Crews plan on Friday.</p>"), "text/html");
-    expect((await listed(id)).attachments[0]!.picture).toBeNull();
-    const sent = await alice.api("POST", `${P}/sources/${id}/frame`, { path: "report.html", image_base64: await frame() });
-    expect(sent.body.made).toBe(true);
-    await h.worker.drain();
-    expect((await listed(id)).attachments[0]!.picture!.thumb_url).toBeTruthy();
-  });
-
-  it("refuses what is not a video or a page, and anyone who cannot write", async () => {
+  it("refuses what is not a page, and anyone who cannot write", async () => {
     const id = await attach("still.jpg", await photo(300, 200));
-    const notVideo = await alice.api("POST", `${P}/sources/${id}/frame`, { path: "still.jpg", image_base64: await frame() });
-    expect(notVideo.status).toBe(422);
-    expect(notVideo.body.error.code).toBe("not_a_video");
+    const notPage = await alice.api("POST", `${P}/sources/${id}/frame`, { path: "still.jpg", image_base64: await frame() });
+    expect(notPage.status).toBe(422);
+    expect(notPage.body.error.code).toBe("not_a_page");
     const stranger = await bob.api("POST", `${P}/sources/${id}/frame`, { path: "still.jpg", image_base64: await frame() });
     expect(stranger.status).toBe(404);
+  });
+});
+
+/**
+ * A video as one stored before WhatBuild stopped taking video is: uploaded under another name, then
+ * renamed in the database, since nothing that takes files takes a video now.
+ */
+async function storedVideo(path: string, bytes: Uint8Array) {
+  const id = await attach(`${path}.bin`, bytes, "application/octet-stream");
+  const versionId = await h.db.transaction().execute(async (trx) => {
+    await sql`select set_config('app.tenant_id', ${TENANT_ID}, true)`.execute(trx);
+    const file = await trx.selectFrom("files").select(["file_id", "current_version_id"]).where("record_id", "=", id).executeTakeFirstOrThrow();
+    await trx.updateTable("files").set({ path }).where("file_id", "=", file.file_id).execute();
+    await trx.updateTable("file_versions").set({ media_type: "video/mp4" }).where("file_version_id", "=", file.current_version_id!).execute();
+    const read = await trx
+      .updateTable("derivations")
+      .set({ source_path: path, status: "needs_transcript", status_detail: "a recording is stored and playable but has no text; add its transcript as another attachment", parser: "none", parser_version: "0" })
+      .where("file_version_id", "=", file.current_version_id!)
+      .executeTakeFirst();
+    expect(Number(read.numUpdatedRows)).toBe(1);
+    return file.current_version_id!;
+  });
+  return { id, versionId };
+}
+
+describe("a video stored before WhatBuild stopped taking video", () => {
+  const MiB = 1024 * 1024;
+  const frame = async () => (await sharp({ create: { width: 640, height: 360, channels: 3, background: "#884400" } }).jpeg().toBuffer()).toString("base64");
+
+  it("is listed with the picture it has, and is read as a video now, not a recording", async () => {
+    const { id, versionId } = await storedVideo("walkround.mp4", new Uint8Array(4096));
+    // Its picture, a frame someone sent when that was how a video got one.
+    const key = `t/${TENANT_ID}/r/${id}/p/stored/frame`;
+    await h.blobs.put(key, new Uint8Array(Buffer.from(await frame(), "base64")), { contentType: "application/octet-stream" });
+    await sql`insert into jobs (tenant_id, kind, payload) values (${TENANT_ID}, 'make_picture', ${JSON.stringify({ record_id: id, file_version_id: versionId, frame_key: key })}::jsonb)`.execute(h.db);
+    await h.worker.drain();
+    const row = (await listed(id)).attachments[0]! as { path: string; picture: Record<string, unknown> | null; text: { status: string; status_detail?: string } };
+    expect(row.path).toBe("walkround.mp4");
+    expect(row.picture!.made_from).toBe("frame");
+    expect((await fetch(`${h.baseUrl}${row.picture!.thumb_url as string}`)).status).toBe(200);
+    const got = await alice.api("GET", `${P}/sources/${id}?detail=full`);
+    expect(got.body.attachments[0].text).toMatchObject({ status: "unsupported", status_detail: expect.stringMatching(/^WhatBuild no longer takes video/) });
+  });
+
+  it("is given no other picture, by anyone", async () => {
+    const { id } = await storedVideo("kept.mp4", new Uint8Array(4096));
+    for (const route of ["frame", "first-picture"]) {
+      const refused = await alice.api("POST", `${P}/sources/${id}/${route}`, { path: "kept.mp4", image_base64: await frame() });
+      expect(refused.status, JSON.stringify(refused.body)).toBe(415);
+      expect(refused.body.error).toMatchObject({ code: "video_not_accepted", message: expect.stringMatching(/keeps the picture it has/) });
+    }
+  });
+
+  it("is answered whole, as a download, whatever range is asked for, and counted so", async () => {
+    const size = 12 * MiB;
+    const { id } = await storedVideo("long.mp4", new Uint8Array(size));
+    const url = `${h.baseUrl}${P}/sources/${id}/attachment?path=long.mp4`;
+    const before = await sentToday();
+    const r = await fetch(url, { headers: { cookie: alice.cookie, range: "bytes=0-" } });
+    expect(r.status).toBe(200);
+    expect(r.headers.get("content-range")).toBeNull();
+    expect(r.headers.get("accept-ranges")).toBe("none");
+    expect(r.headers.get("content-disposition")).toMatch(/^attachment; filename="long\.mp4"/);
+    expect(r.headers.get("content-length")).toBe(String(size));
+    await r.body!.cancel();
+    expect((await sentToday()) - before).toBe(size);
+    // An agent's download grant gets the same whole file.
+    const grant = await alice.api("POST", `${P}/sources/${id}/downloads`, { path: "long.mp4" });
+    const download = await fetch(grant.body.url, { headers: { ...grant.body.headers, range: "bytes=0-9" } });
+    expect(download.status).toBe(200);
+    expect(download.headers.get("content-length")).toBe(String(size));
+    await download.body!.cancel();
   });
 });
 
@@ -388,13 +454,14 @@ describe("a recording's bytes", () => {
 
   it("answers in pieces of at most 8 MiB, and counts what each piece holds", async () => {
     const size = 20 * MiB;
-    const id = await attach("long.mp4", new Uint8Array(size), "video/mp4");
-    const url = `${h.baseUrl}${P}/sources/${id}/attachment?path=long.mp4`;
+    const id = await attach("long.mp3", new Uint8Array(size), "audio/mpeg");
+    const url = `${h.baseUrl}${P}/sources/${id}/attachment?path=long.mp3`;
     const before = await sentToday();
     const first = await fetch(url, { headers: { cookie: alice.cookie, range: "bytes=0-" } });
     expect(first.status).toBe(206);
     expect(first.headers.get("content-range")).toBe(`bytes 0-${8 * MiB - 1}/${size}`);
     expect(first.headers.get("content-length")).toBe(String(8 * MiB));
+    expect(first.headers.get("content-disposition")).toMatch(/^inline;/);
     await first.body!.cancel();
     expect((await sentToday()) - before).toBe(8 * MiB);
 
@@ -418,10 +485,10 @@ describe("a recording's bytes", () => {
     expect(r.headers.get("content-range")).toBe(`bytes 0-${size - 1}/${size}`);
     await r.body!.cancel();
   });
-
-  async function sentToday(): Promise<number> {
-    const r = await alice.api("GET", `/api/v1/tenants/${TENANT}/limits`);
-    expect(r.status, JSON.stringify(r.body)).toBe(200);
-    return r.body.limits.find((l: { key: string }) => l.key === "sent_bytes_per_day").used as number;
-  }
 });
+
+async function sentToday(): Promise<number> {
+  const r = await alice.api("GET", `/api/v1/tenants/${TENANT}/limits`);
+  expect(r.status, JSON.stringify(r.body)).toBe(200);
+  return r.body.limits.find((l: { key: string }) => l.key === "sent_bytes_per_day").used as number;
+}

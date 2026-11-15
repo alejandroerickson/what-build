@@ -1,6 +1,6 @@
 import {
-  admitRead, admitSend, AppError, capRole, CARD_PREVIEW_PURPOSE, completeGrant, conflict, DOWNLOAD_GRANT_HEADER, effectiveRole, forbidden, isHandedOff, levelAllows, membershipsFor, mockupBundle, json, MOCKUP_UPLOAD_PURPOSE, notFound,
-  OPERATIONS, resolveScope, roleAtLeast, STORY_PREVIEW_PURPOSE, toAppError, tooLarge, UPLOAD_GRANT_HEADER, type ActorSnapshot, type ConnectionLevel, type Env, type OpContext, type Principal, type Scope, type Tx,
+  admitRead, admitSend, AppError, capRole, CARD_PREVIEW_PURPOSE, completeGrant, conflict, DOWNLOAD_GRANT_HEADER, effectiveRole, forbidden, isHandedOff, isVideoFile, levelAllows, membershipsFor, mockupBundle, json, MOCKUP_UPLOAD_PURPOSE, notFound,
+  OPERATIONS, resolveScope, roleAtLeast, STORY_PREVIEW_PURPOSE, toAppError, tooLarge, UPLOAD_GRANT_HEADER, videoNotAccepted, type ActorSnapshot, type ConnectionLevel, type Env, type OpContext, type Principal, type Scope, type Tx,
 } from "@whatbuild/core";
 import { Hono, type Context } from "hono";
 import { sql } from "kysely";
@@ -163,6 +163,8 @@ export function uploadRoutes(env: Env & { config: ServerConfig }) {
             : `Bytes for ${grant.path} already arrived under this grant. Call attachments_write(action="complete_upload") with record_id ${grant.record_id} and path ${grant.path} to attach them.`,
         );
       if (Date.parse(grant.expires_at) < Date.now()) throw new AppError(401, "invalid_grant", "The upload grant has expired. Request a new one.");
+      // A grant given for a video before videos were refused stores nothing.
+      if (isVideoFile(grant.path, grant.media_type)) throw videoNotAccepted(grant.path);
       // A grant carries its requester's authority only while they may still write here: someone made a Story reader or viewer, or removed, since it was given stores nothing.
       const role = await inTenant(env, tenantId, async (trx) =>
         effectiveRole(await membershipsFor(trx, grant.principal.account_id, tenantId), { tenant_id: tenantId, product_id: grant.product_id }).role,

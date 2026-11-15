@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { api, qs } from "../lib/api.ts";
 import { actorName, clockLength, fileTypeName, formatBytes, plural, relativeTime, viaSurface } from "../lib/format.ts";
 import { Markdown } from "../lib/markdown.tsx";
@@ -26,7 +26,12 @@ export function attachmentViewUrl(base: string, recordId: string, path: string) 
   return `${base}/sources/${recordId}/attachment/view${qs({ path })}`;
 }
 
-type PreviewKind = "html" | "markdown" | "pdf" | "audio" | "video" | "image" | "text" | "download";
+type PreviewKind = "html" | "markdown" | "pdf" | "audio" | "image" | "text" | "download";
+
+/** A video stored before WhatBuild stopped taking video: listed, and downloaded, but never played. */
+export function isStoredVideo(a: Pick<Attachment, "media_type">): boolean {
+  return (a.media_type ?? "").startsWith("video/");
+}
 
 export function previewKind(a: Pick<Attachment, "media_type" | "path">): PreviewKind {
   const t = a.media_type ?? "";
@@ -35,7 +40,6 @@ export function previewKind(a: Pick<Attachment, "media_type" | "path">): Preview
   if (t === "text/markdown" || ["md", "markdown"].includes(ext)) return "markdown";
   if (t === "application/pdf") return "pdf";
   if (t.startsWith("audio/")) return "audio";
-  if (t.startsWith("video/")) return "video";
   if (t.startsWith("image/") && t !== "image/svg+xml") return "image";
   if (t.startsWith("text/") || ["txt", "vtt", "srt", "csv", "tsv", "json", "log"].includes(ext) || t === "application/json" || t === "application/x-subrip") return "text";
   return "download";
@@ -197,25 +201,14 @@ export function SourceImages({ record }: { record: RecordFull }) {
   );
 }
 
-/** How long into a video its frame is taken, or halfway through a shorter one. */
-const FRAME_AFTER_SECONDS = 1;
-
 /**
- * A recording, in the browser's own player. WhatBuild converts nothing, so what plays depends on the
- * browser; one that can't says so here, where a bare player would just sit there. `preload` is
+ * A recording, in the browser's own audio player. WhatBuild converts nothing, so what plays depends
+ * on the browser; one that can't says so here, where a bare player would just sit there. `preload` is
  * "none" where someone passes it on the way to something else, so nothing is fetched until they
- * press play. `onPlaying` gets the video once a frame worth keeping is showing, once.
+ * press play.
  */
-export function RecordingPlayer({ kind, url, downloadUrl, poster, preload = "none", onPlaying }: {
-  kind: "audio" | "video";
-  url: string;
-  downloadUrl: string;
-  poster?: string | null;
-  preload?: "none" | "metadata";
-  onPlaying?: ((video: HTMLVideoElement) => void) | undefined;
-}) {
+export function RecordingPlayer({ url, downloadUrl, preload = "none" }: { url: string; downloadUrl: string; preload?: "none" | "metadata" }) {
   const [failed, setFailed] = useState(false);
-  const told = useRef(false);
   if (failed)
     return (
       <EmptyState
@@ -231,27 +224,7 @@ export function RecordingPlayer({ kind, url, downloadUrl, poster, preload = "non
         This browser may not play its format, or it couldn’t be fetched just now. Download it to open it in another app.
       </EmptyState>
     );
-  if (kind === "audio") return <audio controls preload={preload} src={url} className="source-preview-media" onError={() => setFailed(true)} />;
-  return (
-    <video
-      controls
-      preload={preload}
-      poster={poster ?? undefined}
-      src={url}
-      className="source-preview-media"
-      onError={() => setFailed(true)}
-      // A browser that decodes a file's sound but not its picture plays it to a black screen, and calls that no error.
-      onLoadedMetadata={(e) => {
-        if (!e.currentTarget.videoWidth) setFailed(true);
-      }}
-      onTimeUpdate={(e) => {
-        const video = e.currentTarget;
-        if (told.current || !onPlaying || video.currentTime < Math.min(FRAME_AFTER_SECONDS, (video.duration || 0) / 2)) return;
-        told.current = true;
-        onPlaying(video);
-      }}
-    />
-  );
+  return <audio controls preload={preload} src={url} className="source-preview-media" onError={() => setFailed(true)} />;
 }
 
 /** What the dialog below needs of a source: the attachments it moves through. */
@@ -276,7 +249,7 @@ export function AttachmentPreview({ record, path, onSelect, onClose }: { record:
     enabled: !tooBig && ["markdown", "text"].includes(kind),
   });
   const url = attachmentUrl(base, record.record_id, a.path);
-  const length = (kind === "audio" || kind === "video") && a.text.duration_ms ? a.text.duration_ms : null;
+  const length = kind === "audio" && a.text.duration_ms ? a.text.duration_ms : null;
   return (
     <Dialog
       open
@@ -301,8 +274,8 @@ export function AttachmentPreview({ record, path, onSelect, onClose }: { record:
           </EmptyState>
         ) : kind === "pdf" ? (
           <iframe title={a.path} src={url} className="source-preview-frame" />
-        ) : kind === "audio" || kind === "video" ? (
-          <RecordingPlayer kind={kind} url={url} downloadUrl={attachmentUrl(base, record.record_id, a.path, true)} preload="metadata" />
+        ) : kind === "audio" ? (
+          <RecordingPlayer url={url} downloadUrl={attachmentUrl(base, record.record_id, a.path, true)} preload="metadata" />
         ) : kind === "html" ? (
           <iframe title={a.path} sandbox="" referrerPolicy="no-referrer" src={attachmentViewUrl(base, record.record_id, a.path)} className="source-preview-frame" />
         ) : kind === "image" ? (

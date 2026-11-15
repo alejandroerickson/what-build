@@ -3,7 +3,7 @@ type: System Concept
 title: WhatBuild at three altitudes
 description: The whole system from the top down, the major parts, and the mechanics underneath, with links to the detail.
 tags: [overview, architecture, tenancy, access, mcp]
-generated: {by: agent:claude, at: 2026-11-13}
+generated: {by: agent:claude, at: 2026-11-15}
 status: stable
 ---
 
@@ -69,8 +69,7 @@ eighteen: running the instance (its owners' ten actions on plans, organizations,
 allowances, accounts and usage, and removing an account), renaming an organization or a product,
 which its owners or admins do, deleting an organization and previewing that delete, which only its
 owners or an instance owner do, and deleting one's own account and previewing that, which only its
-person does, all in the web app, and a person's browser giving a video or a web page its first
-picture. Agents are offered the other 98, as 26 tools
+person does, all in the web app, and a person's browser giving a web page its first picture. Agents are offered the other 98, as 26 tools
 ([decision](../decisions/one-registry-two-front-doors.md),
 [decision](../decisions/running-the-instance-is-done-in-the-web-app-never-by-an-agent.md)).
 
@@ -148,7 +147,10 @@ operation's schema (`422` lists every problem) → open a transaction with `app.
 the handler (etag check, `409 stale_etag`; actor snapshot; activity event) → answer as JSON or MCP
 text with the scope echoed.
 
-**From upload to text.** Request a signed upload grant → bytes go to object storage →
+**From upload to text.** Request a signed upload grant (never for a video, which WhatBuild does not
+keep: every way a file comes in refuses one with `415 video_not_accepted`, and a video stored before
+is kept and downloaded but never played,
+[decision](../decisions/whatbuild-takes-no-video-for-now.md)) → bytes go to object storage →
 the upload relay adds the attachment as they arrive (`complete_upload` does, after a PUT straight to
 the bucket) → a job to read it is queued → the worker reads it,
 in a process of its own held to a memory and a time limit, into an immutable reading

@@ -361,7 +361,7 @@ function keyBelongsElsewhere(target: EventTarget | null, key: string): boolean {
   if (!(target instanceof Element)) return false;
   if (target.closest("[role=menu], [role=dialog], [aria-modal=true], dialog, .segmented")) return true;
   // A player keeps every key but the one that closes what it is in.
-  if (key !== "Escape" && target.closest("video, audio")) return true;
+  if (key !== "Escape" && target.closest("audio")) return true;
   // A row's link is the list's; another control keeps Space and Enter.
   return (key === " " || key === "Enter") && Boolean(target.closest("button, summary, a")) && !target.closest(".source-row-link");
 }

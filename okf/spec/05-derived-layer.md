@@ -3,7 +3,7 @@ type: Specification
 title: Every attachment is read into readable Markdown and kept, and each source has one derived text that people and agents read, edit and search.
 description: Reading attachments (when a reading runs, its process and limits, what it stores, its statuses), the parsers and how they lay text out, the derived text and how it follows its attachment, and the reads and writes of the derived layer.
 tags: [spec, derived-layer, parsers, derived-text, attachments]
-generated: {by: agent:claude, at: 2026-11-13}
+generated: {by: agent:claude, at: 2026-11-15}
 status: stable
 ---
 
@@ -102,8 +102,9 @@ length in code points is the reading's `text_chars`.
 ```
 
 `duration_ms` is the last cue end for a timed transcript (VTT, SRT) and, for a recording, its
-playing time read from the container headers without decoding audio: MP4, M4A and MOV (`mvhd`),
-WAV, FLAC and MP3 (a Xing, Info or VBRI frame count, else the constant bitrate). It is null for
+playing time read from the container headers without decoding audio: M4A (`mvhd`), WAV, FLAC and
+MP3 (a Xing, Info or VBRI frame count, else the constant bitrate). A video stored before WhatBuild
+stopped taking video keeps the `duration_ms` its reading recorded. It is null for
 other files and for a container that cannot be read. A recording over the parse cap is not
 downloaded; only the byte ranges holding those headers are read.
 
@@ -338,7 +339,7 @@ whose words open with a list has the label as a paragraph of its own above it, s
 from 3 reads as a list, which in Markdown could not interrupt the label's line. (A Markdown file
 keeps its own text; the speakers count in its facts.)
 
-- No speech-to-text and no OCR in the product. A recording is stored and playable, never
+- No speech-to-text and no OCR in the product. A recording (audio) is stored and playable, never
   transcribed: its transcript is another attachment, or the source's derived text written by an
   agent with its own transcription tool. An image, or a PDF whose pages are pictures, is stored and
   shown, and no words are read from it: an agent that can see it describes it in the source's
@@ -453,8 +454,8 @@ Each reading has a `status`, terminal for that reading:
 | `status` | Meaning |
 |---|---|
 | `ready` | Text read. |
-| `needs_transcript` | A recording (an audio or video media type or extension): stored and playable, never transcribed. Its transcript is another attachment. `duration_ms` gives its playing time when the container states it. |
-| `unsupported` | No words to read: no parser reads this attachment's extension or media type, or it is pictures, an image or a PDF with no text layer (a scan's pages are pictures; there is no OCR). It is no failure, and reading it again changes nothing. For an image or a PDF of pictures, `status_detail` says that an agent that can see it should describe it in the source's summary and write its words as the text with `derived_write(action="write_text")` if search should find them. |
+| `needs_transcript` | A recording: audio, by an `audio/*` media type or a recording's extension (`RECORDING_EXTENSIONS`: `.mp3`, `.m4a`, `.wav`, `.aac`, `.flac`, `.ogg`, `.wma`, `.opus`), never a video. Stored and playable, never transcribed. Its transcript is another attachment. `duration_ms` gives its playing time when the container states it. |
+| `unsupported` | No words to read: no parser reads this attachment's extension or media type, or it is pictures, an image or a PDF with no text layer (a scan's pages are pictures; there is no OCR), or it is a video stored before WhatBuild stopped taking video. It is no failure, and reading it again changes nothing. For an image or a PDF of pictures, `status_detail` says that an agent that can see it should describe it in the source's summary and write its words as the text with `derived_write(action="write_text")` if search should find them; for a video (`VIDEO_DETAIL`), that it is kept and downloadable but neither played nor read, and to add its transcript as another attachment. |
 | `too_large` | Too large to read: over the parse cap, 25 MiB by default for every format (`WHATBUILD_PARSE_CAP_BYTES`), in which case the file is not read at all; a DOCX, XLSX or DOC package whose parts unpack to more than the cap; a PDF of more than 2,000 pages; or a file that would make more than 200,000 paragraphs (a PDF whose short lines would is read to its sentences' ends instead, §5.3). The attachment is stored; `status_detail` says which. |
 | `failed` | The parser errored, **or** it kept almost nothing: a text-like file (plain text, Markdown, VTT, SRT, CSV, TSV) that kept under 10% of at least 200 characters, or an HTML page with no readable text (a page whose text is drawn by scripts, such as a single-page app's shell); **or** the parse needed more memory or time than the deployment gives one file, or its reading stopped the server, or failed with an error, five times (§5.1). `status_detail` says which. |
 
@@ -466,15 +467,24 @@ An attachment's `text.status` ([§4.5](04-data-model.md)) is its latest reading'
 version has been read, it is what the attachment's name, media type and size already settle
 (`settledReading` in [`packages/parsers/src/index.ts`](../../packages/parsers/src/index.ts), the
 rule `derive` follows, so the reading then records the same): `too_large` over the parse cap,
-`needs_transcript` for a recording, and `unsupported` for a format no parser reads, an image among
-them. Anything else is `pending` until it is read.
+`needs_transcript` for a recording, and `unsupported` for a format no parser reads, an image and a
+stored video among them. Anything else is `pending` until it is read.
+
+WhatBuild takes no new video ([decision](../decisions/whatbuild-takes-no-video-for-now.md)): a file
+whose extension is a video's (`VIDEO_EXTENSIONS` in
+[`statuses.ts`](../../packages/parsers/src/statuses.ts): `.mp4`, `.m4v`, `.mov`, `.qt`, `.webm`,
+`.mkv`, `.avi`, `.wmv`, `.asf`, `.flv`, `.f4v`, `.mpg`, `.mpeg`, `.m2v`, `.3gp`, `.3g2`, `.ogv`,
+`.m2ts`, `.vob`), or, when its extension is neither a video's nor a recording's, whose media type is
+`video/*`, is refused wherever a file comes in ([§6](06-operations-and-adapters.md)), so only a video
+stored before is ever read.
 
 A reading is never rewritten, but one an earlier version made is said as this version would say it,
 wherever it is read (`currentReading` in [`statuses.ts`](../../packages/parsers/src/statuses.ts)),
 so a backup brings no retired words back: a recording that asked for "a transcript as a new
 source" asks for one as another attachment, a PDF of pictures once recorded as `failed` reads
-`unsupported`, and an image once said to be "a format no parser reads" says how an agent gives it
-its words. None of them needs reading again. A recording's detail beside the source's derived text says where that text comes from
+`unsupported`, an image once said to be "a format no parser reads" says how an agent gives it
+its words, and a video once read as a recording (`needs_transcript`) reads `unsupported` with
+`VIDEO_DETAIL`, wherever its file's name is known. None of them needs reading again. A recording's detail beside the source's derived text says where that text comes from
 instead of asking for a transcript.
 
 A source's `derived_status` says where its derived text stands (`derivedStatuses` in

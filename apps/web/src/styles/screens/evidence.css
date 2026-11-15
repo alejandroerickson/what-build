@@ -642,19 +642,10 @@
   line-height: 1.5;
 }
 .sources-preview .source-preview-media {
-  flex: 1;
-  min-height: 0;
-  width: 100%;
-  border-radius: 0;
-}
-.sources-preview video.source-preview-media {
-  object-fit: contain;
-  background: #111;
-}
-.sources-preview audio.source-preview-media {
   flex: none;
   width: min(480px, calc(100% - var(--sheet-px) * 2));
   margin: auto;
+  border-radius: 0;
 }
 .preview-pager {
   flex: none;

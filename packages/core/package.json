@@ -10,7 +10,8 @@
     "./page-sandbox": "./src/page-sandbox.ts",
     "./plans": "./src/plans.ts",
     "./read-only": "./src/read-only.ts",
-    "./safe-next": "./src/safe-next.ts"
+    "./safe-next": "./src/safe-next.ts",
+    "./video": "./src/video.ts"
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json"

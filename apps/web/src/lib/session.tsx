@@ -202,7 +202,7 @@ interface ProductCtx {
   /** Web base for this product's screens. */
   app: string;
   canWrite: boolean;
-  /** May give a video or a web page its first picture: anyone who reads the sources, but not a guest of the example organization, who changes nothing there. */
+  /** May give a web page its first picture: anyone who reads the sources, but not a guest of the example organization, who changes nothing there. */
   canGivePicture: boolean;
   /** The organization is read-only: nothing new can be added, whatever the role, but reading, exporting, deleting and taking people out still work. */
   readOnlyOrganization: boolean;

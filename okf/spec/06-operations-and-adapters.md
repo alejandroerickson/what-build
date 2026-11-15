@@ -3,7 +3,7 @@ type: Specification
 title: Every capability is one registered operation, reached identically over REST and MCP.
 description: The operation registry, the error model and bounds, the full catalogue of 116 operations with their REST routes and MCP tools, authorization and agent connection levels, upload flows, the guide and the Connect page.
 tags: [spec, operations, rest, mcp, registry, uploads, guide]
-generated: {by: agent:claude, at: 2026-11-13}
+generated: {by: agent:claude, at: 2026-11-15}
 status: stable
 ---
 
@@ -46,8 +46,8 @@ A **parity test** (`apps/server/test/mcp.test.ts`, "adapter parity") fails if an
 unreachable from either adapter, or if any tool action exists that is not in the registry. The one
 exception is what only a person does in the web app (`webOnly`): renaming an organization or a
 product, deleting an organization or one's own account and their previews, running the instance
-(its owners' actions and removing an account), and a person's browser giving a video or a web page
-its first picture (`attachments.give_picture`), which MCP never lists and `execute` refuses to anything but the web app.
+(its owners' actions and removing an account), and a person's browser giving a web page its first
+picture (`attachments.give_picture`), which MCP never lists and `execute` refuses to anything but the web app.
 
 `execute` (`packages/core/src/execute.ts`) is the one way an operation runs, whichever door the
 call came through:
@@ -115,7 +115,8 @@ tenant.
 | 409 | Conflict with current state | `stale_etag`, `product_archived`, `record_archived`, `mockup_archived`, `slug_taken`, `too_many_attachments`, `no_text`, `no_file`, `mockup_on_story`, `folder_name_taken`, `already_uploaded`, `upload_used`, `example_organization`, `export_in_progress`, `last_owner`, `instance_owner`, `quota_exceeded`, `organization_read_only` |
 | 410 | Deliberately deleted, with a tombstone; an invitation no longer usable | `record_deleted`, `outcome_deleted`, `story_page_deleted`, `mockup_deleted`, `annotation_deleted`, `invitation_used`, `invitation_expired` |
 | 413 | Body or file beyond a limit | `too_large` |
-| 422 | Invalid input | `invalid_input`, `edit_not_found`, `edit_ambiguous`, `unknown_field`, `unknown_action`, `unknown_tool`, `wrong_tool`, `product_required`, `too_long`, `outcome_cites_a_record`, `invalid_query`, `invalid_cursor`, `invalid_filter`, `invalid_html`, `invalid_patch`, `invalid_move`, `invalid_upload`, `fetch_failed`, `confirmation_required`, `name_mismatch`, `typed_email`, `may_start_one`, `unknown_plan` |
+| 415 | A file WhatBuild does not take or show this way: a video, wherever a file comes in; any attachment but an HTML page at its view route | `video_not_accepted`, `not_html` |
+| 422 | Invalid input | `invalid_input`, `edit_not_found`, `edit_ambiguous`, `unknown_field`, `unknown_action`, `unknown_tool`, `wrong_tool`, `product_required`, `too_long`, `outcome_cites_a_record`, `invalid_query`, `invalid_cursor`, `invalid_filter`, `invalid_html`, `invalid_patch`, `invalid_move`, `invalid_upload`, `not_a_page`, `fetch_failed`, `confirmation_required`, `name_mismatch`, `typed_email`, `may_start_one`, `unknown_plan` |
 | 429 | Rate limited | `rate_limited` |
 | 503 | Too busy to answer, or a search stopped ([§8.8](08-search.md)), with nothing changed | `search_timed_out`, `search_busy`, `database_busy` |
 
@@ -145,6 +146,18 @@ tenant.
   with `{ limit, per, retry_after_seconds }` in `details` and a `Retry-After` header on REST. An
   organization on the unlimited plan has no rate limit.
 - **`413 too_large`** carries `{ limit }`, and for a plan's limits on input `{ field, limit, unit }`.
+- **`415 video_not_accepted`** refuses a video wherever a file comes in, before a source is made or
+  a byte is stored: a file whose extension is a video's, or whose media type is `video/*` when its
+  extension is neither a video's nor a recording's ([§5.5](05-derived-layer.md),
+  [decision](../decisions/whatbuild-takes-no-video-for-now.md)). `attachments.request_upload`,
+  `create_upload`, `create_uploads` (which then creates none, naming the entry), the upload relay
+  and `complete_upload` for a grant given for a video before, and `fetch_url` (before it fetches,
+  when the URL's last segment or `path` names a video, and otherwise once the response's type
+  gives the name one) carry `{ path }`, and the message says WhatBuild does not keep video and to
+  add the video's transcript as an attachment, or a link to where the video lives in the source's
+  summary or text, instead. `mockups.publish` refuses a canvas ZIP whose prototype holds a video
+  with the same code, its `problems` naming each video and every other problem. `set_frame` and
+  `give_picture` answer it for a video stored before, which keeps the picture it has.
 - Database unique violations become `409 conflict`; serialization failures become
   `409 concurrent_change` ("Retry"). Anything unexpected is `500 internal`, logged, and never
   leaks details. Its message says to try again and how to report it if it repeats, as the door
@@ -698,13 +711,15 @@ uploaded HTML page's preview has a route of its own, `…/attachment/view`: an H
 which runs no script and loads nothing it does not carry; `415 not_html` for any other
 attachment, `413` past 4 MB.
 
-**A recording is answered in pieces.** A range request for an audio or video attachment is
-answered with at most 8 MiB (`RECORDING_PIECE_BYTES`), however much it asked for, and a person's
-day counts what the answer holds. A media player asks for everything from where it is to the end
-of the file, reads what it needs and hangs up, and asks again when it seeks; it asks for the next
-piece by itself. A request with no range, a download, is the whole file. Other files' ranges are
-answered as asked. WhatBuild converts no recording: what plays depends on the browser
-([§7](07-web-app.md)).
+**A recording is answered in pieces.** A range request for an audio attachment is answered with at
+most 8 MiB (`RECORDING_PIECE_BYTES`), however much it asked for, and a person's day counts what the
+answer holds. A media player asks for everything from where it is to the end of the file, reads
+what it needs and hangs up, and asks again when it seeks; it asks for the next piece by itself. A
+request with no range, a download, is the whole file. Other files' ranges are answered as asked,
+but a video's: a video stored before WhatBuild stopped taking video is only ever the whole file, as
+an attachment (`Content-Disposition: attachment`, `Accept-Ranges: none`), whatever range is asked,
+and a person's day counts all of it. WhatBuild converts no recording: what plays depends on the
+browser ([§7](07-web-app.md)).
 
 **An attachment's picture has an address of its own.** `sources.list` with `include_preview` gives
 `/api/v1/pictures/<grant>` for each copy of a picture: a grant for that one copy, naming nobody,
@@ -778,8 +793,8 @@ page's HTML, a canvas page's, a mockup page's, an Idea card's front and a style'
 a refusal for calls a minute with `429` and the same `Retry-After`, as a short HTML page in place of
 the JSON, when the frame's address says `?frame=1` or the browser says `Sec-Fetch-Dest: iframe`, which
 no script can set (`refusedFrame` in `apps/server/src/documents.ts`). An agent, an API caller or a
-tab says neither and gets the JSON at the same address, and an image, a video or a download of an
-attachment does too. The page holds WhatBuild's own
+tab says neither and gets the JSON at the same address, and an image, a recording or a download of
+an attachment does too. The page holds WhatBuild's own
 words and one script, which posts `{ whatbuild: "frame-refused", retry_after_seconds }` to
 its parent, and `{ whatbuild: "frame-ready" }` once it has loaded, as every document the app frames does;
 it loads nothing, navigates nowhere and never asks again by itself
@@ -1088,7 +1103,8 @@ of preference for an agent (`packages/core/src/ops/attachments.ts`):
    created or none, and a refusal names the entry by index). The result is
    `{ grant_id, record_id, path, url, method: "PUT", headers, max_bytes, expires_at, direct?, next,
    warnings }`
-   (`create_upload` returns `{ record, upload, warnings }`, `create_uploads` a list of them as `items`). `warnings` flags, without refusing, a
+   (`create_upload` returns `{ record, upload, warnings }`, `create_uploads` a list of them as `items`).
+   A video is refused before any of this, with `415 video_not_accepted` (§6.2's errors). `warnings` flags, without refusing, a
    format no parser reads (the attachment will be kept, but its text cannot be read, so it cannot
    become the source's derived text; a recording is not flagged, since its result says it), an
    image (kept and shown, but read for no words: an agent that can see it describes it in the
@@ -1110,7 +1126,7 @@ of preference for an agent (`packages/core/src/ops/attachments.ts`):
    as `record_etag`, and a `note` on what becomes of its text that agrees with it: it is being read
    and its text will become the source's derived text, or the source already has one and this text
    will be kept beside it (take it with `derived.write_text`'s `from_attachment`); it has been
-   read; it is a recording, stored and playable but never transcribed (add its transcript as
+   read; it is a recording (audio), stored and playable but never transcribed (add its transcript as
    another attachment, or, beside the source's derived text, where that text comes from); it is an
    image, or a PDF whose pages are pictures, with no words read (and how an agent that can see it
    gives the source its words); or no parser reads its format (with the formats that are read).
@@ -1142,7 +1158,9 @@ of preference for an agent (`packages/core/src/ops/attachments.ts`):
    download holds no database connection (§6.1, `execute`'s step 4). A failure on the network
    answers one plain `422 fetch_failed`, whatever happened, and an error status from the server
    names that status. The part of a URL after `#` never reaches a server, so a single-page app's
-   route fetches only its shell; when the URL has a fragment, the result's `warnings` says so.
+   route fetches only its shell; when the URL has a fragment, the result's `warnings` says so. A
+   video is refused (`415 video_not_accepted`): before the fetch when the URL's last segment or
+   `path` names one, otherwise once the response's type names it, and nothing is stored.
 3. **Words, not a file** — `derived.write_text { record_id, content }` writes a source's text
    directly, up to 2,000,000 characters ([§5.4](05-derived-layer.md)); a source can be words alone.
 4. **Web upload** — a person adds the source through the web app's intake, under the same grants: the
