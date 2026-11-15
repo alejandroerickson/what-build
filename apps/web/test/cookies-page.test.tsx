@@ -56,6 +56,12 @@ const notice = (host: HTMLElement) => host.querySelector<HTMLElement>("aside.coo
 const named = (root: Element, name: string) => [...root.querySelectorAll("button")].find((b) => (b.getAttribute("aria-label") ?? b.textContent) === name);
 
 describe("the Cookies page", () => {
+  it("says who sees the server's counts as the rest of the page speaks: as us", async () => {
+    const counting = (await show()).querySelector('[aria-labelledby="cookies-counting"]')!.textContent ?? "";
+    expect(counting).toContain("and we see only totals.");
+    expect(counting).not.toContain("whoever runs");
+  });
+
   it("before a choice: says so, and leaves the choice to the notice", async () => {
     const host = await show();
     expect(analytics(host).querySelector(".entry-caption")?.textContent).toBe("Not chosen yet");

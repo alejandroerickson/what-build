@@ -191,8 +191,8 @@ function Organization({ tenant, products, showArchived, onShowArchived, onCreate
 }
 
 /**
- * For someone with no organization of their own: where their work goes. Once they are on the
- * waitlist it no longer tells them to ask: the line below says since when, and that an email follows.
+ * For someone with no organization of their own: where their work goes, and the button to start
+ * one or ask for one. Once they are on the waitlist, the line saying so is all it shows.
  */
 function StartYourOwn({ mayStart, asked }: { mayStart: boolean; asked: boolean }) {
   return (
@@ -209,13 +209,11 @@ function StartYourOwn({ mayStart, asked }: { mayStart: boolean; asked: boolean }
         }
       />
       <SheetBody className="overview-start-body">
-        <p className="muted">
-          {mayStart
-            ? "Your team’s work goes in an organization of your own. Start one when you’re ready."
-            : asked
-              ? "Your team’s work goes in an organization of your own. Organizations open a few at a time. Meanwhile, someone who uses WhatBuild can invite you to theirs."
-              : "Your team’s work goes in an organization of your own. Organizations open a few at a time: ask for yours, or have someone who uses WhatBuild invite you to theirs."}
-        </p>
+        {asked && !mayStart ? null : (
+          <p className="muted">
+            {mayStart ? "Your team’s work goes in an organization of your own. Start one when you’re ready." : "Your team’s work goes in an organization of your own."}
+          </p>
+        )}
         {mayStart ? null : <AskForOrganization />}
       </SheetBody>
     </Sheet>

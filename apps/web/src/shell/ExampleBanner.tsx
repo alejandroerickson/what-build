@@ -84,7 +84,7 @@ export function ExampleBanner({ tenant }: { tenant: { tenant_id: string; slug: s
           </>
         }
       >
-        A worked discovery to learn from. Read it, search it and point your agent at it; nothing here can be changed.
+        A worked example to learn from. Nothing here can be changed.
       </Callout>
     </div>
   );

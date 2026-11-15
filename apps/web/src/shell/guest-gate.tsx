@@ -82,7 +82,11 @@ export function timeLeft(minutes: number): string {
   return h ? `${h} h${m ? ` ${m} min` : ""}` : `${m} min`;
 }
 
-/** The waiting page. It asks again only when the guest does: with Try again while a place may free, or by coming back to the tab. */
+/**
+ * The waiting page. It asks again only when the guest does: with Try again while a place may free,
+ * or by coming back to the tab. The title and the badge say why and until when; a line follows only
+ * where there is something to do.
+ */
 function WaitingRoom({ pass, asking, askAgain }: { pass: GuestPass; asking: boolean; askAgain: () => void }) {
   const signOut = useSignOut();
   const resets = pass.resets_at ? untilTime(pass.resets_at) : "at midnight UTC";
@@ -90,19 +94,19 @@ function WaitingRoom({ pass, asking, askAgain }: { pass: GuestPass; asking: bool
     pass.reason === "full"
       ? {
           title: "WhatBuild is full right now",
-          lead: `${pass.in_now ?? "Every"} ${pass.in_now === 1 ? "guest is" : "guests are"} exploring, the most it lets in at once. Try again in a minute: your place in line is kept for two minutes after you last ask.`,
+          lead: "Try again within two minutes to keep your place.",
           status: <StatusBadge tone="progress">Number {pass.position} in line</StatusBadge>,
         }
       : pass.reason === "new_today"
         ? {
             title: "Today’s places for new guests are taken",
-            lead: `WhatBuild lets a few new guests in each day, and today’s have come in. Come back ${resets}, at midnight UTC.`,
+            lead: null,
             status: <StatusBadge tone="attention">Opens again {resets}</StatusBadge>,
           }
         : pass.reason === "time_today"
           ? {
               title: "You’ve used today’s time",
-              lead: `Each guest has a while in WhatBuild each day, and you’ve had yours. It starts again ${resets}, at midnight UTC.`,
+              lead: null,
               status: <StatusBadge tone="attention">Back {resets}</StatusBadge>,
             }
           : {
@@ -119,8 +123,7 @@ function WaitingRoom({ pass, asking, askAgain }: { pass: GuestPass; asking: bool
           <div className="waiting-status" aria-live="polite">
             {words.status}
           </div>
-          <p>{words.lead}</p>
-          <p className="muted">As a guest you read the example organization, a real discovery, and can point your agent at it. Organizations of your own open a few at a time.</p>
+          {words.lead ? <p>{words.lead}</p> : null}
           <AskForOrganization variant="quiet" />
           <div className="waiting-actions">
             {/* Today's limits change only at midnight UTC, so only a full or closed WhatBuild offers to ask again now. */}

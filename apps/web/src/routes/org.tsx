@@ -15,6 +15,8 @@ import {
 import { EntryPage, NotVisible } from "./auth.tsx";
 import { DeleteDialog, listed } from "./delete-dialog.tsx";
 import { PeopleEditor, type EditorTarget } from "./people-editor.tsx";
+import { AskForOrganization } from "../shell/ask-for-organization.tsx";
+import { Contact, useContact } from "../shell/contact.tsx";
 import { PrivacyLink } from "../shell/privacy-link.tsx";
 import "../styles/screens/account.css";
 import "../styles/screens/activity.css";
@@ -56,7 +58,10 @@ export function Welcome() {
   const hasOrgs = Boolean(products.data?.tenants.some((t) => !t.example));
   const example = products.data?.tenants.find((t) => t.example);
   const invited = Boolean(invitations.data?.items.length);
-  // Nothing here for them to set up: only the people who run this WhatBuild let anyone start an organization.
+  const contact = useContact();
+  // Nothing here for them to set up: only the people who run this WhatBuild let anyone start an
+  // organization. Someone in none may ask for one, as on Home; someone who started all they may is
+  // told whom to write to.
   if (me.data && allowance?.remaining === 0) {
     return (
       <EntryPage title="Welcome · WhatBuild" wide>
@@ -66,13 +71,20 @@ export function Welcome() {
           <SheetBody className="entry-form">
             {!hasOrgs ? (
               <>
-                <p>You&rsquo;re not in an organization yet. {invited ? "Accept an invitation to join one." : "Ask someone who uses WhatBuild to invite you."}</p>
-                <p className="muted">To start an organization of your own, ask this WhatBuild&rsquo;s owners.</p>
+                <p>You&rsquo;re not in an organization yet.{invited ? " Accept an invitation to join one." : ""}</p>
+                <AskForOrganization />
               </>
             ) : (
               <p className="muted">
-                {allowance.allowed ? `You’ve started ${allowance.created === 1 ? "1 organization" : `${allowance.created} organizations`}, the most this account can. ` : ""}
-                To start another, ask this WhatBuild&rsquo;s owners.
+                To start another organization,{" "}
+                {contact ? (
+                  <>
+                    write to <Contact to={contact} />
+                  </>
+                ) : (
+                  "ask this WhatBuild’s owners"
+                )}
+                .
               </p>
             )}
           </SheetBody>

@@ -4,9 +4,9 @@ import { createRoot } from "react-dom/client";
 import { MemoryRouter } from "react-router";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-// Someone with no organization of their own who may not start one is told, on the overview, to ask
-// for one. Once they have asked, the sheet stops telling them to: the line under it says since when
-// they are on the waitlist, after the click and after a reload alike.
+// Someone with no organization of their own who may not start one is offered, on the overview, to
+// ask for one. Once they have asked, the sheet says only that they are on the waitlist and the
+// address they will hear at, after the click and after a reload alike.
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -80,17 +80,14 @@ async function show() {
 const sheet = (host: HTMLElement) => host.querySelector(".overview-start") as HTMLElement;
 
 describe("Your own organization, for someone who may not start one", () => {
-  it("tells them to ask until they have, then no longer does", async () => {
+  it("offers to ask until they have, then says only that they are on the waitlist", async () => {
     const host = await show();
-    expect(sheet(host).textContent).toContain("ask for yours");
+    expect(sheet(host).querySelector(".overview-start-body p")?.textContent).toBe("Your team’s work goes in an organization of your own.");
     const ask = [...sheet(host).querySelectorAll("button")].find((b) => b.textContent?.includes("Ask for your own organization"));
     expect(ask).toBeTruthy();
     await act(async () => ask!.click());
     await settle();
-    const text = sheet(host).textContent ?? "";
-    expect(text).toContain("On the waitlist since");
-    expect(text).not.toContain("ask for yours");
-    expect(text).toContain("someone who uses WhatBuild can invite you to theirs");
+    expect(sheet(host).querySelector(".overview-start-body")?.textContent).toBe("You’re on the waitlist. We’ll email ana@example.com when you can start your organization.");
     // The state comes from the account already loaded: asking reads nothing more.
     expect(state.calls.filter((c) => c === "GET /auth/session")).toHaveLength(1);
   });
@@ -98,9 +95,7 @@ describe("Your own organization, for someone who may not start one", () => {
   it("does not tell them to ask after a reload once they are on the waitlist", async () => {
     state.asked = "2026-11-01T10:00:00.000Z";
     const host = await show();
-    const text = sheet(host).textContent ?? "";
-    expect(text).toContain("On the waitlist since");
-    expect(text).not.toContain("ask for yours");
+    expect(sheet(host).querySelector(".overview-start-body")?.textContent).toBe("You’re on the waitlist. We’ll email ana@example.com when you can start your organization.");
     expect(sheet(host).querySelector("button")).toBeNull();
   });
 });
