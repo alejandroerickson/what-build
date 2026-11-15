@@ -51,7 +51,7 @@ describe("who may create an organization", () => {
     expect(given.body).toMatchObject({ email: "bob@staff.example", allowed: 2, created: 0, remaining: 2, account: { display_name: "Bob Member" }, notified: true });
     expect(h.mailer.sent.at(-1)).toMatchObject({ to: "bob@staff.example" });
     expect(h.mailer.sent.at(-1)!.text).toContain("/welcome");
-    expect(h.mailer.sent.at(-1)!.text.split("\n")[0]).toBe("Owen Owner invited you to start up to 2 organizations on WhatBuild.");
+    expect(h.mailer.sent.at(-1)!.text.split("\n")[0]).toBe("Owen Owner (owen@staff.example) invited you to start up to 2 organizations on WhatBuild.");
     for (const name of ["Bob's first", "Bob's second"]) expect((await bob.api("POST", "/api/v1/tenants", { name })).status).toBe(201);
     const third = await bob.api("POST", "/api/v1/tenants", { name: "Bob's third" });
     expect(third.status).toBe(403);
@@ -85,10 +85,15 @@ describe("who may create an organization", () => {
     expect(await ask("nina@elsewhere.example")).toBe(false);
     const given = await owner.api("PUT", A, { email: "nina@elsewhere.example", allowed: 1 });
     expect(given.body).toMatchObject({ account: null, created: 0, remaining: 1, notified: true });
-    // Only an instance owner sends it: their name, plainly, and where to start, signing in as the address it went to.
+    // Only an instance owner sends it: their name, plainly, with their own address, what WhatBuild is,
+    // and where to start, signing in as the address it went to. No public site here, so no "more at".
     const notice = h.mailer.sent.find((m) => m.to === "nina@elsewhere.example")!;
     expect(notice.subject).toBe("Owen Owner invited you to WhatBuild");
-    expect(notice.text).toBe(`Owen Owner invited you to start an organization on WhatBuild.\n\nStart here, signing in as nina@elsewhere.example:\n${h.baseUrl}/welcome\n`);
+    expect(notice.text).toBe(
+      "Owen Owner (owen@staff.example) invited you to start an organization on WhatBuild.\n\n" +
+        "WhatBuild turns a product team’s discovery material into outcomes, mockups and a Story for stakeholders.\n\n" +
+        `Start here, signing in as nina@elsewhere.example:\n${h.baseUrl}/welcome\n`,
+    );
     expect(await ask("nina@elsewhere.example")).toBe(true);
     const { response: verified } = await h.followSignInLink();
     expect(verified.headers.get("location")).toBe("/welcome");
@@ -98,6 +103,29 @@ describe("who may create an organization", () => {
     // An allowance of 0 lets nobody in.
     await owner.api("PUT", A, { email: "zero@elsewhere.example", allowed: 0, notify: true });
     expect(await ask("zero@elsewhere.example")).toBe(false);
+  });
+
+  it("tells someone let in from the waitlist that their place is ready, from the day they asked", async () => {
+    await h.db.insertInto("interest").values({ interest_id: "01M5TINTEREST0000000000WRN", email: "Wren@Elsewhere.example", name: "Wren", organization: null, note: null, created_at: "2026-11-15T09:30:00Z", updated_at: "2026-11-15T09:30:00Z" }).execute();
+    expect((await owner.api("PUT", A, { email: "wren@elsewhere.example", allowed: 1 })).body).toMatchObject({ notified: true });
+    const notice = h.mailer.sent.at(-1)!;
+    expect(notice.to).toBe("wren@elsewhere.example");
+    expect(notice.subject).toBe("Your place on WhatBuild is ready");
+    // They asked; they never heard of the owner who let them in, so the owner isn't named.
+    expect(notice.text).toBe(`You joined the WhatBuild waitlist on 15 Nov 2026. Your place is ready.\n\nStart your organization, signing in as wren@elsewhere.example:\n${h.baseUrl}/welcome\n`);
+    expect(notice.text).not.toContain("Owen");
+    // Someone who asked today, given more than one: still no count, and the day as mail writes it.
+    await h.db.insertInto("interest").values({ interest_id: "01M5TINTEREST0000000000WRO", email: "wynn@elsewhere.example", name: null, organization: null, note: null }).execute();
+    await owner.api("PUT", A, { email: "wynn@elsewhere.example", allowed: 2 });
+    expect(h.mailer.sent.at(-1)!.text.split("\n")[0]).toMatch(/^You joined the WhatBuild waitlist on \d{1,2} [A-Z][a-z]{2} \d{4}\. Your place is ready\.$/);
+  });
+
+  it("tells someone already let in who is given more by the owner who gave it, not as the waitlist would", async () => {
+    const current = (await owner.api("GET", A)).body.items.find((i: { email: string }) => i.email === "wren@elsewhere.example");
+    await owner.api("PUT", A, { email: "wren@elsewhere.example", allowed: 3, expected_etag: current.etag });
+    const notice = h.mailer.sent.at(-1)!;
+    expect(notice.subject).toBe("Owen Owner invited you to WhatBuild");
+    expect(notice.text.split("\n")[0]).toBe("Owen Owner (owen@staff.example) invited you to start up to 3 organizations on WhatBuild.");
   });
 
   it("takes only one place when two creations race for the last one", async () => {
@@ -121,6 +149,21 @@ describe("who may create an organization", () => {
     const r = await owner.api("PUT", A, { email: "owen@staff.example", allowed: 1 });
     expect(r.status).toBe(422);
     expect(r.body.error.code).toBe("instance_owner");
+  });
+});
+
+describe("on a deployment with a public site", () => {
+  it("says where to read more about WhatBuild, in the mail an owner sends", async () => {
+    const sited = await startHarness({ siteUrl: "https://site.example", instanceOwners: ["owen@staff.example"], defaultTenantAllowance: 0 });
+    try {
+      const owen = await sited.signIn("owen@staff.example", "Owen Owner");
+      await owen.api("PUT", A, { email: "sol@elsewhere.example", allowed: 1 });
+      expect(sited.mailer.sent.at(-1)!.text).toContain(
+        "\n\nWhatBuild turns a product team’s discovery material into outcomes, mockups and a Story for stakeholders. There’s more at https://site.example.\n\n",
+      );
+    } finally {
+      await sited.close();
+    }
   });
 });
 

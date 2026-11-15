@@ -11,6 +11,7 @@
     "./plans": "./src/plans.ts",
     "./read-only": "./src/read-only.ts",
     "./safe-next": "./src/safe-next.ts",
+    "./sign-in-link": "./src/sign-in-link.ts",
     "./video": "./src/video.ts"
   },
   "scripts": {

@@ -436,11 +436,15 @@ describe("who may answer", () => {
     }
   });
 
-  it("is told by the email to accept or decline, with the address to sign in as", async () => {
-    await invite("mailed@example.com", "editor");
+  it("is told by the email what WhatBuild is, and to accept or decline, with the address to sign in as", async () => {
+    const { link } = await invite("mailed@example.com", "editor");
     const mail = h.mailer.sent.at(-1)!;
-    expect(mail.text).toContain("Accept or decline, signing in as mailed@example.com:\n");
-    expect(mail.text).toContain("The link works for 7 days.");
+    const [, , about, , sign, at, , lasts] = mail.text.split("\n");
+    // No public site here, so nothing says where to read more.
+    expect(about).toBe("WhatBuild turns a product team’s discovery material into outcomes, mockups and a Story for stakeholders.");
+    expect(sign).toBe("Accept or decline, signing in as mailed@example.com:");
+    expect(at).toBe(link);
+    expect(lasts).toBe("The link works for 7 days.");
     expect(mail.text).not.toMatch(/joins? (on|by|when) sign/i);
     expect(mail.text).not.toMatch(/quotation/);
   });
@@ -453,7 +457,8 @@ describe("an invitation to all products", () => {
     expect(mail.to).toBe("everywhere@example.com");
     expect(mail.subject).toBe("Olive Owner invited you to Acme Labs on WhatBuild");
     expect(mail.text).toContain("Olive Owner (owner@example.com) invited you to Acme Labs on WhatBuild, as a viewer.");
-    expect(mail.text).not.toMatch(/\bteam\b/i);
+    // Where it leads names no team ("a product team" is what WhatBuild is for, further down).
+    expect(mail.text.split("\n")[0]).not.toMatch(/\bteam\b/i);
 
     const everywhere = await h.signIn("everywhere@example.com", "Eve Everywhere");
     const [listed] = await pending(everywhere);

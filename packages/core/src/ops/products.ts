@@ -8,6 +8,7 @@ import { capRole, defineOperation, type OpContext, type ProductRole, type Report
 import { checkMembers, type Plan } from "../limits.ts";
 import { isInstanceOwner, requireTenantAllowance } from "../tenant-allowance.ts";
 import { expectedEtag, slug, withArticle } from "../schemas.ts";
+import { aboutWhatBuild } from "../mail-words.ts";
 import { newEtag, newId, plainName, randomToken, sha256Hex, slugify } from "../util.ts";
 import { adviseIdeaCard, CARD_HTML_MAX, checkCardSides, checkIdeaCard } from "../idea-card.ts";
 import { actionAsRead, summaryAsRead } from "./activity.ts";
@@ -862,6 +863,7 @@ async function grantOne(ctx: OpContext, target: GrantTarget, email: string, role
       subject: `${who} invited you to ${where} on WhatBuild`,
       text:
         `${who} (${ctx.principal.email}) invited you to ${where} on WhatBuild, as ${withArticle(roleWords(role))}.\n\n` +
+        `${aboutWhatBuild(ctx.ports.config)}\n\n` +
         `Accept or decline, signing in as ${email}:\n${link}\n\n` +
         `The link works for 7 days.\n`,
     };

@@ -33,6 +33,8 @@ export * from "./policy.ts";
 export * from "./ports.ts";
 export * from "./registry.ts";
 export { safeNext } from "./safe-next.ts";
+export { aboutWhatBuild, WHATBUILD_IN_A_SENTENCE } from "./mail-words.ts";
+export { SIGN_IN_LINK_MINUTES, SIGN_IN_LINK_SUBJECT } from "./sign-in-link.ts";
 export * from "./limits.ts";
 export * from "./guests.ts";
 export * from "./settings.ts";
