@@ -2,7 +2,7 @@ import { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "react-router";
 import { api } from "../lib/api.ts";
-import { pageView, placePage, settingsScreen, startAnalytics, useCookieChoice } from "../lib/analytics.ts";
+import { askCookieChoiceAgain, pageView, placePage, settingsScreen, startAnalytics, useCookieChoice, useCookieChoiceAskedAgain } from "../lib/analytics.ts";
 import { ButtonLink } from "../ui/index.tsx";
 import { CookieChoice } from "./CookieChoice.tsx";
 
@@ -20,11 +20,12 @@ export function useAnalyticsId(): string | null | undefined {
  * behind it: loaded once they accept, with a page view for each screen they open. The app works
  * the same either way. A deployment without analytics has nothing to ask, so it shows nothing; nor
  * does the server give the ID to the instance's owners, or on another address for the service.
- * `/cookies` explains, and changes the choice later.
+ * `/cookies` explains, and its Change brings the notice back to choose again.
  */
 export function CookieNotice() {
   const id = useAnalyticsId();
   const choice = useCookieChoice();
+  const again = useCookieChoiceAskedAgain();
   const { pathname, search } = useLocation();
   // Settings, open over a screen, is a screen of its own: its section is counted, not the one under it.
   const screen = settingsScreen(search) ?? pathname;
@@ -53,6 +54,8 @@ export function CookieNotice() {
           </ButtonLink>
         )
       }
+      open={again}
+      onClose={() => askCookieChoiceAgain(false)}
     />
   );
 }

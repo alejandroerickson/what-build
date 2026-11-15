@@ -330,8 +330,12 @@ describe("the email sign-in link", () => {
       expect(page.headers.get("content-security-policy")).toContain(`'sha256-${createHash("sha256").update(style).digest("base64")}'`);
       expect(html).toContain('<form method="post" action="/auth/verify">');
       expect(html).toContain(`<input type="hidden" name="token" value="${tokenOf(link)}">`);
-      expect(html).toContain("<strong>lena@example.com</strong>");
-      expect(html).toMatch(/<button type="submit" class="primary">Sign in<\/button>/);
+      // It stands on its own: whom it signs in, a button that says so, and what to do if that isn't you. Never "this link".
+      expect(html).toContain("<h1>Sign in to WhatBuild</h1>");
+      expect(html).toContain("<p>You’re about to sign in as <strong>lena@example.com</strong>.</p>");
+      expect(html).toMatch(/<button type="submit" class="primary">Sign in as lena@example\.com<\/button>/);
+      expect(html).toContain('<p class="muted after">Not you? Close this tab and nothing happens.</p>');
+      expect(html).not.toMatch(/this link|this email/i);
     }
     const r = await press(link);
     expect(r.status).toBe(303);

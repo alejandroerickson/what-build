@@ -3,7 +3,7 @@ type: Decision
 title: Limits belong to plans, never to one organization, and each organization is on a plan of its own
 description: A plan sets every limit, the totals an organization holds included; an instance owner moves an organization between plans and changes no organization's limits.
 tags: [decision, limits, plans, tenancy, billing, cost]
-generated: {by: agent:claude, at: 2026-11-13}
+generated: {by: agent:claude, at: 2026-11-15}
 status: stable
 ---
 
@@ -65,7 +65,8 @@ that stops being paid for, and that the plans themselves are the deployment's
   instance owner; the repository never holds one. Billing, when it comes, is a service of its own.
 - **Who runs the deployment sees** an organization's name and plan, and the name and email of
   everyone in it, to bill the organization and write to its people; where the deployment offers
-  plans, the new-organization form, an organization's Plan in Settings and the privacy page say so.
+  plans, an organization's Plan in Settings and the privacy page say so, and the new-organization
+  form, which names only the plan it starts on, links to the privacy page.
 
 ## Consequences
 

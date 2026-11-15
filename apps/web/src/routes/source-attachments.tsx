@@ -9,6 +9,7 @@ import type { Attachment, RecordFull } from "../lib/types.ts";
 import { Button, Dialog, EmptyState, ErrorCallout, Glyph, Loading, Menu, MenuItem, Sheet, SheetHeader, StatusBadge, useToast, type GlyphName } from "../ui/index.tsx";
 import { ImageViewer } from "./image-viewer.tsx";
 import { attachmentGlyph } from "./source-face.tsx";
+import { LimitReached } from "../shell/limit-reached.tsx";
 import { uploadFiles, useFilesThatFit, type UploadItem } from "./source-new.tsx";
 import { UseAttachmentText } from "./source-text.tsx";
 
@@ -304,7 +305,7 @@ export function AttachmentPreview({ record, path, onSelect, onClose }: { record:
  * arrives, and, if the source has no text, the first whose reading finds text becomes it.
  */
 export function AddAttachments({ record, onClose }: { record: RecordFull; onClose: () => void }) {
-  const { api: base } = useProduct();
+  const { api: base, product } = useProduct();
   const qc = useQueryClient();
   const toast = useToast();
   const [items, setItems] = useState<UploadItem[]>([]);
@@ -321,6 +322,7 @@ export function AddAttachments({ record, onClose }: { record: RecordFull; onClos
     }
   };
   const failed = items.filter((i) => i.state === "failed").length;
+  const full = items.find((i) => i.reached)?.reached;
   return (
     <Dialog
       open
@@ -366,6 +368,7 @@ export function AddAttachments({ record, onClose }: { record: RecordFull; onClos
           ))}
         </ul>
       ) : null}
+      {full && !running ? <LimitReached inset tenant={product.tenant.slug} reached={full} /> : null}
     </Dialog>
   );
 }

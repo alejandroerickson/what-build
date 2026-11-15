@@ -57,7 +57,10 @@ vi.mock("../src/lib/api.ts", async (original) => ({
     if (path.includes("/members/activity")) return { items: [], next_cursor: null };
     if (method === "GET" && path === "/api/v1/tenants/acme/members") return members();
     if (method === "POST" && path === "/api/v1/tenants/acme/members/many" && state.refuseGrant)
-      throw new ApiError(409, "quota_exceeded", "A limit was reached: Acme has 2 people, all its plan allows.");
+      throw new ApiError(409, "quota_exceeded", "This organization's plan allows 2 people, and it has 2. Story readers don't count: invite someone who reads only the Story as a Story reader (story_reader).", {
+        quota: "members_max", limit: 2, used: 2, unit: "people", email: "new@example.com", room_for: 0,
+      });
+    if (path === "/api/v1/plans") return { plans: [{ id: "free", name: "Free", about: "", price: null, limits: {} }], starting_plan: "free", limits: [], file_max_bytes: 0, contact: null };
     if (method === "POST" && path === "/api/v1/tenants/acme/members/many")
       return { results: (body!.people as { email: string }[]).map((p) => ({ email: p.email, invited: !p.email.startsWith("pat"), invite_link: "http://localhost/invite/x" })) };
     return {};
@@ -244,7 +247,7 @@ describe("an organization's People and General", () => {
     ]);
   });
 
-  it("forgets Add people's refusal as soon as the choice changes", async () => {
+  it("says a plan's people limit in the app's own words, and forgets it as soon as the choice changes", async () => {
     state.refuseGrant = true;
     const host = await page();
     await act(async () => buttons(host, "Add people")[0]!.click());
@@ -254,13 +257,19 @@ describe("an organization's People and General", () => {
     await act(async () => buttons(dialog, "Add 1 person to all products")[0]!.click());
     await act(async () => buttons(dialog, "Add 1 person")[0]!.click());
     await settle();
-    expect(dialog.textContent).toContain("A limit was reached");
+    const callout = [...dialog.querySelectorAll(".callout")].find((c) => c.textContent?.includes("plan holds"))!;
+    expect(callout.querySelector(".callout-title")?.textContent).toBe("Acme’s Free plan holds 2 people");
+    expect(callout.querySelector(".callout-text")?.textContent).toBe("To add new@example.com, cancel an invitation or remove someone. Story readers don’t count. Compare plans");
+    expect(callout.querySelector("a")?.getAttribute("href")).toBe("/plans");
+    expect(callout.querySelector("a")?.getAttribute("target")).toBe("_blank");
+    // The refusal's own words are for agents.
+    expect(dialog.textContent).not.toContain("story_reader");
     const role = dialog.querySelector<HTMLSelectElement>('select[aria-label="Role for new@example.com"]')!;
     await act(async () => {
       role.value = "story_reader";
       role.dispatchEvent(new Event("change", { bubbles: true }));
     });
-    expect(dialog.textContent).not.toContain("A limit was reached");
+    expect(dialog.textContent).not.toContain("plan holds");
   });
 
   it("says a read-only organization is read-only, and offers only what still works there", async () => {

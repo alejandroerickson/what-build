@@ -6,7 +6,8 @@ import { conflict, forbidden, invalid, notFound } from "../errors.ts";
 import { defineOperation, type OpContext } from "../registry.ts";
 import { expectedEtag } from "../schemas.ts";
 import { isInstanceOwner } from "../tenant-allowance.ts";
-import { newEtag, quotedName } from "../util.ts";
+import { aboutWhatBuild } from "../mail-words.ts";
+import { newEtag, plainName, utcDay } from "../util.ts";
 
 /**
  * Allowances to create organizations, kept by the instance's owners. They belong to no
@@ -45,6 +46,34 @@ async function waitlist(ctx: OpContext) {
       asked_again_at: r.updated_at === r.created_at ? null : r.updated_at,
       account: r.account_id ? { account_id: r.account_id, display_name: r.display_name } : null,
     }));
+}
+
+/**
+ * The mail that lets an address start organizations. To someone on the waitlist, who asked but has
+ * never heard of the owner who let them in: that their place is ready, since the day they asked. To
+ * anyone else: which owner invited them, with that owner's own address, which no chosen name can
+ * fake, and what WhatBuild is. Either way, where to start and the address to sign in as.
+ */
+function allowanceMail(ctx: OpContext, to: string, allowed: number, waitlist: { asked_at: string | null } | null) {
+  const welcome = `${ctx.ports.config.publicBaseUrl}/welcome`;
+  if (waitlist) {
+    const joined = waitlist.asked_at && /^\d{4}-\d{2}-\d{2}/.test(waitlist.asked_at) ? ` on ${utcDay(waitlist.asked_at)}` : "";
+    return {
+      to,
+      subject: "Your place on WhatBuild is ready",
+      text: `You joined the WhatBuild waitlist${joined}. Your place is ready.\n\n` + `Start your organization, signing in as ${to}:\n${welcome}\n`,
+    };
+  }
+  // Only an owner of the instance sends this. Their name is still theirs to choose: one line, bounded.
+  const who = plainName(ctx.actor.display_name);
+  return {
+    to,
+    subject: `${who} invited you to WhatBuild`,
+    text:
+      `${who} (${ctx.principal.email}) invited you to start ${allowed === 1 ? "an organization" : `up to ${allowed} organizations`} on WhatBuild.\n\n` +
+      `${aboutWhatBuild(ctx.ports.config)}\n\n` +
+      `Start here, signing in as ${to}:\n${welcome}\n`,
+  };
 }
 
 function requireInstanceOwner(ctx: OpContext) {
@@ -173,16 +202,9 @@ export const setTenantAllowance = defineOperation({
     const before = existing ? existing.allowed : (ctx.ports.config.defaultTenantAllowance ?? 0);
     let notified = false;
     if (input.notify && input.allowed > before && view!.remaining > 0 && ctx.ports.mailer) {
-      const n = input.allowed;
-      const who = quotedName(ctx.actor.display_name);
-      await ctx.ports.mailer.send({
-        to: input.email,
-        subject: `${who} let you start ${n === 1 ? "an organization" : "organizations"} on WhatBuild`,
-        text:
-          `${who} let you start ${n === 1 ? "one organization" : `up to ${n} organizations`} on WhatBuild.\n\n` +
-          `Sign in with this email to start one:\n${ctx.ports.config.publicBaseUrl}/welcome\n\n` +
-          `The name in quotation marks is the one they gave WhatBuild.\n`,
-      });
+      // Someone let in from the waitlist asked for this; anyone else hears it from the owner who gave it.
+      const asked = before > 0 ? undefined : await ctx.db.selectFrom("interest").select("created_at").where(sql<string>`lower(email)`, "=", input.email).executeTakeFirst();
+      await ctx.ports.mailer.send(allowanceMail(ctx, input.email, input.allowed, asked ? { asked_at: asked.created_at } : null));
       notified = true;
     }
     return { ...view!, notified };

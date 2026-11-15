@@ -147,6 +147,8 @@ export interface CoreConfig {
   sendsMail?: boolean;
   /** Where people write about their data (WHATBUILD_PRIVACY_CONTACT): an address or a page; null when not named. */
   privacyContact?: string | null;
+  /** The public site's origin (WHATBUILD_SITE_URL), which mails that bring someone in point to; null or absent for none. */
+  siteUrl?: string | null;
 }
 
 export interface Ports {

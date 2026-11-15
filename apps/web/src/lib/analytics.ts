@@ -47,6 +47,28 @@ export function useCookieChoice(): CookieChoice | null {
 }
 
 /**
+ * Whether the notice is asked back to change a choice already made: the Cookies page's Change does
+ * it, and making a choice there ends it. The notice is the one place the choice is made.
+ */
+let askedAgain = false;
+const askedListeners = new Set<() => void>();
+
+export function askCookieChoiceAgain(again: boolean) {
+  askedAgain = again;
+  for (const l of askedListeners) l();
+}
+
+export function useCookieChoiceAskedAgain(): boolean {
+  return useSyncExternalStore(
+    (l) => {
+      askedListeners.add(l);
+      return () => askedListeners.delete(l);
+    },
+    () => askedAgain,
+  );
+}
+
+/**
  * A path with names and ids taken out, so what reaches Google says which screen, not whose:
  * `/t/acme/planner/story/launch-plan` becomes `/t/:org/:product/story/:id`.
  */

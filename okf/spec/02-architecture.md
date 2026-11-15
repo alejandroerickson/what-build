@@ -3,7 +3,7 @@ type: Specification
 title: WhatBuild is one TypeScript application image over Postgres and an object store, and the same code runs on a laptop with only Node.
 description: The requirements behind the stack, the stack itself, the deployment shape, ports and adapters, the operation protocol, the local development contract, cross-cutting rules, and the repository layout.
 tags: [spec, architecture, stack, development, deployment]
-generated: {by: agent:claude, at: 2026-11-13}
+generated: {by: agent:claude, at: 2026-11-15}
 status: stable
 ---
 
@@ -142,7 +142,8 @@ before the service moves to it, Cloud Storage for blobs, Secret Manager for secr
   `WHATBUILD_SITE_URL` set (for example `https://what-build.com`), requests whose Host is that site
   get its pages and its interest form; `www.` redirects to it and every other path redirects to the
   app at `WHATBUILD_PUBLIC_URL`. On the app's origin the pages are under `/site/`; the app links
-  to the privacy page wherever it is
+  to the privacy page wherever it is, and, where the site has an address of its own, the mails that
+  bring someone in and a sign-in refused as invite-only point to it
   ([decision](../decisions/the-public-site-is-pages-built-with-the-app.md),
   [decision](../decisions/the-privacy-page-is-a-page-of-the-public-site.md)).
 - **One address for the app.** `WHATBUILD_PUBLIC_URL` is the address the server writes into

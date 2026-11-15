@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { safeNext } from "@whatbuild/core/safe-next";
-import { useEffect, useState, type ReactNode } from "react";
+import { SIGN_IN_LINK_MINUTES, SIGN_IN_LINK_SUBJECT } from "@whatbuild/core/sign-in-link";
+import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
 import { Link, Navigate, useNavigate, useParams, useSearchParams } from "react-router";
 import { api, ApiError, retryRead } from "../lib/api.ts";
 import { useMe, useSignOut } from "../lib/session.tsx";
@@ -8,20 +9,27 @@ import { BrandMark } from "../shell/brand.tsx";
 import { InvitationWords, orgOf, roleWords, useInvitationAnswer, type Invitation } from "../shell/invitations.tsx";
 import { usePageTitle } from "../shell/slots.tsx";
 import { Button, ButtonLink, Callout, EmptyState, ErrorCallout, Loading, Sheet, SheetBody, SheetHeader, TextField } from "../ui/index.tsx";
-import { PrivacyLink } from "../shell/privacy-link.tsx";
+import { Contact, useContact } from "../shell/contact.tsx";
+import { PrivacyLink, useSiteUrl } from "../shell/privacy-link.tsx";
 import "../styles/screens/account.css";
 
 /**
  * A screen outside the shell (sign-in, first run, accepting an invitation): the mark and wordmark
- * above one narrow column of sheets on the canvas.
+ * above one narrow column of sheets on the canvas. `columns` widens it for a table of that many
+ * columns beside its labels, the plans side by side, so every one shows without scrolling sideways.
  */
-export function EntryPage({ title, wide, children }: { title: string; wide?: boolean; children: ReactNode }) {
+export function EntryPage({ title, wide, columns, children }: { title: string; wide?: boolean; columns?: number; children: ReactNode }) {
   useEffect(() => {
     document.title = title;
   }, [title]);
   return (
     <div className="entry">
-      <main id="main" className={`entry-main${wide ? " entry-main-wide" : ""}`} tabIndex={-1}>
+      <main
+        id="main"
+        className={`entry-main${columns ? " entry-main-table" : wide ? " entry-main-wide" : ""}`}
+        style={columns ? ({ "--entry-columns": columns } as CSSProperties) : undefined}
+        tabIndex={-1}
+      >
         <div className="entry-brand">
           <BrandMark />
           <span className="brand-word">WhatBuild</span>
@@ -49,6 +57,15 @@ function useDevAccounts(on: boolean) {
   });
 }
 
+/** A site's address as people say it: "what-build.com". */
+function siteName(url: string): string {
+  try {
+    return new URL(url).host.replace(/^www\./, "");
+  } catch {
+    return url;
+  }
+}
+
 /** The form of the reference the server gives a refused sign-in (`signInReference` in apps/server/src/auth/routes.ts). */
 const SIGN_IN_REFERENCE = /^[0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{4}$/;
 
@@ -63,6 +80,9 @@ export function SignIn() {
   const navigate = useNavigate();
   const accounts = useDevAccounts(Boolean(methods.data?.dev));
   const people = accounts.data?.items.length ? accounts.data.items : DEV_PEOPLE;
+  // Whom a refused sign-in may write to, and where the public site's waitlist is, where the deployment names them.
+  const contact = useContact();
+  const site = useSiteUrl();
   const send = useMutation({ mutationFn: () => api<{ received: boolean; dev_note?: string }>("POST", "/auth/email", { email: email.trim(), next }) });
   const dev = useMutation({
     mutationFn: (e: string) => api("POST", "/auth/dev-sign-in", { email: e, next }),
@@ -77,10 +97,16 @@ export function SignIn() {
   const ref = params.get("ref");
   const reference = ref && SIGN_IN_REFERENCE.test(ref) ? ref : null;
   const emailLink = !methods.data || methods.data.email_link;
-  // A refused Microsoft sign-in the person can do nothing about but pass on.
+  // A refused Microsoft sign-in the person can do nothing about but pass on: to the deployment's contact, where it names one.
   const tellOperator = (
     <>
-      tell whoever runs WhatBuild here
+      {contact ? (
+        <>
+          write to <Contact to={contact} />
+        </>
+      ) : (
+        "tell whoever runs WhatBuild here"
+      )}
       {reference ? (
         <>
           , with the reference <strong className="entry-reference">{reference}</strong>
@@ -101,7 +127,13 @@ export function SignIn() {
             </Callout>
           ) : error === "invite_only" ? (
             <Callout inset tone="attention" title="WhatBuild is invite-only for now">
-              Ask someone who uses it to invite you.
+              {site ? (
+                <>
+                  Ask someone who uses it to invite you, or join the waitlist at <a href={`${site}/#interest`}>{siteName(site)}</a>.
+                </>
+              ) : (
+                "Ask someone who uses it to invite you."
+              )}
             </Callout>
           ) : error === "microsoft_no_verified_email" ? (
             <Callout inset tone="attention" title="WhatBuild couldn’t confirm your email with Microsoft">
@@ -124,7 +156,8 @@ export function SignIn() {
           {emailLink ? (
             send.isSuccess ? (
               <Callout inset tone="positive" title="Check your email" action={<Button size="sm" variant="quiet" onClick={() => send.reset()}>Use another email</Button>}>
-                If {email.trim()} can sign in here, a sign-in link is on its way. It works once, for 15 minutes. If nothing arrives, check the address, or ask someone who uses WhatBuild to invite you.
+                {/* Never that a link was sent: the page doesn't say who can sign in. */}
+                Look in {email.trim()} for an email from WhatBuild called &ldquo;{SIGN_IN_LINK_SUBJECT}&rdquo;. Its link works for {SIGN_IN_LINK_MINUTES} minutes.
                 {send.data.dev_note ? ` ${send.data.dev_note}` : ""}
               </Callout>
             ) : (
@@ -284,7 +317,6 @@ export function AcceptInvite() {
           ) : i ? (
             <>
               <p><InvitationWords invitation={i} /></p>
-              <p className="faint">Names in quotation marks are the ones people gave WhatBuild. You join only if you accept.</p>
               {answerError ? <ErrorCallout inset error={answerError} /> : null}
               <div className="entry-actions">
                 {i.read_only ? null : (

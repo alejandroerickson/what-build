@@ -26,7 +26,7 @@ vi.mock("../src/lib/session.tsx", async (original) => ({
   ...(await original<typeof import("../src/lib/session.tsx")>()),
   useMe: () => ({
     isPending: false,
-    data: { guest: state.guest, tenant_allowance: { instance_owner: false, remaining: state.remaining }, asked_for_organization_at: state.waitlisted },
+    data: { guest: state.guest, email: "gus@example.com", tenant_allowance: { instance_owner: false, remaining: state.remaining }, asked_for_organization_at: state.waitlisted },
   }),
   useSignOut: () => async () => {},
 }));
@@ -78,41 +78,54 @@ describe("the guest gate", () => {
     const text = host.textContent ?? "";
     expect(text).toContain("WhatBuild is full right now");
     expect(text).toContain("Number 3 in line");
-    expect(text).toContain("25 guests are exploring, the most it lets in at once. Try again in a minute: your place in line is kept for two minutes after you last ask.");
+    expect(host.querySelector(".waiting p")?.textContent).toBe("Try again within two minutes to keep your place.");
+    expect(text).not.toMatch(/guests are exploring|example organization/);
     expect([...host.querySelectorAll("button")].map((b) => b.textContent)).toContain("Try again");
     expect(text).not.toContain("the app");
   });
 
   it("shows a waiting guest the invitations waiting for them, since accepting one ends the wait", async () => {
     state.pass = { guest: true, status: "waiting", reason: "full", position: 3, in_now: 25 };
-    state.invitations = [{ invitation_id: "i", tenant: { slug: "acme", name: "Acme Labs" }, scope_type: "product", scope: "Research", role: "editor", invited_by: '"Riley Chen"', expires_at: "2026-11-07T12:00:00.000Z" }];
+    state.invitations = [{ invitation_id: "i", tenant: { slug: "acme", name: "Acme Labs" }, scope_type: "product", scope: "Research", role: "editor", invited_by: "Riley Chen", invited_by_email: "riley@example.com", expires_at: "2026-11-07T12:00:00.000Z" }];
     const host = await gate();
     await act(() => new Promise((r) => setTimeout(r, 20)));
     expect(host.textContent).toContain("WhatBuild is full right now");
-    expect(host.textContent).toContain('Join "Acme Labs"?');
-    expect(host.textContent).toContain('"Riley Chen" invited you as an editor on "Research".');
-    expect(host.querySelector(`[aria-label='Accept the invitation to "Acme Labs"']`)).toBeTruthy();
+    expect(host.textContent).toContain("Join Acme Labs?");
+    expect(host.textContent).toContain("Riley Chen (riley@example.com) invited you as an editor on Research.");
+    expect(host.querySelector(`[aria-label='Accept the invitation to Acme Labs']`)).toBeTruthy();
   });
 
-  it("offers a waiting guest the waitlist, and once they are on it says since when", async () => {
+  it("offers a waiting guest the waitlist, and once they are on it says so, with the address they'll hear at", async () => {
     state.pass = { guest: true, status: "waiting", reason: "full", position: 2, in_now: 25 };
     state.remaining = 0;
     const host = await gate();
-    expect(host.textContent).toContain("Organizations of your own open a few at a time.");
+    expect(host.textContent).not.toContain("open a few at a time");
     expect([...host.querySelectorAll("button")].map((b) => b.textContent)).toContain("Ask for your own organization");
     unmount?.();
     state.waitlisted = "2026-10-26T15:00:00.000Z";
     const text = (await gate()).textContent ?? "";
-    expect(text).toContain("On the waitlist since 26 Oct 2026. You’ll get an email when you can start your organization.");
+    expect(text).toContain("You’re on the waitlist. We’ll email gus@example.com when you can start your organization.");
     expect(text).not.toContain("Ask for your own organization");
   });
 
-  it("tells a new guest past today's places to come back after midnight UTC", async () => {
+  it("tells a new guest past today's places when they open again in the title and badge alone", async () => {
     state.pass = { guest: true, status: "waiting", reason: "new_today", resets_at: new Date(Date.now() + 5 * 3600_000).toISOString() };
-    const text = (await gate()).textContent ?? "";
+    const host = await gate();
+    const text = host.textContent ?? "";
     expect(text).toContain("Today’s places for new guests are taken");
-    expect(text).toContain("Come back in 5 h, at midnight UTC.");
+    expect(text).toContain("Opens again in 5 h");
+    expect(host.querySelector(".waiting > p")).toBeNull();
     // Nothing changes before midnight, so there is nothing to try again.
+    expect(text).not.toContain("Try again");
+  });
+
+  it("tells a guest who has used today's time when it starts again in the title and badge alone", async () => {
+    state.pass = { guest: true, status: "waiting", reason: "time_today", resets_at: new Date(Date.now() + 2 * 3600_000).toISOString() };
+    const host = await gate();
+    const text = host.textContent ?? "";
+    expect(text).toContain("You’ve used today’s time");
+    expect(text).toContain("Back in 2 h");
+    expect(host.querySelector(".waiting > p")).toBeNull();
     expect(text).not.toContain("Try again");
   });
 });

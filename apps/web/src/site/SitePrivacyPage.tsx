@@ -2,6 +2,7 @@ import { ACCOUNT_DELETION } from "@whatbuild/core/account-deletion";
 import { useEffect, type ReactNode } from "react";
 import { anyPriced } from "../lib/limits.ts";
 import { BrandMark } from "../shell/brand.tsx";
+import { Contact } from "../shell/contact.tsx";
 import { Callout } from "../ui/feedback.tsx";
 import { Sheet, SheetBody, SheetHeader } from "../ui/layout.tsx";
 import { ANALYTICS_ID, SiteFrame, sitePath, useSite } from "./SitePage.tsx";
@@ -11,13 +12,6 @@ import { ANALYTICS_ID, SiteFrame, sitePath, useSite } from "./SitePage.tsx";
  * handles it, for how long, or what they can do. A change of wording alone leaves it.
  */
 const LAST_CHANGED = "October 2026";
-
-/** A contact as the deployment gives it: an address to write to, or a page. */
-function Contact({ to }: { to: string }) {
-  if (/^[^\s@]+@[^\s@]+$/.test(to)) return <a href={`mailto:${to}`}>{to}</a>;
-  if (/^https?:\/\//.test(to)) return <a href={to} target="_blank" rel="noreferrer">{to}</a>;
-  return <>{to}</>;
-}
 
 function Kept({ lead, children }: { lead: string; children: ReactNode }) {
   return (
@@ -84,7 +78,7 @@ export function SitePrivacyPage() {
                 </Kept>
                 {analytics ? (
                   <Kept lead="Analytics, if you accept it.">
-                    Google Analytics sees which screens you open and what you do there, never names or content. <a href="/cookies">Cookies</a> holds your choice.
+                    Google Analytics sees which screens you open and what you do there, never names or content. <a href="/cookies">Cookies</a> shows your choice and lets you change it.
                   </Kept>
                 ) : null}
                 <Kept lead="What you send.">Feedback, and a request for an organization of your own, with your name and email.</Kept>

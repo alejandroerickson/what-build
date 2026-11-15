@@ -2,7 +2,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { SIGN_IN_LINK_SUBJECT } from "@whatbuild/core/sign-in-link";
 import { SignIn } from "../src/routes/auth.tsx";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -55,11 +56,20 @@ describe("where the sign-in page returns to", () => {
   });
 });
 
-/** The sign-in page's text for someone signed out who arrived at `/signin<search>`. */
-async function signInPageAt(search: string, methods = { email_link: true, google: false, microsoft: true, dev: false }): Promise<HTMLElement> {
+/**
+ * The sign-in page's text for someone signed out who arrived at `/signin<search>`, on a deployment
+ * that names `contact` and has a public site at `site`, or neither.
+ */
+async function signInPageAt(
+  search: string,
+  methods = { email_link: true, google: false, microsoft: true, dev: false },
+  deployment: { contact?: string | null; site?: string | null } = {},
+): Promise<HTMLElement> {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } });
   qc.setQueryData(["me"], null);
   qc.setQueryData(["auth-methods"], methods);
+  qc.setQueryData(["plans"], { plans: [], starting_plan: "unlimited", limits: [], file_max_bytes: 0, contact: deployment.contact ?? null });
+  qc.setQueryData(["meta"], { privacy_url: "/site/privacy/", site_url: deployment.site ?? null });
   const host = document.createElement("div");
   document.body.append(host);
   const root = createRoot(host);
@@ -101,10 +111,57 @@ describe("a refused Microsoft sign-in", () => {
     expect(text).toContain("tell whoever runs WhatBuild here.");
   });
 
+  it("says to write to the deployment's contact, where it names one, with the reference", async () => {
+    const host = await signInPageAt("?error=microsoft_no_verified_email&ref=K7Q2-M9XD", undefined, { contact: "hello@example.com" });
+    expect(host.textContent).toContain("write to hello@example.com, with the reference K7Q2-M9XD.");
+    expect(host.textContent).not.toContain("whoever runs");
+    expect(host.querySelector('a[href="mailto:hello@example.com"]')).not.toBeNull();
+  });
+
   it("still explains an old link's microsoft_unverified, and offers no email link where there is none", async () => {
     const text = (await signInPageAt("?error=microsoft_unverified", { email_link: false, google: false, microsoft: true, dev: false })).textContent ?? "";
     expect(text).toContain("That Microsoft sign-in didn’t work here");
     expect(text).toContain("the server’s setup may be at fault");
     expect(text).not.toContain("email link");
+  });
+});
+
+describe("a sign-in refused as invite-only", () => {
+  it("points to the public site's waitlist, where the deployment has one", async () => {
+    const host = await signInPageAt("?error=invite_only", undefined, { site: "https://site.example" });
+    const callout = host.querySelector(".callout-text")!;
+    expect(callout.textContent).toBe("Ask someone who uses it to invite you, or join the waitlist at site.example.");
+    expect(callout.querySelector("a")?.getAttribute("href")).toBe("https://site.example/#interest");
+  });
+
+  it("says only to ask for an invitation where it has none", async () => {
+    const host = await signInPageAt("?error=invite_only");
+    expect(host.querySelector(".callout-text")?.textContent).toBe("Ask someone who uses it to invite you.");
+  });
+});
+
+describe("asking for a sign-in link", () => {
+  it("says where to look and for how long, never that a link was sent, with the development note after", async () => {
+    const fetched = vi.spyOn(globalThis, "fetch").mockImplementation(async () => new Response(JSON.stringify({ received: true, dev_note: "In development, a link is printed in the server’s terminal." }), { status: 200 }));
+    try {
+      const host = await signInPageAt("", { email_link: true, google: false, microsoft: false, dev: false });
+      const input = host.querySelector<HTMLInputElement>('input[type="email"]')!;
+      await act(async () => {
+        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, "maya@example.com");
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+      });
+      await act(async () => host.querySelector<HTMLButtonElement>('button[type="submit"]')!.click());
+      await act(() => new Promise((r) => setTimeout(r, 20)));
+      expect(host.querySelector(".callout-title")?.textContent).toBe("Check your email");
+      // The mail's own subject, so they know which one to look for among the rest.
+      expect(host.querySelector(".callout-text")?.textContent).toBe(
+        `Look in maya@example.com for an email from WhatBuild called “${SIGN_IN_LINK_SUBJECT}”. Its link works for 15 minutes. In development, a link is printed in the server’s terminal.`,
+      );
+      expect(SIGN_IN_LINK_SUBJECT).toBe("Your WhatBuild sign-in link");
+      expect(host.textContent).not.toMatch(/on its way|was sent/);
+      expect([...host.querySelectorAll("button")].some((b) => b.textContent === "Use another email")).toBe(true);
+    } finally {
+      fetched.mockRestore();
+    }
   });
 });

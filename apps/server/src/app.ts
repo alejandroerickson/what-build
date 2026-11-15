@@ -196,6 +196,7 @@ export function createPorts(config: ServerConfig, blobs: BlobStore, mailer: Mail
       feedbackEmail: config.mailer === "none" ? null : config.feedbackEmail,
       sendsMail: config.mailer !== "none",
       privacyContact: config.privacyContact,
+      siteUrl: config.siteUrl,
     },
   };
 }

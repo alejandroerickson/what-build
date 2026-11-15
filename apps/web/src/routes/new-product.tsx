@@ -4,7 +4,8 @@ import { Link, useNavigate } from "react-router";
 import { api } from "../lib/api.ts";
 import { useOrganizationLimits } from "../lib/limits.ts";
 import { mayCreateProducts, useMe, type ProductsResponse } from "../lib/session.tsx";
-import { Button, Callout, Dialog, ErrorCallout, SelectField, TextArea, TextField, tooLong } from "../ui/index.tsx";
+import { LimitReached, RefusalCallout } from "../shell/limit-reached.tsx";
+import { Button, Callout, Dialog, SelectField, TextArea, TextField, tooLong } from "../ui/index.tsx";
 
 /** The limits the server sets on a product. */
 const NAME_MAX = 100;
@@ -75,15 +76,10 @@ export function CreateProductDialog({ onClose, tenants, tenant }: { onClose: () 
               ))}
             </SelectField>
           ) : null}
-          {full && limits.data ? (
-            <Callout inset tone="attention" title={`${limits.data.organization.name} holds all the products its plan allows`}>
-              Its {limits.data.plan_name} plan allows {cap === 1 ? "1 product" : `${cap} products`}, archived ones included, and it has {held}. An admin of a product no longer needed
-              can delete it in its Settings to make room, or ask whoever runs this WhatBuild to move the organization to a larger plan.
-            </Callout>
-          ) : null}
+          {full && typeof cap === "number" ? <LimitReached inset tenant={org} reached={{ quota: "products_max", limit: cap }} /> : null}
           <TextField label="Name" required maxLength={NAME_MAX} value={name} onChange={(e) => setName(e.target.value)} />
           <TextArea label="Product concept" optional rows={3} maxLength={CONCEPT_MAX} value={concept} onChange={(e) => setConcept(e.target.value)} hint="Who it’s for, their problem, and how the product solves it." />
-          {create.isError ? <ErrorCallout inset error={create.error} /> : null}
+          {create.isError ? <RefusalCallout inset tenant={org} error={create.error} /> : null}
         </form>
       ) : (
         <Callout inset tone="info">

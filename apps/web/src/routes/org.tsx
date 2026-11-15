@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Link, useNavigate } from "react-router";
 import { api, ApiError, qs } from "../lib/api.ts";
 import { aRole, formatBytes, formatDate, plural, ROLE_WORD, roleWords, scopeWords, slugProblem } from "../lib/format.ts";
-import { anyPriced, keptLine, totalsInWords, usePlans, type Plan } from "../lib/limits.ts";
+import { keptLine, usePlans, type Plan } from "../lib/limits.ts";
 import { useMe, useProducts } from "../lib/session.tsx";
 import { ActivityLog, type ActivityItem } from "../shell/ActivityFeed.tsx";
 import { InvitationsSheet, useInvitations } from "../shell/invitations.tsx";
@@ -15,6 +15,8 @@ import {
 import { EntryPage, NotVisible } from "./auth.tsx";
 import { DeleteDialog, listed } from "./delete-dialog.tsx";
 import { PeopleEditor, type EditorTarget } from "./people-editor.tsx";
+import { AskForOrganization } from "../shell/ask-for-organization.tsx";
+import { Contact, useContact } from "../shell/contact.tsx";
 import { PrivacyLink } from "../shell/privacy-link.tsx";
 import "../styles/screens/account.css";
 import "../styles/screens/activity.css";
@@ -56,7 +58,10 @@ export function Welcome() {
   const hasOrgs = Boolean(products.data?.tenants.some((t) => !t.example));
   const example = products.data?.tenants.find((t) => t.example);
   const invited = Boolean(invitations.data?.items.length);
-  // Nothing here for them to set up: only the people who run this WhatBuild let anyone start an organization.
+  const contact = useContact();
+  // Nothing here for them to set up: only the people who run this WhatBuild let anyone start an
+  // organization. Someone in none may ask for one, as on Home; someone who started all they may is
+  // told whom to write to.
   if (me.data && allowance?.remaining === 0) {
     return (
       <EntryPage title="Welcome · WhatBuild" wide>
@@ -66,13 +71,20 @@ export function Welcome() {
           <SheetBody className="entry-form">
             {!hasOrgs ? (
               <>
-                <p>You&rsquo;re not in an organization yet. {invited ? "Accept an invitation to join one." : "Ask someone who uses WhatBuild to invite you."}</p>
-                <p className="muted">To start an organization of your own, ask this WhatBuild&rsquo;s owners.</p>
+                <p>You&rsquo;re not in an organization yet.{invited ? " Accept an invitation to join one." : ""}</p>
+                <AskForOrganization />
               </>
             ) : (
               <p className="muted">
-                {allowance.allowed ? `You’ve started ${allowance.created === 1 ? "1 organization" : `${allowance.created} organizations`}, the most this account can. ` : ""}
-                To start another, ask this WhatBuild&rsquo;s owners.
+                To start another organization,{" "}
+                {contact ? (
+                  <>
+                    write to <Contact to={contact} />
+                  </>
+                ) : (
+                  "ask this WhatBuild’s owners"
+                )}
+                .
               </p>
             )}
           </SheetBody>
@@ -95,53 +107,46 @@ export function Welcome() {
             if (ready) create.mutate();
           }}
         >
-          <p className="muted">
-            Name your organization and its first product.
-            {allowance?.remaining
-              ? ` This account can start ${allowance.remaining}${allowance.created ? " more" : ""} organization${allowance.remaining === 1 ? "" : "s"}.`
-              : ""}
-          </p>
-          <NewOrganizationPlan plan={me.data?.new_organization_plan ?? "unlimited"} operator={Boolean(me.data?.tenant_allowance.instance_owner)} />
+          <p className="muted">Name your organization and its first product.</p>
           <TextField label="Organization" hint="Your company or group." required maxLength={NAME_MAX} value={org} onChange={(e) => setOrg(e.target.value)} />
-          <TextField label="Product" hint="What this discovery is about." required maxLength={NAME_MAX} value={product} onChange={(e) => setProduct(e.target.value)} />
+          <TextField label="Product" hint="The product you’re working on." required maxLength={NAME_MAX} value={product} onChange={(e) => setProduct(e.target.value)} />
           <TextArea label="Product concept" optional hint="Who it’s for, their problem, and how the product solves it." maxLength={CONCEPT_MAX} rows={3} value={concept} onChange={(e) => setConcept(e.target.value)} />
           {create.isError ? <ErrorCallout inset error={create.error} /> : null}
           <Button type="submit" variant="primary" busy={create.isPending} busyLabel="Starting…" disabled={!ready}>
             Start organization
           </Button>
+          <NewOrganizationPlan plan={me.data?.new_organization_plan ?? "unlimited"} />
         </form>
       </Sheet>
       <p className="entry-foot">
-        {invited ? null : <>An invitation sent to {me.data?.email ?? "your email"} shows here. </>}
-        {hasOrgs || example ? <Link to="/">Back to {hasOrgs ? "your products" : "the example organization"}</Link> : null}
+        <PrivacyLink />
+        {hasOrgs ? (
+          <>
+            {" · "}
+            <Link to="/">Back to your products</Link>
+          </>
+        ) : null}
       </p>
     </EntryPage>
   );
 }
 
 /**
- * What a new organization starts on, said before it is named: its plan in a line with a link to the
- * plans, and, to anyone but whoever runs this WhatBuild, what they see of it and why, as its Plan
- * page and the privacy page say.
+ * The plan a new organization starts on, under the form, on a deployment that offers plans: its
+ * name, and the plans side by side in a new tab, so what is typed stays. Its limits wait until one
+ * is reached; its Plan page says who sees what of it.
  */
-function NewOrganizationPlan({ plan, operator }: { plan: Plan; operator: boolean }) {
+function NewOrganizationPlan({ plan }: { plan: Plan }) {
   const plans = usePlans();
   const entry = plans.data?.plans.find((p) => p.id === plan);
+  if (!entry) return null;
   return (
-    <div className="new-org-plan">
-      {entry ? (
-        <p className="muted">
-          It starts on the {entry.name} plan: {totalsInWords(entry)}. <Link to="/plans">Compare plans</Link>
-        </p>
-      ) : null}
-      {operator || !plans.data?.plans.length ? null : (
-        <p className="faint">
-          Whoever runs this WhatBuild sees the organization&rsquo;s name and plan, and the name and email of everyone in it, and uses them to{" "}
-          {anyPriced(plans.data.plans) ? "bill the organization and to " : ""}write to its people. Each organization you start has a plan of its own.{" "}
-          <PrivacyLink />
-        </p>
-      )}
-    </div>
+    <p className="new-org-plan muted">
+      It starts on the {entry.name} plan.{" "}
+      <a href="/plans" target="_blank" rel="noreferrer">
+        Compare plans
+      </a>
+    </p>
   );
 }
 

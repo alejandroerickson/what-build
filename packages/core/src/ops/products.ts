@@ -8,7 +8,8 @@ import { capRole, defineOperation, type OpContext, type ProductRole, type Report
 import { checkMembers, type Plan } from "../limits.ts";
 import { isInstanceOwner, requireTenantAllowance } from "../tenant-allowance.ts";
 import { expectedEtag, slug, withArticle } from "../schemas.ts";
-import { newEtag, newId, quotedName, randomToken, sha256Hex, slugify } from "../util.ts";
+import { aboutWhatBuild } from "../mail-words.ts";
+import { newEtag, newId, plainName, randomToken, sha256Hex, slugify } from "../util.ts";
 import { adviseIdeaCard, CARD_HTML_MAX, checkCardSides, checkIdeaCard } from "../idea-card.ts";
 import { actionAsRead, summaryAsRead } from "./activity.ts";
 
@@ -805,16 +806,14 @@ function seenByCaller(ctx: OpContext): (accountId: string) => Promise<boolean> {
 }
 
 /**
- * Where an invitation's email says it leads, as the invitation's screens say it: the organization
- * by name, always, and the product in it, or every product. Each name was chosen by someone, so
- * each is quoted, and none reads as WhatBuild's own words.
+ * Where an invitation's email says it leads, as the invitation's screens say it: the organization by
+ * name, for a role in it or on all its products, and for one product, the product in it. Each name
+ * was chosen by someone, so each is on one line and bounded.
  */
 function invitedTo(target: GrantTarget, organization: string): string {
-  const named = (name: string) => quotedName(name, 100, "unnamed");
-  const org = `the organization ${named(organization)}`;
-  if (target.scope_type === "tenant") return org;
-  if (target.scope_type === "all_products") return `every product in ${org}`;
-  return `${named(target.name)} in ${org}`;
+  const named = (name: string) => plainName(name, 100, "unnamed");
+  if (target.scope_type === "tenant" || target.scope_type === "all_products") return named(organization);
+  return `${named(target.name)} in ${named(organization)}`;
 }
 
 /**
@@ -855,17 +854,18 @@ async function grantOne(ctx: OpContext, target: GrantTarget, email: string, role
       .values({ invitation_id, tenant_id: tid, scope_type: target.scope_type, scope_id: target.scope_id, email, role, token_hash: sha256Hex(token), expires_at: expires, created_by: json(ctx.actor) })
       .execute();
     const link = `${ctx.ports.config.publicBaseUrl}/invite/${token}`;
-    // The inviter's name is theirs to choose: in the email it is one line, quoted and bounded, so it never reads as WhatBuild's own words.
-    const who = quotedName(ctx.actor.display_name);
+    // The inviter's name is theirs to choose, so it is one line and bounded, and their own account's
+    // address follows it: one WhatBuild confirmed when they signed in, which no chosen name can fake.
+    const who = plainName(ctx.actor.display_name);
     const where = invitedTo(target, ctx.scope.tenant!.name);
     const mail: Mail = {
       to: email,
       subject: `${who} invited you to ${where} on WhatBuild`,
       text:
-        `${who} invited you to ${where} on WhatBuild, as ${withArticle(roleWords(role))}.\n\n` +
-        `You join only if you accept. Accept or decline it here:\n${link}\n\n` +
-        `The link works within 7 days, when you sign in with this email. The invitation also waits for you there whenever you sign in.\n` +
-        `The names in quotation marks are the ones people gave WhatBuild.\n`,
+        `${who} (${ctx.principal.email}) invited you to ${where} on WhatBuild, as ${withArticle(roleWords(role))}.\n\n` +
+        `${aboutWhatBuild(ctx.ports.config)}\n\n` +
+        `Accept or decline, signing in as ${email}:\n${link}\n\n` +
+        `The link works for 7 days.\n`,
     };
     await recordActivity(ctx, { action: "invited", entity_type: "membership", entity_id: invitation_id, entity_title: target.name, summary: `Invited someone as ${roleWords(role)}` });
     // The link is returned to the inviter too, so an invitation works even where no email is sent.

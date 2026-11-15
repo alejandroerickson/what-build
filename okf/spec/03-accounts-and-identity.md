@@ -53,8 +53,10 @@ Sign-in methods, each optional per deployment:
 
 - **Email link** — a single-use link valid 15 minutes, at most five per address per hour. Opening
   it (`GET /auth/verify?token=…`) changes nothing: mail scanners fetch every link in a message,
-  so it answers a page that names the address and has one button, Sign in, whose form posts the
-  link back (`POST /auth/verify`). That POST is what uses the link and signs in, and only from the
+  so it answers a page that says "You’re about to sign in as <address>.", with one button, Sign in
+  as <address>, and under it "Not you? Close this tab and nothing happens.", whose form posts the
+  link back (`POST /auth/verify`). The page stands on its own and never speaks of a link or an
+  email, since whoever reads it may not connect it to the mail. That POST is what uses the link and signs in, and only from the
   app's own origin: one whose `Origin` is another site's, or `null`, answers
   `403 forbidden_origin` and leaves the link unused, so no other site can sign someone in to an
   account of its choosing. It answers `303` to `next`; a link that is unknown, used or expired
@@ -86,13 +88,16 @@ signing in with the development sign-in, never leaves the origin either. Request
 account. Without it there is no invite-only mode and anyone may, whatever the guests' `self_serve`
 says, and Instance admin says so. Existing accounts, invited addresses, the instance's owners and addresses with an
 allowance above 0 to create organizations ([§3.3](#33-tenants)) always may. Staging runs invite-only until public
-sign-up opens ([§10 Phase 6](10-roadmap.md)). The sign-in form answers every address alike, "if it
-can sign in here, a link is on its way", at the same speed and under the same hourly limit, and
+sign-up opens ([§10 Phase 6](10-roadmap.md)). The sign-in form answers every address alike, "Look in <address> for an email from WhatBuild
+called “Your WhatBuild sign-in link”. Its link works for 15 minutes.", naming the mail by its
+subject (`SIGN_IN_LINK_SUBJECT`, which the mail takes from the same place) and never saying a link was sent, at the same speed and under the same hourly limit, and
 sends a link only to an address that may sign in, so it never says whether an address has an
 account, an invitation or an allowance
 ([decision](../decisions/a-role-is-given-at-once-only-to-someone-already-seen-in-the-organization.md)).
 A refusal is said only after a sign-in proves the address is the person's (an email link, Google
-or Microsoft): the sign-in page then says the WhatBuild is invite-only.
+or Microsoft): the sign-in page then says the WhatBuild is invite-only, and to ask someone who
+uses it for an invitation or, on a deployment with a public site (`site_url` in `GET /api/v1/meta`,
+`WHATBUILD_SITE_URL`), to join the waitlist there.
 
 **Signing up as a guest** (◆ [decision](../decisions/guests-come-into-the-example-organization-while-there-is-room.md)).
 While an instance owner lets guests sign up themselves (the guests' `self_serve`, in Instance admin → Guests),
@@ -126,7 +131,7 @@ in the organization, and someone in no other is a guest account like any other
 
 | Route (a browser's session only) | What it does |
 |---|---|
-| `GET /api/v1/me/invitations` | The invitations waiting for this account: open (not accepted, cancelled, declined or past their time) and sent to its address, ignoring letter case, newest first, at most 100. Each has `invitation_id`, `tenant`, `scope_type`, `scope`, `role`, `expires_at` and `invited_by`, the inviter's name on one line and in quotation marks, as the email shows it. Never its token. |
+| `GET /api/v1/me/invitations` | The invitations waiting for this account: open (not accepted, cancelled, declined or past their time) and sent to its address, ignoring letter case, newest first, at most 100. Each has `invitation_id`, `tenant`, `scope_type`, `scope`, `role`, `expires_at`, `invited_by`, the inviter's name on one line and at most 60 characters, as the email shows it, and `invited_by_email`, the address of the inviter's account, which WhatBuild confirmed at sign-in, or null once that account is deleted. Never its token. |
 | `POST /api/v1/invitations/read { token }` or `{ invitation_id }` | What opening a link (`/invite/:token`) shows: the same fields and `accepted`. It changes nothing, and carries the token in its body so that no request log keeps it. |
 | `POST /api/v1/invitations/accept { token }` or `{ invitation_id }` | Gives the role; `409 organization_read_only` while the organization is read-only (an invitation says so in `read_only`), and it stays open. A role the person already holds at that place stays, and the answer gives the role they hold. `already: true` when this person accepted it before, from their list or the link, and still holds it. |
 | `POST /api/v1/invitations/decline { token }` or `{ invitation_id }` | Ends the invitation and gives no role. |
@@ -227,7 +232,8 @@ for the person's answer.
 **The sign-in screen** ([§7](07-web-app.md)) offers the method as it offers Google: a link to
 `/auth/microsoft?next=…`. Its message for a failed sign-in MUST NOT point to the email link on a
 deployment that has none. For the two refusals it allows that the server's setup may be at fault,
-asks the person to tell whoever runs WhatBuild and shows the reference to give them, and never
+asks the person to write to the deployment's contact (`WHATBUILD_PRIVACY_CONTACT`), or, where it
+names none, to tell whoever runs WhatBuild, and shows the reference to give them, and never
 sends a person who may be signing in correctly off to find another account. It shows `ref` only
 in the server's form, so a crafted link cannot put words on the page.
 
@@ -307,7 +313,12 @@ one to what the tenant already has writes nothing. A change is recorded in the t
   [decision](../decisions/running-the-instance-is-done-in-the-web-app-never-by-an-agent.md)): `products.tenant_allowances`,
   `products.set_tenant_allowance` (guarded by the row's etag once it exists, and refusing one sent
   for an address that has none with `409 stale_etag` and `current_etag: null`; with `notify`, an
-  address whose allowance grows is emailed a link to `/welcome`) and
+  address whose allowance grows is emailed a link to `/welcome` and the address to sign in as.
+  Someone on the waitlist who had no allowance asked for it and may never have heard of the
+  instance owner, so theirs, "Your place on WhatBuild is ready", says they joined the waitlist on
+  the day they asked and names nobody; anyone else's, "<owner> invited you to WhatBuild", names
+  the instance owner with their account's address, as an invitation does, and says in a sentence
+  what WhatBuild is, with where to read more on a deployment with a public site) and
   `products.remove_tenant_allowance`, which returns an address to the default. These belong to no
   tenant, so they write no activity event; each row keeps who gave it and who last changed it.
   `GET /api/v1/me` returns the caller's own `tenant_allowance`.
@@ -369,8 +380,9 @@ it moves. The limits and their refusals are in [§9.7](09-data-lifecycle.md).
   year is up yet ([§10](10-roadmap.md#the-example-organization-and-the-plans)).
 - **Whoever runs the deployment sees** each tenant's name and plan, and the name and email of
   everyone in it, to write to its people and, where a plan has a price, to bill the organization
-  for it. Where the deployment offers plans, the new-organization form, a tenant's Plan in Settings and the
-  privacy page say so, speaking of billing only where a plan has a price; a deployment that offers
+  for it. Where the deployment offers plans, a tenant's Plan in Settings and the privacy page say
+  so, speaking of billing only where a plan has a price, and the new-organization form links to the
+  privacy page; a deployment that offers
   none says nothing of plans or billing.
 
 ## 3.4 Products
@@ -456,12 +468,16 @@ person has one, its `all_products` role.
   address has an account, here or elsewhere, or whose it is
   ([decision](../decisions/a-role-is-given-at-once-only-to-someone-already-seen-in-the-organization.md)).
   An invitation is emailed where mail is configured and always returned to the inviter as a
-  single-use link. The email names the inviter, the organization, and the product in it, or says
-  every product in it.
-  Each is a name someone gave WhatBuild, so each is shown on one line, without control or
-  direction-changing characters, in quotation marks it cannot close, at most 60 characters for the
-  inviter's display name and 100 for the others, and the email says they are names people gave
-  WhatBuild. A tenant keeps at least one owner (`409 last_owner`). An invitation to all products is
+  single-use link. The email names the inviter, the organization alone for a role in it or on all
+  its products, and for one product, the product in its organization ("Crew scheduling in
+  Fieldnote"); it says in a sentence what WhatBuild is, with "There’s more at <site>." on a
+  deployment with a public site (`WHATBUILD_SITE_URL`), where to accept or decline, signing in as
+  the invited address, and that the link works for 7 days. Each name is someone's choice, so each is shown as a name, on one line,
+  without control or direction-changing characters, at most 60 characters for the inviter's display
+  name and 100 for the others, and the inviter's name is followed by their own account's address in
+  parentheses, which WhatBuild confirmed and no chosen name can fake ◆
+  [decision](../decisions/an-invitation-shows-names-plainly-beside-the-inviters-confirmed-address.md).
+  A tenant keeps at least one owner (`409 last_owner`). An invitation to all products is
   cancelled, as it is given, by the tenant's owners and admins.
 - **Who sees whom.** The tenant's owners and admins see all its people, their grants and its
   invitations. Anyone else, with a viewer role or above somewhere in it, sees only the people on

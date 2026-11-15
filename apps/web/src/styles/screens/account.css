@@ -310,6 +310,10 @@
 .entry-main-wide {
   max-width: 520px;
 }
+/* A table of plans side by side: room for its labels and each plan's column, so none is cut off. */
+.entry-main-table {
+  max-width: calc(300px + var(--entry-columns, 2) * 200px);
+}
 .entry-brand {
   display: flex;
   align-items: center;
@@ -461,12 +465,8 @@
   }
 }
 
-/* What a new organization starts on, and who sees its name, under the form's opening line. */
+/* The plan a new organization starts on, in one line under the form's button. */
 .new-org-plan {
-  display: grid;
-  gap: var(--s-1h);
-}
-.new-org-plan > p {
   margin: 0;
   max-width: var(--measure);
   font-size: var(--fs-sm);
