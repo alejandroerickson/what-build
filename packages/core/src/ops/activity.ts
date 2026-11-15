@@ -1,6 +1,7 @@
 import { sql } from "kysely";
 import { z } from "zod";
 import { changedInWords } from "../common.ts";
+import { roleWords } from "../policy.ts";
 import { defineOperation } from "../registry.ts";
 
 /**
@@ -84,7 +85,9 @@ const TEAM_ROLES = new Set(["admin", "editor", "viewer", "reader"]);
  * its products directly named a team as the place of a role ("Granted editor on team Product
  * team"): no grant names a team now, so the role reads without its place ("Granted editor").
  * Entries recorded before the Story-only role was named story_reader called it reader: it reads as
- * a Story reader. Every other summary, and every one recorded since, reads as it was written.
+ * a Story reader. A role some entries named by its identifier (story_reader, creator) reads in
+ * words, as roleWords gives it, and an organization once called a tenant reads as an organization.
+ * Every other summary reads as it was written.
  */
 export function accessSummaryAsRead(action: string, summary: string): string {
   if (action === "granted" || action === "role_changed") {
@@ -104,16 +107,22 @@ export function accessSummaryAsRead(action: string, summary: string): string {
     return read ? `Removed ${read}` : summary;
   }
   if (action === "invited" || action === "joined" || action === "invitation_declined") {
-    return summary.replace(/^(Invited someone|Accepted an invitation|Declined an invitation) as reader$/, "$1 as Story reader");
+    const [, verb, role = ""] = /^(Invited someone|Accepted an invitation|Declined an invitation) as (\w+)$/.exec(summary) ?? [];
+    return verb ? `${verb} as ${roleAsRead(role)}` : summary;
   }
   return summary;
 }
 
+/** A role an access entry named, in today's words: reader was the Story reader's name before story_reader. */
+function roleAsRead(role: string): string {
+  return role === "reader" ? "Story reader" : roleWords(role);
+}
+
 /** "<role> on <place>" from an old access entry as it reads now, or null where it reads as written. */
 function roleOnPlaceAsRead(role: string, place: string): string | null {
-  if (place.startsWith("team ") && TEAM_ROLES.has(role)) return role === "reader" ? "Story reader" : role;
-  if (role === "reader") return `Story reader on ${place}`;
-  return null;
+  if (place.startsWith("team ") && TEAM_ROLES.has(role)) return roleAsRead(role);
+  const read = `${roleAsRead(role)} on ${place.replace(/^tenant /, "organization ")}`;
+  return read === `${role} on ${place}` ? null : read;
 }
 
 /**

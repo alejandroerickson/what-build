@@ -459,7 +459,11 @@ An append-only event log, written in the same transaction as the mutation that c
   called `reader` reads "Story reader" in every summary that named it, of a role given, changed or
   removed, an invitation sent, and an invitation accepted or declined: "Granted reader on product
   Planner" reads "Granted Story reader on product Planner", and "Accepted an invitation as reader"
-  reads "Accepted an invitation as Story reader".
+  reads "Accepted an invitation as Story reader". A role named by its identifier reads in words, as
+  every summary now writes it: "Removed story_reader on product Planner" reads "Removed Story reader
+  on product Planner", and "Granted creator on organization Acme" reads "Granted product creator on
+  organization Acme". An organization named as a tenant, as the earliest entries name it, reads as
+  an organization: "Granted owner on tenant Acme" reads "Granted owner on organization Acme".
   ◆ Decision: an old summary is reworded where it is read
   ([`summaryAsRead`](../../packages/core/src/ops/activity.ts)), never by a migration, as the
   product log's old entries are, so the stored event, and an export's `activity.jsonl`, stays as it

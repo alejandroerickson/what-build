@@ -294,6 +294,16 @@ describe("the access log's entries from earlier releases", () => {
     ["revoked", "Removed from Acme Labs: reader on all products was their only role", "Removed from Acme Labs: Story reader on all products was their only role"],
     ["joined", "Accepted an invitation as reader", "Accepted an invitation as Story reader"],
     ["invitation_declined", "Declined an invitation as reader", "Declined an invitation as Story reader"],
+    // Recorded with a role's identifier where its words belong.
+    ["revoked", "Removed story_reader on product Planner", "Removed Story reader on product Planner"],
+    ["revoked", "Removed creator on organization Acme Labs", "Removed product creator on organization Acme Labs"],
+    ["revoked", "Removed from Acme Labs: story_reader on all products was their only role", "Removed from Acme Labs: Story reader on all products was their only role"],
+    ["granted", "Granted creator on organization Acme Labs", "Granted product creator on organization Acme Labs"],
+    ["joined", "Accepted an invitation as story_reader", "Accepted an invitation as Story reader"],
+    ["invitation_declined", "Declined an invitation as creator", "Declined an invitation as product creator"],
+    // Recorded while an organization was called a tenant.
+    ["granted", "Granted owner on tenant Acme Labs", "Granted owner on organization Acme Labs"],
+    ["revoked", "Removed admin on tenant Acme Labs", "Removed admin on organization Acme Labs"],
   ])("reads an entry recorded as %s, saying %s, as %s", async (action, summary, reads) => {
     expect(await readBack(await recorded(action, summary))).toMatchObject({ action, summary: reads });
   });
@@ -316,6 +326,11 @@ describe("the access log's entries from earlier releases", () => {
     ["granted", "Granted editor on product team reader"],
     ["revoked", "Removed viewer on product Reader team"],
     ["revoked", "Removed from Team reader: editor on product Planner was their only role"],
+    ["revoked", "Removed Story reader on product Planner"],
+    ["revoked", "Removed product creator on organization Acme Labs"],
+    ["revoked", "Removed from Acme Labs: Story reader on all products was their only role"],
+    ["joined", "Accepted an invitation as Story reader"],
+    ["granted", "Granted editor on product tenant portal"],
   ])("leaves an entry recorded as %s, saying %s, as it was written", async (action, summary) => {
     expect(await readBack(await recorded(action, summary))).toMatchObject({ action, summary });
   });

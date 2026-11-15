@@ -1052,7 +1052,7 @@ export const revokeMember = defineOperation({
     const acct = await ctx.db.selectFrom("accounts").select("display_name").where("account_id", "=", input.account_id).executeTakeFirst();
     // A person whose last role goes is no longer in the organization, and the access log says so.
     const left = !(await ctx.db.selectFrom("memberships").select("membership_id").where("tenant_id", "=", ctx.scope.tenant!.tenant_id).where("account_id", "=", input.account_id).executeTakeFirst());
-    const removed = `${m.role} on ${placeOf(target)}`;
+    const removed = `${roleWords(m.role)} on ${placeOf(target)}`;
     await recordActivity(ctx, {
       action: "revoked",
       entity_type: "membership",

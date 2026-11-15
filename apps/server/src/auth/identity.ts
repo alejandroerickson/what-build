@@ -1,4 +1,4 @@
-import { collapse, endSignIns, json, newId, randomToken, sha256Hex, type ActorSnapshot, type ConnectionLevel, type Db, type InvitationsTable, type Principal } from "@whatbuild/core";
+import { collapse, endSignIns, json, newId, randomToken, roleWords, sha256Hex, type ActorSnapshot, type ConnectionLevel, type Db, type InvitationsTable, type Principal } from "@whatbuild/core";
 import { sql, type Selectable } from "kysely";
 import type { Context } from "hono";
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
@@ -275,7 +275,7 @@ export async function acceptInvitation(db: Db, invitationId: string, account: Ac
       .values({
         activity_id: newId(), tenant_id: inv.tenant_id, product_id: inv.scope_type === "product" ? inv.scope_id : null,
         actor: json(actor), actor_account_id: account.account_id, channel: "web", action: "joined", entity_type: "membership", entity_id: account.account_id,
-        entity_title: account.display_name, summary: `Accepted an invitation as ${inv.role}`,
+        entity_title: account.display_name, summary: `Accepted an invitation as ${roleWords(inv.role)}`,
       })
       .execute();
     return { role: held?.role ?? inv.role };
@@ -298,7 +298,7 @@ export async function declineInvitation(db: Db, invitationId: string, account: A
       .values({
         activity_id: newId(), tenant_id: inv.tenant_id, product_id: null,
         actor: json(SOMEONE_INVITED), actor_account_id: SOMEONE_INVITED.account_id, channel: "web", action: "invitation_declined", entity_type: "membership", entity_id: inv.invitation_id,
-        entity_title: scope ? collapse(scope, 200) : null, summary: `Declined an invitation as ${inv.role}`,
+        entity_title: scope ? collapse(scope, 200) : null, summary: `Declined an invitation as ${roleWords(inv.role)}`,
       })
       .execute();
     return true;
