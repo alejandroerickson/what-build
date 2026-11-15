@@ -3,7 +3,7 @@ type: Process
 title: Keeping private material out of the repository and finding known vulnerabilities
 description: The checks that keep secrets and private material out of what is published and find known vulnerabilities, where each runs, what to do about a finding, how to audit everything GitHub holds, and how to make the repository public.
 tags: [operations, security, public, privacy, dependencies, ci, agents]
-generated: {by: agent:claude, at: 2026-11-01}
+generated: {by: agent:claude, at: 2026-11-15}
 status: stable
 ---
 
@@ -41,12 +41,15 @@ What the app itself defends against, and where, is in the [threat model](../syst
 | Dependabot | alerts and a security update as an advisory appears; grouped version updates weekly, for releases at least seven days old | pull requests |
 | `pnpm attention` | at the start of every agent session (`AGENTS.md`): Dependabot's pull requests, its alerts but those accepted in `.github/osv-scanner.toml`, code and secret scanning alerts, the last run of each workflow on `main`, accepted vulnerabilities once they are due (the last three days of the acceptance) with their reasons, unreleased changes to security-sensitive code, hooks that are off, and pulls, golden masters, exports and a dev copy that may hold an organization no instance owner owns ([copying an organization](copying-an-organization.md#which-organizations-may-leave-production)) | tells the person |
 
-`pnpm install` installs the hooks: its `prepare` script points `core.hooksPath` at
-`scripts/githooks/`. It sets that for the worktree it runs in (git's `extensions.worktreeConfig`),
-because the worktrees of a clone share the rest of its configuration: a worktree on a branch from
-before the hooks moved, which keeps them in `.githooks/`, sets the shared value and keeps its own
-hooks, and neither turns the other's off. The hooks need only Node. `scripts/tools.mjs` downloads
-each scanner once, checks it against the SHA-256 pinned there, and keeps it in
+`pnpm install` installs the hooks: its `prepare` script points the clone's `core.hooksPath` at
+`scripts/githooks`, a relative path. Every worktree of a clone shares that value, and git reads a
+relative path from the root of the worktree a hook runs in, so each worktree runs the hooks it has
+checked out. A new worktree has them before it runs `pnpm install`, which a value set for one
+worktree alone (git's `extensions.worktreeConfig`) would not give it. An absolute path would run one
+checkout's hooks in every worktree. `pnpm attention` says the hooks are off for any value but
+`scripts/githooks`, and `pnpm install` in any worktree puts it back. The hooks need only Node.
+`scripts/tools.mjs` downloads each scanner once, checks it against the SHA-256 pinned there, and
+keeps it in
 `~/.cache/what-build/tools/` (or under `$XDG_CACHE_HOME`). If gitleaks cannot be fetched, a commit
 goes ahead with a warning; the push and CI check it again.
 
