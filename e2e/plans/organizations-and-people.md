@@ -37,13 +37,16 @@ and **Cleo** are three such addresses, signed in with `pnpm e2e browser signin <
    with her address, when she asked and "signed up". Press **Let them start one** for Ana.
    *Expect:* a toast says Ana can start an organization; Ana leaves the Waitlist and appears under
    Who can start organizations: "Can have 1 Free organization; has 0", with "1 left". The server's
-   log prints the email Ana is sent, with a link to `/welcome`.
+   log prints the email Ana is sent: "Riley Chen invited you to WhatBuild", with no quotation marks,
+   saying to start here signing in as Ana's address, with a link to `/welcome`.
 3. **Web, as Ana.** Reload the overview, start an organization from Start your organization with a
-   name of the run's own and a first product. *Expect:* the form says the organization starts on
-   the Free plan and that its name and plan, and the name and email of everyone in it, are visible
-   to whoever runs this WhatBuild. The product opens. Open Settings from the panel and choose Plan
-   under the organization (`?settings=organization/plan`). *Expect:* Free, with what it holds: 1 of
-   2 people, 1 of 1 products, and storage, and the plans side by side; no Change plan, and neither
+   name of the run's own and a first product. *Expect:* the form says only "Name your organization
+   and its first product." above its fields, and under its button "It starts on the Free plan.
+   Compare plans", the link opening the plans in a new tab; it lists no limits, and says nothing of
+   who sees the organization (its Plan page does). The product opens. Open Settings from the panel and choose Plan
+   under the organization (`?settings=organization/plan`). *Expect:* Free; a line saying its name and
+   plan, and the name and email of everyone in it, are visible to whoever runs this WhatBuild; what it
+   holds: 1 of 2 people, 1 of 1 products, and storage, and the plans side by side; no Change plan, and neither
    the refusals nor the deployment's own limits, which are in Instance admin.
 4. **MCP, as Ana, on an Admin connection** (`--level admin`: starting an organization needs one).
    *Expect:* `create_tenant` is not among her tools, since she may not start another. Call

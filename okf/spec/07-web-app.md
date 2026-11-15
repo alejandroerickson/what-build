@@ -59,7 +59,16 @@ design system: tokens, type, components and the rules for using them — is docu
   loses what they are typing.
 - `409 quota_exceeded` is shown as a fact with a number and a next step, never as a failure of the
   person. (Enforced today: Story pages and mockups per product, [§9.2](09-data-lifecycle.md), and the
-  daily allowances of a plan the deployment defines, [§9.7](09-data-lifecycle.md).)
+  daily allowances and totals of a plan the deployment defines, [§9.7](09-data-lifecycle.md).) A
+  plan's total, reached (people in Add people, products in New product, sources in a new source,
+  storage when an upload is refused), is said in the app's own words from the refusal's `details`,
+  never the message written for agents: the organization and its plan by name with what the plan
+  holds ("Fieldnote’s Free plan holds 2 people"), one sentence on how to make room ("To add
+  nora@example.com, cancel an invitation or remove someone. Story readers don’t count."), and
+  Compare plans, opening `/plans` in a new tab, where the deployment offers plans
+  (`apps/web/src/shell/limit-reached.tsx`). New product says the same before anything is typed
+  when the organization already holds its plan's products. A limit a minute or a day keeps the
+  server's words.
 - **Calls a minute running out is a wait, not a failure.** A read refused for them
   (`429 rate_limited` with `retry_after_seconds`, [§9.7](09-data-lifecycle.md)) asks again once it
   may succeed, each read at a moment of its own within five seconds of that, three times at most, and only
@@ -344,8 +353,8 @@ admins and product creators get **New product**, a dialog on the overview
 (`?create=<organization slug>`, or `?create=1` for the first organization they may create in), so
 cancelling leaves the person there; it asks for the organization only when they can create in more
 than one; a product creator is told they will be its admin;
-and when the organization already holds all the products its plan allows it says so, and how to
-make room, in place of Create.
+and when the organization already holds all the products its plan allows it says so in the words
+of a plan's total reached ([§7.1](#71-principles)), with Compare plans, and Create stays disabled.
 An organization with no product the person can see says so, and, to someone who cannot create
 one, whom to ask. The
 overview is the only list of products: `/products` redirects to it. Roles are not shown here: who
@@ -461,7 +470,10 @@ new tab ([§7.8](#78-story), [§6](06-operations-and-adapters.md)).
    ([§3.2](03-accounts-and-identity.md)); in development, one click signs in as any account on
    the server (`GET /auth/dev-accounts`): the sample's people first, then the newest, each with what
    it is there ("Owns Fieldnote Studio (Pro)", "Guest, on the waitlist"), the first 40 of them, or as
-   any address typed above. An
+   any address typed above. Asking for an email link answers, under "Check your email", "Look for
+   a sign-in link at <address>. It works for 15 minutes.", never that a link was sent, since the
+   page doesn't say who can sign in (in development, a note that the link is printed in the
+   server's terminal follows), with Use another email. An
    email link opens a page the server renders, naming the address, whose one button, Sign in,
    signs in and returns to `next`. Wherever sign-in returns to is a path on this origin or `/`,
    by the server's rule (`safeNext`). Under the form, one line says WhatBuild is a free preview
@@ -478,15 +490,19 @@ new tab ([§7.8](#78-story), [§6](06-operations-and-adapters.md)).
    start one, and the sheet no longer tells them to ask, only that someone who uses WhatBuild can
    invite them meanwhile.
 3. **First run** (`/welcome`): name the organization and the first product in one form, for an
-   account that may create one ([§3.3](03-accounts-and-identity.md)); for someone who is not
-   an instance owner, where the deployment offers plans, it adds which plan the organization starts
-   on, with its totals and a link to compare the plans, and that whoever runs this WhatBuild sees
-   its name and plan and the name and email of everyone in it, to write to its people, and to bill
-   it where a plan has a price; a deployment that offers no plans says neither. The same form, titled
-   New organization, starts another. An account that may not says so: the people who run the
-   instance decide who may, and someone can invite them instead; its link back leads to the
-   example organization for someone with none of their own. A person who was invited finds the
-   invitation wherever they land once signed in, here too, or follows its link
+   account that may create one ([§3.3](03-accounts-and-identity.md)). The sheet holds the heading
+   ("Welcome, <first name>"), "Name your organization and its first product.", the Organization
+   ("Your company or group."), Product ("The product you’re working on.") and Product concept
+   fields, and Start organization; under the button, for someone who is not an instance owner,
+   where the deployment offers plans, one muted line names the plan the organization starts on,
+   "It starts on the Free plan.", with Compare plans opening `/plans` in a new tab so what is typed
+   stays. The plan's limits wait until one is reached, and what whoever runs this WhatBuild sees of
+   an organization is on its Plan page; a deployment that offers no plans shows no line. Under the
+   sheet are Privacy and, for someone with an organization of their own, Back to your products.
+   The same form, titled New organization, starts another. An account that may not says so: the
+   people who run the instance decide who may, and someone can invite them instead; its link back
+   leads to the example organization for someone with none of their own. A person who was invited
+   finds the invitation wherever they land once signed in, here too, or follows its link
    (`/invite/:token`), and joins by accepting it.
 4. Invite colleagues with **Add people**, in Settings under the organization's People or the
    product's, by email or a single-use link.
@@ -1295,14 +1311,19 @@ never described as deleting. A list row showing an archived object says *Archive
 - **`/settings` as a page of its own**, for someone with no product to open Settings over (a guest
   still waiting for a place, or someone in no organization on a WhatBuild without an example
   organization): Account and Sign out everywhere, on the plain stage.
-- **Invitation** (`/invite/:token`). Opening the link changes nothing: it asks "Join <organization>?",
-  naming who invited them (in quotation marks, as the name they gave WhatBuild), the role and where
-  it applies, what the role lets them do and until when it is open, with **Accept** (the primary
-  action), **Decline** and **Not now**. Accepting opens the overview with a toast naming the
-  organization and role. Declining stays here and says what it did: they won't join, the link no
-  longer works, the organization's admins see that an invitation was declined and not by whom, and
-  they can ask for a new one. A link they accepted earlier says they are already in, with their
-  role. Otherwise it names why the link can't be used and offers signing in with another address,
+- **Invitation** (`/invite/:token`). Opening the link changes nothing: it asks "Join <organization>?"
+  and says who invited them and as what, and nothing else: "Maya (maya@example.com) invited you as an
+  editor.", the product added for a product's invitation ("as a viewer on Crew scheduling"), with
+  **Accept** (the primary action), **Decline** and **Not now**. Names are shown as names, without
+  quotation marks; the inviter's account address (`invited_by_email`), which no chosen name can
+  fake, follows their name, or only the name once that account is deleted ◆
+  [decision](../decisions/an-invitation-shows-names-plainly-beside-the-inviters-confirmed-address.md).
+  A read-only organization's invitation adds that it can't take anyone new yet, and offers no
+  Accept. Accepting opens the overview with the note "You’re in Fieldnote, as an editor." (with
+  the product for a product's invitation). Declining stays here and says what it did: they won't
+  join, the link no longer works, the organization's admins see that an invitation was declined
+  and not by whom, and they can ask for a new one. A link they accepted earlier says they are
+  already in, with their role. Otherwise it names why the link can't be used and offers signing in with another address,
   which returns to the link; an invitation for another address makes that the primary action. Its
   loading state names nothing, and a failed load offers Try again. Signed out, the link opens
   sign-in titled "Sign in to see your invitation". It stands outside the guests' gate, so someone
@@ -1335,13 +1356,16 @@ never described as deleting. A list row showing an archived object says *Archive
   left today.
 - **Cookies** (`/cookies`, readable signed out; `apps/web/src/routes/cookies.tsx`). What cookies
   are for, by kind: needed for WhatBuild to work (always on), and, when the deployment uses
-  analytics, Google Analytics with the person's choice, which they change here at any time. Then
+  analytics, Google Analytics, its caption saying where the person's choice stands (Not chosen yet,
+  Declined or Accepted). The page has no Decline or Accept of its own: the cookie notice, which shows
+  on every screen until answered, this one included, is where the choice is made, and once there is
+  a choice, **Change** beside the caption brings the notice back to make it again there. Then
   how the server counts use without cookies, and how to clear them ([§9.1](09-data-lifecycle.md)).
   It lists no individual cookies.
 - **Privacy** is not a screen of the app: it is a page of the public site
   ([§7.3](#73-routes), [§9.1](09-data-lifecycle.md)), at the address `privacy_url` in
   `GET /api/v1/meta` gives (`apps/web/src/shell/privacy-link.tsx`). The sign-in page, Account in
-  Settings, Cookies, an organization's Plan, the new-organization form and the account-deletion page
+  Settings, Cookies, an organization's Plan, the first-run screen (under its form) and the account-deletion page
   link to it, opening it in a new tab.
 - **The cookie notice** (`apps/web/src/shell/CookieNotice.tsx`). When the deployment sets an
   analytics ID (`analytics_id` from `GET /auth/methods`), every screen, signed in or not, carries a
@@ -1349,8 +1373,9 @@ never described as deleting. A list row showing an archived object says *Archive
   Accept or Decline, which carry equal weight and are remembered in the `wb_cookies` cookie, shared
   with the public site. It says that cookies keep the person signed in and asks whether analytics
   cookies may also be used to see how WhatBuild is used, so Accept and Decline plainly answer the
-  analytics question, with a Cookies link to `/cookies`. It blocks nothing and never takes focus;
-  the app works the same whichever is pressed. Without an analytics ID it does not appear; the
+  analytics question, with a Cookies link to `/cookies`. It blocks nothing and never takes focus by
+  itself; brought back by the Cookies page's Change, it comes at once and takes focus, which returns
+  to Change once a choice is made. The app works the same whichever is pressed. Without an analytics ID it does not appear; the
   server gives none to the instance's owners, or on an address that is not the deployment's own.
   After Accept, each screen is a page view with its path masked, sent once the screen has stayed a
   moment so that a redirect is not counted; each change the app makes is an event named by the
@@ -1449,8 +1474,11 @@ never described as deleting. A list row showing an archived object says *Archive
   changes a day), each with a short note where a word needs it, an included feature as a check and
   one left out as a dash, each read aloud as a word; a line that each organization has a plan of its
   own, billed on its own where a plan has a price; and **Every limit** behind a disclosure, every limit of every plan with
-  what it is counted over. Where the deployment offers no plans, `/plans` says so and compares
-  nothing, and the public site leaves out its link to Plans.
+  what it is counted over. The app's `/plans` widens its column with the number of plans (300px
+  and 200px a plan), so every plan shows without scrolling sideways at desktop widths; on a phone
+  the labels and heads wrap so two plans fit, and more scroll inside the sheet. Where the
+  deployment offers no plans, `/plans` says so and compares nothing, and the public site leaves out
+  its link to Plans.
 - **The example organization** ([§3.10](03-accounts-and-identity.md)), in
   `apps/web/src/shell/ExampleBanner.tsx`. Every screen of a product in it carries a notice above
   its content. To a guest, under "This is the example organization", it says it is a worked

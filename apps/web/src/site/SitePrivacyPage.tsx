@@ -84,7 +84,7 @@ export function SitePrivacyPage() {
                 </Kept>
                 {analytics ? (
                   <Kept lead="Analytics, if you accept it.">
-                    Google Analytics sees which screens you open and what you do there, never names or content. <a href="/cookies">Cookies</a> holds your choice.
+                    Google Analytics sees which screens you open and what you do there, never names or content. <a href="/cookies">Cookies</a> shows your choice and lets you change it.
                   </Kept>
                 ) : null}
                 <Kept lead="What you send.">Feedback, and a request for an organization of your own, with your name and email.</Kept>

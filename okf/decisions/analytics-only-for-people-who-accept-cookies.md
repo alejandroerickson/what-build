@@ -3,7 +3,7 @@ type: Decision
 title: WhatBuild asks once whether a person accepts cookies, and runs Google Analytics only for those who do
 description: One Accept or Decline choice across the public site and the app; Google Analytics loads only after Accept and sees pages and actions, never names or content; the cookie page describes kinds of cookies without promises.
 tags: [decision, privacy, cookies, analytics, web, compliance]
-generated: {by: agent:claude, at: 2026-11-13}
+generated: {by: agent:claude, at: 2026-11-15}
 status: stable
 ---
 
@@ -27,8 +27,7 @@ everything strictly necessary and offered no choice.
   Cloudflare Worker), both show a notice until the person presses Accept or Decline, which carry
   equal weight. Everything works the same either way. Without it there is no notice.
 - The choice is the `wb_cookies` cookie on the parent domain, so one answer covers both hosts.
-  Google's script loads only after Accept; declining later (`/cookies`, or Cookies in the site's
-  footer) stops it and removes its cookies. Advertising signals and Google signals are off.
+  Google's script loads only after Accept; declining later stops it and removes its cookies. Advertising signals and Google signals are off.
 - What reaches Google names the page and the action, never the organization, product, record or
   content: page views carry masked paths (`/t/:org/:product/story/:id`) and a fixed title,
   each change the app makes is an event named by the operation the server ran (`sources_create`,
@@ -36,8 +35,12 @@ everything strictly necessary and offered no choice.
   hear from us on the site is `generate_lead`.
 - The instance's owners are never measured, nor is any address but the deployment's own: the server
   gives them no measurement ID.
-- `/cookies` describes cookies by kind (needed, analytics) and holds the choice. It makes no claims
-  about what WhatBuild will never do.
+- The notice is the one place the choice is made, and changing it is as easy as making it: once a
+  choice exists, Change on `/cookies`, or Cookies in the site's footer, brings the notice back, at
+  once and with focus, to answer again.
+- `/cookies` describes cookies by kind (needed, analytics) and says where the choice stands (Not
+  chosen yet, Declined, Accepted), with no Decline or Accept of its own. It makes no claims about
+  what WhatBuild will never do.
 - Rejected: a wall that refuses the app until a person accepts. Consent given to get in is not
   freely given.
 

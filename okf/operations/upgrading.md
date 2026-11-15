@@ -23,7 +23,13 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
 
 ## Unreleased
 
-Nothing yet.
+- **Invitation and allowance emails name people plainly.** It asks nothing of a deployment, and
+  adds no migration. An invitation's subject becomes, for instance, `Maya invited you to Fieldnote
+  on WhatBuild` (`Crew scheduling in Fieldnote` for one product), with no quotation marks, and its
+  first line follows the inviter's name with their account's address; the email that lets someone
+  start an organization becomes `Riley Chen invited you to WhatBuild`. A mail rule that matches the
+  old subjects needs changing. `GET /api/v1/me/invitations` and the invitation endpoints give
+  `invited_by` without quotation marks and add `invited_by_email`.
 
 ## v0.36.0
 

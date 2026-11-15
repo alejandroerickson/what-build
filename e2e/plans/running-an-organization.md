@@ -33,10 +33,12 @@ are people she invites.
    products under Where (the title says "Add people to all products"), and invite Eli as an
    editor. *Expect:* the invitation is listed as waiting, and Plan now says "2 of 2" people: an invitation
    holds a place. The server's log prints the email: its subject and first line name Dana and the
-   organization, each in quotation marks, and say every product in it.
-4. **Web, as Dana.** Invite Fay as an editor too. *Expect:* refused: the organization holds all
-   the people Free allows, and the message says what makes room (removing someone or cancelling an
-   invitation) or that a larger plan would. Nothing is added.
+   organization as plain names, with no quotation marks, the first line with Dana's own address in
+   parentheses after her name, and the email says to accept or decline signing in as Eli's address.
+4. **Web, as Dana.** Invite Fay as an editor too. *Expect:* refused, in the app's own words: "<org>’s
+   Free plan holds 2 people", then "To add <Fay's address>, cancel an invitation or remove someone.
+   Story readers don’t count." and a Compare plans link that opens the plans in a new tab. No role
+   name in code form, and nothing about whoever runs WhatBuild. Nothing is added.
 5. **Web, as Dana.** Invite Fay as a Story reader of the product instead. *Expect:* it works:
    Story readers don't count, and Plan still says "2 of 2". Then invite Morgan,
    who has an account in the synthetic organization, as a Story reader too. *Expect:* Morgan's address
@@ -44,8 +46,9 @@ are people she invites.
    account, and Morgan not among the members.
 6. **Web, as Eli.** Sign in with Eli's address, without the link. *Expect:* signing in joins
    nothing: Eli is not in the organization, and above the screen (or on `/welcome`) an invitation
-   names the organization, the role and Dana, in quotation marks, with Accept and Decline. Accept it.
-   *Expect:* a toast names the organization and role, and Eli sees it and edits its product: add a
+   asks "Join <org>?" and says "Dana (<Dana's address>) invited you as an editor.", with no quotation
+   marks, with Accept and Decline. Accept it.
+   *Expect:* a toast says "You’re in <org>, as an editor.", and Eli sees it and edits its product: add a
    source with a short synthetic text written into the run's folder. **As Fay,** open the invitation's
    link and sign in. *Expect:* the page asks, and opening it changed nothing, as Dana's People in
    Settings shows. Accept. *Expect:* the overview opens, listing the product with its Story alone;
@@ -69,10 +72,9 @@ are people she invites.
    short name in links. *Expect:* the form says links with the old short name keep leading to it;
    the product switch and the overview show the new name; an address with the old short name leads
    to the new one.
-10. **Web, as Dana.** On the overview, open New product. *Expect:* the dialog says the
-    organization holds all the products Free allows, archived ones included, that deleting one
-    makes room, and that it takes an admin of that product, and Create product stays disabled, even
-    with a name typed.
+10. **Web, as Dana.** On the overview, open New product. *Expect:* the dialog says "<org>’s Free
+    plan holds 1 product", that deleting one no longer needed makes room and archived ones count,
+    with a Compare plans link, and Create product stays disabled, even with a name typed.
     Cancel. **MCP, as Dana.** `products_read(action="limits")` for her organization. *Expect:* `plan` free,
     `holds` with the people, products, sources and storage Plan showed, and every limit
     with its value and what Dana used today. `products_read(action="list")` gives the tenant's new slug

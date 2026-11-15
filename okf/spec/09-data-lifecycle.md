@@ -3,7 +3,7 @@ type: Specification
 title: Nothing is ever trapped - say what we promise, keep export open, and never let a limit block a read.
 description: What we tell people, limits and quotas (enforced and planned), backups and in-product versioning, export, archive and permanent delete of everything archivable and of an organization, the operator runbooks, plans and their limits, how retired insights and decisions became sources, and how assumptions were removed.
 tags: [spec, lifecycle, quotas, backups, export, archive, delete, limits, plans]
-generated: {by: agent:claude, at: 2026-11-13}
+generated: {by: agent:claude, at: 2026-11-15}
 status: stable
 ---
 
@@ -76,7 +76,8 @@ The optional kind is
 analytics. A deployment with a Google Analytics measurement ID asks every person once, on the
 public site or in the app, with Accept and Decline of equal weight; `wb_cookies` sits on the parent
 domain, so one answer covers both. Google Analytics loads only after Accept. Everything works the
-same either way, and `/cookies` (or Cookies in the site's footer) changes the answer later
+same either way. The notice is the one place the answer is given: `/cookies` says where it stands,
+and its Change (or Cookies in the site's footer) brings the notice back to change it later
 ([§7.11](07-web-app.md)). What reaches Google names the page and the action, never the
 organization, product, record or content: page views carry a masked path such as
 `/t/:org/:product/story/:id` and a fixed title; each change the app makes is an event named

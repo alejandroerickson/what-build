@@ -86,8 +86,8 @@ signing in with the development sign-in, never leaves the origin either. Request
 account. Without it there is no invite-only mode and anyone may, whatever the guests' `self_serve`
 says, and Instance admin says so. Existing accounts, invited addresses, the instance's owners and addresses with an
 allowance above 0 to create organizations ([§3.3](#33-tenants)) always may. Staging runs invite-only until public
-sign-up opens ([§10 Phase 6](10-roadmap.md)). The sign-in form answers every address alike, "if it
-can sign in here, a link is on its way", at the same speed and under the same hourly limit, and
+sign-up opens ([§10 Phase 6](10-roadmap.md)). The sign-in form answers every address alike, "Look for a sign-in link at <address>. It
+works for 15 minutes.", never saying a link was sent, at the same speed and under the same hourly limit, and
 sends a link only to an address that may sign in, so it never says whether an address has an
 account, an invitation or an allowance
 ([decision](../decisions/a-role-is-given-at-once-only-to-someone-already-seen-in-the-organization.md)).
@@ -126,7 +126,7 @@ in the organization, and someone in no other is a guest account like any other
 
 | Route (a browser's session only) | What it does |
 |---|---|
-| `GET /api/v1/me/invitations` | The invitations waiting for this account: open (not accepted, cancelled, declined or past their time) and sent to its address, ignoring letter case, newest first, at most 100. Each has `invitation_id`, `tenant`, `scope_type`, `scope`, `role`, `expires_at` and `invited_by`, the inviter's name on one line and in quotation marks, as the email shows it. Never its token. |
+| `GET /api/v1/me/invitations` | The invitations waiting for this account: open (not accepted, cancelled, declined or past their time) and sent to its address, ignoring letter case, newest first, at most 100. Each has `invitation_id`, `tenant`, `scope_type`, `scope`, `role`, `expires_at`, `invited_by`, the inviter's name on one line and at most 60 characters, as the email shows it, and `invited_by_email`, the address of the inviter's account, which WhatBuild confirmed at sign-in, or null once that account is deleted. Never its token. |
 | `POST /api/v1/invitations/read { token }` or `{ invitation_id }` | What opening a link (`/invite/:token`) shows: the same fields and `accepted`. It changes nothing, and carries the token in its body so that no request log keeps it. |
 | `POST /api/v1/invitations/accept { token }` or `{ invitation_id }` | Gives the role; `409 organization_read_only` while the organization is read-only (an invitation says so in `read_only`), and it stays open. A role the person already holds at that place stays, and the answer gives the role they hold. `already: true` when this person accepted it before, from their list or the link, and still holds it. |
 | `POST /api/v1/invitations/decline { token }` or `{ invitation_id }` | Ends the invitation and gives no role. |
@@ -307,7 +307,8 @@ one to what the tenant already has writes nothing. A change is recorded in the t
   [decision](../decisions/running-the-instance-is-done-in-the-web-app-never-by-an-agent.md)): `products.tenant_allowances`,
   `products.set_tenant_allowance` (guarded by the row's etag once it exists, and refusing one sent
   for an address that has none with `409 stale_etag` and `current_etag: null`; with `notify`, an
-  address whose allowance grows is emailed a link to `/welcome`) and
+  address whose allowance grows is emailed a link to `/welcome`, naming the instance owner who
+  gave it and the address to sign in as) and
   `products.remove_tenant_allowance`, which returns an address to the default. These belong to no
   tenant, so they write no activity event; each row keeps who gave it and who last changed it.
   `GET /api/v1/me` returns the caller's own `tenant_allowance`.
@@ -369,8 +370,9 @@ it moves. The limits and their refusals are in [§9.7](09-data-lifecycle.md).
   year is up yet ([§10](10-roadmap.md#the-example-organization-and-the-plans)).
 - **Whoever runs the deployment sees** each tenant's name and plan, and the name and email of
   everyone in it, to write to its people and, where a plan has a price, to bill the organization
-  for it. Where the deployment offers plans, the new-organization form, a tenant's Plan in Settings and the
-  privacy page say so, speaking of billing only where a plan has a price; a deployment that offers
+  for it. Where the deployment offers plans, a tenant's Plan in Settings and the privacy page say
+  so, speaking of billing only where a plan has a price, and the new-organization form links to the
+  privacy page; a deployment that offers
   none says nothing of plans or billing.
 
 ## 3.4 Products
@@ -456,12 +458,15 @@ person has one, its `all_products` role.
   address has an account, here or elsewhere, or whose it is
   ([decision](../decisions/a-role-is-given-at-once-only-to-someone-already-seen-in-the-organization.md)).
   An invitation is emailed where mail is configured and always returned to the inviter as a
-  single-use link. The email names the inviter, the organization, and the product in it, or says
-  every product in it.
-  Each is a name someone gave WhatBuild, so each is shown on one line, without control or
-  direction-changing characters, in quotation marks it cannot close, at most 60 characters for the
-  inviter's display name and 100 for the others, and the email says they are names people gave
-  WhatBuild. A tenant keeps at least one owner (`409 last_owner`). An invitation to all products is
+  single-use link. The email names the inviter, the organization alone for a role in it or on all
+  its products, and for one product, the product in its organization ("Crew scheduling in
+  Fieldnote"); it says where to accept or decline, signing in as the invited address, and that the
+  link works for 7 days. Each name is someone's choice, so each is shown as a name, on one line,
+  without control or direction-changing characters, at most 60 characters for the inviter's display
+  name and 100 for the others, and the inviter's name is followed by their own account's address in
+  parentheses, which WhatBuild confirmed and no chosen name can fake ◆
+  [decision](../decisions/an-invitation-shows-names-plainly-beside-the-inviters-confirmed-address.md).
+  A tenant keeps at least one owner (`409 last_owner`). An invitation to all products is
   cancelled, as it is given, by the tenant's owners and admins.
 - **Who sees whom.** The tenant's owners and admins see all its people, their grants and its
   invitations. Anyone else, with a viewer role or above somewhere in it, sees only the people on

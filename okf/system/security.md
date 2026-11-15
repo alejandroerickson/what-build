@@ -522,8 +522,10 @@ hold less: a route's pattern or the masked path, names of operations, kinds and 
 statement's text or an error's message (`telemetry.ts`); and they go to a project that runs nothing,
 since Google keeps Cloud Run's own request spans, whole addresses and all, in any project with
 trace storage ([decision](../decisions/alerts-watch-the-platform-and-traces-go-to-a-project-of-their-own.md)).
-An unexpected error answers `500` without detail (`app.ts`). Emails show a sender's chosen name on one line, quoted and bounded
-(`quotedName`). The web app's files are served only from inside their folder (`insideRoot`).
+An unexpected error answers `500` without detail (`app.ts`). Emails show a sender's chosen name on one line and bounded
+(`plainName`), and an invitation follows the inviter's name with their account's confirmed address,
+which no chosen name can fake
+([decision](../decisions/an-invitation-shows-names-plainly-beside-the-inviters-confirmed-address.md)). The web app's files are served only from inside their folder (`insideRoot`).
 `pnpm fixture pull` gives `pg_dump` the password in `PGPASSWORD`, reads only the rows of the organizations it copies, and, for a copy outside production, refuses an organization no instance owner owns, so a customer's organization never leaves production ([copying an organization](../operations/copying-an-organization.md#which-organizations-may-leave-production)). The image is built from an allow-list (`.dockerignore`) and runs as `node` with
 `NODE_ENV=production`; a server started without it is production all the same. CI gives pull requests a read-only token; production moves only on an
 approved release ([decision](../decisions/production-runs-releases-after-approval.md)). The Worker
