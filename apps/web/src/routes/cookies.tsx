@@ -1,5 +1,5 @@
 import { Link } from "react-router";
-import { setCookieChoice, useCookieChoice } from "../lib/analytics.ts";
+import { askCookieChoiceAgain, useCookieChoice } from "../lib/analytics.ts";
 import { useAnalyticsId } from "../shell/CookieNotice.tsx";
 import { Button, ButtonLink, Sheet, SheetBody, SheetHeader } from "../ui/index.tsx";
 import { EntryPage } from "./auth.tsx";
@@ -7,8 +7,9 @@ import { PrivacyLink } from "../shell/privacy-link.tsx";
 import "../styles/screens/cookies.css";
 
 /**
- * `/cookies`, public: what cookies are for, by kind, and the person's analytics choice, which they
- * can change here at any time. The notice in the corner points here.
+ * `/cookies`, public: what cookies are for, by kind, and where the person's analytics choice stands.
+ * The notice in the corner is the one place the choice is made: it shows on every screen until
+ * answered, this one included, and Change here brings it back to choose again.
  */
 export function CookiesPage() {
   const analytics = Boolean(useAnalyticsId());
@@ -32,7 +33,20 @@ export function CookiesPage() {
       </Sheet>
       {analytics ? (
         <Sheet labelledBy="cookies-analytics">
-          <SheetHeader id="cookies-analytics" title="Analytics" end={<span className="entry-caption">{choice === "accepted" ? "Accepted" : choice === "declined" ? "Declined" : "Your choice"}</span>} />
+          <SheetHeader
+            id="cookies-analytics"
+            title="Analytics"
+            end={
+              <>
+                <span className="entry-caption">{choice === "accepted" ? "Accepted" : choice === "declined" ? "Declined" : "Not chosen yet"}</span>
+                {choice ? (
+                  <Button size="sm" variant="quiet" aria-label="Change the analytics choice" onClick={() => askCookieChoiceAgain(true)}>
+                    Change
+                  </Button>
+                ) : null}
+              </>
+            }
+          />
           <SheetBody>
             <p className="cookie-kind">
               Google Analytics tells us how many people use WhatBuild, which parts they use and whether they come back. Its cookies last up to two years.{" "}
@@ -41,18 +55,6 @@ export function CookiesPage() {
               </a>
               .
             </p>
-            <div className="cookie-choice">
-              {choice !== "declined" ? (
-                <Button size="sm" onClick={() => setCookieChoice("declined")}>
-                  Decline
-                </Button>
-              ) : null}
-              {choice !== "accepted" ? (
-                <Button size="sm" onClick={() => setCookieChoice("accepted")}>
-                  Accept
-                </Button>
-              ) : null}
-            </div>
           </SheetBody>
         </Sheet>
       ) : null}
