@@ -3,7 +3,7 @@ type: Specification
 title: The web app is a person's way to run the same operations an agent runs, one screen at a time.
 description: Principles, the shell and product switching, the overview, routes, first run, and the behavior of every screen (Idea, Evidence, Exploration, Story, Activity, archive and delete, Settings, Instance admin).
 tags: [spec, web, ui, routes, shell]
-generated: {by: agent:claude, at: 2026-11-13}
+generated: {by: agent:claude, at: 2026-11-15}
 status: stable
 ---
 
@@ -1250,7 +1250,8 @@ never described as deleting. A list row showing an archived object says *Archive
   was removed, or every role at once, as "removed … from the organization" (one role of several
   as "removed a role from …"), someone who deleted their own account as "deleted
   their account and left the organization", and an instance owner's removal of an account as
-  "removed the account of …".
+  "removed the account of …". An entry from before teams were removed or the Story reader was
+  named so reads in today's words, as the server gives it ([§4.10](04-data-model.md)).
 - **Account** (`?settings=account`). Display name, and the email the person signs in with
   (read-only); for a guest of the example organization, **Example organization**, whether the
   product switch offers it ("It stays on the overview either way"; the account's `hide_example`);
