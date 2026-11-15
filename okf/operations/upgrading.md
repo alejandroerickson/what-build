@@ -23,6 +23,10 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
 
 ## Unreleased
 
+Nothing yet.
+
+## v0.36.0
+
 - **WhatBuild takes no video, and keeps the video it already holds**
   ([decision](../decisions/whatbuild-takes-no-video-for-now.md)). No migration, and nothing is
   deleted. A deployment does nothing; tell its people before upgrading. Every way a file comes in
