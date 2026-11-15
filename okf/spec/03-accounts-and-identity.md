@@ -65,6 +65,31 @@ Sign-in methods, each optional per deployment:
   off its origin, and loads nothing. A server with no mail provider disables the method rather
   than log a link; in development the console mailer prints it, and a production server refuses
   to start with any mailer but `smtp` or `none`.
+- **The link in an invitation's or an allowance's mail** (an entry link, `packages/core/src/entry-link.ts`;
+  ◆ [proposed decision](../decisions/an-invitation-or-allowance-mail-signs-in-a-new-address-from-one-page.md)).
+  Each invitation mail, and each mail that lets an address start organizations, carries a link of
+  its own, `/auth/start?token=…`: single use, good for 7 days (an invitation's, until the
+  invitation's own time), kept in `email_tokens` by its hash under a purpose of its own
+  (`invitation`, `allowance` or `allowance_waitlist`) and leading to the invitation's page
+  (`/invitations/<id>`) or to `/welcome`. It is never the link the inviter is given, which signs
+  nobody in. Opening it (`GET`) changes nothing. For an address with no account it answers a page
+  that stands on its own, in the style of the sign-in link's: "Start on WhatBuild" over "<owner>
+  (<owner's address>) invited <address> to start an organization." (from the waitlist, "<address>
+  can now start an organization on WhatBuild."), or "Join <organization> on WhatBuild" over
+  "<inviter> (<inviter's address>) invited <address> to <place>, as <role>."; one button,
+  Continue as <address>; under it "Continuing signs you in as <address>." (for an invitation, ",
+  and you can still decline.") and "Not you? Close this tab and nothing happens."; and, where the
+  deployment has a public site, What is WhatBuild? linking to it. Pressing it posts the link back
+  (`POST /auth/start`), from this origin only (`403 forbidden_origin` otherwise, the link left
+  unused); the first of several presses together uses it up, makes the account and its session as
+  a first sign-in does, and answers `303` to where it leads. An entry link never opens an existing
+  account: for an address that has one, either request goes to `/signin?next=<where it leads>`,
+  so the person signs in the usual way and goes on there. What let the address in must still hold
+  when it is opened and pressed (the allowance above 0; the invitation not accepted, cancelled,
+  declined, replaced or past its time, and still for this address; who may join here), or it
+  goes to `/signin?error=link_expired` (`invite_only` for who may join), as a link used or past
+  its time does. The sign-in link's routes take only sign-in links (`purpose` `sign_in`), the entry
+  link's only entry links, and only sign-in links count against an address's five an hour.
 - **Google** — OpenID Connect, when a client id and secret are configured.
 - **Microsoft work accounts** — OpenID Connect against one Microsoft Entra directory, when the
   directory, a client id and a secret are configured ([below](#sign-in-with-microsoft-work-accounts)).
@@ -132,7 +157,7 @@ in the organization, and someone in no other is a guest account like any other
 | Route (a browser's session only) | What it does |
 |---|---|
 | `GET /api/v1/me/invitations` | The invitations waiting for this account: open (not accepted, cancelled, declined or past their time) and sent to its address, ignoring letter case, newest first, at most 100. Each has `invitation_id`, `tenant`, `scope_type`, `scope`, `role`, `expires_at`, `invited_by`, the inviter's name on one line and at most 60 characters, as the email shows it, and `invited_by_email`, the address of the inviter's account, which WhatBuild confirmed at sign-in, or null once that account is deleted. Never its token. |
-| `POST /api/v1/invitations/read { token }` or `{ invitation_id }` | What opening a link (`/invite/:token`) shows: the same fields and `accepted`. It changes nothing, and carries the token in its body so that no request log keeps it. |
+| `POST /api/v1/invitations/read { token }` or `{ invitation_id }` | What opening a link (`/invite/:token`), or the invitation's page by its id (`/invitations/:id`, where its mail's link leads), shows: the same fields and `accepted`. It changes nothing, and carries the token in its body so that no request log keeps it. |
 | `POST /api/v1/invitations/accept { token }` or `{ invitation_id }` | Gives the role; `409 organization_read_only` while the organization is read-only (an invitation says so in `read_only`), and it stays open. A role the person already holds at that place stays, and the answer gives the role they hold. `already: true` when this person accepted it before, from their list or the link, and still holds it. |
 | `POST /api/v1/invitations/decline { token }` or `{ invitation_id }` | Ends the invitation and gives no role. |
 
@@ -313,7 +338,8 @@ one to what the tenant already has writes nothing. A change is recorded in the t
   [decision](../decisions/running-the-instance-is-done-in-the-web-app-never-by-an-agent.md)): `products.tenant_allowances`,
   `products.set_tenant_allowance` (guarded by the row's etag once it exists, and refusing one sent
   for an address that has none with `409 stale_etag` and `current_etag: null`; with `notify`, an
-  address whose allowance grows is emailed a link to `/welcome` and the address to sign in as.
+  address whose allowance grows is emailed an entry link ([§3.2](#32-accounts-and-sign-in)) that
+  starts it as that address and opens `/welcome`, and the app's address to sign in at instead.
   Someone on the waitlist who had no allowance asked for it and may never have heard of the
   instance owner, so theirs, "Your place on WhatBuild is ready", says they joined the waitlist on
   the day they asked and names nobody; anyone else's, "<owner> invited you to WhatBuild", names
@@ -471,8 +497,9 @@ person has one, its `all_products` role.
   single-use link. The email names the inviter, the organization alone for a role in it or on all
   its products, and for one product, the product in its organization ("Crew scheduling in
   Fieldnote"); it says in a sentence what WhatBuild is, with "There’s more at <site>." on a
-  deployment with a public site (`WHATBUILD_SITE_URL`), where to accept or decline, signing in as
-  the invited address, and that the link works for 7 days. Each name is someone's choice, so each is shown as a name, on one line,
+  deployment with a public site (`WHATBUILD_SITE_URL`); an entry link to accept or decline as the
+  invited address ([§3.2](#32-accounts-and-sign-in)); and that the link works for 7 days, and that
+  signing in at the app's address as the invited address finds the invitation without it. Each name is someone's choice, so each is shown as a name, on one line,
   without control or direction-changing characters, at most 60 characters for the inviter's display
   name and 100 for the others, and the inviter's name is followed by their own account's address in
   parentheses, which WhatBuild confirmed and no chosen name can fake ◆

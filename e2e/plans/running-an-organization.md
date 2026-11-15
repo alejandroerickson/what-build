@@ -51,11 +51,19 @@ are people she invites.
    asks "Join <org>?" and says "Dana (<Dana's address>) invited you as an editor.", with no quotation
    marks, with Accept and Decline. Accept it.
    *Expect:* a toast says "You’re in <org>, as an editor.", and Eli sees it and edits its product: add a
-   source with a short synthetic text written into the run's folder. **As Fay,** open the invitation's
-   link and sign in. *Expect:* the page asks, and opening it changed nothing, as Dana's People in
-   Settings shows. Accept. *Expect:* the overview opens, listing the product with its Story alone;
+   source with a short synthetic text written into the run's folder. **As Fay**, who has no account,
+   take the link from the email Fay was sent (`/auth/start?token=…`, in the server's log) and open
+   it in a fresh browser profile. *Expect:* a page headed "Join <org> on WhatBuild": "Dana (<Dana's
+   address>) invited <Fay's address> to <product> in <org>, as a Story reader.", one button,
+   **Continue as <Fay's address>**, and under it "Continuing signs you in as <Fay's address>, and
+   you can still decline. Not you? Close this tab and nothing happens." Press Continue. *Expect:*
+   the invitation's page asks "Join <org>?", and neither the link nor signing in changed anything,
+   as Dana's People in Settings shows. Accept. *Expect:* the overview opens, listing the product with its Story alone;
    the panel beside it shows that product: Story, the No agent connected card (Fay has connected
-   none), then Settings. Open the link again. *Expect:* it says Fay is already in. Open
+   none), then Settings. Open the email's link again. *Expect:* it signs nobody in now that Fay has
+   an account: through Sign in, the invitation's page says Fay is already in. **As Dana**, invite
+   another new address and cancel the invitation; open the link from its email. *Expect:* Sign in,
+   with "That sign-in link has expired", and no account is made. Open
    `/t/<org>/plan`. *Expect:* Settings opens over the Story at Account, listing only Account and
    Agents: nothing of the organization (no People, no Plan) or of the product, and the browser's
    console shows no refused request. **As Morgan,** sign in, find the invitation among Morgan's

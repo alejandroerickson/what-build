@@ -33,6 +33,15 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
   is set, by "There’s more at" that address. `GET /api/v1/me/invitations` and the invitation
   endpoints give `invited_by` without quotation marks and add `invited_by_email`;
   `GET /api/v1/meta` adds `site_url`.
+- **The link in an invitation's mail, and in the mail that lets someone start an organization,
+  signs in an address that has no account yet**
+  ([proposed decision](../decisions/an-invitation-or-allowance-mail-signs-in-a-new-address-from-one-page.md)).
+  It asks nothing of a deployment, and adds no migration: the links are rows of `email_tokens`
+  under purposes of their own. The mails' links now go to `/auth/start?token=…`, a page with one
+  button, not to `/welcome` or `/invite/<token>`; the link the inviter is given is unchanged. Links
+  in mails sent before the release keep working as they did. Whoever runs a deployment should know
+  the trade-off the decision records: until its link is used, whoever holds such a mail can make
+  the account for that address.
 
 ## v0.36.0
 

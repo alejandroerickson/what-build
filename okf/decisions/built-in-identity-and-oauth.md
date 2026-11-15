@@ -3,7 +3,7 @@ type: Decision
 title: WhatBuild runs its own sign-in and its own OAuth 2.1 server for agents
 description: Email links, Google and Microsoft sign-in and sessions are built in, agents connect only through WhatBuild's own OAuth server, and there are no personal access tokens.
 tags: [decision, identity, oauth, mcp, security]
-generated: {by: agent:claude, at: 2026-11-09}
+generated: {by: agent:claude, at: 2026-11-15}
 status: stable
 ---
 
@@ -16,7 +16,7 @@ MCP clients expect OAuth discovery and dynamic registration against the server t
 ## Decision
 
 - Sign-in by single-use email link, Google, or Microsoft work accounts in one configured directory (both OpenID Connect); a development-only sign-in exists only when `NODE_ENV` says `development` or `test`. No passwords.
-- An email link opens a page and signs in only by that page's same-origin POST, because mail scanners open links and a GET that signs in lets another site choose whom a person is signed in as. The maintainer chose this over a link that signs in on opening on 2026-10-10.
+- An email link opens a page and signs in only by that page's same-origin POST, because mail scanners open links and a GET that signs in lets another site choose whom a person is signed in as. The maintainer chose this over a link that signs in on opening on 2026-10-10. The link in an invitation's or an allowance's mail works the same way and signs in only an address with no account yet ([proposed decision](an-invitation-or-allowance-mail-signs-in-a-new-address-from-one-page.md)).
 - Microsoft sign-in takes an address only with evidence for its domain (Entra's `xms_edov`, or a domain the deployment lists), never on the directory's word alone, since a directory's administrators can set any address on its people.
 - Web sessions use an `HttpOnly` cookie, `__Host-wb_session` over HTTPS so that no other host under the parent domain can set it. REST answers that session only and refuses any bearer token.
 - No personal access tokens. Scripts and clients that cannot sign in in a browser are not supported; an agent connects over MCP.

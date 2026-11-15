@@ -40,14 +40,24 @@ and **Cleo** are three such addresses, signed in with `pnpm e2e browser signin <
    Who can start organizations: "Can have 1 Free organization; has 0", with "1 left". The server's
    log prints the email Ana is sent, which, since she asked, never names Riley: "Your place on
    WhatBuild is ready", beginning "You joined the WhatBuild waitlist on <today>. Your place is
-   ready.", then "Start your organization, signing in as <Ana's address>:" and a link to
-   `/welcome`. Then press **Let someone start organizations**, give an address of the run's own
-   that never asked 1, and keep Tell them by email. *Expect:* the email is "Riley Chen invited you
-   to WhatBuild", with no quotation marks, its first line "Riley Chen (riley@example.com) invited
-   you to start an organization on WhatBuild.", then a sentence on what WhatBuild is (ending
-   "There’s more at <the site>." only where the deployment has a public site), then "Start here,
-   signing in as <that address>:" and the link to `/welcome`.
-3. **Web, as Ana.** Reload the overview, start an organization from Start your organization with a
+   ready.", then "Start your organization as <Ana's address>:", a link to `/auth/start?token=…`,
+   and "If you’d rather not use the link, sign in at <the app's address> as <Ana's address>." Then
+   press **Let someone start organizations**, give an address of the run's own that never asked 1,
+   and keep Tell them by email. *Expect:* the email is "Riley Chen invited you to WhatBuild", with
+   no quotation marks, its first line "Riley Chen (riley@example.com) invited you to start an
+   organization on WhatBuild.", then a sentence on what WhatBuild is (ending "There’s more at <the
+   site>." only where the deployment has a public site), then "Start as <that address>:", its own
+   `/auth/start` link, and the line on signing in instead.
+   **In a fresh browser profile**, open that link. *Expect:* a page headed "Start on WhatBuild":
+   "Riley Chen (riley@example.com) invited <that address> to start an organization.", one button,
+   **Continue as <that address>**, and under it "Continuing signs you in as <that address>. Not
+   you? Close this tab and nothing happens.", with What is WhatBuild? only where there is a public
+   site; nothing about an email or a link. Reload it. *Expect:* the same page, and Who can start
+   organizations still shows that address with no account. Press Continue. *Expect:* Welcome,
+   "Welcome, <name from the address>", signed in as that address. Open the link again. *Expect:*
+   Sign in, with "That sign-in link has expired".
+3. **Web, as Ana.** Open the link in Ana's email, signed in as Ana. *Expect:* Ana already has an
+   account, so it signs nobody in: it goes through Sign in straight to Welcome. Reload the overview, start an organization from Start your organization with a
    name of the run's own and a first product. *Expect:* the form says only "Name your organization
    and its first product." above its fields, and under its button "It starts on the Free plan.
    Compare plans", the link opening the plans in a new tab; it lists no limits, and says nothing of

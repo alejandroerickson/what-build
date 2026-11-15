@@ -115,13 +115,27 @@ Four things keep a tab from hearing what it may not know, each holding if anothe
   or not they declare a length (`app.ts`).
 - A write other than GET, HEAD or OPTIONS that carries a `wb_` or `__Host-wb_` cookie is refused
   when its `Origin` is another site (`apps/server/src/app.ts`); REST checks again (`checkOrigin` in
-  `rest.ts`), and so does the sign-in link's POST, cookie or none (`isOwnOrigin`, `identity.ts`).
+  `rest.ts`), and so do the sign-in link's and the entry link's POSTs, cookie or none (`isOwnOrigin`, `identity.ts`).
 - Invitations are 256-bit links stored as hashes, for 7 days, answered only by the account with the
   invited address, in a browser's session: signing in accepts nothing, opening a link changes
   nothing, and no agent can accept or decline one. An invitation is ended by being answered,
   cancelled or replaced, in one statement that checks it is still open, so no two of these both
   happen. Only instance owners, and addresses they give an allowance, create organizations
   ([decision](../decisions/only-instance-owners-decide-who-creates-organizations.md)).
+- The mail of an invitation, and the one that lets an address start organizations, carry an entry
+  link that signs the address in (◆ [proposed decision](../decisions/an-invitation-or-allowance-mail-signs-in-a-new-address-from-one-page.md),
+  `entry-link.ts`, `routes.ts`). It is 256 bits, single use, for 7 days, stored as a hash under a
+  purpose of its own, so the sign-in link's routes never take it nor it theirs; opening it changes
+  nothing, and only its page's same-origin POST uses it, once, however many presses arrive
+  together. It signs in only an address with no account yet, checked again when pressed, so it
+  never opens an account that holds anything; for one that has an account it leads to Sign in.
+  What let the address in is checked again too (the allowance above 0, the invitation still open
+  and still for the address, who may join), and signing in accepts nothing. The link the inviter
+  is given is never it. **The cost:** until it is used, whoever holds the mail can act as that
+  address. A forwarded invitation, useless before to anyone who could not sign in as the address,
+  becomes a way in: the person it reached could make the account, then accept the invitation or
+  start the organization in the address's name. The no-existing-account rule keeps it to a
+  brand-new account. Where it leads also tells its holder whether the address has an account.
 - Only an instance owner lists every account or removes one, and removing is a person's act in the
   web app (`products.remove_account` is web only, with the address typed); an instance owner's
   account cannot be removed there. A person deletes their own only in the web app too, from a

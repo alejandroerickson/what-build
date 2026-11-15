@@ -1080,7 +1080,9 @@ Rules:
   five an hour, counted for any address), sending the mail after the answer
   ([§3.2](03-accounts-and-identity.md));
   `GET /auth/verify?token=` shows its page and changes nothing, and `POST /auth/verify` (form field
-  `token`, same origin only) uses it and signs in; `GET /auth/google`, `/auth/microsoft` and their
+  `token`, same origin only) uses it and signs in; `GET /auth/start?token=` and `POST /auth/start`
+  do the same for the entry link in an invitation's or an allowance's mail, which signs in only an
+  address with no account yet and opens the invitation or Welcome; `GET /auth/google`, `/auth/microsoft` and their
   `/callback`s run OpenID Connect; `POST /auth/dev-sign-in`, and `GET /auth/dev-accounts`, which
   lists the server's accounts for the sign-in page to offer, exist outside production;
   `POST /auth/sign-out`; `GET /auth/session` answers the web app's "who is signed in" with

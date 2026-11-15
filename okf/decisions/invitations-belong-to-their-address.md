@@ -3,7 +3,7 @@ type: Decision
 title: An invitation is accepted only by the account with the address it was sent to, and only by that person's choice
 description: Invitation links are pointers to an invitation, not bearer credentials; the verified address says who may answer, and signing in accepts nothing, so a person joins an organization only by choosing to.
 tags: [decision, identity, invitations, security, roles]
-generated: {by: agent:claude, at: 2026-10-31}
+generated: {by: agent:claude, at: 2026-11-15}
 status: stable
 ---
 
@@ -36,7 +36,10 @@ their panel, and be counted and named in it without having been asked. The maint
   log says an invitation was declined and where, under the name Someone: the person never joined,
   so the organization learns nothing more of them than that the invitation was declined.
 - Rejected: links as bearer credentials. They would let anyone holding a forwarded link join, and
-  make "who can join this organization?" depend on where a link travelled.
+  make "who can join this organization?" depend on where a link travelled. The link the inviter is
+  given stays a pointer. The mail's own link, which signs in an address with no account yet and
+  still leaves the answer to the person, is a proposal of its own
+  ([decision](an-invitation-or-allowance-mail-signs-in-a-new-address-from-one-page.md)).
 - Rejected: accepting on sign-in because the verified address is the proof. It proves who someone
   is, not that they want to be there.
 - Rejected: a state of its own for a declined invitation. An ended invitation answers

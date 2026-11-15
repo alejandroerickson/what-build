@@ -45,6 +45,7 @@ name what replaced it, and date the change. Smaller decisions are marked
 - [The public sandbox is reached only through a connector scoped to it](the-public-sandbox-is-reached-only-through-its-own-connector.md) (superseded)
 - [An invitation is accepted only by the account with the address it was sent to, and only by that person's choice](invitations-belong-to-their-address.md)
 - [An invitation shows names plainly, with the inviter's confirmed address beside their name](an-invitation-shows-names-plainly-beside-the-inviters-confirmed-address.md)
+- [The mail that invites someone, or lets them start an organization, signs in an address with no account from one page with one button](an-invitation-or-allowance-mail-signs-in-a-new-address-from-one-page.md) (proposed)
 - [A role is given at once only to someone the giver already sees in the organization; anyone else is invited, account or not](a-role-is-given-at-once-only-to-someone-already-seen-in-the-organization.md)
 - [The public sandbox is one organization the deployment names, where invited visitors edit under made-up names and a daily reset puts a saved baseline back](the-public-sandbox-is-one-organization-with-pseudonymous-visitors.md) (superseded)
 - [Every account reads the example organization, which only its staff write](every-account-reads-the-example-organization-which-only-its-staff-write.md)

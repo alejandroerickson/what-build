@@ -367,6 +367,7 @@ has which role, the person's own included, is in Settings under the organization
 
 ```
 /signin  /welcome  /invite/:token             sign-in, first run, answering an invitation
+/invitations/:id                             answering an invitation by its id, where its mail's link leads
 /join/:code                                   → / (the public sandbox's retired invitation links)
 /cookies                                      Cookies: what they are for, and the analytics choice; readable signed out
 /plans                                        Plans: the plans offered side by side, with their prices; readable signed out
@@ -515,7 +516,11 @@ new tab ([§7.8](#78-story), [§6](06-operations-and-adapters.md)).
    WhatBuild’s owners" where it names none. Its link back leads to the example organization for
    someone with none of their own. A person who was invited
    finds the invitation wherever they land once signed in, here too, or follows its link
-   (`/invite/:token`), and joins by accepting it.
+   (`/invite/:token`), and joins by accepting it. Someone with no account yet needs none of
+   these steps: the link in their invitation's mail, or in the mail that lets them start an
+   organization, opens one page the server renders, whose one button, Continue as <address>,
+   makes the account and opens the invitation or Welcome
+   ([§3.2](03-accounts-and-identity.md#32-accounts-and-sign-in)).
 4. Invite colleagues with **Add people**, in Settings under the organization's People or the
    product's, by email or a single-use link.
 5. **Connect an agent** (Settings → Agents, which the empty seat opens, and `/connect` leads to):
@@ -1323,7 +1328,8 @@ never described as deleting. A list row showing an archived object says *Archive
 - **`/settings` as a page of its own**, for someone with no product to open Settings over (a guest
   still waiting for a place, or someone in no organization on a WhatBuild without an example
   organization): Account and Sign out everywhere, on the plain stage.
-- **Invitation** (`/invite/:token`). Opening the link changes nothing: it asks "Join <organization>?"
+- **Invitation** (`/invite/:token`, or `/invitations/:id`, where the link in its mail leads once it
+  has signed a new address in). Opening the link changes nothing: it asks "Join <organization>?"
   and says who invited them and as what, and nothing else: "Maya (maya@example.com) invited you as an
   editor.", the product added for a product's invitation ("as a viewer on Crew scheduling"), with
   **Accept** (the primary action), **Decline** and **Not now**. Names are shown as names, without
@@ -1338,7 +1344,9 @@ never described as deleting. A list row showing an archived object says *Archive
   already in, with their role. Otherwise it names why the link can't be used and offers signing in with another address,
   which returns to the link; an invitation for another address makes that the primary action. Its
   loading state names nothing, and a failed load offers Try again. Signed out, the link opens
-  sign-in titled "Sign in to see your invitation". It stands outside the guests' gate, so someone
+  sign-in titled "Sign in to see your invitation", as does `/invitations/:id`. By its id it names
+  only the person's own invitation, so for any other account it says the invitation is no longer
+  waiting for their answer, with signing in with another address. It stands outside the guests' gate, so someone
   invited takes no guest's place to read it and never waits in line for it.
 - **Invitations waiting** ([§3.2](03-accounts-and-identity.md#invitations)). Once signed in, a
   person sees the invitations waiting for them wherever they land, without the emailed link: above
