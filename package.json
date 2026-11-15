@@ -29,7 +29,7 @@
     "check:publishable": "node scripts/check-publishable.mjs",
     "check:attachments": "tsx apps/server/src/check-attachments.ts",
     "attention": "node scripts/attention.mjs",
-    "prepare": "git rev-parse --git-dir >/dev/null 2>&1 && git config extensions.worktreeConfig true && git config --worktree core.hooksPath scripts/githooks || true"
+    "prepare": "git rev-parse --git-dir >/dev/null 2>&1 && git config core.hooksPath scripts/githooks || true"
   },
   "devDependencies": {
     "@types/node": "^24.19.2",
