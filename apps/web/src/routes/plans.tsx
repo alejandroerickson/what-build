@@ -11,7 +11,7 @@ import "../styles/screens/cookies.css";
 export function PlansPage() {
   const q = usePlans();
   return (
-    <EntryPage title="Plans · WhatBuild" wide>
+    <EntryPage title="Plans · WhatBuild" wide columns={q.data?.plans.length || undefined}>
       <Sheet labelledBy="plans-title">
         <SheetHeader level={1} id="plans-title" title="Plans" />
         {q.isPending ? (

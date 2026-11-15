@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { safeNext } from "@whatbuild/core/safe-next";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
 import { Link, Navigate, useNavigate, useParams, useSearchParams } from "react-router";
 import { api, ApiError, retryRead } from "../lib/api.ts";
 import { useMe, useSignOut } from "../lib/session.tsx";
@@ -13,15 +13,21 @@ import "../styles/screens/account.css";
 
 /**
  * A screen outside the shell (sign-in, first run, accepting an invitation): the mark and wordmark
- * above one narrow column of sheets on the canvas.
+ * above one narrow column of sheets on the canvas. `columns` widens it for a table of that many
+ * columns beside its labels, the plans side by side, so every one shows without scrolling sideways.
  */
-export function EntryPage({ title, wide, children }: { title: string; wide?: boolean; children: ReactNode }) {
+export function EntryPage({ title, wide, columns, children }: { title: string; wide?: boolean; columns?: number; children: ReactNode }) {
   useEffect(() => {
     document.title = title;
   }, [title]);
   return (
     <div className="entry">
-      <main id="main" className={`entry-main${wide ? " entry-main-wide" : ""}`} tabIndex={-1}>
+      <main
+        id="main"
+        className={`entry-main${columns ? " entry-main-table" : wide ? " entry-main-wide" : ""}`}
+        style={columns ? ({ "--entry-columns": columns } as CSSProperties) : undefined}
+        tabIndex={-1}
+      >
         <div className="entry-brand">
           <BrandMark />
           <span className="brand-word">WhatBuild</span>

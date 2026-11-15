@@ -178,4 +178,13 @@
   .plans-price {
     font-size: var(--fs-lead);
   }
+  /* On a phone the labels and each plan's head wrap to what they need, so two plans fit the width;
+     more scroll sideways inside the sheet. */
+  .plans-table tbody th,
+  .plans-head {
+    min-width: 0;
+  }
+  .plans-head {
+    width: auto;
+  }
 }

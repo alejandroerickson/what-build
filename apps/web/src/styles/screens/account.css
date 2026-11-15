@@ -310,6 +310,10 @@
 .entry-main-wide {
   max-width: 520px;
 }
+/* A table of plans side by side: room for its labels and each plan's column, so none is cut off. */
+.entry-main-table {
+  max-width: calc(300px + var(--entry-columns, 2) * 200px);
+}
 .entry-brand {
   display: flex;
   align-items: center;
