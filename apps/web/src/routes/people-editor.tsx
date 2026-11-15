@@ -3,7 +3,8 @@ import { useId, useMemo, useState, type ReactNode } from "react";
 import { api } from "../lib/api.ts";
 import { readAddressList } from "../lib/address-list.ts";
 import { plural, ROLE_WORD, roleWords, scopeWords } from "../lib/format.ts";
-import { Avatar, Button, Callout, Dialog, ErrorCallout, FindField, Glyph, IconButton, Segmented, StatusBadge, TextArea, useToast } from "../ui/index.tsx";
+import { RefusalCallout } from "../shell/limit-reached.tsx";
+import { Avatar, Button, Callout, Dialog, FindField, Glyph, IconButton, Segmented, StatusBadge, TextArea, useToast } from "../ui/index.tsx";
 import "../styles/screens/people-editor.css";
 
 /**
@@ -623,7 +624,7 @@ export function PeopleEditor({ tenant, orgName, target, title, description, abov
         <p className="visually-hidden" role="status" aria-live="polite">
           {said}
         </p>
-        {save.isError && save.variables === changes ? <ErrorCallout inset error={save.error} /> : null}
+        {save.isError && save.variables === changes ? <RefusalCallout tenant={tenant} inset error={save.error} /> : null}
       </div>
     </Dialog>
   );

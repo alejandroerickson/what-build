@@ -7,9 +7,10 @@ import { formatBytes, formatDate, plural } from "../lib/format.ts";
 import { largestFile, size, useOrganizationLimits } from "../lib/limits.ts";
 import { cannotWriteReason, useProduct } from "../lib/session.tsx";
 import { pictureOfHtml, sendPicture } from "../lib/html-picture.ts";
+import { LimitReached, RefusalCallout, totalReached, type TotalReached } from "../shell/limit-reached.tsx";
 import { usePageTitle } from "../shell/slots.tsx";
 import {
-  Button, ButtonLink, Callout, EmptyState, ErrorCallout, FormGrid, Glyph, IconButton, KeyValue, PageHeader, Sheet, SheetBody, SheetHeader,
+  Button, ButtonLink, Callout, EmptyState, FormGrid, Glyph, IconButton, KeyValue, PageHeader, Sheet, SheetBody, SheetHeader,
   StatusBadge, TextField, tooLong,
 } from "../ui/index.tsx";
 import { splitTags, TagSuggestions } from "./evidence.tsx";
@@ -21,6 +22,8 @@ export interface UploadItem {
   state: "waiting" | "uploading" | "done" | "failed";
   loaded: number;
   error?: string | undefined;
+  /** Refused because the plan's storage is full: said once under the list, in the app's own words. */
+  reached?: TotalReached | undefined;
 }
 type Item = UploadItem;
 
@@ -43,7 +46,7 @@ export async function uploadFiles(base: string, recordId: string, items: Item[],
   let allDone = true;
   for (const [i, it] of items.entries()) {
     if (it.state === "done") continue;
-    update(i, { state: "uploading", loaded: 0, error: undefined });
+    update(i, { state: "uploading", loaded: 0, error: undefined, reached: undefined });
     try {
       const grant = await api<UploadGrant>("POST", `${base}/sources/${recordId}/uploads`, {
         path: it.file.name,
@@ -62,7 +65,8 @@ export async function uploadFiles(base: string, recordId: string, items: Item[],
       // A web page the server can't draw is drawn here, from the file on the person's own machine.
       if (/\.html?$/i.test(it.file.name)) void it.file.text().then(pictureOfHtml).then((picture) => (picture ? sendPicture(base, recordId, it.file.name, picture) : undefined));
     } catch (e) {
-      update(i, { state: "failed", error: (e as Error).message });
+      const reached = totalReached(e);
+      update(i, reached ? { state: "failed", error: "The plan’s storage is full.", reached } : { state: "failed", error: (e as Error).message });
       allDone = false;
     }
   }
@@ -195,6 +199,7 @@ export function SourceNewPage() {
     },
   });
   const failed = items.filter((i) => i.state === "failed").length;
+  const full = items.find((i) => i.reached)?.reached;
   const total = items.reduce((n, i) => n + i.file.size, 0);
   const loaded = items.reduce((n, i) => n + (i.state === "done" ? i.file.size : i.loaded), 0);
   const header = <PageHeader crumbs={[{ label: "Evidence", to: `${app}/evidence` }, { label: "Add a source" }]} title="Add a source" />;
@@ -316,7 +321,8 @@ export function SourceNewPage() {
           ) : null}
           {run.isError || (failed && !run.isPending) ? (
             <SheetBody>
-              {run.isError ? <ErrorCallout inset title="The source couldn’t be created" error={run.error} /> : null}
+              {run.isError ? <RefusalCallout inset tenant={ctx.product.tenant.slug} title="The source couldn’t be created" error={run.error} /> : null}
+              {full ? <LimitReached inset tenant={ctx.product.tenant.slug} reached={full} /> : null}
               {failed && !run.isPending ? (
                 <Callout
                   inset
