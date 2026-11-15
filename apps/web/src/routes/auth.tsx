@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { safeNext } from "@whatbuild/core/safe-next";
+import { SIGN_IN_LINK_MINUTES, SIGN_IN_LINK_SUBJECT } from "@whatbuild/core/sign-in-link";
 import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
 import { Link, Navigate, useNavigate, useParams, useSearchParams } from "react-router";
 import { api, ApiError, retryRead } from "../lib/api.ts";
@@ -8,7 +9,8 @@ import { BrandMark } from "../shell/brand.tsx";
 import { InvitationWords, orgOf, roleWords, useInvitationAnswer, type Invitation } from "../shell/invitations.tsx";
 import { usePageTitle } from "../shell/slots.tsx";
 import { Button, ButtonLink, Callout, EmptyState, ErrorCallout, Loading, Sheet, SheetBody, SheetHeader, TextField } from "../ui/index.tsx";
-import { PrivacyLink } from "../shell/privacy-link.tsx";
+import { Contact, useContact } from "../shell/contact.tsx";
+import { PrivacyLink, useSiteUrl } from "../shell/privacy-link.tsx";
 import "../styles/screens/account.css";
 
 /**
@@ -55,6 +57,15 @@ function useDevAccounts(on: boolean) {
   });
 }
 
+/** A site's address as people say it: "what-build.com". */
+function siteName(url: string): string {
+  try {
+    return new URL(url).host.replace(/^www\./, "");
+  } catch {
+    return url;
+  }
+}
+
 /** The form of the reference the server gives a refused sign-in (`signInReference` in apps/server/src/auth/routes.ts). */
 const SIGN_IN_REFERENCE = /^[0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{4}$/;
 
@@ -69,6 +80,9 @@ export function SignIn() {
   const navigate = useNavigate();
   const accounts = useDevAccounts(Boolean(methods.data?.dev));
   const people = accounts.data?.items.length ? accounts.data.items : DEV_PEOPLE;
+  // Whom a refused sign-in may write to, and where the public site's waitlist is, where the deployment names them.
+  const contact = useContact();
+  const site = useSiteUrl();
   const send = useMutation({ mutationFn: () => api<{ received: boolean; dev_note?: string }>("POST", "/auth/email", { email: email.trim(), next }) });
   const dev = useMutation({
     mutationFn: (e: string) => api("POST", "/auth/dev-sign-in", { email: e, next }),
@@ -83,10 +97,16 @@ export function SignIn() {
   const ref = params.get("ref");
   const reference = ref && SIGN_IN_REFERENCE.test(ref) ? ref : null;
   const emailLink = !methods.data || methods.data.email_link;
-  // A refused Microsoft sign-in the person can do nothing about but pass on.
+  // A refused Microsoft sign-in the person can do nothing about but pass on: to the deployment's contact, where it names one.
   const tellOperator = (
     <>
-      tell whoever runs WhatBuild here
+      {contact ? (
+        <>
+          write to <Contact to={contact} />
+        </>
+      ) : (
+        "tell whoever runs WhatBuild here"
+      )}
       {reference ? (
         <>
           , with the reference <strong className="entry-reference">{reference}</strong>
@@ -107,7 +127,13 @@ export function SignIn() {
             </Callout>
           ) : error === "invite_only" ? (
             <Callout inset tone="attention" title="WhatBuild is invite-only for now">
-              Ask someone who uses it to invite you.
+              {site ? (
+                <>
+                  Ask someone who uses it to invite you, or join the waitlist at <a href={`${site}/#interest`}>{siteName(site)}</a>.
+                </>
+              ) : (
+                "Ask someone who uses it to invite you."
+              )}
             </Callout>
           ) : error === "microsoft_no_verified_email" ? (
             <Callout inset tone="attention" title="WhatBuild couldn’t confirm your email with Microsoft">
@@ -131,7 +157,7 @@ export function SignIn() {
             send.isSuccess ? (
               <Callout inset tone="positive" title="Check your email" action={<Button size="sm" variant="quiet" onClick={() => send.reset()}>Use another email</Button>}>
                 {/* Never that a link was sent: the page doesn't say who can sign in. */}
-                Look for a sign-in link at {email.trim()}. It works for 15 minutes.
+                Look in {email.trim()} for an email from WhatBuild called &ldquo;{SIGN_IN_LINK_SUBJECT}&rdquo;. Its link works for {SIGN_IN_LINK_MINUTES} minutes.
                 {send.data.dev_note ? ` ${send.data.dev_note}` : ""}
               </Callout>
             ) : (

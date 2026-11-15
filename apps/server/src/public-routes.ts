@@ -57,6 +57,8 @@ export function publicRoutes(deps: { db: Db; config: ServerConfig; release: Rele
       inference: "none: WhatBuild runs no language model; intelligence comes from the agent you connect",
       // The privacy page, which is the public site's: on its own domain, or on the app's origin without one.
       privacy_url: privacyUrl(config),
+      // The public site's own address (WHATBUILD_SITE_URL), where its waitlist is; null on a deployment without one.
+      site_url: config.siteUrl,
     }),
   );
   // The plans this WhatBuild offers, for its plans pages and anyone deciding: every limit, and each

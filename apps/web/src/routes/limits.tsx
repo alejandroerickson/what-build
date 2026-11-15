@@ -12,6 +12,7 @@ import { useMe, useProducts } from "../lib/session.tsx";
 import { Button, ButtonLink, Callout, ChoiceRow, Dialog, EmptyState, ErrorCallout, Glyph, ListRow, Loading, Sheet, SheetBody, SheetHeader, StatusBadge, TextField, useToast, tooLong } from "../ui/index.tsx";
 import { OrganizationDeleteDialog } from "./org.tsx";
 import { PlanComparison } from "./plan-comparison.tsx";
+import { Contact, useContact } from "../shell/contact.tsx";
 import { PrivacyLink } from "../shell/privacy-link.tsx";
 import "../styles/screens/limits.css";
 
@@ -79,7 +80,7 @@ function PlanSummary({ l, owner }: { l: OrganizationLimits; owner: boolean }) {
   const plans = usePlans();
   const guest = l.you_meet_them === "calls_per_minute_only";
   const entry = l.plans.find((p) => p.id === l.plan);
-  const contact = plans.data?.contact ?? null;
+  const contact = useContact();
   const org = l.organization.name;
   const offered = l.plans.length > 0;
   const start = plans.data?.starting_plan;
@@ -130,13 +131,6 @@ function PlanSummary({ l, owner }: { l: OrganizationLimits; owner: boolean }) {
       </SheetBody>
     </Sheet>
   );
-}
-
-/** A contact as the deployment gives it: an address to write to, or a page. */
-function Contact({ to }: { to: string }) {
-  if (/^[^\s@]+@[^\s@]+$/.test(to)) return <a href={`mailto:${to}`}>{to}</a>;
-  if (/^https?:\/\//.test(to)) return <a href={to} target="_blank" rel="noreferrer">{to}</a>;
-  return <>{to}</>;
 }
 
 const value = (l: OrganizationLimits, key: string): Amount => l.limits.find((x) => x.key === key)?.value ?? null;

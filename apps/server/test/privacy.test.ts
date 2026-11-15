@@ -78,8 +78,10 @@ describe("the privacy page", () => {
   });
 
   it("is where the app links to, there being no site", async () => {
-    const meta = (await (await fetch(`${h.baseUrl}/api/v1/meta`)).json()) as { privacy_url: string };
+    const meta = (await (await fetch(`${h.baseUrl}/api/v1/meta`)).json()) as { privacy_url: string; site_url: string | null };
     expect(meta.privacy_url).toBe(`${h.config.publicBaseUrl}/site/privacy/`);
+    // Nor a site's address for the app to send anyone to.
+    expect(meta.site_url).toBeNull();
   });
 
   describe("on a deployment with a site", () => {
@@ -99,8 +101,10 @@ describe("the privacy page", () => {
     });
 
     it("is where the app links to, and the app has no page of its own there", async () => {
-      const meta = (await (await fetch(`${s.baseUrl}/api/v1/meta`)).json()) as { privacy_url: string };
+      const meta = (await (await fetch(`${s.baseUrl}/api/v1/meta`)).json()) as { privacy_url: string; site_url: string | null };
       expect(meta.privacy_url).toBe(`https://${site}/privacy`);
+      // The site itself, where its waitlist is, for a refused sign-in to point to.
+      expect(meta.site_url).toBe(`https://${site}`);
       const app = await fetch(`${s.baseUrl}/privacy`, { redirect: "manual" });
       expect(app.status).toBe(200);
       expect(await app.text()).toContain("the app");
