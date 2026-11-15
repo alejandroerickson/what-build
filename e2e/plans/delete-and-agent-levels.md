@@ -90,7 +90,9 @@ deletes only what it made itself in the run.
     `products_read`'s description, its action lines and `describe=true` on `get` say nothing of the
     concept, and `story_read`'s `get_page` line says nothing of notes for agents;
     `sources_read(action="list")` and `products_read(action="limits")` called anyway each answer
-    `403`, naming `story_reader` and viewer.
+    `403`: the first names the Story reader and viewer roles in words, the second says the caller
+    reads only the Story and that viewer access to a product shows the limits, and each one's
+    `details` give `role` `story_reader` and `needed` `viewer`.
     Then as Sam on the organization's connector (`--endpoint /mcp/t/<org>`): writes and archives,
     `members_read` `list`, and no `_delete` tool, no `members_write`, no `products_write` `create` (an editor of all products is no product creator).
 15. **MCP, as Jordan and as a guest, on the unscoped connector** (no `--endpoint`, `--level admin`;

@@ -90,7 +90,8 @@ other plans will too.
     to search it, first with no mode and then in `plain` mode. *Expect:* the tools are `story_read`,
     `products_read` and `search` (with `guide` and `submit_feedback`), and no `sources_`, `outcomes_`
     or `members_` tool; the products are listed with the role `story_reader`; listing sources and a search
-    with no mode are refused with a clear error naming `story_reader` and viewer, not an empty result and
+    with no mode are refused with a clear error naming the Story reader and viewer roles in words (each
+    one's `details` give `role` `story_reader` and `needed` `viewer`), not an empty result and
     never `unknown_action` or `unknown_tool`; `plain` mode answers with Story pages alone, and its
     `hits_matched` is 0 when only Story pages match, since it counts the matching pieces of
     sources' summaries, texts, notes and comments (`okf/spec/08-search.md`), not a fault.

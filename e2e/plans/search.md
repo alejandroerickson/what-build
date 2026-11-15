@@ -135,7 +135,8 @@ that what one door writes the other finds at once, and that a Story reader searc
     source and the outcome are never listed and no correction names them, though a Story page
     that says the same words is found. A Story page's word beside `sources` finds a page that says
     both, with `kind_hint` null, and beside `story` finds it with `kind_hint` `story`. `search` in
-    another mode, or with `kind: "source"`, is refused with a permission error naming `story_reader` and viewer.
+    another mode, or with `kind: "source"`, is refused with a permission error naming the Story reader
+    and viewer roles in words (its `details` give `role` `story_reader` and `needed` `viewer`).
 15. **Web, as Sam.** Search for a word on a mockup page that is promoted to the Story, and for the
     mockup's title. *Expect:* the mockup is listed once, under Exploration, with no Story result for it.
 16. **Web, as Sam.** At phone width (390 × 844) and in the dark theme, open the palette, search, and
