@@ -4,7 +4,7 @@ import { ButtonLink, Glyph } from "../ui/index.tsx";
 /**
  * The empty seat: while the person has no agent connected, Connect an agent's row in the panel
  * widens into this card, in the row's own place, for everyone, until an agent is connected. It says
- * in a line what an agent does here, and carries Connect an agent as the panel's one accent button.
+ * so, and carries Connect an agent as the panel's one accent button.
  * Nothing dismisses it: an agent does, by being connected. The dashed face breathes once every six
  * seconds (still under reduced motion), and the words carry the state, never the colour alone.
  */
@@ -20,7 +20,6 @@ export function AgentSeat({ to }: { to: string }) {
           No agent connected
         </h2>
       </div>
-      <p className="agent-seat-text">Without one, you&rsquo;re seeing less than half of WhatBuild.</p>
       <ButtonLink to={to} variant="primary" size="sm" icon="bot">
         Connect an agent
       </ButtonLink>

@@ -2,9 +2,10 @@
  * What the app keeps in this browser under `whatbuild.*`. Most of it is one person's: the product
  * they had open, where they were in each Story and mockup, the Story's focus, the example organization's notice
  * they have read. A browser can pass from one person to the next, so that state goes when someone
- * signs out or their session ends. The rest are choices about the device, kept for whoever uses it.
+ * signs out or their session ends. The rest are choices about the device, kept for whoever uses it:
+ * the agent whose steps Connect an agent shows among them, since it is the agent on this device.
  */
-const DEVICE_KEYS = new Set(["whatbuild.theme", "whatbuild.nav", "whatbuild.inspector", "whatbuild.mockup.mode"]);
+const DEVICE_KEYS = new Set(["whatbuild.theme", "whatbuild.nav", "whatbuild.inspector", "whatbuild.mockup.mode", "whatbuild.agent"]);
 
 /** Clear every `whatbuild.*` key but the device's own choices. */
 export function forgetPersonalState() {

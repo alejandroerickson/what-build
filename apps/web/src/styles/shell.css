@@ -286,11 +286,8 @@ h1[tabindex="-1"]:focus {
   font-weight: var(--fw-medium);
   line-height: var(--lh-ui);
 }
-.agent-seat-text {
-  margin: var(--s-1h) 0 var(--s-2);
-  color: var(--muted);
-  font-size: var(--fs-sm);
-  line-height: 1.45;
+.agent-seat-head + .btn {
+  margin-top: var(--s-2);
 }
 
 /* The context slot: filled by the route (Story tree, source filters); scrolls on its own. */
