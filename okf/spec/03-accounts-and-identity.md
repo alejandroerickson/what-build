@@ -3,7 +3,7 @@ type: Specification
 title: Accounts belong to tenants, tenants hold products, and one role check decides every call.
 description: The account → tenant → product hierarchy, sign-in, roles and what they grant, plans and their limits, addressing and isolation, caller identity, attribution, the example organization every account reads, and how teams were removed.
 tags: [spec, accounts, tenancy, roles, identity, oauth, isolation, example, limits]
-generated: {by: agent:claude, at: 2026-11-13}
+generated: {by: agent:claude, at: 2026-11-15}
 status: stable
 ---
 
@@ -428,7 +428,8 @@ person has one, its `all_products` role.
   when the bytes arrive, so a grant given to an editor stores nothing once they are a Story reader.
   The role was named `reader` until migration `0045_story_reader_role` renamed every grant and
   invitation; the server accepts no other name for it, and a call that sends `reader` is refused
-  `422 invalid_input` naming the roles there are.
+  `422 invalid_input` naming the roles there are. The access log's older entries, which name it
+  `reader`, read "Story reader" ([§4.10](04-data-model.md)).
 - **Viewer** reads everything in the product (Idea, Evidence, Exploration, Story, activity) and
   changes nothing. **Editor** also writes: sources, their attachments
   and text, comments, outcomes, mockups, the Story, and archives any of them. **Admin** also
@@ -851,6 +852,10 @@ migration ([`0044_no_teams.sql`](../../apps/server/src/migrations/0044_no_teams.
   the organization's pages, a new slug (`<slug>-2`, …), and kept the address it had under its team
   in `team_addresses`, a directory table outside row-level security, as `tenant_slugs` is;
 - dropped the teams, `products.team_id`, `records.team_id` and `activity.team_id`.
+
+The access log's entries from then keep the summaries they were written with, which name a team as
+a role's place ("Granted editor on team Product team"); they are read without it ("Granted
+editor", [§4.10](04-data-model.md)).
 
 **An address with a team still reaches its product.** The middle part names nothing now: the
 product is the one `team_addresses` records for that address, and otherwise the one of that slug in

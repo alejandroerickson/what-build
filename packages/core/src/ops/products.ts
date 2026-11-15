@@ -10,7 +10,7 @@ import { isInstanceOwner, requireTenantAllowance } from "../tenant-allowance.ts"
 import { expectedEtag, slug, withArticle } from "../schemas.ts";
 import { newEtag, newId, quotedName, randomToken, sha256Hex, slugify } from "../util.ts";
 import { adviseIdeaCard, CARD_HTML_MAX, checkCardSides, checkIdeaCard } from "../idea-card.ts";
-import { actionAsRead } from "./activity.ts";
+import { actionAsRead, summaryAsRead } from "./activity.ts";
 
 async function uniqueSlug(exists: (s: string) => Promise<boolean>, base: string): Promise<string> {
   const root = slugify(base, 40, "product").padEnd(3, "0");
@@ -1127,7 +1127,7 @@ export const listAccessActivity = defineOperation({
       entity_type: r.entity_type,
       entity_id: r.entity_id,
       entity_title: r.entity_title,
-      summary: r.summary,
+      summary: summaryAsRead(r.action, r.entity_type, r.summary),
     }));
     return { items, next_cursor: rows.length > input.limit ? items[items.length - 1]!.activity_id : null };
   },

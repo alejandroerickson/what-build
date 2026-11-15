@@ -1,3 +1,5 @@
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { json, newId } from "@whatbuild/core";
 import { sql } from "kysely";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -236,6 +238,103 @@ describe("the organization's access log", () => {
     const access = product.body.items.filter((i: { entity_type: string }) => i.entity_type === "membership");
     expect(access.length).toBeGreaterThan(0);
     expect(access.every((i: { action: string }) => i.action === "joined")).toBe(true);
+  });
+});
+
+describe("the access log's entries from earlier releases", () => {
+  // An organization of their own, so the entries put here are in no other test's log.
+  let O: string;
+  let planner: { product_id: string; slug: string };
+  beforeAll(async () => {
+    O = (await alice.api("POST", "/api/v1/tenants", { name: "Older Logs" })).body.tenant.slug;
+    const p = await alice.api("POST", `/api/v1/tenants/${O}/products`, { name: "Planner" });
+    planner = { product_id: p.body.product_id, slug: p.body.slug };
+  });
+
+  /** Put an entry into the organization's log as an earlier release wrote it, in Planner's log too when `productId` is given. */
+  async function recorded(action: string, summary: string, productId: string | null = null): Promise<string> {
+    const { tenant_id } = await h.db.selectFrom("tenants").select("tenant_id").where("slug", "=", O).executeTakeFirstOrThrow();
+    const activityId = newId();
+    await h.db.transaction().execute(async (trx) => {
+      await sql`select set_config('app.tenant_id', ${tenant_id}, true)`.execute(trx);
+      await trx
+        .insertInto("activity")
+        .values({
+          activity_id: activityId, tenant_id, product_id: productId,
+          actor: json({ account_id: "someone", display_name: "Someone", surface: "web", client: null }),
+          actor_account_id: "someone", channel: "web", action, entity_type: "membership", entity_id: "someone", entity_title: "Someone", summary,
+        })
+        .execute();
+    });
+    return activityId;
+  }
+  const readBack = async (activityId: string) =>
+    (await alice.api("GET", `/api/v1/tenants/${O}/members/activity?limit=200`)).body.items.find((i: { activity_id: string }) => i.activity_id === activityId);
+
+  it.each([
+    // Recorded while a team was the place of a role: the role reads without it.
+    ["granted", "Granted editor on team Product team", "Granted editor"],
+    ["granted", "Granted reader on team Product team", "Granted Story reader"],
+    ["role_changed", "Changed role to admin on team Product team", "Changed role to admin"],
+    ["role_changed", "Changed role to reader on team Product team", "Changed role to Story reader"],
+    ["revoked", "Removed viewer on team Product team", "Removed viewer"],
+    ["revoked", "Removed reader on team Product team", "Removed Story reader"],
+    ["revoked", "Removed from Acme Labs: editor on team Product team was their only role", "Removed from Acme Labs: editor was their only role"],
+    ["revoked", "Removed from Acme Labs: reader on team Product team was their only role", "Removed from Acme Labs: Story reader was their only role"],
+    // Recorded while the Story-only role was called reader.
+    ["granted", "Granted reader on product Planner", "Granted Story reader on product Planner"],
+    ["granted", "Granted reader on all products", "Granted Story reader on all products"],
+    ["granted", "Granted reader on product team planning", "Granted Story reader on product team planning"],
+    ["role_changed", "Changed role to reader on product Planner", "Changed role to Story reader on product Planner"],
+    ["role_changed", "Changed role to reader on all products", "Changed role to Story reader on all products"],
+    ["invited", "Invited someone as reader", "Invited someone as Story reader"],
+    ["revoked", "Removed reader on product Planner", "Removed Story reader on product Planner"],
+    ["revoked", "Removed reader on all products", "Removed Story reader on all products"],
+    ["revoked", "Removed from Acme Labs: reader on product Planner was their only role", "Removed from Acme Labs: Story reader on product Planner was their only role"],
+    ["revoked", "Removed from Acme Labs: reader on all products was their only role", "Removed from Acme Labs: Story reader on all products was their only role"],
+    ["joined", "Accepted an invitation as reader", "Accepted an invitation as Story reader"],
+    ["invitation_declined", "Declined an invitation as reader", "Declined an invitation as Story reader"],
+  ])("reads an entry recorded as %s, saying %s, as %s", async (action, summary, reads) => {
+    expect(await readBack(await recorded(action, summary))).toMatchObject({ action, summary: reads });
+  });
+
+  it.each([
+    ["granted", "Granted Story reader on product Planner"],
+    ["granted", "Granted product creator on organization Acme Labs"],
+    ["role_changed", "Changed role to editor on all products"],
+    ["invited", "Invited someone as Story reader"],
+    ["invited", "Invited someone as viewer"],
+    ["revoked", "Removed editor on product Planner"],
+    ["revoked", "Removed from Acme Labs: viewer on all products was their only role"],
+    ["revoked", "Removed from Acme Labs (2 roles)"],
+    ["account_deleted", "Left Acme Labs (2 roles) by deleting their account"],
+    ["account_removed", "Removed from Acme Labs (1 role) with the account, by an owner of this instance"],
+    ["joined", "Accepted an invitation as editor"],
+    ["invitation_declined", "Declined an invitation as viewer"],
+    ["invitation_cancelled", "Cancelled an invitation"],
+    // A product or an organization may be named anything, a team or a reader included.
+    ["granted", "Granted editor on product team reader"],
+    ["revoked", "Removed viewer on product Reader team"],
+    ["revoked", "Removed from Team reader: editor on product Planner was their only role"],
+  ])("leaves an entry recorded as %s, saying %s, as it was written", async (action, summary) => {
+    expect(await readBack(await recorded(action, summary))).toMatchObject({ action, summary });
+  });
+
+  it("reads an old entry in the same words in the product's log and over MCP", async () => {
+    const activityId = await recorded("joined", "Accepted an invitation as reader", planner.product_id);
+    expect((await readBack(activityId)).summary).toBe("Accepted an invitation as Story reader");
+    const own = await alice.api("GET", `/api/v1/p/${O}/${planner.slug}/activity?entity_type=membership&limit=200`);
+    expect(own.status, JSON.stringify(own.body)).toBe(200);
+    expect(own.body.items.find((i: { activity_id: string }) => i.activity_id === activityId)).toMatchObject({ action: "joined", summary: "Accepted an invitation as Story reader" });
+
+    const client = new Client({ name: "test-agent", version: "1.0.0" });
+    await client.connect(new StreamableHTTPClientTransport(new URL(`${h.baseUrl}/mcp`), { requestInit: { headers: { authorization: `Bearer ${await h.connectAgent(alice)}` } } }));
+    const viaMcp = await client.callTool({ name: "members_read", arguments: { action: "activity", params: { tenant: O, limit: 200 } } });
+    expect(viaMcp.isError, JSON.stringify(viaMcp.content)).toBeFalsy();
+    const answer = (viaMcp.content as { text: string }[])[0]!.text;
+    const items: { activity_id: string; summary: string }[] = JSON.parse(answer.startsWith("{") ? answer : answer.slice(answer.indexOf("\n") + 1)).items;
+    expect(items.find((i) => i.activity_id === activityId)?.summary).toBe("Accepted an invitation as Story reader");
+    await client.close();
   });
 });
 

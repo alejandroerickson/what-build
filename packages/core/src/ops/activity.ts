@@ -64,12 +64,56 @@ export const listActivity = defineOperation({
   },
 });
 
-/** An entry's summary as it reads now, whenever it was recorded. */
+/**
+ * An entry's summary as it reads now, whenever it was recorded. The product's log and the
+ * organization's access log (members.activity) both read their summaries through it.
+ */
 export function summaryAsRead(action: string, entityType: string, summary: string): string {
+  if (entityType === "membership") return accessSummaryAsRead(action, summary);
   if (action === "derived") return withoutParserLabel(summary);
   if (action === "note_archived") return withoutArchiveReason(summary);
   if (action === "updated" || action === "reordered") return changedInWords(entityType, summary);
   return summary;
+}
+
+/** The roles a team's grant could give, before an organization held its products directly. */
+const TEAM_ROLES = new Set(["admin", "editor", "viewer", "reader"]);
+
+/**
+ * An entry about people and access, as it reads now. Entries recorded before an organization held
+ * its products directly named a team as the place of a role ("Granted editor on team Product
+ * team"): no grant names a team now, so the role reads without its place ("Granted editor").
+ * Entries recorded before the Story-only role was named story_reader called it reader: it reads as
+ * a Story reader. Every other summary, and every one recorded since, reads as it was written.
+ */
+export function accessSummaryAsRead(action: string, summary: string): string {
+  if (action === "granted" || action === "role_changed") {
+    const [, verb, role = "", place = ""] = /^(Granted|Changed role to) (\w+) on (.+)$/s.exec(summary) ?? [];
+    const read = verb && roleOnPlaceAsRead(role, place);
+    return read ? `${verb} ${read}` : summary;
+  }
+  if (action === "revoked") {
+    // Their only role, so they left the organization with it.
+    const [, organization, role = "", place = ""] = /^Removed from (.+): (\w+) on (.+) was their only role$/s.exec(summary) ?? [];
+    if (organization) {
+      const read = roleOnPlaceAsRead(role, place);
+      return read ? `Removed from ${organization}: ${read} was their only role` : summary;
+    }
+    const [one, oneRole = "", onePlace = ""] = /^Removed (\w+) on (.+)$/s.exec(summary) ?? [];
+    const read = one && roleOnPlaceAsRead(oneRole, onePlace);
+    return read ? `Removed ${read}` : summary;
+  }
+  if (action === "invited" || action === "joined" || action === "invitation_declined") {
+    return summary.replace(/^(Invited someone|Accepted an invitation|Declined an invitation) as reader$/, "$1 as Story reader");
+  }
+  return summary;
+}
+
+/** "<role> on <place>" from an old access entry as it reads now, or null where it reads as written. */
+function roleOnPlaceAsRead(role: string, place: string): string | null {
+  if (place.startsWith("team ") && TEAM_ROLES.has(role)) return role === "reader" ? "Story reader" : role;
+  if (role === "reader") return `Story reader on ${place}`;
+  return null;
 }
 
 /**

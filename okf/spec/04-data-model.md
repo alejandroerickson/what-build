@@ -3,7 +3,7 @@ type: Specification
 title: Every object in a product, with its fields, limits and invariants, as the REST and MCP wire sees it.
 description: The common envelope (ids, etags, attribution, revisions), outcomes, sources and their tags, attachments, comments, summaries and notes, evidence links, the retired insights, decisions and assumptions, views, activity, Story, mockups, feedback, the product bundle, and the storage layout.
 tags: [spec, data-model, schema, revisions, story, mockups, export]
-generated: {by: agent:claude, at: 2026-11-13}
+generated: {by: agent:claude, at: 2026-11-15}
 status: stable
 ---
 
@@ -449,6 +449,21 @@ An append-only event log, written in the same transaction as the mutation that c
   `account_removed` when an instance owner did, each with the person's name as its title and not
   `revoked`, which is one role taken; `members.activity` reads one recorded as `revoked` before
   these existed as what it was.
+  An entry about people and access recorded before teams were removed
+  ([§3.11](03-accounts-and-identity.md#311-when-there-were-teams)), or before the Story-only role
+  was named `story_reader` ([§3.5](03-accounts-and-identity.md#35-roles)), is read in today's
+  words, by `members.activity` and a product's `activity.list` alike, so over REST, over MCP and in
+  the web app. A team named as a role's place is left out, since no grant names one now: "Granted
+  editor on team Product team" reads "Granted editor", and "Removed from Acme: viewer on team
+  Product team was their only role" reads "Removed from Acme: viewer was their only role". The role
+  called `reader` reads "Story reader" in every summary that named it, of a role given, changed or
+  removed, an invitation sent, and an invitation accepted or declined: "Granted reader on product
+  Planner" reads "Granted Story reader on product Planner", and "Accepted an invitation as reader"
+  reads "Accepted an invitation as Story reader".
+  ◆ Decision: an old summary is reworded where it is read
+  ([`summaryAsRead`](../../packages/core/src/ops/activity.ts)), never by a migration, as the
+  product log's old entries are, so the stored event, and an export's `activity.jsonl`, stays as it
+  was recorded.
   Events the public sandbox wrote about its invitation links, visitors and settings stay in its
   organization's log, and `members.activity` no longer lists them.
 - Several people and several agents write into one product, and "what did that agent just do" is a
