@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from "node:crypto";
-import { AppError, conflict, enterAsGuest, planName, escapeHtml, gone, invalid, isGuestAccount, isInstanceOwner, readGuests, tenantAllowanceOf, newId, notFound, oneLine, quotedName, randomToken, safeNext, sha256Hex, SIGN_IN_LINKS_PER_HOUR, unauthenticated, type Db, type InvitationsTable, type Mailer } from "@whatbuild/core";
+import { AppError, conflict, enterAsGuest, planName, escapeHtml, gone, invalid, isGuestAccount, isInstanceOwner, readGuests, tenantAllowanceOf, newId, notFound, oneLine, plainName, randomToken, safeNext, sha256Hex, SIGN_IN_LINKS_PER_HOUR, unauthenticated, type Db, type InvitationsTable, type Mailer } from "@whatbuild/core";
 import { Hono, type Context } from "hono";
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 import { sql, type Selectable } from "kysely";
@@ -569,10 +569,15 @@ export function authRoutes(deps: { db: Db; config: ServerConfig; mailer: Mailer 
 
   /**
    * An invitation as the person it was sent to reads it. The names are others' to choose, so each is
-   * on one line, and the inviter's in quotation marks, as the email shows it. Never its token.
+   * on one line and bounded, as the email shows it. Beside the inviter's name goes their account's
+   * address (`invited_by_email`), which WhatBuild confirmed and no chosen name can fake; null once
+   * that account is deleted. Never its token.
    */
   const invitationForPerson = async (inv: InvitationRow) => {
-    const { tenant, scope } = await invitationPlace(db, inv);
+    const [{ tenant, scope }, inviter] = await Promise.all([
+      invitationPlace(db, inv),
+      db.selectFrom("accounts").select("email").where("account_id", "=", inv.created_by.account_id).where("deleted_at", "is", null).executeTakeFirst(),
+    ]);
     return {
       invitation_id: inv.invitation_id,
       tenant: tenant ? { slug: tenant.slug, name: oneLine(tenant.name, 100) } : null,
@@ -580,7 +585,8 @@ export function authRoutes(deps: { db: Db; config: ServerConfig; mailer: Mailer 
       scope_type: inv.scope_type,
       scope: scope ? oneLine(scope, 100) : null,
       role: inv.role,
-      invited_by: quotedName(inv.created_by.display_name),
+      invited_by: plainName(inv.created_by.display_name),
+      invited_by_email: inviter?.email ?? null,
       expires_at: inv.expires_at,
     };
   };

@@ -2,12 +2,16 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useId, useRef, useState } from "react";
 import { useNavigate } from "react-router";
 import { api } from "../lib/api.ts";
-import { aRole, formatDate, plural } from "../lib/format.ts";
+import { aRole, plural } from "../lib/format.ts";
 import { useMe } from "../lib/session.tsx";
 import { Button, Callout, ErrorCallout, Sheet, SheetBody, SheetHeader, useToast } from "../ui/index.tsx";
 import "../styles/screens/account.css";
 
-/** An invitation as the person it was sent to reads it. `invited_by` is already in quotation marks. */
+/**
+ * An invitation as the person it was sent to reads it. Its names are others' to choose, each on one
+ * line; `invited_by_email` is the inviter's own account's address, which WhatBuild confirmed and no
+ * chosen name can fake, or null once that account is deleted.
+ */
 export interface Invitation {
   invitation_id: string;
   tenant: { slug: string; name: string } | null;
@@ -18,6 +22,7 @@ export interface Invitation {
   scope: string | null;
   role: string;
   invited_by: string;
+  invited_by_email: string | null;
   expires_at: string;
 }
 
@@ -37,33 +42,25 @@ export function useInvitations() {
   });
 }
 
-/** What the role lets them do there, said before they choose. */
-const ROLE_MEANS: Record<string, string> = {
-  owner: "You could run the organization with its other owners.",
-  admin: "You could manage its people and permanently delete what’s in it.",
-  editor: "You could add and change what’s there.",
-  viewer: "You could read everything there, and change nothing.",
-  story_reader: "You could read only the Story’s live pages, and nothing else.",
-  creator: "You could create products, and you’d be admin of each one you create.",
-  member: "You’d be in the organization, and its admins give roles on its products.",
-};
+export const orgOf = (i: Pick<Invitation, "tenant">) => i.tenant?.name ?? "the organization";
 
-/** Names are others' to choose, so each is in quotation marks and never reads as WhatBuild's own words. */
-const quoted = (name: string) => `"${name.replace(/["“”„‟＂]/g, "'")}"`;
+/** Who invited them: their name, with the address no chosen name can fake beside it. */
+export const inviterOf = (i: Pick<Invitation, "invited_by" | "invited_by_email">) => (i.invited_by_email ? `${i.invited_by} (${i.invited_by_email})` : i.invited_by);
 
-export const orgOf = (i: Pick<Invitation, "tenant">) => (i.tenant ? quoted(i.tenant.name) : "the organization");
-
-/** The role and where it applies: "an admin of the organization", "an editor on every product in the organization", "a viewer on "Rota"". */
+/**
+ * The role, and the product it is on when it is on one: "an editor", "a viewer on Crew scheduling".
+ * A role in the organization or on all its products needs no more than the organization's name,
+ * which the invitation's title gives.
+ */
 export function roleWords(i: Pick<Invitation, "scope_type" | "scope" | "role">): string {
-  if (i.scope_type === "all_products") return `${aRole(i.role)} on every product in the organization`;
-  return i.scope_type === "tenant" || !i.scope ? `${aRole(i.role)} of the organization` : `${aRole(i.role)} on ${quoted(i.scope)}`;
+  return i.scope_type === "product" && i.scope ? `${aRole(i.role)} on ${i.scope}` : aRole(i.role);
 }
 
-/** The choice in words: who asks, for what role and where, what it lets them do, and until when. */
+/** The choice in words: who asks, and for what role. A read-only organization says why it can't be accepted yet. */
 export function InvitationWords({ invitation: i }: { invitation: Invitation }) {
   return (
     <>
-      {i.invited_by} invited you as {roleWords(i)}. {i.read_only ? "It’s read-only right now, so it can’t take anyone new; you can accept once it can." : (ROLE_MEANS[i.role] ?? "")} It’s open until {formatDate(i.expires_at)}.
+      {inviterOf(i)} invited you as {roleWords(i)}.{i.read_only ? " It’s read-only right now, so it can’t take anyone new; you can accept once it can." : null}
     </>
   );
 }
@@ -82,7 +79,7 @@ export function useInvitationAnswer() {
   const accept = useMutation({
     mutationFn: (named: Named) => api<{ already: boolean } & Invitation>("POST", "/api/v1/invitations/accept", named),
     onSuccess: async (r) => {
-      toast(r.scope_type === "tenant" || !r.scope ? `You’re ${aRole(r.role)} of ${orgOf(r)}.` : `You’re in ${orgOf(r)}, as ${roleWords(r)}.`);
+      toast(`You’re in ${orgOf(r)}, as ${roleWords(r)}.`);
       await settle();
       navigate("/", { replace: true });
     },

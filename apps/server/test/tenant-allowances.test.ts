@@ -51,6 +51,7 @@ describe("who may create an organization", () => {
     expect(given.body).toMatchObject({ email: "bob@staff.example", allowed: 2, created: 0, remaining: 2, account: { display_name: "Bob Member" }, notified: true });
     expect(h.mailer.sent.at(-1)).toMatchObject({ to: "bob@staff.example" });
     expect(h.mailer.sent.at(-1)!.text).toContain("/welcome");
+    expect(h.mailer.sent.at(-1)!.text.split("\n")[0]).toBe("Owen Owner invited you to start up to 2 organizations on WhatBuild.");
     for (const name of ["Bob's first", "Bob's second"]) expect((await bob.api("POST", "/api/v1/tenants", { name })).status).toBe(201);
     const third = await bob.api("POST", "/api/v1/tenants", { name: "Bob's third" });
     expect(third.status).toBe(403);
@@ -84,10 +85,10 @@ describe("who may create an organization", () => {
     expect(await ask("nina@elsewhere.example")).toBe(false);
     const given = await owner.api("PUT", A, { email: "nina@elsewhere.example", allowed: 1 });
     expect(given.body).toMatchObject({ account: null, created: 0, remaining: 1, notified: true });
-    // The owner's name is quoted, and the mail says whose words those are, as an invitation does.
+    // Only an instance owner sends it: their name, plainly, and where to start, signing in as the address it went to.
     const notice = h.mailer.sent.find((m) => m.to === "nina@elsewhere.example")!;
-    expect(notice.subject).toMatch(/^".+" let you start an organization on WhatBuild$/);
-    expect(notice.text).toContain("The name in quotation marks is the one they gave WhatBuild.");
+    expect(notice.subject).toBe("Owen Owner invited you to WhatBuild");
+    expect(notice.text).toBe(`Owen Owner invited you to start an organization on WhatBuild.\n\nStart here, signing in as nina@elsewhere.example:\n${h.baseUrl}/welcome\n`);
     expect(await ask("nina@elsewhere.example")).toBe(true);
     const { response: verified } = await h.followSignInLink();
     expect(verified.headers.get("location")).toBe("/welcome");

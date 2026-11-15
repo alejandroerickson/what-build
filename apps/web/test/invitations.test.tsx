@@ -3,7 +3,7 @@ import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { orgOf } from "../src/shell/invitations.tsx";
+import { inviterOf, orgOf } from "../src/shell/invitations.tsx";
 
 // Someone joins an organization only by choosing to: opening an invitation's link asks, and the
 // invitations waiting for a person show wherever they land, each with Accept and Decline.
@@ -16,7 +16,8 @@ const invitation = (over: Record<string, unknown> = {}) => ({
   scope_type: "all_products",
   scope: "All products",
   role: "editor",
-  invited_by: '"Riley Chen"',
+  invited_by: "Riley Chen",
+  invited_by_email: "riley@example.com",
   expires_at: "2026-11-07T12:00:00.000Z",
   ...over,
 });
@@ -94,17 +95,17 @@ describe("an invitation's link", () => {
     return show(<AcceptInvite />, "/invite/secret-token");
   };
 
-  it("keeps a name from closing its own quotation marks", () => {
-    for (const mark of ['"', "“", "”", "„", "‟", "＂"]) expect(orgOf({ tenant: { slug: "acme", name: `Acme${mark} on WhatBuild. Reset your account` } })).toBe(`"Acme' on WhatBuild. Reset your account"`);
+  it("shows names as names, with the inviter's own address beside theirs while their account lasts", () => {
+    expect(orgOf({ tenant: { slug: "acme", name: 'Acme" Labs' } })).toBe('Acme" Labs');
+    expect(inviterOf({ invited_by: "Riley Chen", invited_by_email: "riley@example.com" })).toBe("Riley Chen (riley@example.com)");
+    expect(inviterOf({ invited_by: "Riley Chen", invited_by_email: null })).toBe("Riley Chen");
   });
 
   it("asks, and opening it answers nothing", async () => {
     const host = await open((_m, path) => (path.endsWith("/read") ? { ...invitation(), accepted: false } : {}));
-    expect(host.querySelector("h1")?.textContent).toBe('Join "Acme Labs"?');
-    const text = host.textContent ?? "";
-    expect(text).toContain('"Riley Chen" invited you as an editor on every product in the organization.');
-    expect(text).toContain("add and change");
-    expect(text).toContain("You join only if you accept.");
+    expect(host.querySelector("h1")?.textContent).toBe("Join Acme Labs?");
+    expect(host.querySelector(".sheet-body p")?.textContent).toBe("Riley Chen (riley@example.com) invited you as an editor.");
+    expect(host.textContent).not.toMatch(/quotation|open until|You join only/);
     expect(sent("/api/v1/invitations/read")).toEqual([{ method: "POST", path: "/api/v1/invitations/read", body: { token: "secret-token" } }]);
     expect(sent("/api/v1/invitations/accept")).toEqual([]);
     expect(sent("/api/v1/invitations/decline")).toEqual([]);
@@ -132,7 +133,8 @@ describe("an invitation's link", () => {
 
   it("says so when this person has already accepted it", async () => {
     const host = await open(() => ({ ...invitation(), accepted: true }));
-    expect(host.querySelector("h1")?.textContent).toBe('You’re already in "Acme Labs"');
+    expect(host.querySelector("h1")?.textContent).toBe("You’re already in Acme Labs");
+    expect(host.textContent).toContain("You accepted this invitation earlier, and you’re an editor.");
     expect(button(host, /^Accept$/)).toBeUndefined();
   });
 
@@ -193,21 +195,32 @@ describe("the invitations waiting for a person", () => {
   });
 
   it("each name the organization, the role and who invited them, with Accept and Decline named for it", async () => {
-    state.answer = list([invitation({ invitation_id: "a", scope_type: "tenant", scope: "Acme Labs", role: "admin" }), invitation({ invitation_id: "b", tenant: { slug: "b", name: "Beta" }, scope_type: "product", scope: "Planner", role: "story_reader", invited_by: '"Sam"' })]);
+    state.answer = list([
+      invitation({ invitation_id: "a", scope_type: "tenant", scope: "Acme Labs", role: "admin" }),
+      invitation({ invitation_id: "b", tenant: { slug: "b", name: "Beta" }, scope_type: "product", scope: "Planner", role: "story_reader", invited_by: "Sam", invited_by_email: "sam@example.com" }),
+    ]);
     const host = await show(<InvitationsBanner />);
     expect(host.querySelector("section")?.getAttribute("aria-label")).toBe("Invitations waiting for your answer");
     const rows = [...host.querySelectorAll("li")];
     expect(rows).toHaveLength(2);
-    expect(rows[0]!.textContent).toContain('"Riley Chen" invited you as an admin of the organization.');
-    expect(rows[1]!.textContent).toContain('"Sam" invited you as a Story reader on "Planner".');
-    expect(button(host, /^Accept the invitation to "Beta"$/)).toBeTruthy();
-    expect(button(host, /^Decline the invitation to "Acme Labs"$/)).toBeTruthy();
+    expect(rows[0]!.textContent).toContain("Join Acme Labs?Riley Chen (riley@example.com) invited you as an admin.");
+    expect(rows[1]!.textContent).toContain("Join Beta?Sam (sam@example.com) invited you as a Story reader on Planner.");
+    expect(button(host, /^Accept the invitation to Beta$/)).toBeTruthy();
+    expect(button(host, /^Decline the invitation to Acme Labs$/)).toBeTruthy();
   });
 
-  it("name a product creator, and what one does, in words", async () => {
+  it("name a product creator in words", async () => {
     state.answer = list([invitation({ scope_type: "tenant", scope: "Acme Labs", role: "creator" })]);
     const host = await show(<InvitationsBanner />);
-    expect(host.textContent).toContain('"Riley Chen" invited you as a product creator of the organization. You could create products, and you’d be admin of each one you create.');
+    expect(host.querySelector("li .callout-text")?.textContent).toBe("Riley Chen (riley@example.com) invited you as a product creator.");
+  });
+
+  it("say why a read-only organization's can't be accepted yet, and offer only Decline", async () => {
+    state.answer = list([invitation({ read_only: true })]);
+    const host = await show(<InvitationsBanner />);
+    expect(host.querySelector("li .callout-text")?.textContent).toBe("Riley Chen (riley@example.com) invited you as an editor. It’s read-only right now, so it can’t take anyone new; you can accept once it can.");
+    expect(button(host, /^Accept the invitation/)).toBeUndefined();
+    expect(button(host, /^Decline the invitation to Acme Labs$/)).toBeTruthy();
   });
 
   it("are answered by their id, and accepting opens the overview", async () => {
@@ -227,12 +240,12 @@ describe("the invitations waiting for a person", () => {
       return { declined: true, ...invitation() };
     };
     const host = await show(<InvitationsBanner />);
-    const decline = button(host, /^Decline the invitation to "Acme Labs"$/);
+    const decline = button(host, /^Decline the invitation to Acme Labs$/);
     decline!.focus();
     await press(decline);
     await act(() => new Promise((r) => requestAnimationFrame(() => r(undefined))));
     expect(host.querySelectorAll("li")).toHaveLength(1);
-    expect(document.activeElement?.getAttribute("aria-label")).toBe('Accept the invitation to "Beta"');
+    expect(document.activeElement?.getAttribute("aria-label")).toBe("Accept the invitation to Beta");
   });
 
   it("show three, with the rest a press away", async () => {

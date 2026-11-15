@@ -23,7 +23,7 @@ const invite = async (email: string, role = "editor", where: Record<string, stri
   expect(r.status, JSON.stringify(r.body)).toBe(201);
   return { id: String(r.body.invitation_id), token: String(r.body.invite_link).split("/invite/")[1]!, link: String(r.body.invite_link) };
 };
-const pending = async (who: Browser) => (await who.api("GET", "/api/v1/me/invitations")).body.items as { invitation_id: string; tenant: { slug: string; name: string }; scope_type: string; scope: string; role: string; invited_by: string; expires_at: string }[];
+const pending = async (who: Browser) => (await who.api("GET", "/api/v1/me/invitations")).body.items as { invitation_id: string; tenant: { slug: string; name: string }; scope_type: string; scope: string; role: string; invited_by: string; invited_by_email: string | null; expires_at: string }[];
 const reaches = async (who: Browser) => ((await who.api("GET", "/api/v1/me/products")).body.items as { path: string }[]).some((p) => p.path === path);
 const log = async () => (await owner.api("GET", `/api/v1/tenants/${tenant}/members/activity?limit=200`)).body.items as { action: string; entity_id: string; entity_title: string | null; summary: string; actor: { account_id: string; display_name: string } }[];
 const row = (id: string) => h.db.selectFrom("invitations").selectAll().where("invitation_id", "=", id).executeTakeFirstOrThrow();
@@ -75,16 +75,28 @@ describe("the person's list", () => {
     const { id, token } = await invite("Listed@Example.com", "viewer", { product: "crewboard" });
     const listed = await h.signIn("listed@example.com");
     const [i] = await pending(listed);
-    expect(i).toMatchObject({ invitation_id: id, tenant: { slug: tenant, name: "Acme Labs" }, scope_type: "product", scope: "Crewboard", role: "viewer", invited_by: '"Olive Owner"' });
+    expect(i).toMatchObject({ invitation_id: id, tenant: { slug: tenant, name: "Acme Labs" }, scope_type: "product", scope: "Crewboard", role: "viewer", invited_by: "Olive Owner", invited_by_email: "owner@example.com" });
     expect(JSON.stringify(i)).not.toContain(token);
   });
 
-  it("holds an inviter's chosen name to one line in quotation marks it can't close", async () => {
+  it("holds an inviter's chosen name to one line, beside the address no name can fake", async () => {
     await owner.api("PATCH", "/api/v1/me", { display_name: 'Eve" invited\u202e you' });
     await invite("quoted@example.com");
     await owner.api("PATCH", "/api/v1/me", { display_name: "Olive Owner" });
     const quoted = await h.signIn("quoted@example.com");
-    expect((await pending(quoted))[0]!.invited_by).toBe(`"Eve' invited you"`);
+    expect((await pending(quoted))[0]).toMatchObject({ invited_by: 'Eve" invited you', invited_by_email: "owner@example.com" });
+  });
+
+  it("gives no address for an inviter whose account is deleted", async () => {
+    await invite("orphaned@example.com");
+    const account = await h.db.selectFrom("accounts").select("account_id").where("email", "=", "owner@example.com").executeTakeFirstOrThrow();
+    await h.db.updateTable("accounts").set({ deleted_at: new Date().toISOString() }).where("account_id", "=", account.account_id).execute();
+    try {
+      const orphaned = await h.signIn("orphaned@example.com");
+      expect((await pending(orphaned))[0]).toMatchObject({ invited_by: "Olive Owner", invited_by_email: null });
+    } finally {
+      await h.db.updateTable("accounts").set({ deleted_at: null }).where("account_id", "=", account.account_id).execute();
+    }
   });
 
   it("leaves out what is cancelled, past its time, accepted or sent to someone else", async () => {
@@ -110,7 +122,7 @@ describe("opening the link", () => {
     const before = (await log()).length;
     const opened = await opener.api("POST", "/api/v1/invitations/read", { token });
     expect(opened.status).toBe(200);
-    expect(opened.body).toMatchObject({ accepted: false, invitation_id: id, tenant: { name: "Acme Labs" }, scope_type: "all_products", role: "editor", invited_by: '"Olive Owner"' });
+    expect(opened.body).toMatchObject({ accepted: false, invitation_id: id, tenant: { name: "Acme Labs" }, scope_type: "all_products", role: "editor", invited_by: "Olive Owner", invited_by_email: "owner@example.com" });
     expect((await row(id)).accepted_at).toBeNull();
     expect(await reaches(opener)).toBe(false);
     expect((await log()).length).toBe(before);
@@ -424,22 +436,23 @@ describe("who may answer", () => {
     }
   });
 
-  it("is told by the email that joining takes accepting", async () => {
+  it("is told by the email to accept or decline, with the address to sign in as", async () => {
     await invite("mailed@example.com", "editor");
     const mail = h.mailer.sent.at(-1)!;
-    expect(mail.text).toMatch(/You join only if you accept/);
-    expect(mail.text).toMatch(/Accept or decline/);
+    expect(mail.text).toContain("Accept or decline, signing in as mailed@example.com:\n");
+    expect(mail.text).toContain("The link works for 7 days.");
     expect(mail.text).not.toMatch(/joins? (on|by|when) sign/i);
+    expect(mail.text).not.toMatch(/quotation/);
   });
 });
 
 describe("an invitation to all products", () => {
-  it("says every product in the organization, and accepting gives the role on all of them, products made later included", async () => {
+  it("names the organization, and accepting gives the role on all its products, products made later included", async () => {
     const { id, token } = await invite("everywhere@example.com", "viewer", { all_products: true });
     const mail = h.mailer.sent.at(-1)!;
     expect(mail.to).toBe("everywhere@example.com");
-    expect(mail.subject).toBe(`"Olive Owner" invited you to every product in the organization "Acme Labs" on WhatBuild`);
-    expect(mail.text).toContain(`invited you to every product in the organization "Acme Labs" on WhatBuild, as a viewer.`);
+    expect(mail.subject).toBe("Olive Owner invited you to Acme Labs on WhatBuild");
+    expect(mail.text).toContain("Olive Owner (owner@example.com) invited you to Acme Labs on WhatBuild, as a viewer.");
     expect(mail.text).not.toMatch(/\bteam\b/i);
 
     const everywhere = await h.signIn("everywhere@example.com", "Eve Everywhere");

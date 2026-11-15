@@ -6,7 +6,7 @@ import { conflict, forbidden, invalid, notFound } from "../errors.ts";
 import { defineOperation, type OpContext } from "../registry.ts";
 import { expectedEtag } from "../schemas.ts";
 import { isInstanceOwner } from "../tenant-allowance.ts";
-import { newEtag, quotedName } from "../util.ts";
+import { newEtag, plainName } from "../util.ts";
 
 /**
  * Allowances to create organizations, kept by the instance's owners. They belong to no
@@ -174,14 +174,14 @@ export const setTenantAllowance = defineOperation({
     let notified = false;
     if (input.notify && input.allowed > before && view!.remaining > 0 && ctx.ports.mailer) {
       const n = input.allowed;
-      const who = quotedName(ctx.actor.display_name);
+      // Only an owner of the instance sends this. Their name is still theirs to choose: one line, bounded.
+      const who = plainName(ctx.actor.display_name);
       await ctx.ports.mailer.send({
         to: input.email,
-        subject: `${who} let you start ${n === 1 ? "an organization" : "organizations"} on WhatBuild`,
+        subject: `${who} invited you to WhatBuild`,
         text:
-          `${who} let you start ${n === 1 ? "one organization" : `up to ${n} organizations`} on WhatBuild.\n\n` +
-          `Sign in with this email to start one:\n${ctx.ports.config.publicBaseUrl}/welcome\n\n` +
-          `The name in quotation marks is the one they gave WhatBuild.\n`,
+          `${who} invited you to start ${n === 1 ? "an organization" : `up to ${n} organizations`} on WhatBuild.\n\n` +
+          `Start here, signing in as ${input.email}:\n${ctx.ports.config.publicBaseUrl}/welcome\n`,
       });
       notified = true;
     }

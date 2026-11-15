@@ -121,18 +121,20 @@ describe("who sees the organization's people", () => {
 });
 
 describe("an invitation email", () => {
-  it("shows the inviter's name on one line, quoted and bounded, whatever they chose", async () => {
+  it("shows the inviter's name on one line and bounded, whatever they chose, beside their own address", async () => {
     const mallory = await h.signIn("mallory@example.com", "Mallory\r\nBcc: everyone@example.com‮ WhatBuild Security: your account is locked, reset it");
     await grant(alice, { email: "mallory@example.com", role: "admin" });
     expect((await grant(mallory, { product: "planner", email: "newcomer@example.com", role: "viewer" })).status).toBe(201);
     const mail = h.mailer.sent.at(-1)!;
     expect(mail.to).toBe("newcomer@example.com");
     expect(mail.subject).not.toMatch(/[\r\n‮]/);
-    expect(mail.subject).toMatch(/^"Mallory Bcc: everyone@example\.com WhatBuild Secu[^"]*…" invited you to "Planner" in the organization "Acme Labs" on WhatBuild$/);
+    expect(mail.subject).toMatch(/^Mallory Bcc: everyone@example\.com WhatBuild Secu[^(]*… invited you to Planner in Acme Labs on WhatBuild$/);
     const [first] = mail.text.split("\n");
-    expect(first).toMatch(/^"Mallory Bcc: [^"]*…" invited you to "Planner" in the organization "Acme Labs" on WhatBuild, as a viewer\.$/);
+    // The address WhatBuild confirmed follows the chosen name, which can't fake it.
+    expect(first).toMatch(/^Mallory Bcc: [^(]*… \(mallory@example\.com\) invited you to Planner in Acme Labs on WhatBuild, as a viewer\.$/);
+    expect(mail.text).toContain("Accept or decline, signing in as newcomer@example.com:\n");
     expect(mail.text).toContain("/invite/");
-    expect(mail.text).toContain("The names in quotation marks are the ones people gave WhatBuild.");
+    expect(mail.text).not.toMatch(/quotation/);
   });
 
   it("names the organization, whichever part of it the invitation is to", async () => {
@@ -144,19 +146,20 @@ describe("an invitation email", () => {
     const invite = (body: Record<string, string | boolean>) => owner.api("POST", `/api/v1/tenants/${org}/members`, body);
     const product = await owner.api("POST", `/api/v1/tenants/${org}/products`, { name: "Tide Log" });
     expect((await invite({ email: "joins-org@example.com", role: "admin" })).status).toBe(201);
-    expect(sentTo("joins-org@example.com").subject).toBe('"Nia Owner" invited you to the organization "Harbor Works" on WhatBuild');
-    expect(sentTo("joins-org@example.com").text.split("\n")[0]).toBe('"Nia Owner" invited you to the organization "Harbor Works" on WhatBuild, as an admin.');
-    // All products reads as the screens read it: every product in the organization.
+    expect(sentTo("joins-org@example.com").subject).toBe("Nia Owner invited you to Harbor Works on WhatBuild");
+    expect(sentTo("joins-org@example.com").text.split("\n")[0]).toBe("Nia Owner (nia@example.com) invited you to Harbor Works on WhatBuild, as an admin.");
+    // A role on all products is a place in the organization: its name alone.
     expect((await invite({ all_products: true, email: "joins-everywhere@example.com", role: "editor" })).status).toBe(201);
-    expect(sentTo("joins-everywhere@example.com").subject).toBe('"Nia Owner" invited you to every product in the organization "Harbor Works" on WhatBuild');
-    expect(sentTo("joins-everywhere@example.com").text.split("\n")[0]).toBe('"Nia Owner" invited you to every product in the organization "Harbor Works" on WhatBuild, as an editor.');
+    expect(sentTo("joins-everywhere@example.com").subject).toBe("Nia Owner invited you to Harbor Works on WhatBuild");
+    expect(sentTo("joins-everywhere@example.com").text.split("\n")[0]).toBe("Nia Owner (nia@example.com) invited you to Harbor Works on WhatBuild, as an editor.");
     expect((await invite({ product: product.body.slug, email: "joins-product@example.com", role: "story_reader" })).status).toBe(201);
-    expect(sentTo("joins-product@example.com").text.split("\n")[0]).toBe('"Nia Owner" invited you to "Tide Log" in the organization "Harbor Works" on WhatBuild, as a Story reader.');
+    expect(sentTo("joins-product@example.com").subject).toBe("Nia Owner invited you to Tide Log in Harbor Works on WhatBuild");
+    expect(sentTo("joins-product@example.com").text.split("\n")[0]).toBe("Nia Owner (nia@example.com) invited you to Tide Log in Harbor Works on WhatBuild, as a Story reader.");
   });
 
-  it("shows the organization's and the product's names on one line, quoted and bounded, whatever they chose", async () => {
+  it("shows the organization's and the product's names on one line and bounded, whatever they chose", async () => {
     const owner = await h.signIn("orla@example.com", "Orla");
-    // Names a person chose, trying to read as WhatBuild's own words, to close the quotation or to reach another header.
+    // Names a person chose, trying to read as WhatBuild's own words or to reach another header.
     const t = await owner.api("POST", "/api/v1/tenants", { name: 'Acme" on WhatBuild. Reset your account\r\nBcc: everyone@example.com‮ now' });
     expect(t.status, JSON.stringify(t.body)).toBe(201);
     const p = await owner.api("POST", `/api/v1/tenants/${t.body.tenant.slug}/products`, { name: 'Tide"\u202e Log' });
@@ -164,8 +167,8 @@ describe("an invitation email", () => {
     expect((await owner.api("POST", `/api/v1/tenants/${t.body.tenant.slug}/members`, { product: p.body.slug, email: "wary@example.com", role: "viewer" })).status).toBe(201);
     const mail = h.mailer.sent.filter((m) => m.to === "wary@example.com").at(-1)!;
     expect(mail.subject).not.toMatch(/[\r\n\u202e]/);
-    expect(mail.subject).toBe(`"Orla" invited you to "Tide' Log" in the organization "Acme' on WhatBuild. Reset your account Bcc: everyone@example.com now" on WhatBuild`);
-    expect(mail.text.split("\n")[0]).toBe(`"Orla" invited you to "Tide' Log" in the organization "Acme' on WhatBuild. Reset your account Bcc: everyone@example.com now" on WhatBuild, as a viewer.`);
+    expect(mail.subject).toBe(`Orla invited you to Tide" Log in Acme" on WhatBuild. Reset your account Bcc: everyone@example.com now on WhatBuild`);
+    expect(mail.text.split("\n")[0]).toBe(`Orla (orla@example.com) invited you to Tide" Log in Acme" on WhatBuild. Reset your account Bcc: everyone@example.com now on WhatBuild, as a viewer.`);
   });
 });
 
@@ -472,7 +475,10 @@ describe("an address the giver can't already see in the organization", () => {
       expect(JSON.stringify(known.body)).not.toMatch(/Otto Elsewhere|account_id|display_name/);
       const [toKnown, toUnknown] = h.mailer.sent.slice(-2);
       expect(toKnown!.subject).toBe(toUnknown!.subject);
-      expect(toKnown!.text.replace(/\/invite\/\S+/, "")).toBe(toUnknown!.text.replace(/\/invite\/\S+/, ""));
+      // Each names the address it went to, and nothing else tells them apart.
+      const same = (m: typeof toKnown) => m!.text.replace(/\/invite\/\S+/, "").replace(` as ${m!.to}:`, " as <address>:");
+      expect(toKnown!.text).toContain("signing in as otto@example.com:");
+      expect(same(toKnown)).toBe(same(toUnknown));
 
       // Not a member, and not named anywhere, until they accept.
       const listed = await list(alice);

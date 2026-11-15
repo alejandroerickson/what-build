@@ -284,7 +284,6 @@ export function AcceptInvite() {
           ) : i ? (
             <>
               <p><InvitationWords invitation={i} /></p>
-              <p className="faint">Names in quotation marks are the ones people gave WhatBuild. You join only if you accept.</p>
               {answerError ? <ErrorCallout inset error={answerError} /> : null}
               <div className="entry-actions">
                 {i.read_only ? null : (
