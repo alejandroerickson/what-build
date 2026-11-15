@@ -2,7 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { SignIn } from "../src/routes/auth.tsx";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -106,5 +106,27 @@ describe("a refused Microsoft sign-in", () => {
     expect(text).toContain("That Microsoft sign-in didn’t work here");
     expect(text).toContain("the server’s setup may be at fault");
     expect(text).not.toContain("email link");
+  });
+});
+
+describe("asking for a sign-in link", () => {
+  it("says where to look and for how long, never that a link was sent, with the development note after", async () => {
+    const fetched = vi.spyOn(globalThis, "fetch").mockImplementation(async () => new Response(JSON.stringify({ received: true, dev_note: "In development, a link is printed in the server’s terminal." }), { status: 200 }));
+    try {
+      const host = await signInPageAt("", { email_link: true, google: false, microsoft: false, dev: false });
+      const input = host.querySelector<HTMLInputElement>('input[type="email"]')!;
+      await act(async () => {
+        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, "maya@example.com");
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+      });
+      await act(async () => host.querySelector<HTMLButtonElement>('button[type="submit"]')!.click());
+      await act(() => new Promise((r) => setTimeout(r, 20)));
+      expect(host.querySelector(".callout-title")?.textContent).toBe("Check your email");
+      expect(host.querySelector(".callout-text")?.textContent).toBe("Look for a sign-in link at maya@example.com. It works for 15 minutes. In development, a link is printed in the server’s terminal.");
+      expect(host.textContent).not.toMatch(/on its way|was sent/);
+      expect([...host.querySelectorAll("button")].some((b) => b.textContent === "Use another email")).toBe(true);
+    } finally {
+      fetched.mockRestore();
+    }
   });
 });

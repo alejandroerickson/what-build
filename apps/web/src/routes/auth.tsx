@@ -124,7 +124,8 @@ export function SignIn() {
           {emailLink ? (
             send.isSuccess ? (
               <Callout inset tone="positive" title="Check your email" action={<Button size="sm" variant="quiet" onClick={() => send.reset()}>Use another email</Button>}>
-                If {email.trim()} can sign in here, a sign-in link is on its way. It works once, for 15 minutes. If nothing arrives, check the address, or ask someone who uses WhatBuild to invite you.
+                {/* Never that a link was sent: the page doesn't say who can sign in. */}
+                Look for a sign-in link at {email.trim()}. It works for 15 minutes.
                 {send.data.dev_note ? ` ${send.data.dev_note}` : ""}
               </Callout>
             ) : (
