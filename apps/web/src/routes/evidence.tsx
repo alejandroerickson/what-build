@@ -1,5 +1,5 @@
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
-import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router";
 import { api, qs } from "../lib/api.ts";
 import { attribution, formatDate, formatDateTime, plural, relativeTime } from "../lib/format.ts";
@@ -176,7 +176,7 @@ const SORTS = [
   { id: "updated", label: "Details updated", first: "desc", desc: "newest first", asc: "oldest first" },
   { id: "title", label: "Title", first: "asc", desc: "Z to A", asc: "A to Z" },
 ] as const;
-type Sort = (typeof SORTS)[number]["id"];
+export type Sort = (typeof SORTS)[number]["id"];
 type Order = "asc" | "desc";
 
 /** The direction mark beside the current order: up for ascending, down for descending. */
@@ -188,7 +188,7 @@ function OrderMark({ order }: { order: Order }) {
  * "Sort by" and the orders as a segmented control; on the narrowest screens, the same choices in a
  * menu. Each choice is a link: the current one reverses the direction.
  */
-function SortControl({ sort, order, link }: { sort: Sort; order: Order; link: (id: Sort) => string }) {
+export function SortControl({ sort, order, link }: { sort: Sort; order: Order; link: (id: Sort) => string }) {
   const navigate = useNavigate();
   const current = SORTS.find((s) => s.id === sort)!;
   return (
@@ -271,7 +271,7 @@ function rowDate(r: RecordSummary, sort: Sort): { text: string; said: string; ti
  * over the whole row: a click opens the preview, and a click that opens a new tab still goes to the
  * source's page. Beside the preview only the look, the title and the date stay.
  */
-const SourceRow = memo(function SourceRow({ r, to, sort, twin, selected, compact, onOpen }: {
+export const SourceRow = memo(function SourceRow({ r, to, sort, twin, selected, compact, onOpen, mark }: {
   r: ListedSource;
   to: string;
   sort: Sort;
@@ -279,6 +279,8 @@ const SourceRow = memo(function SourceRow({ r, to, sort, twin, selected, compact
   selected: boolean;
   compact: boolean;
   onOpen: (id: string, at: number) => void;
+  /** Said after the tags: the tutorial marks its example source. */
+  mark?: ReactNode;
 }) {
   // Only what is happening now, or went wrong. That a recording has no transcript or a format isn't
   // read is no fault of the row's: its source's page says what can be done.
@@ -305,13 +307,14 @@ const SourceRow = memo(function SourceRow({ r, to, sort, twin, selected, compact
             {date.said ? <span className="visually-hidden">{date.said} </span> : null}
             {date.text}
           </span>
-        ) : r.tags.length || twinNote ? (
+        ) : r.tags.length || twinNote || mark ? (
           <span className="list-sub source-row-sub">
             {r.tags.slice(0, 3).map((t) => (
               <Tag key={t}>{t}</Tag>
             ))}
             {r.tags.length > 3 ? <span title={r.tags.slice(3).join(", ")}>+{r.tags.length - 3}</span> : null}
             {twinNote ? <span>{twinNote}</span> : null}
+            {mark}
           </span>
         ) : null}
       </span>

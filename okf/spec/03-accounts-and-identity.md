@@ -48,6 +48,7 @@ tenant               an organization: the isolation boundary
 | `email` | Unique (case-insensitive), verified by the sign-in itself. |
 | `display_name` | 1–100 chars. Appears in attribution, which copies it; an ended account keeps none. |
 | `hide_example` | The person hid the example organization from the app's panel ([§3.10](#310-the-example-organization)); `PATCH /api/v1/me` sets it, with or without the display name. |
+| `tutorial_offered_at`, `tutorial_stop`, `tutorial_finished_at` | Where the person left the web app's tutorial ([§7.4](07-web-app.md#the-tutorial)): when it was first offered, the stop it was left at (0 to 63, null when not part-way) and when it was last finished. `GET /api/v1/me` gives them as `tutorial: { offered, stop, finished }`; `PATCH /api/v1/me` with `tutorial` changes what it names. Only the person's own session reaches them, whatever roles they hold, a guest account's included; no operation and no agent does ([decision](../decisions/the-tutorial-is-remembered-on-the-account-and-reached-by-no-agent.md)). Ending the account clears them. |
 
 Sign-in methods, each optional per deployment:
 

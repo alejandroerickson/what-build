@@ -435,7 +435,9 @@ Four things keep a tab from hearing what it may not know, each holding if anothe
   loading nothing it does not carry (`htmlView`), from the content site when there is one; the
   app's page never makes it a `srcdoc`, which would inherit the app's own policy. Where a Story page
   or a mockup may run its scripts in its opaque origin, an uploaded page may not, and its frame's
-  own `sandbox=""` says the same. The picture a browser draws of one is made from a `DOMParser`
+  own `sandbox=""` says the same. The tutorial's examples, which ship with the app and are nobody's
+  HTML, are drawn by the app itself in place of the frames a product's content takes, and change no
+  sandbox or policy ([decision](../decisions/the-tutorials-examples-are-fixed-content-shipped-with-the-web-app.md)). The picture a browser draws of one is made from a `DOMParser`
   document, inert, drawn as an SVG image, in which a browser runs no script and loads nothing; only
   pixels leave it, and the worker makes its own copies of those.
 - An attachment's picture ([decision](../decisions/attachments-pictures-are-made-by-the-worker-and-reached-by-signed-addresses.md))

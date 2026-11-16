@@ -1,7 +1,7 @@
 import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { Canvas, type CanvasVersion } from "../src/routes/mockup-canvas.tsx";
+import { CANVAS_TOOLS, Canvas, toolTitle, type CanvasVersion } from "../src/routes/mockup-canvas.tsx";
 import { ToastProvider } from "../src/ui/toast.tsx";
 import { BACK_STEP_GAP_MS, backSteps, PAGE_MOVE_GAP_MS, pageMoves } from "../src/routes/page-moves.ts";
 import type { PageView } from "../src/routes/story-flip.tsx";
@@ -426,5 +426,15 @@ describe("how many steps a page can add to the browser's Back", () => {
 
   it("gives a person's clicks a step each, once they are a gap apart", () => {
     expect(stepsAfter([0, BACK_STEP_GAP_MS, BACK_STEP_GAP_MS * 3])).toEqual([0, BACK_STEP_GAP_MS, BACK_STEP_GAP_MS * 3]);
+  });
+});
+
+describe("the toolbar's controls", () => {
+  it("are each marked with the control they are and take their tooltips from the toolbar's definitions, which the tutorial labels the toolbar from", () => {
+    show();
+    const marked = [...document.querySelectorAll<HTMLElement>(".xc-tools [data-tool]")];
+    expect(marked.map((b) => b.dataset["tool"])).toEqual(["pan", "interact", "zoom-out", "zoom-in", "fit-page", "fill-width", "fit-canvas", "previous", "next"]);
+    for (const b of marked) expect(b.getAttribute("title")).toBe(toolTitle(b.dataset["tool"] as keyof typeof CANVAS_TOOLS, false));
+    expect(document.querySelector(".xc-tools .xc-tool-keys")?.getAttribute("title")).toBe(CANVAS_TOOLS.keys.name);
   });
 });

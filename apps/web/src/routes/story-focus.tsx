@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useSlots } from "../shell/slots.tsx";
+import { useTutorial } from "../tutorial/provider.tsx";
 import { Glyph } from "../ui/index.tsx";
 import { isTypingTarget, PHONE_QUERY, useMediaQuery } from "../ui/media.ts";
 
@@ -49,7 +50,9 @@ export function useStoryFocus(ready: boolean, { onPhone = false }: { onPhone?: b
   const isPhone = useMediaQuery(PHONE_QUERY);
   const blocked = isPhone && !onPhone;
   const [hint, setHint] = useState(false);
-  const decided = useRef(false);
+  // A screen that comes back as the tutorial closes over it leaves the panels as they are: the person has just been shown them.
+  const tutorial = useTutorial();
+  const decided = useRef(Boolean(tutorial && tutorial.mode !== "off"));
   const last = useRef(focus);
 
   useEffect(() => {

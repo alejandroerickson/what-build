@@ -3,7 +3,7 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNod
 import { useLocation, useSearchParams } from "react-router";
 import { useHasNoAgent } from "../lib/agents.ts";
 import { keptLine, type ReadOnly } from "../lib/limits.ts";
-import { useProducts, type Product, type ProductsResponse } from "../lib/session.tsx";
+import { canWriteIn, useProduct, useProducts, type Product, type ProductSummary, type ProductsResponse } from "../lib/session.tsx";
 import { ButtonLink, Callout, Glyph } from "../ui/index.tsx";
 import { isTypingTarget, NARROW_QUERY, PHONE_QUERY, shortcutLabel, useMediaQuery } from "../ui/media.ts";
 import { BrandMark } from "./brand.tsx";
@@ -14,6 +14,8 @@ import { InvitationsBanner } from "./invitations.tsx";
 import { SettingsDialog } from "./settings-dialog.tsx";
 import { SETTINGS_PARAM, useSettingsTo } from "./settings-link.ts";
 import { ShellContext, type ShellSlots } from "./slots.tsx";
+import { TutorialProvider, useTutorialShell, type TutorialTarget } from "../tutorial/provider.tsx";
+import { TutorialLine } from "../tutorial/parts.tsx";
 
 const NAV_KEY = "whatbuild.nav";
 const INS_KEY = "whatbuild.inspector";
@@ -96,7 +98,11 @@ function Stage({ variant, panel, panelFoot, pillName, section, title, banner, se
   const pillRef = useRef<HTMLButtonElement>(null);
   const insShowRef = useRef<HTMLButtonElement>(null);
 
-  const navOpen = !focus && (isPhone ? drawerOpen : !navHidden);
+  // While the tutorial is up the panel and the inspector are shown and Focus is the tutorial's own (on only
+  // while someone tries F at the canvas stop); the person's own choices come back after, unchanged.
+  const tutorial = useTutorialShell();
+  const focusShown = tutorial.active ? tutorial.focus : focus;
+  const navOpen = !focusShown && (isPhone ? drawerOpen : tutorial.active || !navHidden);
   const noAgent = useHasNoAgent();
 
   // The first time a visit learns there is no agent connected, a hidden panel is shown, so the seat is
@@ -118,7 +124,7 @@ function Stage({ variant, panel, panelFoot, pillName, section, title, banner, se
     });
   }, [noAgent, focus]);
   const hasInspector = inspectorCount > 0;
-  const inspectorOpen = !focus && hasInspector && (isNarrow ? insSmallOpen : !insHidden);
+  const inspectorOpen = !focusShown && hasInspector && (tutorial.active || (isNarrow ? insSmallOpen : !insHidden));
   const insState = !hasInspector ? "none" : !inspectorOpen ? "closed" : isPhone ? "drawer" : "docked";
   const drawerActive = isPhone && drawerOpen;
   const insDrawerActive = insState === "drawer";
@@ -279,17 +285,17 @@ function Stage({ variant, panel, panelFoot, pillName, section, title, banner, se
       setInspectorOpen,
       inspectorHideLabel: isPhone ? "Close details" : "Hide details",
       setPageTitle,
-      focus,
+      focus: focusShown,
       setFocus,
     }),
-    [panelContextEl, inspectorEl, inspectorId, isPhone, inspectorOpen, setInspectorOpen, focus],
+    [panelContextEl, inspectorEl, inspectorId, isPhone, inspectorOpen, setInspectorOpen, focusShown],
   );
 
   const hideLabel = isPhone ? "Close navigation" : "Hide panel";
 
   return (
     <ShellContext.Provider value={slots}>
-      <div className="stage" data-nav={navOpen ? "open" : "closed"} data-ins={insState} data-variant={variant} data-focus={focus ? "on" : undefined}>
+      <div className="stage" data-nav={navOpen ? "open" : "closed"} data-ins={insState} data-variant={variant} data-focus={focusShown ? "on" : undefined} data-tutorial={tutorial.active ? "" : undefined}>
         <a href="#main" className="skip-link">
           Skip to content
         </a>
@@ -297,8 +303,8 @@ function Stage({ variant, panel, panelFoot, pillName, section, title, banner, se
           ref={pillRef}
           type="button"
           className="show-pill"
-          hidden={navOpen || focus}
-          inert={modal}
+          hidden={navOpen || focusShown}
+          inert={modal || tutorial.active}
           title={`Show panel (${shortcutLabel("\\")})`}
           aria-expanded={isPhone ? drawerOpen : undefined}
           onClick={toggleNav}
@@ -316,8 +322,8 @@ function Stage({ variant, panel, panelFoot, pillName, section, title, banner, se
           ref={insShowRef}
           type="button"
           className="show-ins"
-          hidden={insState !== "closed" || focus}
-          inert={modal}
+          hidden={insState !== "closed" || focusShown}
+          inert={modal || tutorial.active}
           aria-label="Show details"
           title={`Show details (${shortcutLabel("\\", true)})`}
           aria-controls={inspectorId}
@@ -333,14 +339,14 @@ function Stage({ variant, panel, panelFoot, pillName, section, title, banner, se
           role={drawerActive ? "dialog" : undefined}
           aria-modal={drawerActive || undefined}
           aria-label={drawerActive ? "Navigation" : undefined}
-          inert={!navOpen || insDrawerActive || settingsOpen}
+          inert={!navOpen || insDrawerActive || settingsOpen || tutorial.active}
         >
           {panel(toggleNav, hideLabel)}
           <div className="panel-context" ref={setPanelContextEl} hidden={contextCount === 0} />
           {contextCount === 0 ? <div className="panel-spacer" /> : null}
           {panelFoot}
         </div>
-        <main id="main" ref={mainRef} className="canvas" tabIndex={-1} inert={modal}>
+        <main id="main" ref={mainRef} className="canvas" tabIndex={-1} inert={modal || (tutorial.active && tutorial.live !== "main")}>
           <div className="canvas-wrap">
             {banner}
             {children}
@@ -351,7 +357,7 @@ function Stage({ variant, panel, panelFoot, pillName, section, title, banner, se
           ref={setInspectorEl}
           className="panel inspector"
           hidden={!hasInspector}
-          inert={insState === "closed" || drawerActive || settingsOpen}
+          inert={insState === "closed" || drawerActive || settingsOpen || (tutorial.active && tutorial.live !== "inspector")}
           role={insDrawerActive ? "dialog" : undefined}
           aria-modal={insDrawerActive || undefined}
           aria-labelledby={`${inspectorId}-title`}
@@ -393,27 +399,17 @@ export function ProductShell({ product, app, children }: { product: Product; app
   const loc = useLocation();
   const section = productSection(loc.pathname.split("/")[4]);
   const base = `/api/v1/p/${product.path}`;
+  const { canWrite } = useProduct();
+  const tutorial: TutorialTarget = { path: product.path, role: product.your_role, example: Boolean(product.tenant.example), canWrite };
   return (
     <FindProvider app={app} base={base} product={product}>
+    <TutorialProvider key={product.product_id} target={tutorial} inside>
     <Stage
       variant="product"
       pillName={product.name}
       section={section.label}
       title={`${section.label} · ${product.name} · WhatBuild`}
-      banner={
-        <>
-          <InvitationsBanner />
-          {product.tenant.example ? <ExampleBanner tenant={product.tenant} /> : null}
-          {product.tenant.read_only ? <ReadOnlyBanner tenant={product.tenant} readOnly={product.tenant.read_only} /> : null}
-          {product.archived_at ? (
-            <div className="canvas-banner">
-              <Callout tone="attention" title="This product is archived">
-                It&rsquo;s read-only. An admin can restore it in Settings.
-              </Callout>
-            </div>
-          ) : null}
-        </>
-      }
+      banner={<ProductBanners product={product} />}
       panel={(hide, hideLabel) => (
         <>
           <BrandRow to="/" label="WhatBuild, home" onHide={hide} hideLabel={hideLabel} />
@@ -429,7 +425,31 @@ export function ProductShell({ product, app, children }: { product: Product; app
     >
       {children}
     </Stage>
+    </TutorialProvider>
     </FindProvider>
+  );
+}
+
+/**
+ * What a product's screens say above their content. While the tutorial shows its examples, its own
+ * line takes the example organization's banner's place: the example's content is hidden then, and
+ * the line says what the examples are.
+ */
+function ProductBanners({ product }: { product: Product }) {
+  const tutorial = useTutorialShell();
+  return (
+    <>
+      <InvitationsBanner />
+      {tutorial.showing ? <TutorialLine /> : product.tenant.example ? <ExampleBanner tenant={product.tenant} /> : null}
+      {product.tenant.read_only ? <ReadOnlyBanner tenant={product.tenant} readOnly={product.tenant.read_only} /> : null}
+      {product.archived_at ? (
+        <div className="canvas-banner">
+          <Callout tone="attention" title="This product is archived">
+            It&rsquo;s read-only. An admin can restore it in Settings.
+          </Callout>
+        </div>
+      ) : null}
+    </>
   );
 }
 
@@ -455,16 +475,28 @@ export function PlainShell({ children }: { children: ReactNode }) {
   const key = plainSection(loc.pathname);
   const section = PLAIN_SECTIONS[key] ?? "WhatBuild";
   const { product, tenant } = useContextProduct();
-  return <PanelStage product={product} tenant={tenant} current={key === "home"} section={section} title={`${section} · WhatBuild`}>{children}</PanelStage>;
+  return (
+    <PanelStage product={product} tutorial={tutorialTarget(product, tenant)} tenant={tenant} current={key === "home"} section={section} title={`${section} · WhatBuild`}>
+      {children}
+    </PanelStage>
+  );
+}
+
+/** The panel's product as the tutorial needs it, where the panel shows one. */
+function tutorialTarget(product: ProductSummary | null, tenant: ProductsResponse["tenants"][number] | null): TutorialTarget | null {
+  if (!product) return null;
+  return { path: product.path, role: product.your_role, example: Boolean(product.tenant.example), canWrite: canWriteIn(product, tenant?.read_only) };
 }
 
 /** An organization with no product the person can open (`/t/<organization>`): its panel offers Create a product. */
 export function OrganizationShell({ tenant, children }: { tenant: ProductsResponse["tenants"][number]; children: ReactNode }) {
-  return <PanelStage product={null} tenant={tenant} section={tenant.name} title={`${tenant.name} · WhatBuild`}>{children}</PanelStage>;
+  return <PanelStage product={null} tutorial={null} tenant={tenant} section={tenant.name} title={`${tenant.name} · WhatBuild`}>{children}</PanelStage>;
 }
 
-function PanelStage({ product, tenant, current, section, title, children }: {
+function PanelStage({ product, tutorial, tenant, current, section, title, children }: {
   product: PanelProduct | null;
+  /** The panel's product, for the tutorial: offered here too, and in the account menu, as in the product. */
+  tutorial: TutorialTarget | null;
   tenant: ProductsResponse["tenants"][number] | null;
   current?: boolean;
   section: string;
@@ -483,6 +515,7 @@ function PanelStage({ product, tenant, current, section, title, children }: {
     </nav>
   ) : null;
   const stage = (
+    <TutorialProvider key={tutorial?.path ?? ""} target={tutorial} inside={false}>
     <Stage
       variant="plain"
       pillName={product?.name ?? tenant?.name ?? null}
@@ -500,6 +533,7 @@ function PanelStage({ product, tenant, current, section, title, children }: {
     >
       {children}
     </Stage>
+    </TutorialProvider>
   );
   // The panel's search reaches the product it shows.
   return product ? (

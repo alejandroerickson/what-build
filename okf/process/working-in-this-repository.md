@@ -3,7 +3,7 @@ type: Process
 title: How to change this repository
 description: The rules every change follows, for people and agents, including what may never be committed.
 tags: [process, agents, contributing, public]
-generated: {by: agent:claude, at: 2026-11-13}
+generated: {by: agent:claude, at: 2026-11-15}
 status: stable
 ---
 
@@ -110,6 +110,13 @@ Triaging a report, when asked:
    attachment, outcome, mockup, prototype (the multi-file part a mockup version may carry),
    Story, archive. Archive is never called deleting, and an attachment is never
    called a file.
+7. **The tutorial moves with the screens it shows.** The tutorial
+   ([§7.4](../spec/07-web-app.md#the-tutorial)) lights the app's own screens and names their
+   controls, the canvas's keys and the agents' tools. A change to any of them changes the tutorial
+   in the same change: `apps/web/src/tutorial/` (its stops, `TARGETS` in `layer.tsx`, its
+   examples), §7.4, the tutorial in `apps/web/DESIGN.md`, and `e2e/plans/the-tutorial.md`.
+   `apps/web/test/tutorial-screens.test.ts` fails until they match. Change the tutorial, never the
+   test. Whether something new gets a stop is the maintainer's call.
 
 ## Before you finish
 

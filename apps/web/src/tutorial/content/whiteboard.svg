@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 500" width="800" height="500">
+  <defs>
+    <linearGradient id="wall" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#cfc6b8"/><stop offset="1" stop-color="#b4aa9b"/></linearGradient>
+    <linearGradient id="glare" x1="0" y1="0" x2="1" y2="0.6"><stop offset="0.25" stop-color="#fff" stop-opacity="0"/><stop offset="0.45" stop-color="#fff" stop-opacity="0.5"/><stop offset="0.6" stop-color="#fff" stop-opacity="0"/></linearGradient>
+  </defs>
+  <rect width="800" height="500" fill="url(#wall)"/>
+  <g transform="rotate(-1.6 400 250)" font-family="'Marker Felt','Bradley Hand','Segoe Print','Comic Sans MS',cursive">
+    <rect x="52" y="44" width="700" height="408" rx="6" fill="#9aa0a6"/>
+    <rect x="60" y="52" width="684" height="392" rx="2" fill="#f8f8f5"/>
+    <text x="88" y="100" font-size="30" fill="#1d3a6b">Next week</text>
+    <path d="M86 110q70 9 150 -1" fill="none" stroke="#1d3a6b" stroke-width="3" stroke-linecap="round"/>
+    <g font-size="20" fill="#2b2b2b"><text x="96" y="152">Mon</text><text x="226" y="152">Tue</text><text x="356" y="152">Wed</text><text x="486" y="152">Thu</text><text x="616" y="152">Fri</text></g>
+    <g stroke="#3a3a3a" stroke-width="2" stroke-linecap="round" fill="none"><path d="M84 164q320 -7 640 2"/><path d="M208 132q4 150 -2 290"/><path d="M338 132q-4 150 3 290"/><path d="M468 132q5 150 -2 290"/><path d="M598 132q-3 150 2 290"/></g>
+    <g font-size="15" fill="#3a2b10">
+      <g transform="rotate(-3 140 215)"><rect x="96" y="182" width="96" height="66" fill="#ffe27a"/><text x="104" y="206">Library</text><text x="104" y="228">Crew A</text></g>
+      <g transform="rotate(2 270 300)"><rect x="224" y="268" width="96" height="66" fill="#ffb3c7"/><text x="232" y="292">Oak Ct</text><text x="232" y="314">storm</text></g>
+      <g transform="rotate(-2 400 215)"><rect x="354" y="182" width="96" height="66" fill="#ffe27a"/><text x="362" y="206">Mulch</text><text x="362" y="228">Crew B</text></g>
+      <g transform="rotate(3 530 215)"><rect x="484" y="182" width="96" height="66" fill="#a9dcf5"/><text x="492" y="206">Spring</text><text x="492" y="228">clean-up</text></g>
+      <g transform="rotate(-2 660 320)"><rect x="614" y="288" width="96" height="66" fill="#ffe27a"/><text x="622" y="312">Send</text><text x="622" y="334">texts!</text></g>
+    </g>
+    <path d="M574 250q42 22 46 60" fill="none" stroke="#c4321f" stroke-width="3" stroke-linecap="round"/>
+    <path d="M612 298l9 14 8 -15" fill="none" stroke="#c4321f" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+    <ellipse cx="662" cy="321" rx="62" ry="46" fill="none" stroke="#c4321f" stroke-width="3"/>
+    <text x="96" y="412" font-size="19" fill="#c4321f">wrong address = typed by hand</text>
+    <rect x="60" y="52" width="684" height="392" fill="url(#glare)"/>
+    <rect x="300" y="444" width="200" height="10" rx="2" fill="#80868b"/>
+    <rect x="330" y="436" width="46" height="9" rx="3" fill="#1d3a6b"/>
+    <rect x="386" y="436" width="46" height="9" rx="3" fill="#c4321f"/>
+  </g>
+</svg>

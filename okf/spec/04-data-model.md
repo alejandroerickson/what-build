@@ -1122,7 +1122,10 @@ activity.jsonl
   every `visitor` grant deleted, by the same migration; `sandbox_usage` became `limit_counters`.
   `accounts.hide_example`
   ([`0035_accounts_hide_example.sql`](../../apps/server/src/migrations/0035_accounts_hide_example.sql))
-  is the person's choice to leave the example out of the app's panel.
+  is the person's choice to leave the example out of the app's panel, and
+  `accounts.tutorial_offered_at`, `tutorial_stop` and `tutorial_finished_at`
+  ([`0048_accounts_tutorial.sql`](../../apps/server/src/migrations/0048_accounts_tutorial.sql))
+  where they left the web app's tutorial ([§3.2](03-accounts-and-identity.md#32-accounts-and-sign-in)).
 - **An organization's name and slug** ([§3.3](03-accounts-and-identity.md#33-tenants),
   [`0036_organization_names.sql`](../../apps/server/src/migrations/0036_organization_names.sql)):
   `tenants.name_etag`, which guards the name and slug its owners and the instance's owners change;
