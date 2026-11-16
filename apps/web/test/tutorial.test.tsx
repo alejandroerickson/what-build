@@ -572,7 +572,7 @@ describe("the toolbar as a diagram", () => {
     for (const id of ids) {
       const l = toolLabel(id);
       expect(toolTitle(id, true).startsWith(l.name.split(" ")[0]!), id).toBe(true);
-      if (l.key) expect(toolTitle(id), id).toMatch(new RegExp(`\\(${l.key.replace(/[+]/g, "\\+")}\\)$`));
+      if (l.key) expect(toolTitle(id).endsWith(`(${l.key})`), id).toBe(true);
     }
     expect(toolsSaid(ids.slice(0, 2).map(toolLabel).concat(toolLabel("keys")))).toBe("Pan, H. Interact, V. Keyboard shortcuts");
   });
