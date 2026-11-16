@@ -1,7 +1,7 @@
 import { createHash, randomBytes } from "node:crypto";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
-import { mcpTool, OPERATIONS, REST_BODY_MAX_BYTES, TOOLS_VERSION } from "@whatbuild/core";
+import { guideTopic, mcpTool, OPERATIONS, REST_BODY_MAX_BYTES, TOOLS_VERSION } from "@whatbuild/core";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { MCP_BODY_MAX_BYTES, toolDefinitions } from "../src/mcp.ts";
 import { syncExampleTenant } from "../src/example-organization.ts";
@@ -120,6 +120,12 @@ describe("MCP", () => {
     expect(index).toMatchObject({ tools_version: TOOLS_VERSION, topic: "start" });
     expect(index.topics.map((t: { topic: string }) => t.topic)).toEqual(expect.arrayContaining(["start", "tools", "evidence", "story"]));
     expect(index.text).toMatch(/^# /);
+    // The index sums up each topic by the paragraph right under its title.
+    for (const t of index.topics as { topic: string; title: string; summary: string }[]) {
+      const [heading, first] = guideTopic(t.topic)!.split("\n\n");
+      expect(heading).toBe(`# ${t.title}`);
+      expect(t.summary).toBe(first!.replace(/\n/g, " "));
+    }
     const story = text(await client.callTool({ name: "guide", arguments: { topic: "story" } }));
     expect(story).toMatchObject({ topic: "story" });
     expect(story).not.toHaveProperty("topics");
