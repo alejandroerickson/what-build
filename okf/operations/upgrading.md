@@ -3,7 +3,7 @@ type: Process
 title: What a deployment must do when it takes a release
 description: The changes a release asks of the people who run a deployment (settings, app registrations, behaviour they will notice), kept per release, with the unreleased ones on top until the next release carries them into its notes.
 tags: [operations, releases, upgrading, self-hosting, configuration]
-generated: {by: agent:claude, at: 2026-11-15}
+generated: {by: agent:claude, at: 2026-11-16}
 status: stable
 ---
 
@@ -23,6 +23,13 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
 
 ## Unreleased
 
+- **The guide's index sums up each topic by the sentence under its title.** It asks nothing of a
+  deployment. `guide` without a topic gave, as each topic's `summary`, the topic's last paragraph;
+  it now gives the one-sentence summary under the title. The tools version becomes 0.65.0; no tool,
+  action or parameter changes, and connected agents get the corrected index from `guide` at once.
+
+## v0.38.0
+
 - **A tutorial for the people who can edit a product, and for the example organization's guests.**
   Migration `0048` adds `accounts.tutorial_offered_at`, `tutorial_stop` and
   `tutorial_finished_at`; nothing to do. People will notice: on the first screen each of them lands
@@ -30,10 +37,6 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
   (the overview after signing in, most often), in a window at least 1024 pixels wide, the web app
   offers the tutorial over a darkened screen, and the account menu offers it after. `GET /api/v1/me` adds
   `tutorial`, and `PATCH /api/v1/me` takes it. No operation or MCP tool changes.
-- **The guide's index sums up each topic by the sentence under its title.** It asks nothing of a
-  deployment. `guide` without a topic gave, as each topic's `summary`, the topic's last paragraph;
-  it now gives the one-sentence summary under the title. The tools version becomes 0.65.0; no tool,
-  action or parameter changes, and connected agents get the corrected index from `guide` at once.
 
 ## v0.37.0
 
