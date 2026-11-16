@@ -463,16 +463,27 @@ export async function loadSchemaSql(url: string, sql: string) {
   }
 }
 
-/** A statement that sets a column's options, as pg_dump writes one, on a line of its own. */
-const COLUMN_OPTIONS = /^(ALTER (?:FOREIGN )?TABLE (?:ONLY )?.+ ALTER COLUMN .+ SET \()(.+)\);$/;
+/**
+ * A statement that sets a column's options, as pg_dump writes one on a line of its own
+ * (`ALTER TABLE ONLY … ALTER COLUMN … SET (…);`), split into its head, through `SET (`, and its
+ * options; undefined for any other line. Found with string searches, so a long line costs no more
+ * than reading it.
+ */
+function columnOptionsStatement(line: string): { head: string; options: string } | undefined {
+  if (!/^ALTER (?:FOREIGN )?TABLE /.test(line) || !line.endsWith(");")) return undefined;
+  const set = line.lastIndexOf(" SET (");
+  const column = line.indexOf(" ALTER COLUMN ");
+  if (set < 0 || column < 0 || column >= set) return undefined;
+  return { head: line.slice(0, set + " SET (".length), options: line.slice(set + " SET (".length, -2) };
+}
 
 /**
  * The options of `SET (…)`, as pg_dump joins them (`name=value, name=value`), with each value bare
- * or quoted; undefined when the text is not in that form.
+ * (no space, comma or quote in it) or quoted; undefined when the text is not in that form.
  */
 function columnOptions(text: string): string[] | undefined {
   const options: string[] = [];
-  const option = /\s*([A-Za-z_][A-Za-z0-9_.]*|"(?:[^"]|"")+")\s*=\s*('(?:[^']|'')*'|"(?:[^"]|"")*"|[^,'"]+?)\s*(,|$)/y;
+  const option = /\s*([A-Za-z_][A-Za-z0-9_.]*|"(?:[^"]|"")+")\s*=\s*('(?:[^']|'')*'|"(?:[^"]|"")*"|[^,'"\s]+)\s*(,|$)/y;
   while (option.lastIndex < text.length) {
     const m = option.exec(text);
     if (!m) return undefined;
@@ -485,18 +496,20 @@ function columnOptions(text: string): string[] | undefined {
 /**
  * `sql` without the `pg_attver` column option that Neon's Postgres keeps and any other refuses: taken
  * out of each `ALTER TABLE … ALTER COLUMN … SET (…)` statement, and the statement dropped when it
- * was the only option. Every other line, and every other option, stays as it was.
+ * was the only option. Every other line, and every other option, stays as it was. It reads line by
+ * line, not statement by statement: a line inside a string or a function's body that is exactly such
+ * a statement would be changed too, which a schema dump does not hold.
  */
 export function withoutPgAttver(sql: string) {
   return sql
     .split("\n")
     .flatMap((line) => {
-      const m = COLUMN_OPTIONS.exec(line);
-      const options = m ? columnOptions(m[2]!) : undefined;
-      if (!m || !options) return [line];
+      const statement = columnOptionsStatement(line);
+      const options = statement ? columnOptions(statement.options) : undefined;
+      if (!statement || !options) return [line];
       const kept = options.filter((o) => !/^(?:pg_attver|"pg_attver")=/i.test(o));
       if (kept.length === options.length) return [line];
-      return kept.length ? [`${m[1]}${kept.join(", ")});`] : [];
+      return kept.length ? [`${statement.head}${kept.join(", ")});`] : [];
     })
     .join("\n");
 }
