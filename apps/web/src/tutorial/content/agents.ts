@@ -18,7 +18,7 @@ export const AGENTS: AgentScript = {
       place: "story",
       say: "Writing a Story page for Priya.",
       tool: "story_write",
-      act: "create",
+      act: "publish",
       item: { kind: "story", kicker: "{product}", title: "The wait starts at the clipboard", text: "Four calls agree: patients queue to fill in a form the clinic already holds." },
     },
   ],

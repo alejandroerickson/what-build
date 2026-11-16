@@ -45,6 +45,10 @@ example's own content the same way.
 - The examples are drawn, so a change to how a card, a canvas page or a Story page looks has to be
   matched in `tutorial.css` by hand. The canvas is shown as not promoted in Exploration and as
   promoted on the Story: they are fixed, and accepted so.
+- The tutorial lights the real screens by their classes, names their controls, asks for the
+  canvas's keys and plays the agents' tools, so it can fall behind any change to them. A change to
+  one changes the tutorial with it (`AGENTS.md`), and `apps/web/test/tutorial-screens.test.ts`
+  fails until it does.
 
 ## Constrains
 

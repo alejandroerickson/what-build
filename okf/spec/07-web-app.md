@@ -639,6 +639,14 @@ around one thing at a time and a small bubble names it.
   there to be tried, and goes back where it was when the tutorial closes. Each stop is announced
   politely. Within the window the bubble keeps beside what it names, on another side or narrower
   where its own side has no room.
+- **In step with the screens.** The tutorial shows the app's own screens, so a change to anything
+  it lights or names (a screen, a control's name, a canvas key, an agent's tool) changes the
+  tutorial in the same change. `apps/web/test/tutorial-screens.test.ts` fails when one of them has
+  moved from under it:
+  - every class and attribute a stop lights is still drawn by the app's own code;
+  - every control a stop names is still written there;
+  - every key the canvas stop asks for is still a canvas key;
+  - every tool and action the agent stage plays is still offered to agents.
 
 ## 7.5 Idea
 

@@ -119,6 +119,28 @@ and a dependency you add or upgrade leaves `pnpm security` clean.
 corepack pnpm install && corepack pnpm dev   # http://localhost:5273, one-click dev sign-in
 ```
 
+## The tutorial walks through the real screens
+
+The web app's tutorial (`apps/web/src/tutorial/`, spec §7.4) lights the app's own screens one
+thing at a time and names each:
+- the main navigation, Idea's cards and More info, Evidence's sources and their preview;
+- the mockup canvas, its toolbar and keys, and its inspector (View, Download as ZIP, Promote canvas
+  to Story);
+- the Story's pages and Export to PDF, the panel's agent seat, the account menu;
+- the MCP tools an agent calls.
+
+A change that moves, renames or removes any of these, or changes what it does, changes the
+tutorial in the same change:
+- its stops and words (`stops.ts`), what each lights (`TARGETS` in `layer.tsx`) and its examples
+  (`content/`);
+- §7.4 of `okf/spec/07-web-app.md`, the tutorial in `apps/web/DESIGN.md`, and
+  `e2e/plans/the-tutorial.md`.
+
+`apps/web/test/tutorial-screens.test.ts` fails when a screen, a control's name, a canvas key or an
+agent's tool moves from under the tutorial. Fix the tutorial, never the test. Then walk the
+tutorial in a browser at 1024 pixels wide or wider: account menu → Take the tutorial again. Whether
+something new gets a stop of its own is the maintainer's call, so ask.
+
 ## Operating production
 
 Every procedure for running a deployment is in `okf/operations/`, with exact commands, and a skill
