@@ -30,6 +30,10 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
   (the overview after signing in, most often), in a window at least 1024 pixels wide, the web app
   offers the tutorial over a darkened screen, and the account menu offers it after. `GET /api/v1/me` adds
   `tutorial`, and `PATCH /api/v1/me` takes it. No operation or MCP tool changes.
+- **The guide's index sums up each topic by the sentence under its title.** It asks nothing of a
+  deployment. `guide` without a topic gave, as each topic's `summary`, the topic's last paragraph;
+  it now gives the one-sentence summary under the title. The tools version becomes 0.65.0; no tool,
+  action or parameter changes, and connected agents get the corrected index from `guide` at once.
 
 ## v0.37.0
 

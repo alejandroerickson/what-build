@@ -12,7 +12,7 @@ const topics = readdirSync(dir)
   .map((file) => {
     const md = readFileSync(new URL(file, dir), "utf8").replace(/\r\n/g, "\n");
     const title = /^# (.+)\n/.exec(md)?.[1];
-    const summary = /^# .+\n\n(.+?)\n(\n|$)/s.exec(md)?.[1]?.replace(/\n/g, " ");
+    const summary = /^# [^\n]+\n\n(.+?)\n(\n|$)/s.exec(md)?.[1]?.replace(/\n/g, " ");
     if (!title || !summary) throw new Error(`${file} must start with "# <Title>", a blank line and a one-sentence summary`);
     return { topic: file.slice(3, -3), title, summary, text: md.trimEnd() + "\n" };
   });
