@@ -70,7 +70,11 @@ design system: tokens, type, components and the rules for using them — is docu
   left, that nothing was saved when only some of the addresses fit ("Nothing was saved. There’s
   room for 1 more person. Add fewer people."), and only the ways to make room that exist there:
   adding fewer people while some fit, cancelling an invitation while one is open, removing someone
-  while anyone but the person adding has a role. New product says the same before anything is typed
+  while someone besides the person adding holds counted roles only where the person adding can
+  take them off, so removing them frees a place (nothing is offered on a guess while the app
+  doesn't yet know who is adding). A list longer than one call's 100 addresses, refused after an
+  earlier call saved, says so ("The first 100 addresses are saved, and none after them."),
+  counting the room from the first address. New product says the same before anything is typed
   when the organization already holds its plan's products. A limit a minute or a day keeps the
   server's words.
 - **Calls a minute running out is a wait, not a failure.** A read refused for them
@@ -709,7 +713,9 @@ Try again.
   they have an agent connected (Connect your agent is above until then, and the card shows its text
   alone), and then holds "In your agent, ask:" over the request to copy, shown as an empty list's
   request is. While the product has no concept, the concept card's request asks for the concept,
-  with its picture, rather than for a picture of nothing.
+  with its picture, rather than for a picture of nothing; while the outcomes list is empty, its
+  request asks for the concept and outcomes together, and the concept card asks nothing, so one
+  request shows.
 - **Dragging outcomes into order**, as photos are ordered in a listing, for anyone who can write,
   while archived ones are hidden. With a mouse the whole head drags a card (the outcome's number
   turns into a grip while the pointer is over it); on touch the number, which always shows its
@@ -1623,7 +1629,8 @@ never described as deleting. A list row showing an archived object says *Archive
   default after a confirmation. An allowance counts the organizations the address's account
   started that are not read-only, and where new organizations start on a plan the deployment
   defines, only those on it, named by the plan, so moving one to another plan frees its place; the
-  dialog says so, as the list does. Then, where the deployment has an example organization or someone is on it, **Waitlist**:
+  dialog says so, as the list does, once the plans are known, and Change says how many of theirs
+  count now. Then, where the deployment has an example organization or someone is on it, **Waitlist**:
   the people who asked for
   an organization of their own, in the app or on the public site, earliest first, each with their
   name and address, their organization, when they asked, whether they have signed up, and what

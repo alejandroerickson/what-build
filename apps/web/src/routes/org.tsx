@@ -14,7 +14,7 @@ import {
 } from "../ui/index.tsx";
 import { EntryPage, NotVisible } from "./auth.tsx";
 import { DeleteDialog, listed, storedFilesWords } from "./delete-dialog.tsx";
-import { PeopleEditor, type EditorTarget } from "./people-editor.tsx";
+import { managesGrant, PeopleEditor, type EditorTarget } from "./people-editor.tsx";
 import { AskForOrganization } from "../shell/ask-for-organization.tsx";
 import { Contact, useContact } from "../shell/contact.tsx";
 import { PrivacyLink } from "../shell/privacy-link.tsx";
@@ -231,12 +231,8 @@ export function OrganizationPeople({ tenant }: { tenant: string }) {
   const guest = Boolean(q.data?.guest);
   const tenantAdmin = t?.your_role === "owner" || t?.your_role === "admin";
   const inOrg = (products.data?.items ?? []).filter((p) => p.tenant.slug === tenant);
-  const canManage = (g: { scope_type: string; scope_id: string; role: string }) => {
-    if (g.scope_type === "tenant") return g.role === "owner" ? t?.your_role === "owner" : tenantAdmin;
-    // Roles on all products are the organization's owners' and admins' to give and take.
-    if (g.scope_type === "all_products") return tenantAdmin;
-    return tenantAdmin || inOrg.find((p) => p.product_id === g.scope_id)?.your_role === "admin";
-  };
+  // Roles on all products are the organization's owners' and admins' to give and take.
+  const canManage = (g: { scope_type: string; scope_id: string; role: string }) => managesGrant(g, t?.your_role, inOrg);
   // A read-only organization takes nobody new and no new role, but its people can still be taken out.
   const readOnly = Boolean(t?.read_only);
   const canGive = !readOnly && (tenantAdmin || inOrg.some((p) => p.your_role === "admin"));
@@ -664,7 +660,7 @@ export interface OrganizationImpact {
  */
 export function organizationImpactWords(name: string, c: OrganizationImpact["contents"]): { goes: string; people: string | null } {
   const held = listed([c.products.length > 0 && (c.products.length === 1 ? "its product" : `all ${c.products.length} of its products`)]);
-  const within = listed([c.sources > 0 && plural(c.sources, "source"), c.stored_files > 0 && storedFilesWords(c.stored_files, c.bytes)]);
+  const within = listed([c.sources > 0 && plural(c.sources, "source"), c.stored_files > 0 && storedFilesWords(c.stored_files, c.bytes, c.sources)]);
   const lose = c.people > 0 && `${c.people === 1 ? "1 person loses" : `${c.people} people lose`} their roles here`;
   const stop = c.pending_invitations > 0 && (c.pending_invitations === 1 ? "1 invitation stops working" : `${c.pending_invitations} invitations stop working`);
   return {
@@ -944,6 +940,7 @@ function GiveAccessDialog({ tenant, orgName, initialEmail, members, partial, inv
       invitations={invitations}
       // Your own organization role is changed by another owner or admin, as on the Members page.
       canEdit={(p, own) => (target.scope_type === "tenant" && p.account_id === selfId ? false : canManage(own ?? { scope_type: target.scope_type, scope_id: target.scope_id, role: "editor" }))}
+      canRemoveRole={canManage}
       initialAdd={initialEmail ? [initialEmail] : undefined}
       onClose={onClose}
     />

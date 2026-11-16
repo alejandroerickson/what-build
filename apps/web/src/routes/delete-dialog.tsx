@@ -115,9 +115,10 @@ export function listed(parts: (string | false | null | undefined)[]): string {
 
 /**
  * The files a deletion erases, as its dialog says them: the count `storedFiles` reports, which keeps
- * the text read from an attachment as a file of its own, so one attachment is usually two. Deleting
- * a product and deleting an organization say it the same way.
+ * the text read from an attachment as a file of its own, so one attachment is usually two. Where
+ * there are sources and the count is more than one, it says so briefly. Deleting a product and
+ * deleting an organization say it the same way.
  */
-export function storedFilesWords(n: number, bytes: number): string {
-  return `${plural(n, "stored file")} (${formatBytes(bytes)}, with the text read from an attachment counted as a file of its own)`;
+export function storedFilesWords(n: number, bytes: number, sources: number): string {
+  return `${plural(n, "stored file")} (${formatBytes(bytes)}${sources > 0 && n > 1 ? "; the text read from an attachment counts as one" : ""})`;
 }

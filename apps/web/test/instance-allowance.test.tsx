@@ -18,7 +18,7 @@ HTMLDialogElement.prototype.close ??= function (this: HTMLDialogElement) {
 };
 window.matchMedia ??= ((query: string) => ({ matches: false, media: query, onchange: null, addListener() {}, removeListener() {}, addEventListener() {}, removeEventListener() {}, dispatchEvent: () => false })) as never;
 
-const state = { plans: true };
+const state = { plans: true, plansPending: false };
 const by = { display_name: "Olive Owner" };
 
 vi.mock("../src/lib/api.ts", async (original) => ({
@@ -26,6 +26,7 @@ vi.mock("../src/lib/api.ts", async (original) => ({
   api: vi.fn(async (_method: string, path: string) => {
     if (path === "/auth/session")
       return { signed_in: true, account_id: "a1", email: "olive@example.com", display_name: "Olive Owner", tenant_allowance: { instance_owner: true } };
+    if (path === "/api/v1/plans" && state.plansPending) return new Promise(() => {});
     if (path === "/api/v1/plans")
       return state.plans
         ? { plans: [{ id: "free", name: "Free", about: "", price: null, limits: {} }], starting_plan: "free", limits: [], file_max_bytes: 0, contact: null }
@@ -51,6 +52,7 @@ afterEach(() => {
   unmount = null;
   document.body.innerHTML = "";
   state.plans = true;
+  state.plansPending = false;
 });
 
 async function page() {
@@ -84,7 +86,17 @@ describe("how many organizations someone can start", () => {
     const dialog = document.querySelector("dialog[open]")!;
     expect(dialog.textContent).toContain("The number counts the Free organizations they’ve started, not read-only ones or ones they’re invited to. Moving one to another plan frees its place.");
     expect(dialog.textContent).not.toContain("every organization they’ve started");
-    expect(dialog.textContent).toContain("1 counts now. 0 stops them starting more.");
+    expect(dialog.textContent).toContain("1 Free organization of theirs counts now. 0 stops them starting more.");
+  });
+
+  it("says neither plan sentence while the plans are loading", async () => {
+    state.plansPending = true;
+    const host = await page();
+    expect(host.textContent).not.toContain("Each person listed");
+    await act(async () => button(host, "Change how many sam@example.com can start").click());
+    const dialog = document.querySelector("dialog[open]")!;
+    expect(dialog.textContent).not.toContain("The number counts");
+    expect(dialog.textContent).toContain("1 organization of theirs counts now.");
   });
 
   it("names no plan where the deployment offers none", async () => {

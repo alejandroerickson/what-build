@@ -178,9 +178,14 @@ describe("what a delete dialog counts", () => {
     const products = (n: number) => Array.from({ length: n }, (_, i) => ({ product_id: `p${i}`, name: `Product ${i}`, archived: false }));
     const none = { products: [], sources: 0, stored_files: 0, bytes: 0, people: 0, pending_invitations: 0 };
     expect(organizationImpactWords("Acme", { ...none, products: products(3), sources: 5, stored_files: 1, bytes: 2048, people: 4, pending_invitations: 2 })).toEqual({
-      goes: "Everything in Acme goes at once: all 3 of its products, with 5 sources and 1 stored file (2.0 KB, with the text read from an attachment counted as a file of its own).",
+      goes: "Everything in Acme goes at once: all 3 of its products, with 5 sources and 1 stored file (2.0 KB).",
       people: "4 people lose their roles here, and 2 invitations stop working. Their accounts, and their roles in other organizations, stay.",
     });
+    // Several stored files beside sources say why there are more files than attachments; prototype files alone don't.
+    expect(organizationImpactWords("Acme", { ...none, products: products(1), sources: 1, stored_files: 2, bytes: 2048 }).goes).toBe(
+      "Everything in Acme goes at once: its product, with 1 source and 2 stored files (2.0 KB; the text read from an attachment counts as one).",
+    );
+    expect(organizationImpactWords("Acme", { ...none, products: products(1), stored_files: 3, bytes: 2048 }).goes).toBe("Everything in Acme goes at once: its product, with 3 stored files (2.0 KB).");
     // A new organization: one product, nothing in it yet, and its owner.
     expect(organizationImpactWords("Acme", { ...none, products: products(1), people: 1 })).toEqual({
       goes: "Everything in Acme goes at once: its product.",
@@ -230,7 +235,7 @@ describe("deleting a product", () => {
     expect(document.querySelector("dialog[open] .dialog-title")?.textContent).toBe("Delete Crewboard permanently?");
     expect(footer()).toEqual(["Cancel", "Archive instead", "Delete permanently"]);
     // The text read from an attachment is stored as a file of its own, and the count says so.
-    expect(document.querySelector("dialog[open] .delete-impact-list li")?.textContent).toBe("2 sources, with 2 stored files (2.0 KB, with the text read from an attachment counted as a file of its own)");
+    expect(document.querySelector("dialog[open] .delete-impact-list li")?.textContent).toBe("2 sources, with 2 stored files (2.0 KB; the text read from an attachment counts as one)");
     await act(async () => button("Archive instead").click());
     await settle();
     expect(vi.mocked(api).mock.calls).toContainEqual(["POST", `${BASE}/archive`, { expected_etag: "product-etag" }]);

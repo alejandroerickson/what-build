@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useId, useMemo, useState, type ReactNode } from "react";
-import { api } from "../lib/api.ts";
+import { api, ApiError } from "../lib/api.ts";
 import { readAddressList } from "../lib/address-list.ts";
 import { plural, ROLE_WORD, roleWords, scopeWords } from "../lib/format.ts";
 import { useMe } from "../lib/session.tsx";
@@ -71,6 +71,15 @@ export const ROLE_HINT: Record<string, string> = {
 /** The most people one `members.grant_many` call takes; more go in calls of this many. */
 const PER_CALL = 100;
 
+/**
+ * A refusal of the call that sent the addresses from `start` on, as one of the whole save: a plan's
+ * room counted from the first address, and how many earlier calls had saved already.
+ */
+function fromCall(e: unknown, start: number): unknown {
+  if (!start || !(e instanceof ApiError) || typeof e.details?.["room_for"] !== "number") return e;
+  return new ApiError(e.status, e.code, e.message, { ...e.details, room_for: start + e.details["room_for"], saved: start });
+}
+
 interface Holder {
   account_id: string;
   name: string;
@@ -124,10 +133,23 @@ function holdersOf(people: OrgPerson[], target: EditorTarget, canEdit: (p: OrgPe
 
 const people = (n: number) => plural(n, "person", "people");
 
+/**
+ * Whether someone whose role in the organization is `yourRole` (with `products`, the products they
+ * have a role on there) may give or take off a role: the organization's own roles and roles on all
+ * products are its owners' and admins' (an owner's only another owner's), and a product's roles are
+ * also its admins'.
+ */
+export function managesGrant(g: { scope_type: string; scope_id: string; role: string }, yourRole: string | null | undefined, products: { product_id: string; your_role: string }[]): boolean {
+  const orgAdmin = yourRole === "owner" || yourRole === "admin";
+  if (g.scope_type === "tenant") return g.role === "owner" ? yourRole === "owner" : orgAdmin;
+  if (g.scope_type === "all_products") return orgAdmin;
+  return orgAdmin || products.find((p) => p.product_id === g.scope_id)?.your_role === "admin";
+}
+
 /** The save button's words: what it does when it only adds people, and otherwise Save changes. */
 const saveLabel = (adding: number, otherChanges: number) => (adding && !otherChanges ? `Add ${people(adding)}` : "Save changes");
 
-export function PeopleEditor({ tenant, orgName, target, title, description, above, members, partial, invitations, canEdit, initialAdd, onClose }: {
+export function PeopleEditor({ tenant, orgName, target, title, description, above, members, partial, invitations, canEdit, canRemoveRole, initialAdd, onClose }: {
   tenant: string;
   orgName: string;
   target: EditorTarget;
@@ -142,6 +164,8 @@ export function PeopleEditor({ tenant, orgName, target, title, description, abov
   invitations: PendingInvitation[];
   /** Whether the caller may change this person's role here, or give them one. */
   canEdit: (p: OrgPerson, own: Grant | null) => boolean;
+  /** Whether the caller may take this role off its holder, anywhere in the organization. */
+  canRemoveRole: (g: Grant) => boolean;
   /** Addresses already chosen when it opens (a member's own Give access). */
   initialAdd?: string[];
   onClose: () => void;
@@ -263,9 +287,10 @@ export function PeopleEditor({ tenant, orgName, target, title, description, abov
 
   /**
    * What the organization's people say about a plan's total refusing this save: the places the
-   * addresses before the refused one took (each new to the organization's count, unless it reads only
-   * the Story), which the list can tell only when it holds everyone, and what there is to cancel or
-   * remove.
+   * addresses the refused call sent before the refused one took (each new to the organization's
+   * count, unless it reads only the Story), which the list can tell only when it holds everyone, and
+   * what there is to cancel or remove. Someone can be removed to make room only when every role of
+   * theirs that counts is one the caller can take off, and the caller is known.
    */
   const peopleContext = (r: TotalReached): PeopleContext => {
     const counts = (role?: string) => role !== "story_reader";
@@ -273,11 +298,13 @@ export function PeopleEditor({ tenant, orgName, target, title, description, abov
       ...members.filter((p) => p.grants.some((g) => counts(g.role))).map((p) => p.email.toLowerCase()),
       ...invitations.filter((i) => counts(i.role)).map((i) => i.email.toLowerCase()),
     ]);
-    const before = grants.slice(0, r.roomFor ?? 0);
+    // The addresses saved by earlier calls are counted in `used` already.
+    const before = grants.slice(r.saved ?? 0, r.roomFor ?? 0);
+    const self = me.data?.account_id;
     return {
       tookBefore: partial ? null : new Set(before.filter((g) => counts(g.role) && !counted.has(g.email.toLowerCase())).map((g) => g.email.toLowerCase())).size,
       invitations: invitations.some((i) => counts(i.role)),
-      others: members.some((p) => p.account_id !== me.data?.account_id && p.grants.some((g) => counts(g.role))),
+      others: Boolean(self) && members.some((p) => p.account_id !== self && p.grants.some((g) => counts(g.role)) && p.grants.every((g) => !counts(g.role) || canRemoveRole(g))),
     };
   };
 
@@ -291,6 +318,8 @@ export function PeopleEditor({ tenant, orgName, target, title, description, abov
         const r = await api<{ results: { email: string; invited: boolean; invite_link?: string; emailed?: false }[] }>("POST", `/api/v1/tenants/${tenant}/members/many`, {
           ...target.body,
           people: grants.slice(i, i + PER_CALL),
+        }).catch((e: unknown) => {
+          throw fromCall(e, i);
         });
         for (const x of r.results) {
           if (x.invited && x.invite_link) invited.push({ email: x.email, invite_link: x.invite_link, emailed: x.emailed !== false });
@@ -702,7 +731,7 @@ export function InvitationsMade({ made }: { made: InvitationMade[] }) {
         {unsent
           ? `${plural(unsent, "invitation")} couldn’t be emailed: copy ${unsent === 1 ? "its link" : "their links"} and send ${unsent === 1 ? "it" : "them"} yourself.`
           : made.length === 1
-            ? `${made[0]!.email} joins on accepting. We email the invitation where email is set up, and you can share its link yourself: it works once, within 7 days, and only for that address.`
+            ? `${made[0]!.email} joins when they accept. We email the invitation where email is set up, and you can share its link yourself: it works once, within 7 days, and only for that address.`
             : "Each joins when they accept. We email the invitations where email is set up, and you can share each link yourself: it works once, within 7 days, and only for its address."}
       </Callout>
       <ul className="pe-links">

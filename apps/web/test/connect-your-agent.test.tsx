@@ -16,6 +16,7 @@ const BASE = "/api/v1/p/acme/harvest";
 const APP = "/t/acme/harvest";
 let agents: unknown[] = [];
 let canWrite = true;
+let outcomes: unknown[] = [];
 const product = { name: "Harvest", path: "acme/harvest", your_role: "editor", concept: "Crews log the day's harvest.", card_chars: 0, etag: "p1", counts: {} };
 
 vi.mock("../src/lib/api.ts", async (original) => ({
@@ -23,7 +24,7 @@ vi.mock("../src/lib/api.ts", async (original) => ({
   api: vi.fn(async (_method: string, path: string) => {
     if (path === "/api/v1/me/agents") return { items: agents };
     if (path === "/api/v1/connect") return { mcp_url: `${ORIGIN}/mcp`, tenant_url_template: `${ORIGIN}/mcp/t/{tenant}`, bound_url_template: `${ORIGIN}/mcp/t/{tenant}/{product}` };
-    if (path.startsWith(`${BASE}/outcomes`)) return { items: [], archived_hidden: 0 };
+    if (path.startsWith(`${BASE}/outcomes`)) return { items: outcomes, archived_hidden: 0 };
     if (path.startsWith(`${BASE}/sources`)) return { records: [], next_cursor: null };
     throw new Error(`unexpected ${path}`);
   }),
@@ -53,6 +54,7 @@ afterEach(() => {
   localStorage.clear();
   agents = [];
   canWrite = true;
+  outcomes = [];
 });
 
 const settle = async (n = 20) => {
@@ -184,13 +186,24 @@ describe("Connect your agent, on Idea", () => {
     focusManager.setFocused(undefined);
   });
 
-  it("asks for the product concept before its picture while there is none", async () => {
+  it("asks for the product concept once, on the concept card only while the outcomes list doesn't ask for it", async () => {
     agents = [{ family_id: "f1" }];
     product.concept = "";
+    const interview = (host: HTMLElement) => [...host.querySelectorAll(".first-use-request q")].map((q) => q.textContent).filter((t) => t?.startsWith("Interview me about Harvest"));
     try {
-      const host = await mount(<IdeaPage />);
+      // No concept and no outcomes: the empty outcomes list asks for both, and the concept card doesn't ask too.
+      let host = await mount(<IdeaPage />);
+      expect(interview(host)).toEqual(["Interview me about Harvest, then write its product concept and outcomes in WhatBuild, each as a card with its picture and text."]);
+      expect(host.querySelector(".idea-card-concept .idea-no-front")?.textContent).toBe("No picture yet");
+      unmount?.();
+      document.body.innerHTML = "";
+
+      // No concept, with outcomes: the concept card asks for the concept, with its picture.
+      outcomes = [{ outcome_id: "o1", title: "Crews log a day in a minute", description: "", card_chars: 0, position: 1, archived_at: null, etag: "o1", updated_at: "2026-11-10T09:00:00.000Z", updated_by: null }];
+      host = await mount(<IdeaPage />);
       const noFront = host.querySelector(".idea-card-concept .idea-no-front")!;
       expect(noFront.querySelector(".first-use-request q")?.textContent).toBe("Interview me about Harvest, then write its product concept in WhatBuild, as a card with its picture and text.");
+      expect(interview(host)).toHaveLength(1);
       expect(host.textContent).not.toContain("Draw the picture on Harvest’s product concept card");
     } finally {
       product.concept = "Crews log the day's harvest.";

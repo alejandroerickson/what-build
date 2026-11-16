@@ -90,9 +90,10 @@ export function AdminStarting() {
   if (!owner) return null;
 
   const items = q.data?.items ?? [];
-  // What an allowance counts: organizations on the plan new ones start on, named, where that is one the deployment defines.
+  // What an allowance counts: organizations on the plan new ones start on, named, where that is one the
+  // deployment defines; undefined until the allowances and the plans say which.
   const start = q.data?.new_organization_plan;
-  const kindName = start && start !== "unlimited" && plans.data ? planWord(start, plans.data.plans) : null;
+  const kindName = !q.data ? undefined : !start || start === "unlimited" ? null : plans.data ? planWord(start, plans.data.plans) : undefined;
   return (
     <>
     <Sheet labelledBy="instance-title">
@@ -108,11 +109,13 @@ export function AdminStarting() {
         }
       />
       <SheetBody className="instance-intro">
-        <p className="muted">
-          {kindName
-            ? `Each person listed can have as many ${kindName} organizations as they’re given; moving one to another plan frees its place. Owners can start any number.`
-            : "Each person listed can start organizations up to the number they’re given. Owners can start any number."}
-        </p>
+        {kindName === undefined ? null : (
+          <p className="muted">
+            {kindName
+              ? `Each person listed can have as many ${kindName} organizations as they’re given; moving one to another plan frees its place. Owners can start any number.`
+              : "Each person listed can start organizations up to the number they’re given. Owners can start any number."}
+          </p>
+        )}
         {q.data ? (
           <p className="muted">
             Everyone else can start {q.data.default_allowed ? organizations(q.data.default_allowed, kindName) : "none"}. Owners: {q.data.instance_owners.join(", ")}. Both are set where the service is deployed.
@@ -259,15 +262,17 @@ function Waitlist({ q }: { q: ReturnType<typeof useQuery<Allowances>> }) {
 
 /**
  * What an allowance counts, as the server counts it (`tenant-allowance.ts`): the organizations the
- * person started that are on the plan new organizations start on and not read-only.
+ * person started that are on the plan new organizations start on and not read-only. Nothing until
+ * the plans are known, so a deployment with plans never shows the sentence for one without.
  */
-function allowanceCounts(kindName: string | null): string {
+function allowanceCounts(kindName: string | null | undefined): string | undefined {
+  if (kindName === undefined) return undefined;
   return kindName
     ? `The number counts the ${kindName} organizations they’ve started, not read-only ones or ones they’re invited to. Moving one to another plan frees its place.`
     : "The number counts the organizations they’ve started, not read-only ones or ones they’re invited to.";
 }
 
-function AllowanceDialog({ current, kindName, onClose }: { current: Allowance | null; kindName: string | null; onClose: () => void }) {
+function AllowanceDialog({ current, kindName, onClose }: { current: Allowance | null; kindName: string | null | undefined; onClose: () => void }) {
   const qc = useQueryClient();
   const toast = useToast();
   const [email, setEmail] = useState(current?.email ?? "");
@@ -312,7 +317,7 @@ function AllowanceDialog({ current, kindName, onClose }: { current: Allowance | 
         }}
       >
         {current ? null : <TextField label="Email" type="email" required maxLength={EMAIL_MAX} value={email} onChange={(e) => setEmail(e.target.value)} hint="The email they sign in with. They don’t need an account yet." />}
-        <TextField label="Organizations they can start" type="number" required min={0} max={1000} step={1} value={allowed} onChange={(e) => setAllowed(e.target.value)} hint={current ? `${current.created === 1 ? "1 counts" : `${current.created} count`} now. 0 stops them starting more.` : "0 means none, whatever the default."} />
+        <TextField label="Organizations they can start" type="number" required min={0} max={1000} step={1} value={allowed} onChange={(e) => setAllowed(e.target.value)} hint={current ? `${organizations(current.created, kindName)} of theirs ${current.created === 1 ? "counts" : "count"} now. 0 stops them starting more.` : "0 means none, whatever the default."} />
         <TextField label="Note" optional maxLength={NOTE_MAX} value={note} onChange={(e) => setNote(e.target.value)} hint="Only owners see it." />
         <ChoiceRow label="Tell them by email" hint="Sent only when the number goes up and they can still start one." checked={notify} onChange={(e) => setNotify(e.target.checked)} />
         {taken ? <ErrorCallout inset error={new Error("This email already has an allowance. Close this and use Change on its row.")} /> : save.isError ? <ErrorCallout inset error={save.error} /> : null}

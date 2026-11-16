@@ -98,14 +98,14 @@ function CardFront({ src, title, onHeight }: { src: string; title: string; onHei
  * have an agent connected; until then Connect your agent, above, is what to do, and the card shows
  * its text alone.
  */
-function NoFront({ ask }: { ask: string }) {
+function NoFront({ ask }: { ask: string | null }) {
   const { canWrite } = useProduct();
   const agents = useConnectedAgentCount(canWrite);
   if (canWrite && !agents) return null;
   return (
     <div className="idea-no-front">
       <p className="idea-no-front-title">No picture yet</p>
-      {canWrite ? <AgentRequest lead="In your agent, ask:" request={ask} /> : null}
+      {canWrite && ask ? <AgentRequest lead="In your agent, ask:" request={ask} /> : null}
     </div>
   );
 }
@@ -148,8 +148,8 @@ export function IdeaCard({
   tools?: ReactNode;
   /** The picture's address, or null when the card has none yet. */
   front: string | null;
-  /** The request for an agent, on a card with no picture. */
-  ask: string;
+  /** The request for an agent, on a card with no picture, or null when another request on the screen asks for it. */
+  ask: string | null;
   /** The text, under More info. */
   back: ReactNode;
   meta?: ReactNode;
@@ -243,7 +243,11 @@ export function IdeaCard({
   );
 }
 
-function ConceptCard() {
+/**
+ * The product concept's card. With no concept yet it asks for one, unless the outcomes' own request,
+ * which asks for the concept too, is showing or may be (`askConcept` false).
+ */
+function ConceptCard({ askConcept }: { askConcept: boolean }) {
   const { product, api: base } = useProduct();
   const scheme = useScheme();
   const front = product.card_chars ? `${base}/idea/concept/card${qs({ theme: scheme, v: product.etag })}` : null;
@@ -260,7 +264,9 @@ function ConceptCard() {
       ask={
         product.concept?.trim()
           ? `Draw the picture on ${product.name}’s product concept card in WhatBuild.`
-          : `Interview me about ${product.name}, then write its product concept in WhatBuild, as a card with its picture and text.`
+          : askConcept
+            ? `Interview me about ${product.name}, then write its product concept in WhatBuild, as a card with its picture and text.`
+            : null
       }
       back={
         product.concept?.trim() ? (
@@ -362,13 +368,16 @@ export function IdeaPage() {
     },
   });
   const shown = reorder.order.map((id) => byId.get(id)).filter((o): o is Outcome => Boolean(o));
+  // The empty outcomes list asks for the concept and outcomes together, so the concept card doesn't ask
+  // too while that list shows its request, or while it may.
+  const outcomesAsk = q.isPending || Boolean(q.data && !items.length && !q.data.archived_hidden);
   const hintId = useId();
 
   return (
     <div className="idea">
       <h1 className="visually-hidden">Idea</h1>
       <ConnectYourAgent />
-      <ConceptCard />
+      <ConceptCard askConcept={!outcomesAsk} />
       <IdeaPanel includeArchived={includeArchived} />
       <section className="idea-outcomes" aria-labelledby="outcomes-h">
         <h2 className="idea-section-title" id="outcomes-h">
