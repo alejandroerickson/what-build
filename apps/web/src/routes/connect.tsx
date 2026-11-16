@@ -1,22 +1,15 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState, type ReactNode } from "react";
+import { useState } from "react";
 import { useSearchParams } from "react-router";
 import { AGENTS_KEY } from "../lib/agents.ts";
 import { api } from "../lib/api.ts";
 import { formatDate, relativeTime } from "../lib/format.ts";
 import { useProducts } from "../lib/session.tsx";
 import { useLastProduct } from "../shell/panel.tsx";
-import { AgentFace, Button, ChoiceRow, CopyField, Dialog, EmptyState, ErrorCallout, Glyph, Loading, Menu, MenuNote, MenuRadio, SelectField, Sheet, SheetBody, SheetHeader, useToast } from "../ui/index.tsx";
+import { AgentFace, Button, ChoiceRow, Dialog, EmptyState, ErrorCallout, Glyph, Loading, Menu, MenuNote, MenuRadio, SelectField, Sheet, SheetBody, SheetHeader, useToast } from "../ui/index.tsx";
+import { ConnectSteps, useConnectInfo } from "./connect-steps.tsx";
 import { SignOutEverywhere } from "./settings.tsx";
 import "../styles/screens/account.css";
-
-interface ConnectInfo {
-  mcp_url: string;
-  /** The address scoped to one organization, with `{tenant}` to fill in. */
-  tenant_url_template: string;
-  /** The address scoped to one product, with `{tenant}/{product}` to fill in. */
-  bound_url_template: string;
-}
 
 /** What a connection may reach: names where the person can see them, else the address's path. */
 type Reach =
@@ -71,34 +64,19 @@ function heldBy(r: ConnectedAgent["returns_to"]): string {
   return places.length ? `Held by ${places.join(" or ")}` : "";
 }
 
-function Step({ n, title, children }: { n: number; title: string; children?: ReactNode }) {
-  return (
-    <li className="agents-step">
-      <span className="agents-step-n num" aria-hidden="true">
-        {n}
-      </span>
-      <div className="agents-step-body">
-        <h3 className="agents-step-title">
-          <span className="visually-hidden">Step {n}: </span>
-          {title}
-        </h3>
-        {children}
-      </div>
-    </li>
-  );
-}
-
 /**
- * Settings → You → Agents (`?settings=agents`, where `/connect` leads): the one address an MCP client
- * needs, the agents connected now, and signing out everywhere. It leads with `/mcp`, every product the person can open, which is the address a
- * connectors directory lists. Limiting the agent to one organization or one product is behind a
- * quiet button: it gives a scoped address, a fence the server refuses every call outside of. Opened
- * there, the product Settings is open over is chosen first (`herePath`); elsewhere, the organization of
- * the last product opened. The client finds sign-in on its own (OAuth discovery), and the server describes
- * itself to the agent: its tools and its guide.
+ * Settings → You → Agents (`?settings=agents`, where `/connect` leads): the steps that connect an
+ * agent, the same as Connect your agent on Idea (`ConnectSteps`), the agents connected now, and
+ * signing out everywhere. The steps lead with `/mcp`, every product the person can open, which is
+ * the address a connectors directory lists. Limiting the agent to one organization or one product
+ * is behind a quiet button under it: it gives a scoped address, a fence the server refuses every
+ * call outside of, and the steps name the connection after what it reaches. Opened there, the
+ * product Settings is open over is chosen first (`herePath`); elsewhere, the organization of the
+ * last product opened. The client finds sign-in on its own (OAuth discovery), and the server
+ * describes itself to the agent: its tools and its guide.
  */
 export function AgentsSettings({ herePath = null }: { herePath?: string | null }) {
-  const info = useQuery({ queryKey: ["connect"], queryFn: () => api<ConnectInfo>("GET", "/api/v1/connect") });
+  const info = useConnectInfo();
   const products = useProducts();
   const last = useLastProduct();
   const [params, setParams] = useSearchParams();
@@ -145,15 +123,17 @@ export function AgentsSettings({ herePath = null }: { herePath?: string | null }
   const scopedName = reach === "product" && product ? product.name : reach === "organization" && org ? org.name : null;
   const exampleChosen = (reach === "product" && product?.tenant.example) || (reach === "organization" && org?.example);
   const hasExample = tenants.some((t) => t.example);
-  const address = (
-    <div className="agents-address">
-      <CopyField label="MCP server URL" value={url} />
-    </div>
-  );
   const named =
     reach === "all"
       ? ((herePath ? product : undefined) ?? (last && !last.tenant.example ? last : undefined) ?? items.find((p) => !p.tenant.example) ?? items[0])
       : ((reach === "product" ? product : undefined) ?? (reach === "organization" ? items.find((p) => p.tenant.tenant_id === org?.tenant_id) : undefined) ?? product ?? last);
+  // A limited connection is named after what it reaches, so connections are told apart and turned off one at a time.
+  const scopedSlug = reach === "product" && product ? product.path.split("/").pop()! : reach === "organization" && org ? org.slug : null;
+  const target = {
+    url,
+    connector: scopedName ? `WhatBuild ${scopedName}` : "WhatBuild",
+    server: scopedSlug ? `whatbuild-${scopedSlug}` : "whatbuild",
+  };
   return (
     <>
       <Sheet className="agents-sheet" labelledBy="agents-title">
@@ -168,128 +148,130 @@ export function AgentsSettings({ herePath = null }: { herePath?: string | null }
             <ErrorCallout inset error={info.error} onRetry={() => info.refetch()} />
           </SheetBody>
         ) : c ? (
-          <ol className="agents-steps">
-            <Step n={1} title="Add WhatBuild to your agent">
-              {limiting ? null : (
-                <>
-                  {address}
+          <ConnectSteps
+            target={target}
+            addressExtra={(kind) => (
+              <>
+                {limiting ? null : (
                   <p className="agents-fence">
                     Your agent can open every product you can{hasExample ? ", and reads the example organization without changing it" : ""}.
                   </p>
-                </>
-              )}
-              <button
-                type="button"
-                className="btn btn-quiet btn-sm agents-limit"
-                aria-expanded={limiting}
-                aria-controls={limitId}
-                onClick={() => {
-                  if (limiting) pick({ reach: "all" });
-                  setLimiting(!limiting);
-                }}
-              >
-                <span>Limit this agent to one organization or product</span>
-                <Glyph name="chevron-down" size="sm" />
-              </button>
-              {limiting ? (
-                <div id={limitId}>
-                  <fieldset className="agents-reach">
-                    <legend className="visually-hidden">What your agent can reach</legend>
-                    <ChoiceRow
-                      type="radio"
-                      variant="boxed"
-                      name="reach"
-                      checked={reach === "all"}
-                      onChange={() => pick({ reach: "all" })}
-                      label="Everything you can reach"
-                      hint="Every product you can open, including in organizations you join or start later."
-                    />
-                    <ChoiceRow
-                      type="radio"
-                      variant="boxed"
-                      name="reach"
-                      checked={reach === "organization"}
-                      disabled={!tenants.length}
-                      onChange={() => pick({ reach: "organization", ...(org ? { org: org.slug } : {}) })}
-                      label="One organization"
-                      hint="It refuses anything outside the organization you choose."
-                    />
-                    <ChoiceRow
-                      type="radio"
-                      variant="boxed"
-                      name="reach"
-                      checked={reach === "product"}
-                      disabled={!items.length}
-                      onChange={() => pick({ reach: "product", ...(product ? { product: product.path } : {}) })}
-                      label="One product"
-                      hint={items.length ? "It refuses anything outside the product you choose." : "You have no product yet."}
-                    />
-                  </fieldset>
-                  {reach === "product" && product ? (
-                    <div className="agents-address">
-                      <SelectField label="Product" value={product.path} onChange={(e) => pick({ reach: "product", product: e.target.value })}>
-                        {orgs > 1
-                          ? tenants.map((t) => (
-                              <optgroup key={t.tenant_id} label={t.name}>
-                                {items
-                                  .filter((p) => p.tenant.tenant_id === t.tenant_id)
-                                  .map((p) => (
-                                    <option key={p.product_id} value={p.path}>
-                                      {p.name}
-                                    </option>
-                                  ))}
-                              </optgroup>
-                            ))
-                          : items.map((p) => (
-                              <option key={p.product_id} value={p.path}>
-                                {p.name}
-                              </option>
-                            ))}
-                      </SelectField>
-                    </div>
-                  ) : reach === "organization" && org ? (
-                    <div className="agents-address">
-                      <SelectField label="Organization" value={org.slug} onChange={(e) => pick({ reach: "organization", org: e.target.value })}>
-                        {tenants.map((t) => (
-                          <option key={t.tenant_id} value={t.slug}>
-                            {t.name}
-                          </option>
-                        ))}
-                      </SelectField>
-                    </div>
-                  ) : null}
-                  {address}
-                  <p className="agents-fence" aria-live="polite">
-                    {scopedName ? (
-                      <>
-                        Name the connector after <strong>{scopedName}</strong>, so you can tell your connectors apart and turn one off.
-                      </>
+                )}
+                <button
+                  type="button"
+                  className="btn btn-quiet btn-sm agents-limit"
+                  aria-expanded={limiting}
+                  aria-controls={limitId}
+                  onClick={() => {
+                    if (limiting) pick({ reach: "all" });
+                    setLimiting(!limiting);
+                  }}
+                >
+                  <span>Limit this agent to one organization or product</span>
+                  <Glyph name="chevron-down" size="sm" />
+                </button>
+                {limiting ? (
+                  <div id={limitId}>
+                    <fieldset className="agents-reach">
+                      <legend className="visually-hidden">What your agent can reach</legend>
+                      <ChoiceRow
+                        type="radio"
+                        variant="boxed"
+                        name="reach"
+                        checked={reach === "all"}
+                        onChange={() => pick({ reach: "all" })}
+                        label="Everything you can reach"
+                        hint="Every product you can open, including in organizations you join or start later."
+                      />
+                      <ChoiceRow
+                        type="radio"
+                        variant="boxed"
+                        name="reach"
+                        checked={reach === "organization"}
+                        disabled={!tenants.length}
+                        onChange={() => pick({ reach: "organization", ...(org ? { org: org.slug } : {}) })}
+                        label="One organization"
+                        hint="It refuses anything outside the organization you choose."
+                      />
+                      <ChoiceRow
+                        type="radio"
+                        variant="boxed"
+                        name="reach"
+                        checked={reach === "product"}
+                        disabled={!items.length}
+                        onChange={() => pick({ reach: "product", ...(product ? { product: product.path } : {}) })}
+                        label="One product"
+                        hint={items.length ? "It refuses anything outside the product you choose." : "You have no product yet."}
+                      />
+                    </fieldset>
+                    {reach === "product" && product ? (
+                      <div className="agents-address">
+                        <SelectField label="Product" value={product.path} onChange={(e) => pick({ reach: "product", product: e.target.value })}>
+                          {orgs > 1
+                            ? tenants.map((t) => (
+                                <optgroup key={t.tenant_id} label={t.name}>
+                                  {items
+                                    .filter((p) => p.tenant.tenant_id === t.tenant_id)
+                                    .map((p) => (
+                                      <option key={p.product_id} value={p.path}>
+                                        {p.name}
+                                      </option>
+                                    ))}
+                                </optgroup>
+                              ))
+                            : items.map((p) => (
+                                <option key={p.product_id} value={p.path}>
+                                  {p.name}
+                                </option>
+                              ))}
+                        </SelectField>
+                      </div>
+                    ) : reach === "organization" && org ? (
+                      <div className="agents-address">
+                        <SelectField label="Organization" value={org.slug} onChange={(e) => pick({ reach: "organization", org: e.target.value })}>
+                          {tenants.map((t) => (
+                            <option key={t.tenant_id} value={t.slug}>
+                              {t.name}
+                            </option>
+                          ))}
+                        </SelectField>
+                      </div>
                     ) : null}
-                    {exampleChosen ? " Your agent can read the example organization but not change it." : null}
-                  </p>
-                </div>
-              ) : null}
-            </Step>
-            <Step n={2} title="Sign in when it asks, and choose what it may do">
-              <dl className="agents-levels">
-                {LEVELS.map((l) => (
-                  <div key={l.level} className="agents-level">
-                    <dt>
-                      {l.name}
-                      {l.level === "editor" ? <span className="agents-level-default"> (default)</span> : null}
-                    </dt>
-                    <dd>{l.does}</dd>
+                    <p className="agents-fence" aria-live="polite">
+                      {/* Claude's and Claude Code's steps name it themselves. */}
+                      {scopedName && kind === "other" ? (
+                        <>
+                          Name the connector after <strong>{scopedName}</strong>, so you can tell your connectors apart and turn one off.
+                        </>
+                      ) : null}
+                      {exampleChosen ? `${scopedName && kind === "other" ? " " : ""}Your agent can read the example organization but not change it.` : null}
+                    </p>
                   </div>
-                ))}
-              </dl>
-              <p>Your agent never does more than you can yourself. You can change its level here later.</p>
-            </Step>
-            <Step n={3} title="Ask it to start">
+                ) : null}
+              </>
+            )}
+            signInExtra={
+              <>
+                <dl className="agents-levels">
+                  {LEVELS.map((l) => (
+                    <div key={l.level} className="agents-level">
+                      <dt>
+                        {l.name}
+                        {l.level === "editor" ? <span className="agents-level-default"> (default)</span> : null}
+                      </dt>
+                      <dd>{l.does}</dd>
+                    </div>
+                  ))}
+                </dl>
+                <p>Your agent never does more than you can yourself. You can change its level here later.</p>
+              </>
+            }
+            doneExtra={
               <p>
-                For example: &ldquo;Add the interview notes in my downloads to {named?.name ?? "my product"} as a source.&rdquo;
+                Then ask it to start. For example: &ldquo;Add the interview notes in my downloads to {named?.name ?? "my product"} as a source.&rdquo;
               </p>
-            </Step>
-          </ol>
+            }
+          />
         ) : null}
       </Sheet>
       <ConnectedSheet />

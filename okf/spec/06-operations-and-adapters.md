@@ -1207,7 +1207,15 @@ embedded copy drifts.
 
 **Connect an agent** (Settings → Agents, `?settings=agents` over any screen; `/connect` leads
 there, its query kept) lets a person connect an MCP client with no help from anyone who knows the system, and nothing to
-configure but one address. It shows:
+configure but one address. Its steps are those of Connect your agent, the first sheet on Idea for a
+writer with no agent connected ([§7.5](07-web-app.md#75-idea)), from one component
+(`ConnectSteps`, `apps/web/src/routes/connect-steps.tsx`, where each agent's steps are written once):
+a choice of Claude, Claude Code or another agent, then four numbered steps for it, each saying
+where it happens: copy the address (for Claude Code, the `claude mcp add --scope user --transport
+http` command with it), add it in the agent (Claude's Customize, then Connectors, then Add custom
+connector; Claude Code's `/mcp`, then Authenticate; another agent's settings, as a remote MCP
+server), sign in on the WhatBuild page the agent opens and choose what it may do, and come back. It
+shows:
 
 - first, the one address every agent can use, `/mcp` (`mcp_url` from `/api/v1/connect`), to copy:
   every product the person can open, the example organization included, which an agent reads and
@@ -1219,15 +1227,16 @@ configure but one address. It shows:
   organization** or **One product**, with an organization or product picker, and the address for
   the choice in place of `/mcp`: an organization gives `/mcp/t/<tenant>` (`tenant_url_template`),
   a product its address (`bound_url_template`), filled in from the product's path, so nobody types
-  a tenant or product. For one organization or product, a line suggests naming the connector after
-  it. Over a product's screen that product is picked first; elsewhere, the organization of the last
+  a tenant or product. For one organization or product, the steps name the connection after it
+  (Claude's connector "WhatBuild <name>", Claude Code's server `whatbuild-<slug>`), and for another
+  agent a line suggests that name. Over a product's screen that product is picked first; elsewhere, the organization of the last
   product opened. Closing the choices goes back to `/mcp`. The choice is in the URL:
   `?reach=product|organization|all` with `?product=<path>` or `?org=<slug>` (an older
   `?product=all` means everything), kept while Agents is open, and an address with a limited
   choice opens with the choices shown ([decision](../decisions/the-connect-page-leads-with-one-address.md));
-- the three levels the client will ask the person to choose between when they sign in, each with
-  what it may do (Read only; Edit, the default; Admin, which also deletes permanently and manages
-  products, organizations and people), and a suggestion for a first request;
+- under the sign-in step, the three levels the client will ask the person to choose between, each
+  with what it may do (Read only; Edit, the default; Admin, which also deletes permanently and
+  manages products, organizations and people), and under the last, a suggestion for a first request;
 - the agents connected now, each with what it can reach ("Only the organization Acme", "Only the
   product Crewboard in Acme", "Every product you can open", from `reach` in
   `GET /api/v1/me/agents`), who holds the connection ("Held by claude.ai", "Held by an app on your

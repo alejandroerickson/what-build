@@ -1,18 +1,23 @@
 import { useState, type ReactNode } from "react";
+import { Link } from "react-router";
 import { useConnectedAgentCount } from "../lib/agents.ts";
 import { useProduct } from "../lib/session.tsx";
 import { useSettingsTo } from "../shell/settings-link.ts";
-import { Button, ButtonLink, useToast } from "../ui/index.tsx";
+import { Button, useToast } from "../ui/index.tsx";
 
 /**
- * A list in a product with nothing in it yet: what belongs here, then how an agent fills it, with a
- * request to copy and, until one is connected, Connect an agent. Every destination uses it the same
- * way. Adding an item yourself stays in the sheet header, where it is once the list has items, so
- * the empty list offers one path in its body and the other where it always is.
+ * A list in a product with nothing in it yet: what belongs here, then the request that gets an agent
+ * to fill it, with Copy. Every destination uses it the same way. Adding an item yourself stays in the
+ * sheet header, where it is once the list has items, so the empty list offers one path in its body
+ * and the other where it always is.
+ *
+ * The line over the request says where to ask it. With no agent connected it starts from connecting
+ * one: from Connect your agent above it on Idea (`connectAbove`), or, elsewhere, from a link to
+ * Settings at Agents. Nothing here is a button to connect: that is the sheet's, and the panel's.
  *
  * `ask` is the request for an agent. It is left out for people who cannot write here.
  */
-export function FirstUse({ title, children, ask }: { title: string; children: ReactNode; ask?: string }) {
+export function FirstUse({ title, children, ask, connectAbove = false }: { title: string; children: ReactNode; ask?: string; connectAbove?: boolean }) {
   const { canWrite } = useProduct();
   const settingsTo = useSettingsTo();
   const toast = useToast();
@@ -35,16 +40,21 @@ export function FirstUse({ title, children, ask }: { title: string; children: Re
       <div className="empty-text">{children}</div>
       {request ? (
         <div className="first-use-agent">
-          <p className="first-use-lead">{connected ? "Ask your agent:" : "Connect an agent and ask it:"}</p>
+          <p className="first-use-lead">
+            {connected ? (
+              "In your agent, ask:"
+            ) : connectAbove ? (
+              "Then, in your agent, ask:"
+            ) : (
+              <>
+                <Link to={settingsTo("agents")}>Connect an agent</Link>, then ask it:
+              </>
+            )}
+          </p>
           <p className="first-use-request">
             <q>{request}</q>
           </p>
           <div className="empty-action">
-            {connected ? null : (
-              <ButtonLink to={settingsTo("agents")} variant="primary" icon="bot">
-                Connect an agent
-              </ButtonLink>
-            )}
             <Button icon={copied ? "check" : "copy"} onClick={copy} aria-label="Copy the request for your agent">
               {copied ? "Copied" : "Copy"}
             </Button>

@@ -4,9 +4,10 @@ import { createRoot } from "react-dom/client";
 import { MemoryRouter, Route, Routes, useParams } from "react-router";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-// Connect an agent (Settings → Agents) leads with the one address every agent can use, `/mcp`, and
-// keeps limiting an agent to one organization or product behind a quiet button that gives the scoped
-// address. Opened over a product, that product is the one offered first.
+// Connect an agent (Settings → Agents) gives the same steps as Connect your agent on Idea, for the
+// agent chosen, leading with the one address every agent can use, `/mcp`, and keeps limiting an agent
+// to one organization or product behind a quiet button that gives the scoped address, which the
+// steps name the connection after. Opened over a product, that product is the one offered first.
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 window.matchMedia ??= (query: string) => ({ matches: false, media: query, onchange: null, addListener() {}, removeListener() {}, addEventListener() {}, removeEventListener() {}, dispatchEvent: () => false });
@@ -47,6 +48,7 @@ afterEach(() => {
   unmount?.();
   unmount = null;
   document.body.innerHTML = "";
+  localStorage.clear();
 });
 
 async function page(at = "/connect") {
@@ -75,12 +77,19 @@ async function page(at = "/connect") {
 
 const address = (host: HTMLElement) => host.querySelector(".copy-field code")?.textContent;
 const limit = (host: HTMLElement) => [...host.querySelectorAll("button")].find((b) => b.textContent?.includes("Limit this agent"))!;
+const agent = (host: HTMLElement, label: string) => [...host.querySelectorAll<HTMLButtonElement>(".connect-choice button")].find((b) => b.textContent === label)!;
+const steps = (host: HTMLElement) => [...host.querySelectorAll(".agents-step-text")].map((p) => p.textContent);
 const choice = (host: HTMLElement, label: string) => [...host.querySelectorAll<HTMLInputElement>("input[type=radio]")].find((r) => r.closest("label")?.textContent?.includes(label))!;
 
 describe("Connect an agent", () => {
   it("leads with the one address, every product the person can open, and keeps the limits closed", async () => {
     const host = await page();
     expect(address(host)).toBe(`${BASE}/mcp`);
+    expect(host.textContent).toContain("What your agent reads goes to whoever runs it, under their terms.");
+    expect(agent(host, "Claude").getAttribute("aria-pressed")).toBe("true");
+    expect(steps(host)[0]).toBe("Step 1: Copy WhatBuild’s address:");
+    // What happens after signing in, after the steps.
+    expect(host.textContent).toContain("Then ask it to start. For example: “Add the interview notes in my downloads to Harvest as a source.”");
     expect(host.textContent).toContain("Your agent can open every product you can, and reads the example organization without changing it.");
     expect(limit(host).getAttribute("aria-expanded")).toBe("false");
     expect(host.querySelectorAll("input[type=radio]")).toHaveLength(0);
@@ -100,6 +109,14 @@ describe("Connect an agent", () => {
     expect(limit(host).getAttribute("aria-expanded")).toBe("true");
     expect(choice(host, "Everything you can reach").checked).toBe(true);
     await act(async () => choice(host, "One product").click());
+    expect(address(host)).toBe(`${BASE}/mcp/t/acme/harvest`);
+    // Each agent's steps name the limited connection after what it reaches; another agent is told to.
+    expect(steps(host)[1]).toContain("name it WhatBuild Harvest and paste the address");
+    await act(async () => agent(host, "Claude Code").click());
+    expect(address(host)).toBe(`claude mcp add --scope user --transport http whatbuild-harvest ${BASE}/mcp/t/acme/harvest`);
+    expect(steps(host)[1]).toBe("Step 2: Run it in a terminal, then start Claude Code, type /mcp, choose whatbuild-harvest and choose Authenticate.");
+    expect(host.textContent).not.toContain("Name the connector after");
+    await act(async () => agent(host, "Another agent").click());
     expect(address(host)).toBe(`${BASE}/mcp/t/acme/harvest`);
     expect(host.textContent).toContain("Name the connector after Harvest, so you can tell your connectors apart and turn one off.");
     await act(async () => choice(host, "One organization").click());

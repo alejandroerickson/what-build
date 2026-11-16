@@ -33,6 +33,12 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
   is set, by "There’s more at" that address. `GET /api/v1/me/invitations` and the invitation
   endpoints give `invited_by` without quotation marks and add `invited_by_email`;
   `GET /api/v1/meta` adds `site_url`.
+- **Idea shows the steps to connect an agent until one is connected.** It asks nothing of a
+  deployment. People will notice it: for someone who can write in a product and has no agent
+  connected, Idea opens on Connect your agent, a sheet with a choice of Claude, Claude Code or
+  another agent and numbered steps for it, which goes once an agent is connected; Settings → Agents
+  gives the same steps. The empty lists lose their Connect an agent button, a card's "No picture
+  yet" waits for an agent, and the panel's seat says only "No agent connected".
 
 ## v0.36.0
 

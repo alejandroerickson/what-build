@@ -40,6 +40,7 @@ name what replaced it, and date the change. Smaller decisions are marked
 - [A scoped MCP connector is a fence, not a default](a-scoped-mcp-connector-is-a-fence.md)
 - [Connect an agent leads with one address, and limiting an agent is a choice behind it](the-connect-page-leads-with-one-address.md)
 - [The panel keeps an empty seat for an agent until one is connected](the-panel-keeps-an-empty-seat-until-an-agent-is-connected.md)
+- [Idea leads with the steps to connect an agent until one is connected, and the empty screens only say where to ask](idea-leads-with-connect-your-agent-until-an-agent-is-connected.md)
 - [An agent is offered only what its person could do](an-agent-is-offered-only-what-its-person-could-do.md)
 - [Running the instance is done in the web app, never by an agent; the MCP server is for discovery work](running-the-instance-is-done-in-the-web-app-never-by-an-agent.md)
 - [The public sandbox is reached only through a connector scoped to it](the-public-sandbox-is-reached-only-through-its-own-connector.md) (superseded)

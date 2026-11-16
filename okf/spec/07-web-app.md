@@ -172,8 +172,8 @@ the browser's back button and "open in new tab" both work.
   **Activity** (§7.9) and **Settings**, which opens the Settings dialog (§7.11) over the screen, at
   the product's General. The empty seat
   ([decision](../decisions/the-panel-keeps-an-empty-seat-until-an-agent-is-connected.md)) is a card,
-  for everyone, saying "No agent connected", that without one a person sees less than half of WhatBuild, and
-  Connect an agent as the panel's one accent button, which opens Settings at Agents. Nothing
+  for everyone, saying "No agent connected", with Connect an agent as the panel's one accent button,
+  which opens Settings at Agents. Nothing
   dismisses it; it goes once an agent is connected (the account-wide list, `GET /api/v1/me/agents`,
   which while empty is read again when the person comes back to the tab, with no polling), and
   nothing takes its place: agents are in Settings. A hidden panel is shown for the seat once a visit,
@@ -518,9 +518,11 @@ new tab ([§7.8](#78-story), [§6](06-operations-and-adapters.md)).
    (`/invite/:token`), and joins by accepting it.
 4. Invite colleagues with **Add people**, in Settings under the organization's People or the
    product's, by email or a single-use link.
-5. **Connect an agent** (Settings → Agents, which the empty seat opens, and `/connect` leads to):
-   paste one address into an MCP client and sign in when it asks
-   ([§6.8](06-operations-and-adapters.md)).
+5. **Connect an agent.** The new product opens on Idea, whose first sheet, for someone who can
+   write there and has no agent connected, is **Connect your agent** (§7.5): the steps for the
+   agent they choose, the same as in Settings → Agents (which the empty seat opens, and `/connect`
+   leads to). They copy one address (for Claude Code, a command), add it in their agent, sign in on
+   the WhatBuild page it opens, and come back ([§6.8](06-operations-and-adapters.md)).
 
 No page is readable without an account. Someone who wants to look before committing to anything
 signs up and reads the example organization as a guest while there is room
@@ -537,6 +539,33 @@ product concept's card first, across the content band; then **Outcomes** with th
 outcomes' cards one under another, in order, each as wide as the concept's and as tall as what it
 shows.
 
+**Connect your agent** ([decision](../decisions/idea-leads-with-connect-your-agent-until-an-agent-is-connected.md)).
+For someone who can write in the product while their account has no agent connected, the first
+sheet on Idea, above the product concept, is Connect your agent, with "Not connected yet" at the
+right of its head (the neutral mark and word). One sentence: "Your agent does the writing here: it
+reads your material and drafts outcomes, mockups and the Story." Then a choice of agent, **Claude**,
+**Claude Code** or **Another agent** (a segmented control, remembered on the device,
+`whatbuild.agent`), and four numbered steps for it, each saying where it happens:
+
+1. "Copy WhatBuild’s address:" with `/mcp` and Copy; for Claude Code, "Copy this command:" with
+   `claude mcp add --scope user --transport http whatbuild <address>`.
+2. Where it goes. Claude: "In Claude, open Customize, then Connectors. Choose Add, then Add custom
+   connector, name it WhatBuild and paste the address.", with a muted note that on a Team or
+   Enterprise plan an owner adds it in Organization settings, then Connectors, and each person then
+   chooses Connect beside it. Claude Code: "Run it in a terminal, then start Claude Code, type
+   /mcp, choose whatbuild and choose Authenticate." Another agent: "In your agent’s settings, add it
+   as a remote MCP server. Some call this a custom connector or an integration."
+3. "<Agent> opens a WhatBuild page in your browser. Sign in there and choose what <agent> may do."
+4. "Come back to this page. It says Connected once <agent> is in."
+
+The steps are those of Settings → Agents (§7.11), from one component, with the plain address: the
+agent is limited to one organization or product there. Nothing dismisses the sheet. It goes once an
+agent is connected, which the account's list of agents (`GET /api/v1/me/agents`, read again while
+it is empty whenever the person comes back to the tab or the window) tells it, with a toast,
+"Connected. Ask your agent to start.", focus staying on the screen; it does not come back while
+they have an agent. While it loads its address it shows skeleton lines, and a failed load offers
+Try again.
+
 - **A card.** Its head holds the title (the outcome's, with its place in the order, or "Product
   concept"), **More info**, and on an outcome its menu. Under the head is the front: the
   agent-drawn picture, in a sandboxed frame ([§4.2.1](04-data-model.md)), as tall as it is up to
@@ -552,8 +581,9 @@ shows.
   for.
 - **No editing.** Agents write both sides of every card; the screen has no create or edit control
   for the concept or an outcome, and product Settings has no concept field. A card with no front
-  yet opens on its text, over "No picture yet" and, for someone who can write, the request to copy
-  for an agent.
+  yet opens on its text, over "No picture yet". For someone who can write, that box waits until
+  they have an agent connected (Connect your agent is above until then, and the card shows its text
+  alone), and then holds "In your agent, ask:" over the request to copy.
 - **Dragging outcomes into order**, as photos are ordered in a listing, for anyone who can write,
   while archived ones are hidden. With a mouse the whole head drags a card (the outcome's number
   turns into a grip while the pointer is over it); on touch the number, which always shows its
@@ -575,14 +605,17 @@ shows.
 The panel's **Archived** section offers Hide archived (the default) and Include archived
 (`?include_archived=1`), as Evidence does for sources; an archived outcome shows an Archived badge
 and a quieter card, and offers Restore. With no current outcomes but archived ones, the list
-offers to include them. With no outcomes, the list says what an outcome is and gives the request to
-copy for an agent (interview the person, then write the concept and outcomes, each a card with its
-picture and text). Nothing on the screen prescribes an order of steps.
+offers to include them. With no outcomes, the list says what an outcome is ("An outcome is what the
+product’s users should be able to achieve.") and gives the request to copy for an agent (interview
+the person, then write the concept and outcomes, each a card with its picture and text).
 
 **Empty lists** ([decision](../decisions/empty-lists-lead-with-the-agent.md)). Outcomes, Sources,
 Mockups and the Story share one first-use state: "No … yet", what belongs
-there, and a request naming the product for the person to copy to their agent, with Connect an
-agent (opening Settings at Agents, with this product chosen) until they have one connected. Where people add by hand, that
+there, and a request naming the product for the person to copy to their agent, with Copy and no
+other button. The line over the request says where to ask it: "In your agent, ask:" once they have
+an agent connected; until then, on Idea, under Connect your agent, "Then, in your agent, ask:", and
+on Evidence, Exploration and the Story "Connect an agent, then ask it:", Connect an agent a link
+opening Settings at Agents, with this product chosen. Where people add by hand, that
 is the header's create action, a default button, as when the list has items; outcomes have none,
 since agents write them. A filter over a list
 with nothing in it shows the same state. Viewers see the words without the request.
@@ -1166,8 +1199,8 @@ never described as deleting. A list row showing an archived object says *Archive
   A section asked for that the person can't use opens the first of its group they can, else the
   first of all. It is opened from the panel's Settings (the product's General; a Story reader's Account;
   for an organization with no product, its General, or its People for someone who is not an owner
-  or admin), the account menu's Settings (Account), the empty seat and every Connect an agent
-  button (Agents), the read-only notice's See plan (Plan), Activity entries about the product's
+  or admin), the account menu's Settings (Account), the empty seat and the first-use states'
+  Connect an agent link (Agents), the read-only notice's See plan (Plan), Activity entries about the product's
   settings or its people, Delete account's ways out and Instance admin's organization names, links
   between sections, and the older addresses that lead to it (§7.3). Another section starts at its top. On a phone it fills the screen and the sections are a
   select at its head. Over the overview or a page that wasn't found, it is about the product the
@@ -1308,11 +1341,15 @@ never described as deleting. A list row showing an archived object says *Archive
   (`/account-deleted`, signed out), which says what stays and that a confirmation was emailed
   ([§3.2](03-accounts-and-identity.md#32-accounts-and-sign-in)).
 - **Agents** (`?settings=agents`, where `/connect` leads). **Connect an agent**
-  ([§6.8](06-operations-and-adapters.md)): the one address to paste, `/mcp`, then, behind a quiet
-  button, what the agent can reach (one product, one organization, or everything) and the MCP
-  server URL for that scope, the product Settings is open over chosen first; sign-in; a first
-  request to try, after saying the agent will ask what it may do (Read only, Edit or Admin); the
-  plain statement about where an agent sends what it reads. Then **Connected agents**, each with
+  ([§6.8](06-operations-and-adapters.md)): the plain statement about where an agent sends what it
+  reads, then the choice of agent and the same four steps as Connect your agent on Idea (§7.5),
+  from the same component. The first step gives the one address to paste, `/mcp` (or Claude Code's
+  command with it), then, behind a quiet button under it, what the agent can reach (one product,
+  one organization, or everything), giving the MCP server URL for that scope in its place, the
+  product Settings is open over chosen first; a limited connection is named after what it reaches
+  in the steps (Claude's "name it WhatBuild <name>", Claude Code's `whatbuild-<slug>`), and for
+  another agent a line suggests the name. The sign-in step adds the three levels an agent may have
+  (Read only, Edit, the default, or Admin); the last adds a first request to try. Then **Connected agents**, each with
   what it can reach, who holds the connection, its level with a menu to change it, a **Can submit
   feedback** checkbox under its details (when a tool fails or confuses it, it may tell the
   developer of WhatBuild), and disconnect. Connected agents appear here and nowhere else. Last,

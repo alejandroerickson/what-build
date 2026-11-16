@@ -1,63 +1,8 @@
 /* Connect an agent, the person's settings, and the screens outside the shell: sign-in, welcome, invitations. */
 
-/* Connect an agent */
+/* Connect an agent: what only Settings adds to the steps (connect-steps.css): limiting the agent, its levels. */
 .agents-intro {
-  border-bottom: 1px solid var(--line);
-}
-.agents-steps {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-.agents-step {
-  display: grid;
-  grid-template-columns: var(--col-face) minmax(0, 1fr);
-  gap: var(--s-2h);
-  padding: var(--s-3) var(--sheet-px) var(--s-3h);
-  border-bottom: 1px solid var(--line);
-}
-.agents-step:last-child {
-  border-bottom: 0;
-}
-.agents-step-n {
-  display: inline-grid;
-  place-items: center;
-  width: 20px;
-  height: 20px;
-  margin-top: -1px;
-  border: 1px solid var(--line-2);
-  border-radius: 50%;
-  color: var(--muted);
-  font-size: var(--fs-xs);
-}
-.agents-step-title {
-  margin: 0;
-  font-size: var(--fs-base);
-  font-weight: var(--fw-medium);
-  letter-spacing: 0;
-  line-height: 18px;
-}
-.agents-step-body {
-  min-width: 0;
-}
-.agents-step-body > p {
-  margin: var(--s-1) 0 0;
-  max-width: 66ch;
-  color: var(--muted);
-  line-height: 1.5;
-}
-.agents-step-body .copy-field {
-  margin-top: var(--s-2);
-}
-.agents-address .copy-field {
-  margin-top: 0;
-}
-.agents-address {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: var(--s-1);
-  max-width: 66ch;
-  margin-top: var(--s-2);
+  padding-bottom: var(--s-3);
 }
 .agents-reach {
   display: grid;

@@ -241,7 +241,7 @@
   text-wrap: pretty;
 }
 
-/* A card with no picture yet: one line, and for a writer the request that gets one drawn. */
+/* A card with no picture yet: one line, and for a writer with an agent the request that gets one drawn. */
 .idea-no-front {
   display: grid;
   gap: var(--s-2);
@@ -255,6 +255,11 @@
   font-size: var(--fs-base);
   font-weight: var(--fw-medium);
   line-height: var(--lh-body);
+}
+.idea-no-front-lead {
+  margin: 0 0 var(--s-1h);
+  color: var(--muted);
+  font-weight: var(--fw-medium);
 }
 .idea-no-front-ask {
   display: flex;

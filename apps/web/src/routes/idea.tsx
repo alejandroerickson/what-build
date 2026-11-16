@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { IDEA_CARD_SANDBOX } from "@whatbuild/core/page-sandbox";
 import { useEffect, useId, useLayoutEffect, useRef, useState, type HTMLAttributes, type ReactNode, type Ref } from "react";
 import { useSearchParams } from "react-router";
+import { useConnectedAgentCount } from "../lib/agents.ts";
 import { api, ApiError, qs } from "../lib/api.ts";
 import { attribution, plural, quotedAtEnd, relativeTime } from "../lib/format.ts";
 import { Markdown } from "../lib/markdown.tsx";
@@ -10,6 +11,7 @@ import { useProduct } from "../lib/session.tsx";
 import { PanelContext, PanelFilter, PanelSection } from "../shell/slots.tsx";
 import { useScheme } from "../shell/theme.ts";
 import { Button, ButtonLink, EmptyState, ErrorCallout, FrameStopped, Glyph, Loading, Menu, MenuItem, MenuSeparator, StatusBadge, useToast } from "../ui/index.tsx";
+import { ConnectYourAgent } from "./connect-steps.tsx";
 import { DeleteDialog } from "./delete-dialog.tsx";
 import { FirstUse } from "./first-use.tsx";
 import { PHONE_QUERY, useMediaQuery } from "../ui/media.ts";
@@ -90,9 +92,14 @@ function CardFront({ src, title, onHeight }: { src: string; title: string; onHei
   );
 }
 
-/** A card with no picture yet: one line, and the request that gets one drawn. */
+/**
+ * A card with no picture yet: one line, and the request that gets one drawn, said to be for the
+ * person's agent. Someone who could ask has it once they have an agent connected; until then
+ * Connect your agent, above, is what to do, and the card shows its text alone.
+ */
 function NoFront({ ask }: { ask: string }) {
   const { canWrite } = useProduct();
+  const agents = useConnectedAgentCount(canWrite);
   const toast = useToast();
   const [copied, setCopied] = useState(false);
   const copy = () =>
@@ -104,15 +111,19 @@ function NoFront({ ask }: { ask: string }) {
         toast("Copied. Paste it to your agent.");
       })
       .catch(() => toast("Couldn’t copy. Select the text and copy it.", { tone: "negative" }));
+  if (canWrite && !agents) return null;
   return (
     <div className="idea-no-front">
       <p className="idea-no-front-title">No picture yet</p>
       {canWrite ? (
-        <div className="idea-no-front-ask">
-          <q className="idea-no-front-request">{ask}</q>
-          <Button size="sm" icon={copied ? "check" : "copy"} onClick={copy} aria-label="Copy the request for your agent">
-            {copied ? "Copied" : "Copy"}
-          </Button>
+        <div className="idea-no-front-agent">
+          <p className="idea-no-front-lead">In your agent, ask:</p>
+          <div className="idea-no-front-ask">
+            <q className="idea-no-front-request">{ask}</q>
+            <Button size="sm" icon={copied ? "check" : "copy"} onClick={copy} aria-label="Copy the request for your agent">
+              {copied ? "Copied" : "Copy"}
+            </Button>
+          </div>
         </div>
       ) : null}
     </div>
@@ -350,6 +361,7 @@ export function IdeaPage() {
   return (
     <div className="idea">
       <h1 className="visually-hidden">Idea</h1>
+      <ConnectYourAgent />
       <ConceptCard />
       <IdeaPanel includeArchived={includeArchived} />
       <section className="idea-outcomes" aria-labelledby="outcomes-h">
@@ -388,13 +400,14 @@ export function IdeaPage() {
             ) : (
               <FirstUse
                 title="No outcomes yet"
+                connectAbove
                 ask={
                   product.concept?.trim()
                     ? `Propose outcomes for ${product.name} in WhatBuild from its product concept, and add the ones I agree to, each as a card with its picture and text.`
                     : `Interview me about ${product.name}, then write its product concept and outcomes in WhatBuild, each as a card with its picture and text.`
                 }
               >
-                An outcome is what the product&rsquo;s users should be able to achieve. Outcomes are the compass: the evidence, mockups and Story are read against them.
+                An outcome is what the product&rsquo;s users should be able to achieve.
               </FirstUse>
             )}
           </div>

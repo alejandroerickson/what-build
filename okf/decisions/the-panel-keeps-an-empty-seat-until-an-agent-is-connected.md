@@ -1,9 +1,9 @@
 ---
 type: Decision
 title: The panel keeps an empty seat for an agent until one is connected
-description: Until a person has an agent connected, the panel holds a card that says so and what a person misses without one, opening Settings at Agents, for every role, with no dismissal, because most of WhatBuild happens through an agent.
+description: Until a person has an agent connected, the panel holds a card that says so, opening Settings at Agents, for every role, with no dismissal, because most of WhatBuild happens through an agent.
 tags: [decision, web, design, onboarding, agents]
-generated: {by: agent:claude, at: 2026-11-13}
+generated: {by: agent:claude, at: 2026-11-15}
 status: stable
 ---
 
@@ -21,14 +21,17 @@ the row itself widened into a card. The maintainer chose the card on 2026-11-01,
 shows for every kind of user until an agent is connected, rather than for editors only or with a
 dismissal. Since 2026-11-08 agents are in Settings and the panel has no row for them
 ([decision](the-panel-shows-one-product-and-everything-else-is-in-settings.md)), so the seat is
-the panel's only mention of agents, and only while none is connected.
+the panel's only mention of agents, and only while none is connected. Since 2026-11-15 the steps to
+connect one are at the top of Idea for anyone who can write there
+([decision](idea-leads-with-connect-your-agent-until-an-agent-is-connected.md)), and the seat says
+only that no agent is connected.
 
 ## Decision
 
 - While the person's account-wide list of connected agents is empty, the panel's quiet group
   starts with the **empty seat** (`AgentSeat` in `apps/web/src/shell/agent-seat.tsx`): a card
-  saying "No agent connected", that without one a person sees less than half of WhatBuild, and
-  Connect an agent as the panel's one accent button, which opens Settings at Agents over the screen.
+  saying "No agent connected", with Connect an agent as the panel's one accent button, which opens
+  Settings at Agents over the screen.
 - It shows for **every role**, a Story reader included (under the Story), on every screen the panel is
   on, an organization with no product included. Once an agent is connected nothing takes its
   place: agents are in Settings.
@@ -51,8 +54,8 @@ the panel's only mention of agents, and only while none is connected.
 
 ## Constrains
 
-- The empty seat and the first-use states ask the same query (`AGENTS_KEY`), so the two never
-  disagree about whether an agent is connected.
+- The empty seat, Connect your agent on Idea and the first-use states ask the same query
+  (`AGENTS_KEY`), so they never disagree about whether an agent is connected.
 - The seat is the one accent button in the panel: nothing else in the panel takes a primary button
   ([Earned Accent Rule](../../apps/web/DESIGN.md)).
 
