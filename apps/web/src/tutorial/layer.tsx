@@ -169,6 +169,8 @@ export function TutorialLayer() {
   const [announce, setAnnounce] = useState("");
   const [entered, setEntered] = useState(false);
   const liveEl = useRef<HTMLElement | null>(null);
+  /** What the stop lit when last measured, which the light follows as it changes size. */
+  const litEls = useRef<Element[]>([]);
   const titleId = useId();
   const lineId = useId();
   const { current, mode, phase, at, stops } = t;
@@ -181,11 +183,13 @@ export function TutorialLayer() {
     if (mode !== "stop" || !current || current.stage || !current.target) {
       setHole(null);
       liveEl.current = null;
+      litEls.current = [];
       return true;
     }
     // While the tutorial presses what opens it, that alone is lit; once open, what it opened.
     const lit = current.presses && t.reveal !== "open" ? current.presses : current.target;
     const els = TARGETS[lit]().filter((e): e is Element => Boolean(e));
+    litEls.current = els;
     if (!els.length) return false;
     const aimed = current.aim ? TARGETS[current.aim]()[0] : null;
     const a = aimed ? aimed.getBoundingClientRect() : null;
@@ -207,17 +211,28 @@ export function TutorialLayer() {
     let frame = 0;
     let found = 0;
     const began = performance.now();
+    const onResize = () => measure();
+    const ro = new ResizeObserver(onResize);
+    // What the stop lights can change size on its own (the canvas's toolbar wraps onto a second row as
+    // the window narrows), so the light follows it as well as the window.
+    const watched = new Set<Element>();
+    const watch = () => {
+      for (const el of litEls.current)
+        if (!watched.has(el)) {
+          watched.add(el);
+          ro.observe(el);
+        }
+    };
     const tick = () => {
       const ok = measure();
+      watch();
       if (ok && !found) found = performance.now();
       const now = performance.now();
       // Keep following for a moment after it is found, through panels sliding and a fold opening; give up looking after a few seconds.
       if ((found && now - found < 900) || (!found && now - began < 4000)) frame = requestAnimationFrame(tick);
     };
     tick();
-    const onResize = () => measure();
     window.addEventListener("resize", onResize);
-    const ro = new ResizeObserver(onResize);
     const main = q(".stage");
     if (main) ro.observe(main);
     return () => {

@@ -511,7 +511,16 @@
   align-items: center;
   min-width: 0;
 }
+/* One line where there is room; where there is not, the words wrap beside the signpost, never under it alone. */
+/* Doubled, to win over the banner's own .example-line, which may load after this file. */
+.example-line.tut-examples-line {
+  flex-wrap: nowrap;
+}
+.tut-examples-line > span {
+  min-width: 0;
+}
 .tut-examples-line .glyph {
+  flex: none;
   color: var(--warn);
 }
 .tut-screen {

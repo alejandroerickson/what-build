@@ -588,7 +588,8 @@ around one thing at a time and a small bubble names it.
   state at once. With reduced motion the changes are made at once. Leaving the open stop closes
   what it opened.
 - **The page holds still.** Nothing under the dark or in the light can be clicked, scrolled or
-  opened; clicking the dark points at Finish later. Two things are there to be tried: at the canvas
+  opened; clicking the dark points at Finish later. No app shortcut reaches the page, and search (/,
+  ⌘K) does not open, even with focus on what is there to be tried. Two things are there to be tried: at the canvas
   stop the canvas works, with its keys 1, 2, 3, V, H and F (each key cap in the bubble turns green
   with a check once that key or its toolbar button is used), and the View switch two stops on.
   Entering the canvas stop puts the canvas back whole, in Canvas view and pan mode. F, and the

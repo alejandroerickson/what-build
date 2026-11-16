@@ -222,10 +222,19 @@ export function TutorialProvider({ target, inside, children }: { target: Tutoria
   const restoreFocus = () => {
     const back = returnTo.current;
     returnTo.current = null;
-    requestAnimationFrame(() => {
-      if (back?.isConnected && !back.closest("[inert]")) back.focus({ preventScroll: true });
-      else accountButton()?.focus({ preventScroll: true });
-    });
+    // The page behind stays inert until React has drawn the tutorial closed, which may be a frame or
+    // two after this; a focus() on an inert element does nothing, so try again until it is not.
+    let frames = 0;
+    const attempt = () => {
+      const target = back?.isConnected && back !== document.body ? back : accountButton();
+      if (!target) return;
+      if (target.closest("[inert]")) {
+        if (++frames < 30) requestAnimationFrame(attempt);
+        return;
+      }
+      target.focus({ preventScroll: true });
+    };
+    requestAnimationFrame(attempt);
   };
 
   /** Closes into the account menu: the card shrinks to a pill, the examples fade, the pill flies, the account button pulses. */

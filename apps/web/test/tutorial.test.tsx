@@ -600,3 +600,31 @@ describe("the toolbar as a diagram", () => {
     expect(placed[0]!.points[0]).toEqual({ x: 314, y: 680 });
   });
 });
+
+describe("the keys while it is up", () => {
+  it("keeps / (search) from the page even from the thing in the light, and lets the canvas's own keys through", async () => {
+    const { setKeyPolicy } = await import("../src/tutorial/keys.ts");
+    const layer = document.createElement("div");
+    const live = document.createElement("div");
+    const control = document.createElement("button");
+    live.append(control);
+    document.body.append(layer, live);
+    const heard: string[] = [];
+    const listen = (e: KeyboardEvent) => heard.push(e.key);
+    window.addEventListener("keydown", listen);
+    setKeyPolicy({ layer: () => layer, live: () => live, canvasKeys: true, onEscape: () => {} });
+    try {
+      for (const key of ["/", "1", "v", "x"]) control.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true }));
+      // The search shortcut never reaches the app's listener; the canvas's keys do, and the light's own (x) as without the tutorial.
+      expect(heard).toEqual(["1", "v", "x"]);
+      heard.length = 0;
+      const bubbleButton = document.createElement("button");
+      layer.append(bubbleButton);
+      bubbleButton.dispatchEvent(new KeyboardEvent("keydown", { key: "/", bubbles: true, cancelable: true }));
+      expect(heard).toEqual([]);
+    } finally {
+      setKeyPolicy(null);
+      window.removeEventListener("keydown", listen);
+    }
+  });
+});

@@ -26,7 +26,9 @@ and reaches a product by clicking, as a person arrives, never by opening a produ
    overview, with **Take the tutorial** first, above Settings.
 3. **Web, as Casey.** Reload, then open a product from the panel. *Expect:* no welcome either time.
    Take the tutorial from the account menu and walk every stop with Next and Go to <page>, in
-   light, at 1280 wide or more. *Expect:* 20 stops ("1 of 20" … "20 of 20"), each lighting the
+   light, at 1280 wide or more. *Expect:* 19 stops ("1 of 19" … "19 of 19"): the MCP client of step 1
+   is an agent connected, so the tutorial ends on the agent stage and has no Connect an agent stop
+   (step 10 walks the twenty). Each stop lights the
    thing its title names and nothing else clickable; each page reached by real navigation (the
    address changes) and entered at its item in the navigation; the product's own content replaced
    by examples marked Tutorial, under the line "Tutorial examples. They disappear when you close
@@ -54,30 +56,34 @@ and reaches a product by clicking, as a person arrives, never by opening a produ
    width 3, Fit the canvas 1, Previous page ←, Next page →, Keyboard shortcuts), no label
    overlapping another or leaving the window, the bubble clear of the bar and the labels, at 1024,
    1280 and 1440 wide, in light and in dark. Clicking the toolbar does nothing. Go on and switch
-   View to Clickable prototype and back. *Expect:* the switch works. Press / and F. *Expect:* no
-   search and no focus mode. Click the dark. *Expect:* Finish later is pointed at, and nothing
+   View to Clickable prototype and back. *Expect:* the switch works. With focus still on the
+   switch, press / and F; then in the bubble. *Expect:* no search and no focus mode either time
+   (and no search from a canvas toolbar button at the canvas stop). At the toolbar stop at 1100
+   wide, narrow the window to 1024. *Expect:* the light grows with the toolbar onto its second row. Click the dark. *Expect:* Finish later is pointed at, and nothing
    closes. Close at the canvas and at the toolbar and resume at each from the account menu.
 6. **Web, as Casey, at the agent stage.** *Expect:* most of the screen, a chat in the opposite
    theme to the app's beside a small WhatBuild whose four pages fill in as the agent calls
-   `sources_write`, `outcomes_write`, `mockups_write` and `story_write`; Replay starts it again.
+   `sources_write` (create), `outcomes_write` (create), `mockups_write` (publish) and `story_write`
+   (publish); Replay starts it again. Its button reads Finish.
    Press Esc. *Expect:* it closes at stop 19 into the account menu, and the product's own content
-   is back. Reload, and open the account menu. *Expect:* **Resume tutorial**, "Stop 19 of 20 ·
+   is back. Reload, and open the account menu. *Expect:* **Resume tutorial**, "Stop 19 of 19 ·
    Story", with a bar; the tutorial is not open.
 7. **Web, as Casey, in a second browser.** Sign in. *Expect:* the account menu still says Resume
-   tutorial at stop 19. Resume, go on to Connect an agent and press it. *Expect:* it flies into the
-   account button, Settings opens at Agents, and a toast says "Tutorial finished. It stays in your
-   account menu."; the menu then offers **Take the tutorial again**.
+   tutorial at stop 19. Resume, and press Finish. *Expect:* it flies into the account button, focus
+   goes back to the account button, and a toast says "Tutorial finished. It stays in your account
+   menu."; the menu then offers **Take the tutorial again**.
 8. **MCP, as Casey.** List the same sources, mockups and Story pages as in step 1. *Expect:* the
    same counts and titles: nothing was added, changed or archived.
 9. **Web, as Avery, from the sign-in page.** Wait on the screen you land on, then open the synthetic
-   organization's Story. *Expect:* no welcome on either, and no tutorial item in the account menu. **Below 1024 wide (1023 × 768), as Casey:** no welcome and no item. At 1024 wide, the welcome.
+   organization's Story. *Expect:* no welcome on either, and no tutorial item in the account menu. **Below 1024 wide (1023 × 768), as someone not yet offered it (Sam):** no welcome and no item. At 1024 wide, the welcome.
    With the tutorial up at 1100 wide, narrow the window to 900. *Expect:* it closes at its stop with
    the toast "The tutorial is in your account menu."; widened again, the menu offers Resume.
 10. **Web, as a guest of the example organization, in dark.** Sign in with a new address and wait on
    the screen you land on. *Expect:* the welcome there, before any click. Start the tutorial.
    *Expect:* the product's Idea, at stop 1. Walk it. *Expect:* the same 20 stops on the same examples, Promote canvas to Story and the rest shown as for an editor,
    the tutorial's line in place of the example's banner while it runs; the last stop lights the
-   "No agent connected" seat. Everything in the bubble, the welcome, the pill and the badges reads
+   "No agent connected" seat. Press Connect an agent. *Expect:* it flies into the account button,
+   Settings opens at Agents, and a toast says "Tutorial finished. It stays in your account menu." Everything in the bubble, the welcome, the pill and the badges reads
    in dark. Repeat a few stops at 1024 wide. *Expect:* the bubble stays inside the window and never
    covers what it names.
 

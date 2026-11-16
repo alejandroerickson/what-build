@@ -78,6 +78,12 @@ function guard(e: KeyboardEvent) {
     e.stopImmediatePropagation();
     return;
   }
+  // Search opens over the whole app and leaves the tutorial behind, so / stays out even from the thing in the light.
+  if (plain && e.key === "/") {
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    return;
+  }
   // Inside what is there to be tried, everything works as it does without the tutorial.
   if (inside(p.live(), target) && !e.metaKey && !e.ctrlKey) return;
   e.stopImmediatePropagation();
