@@ -3,7 +3,7 @@ type: System Concept
 title: A copy of production on your machine, for manual QA, agent-driven end-to-end tests and trying migrations on real data
 description: Pulling the example organization or other organizations the deployment's instance owners own, with their files, loading them into the embedded Postgres, serving them with pending migrations applied, and keeping the copy private.
 tags: [development, testing, qa, production, fixture, migrations]
-generated: {by: agent:claude, at: 2026-10-27}
+generated: {by: agent:claude, at: 2026-11-16}
 status: stable
 ---
 
@@ -69,7 +69,9 @@ folders of the files bucket,
 `gs://<project>-whatbuild-files`, with the type and hash the local file store keeps for each file.
 The files matter: they are the sources' attachments and the text read from each, so without them
 a source keeps its derived text, but no attachment opens and none can be read again. Pulling reads production and changes nothing there. What a copy holds and leaves behind,
-and every option, are in [copying an organization](copying-an-organization.md).
+and every option, are in [copying an organization](copying-an-organization.md), which also says
+why a pull from a database on Neon drops the `pg_attver` column options that the embedded Postgres
+refuses.
 
 `pnpm dataset` builds [the non-production dataset](the-non-production-dataset.md) from a pull: the
 same organizations beside synthetic ones of a size and shape chosen for testing, loaded as a pull

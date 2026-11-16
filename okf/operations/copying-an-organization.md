@@ -3,7 +3,7 @@ type: System Concept
 title: Copying an organization out of a deployment, into a local copy, the golden master, the dev deployment or another deployment's new database
 description: What a copy of one or more organizations holds and leaves behind, which organizations a copy outside production may hold (only those an instance owner owns), taking one with pnpm fixture pull, where each kind of copy goes, moving an organization into another deployment, and what a copy cannot do.
 tags: [operations, production, privacy, tenancy, fixture, dev, migrations]
-generated: {by: agent:claude, at: 2026-11-09}
+generated: {by: agent:claude, at: 2026-11-16}
 status: draft
 ---
 
@@ -54,6 +54,12 @@ one snapshot, as `pg_dump` reads, through a role that sees every organization an
 production's backup role. Only their rows are read. They are written into a scratch database in
 the embedded Postgres, every foreign key and file key is checked, and that database is dumped and
 dropped. So a copy is an ordinary dump that restores like any other.
+
+A database on Neon gives its columns a `pg_attver` option, which `pg_dump` writes into the schema
+(`ALTER TABLE ONLY … ALTER COLUMN … SET (pg_attver=…)`) and any other Postgres refuses
+(`unrecognized parameter "pg_attver"`). The pull takes that option out as it loads the schema into
+the scratch database, and stops at any other error. A copy carries none, so it restores into any
+Postgres.
 
 The copy refuses a table it has no rule for. A table either carries `tenant_id` or is named in
 `apps/server/src/organization-copy.ts`, as the deployment's own or as copied whole.
