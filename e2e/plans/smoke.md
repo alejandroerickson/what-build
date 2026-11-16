@@ -76,8 +76,10 @@ other plans will too.
    no longer shows Connect your agent and the panel no longer shows the seat. The golden master's
    products have something in every list, so make one with none: **as Riley**, create a product in
    the standard organization from the overview's New product, with a name of the run's own and no
-   concept; Sam edits it, as every product there. **As Sam**, open its Idea, Evidence, Exploration and
-   Story. *Expect:* each says "No … yet", and the line over its request reads "In your agent, ask:".
+   concept; Sam edits it, as every product there. (If the organization's plan refuses another
+   product, report the refusal's words and skip the rest of this step.) **As Sam**, open its Idea,
+   Evidence, Exploration and Story. *Expect:* each says "No … yet", and the line over its request
+   reads "In your agent, ask:".
    **As Riley**, delete the product (Settings → the product's General).
 10. **Web and MCP, as a guest.** Sign in as `guest@example.com` on the web, then connect over MCP as
     the same address. *Expect:* the overview lists the example organization, marked Example

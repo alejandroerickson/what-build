@@ -29,7 +29,8 @@ are people she invites.
    Free, and the product opens on Idea under **Connect your agent**, since Dana has no agent
    connected: "Not connected yet" at its right, a choice of Claude, Claude Code or Another agent,
    and four numbered steps for the one chosen. Nothing closes it; leave it and go on from the panel.
-   The panel shows the organization and its product, its seat saying only "No agent connected";
+   The panel shows the organization and its product, its seat saying only "No agent connected",
+   with Connect an agent;
    Settings (the panel's Settings row) lists the product's General, People and Export, the
    organization's General, People, Plan and Access changes, and Account and Agents; its Plan says
    Free, "1 of 2" people.
