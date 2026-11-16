@@ -1,6 +1,7 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useState, type ReactNode } from "react";
 import { api } from "../lib/api.ts";
+import { formatBytes, plural } from "../lib/format.ts";
 import { Button, Dialog, ErrorCallout, Loading, TextArea, TextField, tooLong } from "../ui/index.tsx";
 
 /** The limit the server sets on why something is deleted. */
@@ -110,4 +111,13 @@ export function DeleteDialog<I extends object>({ title, impactPath, etag, delete
 export function listed(parts: (string | false | null | undefined)[]): string {
   const kept = parts.filter((p): p is string => Boolean(p));
   return kept.length <= 1 ? (kept[0] ?? "") : `${kept.slice(0, -1).join(", ")} and ${kept.at(-1)}`;
+}
+
+/**
+ * The files a deletion erases, as its dialog says them: the count `storedFiles` reports, which keeps
+ * the text read from an attachment as a file of its own, so one attachment is usually two. Deleting
+ * a product and deleting an organization say it the same way.
+ */
+export function storedFilesWords(n: number, bytes: number): string {
+  return `${plural(n, "stored file")} (${formatBytes(bytes)}, with the text read from an attachment counted as a file of its own)`;
 }

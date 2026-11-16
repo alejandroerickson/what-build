@@ -256,25 +256,7 @@
   font-weight: var(--fw-medium);
   line-height: var(--lh-body);
 }
-.idea-no-front-lead {
-  margin: 0 0 var(--s-1h);
-  color: var(--muted);
-  font-weight: var(--fw-medium);
-}
-.idea-no-front-ask {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--s-2);
-}
-.idea-no-front-request {
-  flex: 1 1 220px;
-  padding: var(--s-1h) var(--s-2h);
-  border-radius: var(--r-sm);
-  background: var(--hover);
-  font-size: var(--fs-base);
-  quotes: none;
-}
+/* The request on a card is shown as every request for an agent is (`.agent-request`, in ui.css). */
 
 /* An archived outcome, listed with Include archived, and the one a search result opened. */
 .idea-card.is-archived {

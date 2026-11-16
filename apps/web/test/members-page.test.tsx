@@ -21,7 +21,7 @@ HTMLDialogElement.prototype.close ??= function (this: HTMLDialogElement) {
 };
 window.matchMedia ??= ((query: string) => ({ matches: false, media: query, onchange: null, addListener() {}, removeListener() {}, addEventListener() {}, removeEventListener() {}, dispatchEvent: () => false })) as never;
 
-const state = { readOnly: false, refuseGrant: false, guest: false, role: "owner", allProducts: false };
+const state = { readOnly: false, refuseGrant: false, guest: false, role: "owner", allProducts: false, onlyOwner: false, invited: false, roomFor: 0 };
 const calls: { method: string; path: string; body?: Record<string, unknown> }[] = [];
 
 const tenant = () => ({
@@ -31,7 +31,7 @@ const tenant = () => ({
 const members = () => state.guest ? { members: [], invitations: [], guest: true } : ({
   members: [
     { account_id: "a1", display_name: "Olive Owner", email: "olive@example.com", grants: [{ membership_id: "m1", scope_type: "tenant", scope_id: "t1", scope: { name: "Acme", slug: "acme" }, role: "owner", since: "" }] },
-    { account_id: "a2", display_name: "Pat Editor", email: "pat@example.com", grants: [{ membership_id: "m2", scope_type: "product", scope_id: "p1", scope: { name: "Planner", slug: "planner" }, role: "editor", since: "" }] },
+    ...(state.onlyOwner ? [] : [{ account_id: "a2", display_name: "Pat Editor", email: "pat@example.com", grants: [{ membership_id: "m2", scope_type: "product", scope_id: "p1", scope: { name: "Planner", slug: "planner" }, role: "editor", since: "" }] }]),
     ...(state.allProducts
       ? [
           {
@@ -44,7 +44,7 @@ const members = () => state.guest ? { members: [], invitations: [], guest: true 
         ]
       : []),
   ],
-  invitations: [],
+  invitations: state.invited ? [{ invitation_id: "i1", email: "ivy@example.com", scope_type: "product", scope_id: "p1", scope: { name: "Planner" }, role: "editor", expires_at: "2026-11-20T00:00:00.000Z" }] : [],
 });
 
 vi.mock("../src/lib/api.ts", async (original) => ({
@@ -58,7 +58,7 @@ vi.mock("../src/lib/api.ts", async (original) => ({
     if (method === "GET" && path === "/api/v1/tenants/acme/members") return members();
     if (method === "POST" && path === "/api/v1/tenants/acme/members/many" && state.refuseGrant)
       throw new ApiError(409, "quota_exceeded", "This organization's plan allows 2 people, and it has 2. Story readers don't count: invite someone who reads only the Story as a Story reader (story_reader).", {
-        quota: "members_max", limit: 2, used: 2, unit: "people", email: "new@example.com", room_for: 0,
+        quota: "members_max", limit: 2, used: 2, unit: "people", email: (body!.people as { email: string }[])[state.roomFor]!.email, room_for: state.roomFor,
       });
     if (path === "/api/v1/plans") return { plans: [{ id: "free", name: "Free", about: "", price: null, limits: {} }], starting_plan: "free", limits: [], file_max_bytes: 0, contact: null };
     if (method === "POST" && path === "/api/v1/tenants/acme/members/many")
@@ -75,7 +75,7 @@ afterEach(() => {
   unmount = null;
   document.body.innerHTML = "";
   calls.length = 0;
-  Object.assign(state, { readOnly: false, refuseGrant: false, guest: false, role: "owner", allProducts: false });
+  Object.assign(state, { readOnly: false, refuseGrant: false, guest: false, role: "owner", allProducts: false, onlyOwner: false, invited: false, roomFor: 0 });
 });
 
 async function page() {
@@ -105,7 +105,7 @@ async function page() {
       </QueryClientProvider>,
     );
   });
-  for (let i = 0; i < 20 && !host.textContent?.includes("Pat Editor") && !host.textContent?.includes("example organization"); i++) await act(() => new Promise((r) => setTimeout(r, 5)));
+  for (let i = 0; i < 20 && !host.textContent?.includes(state.onlyOwner ? "Olive Owner" : "Pat Editor") && !host.textContent?.includes("example organization"); i++) await act(() => new Promise((r) => setTimeout(r, 5)));
   return host;
 }
 
@@ -259,7 +259,8 @@ describe("an organization's People and General", () => {
     await settle();
     const callout = [...dialog.querySelectorAll(".callout")].find((c) => c.textContent?.includes("plan holds"))!;
     expect(callout.querySelector(".callout-title")?.textContent).toBe("Acme’s Free plan holds 2 people");
-    expect(callout.querySelector(".callout-text")?.textContent).toBe("To add new@example.com, cancel an invitation or remove someone. Story readers don’t count. Compare plans");
+    // Nobody is invited, so there's no invitation to cancel; Pat could be removed.
+    expect(callout.querySelector(".callout-text")?.textContent).toBe("No places are left for new@example.com. Remove someone. Story readers don’t count. Compare plans");
     expect(callout.querySelector("a")?.getAttribute("href")).toBe("/plans");
     expect(callout.querySelector("a")?.getAttribute("target")).toBe("_blank");
     // The refusal's own words are for agents.
@@ -270,6 +271,51 @@ describe("an organization's People and General", () => {
       role.dispatchEvent(new Event("change", { bubbles: true }));
     });
     expect(dialog.textContent).not.toContain("plan holds");
+  });
+
+  it("says how many places are left when some of the addresses fit, and offers only the ways to make room that exist", async () => {
+    Object.assign(state, { refuseGrant: true, onlyOwner: true, roomFor: 1 });
+    const host = await page();
+    await act(async () => buttons(host, "Add people")[0]!.click());
+    const dialog = document.querySelector("dialog[open]")!;
+    await type(dialog.querySelector("textarea")!, "ana@example.com, ben@example.com");
+    await act(async () => buttons(dialog, "Add 2 people to all products")[0]!.click());
+    await act(async () => buttons(dialog, "Add 2 people")[0]!.click());
+    await settle();
+    const callout = [...dialog.querySelectorAll(".callout")].find((c) => c.textContent?.includes("plan holds"))!;
+    // Only the owner is in Acme and nobody is invited: neither cancelling nor removing is offered.
+    expect(callout.querySelector(".callout-text")?.textContent).toBe("Nothing was saved. There’s room for 1 more person. Add fewer people. Story readers don’t count. Compare plans");
+  });
+
+  it("offers cancelling an invitation only when one is open", async () => {
+    Object.assign(state, { refuseGrant: true, onlyOwner: true, invited: true });
+    const host = await page();
+    await act(async () => buttons(host, "Add people")[0]!.click());
+    const dialog = document.querySelector("dialog[open]")!;
+    await type(dialog.querySelector("textarea")!, "new@example.com");
+    await act(async () => buttons(dialog, "Add 1 person to all products")[0]!.click());
+    await act(async () => buttons(dialog, "Add 1 person")[0]!.click());
+    await settle();
+    const callout = [...dialog.querySelectorAll(".callout")].find((c) => c.textContent?.includes("plan holds"))!;
+    expect(callout.querySelector(".callout-text")?.textContent).toBe("No places are left for new@example.com. Cancel an invitation. Story readers don’t count. Compare plans");
+  });
+
+  it("says what is waiting by the button's own words, and one invitation as one", async () => {
+    const host = await page();
+    await act(async () => buttons(host, "Add people")[0]!.click());
+    const dialog = document.querySelector("dialog[open]")!;
+    await act(async () => buttons(dialog, "Paste addresses")[0]!.click());
+    await type(dialog.querySelector("textarea")!, "ana@example.com");
+    await act(async () => buttons(dialog, "Add 1 person to all products")[0]!.click());
+    expect(dialog.querySelector('[role="status"]')?.textContent).toBe("Moved 1 person across as editor. Nothing changes until you choose Add 1 person.");
+    expect(buttons(dialog, "Add 1 person")).toHaveLength(1);
+    await act(async () => buttons(dialog, "Add 1 person")[0]!.click());
+    await settle();
+    const made = document.querySelector("dialog[open]")!;
+    expect(made.querySelector(".callout-title")?.textContent).toBe("Invitation created");
+    expect(made.querySelector(".callout-text")?.textContent).toBe(
+      "ana@example.com joins on accepting. We email the invitation where email is set up, and you can share its link yourself: it works once, within 7 days, and only for that address.",
+    );
   });
 
   it("says a read-only organization is read-only, and offers only what still works there", async () => {

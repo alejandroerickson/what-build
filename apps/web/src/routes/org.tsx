@@ -3,7 +3,7 @@ import { READ_ONLY_ALLOWS } from "@whatbuild/core/read-only";
 import { useState } from "react";
 import { Link, useNavigate } from "react-router";
 import { api, ApiError, qs } from "../lib/api.ts";
-import { aRole, formatBytes, formatDate, plural, ROLE_WORD, roleWords, scopeWords, slugProblem } from "../lib/format.ts";
+import { aRole, formatDate, plural, ROLE_WORD, roleWords, scopeWords, slugProblem } from "../lib/format.ts";
 import { keptLine, usePlans, type Plan } from "../lib/limits.ts";
 import { useMe, useProducts } from "../lib/session.tsx";
 import { ActivityLog, type ActivityItem } from "../shell/ActivityFeed.tsx";
@@ -13,7 +13,7 @@ import {
   SelectField, Sheet, SheetBody, SheetHeader, StatusBadge, TextArea, TextField, useToast, tooLong,
 } from "../ui/index.tsx";
 import { EntryPage, NotVisible } from "./auth.tsx";
-import { DeleteDialog, listed } from "./delete-dialog.tsx";
+import { DeleteDialog, listed, storedFilesWords } from "./delete-dialog.tsx";
 import { PeopleEditor, type EditorTarget } from "./people-editor.tsx";
 import { AskForOrganization } from "../shell/ask-for-organization.tsx";
 import { Contact, useContact } from "../shell/contact.tsx";
@@ -664,7 +664,7 @@ export interface OrganizationImpact {
  */
 export function organizationImpactWords(name: string, c: OrganizationImpact["contents"]): { goes: string; people: string | null } {
   const held = listed([c.products.length > 0 && (c.products.length === 1 ? "its product" : `all ${c.products.length} of its products`)]);
-  const within = listed([c.sources > 0 && plural(c.sources, "source"), c.stored_files > 0 && `${plural(c.stored_files, "stored file")} (${formatBytes(c.bytes)})`]);
+  const within = listed([c.sources > 0 && plural(c.sources, "source"), c.stored_files > 0 && storedFilesWords(c.stored_files, c.bytes)]);
   const lose = c.people > 0 && `${c.people === 1 ? "1 person loses" : `${c.people} people lose`} their roles here`;
   const stop = c.pending_invitations > 0 && (c.pending_invitations === 1 ? "1 invitation stops working" : `${c.pending_invitations} invitations stop working`);
   return {

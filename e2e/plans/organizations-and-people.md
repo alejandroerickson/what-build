@@ -39,8 +39,8 @@ and **Cleo** are three such addresses, signed in with `pnpm e2e browser signin <
    *Expect:* a toast says Ana can start an organization; Ana leaves the Waitlist and appears under
    Who can start organizations: "Can have 1 Free organization; has 0", with "1 left". The server's
    log prints the email Ana is sent, which, since she asked, never names Riley: "Your place on
-   WhatBuild is ready", beginning "You joined the WhatBuild waitlist on <today>. Your place is
-   ready.", then "Start your organization, signing in as <Ana's address>:" and a link to
+   WhatBuild is ready", beginning "You joined the WhatBuild waitlist on <today> (UTC). Your place
+   is ready.", then "Start your organization, signing in as <Ana's address>:" and a link to
    `/welcome`. Then press **Let someone start organizations**, give an address of the run's own
    that never asked 1, and keep Tell them by email. *Expect:* the email is "Riley Chen invited you
    to WhatBuild", with no quotation marks, its first line "Riley Chen (riley@example.com) invited

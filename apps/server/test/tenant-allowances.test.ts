@@ -112,12 +112,12 @@ describe("who may create an organization", () => {
     expect(notice.to).toBe("wren@elsewhere.example");
     expect(notice.subject).toBe("Your place on WhatBuild is ready");
     // They asked; they never heard of the owner who let them in, so the owner isn't named.
-    expect(notice.text).toBe(`You joined the WhatBuild waitlist on 15 Nov 2026. Your place is ready.\n\nStart your organization, signing in as wren@elsewhere.example:\n${h.baseUrl}/welcome\n`);
+    expect(notice.text).toBe(`You joined the WhatBuild waitlist on 15 Nov 2026 (UTC). Your place is ready.\n\nStart your organization, signing in as wren@elsewhere.example:\n${h.baseUrl}/welcome\n`);
     expect(notice.text).not.toContain("Owen");
     // Someone who asked today, given more than one: still no count, and the day as mail writes it.
     await h.db.insertInto("interest").values({ interest_id: "01M5TINTEREST0000000000WRO", email: "wynn@elsewhere.example", name: null, organization: null, note: null }).execute();
     await owner.api("PUT", A, { email: "wynn@elsewhere.example", allowed: 2 });
-    expect(h.mailer.sent.at(-1)!.text.split("\n")[0]).toMatch(/^You joined the WhatBuild waitlist on \d{1,2} [A-Z][a-z]{2} \d{4}\. Your place is ready\.$/);
+    expect(h.mailer.sent.at(-1)!.text.split("\n")[0]).toMatch(/^You joined the WhatBuild waitlist on \d{1,2} [A-Z][a-z]{2} \d{4} \(UTC\)\. Your place is ready\.$/);
   });
 
   it("tells someone already let in who is given more by the owner who gave it, not as the waitlist would", async () => {

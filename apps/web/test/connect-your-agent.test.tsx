@@ -166,8 +166,10 @@ describe("Connect your agent, on Idea", () => {
     expect(lead(host)).toBe("In your agent, ask:");
     const noFront = host.querySelector(".idea-no-front")!;
     expect(noFront.textContent).toContain("No picture yet");
-    expect(noFront.querySelector(".idea-no-front-lead")?.textContent).toBe("In your agent, ask:");
-    expect(noFront.querySelector("q")?.textContent).toBe("Draw the picture on Harvest’s product concept card in WhatBuild.");
+    // Shown as the outcomes' request is: the same lead, in quotation marks in its well, Copy under it.
+    expect(noFront.querySelector(".first-use-lead")?.textContent).toBe("In your agent, ask:");
+    expect(noFront.querySelector(".first-use-request q")?.textContent).toBe("Draw the picture on Harvest’s product concept card in WhatBuild.");
+    expect(noFront.querySelector(".first-use-request + .empty-action button")?.textContent).toBe("Copy");
 
     // With an agent connected, coming back reads nothing, and the sheet stays away.
     vi.mocked(api).mockClear();
@@ -182,6 +184,19 @@ describe("Connect your agent, on Idea", () => {
     focusManager.setFocused(undefined);
   });
 
+  it("asks for the product concept before its picture while there is none", async () => {
+    agents = [{ family_id: "f1" }];
+    product.concept = "";
+    try {
+      const host = await mount(<IdeaPage />);
+      const noFront = host.querySelector(".idea-card-concept .idea-no-front")!;
+      expect(noFront.querySelector(".first-use-request q")?.textContent).toBe("Interview me about Harvest, then write its product concept in WhatBuild, as a card with its picture and text.");
+      expect(host.textContent).not.toContain("Draw the picture on Harvest’s product concept card");
+    } finally {
+      product.concept = "Crews log the day's harvest.";
+    }
+  });
+
   it("shows a viewer no picture yet without the request, agent or not", async () => {
     canWrite = false;
     const host = await mount(<IdeaPage />);
@@ -190,7 +205,7 @@ describe("Connect your agent, on Idea", () => {
 });
 
 describe("an empty screen without Connect your agent above it", () => {
-  const evidence = <FirstUse title="No sources yet" ask="Add these meeting notes to Harvest in WhatBuild as a source.">Sources are what you collected.</FirstUse>;
+  const evidence = <FirstUse title="No sources yet" ask="Add the notes and documents I give you to Harvest in WhatBuild, one source each.">Sources are what you collected.</FirstUse>;
 
   it("links Connect an agent to Settings at Agents before the request, with no button for it", async () => {
     const host = await mount(evidence, `${APP}/evidence`);

@@ -160,7 +160,7 @@ export function AdminStarting() {
           ))}
         </div>
       )}
-      {editing ? <AllowanceDialog current={editing === "new" ? null : editing} onClose={() => setEditing(null)} /> : null}
+      {editing ? <AllowanceDialog current={editing === "new" ? null : editing} kindName={kindName} onClose={() => setEditing(null)} /> : null}
       {removing ? (
         <Dialog
           open
@@ -257,7 +257,17 @@ function Waitlist({ q }: { q: ReturnType<typeof useQuery<Allowances>> }) {
   );
 }
 
-function AllowanceDialog({ current, onClose }: { current: Allowance | null; onClose: () => void }) {
+/**
+ * What an allowance counts, as the server counts it (`tenant-allowance.ts`): the organizations the
+ * person started that are on the plan new organizations start on and not read-only.
+ */
+function allowanceCounts(kindName: string | null): string {
+  return kindName
+    ? `The number counts the ${kindName} organizations they’ve started, not read-only ones or ones they’re invited to. Moving one to another plan frees its place.`
+    : "The number counts the organizations they’ve started, not read-only ones or ones they’re invited to.";
+}
+
+function AllowanceDialog({ current, kindName, onClose }: { current: Allowance | null; kindName: string | null; onClose: () => void }) {
   const qc = useQueryClient();
   const toast = useToast();
   const [email, setEmail] = useState(current?.email ?? "");
@@ -282,7 +292,7 @@ function AllowanceDialog({ current, onClose }: { current: Allowance | null; onCl
       onClose={onClose}
       dismissable={!save.isPending}
       title={current ? `How many can ${current.email} start?` : "Let someone start organizations"}
-      description="The number counts every organization they’ve started, not ones they’re invited to."
+      description={allowanceCounts(kindName)}
       footer={
         <>
           <Button onClick={onClose} disabled={save.isPending}>
@@ -302,7 +312,7 @@ function AllowanceDialog({ current, onClose }: { current: Allowance | null; onCl
         }}
       >
         {current ? null : <TextField label="Email" type="email" required maxLength={EMAIL_MAX} value={email} onChange={(e) => setEmail(e.target.value)} hint="The email they sign in with. They don’t need an account yet." />}
-        <TextField label="Organizations they can start" type="number" required min={0} max={1000} step={1} value={allowed} onChange={(e) => setAllowed(e.target.value)} hint={current ? `They’ve started ${current.created}. 0 stops them starting more.` : "0 means none, whatever the default."} />
+        <TextField label="Organizations they can start" type="number" required min={0} max={1000} step={1} value={allowed} onChange={(e) => setAllowed(e.target.value)} hint={current ? `${current.created === 1 ? "1 counts" : `${current.created} count`} now. 0 stops them starting more.` : "0 means none, whatever the default."} />
         <TextField label="Note" optional maxLength={NOTE_MAX} value={note} onChange={(e) => setNote(e.target.value)} hint="Only owners see it." />
         <ChoiceRow label="Tell them by email" hint="Sent only when the number goes up and they can still start one." checked={notify} onChange={(e) => setNotify(e.target.checked)} />
         {taken ? <ErrorCallout inset error={new Error("This email already has an allowance. Close this and use Change on its row.")} /> : save.isError ? <ErrorCallout inset error={save.error} /> : null}

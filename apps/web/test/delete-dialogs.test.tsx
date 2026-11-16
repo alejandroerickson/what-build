@@ -26,7 +26,7 @@ vi.mock("../src/lib/api.ts", async (original) => {
     ...real,
     api: vi.fn(async (method: string, path: string) => {
       if (path === `${BASE}/delete-impact`)
-        return { etag: "product-impact-etag", contents: { sources: 2, stored_files: 0, bytes: 0, comments: 0, outcomes: 0, story_pages: 0, mockups: 0, exports: 0, people: 0 } };
+        return { etag: "product-impact-etag", contents: { sources: 2, stored_files: 2, bytes: 2048, comments: 0, outcomes: 0, story_pages: 0, mockups: 0, exports: 0, people: 0 } };
       if (method === "POST" && path === `${BASE}/archive`) return { product_id: product.product_id, archived_at: "2026-10-02T09:00:00.000Z" };
       if (path === `${BASE}/exports`) return { items: [] };
       if (path.startsWith("/api/v1/me/products")) return { items: [], tenants: [] };
@@ -178,7 +178,7 @@ describe("what a delete dialog counts", () => {
     const products = (n: number) => Array.from({ length: n }, (_, i) => ({ product_id: `p${i}`, name: `Product ${i}`, archived: false }));
     const none = { products: [], sources: 0, stored_files: 0, bytes: 0, people: 0, pending_invitations: 0 };
     expect(organizationImpactWords("Acme", { ...none, products: products(3), sources: 5, stored_files: 1, bytes: 2048, people: 4, pending_invitations: 2 })).toEqual({
-      goes: "Everything in Acme goes at once: all 3 of its products, with 5 sources and 1 stored file (2.0 KB).",
+      goes: "Everything in Acme goes at once: all 3 of its products, with 5 sources and 1 stored file (2.0 KB, with the text read from an attachment counted as a file of its own).",
       people: "4 people lose their roles here, and 2 invitations stop working. Their accounts, and their roles in other organizations, stay.",
     });
     // A new organization: one product, nothing in it yet, and its owner.
@@ -229,6 +229,8 @@ describe("deleting a product", () => {
     await settle();
     expect(document.querySelector("dialog[open] .dialog-title")?.textContent).toBe("Delete Crewboard permanently?");
     expect(footer()).toEqual(["Cancel", "Archive instead", "Delete permanently"]);
+    // The text read from an attachment is stored as a file of its own, and the count says so.
+    expect(document.querySelector("dialog[open] .delete-impact-list li")?.textContent).toBe("2 sources, with 2 stored files (2.0 KB, with the text read from an attachment counted as a file of its own)");
     await act(async () => button("Archive instead").click());
     await settle();
     expect(vi.mocked(api).mock.calls).toContainEqual(["POST", `${BASE}/archive`, { expected_etag: "product-etag" }]);

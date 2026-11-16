@@ -13,7 +13,7 @@ import {
   Avatar, Button, Callout, Dialog, ErrorCallout, FormGrid, Glyph, Loading, Menu, MenuGroup, MenuItem, MenuRadio,
   MenuSeparator, Sheet, SheetBody, SheetHeader, StatusBadge, TextField, useToast, tooLong,
 } from "../ui/index.tsx";
-import { DeleteDialog, listed } from "./delete-dialog.tsx";
+import { DeleteDialog, listed, storedFilesWords } from "./delete-dialog.tsx";
 import { PeopleEditor, type OrgPerson, type PendingInvitation } from "./people-editor.tsx";
 import "../styles/screens/activity.css";
 import "../styles/screens/settings.css";
@@ -593,7 +593,7 @@ function DeleteProductSheet({ onArchive }: { onArchive?: () => void }) {
           renderImpact={({ contents: c }) => {
             const held = [
               c.sources > 0 &&
-                [plural(c.sources, "source"), listed([c.stored_files > 0 && `${plural(c.stored_files, "stored file")} (${formatBytes(c.bytes)})`, c.comments > 0 && plural(c.comments, "comment")])]
+                [plural(c.sources, "source"), listed([c.stored_files > 0 && storedFilesWords(c.stored_files, c.bytes), c.comments > 0 && plural(c.comments, "comment")])]
                   .filter(Boolean)
                   .join(", with "),
               c.outcomes > 0 && plural(c.outcomes, "outcome"),

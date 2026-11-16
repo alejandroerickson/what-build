@@ -13,7 +13,7 @@ import { useScheme } from "../shell/theme.ts";
 import { Button, ButtonLink, EmptyState, ErrorCallout, FrameStopped, Glyph, Loading, Menu, MenuItem, MenuSeparator, StatusBadge, useToast } from "../ui/index.tsx";
 import { ConnectYourAgent } from "./connect-steps.tsx";
 import { DeleteDialog } from "./delete-dialog.tsx";
-import { FirstUse } from "./first-use.tsx";
+import { AgentRequest, FirstUse } from "./first-use.tsx";
 import { PHONE_QUERY, useMediaQuery } from "../ui/media.ts";
 import { useReorder } from "./idea-reorder.ts";
 import "../styles/screens/idea.css";
@@ -94,38 +94,18 @@ function CardFront({ src, title, onHeight }: { src: string; title: string; onHei
 
 /**
  * A card with no picture yet: one line, and the request that gets one drawn, said to be for the
- * person's agent. Someone who could ask has it once they have an agent connected; until then
- * Connect your agent, above, is what to do, and the card shows its text alone.
+ * person's agent, shown as every request for an agent is. Someone who could ask has it once they
+ * have an agent connected; until then Connect your agent, above, is what to do, and the card shows
+ * its text alone.
  */
 function NoFront({ ask }: { ask: string }) {
   const { canWrite } = useProduct();
   const agents = useConnectedAgentCount(canWrite);
-  const toast = useToast();
-  const [copied, setCopied] = useState(false);
-  const copy = () =>
-    navigator.clipboard
-      .writeText(ask)
-      .then(() => {
-        setCopied(true);
-        setTimeout(() => setCopied(false), 1600);
-        toast("Copied. Paste it to your agent.");
-      })
-      .catch(() => toast("Couldn’t copy. Select the text and copy it.", { tone: "negative" }));
   if (canWrite && !agents) return null;
   return (
     <div className="idea-no-front">
       <p className="idea-no-front-title">No picture yet</p>
-      {canWrite ? (
-        <div className="idea-no-front-agent">
-          <p className="idea-no-front-lead">In your agent, ask:</p>
-          <div className="idea-no-front-ask">
-            <q className="idea-no-front-request">{ask}</q>
-            <Button size="sm" icon={copied ? "check" : "copy"} onClick={copy} aria-label="Copy the request for your agent">
-              {copied ? "Copied" : "Copy"}
-            </Button>
-          </div>
-        </div>
-      ) : null}
+      {canWrite ? <AgentRequest lead="In your agent, ask:" request={ask} /> : null}
     </div>
   );
 }
@@ -277,7 +257,11 @@ function ConceptCard() {
         </h2>
       )}
       front={front}
-      ask={`Draw the picture on ${product.name}’s product concept card in WhatBuild.`}
+      ask={
+        product.concept?.trim()
+          ? `Draw the picture on ${product.name}’s product concept card in WhatBuild.`
+          : `Interview me about ${product.name}, then write its product concept in WhatBuild, as a card with its picture and text.`
+      }
       back={
         product.concept?.trim() ? (
           <Markdown source={product.concept} className="prose idea-card-prose" headingShift={2} />

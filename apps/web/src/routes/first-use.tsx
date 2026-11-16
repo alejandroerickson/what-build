@@ -20,28 +20,19 @@ import { Button, useToast } from "../ui/index.tsx";
 export function FirstUse({ title, children, ask, connectAbove = false }: { title: string; children: ReactNode; ask?: string; connectAbove?: boolean }) {
   const { canWrite } = useProduct();
   const settingsTo = useSettingsTo();
-  const toast = useToast();
-  const [copied, setCopied] = useState(false);
   // The person's connected agents are account-wide; Connect an agent and the panel share this query.
   const connected = Boolean(useConnectedAgentCount(Boolean(ask && canWrite)));
   const request = canWrite ? ask : undefined;
-  const copy = () =>
-    navigator.clipboard
-      .writeText(request ?? "")
-      .then(() => {
-        setCopied(true);
-        setTimeout(() => setCopied(false), 1600);
-        toast("Copied. Paste it to your agent.");
-      })
-      .catch(() => toast("Couldn’t copy. Select the text and copy it.", { tone: "negative" }));
   return (
     <div className="empty empty-inline first-use">
       <p className="empty-title">{title}</p>
       <div className="empty-text">{children}</div>
       {request ? (
-        <div className="first-use-agent">
-          <p className="first-use-lead">
-            {connected ? (
+        <AgentRequest
+          className="first-use-agent"
+          request={request}
+          lead={
+            connected ? (
               "In your agent, ask:"
             ) : connectAbove ? (
               "Then, in your agent, ask:"
@@ -49,18 +40,42 @@ export function FirstUse({ title, children, ask, connectAbove = false }: { title
               <>
                 <Link to={settingsTo("agents")}>Connect an agent</Link>, then ask it:
               </>
-            )}
-          </p>
-          <p className="first-use-request">
-            <q>{request}</q>
-          </p>
-          <div className="empty-action">
-            <Button icon={copied ? "check" : "copy"} onClick={copy} aria-label="Copy the request for your agent">
-              {copied ? "Copied" : "Copy"}
-            </Button>
-          </div>
-        </div>
+            )
+          }
+        />
       ) : null}
+    </div>
+  );
+}
+
+/**
+ * A request for the person's agent, as every one is shown: the line saying where to ask it, the
+ * request in quotation marks in its well, and Copy under it. A first-use list and a card on Idea
+ * with no picture yet both use it, so the requests look alike.
+ */
+export function AgentRequest({ lead, request, className = "" }: { lead: ReactNode; request: string; className?: string }) {
+  const toast = useToast();
+  const [copied, setCopied] = useState(false);
+  const copy = () =>
+    navigator.clipboard
+      .writeText(request)
+      .then(() => {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 1600);
+        toast("Copied. Paste it to your agent.");
+      })
+      .catch(() => toast("Couldn’t copy. Select the text and copy it.", { tone: "negative" }));
+  return (
+    <div className={`agent-request ${className}`}>
+      <p className="first-use-lead">{lead}</p>
+      <p className="first-use-request">
+        <q>{request}</q>
+      </p>
+      <div className="empty-action">
+        <Button icon={copied ? "check" : "copy"} onClick={copy} aria-label="Copy the request for your agent">
+          {copied ? "Copied" : "Copy"}
+        </Button>
+      </div>
     </div>
   );
 }

@@ -61,8 +61,19 @@
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   gap: var(--s-1);
-  max-width: 66ch;
   margin-top: var(--s-2);
+}
+/* The address or command takes the step's width and wraps, so all of it reads, a long
+   deployment's address included, at any width; Copy still copies it whole. */
+.agents-address .copy-field {
+  align-items: flex-start;
+  max-width: none;
+}
+.agents-address .copy-field code {
+  overflow-x: visible;
+  padding-block: 3px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 /* Connect your agent, the first sheet on Idea while no agent is connected. */

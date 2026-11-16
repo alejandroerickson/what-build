@@ -317,7 +317,7 @@ one to what the tenant already has writes nothing. A change is recorded in the t
   address whose allowance grows is emailed a link to `/welcome` and the address to sign in as.
   Someone on the waitlist who had no allowance asked for it and may never have heard of the
   instance owner, so theirs, "Your place on WhatBuild is ready", says they joined the waitlist on
-  the day they asked and names nobody; anyone else's, "<owner> invited you to WhatBuild", names
+  the day they asked, a UTC day that says so as every mail's days do, and names nobody; anyone else's, "<owner> invited you to WhatBuild", names
   the instance owner with their account's address, as an invitation does, and says in a sentence
   what WhatBuild is, with where to read more on a deployment with a public site) and
   `products.remove_tenant_allowance`, which returns an address to the default. These belong to no

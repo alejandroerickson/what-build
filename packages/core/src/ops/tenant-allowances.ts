@@ -57,7 +57,7 @@ async function waitlist(ctx: OpContext) {
 function allowanceMail(ctx: OpContext, to: string, allowed: number, waitlist: { asked_at: string | null } | null) {
   const welcome = `${ctx.ports.config.publicBaseUrl}/welcome`;
   if (waitlist) {
-    const joined = waitlist.asked_at && /^\d{4}-\d{2}-\d{2}/.test(waitlist.asked_at) ? ` on ${utcDay(waitlist.asked_at)}` : "";
+    const joined = waitlist.asked_at && /^\d{4}-\d{2}-\d{2}/.test(waitlist.asked_at) ? ` on ${utcDay(waitlist.asked_at)} (UTC)` : "";
     return {
       to,
       subject: "Your place on WhatBuild is ready",

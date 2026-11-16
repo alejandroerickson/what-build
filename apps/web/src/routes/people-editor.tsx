@@ -3,7 +3,8 @@ import { useId, useMemo, useState, type ReactNode } from "react";
 import { api } from "../lib/api.ts";
 import { readAddressList } from "../lib/address-list.ts";
 import { plural, ROLE_WORD, roleWords, scopeWords } from "../lib/format.ts";
-import { RefusalCallout } from "../shell/limit-reached.tsx";
+import { useMe } from "../lib/session.tsx";
+import { RefusalCallout, type PeopleContext, type TotalReached } from "../shell/limit-reached.tsx";
 import { Avatar, Button, Callout, Dialog, FindField, Glyph, IconButton, Segmented, StatusBadge, TextArea, useToast } from "../ui/index.tsx";
 import "../styles/screens/people-editor.css";
 
@@ -32,6 +33,7 @@ export interface PendingInvitation {
   email: string;
   scope_type: string;
   scope_id: string;
+  role?: string;
 }
 
 /**
@@ -122,6 +124,9 @@ function holdersOf(people: OrgPerson[], target: EditorTarget, canEdit: (p: OrgPe
 
 const people = (n: number) => plural(n, "person", "people");
 
+/** The save button's words: what it does when it only adds people, and otherwise Save changes. */
+const saveLabel = (adding: number, otherChanges: number) => (adding && !otherChanges ? `Add ${people(adding)}` : "Save changes");
+
 export function PeopleEditor({ tenant, orgName, target, title, description, above, members, partial, invitations, canEdit, initialAdd, onClose }: {
   tenant: string;
   orgName: string;
@@ -143,6 +148,7 @@ export function PeopleEditor({ tenant, orgName, target, title, description, abov
 }) {
   const qc = useQueryClient();
   const toast = useToast();
+  const me = useMe();
   const id = useId();
   const where = target.scope_type === "tenant" ? orgName : scopeWords(target.scope_type, target.name);
   const holders = holdersOf(members, target, canEdit, partial);
@@ -218,7 +224,7 @@ export function PeopleEditor({ tenant, orgName, target, title, description, abov
       setPasted("");
       setSkipped(new Set());
     }
-    setSaid(`Moved ${people(chosen.length)} across as ${roleWords(joinAs)}. Nothing changes until you save.`);
+    setSaid(`Moved ${people(chosen.length)} across as ${roleWords(joinAs)}. Nothing changes until you choose ${saveLabel(added.length + chosen.length, changed.length + takenOff.length)}.`);
   };
 
   const removable = target.scope_type !== "tenant";
@@ -254,6 +260,26 @@ export function PeopleEditor({ tenant, orgName, target, title, description, abov
     changed.length ? `${plural(changed.length, "role")} to change` : "",
     takenOff.length ? `${people(takenOff.length)} to take off` : "",
   ].filter(Boolean);
+
+  /**
+   * What the organization's people say about a plan's total refusing this save: the places the
+   * addresses before the refused one took (each new to the organization's count, unless it reads only
+   * the Story), which the list can tell only when it holds everyone, and what there is to cancel or
+   * remove.
+   */
+  const peopleContext = (r: TotalReached): PeopleContext => {
+    const counts = (role?: string) => role !== "story_reader";
+    const counted = new Set([
+      ...members.filter((p) => p.grants.some((g) => counts(g.role))).map((p) => p.email.toLowerCase()),
+      ...invitations.filter((i) => counts(i.role)).map((i) => i.email.toLowerCase()),
+    ]);
+    const before = grants.slice(0, r.roomFor ?? 0);
+    return {
+      tookBefore: partial ? null : new Set(before.filter((g) => counts(g.role) && !counted.has(g.email.toLowerCase())).map((g) => g.email.toLowerCase())).size,
+      invitations: invitations.some((i) => counts(i.role)),
+      others: members.some((p) => p.account_id !== me.data?.account_id && p.grants.some((g) => counts(g.role))),
+    };
+  };
 
   // What would be saved: a refusal is about these changes, and is forgotten once they change.
   const changes = JSON.stringify([grants, takenOff.map((h) => h.account_id)]);
@@ -366,7 +392,7 @@ export function PeopleEditor({ tenant, orgName, target, title, description, abov
             Cancel
           </Button>
           <Button variant="primary" busy={save.isPending} busyLabel="Saving…" disabled={!pending} onClick={() => save.mutate(changes)}>
-            {added.length && !changed.length && !takenOff.length ? `Add ${people(added.length)}` : "Save changes"}
+            {saveLabel(added.length, changed.length + takenOff.length)}
           </Button>
         </>
       }
@@ -624,7 +650,7 @@ export function PeopleEditor({ tenant, orgName, target, title, description, abov
         <p className="visually-hidden" role="status" aria-live="polite">
           {said}
         </p>
-        {save.isError && save.variables === changes ? <RefusalCallout tenant={tenant} inset error={save.error} /> : null}
+        {save.isError && save.variables === changes ? <RefusalCallout tenant={tenant} inset error={save.error} people={peopleContext} /> : null}
       </div>
     </Dialog>
   );
@@ -675,7 +701,9 @@ export function InvitationsMade({ made }: { made: InvitationMade[] }) {
       <Callout inset tone={unsent ? "attention" : "positive"} title={made.length === 1 ? "Invitation created" : `${made.length} invitations created`}>
         {unsent
           ? `${plural(unsent, "invitation")} couldn’t be emailed: copy ${unsent === 1 ? "its link" : "their links"} and send ${unsent === 1 ? "it" : "them"} yourself.`
-          : "Each joins when they accept. We email the invitations where email is set up, and you can share each link yourself: it works once, within 7 days, and only for its address."}
+          : made.length === 1
+            ? `${made[0]!.email} joins on accepting. We email the invitation where email is set up, and you can share its link yourself: it works once, within 7 days, and only for that address.`
+            : "Each joins when they accept. We email the invitations where email is set up, and you can share each link yourself: it works once, within 7 days, and only for its address."}
       </Callout>
       <ul className="pe-links">
         {made.map((m) => (
