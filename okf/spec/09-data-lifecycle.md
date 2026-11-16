@@ -338,7 +338,9 @@ Everything that can be archived can also be deleted, and so can an organization:
   file of its attachments' every version, so a copy's shared file once, the text read from each,
   and each distinct file of its mockups' prototypes. Each says in
   `after_delete` what becomes of what points at it. The web UI shows this inside the confirmation
-  dialog. An agent's delete takes the impact's etag, so it reads the impact first, and a permanent
+  dialog; deleting a product and deleting an organization both add, where there are sources and
+  more than one stored file, that the text read from an attachment counts as one, since one
+  attachment is usually two. An agent's delete takes the impact's etag, so it reads the impact first, and a permanent
   delete is in a `_delete` tool of its own, which a client such as Claude asks the person about
   before each call.
 - **What each removes:**

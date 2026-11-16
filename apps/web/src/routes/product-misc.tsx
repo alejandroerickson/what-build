@@ -5,7 +5,7 @@ import { api, ApiError, qs } from "../lib/api.ts";
 import { formatBytes, formatDate, formatDateTime, plural, relativeTime, roleWords, scopeWords } from "../lib/format.ts";
 import { useOrganizationLimits } from "../lib/limits.ts";
 import { useHoldRefresh } from "../lib/live.tsx";
-import { useProduct } from "../lib/session.tsx";
+import { useProduct, useProducts } from "../lib/session.tsx";
 import { ActivityFeed, ENTITY_LABEL, useActivity, type ActivityFilter } from "../shell/ActivityFeed.tsx";
 import { useSettingsTo } from "../shell/settings-link.ts";
 import { usePageTitle } from "../shell/slots.tsx";
@@ -13,8 +13,8 @@ import {
   Avatar, Button, Callout, Dialog, ErrorCallout, FormGrid, Glyph, Loading, Menu, MenuGroup, MenuItem, MenuRadio,
   MenuSeparator, Sheet, SheetBody, SheetHeader, StatusBadge, TextField, useToast, tooLong,
 } from "../ui/index.tsx";
-import { DeleteDialog, listed } from "./delete-dialog.tsx";
-import { PeopleEditor, type OrgPerson, type PendingInvitation } from "./people-editor.tsx";
+import { DeleteDialog, listed, storedFilesWords } from "./delete-dialog.tsx";
+import { managesGrant, PeopleEditor, type OrgPerson, type PendingInvitation } from "./people-editor.tsx";
 import "../styles/screens/activity.css";
 import "../styles/screens/settings.css";
 
@@ -454,8 +454,11 @@ function PeopleSheet() {
 function AddPeopleDialog({ onClose }: { onClose: () => void }) {
   const { product } = useProduct();
   const tenant = product.tenant.slug;
+  const products = useProducts();
   const org = useQuery({ queryKey: ["members", tenant], queryFn: () => api<OrgMembers>("GET", `/api/v1/tenants/${tenant}/members`) });
   const title = `Add people to ${product.name}`;
+  const yourRole = products.data?.tenants.find((x) => x.slug === tenant)?.your_role;
+  const inOrg = (products.data?.items ?? []).filter((p) => p.tenant.slug === tenant);
   if (!org.data)
     return (
       <Dialog open wide onClose={onClose} title={title}>
@@ -480,6 +483,7 @@ function AddPeopleDialog({ onClose }: { onClose: () => void }) {
       partial={Boolean(org.data.partial)}
       invitations={org.data.invitations ?? []}
       canEdit={() => true}
+      canRemoveRole={(g) => managesGrant(g, yourRole, inOrg)}
       onClose={onClose}
     />
   );
@@ -593,7 +597,7 @@ function DeleteProductSheet({ onArchive }: { onArchive?: () => void }) {
           renderImpact={({ contents: c }) => {
             const held = [
               c.sources > 0 &&
-                [plural(c.sources, "source"), listed([c.stored_files > 0 && `${plural(c.stored_files, "stored file")} (${formatBytes(c.bytes)})`, c.comments > 0 && plural(c.comments, "comment")])]
+                [plural(c.sources, "source"), listed([c.stored_files > 0 && storedFilesWords(c.stored_files, c.bytes, c.sources), c.comments > 0 && plural(c.comments, "comment")])]
                   .filter(Boolean)
                   .join(", with "),
               c.outcomes > 0 && plural(c.outcomes, "outcome"),

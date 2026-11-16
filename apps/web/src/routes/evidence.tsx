@@ -3,6 +3,7 @@ import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useStat
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router";
 import { api, qs } from "../lib/api.ts";
 import { attribution, formatDate, formatDateTime, plural, relativeTime } from "../lib/format.ts";
+import { useOrganizationLimits } from "../lib/limits.ts";
 import { useProduct } from "../lib/session.tsx";
 import { derivedStatus } from "../lib/status.ts";
 import type { ListedSource, RecordSummary, SourceFacets } from "../lib/types.ts";
@@ -586,9 +587,7 @@ export function EvidencePage() {
             <EmptyState size="inline" title="No sources match these filters" action={<ButtonLink to={`${app}/evidence`}>Clear filters</ButtonLink>} />
           )
         ) : (
-          <FirstUse title="No sources yet" ask={`Add these meeting notes to ${product.name} in WhatBuild as a source.`}>
-            Anything the team learns from: meeting notes, transcripts, documents, whiteboard photos.
-          </FirstUse>
+          <NoSourcesYet />
         )
       ) : (
         <div className={showing ? "sources-split-list" : undefined}>
@@ -659,5 +658,22 @@ export function EvidencePage() {
         </>
       )}
     </>
+  );
+}
+
+/**
+ * A product with no sources: what belongs here, and a request a person can paste to their agent
+ * with the material itself. Photos are suggested only once the organization's plan is known to keep
+ * them: a plan that takes only documents refuses them.
+ */
+function NoSourcesYet() {
+  const { product } = useProduct();
+  const limits = useOrganizationLimits(product.tenant.slug);
+  const l = limits.data;
+  const documentsOnly = !l || (l.you_meet_them === true && l.limits.find((x) => x.key === "documents_only")?.value === true);
+  return (
+    <FirstUse title="No sources yet" ask={`Add the notes and documents I give you to ${product.name} in WhatBuild, one source each.`}>
+      Anything the team learns from: meeting notes, transcripts, documents{documentsOnly ? "" : ", whiteboard photos"}.
+    </FirstUse>
   );
 }

@@ -15,6 +15,22 @@ export interface TotalReached {
   email?: string;
   /** Adding several people: how many of the addresses before it the plan had room for. */
   roomFor?: number;
+  /** The places taken when it was refused (`details.used`): people with a role, and invitations open. */
+  used?: number;
+  /** Adding people in several calls: how many of the first addresses earlier calls had saved. */
+  saved?: number;
+}
+
+/**
+ * What the screen that added people knows of the organization, so a refusal of people offers only
+ * what can be done: the places those of the addresses before the refused one took (null when the
+ * screen can't tell), whether there is an invitation open to cancel, and whether there is someone
+ * the person adding can remove to free a place.
+ */
+export interface PeopleContext {
+  tookBefore: number | null;
+  invitations: boolean;
+  others: boolean;
 }
 
 /**
@@ -32,6 +48,8 @@ export function totalReached(error: unknown): TotalReached | null {
     limit,
     ...(typeof d["email"] === "string" ? { email: d["email"] } : {}),
     ...(typeof d["room_for"] === "number" ? { roomFor: d["room_for"] } : {}),
+    ...(typeof d["used"] === "number" ? { used: d["used"] } : {}),
+    ...(typeof d["saved"] === "number" && d["saved"] > 0 ? { saved: d["saved"] } : {}),
   };
 }
 
@@ -43,12 +61,33 @@ function holds(r: TotalReached): string {
   return size(r.limit);
 }
 
+/** A list in words: "a", "a or b", "a, b or c". */
+const either = (xs: string[]) => (xs.length < 2 ? (xs[0] ?? "") : `${xs.slice(0, -1).join(", ")} or ${xs.at(-1)}`);
+
+/**
+ * People past the plan's total: what was saved, how many places are left, and only the ways to make
+ * room that exist. Without what the screen knows, it offers only adding fewer people, where some fit.
+ */
+export function peopleRoom(r: TotalReached, people?: PeopleContext): string {
+  // The addresses the refused call had room for, after any that earlier calls saved.
+  const fresh = (r.roomFor ?? 0) - (r.saved ?? 0);
+  // The places free before the refused call: the ones its earlier addresses took, since none is left at the refused one.
+  const left = !fresh ? 0 : people?.tookBefore != null && r.used !== undefined ? Math.max(0, r.limit - r.used) + people.tookBefore : null;
+  const places =
+    left === null
+      ? `There’s room for the ${r.saved ? "next" : "first"} ${fresh === 1 ? "address" : `${fresh} addresses`} only.`
+      : left === 0
+        ? `No places are left${r.email && !fresh ? ` for ${r.email}` : ""}.`
+        : `There’s room for ${plural(left, "more person", "more people")}.`;
+  const ways = either([left !== 0 ? "add fewer people" : "", people?.invitations ? "cancel an invitation" : "", people?.others ? "remove someone" : ""].filter(Boolean));
+  const next = ways ? ` ${ways.replace(/^./, (c) => c.toUpperCase())}.` : "";
+  const saved = r.saved ? `The first ${r.saved} addresses are saved, and none after them. ` : r.roomFor ? "Nothing was saved. " : "";
+  return `${saved}${places}${next} Story readers don’t count.`;
+}
+
 /** How to make room under a total, in a sentence, and what doesn't count or does. */
-function room(r: TotalReached): string {
-  if (r.quota === "members_max") {
-    const add = r.email ? `To add ${r.email}${r.roomFor ? " too" : ""}` : "To add more people";
-    return `${r.roomFor ? "Nothing was saved. " : ""}${add}, cancel an invitation or remove someone. Story readers don’t count.`;
-  }
+function room(r: TotalReached, people?: PeopleContext): string {
+  if (r.quota === "members_max") return peopleRoom(r, people);
   if (r.quota === "products_max") return "To start another, delete a product no longer needed, in its Settings. Archived ones count.";
   if (r.quota === "sources_max") return "To add more, a product’s admins can delete sources no longer needed. Archived ones count.";
   return "To make room, a product’s admins can delete what’s no longer needed. Archived work counts.";
@@ -59,14 +98,14 @@ function room(r: TotalReached): string {
  * the plan holds, how to make room, and the plans side by side in a new tab where the deployment
  * offers plans. The refusal's own message, written for agents, is theirs.
  */
-export function LimitReached({ tenant, reached, inset }: { tenant: string; reached: TotalReached; inset?: boolean }) {
+export function LimitReached({ tenant, reached, inset, people }: { tenant: string; reached: TotalReached; inset?: boolean; people?: PeopleContext }) {
   const products = useProducts();
   const plans = usePlans();
   const t = products.data?.tenants.find((x) => x.slug === tenant || x.former_slugs?.includes(tenant));
   const plan = t ? `${planWord(t.plan, plans.data?.plans)} plan` : "plan";
   return (
     <Callout tone="attention" inset={inset} title={`${t?.name ?? "This organization"}’s ${plan} holds ${holds(reached)}`}>
-      {room(reached)}
+      {room(reached, people)}
       {plans.data?.plans.length ? (
         <>
           {" "}
@@ -80,7 +119,7 @@ export function LimitReached({ tenant, reached, inset }: { tenant: string; reach
 }
 
 /** An error as ErrorCallout says it, except a plan's total reached, which LimitReached says. */
-export function RefusalCallout({ tenant, error, inset, title }: { tenant: string; error: unknown; inset?: boolean; title?: string }) {
+export function RefusalCallout({ tenant, error, inset, title, people }: { tenant: string; error: unknown; inset?: boolean; title?: string; people?: (reached: TotalReached) => PeopleContext }) {
   const reached = totalReached(error);
-  return reached ? <LimitReached tenant={tenant} reached={reached} inset={inset} /> : <ErrorCallout inset={inset} title={title} error={error} />;
+  return reached ? <LimitReached tenant={tenant} reached={reached} inset={inset} people={reached.quota === "members_max" ? people?.(reached) : undefined} /> : <ErrorCallout inset={inset} title={title} error={error} />;
 }

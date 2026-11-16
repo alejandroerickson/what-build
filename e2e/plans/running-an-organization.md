@@ -43,8 +43,8 @@ are people she invites.
    site>." only where the deployment has a public site), then "Accept or decline, signing in as
    <Eli's address>:", the link, and "The link works for 7 days."
 4. **Web, as Dana.** Invite Fay as an editor too. *Expect:* refused, in the app's own words: "<org>’s
-   Free plan holds 2 people", then "To add <Fay's address>, cancel an invitation or remove someone.
-   Story readers don’t count." and a Compare plans link that opens the plans in a new tab. No role
+   Free plan holds 2 people", then "No places are left for <Fay's address>. Cancel an invitation.
+   Story readers don’t count." (Eli's invitation is open, and nobody but Dana has a role to remove) and a Compare plans link that opens the plans in a new tab. No role
    name in code form, and nothing about whoever runs WhatBuild. Nothing is added.
 5. **Web, as Dana.** Invite Fay as a Story reader of the product instead. *Expect:* it works:
    Story readers don't count, and Plan still says "2 of 2". Then invite Morgan,

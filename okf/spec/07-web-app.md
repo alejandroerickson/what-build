@@ -63,10 +63,19 @@ design system: tokens, type, components and the rules for using them — is docu
   plan's total, reached (people in Add people, products in New product, sources in a new source,
   storage when an upload is refused), is said in the app's own words from the refusal's `details`,
   never the message written for agents: the organization and its plan by name with what the plan
-  holds ("Fieldnote’s Free plan holds 2 people"), one sentence on how to make room ("To add
-  nora@example.com, cancel an invitation or remove someone. Story readers don’t count."), and
+  holds ("Fieldnote’s Free plan holds 2 people"), a few words on how to make room ("No places are
+  left for nora@example.com. Cancel an invitation. Story readers don’t count."), and
   Compare plans, opening `/plans` in a new tab, where the deployment offers plans
-  (`apps/web/src/shell/limit-reached.tsx`). New product says the same before anything is typed
+  (`apps/web/src/shell/limit-reached.tsx`). People past the total are told how many places are
+  left, that nothing was saved when only some of the addresses fit ("Nothing was saved. There’s
+  room for 1 more person. Add fewer people."), and only the ways to make room that exist there:
+  adding fewer people while some fit, cancelling an invitation while one is open, removing someone
+  while someone besides the person adding holds counted roles only where the person adding can
+  take them off, so removing them frees a place (nothing is offered on a guess: not while the app
+  doesn't yet know who is adding, and not to a product's admin, whose list leaves out roles on
+  products they can't open). A list longer than one call's 100 addresses, refused after an
+  earlier call saved, says so ("The first 100 addresses are saved, and none after them."),
+  counting the room from the first address. New product says the same before anything is typed
   when the organization already holds its plan's products. A limit a minute or a day keeps the
   server's words.
 - **Calls a minute running out is a wait, not a failure.** A read refused for them
@@ -703,7 +712,11 @@ Try again.
   for the concept or an outcome, and product Settings has no concept field. A card with no front
   yet opens on its text, over "No picture yet". For someone who can write, that box waits until
   they have an agent connected (Connect your agent is above until then, and the card shows its text
-  alone), and then holds "In your agent, ask:" over the request to copy.
+  alone), and then holds "In your agent, ask:" over the request to copy, shown as an empty list's
+  request is. While the product has no concept, the concept card's request asks for the concept,
+  with its picture, rather than for a picture of nothing; while the outcomes list is empty, its
+  request asks for the concept and outcomes together, and the concept card asks nothing, so one
+  request shows.
 - **Dragging outcomes into order**, as photos are ordered in a listing, for anyone who can write,
   while archived ones are hidden. With a mouse the whole head drags a card (the outcome's number
   turns into a grip while the pointer is over it); on touch the number, which always shows its
@@ -735,7 +748,10 @@ there, and a request naming the product for the person to copy to their agent, w
 other button. The line over the request says where to ask it: "In your agent, ask:" once they have
 an agent connected; until then, on Idea, under Connect your agent, "Then, in your agent, ask:", and
 on Evidence, Exploration and the Story "Connect an agent, then ask it:", Connect an agent a link
-opening Settings at Agents, with this product chosen. Where people add by hand, that
+opening Settings at Agents, with this product chosen. Each request stands on its own, as a person
+would paste it with nothing else (Evidence's asks the agent to add the notes and documents the
+person gives it), and what belongs there names nothing the organization's plan refuses (Evidence's
+leaves out photos on a plan that takes only documents). Where people add by hand, that
 is the header's create action, a default button, as when the list has items; outcomes have none,
 since agents write them. A filter over a list
 with nothing in it shows the same state. Viewers see the words without the request.
@@ -1611,9 +1627,11 @@ never described as deleting. A list row showing an archived object says *Archive
   has created, who gave it and when, the note, and what is left. **Let someone start
   organizations** opens a dialog for an address, a number, a note and whether to tell them by
   email; Change edits the number and note under the row's etag; Remove returns the address to the
-  default after a confirmation. Where new organizations start on a plan the deployment defines, an
-  allowance counts organizations on it, named by the plan, and moving one to another plan frees its
-  place. Then, where the deployment has an example organization or someone is on it, **Waitlist**:
+  default after a confirmation. An allowance counts the organizations the address's account
+  started that are not read-only, and where new organizations start on a plan the deployment
+  defines, only those on it, named by the plan, so moving one to another plan frees its place; the
+  dialog says so, as the list does, once the plans are known, and Change says how many of theirs
+  count now. Then, where the deployment has an example organization or someone is on it, **Waitlist**:
   the people who asked for
   an organization of their own, in the app or on the public site, earliest first, each with their
   name and address, their organization, when they asked, whether they have signed up, and what

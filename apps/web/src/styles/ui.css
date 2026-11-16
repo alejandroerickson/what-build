@@ -800,7 +800,8 @@ a.chip:hover {
   flex-wrap: wrap;
 }
 
-/* A first-use list: what belongs here, then the request to give an agent. */
+/* A first-use list: what belongs here, then the request to give an agent (an agent request, as a
+   card on Idea with no picture yet shows it too). */
 .first-use {
   padding-block: var(--s-5);
 }
@@ -821,7 +822,7 @@ a.chip:hover {
   font-size: var(--fs-body);
   line-height: var(--lh-body);
 }
-.first-use .empty-action {
+.agent-request .empty-action {
   margin-top: var(--s-2h);
 }
 
