@@ -3,7 +3,7 @@ type: System Concept
 title: A deployment's backups are its database's restore history, a restore point before each deploy, a nightly dump and a versioned files bucket; this guide says where each is, how to check it and how to restore one.
 description: For the operator and the agent working for them; what is kept, where and for how long on Cloud Run and Azure, setting up the nightly dump, checking that backups run, restoring a dump into an empty database, checking a restore, and the restore drill.
 tags: [operations, backups, restore, postgres, neon, cloud-run, azure, runbook]
-generated: {by: agent:claude, at: 2026-10-27}
+generated: {by: agent:claude, at: 2026-11-16}
 status: stable
 ---
 
@@ -143,6 +143,11 @@ rm -r $D
 The stored `whatbuild-database-url` asks for `sslmode=verify-full`, which the server checks against
 Node's own roots; `libpq` on a workstation needs `sslrootcert=system` added to use the system's.
 On Cloud SQL the URL is a socket path, so restore through the Cloud SQL Auth Proxy instead.
+
+A dump of a database on Neon gives its columns `pg_attver` options that only Neon accepts: into any
+other Postgres, the restore stops at `unrecognized parameter "pg_attver"`. To move organizations
+off Neon, [copy them](copying-an-organization.md#into-another-deployment) instead; a copy carries
+none.
 
 **4. The files.** Restoring into the same deployment, the bucket still holds them, and a deleted
 one comes back from its noncurrent version within 30 days. Restoring into another deployment, copy

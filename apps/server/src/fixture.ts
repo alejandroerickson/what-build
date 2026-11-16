@@ -249,7 +249,7 @@ async function dumpOrganizations(url: string, choice: Parameters<typeof organiza
     const schema = pgDumpCommand(url, join(tmp, "schema.dump"), ["--schema-only"]);
     execFileSync("pg_dump", schema.args, { stdio: "inherit", env: schema.env });
     await createDatabase(local, scratch);
-    restoreDump(local, scratch, join(tmp, "schema.dump"));
+    await loadSchema(local.appUrl(scratch), join(tmp, "schema.dump"));
     const target = new pg.Client({ connectionString: adminUrlOf(local, scratch) });
     await target.connect();
     let rows: Record<string, number>;
@@ -399,21 +399,119 @@ export async function dropDatabase(local: LocalPg, database: string) {
 }
 
 /**
- * Restore a dump into `database` as the application's own role, as cloud-run.md restores a backup.
- * The extension's comment needs its owner, and statistics from a newer server do not load into an older one.
+ * A dump's restore list, written into `dir`, without what a restore here leaves out: the extension's
+ * comment needs its owner, and statistics from a newer server do not load into an older one.
  */
-function restoreDump(local: LocalPg, database: string, dump: string) {
+function restoreList(dump: string, dir: string) {
   const list = run("pg_restore", ["--list", dump])
     .split("\n")
     .filter((l) => !/COMMENT - EXTENSION|STATISTICS DATA/.test(l))
     .join("\n");
+  const file = join(dir, "restore.list");
+  writeFileSync(file, list);
+  return file;
+}
+
+/** Restore a dump into `database` as the application's own role, as cloud-run.md restores a backup. */
+function restoreDump(local: LocalPg, database: string, dump: string) {
   const tmp = mkdtempSync(join(tmpdir(), "whatbuild-fixture-"));
-  writeFileSync(join(tmp, "restore.list"), list);
   try {
-    execFileSync("pg_restore", ["--no-owner", "--no-privileges", "--exit-on-error", `--use-list=${join(tmp, "restore.list")}`, `--dbname=${local.appUrl(database)}`, dump], { stdio: "inherit" });
+    execFileSync("pg_restore", ["--no-owner", "--no-privileges", "--exit-on-error", `--use-list=${restoreList(dump, tmp)}`, `--dbname=${local.appUrl(database)}`, dump], { stdio: "inherit" });
   } finally {
     rmSync(tmp, { recursive: true, force: true });
   }
+}
+
+/**
+ * Load a deployment's schema dump (`pg_dump --schema-only`) into the empty database at `url`, as the
+ * application's role. Neon's Postgres gives columns a `pg_attver` option, which pg_dump writes inside
+ * its table's entry (`ALTER TABLE ONLY … ALTER COLUMN … SET (pg_attver=…);`), where the restore list
+ * cannot reach it, and which any other Postgres refuses. So the schema goes through SQL with that
+ * option taken out; every other error still stops it.
+ */
+export async function loadSchema(url: string, dump: string) {
+  const tmp = mkdtempSync(join(tmpdir(), "whatbuild-schema-"));
+  try {
+    await loadSchemaSql(url, run("pg_restore", ["--no-owner", "--no-privileges", `--use-list=${restoreList(dump, tmp)}`, "--file=-", dump]));
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
+}
+
+/**
+ * Run a schema script, as pg_restore writes one, in a single transaction: one query of many
+ * statements, which stops at the first error and leaves nothing behind. Without psql no meta-command
+ * runs, so the lines pg_restore guards its output with (`\restrict`, `\unrestrict`) are dropped;
+ * any other would stop the script as an error.
+ */
+export async function loadSchemaSql(url: string, sql: string) {
+  const script = withoutPgAttver(sql)
+    .split("\n")
+    .filter((l) => !/^\\(?:un)?restrict [A-Za-z0-9]+$/.test(l))
+    .join("\n");
+  const client = new pg.Client({ connectionString: url });
+  await client.connect();
+  try {
+    await client.query(script);
+  } catch (e) {
+    const at = Number((e as { position?: string }).position);
+    const line = at ? script.slice(0, at).split("\n").length : undefined;
+    const where = line ? ` (line ${line}: ${script.split("\n")[line - 1]!.trim().slice(0, 200)})` : "";
+    throw new Error(`The deployment's schema did not load into the embedded Postgres: ${e instanceof Error ? e.message : String(e)}${where}`);
+  } finally {
+    await client.end();
+  }
+}
+
+/**
+ * A statement that sets a column's options, as pg_dump writes one on a line of its own
+ * (`ALTER TABLE ONLY … ALTER COLUMN … SET (…);`), split into its head, through `SET (`, and its
+ * options; undefined for any other line. Found with string searches, so a long line costs no more
+ * than reading it.
+ */
+function columnOptionsStatement(line: string): { head: string; options: string } | undefined {
+  if (!/^ALTER (?:FOREIGN )?TABLE /.test(line) || !line.endsWith(");")) return undefined;
+  const set = line.lastIndexOf(" SET (");
+  const column = line.indexOf(" ALTER COLUMN ");
+  if (set < 0 || column < 0 || column >= set) return undefined;
+  return { head: line.slice(0, set + " SET (".length), options: line.slice(set + " SET (".length, -2) };
+}
+
+/**
+ * The options of `SET (…)`, as pg_dump joins them (`name=value, name=value`), with each value bare
+ * (no space, comma or quote in it) or quoted; undefined when the text is not in that form.
+ */
+function columnOptions(text: string): string[] | undefined {
+  const options: string[] = [];
+  const option = /\s*([A-Za-z_][A-Za-z0-9_.]*|"(?:[^"]|"")+")\s*=\s*('(?:[^']|'')*'|"(?:[^"]|"")*"|[^,'"\s]+)\s*(,|$)/y;
+  while (option.lastIndex < text.length) {
+    const m = option.exec(text);
+    if (!m) return undefined;
+    options.push(`${m[1]}=${m[2]}`);
+    if (!m[3]) return option.lastIndex === text.length ? options : undefined;
+  }
+  return options;
+}
+
+/**
+ * `sql` without the `pg_attver` column option that Neon's Postgres keeps and any other refuses: taken
+ * out of each `ALTER TABLE … ALTER COLUMN … SET (…)` statement, and the statement dropped when it
+ * was the only option. Every other line, and every other option, stays as it was. It reads line by
+ * line, not statement by statement: a line inside a string or a function's body that is exactly such
+ * a statement would be changed too, which a schema dump does not hold.
+ */
+export function withoutPgAttver(sql: string) {
+  return sql
+    .split("\n")
+    .flatMap((line) => {
+      const statement = columnOptionsStatement(line);
+      const options = statement ? columnOptions(statement.options) : undefined;
+      if (!statement || !options) return [line];
+      const kept = options.filter((o) => !/^(?:pg_attver|"pg_attver")=/i.test(o));
+      if (kept.length === options.length) return [line];
+      return kept.length ? [`${statement.head}${kept.join(", ")});`] : [];
+    })
+    .join("\n");
 }
 
 async function load(requested?: string) {
