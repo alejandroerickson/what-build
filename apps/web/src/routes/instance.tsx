@@ -144,7 +144,7 @@ export function AdminStarting() {
               }
               sub={
                 <>
-                  Can have {a.allowed ? organizations(a.allowed, kindName) : "none"}; has {a.created}. Set by {a.updated_by.display_name}, {formatDate(a.updated_at)}.
+                  {kindName === undefined ? `Has ${a.created}.` : <>Can have {a.allowed ? organizations(a.allowed, kindName) : "none"}; has {a.created}.</>} Set by {a.updated_by.display_name}, {formatDate(a.updated_at)}.
                   {a.note ? ` ${a.note}` : ""}
                 </>
               }

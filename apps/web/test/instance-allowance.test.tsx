@@ -84,6 +84,7 @@ describe("how many organizations someone can start", () => {
   it("counts what the server counts, as the list says, naming the plan new organizations start on", async () => {
     const host = await page();
     expect(host.textContent).toContain("moving one to another plan frees its place");
+    expect(host.textContent).toContain("Can have 2 Free organizations; has 1.");
     await act(async () => button(host, "Change how many sam@example.com can start").click());
     const dialog = document.querySelector("dialog[open]")!;
     expect(dialog.textContent).toContain("The number counts the Free organizations they’ve started, not read-only ones or ones they’re invited to. Moving one to another plan frees its place.");
@@ -96,6 +97,8 @@ describe("how many organizations someone can start", () => {
     const host = await page();
     expect(host.textContent).not.toContain("Each person listed");
     expect(host.textContent).not.toContain("Everyone else can start");
+    expect(host.textContent).not.toContain("Can have");
+    expect(host.textContent).toContain("Has 1.");
     await act(async () => button(host, "Change how many sam@example.com can start").click());
     const dialog = document.querySelector("dialog[open]")!;
     expect(dialog.textContent).not.toContain("The number counts");

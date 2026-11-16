@@ -231,7 +231,6 @@ export function OrganizationPeople({ tenant }: { tenant: string }) {
   const guest = Boolean(q.data?.guest);
   const tenantAdmin = t?.your_role === "owner" || t?.your_role === "admin";
   const inOrg = (products.data?.items ?? []).filter((p) => p.tenant.slug === tenant);
-  // Roles on all products are the organization's owners' and admins' to give and take.
   const canManage = (g: { scope_type: string; scope_id: string; role: string }) => managesGrant(g, t?.your_role, inOrg);
   // A read-only organization takes nobody new and no new role, but its people can still be taken out.
   const readOnly = Boolean(t?.read_only);
