@@ -36,7 +36,10 @@ as `leaver-<the run's time>@example.com`.
    invitation waiting, with its link shown.
 4. **Web, as the leaver.** Sign in with the leaver's address, and accept the invitation shown. Add a source to a product of the
    standard organization, with a synthetic text from the run's folder carrying a phrase of its
-   own. Start an organization of their own, with a made-up name. Then **MCP, as the leaver**:
+   own. Start an organization of their own, with a made-up name and a first product. *Expect:* the
+   product opens on Idea under **Connect your agent** ("Not connected yet" at its right, a choice of
+   Claude, Claude Code or Another agent, and four numbered steps), since the leaver has no agent
+   connected yet; go on from the panel. Then **MCP, as the leaver**:
    connect and call `products_read(action="list")`. *Expect:* both organizations listed.
 5. **Web, as the leaver.** In Settings → Account, open Delete account. *Expect:* it names both organizations
    as the ones they would lose. **You're the only owner of** their organization, with Make someone

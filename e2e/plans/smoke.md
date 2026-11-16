@@ -73,8 +73,14 @@ other plans will too.
    (`story_read` `list_pages`) in the product from step 2, and read the first window of one source's
    text with `derived_read(action="text")`. *Expect:* the same items the web showed in step 2, with the
    same titles and counts, and the same words the source's Text showed. Back in the web, Sam's Idea
-   no longer shows Connect your agent and the panel no longer shows the seat; wherever a list is
-   empty, the line over its request reads "In your agent, ask:".
+   no longer shows Connect your agent and the panel no longer shows the seat. The golden master's
+   products have something in every list, so make one with none: **as Riley**, create a product in
+   the standard organization from the overview's New product, with a name of the run's own and no
+   concept; Sam edits it, as every product there. (If the organization's plan refuses another
+   product, report the refusal's words and skip the rest of this step.) **As Sam**, open its Idea,
+   Evidence, Exploration and Story. *Expect:* each says "No … yet", and the line over its request
+   reads "In your agent, ask:".
+   **As Riley**, delete the product (Settings → the product's General).
 10. **Web and MCP, as a guest.** Sign in as `guest@example.com` on the web, then connect over MCP as
     the same address. *Expect:* the overview lists the example organization, marked Example
     organization and Read only, and, since the guest may not start one, its **Your own

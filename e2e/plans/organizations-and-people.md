@@ -51,7 +51,10 @@ and **Cleo** are three such addresses, signed in with `pnpm e2e browser signin <
    name of the run's own and a first product. *Expect:* the form says only "Name your organization
    and its first product." above its fields, and under its button "It starts on the Free plan.
    Compare plans", the link opening the plans in a new tab; it lists no limits, and says nothing of
-   who sees the organization (its Plan page does). The product opens. Open Settings from the panel and choose Plan
+   who sees the organization (its Plan page does). The product opens on Idea under **Connect your
+   agent**, since Ana has no agent connected: "Not connected yet" at its right, a choice of Claude,
+   Claude Code or Another agent, and four numbered steps for the one chosen. Nothing closes it; go on
+   from the panel. Open Settings from the panel and choose Plan
    under the organization (`?settings=organization/plan`). *Expect:* Free; a line saying its name and
    plan, and the name and email of everyone in it, are visible to whoever runs this WhatBuild; what it
    holds: 1 of 2 people, 1 of 1 products, and storage, and the plans side by side; no Change plan, and neither

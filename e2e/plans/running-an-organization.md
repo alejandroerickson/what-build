@@ -26,9 +26,14 @@ are people she invites.
    dialog asks for the address, a number, a note and whether to tell them; Dana is listed with
    "Can have 1 Free organization; has 0" and "no account yet". The server's log prints the email.
 2. **Web, as Dana.** Sign in and start an organization with a product. *Expect:* it starts on
-   Free; the panel shows it and its product; Settings (the panel's Settings row) lists the product's
-   General, People and Export, the organization's General, People, Plan and Access changes, and
-   Account and Agents; its Plan says Free, "1 of 2" people.
+   Free, and the product opens on Idea under **Connect your agent**, since Dana has no agent
+   connected: "Not connected yet" at its right, a choice of Claude, Claude Code or Another agent,
+   and four numbered steps for the one chosen. Nothing closes it; leave it and go on from the panel.
+   The panel shows the organization and its product, its seat saying only "No agent connected",
+   with Connect an agent;
+   Settings (the panel's Settings row) lists the product's General, People and Export, the
+   organization's General, People, Plan and Access changes, and Account and Agents; its Plan says
+   Free, "1 of 2" people.
 3. **Web, as Dana.** In Settings → the organization's People, press **Add people**, choose all
    products under Where (the title says "Add people to all products"), and invite Eli as an
    editor. *Expect:* the invitation is listed as waiting, and Plan now says "2 of 2" people: an invitation
@@ -62,14 +67,16 @@ are people she invites.
    own organization's screens, and press Decline. *Expect:* it leaves without a reload, and focus
    stays on the page. **As Dana:** Morgan's address has left Waiting to join, and the access log says
    Someone declined an invitation to the product, with no name or address. Opening its link as
-   Morgan says it is no longer open.
+   Morgan says "This invitation can’t be used" and "This invitation expired, was cancelled or was
+   declined. Ask whoever invited you for a new link."
 7. **Web, as Dana.** Change Eli to a viewer, then Remove from organization (Remove role would keep
    him a member). *Expect:* each change is
    listed in Settings → the organization's Access changes, by Dana; as Eli, after a reload, the product is read
    only, then gone. His source stays, with his name on it.
 8. **Web, as Dana.** Invite Gus as an editor, then cancel the invitation before he signs in.
    *Expect:* Plan goes back to the people it held before; signing in as Gus finds no
-   organization of Dana's and no invitation, and its link says it is no longer open.
+   organization of Dana's and no invitation, and its link says "This invitation can’t be used" and
+   "This invitation expired, was cancelled or was declined. Ask whoever invited you for a new link."
 9. **Web, as Dana.** Rename the organization in Settings → the organization's General, changing its
    short name in links. *Expect:* the form says links with the old short name keep leading to it;
    the product switch and the overview show the new name; an address with the old short name leads
@@ -83,8 +90,10 @@ are people she invites.
     and the old one under `former_slugs`.
 11. **Web, as Eli** (now in no organization). Eli is a guest of the example again: sign in and
     find Ask for your own organization on the overview. Ask. **As Riley,** let Eli start one from
-    the Waitlist under Starting organizations. **As Eli,** start an organization. *Expect:* Eli owns his own Free organization;
-    being invited elsewhere earlier never counted against him.
+    the Waitlist under Starting organizations. **As Eli,** start an organization with a product.
+    *Expect:* Eli owns his own Free organization, and its product opens on Idea under Connect your
+    agent, as Dana's did in step 2 (Eli has no agent connected yet); being invited elsewhere earlier
+    never counted against him.
     **MCP, as Eli, at the admin level.** Add a source to his product, archive it, and read
     `products_read(action="limits")`. *Expect:* `holds.sources` still counts it. Archive the product
     and try to create a second (`products_write(action="create")`). *Expect:* `409 quota_exceeded`

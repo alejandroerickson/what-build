@@ -31,6 +31,13 @@ saved connection names an account the fresh copy no longer has). A guest
 reads every product of the example and is refused every write with `403 example_read_only`, and
 holds no organization of their own.
 
+**The tutorial's welcome.** Whoever can edit a product, and a guest of the example, is offered the
+web app's tutorial once, at 1024 pixels wide or wider: on the first screen with a product's panel
+(often the overview, right after signing in), a welcome over a darkened screen. None of the people
+above has been offered it in a fresh copy, nor has any new account. Unless the plan is about the tutorial
+([`the-tutorial.md`](the-tutorial.md)), press Not now and go on: the welcome is expected, not a
+finding.
+
 A plan never names or quotes the content, which is a copy of production: it says "a product with
 sources", "a word you can see in a source's text", "the archived product", and the agent finds one
 in the run. Text a plan uploads is synthetic and written by the agent into the run's folder.
