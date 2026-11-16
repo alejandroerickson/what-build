@@ -91,6 +91,7 @@
   --z-notice: 7; /* the cookie notice: above the panels, under a phone drawer's scrim */
   --z-scrim: 8;
   --z-overlay: 9;
+  --z-tutorial: 40; /* the tutorial's spotlight: over the app, under the menus the canvas's toolbar opens and the toasts */
   --z-dialog: 50;
   --z-menu: 60;
   --z-toast: 70;
@@ -136,6 +137,10 @@
   --hit-bg: color-mix(in srgb, var(--accent) 9%, var(--panel));
   --skeleton: #ebebeb;
   --scrim: rgb(0 0 0 / 0.32);
+  /* The tutorial's spotlight: the dark around the thing shown, deeper behind the agent stage, and the ring around the light. */
+  --tut-scrim: rgb(14 14 20 / 0.5);
+  --tut-scrim-deep: rgb(14 14 20 / 0.62);
+  --tut-ring: rgb(255 255 255 / 0.85);
   --avatar-bg: #e3d9c8;
   --avatar-text: #3a2b10;
   --shadow: 0 2px 5px rgb(0 0 0 / 0.08), 0 0 0 0.5px rgb(0 0 0 / 0.12);
@@ -172,6 +177,9 @@
   --bad-text: #2a0d09;
   --skeleton: #343434;
   --scrim: rgb(0 0 0 / 0.5);
+  --tut-scrim: rgb(0 0 0 / 0.6);
+  --tut-scrim-deep: rgb(0 0 0 / 0.72);
+  --tut-ring: rgb(255 255 255 / 0.7);
   --avatar-bg: #5a4a30;
   --avatar-text: #f3e6cc;
   --shadow: 0 2px 5px rgb(0 0 0 / 0.4), 0 0 0 0.5px rgb(255 255 255 / 0.08);

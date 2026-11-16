@@ -43,7 +43,7 @@ async function saveResponse(res: Response, fallback: string) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-interface MockupPageView extends CanvasPage {
+export interface MockupPageView extends CanvasPage {
   notes: string;
 }
 
@@ -53,7 +53,7 @@ interface PrototypeInfo extends PrototypeAddress {
   bytes: number;
 }
 
-interface MockupVersion extends CanvasVersion {
+export interface MockupVersion extends CanvasVersion {
   summary: string;
   brief: string;
   pages: MockupPageView[];
@@ -81,7 +81,7 @@ interface StoryShowing {
   version: number;
 }
 
-interface MockupView extends MockupSummary {
+export interface MockupView extends MockupSummary {
   /** The folder it sits in, or null for none. */
   folder: { folder_id: string; name: string } | null;
   current: MockupVersion;
@@ -94,9 +94,9 @@ interface VersionItem {
   published_at: string;
 }
 
-export function useMockupList() {
+export function useMockupList(enabled = true) {
   const { api: base } = useProduct();
-  return useQuery({ queryKey: ["mockups", base], queryFn: () => api<MockupList>("GET", `${base}/mockups`) });
+  return useQuery({ queryKey: ["mockups", base], enabled, queryFn: () => api<MockupList>("GET", `${base}/mockups`) });
 }
 
 function rememberKey(productId: string) {
@@ -133,7 +133,7 @@ export function MockupsIndex() {
 
 // ---- The inspector ------------------------------------------------------------------------------
 
-function MockupInspector({ e, shown, versions, onVersion, selected, clickable, onView }: {
+export function MockupInspector({ e, shown, versions, onVersion, selected, clickable, onView }: {
   e: MockupView;
   shown: MockupVersion;
   versions: VersionItem[] | undefined;

@@ -1,5 +1,5 @@
 import { MOCKUP_PAGE_SANDBOX } from "@whatbuild/core/page-sandbox";
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type RefObject } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from "react";
 import { flushSync } from "react-dom";
 import { plural } from "../lib/format.ts";
 import { SAYS_LOADED_WITHIN_MS, tryStoppedFramesAgain, useFrameReturn, useMinuteWait } from "../lib/minute.ts";
@@ -47,6 +47,33 @@ export interface CanvasVersion {
   columns: number | null;
   pages: CanvasPage[];
   prototype?: PrototypeAddress | null;
+}
+
+/**
+ * The toolbar's controls, as their tooltips name them: each one's name, a longer tooltip where it says
+ * more (one for a page selected, one for none), and its key. The toolbar takes its tooltips from here,
+ * and the tutorial labels the toolbar from here, so the two never drift apart.
+ */
+export const CANVAS_TOOLS = {
+  pan: { name: "Pan", key: "H" },
+  interact: { name: "Interact", tip: "Interact with the pages", key: "V" },
+  "zoom-out": { name: "Zoom out", key: "−" },
+  "zoom-in": { name: "Zoom in", key: "+" },
+  "fit-page": { name: "Fit the page", tip: ["Fit the selected page", "Fit the page in the middle"], key: "2" },
+  "fill-width": { name: "Fill the width", tip: ["Fill the width with the selected page", "Fill the width with the page in the middle"], key: "3" },
+  "fit-canvas": { name: "Fit the canvas", key: "1" },
+  previous: { name: "Previous page", key: "←" },
+  next: { name: "Next page", key: "→" },
+  keys: { name: "Keyboard shortcuts", key: null },
+} as const satisfies Record<string, { name: string; tip?: string | readonly [string, string]; key: string | null }>;
+
+export type CanvasTool = keyof typeof CANVAS_TOOLS;
+
+/** A control's tooltip: what it does, for the selected page or the one in the middle, and its key. */
+export function toolTitle(id: CanvasTool, selected = false): string {
+  const t: { name: string; tip?: string | readonly [string, string]; key: string | null } = CANVAS_TOOLS[id];
+  const tip = typeof t.tip === "string" ? t.tip : t.tip ? t.tip[selected ? 0 : 1] : t.name;
+  return t.key ? `${tip} (${t.key})` : tip;
 }
 
 const MIN_ZOOM = 0.05;
@@ -146,9 +173,11 @@ const HELD_WORDS = {
  * A link to another page of the canvas comes here as that page's name, and the canvas checks it. A
  * new `visit` opens the page afresh, as following a link to a file in a folder does.
  */
-function PageFrame({ page, src, title, selected, onSignal, frameRef, prototype, entries, visit, takeHash }: {
+function PageFrame({ page, src, drawn, title, selected, onSignal, frameRef, prototype, entries, visit, takeHash }: {
   page: CanvasPage;
   src: string;
+  /** The page drawn by the app itself, in place of its frame (the tutorial's fixed example). */
+  drawn?: ReactNode;
   title: string;
   selected: boolean;
   onSignal: (pageId: string, s: FrameSignal) => void;
@@ -182,7 +211,8 @@ function PageFrame({ page, src, title, selected, onSignal, frameRef, prototype, 
     waiting.current = null;
     setReloads((n) => n + 1);
   }, []);
-  const { stopped, asking, reloading, wasReplaced, replaced: putBack } = useFrameReturn(frame, newFrame, !prototype);
+  // A drawn page has no frame to watch.
+  const { stopped, asking, reloading, wasReplaced, replaced: putBack } = useFrameReturn(frame, newFrame, !prototype && drawn === undefined);
   const visited = useRef(visit);
   useEffect(() => {
     if (visited.current === visit) return;
@@ -219,6 +249,27 @@ function PageFrame({ page, src, title, selected, onSignal, frameRef, prototype, 
     window.addEventListener("message", handle);
     return () => window.removeEventListener("message", handle);
   }, [onSignal, page.page_id, page.width, prototype, hello]);
+  if (drawn !== undefined)
+    return (
+      <div ref={frameRef} className="xc-frame" data-page={page.page_id} data-selected={selected ? "" : undefined} style={{ width: page.width, height: page.height }}>
+        {/* In interact mode the page takes the pointer as a frame's page does: a press selects it, and a link to another page is followed. */}
+        <div
+          className="xc-drawn"
+          onPointerDown={(e) => {
+            e.stopPropagation();
+            onSignal(page.page_id, { kind: "select" });
+          }}
+          onClick={(e) => {
+            const link = (e.target as HTMLElement).closest<HTMLElement>("[data-page-link]");
+            if (!link) return;
+            e.preventDefault();
+            onSignal(page.page_id, { kind: "follow", page: link.dataset["pageLink"] ?? "", hash: "" });
+          }}
+        >
+          {drawn}
+        </div>
+      </div>
+    );
   return (
     <div ref={frameRef} className="xc-frame" data-page={page.page_id} data-selected={selected ? "" : undefined} style={{ width: page.width, height: page.height }}>
       {stopped || reloading ? (
@@ -322,9 +373,15 @@ function PagesNote({ board }: { board: RefObject<HTMLElement | null> }) {
  *   Each page's label has its own fit button, and the toolbar has fit and fill, the arrows and a list
  *   of every key. A page's frame passes these keys on, so they work from inside a page.
  */
-export function Canvas({ version, pageSrc, selected, onSelect: selectPage, onKey, canFocus, pageView, onPageView, clickable = false, onFollow, onDownloadPage }: {
+export function Canvas({ version, pageSrc, drawPage, onUse, rememberMode = true, selected, onSelect: selectPage, onKey, canFocus, pageView, onPageView, clickable = false, onFollow, onDownloadPage }: {
   version: CanvasVersion;
   pageSrc: (page: CanvasPage) => string;
+  /** Draws a page in place of its frame: fixed content that ships with the app, never a product's page. */
+  drawPage?: (page: CanvasPage) => ReactNode;
+  /** One of the canvas's keys was used, by its key or its control: 1, 2, 3, h or v. */
+  onUse?: (key: "1" | "2" | "3" | "h" | "v") => void;
+  /** Whether pan or interact mode is kept for next time; a canvas shown as an example keeps nothing. */
+  rememberMode?: boolean;
   selected: string | null;
   onSelect: (pageId: string | null) => void;
   onKey: (k: "f" | "Escape") => void;
@@ -355,7 +412,9 @@ export function Canvas({ version, pageSrc, selected, onSelect: selectPage, onKey
   const frames = useRef(new Map<string, HTMLDivElement>());
   const [view, setView] = useState<View>({ x: 0, y: 0, z: 0.25 });
   const [boxes, setBoxes] = useState<Record<string, Box>>({});
-  const [mode, setModeState] = useState<Mode>(readMode);
+  const [mode, setModeState] = useState<Mode>(() => (rememberMode ? readMode() : "pan"));
+  const used = useRef(onUse);
+  used.current = onUse;
   const [space, setSpace] = useState(false);
   const [dragging, setDragging] = useState(false);
   const [gliding, setGliding] = useState(false);
@@ -432,12 +491,14 @@ export function Canvas({ version, pageSrc, selected, onSelect: selectPage, onKey
 
   const setMode = useCallback((m: Mode) => {
     setModeState(m);
+    used.current?.(m === "pan" ? "h" : "v");
+    if (!rememberMode) return;
     try {
       localStorage.setItem(MODE_KEY, m);
     } catch {
       // The choice lasts for this visit.
     }
-  }, []);
+  }, [rememberMode]);
 
   // Where each page sits in the world, read once its layout settles; zoom never changes it.
   useLayoutEffect(() => {
@@ -496,6 +557,13 @@ export function Canvas({ version, pageSrc, selected, onSelect: selectPage, onKey
     return w ? { left: 0, top: 0, width: w.offsetWidth, height: w.offsetHeight } : undefined;
   }, []);
   const fitCanvas = useCallback((glide = true) => fitBox(worldBox(), glide), [fitBox, worldBox]);
+  /** Fits the whole canvas because someone asked: by its key, its control or the zoom menu. */
+  const fitWhole = useCallback(() => {
+    moved();
+    used.current?.("1");
+    fitCanvas();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fitCanvas]);
   /** Selects a page and shows it fitted or filling the width; the way the arrows show pages, unless said. */
   const showPage = useCallback(
     (id: string | null, how: PageView = pageView) => {
@@ -541,8 +609,14 @@ export function Canvas({ version, pageSrc, selected, onSelect: selectPage, onKey
     },
     [onPageView, showPage, selected, middlePage],
   );
-  const fitShown = useCallback(() => showShown("fit"), [showShown]);
-  const fillShown = useCallback(() => showShown("fill"), [showShown]);
+  const fitShown = useCallback(() => {
+    used.current?.("2");
+    showShown("fit");
+  }, [showShown]);
+  const fillShown = useCallback(() => {
+    used.current?.("3");
+    showShown("fill");
+  }, [showShown]);
 
   // Fit the whole canvas when a version opens, and keep it fitted while the window changes until
   // someone moves it. Once they have, the pages stay where they are on the screen when the board's
@@ -669,10 +743,8 @@ export function Canvas({ version, pageSrc, selected, onSelect: selectPage, onKey
       else if (k === "+" || k === "=") zoomAt(1.25, undefined, undefined, true);
       else if (k === "-" || k === "_") zoomAt(0.8, undefined, undefined, true);
       else if (k === "0") zoomAt(1 / view.z, undefined, undefined, true);
-      else if (k === "1") {
-        moved();
-        fitCanvas();
-      } else if (k === "2") fitShown();
+      else if (k === "1") fitWhole();
+      else if (k === "2") fitShown();
       else if (k === "3") fillShown();
       else if (k === "ArrowLeft") step(-1);
       else if (k === "ArrowRight") step(1);
@@ -681,7 +753,7 @@ export function Canvas({ version, pageSrc, selected, onSelect: selectPage, onKey
       else return false;
       return true;
     },
-    [clickable, setMode, zoomAt, view.z, fitCanvas, fitShown, fillShown, selected, step, onSelect],
+    [clickable, setMode, zoomAt, view.z, fitWhole, fitShown, fillShown, selected, step, onSelect],
   );
 
   /** A link inside a page: the app checks the name it sent against this version's pages, and goes nowhere else. */
@@ -848,6 +920,7 @@ export function Canvas({ version, pageSrc, selected, onSelect: selectPage, onKey
           key={p.page_id}
           page={p}
           src={pageSrc(p)}
+          drawn={drawPage ? drawPage(p) : undefined}
           prototype={p.prototype_url && version.prototype ? { sandbox: version.prototype.sandbox } : null}
           title={p.title}
           selected={p.page_id === selected}
@@ -861,7 +934,7 @@ export function Canvas({ version, pageSrc, selected, onSelect: selectPage, onKey
           }}
         />
       )),
-    [version.pages, version.prototype, pageSrc, selected, onSignal, entries, visits, takeHash],
+    [version.pages, version.prototype, pageSrc, drawPage, selected, onSignal, entries, visits, takeHash],
   );
 
   const worldStyle: CSSProperties = {
@@ -962,11 +1035,11 @@ export function Canvas({ version, pageSrc, selected, onSelect: selectPage, onKey
         {clickable ? null : (
           <>
             <div className="xc-modes" role="radiogroup" aria-label="Mode">
-              <button type="button" role="radio" aria-checked={mode === "pan"} className="xc-tool" onClick={() => setMode("pan")} title="Pan (H)">
+              <button type="button" role="radio" aria-checked={mode === "pan"} className="xc-tool" onClick={() => setMode("pan")} title={toolTitle("pan")} data-tool="pan">
                 <Glyph name="hand" />
                 <span className="visually-hidden">Pan</span>
               </button>
-              <button type="button" role="radio" aria-checked={mode === "interact"} className="xc-tool" onClick={() => setMode("interact")} title="Interact with the pages (V)">
+              <button type="button" role="radio" aria-checked={mode === "interact"} className="xc-tool" onClick={() => setMode("interact")} title={toolTitle("interact")} data-tool="interact">
                 <Glyph name="pointer" />
                 <span className="visually-hidden">Interact</span>
               </button>
@@ -974,7 +1047,7 @@ export function Canvas({ version, pageSrc, selected, onSelect: selectPage, onKey
             <span className="xc-tools-rule" aria-hidden="true" />
             <div className="xc-tools-group">
               {coarse ? null : (
-                <button type="button" className="xc-tool" onClick={() => zoomAt(0.8, undefined, undefined, true)} disabled={view.z <= MIN_ZOOM} title="Zoom out (−)">
+                <button type="button" className="xc-tool" onClick={() => zoomAt(0.8, undefined, undefined, true)} disabled={view.z <= MIN_ZOOM} title={toolTitle("zoom-out")} data-tool="zoom-out">
                   <Glyph name="zoom-out" />
                   <span className="visually-hidden">Zoom out</span>
                 </button>
@@ -987,7 +1060,7 @@ export function Canvas({ version, pageSrc, selected, onSelect: selectPage, onKey
                 minWidth={200}
                 trigger={<>{pct}%</>}
               >
-                <MenuItem onSelect={() => { moved(); fitCanvas(); }} kbd={coarse ? undefined : "1"}>Fit the canvas</MenuItem>
+                <MenuItem onSelect={fitWhole} kbd={coarse ? undefined : "1"}>Fit the canvas</MenuItem>
                 <MenuItem onSelect={fitShown} kbd={coarse ? undefined : "2"}>{selected ? "Fit the selected page" : "Fit the page in the middle"}</MenuItem>
                 <MenuItem onSelect={fillShown} kbd={coarse ? undefined : "3"}>{selected ? "Fill the width with the selected page" : "Fill the width with the page in the middle"}</MenuItem>
                 <MenuSeparator />
@@ -998,7 +1071,7 @@ export function Canvas({ version, pageSrc, selected, onSelect: selectPage, onKey
                 ))}
               </Menu>
               {coarse ? null : (
-                <button type="button" className="xc-tool" onClick={() => zoomAt(1.25, undefined, undefined, true)} disabled={view.z >= MAX_ZOOM} title="Zoom in (+)">
+                <button type="button" className="xc-tool" onClick={() => zoomAt(1.25, undefined, undefined, true)} disabled={view.z >= MAX_ZOOM} title={toolTitle("zoom-in")} data-tool="zoom-in">
                   <Glyph name="zoom-in" />
                   <span className="visually-hidden">Zoom in</span>
                 </button>
@@ -1010,17 +1083,17 @@ export function Canvas({ version, pageSrc, selected, onSelect: selectPage, onKey
         <div className="xc-tools-group">
           {/* Fit and fill show a page now, and are how the arrows show the next one: the one in use is marked. */}
           <div className="xc-modes" role="radiogroup" aria-label="Show pages">
-            <button type="button" role="radio" aria-checked={pageView === "fit"} className="xc-tool" onClick={fitShown} title={selected ? "Fit the selected page (2)" : "Fit the page in the middle (2)"} aria-keyshortcuts="2">
+            <button type="button" role="radio" aria-checked={pageView === "fit"} className="xc-tool" onClick={fitShown} title={toolTitle("fit-page", Boolean(selected))} aria-keyshortcuts="2" data-tool="fit-page">
               <Glyph name="scan" />
               <span className="visually-hidden">{selected ? "Fit the selected page" : "Fit the page in the middle"}</span>
             </button>
-            <button type="button" role="radio" aria-checked={pageView === "fill"} className="xc-tool" onClick={fillShown} title={selected ? "Fill the width with the selected page (3)" : "Fill the width with the page in the middle (3)"} aria-keyshortcuts="3">
+            <button type="button" role="radio" aria-checked={pageView === "fill"} className="xc-tool" onClick={fillShown} title={toolTitle("fill-width", Boolean(selected))} aria-keyshortcuts="3" data-tool="fill-width">
               <Glyph name="move-horizontal" />
               <span className="visually-hidden">{selected ? "Fill the width with the selected page" : "Fill the width with the page in the middle"}</span>
             </button>
           </div>
           {clickable ? null : (
-            <button type="button" className="xc-tool" onClick={() => { moved(); fitCanvas(); }} title="Fit the canvas (1)" aria-keyshortcuts="1">
+            <button type="button" className="xc-tool" onClick={fitWhole} title={toolTitle("fit-canvas")} aria-keyshortcuts="1" data-tool="fit-canvas">
               <Glyph name="layout-grid" />
               <span className="visually-hidden">Fit the canvas</span>
             </button>
@@ -1028,11 +1101,11 @@ export function Canvas({ version, pageSrc, selected, onSelect: selectPage, onKey
         </div>
         <span className="xc-tools-rule" aria-hidden="true" />
         <div className="xc-tools-group">
-          <button type="button" className="xc-tool" onClick={() => step(-1)} disabled={selectedIndex === 0} title="Previous page (←)" aria-keyshortcuts="ArrowLeft">
+          <button type="button" className="xc-tool" onClick={() => step(-1)} disabled={selectedIndex === 0} title={toolTitle("previous")} aria-keyshortcuts="ArrowLeft" data-tool="previous">
             <Glyph name="chevron-left" />
             <span className="visually-hidden">Previous page</span>
           </button>
-          <button type="button" className="xc-tool" onClick={() => step(1)} disabled={selectedIndex === version.pages.length - 1} title="Next page (→)" aria-keyshortcuts="ArrowRight">
+          <button type="button" className="xc-tool" onClick={() => step(1)} disabled={selectedIndex === version.pages.length - 1} title={toolTitle("next")} aria-keyshortcuts="ArrowRight" data-tool="next">
             <Glyph name="chevron-right" />
             <span className="visually-hidden">Next page</span>
           </button>
@@ -1063,14 +1136,14 @@ export function Canvas({ version, pageSrc, selected, onSelect: selectPage, onKey
         {coarse ? null : (
           <>
             <span className="xc-tools-rule" aria-hidden="true" />
-            <Menu label="Keyboard shortcuts" title="Keyboard shortcuts" triggerClassName="xc-tool" align="end" side="top" minWidth={240} trigger={<Glyph name="keyboard" />}>
+            <Menu label={toolTitle("keys")} title={toolTitle("keys")} triggerClassName="xc-tool xc-tool-keys" align="end" side="top" minWidth={240} trigger={<Glyph name="keyboard" />}>
               <MenuItem onSelect={() => step(-1)} disabled={selectedIndex === 0} kbd="←">Previous page</MenuItem>
               <MenuItem onSelect={() => step(1)} disabled={selectedIndex === version.pages.length - 1} kbd="→">Next page</MenuItem>
               <MenuItem onSelect={fitShown} kbd="2">{selected ? "Fit the selected page" : "Fit the page in the middle"}</MenuItem>
               <MenuItem onSelect={fillShown} kbd="3">{selected ? "Fill the width with the selected page" : "Fill the width with the page in the middle"}</MenuItem>
               {clickable ? null : (
                 <>
-                  <MenuItem onSelect={() => { moved(); fitCanvas(); }} kbd="1">Fit the canvas</MenuItem>
+                  <MenuItem onSelect={fitWhole} kbd="1">Fit the canvas</MenuItem>
                   <MenuSeparator />
                   <MenuItem onSelect={() => zoomAt(1.25, undefined, undefined, true)} kbd="+">Zoom in</MenuItem>
                   <MenuItem onSelect={() => zoomAt(0.8, undefined, undefined, true)} kbd="−">Zoom out</MenuItem>

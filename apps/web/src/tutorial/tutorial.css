@@ -1,0 +1,1557 @@
+/*
+ * The spotlight tutorial: what it adds to Studio. Popover fill, 8px corners, the lifted shadow, and the
+ * accent only on the thing to press. Its own mark, the signpost, in the attention hue the examples
+ * share. The examples' pictures, pages and Story page carry their own look, as an agent's would.
+ */
+
+/* ---- While it is up, the page holds still ------------------------------------------------------ */
+
+.stage[data-tutorial] .canvas,
+.stage[data-tutorial] .inspector-body,
+.stage[data-tutorial] .panel-context {
+  overflow: hidden;
+}
+
+/* ---- The layer: a scrim with one hole, and blocks that keep the pointer off everything else ------ */
+
+.tut-layer {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-tutorial);
+  pointer-events: none;
+}
+.tut-layer > :not(.tut-spot, .tut-pill) {
+  pointer-events: auto;
+}
+.tut-layer[data-leaving] > * {
+  pointer-events: none;
+}
+.tut-block {
+  position: absolute;
+}
+.tut-spot {
+  position: absolute;
+  top: 0;
+  left: 0;
+  border-radius: var(--r-lg);
+  box-shadow: 0 0 0 2400px var(--tut-scrim);
+  pointer-events: none;
+  transition:
+    transform 380ms var(--ease-fold),
+    width 380ms var(--ease-fold),
+    height 380ms var(--ease-fold),
+    box-shadow 300ms var(--ease);
+}
+.tut-spot::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow: 0 0 0 1.5px var(--tut-ring);
+  transition: opacity var(--dur-3) var(--ease);
+}
+.tut-spot[data-none]::after {
+  opacity: 0;
+}
+.tut-layer[data-dark] .tut-spot {
+  box-shadow: 0 0 0 2400px var(--tut-scrim-deep);
+}
+.tut-layer[data-enter] .tut-spot {
+  animation: tut-spot-in 420ms var(--ease-fold) backwards;
+}
+@keyframes tut-spot-in {
+  from {
+    box-shadow: 0 0 0 2400px transparent;
+  }
+}
+.tut-layer[data-leaving] .tut-spot {
+  box-shadow: 0 0 0 2400px transparent;
+  transition: box-shadow 280ms var(--ease);
+}
+.tut-layer[data-leaving] .tut-spot::after {
+  opacity: 0;
+}
+
+/* ---- The card: a bubble beside the light, the welcome, the agent stage ------------------------- */
+
+.tut-card {
+  position: absolute;
+  top: 0;
+  left: 0;
+  border-radius: var(--r-md);
+  background: var(--popover);
+  color: var(--text);
+  box-shadow: var(--shadow-2);
+  animation: tut-card-in var(--dur-3) var(--ease) backwards;
+}
+@keyframes tut-card-in {
+  from {
+    opacity: 0;
+    translate: 0 6px;
+  }
+}
+.tut-layer[data-leaving] .tut-card {
+  opacity: 0;
+  scale: 0.92;
+  transition:
+    opacity 170ms ease-in,
+    scale 170ms ease-in;
+}
+.tut-layer[data-entering] .tut-card {
+  opacity: 0;
+  animation: none;
+}
+.tut-layer:not([data-entering]) .tut-card {
+  transition: opacity var(--dur-3) var(--ease);
+}
+.tut-bubble {
+  display: grid;
+  gap: var(--s-1h);
+  width: 304px;
+  padding: var(--s-3) var(--s-3h);
+  transition:
+    transform 380ms var(--ease-fold),
+    opacity var(--dur-3) var(--ease);
+}
+.tut-bubble[data-wide] {
+  width: 316px;
+}
+.tut-beak {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  background: var(--popover);
+  box-shadow: 0 0 0 0.5px rgb(0 0 0 / 0.14);
+  rotate: 45deg;
+}
+.tut-bubble:not([data-side]) .tut-beak {
+  display: none;
+}
+.tut-bubble[data-side="top"] .tut-beak {
+  bottom: -6px;
+  margin-left: -6px;
+  clip-path: polygon(100% 0, 100% 100%, 0 100%);
+}
+.tut-bubble[data-side="bottom"] .tut-beak {
+  top: -6px;
+  margin-left: -6px;
+  clip-path: polygon(0 0, 100% 0, 0 100%);
+}
+.tut-bubble[data-side="left"] .tut-beak {
+  right: -6px;
+  margin-top: -6px;
+  clip-path: polygon(0 0, 100% 0, 100% 100%);
+}
+.tut-bubble[data-side="right"] .tut-beak {
+  left: -6px;
+  margin-top: -6px;
+  clip-path: polygon(0 0, 0 100%, 100% 100%);
+}
+.tut-x {
+  position: absolute;
+  top: var(--s-2);
+  right: var(--s-2);
+}
+.tut-swap {
+  display: grid;
+  gap: var(--s-1h);
+  animation: tut-swap-in var(--dur-3) var(--ease) backwards;
+}
+@keyframes tut-swap-in {
+  from {
+    opacity: 0;
+    translate: 0 4px;
+  }
+}
+.tut-bar {
+  display: flex;
+  gap: 2px;
+  width: 150px;
+  margin: 0 0 var(--s-1);
+  padding: 0;
+  list-style: none;
+}
+.tut-bar li {
+  flex: 1;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--line);
+}
+.tut-bar li[data-s="done"] {
+  background: var(--line-strong);
+}
+.tut-bar li[data-s="now"] {
+  background: var(--text);
+}
+.tut-count {
+  margin: 0;
+  color: var(--faint);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-medium);
+}
+.tut-title {
+  margin: 0;
+  padding-right: var(--s-5);
+  font-size: var(--fs-title);
+  font-weight: var(--fw-semibold);
+  letter-spacing: -0.005em;
+  line-height: 1.3;
+}
+.tut-line {
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--fs-base);
+  line-height: 1.55;
+  text-wrap: pretty;
+}
+.tut-line b {
+  color: var(--text);
+  font-weight: var(--fw-medium);
+}
+/* A key cap, as the app's others are; it turns green, with a check, once that key is used. */
+.tut-kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-width: 18px;
+  height: 18px;
+  margin: 0 1px;
+  padding: 0 4px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-xs);
+  background: var(--panel);
+  color: var(--muted);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-medium);
+  line-height: 1;
+  vertical-align: 1px;
+  transition:
+    background var(--dur-3) var(--ease),
+    border-color var(--dur-3) var(--ease),
+    color var(--dur-3) var(--ease);
+}
+.tut-kbd[data-hit] {
+  border-color: var(--ok);
+  background: var(--ok);
+  color: var(--panel);
+}
+.tut-kbd .glyph {
+  width: 10px;
+  height: 10px;
+}
+.tut-turn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin: var(--s-1) 0 0;
+  padding-top: var(--s-2);
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-size: var(--fs-sm);
+}
+.tut-turn .glyph {
+  margin-left: 2px;
+  color: var(--faint);
+}
+.tut-turn b {
+  color: var(--text);
+  font-weight: var(--fw-medium);
+}
+.tut-foot {
+  display: flex;
+  align-items: center;
+  gap: var(--s-1h);
+}
+.tut-bubble .tut-foot {
+  margin-top: var(--s-2);
+}
+.tut-later {
+  margin: 0 auto 0 calc(-1 * var(--s-2));
+}
+.tut-gap {
+  margin-right: auto;
+}
+.tut-layer .btn[data-nudge] {
+  animation: tut-nudge 0.9s var(--ease);
+}
+@keyframes tut-nudge {
+  30% {
+    background: var(--select);
+    color: var(--select-text);
+  }
+}
+
+/* The toolbar as a diagram: each control named with its key, on a thin leader line, over the dark. */
+.tut-layer > .tut-diagram {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.tut-diagram-sizer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  visibility: hidden;
+}
+.tut-diagram-sizer > .tut-tool-label {
+  position: static;
+  display: inline-flex;
+  margin-right: var(--s-2);
+}
+.tut-tool-label {
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-1h);
+  height: 22px;
+  padding: 0 var(--s-1h) 0 var(--s-2);
+  border-radius: var(--r-sm);
+  background: var(--popover);
+  color: var(--text);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-medium);
+  line-height: 1;
+  white-space: nowrap;
+  box-shadow: var(--shadow);
+  animation: tut-label-in 180ms var(--ease) backwards;
+  animation-delay: calc(var(--i, 0) * 28ms);
+}
+.tut-tool-label .tut-kbd {
+  min-width: 16px;
+  height: 16px;
+  margin: 0;
+  vertical-align: 0;
+}
+.tut-diagram-lines {
+  position: absolute;
+  inset: 0;
+  overflow: visible;
+}
+.tut-diagram-lines polyline {
+  fill: none;
+  stroke: var(--tut-ring);
+  stroke-width: 1;
+}
+.tut-diagram-lines circle {
+  fill: var(--tut-ring);
+}
+.tut-diagram-lines g {
+  animation: tut-label-in 180ms var(--ease) backwards;
+  animation-delay: calc(var(--i, 0) * 28ms);
+}
+@keyframes tut-label-in {
+  from {
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tut-tool-label,
+  .tut-diagram-lines g {
+    animation: none;
+  }
+}
+
+/* The welcome: an offer, over the screen, on the first product where the person gets the tutorial. */
+.tut-welcome {
+  top: 50%;
+  left: calc(50% + 137px);
+  width: 400px;
+  max-width: calc(100vw - 24px);
+  transform: translate(-50%, calc(-50% - 24px));
+}
+@media (max-width: 1000px) {
+  .tut-welcome {
+    left: 50%;
+  }
+}
+.tut-welcome-top {
+  display: grid;
+  gap: var(--s-2);
+  padding: var(--s-5) var(--s-5) var(--s-4);
+}
+.tut-welcome-title {
+  margin: 0;
+  font-size: 17px;
+  font-weight: var(--fw-semibold);
+  letter-spacing: -0.01em;
+}
+.tut-welcome-later {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2h);
+  margin: 0 var(--s-5);
+  padding: var(--s-2h) var(--s-3);
+  border-radius: var(--r-md);
+  background: var(--hover);
+  color: var(--muted);
+  font-size: var(--fs-sm);
+  line-height: 1.45;
+}
+.tut-welcome .tut-foot {
+  justify-content: flex-end;
+  padding: var(--s-3h) var(--s-5) var(--s-4);
+}
+
+/* ---- Into the account menu, and out of it ------------------------------------------------------ */
+
+.tut-pill {
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-1h);
+  height: 30px;
+  padding: 0 var(--s-3) 0 var(--s-2h);
+  border-radius: var(--r-full);
+  background: var(--text);
+  color: var(--panel);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-medium);
+  white-space: nowrap;
+  box-shadow: var(--shadow-2);
+  pointer-events: none;
+  transform-origin: 0 50%;
+  will-change: transform, opacity;
+}
+.tut-pill[hidden] {
+  display: none;
+}
+.account-button[data-tutorial-landed] {
+  animation: tut-landed 1.3s var(--ease);
+}
+@keyframes tut-landed {
+  0% {
+    background: var(--select);
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 50%, transparent);
+  }
+  45% {
+    background: var(--select);
+    box-shadow: 0 0 0 9px color-mix(in srgb, var(--accent) 0%, transparent);
+  }
+  100% {
+    background: transparent;
+    box-shadow: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .account-button[data-tutorial-landed] {
+    animation: tut-landed-still 1.3s steps(1);
+  }
+  @keyframes tut-landed-still {
+    0% {
+      background: var(--select);
+    }
+    100% {
+      background: transparent;
+    }
+  }
+}
+
+/* The account menu's one tutorial item. */
+.menu-tutorial > .glyph {
+  color: var(--warn);
+}
+.menu-tutorial .menu-detail {
+  display: grid;
+  gap: 5px;
+}
+.menu-tutorial-bar {
+  display: block;
+  height: 3px;
+  overflow: hidden;
+  border-radius: 2px;
+  background: var(--line);
+}
+.menu-tutorial-bar i {
+  display: block;
+  height: 100%;
+  background: var(--line-strong);
+}
+.menu-tutorial[data-hint] {
+  animation: tut-hint 1.4s var(--ease) 2;
+}
+@keyframes tut-hint {
+  45% {
+    background: var(--select);
+    color: var(--select-text);
+  }
+}
+
+/* ---- The examples: marked, and coming and going with the tutorial ------------------------------ */
+
+.tut-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex: none;
+  height: 18px;
+  padding: 0 6px 0 5px;
+  border-radius: var(--r-xs);
+  background: color-mix(in srgb, var(--warn) 11%, var(--panel));
+  color: var(--warn);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-medium);
+  line-height: 1;
+  white-space: nowrap;
+}
+.tut-badge .glyph {
+  color: inherit;
+}
+.story-link .tut-badge,
+.story-row .tut-badge,
+.idea-card-heading .tut-badge {
+  margin-left: var(--s-1h);
+}
+.idea-card-heading:has(.tut-badge) {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+.tut-examples-line .glyph {
+  color: var(--warn);
+}
+.tut-screen {
+  animation: tut-examples-in 320ms var(--ease) backwards;
+}
+@keyframes tut-examples-in {
+  from {
+    opacity: 0;
+    translate: 0 6px;
+  }
+}
+.tut-screen[data-leaving] {
+  opacity: 0;
+  transition: opacity 200ms ease-in;
+}
+.tut-screen [data-tut] {
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--warn) 28%, transparent),
+    var(--shadow);
+}
+@media (prefers-reduced-motion: reduce) {
+  .tut-screen,
+  .tut-card,
+  .tut-swap {
+    animation: none;
+  }
+}
+
+/* ---- Pressing what a stop opens: More info, a source's row -------------------------------------- */
+
+.tut-screen[data-reveal="press"] [data-tut="concept"] .idea-more,
+.tut-screen[data-reveal="press"] .source-row[aria-current] {
+  animation: tut-press 260ms var(--ease);
+}
+.tut-screen[data-reveal="press"] [data-tut="concept"] .idea-more {
+  background: var(--hover-strong);
+  color: var(--text);
+}
+@keyframes tut-press {
+  0% {
+    scale: 1;
+  }
+  40% {
+    scale: 0.94;
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 35%, transparent);
+  }
+  100% {
+    scale: 1;
+    box-shadow: 0 0 0 0 transparent;
+  }
+}
+.tut-screen[data-reveal="press"] .source-row[aria-current] {
+  animation-name: tut-press-row;
+}
+@keyframes tut-press-row {
+  40% {
+    box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--accent) 45%, transparent);
+  }
+}
+
+/* ---- The Idea cards' fronts, drawn: a picture in the card kit's manner, not chrome --------------- */
+
+.idea-card-drawn {
+  height: auto;
+}
+.tut-front {
+  display: grid;
+  gap: var(--s-4);
+  padding: 22px;
+}
+.tut-pitch {
+  max-width: 26ch;
+  margin: 0;
+  font-size: clamp(19px, 3vw, 27px);
+  font-weight: var(--fw-semibold);
+  letter-spacing: -0.02em;
+  line-height: 1.18;
+  text-wrap: balance;
+}
+.tut-pitch mark {
+  padding: 0 2px;
+  border-bottom: 2px solid color-mix(in srgb, var(--accent) 45%, transparent);
+  background: var(--select);
+  color: inherit;
+}
+.tut-lede {
+  max-width: 62ch;
+  margin: calc(-1 * var(--s-2)) 0 0;
+  color: var(--muted);
+  font-size: var(--fs-lead);
+  line-height: 1.45;
+}
+.tut-shift {
+  display: grid;
+  grid-template-columns: 1fr 22px 1fr;
+  gap: var(--s-5);
+  align-items: center;
+}
+.tut-shift-side {
+  padding: var(--s-3h) var(--s-4) var(--s-4);
+  border-radius: var(--r-md);
+}
+.tut-shift-side h3 {
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--fs-title);
+  font-weight: var(--fw-semibold);
+}
+.tut-shift-today {
+  background: repeating-linear-gradient(-45deg, var(--hover) 0 6px, var(--line) 6px 7px);
+}
+.tut-shift-after {
+  background: var(--select);
+}
+.tut-shift-after h3,
+.tut-shift-arrow {
+  color: var(--select-text);
+}
+.tut-flow {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  margin: var(--s-3) 0 0;
+  padding: 0;
+  list-style: none;
+}
+.tut-node {
+  position: relative;
+  display: grid;
+  align-content: start;
+  justify-items: center;
+  gap: 2px;
+  text-align: center;
+}
+.tut-node + .tut-node::before {
+  content: "";
+  position: absolute;
+  top: 20px;
+  right: calc(50% + 26px);
+  width: calc(100% - 52px);
+  height: 1px;
+  background: var(--line-2);
+}
+.tut-node-dot {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  margin-bottom: var(--s-2);
+  border: 1px solid var(--line-2);
+  border-radius: 50%;
+  background: var(--panel);
+  color: var(--muted);
+}
+.tut-node b {
+  font-size: var(--fs-lead);
+  font-weight: var(--fw-semibold);
+}
+.tut-node > span:last-child {
+  max-width: 130px;
+  color: var(--muted);
+  font-size: var(--fs-prose);
+  line-height: 1.3;
+}
+.tut-node[data-tone="pain"] .tut-node-dot {
+  border-color: color-mix(in srgb, var(--bad) 40%, var(--panel));
+  background: color-mix(in srgb, var(--bad) 8%, var(--panel));
+  color: var(--bad);
+}
+.tut-node[data-tone="pain"] b {
+  color: var(--bad);
+}
+.tut-flow[data-hue] .tut-node-dot {
+  border-color: color-mix(in srgb, var(--accent) 35%, var(--panel));
+  color: var(--select-text);
+}
+.tut-flow[data-hue] .tut-node + .tut-node::before {
+  background: color-mix(in srgb, var(--accent) 35%, var(--panel));
+}
+.tut-node[data-tone="new"] .tut-node-dot {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--accent-text);
+}
+.tut-who {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--s-5);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.tut-who li {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-2h);
+  color: var(--muted);
+  font-size: var(--fs-prose);
+  line-height: 1.35;
+}
+.tut-who b {
+  display: block;
+  color: var(--text);
+  font-size: 14.5px;
+  font-weight: var(--fw-semibold);
+}
+.tut-who-dot {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--select);
+  color: var(--select-text);
+}
+.tut-measure {
+  display: grid;
+  gap: var(--s-3);
+  margin: 0;
+}
+.tut-measure figcaption {
+  font-size: var(--fs-title);
+  font-weight: var(--fw-semibold);
+}
+.tut-measure-row {
+  display: grid;
+  grid-template-columns: 74px 1fr auto;
+  gap: 0 var(--s-2h);
+  align-items: center;
+  color: var(--muted);
+  font-size: var(--fs-title);
+}
+.tut-measure-row b {
+  font-size: var(--fs-lead);
+  font-weight: var(--fw-regular);
+}
+.tut-measure-row.is-goal {
+  grid-template-columns: 74px auto 1fr;
+}
+.tut-measure-row.is-goal b {
+  color: var(--select-text);
+  font-weight: var(--fw-semibold);
+}
+.tut-bar-today,
+.tut-bar-goal {
+  display: block;
+  height: 12px;
+  border-radius: 3px;
+}
+.tut-bar-today {
+  border: 1px solid var(--line-2);
+  background: repeating-linear-gradient(-45deg, var(--hover) 0 3px, var(--line-2) 3px 4px);
+}
+.tut-bar-goal {
+  min-width: 60px;
+  background: var(--accent);
+}
+@media (max-width: 1100px) {
+  .tut-shift {
+    grid-template-columns: 1fr;
+  }
+  .tut-shift-arrow {
+    justify-self: center;
+    rotate: 90deg;
+  }
+}
+
+/* ---- The example canvas's pages: Crewboard's own look, drawn at each page's full size ------------ */
+
+.xc-drawn {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  user-select: text;
+  -webkit-user-select: text;
+}
+.xc-viewport[data-mode="pan"] .xc-drawn {
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.xc-drawn .cb {
+  height: 100%;
+  background: #f6f4ee;
+  color: #1c2a23;
+  font: 400 18px/1.35 system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+.xc-drawn .cb-top {
+  display: flex;
+  align-items: baseline;
+  gap: 22px;
+  padding: 18px 36px;
+  background: #1f3b2f;
+  color: #fff;
+}
+.xc-drawn .cb-top b {
+  font-size: 22px;
+  font-weight: 700;
+}
+.xc-drawn .cb-top span {
+  opacity: 0.75;
+  font-size: 16px;
+}
+.xc-drawn .cb-cols {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 28px;
+  padding: 30px 36px 0;
+}
+.xc-drawn .cb h4 {
+  margin: 0 0 14px;
+  color: #5d6b63;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.xc-drawn .cb-card {
+  display: grid;
+  gap: 4px;
+  margin-bottom: 14px;
+  padding: 16px 18px;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 1px 2px rgb(31 59 47 / 0.12);
+}
+.xc-drawn .cb-card b {
+  font-size: 17px;
+  font-weight: 600;
+}
+.xc-drawn .cb-card span {
+  color: #5d6b63;
+  font-size: 15px;
+}
+.xc-drawn .cb-card i {
+  justify-self: start;
+  margin-top: 4px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: #fbe7c4;
+  color: #7a4700;
+  font-size: 13px;
+  font-style: normal;
+  font-weight: 600;
+}
+.xc-drawn .cb-btn {
+  display: inline-block;
+  margin: 14px 36px;
+  padding: 14px 22px;
+  border-radius: 8px;
+  background: #1f3b2f;
+  color: #fff;
+  font-size: 17px;
+  font-weight: 700;
+  text-decoration: none;
+  cursor: pointer;
+}
+.xc-drawn .cb-btn:hover {
+  background: #2b5140;
+}
+.xc-drawn .cb-day {
+  padding: 26px 36px;
+}
+.xc-drawn .cb-day-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+.xc-drawn .cb-day-bar p {
+  margin: 0;
+  color: #5d6b63;
+}
+.xc-drawn .cb-day-bar .cb-btn {
+  margin: 0;
+}
+.xc-drawn .cb-day h3 {
+  margin: 26px 0 14px;
+  font-size: 20px;
+  font-weight: 700;
+}
+.xc-drawn .cb-week-head,
+.xc-drawn .cb-week-row {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 18px;
+}
+.xc-drawn .cb-week-head span {
+  padding-bottom: 10px;
+  color: #5d6b63;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.xc-drawn .cb-phone .cb-top {
+  padding: 16px 20px;
+}
+.xc-drawn .cb-msg {
+  padding: 22px 20px;
+}
+.xc-drawn .cb-hi {
+  margin: 0 0 18px;
+  color: #5d6b63;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.xc-drawn .cb-msg .cb-btn {
+  margin: 10px 0 0;
+}
+
+/* ---- The example Story page, in its own Story style: never the app's look, in the reader's theme -- */
+
+.tut-story-frame {
+  min-height: 480px;
+  overflow: hidden;
+  background: #fff;
+}
+.tut-story-page {
+  padding: 40px 32px;
+  color: #1a1d21;
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+.tut-story-page h1 {
+  max-width: 760px;
+  margin: 8px 0 0;
+  font-size: 46px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.12;
+}
+.tut-story-kicker,
+.tut-story-meta {
+  margin: 0;
+  color: #4a5560;
+  font-size: 19px;
+}
+.tut-story-meta {
+  margin-top: 18px;
+  font-size: 15.5px;
+}
+.tut-story-lead {
+  max-width: 640px;
+  margin: 22px 0 0;
+  font-size: 21px;
+  line-height: 1.55;
+}
+.tut-story-page hr {
+  margin: 34px 0 28px;
+  border: 0;
+  border-top: 1px solid #8a8a8a;
+}
+.tut-story-page h2 {
+  margin: 0;
+  font-size: 32px;
+  font-weight: 700;
+}
+.tut-story-page p:not([class]) {
+  max-width: 640px;
+  margin: 18px 0 0;
+  font-size: 17px;
+  line-height: 1.65;
+}
+:root[data-theme="dark"] .tut-story-frame {
+  background: #16181b;
+}
+:root[data-theme="dark"] .tut-story-page {
+  color: #eceef0;
+}
+:root[data-theme="dark"] .tut-story-kicker,
+:root[data-theme="dark"] .tut-story-meta {
+  color: #a9b3bd;
+}
+
+/* ---- The agent stage: most of the screen ------------------------------------------------------- */
+
+.tut-stage {
+  inset: 26px 60px;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto auto;
+  overflow: hidden;
+  border-radius: var(--r-lg);
+  background: var(--panel);
+  animation: tut-stage-in 380ms var(--ease-fold) backwards;
+}
+@keyframes tut-stage-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.99);
+  }
+}
+.tut-stage .tut-x {
+  top: var(--s-3);
+  right: var(--s-3);
+}
+.tut-stage-head {
+  display: grid;
+  gap: var(--s-1h);
+  padding: var(--s-5) var(--s-7) var(--s-3h);
+}
+.tut-stage-title {
+  margin: 0;
+  font-size: var(--fs-h1);
+  font-weight: var(--fw-semibold);
+  letter-spacing: -0.015em;
+}
+.tut-stage-lead {
+  max-width: 660px;
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--fs-body);
+  line-height: 1.55;
+}
+.tut-stage-show {
+  display: grid;
+  grid-template-columns: 1fr 1.12fr;
+  gap: 18px;
+  min-height: 0;
+  padding: var(--s-1) var(--s-7) 0;
+}
+/* The chat: the person's own agent, in another application, so in the opposite theme to the app's. */
+.tut-chat {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+  border-radius: var(--r-md);
+  background: var(--canvas);
+  color: var(--text);
+}
+.tut-chat.theme-light {
+  background: var(--panel);
+  box-shadow: inset 0 0 0 1px var(--line-2);
+}
+.tut-chat-head {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  flex: none;
+  height: 36px;
+  padding: 0 var(--s-3);
+  border-bottom: 1px solid var(--line);
+  color: var(--muted);
+  font-size: var(--fs-sm);
+}
+.tut-chat-head b {
+  color: var(--text);
+  font-weight: var(--fw-medium);
+}
+.tut-chat-mcp {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-1h);
+  margin-left: auto;
+  color: var(--ok);
+}
+.tut-chat-mcp i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+.tut-chat-body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 9px;
+  min-height: 0;
+  overflow: hidden;
+  padding: var(--s-3h);
+  font-size: var(--fs-md);
+  line-height: 1.5;
+}
+.msg {
+  animation: tut-msg-in 260ms var(--ease) backwards;
+}
+@keyframes tut-msg-in {
+  from {
+    opacity: 0;
+    translate: 0 4px;
+  }
+}
+.msg-you {
+  align-self: flex-end;
+  max-width: 86%;
+  padding: var(--s-2) 11px;
+  border-radius: 10px 10px 2px 10px;
+  background: var(--hover-strong);
+  color: var(--text);
+}
+.msg-agent {
+  display: flex;
+  gap: var(--s-2);
+  max-width: 94%;
+}
+.msg-agent .glyph {
+  flex: none;
+  margin-top: 2px;
+  color: var(--muted);
+}
+.msg-tool {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-1h);
+  align-self: flex-start;
+  height: var(--h-sm);
+  margin-left: 21px;
+  padding: 0 9px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-sm);
+  color: var(--muted);
+  font: 11.5px/1 var(--mono);
+}
+.msg-tool b {
+  color: var(--text);
+  font-weight: var(--fw-medium);
+}
+.msg-tool em {
+  color: var(--faint);
+  font-style: normal;
+}
+.msg-tool .glyph {
+  color: var(--ok);
+}
+.msg-spin {
+  width: 10px;
+  height: 10px;
+  border: 1.5px solid var(--line-strong);
+  border-top-color: var(--text);
+  border-radius: 50%;
+  animation: tut-spin 0.8s linear infinite;
+}
+@keyframes tut-spin {
+  to {
+    rotate: 360deg;
+  }
+}
+.tut-chat-input {
+  display: flex;
+  align-items: center;
+  flex: none;
+  min-height: 46px;
+  margin: 0 var(--s-2h) var(--s-2h);
+  padding: var(--s-2) var(--s-3);
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-md);
+  font-size: var(--fs-md);
+  line-height: 1.45;
+}
+.tut-chat-input [data-empty] {
+  color: var(--faint);
+}
+.tut-caret {
+  display: inline-block;
+  flex: none;
+  width: 1.5px;
+  height: 14px;
+  margin-left: 1px;
+  background: var(--text);
+  animation: tut-blink 1s steps(1) infinite;
+}
+@keyframes tut-blink {
+  50% {
+    opacity: 0;
+  }
+}
+/* The small WhatBuild: the app's own theme. */
+.mini {
+  display: grid;
+  grid-template-columns: 150px minmax(0, 1fr);
+  gap: var(--s-2h);
+  min-height: 0;
+  overflow: hidden;
+  padding: var(--s-2h);
+  border-radius: var(--r-md);
+  background: var(--canvas);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+.mini-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--s-2) var(--s-1h);
+  border-radius: var(--r-md);
+  background: var(--panel);
+  box-shadow: var(--shadow);
+  font-size: 10.5px;
+}
+.mini-brand {
+  display: flex;
+  align-items: center;
+  gap: var(--s-1h);
+  margin-bottom: var(--s-1h);
+  padding: 2px var(--s-1) var(--s-2);
+  border-bottom: 1px solid var(--line);
+  font-size: var(--fs-xs);
+}
+.mini-product {
+  margin: 0;
+  padding: 0 var(--s-1) var(--s-1h);
+  font-weight: var(--fw-semibold);
+}
+.mini-nav {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.mini-nav li {
+  display: flex;
+  align-items: center;
+  gap: var(--s-1h);
+  height: 22px;
+  padding: 0 var(--s-1h);
+  border-radius: 5px;
+  font-weight: var(--fw-medium);
+  transition:
+    background var(--dur-3) var(--ease),
+    color var(--dur-3) var(--ease);
+}
+.mini-nav li .glyph {
+  color: var(--faint);
+}
+.mini-nav li[aria-current] {
+  background: var(--select);
+  color: var(--select-text);
+}
+.mini-nav li[aria-current] .glyph {
+  color: inherit;
+}
+.mini-nav i {
+  margin-left: auto;
+  color: var(--faint);
+  font-style: normal;
+  font-weight: var(--fw-regular);
+}
+.mini-nav i[data-bump] {
+  animation: tut-bump 0.6s var(--ease);
+}
+@keyframes tut-bump {
+  40% {
+    color: var(--select-text);
+    scale: 1.5;
+  }
+}
+.mini-main {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+  gap: var(--s-2h);
+  min-width: 0;
+  min-height: 0;
+}
+.mini-sec {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1h);
+  min-width: 0;
+  min-height: 0;
+  padding: var(--s-2);
+  border-radius: var(--r-md);
+  transition: background var(--dur-3) var(--ease);
+}
+.mini-sec[data-on] {
+  background: color-mix(in srgb, var(--select) 70%, transparent);
+}
+.mini-h {
+  display: flex;
+  align-items: center;
+  gap: var(--s-1h);
+  margin: 0;
+  padding: 2px var(--s-1);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+}
+.mini-h .glyph,
+.mini-h .num {
+  color: var(--faint);
+  font-weight: var(--fw-regular);
+}
+.mini-empty,
+.mini-card {
+  margin: 0;
+  padding: var(--s-2h) var(--s-3);
+  border-radius: var(--r-md);
+  background: var(--panel);
+  box-shadow: var(--shadow);
+  font-size: var(--fs-xs);
+}
+.mini-empty {
+  color: var(--muted);
+}
+.mini-card {
+  display: grid;
+  gap: var(--s-1);
+}
+.mini-card b {
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+}
+.mini-card[data-new] {
+  animation: tut-mini-new 1.6s var(--ease) backwards;
+}
+@keyframes tut-mini-new {
+  0% {
+    opacity: 0;
+    translate: 0 -6px;
+    box-shadow:
+      0 0 0 2px var(--accent),
+      var(--shadow);
+  }
+  20% {
+    opacity: 1;
+    translate: 0 0;
+    box-shadow:
+      0 0 0 2px var(--accent),
+      var(--shadow);
+  }
+  100% {
+    box-shadow:
+      0 0 0 0 transparent,
+      var(--shadow);
+  }
+}
+.mini-source {
+  grid-template-columns: 44px 1fr;
+  align-items: center;
+  gap: var(--s-2h);
+}
+.mini-src {
+  display: grid;
+  gap: 3px;
+}
+.mini-thumb {
+  display: grid;
+  align-content: center;
+  gap: 3px;
+  height: 32px;
+  padding: 5px;
+  border-radius: 3px;
+  background: var(--hover);
+}
+.mini-thumb i {
+  height: 3px;
+  border-radius: 1px;
+  background: var(--line-2);
+}
+.mini-thumb i:first-child {
+  width: 60%;
+  background: var(--accent);
+}
+.mini-tags {
+  display: flex;
+  gap: var(--s-1);
+}
+.mini-tags i {
+  padding: 0 4px;
+  border: 1px solid var(--line-2);
+  border-radius: 3px;
+  color: var(--muted);
+  font-size: 10px;
+  font-style: normal;
+}
+.mini-by {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-1);
+  color: var(--faint);
+  font-size: 10px;
+}
+.mini-by .glyph {
+  width: 10px;
+  height: 10px;
+}
+.mini-o {
+  display: flex;
+  align-items: center;
+  gap: var(--s-1h);
+}
+.mini-o-num {
+  display: inline-grid;
+  place-items: center;
+  width: 15px;
+  height: 15px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-xs);
+  color: var(--muted);
+  font-size: 9.5px;
+  font-weight: var(--fw-medium);
+}
+.mini-bars {
+  display: grid;
+  grid-template-columns: 46px 1fr auto;
+  gap: 5px var(--s-2);
+  align-items: center;
+  margin: 2px 0;
+  color: var(--muted);
+  font-size: 10px;
+}
+.mini-bars em {
+  font-style: normal;
+}
+.mini-bar {
+  display: block;
+  height: 7px;
+  border-radius: 2px;
+}
+.mini-bar-today {
+  border: 1px solid var(--line-2);
+  background: repeating-linear-gradient(-45deg, var(--hover) 0 3px, var(--line-2) 3px 4px);
+}
+.mini-bar-goal {
+  width: 14%;
+  background: var(--accent);
+}
+.mini-goal {
+  color: var(--select-text);
+  font-weight: var(--fw-semibold);
+}
+.mini-pages {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--s-2);
+  height: 62px;
+  padding: var(--s-2);
+  border-radius: var(--r-sm);
+  background: var(--hover);
+}
+.mini-pages i {
+  display: grid;
+  align-content: start;
+  gap: 3px;
+  width: 70px;
+  height: 46px;
+  padding: 5px;
+  background: #fff;
+  box-shadow: var(--shadow-paper);
+}
+.mini-pages i.mini-phone {
+  width: 24px;
+}
+.mini-pages s {
+  display: block;
+  height: 4px;
+  border-radius: 1px;
+  background: #dfe3ea;
+  text-decoration: none;
+}
+.mini-pages s:first-child {
+  background: #2f6d5a;
+}
+.mini-meta,
+.mini-kicker {
+  color: var(--muted);
+  font-size: 10px;
+}
+.mini-story {
+  gap: 3px;
+}
+.mini-story b {
+  font-size: var(--fs-lead);
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+}
+.mini-story p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 10.5px;
+  line-height: 1.45;
+}
+.tut-stage-places {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--s-2h);
+  margin: 0;
+  padding: var(--s-3h) var(--s-7) 0;
+  list-style: none;
+}
+.tut-stage-places li {
+  display: grid;
+  grid-template-columns: 16px 1fr;
+  align-items: center;
+  gap: 2px var(--s-2);
+  padding: 9px 11px;
+  border-radius: var(--r-md);
+  background: var(--hover);
+  transition: background var(--dur-3) var(--ease);
+}
+.tut-stage-places li .glyph {
+  color: var(--faint);
+}
+.tut-stage-places li[data-on] {
+  background: var(--select);
+}
+.tut-stage-places li[data-on] .glyph,
+.tut-stage-places li[data-on] b {
+  color: var(--select-text);
+}
+.tut-stage-places b {
+  font-weight: var(--fw-semibold);
+}
+.tut-stage-places code {
+  grid-column: 2;
+  color: var(--muted);
+  font: 11px/1.4 var(--mono);
+}
+.tut-stage-foot {
+  margin-top: var(--s-3h);
+  padding: var(--s-3) var(--s-7) var(--s-3h);
+  border-top: 1px solid var(--line);
+}
+.tut-stage-foot .tut-later {
+  margin: 0 0 0 calc(-1 * var(--s-2));
+}
+.tut-stage-note {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-1h);
+  margin: 0 auto 0 var(--s-2);
+  color: var(--muted);
+  font-size: var(--fs-sm);
+}
+.tut-stage-note .glyph {
+  color: var(--warn);
+}
+@media (max-width: 1100px) {
+  .tut-stage {
+    inset: 16px 20px;
+  }
+  .tut-stage-show {
+    grid-template-columns: 1fr 1fr;
+  }
+  .tut-stage-places {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+@media (max-height: 640px) {
+  .tut-stage-places {
+    display: none;
+  }
+}

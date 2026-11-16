@@ -208,7 +208,7 @@ function Slots({ icon, kbd, meta, detail, children, check }: ItemSlots & { check
 }
 
 /** A command or a link. Choosing it closes the menu. */
-export function MenuItem({ onSelect, to, href, download, newTab, tone, keepOpen, ...slots }: ItemSlots & {
+export function MenuItem({ onSelect, to, href, download, newTab, tone, keepOpen, className, ...slots }: ItemSlots & {
   onSelect?: () => void;
   /** An in-app route. */
   to?: string;
@@ -219,9 +219,10 @@ export function MenuItem({ onSelect, to, href, download, newTab, tone, keepOpen,
   newTab?: boolean;
   tone?: "danger";
   keepOpen?: boolean;
+  className?: string;
 }) {
   const menu = useMenu();
-  const cls = `menu-item${tone === "danger" ? " menu-item-danger" : ""}${slots.detail ? " menu-item-2" : ""}`;
+  const cls = `menu-item${tone === "danger" ? " menu-item-danger" : ""}${slots.detail ? " menu-item-2" : ""}${className ? ` ${className}` : ""}`;
   const activate = (e: { preventDefault: () => void }) => {
     if (slots.disabled) {
       e.preventDefault();

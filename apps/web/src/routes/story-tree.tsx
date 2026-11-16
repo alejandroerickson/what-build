@@ -1,5 +1,5 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type MutableRefObject, type PointerEvent as ReactPointerEvent } from "react";
+import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type MutableRefObject, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import { Link } from "react-router";
 import { api, ApiError } from "../lib/api.ts";
 import { useProduct } from "../lib/session.tsx";
@@ -150,7 +150,7 @@ function Highlight({ text, query }: { text: string; query: string }) {
   );
 }
 
-export function StoryTree({ arrange, archived, refOf, current, onExport, actions, style, onStyle }: {
+export function StoryTree({ arrange, archived, refOf, current, onExport, actions, style, onStyle, markOf }: {
   arrange: Arrange;
   archived: PageRef[];
   /** A page as its actions need it, from the product's list of pages. */
@@ -161,6 +161,8 @@ export function StoryTree({ arrange, archived, refOf, current, onExport, actions
   /** The Story style's name and how it reads, or null before an agent sets one; undefined while loading. */
   style: { name: string; line: string } | null | undefined;
   onStyle: () => void;
+  /** Said after a page's title: the tutorial marks its example pages. */
+  markOf?: (page: string) => ReactNode;
 }) {
   const { app, product, canWrite } = useProduct();
   const toast = useToast();
@@ -339,7 +341,7 @@ export function StoryTree({ arrange, archived, refOf, current, onExport, actions
     return node ? flatten([node]).map((x) => x.node.page_id) : [id];
   };
 
-  const common = { app, current, query, arranging, drag, isOpen, toggle, focusRequest, onMoveKey, openRowMenu, onGripDown, onGripMove, onGripUp, onExport, pagesUnder, refOf, actions };
+  const common = { app, current, query, arranging, drag, isOpen, toggle, focusRequest, onMoveKey, openRowMenu, onGripDown, onGripMove, onGripUp, onExport, pagesUnder, refOf, actions, markOf };
   const total = count(tree);
 
   return (
@@ -478,6 +480,7 @@ interface ListProps {
   pagesUnder: (page: string) => string[];
   refOf: (page: string) => PageRef | undefined;
   actions: PageActions;
+  markOf?: (page: string) => ReactNode;
 }
 
 function TreeList(props: ListProps) {
@@ -640,6 +643,7 @@ function Row(props: RowsProps & { node: StoryNode; level: number; pos: number; s
             <Glyph name={kind.glyph} />
           </span>
           <OneLine text={node.title} render={query.trim() ? (shown) => <Highlight text={shown} query={query} /> : undefined} />
+          {props.markOf?.(node.page_id)}
         </Link>
         <PageMenu page={props.refOf(node.page_id) ?? node} subpages={props.pagesUnder(node.page_id)} onExport={props.onExport} actions={props.actions} />
       </div>

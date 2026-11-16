@@ -16,6 +16,7 @@ import { FeedbackDialog } from "./feedback-dialog.tsx";
 import { ReleaseItem, useRelease } from "./release.tsx";
 import { SETTINGS_PARAM, useSettingsTo } from "./settings-link.ts";
 import { useTheme } from "./theme.ts";
+import { useTutorialMenuItem } from "../tutorial/provider.tsx";
 
 /** The four L1 destinations, in the order that tells the product's story. */
 export const L1 = [
@@ -151,9 +152,9 @@ export function ProductSwitcher({ current }: { current: PanelProduct }) {
   );
 }
 
-function NavNode({ to, icon, label, count, quiet, current }: { to: string; icon: GlyphName; label: string; count?: number; quiet?: boolean; current?: boolean }) {
+function NavNode({ to, icon, label, count, quiet, current, id }: { to: string; icon: GlyphName; label: string; count?: number; quiet?: boolean; current?: boolean; id?: string }) {
   return (
-    <NavLink to={to} className={`nav-node${quiet ? " nav-node-quiet" : ""}`} aria-current={current ? "page" : undefined} end={false}>
+    <NavLink to={to} className={`nav-node${quiet ? " nav-node-quiet" : ""}`} aria-current={current ? "page" : undefined} end={false} data-nav={id}>
       <Glyph name={icon} />
       <OneLine text={label} />
       {count !== undefined ? <span className="nav-count num">{count}</span> : null}
@@ -188,7 +189,7 @@ export function ProductNav({ product, section }: { product: PanelProduct; sectio
     <>
       <div className="nav-l1">
         {stages.map((d) => (
-          <NavNode key={d.id} to={`${app}/${d.id}`} icon={d.icon} label={d.label} count={product.stage_counts[d.id]} current={section === d.id} />
+          <NavNode key={d.id} id={d.id} to={`${app}/${d.id}`} icon={d.icon} label={d.label} count={product.stage_counts[d.id]} current={section === d.id} />
         ))}
       </div>
       <div className="nav-quiet">
@@ -288,8 +289,9 @@ export function AdminNav() {
 
 /**
  * The panel footer: the signed-in person, and the account menu, which is only about them: their
- * email, their Settings (opening on Account), the theme, Instance admin for an owner of this
- * WhatBuild, feedback, and sign out. Joining another organization adds nothing to it.
+ * email, the tutorial where they get it (to take, resume where they left it, or take again), their
+ * Settings (opening on Account), the theme, Instance admin for an owner of this WhatBuild, feedback,
+ * and sign out. Joining another organization adds nothing to it.
  */
 export function AccountMenu() {
   const me = useMe();
@@ -301,6 +303,7 @@ export function AccountMenu() {
   const name = me.data?.display_name ?? "Signed in";
   // Mounted on first use and kept, so a draft survives closing the dialog.
   const [feedback, setFeedback] = useState<"closed" | "open" | null>(null);
+  const tutorial = useTutorialMenuItem();
   return (
     <div className="panel-foot">
       <Menu
@@ -319,6 +322,28 @@ export function AccountMenu() {
         {me.data?.email ? (
           <>
             <MenuLabel>{me.data.email}</MenuLabel>
+            <MenuSeparator />
+          </>
+        ) : null}
+        {tutorial ? (
+          <>
+            <MenuItem
+              icon="signpost"
+              className="menu-tutorial"
+              onSelect={tutorial.onSelect}
+              detail={
+                <>
+                  <span className="num">{tutorial.detail}</span>
+                  {tutorial.progress !== null ? (
+                    <span className="menu-tutorial-bar" aria-hidden="true">
+                      <i style={{ width: `${Math.round(tutorial.progress * 100)}%` }} />
+                    </span>
+                  ) : null}
+                </>
+              }
+            >
+              {tutorial.title}
+            </MenuItem>
             <MenuSeparator />
           </>
         ) : null}

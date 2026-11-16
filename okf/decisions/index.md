@@ -120,3 +120,5 @@ name what replaced it, and date the change. Smaller decisions are marked
 - [Mail is set up through Cloudflare Email Sending over SMTP, any SMTP provider can take its place, and a dev deployment sends none](mail-is-set-up-through-cloudflare-email-sending-and-a-dev-deployment-sends-none.md)
 - [Times are UTC in data and the API, and shown in the viewer's own time zone](times-are-utc-in-data-and-local-where-shown.md)
 - [Mockups are arranged by hand, in folders one level deep that everyone in the product shares](mockups-are-arranged-by-hand-in-folders-one-level-deep.md)
+- [The tutorial's examples are fixed content shipped with the web app, never in a product and never visible to agents](the-tutorials-examples-are-fixed-content-shipped-with-the-web-app.md)
+- [The tutorial is remembered on the account, through the person's own session, and reached by no agent](the-tutorial-is-remembered-on-the-account-and-reached-by-no-agent.md)

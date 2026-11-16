@@ -3,7 +3,7 @@ type: System Concept
 title: Running WhatBuild locally, testing it, and checking the interface
 description: The one-command development setup, the test and build commands, and the browser scripts.
 tags: [development, testing, local]
-generated: {by: agent:claude, at: 2026-11-13}
+generated: {by: agent:claude, at: 2026-11-15}
 status: stable
 ---
 
@@ -22,7 +22,11 @@ corepack pnpm dev
 `:8787`, the job worker in-process, and Vite on `:5273`. Open http://localhost:5273 and use the
 development sign-in, which offers every account on the server with what it is there: the sample's
 people first (Riley Chen, Sam Okafor, or Jordan Ellis, a Story reader who sees only Crewboard's Story),
-then anyone you have signed in as since, newest first. Riley is the instance's owner
+then anyone you have signed in as since, newest first. Each account is offered the tutorial once, on the first product it can edit or, as a guest, on
+the example's; to see the offer again, set the account's tutorial back from the browser's console
+while signed in as it:
+`fetch("/api/v1/me", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tutorial: { offered: false, stop: null, finished: false } }) })`,
+and reload. Riley is the instance's owner
 (`WHATBUILD_INSTANCE_OWNERS` defaults to Riley's address here), so Riley sees **Organization
 creators**, where the seed lets Sam create one organization. Files go to `.what-build/blobs`; sign-in links are
 printed to the terminal.

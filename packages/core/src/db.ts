@@ -48,6 +48,10 @@ export interface AccountsTable {
   deleted_at: TsNull;
   /** The person hid the example organization from the app's panel. */
   hide_example: Def<boolean>;
+  /** The web app's tutorial: when it was first offered, the stop it was left at, and when it was last finished. */
+  tutorial_offered_at: TsNull;
+  tutorial_stop: ColumnType<number | null, number | null | undefined, number | null>;
+  tutorial_finished_at: TsNull;
 }
 
 export interface SessionsTable {

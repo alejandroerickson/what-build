@@ -422,12 +422,18 @@ export function authRoutes(deps: { db: Db; config: ServerConfig; mailer: Mailer 
 
   const meOf = async (p: NonNullable<Awaited<ReturnType<typeof restPrincipal>>>) => {
     const tenant_allowance = await tenantAllowanceOf(db, config, p);
-    const prefs = await db.selectFrom("accounts").select("hide_example").where("account_id", "=", p.account_id).executeTakeFirst();
+    const prefs = await db
+      .selectFrom("accounts")
+      .select(["hide_example", "tutorial_offered_at", "tutorial_stop", "tutorial_finished_at"])
+      .where("account_id", "=", p.account_id)
+      .executeTakeFirst();
     const asked = await db.selectFrom("interest").select("created_at").where(sql<string>`lower(email)`, "=", p.email.toLowerCase()).executeTakeFirst();
     return {
       account_id: p.account_id, email: p.email, display_name: p.display_name, auth_kind: p.auth_kind, tenant_allowance,
       new_organization_plan: tenant_allowance.instance_owner ? "unlimited" : config.newOrganizationPlan,
       hide_example: Boolean(prefs?.hide_example),
+      // The web app's tutorial, as this person left it: offered yet, the stop it was left at, finished.
+      tutorial: { offered: Boolean(prefs?.tutorial_offered_at), stop: prefs?.tutorial_stop ?? null, finished: Boolean(prefs?.tutorial_finished_at) },
       // In no organization, with no allowance: they come into the example organization as a guest, while there is room.
       guest: await isGuestAccount(db, config, p),
       // When they asked for an organization of their own (on the waitlist), from here or the public site.
@@ -486,19 +492,44 @@ export function authRoutes(deps: { db: Db; config: ServerConfig; mailer: Mailer 
     return c.json(p ? { signed_in: true, ...(await meOf(p)) } : { signed_in: false });
   });
 
+  /**
+   * The person's own account: their name, whether the example organization is in their panel, and
+   * where they left the web app's tutorial. Only a session in the web app reaches it (REST takes no
+   * bearer token), so no agent reads or changes any of it, and it needs no role anywhere: a guest
+   * account in no organization keeps its tutorial too. Each request changes only what it names.
+   */
   app.patch("/api/v1/me", async (c) => {
     const p = await requirePrincipal(c);
     const body = z
-      .strictObject({ display_name: z.string().trim().min(1).max(100).optional(), hide_example: z.boolean().optional() })
-      .refine((b) => b.display_name !== undefined || b.hide_example !== undefined)
+      .strictObject({
+        display_name: z.string().trim().min(1).max(100).optional(),
+        hide_example: z.boolean().optional(),
+        tutorial: z
+          .strictObject({ offered: z.boolean().optional(), stop: z.number().int().min(0).max(63).nullable().optional(), finished: z.boolean().optional() })
+          .refine((t) => t.offered !== undefined || t.stop !== undefined || t.finished !== undefined)
+          .optional(),
+      })
+      .refine((b) => b.display_name !== undefined || b.hide_example !== undefined || b.tutorial !== undefined)
       .safeParse(await c.req.json().catch(() => ({})));
-    if (!body.success) throw invalid("invalid_input", "Send display_name (1 to 100 characters), hide_example (true or false), or both.");
+    if (!body.success)
+      throw invalid(
+        "invalid_input",
+        "Send display_name (1 to 100 characters), hide_example (true or false), tutorial ({ offered, stop, finished }: true or false, a stop from 0 to 63 or null, true or false), or any of them.",
+      );
+    const { display_name, hide_example, tutorial } = body.data;
     await db
       .updateTable("accounts")
-      .set({ ...(body.data.display_name !== undefined ? { display_name: body.data.display_name } : {}), ...(body.data.hide_example !== undefined ? { hide_example: body.data.hide_example } : {}) })
+      .set({
+        ...(display_name !== undefined ? { display_name } : {}),
+        ...(hide_example !== undefined ? { hide_example } : {}),
+        // When it was first offered and last finished are kept as they were while they stay true.
+        ...(tutorial?.offered !== undefined ? { tutorial_offered_at: tutorial.offered ? sql<string>`coalesce(tutorial_offered_at, now())` : null } : {}),
+        ...(tutorial?.stop !== undefined ? { tutorial_stop: tutorial.stop } : {}),
+        ...(tutorial?.finished !== undefined ? { tutorial_finished_at: tutorial.finished ? sql<string>`coalesce(tutorial_finished_at, now())` : null } : {}),
+      })
       .where("account_id", "=", p.account_id)
       .execute();
-    return c.json(await meOf({ ...p, display_name: body.data.display_name ?? p.display_name }));
+    return c.json(await meOf({ ...p, display_name: display_name ?? p.display_name }));
   });
 
   /** The agents signed in as this person over OAuth: one entry per connection. */

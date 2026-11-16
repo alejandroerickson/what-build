@@ -25,6 +25,15 @@ export interface Me {
   hide_example: boolean;
   /** When they asked for an organization of their own: they are on the waitlist. */
   asked_for_organization_at?: string | null;
+  /** Where the person left the web app's tutorial: offered yet, the stop it was left at (null when not part-way), finished. */
+  tutorial?: TutorialState;
+}
+
+/** The web app's tutorial, as the account keeps it (`PATCH /api/v1/me`), so it follows the person between browsers. */
+export interface TutorialState {
+  offered: boolean;
+  stop: number | null;
+  finished: boolean;
 }
 
 /**
@@ -83,6 +92,11 @@ export interface ProductsResponse {
 /** A role in an organization itself: `creator` is a product creator, who creates products and is admin of each one they create. */
 export type OrganizationRole = "owner" | "admin" | "creator" | "member" | "guest";
 
+/** Who may add and change what a product holds: its editors and admins, while it is not archived and its organization is not read-only. */
+export function canWriteIn(product: { your_role: string; archived_at: string | null }, readOnly: unknown): boolean {
+  return (product.your_role === "editor" || product.your_role === "admin") && !product.archived_at && !readOnly;
+}
+
 /** Who may create a product in an organization: its owners, admins and product creators. */
 export function mayCreateProducts(t: { your_role: string | null }): boolean {
   return t.your_role === "owner" || t.your_role === "admin" || t.your_role === "creator";
@@ -137,6 +151,19 @@ export function useHideExample() {
   return useMutation({
     mutationFn: (hide: boolean) => api<Me>("PATCH", "/api/v1/me", { hide_example: hide }),
     onSuccess: (me) => qc.setQueryData(["me"], (old: Me | undefined) => (old ? { ...old, hide_example: me.hide_example } : old)),
+  });
+}
+
+/**
+ * Keep where the person is in the tutorial on their account. What the app shows changes at once; the
+ * request follows, and a failure leaves the screen as it is, since the tutorial is only a convenience.
+ */
+export function useSaveTutorial() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (patch: Partial<TutorialState>) => api<Me>("PATCH", "/api/v1/me", { tutorial: patch }),
+    onMutate: (patch) =>
+      qc.setQueryData(["me"], (old: Me | undefined) => (old ? { ...old, tutorial: { ...(old.tutorial ?? { offered: false, stop: null, finished: false }), ...patch } } : old)),
   });
 }
 
@@ -215,6 +242,17 @@ interface ProductCtx {
 
 const ProductContext = createContext<ProductCtx | null>(null);
 
+/**
+ * The product's screens as someone who can edit it sees them, for drawing fixed content (the
+ * tutorial's examples) through the components that draw real content. What it shows is inert, so it
+ * gives no one more than they have: deleting stays an admin's and is not drawn.
+ */
+export function AsEditor({ children }: { children: ReactNode }) {
+  const ctx = useContext(ProductContext);
+  if (!ctx) return <>{children}</>;
+  return <ProductContext.Provider value={{ ...ctx, canWrite: true, canGivePicture: false, canDelete: false, isAdmin: false, storyOnly: false }}>{children}</ProductContext.Provider>;
+}
+
 export function useProductParams() {
   const { tenant = "", product = "" } = useParams();
   return { tenant, product, path: `${tenant}/${product}` };
@@ -254,7 +292,7 @@ export function ProductProvider({ children, fallback, path: given }: { children:
     product,
     api: `/api/v1/p/${path}`,
     app: `/t/${path}`,
-    canWrite: (product.your_role === "editor" || product.your_role === "admin") && !product.archived_at && !product.tenant.read_only,
+    canWrite: canWriteIn(product, product.tenant.read_only),
     canGivePicture: (product.your_role === "viewer" || product.your_role === "editor" || product.your_role === "admin") && !product.archived_at && !product.tenant.read_only,
     readOnlyOrganization: Boolean(product.tenant.read_only),
     isAdmin: product.your_role === "admin",

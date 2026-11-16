@@ -94,14 +94,17 @@ function readCollapsed(key: string): Set<string> {
   }
 }
 
-export function MockupTree() {
+export function MockupTree({ shown }: {
+  /** Fixed mockups to list in place of the product's own (the tutorial's example), the one open, and a mark after each title. */
+  shown?: { list: MockupList; current: string; mark: ReactNode };
+} = {}) {
   const { app, api: base, product, canWrite } = useProduct();
   const { pathname } = useLocation();
   // The panel sits above the screen's route, so it reads the open mockup from the path.
-  const current = /\/exploration\/mockups\/([^/]+)/.exec(pathname)?.[1];
-  const onIndex = /\/exploration\/mockups\/?$/.test(pathname);
-  const query = useMockupList();
-  const list = query.data;
+  const current = shown ? shown.current : /\/exploration\/mockups\/([^/]+)/.exec(pathname)?.[1];
+  const onIndex = shown ? false : /\/exploration\/mockups\/?$/.test(pathname);
+  const query = useMockupList(!shown);
+  const list = shown ? shown.list : query.data;
   const qc = useQueryClient();
   const toast = useToast();
   const arrange = useArrange(base);
@@ -398,6 +401,7 @@ export function MockupTree() {
               <Glyph name="layout-grid" />
             </span>
             <OneLine text={m.title} />
+            {shown ? shown.mark : null}
           </Link>
           {canWrite ? (
             <Menu label={`Move “${m.title}”`} trigger={<Glyph name="ellipsis" />} triggerClassName="icon-btn icon-btn-sm story-row-more" minWidth={220}>

@@ -34,6 +34,8 @@ import { StoryPage } from "./routes/story.tsx";
 import { ExplorationSection } from "./routes/exploration-panel.tsx";
 import { MockupPage, MockupsIndex } from "./routes/mockups.tsx";
 import { CookieNotice } from "./shell/CookieNotice.tsx";
+import { TutorialEvidence, TutorialIdea, TutorialStory, WhileTutorial } from "./tutorial/screens.tsx";
+import "./tutorial/keys.ts";
 import { PlainShell, ProductShell } from "./shell/Shell.tsx";
 import { usePageTitle } from "./shell/slots.tsx";
 import { Button, ButtonLink, EmptyState, MinuteAnnouncer, Sheet, SheetHeader, ToastProvider, useToast } from "./ui/index.tsx";
@@ -255,8 +257,8 @@ const router = createBrowserRouter([{ element: <Root />, errorElement: <RouteErr
         ),
         children: [
           { index: true, element: <ProductHome /> },
-          { path: "story", element: <StoryPage /> },
-          { path: "story/:pageId", element: <StoryPage /> },
+          { path: "story", element: <WhileTutorial tutorial={<TutorialStory />}><StoryPage /></WhileTutorial> },
+          { path: "story/:pageId", element: <WhileTutorial tutorial={<TutorialStory />}><StoryPage /></WhileTutorial> },
           { path: "search", element: <SearchPage /> },
           // Settings' addresses from before it was a dialog: a Story reader, who has Settings too, follows them as well.
           { path: "connect", element: <ProductSettingsAddress section="agents" /> },
@@ -264,8 +266,8 @@ const router = createBrowserRouter([{ element: <Root />, errorElement: <RouteErr
           {
             element: <NotForStoryReaders />,
             children: [
-              { path: "idea", element: <IdeaPage /> },
-              { path: "evidence", element: <EvidencePage /> },
+              { path: "idea", element: <WhileTutorial tutorial={<TutorialIdea />}><IdeaPage /></WhileTutorial> },
+              { path: "evidence", element: <WhileTutorial tutorial={<TutorialEvidence />}><EvidencePage /></WhileTutorial> },
               { path: "evidence/new", element: <SourceNewPage /> },
               { path: "evidence/:recordId", element: <SourceDetailPage /> },
               { path: "synthesis/*", element: <SynthesisLink /> },

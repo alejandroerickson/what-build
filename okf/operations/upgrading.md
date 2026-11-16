@@ -23,7 +23,13 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
 
 ## Unreleased
 
-Nothing yet.
+- **A tutorial for the people who can edit a product, and for the example organization's guests.**
+  Migration `0048` adds `accounts.tutorial_offered_at`, `tutorial_stop` and
+  `tutorial_finished_at`; nothing to do. People will notice: on the first screen each of them lands
+  on that shows the panel of a product they can edit, or of the example organization as a guest
+  (the overview after signing in, most often), in a window at least 1024 pixels wide, the web app
+  offers the tutorial over a darkened screen, and the account menu offers it after. `GET /api/v1/me` adds
+  `tutorial`, and `PATCH /api/v1/me` takes it. No operation or MCP tool changes.
 
 ## v0.37.0
 

@@ -134,8 +134,12 @@ function NoFront({ ask }: { ask: string }) {
  * One card: its head (the title, More info and any tools), then, while More info is open, its text
  * in a well that scrolls within a set height, then its picture, always in view. The text unfolds
  * and folds back; a card with no picture yet opens on its text, shown at once.
+ *
+ * `picture` draws a front in place of the sandboxed frame: fixed content that ships with the app (the
+ * tutorial's examples), never anything a product holds. `open` holds More info open or shut, as the
+ * tutorial does while it shows the text.
  */
-function IdeaCard({
+export function IdeaCard({
   kind,
   title,
   heading,
@@ -150,6 +154,9 @@ function IdeaCard({
   id,
   cardRef,
   headProps,
+  picture,
+  open: held,
+  dataTut,
 }: {
   kind: "concept" | "outcome";
   /** The card's name, for its controls and frame. */
@@ -171,10 +178,17 @@ function IdeaCard({
   cardRef?: Ref<HTMLElement>;
   /** What the head does besides holding the title and tools: an outcome's is where a drag starts. */
   headProps?: HTMLAttributes<HTMLElement>;
+  /** A front drawn by the app itself, in place of the frame. */
+  picture?: ReactNode;
+  /** More info held open or shut from outside. */
+  open?: boolean;
+  /** Marks the card for the tutorial's spotlight. */
+  dataTut?: string;
 }) {
   const room = ROOM[kind];
   const phone = useMediaQuery(PHONE_QUERY);
-  const [open, setOpen] = useState(!front);
+  const [opened, setOpen] = useState(!front && !picture);
+  const open = held ?? opened;
   const [height, setHeight] = useState<number>(room.start);
   const hid = useId();
   const textId = useId();
@@ -196,10 +210,16 @@ function IdeaCard({
     folding.current?.cancel();
     setOpen((o) => !o);
   };
+  // Held open or shut from outside (the tutorial pressing More info), it folds as a press would.
+  const heldWas = useRef(held);
+  const heldHeight = useRef(0);
   useLayoutEffect(() => {
     const el = fold.current;
-    const start = from.current;
+    let start = from.current;
     from.current = null;
+    if (start === null && held !== undefined && heldWas.current !== undefined && heldWas.current !== held) start = held ? 0 : heldHeight.current;
+    heldWas.current = held;
+    if (el && open) heldHeight.current = el.getBoundingClientRect().height;
     if (!el || start === null || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
     const end = el.getBoundingClientRect().height;
     const tokens = getComputedStyle(el);
@@ -210,7 +230,7 @@ function IdeaCard({
   }, [open]);
   const body = Math.min(phone ? Infinity : room.max, Math.max(room.min, height));
   return (
-    <article ref={cardRef} id={id} className={`idea-card idea-card-${kind} ${className}`} aria-labelledby={hid}>
+    <article ref={cardRef} id={id} className={`idea-card idea-card-${kind} ${className}`} aria-labelledby={hid} data-tut={dataTut}>
       <header className="idea-card-head" {...headProps}>
         {lead}
         <div className="idea-card-heading">{heading(hid)}</div>
@@ -230,7 +250,9 @@ function IdeaCard({
           {meta ? <p className="idea-card-meta">{meta}</p> : null}
         </div>
       </div>
-      {front ? (
+      {picture ? (
+        <div className="idea-card-body idea-card-drawn">{picture}</div>
+      ) : front ? (
         <div className="idea-card-body" style={{ height: body }}>
           <CardFront key={front} src={front} title={title} onHeight={setHeight} />
         </div>
