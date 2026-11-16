@@ -332,15 +332,15 @@ describe("an organization's People and General", () => {
     expect(await refusedFor("new@example.com")).toBe("No places are left for new@example.com. Story readers don’t count. Compare plans");
   });
 
-  it("doesn't offer removing someone a product admin can take off one product only", async () => {
+  it("doesn't offer removing someone to a product admin, whose list leaves out roles on other products", async () => {
     // A product admin sees part of the organization: its owner, whom they can't remove, and Pat, whose role in the organization they can't take off.
     Object.assign(state, { role: "member", self: "a9", partial: true, patInOrg: true });
     expect(await refusedFor("new@example.com", "product:p1")).toBe("No places are left for new@example.com. Story readers don’t count. Compare plans");
     unmount?.();
     document.body.innerHTML = "";
-    // Pat's one role is on the product they administer: taking it off frees a place.
+    // Pat's one listed role is on the product they administer, but Pat may hold one on a product they can't open.
     Object.assign(state, { patInOrg: false });
-    expect(await refusedFor("new@example.com", "product:p1")).toBe("No places are left for new@example.com. Remove someone. Story readers don’t count. Compare plans");
+    expect(await refusedFor("new@example.com", "product:p1")).toBe("No places are left for new@example.com. Story readers don’t count. Compare plans");
   });
 
   it("doesn't offer removing someone before it knows who is adding", async () => {

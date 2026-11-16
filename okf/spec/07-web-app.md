@@ -71,8 +71,9 @@ design system: tokens, type, components and the rules for using them — is docu
   room for 1 more person. Add fewer people."), and only the ways to make room that exist there:
   adding fewer people while some fit, cancelling an invitation while one is open, removing someone
   while someone besides the person adding holds counted roles only where the person adding can
-  take them off, so removing them frees a place (nothing is offered on a guess while the app
-  doesn't yet know who is adding). A list longer than one call's 100 addresses, refused after an
+  take them off, so removing them frees a place (nothing is offered on a guess: not while the app
+  doesn't yet know who is adding, and not to a product's admin, whose list leaves out roles on
+  products they can't open). A list longer than one call's 100 addresses, refused after an
   earlier call saved, says so ("The first 100 addresses are saved, and none after them."),
   counting the room from the first address. New product says the same before anything is typed
   when the organization already holds its plan's products. A limit a minute or a day keeps the

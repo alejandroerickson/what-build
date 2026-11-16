@@ -304,7 +304,9 @@ export function PeopleEditor({ tenant, orgName, target, title, description, abov
     return {
       tookBefore: partial ? null : new Set(before.filter((g) => counts(g.role) && !counted.has(g.email.toLowerCase())).map((g) => g.email.toLowerCase())).size,
       invitations: invitations.some((i) => counts(i.role)),
-      others: Boolean(self) && members.some((p) => p.account_id !== self && p.grants.some((g) => counts(g.role)) && p.grants.every((g) => !counts(g.role) || canRemoveRole(g))),
+      // A partial list leaves out people's roles on products the person adding can't open, so taking
+      // someone off one may free no place: offer it only on the whole list.
+      others: !partial && Boolean(self) && members.some((p) => p.account_id !== self && p.grants.some((g) => counts(g.role)) && p.grants.every((g) => !counts(g.role) || canRemoveRole(g))),
     };
   };
 

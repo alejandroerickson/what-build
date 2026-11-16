@@ -77,7 +77,7 @@ export function peopleRoom(r: TotalReached, people?: PeopleContext): string {
     left === null
       ? `There’s room for the ${r.saved ? "next" : "first"} ${fresh === 1 ? "address" : `${fresh} addresses`} only.`
       : left === 0
-        ? `No places are left${r.email && !r.roomFor ? ` for ${r.email}` : ""}.`
+        ? `No places are left${r.email && !fresh ? ` for ${r.email}` : ""}.`
         : `There’s room for ${plural(left, "more person", "more people")}.`;
   const ways = either([left !== 0 ? "add fewer people" : "", people?.invitations ? "cancel an invitation" : "", people?.others ? "remove someone" : ""].filter(Boolean));
   const next = ways ? ` ${ways.replace(/^./, (c) => c.toUpperCase())}.` : "";

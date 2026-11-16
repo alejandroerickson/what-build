@@ -16,7 +16,7 @@ describe("a plan's people limit without the screen's knowledge of the organizati
       "The first 100 addresses are saved, and none after them. There’s room for the next 30 addresses only. Add fewer people. Story readers don’t count.",
     );
     expect(peopleRoom({ quota: "members_max", limit: 150, used: 150, email: "x@example.com", roomFor: 100, saved: 100 }, { tookBefore: 0, invitations: true, others: false })).toBe(
-      "The first 100 addresses are saved, and none after them. No places are left. Cancel an invitation. Story readers don’t count.",
+      "The first 100 addresses are saved, and none after them. No places are left for x@example.com. Cancel an invitation. Story readers don’t count.",
     );
   });
 });

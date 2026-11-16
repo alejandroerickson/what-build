@@ -93,7 +93,7 @@ export function AdminStarting() {
   // What an allowance counts: organizations on the plan new ones start on, named, where that is one the
   // deployment defines; undefined until the allowances and the plans say which.
   const start = q.data?.new_organization_plan;
-  const kindName = !q.data ? undefined : !start || start === "unlimited" ? null : plans.data ? planWord(start, plans.data.plans) : undefined;
+  const kindName = !q.data ? undefined : !start || start === "unlimited" ? null : plans.data ? planWord(start, plans.data.plans) : plans.isError ? null : undefined;
   return (
     <>
     <Sheet labelledBy="instance-title">
@@ -116,7 +116,7 @@ export function AdminStarting() {
               : "Each person listed can start organizations up to the number they’re given. Owners can start any number."}
           </p>
         )}
-        {q.data ? (
+        {q.data && kindName !== undefined ? (
           <p className="muted">
             Everyone else can start {q.data.default_allowed ? organizations(q.data.default_allowed, kindName) : "none"}. Owners: {q.data.instance_owners.join(", ")}. Both are set where the service is deployed.
           </p>

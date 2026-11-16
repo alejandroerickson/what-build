@@ -18,7 +18,7 @@ HTMLDialogElement.prototype.close ??= function (this: HTMLDialogElement) {
 };
 window.matchMedia ??= ((query: string) => ({ matches: false, media: query, onchange: null, addListener() {}, removeListener() {}, addEventListener() {}, removeEventListener() {}, dispatchEvent: () => false })) as never;
 
-const state = { plans: true, plansPending: false };
+const state = { plans: true, plansPending: false, plansFail: false };
 const by = { display_name: "Olive Owner" };
 
 vi.mock("../src/lib/api.ts", async (original) => ({
@@ -27,6 +27,7 @@ vi.mock("../src/lib/api.ts", async (original) => ({
     if (path === "/auth/session")
       return { signed_in: true, account_id: "a1", email: "olive@example.com", display_name: "Olive Owner", tenant_allowance: { instance_owner: true } };
     if (path === "/api/v1/plans" && state.plansPending) return new Promise(() => {});
+    if (path === "/api/v1/plans" && state.plansFail) throw new Error("plans unavailable");
     if (path === "/api/v1/plans")
       return state.plans
         ? { plans: [{ id: "free", name: "Free", about: "", price: null, limits: {} }], starting_plan: "free", limits: [], file_max_bytes: 0, contact: null }
@@ -53,6 +54,7 @@ afterEach(() => {
   document.body.innerHTML = "";
   state.plans = true;
   state.plansPending = false;
+  state.plansFail = false;
 });
 
 async function page() {
@@ -93,10 +95,21 @@ describe("how many organizations someone can start", () => {
     state.plansPending = true;
     const host = await page();
     expect(host.textContent).not.toContain("Each person listed");
+    expect(host.textContent).not.toContain("Everyone else can start");
     await act(async () => button(host, "Change how many sam@example.com can start").click());
     const dialog = document.querySelector("dialog[open]")!;
     expect(dialog.textContent).not.toContain("The number counts");
     expect(dialog.textContent).toContain("1 organization of theirs counts now.");
+  });
+
+  it("names no plan, and still says the rule, when the plans can't be read", async () => {
+    state.plansFail = true;
+    const host = await page();
+    expect(host.textContent).toContain("Each person listed can start organizations up to the number they’re given.");
+    expect(host.textContent).toContain("Everyone else can start none.");
+    await act(async () => button(host, "Change how many sam@example.com can start").click());
+    const dialog = document.querySelector("dialog[open]")!;
+    expect(dialog.textContent).toContain("The number counts the organizations they’ve started, not read-only ones or ones they’re invited to.");
   });
 
   it("names no plan where the deployment offers none", async () => {
