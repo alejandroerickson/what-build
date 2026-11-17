@@ -3,7 +3,7 @@ type: Process
 title: What a deployment must do when it takes a release
 description: The changes a release asks of the people who run a deployment (settings, app registrations, behaviour they will notice), kept per release, with the unreleased ones on top until the next release carries them into its notes.
 tags: [operations, releases, upgrading, self-hosting, configuration]
-generated: {by: agent:claude, at: 2026-11-16}
+generated: {by: agent:claude, at: 2026-11-17}
 status: stable
 ---
 
@@ -22,6 +22,12 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
   upgrading.
 
 ## Unreleased
+
+- **Add people keeps what a long list's earlier calls saved when a later call is refused.** It
+  asks nothing of a deployment. A list of more than 100 addresses goes in calls of 100; when a
+  later call is refused, the addresses and role changes the earlier calls saved now leave the
+  dialog's lists, the invitations they made are listed to copy, the people list shows them, and
+  the refusal says how many were saved, so saving again no longer sends them twice.
 
 - **The guide's index sums up each topic by the sentence under its title.** It asks nothing of a
   deployment. `guide` without a topic gave, as each topic's `summary`, the topic's last paragraph;

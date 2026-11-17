@@ -21,7 +21,7 @@ HTMLDialogElement.prototype.close ??= function (this: HTMLDialogElement) {
 };
 window.matchMedia ??= ((query: string) => ({ matches: false, media: query, onchange: null, addListener() {}, removeListener() {}, addEventListener() {}, removeEventListener() {}, dispatchEvent: () => false })) as never;
 
-const state = { readOnly: false, refuseGrant: false, guest: false, role: "owner", allProducts: false, onlyOwner: false, invited: false, roomFor: 0, self: "a1", sessionPending: false, patInOrg: false, partial: false, refuseFromCall: 0, limit: 2, used: 2 };
+const state = { readOnly: false, refuseGrant: false, guest: false, role: "owner", allProducts: false, onlyOwner: false, invited: false, roomFor: 0, self: "a1", sessionPending: false, patInOrg: false, partial: false, refuseFromCall: 0, limit: 2, used: 2, otherRefusal: false };
 const calls: { method: string; path: string; body?: Record<string, unknown> }[] = [];
 /** The calls that add people refused before this many have been made: the later calls of a long list. */
 const grantCalls = () => calls.filter((c) => c.method === "POST" && c.path === "/api/v1/tenants/acme/members/many").length;
@@ -67,6 +67,8 @@ vi.mock("../src/lib/api.ts", async (original) => ({
       return { items: [{ product_id: "p1", path: "acme/planner", name: "Planner", tenant: { tenant_id: "t1", slug: "acme", name: "Acme" }, your_role: "admin" }], tenants: [tenant()] };
     if (path.includes("/members/activity")) return { items: [], next_cursor: null };
     if (method === "GET" && path === "/api/v1/tenants/acme/members") return members();
+    if (method === "POST" && path === "/api/v1/tenants/acme/members/many" && state.refuseGrant && grantCalls() > state.refuseFromCall && state.otherRefusal)
+      throw new ApiError(422, "invalid_role", `${(body!.people as { email: string }[])[state.roomFor]!.email}: Role owner doesn’t apply to all products; use admin, editor, viewer, story_reader. Nothing was changed.`, { email: (body!.people as { email: string }[])[state.roomFor]!.email });
     if (method === "POST" && path === "/api/v1/tenants/acme/members/many" && state.refuseGrant && grantCalls() > state.refuseFromCall)
       throw new ApiError(409, "quota_exceeded", "This organization's plan allows 2 people, and it has 2. Story readers don't count: invite someone who reads only the Story as a Story reader (story_reader).", {
         quota: "members_max", limit: state.limit, used: state.used, unit: "people", email: (body!.people as { email: string }[])[state.roomFor]!.email, room_for: state.roomFor,
@@ -86,7 +88,7 @@ afterEach(() => {
   unmount = null;
   document.body.innerHTML = "";
   calls.length = 0;
-  Object.assign(state, { readOnly: false, refuseGrant: false, guest: false, role: "owner", allProducts: false, onlyOwner: false, invited: false, roomFor: 0, self: "a1", sessionPending: false, patInOrg: false, partial: false, refuseFromCall: 0, limit: 2, used: 2 });
+  Object.assign(state, { readOnly: false, refuseGrant: false, guest: false, role: "owner", allProducts: false, onlyOwner: false, invited: false, roomFor: 0, self: "a1", sessionPending: false, patInOrg: false, partial: false, refuseFromCall: 0, limit: 2, used: 2, otherRefusal: false });
 });
 
 async function page() {
@@ -365,8 +367,61 @@ describe("an organization's People and General", () => {
     expect(sent).toEqual([100, 6]);
     const callout = [...dialog.querySelectorAll(".callout")].find((c) => c.textContent?.includes("plan holds"))!;
     expect(callout.querySelector(".callout-text")?.textContent).toBe(
-      "The first 100 addresses are saved, and none after them. There’s room for 5 more people. Add fewer people or remove someone. Story readers don’t count. Compare plans",
+      "The first 100 addresses are saved and off the list, and none after them. There’s room for 5 more people. Add fewer people or remove someone. Story readers don’t count. Compare plans",
     );
+  });
+
+  /** Adds Pat and 105 new addresses to all products in two calls, the second refused, and gives the dialog. */
+  async function refusedAfterTheFirstCall() {
+    const fresh = Array.from({ length: 105 }, (_, i) => `n${String(i).padStart(3, "0")}@example.com`);
+    Object.assign(state, { refuseGrant: true, refuseFromCall: 1, roomFor: 5, limit: 107, used: 107 });
+    const host = await page();
+    await act(async () => buttons(host, "Add people")[0]!.click());
+    const dialog = document.querySelector("dialog[open]")!;
+    await act(async () => buttons(dialog, "Paste addresses")[0]!.click());
+    await type(dialog.querySelector("textarea")!, ["pat@example.com", ...fresh].join("\n"));
+    await act(async () => buttons(dialog, "Add 106 people to all products")[0]!.click());
+    await act(async () => buttons(dialog, "Add 106 people")[0]!.click());
+    await settle();
+    return dialog;
+  }
+  const membersReads = () => calls.filter((c) => c.method === "GET" && c.path === "/api/v1/tenants/acme/members").length;
+  /** Who the dialog's right-hand list shows: those to add, then those already there. */
+  const listed = (dialog: ParentNode) => [...dialog.querySelectorAll('.pe-list[role="group"] li')].map((li) => li.querySelector(".pe-name")?.textContent);
+
+  it("takes what a long list's earlier calls saved off the list, keeps their invitation links, and sends only the rest again", async () => {
+    const dialog = await refusedAfterTheFirstCall();
+    // The first call's 100 are saved: they leave the list, and the people list is read again to show them.
+    expect(listed(dialog)).toEqual(["n099@example.com", "n100@example.com", "n101@example.com", "n102@example.com", "n103@example.com", "n104@example.com", "Olive Owner"]);
+    expect(dialog.querySelector(".pe-summary")?.textContent).toBe("6 people to add.");
+    expect(buttons(dialog, "Add 6 people")).toHaveLength(1);
+    // Something is saved, so the foot no longer offers to cancel.
+    expect(buttons(dialog, "Cancel")).toHaveLength(0);
+    expect([...dialog.querySelectorAll(".dialog-foot button")].map((b) => b.textContent?.trim())).toContain("Close");
+    expect(membersReads()).toBe(2);
+    // The 99 invitations the first call made can be copied.
+    expect(dialog.querySelector(".pe-links")?.querySelectorAll("li")).toHaveLength(99);
+    expect(dialog.textContent).toContain("99 invitations created");
+    // Saved again, with room now, only the 6 not saved go.
+    state.refuseGrant = false;
+    await act(async () => buttons(dialog, "Add 6 people")[0]!.click());
+    await settle();
+    const sent = calls.filter((c) => c.path === "/api/v1/tenants/acme/members/many").map((c) => (c.body!.people as { email: string }[]).map((p) => p.email));
+    expect(sent.map((x) => x.length)).toEqual([100, 6, 6]);
+    expect(sent[2]).toEqual(["n099@example.com", "n100@example.com", "n101@example.com", "n102@example.com", "n103@example.com", "n104@example.com"]);
+    const made = document.querySelector("dialog[open]")!;
+    expect(made.querySelector(".callout-title")?.textContent).toBe("105 invitations created");
+    expect(made.querySelector(".pe-links")?.querySelectorAll("li")).toHaveLength(105);
+  });
+
+  it("says what earlier calls saved when a later one is refused for something other than the plan", async () => {
+    state.otherRefusal = true;
+    const dialog = await refusedAfterTheFirstCall();
+    const callout = [...dialog.querySelectorAll(".callout")].find((c) => c.textContent?.includes("didn’t work"))!;
+    expect(callout.querySelector(".callout-text")?.textContent).toBe(
+      "The first 100 addresses are saved and off the list, and none after them. n104@example.com: Role owner doesn’t apply to all products; use admin, editor, viewer, story_reader.",
+    );
+    expect(listed(dialog)).toHaveLength(7);
   });
 
   it("says what is waiting by the button's own words, and one invitation as one", async () => {

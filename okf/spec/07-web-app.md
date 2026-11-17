@@ -3,7 +3,7 @@ type: Specification
 title: The web app is a person's way to run the same operations an agent runs, one screen at a time.
 description: Principles, the shell and product switching, the overview, routes, first run, and the behavior of every screen (Idea, Evidence, Exploration, Story, Activity, archive and delete, Settings, Instance admin).
 tags: [spec, web, ui, routes, shell]
-generated: {by: agent:claude, at: 2026-11-15}
+generated: {by: agent:claude, at: 2026-11-17}
 status: stable
 ---
 
@@ -74,8 +74,8 @@ design system: tokens, type, components and the rules for using them — is docu
   take them off, so removing them frees a place (nothing is offered on a guess: not while the app
   doesn't yet know who is adding, and not to a product's admin, whose list leaves out roles on
   products they can't open). A list longer than one call's 100 addresses, refused after an
-  earlier call saved, says so ("The first 100 addresses are saved, and none after them."),
-  counting the room from the first address. New product says the same before anything is typed
+  earlier call saved, says so ("The first 100 addresses are saved and off the list, and none after
+  them."), counting the room from the first address still listed. New product says the same before anything is typed
   when the organization already holds its plan's products. A limit a minute or a day keeps the
   server's words.
 - **Calls a minute running out is a wait, not a failure.** A read refused for them
@@ -1412,10 +1412,15 @@ never described as deleting. A list row showing an archived object says *Archive
   the left arrow takes them off (struck through, with **Keep**; on all products or a product only, saying
   "Taken off when you save" and when it is their only role there). Nothing changes until **Add N
   people** or **Save changes**, which the foot summarizes beside it: one `members.grant_many` for
-  every role given or changed (100 a call), then `members.revoke` for each person taken off. A
-  refusal changes nothing and names the address; it is forgotten once the choice changes. A save
+  every role given or changed (100 a call), then `members.revoke` for each person taken off once
+  every call has succeeded. A refusal changes nothing in its call and names the address; it is
+  forgotten once the choice changes. A refusal after earlier calls saved says how many addresses
+  they saved, whatever the reason (the server's "Nothing was changed" is left out, being true only
+  of the refused call): those addresses and role changes leave the lists, so saving again sends
+  only the rest; the people list is read again to show them; the invitations they made are listed
+  in the dialog, each with **Copy link**; and Cancel becomes Close. A save
   that only adds says so in a toast ("Added 3 people to Crewboard"); invitations made are then
-  listed, each with **Copy link**, and **Copy every link**; one that could not be emailed says so.
+  listed (with any an earlier refused save made), each with **Copy link**, and **Copy every link**; one that could not be emailed says so.
   At phone width the lists stack and the arrows point down and up.
 - **The organization's Plan** (`?settings=organization/plan`, where `/t/<organization>/plan` and
   `…/limits` lead; listed where the deployment offers plans; `apps/web/src/routes/limits.tsx`). It
