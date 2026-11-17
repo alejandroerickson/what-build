@@ -23,6 +23,10 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
 
 ## Unreleased
 
+Nothing yet.
+
+## v0.38.1
+
 - **Add people keeps what a long list's earlier calls saved when a later call is refused.** It
   asks nothing of a deployment. A list of more than 100 addresses goes in calls of 100; when a
   later call is refused, the addresses and role changes the earlier calls saved now leave the
