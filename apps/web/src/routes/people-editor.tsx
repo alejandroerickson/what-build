@@ -78,14 +78,17 @@ const PER_CALL = 100;
  * before it, which leave the list. A plan's total keeps its room counted from the refused call's
  * first address, now the first one listed, and learns how many were saved; any other refusal says
  * what was saved in place of the server's "Nothing was changed", which is true only of its own call.
+ * A call that got no answer may have saved, so then nothing is said of the addresses after them.
  */
 function fromCall(e: unknown, start: number): unknown {
-  if (!start) return e;
-  if (e instanceof ApiError && typeof e.details?.["room_for"] === "number") return new ApiError(e.status, e.code, e.message, { ...e.details, saved: start });
-  const message = e instanceof Error ? e.message : String(e);
-  const said = `${savedBefore(start)} ${message.replace(/\s*Nothing was changed(?:\.|;[^.]*\.)/, "")}`.trim();
-  return e instanceof ApiError ? new ApiError(e.status, e.code, said, { ...e.details, saved: start }) : new Error(said);
+  if (!answered(e)) return e instanceof ApiError ? new ApiError(e.status, e.code, `${savedBefore(start, false)} ${e.message}`, { ...e.details, saved: start }) : new Error(`${savedBefore(start, false)} ${e instanceof Error ? e.message : String(e)}`.trim());
+  if (typeof e.details?.["room_for"] === "number") return new ApiError(e.status, e.code, e.message, { ...e.details, saved: start });
+  const said = `${savedBefore(start)} ${e.message.replace(/\s*Nothing was changed(?:\.|;[^.]*\.)/, "")}`.trim();
+  return new ApiError(e.status, e.code, said, { ...e.details, saved: start });
 }
+
+/** Whether the server answered a call that failed (`api` gives status 0 when nothing came back), so the call saved nothing. */
+const answered = (e: unknown): e is ApiError => e instanceof ApiError && e.status !== 0;
 
 /** A save refused after earlier calls saved: the refusal, how many of the first changes they saved, and what they made. */
 class SavedBefore {
@@ -368,7 +371,8 @@ export function PeopleEditor({ tenant, orgName, target, title, description, abov
       const given = (kept?.given ?? 0) + r.given;
       if (r.failed.length) toast(`Couldn’t take ${r.failed.join(", ")} off ${where}. Everything else is saved.`, { tone: "negative" });
       // Someone invited isn't there until they accept, so the toast says which happened.
-      else if (added.length && !changed.length && !takenOff.length)
+      // After a refused save kept some, the counts would mix that save's role changes in: say it plainly.
+      else if (added.length && !changed.length && !takenOff.length && !kept)
         toast(given && invited.length ? `Added ${people(given)} to ${where} and invited ${invited.length}.` : invited.length ? `Invited ${people(invited.length)} to ${where}.` : `Added ${people(given)} to ${where}.`);
       else toast(`Saved the changes to ${where}.`);
       if (invited.length) setMade(invited);
@@ -386,7 +390,7 @@ export function PeopleEditor({ tenant, orgName, target, title, description, abov
       setPickedRight(new Set());
       setKept((k) => ({ invited: [...(k?.invited ?? []), ...e.invited], given: (k?.given ?? 0) + e.given }));
       setRefused({ error: e.error, changes: changesOf(sent.grants.slice(e.saved), offIds) });
-      setSaid(savedBefore(e.saved));
+      setSaid(savedBefore(e.saved, answered(e.error)));
     },
   });
 
@@ -469,6 +473,7 @@ export function PeopleEditor({ tenant, orgName, target, title, description, abov
             disabled={!pending}
             onClick={() => {
               setRefused(null);
+              setSaid("");
               save.mutate({ grants, takenOff });
             }}
           >

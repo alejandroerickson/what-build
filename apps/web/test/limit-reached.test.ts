@@ -13,7 +13,7 @@ describe("a plan's people limit without the screen's knowledge of the organizati
 
   it("says what earlier calls saved, which left the list, and counts the room from the first address still listed", () => {
     expect(peopleRoom({ quota: "members_max", limit: 150, used: 150, email: "x@example.com", roomFor: 30, saved: 100 })).toBe(
-      "The first 100 addresses are saved and off the list, and none after them. There’s room for the first 30 addresses still listed only. Add fewer people. Story readers don’t count.",
+      "The first 100 addresses are saved and off the list, and none after them. There’s room for only the first 30 addresses still listed. Add fewer people. Story readers don’t count.",
     );
     expect(peopleRoom({ quota: "members_max", limit: 150, used: 150, email: "x@example.com", roomFor: 0, saved: 100 }, { tookBefore: 0, invitations: true, others: false })).toBe(
       "The first 100 addresses are saved and off the list, and none after them. No places are left for x@example.com. Cancel an invitation. Story readers don’t count.",

@@ -67,8 +67,9 @@ const either = (xs: string[]) => (xs.length < 2 ? (xs[0] ?? "") : `${xs.slice(0,
 /**
  * What earlier calls of a long list (100 addresses a call) saved before a later one was refused: the
  * people editor takes those addresses off its list, so what it still lists is what was not saved.
+ * When the later call got no answer (`known` false), it may have saved, so nothing is said of the rest.
  */
-export const savedBefore = (n: number) => `The first ${n} addresses are saved and off the list, and none after them.`;
+export const savedBefore = (n: number, known = true) => `The first ${n} addresses are saved and off the list${known ? ", and none after them" : ""}.`;
 
 /**
  * People past the plan's total: what was saved, how many places are left, and only the ways to make
@@ -81,7 +82,9 @@ export function peopleRoom(r: TotalReached, people?: PeopleContext): string {
   const left = !fresh ? 0 : people?.tookBefore != null && r.used !== undefined ? Math.max(0, r.limit - r.used) + people.tookBefore : null;
   const places =
     left === null
-      ? `There’s room for the first ${fresh === 1 ? "address" : `${fresh} addresses`}${r.saved ? " still listed" : ""} only.`
+      ? r.saved
+        ? `There’s room for only the first ${fresh === 1 ? "address" : `${fresh} addresses`} still listed.`
+        : `There’s room for the first ${fresh === 1 ? "address" : `${fresh} addresses`} only.`
       : left === 0
         ? `No places are left${r.email && !fresh ? ` for ${r.email}` : ""}.`
         : `There’s room for ${plural(left, "more person", "more people")}.`;

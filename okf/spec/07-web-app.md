@@ -75,8 +75,9 @@ design system: tokens, type, components and the rules for using them — is docu
   doesn't yet know who is adding, and not to a product's admin, whose list leaves out roles on
   products they can't open). A list longer than one call's 100 addresses, refused after an
   earlier call saved, says so ("The first 100 addresses are saved and off the list, and none after
-  them."), counting the room from the first address still listed. New product says the same before anything is typed
-  when the organization already holds its plan's products. A limit a minute or a day keeps the
+  them."; when the later call got no answer, nothing is said of the rest), counting the room from
+  the first address still listed. New product says the same before anything is typed when the
+  organization already holds its plan's products. A limit a minute or a day keeps the
   server's words.
 - **Calls a minute running out is a wait, not a failure.** A read refused for them
   (`429 rate_limited` with `retry_after_seconds`, [§9.7](09-data-lifecycle.md)) asks again once it
@@ -1419,8 +1420,10 @@ never described as deleting. A list row showing an archived object says *Archive
   of the refused call): those addresses and role changes leave the lists, so saving again sends
   only the rest; the people list is read again to show them; the invitations they made are listed
   in the dialog, each with **Copy link**; and Cancel becomes Close. A save
-  that only adds says so in a toast ("Added 3 people to Crewboard"); invitations made are then
-  listed (with any an earlier refused save made), each with **Copy link**, and **Copy every link**; one that could not be emailed says so.
+  that only adds says so in a toast ("Added 3 people to Crewboard"; after a refused save kept
+  some, "Saved the changes to Crewboard"); invitations made are then listed (with any an earlier
+  refused save made), each with **Copy link**, and **Copy every link**; one that could not be
+  emailed says so.
   At phone width the lists stack and the arrows point down and up.
 - **The organization's Plan** (`?settings=organization/plan`, where `/t/<organization>/plan` and
   `…/limits` lead; listed where the deployment offers plans; `apps/web/src/routes/limits.tsx`). It

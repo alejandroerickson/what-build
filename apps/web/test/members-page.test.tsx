@@ -21,7 +21,7 @@ HTMLDialogElement.prototype.close ??= function (this: HTMLDialogElement) {
 };
 window.matchMedia ??= ((query: string) => ({ matches: false, media: query, onchange: null, addListener() {}, removeListener() {}, addEventListener() {}, removeEventListener() {}, dispatchEvent: () => false })) as never;
 
-const state = { readOnly: false, refuseGrant: false, guest: false, role: "owner", allProducts: false, onlyOwner: false, invited: false, roomFor: 0, self: "a1", sessionPending: false, patInOrg: false, partial: false, refuseFromCall: 0, limit: 2, used: 2, otherRefusal: false };
+const state = { readOnly: false, refuseGrant: false, guest: false, role: "owner", allProducts: false, onlyOwner: false, invited: false, roomFor: 0, self: "a1", sessionPending: false, patInOrg: false, partial: false, refuseFromCall: 0, limit: 2, used: 2, otherRefusal: false, noAnswer: false };
 const calls: { method: string; path: string; body?: Record<string, unknown> }[] = [];
 /** The calls that add people refused before this many have been made: the later calls of a long list. */
 const grantCalls = () => calls.filter((c) => c.method === "POST" && c.path === "/api/v1/tenants/acme/members/many").length;
@@ -67,6 +67,8 @@ vi.mock("../src/lib/api.ts", async (original) => ({
       return { items: [{ product_id: "p1", path: "acme/planner", name: "Planner", tenant: { tenant_id: "t1", slug: "acme", name: "Acme" }, your_role: "admin" }], tenants: [tenant()] };
     if (path.includes("/members/activity")) return { items: [], next_cursor: null };
     if (method === "GET" && path === "/api/v1/tenants/acme/members") return members();
+    if (method === "POST" && path === "/api/v1/tenants/acme/members/many" && state.refuseGrant && grantCalls() > state.refuseFromCall && state.noAnswer)
+      throw new ApiError(0, "network", "WhatBuild couldn’t be reached. Check your connection and try again.");
     if (method === "POST" && path === "/api/v1/tenants/acme/members/many" && state.refuseGrant && grantCalls() > state.refuseFromCall && state.otherRefusal)
       throw new ApiError(422, "invalid_role", `${(body!.people as { email: string }[])[state.roomFor]!.email}: Role owner doesn’t apply to all products; use admin, editor, viewer, story_reader. Nothing was changed.`, { email: (body!.people as { email: string }[])[state.roomFor]!.email });
     if (method === "POST" && path === "/api/v1/tenants/acme/members/many" && state.refuseGrant && grantCalls() > state.refuseFromCall)
@@ -88,7 +90,7 @@ afterEach(() => {
   unmount = null;
   document.body.innerHTML = "";
   calls.length = 0;
-  Object.assign(state, { readOnly: false, refuseGrant: false, guest: false, role: "owner", allProducts: false, onlyOwner: false, invited: false, roomFor: 0, self: "a1", sessionPending: false, patInOrg: false, partial: false, refuseFromCall: 0, limit: 2, used: 2, otherRefusal: false });
+  Object.assign(state, { readOnly: false, refuseGrant: false, guest: false, role: "owner", allProducts: false, onlyOwner: false, invited: false, roomFor: 0, self: "a1", sessionPending: false, patInOrg: false, partial: false, refuseFromCall: 0, limit: 2, used: 2, otherRefusal: false, noAnswer: false });
 });
 
 async function page() {
@@ -421,6 +423,17 @@ describe("an organization's People and General", () => {
     expect(callout.querySelector(".callout-text")?.textContent).toBe(
       "The first 100 addresses are saved and off the list, and none after them. n104@example.com: Role owner doesn’t apply to all products; use admin, editor, viewer, story_reader.",
     );
+    expect(listed(dialog)).toHaveLength(7);
+  });
+
+  it("doesn't say the rest went unsaved when a later call got no answer", async () => {
+    state.noAnswer = true;
+    const dialog = await refusedAfterTheFirstCall();
+    const callout = [...dialog.querySelectorAll(".callout")].find((c) => c.textContent?.includes("couldn’t be reached"))!;
+    expect(callout.querySelector(".callout-text")?.textContent).toBe(
+      "The first 100 addresses are saved and off the list. WhatBuild couldn’t be reached. Check your connection and try again.",
+    );
+    expect(dialog.querySelector('[role="status"]')?.textContent).toBe("The first 100 addresses are saved and off the list.");
     expect(listed(dialog)).toHaveLength(7);
   });
 
