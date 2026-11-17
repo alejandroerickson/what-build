@@ -4,7 +4,7 @@ import { api, ApiError } from "../lib/api.ts";
 import { readAddressList } from "../lib/address-list.ts";
 import { plural, ROLE_WORD, roleWords, scopeWords } from "../lib/format.ts";
 import { useMe } from "../lib/session.tsx";
-import { RefusalCallout, type PeopleContext, type TotalReached } from "../shell/limit-reached.tsx";
+import { RefusalCallout, savedBefore, type PeopleContext, type TotalReached } from "../shell/limit-reached.tsx";
 import { Avatar, Button, Callout, Dialog, FindField, Glyph, IconButton, Segmented, StatusBadge, TextArea, useToast } from "../ui/index.tsx";
 import "../styles/screens/people-editor.css";
 
@@ -12,8 +12,10 @@ import "../styles/screens/people-editor.css";
  * Who has a role on a product, on all products or in the organization, changed many at a time.
  * People picked from the organization, or read from a pasted list of addresses, move across to the
  * target with a role each, beside the people already there, whose roles change and who come off it
- * the same way. Nothing changes until it is saved, and then in one call (`members.grant_many`), with
- * a `members.revoke` for each person taken off.
+ * the same way. Nothing changes until it is saved, and then in calls of `members.grant_many` (100
+ * people a call), with a `members.revoke` for each person taken off once they all succeed. When a
+ * later call is refused, what the earlier ones saved leaves the lists, and the invitations they made
+ * are listed to copy.
  */
 
 export interface Grant {
@@ -72,13 +74,34 @@ export const ROLE_HINT: Record<string, string> = {
 const PER_CALL = 100;
 
 /**
- * A refusal of the call that sent the addresses from `start` on, as one of the whole save: a plan's
- * room counted from the first address, and how many earlier calls had saved already.
+ * A refusal of the call that sent the addresses from `start` on, after earlier calls saved the ones
+ * before it, which leave the list. A plan's total keeps its room counted from the refused call's
+ * first address, now the first one listed, and learns how many were saved; any other refusal says
+ * what was saved in place of the server's "Nothing was changed", which is true only of its own call.
+ * A call that got no answer may have saved, so then nothing is said of the addresses after them.
  */
 function fromCall(e: unknown, start: number): unknown {
-  if (!start || !(e instanceof ApiError) || typeof e.details?.["room_for"] !== "number") return e;
-  return new ApiError(e.status, e.code, e.message, { ...e.details, room_for: start + e.details["room_for"], saved: start });
+  if (!answered(e)) return e instanceof ApiError ? new ApiError(e.status, e.code, `${savedBefore(start, false)} ${e.message}`, { ...e.details, saved: start }) : new Error(`${savedBefore(start, false)} ${e instanceof Error ? e.message : String(e)}`.trim());
+  if (typeof e.details?.["room_for"] === "number") return new ApiError(e.status, e.code, e.message, { ...e.details, saved: start });
+  const said = `${savedBefore(start)} ${e.message.replace(/\s*Nothing was changed(?:\.|;[^.]*\.)/, "")}`.trim();
+  return new ApiError(e.status, e.code, said, { ...e.details, saved: start });
 }
+
+/** Whether the server answered a call that failed (`api` gives status 0 when nothing came back), so the call saved nothing. */
+const answered = (e: unknown): e is ApiError => e instanceof ApiError && e.status !== 0;
+
+/** A save refused after earlier calls saved: the refusal, how many of the first changes they saved, and what they made. */
+class SavedBefore {
+  constructor(
+    readonly error: unknown,
+    readonly saved: number,
+    readonly invited: InvitationMade[],
+    readonly given: number,
+  ) {}
+}
+
+/** What would be saved, as one string: a refusal is about these changes, and is forgotten once they change. */
+const changesOf = (grants: { email: string; role: string }[], takenOff: string[]) => JSON.stringify([grants, takenOff]);
 
 interface Holder {
   account_id: string;
@@ -201,6 +224,9 @@ export function PeopleEditor({ tenant, orgName, target, title, description, abov
   const [skipped, setSkipped] = useState<Set<string>>(() => new Set());
   const [said, setSaid] = useState("");
   const [made, setMade] = useState<InvitationMade[] | null>(null);
+  // What earlier calls of a refused save saved, which left the lists; a later save adds to it.
+  const [kept, setKept] = useState<{ invited: InvitationMade[]; given: number } | null>(null);
+  const [refused, setRefused] = useState<{ error: unknown; changes: string } | null>(null);
   // Another target is another set of people and roles: what was chosen for the last one starts again.
   const targetKey = `${target.scope_type}:${target.scope_id}`;
   const [shownFor, setShownFor] = useState(targetKey);
@@ -298,8 +324,8 @@ export function PeopleEditor({ tenant, orgName, target, title, description, abov
       ...members.filter((p) => p.grants.some((g) => counts(g.role))).map((p) => p.email.toLowerCase()),
       ...invitations.filter((i) => counts(i.role)).map((i) => i.email.toLowerCase()),
     ]);
-    // The addresses saved by earlier calls are counted in `used` already.
-    const before = grants.slice(r.saved ?? 0, r.roomFor ?? 0);
+    // The addresses earlier calls saved are off the list, and counted in `used` already.
+    const before = grants.slice(0, r.roomFor ?? 0);
     const self = me.data?.account_id;
     return {
       tookBefore: partial ? null : new Set(before.filter((g) => counts(g.role) && !counted.has(g.email.toLowerCase())).map((g) => g.email.toLowerCase())).size,
@@ -310,10 +336,9 @@ export function PeopleEditor({ tenant, orgName, target, title, description, abov
     };
   };
 
-  // What would be saved: a refusal is about these changes, and is forgotten once they change.
-  const changes = JSON.stringify([grants, takenOff.map((h) => h.account_id)]);
+  const changes = changesOf(grants, takenOff.map((h) => h.account_id));
   const save = useMutation({
-    mutationFn: async (_changes: string) => {
+    mutationFn: async ({ grants, takenOff }: { grants: { email: string; role: string }[]; takenOff: Holder[] }) => {
       const invited: InvitationMade[] = [];
       let given = 0;
       for (let i = 0; i < grants.length; i += PER_CALL) {
@@ -321,13 +346,15 @@ export function PeopleEditor({ tenant, orgName, target, title, description, abov
           ...target.body,
           people: grants.slice(i, i + PER_CALL),
         }).catch((e: unknown) => {
-          throw fromCall(e, i);
+          // Earlier calls saved theirs: what they made goes with the refusal, so it isn't lost.
+          throw i ? new SavedBefore(fromCall(e, i), i, invited, given) : e;
         });
         for (const x of r.results) {
           if (x.invited && x.invite_link) invited.push({ email: x.email, invite_link: x.invite_link, emailed: x.emailed !== false });
           else if (!x.invited) given++;
         }
       }
+      // People come off only once every role given is saved.
       const failed: string[] = [];
       for (const h of takenOff) {
         try {
@@ -338,15 +365,32 @@ export function PeopleEditor({ tenant, orgName, target, title, description, abov
       }
       return { invited, given, failed };
     },
-    onSuccess: ({ invited, given, failed }) => {
+    onSuccess: (r) => {
       void qc.invalidateQueries({ queryKey: ["members", tenant] });
-      if (failed.length) toast(`Couldn’t take ${failed.join(", ")} off ${where}. Everything else is saved.`, { tone: "negative" });
+      const invited = [...(kept?.invited ?? []), ...r.invited];
+      const given = (kept?.given ?? 0) + r.given;
+      if (r.failed.length) toast(`Couldn’t take ${r.failed.join(", ")} off ${where}. Everything else is saved.`, { tone: "negative" });
       // Someone invited isn't there until they accept, so the toast says which happened.
-      else if (added.length && !changed.length && !takenOff.length)
+      // After a refused save kept some, the counts would mix that save's role changes in: say it plainly.
+      else if (added.length && !changed.length && !takenOff.length && !kept)
         toast(given && invited.length ? `Added ${people(given)} to ${where} and invited ${invited.length}.` : invited.length ? `Invited ${people(invited.length)} to ${where}.` : `Added ${people(given)} to ${where}.`);
       else toast(`Saved the changes to ${where}.`);
       if (invited.length) setMade(invited);
       else onClose();
+    },
+    onError: (e, sent) => {
+      const offIds = sent.takenOff.map((h) => h.account_id);
+      if (!(e instanceof SavedBefore)) return setRefused({ error: e, changes: changesOf(sent.grants, offIds) });
+      // What earlier calls saved leaves the lists, so saving again sends only the rest, and the people list shows it.
+      void qc.invalidateQueries({ queryKey: ["members", tenant] });
+      const saved = new Set(sent.grants.slice(0, e.saved).map((g) => g.email.toLowerCase()));
+      const savedIds = new Set(members.filter((p) => saved.has(p.email.toLowerCase())).map((p) => p.account_id));
+      setAdded((a) => a.filter((x) => !saved.has(x.key)));
+      setRoleOf((r) => Object.fromEntries(Object.entries(r).filter(([account]) => !savedIds.has(account))));
+      setPickedRight(new Set());
+      setKept((k) => ({ invited: [...(k?.invited ?? []), ...e.invited], given: (k?.given ?? 0) + e.given }));
+      setRefused({ error: e.error, changes: changesOf(sent.grants.slice(e.saved), offIds) });
+      setSaid(savedBefore(e.saved, answered(e.error)));
     },
   });
 
@@ -420,9 +464,19 @@ export function PeopleEditor({ tenant, orgName, target, title, description, abov
         <>
           <span className="pe-summary">{summary.length ? `${summary.join(", ")}.` : "Nothing changes until you save."}</span>
           <Button onClick={onClose} disabled={save.isPending}>
-            Cancel
+            {kept ? "Close" : "Cancel"}
           </Button>
-          <Button variant="primary" busy={save.isPending} busyLabel="Saving…" disabled={!pending} onClick={() => save.mutate(changes)}>
+          <Button
+            variant="primary"
+            busy={save.isPending}
+            busyLabel="Saving…"
+            disabled={!pending}
+            onClick={() => {
+              setRefused(null);
+              setSaid("");
+              save.mutate({ grants, takenOff });
+            }}
+          >
             {saveLabel(added.length, changed.length + takenOff.length)}
           </Button>
         </>
@@ -681,7 +735,8 @@ export function PeopleEditor({ tenant, orgName, target, title, description, abov
         <p className="visually-hidden" role="status" aria-live="polite">
           {said}
         </p>
-        {save.isError && save.variables === changes ? <RefusalCallout tenant={tenant} inset error={save.error} people={peopleContext} /> : null}
+        {refused && refused.changes === changes ? <RefusalCallout tenant={tenant} inset error={refused.error} people={peopleContext} /> : null}
+        {kept?.invited.length ? <InvitationsMade made={kept.invited} /> : null}
       </div>
     </Dialog>
   );

@@ -17,7 +17,7 @@ export interface TotalReached {
   roomFor?: number;
   /** The places taken when it was refused (`details.used`): people with a role, and invitations open. */
   used?: number;
-  /** Adding people in several calls: how many of the first addresses earlier calls had saved. */
+  /** Adding people in several calls: how many of the first addresses earlier calls had saved, which left the list. */
   saved?: number;
 }
 
@@ -65,23 +65,32 @@ function holds(r: TotalReached): string {
 const either = (xs: string[]) => (xs.length < 2 ? (xs[0] ?? "") : `${xs.slice(0, -1).join(", ")} or ${xs.at(-1)}`);
 
 /**
+ * What earlier calls of a long list (100 addresses a call) saved before a later one was refused: the
+ * people editor takes those addresses off its list, so what it still lists is what was not saved.
+ * When the later call got no answer (`known` false), it may have saved, so nothing is said of the rest.
+ */
+export const savedBefore = (n: number, known = true) => `The first ${n} addresses are saved and off the list${known ? ", and none after them" : ""}.`;
+
+/**
  * People past the plan's total: what was saved, how many places are left, and only the ways to make
  * room that exist. Without what the screen knows, it offers only adding fewer people, where some fit.
+ * `roomFor` counts from the first address still listed: any that earlier calls saved are off the list.
  */
 export function peopleRoom(r: TotalReached, people?: PeopleContext): string {
-  // The addresses the refused call had room for, after any that earlier calls saved.
-  const fresh = (r.roomFor ?? 0) - (r.saved ?? 0);
+  const fresh = r.roomFor ?? 0;
   // The places free before the refused call: the ones its earlier addresses took, since none is left at the refused one.
   const left = !fresh ? 0 : people?.tookBefore != null && r.used !== undefined ? Math.max(0, r.limit - r.used) + people.tookBefore : null;
   const places =
     left === null
-      ? `There’s room for the ${r.saved ? "next" : "first"} ${fresh === 1 ? "address" : `${fresh} addresses`} only.`
+      ? r.saved
+        ? `There’s room for only the first ${fresh === 1 ? "address" : `${fresh} addresses`} still listed.`
+        : `There’s room for the first ${fresh === 1 ? "address" : `${fresh} addresses`} only.`
       : left === 0
         ? `No places are left${r.email && !fresh ? ` for ${r.email}` : ""}.`
         : `There’s room for ${plural(left, "more person", "more people")}.`;
   const ways = either([left !== 0 ? "add fewer people" : "", people?.invitations ? "cancel an invitation" : "", people?.others ? "remove someone" : ""].filter(Boolean));
   const next = ways ? ` ${ways.replace(/^./, (c) => c.toUpperCase())}.` : "";
-  const saved = r.saved ? `The first ${r.saved} addresses are saved, and none after them. ` : r.roomFor ? "Nothing was saved. " : "";
+  const saved = r.saved ? `${savedBefore(r.saved)} ` : r.roomFor ? "Nothing was saved. " : "";
   return `${saved}${places}${next} Story readers don’t count.`;
 }
 
