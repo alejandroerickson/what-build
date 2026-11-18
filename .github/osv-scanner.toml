@@ -5,3 +5,13 @@
 # id = "GHSA-xxxx-xxxx-xxxx"
 # ignoreUntil = 2026-12-31
 # reason = "Only reachable through …, which WhatBuild never calls."
+
+[[IgnoredVulns]]
+# picomatch 4.0.7, under fdir and tinyglobby, which vite and vitest use. Every release through 4.0.7
+# is affected and none fixes it yet (micromatch/picomatch pull request 194 is open). The flaw is in
+# parsing a glob with a single-branch repeated extglob, such as `+(*)`; WhatBuild passes picomatch
+# only the globs in its own build and test configuration, and neither the image nor the server
+# bundle includes it.
+id = "GHSA-fc5q-39xc-vjpf"
+ignoreUntil = 2026-12-18
+reason = "ReDoS in picomatch's parsing of repeated extglobs, reached only by vite and vitest at build and test time with the repository's own globs; the image does not include picomatch. No release fixes it yet: upgrade picomatch once one after 4.0.7 does."

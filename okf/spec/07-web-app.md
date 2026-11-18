@@ -1495,7 +1495,9 @@ never described as deleting. A list row showing an archived object says *Archive
   was removed, or every role at once, as "removed … from the organization" (one role of several
   as "removed a role from …"), someone who deleted their own account as "deleted
   their account and left the organization", and an instance owner's removal of an account as
-  "removed the account of …". An entry from before teams were removed or the Story reader was
+  "removed the account of …". An invitation to all products, sent or declined, reads "invited
+  someone to all products" and "declined an invitation to all products", in lower case, as the
+  server gives its title. An entry from before teams were removed or the Story reader was
   named so reads in today's words, as the server gives it ([§4.10](04-data-model.md)).
 - **Account** (`?settings=account`). Display name, and the email the person signs in with
   (read-only); for a guest of the example organization, **Example organization**, whether the

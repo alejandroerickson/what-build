@@ -5,8 +5,9 @@ name: Security
 # advisories appear for dependencies that have not changed. Weekly as well: every published commit
 # checked again for anything private, and so is what GitHub holds beside the code from the past
 # week (pull request and issue text, comments, reviews, release notes, Actions logs and artifacts);
-# and a passive OWASP ZAP scan of the app running as it does in production. A failure here
-# reports; it does not block a merge (okf/operations/security-checks.md).
+# and a passive OWASP ZAP scan of the app running as it does in production. `main`'s ruleset
+# requires the "Dependencies and workflows" job, so a new advisory holds every pull request back
+# until it is upgraded or accepted (okf/operations/security-checks.md).
 on:
   push:
     branches: [main]

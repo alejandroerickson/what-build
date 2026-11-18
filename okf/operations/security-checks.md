@@ -31,7 +31,7 @@ What the app itself defends against, and where, is in the [threat model](../syst
 | `check-publishable --message` | the `commit-msg` hook | refuses the commit |
 | `check-publishable --revs` | the `pre-push` hook, over the commits the remote lacks; the hook also refuses any ref but a branch or a tag | refuses the push |
 | the same, job **Nothing private** in `ci.yml` | every pull request's commits, and every push to `main` | a red check |
-| `check-publishable --text`, workflow `pull-request-text.yml` | a pull request's title and description, when it is opened and whenever either is edited | a red check |
+| `check-publishable --text`, workflow `pull-request-text.yml` | a pull request's title and description, when it is opened, whenever either is edited, and on every push to its branch, so the check `main` requires is on the head commit | a red check |
 | `check-publishable --all` | weekly in `security.yml`; the `audit-for-leaks` skill | a red run |
 | `check-publishable --github` | weekly in `security.yml` with `--since 8d`: the past week's pull request and issue text, comments, reviews, release notes, Actions logs and artifacts; all of it in the `audit-for-leaks` skill | a red run |
 | `pnpm security` | `security.yml` on every pull request, push to `main` and weekly; anyone, any time | a red check |
