@@ -122,3 +122,4 @@ name what replaced it, and date the change. Smaller decisions are marked
 - [Mockups are arranged by hand, in folders one level deep that everyone in the product shares](mockups-are-arranged-by-hand-in-folders-one-level-deep.md)
 - [The tutorial's examples are fixed content shipped with the web app, never in a product and never visible to agents](the-tutorials-examples-are-fixed-content-shipped-with-the-web-app.md)
 - [The tutorial is remembered on the account, through the person's own session, and reached by no agent](the-tutorial-is-remembered-on-the-account-and-reached-by-no-agent.md)
+- [The tutorial is five short ones, a welcome and one for each page, each starting by itself the first time its page is opened, and the person can turn them all off](the-tutorial-is-five-short-ones-each-starting-the-first-time-its-page-is-opened.md)

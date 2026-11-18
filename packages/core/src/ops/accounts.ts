@@ -240,7 +240,7 @@ async function endAccount(ctx: OpContext, account: Ending, self: boolean) {
   await db.deleteFrom("interest").where(sql<boolean>`lower(email) = ${address}`).execute();
   await db.updateTable("feedback").set({ reply_to: null }).where(sql<boolean>`lower(reply_to) = ${address}`).execute();
   await db.updateTable("feedback").set({ submitted_by: null }).where(sql<string>`submitted_by->>'account_id'`, "=", id).execute();
-  await db.updateTable("accounts").set({ deleted_at: ctx.now, email: removedAddress(id), display_name: "", email_verified_at: null, hide_example: false, tutorial_offered_at: null, tutorial_stop: null, tutorial_finished_at: null }).where("account_id", "=", id).execute();
+  await db.updateTable("accounts").set({ deleted_at: ctx.now, email: removedAddress(id), display_name: "", email_verified_at: null, hide_example: false, tutorials_seen: [], tutorials_off: false }).where("account_id", "=", id).execute();
   return {
     account_id: id,
     display_name: account.display_name,

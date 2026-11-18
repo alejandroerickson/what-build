@@ -25,15 +25,25 @@ export interface Me {
   hide_example: boolean;
   /** When they asked for an organization of their own: they are on the waitlist. */
   asked_for_organization_at?: string | null;
-  /** Where the person left the web app's tutorial: offered yet, the stop it was left at (null when not part-way), finished. */
+  /** The web app's tutorials: which the person has been shown, and whether they turned them off. */
   tutorial?: TutorialState;
 }
 
-/** The web app's tutorial, as the account keeps it (`PATCH /api/v1/me`), so it follows the person between browsers. */
+/** The web app's tutorials: the welcome, then one for each of a product's four pages. */
+export type TutorialPart = "welcome" | "idea" | "evidence" | "exploration" | "story";
+
+/** The web app's tutorials, as the account keeps them (`PATCH /api/v1/me`), so they follow the person between browsers. */
 export interface TutorialState {
-  offered: boolean;
-  stop: number | null;
-  finished: boolean;
+  /** The tutorials the person has been shown, which start by themselves no more. */
+  seen: TutorialPart[];
+  /** The person turned tutorials off: none starts by itself. */
+  off: boolean;
+}
+
+/** What `PATCH /api/v1/me` takes: tutorials to add to those seen, and tutorials off or on. */
+export interface TutorialPatch {
+  seen?: TutorialPart[];
+  off?: boolean;
 }
 
 /**
@@ -155,15 +165,20 @@ export function useHideExample() {
 }
 
 /**
- * Keep where the person is in the tutorial on their account. What the app shows changes at once; the
- * request follows, and a failure leaves the screen as it is, since the tutorial is only a convenience.
+ * Keep on the account which tutorials the person has been shown, and whether they turned tutorials
+ * off. What the app shows changes at once; the request follows, and a failure leaves the screen as it
+ * is, since the tutorials are only a convenience.
  */
 export function useSaveTutorial() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (patch: Partial<TutorialState>) => api<Me>("PATCH", "/api/v1/me", { tutorial: patch }),
+    mutationFn: (patch: TutorialPatch) => api<Me>("PATCH", "/api/v1/me", { tutorial: patch }),
     onMutate: (patch) =>
-      qc.setQueryData(["me"], (old: Me | undefined) => (old ? { ...old, tutorial: { ...(old.tutorial ?? { offered: false, stop: null, finished: false }), ...patch } } : old)),
+      qc.setQueryData(["me"], (old: Me | undefined) => {
+        if (!old) return old;
+        const was = old.tutorial ?? { seen: [], off: false };
+        return { ...old, tutorial: { seen: [...new Set([...was.seen, ...(patch.seen ?? [])])], off: patch.off ?? was.off } };
+      }),
   });
 }
 

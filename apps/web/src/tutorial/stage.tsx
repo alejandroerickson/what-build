@@ -181,7 +181,7 @@ export function AgentStage() {
       aria-labelledby={titleId}
       aria-describedby={leadId}
     >
-      <IconButton className="tut-x" size="sm" icon="x" label="Finish later" title="Finish later (Esc)" onClick={t.later} />
+      <IconButton className="tut-x" size="sm" icon="x" label="Close the tutorial" title="Close the tutorial (Esc)" onClick={t.later} data-later="" />
       <header className="tut-stage-head">
         <ProgressBar at={at} count={stops.length} />
         <p className="tut-count num">
@@ -270,9 +270,11 @@ export function AgentStage() {
         ))}
       </ul>
       <footer className="tut-foot tut-stage-foot">
-        <Button size="sm" variant="quiet" className="tut-later" onClick={t.later} data-later="">
-          Finish later
-        </Button>
+        {t.off ? null : (
+          <Button size="sm" variant="quiet" className="tut-later" onClick={t.turnOff}>
+            Turn off tutorials
+          </Button>
+        )}
         <span className="tut-stage-note">
           <Glyph name="signpost" size="sm" />
           {script.note}
@@ -280,9 +282,11 @@ export function AgentStage() {
         <Button size="sm" icon="rotate-ccw" onClick={() => setRun((n) => n + 1)}>
           Replay
         </Button>
-        <Button size="sm" onClick={() => t.go(at - 1)}>
-          Back
-        </Button>
+        {at > 0 ? (
+          <Button size="sm" onClick={() => t.go(at - 1)}>
+            Back
+          </Button>
+        ) : null}
         <Button size="sm" variant="primary" onClick={() => (last ? t.finish(false) : t.go(at + 1))} data-primary="">
           {last ? "Finish" : "Next"}
         </Button>

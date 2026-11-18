@@ -4,9 +4,10 @@ import { createRoot } from "react-dom/client";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-// The tutorial is offered on the first screen that shows a product's panel, the overview included,
-// before anything is clicked: whoever the panel's product gives it to gets the welcome there, and the
-// account menu's item. Starting it goes into the product, which takes it from there.
+// The welcome is offered on the first screen that shows a product's panel, the overview included,
+// before anything is clicked: whoever the panel's product gives the tutorials to gets the welcome
+// there, and the account menu's item. Starting it goes into the product, which takes it from there.
+// No page's tutorial starts on the overview: a page's starts on its page.
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 window.matchMedia = (query: string) =>
@@ -19,7 +20,8 @@ globalThis.ResizeObserver ??= class {
 
 let role: string | null = "editor";
 let example = false;
-let kept = { offered: false, stop: null as number | null, finished: false };
+type Kept = { seen: string[]; off: boolean };
+let kept: Kept = { seen: [], off: false };
 const calls: { method: string; path: string; body?: unknown }[] = [];
 const tenant = () => ({ tenant_id: "t1", slug: "acme", name: "Acme", example, name_etag: "e", plan: "free", your_role: role === "guest" ? "guest" : "member" });
 
@@ -29,7 +31,8 @@ vi.mock("../src/lib/api.ts", async (original) => ({
     calls.push({ method, path, body });
     if (path === "/auth/session") return { signed_in: true, account_id: "a1", email: "sam@example.com", display_name: "Sam Okafor", tenant_allowance: { remaining: 0, instance_owner: false }, hide_example: false, tutorial: kept };
     if (path === "/api/v1/me" && method === "PATCH") {
-      kept = { ...kept, ...(body as { tutorial: typeof kept }).tutorial };
+      const t = (body as { tutorial: Partial<Kept> }).tutorial;
+      kept = { seen: [...new Set([...kept.seen, ...(t.seen ?? [])])], off: t.off ?? kept.off };
       return { display_name: "Sam Okafor", tutorial: kept };
     }
     if (path === "/api/v1/me/agents") return { items: [] };
@@ -99,52 +102,69 @@ const menuItem = async () => {
 };
 
 describe("the tutorial on the overview", () => {
+  const button = (name: string) => [...document.querySelectorAll(".tut-welcome button")].find((b) => b.textContent === name);
+
   it("offers an editor of the panel's product the welcome before anything is clicked, and Start the tutorial begins it at that product's Idea", async () => {
     role = "editor";
     example = false;
-    kept = { offered: false, stop: null, finished: false };
+    kept = { seen: [], off: false };
     await overview();
     expect(welcome()?.textContent).toContain("Take the WhatBuild tutorial?");
-    expect(calls).toContainEqual({ method: "PATCH", path: "/api/v1/me", body: { tutorial: { offered: true } } });
-    await click([...document.querySelectorAll(".tut-welcome button")].find((b) => b.textContent === "Start the tutorial"));
-    expect(product()).toBe('/t/acme/harvest/idea {"tutorial":"welcome"}');
+    expect(calls).toContainEqual({ method: "PATCH", path: "/api/v1/me", body: { tutorial: { seen: ["welcome"] } } });
+    await click(button("Start the tutorial"));
+    expect(product()).toBe('/t/acme/harvest/idea {"tutorial":{"part":"welcome","from":"welcome"}}');
   });
 
   it("offers a guest of the example organization the welcome there too", async () => {
     role = "guest";
     example = true;
-    kept = { offered: false, stop: null, finished: false };
+    kept = { seen: [], off: false };
     await overview();
     expect(welcome()).not.toBeNull();
   });
 
-  it("closes with Not now, and offers it from the account menu after, going into the product at the stop it was left at", async () => {
+  it("closes with Not now, and offers the welcome from the account menu after, going into the product to take it", async () => {
     role = "editor";
     example = false;
-    kept = { offered: false, stop: null, finished: false };
+    kept = { seen: [], off: false };
     await overview();
-    await click([...document.querySelectorAll(".tut-welcome button")].find((b) => b.textContent === "Not now"));
+    await click(button("Not now"));
     expect(welcome()).toBeNull();
     expect(document.body.textContent).toContain("The tutorial is in your account menu.");
-    expect((await menuItem())?.textContent).toContain("Take the tutorial");
-    // Closed part-way at the source, in Evidence: Resume goes there.
-    kept = { offered: true, stop: 7, finished: false };
-    unmount?.();
-    document.body.innerHTML = "";
+    const item = await menuItem();
+    expect(item?.textContent).toContain("Take the WhatBuild tutorial");
+    expect(item?.textContent).toContain("3 stops");
+    await click(item);
+    expect(product()).toBe('/t/acme/harvest/idea {"tutorial":{"part":"welcome","from":"menu"}}');
+  });
+
+  it("turns tutorials off from the welcome, and the menu still offers it", async () => {
+    role = "editor";
+    example = false;
+    kept = { seen: [], off: false };
+    await overview();
+    await click(button("Turn off tutorials"));
+    expect(welcome()).toBeNull();
+    expect(kept).toEqual({ seen: ["welcome"], off: true });
+    expect(document.body.textContent).toContain("Tutorials are off. Turn them on again in Settings.");
+    expect((await menuItem())?.textContent).toContain("Take the WhatBuild tutorial");
+  });
+
+  it("starts nothing once the welcome has been offered: a page's tutorial starts on its page", async () => {
+    role = "editor";
+    example = false;
+    kept = { seen: ["welcome"], off: false };
     await overview();
     expect(welcome()).toBeNull();
-    const item = await menuItem();
-    expect(item?.textContent).toContain("Resume tutorial");
-    expect(item?.textContent).toContain("Stop 8 of 20 · Evidence");
-    await click(item);
-    expect(product()).toBe('/t/acme/harvest/evidence {"tutorial":"menu"}');
+    expect(document.querySelector(".tut-layer")).toBeNull();
+    expect(product()).toBeNull();
   });
 
   it("offers nothing, and no menu item, with no product in the panel, or to a viewer or a Story reader", async () => {
     for (const r of [null, "viewer", "story_reader"]) {
       role = r;
       example = false;
-      kept = { offered: false, stop: null, finished: false };
+      kept = { seen: [], off: false };
       await overview();
       expect(welcome(), String(r)).toBeNull();
       if (document.querySelector(".panel-foot .account-button")) expect(await menuItem(), String(r)).toBeNull();

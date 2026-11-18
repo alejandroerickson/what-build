@@ -240,24 +240,6 @@
   width: 10px;
   height: 10px;
 }
-.tut-turn {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  margin: var(--s-1) 0 0;
-  padding-top: var(--s-2);
-  border-top: 1px solid var(--line);
-  color: var(--muted);
-  font-size: var(--fs-sm);
-}
-.tut-turn .glyph {
-  margin-left: 2px;
-  color: var(--faint);
-}
-.tut-turn b {
-  color: var(--text);
-  font-weight: var(--fw-medium);
-}
 .tut-foot {
   display: flex;
   align-items: center;
@@ -272,7 +254,8 @@
 .tut-gap {
   margin-right: auto;
 }
-.tut-layer .btn[data-nudge] {
+.tut-layer .btn[data-nudge],
+.tut-layer .icon-btn[data-nudge] {
   animation: tut-nudge 0.9s var(--ease);
 }
 @keyframes tut-nudge {
@@ -454,22 +437,6 @@
 /* The account menu's one tutorial item. */
 .menu-tutorial > .glyph {
   color: var(--warn);
-}
-.menu-tutorial .menu-detail {
-  display: grid;
-  gap: 5px;
-}
-.menu-tutorial-bar {
-  display: block;
-  height: 3px;
-  overflow: hidden;
-  border-radius: 2px;
-  background: var(--line);
-}
-.menu-tutorial-bar i {
-  display: block;
-  height: 100%;
-  background: var(--line-strong);
 }
 .menu-tutorial[data-hint] {
   animation: tut-hint 1.4s var(--ease) 2;

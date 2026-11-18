@@ -248,9 +248,10 @@ the browser's back button and "open in new tab" both work.
   Each of its sections is a group named by its title, a heading, so a screen reader can move
   between them as it does between the inspector's groups.
 - **The footer** holds the account menu, which is only about the person: their email; on a
-  product where they get the tutorial, its one item first ([§7.4](#the-tutorial)): **Take the
-  tutorial**, **Resume tutorial** with the stop it was left at and a thin bar, or **Take the
-  tutorial again**; **Settings**, which opens the Settings dialog at Account; the theme (Light, Dark or System, which
+  product where they get the tutorials, its one item first ([§7.4](#the-tutorial)): **Take the
+  <page> tutorial** for the page on screen (Idea, Evidence, Exploration or Story, a source's own
+  screen counting as Evidence), or **Take the WhatBuild tutorial** elsewhere, with its number of
+  stops under it; **Settings**, which opens the Settings dialog at Account; the theme (Light, Dark or System, which
   is the default; remembered per browser); **Instance admin**, for an owner of the instance only
   (§7.11); **Submit feedback**; and **Sign out**. Joining an organization adds nothing to it: an
   organization's people and plan are in Settings, and starting another organization is in the
@@ -543,50 +544,82 @@ synthetic sample `pnpm db:seed` creates is visible only to its seeded accounts.
 
 ### The tutorial
 
-A spotlight tutorial (`apps/web/src/tutorial/`) shows someone around a product: the screen darkens
-around one thing at a time and a small bubble names it.
+Spotlight tutorials (`apps/web/src/tutorial/`) show someone around a product: the screen darkens
+around one thing at a time and a small bubble names it. There are five short ones rather than one
+long one ([decision](../decisions/the-tutorial-is-five-short-ones-each-starting-the-first-time-its-page-is-opened.md)):
+the **WhatBuild** tutorial, a welcome to the app as a whole, and one for each of a product's four
+pages, **Idea**, **Evidence**, **Exploration** and **Story**, each on its own page.
 
 - **Who.** Someone who can edit the product they are in (an editor or admin, the product not
   archived, the organization not read-only), and a guest of the example organization. Viewers and
   Story readers given those roles get nothing, and nobody in a window narrower than 1024 pixels,
   the narrowest its layout was designed and checked for (`TUTORIAL_MIN_WIDTH`, its own query, not
-  the app's phone width): no offer and no menu item, and a tutorial that is up closes at its stop,
-  to resume, with the toast "The tutorial is in your account menu." (none at phone width, where the
-  panel is a drawer).
-- **When.** Offered once per person, on the first screen they land on that shows the panel of a
-  product where they get it, the overview included, before they click anything: a welcome over the
-  darkened screen, "Take the WhatBuild tutorial?", "About three minutes, with example content.",
-  beside their avatar "You can close it at any time. It stays in your account menu.", with **Not
-  now** and **Start the tutorial**. On a screen beside the product (the overview, a page not
-  found), what decides is the product its panel shows, and Start the tutorial goes to that
+  the app's phone width): no offer, nothing starting by itself and no menu item, and a tutorial
+  that is up closes where it is, with the toast "The tutorial is in your account menu." (none at
+  phone width, where the panel is a drawer).
+- **The welcome first.** Offered once per person, on the first screen they land on that shows the
+  panel of a product where they get it, the overview included, before they click anything: a
+  welcome over the darkened screen, "Take the WhatBuild tutorial?", "Under a minute: the four
+  pages, and an agent at work.", beside their avatar "Each page has a short tutorial of its own the
+  first time you open it. They stay in your account menu.", with **Turn off tutorials** (quiet, at
+  its left), **Not now** and **Start the tutorial**. On a screen beside the product (the overview, a
+  page not found), what decides is the product its panel shows, and Start the tutorial goes to that
   product's Idea and begins there; with no product in the panel, nothing is offered until there is
   one. A guest is offered it on their first screen with a product of the example organization in
-  the panel; someone offered it as a guest is not offered it again on a product of their own.
-  Afterwards it starts only from the account menu's item (§7.2), which every screen with such a
-  panel has, and which goes to the product, at the page of the stop it starts or resumes at. The
+  the panel; someone offered it as a guest is not offered it again on a product of their own. The
   rule is one function (`tutorialFor`), fed by the product's own screens and by the panel beside
   them.
-- **Remembered on the account**, not in the browser: whether it was offered, the stop it was left at
-  and whether it was finished, which `GET /api/v1/me` gives as `tutorial` and `PATCH /api/v1/me`
-  keeps at every stop ([§3.2](03-accounts-and-identity.md#32-accounts-and-sign-in),
+- **Then each page's own, the first time.** Once the welcome has been offered, each page's
+  tutorial starts by itself, a moment after the person arrives, the first time they open that page
+  (Idea and Evidence at their own address, so a source's own screen starts nothing; Exploration and
+  Story at any of theirs), with nothing else up and no Settings dialog open. Each arrival at a page
+  decides once, and closing a tutorial is no arrival: the welcome closed on Idea leaves Idea's own
+  for the next time the person opens Idea. Nothing starts by itself on a screen beside the product
+  but the welcome. The rule is one function (`dueTutorial`).
+- **Shown once.** A tutorial counts as shown as soon as it starts (the welcome as soon as it is
+  offered), so none starts by itself twice; closed part-way, it is taken again from the start.
+  Afterwards each is in the account menu (§7.2), which every screen with such a panel has: **Take
+  the <page> tutorial** for the page on screen, a source's own screen counting as Evidence (taken
+  there, it goes to the list of sources first), or **Take the WhatBuild tutorial** elsewhere, with
+  its number of stops under it. Taken on a screen beside the product, the WhatBuild tutorial goes
+  to the product's Idea and begins there.
+- **Turning tutorials off.** **Turn off tutorials**, at the left of the welcome and of every
+  stop's foot but the seat's, closes the tutorial and keeps on the account that tutorials are off,
+  with the toast "Tutorials are off. Turn them on again in Settings." and **Undo**. Off, nothing
+  starts by itself, the welcome included; every tutorial stays in the account menu, and a tutorial
+  taken from there while they are off has no Turn off tutorials. Settings → Account (§7.11) turns
+  them on again.
+- **Remembered on the account**, not in the browser: which tutorials have been shown, and whether
+  tutorials are off, which `GET /api/v1/me` gives as `tutorial` and `PATCH /api/v1/me` keeps when a
+  tutorial starts and when they are turned off or on
+  ([§3.2](03-accounts-and-identity.md#32-accounts-and-sign-in),
   [decision](../decisions/the-tutorial-is-remembered-on-the-account-and-reached-by-no-agent.md)).
-  A reload, a sign-out, leaving the product, the browser's Back to another page of it, or a
-  guest's gate taking over leaves it closed at its stop, to resume.
-- **Twenty stops in one line** (`stops.ts`), entered page by page by real navigation, each page
-  at its item in the main navigation: the navigation, Idea, the product concept, its **More info**
-  button ("Each card has text behind its picture."), its text, open ("The same concept in words,
-  for agents to read."), the outcome (scrolled to), Evidence, the example source's row in the list
-  (**Sources**, "Select a source to preview it."), its preview, open on its whiteboard photo
-  (**Preview**, "What’s visual in a source: whiteboard photos, slides, recordings."), Exploration,
-  the canvas, its toolbar as a labelled diagram (**Toolbar**, "The same commands, and their keys."),
-  the inspector's View, Download as ZIP, Promote canvas to Story, Story, the list of
-  Story pages, Export to PDF, the agent stage, and the "No agent connected" seat. Someone with an
-  agent connected has no seat, so for them it ends on the agent stage: nineteen stops, and the
-  stage's button reads Finish. A bubble has a bar of one segment a
-  stop, "5 of 20", the thing's own name, at most one line, then Finish later, Back (from the
-  second stop) and Next; the last stop of a page says "Next page: <page>" and its button "Go to
-  <page>"; the last stop has Back, Finish and **Connect an agent**, which finishes it and opens
-  Settings at Agents. Back and the primary button are the only ways to move.
+  A reload, a sign-out, leaving the product, the browser's Back to another page, or a guest's gate
+  taking over closes a tutorial that is up, without a word; the screen arrived at decides what
+  starts next.
+- **The stops** (`stops.ts`), each a thing's own name and at most one line:
+  - **WhatBuild**: the main navigation (**Main navigation**, "Four stages of product discovery."),
+    then the agent stage (**Agents**). It lights the product's own screen, with no examples, on
+    whatever page it starts on.
+  - **Idea**: Idea in the navigation ("Your product’s elevator pitch."), the product concept, its
+    **More info** button ("Each card has text behind its picture."), its text, open ("The same
+    concept in words, for agents to read."), and the outcome (scrolled to).
+  - **Evidence**: Evidence in the navigation, the example source's row in the list (**Sources**,
+    "Select a source to preview it."), and its preview, open on its whiteboard photo (**Preview**,
+    "What’s visual in a source: whiteboard photos, slides, recordings.").
+  - **Exploration**: Exploration in the navigation, the canvas, its toolbar as a labelled diagram
+    (**Toolbar**, "The same commands, and their keys."), the inspector's View, Download as ZIP,
+    and Promote canvas to Story.
+  - **Story**: Story in the navigation, the list of Story pages, and Export to PDF.
+
+  While the person has no agent connected, every tutorial ends on the "No agent connected" seat
+  (**Connect an agent**, "It takes about a minute."), so the longest, Exploration's, is seven stops;
+  with an agent connected there is no seat, and each ends on its own last stop, whose button reads
+  Finish. A bubble has a bar of one segment a stop, "2 of 4", the thing's own name, at most one
+  line, then Turn off tutorials, Back (from the second stop) and Next, or Finish on the last stop;
+  the seat's stop has Back, Finish and **Connect an agent**, which finishes it and opens Settings at
+  Agents. A small close button at its top right closes the tutorial. Back and the primary button are
+  the only ways to move, and no tutorial leaves its page.
 - **What opens is pressed in front of the person, one stop at a time.** The More info stop lights
   the button alone with the text closed, and the source's stop the row alone, not selected, with
   the preview closed; each waits for Next. Next presses it: the button shows its press (its open
@@ -594,11 +627,10 @@ around one thing at a time and a small bubble names it.
   head and the text, or the row is selected and the preview opens beside the list as the app opens
   it and the light moves to it. The bubble's beak stays on the More info button at both of its
   stops. Back to the button folds the text and brings the light back to it; Back to the row closes
-  the preview. Coming back to an open stop with Back, or resuming at any of the four, shows its own
-  state at once. With reduced motion the changes are made at once. Leaving the open stop closes
+  the preview. Coming back to an open stop with Back shows its own state at once. With reduced motion the changes are made at once. Leaving the open stop closes
   what it opened.
 - **The page holds still.** Nothing under the dark or in the light can be clicked, scrolled or
-  opened; clicking the dark points at Finish later. No app shortcut reaches the page, and search (/,
+  opened; clicking the dark points at the close button (Not now on the welcome). No app shortcut reaches the page, and search (/,
   ⌘K) does not open, even with focus on what is there to be tried. Two things are there to be tried: at the canvas
   stop the canvas works, with its keys 1, 2, 3, V, H and F (each key cap in the bubble turns green
   with a check once that key or its toolbar button is used), and the View switch two stops on.
@@ -606,7 +638,7 @@ around one thing at a time and a small bubble names it.
   Focus control beside the canvas (Show panels, in Focus), which the light takes in, go in and out of
   Focus there as on a canvas: the panels hide, the canvas takes the window, the light follows it,
   and the bubble moves inside the light at its top left, clear of the toolbar and of Show panels.
-  Leaving the stop in any way (Next, Back, Finish later, Esc) ends Focus first. That Focus is the
+  Leaving the stop in any way (Next, Back, the close button, Esc) ends Focus first. That Focus is the
   tutorial's own: the person's Focus choice is never changed, as pan and interact are not kept. F
   works at no other stop.
 - **The toolbar diagram.** The stop after the canvas lights the canvas's toolbar, shown and not
@@ -624,7 +656,7 @@ around one thing at a time and a small bubble names it.
   while it is up. The panel and the inspector are shown and Focus is off while it runs, but for F
   at the canvas stop; the person's own choices come back after.
 - **Its examples** are fixed content that ships with the web app, one object per page
-  (`content/`), drawn through the components that draw a product's own (the Idea cards, the list
+  (`content/`), which each page's tutorial (not the WhatBuild tutorial) draws through the components that draw a product's own (the Idea cards, the list
   of sources and its preview, the canvas and its inspector, the Story's tree, page and inspector)
   in place of the product's own content, which comes back when it closes. They are drawn as an
   editor sees them, for a guest too, and inert. The product's name, organization and counts in the
@@ -637,14 +669,15 @@ around one thing at a time and a small bubble names it.
   the opposite theme to the app's so it reads as another application; on the right a small
   WhatBuild, in the app's theme, whose pages fill in as the agent calls one MCP tool for each;
   under them the four pages with the tools that write them. It is played back and loops; Replay
-  starts it again. Its foot says "Agents never see the tutorial examples."
-- **Closing.** Finish later, the close button and Esc close it at its stop: the bubble shrinks to a
-  pill ("Tutorial · 5 of 20"), the dark lifts, the examples fade and the product's own content
-  comes back, and the pill flies into the account button, which pulses once; then the toast "The
-  tutorial is in your account menu." with **Show me**, which opens the account menu. Not now does
-  the same with "Tutorial". Resuming flies the pill back out to its stop. Finishing says
-  "Tutorial finished. It stays in your account menu." With reduced motion nothing flies and the
-  stage shows its last frame; the account button still pulses.
+  starts it again. Its foot has Turn off tutorials, "Agents never see the tutorial examples.",
+  Replay, Back and the primary button.
+- **Closing.** The close button and Esc close it: the bubble shrinks to a pill ("Tutorial · 2 of
+  4"), the dark lifts, the examples fade and the product's own content comes back, and the pill
+  flies into the account button, which pulses once; then the toast "The tutorial is in your account
+  menu." with **Show me**, which opens the account menu. Not now does the same with "Tutorial", and
+  Turn off tutorials with its own toast. Taking a tutorial from the account menu flies the pill back
+  out to its first stop. Finishing says "Tutorial finished. It stays in your account menu." With
+  reduced motion nothing flies and the stage shows its last frame; the account button still pulses.
 - **Access.** The bubble, the welcome and the stage are dialogs named by their title and described
   by their line; focus goes to the primary button at each stop, stays in the bubble and what is
   there to be tried, and goes back where it was when the tutorial closes. Each stop is announced
@@ -1469,7 +1502,10 @@ never described as deleting. A list row showing an archived object says *Archive
 - **Account** (`?settings=account`). Display name, and the email the person signs in with
   (read-only); for a guest of the example organization, **Example organization**, whether the
   product switch offers it ("It stays on the overview either way"; the account's `hide_example`);
-  **Delete account** (below); then quiet links to Cookies and Privacy.
+  **Tutorials**, one checkbox, "Start each page’s tutorial the first time you open it", with "Off,
+  they start only from your account menu." under it, checked unless the person turned tutorials off
+  (the account's `tutorials_off`, [§7.4](#the-tutorial)); **Delete account** (below); then quiet
+  links to Cookies and Privacy.
 - **Delete account**, in Settings under Account (`apps/web/src/routes/delete-account.tsx`).
   Closed, one line says it deletes the account permanently and that the person sees what happens
   before anything is deleted, over **Delete account…**, which opens it in place

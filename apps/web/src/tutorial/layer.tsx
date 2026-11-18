@@ -7,14 +7,14 @@ import type { Box } from "./flight.ts";
 import { focusables, setKeyPolicy } from "./keys.ts";
 import { useTutorial } from "./provider.tsx";
 import { AgentStage } from "./stage.tsx";
-import { lineText, nextPlace, PLACES, type Line, type Stop, type Target } from "./stops.ts";
+import { lineText, type Line, type Stop, type Target } from "./stops.ts";
 import { CANVAS_TOOLS, type CanvasTool } from "../routes/mockup-canvas.tsx";
 
 /**
  * The tutorial's layer, over the whole window: a scrim with one hole in it for the thing being shown,
  * four blocks around the hole (and one over it, unless the thing is there to be tried) so nothing
  * else can be clicked, and the card: the welcome, a stop's bubble beside the hole, or the agent stage.
- * Clicking the dark does not close it: it points at Finish later.
+ * Clicking the dark does not close it: it points at the way out (the close button, or Not now).
  */
 
 const q = (s: string) => document.querySelector(s);
@@ -374,18 +374,21 @@ export function TutorialLayer() {
               Take the WhatBuild tutorial?
             </h2>
             <p className="tut-line" id={lineId}>
-              About three minutes, with example content.
+              Under a minute: the four pages, and an agent at work.
             </p>
           </div>
           <p className="tut-welcome-later">
             <Avatar name={name} />
-            <span>You can close it at any time. It stays in your account menu.</span>
+            <span>Each page has a short tutorial of its own the first time you open it. They stay in your account menu.</span>
           </p>
           <div className="tut-foot">
+            <Button size="sm" variant="quiet" className="tut-later" onClick={t.turnOff}>
+              Turn off tutorials
+            </Button>
             <Button size="sm" onClick={t.later} data-later="">
               Not now
             </Button>
-            <Button size="sm" variant="primary" onClick={() => t.start("welcome")} data-primary="">
+            <Button size="sm" variant="primary" onClick={() => t.start("welcome", "welcome")} data-primary="">
               Start the tutorial
             </Button>
           </div>
@@ -418,11 +421,11 @@ export function TutorialLayer() {
   );
 }
 
-/** A stop's bubble: where it is in the line, the thing's name, its one line, and the way on. */
+/** A stop's bubble: where it is in its tutorial, the thing's name, its one line, and the way on. */
 function Bubble({ stop, placed, titleId, lineId, tools }: { stop: Stop; placed: Placed | null; titleId: string; lineId: string; tools: ToolLabel[] }) {
   const t = useTutorial()!;
   const { at, stops } = t;
-  const turn = nextPlace(stops, at);
+  const last = at === stops.length - 1;
   const style: CSSProperties = placed ? { transform: `translate(${Math.round(placed.x)}px, ${Math.round(placed.y)}px)` } : { visibility: "hidden" };
   const beak: CSSProperties | undefined = placed ? (placed.side === "top" || placed.side === "bottom" ? { left: placed.beak } : { top: placed.beak }) : undefined;
   return (
@@ -440,7 +443,7 @@ function Bubble({ stop, placed, titleId, lineId, tools }: { stop: Stop; placed: 
       style={style}
     >
       <span className="tut-beak" style={beak} />
-      <IconButton className="tut-x" size="sm" icon="x" label="Finish later" title="Finish later (Esc)" onClick={t.later} />
+      <IconButton className="tut-x" size="sm" icon="x" label="Close the tutorial" title="Close the tutorial (Esc)" onClick={t.later} data-later="" />
       <div className="tut-swap" key={stop.id}>
         <ProgressBar at={at} count={stops.length} />
         <p className="tut-count num">
@@ -460,12 +463,6 @@ function Bubble({ stop, placed, titleId, lineId, tools }: { stop: Stop; placed: 
             ))}
           </ul>
         ) : null}
-        {turn ? (
-          <p className="tut-turn">
-            Next page: <Glyph name={PLACES[turn].icon} size="sm" />
-            <b>{PLACES[turn].label}</b>
-          </p>
-        ) : null}
       </div>
       <div className="tut-foot">
         {stop.last ? (
@@ -483,16 +480,20 @@ function Bubble({ stop, placed, titleId, lineId, tools }: { stop: Stop; placed: 
           </>
         ) : (
           <>
-            <Button size="sm" variant="quiet" className="tut-later" onClick={t.later} data-later="">
-              Finish later
-            </Button>
+            {t.off ? (
+              <span className="tut-gap" />
+            ) : (
+              <Button size="sm" variant="quiet" className="tut-later" onClick={t.turnOff}>
+                Turn off tutorials
+              </Button>
+            )}
             {at > 0 ? (
               <Button size="sm" onClick={() => t.go(at - 1)}>
                 Back
               </Button>
             ) : null}
-            <Button size="sm" variant="primary" onClick={() => (at === stops.length - 1 ? t.finish(false) : t.go(at + 1))} data-primary="">
-              {turn ? `Go to ${PLACES[turn].label}` : at === stops.length - 1 ? "Finish" : "Next"}
+            <Button size="sm" variant="primary" onClick={() => (last ? t.finish(false) : t.go(at + 1))} data-primary="">
+              {last ? "Finish" : "Next"}
             </Button>
           </>
         )}

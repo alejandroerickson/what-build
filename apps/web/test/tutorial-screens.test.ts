@@ -9,7 +9,7 @@ import { describe, expect, it, vi } from "vitest";
 // fails, change `apps/web/src/tutorial/` (the stops, what each lights, the examples), §7.4 of
 // `okf/spec/07-web-app.md` and `e2e/plans/the-tutorial.md` with the screen. Do not loosen the test.
 
-const { STOPS } = await import("../src/tutorial/stops.ts");
+const { ALL_STOPS: STOPS } = await import("../src/tutorial/stops.ts");
 const { TARGETS } = await import("../src/tutorial/layer.tsx");
 const { TUTORIAL } = await import("../src/tutorial/content/index.ts");
 const { CANVAS_TOOLS } = await import("../src/routes/mockup-canvas.tsx");

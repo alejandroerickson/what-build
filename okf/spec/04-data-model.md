@@ -3,7 +3,7 @@ type: Specification
 title: Every object in a product, with its fields, limits and invariants, as the REST and MCP wire sees it.
 description: The common envelope (ids, etags, attribution, revisions), outcomes, sources and their tags, attachments, comments, summaries and notes, evidence links, the retired insights, decisions and assumptions, views, activity, Story, mockups, feedback, the product bundle, and the storage layout.
 tags: [spec, data-model, schema, revisions, story, mockups, export]
-generated: {by: agent:claude, at: 2026-11-15}
+generated: {by: agent:claude, at: 2026-11-17}
 status: stable
 ---
 
@@ -1129,9 +1129,14 @@ activity.jsonl
   `accounts.hide_example`
   ([`0035_accounts_hide_example.sql`](../../apps/server/src/migrations/0035_accounts_hide_example.sql))
   is the person's choice to leave the example out of the app's panel, and
-  `accounts.tutorial_offered_at`, `tutorial_stop` and `tutorial_finished_at`
-  ([`0048_accounts_tutorial.sql`](../../apps/server/src/migrations/0048_accounts_tutorial.sql))
-  where they left the web app's tutorial ([§3.2](03-accounts-and-identity.md#32-accounts-and-sign-in)).
+  `accounts.tutorials_seen` and `tutorials_off`
+  ([`0049_accounts_tutorials.sql`](../../apps/server/src/migrations/0049_accounts_tutorials.sql))
+  which of the web app's tutorials they have been shown and whether they turned tutorials off
+  ([§3.2](03-accounts-and-identity.md#32-accounts-and-sign-in)). That migration replaced the one
+  tutorial's `tutorial_offered_at`, `tutorial_stop` and `tutorial_finished_at`
+  ([`0048_accounts_tutorial.sql`](../../apps/server/src/migrations/0048_accounts_tutorial.sql)),
+  counting the welcome seen for whoever had been offered it, each page they had got past, and every
+  tutorial for whoever had finished it.
 - **An organization's name and slug** ([§3.3](03-accounts-and-identity.md#33-tenants),
   [`0036_organization_names.sql`](../../apps/server/src/migrations/0036_organization_names.sql)):
   `tenants.name_etag`, which guards the name and slug its owners and the instance's owners change;

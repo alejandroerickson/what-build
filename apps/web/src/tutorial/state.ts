@@ -1,12 +1,12 @@
 import type { TutorialState } from "../lib/session.tsx";
-import { PLACES, type Stop } from "./stops.ts";
+import { partLabel, PLACES, type Part, type Place } from "./stops.ts";
 
 /**
- * The tutorial's rules as pure functions, so who gets it, what the account menu says and what the
- * pill says are decided in one place and tested without a screen.
+ * The tutorials' rules as pure functions, so who gets them, which starts by itself where, what the
+ * account menu says and what the pill says are decided in one place and tested without a screen.
  */
 
-export const NEW_TUTORIAL: TutorialState = { offered: false, stop: null, finished: false };
+export const NEW_TUTORIAL: TutorialState = { seen: [], off: false };
 
 /**
  * The narrowest window the tutorial is offered in: the width its layout was designed and checked for,
@@ -18,7 +18,7 @@ export const TUTORIAL_MIN_WIDTH = 1024;
 export const TOO_NARROW_QUERY = `(max-width: ${TUTORIAL_MIN_WIDTH - 0.02}px)`;
 
 /**
- * Who gets the tutorial, on the product they are in: someone who can edit it (an editor or admin, the
+ * Who gets the tutorials, on the product they are in: someone who can edit it (an editor or admin, the
  * product not archived, the organization not read-only), and a guest of the example organization.
  * Viewers and Story readers given those roles get nothing, and nobody does in a window narrower than
  * `TUTORIAL_MIN_WIDTH`.
@@ -28,28 +28,41 @@ export function tutorialFor(p: { canWrite: boolean; role: string; example: boole
   return p.canWrite || (p.role === "guest" && p.example);
 }
 
-/** The welcome is offered once per person, on the first product where they get the tutorial. */
-export function offerWelcome(state: TutorialState | undefined, eligible: boolean): boolean {
-  return eligible && Boolean(state) && !state!.offered;
+const isPlace = (s: string | undefined): s is Place => Boolean(s && s in PLACES);
+
+/**
+ * The page of a product an address is in (`/t/<organization>/<product>/<page>/…`), a source's own
+ * screen in Evidence included: whose tutorial the account menu offers there.
+ */
+export function sectionOf(pathname: string): Place | null {
+  const top = pathname.split("/")[4];
+  return isPlace(top) ? top : null;
 }
 
-/** Where the tutorial stands for the account menu: part-way, finished, or not taken yet. */
-export type Standing = { kind: "new" } | { kind: "paused"; stop: number } | { kind: "finished" };
-
-/** A stop kept from before stays inside the stops there are now (an agent connected since takes the last away). */
-export function standing(state: TutorialState | undefined, count: number): Standing {
-  const s = state ?? NEW_TUTORIAL;
-  if (s.stop !== null && s.stop >= 0) return { kind: "paused", stop: Math.min(s.stop, count - 1) };
-  return s.finished ? { kind: "finished" } : { kind: "new" };
+/**
+ * The page whose tutorial an address can show: Idea and Evidence at their own address only (a source's
+ * own screen has no examples to show), Exploration and Story at any of theirs.
+ */
+export function pageOf(pathname: string): Place | null {
+  const [, , , , top, more] = pathname.split("/");
+  if (!isPlace(top)) return null;
+  return (top === "idea" || top === "evidence") && more ? null : top;
 }
 
-/** The account menu's one tutorial item: its words, the line under them, and how far along, for a bar. */
-export function menuItem(st: Standing, stops: readonly Stop[]): { title: string; detail: string; progress: number | null } {
-  if (st.kind === "paused") {
-    const stop = stops[st.stop]!;
-    return { title: "Resume tutorial", detail: `Stop ${st.stop + 1} of ${stops.length} · ${PLACES[stop.place].label}`, progress: st.stop / stops.length };
-  }
-  return { title: st.kind === "finished" ? "Take the tutorial again" : "Take the tutorial", detail: "About three minutes", progress: null };
+/**
+ * The tutorial that starts by itself on arriving at a screen: the welcome until it has been offered,
+ * then the page's own the first time that page is opened. Nothing once tutorials are off, and nothing
+ * before the account is known.
+ */
+export function dueTutorial(state: TutorialState | undefined, page: Place | null): Part | null {
+  if (!state || state.off) return null;
+  if (!state.seen.includes("welcome")) return "welcome";
+  return page && !state.seen.includes(page) ? page : null;
+}
+
+/** The account menu's one tutorial item: the tutorial of the page on screen, or the welcome elsewhere. */
+export function menuItem(part: Part, count: number): { title: string; detail: string } {
+  return { title: `Take the ${partLabel(part)} tutorial`, detail: `${count} stops` };
 }
 
 /** What the pill says as the tutorial flies into the account menu, or out of it. */
@@ -57,9 +70,4 @@ export function pillWords(kind: "welcome" | "stop" | "finished", stop: number, c
   if (kind === "finished") return "Tutorial finished";
   if (kind === "welcome") return "Tutorial";
   return `Tutorial · ${stop + 1} of ${count}`;
-}
-
-/** Where a resumed or restarted tutorial begins. */
-export function resumeAt(st: Standing): number {
-  return st.kind === "paused" ? st.stop : 0;
 }
