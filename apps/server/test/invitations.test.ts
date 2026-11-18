@@ -1,3 +1,4 @@
+import { json, newId } from "@whatbuild/core";
 import { sql } from "kysely";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { startHarness, withPlanLimits, type Browser, type Harness } from "./harness.ts";
@@ -529,5 +530,42 @@ describe("what else an answer meets", () => {
     const late = await who.api("POST", "/api/v1/invitations/accept", { token: left.token });
     expect(late.status).toBe(410);
     expect(await reaches(who)).toBe(false);
+  });
+});
+
+describe("the access log's entry about an invitation", () => {
+  const titles = async (id: string) => Object.fromEntries((await log()).filter((e) => e.entity_id === id).map((e) => [e.action, e.entity_title]));
+
+  it("names all products in lower case, sent and declined, as the sentence it ends reads", async () => {
+    const { id } = await invite("everything@example.com", "viewer", { all_products: true });
+    const everything = await h.signIn("everything@example.com");
+    expect((await everything.api("POST", "/api/v1/invitations/decline", { invitation_id: id })).status).toBe(200);
+    expect(await titles(id)).toEqual({ invited: "all products", invitation_declined: "all products" });
+  });
+
+  it("reads one whose invitation is no longer stored as all products too", async () => {
+    const tenantId = (await h.db.selectFrom("tenants").select("tenant_id").where("slug", "=", tenant).executeTakeFirstOrThrow()).tenant_id;
+    const id = newId();
+    await h.db.transaction().execute(async (trx) => {
+      await sql`select set_config('app.tenant_id', ${tenantId}, true)`.execute(trx);
+      await trx
+        .insertInto("activity")
+        .values({
+          activity_id: newId(), tenant_id: tenantId, product_id: null,
+          actor: json({ account_id: "someone", display_name: "Someone", surface: "web", client: null }),
+          actor_account_id: "someone", channel: "web", action: "invited", entity_type: "membership", entity_id: id, entity_title: "All products", summary: "Invited someone as editor",
+        })
+        .execute();
+    });
+    expect(await titles(id)).toEqual({ invited: "all products" });
+  });
+
+  it("keeps the name of a product really called All products", async () => {
+    expect((await owner.api("POST", `/api/v1/tenants/${tenant}/products`, { name: "All products" })).status).toBe(201);
+    const product = (await h.db.selectFrom("products").select("slug").where("name", "=", "All products").executeTakeFirstOrThrow()).slug;
+    const { id } = await invite("named@example.com", "editor", { product });
+    const named = await h.signIn("named@example.com");
+    expect((await named.api("POST", "/api/v1/invitations/decline", { invitation_id: id })).status).toBe(200);
+    expect(await titles(id)).toEqual({ invited: "All products", invitation_declined: "All products" });
   });
 });

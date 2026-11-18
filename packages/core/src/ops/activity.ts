@@ -113,6 +113,29 @@ export function accessSummaryAsRead(action: string, summary: string): string {
   return summary;
 }
 
+/** The name an invitation's entry records for all of an organization's products, as a heading would write it. */
+const ALL_PRODUCTS_TITLE = "All products";
+
+/**
+ * An access entry's title as it reads now. An invitation to all of an organization's products, sent
+ * or declined, records their name as a heading writes it, "All products", and its entry ends a
+ * sentence ("invited someone to all products"), so it reads in lower case. `invitationScope` is the
+ * scope_type of the invitation the entry is about, where it is still stored: a product that is
+ * really called "All products" keeps its name. An invitation no longer stored (deleted with its
+ * product, organization or address) is taken to be one to all products, as almost every entry
+ * with that title is. Every other title reads as it was written.
+ */
+export function entryTitleAsRead(action: string, entityType: string, title: string | null, invitationScope?: string | null): string | null {
+  if (!titleNeedsInvitationScope(action, entityType, title)) return title;
+  if (invitationScope && invitationScope !== "all_products") return title;
+  return "all products";
+}
+
+/** The access entries whose title entryTitleAsRead may reword, so a reader looks up only their invitations. */
+export function titleNeedsInvitationScope(action: string, entityType: string, title: string | null): boolean {
+  return entityType === "membership" && title === ALL_PRODUCTS_TITLE && (action === "invited" || action === "invitation_declined");
+}
+
 /** A role an access entry named, in today's words: reader was the Story reader's name before story_reader. */
 function roleAsRead(role: string): string {
   return role === "reader" ? "Story reader" : roleWords(role);
