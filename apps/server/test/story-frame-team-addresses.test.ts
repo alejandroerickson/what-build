@@ -12,7 +12,7 @@ describe("a Story page's link written when products were in teams", () => {
     const parent = { postMessage: (m: unknown) => sent.push(m) };
     const attrs: Record<string, string> = {};
     const a = { href, getAttribute: (n: string) => (n === "href" ? href : attrs[n] ?? null), setAttribute: (n: string, v: string) => void (attrs[n] = v), hasAttribute: (n: string) => n in attrs };
-    new Function("addEventListener", "parent", FRAME_SCRIPT)((type: string, fn: (e: unknown) => void) => void (listeners[type] = fn), parent);
+    new Function("addEventListener", "parent", "window", FRAME_SCRIPT)((type: string, fn: (e: unknown) => void) => void (listeners[type] = fn), parent, { name: "" });
     listeners["message"]!({ source: parent, data: { whatbuild: "story-base", base } });
     let prevented = false;
     listeners["click"]!({ target: { closest: () => a }, button: 0, defaultPrevented: false, preventDefault: () => void (prevented = true) });

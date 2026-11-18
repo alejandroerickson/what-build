@@ -1,3 +1,4 @@
+import { CANVAS_FRAME_NAME } from "@whatbuild/core/page-sandbox";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { MemoryRouter } from "react-router";
@@ -778,6 +779,37 @@ describe("a page whose document never says it has loaded", () => {
     loaded(back);
     await advance(60_000);
     expect(frames()[0]).toBe(back);
+  });
+});
+
+describe("a page's frame, until its document has been greeted", () => {
+  const greeted = (frame: HTMLIFrameElement) => frame.closest(".xc-frame")!.hasAttribute("data-greeted");
+
+  it("is named for the canvas, so its page knows where it is from the moment it runs", () => {
+    showCanvas(1, 1);
+    expect(frames()[0]!.name).toBe(CANVAS_FRAME_NAME);
+  });
+
+  it("takes no pointer until its document has loaded and been greeted, so a pinch over a page still loading zooms the canvas, not the browser", async () => {
+    showCanvas(1);
+    const f = frames()[0]!;
+    expect(greeted(f)).toBe(false);
+    loadsSayingNothing(f);
+    expect(greeted(f)).toBe(false);
+    says(f, { whatbuild: "frame-ready" });
+    expect(greeted(f)).toBe(true);
+  });
+
+  it("takes none again once it is put back, until the document in its new frame is greeted", async () => {
+    showCanvas(1);
+    const f = frames()[0]!;
+    loaded(f);
+    loadsSayingNothing(f);
+    const back = frames()[0]!;
+    expect(back).not.toBe(f);
+    expect(greeted(back)).toBe(false);
+    loaded(back);
+    expect(greeted(back)).toBe(true);
   });
 });
 

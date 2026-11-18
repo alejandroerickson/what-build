@@ -184,6 +184,32 @@ describe("a canvas nobody has moved as the board around it changes", () => {
   });
 });
 
+describe("the wheel over the toolbar", () => {
+  const toolbar = () => document.querySelector(".xc-tools") as HTMLElement;
+  const wheel = (init: WheelEventInit) => {
+    const e = new WheelEvent("wheel", { clientX: board.left + 400, clientY: board.top + 560, bubbles: true, cancelable: true, ...init });
+    act(() => toolbar().dispatchEvent(e));
+    return e;
+  };
+
+  it("zooms the canvas with a pinch, ⌘ or Ctrl, and never lets the browser zoom the app", () => {
+    show();
+    const before = view();
+    expect(wheel({ deltaY: -40, ctrlKey: true }).defaultPrevented).toBe(true);
+    const pinched = view();
+    expect(pinched.z).toBeGreaterThan(before.z);
+    expect(wheel({ deltaY: -40, metaKey: true }).defaultPrevented).toBe(true);
+    expect(view().z).toBeGreaterThan(pinched.z);
+  });
+
+  it("leaves a scroll alone, so a long menu of pages still scrolls", () => {
+    show();
+    const before = view();
+    expect(wheel({ deltaY: 60 }).defaultPrevented).toBe(false);
+    expect(view()).toEqual(before);
+  });
+});
+
 describe("a page's label", () => {
   it("names its button for the page at any zoom, though a narrow one shows only its number", () => {
     show();

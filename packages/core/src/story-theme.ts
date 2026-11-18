@@ -1,3 +1,5 @@
+import { CANVAS_FRAME_NAME } from "./page-sandbox.ts";
+
 /**
  * What the server adds to a stored Story page for one response, when the web app shows it. The
  * stored HTML is never changed.
@@ -44,7 +46,11 @@ export function withStoryTheme(html: string, theme: "light" | "dark"): string {
  * - On a mockup's canvas (the app says so), passes on the canvas's keys too, Space held and let go
  *   (and keeps it from scrolling the page), a pinch or ⌘/Ctrl with scroll (and keeps the browser from
  *   zooming), and a press on the page, which selects it: once a person works inside a page, the
- *   canvas around it would otherwise hear nothing.
+ *   canvas around it would otherwise hear nothing. The canvas names its frames (CANVAS_FRAME_NAME),
+ *   so the page knows from the moment it runs, before the app greets it once it has loaded, and
+ *   so does each document of a prototype as it opens in the same frame. It takes the wheel on its
+ *   way down to the page's elements, so a handler of the page's that stops it there cannot let the
+ *   browser zoom.
  *
  * Says it has loaded (frame-ready), once its document's load event comes, so the app tells the
  * documents it framed from whatever replaced them: a page that sends its frame elsewhere while it
@@ -70,7 +76,7 @@ export function frameScript(prototype?: { base: string; inPlace: boolean }): str
   const proto = prototype ? JSON.stringify(prototype.base).replace(/</g, "\\u003c") : "null";
   return (
   "(function(){" +
-  `var story=null,canvas=false,pages=false,entries=null,home=null,proto=${proto},inPlace=${prototype?.inPlace ? "true" : "false"};` +
+  `var story=null,canvas=window.name===${JSON.stringify(CANVAS_FRAME_NAME)},pages=false,entries=null,home=null,proto=${proto},inPlace=${prototype?.inPlace ? "true" : "false"};` +
   "function typing(t){return t&&(t.isContentEditable||/^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName));}" +
   'function relative(u){u=u.trim();return !!u&&u.charAt(0)!=="#"&&u.charAt(0)!=="/"&&!/^[a-z][a-z0-9+.-]*:/i.test(u);}' +
   'function send(m){parent.postMessage(m,"*");}' +
@@ -99,7 +105,7 @@ export function frameScript(prototype?: { base: string; inPlace: boolean }): str
   'addEventListener("wheel",function(e){' +
   "if(!canvas||!(e.ctrlKey||e.metaKey))return;" +
   "e.preventDefault();" +
-  'send({whatbuild:"canvas-zoom",x:e.clientX,y:e.clientY,dy:e.deltaY,line:e.deltaMode===1,pinch:e.ctrlKey&&!e.metaKey});},{passive:false});' +
+  'send({whatbuild:"canvas-zoom",x:e.clientX,y:e.clientY,dy:e.deltaY,line:e.deltaMode===1,pinch:e.ctrlKey&&!e.metaKey});},{passive:false,capture:true});' +
   'addEventListener("pointerdown",function(){if(canvas)send({whatbuild:"canvas-select"});},true);' +
   // On a canvas a link to another of its pages is the canvas's to follow, unless the page dealt with the click itself: after every handler the page has.
   'addEventListener("click",function(e){' +

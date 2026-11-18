@@ -1,4 +1,4 @@
-import { MOCKUP_PAGE_SANDBOX } from "@whatbuild/core/page-sandbox";
+import { CANVAS_FRAME_NAME, MOCKUP_PAGE_SANDBOX } from "@whatbuild/core/page-sandbox";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from "react";
 import { flushSync } from "react-dom";
 import { plural } from "../lib/format.ts";
@@ -156,7 +156,10 @@ const HELD_WORDS = {
  * frame script that opens links in a new tab. Told it is on a canvas, the script passes on the
  * canvas's keys, Space, a pinch and a press, so the canvas works the same once someone is inside a
  * page. A page that loads another address in its place is put back. In pan mode the frame takes no
- * pointer, so a click selects the page and a drag moves the canvas.
+ * pointer, so a click selects the page and a drag moves the canvas. Nor does it in either mode until
+ * its document has loaded and been greeted: until then nothing inside would keep a pinch from
+ * zooming the browser. The frame's name (CANVAS_FRAME_NAME) tells the page it is on a canvas from the
+ * moment it runs, which keeps a prototype's next document from letting the browser zoom while it opens.
  *
  * Every document WhatBuild frames says it has loaded (frame-ready, from the frame script, at its
  * load event), and a load that does not say so within a moment is put back: a page that sends its
@@ -196,8 +199,13 @@ function PageFrame({ page, src, drawn, title, selected, onSignal, frameRef, prot
   const ready = useRef(false);
   const waiting = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [reloads, setReloads] = useState(0);
+  // Whether the frame's document has been greeted as a page of this canvas. Until then the frame
+  // takes no pointer, so a pinch or ⌘/Ctrl with scroll over a page still loading zooms the canvas:
+  // the frame has nothing yet to keep the browser from zooming instead.
+  const [greeted, setGreeted] = useState(false);
   // The sandboxed page has an opaque origin, so the message cannot be addressed to one.
   const hello = useCallback(() => {
+    setGreeted(true);
     const others = entries ? Object.fromEntries(Object.entries(entries).filter(([, id]) => id !== page.page_id)) : null;
     frame.current?.contentWindow?.postMessage({ whatbuild: "canvas-host", ...(others ? { entries: others } : {}) }, "*");
     frame.current?.contentWindow?.postMessage({ whatbuild: "app-home", home: `${window.location.origin}${app}` }, "*");
@@ -205,6 +213,7 @@ function PageFrame({ page, src, drawn, title, selected, onSignal, frameRef, prot
     if (hash) frame.current?.contentWindow?.postMessage({ whatbuild: "canvas-hash", hash }, "*");
   }, [app, entries, page.page_id, takeHash]);
   const newFrame = useCallback(() => {
+    setGreeted(false);
     ready.current = false;
     loads.current = 0;
     if (waiting.current) clearTimeout(waiting.current);
@@ -271,7 +280,7 @@ function PageFrame({ page, src, drawn, title, selected, onSignal, frameRef, prot
       </div>
     );
   return (
-    <div ref={frameRef} className="xc-frame" data-page={page.page_id} data-selected={selected ? "" : undefined} style={{ width: page.width, height: page.height }}>
+    <div ref={frameRef} className="xc-frame" data-page={page.page_id} data-selected={selected ? "" : undefined} data-greeted={greeted ? "" : undefined} style={{ width: page.width, height: page.height }}>
       {stopped || reloading ? (
         // At the page's own scale, so it still reads with the canvas zoomed out. Try again is above the board at screen size.
         <p className="xc-refused" style={{ fontSize: Math.max(20, page.width * 0.032) }}>
@@ -281,6 +290,7 @@ function PageFrame({ page, src, drawn, title, selected, onSignal, frameRef, prot
         <iframe
           key={reloads}
           ref={frame}
+          name={CANVAS_FRAME_NAME}
           title={title}
           width={page.width}
           height={page.height}
@@ -358,8 +368,11 @@ function PagesNote({ board }: { board: RefObject<HTMLElement | null> }) {
  *   a drag on the background still moves the canvas, and a press on a page selects it. Holding Space
  *   pans from either mode, from inside a page too.
  * - Scroll moves the canvas up and down, Shift+scroll sideways; ⌘ or Ctrl with scroll, or a pinch,
- *   zooms about the pointer, over a page in interact mode too. In interact mode, scrolling over a
- *   page scrolls the page.
+ *   zooms about the pointer, over a page in interact mode too, and over the toolbar: the browser
+ *   never zooms the app from the canvas. In interact mode, scrolling over a page scrolls the page.
+ * - The board clips the pages rather than hiding what overflows it, so nothing can scroll it: a page
+ *   that scrolls one of its own elements into view, or a link to a place within a page, moves only
+ *   that page, and a page the view moves to is where the view shows it.
  * - On a touch screen one finger drags and two pinch, the point under them staying under them; a
  *   finger lifting from a pinch leaves the other dragging from where it is. The toolbar's controls
  *   grow for a thumb, and the zoom buttons and the list of keys give way.
@@ -407,6 +420,7 @@ export function Canvas({ version, pageSrc, drawPage, onUse, rememberMode = true,
     },
     [selectPage],
   );
+  const canvas = useRef<HTMLDivElement>(null);
   const viewport = useRef<HTMLDivElement>(null);
   const world = useRef<HTMLDivElement>(null);
   const frames = useRef(new Map<string, HTMLDivElement>());
@@ -699,16 +713,22 @@ export function Canvas({ version, pageSrc, drawPage, onUse, rememberMode = true,
     [zoomAt, nudge],
   );
 
-  // The wheel needs a listener that is not passive, so it can keep the page behind from scrolling.
+  // The wheel needs a listener that is not passive, so it can keep the page behind from scrolling and
+  // the browser from zooming. A zoom is the canvas's anywhere on it, over the toolbar and the notes
+  // too, so the browser never zooms the app from there; a scroll moves the canvas only from the board,
+  // so a long menu of pages still scrolls.
   useEffect(() => {
     const vp = viewport.current;
-    if (!vp) return;
+    const xc = canvas.current;
+    if (!vp || !xc) return;
     const wheel = (e: WheelEvent) => {
-      e.preventDefault();
       if (e.ctrlKey || e.metaKey) {
+        e.preventDefault();
         wheelZoom(e.deltaY, e.deltaMode === 1, e.ctrlKey && !e.metaKey, e.clientX, e.clientY);
         return;
       }
+      if (!(e.target instanceof Node) || !vp.contains(e.target)) return;
+      e.preventDefault();
       moved();
       nudge();
       const step = e.deltaMode === 1 ? 16 : 1;
@@ -716,8 +736,8 @@ export function Canvas({ version, pageSrc, drawPage, onUse, rememberMode = true,
       const dy = (e.shiftKey ? 0 : e.deltaY) * step;
       setView((v) => ({ ...v, x: v.x - dx, y: v.y - dy }));
     };
-    vp.addEventListener("wheel", wheel, { passive: false });
-    return () => vp.removeEventListener("wheel", wheel);
+    xc.addEventListener("wheel", wheel, { passive: false });
+    return () => xc.removeEventListener("wheel", wheel);
   }, [wheelZoom, nudge]);
 
   /** Selects the page before or after the selected one and shows it as the last one was; with none selected, the first or the last. */
@@ -946,7 +966,7 @@ export function Canvas({ version, pageSrc, drawPage, onUse, rememberMode = true,
   const pct = Math.round(view.z * 100);
 
   return (
-    <div className="xc">
+    <div ref={canvas} className="xc">
       <div
         ref={viewport}
         className="xc-viewport"

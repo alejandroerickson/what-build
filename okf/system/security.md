@@ -3,7 +3,7 @@ type: System Concept
 title: WhatBuild keeps each organization's material to its own people, and treats agent-written HTML, uploads and source text as hostile
 description: The threat model: what is protected, who the attackers are, the trust boundaries, and each control with where it lives in code and the decision that governs it.
 tags: [security, threat-model, tenancy, identity, oauth, example, limits, uploads]
-generated: {by: agent:claude, at: 2026-11-15}
+generated: {by: agent:claude, at: 2026-11-18}
 status: draft
 ---
 
@@ -329,6 +329,11 @@ Four things keep a tab from hearing what it may not know, each holding if anothe
   `/prototypes/` and `/documents/` (`apps/server/src/public-routes.ts`). The browser holds every navigation
   of a frame to that, whoever starts it and when, so a page cannot show another site in WhatBuild's frame;
   the dev server sends the same `frame-src`, so local testing sees it (`apps/web/vite.config.ts`).
+  The canvas names every page's frame alike (`CANVAS_FRAME_NAME` in `packages/core/src/page-sandbox.ts`),
+  so its frame script knows the page is on a canvas before the app greets it. The name tells a page
+  nothing secret, and setting it gains nothing a page could not post already. A link or `window.open`
+  aimed at that name from inside a sandboxed page reaches only its own frame, never another page's,
+  so it is that frame's second load, which is put back.
   The print view is sandboxed and runs one nonce'd script (`packages/core/src/story-print.ts`).
 - A mockup's **prototype**, a team's multi-file prototype, is served by one route,
   `/prototypes/<grant>/<path>` (`apps/server/src/prototype.ts`,
