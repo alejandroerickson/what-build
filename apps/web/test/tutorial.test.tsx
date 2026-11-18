@@ -2,11 +2,12 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, isValidElement, type ReactNode } from "react";
 import { createRoot } from "react-dom/client";
 import { renderToStaticMarkup } from "react-dom/server";
-import { MemoryRouter, Route, Routes } from "react-router";
+import { MemoryRouter, Route, Routes, useLocation, useNavigate } from "react-router";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-// The spotlight tutorial: who gets it, the line of stops, what the account menu says, the content it
-// shows on each page, and the welcome, a stop, closing and finishing as a person meets them.
+// The spotlight tutorials: who gets them, the welcome and the four pages' tutorials and their stops,
+// which starts by itself where, what the account menu says, the content they show on each page, and
+// the welcome, a stop, closing, turning tutorials off and finishing as a person meets them.
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 // No motion here unless a test asks for it: nothing flies, so closing is immediate. A window as wide as
@@ -29,7 +30,10 @@ globalThis.ResizeObserver ??= class {
 const calls: { method: string; path: string; body?: unknown }[] = [];
 let role = "editor";
 let example = false;
-let kept: { offered: boolean; stop: number | null; finished: boolean } = { offered: false, stop: null, finished: false };
+type Kept = { seen: string[]; off: boolean };
+let kept: Kept = { seen: [], off: false };
+let agents: unknown[] = [];
+const ALL = ["welcome", "idea", "evidence", "exploration", "story"];
 const tenant = () => ({ tenant_id: "t1", slug: "acme", name: "Acme", example });
 
 vi.mock("../src/lib/api.ts", async (original) => ({
@@ -38,10 +42,11 @@ vi.mock("../src/lib/api.ts", async (original) => ({
     calls.push({ method, path, body });
     if (path === "/auth/session") return { signed_in: true, account_id: "a1", email: "sam@example.com", display_name: "Sam Okafor", tenant_allowance: { remaining: 1, instance_owner: false }, hide_example: false, tutorial: kept };
     if (path === "/api/v1/me" && method === "PATCH") {
-      kept = { ...kept, ...(body as { tutorial: typeof kept }).tutorial };
+      const t = (body as { tutorial: Partial<Kept> }).tutorial;
+      kept = { seen: [...new Set([...kept.seen, ...(t.seen ?? [])])], off: t.off ?? kept.off };
       return { display_name: "Sam Okafor", tutorial: kept };
     }
-    if (path === "/api/v1/me/agents") return { items: [] };
+    if (path === "/api/v1/me/agents") return { items: agents };
     if (path.startsWith("/api/v1/me/products")) return { items: [], tenants: [{ ...tenant(), your_role: role === "guest" ? "guest" : "member" }] };
     if (path === "/api/v1/p/acme/harvest")
       return { product_id: "p1", slug: "harvest", name: "Harvest", archived_at: null, etag: "e", path: "acme/harvest", tenant: tenant(), your_role: role, counts: { story_pages: 0 }, stage_counts: { story: 0 } };
@@ -49,11 +54,11 @@ vi.mock("../src/lib/api.ts", async (original) => ({
   }),
 }));
 
-const { tutorialFor, offerWelcome, standing, menuItem, pillWords, resumeAt, TUTORIAL_MIN_WIDTH, TOO_NARROW_QUERY } = await import("../src/tutorial/state.ts");
+const { tutorialFor, dueTutorial, pageOf, sectionOf, menuItem, pillWords, TUTORIAL_MIN_WIDTH, TOO_NARROW_QUERY } = await import("../src/tutorial/state.ts");
 const { PHONE_QUERY } = await import("../src/ui/media.ts");
 const { CANVAS_TOOLS, toolTitle } = await import("../src/routes/mockup-canvas.tsx");
 const { toolLabel, toolsSaid, layoutLabels } = await import("../src/tutorial/diagram.tsx");
-const { STOPS, PLACES, stopsFor, nextPlace, lineText } = await import("../src/tutorial/stops.ts");
+const { TUTORIALS, PARTS, ALL_STOPS, CONNECT, PLACES, stopsFor, partLabel, lineText } = await import("../src/tutorial/stops.ts");
 const { TUTORIAL } = await import("../src/tutorial/content/index.ts");
 const { TARGETS } = await import("../src/tutorial/layer.tsx");
 const { previewPages } = await import("../src/routes/source-preview.tsx");
@@ -63,7 +68,7 @@ const { TutorialProvider, useTutorial } = await import("../src/tutorial/provider
 const { AccountMenu } = await import("../src/shell/panel.tsx");
 const { ToastProvider } = await import("../src/ui/index.tsx");
 
-describe("who gets the tutorial", () => {
+describe("who gets the tutorials", () => {
   it("is someone who can edit the product, or a guest of the example organization, never in a window narrower than 1024", () => {
     expect(tutorialFor({ canWrite: true, role: "editor", example: false, narrow: false })).toBe(true);
     expect(tutorialFor({ canWrite: true, role: "admin", example: false, narrow: false })).toBe(true);
@@ -87,106 +92,112 @@ describe("who gets the tutorial", () => {
     width = 1440;
   });
 
-  it("offers the welcome once per person, where they get it", () => {
-    expect(offerWelcome({ offered: false, stop: null, finished: false }, true)).toBe(true);
-    expect(offerWelcome({ offered: true, stop: null, finished: false }, true)).toBe(false);
-    expect(offerWelcome({ offered: false, stop: null, finished: false }, false)).toBe(false);
-    // Before the account is known, nothing is offered.
-    expect(offerWelcome(undefined, true)).toBe(false);
+  it("starts the welcome by itself until it has been offered, then each page's the first time that page is opened, and nothing once tutorials are off", () => {
+    expect(dueTutorial({ seen: [], off: false }, "evidence")).toBe("welcome");
+    expect(dueTutorial({ seen: [], off: false }, null)).toBe("welcome");
+    expect(dueTutorial({ seen: ["welcome"], off: false }, "evidence")).toBe("evidence");
+    expect(dueTutorial({ seen: ["welcome", "evidence"], off: false }, "evidence")).toBeNull();
+    expect(dueTutorial({ seen: ["welcome"], off: false }, null)).toBeNull();
+    expect(dueTutorial({ seen: [], off: true }, "idea")).toBeNull();
+    expect(dueTutorial({ seen: ["welcome"], off: true }, "story")).toBeNull();
+    // Before the account is known, nothing starts.
+    expect(dueTutorial(undefined, "idea")).toBeNull();
+  });
+
+  it("knows the page an address is in, and the page whose tutorial it can show", () => {
+    expect(pageOf("/t/acme/harvest/idea")).toBe("idea");
+    expect(pageOf("/t/acme/harvest/evidence")).toBe("evidence");
+    // A source's own screen has no examples to show: no tutorial starts there, and the menu's goes to the list.
+    expect(pageOf("/t/acme/harvest/evidence/rec1")).toBeNull();
+    expect(sectionOf("/t/acme/harvest/evidence/rec1")).toBe("evidence");
+    expect(pageOf("/t/acme/harvest/exploration/mockups/m1")).toBe("exploration");
+    expect(pageOf("/t/acme/harvest/story/pg1")).toBe("story");
+    for (const elsewhere of ["/", "/t/acme/harvest", "/t/acme/harvest/activity", "/t/acme/harvest/search"]) {
+      expect(pageOf(elsewhere), elsewhere).toBeNull();
+      expect(sectionOf(elsewhere), elsewhere).toBeNull();
+    }
   });
 });
 
-describe("the line of stops", () => {
-  it("walks twenty stops in one line across the four pages, in order", () => {
-    expect(STOPS).toHaveLength(20);
-    expect(STOPS.map((s) => s.id)).toEqual([
-      "nav", "idea", "concept", "more-info-button", "more-info", "outcomes",
-      "evidence", "sources", "preview",
-      "exploration", "canvas", "toolbar", "view", "download", "promote",
-      "story", "story-pages", "pdf", "agents", "connect",
-    ]);
-    expect(STOPS.map((s) => s.place).join(" ")).toBe(
-      "idea idea idea idea idea idea evidence evidence evidence exploration exploration exploration exploration exploration exploration story story story story story",
-    );
+describe("the tutorials and their stops", () => {
+  it("are a welcome and one for each page, none longer than seven stops with the seat", () => {
+    expect(PARTS).toEqual(["welcome", "idea", "evidence", "exploration", "story"]);
+    expect(Object.fromEntries(PARTS.map((p) => [p, TUTORIALS[p].map((s) => s.id)]))).toEqual({
+      welcome: ["nav", "agents"],
+      idea: ["idea", "concept", "more-info-button", "more-info", "outcomes"],
+      evidence: ["evidence", "sources", "preview"],
+      exploration: ["exploration", "canvas", "toolbar", "view", "download", "promote"],
+      story: ["story", "story-pages", "pdf"],
+    });
+    for (const p of PARTS) expect(stopsFor(p, false).length, p).toBeLessThanOrEqual(7);
+  });
+
+  it("end on the empty agent seat while the person has no agent connected, and without it once they have one", () => {
+    for (const p of PARTS) {
+      expect(stopsFor(p, false).at(-1), p).toBe(CONNECT);
+      expect(stopsFor(p, true), p).toEqual(TUTORIALS[p]);
+    }
+    expect(CONNECT).toMatchObject({ id: "connect", title: "Connect an agent", target: "seat", last: true });
+    expect(ALL_STOPS.filter((s) => s.last)).toEqual([CONNECT]);
+  });
+
+  it("enter each page at its item in the main navigation; the welcome lights the navigation, then plays an agent at work", () => {
+    expect(TUTORIALS.welcome[0]).toMatchObject({ title: "Main navigation", line: ["Four stages of product discovery."], target: "nav" });
+    expect(TUTORIALS.welcome[1]).toMatchObject({ id: "agents", stage: true });
+    for (const place of ["idea", "evidence", "exploration", "story"] as const) expect(TUTORIALS[place][0]!.target, place).toBe(`nav-${place}`);
   });
 
   it("lists F among the canvas's keys to try, and follows the canvas with the toolbar as a diagram", () => {
-    expect(lineText(STOPS[10]!.line)).toBe("Try it: 1 the whole canvas, 2 one page, 3 full width. V clicks inside a page, H moves the canvas. F hides the panels.");
-    expect(STOPS[10]).toMatchObject({ id: "canvas", live: true, keys: true });
-    expect(STOPS[11]).toMatchObject({ id: "toolbar", title: "Toolbar", line: ["The same commands, and their keys."], target: "toolbar", diagram: true });
-    expect(STOPS[11]!.live).toBeUndefined();
+    const [, canvas, toolbar] = TUTORIALS.exploration;
+    expect(lineText(canvas!.line)).toBe("Try it: 1 the whole canvas, 2 one page, 3 full width. V clicks inside a page, H moves the canvas. F hides the panels.");
+    expect(canvas).toMatchObject({ id: "canvas", live: true, keys: true });
+    expect(toolbar).toMatchObject({ id: "toolbar", title: "Toolbar", line: ["The same commands, and their keys."], target: "toolbar", diagram: true });
+    expect(toolbar!.live).toBeUndefined();
   });
 
   it("stops on what is pressed, More info and the source's row, before the stop that shows what it opens", () => {
-    expect(STOPS[3]).toMatchObject({ title: "More info", line: ["Each card has text behind its picture."], target: "more-info-button", aim: "more-info-button" });
-    expect(STOPS[3]!.opens).toBeUndefined();
-    expect(STOPS[4]).toMatchObject({ title: "More info", line: ["The same concept in words, for agents to read."], target: "more-info", opens: "more-info", presses: "more-info-button", aim: "more-info-button" });
-    expect(STOPS[7]).toMatchObject({ title: "Sources", line: ["Select a source to preview it."], target: "source-row" });
-    expect(STOPS[7]!.opens).toBeUndefined();
-    expect(STOPS[8]).toMatchObject({ title: "Preview", line: ["What’s visual in a source: whiteboard photos, slides, recordings."], target: "preview", opens: "preview", presses: "source-row" });
-  });
-
-  it("enters each page at its item in the main navigation, after the navigation itself", () => {
-    expect(STOPS[0]!.target).toBe("nav");
-    expect(STOPS[1]!.target).toBe("nav-idea");
-    for (const place of ["evidence", "exploration", "story"] as const) expect(STOPS.find((s) => s.place === place)!.target).toBe(`nav-${place}`);
-  });
-
-  it("names the next page on the last stop of each page", () => {
-    expect([0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => nextPlace(STOPS, n))).toEqual([null, null, null, null, null, "evidence", null, null, "exploration", null]);
-    expect(nextPlace(STOPS, 13)).toBeNull();
-    expect(nextPlace(STOPS, 14)).toBe("story");
-    expect(nextPlace(STOPS, 19)).toBeNull();
+    const [, , button, text] = TUTORIALS.idea;
+    expect(button).toMatchObject({ title: "More info", line: ["Each card has text behind its picture."], target: "more-info-button", aim: "more-info-button" });
+    expect(button!.opens).toBeUndefined();
+    expect(text).toMatchObject({ title: "More info", line: ["The same concept in words, for agents to read."], target: "more-info", opens: "more-info", presses: "more-info-button", aim: "more-info-button" });
+    const [, row, preview] = TUTORIALS.evidence;
+    expect(row).toMatchObject({ title: "Sources", line: ["Select a source to preview it."], target: "source-row" });
+    expect(row!.opens).toBeUndefined();
+    expect(preview).toMatchObject({ title: "Preview", line: ["What’s visual in a source: whiteboard photos, slides, recordings."], target: "preview", opens: "preview", presses: "source-row" });
   });
 
   it("lets only the canvas and the View switch be tried, and opens More info and the preview where it shows them", () => {
-    expect(STOPS.filter((s) => s.live).map((s) => s.id)).toEqual(["canvas", "view"]);
-    expect(STOPS.filter((s) => s.keys).map((s) => s.id)).toEqual(["canvas"]);
-    expect(STOPS.filter((s) => s.opens).map((s) => [s.id, s.opens])).toEqual([["more-info", "more-info"], ["preview", "preview"]]);
-    expect(STOPS.filter((s) => s.stage).map((s) => s.id)).toEqual(["agents"]);
-    expect(STOPS.at(-1)).toMatchObject({ id: "connect", target: "seat", last: true });
+    expect(ALL_STOPS.filter((s) => s.live).map((s) => s.id)).toEqual(["canvas", "view"]);
+    expect(ALL_STOPS.filter((s) => s.keys).map((s) => s.id)).toEqual(["canvas"]);
+    expect(ALL_STOPS.filter((s) => s.opens).map((s) => [s.id, s.opens])).toEqual([["more-info", "more-info"], ["preview", "preview"]]);
+    expect(ALL_STOPS.filter((s) => s.stage).map((s) => s.id)).toEqual(["agents"]);
   });
 
   it("finds every thing a stop lights on the screen", () => {
-    for (const s of STOPS) if (s.target) expect(TARGETS[s.target], s.id).toBeTypeOf("function");
-  });
-
-  it("ends on the agent stage for someone with an agent connected, who has no empty seat to light", () => {
-    expect(stopsFor(false)).toHaveLength(20);
-    const withAgent = stopsFor(true);
-    expect(withAgent).toHaveLength(19);
-    expect(withAgent.at(-1)!.stage).toBe(true);
+    for (const s of ALL_STOPS) if (s.target) expect(TARGETS[s.target], s.id).toBeTypeOf("function");
   });
 
   it("keeps to the words the app uses: a thing's own name, one short line, never the word tour", () => {
-    for (const s of STOPS) {
+    for (const s of ALL_STOPS) {
       expect(s.title.length, s.id).toBeLessThanOrEqual(30);
       expect(`${s.title} ${lineText(s.line)}`, s.id).not.toMatch(/\btour\b/i);
     }
     expect(JSON.stringify(TUTORIAL.agents)).not.toMatch(/\btour\b/i);
+    for (const p of PARTS) expect(menuItem(p, 3).title, p).not.toMatch(/\btour\b/i);
   });
 });
 
-describe("where it stands, as the account menu and the pill say it", () => {
-  it("offers to take it, to resume it where it was left, or to take it again", () => {
-    expect(menuItem(standing({ offered: false, stop: null, finished: false }, 20), STOPS)).toEqual({ title: "Take the tutorial", detail: "About three minutes", progress: null });
-    expect(menuItem(standing({ offered: true, stop: 4, finished: false }, 20), STOPS)).toEqual({ title: "Resume tutorial", detail: "Stop 5 of 20 · Idea", progress: 4 / 20 });
-    expect(menuItem(standing({ offered: true, stop: 8, finished: false }, 20), STOPS).detail).toBe("Stop 9 of 20 · Evidence");
-    expect(menuItem(standing({ offered: true, stop: null, finished: true }, 20), STOPS)).toEqual({ title: "Take the tutorial again", detail: "About three minutes", progress: null });
-    // Taken again after finishing and closed part-way, it resumes.
-    expect(menuItem(standing({ offered: true, stop: 9, finished: true }, 20), STOPS).title).toBe("Resume tutorial");
-  });
-
-  it("resumes at the stop it was left at, within the stops there are now", () => {
-    expect(resumeAt(standing({ offered: true, stop: 6, finished: false }, 20))).toBe(6);
-    expect(resumeAt(standing({ offered: true, stop: 19, finished: false }, 19))).toBe(18);
-    expect(resumeAt(standing({ offered: true, stop: null, finished: true }, 20))).toBe(0);
+describe("the account menu and the pill", () => {
+  it("offers the tutorial of the page on screen, or the welcome elsewhere, with its stops", () => {
+    expect(menuItem("evidence", 4)).toEqual({ title: "Take the Evidence tutorial", detail: "4 stops" });
+    expect(menuItem("welcome", 3)).toEqual({ title: "Take the WhatBuild tutorial", detail: "3 stops" });
+    expect(PARTS.map(partLabel)).toEqual(["WhatBuild", "Idea", "Evidence", "Exploration", "Story"]);
   });
 
   it("says on the pill where it went", () => {
-    expect(pillWords("welcome", 0, 20)).toBe("Tutorial");
-    expect(pillWords("stop", 4, 20)).toBe("Tutorial · 5 of 20");
-    expect(pillWords("finished", 19, 20)).toBe("Tutorial finished");
+    expect(pillWords("welcome", 0, 3)).toBe("Tutorial");
+    expect(pillWords("stop", 1, 4)).toBe("Tutorial · 2 of 4");
+    expect(pillWords("finished", 3, 4)).toBe("Tutorial finished");
   });
 });
 
@@ -253,6 +264,7 @@ afterEach(() => {
   unmount?.();
   unmount = null;
   calls.length = 0;
+  agents = [];
   document.body.innerHTML = "";
 });
 
@@ -267,10 +279,15 @@ function InProduct({ children }: { children: ReactNode }) {
 }
 
 let api: ReturnType<typeof useTutorial> = null;
+let at = "";
 function Probe() {
   api = useTutorial();
+  at = useLocation().pathname;
   return null;
 }
+
+/** Waits as long as a person would: the tutorial that starts by itself comes a moment after the screen opens. */
+const settle = (ms = 900) => act(async () => new Promise((r) => setTimeout(r, ms)));
 
 async function mount(entry: string | { pathname: string; state: unknown } = "/t/acme/harvest/idea") {
   const host = document.createElement("div");
@@ -293,6 +310,7 @@ async function mount(entry: string | { pathname: string; state: unknown } = "/t/
                           <AccountMenu />
                         </div>
                         <Probe />
+                        <Go />
                       </InProduct>
                     )}
                   </ProductProvider>
@@ -305,212 +323,365 @@ async function mount(entry: string | { pathname: string; state: unknown } = "/t/
     ),
   );
   unmount = () => act(() => root.unmount());
-  // The welcome comes a moment after the product opens.
-  await act(async () => new Promise((r) => setTimeout(r, 900)));
+  await settle();
+}
+
+/** Moves to another screen of the product as the panel's navigation would. */
+let goTo: (path: string) => void = () => {};
+function Go() {
+  const navigate = useNavigate();
+  goTo = (path) => navigate(path);
+  return null;
 }
 
 const welcome = () => document.querySelector('[role="dialog"].tut-welcome');
+const title = () => document.querySelector(".tut-title, .tut-stage-title")?.textContent;
+const count = () => document.querySelector(".tut-count")?.textContent;
+const foot = () => [...document.querySelectorAll(".tut-foot button")].map((b) => b.textContent?.trim());
 const press = async (name: string) => {
   const b = [...document.querySelectorAll<HTMLButtonElement>(".tut-layer button")].find((x) => x.textContent?.trim() === name || x.getAttribute("aria-label") === name);
   if (!b) throw new Error(`no button ${name}`);
   await act(async () => b.click());
   await act(async () => new Promise((r) => setTimeout(r, 300)));
 };
+const menuItemEl = async () => {
+  const button = document.querySelector<HTMLElement>(".panel-left .account-button");
+  if (!button) throw new Error("no account button");
+  await act(async () => button.click());
+  await act(async () => new Promise((r) => setTimeout(r, 300)));
+  return document.querySelector(".menu .menu-tutorial");
+};
+const fresh = () => {
+  unmount?.();
+  unmount = null;
+  calls.length = 0;
+  document.body.innerHTML = "";
+};
 
-describe("the welcome, a stop, closing and finishing", () => {
-  it("offers an editor the welcome on their first product, and keeps that it was offered", async () => {
+describe("the welcome", () => {
+  it("is offered to an editor on their first product, and kept as seen", async () => {
     role = "editor";
     example = false;
-    kept = { offered: false, stop: null, finished: false };
+    kept = { seen: [], off: false };
     await mount();
     expect(welcome()?.textContent).toContain("Take the WhatBuild tutorial?");
+    expect(welcome()?.textContent).toContain("Each page has a short tutorial of its own the first time you open it.");
     expect(welcome()?.getAttribute("aria-modal")).toBe("true");
-    expect(calls).toContainEqual({ method: "PATCH", path: "/api/v1/me", body: { tutorial: { offered: true } } });
+    expect([...welcome()!.querySelectorAll("button")].map((b) => b.textContent)).toEqual(["Turn off tutorials", "Not now", "Start the tutorial"]);
+    expect(calls).toContainEqual({ method: "PATCH", path: "/api/v1/me", body: { tutorial: { seen: ["welcome"] } } });
     // Nothing starts until it is asked for.
-    expect(api?.mode).toBe("welcome");
-    expect(api?.showing).toBe(false);
+    expect(api).toMatchObject({ mode: "welcome", showing: false });
   });
 
-  it("offers a guest of the example organization the welcome too", async () => {
+  it("is offered to a guest of the example organization too", async () => {
     role = "guest";
     example = true;
-    kept = { offered: false, stop: null, finished: false };
+    kept = { seen: [], off: false };
     await mount();
     expect(welcome()).not.toBeNull();
   });
 
-  it("offers nothing to a viewer, a Story reader, or someone who was offered it before", async () => {
+  it("is offered to nobody who is a viewer or a Story reader, who was offered it before, or who turned tutorials off", async () => {
     for (const [r, ex, k] of [
-      ["viewer", false, { offered: false, stop: null, finished: false }],
-      ["story_reader", false, { offered: false, stop: null, finished: false }],
-      ["editor", false, { offered: true, stop: null, finished: false }],
-      ["guest", true, { offered: true, stop: null, finished: false }],
+      ["viewer", false, { seen: [], off: false }],
+      ["story_reader", false, { seen: [], off: false }],
+      ["editor", false, { seen: ALL, off: false }],
+      ["guest", true, { seen: ALL, off: false }],
+      ["editor", false, { seen: [], off: true }],
     ] as const) {
       role = r;
       example = ex;
-      kept = { ...k };
+      kept = { seen: [...k.seen], off: k.off };
       await mount();
       expect(welcome(), r).toBeNull();
-      unmount?.();
-      unmount = null;
-      document.body.innerHTML = "";
+      expect(api?.mode, r).toBe("off");
+      fresh();
     }
   });
 
-  it("starts at the main navigation, moves one stop at a time, and closes into the account menu at its stop", async () => {
+  it("walks the navigation, an agent at work and the empty seat, and leaves Idea's own tutorial for the next visit to Idea", async () => {
     role = "editor";
     example = false;
-    kept = { offered: false, stop: null, finished: false };
+    kept = { seen: [], off: false };
     await mount();
     await press("Start the tutorial");
-    expect(api).toMatchObject({ mode: "stop", at: 0, showing: true });
-    expect(kept.stop).toBe(0);
-    expect(document.querySelector(".tut-title")?.textContent).toBe("Main navigation");
-    expect(document.querySelector(".tut-count")?.textContent).toBe("1 of 20");
+    expect(api).toMatchObject({ mode: "stop", part: "welcome", at: 0 });
+    // The welcome lights the product's own screen: no examples in place of its content.
+    expect(api?.showing).toBe(false);
+    expect(title()).toBe("Main navigation");
+    expect(count()).toBe("1 of 3");
     // The first stop has no Back.
-    expect([...document.querySelectorAll(".tut-foot button")].map((b) => b.textContent?.trim())).toEqual(["Finish later", "Next"]);
+    expect(foot()).toEqual(["Turn off tutorials", "Next"]);
     await press("Next");
     expect(api?.at).toBe(1);
-    expect(kept.stop).toBe(1);
-    await press("Back");
-    expect(api?.at).toBe(0);
+    expect(title()).toBe("Agents");
+    expect(foot()).toEqual(["Turn off tutorials", "Replay", "Back", "Next"]);
     await press("Next");
-    await press("Finish later");
-    expect(api?.mode).toBe("off");
-    expect(api?.showing).toBe(false);
-    expect(kept).toEqual({ offered: true, stop: 1, finished: false });
-    expect(document.body.textContent).toContain("The tutorial is in your account menu.");
-  });
-
-  it("finishes from its last stop, and is offered again from the account menu", async () => {
-    role = "editor";
-    example = false;
-    kept = { offered: true, stop: 19, finished: false };
-    await mount();
-    expect(welcome()).toBeNull();
-    expect(api?.standing).toEqual({ kind: "paused", stop: 19 });
-    await act(async () => api!.start("menu"));
-    await act(async () => new Promise((r) => setTimeout(r, 300)));
-    expect(document.querySelector(".tut-title")?.textContent).toBe("Connect an agent");
-    expect([...document.querySelectorAll(".tut-foot button")].map((b) => b.textContent?.trim())).toEqual(["Back", "Finish", "Connect an agent"]);
+    expect(title()).toBe("Connect an agent");
+    expect(foot()).toEqual(["Back", "Finish", "Connect an agent"]);
     await press("Finish");
-    expect(kept).toEqual({ offered: true, stop: null, finished: true });
     expect(api?.mode).toBe("off");
     expect(document.body.textContent).toContain("Tutorial finished. It stays in your account menu.");
-    expect(api?.standing).toEqual({ kind: "finished" });
+    // Still on Idea: its own tutorial waits.
+    await settle();
+    expect(api?.mode).toBe("off");
+    expect(kept.seen).toEqual(["welcome"]);
+    // Away and back to Idea, it starts.
+    await act(async () => goTo("/t/acme/harvest/activity"));
+    await settle();
+    expect(api?.mode).toBe("off");
+    await act(async () => goTo("/t/acme/harvest/idea"));
+    await settle();
+    expect(api).toMatchObject({ mode: "stop", part: "idea", at: 0 });
+  });
+
+  it("closes with Not now into the account menu, which offers it again", async () => {
+    role = "editor";
+    example = false;
+    kept = { seen: [], off: false };
+    await mount("/t/acme/harvest/activity");
+    await press("Not now");
+    expect(api?.mode).toBe("off");
+    expect(document.body.textContent).toContain("The tutorial is in your account menu.");
+    const item = await menuItemEl();
+    expect(item?.textContent).toContain("Take the WhatBuild tutorial");
+    expect(item?.textContent).toContain("3 stops");
+  });
+});
+
+describe("each page's tutorial", () => {
+  it("starts by itself the first time its page is opened, on example content, and is kept as seen", async () => {
+    role = "editor";
+    example = false;
+    for (const [path, part, first, n] of [
+      ["/t/acme/harvest/idea", "idea", "Idea", 6],
+      ["/t/acme/harvest/evidence", "evidence", "Evidence", 4],
+      ["/t/acme/harvest/exploration/mockups/m1", "exploration", "Exploration", 7],
+      ["/t/acme/harvest/story", "story", "Story", 4],
+    ] as const) {
+      kept = { seen: ["welcome"], off: false };
+      await mount(path);
+      expect(api, part).toMatchObject({ mode: "stop", part, at: 0, showing: true });
+      expect(title(), part).toBe(first);
+      expect(count(), part).toBe(`1 of ${n}`);
+      expect(calls, part).toContainEqual({ method: "PATCH", path: "/api/v1/me", body: { tutorial: { seen: [part] } } });
+      fresh();
+    }
+  });
+
+  it("starts on no other screen, nor on a source's own, nor once seen", async () => {
+    role = "editor";
+    example = false;
+    for (const [path, seen] of [
+      ["/t/acme/harvest/activity", ["welcome"]],
+      ["/t/acme/harvest/evidence/rec1", ["welcome"]],
+      ["/t/acme/harvest/evidence", ["welcome", "evidence"]],
+    ] as const) {
+      kept = { seen: [...seen], off: false };
+      await mount(path);
+      expect(api?.mode, path).toBe("off");
+      fresh();
+    }
+  });
+
+  it("ends without the seat for someone with an agent connected", async () => {
+    role = "editor";
+    example = false;
+    agents = [{ client_name: "Claude" }];
+    kept = { seen: ["welcome"], off: false };
+    await mount("/t/acme/harvest/evidence");
+    expect(count()).toBe("1 of 3");
+    await press("Next");
+    await press("Next");
+    expect(title()).toBe("Preview");
+    expect(foot()).toEqual(["Turn off tutorials", "Back", "Finish"]);
+  });
+
+  it("closes with the close button into the account menu, which offers the page's tutorial", async () => {
+    role = "editor";
+    example = false;
+    kept = { seen: ["welcome"], off: false };
+    await mount("/t/acme/harvest/idea");
+    await press("Next");
+    await press("Close the tutorial");
+    expect(api).toMatchObject({ mode: "off", showing: false });
+    expect(document.body.textContent).toContain("The tutorial is in your account menu.");
+    const item = await menuItemEl();
+    expect(item?.textContent).toContain("Take the Idea tutorial");
+    expect(item?.textContent).toContain("6 stops");
+    // Taken again, it begins at its first stop.
+    await act(async () => (item as HTMLElement).click());
+    await settle(300);
+    expect(api).toMatchObject({ mode: "stop", part: "idea", at: 0 });
+  });
+
+  it("from the account menu on a source's own screen, goes to the list of sources and runs there", async () => {
+    role = "editor";
+    example = false;
+    kept = { seen: ALL, off: false };
+    await mount("/t/acme/harvest/evidence/rec1");
+    const item = await menuItemEl();
+    expect(item?.textContent).toContain("Take the Evidence tutorial");
+    await act(async () => (item as HTMLElement).click());
+    await settle(300);
+    expect(at).toBe("/t/acme/harvest/evidence");
+    expect(api).toMatchObject({ mode: "stop", part: "evidence", at: 0, showing: true });
+  });
+
+  it("closes, without a word, when a move it did not make (the browser's Back) leaves its page", async () => {
+    role = "editor";
+    example = false;
+    kept = { seen: ["welcome"], off: false };
+    await mount("/t/acme/harvest/evidence");
+    expect(api?.mode).toBe("stop");
+    await act(async () => goTo("/t/acme/harvest/story"));
+    // The screen arrived at decides what comes next: Story's own tutorial, the first time.
+    expect(api?.part).not.toBe("evidence");
+    await settle();
+    expect(api).toMatchObject({ mode: "stop", part: "story" });
+    expect(document.body.textContent).not.toContain("The tutorial is in your account menu.");
+  });
+});
+
+describe("turning tutorials off", () => {
+  it("closes the tutorial, keeps tutorials off on the account, and Undo turns them on again", async () => {
+    role = "editor";
+    example = false;
+    kept = { seen: ["welcome"], off: false };
+    await mount("/t/acme/harvest/story");
+    await press("Turn off tutorials");
+    expect(api?.mode).toBe("off");
+    expect(calls).toContainEqual({ method: "PATCH", path: "/api/v1/me", body: { tutorial: { off: true } } });
+    expect(kept.off).toBe(true);
+    expect(document.body.textContent).toContain("Tutorials are off. Turn them on again in Settings.");
+    const undo = [...document.querySelectorAll<HTMLButtonElement>("button")].find((b) => b.textContent === "Undo");
+    await act(async () => undo!.click());
+    expect(kept.off).toBe(false);
+  });
+
+  it("from the welcome, and then no page's tutorial starts by itself", async () => {
+    role = "editor";
+    example = false;
+    kept = { seen: [], off: false };
+    await mount();
+    await press("Turn off tutorials");
+    expect(kept).toEqual({ seen: ["welcome"], off: true });
+    await act(async () => goTo("/t/acme/harvest/evidence"));
+    await settle();
+    expect(api?.mode).toBe("off");
+  });
+
+  it("leaves each tutorial in the account menu, whose bubble then has no Turn off tutorials", async () => {
+    role = "editor";
+    example = false;
+    kept = { seen: ["welcome"], off: true };
+    await mount("/t/acme/harvest/evidence");
+    expect(api?.mode).toBe("off");
+    const item = await menuItemEl();
+    expect(item?.textContent).toContain("Take the Evidence tutorial");
+    await act(async () => (item as HTMLElement).click());
+    await settle(300);
+    expect(api).toMatchObject({ mode: "stop", part: "evidence" });
+    expect(foot()).toEqual(["Next"]);
   });
 });
 
 describe("pressing what a stop opens", () => {
-  /** Starts from the account menu at a stop, with no motion, and returns once it is up. */
-  async function resumeAt(stop: number) {
+  /** Takes the page's tutorial from the account menu, with no motion, and walks it to a stop. */
+  async function walkTo(path: string, part: "idea" | "evidence", stop: number) {
     role = "editor";
     example = false;
-    kept = { offered: true, stop, finished: false };
+    kept = { seen: ALL, off: false };
     reduced = true;
-    await mount();
-    await act(async () => api!.start("menu"));
+    await mount(path);
+    await act(async () => api!.start(part, "menu"));
+    for (let n = 1; n <= stop; n++) await act(async () => api!.go(n));
   }
   const wait = (ms: number) => act(async () => new Promise((r) => setTimeout(r, ms)));
 
   it("waits on More info with the text closed; Next presses it and the text opens; Back folds it again", async () => {
-    await resumeAt(3);
-    expect(api).toMatchObject({ at: 3, reveal: null, opens: null });
+    await walkTo("/t/acme/harvest/idea", "idea", 2);
+    expect(api).toMatchObject({ at: 2, reveal: null, opens: null });
     expect(document.querySelector(".tut-title")?.textContent).toBe("More info");
     expect(document.querySelector(".tut-line")?.textContent).toBe("Each card has text behind its picture.");
     // It waits: nothing happens by itself.
     await wait(1200);
-    expect(api).toMatchObject({ at: 3, opens: null });
+    expect(api).toMatchObject({ at: 2, opens: null });
     reduced = false;
     try {
-      await act(async () => api!.go(4));
-      expect(api).toMatchObject({ at: 4, reveal: "press", opens: null });
-      await wait(400);
-      expect(api).toMatchObject({ at: 4, reveal: "open", opens: "more-info" });
-      expect(document.querySelector(".tut-line")?.textContent).toBe("The same concept in words, for agents to read.");
       await act(async () => api!.go(3));
-      expect(api).toMatchObject({ at: 3, reveal: null, opens: null });
-      // On to the outcome, and Back: open at once.
-      await act(async () => api!.go(4));
+      expect(api).toMatchObject({ at: 3, reveal: "press", opens: null });
       await wait(400);
-      await act(async () => api!.go(5));
+      expect(api).toMatchObject({ at: 3, reveal: "open", opens: "more-info" });
+      expect(document.querySelector(".tut-line")?.textContent).toBe("The same concept in words, for agents to read.");
+      await act(async () => api!.go(2));
+      expect(api).toMatchObject({ at: 2, reveal: null, opens: null });
+      // On to the outcome, and Back: open at once.
+      await act(async () => api!.go(3));
+      await wait(400);
       await act(async () => api!.go(4));
-      expect(api).toMatchObject({ at: 4, reveal: "open", opens: "more-info" });
+      await act(async () => api!.go(3));
+      expect(api).toMatchObject({ at: 3, reveal: "open", opens: "more-info" });
     } finally {
       reduced = true;
     }
     // With reduced motion, Next opens it at once.
+    await act(async () => api!.go(2));
     await act(async () => api!.go(3));
-    await act(async () => api!.go(4));
-    expect(api).toMatchObject({ at: 4, reveal: "open", opens: "more-info" });
+    expect(api).toMatchObject({ at: 3, reveal: "open", opens: "more-info" });
   });
 
   it("waits on the source's row with the preview closed; Next selects it and opens the preview; Back closes it", async () => {
-    await resumeAt(7);
-    expect(api).toMatchObject({ at: 7, reveal: null, opens: null });
+    await walkTo("/t/acme/harvest/evidence", "evidence", 1);
+    expect(api).toMatchObject({ at: 1, reveal: null, opens: null });
     expect(document.querySelector(".tut-title")?.textContent).toBe("Sources");
     await wait(1200);
-    expect(api).toMatchObject({ at: 7, opens: null });
+    expect(api).toMatchObject({ at: 1, opens: null });
     reduced = false;
     try {
-      await act(async () => api!.go(8));
-      expect(api).toMatchObject({ at: 8, reveal: "press", opens: null });
+      await act(async () => api!.go(2));
+      expect(api).toMatchObject({ at: 2, reveal: "press", opens: null });
       await wait(400);
-      expect(api).toMatchObject({ at: 8, reveal: "open", opens: "preview" });
-      await act(async () => api!.go(7));
-      expect(api).toMatchObject({ at: 7, opens: null });
+      expect(api).toMatchObject({ at: 2, reveal: "open", opens: "preview" });
+      await act(async () => api!.go(1));
+      expect(api).toMatchObject({ at: 1, opens: null });
     } finally {
       reduced = true;
-    }
-  });
-
-  it("resumes at More info and at the source closed, and at the text and the preview open", async () => {
-    for (const [stop, opens] of [[3, null], [4, "more-info"], [7, null], [8, "preview"]] as const) {
-      reduced = false;
-      try {
-        await resumeAt(stop);
-        // Resumed, nothing is pressed: what the stop shows is there at once.
-        expect(api, String(stop)).toMatchObject({ at: stop, opens });
-        expect(api?.reveal, String(stop)).toBe(opens ? "open" : null);
-      } finally {
-        reduced = true;
-        unmount?.();
-        unmount = null;
-        document.body.innerHTML = "";
-      }
     }
   });
 });
 
 describe("taking over from the overview", () => {
-  it("begins at the first stop when the overview's Start the tutorial brought the person here, offering no second welcome", async () => {
+  it("begins the welcome's first stop when the overview's Start the tutorial brought the person here, and leaves Idea's for later", async () => {
     role = "editor";
     example = false;
-    kept = { offered: true, stop: null, finished: false };
-    await mount({ pathname: "/t/acme/harvest/idea", state: { tutorial: "welcome" } });
+    kept = { seen: ["welcome"], off: false };
+    await mount({ pathname: "/t/acme/harvest/idea", state: { tutorial: { part: "welcome", from: "welcome" } } });
     expect(welcome()).toBeNull();
-    expect(api).toMatchObject({ mode: "stop", at: 0, showing: true });
-    expect(kept.stop).toBe(0);
+    expect(api).toMatchObject({ mode: "stop", part: "welcome", at: 0 });
+    await press("Close the tutorial");
+    await settle();
+    expect(api?.mode).toBe("off");
   });
 
-  it("resumes at the stop it was left at when the overview's account menu brought the person here", async () => {
+  it("begins the tutorial the overview's account menu offered", async () => {
     role = "guest";
     example = true;
-    kept = { offered: true, stop: 4, finished: false };
-    await mount({ pathname: "/t/acme/harvest/idea", state: { tutorial: "menu" } });
-    expect(api).toMatchObject({ mode: "stop", at: 4 });
+    kept = { seen: ALL, off: false };
+    await mount({ pathname: "/t/acme/harvest/idea", state: { tutorial: { part: "welcome", from: "menu" } } });
+    expect(api).toMatchObject({ mode: "stop", part: "welcome", at: 0 });
   });
 });
-
 
 describe("Focus at the canvas stop", () => {
   it("goes in and out with F, counts as tried, and is off again whichever way the stop is left", async () => {
     role = "editor";
     example = false;
-    kept = { offered: true, stop: 10, finished: false };
-    await mount();
-    await act(async () => api!.start("menu"));
-    expect(api).toMatchObject({ at: 10, focus: false });
+    kept = { seen: ALL, off: false };
+    await mount("/t/acme/harvest/exploration/mockups");
+    await act(async () => api!.start("exploration", "menu"));
+    await act(async () => api!.go(1));
+    expect(api).toMatchObject({ at: 1, focus: false });
     await act(async () => api!.toggleFocus());
     expect(api?.focus).toBe(true);
     expect(api?.hit.has("f")).toBe(true);
@@ -518,22 +689,21 @@ describe("Focus at the canvas stop", () => {
     expect(api?.focus).toBe(false);
     // Next, and Back, from Focus: the next stop has its panels.
     await act(async () => api!.toggleFocus());
-    await act(async () => api!.go(11));
-    expect(api).toMatchObject({ at: 11, focus: false });
-    await act(async () => api!.go(10));
+    await act(async () => api!.go(2));
+    expect(api).toMatchObject({ at: 2, focus: false });
+    await act(async () => api!.go(1));
     await act(async () => api!.toggleFocus());
-    await act(async () => api!.go(9));
-    expect(api).toMatchObject({ at: 9, focus: false });
+    await act(async () => api!.go(0));
+    expect(api).toMatchObject({ at: 0, focus: false });
     // F does nothing at any other stop.
     await act(async () => api!.toggleFocus());
     expect(api?.focus).toBe(false);
-    // Finish later from Focus.
-    await act(async () => api!.go(10));
+    // Closed from Focus.
+    await act(async () => api!.go(1));
     await act(async () => api!.toggleFocus());
     expect(api?.focus).toBe(true);
-    await press("Finish later");
+    await press("Close the tutorial");
     expect(api).toMatchObject({ mode: "off", focus: false });
-    expect(kept.stop).toBe(10);
   });
 });
 
@@ -543,15 +713,13 @@ describe("in a window narrower than 1024 pixels", () => {
     example = false;
     try {
       width = 1023;
-      kept = { offered: false, stop: null, finished: false };
+      kept = { seen: [], off: false };
       await mount();
       expect(welcome()).toBeNull();
       expect(api?.eligible).toBe(false);
-      unmount?.();
-      unmount = null;
-      document.body.innerHTML = "";
+      fresh();
       width = 1024;
-      kept = { offered: false, stop: null, finished: false };
+      kept = { seen: [], off: false };
       await mount();
       expect(welcome()).not.toBeNull();
       expect(api?.eligible).toBe(true);

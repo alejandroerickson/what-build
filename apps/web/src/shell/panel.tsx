@@ -331,16 +331,7 @@ export function AccountMenu() {
               icon="signpost"
               className="menu-tutorial"
               onSelect={tutorial.onSelect}
-              detail={
-                <>
-                  <span className="num">{tutorial.detail}</span>
-                  {tutorial.progress !== null ? (
-                    <span className="menu-tutorial-bar" aria-hidden="true">
-                      <i style={{ width: `${Math.round(tutorial.progress * 100)}%` }} />
-                    </span>
-                  ) : null}
-                </>
-              }
+              detail={<span className="num">{tutorial.detail}</span>}
             >
               {tutorial.title}
             </MenuItem>

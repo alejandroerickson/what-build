@@ -121,8 +121,8 @@ corepack pnpm install && corepack pnpm dev   # http://localhost:5273, one-click 
 
 ## The tutorial walks through the real screens
 
-The web app's tutorial (`apps/web/src/tutorial/`, spec §7.4) lights the app's own screens one
-thing at a time and names each:
+The web app's tutorials (`apps/web/src/tutorial/`, spec §7.4: a welcome, then one for each page)
+light the app's own screens one thing at a time and name each:
 - the main navigation, Idea's cards and More info, Evidence's sources and their preview;
 - the mockup canvas, its toolbar and keys, and its inspector (View, Download as ZIP, Promote canvas
   to Story);
@@ -138,8 +138,9 @@ tutorial in the same change:
 
 `apps/web/test/tutorial-screens.test.ts` fails when a screen, a control's name, a canvas key or an
 agent's tool moves from under the tutorial. Fix the tutorial, never the test. Then walk the
-tutorial in a browser at 1024 pixels wide or wider: account menu → Take the tutorial again. Whether
-something new gets a stop of its own is the maintainer's call, so ask.
+tutorial in a browser at 1024 pixels wide or wider: on the page it shows, account menu → Take the
+<page> tutorial. Whether something new gets a stop of its own, and in which page's tutorial, is the
+maintainer's call, so ask.
 
 ## Operating production
 

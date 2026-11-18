@@ -81,9 +81,10 @@ permissions and one activity log.
   company's own design system, or a house style an agent adopted for the product. Never
   WhatBuild's own look, since a Story is often read outside the team.
 - Vocabulary is fixed: source, derived text, attachment, outcome, mockup, Story, archive. Never "findings", "claims", "document store", "file" for an attachment, or a storage path in the UI.
-- A spotlight tutorial, offered once to whoever can edit a product and to the example
-  organization's guests, walks the four destinations on fixed example content that no product
-  holds and no agent sees.
+- Spotlight tutorials for whoever can edit a product and the example organization's guests: a
+  short welcome, offered once, then one for each of the four destinations, which starts by itself
+  the first time the person opens it, on fixed example content that no product holds and no agent
+  sees. Each is a few stops, and any of them turns them all off.
 - WCAG 2.2 AA, fully keyboard-operable, usable at phone width.
 
 ## Evidence on Hand

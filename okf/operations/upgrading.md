@@ -23,7 +23,17 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
 
 ## Unreleased
 
-Nothing yet.
+- **The tutorial is five short ones.** Migration `0049` replaces `accounts.tutorial_offered_at`,
+  `tutorial_stop` and `tutorial_finished_at` with `tutorials_seen` and `tutorials_off`, and drops
+  the old three; nothing to do. People will notice: the welcome now offers the WhatBuild
+  tutorial (the navigation and an agent at work), and each of a product's four pages starts a short
+  tutorial of its own the first time someone opens it. Whoever was offered the old tutorial counts
+  as having seen the welcome, whoever got past a page in it as having seen that page's, and whoever
+  finished it as having seen all of them, so most people will see the tutorials of the pages they
+  had not reached. Every tutorial offers **Turn off tutorials**, and Settings → Account turns them on
+  again. Resuming a tutorial part-way is gone. `GET /api/v1/me` gives `tutorial` as
+  `{ seen, off }`, and `PATCH /api/v1/me` takes `tutorial: { seen, off, reset }`. No operation or
+  MCP tool changes. A release that migrates is rehearsed on the dev deployment first.
 
 ## v0.38.1
 

@@ -5,7 +5,7 @@ import { AGENTS_KEY } from "../lib/agents.ts";
 import { api } from "../lib/api.ts";
 import { plural } from "../lib/format.ts";
 import { forgetPersonalState } from "../lib/local-state.ts";
-import { useHideExample, useMe, useProducts } from "../lib/session.tsx";
+import { useHideExample, useMe, useProducts, useSaveTutorial } from "../lib/session.tsx";
 import { usePageTitle } from "../shell/slots.tsx";
 import { DeleteAccount } from "./delete-account.tsx";
 import { Button, ChoiceRow, Dialog, ErrorCallout, FormGrid, Sheet, SheetBody, SheetHeader, TextField, useToast, tooLong } from "../ui/index.tsx";
@@ -29,7 +29,7 @@ export function SettingsPage() {
   );
 }
 
-/** Settings → You → Account: the person's name and address, the example organization's place, deleting the account. */
+/** Settings → You → Account: the person's name and address, the example organization's place, the tutorials, deleting the account. */
 export function AccountSettings({ level = 2 }: { level?: 1 | 2 }) {
   const me = useMe();
   const qc = useQueryClient();
@@ -82,6 +82,7 @@ export function AccountSettings({ level = 2 }: { level?: 1 | 2 }) {
         </form>
       </Sheet>
       <ExampleInSwitcher />
+      <TutorialsChoice />
       <DeleteAccount />
       <p className="agents-foot">
         <Link to="/cookies">Cookies and analytics</Link> · <PrivacyLink />
@@ -108,6 +109,28 @@ function ExampleInSwitcher() {
           onChange={(e) => hide.mutate(!e.target.checked)}
         />
         {hide.isError ? <ErrorCallout inset error={hide.error} /> : null}
+      </SheetBody>
+    </Sheet>
+  );
+}
+
+/** Whether the web app's tutorials start by themselves: the welcome, and each page's the first time it is opened. */
+function TutorialsChoice() {
+  const me = useMe();
+  const save = useSaveTutorial();
+  if (!me.data) return null;
+  return (
+    <Sheet className="account-sheet" labelledBy="tutorials-title">
+      <SheetHeader id="tutorials-title" title="Tutorials" />
+      <SheetBody>
+        <ChoiceRow
+          label="Start each page’s tutorial the first time you open it"
+          hint="Off, they start only from your account menu."
+          checked={!me.data.tutorial?.off}
+          disabled={save.isPending}
+          onChange={(e) => save.mutate({ off: !e.target.checked })}
+        />
+        {save.isError ? <ErrorCallout inset error={save.error} /> : null}
       </SheetBody>
     </Sheet>
   );

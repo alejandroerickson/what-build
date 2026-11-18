@@ -45,6 +45,9 @@ function signInLinkPage(email: string, token: string): string {
   );
 }
 
+/** The web app's tutorials, in their order: the welcome, then one for each of a product's four pages. */
+const TUTORIALS = ["welcome", "idea", "evidence", "exploration", "story"] as const;
+
 /** The domain of an address, lower case. */
 const domainOf = (address: string) => address.slice(address.lastIndexOf("@") + 1).toLowerCase();
 
@@ -424,7 +427,7 @@ export function authRoutes(deps: { db: Db; config: ServerConfig; mailer: Mailer 
     const tenant_allowance = await tenantAllowanceOf(db, config, p);
     const prefs = await db
       .selectFrom("accounts")
-      .select(["hide_example", "tutorial_offered_at", "tutorial_stop", "tutorial_finished_at"])
+      .select(["hide_example", "tutorials_seen", "tutorials_off"])
       .where("account_id", "=", p.account_id)
       .executeTakeFirst();
     const asked = await db.selectFrom("interest").select("created_at").where(sql<string>`lower(email)`, "=", p.email.toLowerCase()).executeTakeFirst();
@@ -432,8 +435,8 @@ export function authRoutes(deps: { db: Db; config: ServerConfig; mailer: Mailer 
       account_id: p.account_id, email: p.email, display_name: p.display_name, auth_kind: p.auth_kind, tenant_allowance,
       new_organization_plan: tenant_allowance.instance_owner ? "unlimited" : config.newOrganizationPlan,
       hide_example: Boolean(prefs?.hide_example),
-      // The web app's tutorial, as this person left it: offered yet, the stop it was left at, finished.
-      tutorial: { offered: Boolean(prefs?.tutorial_offered_at), stop: prefs?.tutorial_stop ?? null, finished: Boolean(prefs?.tutorial_finished_at) },
+      // The web app's tutorials: which this person has been shown, in their order, and whether they turned them off.
+      tutorial: { seen: TUTORIALS.filter((t) => prefs?.tutorials_seen.includes(t)), off: Boolean(prefs?.tutorials_off) },
       // In no organization, with no allowance: they come into the example organization as a guest, while there is room.
       guest: await isGuestAccount(db, config, p),
       // When they asked for an organization of their own (on the waitlist), from here or the public site.
@@ -493,10 +496,12 @@ export function authRoutes(deps: { db: Db; config: ServerConfig; mailer: Mailer 
   });
 
   /**
-   * The person's own account: their name, whether the example organization is in their panel, and
-   * where they left the web app's tutorial. Only a session in the web app reaches it (REST takes no
-   * bearer token), so no agent reads or changes any of it, and it needs no role anywhere: a guest
-   * account in no organization keeps its tutorial too. Each request changes only what it names.
+   * The person's own account: their name, whether the example organization is in their panel, which
+   * of the web app's tutorials they have been shown, and whether they turned tutorials off. Only a
+   * session in the web app reaches it (REST takes no bearer token), so no agent reads or changes any
+   * of it, and it needs no role anywhere: a guest account in no organization keeps its tutorials too.
+   * Each request changes only what it names; tutorials named as seen are added to those seen before,
+   * and a reset forgets those seen.
    */
   app.patch("/api/v1/me", async (c) => {
     const p = await requirePrincipal(c);
@@ -505,8 +510,8 @@ export function authRoutes(deps: { db: Db; config: ServerConfig; mailer: Mailer 
         display_name: z.string().trim().min(1).max(100).optional(),
         hide_example: z.boolean().optional(),
         tutorial: z
-          .strictObject({ offered: z.boolean().optional(), stop: z.number().int().min(0).max(63).nullable().optional(), finished: z.boolean().optional() })
-          .refine((t) => t.offered !== undefined || t.stop !== undefined || t.finished !== undefined)
+          .strictObject({ seen: z.array(z.enum(TUTORIALS)).min(1).max(TUTORIALS.length).optional(), off: z.boolean().optional(), reset: z.literal(true).optional() })
+          .refine((t) => t.seen !== undefined || t.off !== undefined || t.reset !== undefined)
           .optional(),
       })
       .refine((b) => b.display_name !== undefined || b.hide_example !== undefined || b.tutorial !== undefined)
@@ -514,7 +519,7 @@ export function authRoutes(deps: { db: Db; config: ServerConfig; mailer: Mailer 
     if (!body.success)
       throw invalid(
         "invalid_input",
-        "Send display_name (1 to 100 characters), hide_example (true or false), tutorial ({ offered, stop, finished }: true or false, a stop from 0 to 63 or null, true or false), or any of them.",
+        `Send display_name (1 to 100 characters), hide_example (true or false), tutorial ({ seen, off, reset }: a list of tutorials shown from ${TUTORIALS.join(", ")}, true or false, true to forget those shown), or any of them.`,
       );
     const { display_name, hide_example, tutorial } = body.data;
     await db
@@ -522,10 +527,14 @@ export function authRoutes(deps: { db: Db; config: ServerConfig; mailer: Mailer 
       .set({
         ...(display_name !== undefined ? { display_name } : {}),
         ...(hide_example !== undefined ? { hide_example } : {}),
-        // When it was first offered and last finished are kept as they were while they stay true.
-        ...(tutorial?.offered !== undefined ? { tutorial_offered_at: tutorial.offered ? sql<string>`coalesce(tutorial_offered_at, now())` : null } : {}),
-        ...(tutorial?.stop !== undefined ? { tutorial_stop: tutorial.stop } : {}),
-        ...(tutorial?.finished !== undefined ? { tutorial_finished_at: tutorial.finished ? sql<string>`coalesce(tutorial_finished_at, now())` : null } : {}),
+        // A tutorial once shown stays shown: what is named joins what was there, each once. A reset
+        // forgets them (in development, to be offered them again), keeping only what it names.
+        ...(tutorial?.reset
+          ? { tutorials_seen: tutorial.seen ?? [] }
+          : tutorial?.seen
+            ? { tutorials_seen: sql<string[]>`array(select distinct t from unnest(tutorials_seen || ${tutorial.seen}::text[]) as t)` }
+            : {}),
+        ...(tutorial?.off !== undefined ? { tutorials_off: tutorial.off } : {}),
       })
       .where("account_id", "=", p.account_id)
       .execute();
