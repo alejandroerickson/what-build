@@ -11,7 +11,7 @@ import { expectedEtag, slug, withArticle } from "../schemas.ts";
 import { aboutWhatBuild } from "../mail-words.ts";
 import { newEtag, newId, plainName, randomToken, sha256Hex, slugify } from "../util.ts";
 import { adviseIdeaCard, CARD_HTML_MAX, checkCardSides, checkIdeaCard } from "../idea-card.ts";
-import { actionAsRead, summaryAsRead } from "./activity.ts";
+import { actionAsRead, entryTitleAsRead, summaryAsRead, titleNeedsInvitationScope } from "./activity.ts";
 
 async function uniqueSlug(exists: (s: string) => Promise<boolean>, base: string): Promise<string> {
   const root = slugify(base, 40, "product").padEnd(3, "0");
@@ -1117,7 +1117,15 @@ export const listAccessActivity = defineOperation({
     if (input.since) q = q.where(sql<boolean>`occurred_at >= ${input.since}::timestamptz`);
     if (input.cursor) q = q.where("activity_id", "<", input.cursor);
     const rows = await q.orderBy("activity_id", "desc").limit(input.limit + 1).execute();
-    const items = rows.slice(0, input.limit).map((r) => ({
+    const page = rows.slice(0, input.limit);
+    // An invitation's entry titled "All products" is read by its invitation's scope, where it is still stored.
+    const invitationIds = page.filter((r) => r.entity_id && titleNeedsInvitationScope(r.action, r.entity_type, r.entity_title)).map((r) => r.entity_id!);
+    const scopes = new Map(
+      invitationIds.length
+        ? (await ctx.db.selectFrom("invitations").select(["invitation_id", "scope_type"]).where("tenant_id", "=", ctx.scope.tenant!.tenant_id).where("invitation_id", "in", invitationIds).execute()).map((i) => [i.invitation_id, i.scope_type] as const)
+        : [],
+    );
+    const items = page.map((r) => ({
       activity_id: r.activity_id,
       occurred_at: r.occurred_at,
       actor: r.actor,
@@ -1126,7 +1134,7 @@ export const listAccessActivity = defineOperation({
       action: actionAsRead(r.action, r.summary),
       entity_type: r.entity_type,
       entity_id: r.entity_id,
-      entity_title: r.entity_title,
+      entity_title: entryTitleAsRead(r.action, r.entity_type, r.entity_title, r.entity_id ? scopes.get(r.entity_id) : null),
       summary: summaryAsRead(r.action, r.entity_type, r.summary),
     }));
     return { items, next_cursor: rows.length > input.limit ? items[items.length - 1]!.activity_id : null };

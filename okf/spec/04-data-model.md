@@ -466,6 +466,12 @@ An append-only event log, written in the same transaction as the mutation that c
   on product Planner", and "Granted creator on organization Acme" reads "Granted product creator on
   organization Acme". An organization named as a tenant, as the earliest entries name it, reads as
   an organization: "Granted owner on tenant Acme" reads "Granted owner on organization Acme".
+  An invitation to all products, sent or declined, records "All products" as its title, as a
+  heading names them; `members.activity` gives it as "all products", since the entry ends a
+  sentence ("invited someone to all products"). It reads the invitation's scope where the
+  invitation is still stored, so an invitation to a product really called "All products" keeps that
+  name; one no longer stored (deleted with its product, its organization or its address) is taken
+  to be to all products ([`entryTitleAsRead`](../../packages/core/src/ops/activity.ts)).
   ◆ Decision: an old summary is reworded where it is read
   ([`summaryAsRead`](../../packages/core/src/ops/activity.ts)), never by a migration, as the
   product log's old entries are, so the stored event, and an export's `activity.jsonl`, stays as it
