@@ -183,8 +183,8 @@ CI (`.github/workflows/ci.yml`) runs the documentation check, the guide check, t
 `main` and every pull request, and beside them a build of the image from `deploy/Dockerfile`,
 pushed nowhere, so a change that breaks the image fails before a tag does, and the check that
 nothing private is published; a
-pull request's title and description are checked when it is opened and whenever they are edited
-(`pull-request-text.yml`). The Security workflow runs `pnpm security` on the same events and
+pull request's title and description are checked when it is opened, whenever they are edited and
+on every push to its branch (`pull-request-text.yml`). The Security workflow runs `pnpm security` on the same events and
 weekly, with a weekly OWASP ZAP scan of the app, a weekly check of the whole history, and a weekly
 check of what GitHub holds beside the code; CodeQL runs once the repository is public; and
 Dependabot opens updates ([security checks](security-checks.md)). A tag `v*` runs the Release workflow (`.github/workflows/release.yml`),
