@@ -2,6 +2,7 @@
  * What the sandbox around an agent-written page allows, by surface: the CSP `sandbox` directive on
  * every response that serves the page (story-html.ts) and the `sandbox` attribute of the web app's
  * frame that shows it, which must agree. Never `allow-same-origin`: a page runs in an opaque origin.
+ * Also the name the canvas gives a page's frame, which the frame script reads (story-theme.ts).
  * Kept free of imports so the web app can take it as `@whatbuild/core/page-sandbox`.
  */
 
@@ -28,6 +29,13 @@ export const IDEA_CARD_SANDBOX = "allow-scripts";
  * any frame it lands in. A preview's frame, which runs no script, gets the same words with none.
  */
 export const REFUSED_FRAME_SANDBOX = "allow-scripts";
+
+/**
+ * The name the canvas gives each page's frame. The frame script reads it as soon as the page runs,
+ * so a page on the canvas keeps a pinch or ⌘/Ctrl with scroll from zooming the browser from the
+ * start, before the app has greeted it. A prototype's next document in the same frame keeps it too.
+ */
+export const CANVAS_FRAME_NAME = "whatbuild-canvas-page";
 
 /** What a mockup's pages can do once they are saved and opened outside this sandbox: said with every download, and in the ZIP's index.html. */
 export const OUTSIDE_THE_SANDBOX = "These pages can run their own code when opened outside WhatBuild. Only open them if you trust where they came from.";

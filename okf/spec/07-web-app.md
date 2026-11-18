@@ -3,7 +3,7 @@ type: Specification
 title: The web app is a person's way to run the same operations an agent runs, one screen at a time.
 description: Principles, the shell and product switching, the overview, routes, first run, and the behavior of every screen (Idea, Evidence, Exploration, Story, Activity, archive and delete, Settings, Instance admin).
 tags: [spec, web, ui, routes, shell]
-generated: {by: agent:claude, at: 2026-11-17}
+generated: {by: agent:claude, at: 2026-11-18}
 status: stable
 ---
 
@@ -1047,7 +1047,10 @@ restores one. Its writes are promoting a page to the Story, and, for a product's
   not hold goes nowhere and a toast says so, in the app's words and never the page's, at most every
   few seconds. A click a page handled itself is left alone, and one with a modifier key does what a
   plain click does, since a new tab has no address for another page of a canvas. A link to a document of the version's prototype that another canvas page enters
-  moves to that page; any other link within the prototype stays in its frame.
+  moves to that page; any other link within the prototype stays in its frame. A link to a place
+  within a page (`checkout.html#total`) moves to the page and scrolls to the place inside the page
+  alone. The board clips its pages and nothing can scroll it, so no page scrolling something of its
+  own into view moves the board, and a page the view flies to is where the view shows it.
 - **Viewed as a clickable prototype** (`?view=clickable`, chosen under **View** in the inspector). One
   page at a time on the plain board, at its own size or smaller, in interact mode, with no labels or
   outline. The others fade as the view glides to the page, and back again on the way out. A link,
@@ -1060,8 +1063,9 @@ restores one. Its writes are promoting a page to the Story, and, for a product's
   address's `view`.
 - **Pan and interact.** A toolbar at the bottom of the canvas holds two modes. **Pan** (the hand,
   `H`, the default): a drag anywhere moves the canvas and a click selects a page; the pages take no
-  pointer. **Interact** (the pointer, `V`): the pages take the pointer, so their links, buttons and
-  scrolling work, a drag on the board still moves the canvas, and a press on a page selects it.
+  pointer. **Interact** (the pointer, `V`): the pages take the pointer, each once it has loaded, so
+  their links, buttons and scrolling work, a drag on the board still moves the canvas, and a press
+  on a page selects it.
   Holding Space pans from either mode. The browser remembers the mode (`whatbuild.mockup.mode`).
   A page's frame is its width × height: content taller than the height scrolls inside the frame.
   In pan mode the canvas shows the page's first `height` pixels and a scroll over it moves the
@@ -1072,7 +1076,8 @@ restores one. Its writes are promoting a page to the Story, and, for a product's
   from where it is. In interact mode a touch that begins on a page is the page's.
 - **Scroll and zoom.** Scroll moves the canvas up and down, and Shift with scroll sideways; ⌘ or
   Ctrl with scroll, or a pinch, zooms about the pointer, from 5% to 400%, over a page in interact
-  mode too. A notch of a mouse wheel moves the zoom by about 10% at most, and a pinch follows the
+  mode too, over a page still loading, and over the toolbar: the browser never zooms the app from the
+  canvas. A notch of a mouse wheel moves the zoom by about 10% at most, and a pinch follows the
   fingers. The toolbar has zoom out, the zoom level (a menu: Fit the canvas, Fit the selected page,
   Fill the width with the selected page, 50%, 100%, 200%), zoom in, fit and fill the selected
   page, fit the canvas, the previous and next page, a menu of the pages that says which is selected,
@@ -1091,8 +1096,9 @@ restores one. Its writes are promoting a page to the Story, and, for a product's
   short of room its rules go, and then its groups of controls wrap onto a second row, every control
   still there.
 - **Keys from inside a page.** Once someone is working inside a page, its keys go to the page's
-  frame, not the app. The frame script ([§4.12](04-data-model.md)) is told the page is on a canvas
-  and passes the canvas's keys on, with Space held and let go and a pinch over the page, so they
+  frame, not the app. The frame script ([§4.12](04-data-model.md)) knows the page is on a canvas
+  from the frame's name as soon as it runs, as each document of a prototype does as it opens, and
+  passes the canvas's keys on, with Space held and let go and a pinch over the page, so they
   work the same from inside a page; while typing in a page they stay with it.
 - **A page that enters a prototype** ([§4.12](04-data-model.md#412-mockups)) is framed at its
   entry's address, in the sandbox the server names for it, and works as the prototype does at

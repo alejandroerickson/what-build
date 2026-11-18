@@ -111,12 +111,15 @@
   container: xc-board / inline-size;
   touch-action: none;
 }
-/* A sheet-shaped board one step down from the canvas, so white pages lift off it in both themes. */
+/* A sheet-shaped board one step down from the canvas, so white pages lift off it in both themes.
+   Clipped, never hidden: a box that hides its overflow can still be scrolled by a script, and a
+   page's own scrollIntoView, or a link to a place within a page, would slide the whole board under
+   the view, so the next page shown would land somewhere else. */
 .xc-viewport {
   --xc-board: color-mix(in srgb, var(--canvas) 94%, var(--text));
   position: absolute;
   inset: 0;
-  overflow: hidden;
+  overflow: clip;
   border-radius: var(--r-lg);
   background-color: var(--xc-board);
   background-image: radial-gradient(circle at 1px 1px, color-mix(in srgb, var(--line-2) 80%, transparent) 1px, transparent 0);
@@ -186,7 +189,10 @@
   border: 0;
   background: #fff;
 }
-.xc-viewport[data-mode="pan"] .xc-frame iframe {
+/* A page whose document the canvas has not greeted yet takes no pointer either, so the board hears a
+   pinch over it and the browser never zooms the app from a page still loading. */
+.xc-viewport[data-mode="pan"] .xc-frame iframe,
+.xc-frame:not([data-greeted]) iframe {
   pointer-events: none;
 }
 /* The selected page: the one place the accent appears on the board. Its outline sits over the page

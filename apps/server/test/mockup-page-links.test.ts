@@ -96,7 +96,7 @@ describe("the frame script, as its document loads", () => {
     for (const script of [FRAME_SCRIPT, frameScript({ base: "https://usercontent.example.net/prototypes/g/", inPlace: false })]) {
       const sent: unknown[] = [];
       const load: (() => void)[] = [];
-      new Function("addEventListener", "parent", script)((type: string, fn: () => void) => void (type === "load" && load.push(fn)), { postMessage: (m: unknown) => void sent.push(m) });
+      new Function("addEventListener", "parent", "window", script)((type: string, fn: () => void) => void (type === "load" && load.push(fn)), { postMessage: (m: unknown) => void sent.push(m) }, { name: "" });
       // A page that sends its frame elsewhere while it loads never reaches this point, so the app puts it back.
       expect(sent).toEqual([]);
       expect(load).toHaveLength(1);
@@ -122,10 +122,10 @@ describe("a click on a link inside a canvas's page", () => {
       hasAttribute: (n: string) => n in attrs,
     };
     const script = opts.proto ? frameScript({ base: opts.proto, inPlace: true }) : FRAME_SCRIPT;
-    new Function("addEventListener", "parent", script)((type: string, fn: (e: unknown) => void, useCapture?: unknown) => {
+    new Function("addEventListener", "parent", "window", script)((type: string, fn: (e: unknown) => void, useCapture?: unknown) => {
       if (type === "click") (useCapture === true ? capture : after).push(fn);
       else listeners[type] = fn;
-    }, parent);
+    }, parent, { name: "" });
     if (opts.pages) listeners["message"]!({ source: parent, data: { whatbuild: "page-links" } });
     else if (opts.canvas !== false) listeners["message"]!({ source: parent, data: { whatbuild: "canvas-host", ...(opts.entries ? { entries: opts.entries } : {}) } });
     const e = { target: { closest: () => a }, button: 0, defaultPrevented: false, metaKey: Boolean(opts.meta), ctrlKey: false, shiftKey: false, altKey: false, preventDefault() { this.defaultPrevented = true; } };

@@ -5,6 +5,7 @@ import {
   composePrintDocument, FRAME_SCRIPT, GUIDANCE_VERSION, HOUSE_STYLE_IDS, HOUSE_STYLES, houseSpecimen, inspectStoryCss, inspectStoryHtml, STORY_FONTS, STORY_HTML_MAX, STORY_MAX_SCRIPTS,
   STORY_SCRIPT_BUDGET, storyFontFaces, storyFontsNamed, withStoryFonts, withStoryFrame,
 } from "@whatbuild/core";
+import { CANVAS_FRAME_NAME } from "@whatbuild/core/page-sandbox";
 import { sql } from "kysely";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { staticRoutes } from "../src/public-routes.ts";
@@ -344,7 +345,7 @@ describe("the app's frame", () => {
         setAttribute: (n: string, v: string) => void (attrs[n] = v),
         hasAttribute: (n: string) => n in attrs,
       };
-      new Function("addEventListener", "parent", FRAME_SCRIPT)((type: string, fn: (e: unknown) => void) => void (listeners[type] = fn), parent);
+      new Function("addEventListener", "parent", "window", FRAME_SCRIPT)((type: string, fn: (e: unknown) => void) => void (listeners[type] = fn), parent, { name: "" });
       if (told) listeners["message"]!({ source: parent, data: { whatbuild: "story-base", base } });
       let prevented = false;
       listeners["click"]!({ target: { closest: () => a }, button: 0, defaultPrevented: false, preventDefault: () => void (prevented = true), ...click });
@@ -371,7 +372,7 @@ describe("the app's frame", () => {
       const listeners: Record<string, (e: unknown) => void> = {};
       const parent = { postMessage: () => undefined };
       const a = { href, getAttribute: () => href, setAttribute: () => undefined, hasAttribute: () => false };
-      new Function("addEventListener", "parent", FRAME_SCRIPT)((type: string, fn: (e: unknown) => void) => void (listeners[type] = fn), parent);
+      new Function("addEventListener", "parent", "window", FRAME_SCRIPT)((type: string, fn: (e: unknown) => void) => void (listeners[type] = fn), parent, { name: "" });
       if (told) listeners["message"]!({ source: parent, data: { whatbuild: "app-home", home: "https://dev.example/t/acme/core/planner" } });
       listeners["click"]!({ target: { closest: () => a }, button: 0, defaultPrevented: false, preventDefault: () => undefined });
       return a.href;
@@ -396,7 +397,7 @@ describe("the app's frame", () => {
         setAttribute: (n: string, v: string) => void (attrs[n] = v),
         hasAttribute: (n: string) => n in attrs,
       };
-      new Function("addEventListener", "parent", FRAME_SCRIPT)((type: string, fn: (e: unknown) => void) => void (listeners[type] = fn), parent);
+      new Function("addEventListener", "parent", "window", FRAME_SCRIPT)((type: string, fn: (e: unknown) => void) => void (listeners[type] = fn), parent, { name: "" });
       listeners["message"]!({ source: parent, data: { whatbuild: "app-home", home } });
       if (story) listeners["message"]!({ source: parent, data: { whatbuild: "story-base", base: `${home}/story/` } });
       listeners["click"]!({ target: { closest: () => a }, button: 0, defaultPrevented: false, preventDefault: () => undefined });
@@ -411,13 +412,13 @@ describe("the app's frame", () => {
     expect(run("https://example.com/story").href).toBe("https://example.com/story");
   });
 
-  it("passes the canvas's keys, Space, a pinch and a press on, only once the app says the page is on a canvas", () => {
-    const run = (canvas: boolean) => {
+  it("passes the canvas's keys, Space, a pinch and a press on, only once the app or the frame's name says the page is on a canvas", () => {
+    const run = (canvas: boolean | "named") => {
       const listeners: Record<string, (e: unknown) => void> = {};
       const sent: unknown[] = [];
       const parent = { postMessage: (m: unknown) => sent.push(m) };
-      new Function("addEventListener", "parent", FRAME_SCRIPT)((type: string, fn: (e: unknown) => void) => void (listeners[type] = fn), parent);
-      if (canvas) listeners["message"]!({ source: parent, data: { whatbuild: "canvas-host" } });
+      new Function("addEventListener", "parent", "window", FRAME_SCRIPT)((type: string, fn: (e: unknown) => void) => void (listeners[type] = fn), parent, { name: canvas === "named" ? CANVAS_FRAME_NAME : "" });
+      if (canvas === true) listeners["message"]!({ source: parent, data: { whatbuild: "canvas-host" } });
       const prevented: string[] = [];
       const event = (name: string, e: Record<string, unknown>) => listeners[name]!({ target: { tagName: "DIV" }, defaultPrevented: false, preventDefault: () => prevented.push(name), ...e });
       event("keydown", { key: "2" });
@@ -443,6 +444,8 @@ describe("the app's frame", () => {
       ],
       prevented: ["keydown", "wheel"],
     });
+    // A frame the canvas names knows from the moment its page runs, before the app greets it once it has loaded.
+    expect(run("named")).toEqual(run(true));
     // On the Story, the page keeps Space, the canvas's other keys and the wheel to itself; 2 and 3 fit or fill a published mockup.
     expect(run(false)).toEqual({ sent: [{ whatbuild: "story-key", key: "2" }, { whatbuild: "story-key", key: "ArrowRight" }], prevented: [] });
   });
