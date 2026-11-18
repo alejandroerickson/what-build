@@ -3,7 +3,7 @@ type: Process
 title: What a deployment must do when it takes a release
 description: The changes a release asks of the people who run a deployment (settings, app registrations, behaviour they will notice), kept per release, with the unreleased ones on top until the next release carries them into its notes.
 tags: [operations, releases, upgrading, self-hosting, configuration]
-generated: {by: agent:claude, at: 2026-11-17}
+generated: {by: agent:claude, at: 2026-11-18}
 status: stable
 ---
 
@@ -22,6 +22,10 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
   upgrading.
 
 ## Unreleased
+
+Nothing yet.
+
+## v0.39.0
 
 - **The tutorial is five short ones.** Migration `0049` replaces `accounts.tutorial_offered_at`,
   `tutorial_stop` and `tutorial_finished_at` with `tutorials_seen` and `tutorials_off`, and drops
