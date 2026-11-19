@@ -125,7 +125,7 @@ function TutorialsChoice() {
       <SheetBody>
         <ChoiceRow
           label="Start each page’s tutorial the first time you open it"
-          hint="Off, they start only from your account menu."
+          hint="When this is off, they start only from your account menu."
           checked={!me.data.tutorial?.off}
           disabled={save.isPending}
           onChange={(e) => save.mutate({ off: !e.target.checked })}

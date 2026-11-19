@@ -45,8 +45,9 @@ as `leaver-<the run's time>@example.com`.
    as the ones they would lose. **You're the only owner of** their organization, with Make someone
    else owner and Delete organization, and no address field. Follow Delete organization.
    *Expect:* Settings over that organization's product, at its General, with Delete this
-   organization. Delete it, then go back to Settings → Account and open Delete account. *Expect:* nothing blocks it now: the address field,
-   Cancel, and Delete account, which stays disabled.
+   organization. Delete it, giving a reason and typing its name, then go back to Settings → Account
+   and open Delete account. *Expect:* nothing blocks it now: the address field, Cancel, and Delete
+   account, which stays disabled.
 6. **Web, as the leaver, only if the section says Sign in again to continue** (the leaver signed in
    more than 15 minutes ago). Press Email me a sign-in link. *Expect:* "Look in <their address> for
    an email from WhatBuild called “Your WhatBuild sign-in link”. Its link works for 15 minutes."
