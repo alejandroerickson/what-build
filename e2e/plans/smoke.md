@@ -53,7 +53,7 @@ other plans will too.
    product's General. *Expect:* it is listed as archived and can be opened; only Settings, under its
    General, offers to delete it,
    to Riley as an admin: under the heading "Delete this product", a button reads "Delete <product
-   name> permanently…", and its dialog asks for the product's name to be typed.
+   name> permanently…", and its dialog asks why and for the product's name typed.
 7. **Web, as Jordan (Story reader).** Sign in, then open the product's Evidence, Exploration and a source
    by their addresses. *Expect:* Jordan reaches the Story and reads its pages; every other address
    takes Jordan back to the Story (`okf/decisions/a-story-reader-reads-only-the-story.md`), without
@@ -80,7 +80,8 @@ other plans will too.
    product, report the refusal's words and skip the rest of this step.) **As Sam**, open its Idea,
    Evidence, Exploration and Story. *Expect:* each says "No … yet", and the line over its request
    reads "In your agent, ask:".
-   **As Riley**, delete the product (Settings → the product's General).
+   **As Riley**, delete the product (Settings → the product's General), giving a reason and typing
+   its name.
 10. **Web and MCP, as a guest.** Sign in as `guest@example.com` on the web, then connect over MCP as
     the same address. *Expect:* the overview lists the example organization, marked Example
     organization and Read only, and, since the guest may not start one, its **Your own

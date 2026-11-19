@@ -64,8 +64,8 @@ deletes only what it made itself in the run.
    inspector. *Expect:* the dialog names the Story page that shows it, and the delete stays
    disabled. Cancel.
 10. **Web, as Riley.** Open Settings → the product's General, then the organization's General.
-    *Expect:* Delete this product and Delete this organization are there, each asking for the
-    name to be typed; open each dialog, check the counts look right, and cancel. The product's
+    *Expect:* Delete this product and Delete this organization are there, each asking why and for
+    the name to be typed; open each dialog, check the counts look right, and cancel. The product's
     dialog, the product being live, has Archive instead beside Cancel; the organization's, which
     can't be archived, has Cancel alone. Do not delete or archive.
 11. **The example organization, as Riley.** Open Settings → its General. *Expect:* no Delete this

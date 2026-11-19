@@ -1531,10 +1531,10 @@ never described as deleting. A list row showing an archived object says *Archive
 - **Account** (`?settings=account`). Display name, and the email the person signs in with
   (read-only); for a guest of the example organization, **Example organization**, whether the
   product switch offers it ("It stays on the overview either way"; the account's `hide_example`);
-  **Tutorials**, one checkbox, "Start each page’s tutorial the first time you open it", with "Off,
-  they start only from your account menu." under it, checked unless the person turned tutorials off
-  (the account's `tutorials_off`, [§7.4](#the-tutorial)); **Delete account** (below); then quiet
-  links to Cookies and Privacy.
+  **Tutorials**, one checkbox, "Start each page’s tutorial the first time you open it", with
+  "When this is off, they start only from your account menu." under it, checked unless the person
+  turned tutorials off (the account's `tutorials_off`, [§7.4](#the-tutorial)); **Delete account**
+  (below); then quiet links to Cookies and Privacy.
 - **Delete account**, in Settings under Account (`apps/web/src/routes/delete-account.tsx`).
   Closed, one line says it deletes the account permanently and that the person sees what happens
   before anything is deleted, over **Delete account…**, which opens it in place
