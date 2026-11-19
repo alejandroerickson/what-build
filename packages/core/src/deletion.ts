@@ -4,6 +4,7 @@ import { json } from "./db.ts";
 import { gone, invalid } from "./errors.ts";
 import type { OpContext } from "./registry.ts";
 import { expectedEtag } from "./schemas.ts";
+import { sha256Hex } from "./util.ts";
 
 /**
  * Permanent delete, the same for everything that has it: an admin's call, after a preview of what
@@ -25,6 +26,23 @@ export const deleteGuards = {
 export const DELETE_GUIDANCE =
   "This is permanent and cannot be undone. Needs admin, and a connection at Admin. Call the matching delete_impact first, show the person what it will destroy, and delete only once they approve that impact: never slip a delete into a run of other actions, and even with a delete approved in advance, read delete_impact first and stop to ask when it would destroy more than they approved. " +
   `Pass the impact's etag as expected_etag, the person's reason, and confirm set to exactly "${DELETE_CONFIRMATION}".`;
+
+/** The guards a delete of every archived object of one kind takes: the same, with the set's etag. */
+export const archivedDeleteGuards = {
+  ...deleteGuards,
+  expected_etag: expectedEtag.describe(
+    "The etag from the delete_archived impact result you showed the person: it stands for exactly the archived objects that result would delete. If one was archived, restored, changed or deleted since, the delete is refused with 409 stale_etag.",
+  ),
+};
+
+/** One etag for a set of objects, which changes when any of them changes, comes or goes. */
+export function setEtag(objects: { id: string; etag: string }[]): string {
+  const key = objects
+    .map((o) => `${o.id}:${o.etag}`)
+    .sort()
+    .join("\n");
+  return `set-${sha256Hex(key).slice(0, 24)}`;
+}
 
 /** Refuse a delete whose confirmation is not the exact words. */
 export function checkConfirmation(confirm: string, alternative: string): void {

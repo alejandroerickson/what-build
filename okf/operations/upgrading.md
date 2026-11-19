@@ -23,7 +23,17 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
 
 ## Unreleased
 
-Nothing yet.
+- **Admins delete mockups from the panel, and empty the archived mockups and Story pages at once.**
+  Nothing to set, and no migration. A mockup's menu in Exploration's panel offers Delete
+  permanently… to a product's admins, archived ones included, and the foot of each opened
+  archived list (Archived mockup canvases, Archived pages) offers Delete all archived…, whose
+  dialog lists every title that goes and asks why. An archived mockup a Story page shows stays.
+  Agents get `mockups_read(action="delete_archived_impact")` with
+  `mockups_delete(action="delete_archived")` (`GET …/archived-mockups/delete-impact`,
+  `DELETE …/archived-mockups`) and `story_read(action="delete_archived_pages_impact")` with
+  `story_delete(action="delete_archived_pages")` (`GET …/story/archived-pages/delete-impact`,
+  `DELETE …/story/archived-pages`), offered only on an Admin connection. The tools version becomes
+  0.67.0, so a connected client sees them after a new session.
 
 ## v0.40.0
 

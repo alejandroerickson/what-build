@@ -3,7 +3,7 @@ type: Decision
 title: Archive is the reversible default; delete is permanent, guarded, and an admin's
 description: Everything archivable can also be deleted, by an admin, after a preview; an organization by its owner, in the web app only.
 tags: [decision, lifecycle, safety, roles]
-generated: {by: agent:claude, at: 2026-11-13}
+generated: {by: agent:claude, at: 2026-11-19}
 status: stable
 ---
 
@@ -25,6 +25,10 @@ let an organization's owner delete the organization.
   pages, mockups and whole products. Editors no longer delete sources.
 - Every delete needs an explicit call after its preview, the object's etag, a reason and the exact
   words `delete permanently`, and leaves a tombstone. A product or organization is also named.
+- An admin can delete every archived Story page, or every archived mockup, at once, to empty an
+  archive. It is guarded the same way: its preview lists each that would go, and its etag stands
+  for exactly that set, so nothing archived since the preview goes unseen. It never reaches
+  anything that is not archived, and a mockup a Story page shows stays, as it does alone.
 - Deleting an organization is its owners' or an instance owner's, in the web app only, never
   through an agent; the example organization can't be deleted while the deployment names it.
 - Rejected: a grace period for an organization, until undelete exists; a separate delete

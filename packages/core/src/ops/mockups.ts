@@ -5,7 +5,7 @@ import { z } from "zod";
 import { clickableCanvas, mockupIndexHtml } from "../canvas-links.ts";
 import { checkEtag, listed, productId, recordActivity, tenantId } from "../common.ts";
 import { json, type Tx } from "../db.ts";
-import { checkConfirmation, DELETE_GUIDANCE, deleteGuards, leaveTombstone, refuseIfDeleted } from "../deletion.ts";
+import { archivedDeleteGuards, checkConfirmation, DELETE_GUIDANCE, deleteGuards, leaveTombstone, refuseIfDeleted, setEtag } from "../deletion.ts";
 import { AppError, conflict, forbidden, invalid, notFound, tooLarge } from "../errors.ts";
 import { DOWNLOAD_GRANT_HEADER, requesterClaims, UPLOAD_GRANT_HEADER } from "./attachments.ts";
 import { defineOperation, type OpContext, type PrepareContext } from "../registry.ts";
@@ -1061,19 +1061,113 @@ export const deleteMockup = defineOperation({
       throw conflict("mockup_on_story", `${impact.after_delete} Nothing was changed.`, {
         story_pages: impact.story_pages_showing,
       });
-    const versions = (await ctx.db.selectFrom("mockup_versions").select("version_id").where("mockup_id", "=", e.mockup_id).execute()).map((v) => v.version_id);
-    const blobs = (await prototypeBlobsOf(ctx.db, e.mockup_id)).map((b) => b.blob_key);
-    await leaveTombstone(ctx, { object_type: "mockup", object_id: e.mockup_id, title: e.title, reason: input.reason });
-    if (versions.length) {
-      await ctx.db.deleteFrom("mockup_prototype_files").where("version_id", "in", versions).execute();
-      await ctx.db.deleteFrom("mockup_files").where("version_id", "in", versions).execute();
-      await ctx.db.deleteFrom("mockup_pages").where("version_id", "in", versions).execute();
-      await ctx.db.deleteFrom("mockup_versions").where("version_id", "in", versions).execute();
-    }
-    await ctx.db.deleteFrom("mockups").where("mockup_id", "=", e.mockup_id).execute();
-    // Its prototype's bytes belong to it alone: publish shares a blob only with the same mockup's base.
-    for (let i = 0; i < blobs.length; i += 500) await ctx.enqueue("delete_blobs", { keys: blobs.slice(i, i + 500), prefixes: [] });
-    await recordActivity(ctx, { action: "deleted", entity_type: "mockup", entity_id: e.mockup_id, entity_title: e.title, summary: "Deleted the mockup permanently" });
+    await destroyMockup(ctx, e, input.reason);
+    const { etag, reversible_alternative, ...rest } = impact;
+    void etag;
+    void reversible_alternative;
+    return { deleted: true, ...rest, reason: input.reason };
+  },
+});
+
+/**
+ * Erase a mockup that nothing on the Story holds: every version with its pages, files and
+ * prototype, leaving its tombstone and the activity. The caller has checked the guards and that no
+ * Story page shows it.
+ */
+async function destroyMockup(ctx: OpContext, e: { mockup_id: string; title: string }, reason: string): Promise<void> {
+  const versions = (await ctx.db.selectFrom("mockup_versions").select("version_id").where("mockup_id", "=", e.mockup_id).execute()).map((v) => v.version_id);
+  const blobs = (await prototypeBlobsOf(ctx.db, e.mockup_id)).map((b) => b.blob_key);
+  await leaveTombstone(ctx, { object_type: "mockup", object_id: e.mockup_id, title: e.title, reason });
+  if (versions.length) {
+    await ctx.db.deleteFrom("mockup_prototype_files").where("version_id", "in", versions).execute();
+    await ctx.db.deleteFrom("mockup_files").where("version_id", "in", versions).execute();
+    await ctx.db.deleteFrom("mockup_pages").where("version_id", "in", versions).execute();
+    await ctx.db.deleteFrom("mockup_versions").where("version_id", "in", versions).execute();
+  }
+  await ctx.db.deleteFrom("mockups").where("mockup_id", "=", e.mockup_id).execute();
+  // Its prototype's bytes belong to it alone: publish shares a blob only with the same mockup's base.
+  for (let i = 0; i < blobs.length; i += 500) await ctx.enqueue("delete_blobs", { keys: blobs.slice(i, i + 500), prefixes: [] });
+  await recordActivity(ctx, { action: "deleted", entity_type: "mockup", entity_id: e.mockup_id, entity_title: e.title, summary: "Deleted the mockup permanently" });
+}
+
+/**
+ * What deleting every archived mockup destroys. A mockup a Story page's current version shows is
+ * held, as it is for a single delete, and stays; the etag stands for the ones that would go.
+ */
+async function archivedMockupsDeletion(ctx: OpContext, lock = false) {
+  let q = ctx.db.selectFrom("mockups").selectAll().where("product_id", "=", productId(ctx)).where("archived_at", "is not", null).orderBy("title").orderBy("mockup_id");
+  if (lock) q = q.forUpdate();
+  const rows = await q.execute();
+  const mockups = [];
+  for (const e of rows) {
+    const showing = await storyPagesShowing(ctx, e.mockup_id);
+    mockups.push({
+      mockup_id: e.mockup_id,
+      title: e.title,
+      etag: e.etag,
+      archived_at: e.archived_at,
+      version_count: e.version_count,
+      story_pages_showing: showing.map((p) => ({ page_id: p.page_id, title: p.title, archived: Boolean(p.archived_at) })),
+    });
+  }
+  const going = mockups.filter((m) => !m.story_pages_showing.length);
+  const held = mockups.filter((m) => m.story_pages_showing.length);
+  return {
+    etag: setEtag(going.map((m) => ({ id: m.mockup_id, etag: m.etag }))),
+    archived_count: mockups.length,
+    deleted_count: going.length,
+    held_count: held.length,
+    versions: going.reduce((n, m) => n + m.version_count, 0),
+    mockups: going,
+    held: held,
+    after_delete: !mockups.length
+      ? "No mockup is archived, so there is nothing to delete."
+      : (going.length
+          ? `${going.length === 1 ? "One archived mockup goes" : `${going.length} archived mockups go`}, with every version, page, note, file, prototype and brief.`
+          : "No archived mockup can go yet.") +
+        (held.length
+          ? ` ${held.length === 1 ? "One stays because a Story page shows it" : `${held.length} stay because Story pages show them`}: delete those pages, or publish them with HTML of their own, first.`
+          : ""),
+    reversible_alternative: 'mockups_write(action="restore") brings an archived mockup back; archived mockups already stay out of the list and search.',
+  };
+}
+
+export const archivedMockupsDeleteImpact = defineOperation({
+  name: "mockups.delete_archived_impact",
+  scope: "product",
+  access: "read",
+  mutates: false,
+  summary: "Preview exactly what deleting every archived mockup would destroy, and which stay because a Story page shows them.",
+  description:
+    "Read-only. Show the person this result before proposing the delete: mockups lists the archived mockups that would go, held the ones a Story page's current version shows (archived pages included), which stay. Pass this result's etag as delete_archived's expected_etag; it stands for exactly the mockups listed.",
+  input: z.strictObject({}),
+  rest: { method: "GET", path: "/archived-mockups/delete-impact" },
+  mcp: { tool: "mockups", action: "delete_archived_impact" },
+  async handler(ctx) {
+    return archivedMockupsDeletion(ctx);
+  },
+});
+
+export const deleteArchivedMockups = defineOperation({
+  name: "mockups.delete_archived",
+  scope: "product",
+  access: "admin",
+  mutates: true,
+  allowReadOnlyOrganization: true,
+  summary: "DELETE PERMANENTLY — cannot be undone. Destroys every archived mockup with every version, except those a Story page shows.",
+  description:
+    "Empties the product's archived mockups at once, in one step: either all of those delete_archived_impact listed go, or none does. A mockup a Story page shows stays archived and is reported in held. Refused with 409 nothing_archived when no archived mockup could go. " +
+    DELETE_GUIDANCE.replace("the matching delete_impact", "delete_archived_impact").replace("read delete_impact first", "read delete_archived_impact first") +
+    " Leaves a tombstone for each: reads return 410 with who, when and why.",
+  input: z.strictObject(archivedDeleteGuards),
+  rest: { method: "DELETE", path: "/archived-mockups" },
+  mcp: { tool: "mockups", action: "delete_archived" },
+  async handler(ctx, input) {
+    checkConfirmation(input.confirm, 'restore the ones worth keeping with mockups_write(action="restore")');
+    const impact = await archivedMockupsDeletion(ctx, true);
+    checkEtag(input.expected_etag, impact.etag, "set of archived mockups");
+    if (!impact.mockups.length) throw conflict("nothing_archived", `${impact.after_delete} Nothing was changed.`, { held: impact.held });
+    for (const m of impact.mockups) await destroyMockup(ctx, m, input.reason);
     const { etag, reversible_alternative, ...rest } = impact;
     void etag;
     void reversible_alternative;
@@ -1092,7 +1186,7 @@ async function prototypeBlobsOf(db: Tx, mockupId: string) {
     .execute();
 }
 
-export const mockupOps = [listMockups, getMockup, listMockupVersions, getMockupVersion, requestMockupUpload, publishMockup, renameMockup, ...mockupFolderOps, archiveMockup, restoreMockup, getMockupDownload, mockupDeleteImpact, deleteMockup];
+export const mockupOps = [listMockups, getMockup, listMockupVersions, getMockupVersion, requestMockupUpload, publishMockup, renameMockup, ...mockupFolderOps, archiveMockup, restoreMockup, getMockupDownload, mockupDeleteImpact, deleteMockup, archivedMockupsDeleteImpact, deleteArchivedMockups];
 
 /**
  * One version of a mockup as a ZIP, for the download grant's route: brief.md, manifest.json,

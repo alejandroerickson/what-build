@@ -1039,6 +1039,36 @@ a.chip:hover {
   padding-left: var(--s-4);
   line-height: 1.5;
 }
+/* Every title a delete of all archived objects takes: a quiet ledger, scrolling in place when long. */
+.archived-titles {
+  display: grid;
+  margin: 0;
+  padding: var(--s-1) 0;
+  list-style: none;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--canvas);
+}
+.archived-titles > li {
+  min-width: 0;
+  padding: var(--s-1) var(--s-2h);
+  color: var(--text);
+  font-size: var(--fs-base);
+  line-height: var(--lh-ui);
+}
+.archived-titles > li + li {
+  border-top: 1px solid var(--line);
+}
+.archived-titles-long {
+  /* Six and a half rows, so the cut row says there is more. */
+  max-height: calc(6.5 * (var(--fs-base) * 1.4 + 2 * var(--s-1) + 1px) + 2 * var(--s-1));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.archived-titles-long:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
 
 /* ---- Sheets and lists ------------------------------------------------------------------------- */
 

@@ -284,6 +284,35 @@
   padding: 0;
   list-style: none;
 }
+/* An admin's way to empty the archive, at the foot of the opened list, lined up with its rows. */
+.archived-empty {
+  display: flex;
+  align-items: center;
+  gap: var(--s-1h);
+  width: 100%;
+  height: var(--h-md);
+  margin-top: 1px;
+  padding: 0 var(--s-2);
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--faint);
+  font: inherit;
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-medium);
+  text-align: left;
+  transition:
+    background-color var(--dur-1) var(--ease),
+    color var(--dur-1) var(--ease);
+}
+.archived-empty .glyph {
+  flex: none;
+}
+.archived-empty:hover,
+.archived-empty:focus-visible {
+  background: var(--hover);
+  color: var(--bad);
+}
 .story-row-plain {
   padding-left: var(--s-2);
 }

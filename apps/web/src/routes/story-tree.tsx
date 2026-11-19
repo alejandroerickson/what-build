@@ -5,7 +5,8 @@ import { api, ApiError } from "../lib/api.ts";
 import { useProduct } from "../lib/session.tsx";
 import { PanelContext, PanelSection } from "../shell/slots.tsx";
 import { Button, Callout, FindField, Glyph, Menu, MenuItem, MenuSeparator, OneLine, useToast, type GlyphName } from "../ui/index.tsx";
-import type { PageActions, PageRef } from "./story-actions.tsx";
+import { EmptyArchive } from "./empty-archive.tsx";
+import { DeleteArchivedPages, type PageActions, type PageRef } from "./story-actions.tsx";
 import { DragGhost, holdOf, type Hold } from "./tree-drag.tsx";
 import {
   applyMove, arrangement, count, describePosition, filterTree, flatten, keyboardMove, locate, positionOf, refusal, toServer, trail,
@@ -164,9 +165,10 @@ export function StoryTree({ arrange, archived, refOf, current, onExport, actions
   /** Said after a page's title: the tutorial marks its example pages. */
   markOf?: (page: string) => ReactNode;
 }) {
-  const { app, product, canWrite } = useProduct();
+  const { app, product, canWrite, canDelete } = useProduct();
   const toast = useToast();
   const { tree } = arrange;
+  const [emptying, setEmptying] = useState(false);
   const [query, setQuery] = useState("");
   const storeKey = `whatbuild.story-collapsed.${product.product_id}`;
   const [collapsed, setCollapsed] = useState<Set<string>>(() => readCollapsed(storeKey));
@@ -391,6 +393,8 @@ export function StoryTree({ arrange, archived, refOf, current, onExport, actions
                 ))}
               </ul>
             ) : null}
+            {archivedOpen && canDelete ? <EmptyArchive count={archived.length} what="archived Story page" whats="archived Story pages" onSelect={() => setEmptying(true)} /> : null}
+            {emptying ? <DeleteArchivedPages onClose={() => setEmptying(false)} /> : null}
           </div>
         ) : null}
         {style !== undefined ? (

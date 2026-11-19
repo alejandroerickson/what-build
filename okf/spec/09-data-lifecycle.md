@@ -303,7 +303,9 @@ Everything that can be archived can also be deleted, and so can an organization:
 | Comment | — (nothing points at it: the comment itself is shown) | `sources.delete_annotation` |
 | Outcome | `outcomes.delete_impact` | `outcomes.delete` |
 | Story page | `story.delete_page_impact` | `story.delete_page` |
+| Every archived Story page | `story.delete_archived_pages_impact` | `story.delete_archived_pages` |
 | Mockup | `mockups.delete_impact` | `mockups.delete` |
+| Every archived mockup | `mockups.delete_archived_impact` | `mockups.delete_archived` |
 | Product | `products.delete_impact` | `products.delete` |
 | Organization | `products.delete_tenant_impact` | `products.delete_tenant` (its owners and the instance's, web app only) |
 
@@ -343,6 +345,17 @@ Everything that can be archived can also be deleted, and so can an organization:
   attachment is usually two. An agent's delete takes the impact's etag, so it reads the impact first, and a permanent
   delete is in a `_delete` tool of its own, which a client such as Claude asks the person about
   before each call.
+- **Emptying an archive.** Archived Story pages and archived mockups pile up, so an admin can
+  delete every one of a kind at once. Its preview lists each that would go, by title, with their
+  versions counted; its `etag` stands for exactly that set, so archiving, restoring, changing or
+  deleting any of them since is refused with `409 stale_etag`, and the delete takes the same
+  reason and `confirm` as any other. It runs in one transaction, so all of them go or none does,
+  and each leaves its own tombstone and line in the activity log. An archived mockup that a Story
+  page's current version shows, archived pages included, is held: the preview lists it in `held`
+  with the pages that show it, and it stays archived, as it would if deleted alone. When nothing
+  could go, the delete is refused with `409 nothing_archived`. Deleting the archived Story pages
+  first can free mockups only they showed. In the web app, the foot of each opened archived list
+  offers it to an admin.
 - **What each removes:**
   - A source: its attachments and their versions, its readings, its derived text and its pieces
     in the search index, comments, summary and notes; a background job then deletes the
