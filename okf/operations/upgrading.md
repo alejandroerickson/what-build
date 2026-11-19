@@ -23,6 +23,10 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
 
 ## Unreleased
 
+Nothing yet.
+
+## v0.41.0
+
 - **Admins delete mockups from the panel, and empty the archived mockups and Story pages at once.**
   Nothing to set, and no migration. A mockup's menu in Exploration's panel offers Delete
   permanently… to a product's admins, archived ones included, and the foot of each opened
