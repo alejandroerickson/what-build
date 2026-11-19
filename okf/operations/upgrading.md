@@ -23,6 +23,10 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
 
 ## Unreleased
 
+Nothing yet.
+
+## v0.40.0
+
 - **People rename mockups and Story pages, and archive and restore mockups, in the app.** Nothing
   to set, and no migration. Exploration's list is headed Mockup canvases, in the panel and the
   crumbs. A mockup's menu in the panel and its inspector offer Rename… and Archive to whoever can
