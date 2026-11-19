@@ -11,7 +11,8 @@ import { Inspector, usePageTitle } from "../shell/slots.tsx";
 import { Button, ButtonLink, Callout, Crumbs, Dialog, EmptyState, ErrorCallout, Glyph, Group, KeyValue, Loading, Menu, MenuRadio, Segmented, TextField, useToast, tooLong } from "../ui/index.tsx";
 import { DeleteDialog } from "./delete-dialog.tsx";
 import { FirstUse } from "./first-use.tsx";
-import type { MockupList, MockupSummary } from "./mockup-folders-model.ts";
+import { MOCKUPS_HEADING, type MockupList, type MockupSummary } from "./mockup-folders-model.ts";
+import { useMockupActions, type MockupActions } from "./mockup-actions.tsx";
 import { Canvas, pageAddress, usePinnedPrototype, type CanvasPage, type CanvasVersion, type PrototypeAddress } from "./mockup-canvas.tsx";
 import { usePageView } from "./story-flip.tsx";
 import { backSteps } from "./page-moves.ts";
@@ -103,13 +104,13 @@ function rememberKey(productId: string) {
   return `whatbuild.mockup.${productId}`;
 }
 
-/** Exploration → Mockups with none chosen: the last one opened, or the most recent, or what mockups are. */
+/** Exploration → Mockup canvases with none chosen: the last one opened, or the most recent, or what mockups are. */
 export function MockupsIndex() {
   const { app, product } = useProduct();
   const list = useMockupList();
-  usePageTitle("Mockups");
+  usePageTitle(MOCKUPS_HEADING);
   if (list.isPending) return <Loading variant="lines" />;
-  if (list.isError) return <ErrorCallout title="Mockups couldn’t be loaded" error={list.error} onRetry={() => list.refetch()} />;
+  if (list.isError) return <ErrorCallout title="Mockup canvases couldn’t be loaded" error={list.error} onRetry={() => list.refetch()} />;
   const items = list.data.items;
   if (items.length) {
     let remembered: string | null = null;
@@ -123,7 +124,7 @@ export function MockupsIndex() {
   }
   return (
     <div className="mockup-view">
-      <Crumbs label="Location" currentAsHeading items={[{ label: "Exploration" }, { label: "Mockups" }]} />
+      <Crumbs label="Location" currentAsHeading items={[{ label: "Exploration" }, { label: MOCKUPS_HEADING }]} />
       <FirstUse title="No mockups yet" ask={`Read the outcomes and sources of ${product.name} in WhatBuild, then mock up a few directions side by side in one mockup, with a brief.`}>
         A mockup is a canvas of pages your agent builds from the evidence: screens, flows or alternatives side by side.
       </FirstUse>
@@ -133,7 +134,7 @@ export function MockupsIndex() {
 
 // ---- The inspector ------------------------------------------------------------------------------
 
-export function MockupInspector({ e, shown, versions, onVersion, selected, clickable, onView }: {
+export function MockupInspector({ e, shown, versions, onVersion, selected, clickable, onView, actions }: {
   e: MockupView;
   shown: MockupVersion;
   versions: VersionItem[] | undefined;
@@ -141,6 +142,8 @@ export function MockupInspector({ e, shown, versions, onVersion, selected, click
   selected: string | null;
   clickable: boolean;
   onView: (clickable: boolean) => void;
+  /** Rename, archive and restore; the tutorial's example offers them and does nothing. */
+  actions: MockupActions;
 }) {
   const { api: base, canDelete, canWrite } = useProduct();
   const toast = useToast();
@@ -241,12 +244,32 @@ export function MockupInspector({ e, shown, versions, onVersion, selected, click
         <Button size="sm" icon="download" className="story-export-button" onClick={download} aria-disabled={downloading || undefined}>
           {downloading ? "Preparing…" : "Download as ZIP"}
         </Button>
-        {canDelete ? (
-          <Button size="sm" variant="quiet" icon="trash" className="story-delete-button" onClick={() => setDeleting(true)}>
-            Delete permanently…
-          </Button>
+        {canWrite || canDelete ? (
+          <div className="story-about-actions xc-mockup-actions">
+            {canWrite && !e.archived_at ? (
+              <Button size="sm" variant="quiet" icon="pencil" onClick={() => actions.rename(e)}>
+                Rename…
+              </Button>
+            ) : null}
+            {canWrite ? (
+              e.archived_at ? (
+                <Button size="sm" variant="quiet" icon="archive-restore" onClick={() => actions.restore(e)}>
+                  Restore
+                </Button>
+              ) : (
+                <Button size="sm" variant="quiet" icon="archive" onClick={() => actions.archive(e)}>
+                  Archive
+                </Button>
+              )
+            ) : null}
+            {canDelete ? (
+              <Button size="sm" variant="quiet" icon="trash" className="story-delete-button" onClick={() => setDeleting(true)}>
+                Delete permanently…
+              </Button>
+            ) : null}
+          </div>
         ) : null}
-        {deleting ? <DeleteMockup mockup={e} onClose={() => setDeleting(false)} /> : null}
+        {deleting ? <DeleteMockup mockup={e} onArchive={() => actions.archive(e)} onClose={() => setDeleting(false)} /> : null}
       </Group>
 
       {page ? (
@@ -465,6 +488,7 @@ export function MockupPage() {
   const [pageView, setPageView] = usePageView("whatbuild.mockup.page-view", "fit");
   const mockups = useMockupList();
   const toast = useToast();
+  const { actions, dialogs } = useMockupActions();
 
   const shown = wantsOld ? old.data : e.data?.current;
   // Viewed as a clickable prototype (?view=clickable), when this version can be: one page at a time, starting at the first.
@@ -533,7 +557,7 @@ export function MockupPage() {
   // The folder the mockup sits in, from the list, which follows a move at once; an archived mockup is not in the list, and names its own.
   const listed = mockups.data?.items.find((m) => m.mockup_id === mockupId);
   const folderName = listed ? mockups.data?.folders.find((f) => f.folder_id === listed.folder_id)?.name : e.data?.folder?.name;
-  const crumbs = [{ label: "Exploration" }, { label: "Mockups" }, ...(folderName && !e.isError ? [{ label: folderName }] : []), { label: e.isError ? "Not found" : (e.data?.title ?? "…") }];
+  const crumbs = [{ label: "Exploration" }, { label: MOCKUPS_HEADING }, ...(folderName && !e.isError ? [{ label: folderName }] : []), { label: e.isError ? "Not found" : (e.data?.title ?? "…") }];
 
   if (e.isPending)
     return (
@@ -581,9 +605,11 @@ export function MockupPage() {
         {focusMode.available ? <FocusToggle focus={focusMode.focus} hint={focusMode.hint} onToggle={focusMode.toggle} /> : null}
       </div>
       {x.archived_at ? (
-        <Callout tone="attention" title="This mockup is archived">
-          {canWrite ? "Your agent can restore it." : null}
-        </Callout>
+        <Callout
+          tone="attention"
+          title="This mockup is archived"
+          action={canWrite ? <Button size="sm" icon="archive-restore" onClick={() => actions.restore(x)}>Restore</Button> : undefined}
+        />
       ) : null}
       {wantsOld && old.data ? (
         <Callout tone="attention" title={`You’re looking at an earlier version: ${old.data.version} of ${x.current_version}`} action={<Button size="sm" onClick={() => onVersion(x.current_version)}>Show the current version</Button>} />
@@ -613,7 +639,9 @@ export function MockupPage() {
             selected={shownPage}
             clickable={clickable}
             onView={onView}
+            actions={actions}
           /> : <Loading variant="lines" />}</Inspector>
+      {dialogs}
     </div>
   );
 }
@@ -634,26 +662,17 @@ export function mockupImpactWords(title: string, versions: number): string {
 }
 
 /** Delete a mockup for good. A Story page that shows it holds it: that page goes, or gets HTML of its own, first. */
-function DeleteMockup({ mockup, onClose }: { mockup: MockupView; onClose: () => void }) {
+function DeleteMockup({ mockup, onArchive, onClose }: { mockup: MockupView; onArchive: () => void; onClose: () => void }) {
   const { app, api: base } = useProduct();
   const qc = useQueryClient();
   const toast = useToast();
   const navigate = useNavigate();
-  const archive = useMutation({
-    mutationFn: () => api("POST", `${base}/mockups/${mockup.mockup_id}/archive`, { expected_etag: mockup.etag }),
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ["mockup", base, mockup.mockup_id] });
-      void qc.invalidateQueries({ queryKey: ["mockups", base] });
-      toast("Mockup archived.");
-    },
-    onError: () => toast("The mockup couldn’t be archived. Reload and try again.", { tone: "negative" }),
-  });
   return (
     <DeleteDialog<MockupImpact>
       title="Delete this mockup permanently?"
       impactPath={`${base}/mockups/${mockup.mockup_id}/delete-impact`}
       deletePath={`${base}/mockups/${mockup.mockup_id}`}
-      alternative={mockup.archived_at ? undefined : { label: "Archive instead", onSelect: () => archive.mutate() }}
+      alternative={mockup.archived_at ? undefined : { label: "Archive instead", onSelect: onArchive }}
       allowed={(i) => !i.story_pages_showing.length}
       renderImpact={(i) =>
         i.story_pages_showing.length ? (

@@ -1,4 +1,4 @@
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import { Link, useLocation } from "react-router";
 import { api, ApiError } from "../lib/api.ts";
@@ -6,9 +6,10 @@ import { useProduct } from "../lib/session.tsx";
 import { PanelFilter, PanelSection } from "../shell/slots.tsx";
 import { Button, Dialog, ErrorCallout, Glyph, IconButton, Menu, MenuGroup, MenuItem, MenuRadio, MenuSeparator, OneLine, TextField, tooLong, useToast } from "../ui/index.tsx";
 import {
-  applyMove, changesNothing, describePlace, FOLDER_NAME_MAX, keyboardMove, mockupsIn, moveBack,
+  applyMove, changesNothing, describePlace, FOLDER_NAME_MAX, keyboardMove, mockupsIn, MOCKUPS_HEADING, moveBack,
   type ArrowKey, type MockupFolder, type MockupList, type MockupMove, type MockupSummary,
 } from "./mockup-folders-model.ts";
+import { NO_MOCKUP_ACTIONS, useMockupActions, type MockupActions } from "./mockup-actions.tsx";
 import { useMockupList } from "./mockups.tsx";
 import { DragGhost, holdOf, type Hold } from "./tree-drag.tsx";
 
@@ -16,8 +17,9 @@ import { DragGhost, holdOf, type Hold } from "./tree-drag.tsx";
  * The mockups in the panel: those in no folder, then each folder with its own, one level deep.
  * Anyone who can write arranges them by hand, as the Story's pages are (story-tree.tsx, whose row
  * styles these rows share): a mockup or a folder is dragged by its handle or moved with Alt and
- * the arrow keys, and a mockup's menu names the folder to put it in. Everyone in the product sees
- * the one arrangement; which folders are folded away is each person's own, kept in this browser.
+ * the arrow keys, and a mockup's menu names the folder to put it in, renames it and archives it.
+ * Everyone in the product sees the one arrangement; which folders are folded away is each person's
+ * own, kept in this browser. Archived mockups fold away below, where they are restored.
  */
 
 // ---- Saving moves -------------------------------------------------------------------------------
@@ -108,6 +110,8 @@ export function MockupTree({ shown }: {
   const qc = useQueryClient();
   const toast = useToast();
   const arrange = useArrange(base);
+  const own = useMockupActions();
+  const actions = shown ? NO_MOCKUP_ACTIONS : own.actions;
   const storeKey = `whatbuild.mockup-folders-collapsed.${product.product_id}`;
   const [collapsed, setCollapsed] = useState<Set<string>>(() => readCollapsed(storeKey));
   const [announcement, setAnnouncement] = useState("");
@@ -343,14 +347,20 @@ export function MockupTree({ shown }: {
     }
   };
 
+  const archivedRows = shown ? null : <ArchivedMockups hidden={list?.archived_hidden ?? 0} current={current} live={list?.items} actions={actions} />;
+
   if (!list || (!list.items.length && !list.folders.length))
     return (
-      <PanelSection title="Mockups" end={canWrite && list ? <NewFolderButton onClick={() => setAsking({ kind: "new" })} /> : undefined}>
-        <PanelFilter to={`${app}/exploration/mockups`} current={onIndex} replace={false}>
-          {query.isPending ? "Loading…" : "None yet"}
-        </PanelFilter>
-        {asking?.kind === "new" ? <FolderDialog base={base} onClose={() => setAsking(null)} onSaved={refresh} /> : null}
-      </PanelSection>
+      <>
+        <PanelSection title={MOCKUPS_HEADING} end={canWrite && list ? <NewFolderButton onClick={() => setAsking({ kind: "new" })} /> : undefined}>
+          <PanelFilter to={`${app}/exploration/mockups`} current={onIndex} replace={false}>
+            {query.isPending ? "Loading…" : "None yet"}
+          </PanelFilter>
+          {asking?.kind === "new" ? <FolderDialog base={base} onClose={() => setAsking(null)} onSaved={refresh} /> : null}
+        </PanelSection>
+        {archivedRows}
+        {own.dialogs}
+      </>
     );
 
   const dragged = drag?.active ? drag : null;
@@ -404,7 +414,11 @@ export function MockupTree({ shown }: {
             {shown ? shown.mark : null}
           </Link>
           {canWrite ? (
-            <Menu label={`Move “${m.title}”`} trigger={<Glyph name="ellipsis" />} triggerClassName="icon-btn icon-btn-sm story-row-more" minWidth={220}>
+            <Menu label={`Actions for “${m.title}”`} trigger={<Glyph name="ellipsis" />} triggerClassName="icon-btn icon-btn-sm story-row-more" minWidth={220}>
+              <MenuItem icon="pencil" onSelect={() => actions.rename(m)}>
+                Rename…
+              </MenuItem>
+              <MenuSeparator />
               <MenuGroup label="Folder">
                 <MenuRadio checked={m.folder_id === null} onSelect={() => commit({ kind: "mockup", id: m.mockup_id, folder: null, before: null }, "pointer")}>
                   No folder
@@ -419,6 +433,10 @@ export function MockupTree({ shown }: {
               <MenuItem icon="folder-plus" onSelect={() => setAsking({ kind: "new", then: m })}>
                 New folder…
               </MenuItem>
+              <MenuSeparator />
+              <MenuItem icon="archive" meta="Reversible" onSelect={() => actions.archive(m)}>
+                Archive
+              </MenuItem>
             </Menu>
           ) : null}
         </div>
@@ -427,83 +445,139 @@ export function MockupTree({ shown }: {
   };
 
   return (
-    <PanelSection title="Mockups" end={canWrite ? <NewFolderButton onClick={() => setAsking({ kind: "new" })} /> : undefined}>
-      <div ref={rootRef} className={`mockup-tree${dragged ? " is-dragging" : ""}`}>
-        <ul role="tree" aria-label="Mockups" className="story-tree">
-          {loose.map((m, i) => mockupRow(m, 1, i + 1, loose.length + list.folders.length))}
-          {offerOut ? (
-            <li role="none">
-              <div className="story-drop-end" data-drop-target="out" data-drop={dragged?.over?.zone === "out" ? "end" : undefined}>
-                Move out of its folder
-              </div>
-            </li>
+    <>
+      <PanelSection title={MOCKUPS_HEADING} end={canWrite ? <NewFolderButton onClick={() => setAsking({ kind: "new" })} /> : undefined}>
+        <div ref={rootRef} className={`mockup-tree${dragged ? " is-dragging" : ""}`}>
+          <ul role="tree" aria-label={MOCKUPS_HEADING} className="story-tree">
+            {loose.map((m, i) => mockupRow(m, 1, i + 1, loose.length + list.folders.length))}
+            {offerOut ? (
+              <li role="none">
+                <div className="story-drop-end" data-drop-target="out" data-drop={dragged?.over?.zone === "out" ? "end" : undefined}>
+                  Move out of its folder
+                </div>
+              </li>
+            ) : null}
+            {list.folders.map((f, i) => (
+              <FolderRows
+                key={f.folder_id}
+                folder={f}
+                mockups={mockupsIn(list, f.folder_id)}
+                open={!collapsed.has(f.folder_id)}
+                pos={loose.length + i + 1}
+                size={loose.length + list.folders.length}
+                tabStop={tabStop}
+                canWrite={canWrite}
+                dragging={dragged?.kind === "folder" && dragged.id === f.folder_id}
+                drop={dropOf(rowKey("folder", f.folder_id))}
+                grip={grip("folder", f.folder_id)}
+                onToggle={() => toggle(f.folder_id)}
+                onFocus={setFocusKey}
+                onKeyDown={onKeyDown}
+                onRename={() => setAsking({ kind: "rename", folder: f })}
+                onRemove={() => (f.mockup_count ? setAsking({ kind: "remove", folder: f }) : void remove(f))}
+                row={mockupRow}
+              />
+            ))}
+          </ul>
+          {canWrite && list.items.length + list.folders.length > 1 ? (
+            <p className="story-tree-hint">Drag a mockup by its handle to reorder it or put it in a folder. With one focused, Alt + arrow keys move it.</p>
           ) : null}
-          {list.folders.map((f, i) => (
-            <FolderRows
-              key={f.folder_id}
-              folder={f}
-              mockups={mockupsIn(list, f.folder_id)}
-              open={!collapsed.has(f.folder_id)}
-              pos={loose.length + i + 1}
-              size={loose.length + list.folders.length}
-              tabStop={tabStop}
-              canWrite={canWrite}
-              dragging={dragged?.kind === "folder" && dragged.id === f.folder_id}
-              drop={dropOf(rowKey("folder", f.folder_id))}
-              grip={grip("folder", f.folder_id)}
-              onToggle={() => toggle(f.folder_id)}
-              onFocus={setFocusKey}
-              onKeyDown={onKeyDown}
-              onRename={() => setAsking({ kind: "rename", folder: f })}
-              onRemove={() => (f.mockup_count ? setAsking({ kind: "remove", folder: f }) : void remove(f))}
-              row={mockupRow}
-            />
-          ))}
-        </ul>
-        {canWrite && list.items.length + list.folders.length > 1 ? (
-          <p className="story-tree-hint">Drag a mockup by its handle to reorder it or put it in a folder. With one focused, Alt + arrow keys move it.</p>
+          <p className="visually-hidden" aria-live="polite">
+            {announcement}
+          </p>
+          {dragged ? <DragGhost hold={dragged.hold} x={dragged.px} y={dragged.py} glyph={dragged.kind === "folder" ? "folder" : "layout-grid"} title={dragged.title} /> : null}
+        </div>
+        {asking?.kind === "new" || asking?.kind === "rename" ? (
+          <FolderDialog
+            base={base}
+            folder={asking.kind === "rename" ? asking.folder : undefined}
+            onClose={() => setAsking(null)}
+            onSaved={(f) => {
+              const then = asking.kind === "new" ? asking.then : undefined;
+              const now = qc.getQueryData<MockupList>(["mockups", base]);
+              // A folder made from a mockup's menu takes that mockup: it is added to the list here, so the move shows at once.
+              if (then && now && !now.folders.some((x) => x.folder_id === f.folder_id)) {
+                qc.setQueryData<MockupList>(["mockups", base], { ...now, folders: [...now.folders, f] });
+                void arrange({ kind: "mockup", id: then.mockup_id, folder: f.folder_id, before: null });
+                toast(`Moved “${then.title}” into the folder “${f.name}”.`);
+              } else refresh();
+            }}
+          />
         ) : null}
-        <p className="visually-hidden" aria-live="polite">
-          {announcement}
-        </p>
-        {dragged ? <DragGhost hold={dragged.hold} x={dragged.px} y={dragged.py} glyph={dragged.kind === "folder" ? "folder" : "layout-grid"} title={dragged.title} /> : null}
-      </div>
-      {asking?.kind === "new" || asking?.kind === "rename" ? (
-        <FolderDialog
-          base={base}
-          folder={asking.kind === "rename" ? asking.folder : undefined}
-          onClose={() => setAsking(null)}
-          onSaved={(f) => {
-            const then = asking.kind === "new" ? asking.then : undefined;
-            const now = qc.getQueryData<MockupList>(["mockups", base]);
-            // A folder made from a mockup's menu takes that mockup: it is added to the list here, so the move shows at once.
-            if (then && now && !now.folders.some((x) => x.folder_id === f.folder_id)) {
-              qc.setQueryData<MockupList>(["mockups", base], { ...now, folders: [...now.folders, f] });
-              void arrange({ kind: "mockup", id: then.mockup_id, folder: f.folder_id, before: null });
-              toast(`Moved “${then.title}” into the folder “${f.name}”.`);
-            } else refresh();
-          }}
-        />
+        {asking?.kind === "remove" ? (
+          <Dialog
+            open
+            onClose={() => setAsking(null)}
+            title={`Remove the folder “${asking.folder.name}”?`}
+            description={`Its ${asking.folder.mockup_count === 1 ? "mockup stays" : `${asking.folder.mockup_count} mockups stay`}, in no folder. Nothing is deleted.`}
+            footer={
+              <>
+                <Button onClick={() => setAsking(null)}>Cancel</Button>
+                <Button variant="primary" onClick={() => void remove(asking.folder)}>
+                  Remove folder
+                </Button>
+              </>
+            }
+          >
+            {null}
+          </Dialog>
+        ) : null}
+      </PanelSection>
+      {archivedRows}
+      {own.dialogs}
+    </>
+  );
+}
+
+/**
+ * The archived mockups, folded away under the list as the Story's archived pages are. The list
+ * counts them; they are read only once the section opens, or when the mockup on screen is one.
+ */
+function ArchivedMockups({ hidden, current, live, actions }: { hidden: number; current: string | undefined; live: MockupSummary[] | undefined; actions: MockupActions }) {
+  const { app, api: base, canWrite } = useProduct();
+  const [show, setShow] = useState<boolean | null>(null);
+  // The mockup on screen is not in the live list: it may be archived, so the section looks.
+  const maybeHere = Boolean(current && live && !live.some((m) => m.mockup_id === current));
+  const archived = useQuery({
+    queryKey: ["mockups", base, "archived"],
+    enabled: hidden > 0 && (show === true || maybeHere),
+    queryFn: () => api<MockupList>("GET", `${base}/mockups?include_archived=true`).then((r) => r.items.filter((m) => m.archived_at)),
+  });
+  if (!hidden) return null;
+  const open = show ?? Boolean(maybeHere && archived.data?.some((m) => m.mockup_id === current));
+  return (
+    <div className="story-archived">
+      <button type="button" className="story-archived-toggle" aria-expanded={open} onClick={() => setShow(!open)}>
+        <Glyph name="chevron-right" size="sm" />
+        <span>Archived mockup canvases</span>
+        <span className="num">{hidden}</span>
+      </button>
+      {open ? (
+        archived.isError ? (
+          <ErrorCallout inset error={archived.error} onRetry={() => archived.refetch()} />
+        ) : !archived.data ? (
+          <p className="story-tree-none">Loading…</p>
+        ) : (
+          <ul className="story-archived-list">
+            {archived.data.map((m) => (
+              <li key={m.mockup_id} className="story-row story-row-plain" data-current={m.mockup_id === current || undefined} data-row={m.mockup_id}>
+                <Link className="story-link" to={`${app}/exploration/mockups/${m.mockup_id}`} aria-current={m.mockup_id === current ? "page" : undefined}>
+                  <Glyph name="archive" />
+                  <OneLine text={m.title} />
+                </Link>
+                {canWrite ? (
+                  <Menu label={`Actions for “${m.title}”`} trigger={<Glyph name="ellipsis" />} triggerClassName="icon-btn icon-btn-sm story-row-more" minWidth={200}>
+                    <MenuItem icon="archive-restore" onSelect={() => actions.restore(m)}>
+                      Restore
+                    </MenuItem>
+                  </Menu>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        )
       ) : null}
-      {asking?.kind === "remove" ? (
-        <Dialog
-          open
-          onClose={() => setAsking(null)}
-          title={`Remove the folder “${asking.folder.name}”?`}
-          description={`Its ${asking.folder.mockup_count === 1 ? "mockup stays" : `${asking.folder.mockup_count} mockups stay`}, in no folder. Nothing is deleted.`}
-          footer={
-            <>
-              <Button onClick={() => setAsking(null)}>Cancel</Button>
-              <Button variant="primary" onClick={() => void remove(asking.folder)}>
-                Remove folder
-              </Button>
-            </>
-          }
-        >
-          {null}
-        </Dialog>
-      ) : null}
-    </PanelSection>
+    </div>
   );
 }
 

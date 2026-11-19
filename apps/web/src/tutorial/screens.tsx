@@ -7,6 +7,8 @@ import { Crumbs, Glyph, Menu, MenuItem, Sheet, SheetHeader } from "../ui/index.t
 import { AddSourceButton, SortControl, SourceRow } from "../routes/evidence.tsx";
 import { IdeaCard } from "../routes/idea.tsx";
 import { Canvas, type CanvasPage } from "../routes/mockup-canvas.tsx";
+import { NO_MOCKUP_ACTIONS } from "../routes/mockup-actions.tsx";
+import { MOCKUPS_HEADING } from "../routes/mockup-folders-model.ts";
 import { MockupTree } from "../routes/mockup-tree.tsx";
 import { MockupInspector, type MockupVersion, type MockupView } from "../routes/mockups.tsx";
 import { SourcePreview } from "../routes/source-preview.tsx";
@@ -244,7 +246,7 @@ export function TutorialExplorationPanel() {
   const { view } = useExampleMockup();
   const shown = useMemo(() => ({ list: { items: [view], folders: [] }, current: view.mockup_id, mark: <TutorialBadge /> }), [view]);
   return (
-    <PanelContext label="Mockups">
+    <PanelContext label={MOCKUPS_HEADING}>
       <MockupTree shown={shown} />
     </PanelContext>
   );
@@ -266,7 +268,7 @@ export function TutorialExploration() {
     <AsEditor>
       <div className="mockup-view tut-screen" {...useScreen("exploration")} data-focus={t?.focus ? "" : undefined}>
         <div className="story-bar">
-          <Crumbs label="Location" currentAsHeading items={[{ label: "Exploration" }, { label: "Mockups" }, { label: view.title }]} />
+          <Crumbs label="Location" currentAsHeading items={[{ label: "Exploration" }, { label: MOCKUPS_HEADING }, { label: view.title }]} />
           <span className="xc-version num">Version {version.version}</span>
           {/* At the canvas stop, Focus and Show panels work as F does; the tutorial's own Focus, never the person's choice. */}
           <FocusToggle focus={Boolean(t?.focus)} hint={false} onToggle={() => t?.toggleFocus()} />
@@ -299,6 +301,7 @@ export function TutorialExploration() {
               t?.setPrototype(on);
               if (on && !selected) setSelected(first);
             }}
+            actions={NO_MOCKUP_ACTIONS}
           />
         </Inspector>
       </div>
@@ -324,7 +327,7 @@ export function TutorialStory() {
     agent_notes: { content: p.notes, etag: "tutorial", updated_at: null, updated_by: null },
     current: shown,
   };
-  const actions = { archive: nothing, restore: nothing, remove: nothing };
+  const actions = { rename: nothing, archive: nothing, restore: nothing, remove: nothing };
   usePageTitle(p.title);
   return (
     <AsEditor>

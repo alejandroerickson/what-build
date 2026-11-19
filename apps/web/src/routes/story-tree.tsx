@@ -416,7 +416,7 @@ export function StoryTree({ arrange, archived, refOf, current, onExport, actions
   );
 }
 
-/** A page's "…" menu: export it, and, for a role that may, archive, restore or delete it. */
+/** A page's "…" menu: export it, and, for a role that may, rename, archive, restore or delete it. */
 function PageMenu({ page, archived, subpages, onExport, actions }: {
   page: PageRef | { page_id: string; title: string };
   archived?: boolean;
@@ -433,6 +433,11 @@ function PageMenu({ page, archived, subpages, onExport, actions }: {
       {archived && canWrite && ref ? (
         <MenuItem icon="archive-restore" onSelect={() => actions.restore(ref)}>
           Restore
+        </MenuItem>
+      ) : null}
+      {!archived && canWrite && ref ? (
+        <MenuItem icon="pencil" onSelect={() => actions.rename(ref)}>
+          Rename…
         </MenuItem>
       ) : null}
       <MenuItem icon="download" onSelect={() => onExport([page.page_id])}>

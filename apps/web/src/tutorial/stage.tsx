@@ -18,7 +18,7 @@ import { lineText, PLACES, type Place } from "./stops.ts";
  */
 
 const ORDER: Place[] = ["idea", "evidence", "exploration", "story"];
-const HEADS: Record<Place, string> = { idea: "Outcomes", evidence: "Sources", exploration: "Mockups", story: "Story pages" };
+const HEADS: Record<Place, string> = { idea: "Outcomes", evidence: "Sources", exploration: "Mockup canvases", story: "Story pages" };
 const EMPTY: Record<Place, string> = { idea: "No outcomes yet", evidence: "No sources yet", exploration: "No mockups yet", story: "No Story pages yet" };
 
 type Message = { kind: "you"; text: string } | { kind: "agent"; text: string } | { kind: "tool"; tool: string; act: string; done: boolean };

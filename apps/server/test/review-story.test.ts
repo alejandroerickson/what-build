@@ -204,6 +204,71 @@ describe("publishing a later version", () => {
   });
 });
 
+describe("renaming a Story page", () => {
+  const R = () => `${P}/story/pages/brief`;
+
+  it("changes the page's title and etag, publishes no version, and leaves the HTML as it was", async () => {
+    const v1 = await alice.api("POST", `${R()}/versions`, { title: "Brief", summary: "What we were asked.", html: html("Brief", "<h1>Brief</h1>") });
+    expect(v1.status).toBe(201);
+    const r = await alice.api("PATCH", R(), { title: "  The brief  ", expected_etag: v1.body.etag });
+    expect(r.status).toBe(200);
+    expect(r.body).toMatchObject({ page_id: "brief", title: "The brief", summary: "What we were asked.", current_version: 1, renamed: true });
+    expect(r.body.etag).not.toBe(v1.body.etag);
+    expect(r.headers.get("etag")).toBe(`"${r.body.etag}"`);
+    const page = await alice.api("GET", R());
+    expect(page.body).toMatchObject({ title: "The brief", etag: r.body.etag, current_version: 1 });
+    // The version keeps the title it was published with, and its HTML.
+    expect(page.body.current).toMatchObject({ version: 1, title: "Brief", html_sha256: v1.body.current.html_sha256 });
+    expect((await alice.api("GET", `${R()}/versions`)).body.items).toHaveLength(1);
+    const listed = await alice.api("GET", `${P}/story/pages`);
+    expect(listed.body.items.find((p: { page_id: string }) => p.page_id === "brief")).toMatchObject({ title: "The brief" });
+    const act = await alice.api("GET", `${P}/activity?entity_id=brief`);
+    expect(act.body.items[0]).toMatchObject({ action: "renamed", entity_title: "The brief", summary: "Renamed the page, which was Brief" });
+  });
+
+  it("is kept by a later version that sends no title, from whichever version it starts", async () => {
+    const now = await alice.api("GET", R());
+    const v2 = await alice.api("POST", `${R()}/versions`, { html: html("Brief", "<h1>Brief</h1><p>More.</p>"), expected_etag: now.body.etag });
+    expect(v2.status).toBe(201);
+    expect(v2.body).toMatchObject({ title: "The brief", carried_forward: ["title", "summary"] });
+    expect(v2.body.current.title).toBe("The brief");
+    const v3 = await alice.api("POST", `${R()}/versions`, { from_version: 1, expected_etag: v2.body.etag });
+    expect(v3.body).toMatchObject({ title: "The brief", based_on_version: 1 });
+    const v4 = await alice.api("POST", `${R()}/versions`, { title: "Brief, again", expected_etag: v3.body.etag });
+    expect(v4.body.title).toBe("Brief, again");
+  });
+
+  it("gives a generated title page the new title at its next version", async () => {
+    const v1 = await alice.api("POST", `${P}/story/pages/opening/versions`, { title: "Opening", summary: "Where it starts." });
+    const r = await alice.api("PATCH", `${P}/story/pages/opening`, { title: "The opening", expected_etag: v1.body.etag });
+    expect((await alice.api("GET", `${P}/story/pages/opening`)).body.current.html).toContain("<h1>Opening</h1>");
+    await alice.api("POST", `${P}/story/pages/opening/versions`, { summary: "Where it all starts.", expected_etag: r.body.etag });
+    const page = await alice.api("GET", `${P}/story/pages/opening`);
+    expect(page.body.current.html).toContain("<h1>The opening</h1>");
+    expect(page.body.current.html).toContain("Where it all starts.");
+  });
+
+  it("changes nothing for the title the page has, and refuses a stale etag, an empty title, an archived page and a viewer", async () => {
+    const now = await alice.api("GET", R());
+    const same = await alice.api("PATCH", R(), { title: now.body.title, expected_etag: now.body.etag });
+    expect(same.status).toBe(200);
+    expect(same.body).toMatchObject({ renamed: false, etag: now.body.etag });
+    expect((await alice.api("GET", `${P}/activity?entity_id=brief`)).body.items[0].action).not.toBe("renamed");
+    const stale = await alice.api("PATCH", R(), { title: "Late", expected_etag: "nope" });
+    expect(stale.status).toBe(409);
+    expect(stale.body.error.code).toBe("stale_etag");
+    expect((await alice.api("PATCH", R(), { title: "   ", expected_etag: now.body.etag })).status).toBe(422);
+    expect((await vic.api("PATCH", R(), { title: "Mine", expected_etag: now.body.etag })).status).toBe(403);
+    const archived = await alice.api("POST", `${R()}/archive`, { expected_etag: now.body.etag });
+    const shelved = await alice.api("GET", R());
+    const refused = await alice.api("PATCH", R(), { title: "Shelved", expected_etag: shelved.body.etag });
+    expect(refused.status).toBe(409);
+    expect(refused.body.error.code).toBe("page_archived");
+    expect(archived.status).toBe(200);
+    expect((await alice.api("POST", `${R()}/restore`, { expected_etag: shelved.body.etag })).status).toBe(200);
+  });
+});
+
 describe("Story page theme", () => {
   it("writes light or dark onto the served page's <html>, and nothing without the param", async () => {
     const plain = await vic.api("GET", `${P}/story/pages/overview/versions/1/html`);

@@ -980,7 +980,9 @@ The sources, and everything for reading them.
 
 ## 7.7 Exploration
 
-Exploration holds the team's **mockups**, and opens on them. The panel's context slot lists every
+Exploration holds the team's **mockups**, and opens on them. The panel's context slot, headed
+**Mockup canvases**
+([decision](../decisions/mockups-are-versioned-canvases-in-exploration.md)), lists every
 mockup that is not archived, by name ([decision](../decisions/lists-filter-from-the-panel.md)), as
 the team arranged them
 ([decision](../decisions/mockups-are-arranged-by-hand-in-folders-one-level-deep.md),
@@ -1002,8 +1004,9 @@ first-use state.
   bar or a ring shows where it would land, Escape cancels, and a toast names where it went, with Undo. With a row focused, Alt and
   Up or Down move a mockup among those beside it, or a folder among the folders, and Alt and Left
   take a mockup out of its folder; each move, or why none was made, is announced. A mockup's "…"
-  menu names the folder it is in (No folder, or one of the folders) and puts it in another, and
-  its **New folder…** makes a folder and puts the mockup in it. A folder's menu has **Rename…**
+  menu has **Rename…**; then names the folder it is in (No folder, or one of the folders) and puts
+  it in another; then **New folder…**, which makes a folder and puts the mockup in it; and last
+  **Archive** (§7.10). A folder's menu has **Rename…**
   and **Remove folder**, which asks first when the folder holds mockups and says that they stay,
   in no folder. **New folder**, an icon button on the section's head, asks for a name.
 - A move shows at once and is saved after; if what it named has gone, because someone else
@@ -1011,8 +1014,20 @@ first-use state.
   A viewer sees the same arrangement, opens and closes folders, and is offered nothing that
   changes it. Up, Down, Home and End move between rows, Right opens a folder or goes into it,
   and Left closes it or returns to it.
-- The crumbs above a canvas name the folder the mockup is in: Exploration, Mockups, the folder,
-  the mockup.
+- **Renaming**, for anyone who can write, from a mockup's menu or its inspector: a dialog asks for
+  the title (at most 200 characters), says that its versions, pages and place stay as they are, and
+  saves it with `mockups.rename` under the mockup's etag. It makes no version
+  ([decision](../decisions/renaming-a-mockup-or-story-page-makes-no-version.md)); the list, the
+  crumbs and the inspector follow, and a toast says the new title. If someone changed the mockup
+  meanwhile, the dialog says so and the next try starts from the mockup as it is.
+- **Archiving**, for anyone who can write, from a mockup's menu, its inspector or its delete
+  dialog: the mockup leaves the list at once, and a toast names it with **Undo**, which restores
+  it to the place it kept. **Archived mockup canvases** folds away under the list, with how many
+  there are; it reads them once it is opened, and opens by itself when the mockup on screen is
+  archived. Each row opens its mockup, and its menu offers **Restore** to whoever can write. A
+  viewer sees the section and restores nothing.
+- The crumbs above a canvas name the folder the mockup is in: Exploration, Mockup canvases, the
+  folder, the mockup.
 
 Exploration once held an assumption register too. Assumptions are removed
 ([decision](../decisions/assumptions-are-removed-and-every-one-is-deleted.md)): an address under
@@ -1024,10 +1039,10 @@ with a toast saying WhatBuild no longer keeps assumptions.
 ([decision](../decisions/mockups-are-versioned-canvases-in-exploration.md)) A mockup opens as a
 canvas the full width of the window and its height below the crumbs, so the screen itself does not
 scroll: every page of the shown version at its own size in its sandboxed frame ([§4.12](04-data-model.md)), laid out `columns` to a row (one row when null),
-on a dotted board. Agents publish mockups; the screen reads them and never publishes, edits or
-restores one. Its writes are promoting a page to the Story, and, for a product's admins,
-**Delete permanently…** under Version in the inspector, whose dialog offers **Archive instead**
-(§7.10).
+on a dotted board. Agents publish mockups; the screen never publishes one or changes its pages,
+brief or notes. Its writes are promoting a page to the Story; **Rename…**, **Archive** and
+**Restore**, for whoever can write; and, for a product's admins, **Delete permanently…** under
+Version in the inspector, whose dialog offers **Archive instead** (§7.10).
 
 - **Opening.** `…/exploration/mockups` opens the mockup last opened in this product in this
   browser, otherwise the most recent; with none, the first-use state gives the request to copy for
@@ -1122,13 +1137,15 @@ restores one. Its writes are promoting a page to the Story, and, for a product's
   whoever can publish, **Copy a request for your agent**); **Version** (a menu of every version with
   its date, who published the shown one and when, its page count, its prototype's files and size
   when it carries one, **Download as ZIP** for the whole canvas, which a person opens from its
-  `index.html` and an agent builds the next version from, [§4.12](04-data-model.md)); the selected
+  `index.html` and an agent builds the next version from, [§4.12](04-data-model.md), and under it
+  **Rename…** and **Archive** for whoever can write, or **Restore** alone on an archived mockup,
+  and **Delete permanently…** for an admin); the selected
   page, under its title, once one is selected (where it enters the prototype, if it does, where it
   stands in the Story, below, and its notes as Markdown); **Brief** (the
   version's brief as Markdown); and **Files** (the files the version carries, each with its
   length; one opens in a dialog as rendered Markdown or as source text, never as HTML, with Copy).
 - A callout above the canvas appears only for a state the person must know: the mockup is
-  archived, an earlier version is shown (with **Show the current version**), or the version asked
+  archived (with **Restore** for whoever can write), an earlier version is shown (with **Show the current version**), or the version asked
   for does not exist.
 - **Downloading.** A toast says that a page runs its own code outside WhatBuild, with every download.
 - **On the Story** ([decision](../decisions/agents-write-the-story-people-arrange-it.md)). Under
@@ -1145,8 +1162,8 @@ restores one. Its writes are promoting a page to the Story, and, for a product's
 ## 7.8 Story
 
 The Story reads like a wiki: the page tree on the left, the page in the middle, its details on
-the right. Agents write its pages; people read them, and arrange, archive, restore and delete them
-by hand as agents can ([decision](../decisions/agents-write-the-story-people-arrange-it.md)). A
+the right. Agents write its pages; people read them, and arrange, rename, archive, restore and
+delete them by hand as agents can ([decision](../decisions/agents-write-the-story-people-arrange-it.md)). A
 page of a mockup reaches it by promotion, from the mockup (§7.7).
 
 - **Reader first.** The page tree sits in the panel's context slot, and the canvas holds the crumbs
@@ -1232,10 +1249,15 @@ page of a mockup reaches it by promotion, from the mockup (§7.7).
   Story changed meanwhile, the move is applied to the newer tree and saved again once; if it no
   longer fits, the tree shows the Story as it is and a notice above it says so. Moving is off while
   "Find a page" filters the tree.
-- **Row actions.** Each row's menu offers **Export this page to PDF…** and, for a page with
-  subpages, **Export with its subpages…**; then **Archive** for an editor and **Delete
-  permanently…** for an admin, as everywhere (§7.10). An archived page's row offers **Restore**,
-  export and delete. Archiving moves the page's subpages up into its place, and its toast's
+- **Row actions.** Each row's menu offers **Rename…** for an editor, then **Export this page to
+  PDF…** and, for a page with subpages, **Export with its subpages…**; then **Archive** for an
+  editor and **Delete permanently…** for an admin, as everywhere (§7.10). An archived page's row
+  offers **Restore**, export and delete, and no rename. **Rename…** asks for the title (at most 200
+  characters) in a dialog that says the page keeps its versions and its place and that what it says
+  stays as it is, and saves it with `story.rename_page` under the page's etag. It makes no version
+  ([decision](../decisions/renaming-a-mockup-or-story-page-makes-no-version.md)): the tree, the
+  crumbs and the inspector follow, and a heading inside the page keeps its words until an agent
+  publishes the next version. Archiving moves the page's subpages up into its place, and its toast's
   **Undo** restores the page and puts the navigation back as it was; a restored page returns at
   the end of the tree. Under the tree, **Story style** names the product's
   Story style ("A house style", "Adapted from Clear", "Your design system", or "None yet") and
@@ -1251,8 +1273,9 @@ page of a mockup reaches it by promotion, from the mockup (§7.7).
 - **The inspector** carries everything else about the page:
   - **About:** who published the shown version and when, and its version number. With more than
     one version, the number is a menu of every version with its date, and choosing one shows it
-    (`?v=N`). **Export to PDF…** opens the export with this page selected; beside it, **Archive**
-    (or **Restore**) for an editor and **Delete permanently…** for an admin.
+    (`?v=N`). **Export to PDF…** opens the export with this page selected; beside it, **Rename…**
+    (on a page that is not archived) and **Archive** (or **Restore**) for an editor, and **Delete
+    permanently…** for an admin.
   - **Shows:** for a page from a mockup, the mockup page, linked to it on the canvas, the mockup and
     the version shown; when the mockup has a newer version, a line says so and to promote it from
     the mockup.
@@ -1263,8 +1286,8 @@ page of a mockup reaches it by promotion, from the mockup (§7.7).
     Story reader neither ([§3.5](03-accounts-and-identity.md)). The Story
     style row under the tree is left out too, and so are **Archived pages** in the tree and the
     export, since the server gives a Story reader no archived page; a Story with no pages says that they
-    appear once the product's team publishes them. A Story reader or viewer arranges, archives and
-    deletes nothing: the tree has no handles, and its menus only export.
+    appear once the product's team publishes them. A Story reader or viewer arranges, renames,
+    archives and deletes nothing: the tree has no handles, and its menus only export.
 - **Export to PDF.** The dialog lists every page as checkboxes, in the Story's order, then archived pages, with Select all, Clear and a count; it opens with the page or pages it was
   asked for already selected, and the person can change the selection. The count and Select all
   cover the pages the Story shows; an archived page goes in only when ticked, and the count adds it
@@ -1323,7 +1346,7 @@ a product that isn't archived (`canDelete`). One dialog serves every delete
 | Comment | its menu, with an optional reason, and in its delete dialog | its menu |
 | Outcome | its card's menu on Idea | its card's menu |
 | Story page | its row's menu in the tree, and the inspector's About | its row's menu, and the inspector's About |
-| Mockup | in its delete dialog, as the alternative | the inspector's Version, under Download |
+| Mockup | its row's menu in the panel, the inspector's Version, and its delete dialog | the inspector's Version, under Download |
 | Product | Settings → the product's General, Archive this product, and in its delete dialog | Settings → the product's General, Delete this product |
 | Organization | — | Settings → the organization's General, Delete this organization, for owners; Delete on its row in Instance admin → Organizations, for an instance owner; never the example organization |
 

@@ -7,8 +7,9 @@ Mockup canvases: their pages and the rules a page meets, prototypes, shared file
 A mockup is a canvas of HTML pages (screens, flows or alternatives side by side), each page with
 design notes, under a Markdown **brief** that says what the canvas explores. People pan and zoom
 around it in Exploration, read a page's notes beside it, and click through a page in its sandbox. The
-web app shows, downloads and promotes mockups, lets anyone who can write arrange them in folders, and
-lets a product's admins archive or delete one; it cannot publish or restore a mockup, which agents do.
+web app shows, downloads and promotes mockups; lets anyone who can write arrange them in folders,
+rename them, and archive and restore them; and lets a product's admins delete one. It cannot publish
+a mockup or change its pages, which agents do.
 
 `mockups_read` lists them in the order the team arranged them, with their folders (`list`, which
 leaves archived ones out and counts them in `archived_hidden`), reads one (`get`), and reads its
@@ -106,6 +107,15 @@ mockup's etag (from `get`) and only what changes: `pages` is the whole canvas in
 keeps its `page_id` keeps its title, notes, size and HTML unless they are sent, and a page left out is
 dropped from that version. `from_version: N` starts from an earlier version. Each publish makes a
 version.
+
+## The title
+
+The title is the mockup's name: the list, the canvas, search and a download use it. Each version
+keeps the title it was published with (`current.title`, `list_versions`).
+`mockups_write(action="rename")` changes the name with the mockup's etag and makes no version, and
+people rename mockups in the web app too, so a title read earlier may have changed. A later version
+keeps the mockup's title as it is now unless `publish` sends one, whichever version it starts from.
+An archived mockup refuses a rename until it is restored.
 
 ## Folders and order
 

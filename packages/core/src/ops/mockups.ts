@@ -641,7 +641,7 @@ export const publishMockup = defineOperation({
   mutates: true,
   summary: "Publish the next version of a mockup's canvas, or create a mockup with its first version. A later version keeps whatever you omit.",
   description:
-    `Without mockup_id, creates a mockup: give a title, a brief and at least one page with a title and html, and no expected_etag (one sent is refused with 409 stale_etag and current_etag null, as there is nothing to match). A new mockup goes first among the mockups in no folder, or first in the folder folder_id names; a later version stays where the mockup is, and move files it elsewhere. With mockup_id, publishes the next version: pass the mockup's etag, and send only what changes. pages, when given, is the whole canvas in order: a page you leave out is dropped from this version, and a page whose page_id was on the base version keeps its title, notes, size and html unless you send them, so a version that changes one page sends that page's html alone. The brief is Markdown: what the canvas explores, for whom, the questions it is meant to answer, and what each page tries; write it for the next agent as much as for people. Each page is one self-contained HTML document shown in a sandboxed frame of width × height CSS pixels (default ${DEFAULT_WIDTH} × ${DEFAULT_HEIGHT}; 390 wide for a phone; height at most 4000), with no network. ${PAGE_RULES_TEXT} ${SAFE_CHECK_TEXT} ${TALL_PAGES_TEXT} columns sets how many pages sit side by side before the canvas wraps; null keeps one row. files carries text files for collaborators to pull into their own projects (DESIGN.md, components, tokens), at most ${MAX_MOCKUP_FILES} and ${(MOCKUP_FILES_TOTAL / 1_000_000).toFixed(0)} million characters a version; WhatBuild never uses them to draw a page, so inline what a page needs. Like pages, files when given is the whole set: a path that was on the base keeps its content unless you send it, a path you leave out is dropped, a new path needs content, and [] drops them all; omit files to keep them. ${PROTOTYPE_TEXT} A version published without an upload keeps its base's prototype, and its pages may enter it. from_version: N starts from that earlier version instead of the current one. To keep page HTML out of the call, upload the canvas as a ZIP (request_upload) and pass upload_id: the ZIP gives pages, files and the brief, and its manifest.json may give title, summary and columns, which the call's own win over; a new mockup from an upload alone needs title in the manifest, brief.md and a page with its HTML. The call gives the rest, and the result names from_upload with upload {upload_id, size, sha256}, the ZIP's own bytes as its PUT answered. At most ${MAX_MOCKUP_PAGES} pages, ${(MOCKUP_HTML_TOTAL / 1_000_000).toFixed(0)} million characters of HTML in all, and ${MAX_MOCKUPS} mockups in a product, archived ones included (list gives quota, used and limit). It answers with what you need next, not the canvas you sent: mockup_id, title, current_version and current_version_id, the etag to publish the next version with, based_on_version, page_ids in the canvas's order, url (the canvas in the web app, to give the person), and prototype_warnings when an upload brings a prototype; mockups_read(action="get") reads the version back. ${PAGE_LINKS_TEXT}`,
+    `Without mockup_id, creates a mockup: give a title, a brief and at least one page with a title and html, and no expected_etag (one sent is refused with 409 stale_etag and current_etag null, as there is nothing to match). A new mockup goes first among the mockups in no folder, or first in the folder folder_id names; a later version stays where the mockup is, and move files it elsewhere. With mockup_id, publishes the next version: pass the mockup's etag, and send only what changes. A title left out stays the mockup's title as it is now, which rename changes without a version; summary, brief and columns left out come from the base version. pages, when given, is the whole canvas in order: a page you leave out is dropped from this version, and a page whose page_id was on the base version keeps its title, notes, size and html unless you send them, so a version that changes one page sends that page's html alone. The brief is Markdown: what the canvas explores, for whom, the questions it is meant to answer, and what each page tries; write it for the next agent as much as for people. Each page is one self-contained HTML document shown in a sandboxed frame of width × height CSS pixels (default ${DEFAULT_WIDTH} × ${DEFAULT_HEIGHT}; 390 wide for a phone; height at most 4000), with no network. ${PAGE_RULES_TEXT} ${SAFE_CHECK_TEXT} ${TALL_PAGES_TEXT} columns sets how many pages sit side by side before the canvas wraps; null keeps one row. files carries text files for collaborators to pull into their own projects (DESIGN.md, components, tokens), at most ${MAX_MOCKUP_FILES} and ${(MOCKUP_FILES_TOTAL / 1_000_000).toFixed(0)} million characters a version; WhatBuild never uses them to draw a page, so inline what a page needs. Like pages, files when given is the whole set: a path that was on the base keeps its content unless you send it, a path you leave out is dropped, a new path needs content, and [] drops them all; omit files to keep them. ${PROTOTYPE_TEXT} A version published without an upload keeps its base's prototype, and its pages may enter it. from_version: N starts from that earlier version instead of the current one. To keep page HTML out of the call, upload the canvas as a ZIP (request_upload) and pass upload_id: the ZIP gives pages, files and the brief, and its manifest.json may give title, summary and columns, which the call's own win over; a new mockup from an upload alone needs title in the manifest, brief.md and a page with its HTML. The call gives the rest, and the result names from_upload with upload {upload_id, size, sha256}, the ZIP's own bytes as its PUT answered. At most ${MAX_MOCKUP_PAGES} pages, ${(MOCKUP_HTML_TOTAL / 1_000_000).toFixed(0)} million characters of HTML in all, and ${MAX_MOCKUPS} mockups in a product, archived ones included (list gives quota, used and limit). It answers with what you need next, not the canvas you sent: mockup_id, title, current_version and current_version_id, the etag to publish the next version with, based_on_version, page_ids in the canvas's order, url (the canvas in the web app, to give the person), and prototype_warnings when an upload brings a prototype; mockups_read(action="get") reads the version back. ${PAGE_LINKS_TEXT}`,
   input: z.strictObject({
     mockup_id: id("mockup").optional().describe("Omit to create a mockup."),
     folder_id: id("mockup folder").nullable().optional().describe('For a new mockup: the folder it goes in, at its top (mockups_read(action="list") gives the folders). Omit, or null, for no folder.'),
@@ -810,7 +810,9 @@ export const publishMockup = defineOperation({
     if (total > MOCKUP_HTML_TOTAL) problems.push(`The pages total ${fmt(total)} characters of HTML; a version holds at most ${fmt(MOCKUP_HTML_TOTAL)}.`);
     if (problems.length) throw invalid("invalid_html", `Nothing was published: ${problems.join(" ")}`, { problems });
 
-    const title = input.title ?? base!.title;
+    // The title is the mockup's name, which rename changes without a version: a version that sends
+    // none keeps the name the mockup has now, whichever version it starts from.
+    const title = input.title ?? existing!.title;
     const summary = input.summary ?? base?.summary ?? "";
     const brief = input.brief ?? base?.brief ?? "";
     const columns = input.columns !== undefined ? input.columns : (base?.columns ?? null);
@@ -885,6 +887,28 @@ export const publishMockup = defineOperation({
       ...(canvas?.prototype ? { prototype_warnings: canvas.prototype.warnings } : {}),
       next: 'Show the person url. mockups_read(action="get") reads the version back: the brief, each page\'s notes, size and hash, the files and the prototype. Publish the next version with this etag.',
     };
+  },
+});
+
+export const renameMockup = defineOperation({
+  name: "mockups.rename",
+  scope: "product",
+  access: "write",
+  mutates: true,
+  summary: "Rename a mockup without publishing a version.",
+  description:
+    "Pass the mockup's etag; the answer gives the new one. The title is the mockup's name: in the list, above its canvas, in search, in a download, and as the title a promoted Story page starts from. It makes no version: each version keeps the title it was published with (current.title, list_versions), and a later publish keeps this title unless it sends one. An archived mockup refuses it (409 mockup_archived). The title it already has changes nothing and records no activity.",
+  input: z.strictObject({ mockup_id: id("mockup"), title: z.string().trim().min(1).max(200), expected_etag: expectedEtag }),
+  rest: { method: "PATCH", path: "/mockups/:mockup_id" },
+  mcp: { tool: "mockups", action: "rename" },
+  async handler(ctx, input) {
+    const e = await loadMockup(ctx, input.mockup_id, true);
+    checkEtag(input.expected_etag, e.etag, "mockup");
+    if (e.archived_at) throw conflict("mockup_archived", "This mockup is archived; restore it before renaming it.");
+    if (e.title === input.title) return { ...summaryView(e), renamed: false };
+    await ctx.db.updateTable("mockups").set({ title: input.title, etag: newEtag(), updated_at: ctx.now, updated_by: json(ctx.actor) }).where("mockup_id", "=", e.mockup_id).execute();
+    await recordActivity(ctx, { action: "renamed", entity_type: "mockup", entity_id: e.mockup_id, entity_title: input.title, summary: `Renamed the mockup, which was ${e.title}` });
+    return { ...summaryView(await loadMockup(ctx, e.mockup_id)), renamed: true };
   },
 });
 
@@ -1068,7 +1092,7 @@ async function prototypeBlobsOf(db: Tx, mockupId: string) {
     .execute();
 }
 
-export const mockupOps = [listMockups, getMockup, listMockupVersions, getMockupVersion, requestMockupUpload, publishMockup, ...mockupFolderOps, archiveMockup, restoreMockup, getMockupDownload, mockupDeleteImpact, deleteMockup];
+export const mockupOps = [listMockups, getMockup, listMockupVersions, getMockupVersion, requestMockupUpload, publishMockup, renameMockup, ...mockupFolderOps, archiveMockup, restoreMockup, getMockupDownload, mockupDeleteImpact, deleteMockup];
 
 /**
  * One version of a mockup as a ZIP, for the download grant's route: brief.md, manifest.json,
@@ -1086,7 +1110,8 @@ export async function mockupBundle(db: Tx, versionId: string, blobs: BlobStore) 
     format: "whatbuild-mockup",
     format_version: 2,
     mockup_id: e.mockup_id,
-    title: v.title,
+    // The mockup's name as it is now, so a ZIP published again keeps a rename.
+    title: e.title,
     summary: v.summary,
     version: v.n,
     columns: v.columns,
@@ -1103,7 +1128,7 @@ export async function mockupBundle(db: Tx, versionId: string, blobs: BlobStore) 
   const files: Record<string, Uint8Array> = {
     "brief.md": strToU8(v.brief),
     "manifest.json": strToU8(JSON.stringify(manifest, null, 2) + "\n"),
-    "index.html": strToU8(mockupIndexHtml({ title: v.title, n: v.n }, pages)),
+    "index.html": strToU8(mockupIndexHtml({ title: e.title, n: v.n }, pages)),
   };
   for (const p of pages) {
     if (p.html !== null) files[`pages/${p.page_id}.html`] = strToU8(p.html);

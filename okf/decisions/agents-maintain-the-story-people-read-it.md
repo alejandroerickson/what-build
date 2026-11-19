@@ -9,7 +9,7 @@ status: deprecated
 
 # Agents write and arrange the Story; the web app reads it
 
-Superseded on 2026-10-14 by [Agents write the Story; people read it, and may arrange, archive and delete its pages by hand](agents-write-the-story-people-arrange-it.md).
+Superseded on 2026-10-14 by [Agents write the Story; people read it, and may arrange, rename, archive and delete its pages by hand](agents-write-the-story-people-arrange-it.md).
 
 ## Context
 
