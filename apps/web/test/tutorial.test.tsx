@@ -3,7 +3,7 @@ import { act, isValidElement, type ReactNode } from "react";
 import { createRoot } from "react-dom/client";
 import { renderToStaticMarkup } from "react-dom/server";
 import { MemoryRouter, Route, Routes, useLocation, useNavigate } from "react-router";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // The spotlight tutorials: who gets them, the welcome and the four pages' tutorials and their stops,
 // which starts by itself where, what the account menu says, the content they show on each page, and
@@ -259,6 +259,12 @@ describe("the tutorial's content, one object per page", () => {
 
 // ---- As a person meets it --------------------------------------------------------------------
 
+// Time here is the test's own: a wait moves the clock at once, so a test takes no longer on a slow
+// machine, and a timer a test left behind never fires in the next.
+beforeEach(() => {
+  vi.useFakeTimers();
+});
+
 let unmount: (() => void) | null = null;
 afterEach(() => {
   unmount?.();
@@ -266,6 +272,7 @@ afterEach(() => {
   calls.length = 0;
   agents = [];
   document.body.innerHTML = "";
+  vi.useRealTimers();
 });
 
 /** The tutorial as a product's own screens have it (ProductShell). */
@@ -287,7 +294,7 @@ function Probe() {
 }
 
 /** Waits as long as a person would: the tutorial that starts by itself comes a moment after the screen opens. */
-const settle = (ms = 900) => act(async () => new Promise((r) => setTimeout(r, ms)));
+const settle = (ms = 900) => act(() => vi.advanceTimersByTimeAsync(ms));
 
 async function mount(entry: string | { pathname: string; state: unknown } = "/t/acme/harvest/idea") {
   const host = document.createElement("div");
@@ -342,13 +349,13 @@ const press = async (name: string) => {
   const b = [...document.querySelectorAll<HTMLButtonElement>(".tut-layer button")].find((x) => x.textContent?.trim() === name || x.getAttribute("aria-label") === name);
   if (!b) throw new Error(`no button ${name}`);
   await act(async () => b.click());
-  await act(async () => new Promise((r) => setTimeout(r, 300)));
+  await settle(300);
 };
 const menuItemEl = async () => {
   const button = document.querySelector<HTMLElement>(".panel-left .account-button");
   if (!button) throw new Error("no account button");
   await act(async () => button.click());
-  await act(async () => new Promise((r) => setTimeout(r, 300)));
+  await settle(300);
   return document.querySelector(".menu .menu-tutorial");
 };
 const fresh = () => {
@@ -597,7 +604,6 @@ describe("pressing what a stop opens", () => {
     await act(async () => api!.start(part, "menu"));
     for (let n = 1; n <= stop; n++) await act(async () => api!.go(n));
   }
-  const wait = (ms: number) => act(async () => new Promise((r) => setTimeout(r, ms)));
 
   it("waits on More info with the text closed; Next presses it and the text opens; Back folds it again", async () => {
     await walkTo("/t/acme/harvest/idea", "idea", 2);
@@ -605,20 +611,20 @@ describe("pressing what a stop opens", () => {
     expect(document.querySelector(".tut-title")?.textContent).toBe("More info");
     expect(document.querySelector(".tut-line")?.textContent).toBe("Each card has text behind its picture.");
     // It waits: nothing happens by itself.
-    await wait(1200);
+    await settle(1200);
     expect(api).toMatchObject({ at: 2, opens: null });
     reduced = false;
     try {
       await act(async () => api!.go(3));
       expect(api).toMatchObject({ at: 3, reveal: "press", opens: null });
-      await wait(400);
+      await settle(400);
       expect(api).toMatchObject({ at: 3, reveal: "open", opens: "more-info" });
       expect(document.querySelector(".tut-line")?.textContent).toBe("The same concept in words, for agents to read.");
       await act(async () => api!.go(2));
       expect(api).toMatchObject({ at: 2, reveal: null, opens: null });
       // On to the outcome, and Back: open at once.
       await act(async () => api!.go(3));
-      await wait(400);
+      await settle(400);
       await act(async () => api!.go(4));
       await act(async () => api!.go(3));
       expect(api).toMatchObject({ at: 3, reveal: "open", opens: "more-info" });
@@ -635,13 +641,13 @@ describe("pressing what a stop opens", () => {
     await walkTo("/t/acme/harvest/evidence", "evidence", 1);
     expect(api).toMatchObject({ at: 1, reveal: null, opens: null });
     expect(document.querySelector(".tut-title")?.textContent).toBe("Sources");
-    await wait(1200);
+    await settle(1200);
     expect(api).toMatchObject({ at: 1, opens: null });
     reduced = false;
     try {
       await act(async () => api!.go(2));
       expect(api).toMatchObject({ at: 2, reveal: "press", opens: null });
-      await wait(400);
+      await settle(400);
       expect(api).toMatchObject({ at: 2, reveal: "open", opens: "preview" });
       await act(async () => api!.go(1));
       expect(api).toMatchObject({ at: 1, opens: null });
