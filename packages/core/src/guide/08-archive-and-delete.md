@@ -32,6 +32,8 @@ points at it):
 | outcome | `outcomes_read(action="delete_impact")` | `outcomes_delete(action="delete")` |
 | mockup | `mockups_read(action="delete_impact")` | `mockups_delete(action="delete")` |
 | Story page | `story_read(action="delete_page_impact")` | `story_delete(action="delete_page")` |
+| every archived mockup | `mockups_read(action="delete_archived_impact")` | `mockups_delete(action="delete_archived")` |
+| every archived Story page | `story_read(action="delete_archived_pages_impact")` | `story_delete(action="delete_archived_pages")` |
 | product | `products_read(action="delete_impact")` | `products_delete(action="delete")` |
 | comment | none: `sources_read(action="list_annotations")` shows it | `sources_delete(action="delete_annotation")` |
 
@@ -43,7 +45,9 @@ The server refuses a delete without its three guards:
 - `confirm` set to exactly `"delete permanently"` (otherwise `confirmation_required`).
 
 A whole product also takes its `name`, typed exactly. A mockup cannot be deleted while a Story page
-shows it. An export (`products_export(action="export")`) keeps a copy of a product first.
+shows it. Deleting every archived mockup or Story page at once takes the same guards; its impact's
+`etag` stands for exactly the set it lists, and an archived mockup a Story page shows is listed in
+`held` and stays. Show the person every title the impact lists before asking them to approve it. An export (`products_export(action="export")`) keeps a copy of a product first.
 
 A deleted object leaves a tombstone: reading it answers `410` with who deleted it, when and why.
 Deleting an organization is its owner's act in the web app, and no tool offers it.

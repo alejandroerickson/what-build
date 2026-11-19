@@ -9,7 +9,8 @@ import {
   applyMove, changesNothing, describePlace, FOLDER_NAME_MAX, keyboardMove, mockupsIn, MOCKUPS_HEADING, moveBack,
   type ArrowKey, type MockupFolder, type MockupList, type MockupMove, type MockupSummary,
 } from "./mockup-folders-model.ts";
-import { NO_MOCKUP_ACTIONS, useMockupActions, type MockupActions } from "./mockup-actions.tsx";
+import { EmptyArchive } from "./empty-archive.tsx";
+import { DeleteArchivedMockups, NO_MOCKUP_ACTIONS, useMockupActions, type MockupActions } from "./mockup-actions.tsx";
 import { useMockupList } from "./mockups.tsx";
 import { DragGhost, holdOf, type Hold } from "./tree-drag.tsx";
 
@@ -100,7 +101,7 @@ export function MockupTree({ shown }: {
   /** Fixed mockups to list in place of the product's own (the tutorial's example), the one open, and a mark after each title. */
   shown?: { list: MockupList; current: string; mark: ReactNode };
 } = {}) {
-  const { app, api: base, product, canWrite } = useProduct();
+  const { app, api: base, product, canWrite, canDelete } = useProduct();
   const { pathname } = useLocation();
   // The panel sits above the screen's route, so it reads the open mockup from the path.
   const current = shown ? shown.current : /\/exploration\/mockups\/([^/]+)/.exec(pathname)?.[1];
@@ -437,6 +438,11 @@ export function MockupTree({ shown }: {
               <MenuItem icon="archive" meta="Reversible" onSelect={() => actions.archive(m)}>
                 Archive
               </MenuItem>
+              {canDelete ? (
+                <MenuItem icon="trash" tone="danger" onSelect={() => actions.remove(m)}>
+                  Delete permanently…
+                </MenuItem>
+              ) : null}
             </Menu>
           ) : null}
         </div>
@@ -534,8 +540,9 @@ export function MockupTree({ shown }: {
  * counts them; they are read only once the section opens, or when the mockup on screen is one.
  */
 function ArchivedMockups({ hidden, current, live, actions }: { hidden: number; current: string | undefined; live: MockupSummary[] | undefined; actions: MockupActions }) {
-  const { app, api: base, canWrite } = useProduct();
+  const { app, api: base, canWrite, canDelete } = useProduct();
   const [show, setShow] = useState<boolean | null>(null);
+  const [emptying, setEmptying] = useState(false);
   // The mockup on screen is not in the live list: it may be archived, so the section looks.
   const maybeHere = Boolean(current && live && !live.some((m) => m.mockup_id === current));
   const archived = useQuery({
@@ -565,17 +572,31 @@ function ArchivedMockups({ hidden, current, live, actions }: { hidden: number; c
                   <Glyph name="archive" />
                   <OneLine text={m.title} />
                 </Link>
-                {canWrite ? (
-                  <Menu label={`Actions for “${m.title}”`} trigger={<Glyph name="ellipsis" />} triggerClassName="icon-btn icon-btn-sm story-row-more" minWidth={200}>
-                    <MenuItem icon="archive-restore" onSelect={() => actions.restore(m)}>
-                      Restore
-                    </MenuItem>
+                {canWrite || canDelete ? (
+                  <Menu label={`Actions for “${m.title}”`} trigger={<Glyph name="ellipsis" />} triggerClassName="icon-btn icon-btn-sm story-row-more" minWidth={220}>
+                    {canWrite ? (
+                      <MenuItem icon="archive-restore" onSelect={() => actions.restore(m)}>
+                        Restore
+                      </MenuItem>
+                    ) : null}
+                    {canWrite && canDelete ? <MenuSeparator /> : null}
+                    {canDelete ? (
+                      <MenuItem icon="trash" tone="danger" onSelect={() => actions.remove(m)}>
+                        Delete permanently…
+                      </MenuItem>
+                    ) : null}
                   </Menu>
                 ) : null}
               </li>
             ))}
           </ul>
         )
+      ) : null}
+      {open && canDelete && archived.data?.length ? (
+        <>
+          <EmptyArchive count={archived.data.length} what="archived mockup canvas" whats="archived mockup canvases" onSelect={() => setEmptying(true)} />
+          {emptying ? <DeleteArchivedMockups onClose={() => setEmptying(false)} /> : null}
+        </>
       ) : null}
     </div>
   );

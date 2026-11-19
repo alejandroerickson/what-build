@@ -14,6 +14,18 @@ const BASE = "/api/v1/p/acme/crew";
 const by = { account_id: "a1", display_name: "Riley Chen", surface: "web", client: null };
 /** Whether the source the page shows is archived. */
 const source = { archived_at: null as string | null };
+/** What emptying Exploration's archive would delete, and what a Story page holds back. */
+const archivedMockups = {
+  etag: "set-mockups",
+  deleted_count: 2,
+  held_count: 1,
+  versions: 3,
+  mockups: [
+    { mockup_id: "m1", title: "Old week board", version_count: 2 },
+    { mockup_id: "m2", title: "Crew roster, first try", version_count: 1 },
+  ],
+  held: [{ mockup_id: "m3", title: "Shift planner", story_pages_showing: [{ page_id: "plan", title: "The plan", archived: true }] }],
+};
 /** The product its Settings show, to an admin. */
 const product = {
   product_id: "p1", name: "Crewboard", slug: "crew", concept: "", archived_at: null as string | null, etag: "product-etag", path: "acme/crew",
@@ -38,6 +50,10 @@ vi.mock("../src/lib/api.ts", async (original) => {
           etag: "source-etag", duration_ms: null, status_detail: null, warnings: [], annotation_count: 0, pending_upload_path: null, attachments: [],
           annotations: [], text: null, agent_notes: [],
         };
+      if (path === `${BASE}/archived-mockups/delete-impact`) return archivedMockups;
+      if (path === `${BASE}/story/archived-pages/delete-impact`)
+        return { etag: "set-pages", deleted_count: 1, versions: 4, mockups_shown: 0, pages: [{ page_id: "retired", title: "Retired roadmap", version_count: 4 }] };
+      if (method === "DELETE") return { deleted: true };
       if (path.endsWith("/delete-impact"))
         return { etag: "impact-etag", file_versions: 0, bytes: 0, derivations: 0, annotations: 0, review_count: 0, linked_from: [], archived: false, version_count: 1, sub_pages_promoted: [] };
       return { sources: 0, tags: [], added_by: [] };
@@ -55,11 +71,11 @@ window.matchMedia ??= (query: string) => ({ matches: false, media: query, onchan
 const { api } = await import("../src/lib/api.ts");
 const { DeleteDialog } = await import("../src/routes/delete-dialog.tsx");
 const { ProductGeneralSettings } = await import("../src/routes/product-misc.tsx");
-const { DeletePage } = await import("../src/routes/story-actions.tsx");
+const { DeleteArchivedPages, DeletePage } = await import("../src/routes/story-actions.tsx");
 const { outcomeGoes } = await import("../src/routes/idea.tsx");
 const { SourceDetailPage, sourceImpactWords } = await import("../src/routes/source-detail.tsx");
 const { organizationImpactWords } = await import("../src/routes/org.tsx");
-const { mockupImpactWords } = await import("../src/routes/mockups.tsx");
+const { DeleteArchivedMockups, mockupImpactWords } = await import("../src/routes/mockup-actions.tsx");
 
 beforeAll(() => {
   // jsdom draws no modal layer; a dialog that opens is enough here.
@@ -80,6 +96,7 @@ afterEach(() => {
   document.body.innerHTML = "";
   source.archived_at = null;
   product.archived_at = null;
+  archivedMockups.deleted_count = 2;
   vi.mocked(api).mockClear();
 });
 
@@ -267,5 +284,55 @@ describe("deleting an outcome", () => {
     expect(outcomeGoes({ ...o, description: "  " })).toBe("This deletes “Crews plan the week in minutes” with its picture.");
     expect(outcomeGoes({ ...o, card_chars: 0, description: "" })).toBe("This deletes “Crews plan the week in minutes”.");
     expect(outcomeGoes({ ...o, title: "Do crews plan by the day?", card_chars: 0 })).toBe("This deletes “Do crews plan by the day?” with its text.");
+  });
+});
+
+/** Types a reason into the dialog, as a person does. */
+async function giveReason(text: string) {
+  const field = document.querySelector<HTMLTextAreaElement>("dialog[open] textarea")!;
+  const set = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")!.set!;
+  await act(async () => {
+    set.call(field, text);
+    field.dispatchEvent(new Event("input", { bubbles: true }));
+  });
+}
+
+describe("deleting everything archived", () => {
+  it("lists every mockup canvas that goes and each one a Story page holds back, then deletes the set it showed and closes", async () => {
+    const onClose = vi.fn();
+    await render(<DeleteArchivedMockups onClose={onClose} />);
+    expect(document.querySelector("dialog[open] h2")?.textContent).toBe("Delete all archived mockup canvases permanently?");
+    expect(footer()).toEqual(["Cancel", "Delete permanently"]);
+    const going = document.querySelector('[aria-label="Archived mockup canvases that would be deleted"]');
+    expect([...going!.querySelectorAll("li")].map((li) => li.textContent)).toEqual(["Old week board", "Crew roster, first try"]);
+    const text = document.querySelector("dialog[open] .delete-impact")!.textContent!;
+    expect(text).toContain("This deletes all 2 archived mockup canvases below with 3 versions");
+    expect(text).toContain("One stays archived, because a Story page shows it");
+    expect(text).toContain("Shift planner · shown on The plan (archived)");
+    expect(text).toContain("Delete that page first");
+    expect(button("Delete permanently").disabled).toBe(true);
+    await giveReason("Clearing out old directions");
+    expect(button("Delete permanently").disabled).toBe(false);
+    await act(async () => button("Delete permanently").click());
+    await settle();
+    expect(api).toHaveBeenCalledWith("DELETE", `${BASE}/archived-mockups`, { expected_etag: "set-mockups", reason: "Clearing out old directions", confirm: "delete permanently" });
+    expect(onClose).toHaveBeenCalled();
+  });
+
+  it("asks for no reason, and can't delete, when every archived canvas is held by a Story page", async () => {
+    archivedMockups.deleted_count = 0;
+    await render(<DeleteArchivedMockups onClose={() => {}} />);
+    expect(document.querySelector("dialog[open] .delete-impact")!.textContent).toContain("None of the archived mockup canvases can be deleted yet.");
+    expect(document.querySelector("dialog[open] textarea")).toBeNull();
+    expect(button("Delete permanently").disabled).toBe(true);
+  });
+
+  it("lists every archived Story page that goes, with Cancel beside the delete and nothing to archive instead", async () => {
+    await render(<DeleteArchivedPages onClose={() => {}} />);
+    expect(document.querySelector("dialog[open] h2")?.textContent).toBe("Delete all archived Story pages permanently?");
+    expect(footer()).toEqual(["Cancel", "Delete permanently"]);
+    expect(document.querySelector("dialog[open] .delete-impact")!.textContent).toContain("This deletes the archived page below with 4 versions and their notes.");
+    const going = document.querySelector('[aria-label="Archived Story pages that would be deleted"]');
+    expect(going?.textContent).toBe("Retired roadmap");
   });
 });

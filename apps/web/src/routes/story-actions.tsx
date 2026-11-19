@@ -1,8 +1,10 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useLocation, useNavigate } from "react-router";
 import { api, ApiError } from "../lib/api.ts";
-import { quotedAtEnd } from "../lib/format.ts";
+import { plural, quotedAtEnd } from "../lib/format.ts";
 import { useProduct } from "../lib/session.tsx";
 import { useToast } from "../ui/index.tsx";
+import { ArchivedTitles } from "./archived-titles.tsx";
 import { DeleteDialog } from "./delete-dialog.tsx";
 import { RenameDialog } from "./rename-dialog.tsx";
 import { toServer, type Hierarchy, type PageView, type StoryNode } from "./story-model.ts";
@@ -162,7 +164,72 @@ export function DeletePage({ page, onArchive, onDeleted, onClose }: { page: Page
         void qc.invalidateQueries({ queryKey: ["story-pages", base] });
         void qc.invalidateQueries({ queryKey: ["product"] });
         toast(`Deleted ${quotedAtEnd(page.title)} The activity log records who, when and why.`);
+        onClose();
         onDeleted();
+      }}
+      onClose={onClose}
+    />
+  );
+}
+
+/** What deleting every archived Story page destroys, as story.delete_archived_pages_impact reports it. */
+interface ArchivedPagesImpact {
+  etag: string;
+  deleted_count: number;
+  versions: number;
+  mockups_shown: number;
+  pages: { page_id: string; title: string; version_count: number }[];
+}
+
+/**
+ * Delete every archived Story page at once, an admin's way of emptying the Story's archive. The
+ * delete is guarded by the set the dialog shows: if a page is archived, restored or changed
+ * meanwhile, the server refuses it and nothing goes.
+ */
+export function DeleteArchivedPages({ onClose }: { onClose: () => void }) {
+  const { app, api: base } = useProduct();
+  const qc = useQueryClient();
+  const toast = useToast();
+  const navigate = useNavigate();
+  const { pathname } = useLocation();
+  const impactPath = `${base}/story/archived-pages/delete-impact`;
+  return (
+    <DeleteDialog<ArchivedPagesImpact>
+      title="Delete all archived Story pages permanently?"
+      impactPath={impactPath}
+      deletePath={`${base}/story/archived-pages`}
+      allowed={(i) => i.deleted_count > 0}
+      renderImpact={(i) =>
+        i.deleted_count ? (
+          <>
+            <p>
+              This deletes {i.deleted_count === 1 ? "the archived page below" : `all ${i.deleted_count} archived pages below`} with {plural(i.versions, "version")} and their notes. Links to
+              them from other pages stop opening.
+            </p>
+            <ArchivedTitles titles={i.pages.map((p) => ({ id: p.page_id, title: p.title }))} label="Archived Story pages that would be deleted" />
+            {i.mockups_shown ? (
+              <p>
+                {i.mockups_shown === 1 ? "A mockup canvas one of them shows is" : `${i.mockups_shown} mockup canvases they show are`} not touched.
+              </p>
+            ) : null}
+          </>
+        ) : (
+          <p>
+            <strong>No Story page is archived now.</strong>
+          </p>
+        )
+      }
+      onDeleted={() => {
+        void qc.invalidateQueries({ queryKey: ["story-tree", base] });
+        void qc.invalidateQueries({ queryKey: ["story-pages", base] });
+        void qc.invalidateQueries({ queryKey: ["mockups", base] });
+        void qc.invalidateQueries({ queryKey: ["product"] });
+        const impact = qc.getQueryData<ArchivedPagesImpact>(["delete-impact", impactPath]);
+        const n = impact?.deleted_count ?? 0;
+        toast(`Deleted ${n === 1 ? "1 archived Story page" : `${n} archived Story pages`}. The activity log records who, when and why.`);
+        onClose();
+        if (impact?.pages.some((p) => pathname.endsWith(`/story/${p.page_id}`))) navigate(`${app}/story`);
+        qc.removeQueries({ queryKey: ["delete-impact", impactPath] });
       }}
       onClose={onClose}
     />

@@ -1,7 +1,7 @@
 ---
 type: Specification
 title: Every capability is one registered operation, reached identically over REST and MCP.
-description: The operation registry, the error model and bounds, the full catalogue of 118 operations with their REST routes and MCP tools, authorization and agent connection levels, upload flows, the guide and the Connect page.
+description: The operation registry, the error model and bounds, the full catalogue of 122 operations with their REST routes and MCP tools, authorization and agent connection levels, upload flows, the guide and the Connect page.
 tags: [spec, operations, rest, mcp, registry, uploads, guide]
 generated: {by: agent:claude, at: 2026-11-18}
 status: stable
@@ -112,7 +112,7 @@ tenant.
 | 401 | No or invalid identity or grant | `unauthenticated`, `invalid_grant` |
 | 403 | A role too low for the action; an agent connection's level too low for it; feedback turned off for an agent connection; something only a person does in the web app; a call outside a scoped MCP connector; a write by a guest of the example organization; a cross-origin cookie write; deleting an account from a browser that has not signed in recently; something an organization's plan switches off | `forbidden`, `connection_level`, `feedback_off`, `web_only`, `outside_connector_scope`, `example_read_only`, `forbidden_origin`, `invitation_wrong_address`, `plan_restricted`, `tenant_allowance`, `sign_in_again` |
 | 404 | Absent — including everything the caller has no role on | `not_found` |
-| 409 | Conflict with current state | `stale_etag`, `product_archived`, `record_archived`, `mockup_archived`, `slug_taken`, `too_many_attachments`, `no_text`, `no_file`, `mockup_on_story`, `folder_name_taken`, `already_uploaded`, `upload_used`, `example_organization`, `export_in_progress`, `last_owner`, `instance_owner`, `quota_exceeded`, `organization_read_only` |
+| 409 | Conflict with current state | `stale_etag`, `product_archived`, `record_archived`, `mockup_archived`, `slug_taken`, `too_many_attachments`, `no_text`, `no_file`, `mockup_on_story`, `nothing_archived`, `folder_name_taken`, `already_uploaded`, `upload_used`, `example_organization`, `export_in_progress`, `last_owner`, `instance_owner`, `quota_exceeded`, `organization_read_only` |
 | 410 | Deliberately deleted, with a tombstone; an invitation no longer usable | `record_deleted`, `outcome_deleted`, `story_page_deleted`, `mockup_deleted`, `annotation_deleted`, `invitation_used`, `invitation_expired` |
 | 413 | Body or file beyond a limit | `too_large` |
 | 415 | A file WhatBuild does not take or show this way: a video, wherever a file comes in; any attachment but an HTML page at its view route | `video_not_accepted`, `not_html` |
@@ -258,7 +258,7 @@ it always has.
 
 ### The operation catalogue
 
-All 118 operations, generated from `OPERATIONS`. The MCP tool is the operation name's first half;
+All 122 operations, generated from `OPERATIONS`. The MCP tool is the operation name's first half;
 standalone tools (—) take their fields directly. "Needs" is the minimum role
 ([§3.5](03-accounts-and-identity.md)); `members` write actions check admin at the level
 being changed inside the handler.
@@ -363,6 +363,8 @@ being changed inside the handler.
 | `story` | `restore_page` | `POST P/story/pages/:page_id/restore` | editor |
 | `story` | `delete_page_impact` | `GET P/story/pages/:page_id/delete-impact` | viewer |
 | `story` | `delete_page` | `DELETE P/story/pages/:page_id` | admin |
+| `story` | `delete_archived_pages_impact` | `GET P/story/archived-pages/delete-impact` | viewer |
+| `story` | `delete_archived_pages` | `DELETE P/story/archived-pages` | admin |
 | `mockups` | `list` | `GET P/mockups` | viewer |
 | `mockups` | `get` | `GET P/mockups/:mockup_id` | viewer |
 | `mockups` | `list_versions` | `GET P/mockups/:mockup_id/versions` | viewer |
@@ -380,6 +382,8 @@ being changed inside the handler.
 | `mockups` | `get_download` | `POST P/mockups/:mockup_id/downloads` | viewer |
 | `mockups` | `delete_impact` | `GET P/mockups/:mockup_id/delete-impact` | viewer |
 | `mockups` | `delete` | `DELETE P/mockups/:mockup_id` | admin |
+| `mockups` | `delete_archived_impact` | `GET P/archived-mockups/delete-impact` | viewer |
+| `mockups` | `delete_archived` | `DELETE P/archived-mockups` | admin |
 | `activity` | `list` | `GET P/activity` | viewer |
 | `guide` | — | `GET /api/v1/guide` | signed in |
 | `submit_feedback` | — | `POST /api/v1/feedback` | signed in |
@@ -941,12 +945,12 @@ owner's included: running the instance is done in the web app.
 | `attachments_write` | `request_upload`, `create_upload`, `create_uploads`, `complete_upload`, `fetch_url` |
 | `derived_read` | `manifest`, `text`, `list`, `read_note`, `card_guidance`, `card_preview` |
 | `derived_write` | `write_text`, `rederive`, `write_note` |
-| `story_read` | `guidance`, `get_style`, `list_pages`, `get_page`, `list_versions`, `get_version`, `preview`, `print_view`, `get_hierarchy`, `delete_page_impact` |
+| `story_read` | `guidance`, `get_style`, `list_pages`, `get_page`, `list_versions`, `get_version`, `preview`, `print_view`, `get_hierarchy`, `delete_page_impact`, `delete_archived_pages_impact` |
 | `story_write` | `set_style`, `publish`, `promote_mockup`, `write_notes`, `set_hierarchy`, `archive_page`, `restore_page` |
-| `story_delete` | `delete_page` |
-| `mockups_read` | `list`, `get`, `list_versions`, `get_version`, `get_download`, `delete_impact` |
+| `story_delete` | `delete_page`, `delete_archived_pages` |
+| `mockups_read` | `list`, `get`, `list_versions`, `get_version`, `get_download`, `delete_impact`, `delete_archived_impact` |
 | `mockups_write` | `request_upload`, `publish`, `create_folder`, `rename_folder`, `move_folder`, `remove_folder`, `move`, `archive`, `restore` |
-| `mockups_delete` | `delete` |
+| `mockups_delete` | `delete`, `delete_archived` |
 | `activity_read` | `list` |
 | `search` | standalone |
 | `guide` | standalone |

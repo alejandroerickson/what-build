@@ -187,6 +187,8 @@ const SCOPED: Record<string, Probe> = {
   "story.restore_page": { input: (a) => ({ page_id: a.page.id, expected_etag: a.page.etag }) },
   "story.delete_page_impact": { input: (a) => ({ page_id: a.page.id }) },
   "story.delete_page": { input: (a) => ({ page_id: a.page.id, expected_etag: a.page.etag, reason: "Removed by an outsider", confirm: "delete permanently" }) },
+  "story.delete_archived_pages_impact": { input: () => ({}) },
+  "story.delete_archived_pages": { input: () => ({ expected_etag: "set-anything", reason: "Removed by an outsider", confirm: "delete permanently" }) },
   "mockups.list": { input: () => ({ include_archived: true }) },
   "mockups.get": { input: (a) => ({ mockup_id: a.mockup.id, include_html: true, include_files: true }) },
   "mockups.list_versions": { input: (a) => ({ mockup_id: a.mockup.id }) },
@@ -223,6 +225,8 @@ const SCOPED: Record<string, Probe> = {
   "mockups.get_download": { input: (a) => ({ mockup_id: a.mockup.id }) },
   "mockups.delete_impact": { input: (a) => ({ mockup_id: a.mockup.id }) },
   "mockups.delete": { input: (a) => ({ mockup_id: a.mockup.id, expected_etag: a.mockup.etag, reason: "Removed by an outsider", confirm: "delete permanently" }) },
+  "mockups.delete_archived_impact": { input: () => ({}) },
+  "mockups.delete_archived": { input: () => ({ expected_etag: "set-anything", reason: "Removed by an outsider", confirm: "delete permanently" }) },
   "activity.list": { input: (a) => ({ entity_id: a.source.id }) },
 };
 

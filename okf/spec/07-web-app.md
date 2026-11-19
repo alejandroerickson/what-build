@@ -1024,8 +1024,19 @@ first-use state.
   dialog: the mockup leaves the list at once, and a toast names it with **Undo**, which restores
   it to the place it kept. **Archived mockup canvases** folds away under the list, with how many
   there are; it reads them once it is opened, and opens by itself when the mockup on screen is
-  archived. Each row opens its mockup, and its menu offers **Restore** to whoever can write. A
-  viewer sees the section and restores nothing.
+  archived. Each row opens its mockup, and its menu offers **Restore** to whoever can write and
+  **Delete permanently…** to an admin. A viewer sees the section and restores nothing.
+- **Deleting**, for a product's admins: a live mockup's menu offers **Delete permanently…** after
+  Archive, as an archived one's does after Restore, and opens the dialog the inspector opens
+  (§7.10). Deleting the mockup on screen goes back to the list.
+- **Emptying the archive**, for a product's admins: the foot of the opened **Archived mockup
+  canvases** offers **Delete all archived…**, a quiet row with a trash glyph that turns the danger
+  colour only under the pointer or the keyboard. Its dialog, "Delete all archived mockup canvases
+  permanently?", lists every canvas that goes by title (scrolling in its own box past six), counts
+  their versions, and names each one a Story page shows, with links to those pages, as staying
+  archived; it asks why, offers Cancel and no Archive instead, and deletes the set it showed with
+  `mockups.delete_archived` (§9.4). When every archived canvas is held by a Story page, it says so
+  and deletes nothing.
 - The crumbs above a canvas name the folder the mockup is in: Exploration, Mockup canvases, the
   folder, the mockup.
 
@@ -1252,7 +1263,10 @@ page of a mockup reaches it by promotion, from the mockup (§7.7).
 - **Row actions.** Each row's menu offers **Rename…** for an editor, then **Export this page to
   PDF…** and, for a page with subpages, **Export with its subpages…**; then **Archive** for an
   editor and **Delete permanently…** for an admin, as everywhere (§7.10). An archived page's row
-  offers **Restore**, export and delete, and no rename. **Rename…** asks for the title (at most 200
+  offers **Restore**, export and delete, and no rename. For an admin, the foot of the opened
+  **Archived pages** offers **Delete all archived…**, as Exploration's archived list does: its
+  dialog, "Delete all archived Story pages permanently?", lists every archived page by title and
+  counts their versions, and deletes them all with `story.delete_archived_pages` (§9.4). **Rename…** asks for the title (at most 200
   characters) in a dialog that says the page keeps its versions and its place and that what it says
   stays as it is, and saves it with `story.rename_page` under the page's etag. It makes no version
   ([decision](../decisions/renaming-a-mockup-or-story-page-makes-no-version.md)): the tree, the

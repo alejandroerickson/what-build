@@ -62,7 +62,12 @@ deletes only what it made itself in the run.
    without a second one.
 9. **Web, as Riley.** On a mockup that a Story page shows, open Delete permanently from the
    inspector. *Expect:* the dialog names the Story page that shows it, and the delete stays
-   disabled. Cancel.
+   disabled. Cancel. Archive that mockup and another from their menus in Exploration's panel, open
+   **Archived mockup canvases**, and choose **Delete all archived…** at its foot. *Expect:* the
+   dialog lists the other mockup as going and the shown one as staying archived, with a link to the
+   Story page that shows it; Cancel. Restore both. In the Story's panel, open **Archived pages**
+   (archive a page first if none is) and choose **Delete all archived…**. *Expect:* every archived
+   page listed by title; Cancel, and restore any page archived for this step.
 10. **Web, as Riley.** Open Settings → the product's General, then the organization's General.
     *Expect:* Delete this product and Delete this organization are there, each asking why and for
     the name to be typed; open each dialog, check the counts look right, and cancel. The product's

@@ -3,13 +3,12 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useState } from "react";
 import { Link, Navigate, useNavigate, useParams, useSearchParams } from "react-router";
 import { api, ApiError } from "../lib/api.ts";
-import { attribution, deletedSentence, formatBytes, formatDate, formatDateTime, plural, quotedAtEnd } from "../lib/format.ts";
+import { attribution, deletedSentence, formatBytes, formatDate, formatDateTime, plural } from "../lib/format.ts";
 import { Markdown } from "../lib/markdown.tsx";
 import { useHeldUpdate } from "../lib/live.tsx";
 import { useProduct } from "../lib/session.tsx";
 import { Inspector, usePageTitle } from "../shell/slots.tsx";
 import { Button, ButtonLink, Callout, Crumbs, Dialog, EmptyState, ErrorCallout, Glyph, Group, KeyValue, Loading, Menu, MenuRadio, Segmented, TextField, useToast, tooLong } from "../ui/index.tsx";
-import { DeleteDialog } from "./delete-dialog.tsx";
 import { FirstUse } from "./first-use.tsx";
 import { MOCKUPS_HEADING, type MockupList, type MockupSummary } from "./mockup-folders-model.ts";
 import { useMockupActions, type MockupActions } from "./mockup-actions.tsx";
@@ -142,13 +141,12 @@ export function MockupInspector({ e, shown, versions, onVersion, selected, click
   selected: string | null;
   clickable: boolean;
   onView: (clickable: boolean) => void;
-  /** Rename, archive and restore; the tutorial's example offers them and does nothing. */
+  /** Rename, archive, restore and delete; the tutorial's example offers them and does nothing. */
   actions: MockupActions;
 }) {
   const { api: base, canDelete, canWrite } = useProduct();
   const toast = useToast();
   const [downloading, setDownloading] = useState(false);
-  const [deleting, setDeleting] = useState(false);
   const isCurrent = shown.version === e.current_version;
   const numbered = isCurrent ? `${shown.version}, current` : `${shown.version} of ${e.current_version}`;
   const page = shown.pages.find((p) => p.page_id === selected) ?? null;
@@ -263,13 +261,12 @@ export function MockupInspector({ e, shown, versions, onVersion, selected, click
               )
             ) : null}
             {canDelete ? (
-              <Button size="sm" variant="quiet" icon="trash" className="story-delete-button" onClick={() => setDeleting(true)}>
+              <Button size="sm" variant="quiet" icon="trash" className="story-delete-button" onClick={() => actions.remove(e)}>
                 Delete permanently…
               </Button>
             ) : null}
           </div>
         ) : null}
-        {deleting ? <DeleteMockup mockup={e} onArchive={() => actions.archive(e)} onClose={() => setDeleting(false)} /> : null}
       </Group>
 
       {page ? (
@@ -643,72 +640,5 @@ export function MockupPage() {
           /> : <Loading variant="lines" />}</Inspector>
       {dialogs}
     </div>
-  );
-}
-
-/** What deleting a mockup destroys, as mockups.delete_impact reports it. */
-interface MockupImpact {
-  etag: string;
-  version_count: number;
-  story_pages_showing: { page_id: string; title: string; archived: boolean }[];
-  earlier_story_versions_showing: { page_id: string; title: string; version: number }[];
-}
-
-/** What deleting a mockup deletes, as its dialog says it: every version, each with its own pages, notes, files and brief. */
-export function mockupImpactWords(title: string, versions: number): string {
-  return versions === 1
-    ? `This deletes “${title}” with its only version: its pages, notes, files and brief.`
-    : `This deletes “${title}” with all ${versions} of its versions: their pages, notes, files and briefs.`;
-}
-
-/** Delete a mockup for good. A Story page that shows it holds it: that page goes, or gets HTML of its own, first. */
-function DeleteMockup({ mockup, onArchive, onClose }: { mockup: MockupView; onArchive: () => void; onClose: () => void }) {
-  const { app, api: base } = useProduct();
-  const qc = useQueryClient();
-  const toast = useToast();
-  const navigate = useNavigate();
-  return (
-    <DeleteDialog<MockupImpact>
-      title="Delete this mockup permanently?"
-      impactPath={`${base}/mockups/${mockup.mockup_id}/delete-impact`}
-      deletePath={`${base}/mockups/${mockup.mockup_id}`}
-      alternative={mockup.archived_at ? undefined : { label: "Archive instead", onSelect: onArchive }}
-      allowed={(i) => !i.story_pages_showing.length}
-      renderImpact={(i) =>
-        i.story_pages_showing.length ? (
-          <>
-            <p>
-              <strong>{i.story_pages_showing.length === 1 ? "A Story page shows" : `${i.story_pages_showing.length} Story pages show`} this mockup.</strong> Delete{" "}
-              {i.story_pages_showing.length === 1 ? "that page" : "those pages"} first.
-            </p>
-            <ul className="delete-impact-list">
-              {i.story_pages_showing.map((p) => (
-                <li key={p.page_id}>
-                  <Link to={`${app}/story/${p.page_id}`}>{p.title}</Link>
-                  {p.archived ? <span className="faint"> · archived</span> : null}
-                </li>
-              ))}
-            </ul>
-          </>
-        ) : (
-          <>
-            <p>{mockupImpactWords(mockup.title, i.version_count)}</p>
-            {i.earlier_story_versions_showing.length ? (
-              <p>
-                {i.earlier_story_versions_showing.length === 1 ? "An earlier version of a Story page shows it, and will" : `${i.earlier_story_versions_showing.length} earlier versions of Story pages show it, and will`}{" "}
-                show an empty page.
-              </p>
-            ) : null}
-          </>
-        )
-      }
-      onDeleted={() => {
-        void qc.invalidateQueries({ queryKey: ["mockups", base] });
-        void qc.invalidateQueries({ queryKey: ["product"] });
-        toast(`Deleted ${quotedAtEnd(mockup.title)} The activity log records who, when and why.`);
-        navigate(`${app}/exploration/mockups`);
-      }}
-      onClose={onClose}
-    />
   );
 }
