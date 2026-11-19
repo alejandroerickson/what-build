@@ -265,10 +265,10 @@ by its name: `$K` in the shell that ran the block, or later as
 neon branches delete main-before-putback-<time> --project-id $N
 ```
 
-Neon's documentation also says such a branch cannot be deleted while it has children, and nobody
-has checked which children a kept branch has. If the delete is refused, leave the branch, tell the
-maintainer that it still holds a copy of real people's data, and try again at the next put-back,
-whose `main-before-` line lists it.
+Neon's documentation also says such a branch cannot be deleted while it has children. The kept
+branches deleted so far had no branch listed under them, and each delete went through. If one is
+ever refused, leave the branch, tell the maintainer that it still holds a
+copy of real people's data, and try again at the next put-back, whose `main-before-` line lists it.
 
 Then deploy production's release as in [step 2](#rehearsing-a-release). The files bucket is not
 reset: files a rehearsal wrote stay, unreferenced and harmless.
