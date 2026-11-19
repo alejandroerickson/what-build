@@ -3,7 +3,7 @@ type: Specification
 title: Every object in a product, with its fields, limits and invariants, as the REST and MCP wire sees it.
 description: The common envelope (ids, etags, attribution, revisions), outcomes, sources and their tags, attachments, comments, summaries and notes, evidence links, the retired insights, decisions and assumptions, views, activity, Story, mockups, feedback, the product bundle, and the storage layout.
 tags: [spec, data-model, schema, revisions, story, mockups, export]
-generated: {by: agent:claude, at: 2026-11-17}
+generated: {by: agent:claude, at: 2026-11-18}
 status: stable
 ---
 
@@ -494,10 +494,18 @@ version is immutable: `version` (1, 2, 3…), `title`, `summary` (describes the 
 recognised without reading it). The database keeps a version's words beside its HTML for search
 ([§8.3](08-search.md)), in no answer and no export. Readers see the latest version; any version
 can be read by number. Limit: 50 pages per product (`409 quota_exceeded`). Agents write pages; agents
-and people arrange, archive and restore them, and admins delete them
+and people arrange, rename, archive and restore them, and admins delete them
 ([decision](../decisions/agents-write-the-story-people-arrange-it.md)). `story.list_pages` leaves
 archived pages out unless `include_archived`, and says how many it left out (`archived_hidden`, with
 a `note` when there are any); a Story reader is given neither the archived pages nor their count.
+**Renaming.** The page's `title` is its name: the tree, the crumbs, search, the print view and a
+Story reader show it, and a version's `title` is what that version was published under.
+`story.rename_page { page_id, title, expected_etag }` (`PATCH …/story/pages/:page_id`) changes the
+name under the page's etag and makes no version; the HTML stays as it is
+([decision](../decisions/renaming-a-mockup-or-story-page-makes-no-version.md)). It answers with the
+page and `renamed`, which is false, with nothing changed and no activity recorded, for the title the
+page already has. An archived page refuses it (`409 page_archived`). The activity log records
+`renamed`, with the page's new title and its old one in the summary.
 ◆ Decision: a version has no change note. What changed is in the activity log, and an agent's
 working context is in the page's notes. The `story_versions.note` column stays for versions
 published before the note was removed, and is neither written nor returned; a product export
@@ -505,8 +513,8 @@ still includes it.
 
 **Later versions.** Publishing a new version of an existing page requires the page's current etag.
 It starts from a **base version**, the current one unless `from_version: N` names another, and
-takes every field it omits (`title`, `summary`, `html`) from the base; the result lists them in
-`carried_forward`, with `based_on_version`. `patch_html: [{find, replace}]` edits the base HTML instead of replacing it: each `find`
+takes `summary` and `html` from the base when it omits them, and `title` from the page as it is now,
+so a rename holds; the result lists what it omitted in `carried_forward`, with `based_on_version`. `patch_html: [{find, replace}]` edits the base HTML instead of replacing it: each `find`
 must occur exactly once when its turn comes, or nothing is published (`422 invalid_patch` listing
 every failed edit). `body` replaces the page's content and takes the product's current stylesheet.
 `restyle: true` keeps the page and replaces its first `<style>` block with the product's current
@@ -823,8 +831,8 @@ case are refused, since they would overwrite each other when unzipped.
 a prototype), and no `expected_etag` (one sent is `409 stale_etag` with `current_etag: null`). With `mockup_id` it publishes the next
 version and needs the mockup's etag (`409 stale_etag`); an archived mockup refuses it
 (`409 mockup_archived`). A version starts from a base, the current one unless `from_version: N`
-names another, and takes every field it omits (`title`, `summary`, `brief`, `columns`) from the
-base. `pages`, when passed, is the whole canvas in order: a page left out is
+names another, and takes `summary`, `brief` and `columns` from the base when it omits them, and
+`title` from the mockup as it is now, so a rename holds. `pages`, when passed, is the whole canvas in order: a page left out is
 dropped from the version, and a page whose `page_id` was on the base keeps its title, notes, size
 and HTML unless they are sent, so a version that changes one page sends only that page's HTML.
 `files`, when passed, is the whole set in the same way: a path on the base keeps its content
@@ -970,13 +978,23 @@ the content site as a Story page's does (§4.11), under a grant naming the versi
 
 **Download.** `mockups.get_download { mockup_id, version? }` returns a short-lived grant for
 `GET /api/v1/downloads/mockup/{version_id}` with the `X-WhatBuild-Download-Grant` header. The ZIP
-holds `brief.md`, `manifest.json` (format `whatbuild-mockup`, format version 2: the mockup, the
-version, `columns`, who published it and when, the pages in order with their titles, sizes and
+holds `brief.md`, `manifest.json` (format `whatbuild-mockup`, format version 2: the mockup and its
+title as it is now, so a ZIP published again keeps a rename, the version, `columns`, who published it and when, the pages in order with their titles, sizes and
 `html_sha256` and file names or `entry` and `poster`, the files, and the prototype's files with
 their size, SHA-256 and type), `pages/<page_id>.html` (for a page with HTML
 of its own) with `pages/<page_id>.notes.md`, each file under `files/` at its path, and each
 prototype file under `prototype/`, byte for byte, so an agent can build the next version in a
 project of its own and publish what changed; the ZIP uploads again as it is.
+
+**Renaming.** The mockup's `title` is its name: the list, its canvas, search, a download and a
+promoted page's starting title use it, and a version's `title` is what that version was published
+under. `mockups.rename { mockup_id, title, expected_etag }` (`PATCH …/mockups/:mockup_id`) changes the
+name under the mockup's etag and makes no version
+([decision](../decisions/renaming-a-mockup-or-story-page-makes-no-version.md)); the mockup keeps its
+folder and its place. It answers with the mockup's summary and `renamed`, which is false, with nothing
+changed and no activity recorded, for the title it already has. An archived mockup refuses it
+(`409 mockup_archived`). The activity log records `renamed`, with the new title and the old one in
+the summary.
 
 **Archive.** `mockups.archive` and `mockups.restore` take the etag. An archived mockup leaves the
 list unless `include_archived`, and every version stays readable. `mockups.list` says how many

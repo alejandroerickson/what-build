@@ -2,14 +2,15 @@ import { Outlet } from "react-router";
 import { PanelContext } from "../shell/slots.tsx";
 import { useTutorial } from "../tutorial/provider.tsx";
 import { TutorialExploration, TutorialExplorationPanel } from "../tutorial/screens.tsx";
+import { MOCKUPS_HEADING } from "./mockup-folders-model.ts";
 import { MockupTree } from "./mockup-tree.tsx";
 
 /** Exploration holds the mockups. The panel lists them in their folders (mockup-tree.tsx), and each opens its canvas. */
 
-/** The Exploration panel context: the mockups. */
+/** The Exploration panel context: the mockups, which the panel calls mockup canvases. */
 export function ExplorationPanel() {
   return (
-    <PanelContext label="Mockups">
+    <PanelContext label={MOCKUPS_HEADING}>
       <MockupTree />
     </PanelContext>
   );

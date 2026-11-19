@@ -1,9 +1,9 @@
 ---
 type: Specification
 title: Every capability is one registered operation, reached identically over REST and MCP.
-description: The operation registry, the error model and bounds, the full catalogue of 116 operations with their REST routes and MCP tools, authorization and agent connection levels, upload flows, the guide and the Connect page.
+description: The operation registry, the error model and bounds, the full catalogue of 118 operations with their REST routes and MCP tools, authorization and agent connection levels, upload flows, the guide and the Connect page.
 tags: [spec, operations, rest, mcp, registry, uploads, guide]
-generated: {by: agent:claude, at: 2026-11-15}
+generated: {by: agent:claude, at: 2026-11-18}
 status: stable
 ---
 
@@ -258,7 +258,7 @@ it always has.
 
 ### The operation catalogue
 
-All 116 operations, generated from `OPERATIONS`. The MCP tool is the operation name's first half;
+All 118 operations, generated from `OPERATIONS`. The MCP tool is the operation name's first half;
 standalone tools (—) take their fields directly. "Needs" is the minimum role
 ([§3.5](03-accounts-and-identity.md)); `members` write actions check admin at the level
 being changed inside the handler.
@@ -358,6 +358,7 @@ being changed inside the handler.
 | `story` | `print_view` | `GET P/story/print-view` | Story reader |
 | `story` | `get_hierarchy` | `GET P/story/hierarchy` | Story reader |
 | `story` | `set_hierarchy` | `PUT P/story/hierarchy` | editor |
+| `story` | `rename_page` | `PATCH P/story/pages/:page_id` | editor |
 | `story` | `archive_page` | `POST P/story/pages/:page_id/archive` | editor |
 | `story` | `restore_page` | `POST P/story/pages/:page_id/restore` | editor |
 | `story` | `delete_page_impact` | `GET P/story/pages/:page_id/delete-impact` | viewer |
@@ -368,6 +369,7 @@ being changed inside the handler.
 | `mockups` | `get_version` | `GET P/mockups/:mockup_id/versions/:version` | viewer |
 | `mockups` | `request_upload` | `POST P/mockups/uploads` | editor |
 | `mockups` | `publish` | `POST P/mockups` | editor |
+| `mockups` | `rename` | `PATCH P/mockups/:mockup_id` | editor |
 | `mockups` | `create_folder` | `POST P/mockup-folders` | editor |
 | `mockups` | `rename_folder` | `PATCH P/mockup-folders/:folder_id` | editor |
 | `mockups` | `move_folder` | `POST P/mockup-folders/:folder_id/move` | editor |
@@ -512,8 +514,11 @@ Notes on recent actions:
   Story reader is given neither the archived pages nor their count ([§4.11](04-data-model.md)).
 - `mockups.publish` creates a mockup, or publishes the next version of one: the whole canvas,
   with its brief, its pages in order and each page's notes and size, and the files it carries for
-  collaborators. A later version keeps what it omits, and a page or file that keeps its id or path
-  keeps its content unless it is sent. `mockups.get` and `get_version` take `include_files` to
+  collaborators. A later version keeps what it omits (its title the mockup's, as it is now), and a
+  page or file that keeps its id or path keeps its content unless it is sent. `mockups.rename` and
+  `story.rename_page` change a mockup's or a Story page's title under its etag and make no version
+  ([§4.11](04-data-model.md), [§4.12](04-data-model.md)); each answers with its object and
+  `renamed`. `mockups.get` and `get_version` take `include_files` to
   return the files' content. `mockups.request_upload` returns a grant to PUT the canvas as a ZIP
   in `get_download`'s layout, and `mockups.publish { upload_id }` reads it in place of `pages`,
   `files` and the brief, so no page's HTML travels through a tool call; it is refused on the free

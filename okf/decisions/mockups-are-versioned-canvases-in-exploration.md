@@ -3,7 +3,7 @@ type: Decision
 title: Mockups are versioned canvases of agent-made HTML, in a stage called Exploration
 description: Agents build directions as sandboxed HTML pages on a canvas under a brief, versioned as a whole and downloadable to build the next one; the third stage is named Exploration.
 tags: [decision, mockups, exploration, story, security, web, agents]
-generated: {by: agent:claude, at: 2026-11-13}
+generated: {by: agent:claude, at: 2026-11-18}
 status: stable
 ---
 
@@ -49,8 +49,11 @@ the names Mockups and Exploration on 2026-10-09.
   grant, so an agent builds the next version in its own project and publishes the pages it changed.
   The same layout uploads as a ZIP through a grant, so an agent can publish a canvas without
   sending its pages' HTML through a tool call.
-- Agents publish and archive mockups; the web app shows them on a pannable, zoomable canvas, or one
-  page at a time as a clickable prototype, and downloads them, whole or a page at a time.
+- Agents publish mockups. Agents and people rename, archive and restore them, people in the web
+  app; a rename makes no version ([decision](renaming-a-mockup-or-story-page-makes-no-version.md)).
+  The web app shows them on a pannable, zoomable canvas, or one page at a time as a clickable
+  prototype, and downloads them, whole or a page at a time. The maintainer chose renaming, archiving
+  and restoring by hand on 2026-11-18.
 - **Mockups are outputs.** They come from the work a team's agents do in their own projects, where
   shared components, stylesheets and design systems are used. Each page is stored as one
   self-contained document, and nothing shared is used to draw it. The maintainer chose this on
@@ -95,7 +98,9 @@ the names Mockups and Exploration on 2026-10-09.
   and assumptions removed ([decision](assumptions-are-removed-and-every-one-is-deleted.md)). Its
   URLs are `/exploration/…`, and old `/synthesis/…` links open the same place. Its count is every
   item it holds, which is its mockups
-  ([decision](each-stage-counts-every-item-it-holds.md)).
+  ([decision](each-stage-counts-every-item-it-holds.md)). Its list is headed **Mockup canvases**,
+  in the panel and the crumbs, so the list says what a mockup is; the item is still called a
+  mockup everywhere else. The maintainer chose the heading on 2026-11-18.
 - Rejected names: "exploration" for the item (too abstract for people and for agents reading the
   tool list), "wireframe" (suggests grey boxes) and "prototype" (suggests a working product).
 

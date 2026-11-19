@@ -4,6 +4,7 @@ import { quotedAtEnd } from "../lib/format.ts";
 import { useProduct } from "../lib/session.tsx";
 import { useToast } from "../ui/index.tsx";
 import { DeleteDialog } from "./delete-dialog.tsx";
+import { RenameDialog } from "./rename-dialog.tsx";
 import { toServer, type Hierarchy, type PageView, type StoryNode } from "./story-model.ts";
 
 /** A Story page as its actions need it: the tree's rows, the archived list and the page shown all have these. */
@@ -16,6 +17,7 @@ export interface PageRef {
 
 /** What the tree and the inspector can ask of a page. Each is offered only to a role that may do it. */
 export interface PageActions {
+  rename: (page: PageRef) => void;
   archive: (page: PageRef) => void;
   restore: (page: PageRef) => void;
   remove: (page: PageRef) => void;
@@ -97,6 +99,35 @@ export function useArchiveActions(tree: StoryNode[]) {
     archive: (page: PageRef) => archive.mutate({ page, before: tree }),
     restore: (page: PageRef) => restore.mutate(page),
   };
+}
+
+/**
+ * Rename a Story page by hand: the title its navigation, crumbs and readers show. It publishes no
+ * version, so the page's own HTML, and any heading in it, stays as the agent wrote it.
+ */
+export function RenamePage({ page, onClose }: { page: PageRef; onClose: () => void }) {
+  const { api: base } = useProduct();
+  const qc = useQueryClient();
+  const toast = useToast();
+  const refresh = () => {
+    void qc.invalidateQueries({ queryKey: ["story-tree", base] });
+    void qc.invalidateQueries({ queryKey: ["story-pages", base] });
+    void qc.invalidateQueries({ queryKey: ["story-page", base, page.page_id] });
+  };
+  return (
+    <RenameDialog
+      heading="Rename page"
+      description="The page keeps its versions and its place, and what it says stays as it is. Readers and agents see the new title."
+      current={page.title}
+      save={(title) => api("PATCH", `${base}/story/pages/${page.page_id}`, { title, expected_etag: page.etag })}
+      onSaved={(title) => toast(`Renamed to ${quotedAtEnd(title)}`)}
+      onClose={() => {
+        // Whatever came of it, the next try starts from the page as it is.
+        refresh();
+        onClose();
+      }}
+    />
+  );
 }
 
 /** What deleting a Story page destroys, as story.delete_page_impact reports it. */

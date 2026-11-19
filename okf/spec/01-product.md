@@ -3,7 +3,7 @@ type: Specification
 title: WhatBuild turns a team's discovery material into insight and a story, with agents as first-class contributors.
 description: Who the product is for, the core loop, the four screens, the vocabulary, the non-negotiable behaviors, and what the product is not.
 tags: [spec, product, vocabulary, principles]
-generated: {by: agent:claude, at: 2026-11-13}
+generated: {by: agent:claude, at: 2026-11-18}
 status: stable
 ---
 
@@ -93,7 +93,7 @@ Idea screen's terms are a decision: [A product starts with its idea](../decision
 | **product concept** | Who the product is for, the problem they have, and how the product solves it. A card that heads the **Idea** screen: its back is the product's `concept` field. |
 | **card** | The product concept or an outcome as the **Idea** screen shows it: a **front**, the picture people see first, which an agent draws (`card_html`), and a **back**, the text agents read first (`concept`, `description`), which people open with More info. Agents write both sides together ([decision](../decisions/idea-cards-have-a-front-for-people-and-a-back-for-agents.md)). |
 | **outcome** | What the product's users should be able to achieve with it, written from their side ("The crew lead plans next week in minutes"), not a feature, a task or a finding. Not the discovery's own goals. The outcomes are the compass everything else in a product is read against; an outcome cites no evidence. The destination that holds the product concept and the outcomes is **Idea**. |
-| **mockup** | A canvas of HTML pages an agent built from the evidence (screens, flows, alternatives side by side), each page with design notes, under a Markdown **brief** that says what the canvas explores. A version is the whole canvas. Never "exploration", "board" or "prototype". The destination that holds the mockups is **Exploration**. |
+| **mockup** | A canvas of HTML pages an agent built from the evidence (screens, flows, alternatives side by side), each page with design notes, under a Markdown **brief** that says what the canvas explores. A version is the whole canvas. Never "exploration", "board" or "prototype". The destination that holds the mockups is **Exploration**, whose list of them is headed **Mockup canvases**. |
 | **clickable prototype** | A way to view a canvas whose pages link to each other: one page at a time, each link changing the page in place. It is not a kind of mockup, and not the multi-file prototype below. |
 | **prototype** | The multi-file part a mockup version may carry: a team's clickable prototype as it is (HTML documents, scripts, styles, fonts, images, fixtures), which canvas pages enter. Only this part is a prototype; the mockup is never called one, and its download or export is never called a bundle of it. |
 | **revision** | The previous text of an authored body, kept immutably whenever that body is overwritten. |

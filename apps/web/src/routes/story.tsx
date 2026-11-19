@@ -12,7 +12,7 @@ import { deletedSentence } from "../lib/format.ts";
 import { Button, ButtonLink, Callout, Crumbs, EmptyState, ErrorCallout, FrameReloading, FrameStopped, Loading, Sheet, useToast } from "../ui/index.tsx";
 import { FirstUse } from "./first-use.tsx";
 import { Canvas, pageAddress, usePinnedPrototype } from "./mockup-canvas.tsx";
-import { DeletePage, useArchiveActions, type PageActions, type PageRef } from "./story-actions.tsx";
+import { DeletePage, RenamePage, useArchiveActions, type PageActions, type PageRef } from "./story-actions.tsx";
 import { backSteps, pageMoves, personActed } from "./page-moves.ts";
 import { ExportDialog } from "./story-export.tsx";
 import { StoryInspectorBody } from "./story-inspector.tsx";
@@ -337,10 +337,11 @@ export function StoryPage() {
   const titleOf = (id: string) => all.find((p) => p.page_id === id)?.title ?? id;
   const refOf = (id: string): PageRef | undefined => all.find((p) => p.page_id === id);
 
-  // Arranging, archiving and deleting pages by hand; agents do the same through MCP.
+  // Arranging, renaming, archiving and deleting pages by hand; agents do the same through MCP.
   const [deleting, setDeleting] = useState<PageRef | null>(null);
+  const [renaming, setRenaming] = useState<PageRef | null>(null);
   const { archive, restore } = useArchiveActions(pageTree);
-  const actions: PageActions = { archive, restore, remove: setDeleting };
+  const actions: PageActions = { rename: setRenaming, archive, restore, remove: setDeleting };
 
   // On a mockup page, the arrows and the control beside the crumbs flip to the mockup pages either side.
   const stop = pageId && !onCanvas ? mockupStop(pageTree, pageId) : null;
@@ -380,6 +381,7 @@ export function StoryPage() {
     <>
       {exporting ? <ExportDialog tree={pageTree} archived={archived} preselect={exporting} onClose={() => setExporting(null)} /> : null}
       {styling && style.data ? <StyleDialog view={style.data} scheme={scheme} onClose={() => setStyling(false)} /> : null}
+      {renaming ? <RenamePage page={renaming} onClose={() => setRenaming(null)} /> : null}
       {deleting ? (
         <DeletePage
           page={deleting}

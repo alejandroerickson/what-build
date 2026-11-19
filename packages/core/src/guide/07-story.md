@@ -48,6 +48,10 @@ version.
 - On a later version, the title, summary and page left out carry forward (`carried_forward` names
   them). `patch_html` fixes text by exact find and replace; `from_version: N` restores an earlier
   version as a new one. `html_sha256` on every version shows identical HTML without reading it.
+- The title is the page's name, in the navigation, above the page and to its readers; each version
+  keeps the title it was published with. `story_write(action="rename_page")` changes the name with
+  the page's etag and makes no version, leaving the HTML, and any heading in it, as it is. A title
+  left out of `publish` is the page's name as it is now, whichever version it starts from.
 - `summary` describes the page and shows in navigation.
 - A page that shows a mockup page (`current.mockup` in `get_page`) has no HTML of its own: `patch_html`
   and `restyle` are refused there, and `html` or `body` replace the mockup page with a page of its own.
@@ -86,9 +90,9 @@ whole canvas), both of those from `promote_mockup` (see `guide(topic="mockups")`
 ## What people do in the app
 
 The web app shows pages, their versions and their notes, and exports them to PDF. People drag pages
-into place in the tree, archive, restore and delete pages, and promote a mockup page or a whole canvas.
-They cannot write, rename or publish a page, or edit its notes. A person may have moved
-pages since the hierarchy was last read: its etag then refuses a stale `set_hierarchy`.
+into place in the tree, rename, archive, restore and delete pages, and promote a mockup page or a
+whole canvas. They cannot write or publish a page, or edit its notes. A person may have moved or
+renamed pages since they were last read: an etag then refuses a stale `set_hierarchy` or publish.
 
 `story_read(action="list_pages")` leaves archived pages out and counts them in `archived_hidden`;
 `include_archived` lists them, and `story_write(action="restore_page")` brings one back.

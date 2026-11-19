@@ -614,7 +614,7 @@ const publishInput = z.strictObject({
     .max(50)
     .optional()
     .describe("A later version only, instead of html: exact find/replace edits applied in order to the base version's HTML. Each find must occur exactly once, or nothing is published."),
-  from_version: z.number().int().min(1).optional().describe("Start from this earlier version instead of the current one: omitted fields are taken from it. Alone, it restores that version as a new one."),
+  from_version: z.number().int().min(1).optional().describe("Start from this earlier version instead of the current one: an omitted summary and html are taken from it, and the title stays the page's. Alone, it restores that version as a new one."),
   expected_etag: expectedEtag.optional(),
 });
 
@@ -654,7 +654,9 @@ async function draftVersion(ctx: OpContext, input: PublishInput, opts: { lock: b
   const from = await base.executeTakeFirst();
   if (!from) throw notFound(`Page "${input.page_id}" has no version ${input.from_version}; its versions run from 1 to ${existing.version_count}.`, { version_count: existing.version_count });
   const carried = CARRIED.filter((f) => input[f] === undefined && !(f === "html" && ways.length > 0));
-  const title = input.title ?? from.title;
+  // The title is the page's name, which rename_page changes without a version: a version that sends
+  // none keeps the name the page has now, whichever version it starts from.
+  const title = input.title ?? existing.title;
   const summary = input.summary ?? from.summary;
   if (from.mockup && (input.patch_html || input.restyle))
     throw invalid("invalid_input", `Version ${from.n} shows ${from.mockup.page_id === null ? "the whole canvas" : `page "${from.mockup.page_id}"`} of a mockup, so it has no HTML of its own to ${input.patch_html ? "patch" : "restyle"}. Send html or body to replace it, or promote_mockup to show another version of the mockup.`);
@@ -686,7 +688,7 @@ export const publish = defineOperation({
   mutates: true,
   summary: "Publish a new version of a Story page (creating the page on its first version). A later version keeps whatever you omit.",
   description:
-    `Call guidance first, and get_page before revising (read its agent_notes too). Send the same call to preview first: it checks everything publish checks and gives you the exact page to look at, publishing nothing. A page's first version: omit expected_etag, give a title, and give body (or html for a whole document of your own, or neither for a generated title page). Prefer body: it is only the markup inside <body>, and WhatBuild puts the product's Story style around it, so the stylesheet is never sent and every page carries the same one. A later version: pass the page etag and send only what changes — the title, summary and html you omit are taken from the current version, and carried_forward in the result names them. To change a sentence, patch_html applies exact find/replace edits instead of re-sending the page. After set_style, restyle: true gives a page the new stylesheet and keeps its content. from_version: N starts from that earlier version instead, so from_version alone restores it as a new version; compare html_sha256 to confirm the HTML is identical. The HTML is validated and every problem is listed at once (422). summary describes the page itself. Publishing never places the page in the navigation: call set_hierarchy afterwards, and update the page's notes with write_notes (agent_notes_etag is in the result). If a response is lost, sending the same call again is safe: once the version has landed it fails with stale_etag, and get_page shows it. links_to_no_page in the result names the Story pages this page links to (links.story_page) that a reader can't open, since no such page is published or it is archived: publish them, or change the links. Never invent facts, owners or dates, and never present what is still unconfirmed as settled.`,
+    `Call guidance first, and get_page before revising (read its agent_notes too). Send the same call to preview first: it checks everything publish checks and gives you the exact page to look at, publishing nothing. A page's first version: omit expected_etag, give a title, and give body (or html for a whole document of your own, or neither for a generated title page). Prefer body: it is only the markup inside <body>, and WhatBuild puts the product's Story style around it, so the stylesheet is never sent and every page carries the same one. A later version: pass the page etag and send only what changes — the title you omit stays the page's title as it is now (rename_page changes it without a version), the summary and html you omit are taken from the current version, and carried_forward in the result names them. To change a sentence, patch_html applies exact find/replace edits instead of re-sending the page. After set_style, restyle: true gives a page the new stylesheet and keeps its content. from_version: N starts from that earlier version instead, so from_version alone restores it as a new version under the page's title now; compare html_sha256 to confirm the HTML is identical. The HTML is validated and every problem is listed at once (422). summary describes the page itself. Publishing never places the page in the navigation: call set_hierarchy afterwards, and update the page's notes with write_notes (agent_notes_etag is in the result). If a response is lost, sending the same call again is safe: once the version has landed it fails with stale_etag, and get_page shows it. links_to_no_page in the result names the Story pages this page links to (links.story_page) that a reader can't open, since no such page is published or it is archived: publish them, or change the links. Never invent facts, owners or dates, and never present what is still unconfirmed as settled.`,
   input: publishInput,
   rest: { method: "POST", path: "/story/pages/:page_id/versions" },
   mcp: { tool: "story", action: "publish" },
@@ -924,6 +926,28 @@ export const archivePage = defineOperation({
     await ctx.db.updateTable("story_pages").set({ archived_at: ctx.now, etag: newEtag(), updated_at: ctx.now, updated_by: json(ctx.actor) }).where("product_id", "=", productId(ctx)).where("page_id", "=", p.page_id).execute();
     await recordActivity(ctx, { action: "archived", entity_type: "story_page", entity_id: p.page_id, entity_title: p.title, summary: promoted.length ? `Archived the page; promoted ${promoted.length} sub-page${promoted.length === 1 ? "" : "s"}` : "Archived the page" });
     return { page_id: p.page_id, archived_at: ctx.now, promoted_children: promoted };
+  },
+});
+
+export const renamePage = defineOperation({
+  name: "story.rename_page",
+  scope: "product",
+  access: "write",
+  mutates: true,
+  summary: "Rename a Story page without publishing a version.",
+  description:
+    "Pass the page's etag; the answer gives the new one. The title is the page's name: in the Story's navigation, above the page, in search, in the print view and to the Story's readers. It makes no version and leaves the page's HTML as it is, so a heading inside the page keeps its words until the next version changes them; each version keeps the title it was published with (current.title, list_versions), and a later publish keeps this title unless it sends one. An archived page refuses it (409 page_archived). The title it already has changes nothing and records no activity.",
+  input: z.strictObject({ page_id: pageId, title: z.string().trim().min(1).max(200), expected_etag: expectedEtag }),
+  rest: { method: "PATCH", path: "/story/pages/:page_id" },
+  mcp: { tool: "story", action: "rename_page" },
+  async handler(ctx, input) {
+    const p = await loadPage(ctx, input.page_id, true);
+    checkEtag(input.expected_etag, p.etag, "story page");
+    if (p.archived_at) throw conflict("page_archived", `Page "${p.page_id}" is archived; restore it before renaming it.`);
+    if (p.title === input.title) return { ...pageSummary(p), renamed: false };
+    await ctx.db.updateTable("story_pages").set({ title: input.title, etag: newEtag(), updated_at: ctx.now, updated_by: json(ctx.actor) }).where("product_id", "=", productId(ctx)).where("page_id", "=", p.page_id).execute();
+    await recordActivity(ctx, { action: "renamed", entity_type: "story_page", entity_id: p.page_id, entity_title: input.title, summary: `Renamed the page, which was ${p.title}` });
+    return { ...pageSummary(await loadPage(ctx, p.page_id)), renamed: true };
   },
 });
 
@@ -1332,5 +1356,5 @@ export const deletePage = defineOperation({
   },
 });
 
-export const storyOps = [guidance, getStyle, setStyle, listPages, getPage, listVersions, getVersion, preview, publish, promoteMockup, writeNotes, printView, getHierarchy, setHierarchy, archivePage, restorePage, pageDeleteImpact, deletePage];
+export const storyOps = [guidance, getStyle, setStyle, listPages, getPage, listVersions, getVersion, preview, publish, promoteMockup, writeNotes, printView, getHierarchy, setHierarchy, renamePage, archivePage, restorePage, pageDeleteImpact, deletePage];
 

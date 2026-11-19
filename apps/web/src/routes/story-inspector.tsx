@@ -88,6 +88,11 @@ export function StoryInspectorBody({ page, shown, versions, onExport, actions }:
           <Button size="sm" icon="download" onClick={onExport}>
             Export to PDF…
           </Button>
+          {canWrite && !page.archived_at ? (
+            <Button size="sm" variant="quiet" icon="pencil" onClick={() => actions.rename(page)}>
+              Rename…
+            </Button>
+          ) : null}
           {canWrite ? (
             page.archived_at ? (
               <Button size="sm" variant="quiet" icon="archive-restore" onClick={() => actions.restore(page)}>

@@ -65,6 +65,23 @@ checked on the way.
 12. **Web, as Jordan.** Open that canvas in the Story, pan, zoom and step through its pages. Then try
     the mockup's own address. *Expect:* the board and its page titles draw as on the mockup's screen,
     with no brief, notes or files; the mockup itself is refused, with the Story's toast.
+13. **Web, as Sam.** Rename the Story page from step 5 from its row's menu, and the mockup from step
+    11 from its inspector. *Expect:* Exploration's panel and crumbs say Mockup canvases; each
+    dialog says what stays as it is; the tree, the list, the crumbs and the inspector show each new
+    title at once, and a toast says it; neither gets a new version; the page's own heading is
+    unchanged; Activity says Sam renamed the page and the mockup. **Web, as Jordan.** Reload the
+    Story. *Expect:* the page's new title in the tree and the crumbs.
+14. **MCP, as Sam.** Read the page and the mockup, then publish the page's next version with a small
+    change and no title. *Expect:* each reads with its new title, and `current.title` the one its
+    version was published with; the new version keeps the new title. Rename the mockup back with
+    `mockups_write(action="rename")` and an etag read before step 13. *Expect:* `409 stale_etag`;
+    with the current etag it renames, and the web app follows.
+15. **Web, as Sam.** In Exploration, archive the mockup from its row's menu, use the toast's Undo,
+    then archive it again from the inspector. *Expect:* Undo puts it back where it stood; archived,
+    it leaves the list, **Archived mockup canvases** below opens with it, the canvas shows "This
+    mockup is archived" with Restore, and the inspector offers Restore and no Rename. Restore it from
+    the notice. *Expect:* it is back in its folder and place, and the Story page from step 11 still
+    shows it. **Web, as Jordan.** *Expect:* no menu or inspector in the Story offers Rename.
 
 ## Look out for
 

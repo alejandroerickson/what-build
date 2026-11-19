@@ -25,6 +25,19 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
 
 Nothing yet.
 
+## v0.40.0
+
+- **People rename mockups and Story pages, and archive and restore mockups, in the app.** Nothing
+  to set, and no migration. Exploration's list is headed Mockup canvases, in the panel and the
+  crumbs. A mockup's menu in the panel and its inspector offer Rename… and Archive to whoever can
+  write, archived ones fold away under the list where they are restored, and an archived mockup's
+  notice offers Restore. A Story page's menu and its inspector offer Rename…. A rename makes no
+  version. Agents get `mockups_write(action="rename")` (`PATCH …/mockups/:mockup_id`) and
+  `story_write(action="rename_page")` (`PATCH …/story/pages/:page_id`), and the tools version
+  becomes 0.66.0, so a connected client sees them after a new session. A publish that sends no
+  title now keeps the mockup's or page's title as it is, rather than the base version's: an agent
+  that restores an earlier version with `from_version` keeps the current name unless it sends one.
+
 ## v0.39.0
 
 - **The tutorial is five short ones.** Migration `0049` replaces `accounts.tutorial_offered_at`,

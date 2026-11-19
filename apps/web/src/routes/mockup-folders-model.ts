@@ -29,7 +29,12 @@ export interface MockupFolder {
 export interface MockupList {
   items: MockupSummary[];
   folders: MockupFolder[];
+  /** How many archived mockups the list leaves out. */
+  archived_hidden?: number;
 }
+
+/** What Exploration's list of mockups is called: in the panel, the crumbs and the page's title. */
+export const MOCKUPS_HEADING = "Mockup canvases";
 
 /** The longest name a folder takes (mockups.create_folder). */
 export const FOLDER_NAME_MAX = 80;

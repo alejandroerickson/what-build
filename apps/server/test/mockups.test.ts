@@ -176,6 +176,73 @@ describe("mockups", () => {
   });
 });
 
+describe("renaming a mockup", () => {
+  let id: string;
+  let etag: string;
+
+  it("changes its title and etag, publishes no version, and keeps its place", async () => {
+    const made = await alice.api("POST", `${P}/mockups`, { title: "Week view", summary: "The week at a glance.", pages: [{ page_id: "week", title: "Week", html: page("Week") }] });
+    expect(made.status).toBe(201);
+    id = made.body.mockup_id;
+    const before = (await alice.api("GET", `${P}/mockups`)).body.items.map((m: { mockup_id: string }) => m.mockup_id);
+    const r = await alice.api("PATCH", `${P}/mockups/${id}`, { title: "  Planning week  ", expected_etag: made.body.etag });
+    expect(r.status).toBe(200);
+    expect(r.body).toMatchObject({ mockup_id: id, title: "Planning week", summary: "The week at a glance.", current_version: 1, renamed: true });
+    expect(r.body.etag).not.toBe(made.body.etag);
+    expect(r.headers.get("etag")).toBe(`"${r.body.etag}"`);
+    etag = r.body.etag;
+    const got = await alice.api("GET", `${P}/mockups/${id}`);
+    expect(got.body).toMatchObject({ title: "Planning week", current_version: 1, etag });
+    // The version keeps the title it was published with.
+    expect(got.body.current).toMatchObject({ version: 1, title: "Week view" });
+    expect((await alice.api("GET", `${P}/mockups/${id}/versions`)).body.items).toHaveLength(1);
+    const list = await alice.api("GET", `${P}/mockups`);
+    expect(list.body.items.map((m: { mockup_id: string }) => m.mockup_id)).toEqual(before);
+    expect(list.body.items.find((m: { mockup_id: string }) => m.mockup_id === id)).toMatchObject({ title: "Planning week" });
+    const act = await alice.api("GET", `${P}/activity?entity_id=${id}`);
+    expect(act.body.items[0]).toMatchObject({ action: "renamed", entity_title: "Planning week", summary: "Renamed the mockup, which was Week view" });
+  });
+
+  it("names the download by its title now, so a ZIP published again keeps it", async () => {
+    const g = await alice.api("POST", `${P}/mockups/${id}/downloads`, {});
+    const res = await fetch(g.body.url, { headers: g.body.headers });
+    const files = unzipSync(new Uint8Array(await res.arrayBuffer()));
+    expect(JSON.parse(strFromU8(files["manifest.json"]!))).toMatchObject({ title: "Planning week", version: 1 });
+    expect(strFromU8(files["index.html"]!)).toContain("<h1>Planning week</h1>");
+  });
+
+  it("is kept by a later version that sends no title, from whichever version it starts", async () => {
+    const v2 = await alice.api("POST", `${P}/mockups`, { mockup_id: id, expected_etag: etag, pages: [{ page_id: "week", html: page("Week, again") }] });
+    expect(v2.status).toBe(201);
+    expect(v2.body).toMatchObject({ title: "Planning week", current_version: 2 });
+    expect((await canvasOf(P, id)).title).toBe("Planning week");
+    const v3 = await alice.api("POST", `${P}/mockups`, { mockup_id: id, expected_etag: v2.body.etag, from_version: 1 });
+    expect(v3.body).toMatchObject({ title: "Planning week", based_on_version: 1 });
+    const v4 = await alice.api("POST", `${P}/mockups`, { mockup_id: id, expected_etag: v3.body.etag, title: "Week planner" });
+    expect(v4.body.title).toBe("Week planner");
+    etag = v4.body.etag;
+  });
+
+  it("changes nothing for the title it has, and refuses a stale etag, an empty title, an archived mockup, a viewer and a Story reader", async () => {
+    const same = await alice.api("PATCH", `${P}/mockups/${id}`, { title: "Week planner", expected_etag: etag });
+    expect(same.status).toBe(200);
+    expect(same.body).toMatchObject({ renamed: false, etag });
+    expect((await alice.api("GET", `${P}/activity?entity_id=${id}`)).body.items[0].action).toBe("updated");
+    const stale = await alice.api("PATCH", `${P}/mockups/${id}`, { title: "Late", expected_etag: "nope" });
+    expect(stale.status).toBe(409);
+    expect(stale.body.error.code).toBe("stale_etag");
+    expect((await alice.api("PATCH", `${P}/mockups/${id}`, { title: "  ", expected_etag: etag })).status).toBe(422);
+    expect((await alice.api("PATCH", `${P}/mockups/${id}`, { title: "x".repeat(201), expected_etag: etag })).status).toBe(422);
+    expect((await vic.api("PATCH", `${P}/mockups/${id}`, { title: "Mine", expected_etag: etag })).status).toBe(403);
+    expect((await rita.api("PATCH", `${P}/mockups/${id}`, { title: "Mine", expected_etag: etag })).status).toBe(403);
+    const a = await alice.api("POST", `${P}/mockups/${id}/archive`, { expected_etag: etag });
+    const refused = await alice.api("PATCH", `${P}/mockups/${id}`, { title: "Shelved", expected_etag: a.body.etag });
+    expect(refused.status).toBe(409);
+    expect(refused.body.error.code).toBe("mockup_archived");
+    expect((await alice.api("POST", `${P}/mockups/${id}/restore`, { expected_etag: a.body.etag })).status).toBe(200);
+  });
+});
+
 const VTT = `WEBVTT
 
 00:00:01.000 --> 00:00:05.000
