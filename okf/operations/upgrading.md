@@ -19,12 +19,13 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
 - **A change that adds a migration** says in its line whether the previous release keeps working
   against the migrated schema. A deploy migrates first and moves the app to the new release after,
   so for that moment, longer if the move fails, the previous release serves on the new schema. A
-  migration that drops or renames a column, a table or a value the previous release still reads
-  breaks it there: say what fails until the new release serves, and that if the move fails, the
-  cure is to deploy the new release again, not to restore
+  migration that takes away something the previous release still reads or writes breaks it there:
+  a dropped or renamed column or table, a value it changes or removes, a constraint it tightens.
+  Say what fails until the new release serves, and that if the move fails, the cure is to deploy
+  the new release again, not to restore
   ([recovering](recovering-from-a-bad-release.md#move-forward-the-migration-worked-and-the-move-did-not)).
-  To find out, list what each migration drops or renames and `git grep` the previous release's tag
-  for it ([releasing](releasing.md#publishing-a-release)).
+  To find out, read each migration in full and `git grep` the previous release's tag for what it
+  takes away ([releasing](releasing.md#publishing-a-release)).
 - **When a release is published** (the `make-a-release` skill, [releasing](releasing.md)), the
   Unreleased lines go into its notes and move here under the release's version. The person
   publishing is told them before they say yes; whoever runs a deployment reads them before
@@ -175,7 +176,8 @@ Nothing yet.
   and until then a call to one of the old tools is told that assumptions are retired. Rehearse the
   release on the dev deployment as any release that migrates; going back past it needs the database
   restored ([recovering](recovering-from-a-bad-release.md)), since running the previous image
-  finds no assumptions.
+  finds no assumptions. Until v0.35.0 serves, the previous release (v0.34.2) finds no assumptions
+  either, and adding one is refused with an error: the migration allows decisions only.
 - **Exploration holds mockups only, and search finds no assumptions.** A product's `counts` have no
   `assumptions`, and Exploration's count is its mockups. `search` takes `scope` `sources` only:
   `assumptions` or `all` is refused, and so is plain mode's `kind` `assumption`, each with a hint. An
@@ -554,7 +556,15 @@ Nothing yet.
   undoes; a connected client sees the change in a new session. People will notice the Published
   mockups section is gone: its pages are rows of the tree, each with an icon, and can be dragged
   anywhere in it. `story.set_hierarchy` refuses `mockups`, and `story.get_hierarchy` no longer gives
-  it, so an agent working from an older tool list is told so.
+  it, so an agent working from an older tool list is told so. The previous release (v0.28.0) does
+  not keep working for the Story's navigation against the migrated schema: it still reads and
+  writes the Published mockups column that `0041_the_story_is_one_tree` drops, so from the moment
+  the migration commits until v0.29.0 serves, archiving or deleting a Story page (and reading what
+  deleting one would destroy) fails with an error, and so does saving the navigation with an order
+  for the Published mockups. Saving it without one takes the pages showing a mockup out of the
+  tree, to be placed again once v0.29.0 serves. Reading the Story still works. If the step that
+  moves the app to v0.29.0 fails after the migration, deploy v0.29.0 again, and do not restore
+  ([recovering](recovering-from-a-bad-release.md#move-forward-the-migration-worked-and-the-move-did-not)).
 - **A reader can search the Story, and a page from a mockup is found once** (`tools_version` 0.48.0).
   It asks nothing of a deployment. A Story-only reader gets the Search field and `search` in plain
   mode, over the Story alone; everything else stays refused. For everyone else, a Story page that
@@ -600,8 +610,9 @@ Nothing yet.
   image's build and the wait for the job together: a build that reaches that fails and the service is
   not deployed, while the job goes on by itself and may yet commit. Then wait for the job to end
   (`gcloud run jobs executions list --job "$JOB" --region "$REGION" --limit 1`). If it succeeded, the
-  version before goes on running on the migrated database, which it can, and a new build of the same
-  release finds nothing to migrate and deploys. If it failed, read on. The rewrite also needs free
+  version before goes on running on the migrated database, which it can apart from the Story's
+  navigation (`0041`, the Story tree's line above), and a new build of the same release finds
+  nothing to migrate and deploys. If it failed, read on. The rewrite also needs free
   disk, as much as the two tables take now and about three times the HTML for pages that are all words.
   What each outcome leaves:
   - **The tables stay in use.** The migration waits for reads and saves in progress and gives way to
@@ -620,7 +631,8 @@ Nothing yet.
     `SELECT pid, now() - xact_start FROM pg_stat_activity WHERE query LIKE '-- A page''s words%';`
     and run `SELECT pg_terminate_backend(<pid>);`. Then give the job longer, and run it again.
 
-  An image from before it still runs on the migrated database. People will notice that words between
+  An image from before it still runs on a database migrated this far; `0041`, which the same
+  release runs next, is what stops v0.28.0 changing the Story's navigation. People will notice that words between
   two script or style blocks, which search used to miss, are now found, and that a page's words
   spelled with `&eacute;`, `&#233;` or `&#xE9;` are found by `café` and show as the letter in a result,
   where they showed a gap; entities that stand for no letter stay a gap. A page of very many unusual
@@ -789,7 +801,15 @@ Nothing yet.
   an instance owner moves them, and `/instance` marks them. The migration drops the limits an
   instance owner had changed for one organization, so check the organizations listed with changed
   limits before upgrading and move any that needs more to another plan afterwards, on `/instance`.
-  The release runs three migrations. `products.set_limits` is gone; `products.set_plan` (`PATCH
+  The release runs three migrations. The previous release (v0.24.0) does not keep working against
+  the migrated schema in an organization on the free plan: it reads an organization's limits from
+  the columns `0037_plans_set_the_limits` drops and renames, so from the moment the migration
+  commits until v0.25.0 serves, every call by anyone in an organization on the free plan, and every
+  guest's call in the example organization, fails with an error, and so do the plan and limits
+  pages. Organizations on any other plan work as before. If the step that moves the app to v0.25.0
+  fails after the migration, deploy v0.25.0 again, and do not restore
+  ([recovering](recovering-from-a-bad-release.md#move-forward-the-migration-worked-and-the-move-did-not)).
+  `products.set_limits` is gone; `products.set_plan` (`PATCH
   /api/v1/organizations/plan`) moves an organization to another plan, and a plan the deployment
   does not define is refused (`422 unknown_plan`). A self-hosted deployment, which sets neither
   setting, needs nothing: every organization stays unlimited, and the app now says nothing of
@@ -999,7 +1019,12 @@ Nothing yet.
   organization and only its members change it. A self-hosted deployment leaves it unset and has no
   example. Without it there is no example organization, and the former sandbox is an ordinary
   organization of its owners and admins. The sandbox's invitation links (`/join/<code>`) now open
-  the app; nothing they promised is kept.
+  the app; nothing they promised is kept. The previous release (v0.19.0) does not keep working
+  against the migrated schema: it reads `accounts.sandbox_only`, which `0034` drops, to recognise
+  every session and every agent's token, so from the moment the migration commits until v0.20.0
+  serves, nobody signed in and no agent can use the deployment. If the step that moves the app to
+  v0.20.0 fails after the migration, deploy v0.20.0 again, and do not restore
+  ([recovering](recovering-from-a-bad-release.md#move-forward-the-migration-worked-and-the-move-did-not)).
 - **Delete the sandbox's reset job.** It concerns a Cloud Run deployment whose `setup.sh` ran with
   `SANDBOX_TENANT`: the route the job calls, `POST /api/v1/sandbox/reset-if-due`, is gone, and the
   job fails every day until it is deleted:
@@ -1401,7 +1426,12 @@ Nothing yet.
   every product (`index_texts`). The index starts empty, so search finds little until those jobs
   are done. Rehearse on the dev deployment first and watch the jobs finish
   ([dev-deployment](dev-deployment.md)). It drops a table and columns, so going back past it means
-  restoring the database ([recovering](recovering-from-a-bad-release.md)).
+  restoring the database ([recovering](recovering-from-a-bad-release.md)). The previous release
+  (v0.13.0) does not keep working against the migrated schema: from the moment `0029` and `0030`
+  commit until v0.14.0 serves, listing, opening and adding sources fail with an error, and so does
+  commenting on one. If the step that moves the app to v0.14.0 fails after the migrations, deploy
+  v0.14.0 again, and do not restore
+  ([recovering](recovering-from-a-bad-release.md#move-forward-the-migration-worked-and-the-move-did-not)).
 - **If v0.13.0 was still running when `0030` ran,** its worker may have taken some of the readings
   the migration queued and skipped them: it looked for a file's role, which the migration had
   dropped. Its log has a `job … derive <source id>: skipped` line for each. Those attachments keep
@@ -1454,7 +1484,12 @@ Nothing yet.
   revisions and saved sandbox baselines are rewritten the same way. It drops columns and a table,
   so an earlier release does not run on the new schema, and going back past it means restoring
   the database ([recovering from a bad release](recovering-from-a-bad-release.md)). Rehearse on
-  the dev deployment first ([dev-deployment](dev-deployment.md)).
+  the dev deployment first ([dev-deployment](dev-deployment.md)). The previous release (v0.12.0)
+  does not keep working against the migrated schema: from the moment `0027` and `0028` commit
+  until v0.13.0 serves, opening a source, adding an assumption, and publishing a Story page or a
+  mockup version fail with an error. If the step that moves
+  the app to v0.13.0 fails after the migrations, deploy v0.13.0 again, and do not restore
+  ([recovering](recovering-from-a-bad-release.md#move-forward-the-migration-worked-and-the-move-did-not)).
 - **Citations, references, lineage and related sources are gone.** Nothing to set. Assumptions,
   Story pages and mockups no longer cite passages or list what they draw on; a source's page no
   longer shows Cited in or Built from, and a passage no longer shows Cited by. `check_citations`,
@@ -1539,7 +1574,12 @@ Nothing yet.
   outcomes keep their archive as `archived_at`, achieved ones become current, and the `status`
   column goes, in saved sandbox baselines too. Rehearse on the dev deployment first
   ([dev-deployment](dev-deployment.md)); going back to an earlier release means restoring the
-  database ([recovering from a bad release](recovering-from-a-bad-release.md)).
+  database ([recovering from a bad release](recovering-from-a-bad-release.md)). The previous
+  release (v0.9.0) does not keep working against the migrated schema: it counts and lists outcomes
+  by `status`, so from the moment the migration commits until v0.10.0 serves, listing or opening a
+  product and Idea's outcomes fail with an error, and the web app shows no product. If the step
+  that moves the app to v0.10.0 fails after the migration, deploy v0.10.0 again, and do not restore
+  ([recovering](recovering-from-a-bad-release.md#move-forward-the-migration-worked-and-the-move-did-not)).
 - **Outcomes lose their status, and agents read them as the compass.** Nothing to set. People see
   Hide archived and Include archived on Idea where Active, Achieved and Archived were, and no
   assumption chips under an outcome. Agents archive and restore with `outcomes(action="archive")`
@@ -1717,7 +1757,11 @@ Nothing yet.
 - **Sources** are described by a title and tags. Migration 0017 turns each source's kind and
   organization into tags and drops both, and rewrites saved sandbox baselines the same way. A call
   that still sends `kind`, `organization` or `folder` gets a `422` with a hint to use tags, and
-  `sources.kinds` is replaced by `sources.facets`.
+  `sources.kinds` is replaced by `sources.facets`. The previous release (v0.4.0) does not keep
+  working against the migrated schema: from the moment `0017` commits until v0.5.0 serves, adding
+  or changing a source and searching fail with an error. If the step that moves the app to v0.5.0
+  fails after the migration, deploy v0.5.0 again, and do not restore
+  ([recovering](recovering-from-a-bad-release.md#move-forward-the-migration-worked-and-the-move-did-not)).
 - **The skill** is at 0.17.0. Connected agents that installed an earlier one are told to update it
   by the server's instructions; until they do, they may still send kinds or call retired tools.
 - **`assumptions.list`** without `status` returns only current assumptions (unconfirmed and

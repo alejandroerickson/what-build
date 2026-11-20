@@ -30,9 +30,12 @@ command. This file is how to conduct the work.
 1. **Find the latest tag and the commit** (the head of `main` unless the person named one).
 2. **Choose the version** by the rules in the guide: minor for features or any migration, patch
    for fixes only. Use the version the person named if they named one.
-3. **Check each new migration against the previous release.** List the columns, tables and values
-   each migration the release adds drops or renames, and `git grep` the latest tag for them (the
-   guide's "Does the previous release keep working"). Where the previous release still reads one,
+3. **Check each new migration against the previous release.** Read each migration the release adds
+   in full for what it takes away: a dropped or renamed column or table, a value it changes or
+   removes, a constraint it tightens. The guide's search (`drop|rename|update|delete|constraint|check`)
+   points at the statements but does not replace reading them. `git grep` the latest tag for each
+   (the guide's "Does the previous release keep working"). Where the previous release still reads
+   or writes one,
    it breaks between the migration and the new release serving: make sure the migration's line in
    Unreleased says so, what fails, and that a failed move is cured by deploying the new release
    again, not by a restore; where nothing matches, that it keeps working. Fix the line before

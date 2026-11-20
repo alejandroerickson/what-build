@@ -705,12 +705,15 @@ before migrating; do not silently substitute this metadata check. Keep restore d
 For a database hosted elsewhere, verify its equivalent recovery mechanism before proceeding.
 
 If a migration fails, earlier migrations in that job may already have committed even though the
-old app is still serving. Use [recovering from a bad release](recovering-from-a-bad-release.md)
-with the recorded time and previous image; restoring loses writes after the chosen point.
+old app is still serving, and if one of them changed something the old release cannot run against
+(the next paragraph), the old app serves with errors until the restore. Use
+[recovering from a bad release](recovering-from-a-bad-release.md) with the recorded time and
+previous image; restoring loses writes after the chosen point.
 
 Until the app update below finishes, the old app serves on the migrated schema, and a migration
-that drops or renames something the old release reads breaks it there; the release's notes in
-[upgrading](upgrading.md) say whether the previous release keeps working. If the job succeeded and
+that drops, renames or changes something the old release reads or writes, or tightens a
+constraint it writes against, breaks it there; the release's notes in [upgrading](upgrading.md)
+say whether the previous release keeps working. If the job succeeded and
 the app update then fails, do not restore: run the app update again with the same
 `WB_IMAGE_TAG`, after fixing what its error names
 ([moving forward](recovering-from-a-bad-release.md#move-forward-the-migration-worked-and-the-move-did-not)).

@@ -5,8 +5,9 @@ description: Recover a WhatBuild deployment that a new version broke, by going b
 
 # Recover a deployment from a bad release
 
-You are putting someone's WhatBuild deployment back to a version that worked. It may be the
-maintainer's or an organization's own. The knowledge, with every command, is in
+You are putting someone's WhatBuild deployment back to a version that works: back to the last
+good release, or, when the new release's migration worked and only the move to its code failed,
+forward to the new release. It may be the maintainer's or an organization's own. The knowledge, with every command, is in
 `okf/operations/recovering-from-a-bad-release.md`. Read it in full before the first command. This
 file is how to conduct the work.
 
@@ -42,8 +43,12 @@ not the release: the guide's step 1 says which, and rolling back fixes neither.
    the step that moves the app failed or never ran, and `/api/v1/meta` still names the previous
    release, the previous release is running on the migrated schema; the release's notes in
    `upgrading.md` say whether it can, and errors now are that if it cannot. Move forward: deploy
-   the new release again (the guide's "Move forward"). It loses nothing; do not restore. Restore
-   (item 5) only if the new release, once serving, is broken too.
+   the new release again (the guide's "Move forward"). It loses nothing; do not restore. Tell the
+   person what failed, that the schema is already the new release's, and which release you will
+   deploy, and wait for their yes. On Cloud Run with Neon, write down the restore point from
+   before the migration first, and retry with the build's last two steps by hand rather than
+   rerunning the build, which can delete it. Restore (item 5) only if the new release, once
+   serving, is broken too.
 4. **No migration:** route traffic to the good revision, or redeploy the good image (step 4).
 5. **A migration that failed partway or did the wrong thing:** choose the restore that matches the
    database (step 5), state the loss, get a yes, restore, then put the good code back straight

@@ -59,19 +59,23 @@ A migration that rewrites existing rows is worth trying first on
 
 **Does the previous release keep working against each new migration?** A deploy migrates first and
 moves the app after, so the previous release serves on the migrated schema for that moment, and
-for longer if the move fails. List the columns, tables and values each new migration drops or
-renames, and look for them in the latest tag:
+for longer if the move fails. Read each new migration in full for anything it takes away that the
+previous release still reads or writes: a dropped or renamed column or table, a value it changes or
+removes (an `UPDATE` that renames a role), a constraint it tightens (a `CHECK` that refuses rows the
+previous release still writes). Then look for each of them in the latest tag. The search below
+points at the statements to read, and finds nothing in a migration that does its work some other
+way, so it helps the reading and does not replace it:
 
 ```bash
 for f in $(git diff --name-only --diff-filter=A <latest tag> $SHA -- apps/server/src/migrations/); do
-  echo "== $f"; git show $SHA:$f | grep -inE 'drop|rename'
+  echo "== $f"; git show $SHA:$f | grep -inE 'drop|rename|update|delete|constraint|check'
 done
-git grep -n '<column or table>' <latest tag> -- apps/server/src packages ':!apps/server/src/migrations'
+git grep -n '<column, table or value>' <latest tag> -- apps/server/src packages ':!apps/server/src/migrations'
 ```
 
 A match in code the previous release runs (a query that names the column, a role or value it
-checks) means it breaks between the migration and the new release serving; read where it is used to
-say what fails, such as every signed-in page or one role's access. The migration's line in
+checks or writes) means it breaks between the migration and the new release serving; read where it
+is used to say what fails, such as every signed-in page or one role's access. The migration's line in
 [upgrading](upgrading.md) says either way, and for a break, what fails and that a failed move is
 cured by deploying the new release again, not by a restore
 ([recovering](recovering-from-a-bad-release.md#move-forward-the-migration-worked-and-the-move-did-not)).
