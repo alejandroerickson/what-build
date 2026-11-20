@@ -3,7 +3,7 @@ type: System Concept
 title: WhatBuild runs as one stateless Cloud Run service with Postgres and a Cloud Storage bucket.
 description: What a deployment on Cloud Run is made of, how deploy/cloud-run/setup.sh creates it, sign-in, deploying and restore points before migrating, its alerts and traces, cost, names, and useful commands; backups and the dev deployment have guides of their own.
 tags: [operations, deployment, cloud-run, gcp]
-generated: {by: agent:claude, at: 2026-11-09}
+generated: {by: agent:claude, at: 2026-11-20}
 status: stable
 ---
 
@@ -298,6 +298,13 @@ gcloud builds submit --project $P --region $R --config deploy/cloud-run/cloudbui
 
 A deploy changes only the image and `WHATBUILD_RELEASE`; every other setting on the service, such
 as `WHATBUILD_INSTANCE_OWNERS`, stays as it was.
+
+**Between the migration and the new revision.** Until the build's `deploy` and `serve` steps
+finish, the previous revision serves on the migrated schema, and a migration that drops or renames
+something the previous release reads breaks it there; the release's notes in
+[upgrading](upgrading.md) say whether the previous release keeps working. If `migrate` succeeded
+and a later step failed, do not restore: deploy the release again, or run those two steps by hand
+([moving forward](recovering-from-a-bad-release.md#move-forward-the-migration-worked-and-the-move-did-not)).
 
 **A restore point before migrating (Neon).** A migration that fails rolls back in its own
 transaction, but one that succeeds and is wrong can only be undone by going back to the database

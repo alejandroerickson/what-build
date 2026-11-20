@@ -1,6 +1,6 @@
 ---
 name: recover-a-deployment
-description: Recover a WhatBuild deployment that a new version broke, by going back to the last good release and, when the bad one migrated the database, restoring the database first. Use when a deploy or upgrade of WhatBuild left it failing or wrong (errors, a screen that no longer loads, sign-in failing, data that looks off), when a migration failed or did the wrong thing, or when asked to roll back, undo a release, restore the database or go back to a previous version, on Google Cloud Run (with Neon, Cloud SQL or another Postgres) or on Azure.
+description: Recover a WhatBuild deployment that a new version broke, by going back to the last good release and, when the bad one migrated the database, restoring the database first; or, when the migration worked and only the move to the new code failed, by deploying the new release again. Use when a deploy or upgrade of WhatBuild left it failing or wrong (errors, a screen that no longer loads, sign-in failing, data that looks off), when a migration failed or did the wrong thing, or when asked to roll back, undo a release, restore the database or go back to a previous version, on Google Cloud Run (with Neon, Cloud SQL or another Postgres) or on Azure.
 ---
 
 # Recover a deployment from a bad release
@@ -38,12 +38,19 @@ not the release: the guide's step 1 says which, and rolling back fixes neither.
    gives the one before it (step 2 of the guide). Tell the person the bad and good releases.
 2. **Find out whether the bad release migrated.** Release notes, the migration job's log, or
    `schema_migrations` (step 3). Anything applied, even when a later file failed, counts.
-3. **No migration:** route traffic to the good revision, or redeploy the good image (step 4).
-4. **A migration:** choose the restore that matches the database (step 5), state the loss, get a
-   yes, restore, then put the good code back straight after.
-5. **Check it** (step 6): health, the release named in `/api/v1/meta`, sign-in, a product, search,
+3. **Every migration applied, but the new code never served?** If the migration job succeeded,
+   the step that moves the app failed or never ran, and `/api/v1/meta` still names the previous
+   release, the previous release is running on the migrated schema; the release's notes in
+   `upgrading.md` say whether it can, and errors now are that if it cannot. Move forward: deploy
+   the new release again (the guide's "Move forward"). It loses nothing; do not restore. Restore
+   (item 5) only if the new release, once serving, is broken too.
+4. **No migration:** route traffic to the good revision, or redeploy the good image (step 4).
+5. **A migration that failed partway or did the wrong thing:** choose the restore that matches the
+   database (step 5), state the loss, get a yes, restore, then put the good code back straight
+   after.
+6. **Check it** (step 6): health, the release named in `/api/v1/meta`, sign-in, a product, search,
    and logs without 500s. Do not call it recovered before all of these pass.
-6. **Report** to the person: what broke, what you restored and to when, what was lost, and what
+7. **Report** to the person: what broke, what you restored and to when, what was lost, and what
    still needs doing (the fix forward and the tidying in steps 7 and 8). If the release itself is
    at fault and the deployment is not the maintainer's, offer to report it to the project as an
    issue, in general terms; the maintainer's own work is never an issue there (`AGENTS.md`).

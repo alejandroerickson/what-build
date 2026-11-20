@@ -3,7 +3,7 @@ type: Process
 title: What a deployment must do when it takes a release
 description: The changes a release asks of the people who run a deployment (settings, app registrations, behaviour they will notice), kept per release, with the unreleased ones on top until the next release carries them into its notes.
 tags: [operations, releases, upgrading, self-hosting, configuration]
-generated: {by: agent:claude, at: 2026-11-18}
+generated: {by: agent:claude, at: 2026-11-20}
 status: stable
 ---
 
@@ -16,6 +16,15 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
   identity provider, a behaviour people will notice, a minimum Node version) gets a line under
   **Unreleased** in the same pull request. Say what to do, who it concerns, and what happens if
   they do not.
+- **A change that adds a migration** says in its line whether the previous release keeps working
+  against the migrated schema. A deploy migrates first and moves the app to the new release after,
+  so for that moment, longer if the move fails, the previous release serves on the new schema. A
+  migration that drops or renames a column, a table or a value the previous release still reads
+  breaks it there: say what fails until the new release serves, and that if the move fails, the
+  cure is to deploy the new release again, not to restore
+  ([recovering](recovering-from-a-bad-release.md#move-forward-the-migration-worked-and-the-move-did-not)).
+  To find out, list what each migration drops or renames and `git grep` the previous release's tag
+  for it ([releasing](releasing.md#publishing-a-release)).
 - **When a release is published** (the `make-a-release` skill, [releasing](releasing.md)), the
   Unreleased lines go into its notes and move here under the release's version. The person
   publishing is told them before they say yes; whoever runs a deployment reads them before
@@ -56,7 +65,15 @@ Nothing yet.
 
 - **The tutorial is five short ones.** Migration `0049` replaces `accounts.tutorial_offered_at`,
   `tutorial_stop` and `tutorial_finished_at` with `tutorials_seen` and `tutorials_off`, and drops
-  the old three; nothing to do. People will notice: the welcome now offers the WhatBuild
+  the old three; nothing to set. The previous release (v0.38.1) does not keep working against the
+  migrated schema: it reads the dropped columns to answer `GET /auth/session` and `/api/v1/me`, so
+  from the moment the migration commits until v0.39.0 serves, every signed-in page load in the web
+  app fails its session check and signed-in people cannot use the app. A deploy that goes through
+  makes this a short gap; expect errors in it, and do not read them as a reason to go back. If the
+  step that moves the app to v0.39.0 fails after the migration, the deployment stays down until it
+  runs: deploy v0.39.0 again, and do not restore
+  ([recovering](recovering-from-a-bad-release.md#move-forward-the-migration-worked-and-the-move-did-not)).
+  People will notice: the welcome now offers the WhatBuild
   tutorial (the navigation and an agent at work), and each of a product's four pages starts a short
   tutorial of its own the first time someone opens it. Whoever was offered the old tutorial counts
   as having seen the welcome, whoever got past a page in it as having seen that page's, and whoever
@@ -138,7 +155,13 @@ Nothing yet.
   `details`, `{ "role": "story_reader", "needed": "viewer" }`). A script or agent that sends
   `role: "reader"` must send `story_reader`: `reader` is refused (`422 invalid_input`) naming the
   roles there are. An MCP client gets the new tool list (version 0.63.0) in a new session. Nothing
-  else needs doing.
+  else needs doing. The previous release (v0.34.2) does not keep working for Story readers against
+  the migrated schema: it does not know `story_reader`, so from the moment the migration commits
+  until v0.35.0 serves, Story readers are refused the Story they read, and someone added or invited
+  as a reader on it in that gap keeps the old name, which v0.35.0 does not know either (give them
+  the role again). If the step that moves the app to v0.35.0 fails after the migration, deploy
+  v0.35.0 again, and do not restore
+  ([recovering](recovering-from-a-bad-release.md#move-forward-the-migration-worked-and-the-move-did-not)).
 - **Migration `0046_no_assumptions` deletes every assumption, for good.** In every product of every
   organization it deletes every assumption, archived or not, with its reviews, its earlier wordings,
   its activity entries and its tombstones; nothing is moved anywhere and nothing in WhatBuild can
@@ -202,7 +225,12 @@ Nothing yet.
   that names one of the organization's pages (`members`, `plan`, `limits`, `people`, `activity`,
   `settings`), the slug `<slug>-2`; and drops the teams. It changes no content. Rehearse it on the dev
   deployment as any release that migrates; going back past it needs the database restored
-  ([recovering](recovering-from-a-bad-release.md)). A deployment does nothing else.
+  ([recovering](recovering-from-a-bad-release.md)). A deployment does nothing else. The previous
+  release (v0.33.3) does not keep working against the migrated schema: it finds every product
+  through its team, so from the moment the migration commits until v0.34.0 serves, every product's
+  screens and every agent's call to a product fail. If the step that moves the app to v0.34.0 fails
+  after the migration, deploy v0.34.0 again, and do not restore
+  ([recovering](recovering-from-a-bad-release.md#move-forward-the-migration-worked-and-the-move-did-not)).
 - **Addresses lose the team.** A product is `/t/<org>/<product>` in the web app,
   `/api/v1/p/<org>/<product>` over REST and `org/product` over MCP; a product's connector is
   `/mcp/t/<org>/<product>`. Addresses with the team keep working: the web app redirects them, and an
