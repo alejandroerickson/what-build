@@ -1,6 +1,6 @@
 import { strToU8, zipSync } from "fflate";
 import { constants, deflateRawSync } from "node:zlib";
-import { describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
 import { stripCueMarkup, voiceName } from "../src/cues.ts";
 import { DEFAULT_PARSE_CAP_BYTES, derive, MAX_HTML_DEPTH, MAX_PDF_PAGES, MAX_SEGMENTS, parseHtml, toParsedFile, type ParseResult } from "../src/index.ts";
 import { formatNumber, formatText, readFormat } from "../src/numfmt.ts";
@@ -15,6 +15,14 @@ import { makeBlankPdf, makeDocx, makePdf, makePdfOfLines, makePdfOfStreams, make
 // even a parse that ran away would end as a failed derivation (apps/server/test/hostile-uploads.test.ts
 // and parse-process.test.ts show those limits at work); these tests hold the parsers to bounds of their own, so what stops a
 // hostile file is a reason, not a limit. Every hostile file is made here; none is committed.
+
+// The PDF parser loads pdf.js on first use (`await import` in src/pdf.ts), and that first load and
+// pdf.js's first document take a few hundred milliseconds, more on a busy CI runner, against the
+// bounds below. Parse one ordinary PDF before any test, so each bound times the hostile file's parse
+// and not the library's first load. The other parsers' libraries are imported with the module.
+beforeAll(async () => {
+  expect((await derive(makePdf(["Warm."]), "warm.pdf")).status).toBe("ready");
+});
 
 const MiB = 1024 * 1024;
 const W = 'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"';
