@@ -60,7 +60,7 @@ waits for the restore.
 - Write down the time, in UTC (`date -u`). A point-in-time restore needs a moment before the deploy
   began; the build's log and the migration job's execution carry exact times.
 - If people are using the deployment, tell them it is being restored and that recent changes may
-  be lost.
+  be lost (unless you are moving forward, step 3: then nothing is restored or lost).
 - **A Microsoft sign-in refused with a reference** ("WhatBuild couldn't confirm your email with
   Microsoft", or "That Microsoft sign-in came from another directory") is usually the identity
   provider's configuration, not the code: an earlier release adds no missing claim. Find the log

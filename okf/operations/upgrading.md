@@ -557,13 +557,11 @@ Nothing yet.
   mockups section is gone: its pages are rows of the tree, each with an icon, and can be dragged
   anywhere in it. `story.set_hierarchy` refuses `mockups`, and `story.get_hierarchy` no longer gives
   it, so an agent working from an older tool list is told so. The previous release (v0.28.0) does
-  not keep working for the Story's navigation against the migrated schema: it still reads and
-  writes the Published mockups column that `0041_the_story_is_one_tree` drops, so from the moment
-  the migration commits until v0.29.0 serves, archiving or deleting a Story page (and reading what
-  deleting one would destroy) fails with an error, and so does saving the navigation with an order
-  for the Published mockups. Saving it without one takes the pages showing a mockup out of the
-  tree, to be placed again once v0.29.0 serves. Reading the Story still works. If the step that
-  moves the app to v0.29.0 fails after the migration, deploy v0.29.0 again, and do not restore
+  not keep working against the migrated schema: it still uses the Published mockups column that
+  `0041_the_story_is_one_tree` drops, so until v0.29.0 serves, deleting a Story page and saving
+  the navigation's mockup order fail, and archiving a page fails where a navigation was saved. If
+  the step that moves the app to v0.29.0 fails after the migration, deploy v0.29.0 again, and do
+  not restore
   ([recovering](recovering-from-a-bad-release.md#move-forward-the-migration-worked-and-the-move-did-not)).
 - **A reader can search the Story, and a page from a mockup is found once** (`tools_version` 0.48.0).
   It asks nothing of a deployment. A Story-only reader gets the Search field and `search` in plain
@@ -1486,9 +1484,9 @@ Nothing yet.
   the database ([recovering from a bad release](recovering-from-a-bad-release.md)). Rehearse on
   the dev deployment first ([dev-deployment](dev-deployment.md)). The previous release (v0.12.0)
   does not keep working against the migrated schema: from the moment `0027` and `0028` commit
-  until v0.13.0 serves, opening a source, adding an assumption, and publishing a Story page or a
-  mockup version fail with an error. If the step that moves
-  the app to v0.13.0 fails after the migrations, deploy v0.13.0 again, and do not restore
+  until v0.13.0 serves, opening, adding or changing a source, adding or changing an assumption,
+  and publishing a Story page or a mockup version fail with an error. If the step that moves the
+  app to v0.13.0 fails after the migrations, deploy v0.13.0 again, and do not restore
   ([recovering](recovering-from-a-bad-release.md#move-forward-the-migration-worked-and-the-move-did-not)).
 - **Citations, references, lineage and related sources are gone.** Nothing to set. Assumptions,
   Story pages and mockups no longer cite passages or list what they draw on; a source's page no
