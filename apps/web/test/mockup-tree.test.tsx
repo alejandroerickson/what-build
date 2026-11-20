@@ -13,14 +13,14 @@ import { applyMove, type MockupList } from "../src/routes/mockup-folders-model.t
 
 const BASE = "/api/v1/p/acme/crew";
 const APP = "/t/acme/crew";
-const mockup = (id: string, title: string, folder: string | null = null) => ({ mockup_id: id, title, summary: "", folder_id: folder, current_version: 1, archived_at: null, etag: `${id}-1`, updated_at: "2026-10-01T09:00:00.000Z", page_count: 1 });
+const mockup = (id: string, title: string, folder: string | null = null) => ({ mockup_id: id, title, summary: "", folder_id: folder, current_version: 1, archived_at: null as string | null, etag: `${id}-1`, updated_at: "2026-10-01T09:00:00.000Z", page_count: 1 });
 const start = (): MockupList => ({
   items: [mockup("m1", "Late booking"), mockup("m2", "Crew message"), mockup("m3", "Jobs board", "f1"), mockup("m4", "Day planner", "f1")],
   folders: [{ folder_id: "f1", name: "Weekly planning", etag: "f1-1", mockup_count: 2 }, { folder_id: "f2", name: "Parked", etag: "f2-1", mockup_count: 0 }],
 });
 
-const server: { list: MockupList; calls: { method: string; path: string; body: unknown }[] } = { list: start(), calls: [] };
-const who = { canWrite: true };
+const server: { list: MockupList; archived: ReturnType<typeof mockup>[]; calls: { method: string; path: string; body: unknown }[] } = { list: start(), archived: [], calls: [] };
+const who = { canWrite: true, canDelete: false };
 
 vi.mock("../src/lib/api.ts", async (original) => {
   const real = await original<typeof import("../src/lib/api.ts")>();
@@ -28,6 +28,7 @@ vi.mock("../src/lib/api.ts", async (original) => {
     ...real,
     api: vi.fn(async (method: string, path: string, body?: unknown) => {
       if (method === "GET" && path === `${BASE}/mockups`) return structuredClone(server.list);
+      if (method === "GET" && path === `${BASE}/mockups?include_archived=true`) return { items: [...server.list.items, ...server.archived], folders: server.list.folders };
       server.calls.push({ method, path, body });
       // The server arranges as the panel does, so the list read again after a move holds it.
       const moved = /\/mockups\/([^/]+)\/move$/.exec(path);
@@ -65,8 +66,10 @@ afterEach(() => {
   document.body.innerHTML = "";
   localStorage.clear();
   server.list = start();
+  server.archived = [];
   server.calls = [];
   who.canWrite = true;
+  who.canDelete = false;
 });
 
 async function open(path = `${APP}/exploration/mockups/m1`) {
@@ -200,6 +203,20 @@ describe("the mockups in the panel", () => {
     // Folding a folder away is theirs to do: it changes nothing anyone else sees.
     await click(item("Weekly planning"));
     expect(rows()).toHaveLength(4);
+  });
+
+  it("ends the opened archived list, for an admin, in a delete-all whose name holds its words and no count", async () => {
+    who.canDelete = true;
+    const archived = (id: string, title: string) => ({ ...mockup(id, title), archived_at: "2026-10-02T09:00:00.000Z" });
+    // Three archived; the dialog may delete fewer (one a Story page shows stays), so the name counts none.
+    server.archived = [archived("a1", "Old week board"), archived("a2", "Crew roster, first try"), archived("a3", "Shift planner")];
+    server.list = { ...start(), archived_hidden: 3 };
+    await open();
+    await click(document.querySelector(".story-archived-toggle")!);
+    const all = document.querySelector<HTMLButtonElement>("button.archived-empty")!;
+    expect(all.textContent).toBe("Delete all archived…");
+    expect(all.getAttribute("aria-label")).toBe("Delete all archived mockup canvases permanently…");
+    expect(all.getAttribute("aria-label")).not.toMatch(/\d/);
   });
 
   it("says there are none yet, and still offers a folder to whoever can write", async () => {

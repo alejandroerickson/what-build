@@ -29,9 +29,11 @@ other plans will too.
    Claude Code or Another agent, and four numbered steps for the one chosen, the first with
    `/mcp` (for Claude Code, the `claude mcp add` command for it) and Copy; the choice is still
    made after a reload. The panel's seat says only "No agent connected", with Connect an agent.
-   Connect an agent in Settings gives the same choice and steps, `/mcp` first, with **Limit this
-   agent to one organization or product** closed; opening it and choosing **One product** gives
-   this product's address, and closing it gives `/mcp` again.
+   Connect an agent in Settings gives the same choice and steps, opening on the agent chosen on
+   Idea: `/mcp` first for Claude or Another agent, and the `claude mcp add` command (with `/mcp`
+   in it) for Claude Code. **Limit this agent to one organization or product** is closed; opening
+   it and choosing **One product** gives this product's address in the first step, and closing it
+   gives `/mcp` again.
 3. **Web, as Sam, in the example organization.** Open the same product and repeat a short tour:
    Idea, Evidence, a source, Story. *Expect:* the same content as in step 2, and one line above
    each screen naming the example organization and saying that everyone who signs in sees what its
