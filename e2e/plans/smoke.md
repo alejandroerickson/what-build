@@ -33,7 +33,7 @@ other plans will too.
    Idea: `/mcp` first for Claude or Another agent, and the `claude mcp add` command (with `/mcp`
    in it) for Claude Code. **Limit this agent to one organization or product** is closed; opening
    it and choosing **One product** gives this product's address in the first step, and closing it
-   gives `/mcp` again.
+   gives the unscoped `/mcp` address again.
 3. **Web, as Sam, in the example organization.** Open the same product and repeat a short tour:
    Idea, Evidence, a source, Story. *Expect:* the same content as in step 2, and one line above
    each screen naming the example organization and saying that everyone who signs in sees what its

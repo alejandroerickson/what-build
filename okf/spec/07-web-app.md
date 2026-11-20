@@ -1033,8 +1033,9 @@ first-use state.
   canvases** offers **Delete all archived…**, a quiet row with a trash glyph that turns the danger
   colour only under the pointer or the keyboard. Its accessible name, "Delete all archived mockup
   canvases permanently…" (on the Story, "Delete all archived Story pages permanently…"), holds the
-  words it shows and no count, since the dialog may delete fewer than the list holds. Its dialog, "Delete all archived mockup canvases
-  permanently?", lists every canvas that goes by title (scrolling in its own box past six), counts
+  words it shows and no count, since the dialog may delete fewer than the list holds. Its dialog,
+  "Delete all archived mockup canvases permanently?", lists every canvas that goes by title
+  (scrolling in its own box past six), counts
   their versions, and names each one a Story page shows, with links to those pages, as staying
   archived; it asks why, offers Cancel and no Archive instead, and deletes the set it showed with
   `mockups.delete_archived` (§9.4). When every archived canvas is held by a Story page, it says so
