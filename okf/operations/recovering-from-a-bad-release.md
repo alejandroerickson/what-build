@@ -1,9 +1,9 @@
 ---
 type: System Concept
 title: When a new version breaks a WhatBuild deployment, go back to the last good version, and restore the database first if the new one migrated it.
-description: For the operator of any WhatBuild deployment and the agent working for them; how to see what runs, tell whether the bad version changed the schema, go back on Cloud Run (Neon, Cloud SQL, another Postgres) or Azure, check it, and fix forward.
+description: For the operator of any WhatBuild deployment and the agent working for them; how to see what runs, tell whether the bad version changed the schema, go back on Cloud Run (Neon, Cloud SQL, another Postgres) or Azure, move forward when the migration worked and only the move to the new code failed, check it, and fix forward.
 tags: [operations, recovery, rollback, migrations, deployment, cloud-run, neon, azure, runbook]
-generated: {by: agent:claude, at: 2026-10-26}
+generated: {by: agent:claude, at: 2026-11-20}
 status: stable
 ---
 
@@ -29,6 +29,19 @@ So: **if the bad release ran no migration, put the previous code back and stop. 
 the database to just before it, then put the previous code back.** Never repair the schema by
 hand, delete rows from `schema_migrations`, or edit a migration file to undo it.
 
+**Except when the migration worked and only the move to the new code did not.** A deploy runs the
+migrations first and moves the app to the new image after. Between the two, the previous release
+serves on the migrated schema, and a migration that drops, renames or changes something it still
+reads or writes, or tightens a constraint it writes against, breaks it there: the release's notes in [upgrading](upgrading.md) say so (the previous release
+"does not keep working", and what fails). If the deploy stops in that gap (the step that
+moves the app failed, or the build timed out), the schema is right and the code serving it is old.
+**Deploy the new release again** ([Move forward](#move-forward-the-migration-worked-and-the-move-did-not);
+on Cloud Run, the build's last two steps by hand): nothing is left to migrate, and the move runs
+again. A restore would lose every write
+since the restore point for what one more move fixes. Restore only when a migration itself did the
+wrong thing (failed partway, or changed data wrongly), or when the new release, once serving, is
+broken too.
+
 Previous code from a release after v0.15.0, run on a database that still has the later
 migrations, does no background work: its worker takes no job and does no housekeeping, and its log
 says the database has migrations its version does not carry
@@ -42,11 +55,12 @@ waits for the restore.
 ## 1. Stop making it worse
 
 - Do not deploy again until you know what went wrong; a redeploy of the same commit does the same
-  thing.
+  thing. The one exception is a deploy whose migrations all applied and whose move to the new code
+  failed: deploying the new release again is then the cure (step 3 tells them apart).
 - Write down the time, in UTC (`date -u`). A point-in-time restore needs a moment before the deploy
   began; the build's log and the migration job's execution carry exact times.
 - If people are using the deployment, tell them it is being restored and that recent changes may
-  be lost.
+  be lost (unless you are moving forward, step 3: then nothing is restored or lost).
 - **A Microsoft sign-in refused with a reference** ("WhatBuild couldn't confirm your email with
   Microsoft", or "That Microsoft sign-in came from another directory") is usually the identity
   provider's configuration, not the code: an earlier release adds no missing claim. Find the log
@@ -96,8 +110,57 @@ Any one of these answers it:
 
 Each migration file runs in its own transaction. A file that fails changes nothing, the deploy
 stops, and the previous version keeps serving; but files before it in the same deploy stay
-applied, and from a release after v0.15.0 the previous version's worker then waits (above). If
-anything was applied, take the path in step 5.
+applied, and from a release after v0.15.0 the previous version's worker then waits (above). If one
+of those already committed a change the previous release cannot run against (the release's notes
+say which, and what fails), the previous version serves with those errors until the restore in
+step 5. If anything was applied, take the path in step 5, unless the case below fits.
+
+**Every migration applied, and the new code never served.** The migration job succeeded (its log
+ends without an error, and `schema_migrations` holds every file the release adds), but the step
+after it failed or never ran: the build's deploy or traffic step failed, or the Azure app update
+did, and `/api/v1/meta` still names the previous release. If the release's notes say the previous
+release does not keep working against the migrated schema, its errors now (often a log line such
+as `column … does not exist`) are that, not a fault in the data. Move forward
+([Move forward](#move-forward-the-migration-worked-and-the-move-did-not)); do not restore. If the
+notes say the previous release keeps working, nothing is urgent: deploy the new release again when
+the cause of the failed move is fixed.
+
+### Move forward: the migration worked and the move did not
+
+Put the new release's code in front of the migrated schema, with the same image the migration job
+ran.
+
+**Cloud Run.** On Neon, first write down the name of the restore point the failed build made before
+it migrated: its log prints `Restore point: pre-migrate-<time>-<commit>`. It is the way back if the
+new release, once serving, turns out broken too, and a full rerun of the build can delete it: each
+build makes a restore point of its own and then keeps only the newest `_NEON_KEEP` (default 3)
+`pre-migrate-…` branches of the database's branch, its own included, deleting older ones (one that
+cannot go, because a branch hangs from it, stays with a warning). With the default, the third full
+rerun deletes the restore point from before the migration.
+
+So move forward by hand, without rerunning the build: run only its last two steps, with the image
+the migration job ran. They make no restore point.
+
+```bash
+IMAGE=$(gcloud run jobs describe whatbuild-migrate --project $P --region $R \
+  --format='value(spec.template.spec.template.spec.containers[0].image)')
+gcloud run deploy whatbuild --project $P --region $R --image "$IMAGE" \
+  --update-env-vars WHATBUILD_RELEASE=<tag> --quiet
+gcloud run services update-traffic whatbuild --project $P --region $R --to-latest --quiet
+```
+
+Rerunning the whole build (approving it again, or deploying by hand from a clean checkout of the
+tag: [Cloud Run](cloud-run.md), "Without a trigger, deploy by hand") also works: it finds nothing
+to migrate and moves the service. But each full rerun pushes out the oldest restore point, so use
+the commands above for every retry, and rerun the build at most once.
+
+**Azure.** Run the app update from [Azure](azure.md) under "Deploying a new version" again, with
+the new release's `WB_IMAGE_TAG`. Starting the migration job again is harmless; it finds nothing to
+do.
+
+If the move fails again, find out why from its own error (a setting, a quota, an image the
+platform cannot pull), fix that, and run the same commands again; the database needs nothing. Then
+check (step 6).
 
 ## 4. No migration: put the previous code back
 
@@ -196,6 +259,9 @@ records the reverted migration in `schema_migrations`, so a later release runs i
   patch version.
 - **Deploy the fix the usual way.** On Cloud Run, the deploy sends traffic to its new revision,
   ending the pin from step 4.
+- **A failed move after a good migration is fixed forward too.** When the migrations applied and
+  only the move to the new code failed, the cure is deploying the new release again (step 3), not
+  restoring and not going back.
 
 ## 8. Tidy up after a Neon restore
 

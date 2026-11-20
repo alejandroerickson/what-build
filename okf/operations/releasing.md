@@ -3,7 +3,7 @@ type: System Concept
 title: A release is a version tag on main, published as a GitHub release with its image; a deployment that follows releases moves when one is published.
 description: For the agent asked to release a version or move production; what a release is, how versions are numbered, publishing one with gh, what the Release workflow adds, and approving the Cloud Run deploy it starts.
 tags: [operations, releases, versions, tags, deployment, cloud-run]
-generated: {by: agent:claude, at: 2026-11-12}
+generated: {by: agent:claude, at: 2026-11-20}
 status: stable
 ---
 
@@ -56,6 +56,29 @@ git diff --name-only --diff-filter=A <latest tag> $SHA -- apps/server/src/migrat
 
 A migration that rewrites existing rows is worth trying first on
 [a copy of production](a-copy-of-production.md).
+
+**Does the previous release keep working against each new migration?** A deploy migrates first and
+moves the app after, so the previous release serves on the migrated schema for that moment, and
+for longer if the move fails. Read each new migration in full for anything it takes away that the
+previous release still reads or writes: a dropped or renamed column or table, a value it changes or
+removes (an `UPDATE` that renames a role), a constraint it tightens (a `CHECK` that refuses rows the
+previous release still writes). Then look for each of them in the latest tag. The search below
+points at the statements to read, and finds nothing in a migration that does its work some other
+way, so it helps the reading and does not replace it:
+
+```bash
+for f in $(git diff --name-only --diff-filter=A <latest tag> $SHA -- apps/server/src/migrations/); do
+  echo "== $f"; git show $SHA:$f | grep -inE 'drop|rename|update|delete|constraint|check'
+done
+git grep -n '<column, table or value>' <latest tag> -- apps/server/src packages ':!apps/server/src/migrations'
+```
+
+A match in code the previous release runs (a query that names the column, a role or value it
+checks or writes) means it breaks between the migration and the new release serving; read where it
+is used to say what fails, such as every signed-in page or one role's access. The migration's line in
+[upgrading](upgrading.md) says either way, and for a break, what fails and that a failed move is
+cured by deploying the new release again, not by a restore
+([recovering](recovering-from-a-bad-release.md#move-forward-the-migration-worked-and-the-move-did-not)).
 
 Choose the number by the rules above. Tell the person the version, the commit, what it contains,
 the migrations it adds and what a deployment must do to take it (the Unreleased section of

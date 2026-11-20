@@ -3,7 +3,7 @@ type: System Concept
 title: WhatBuild self-hosts on Azure Container Apps with Azure Database for PostgreSQL and a mounted file share, set up by an agent with the Azure CLI.
 description: What a self-hosted deployment on Azure is made of, how each resource is configured, the commands that create it, sign-in with a Microsoft work account, the variations between organizations, deploying a new version, cost and removal.
 tags: [operations, deployment, azure, self-hosting, container-apps, entra]
-generated: {by: agent:claude, at: 2026-11-08}
+generated: {by: agent:claude, at: 2026-11-20}
 status: draft
 ---
 
@@ -705,8 +705,19 @@ before migrating; do not silently substitute this metadata check. Keep restore d
 For a database hosted elsewhere, verify its equivalent recovery mechanism before proceeding.
 
 If a migration fails, earlier migrations in that job may already have committed even though the
-old app is still serving. Use [recovering from a bad release](recovering-from-a-bad-release.md)
-with the recorded time and previous image; restoring loses writes after the chosen point.
+old app is still serving, and if one of them changed something the old release cannot run against
+(the next paragraph), the old app serves with errors until the restore. Use
+[recovering from a bad release](recovering-from-a-bad-release.md) with the recorded time and
+previous image; restoring loses writes after the chosen point.
+
+Until the app update below finishes, the old app serves on the migrated schema, and a migration
+that drops, renames or changes something the old release reads or writes, or tightens a
+constraint it writes against, breaks it there; the release's notes in [upgrading](upgrading.md)
+say whether the previous release keeps working. If the job succeeded and
+the app update then fails, do not restore: run the app update again with the same
+`WB_IMAGE_TAG`, after fixing what its error names
+([moving forward](recovering-from-a-bad-release.md#move-forward-the-migration-worked-and-the-move-did-not)).
+Run it straight after the job either way, so the gap is short.
 
 ```bash
 WB_IMAGE_TAG=$(git rev-parse --short=7 HEAD)

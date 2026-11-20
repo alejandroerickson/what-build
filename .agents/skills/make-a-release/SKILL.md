@@ -30,12 +30,23 @@ command. This file is how to conduct the work.
 1. **Find the latest tag and the commit** (the head of `main` unless the person named one).
 2. **Choose the version** by the rules in the guide: minor for features or any migration, patch
    for fixes only. Use the version the person named if they named one.
-3. **Show the person** the version, commit, changes, migrations and what a deployment must do to
-   take it (the Unreleased section of `okf/operations/upgrading.md`); wait for yes.
-4. **Publish**: move the Unreleased lines under the version's heading in `upgrading.md` and commit
+3. **Check each new migration against the previous release.** Read each migration the release adds
+   in full for what it takes away: a dropped or renamed column or table, a value it changes or
+   removes, a constraint it tightens. The guide's search (`drop|rename|update|delete|constraint|check`)
+   points at the statements but does not replace reading them. `git grep` the latest tag for each
+   (the guide's "Does the previous release keep working"). Where the previous release still reads
+   or writes one,
+   it breaks between the migration and the new release serving: make sure the migration's line in
+   Unreleased says so, what fails, and that a failed move is cured by deploying the new release
+   again, not by a restore; where nothing matches, that it keeps working. Fix the line before
+   going on.
+4. **Show the person** the version, commit, changes, migrations and what a deployment must do to
+   take it (the Unreleased section of `okf/operations/upgrading.md`), including any break in that
+   gap; wait for yes.
+5. **Publish**: move the Unreleased lines under the version's heading in `upgrading.md` and commit
    that to `main`, then `gh release create` with them as the notes' first section, as the guide
    shows. Watch the Release workflow to the end.
-5. **Production, if asked:** if the release adds migrations, or changes parsing
+6. **Production, if asked:** if the release adds migrations, or changes parsing
    (`packages/parsers/`, `apps/server/src/parse-process.ts`, `parse-child.ts`, `parse-worker.ts`,
    the `WHATBUILD_PARSE_*` limits, or an upgrade of a package the parsers load) or the service's
    memory, rehearse it on the dev deployment first and report the result. A package the parsers load
@@ -47,5 +58,5 @@ command. This file is how to conduct the work.
    `/api/v1/meta` reports the new version. Then deploy the Cloudflare Worker from the release's tag,
    as the guide shows: the public site is served from the Worker's own build, so without this it
    keeps the page of an older release.
-6. **Report** the release page's address, whether the image was published, what production
+7. **Report** the release page's address, whether the image was published, what production
    runs now, and whether the site's page is the release's. If the deploy broke something, use the `recover-a-deployment` skill.
