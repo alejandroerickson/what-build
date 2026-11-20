@@ -594,7 +594,7 @@ function ArchivedMockups({ hidden, current, live, actions }: { hidden: number; c
       ) : null}
       {open && canDelete && archived.data?.length ? (
         <>
-          <EmptyArchive count={archived.data.length} what="archived mockup canvas" whats="archived mockup canvases" onSelect={() => setEmptying(true)} />
+          <EmptyArchive whats="archived mockup canvases" onSelect={() => setEmptying(true)} />
           {emptying ? <DeleteArchivedMockups onClose={() => setEmptying(false)} /> : null}
         </>
       ) : null}

@@ -393,7 +393,7 @@ export function StoryTree({ arrange, archived, refOf, current, onExport, actions
                 ))}
               </ul>
             ) : null}
-            {archivedOpen && canDelete ? <EmptyArchive count={archived.length} what="archived Story page" whats="archived Story pages" onSelect={() => setEmptying(true)} /> : null}
+            {archivedOpen && canDelete ? <EmptyArchive whats="archived Story pages" onSelect={() => setEmptying(true)} /> : null}
             {emptying ? <DeleteArchivedPages onClose={() => setEmptying(false)} /> : null}
           </div>
         ) : null}
