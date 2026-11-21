@@ -120,12 +120,13 @@ function starterRows(): (FileRow & { starter: true })[] {
 }
 
 /** The product's files that are not removed, in path order; the starter's while it has written none. */
-async function liveFiles(ctx: OpContext, started: boolean, opts: { prefix?: string; withContent?: boolean } = {}): Promise<FileRow[]> {
+async function liveFiles(ctx: OpContext, started: boolean, opts: { prefix?: string; withContent?: boolean; withHash?: boolean } = {}): Promise<FileRow[]> {
   if (!started) return starterRows().filter((f) => !opts.prefix || f.path.startsWith(opts.prefix));
   let q = ctx.db
     .selectFrom("playbook_files")
     .select(FILE_COLUMNS.filter((c) => c !== "content"))
-    .select([(opts.withContent ? sql<string | null>`content` : sql<string | null>`null`).as("content"), CONTENT_SHA256.as("sha256")])
+    // A hash is worked out in the database only for an answer that gives it without the text, which reading every file's text to hash it would cost.
+    .select([(opts.withContent ? sql<string | null>`content` : sql<string | null>`null`).as("content"), (opts.withHash && !opts.withContent ? CONTENT_SHA256 : sql<string | null>`null`).as("sha256")])
     .where("product_id", "=", productId(ctx))
     .where("removed_at", "is", null)
     .orderBy(sql`path collate "C"`);
@@ -439,7 +440,7 @@ export const playbookIndex = defineOperation({
   async handler(ctx, input) {
     const s = await requirePlaybook(ctx, false);
     const prefix = input.prefix ? `${input.prefix.trim().replace(/^\/+/, "").replace(/\/*$/, "")}/` : "";
-    const files = await liveFiles(ctx, s.started, { prefix: prefix || undefined });
+    const files = await liveFiles(ctx, s.started, { prefix: prefix || undefined, withHash: true });
     return {
       okf_version: OKF_VERSION,
       started: s.started,
@@ -863,47 +864,60 @@ const PLAYBOOK_UPLOAD_MAX_ENTRIES = PLAYBOOK_FILES_MAX + 500;
 export const PLAYBOOK_DOWNLOAD_MANIFEST = "_manifest.json";
 
 /**
- * The files a ZIP gives the write steps that name them, by Playbook path: each found at its path, at
- * the ZIP's top or inside one folder around it, as zipping a folder makes. Only those are unpacked;
- * the text is kept byte for byte, so its sha256 is the file's that was zipped. Every problem is
- * listed at once (422).
+ * The files a ZIP gives the write steps that name them, by Playbook path. The whole archive is read
+ * one way: from its top, or, when every entry sits inside one folder, from inside that folder, as
+ * zipping a folder makes; whichever finds more of the paths, the top when they find as many. Only
+ * the files wanted are unpacked, as UTF-8 text kept byte for byte (a leading byte-order mark
+ * included), so each one's sha256 is that of the file that was zipped. Every problem is listed at
+ * once (422).
  */
 export function readPlaybookZip(bytes: Uint8Array, paths: string[]): Map<string, string> {
   const wanted = new Set(paths);
-  const inner = (name: string) => name.slice(name.indexOf("/") + 1);
-  let list: ReturnType<typeof zipEntries>;
-  try {
-    list = zipEntries(bytes, (name) => !zipLitter(name) && (wanted.has(name) || (name.includes("/") && wanted.has(inner(name)))), PLAYBOOK_UPLOAD_UNPACKED_MAX, PLAYBOOK_UPLOAD_MAX_ENTRIES);
-  } catch (e) {
+  const unreadable = (e: unknown): never => {
     if (e instanceof TooManyEntriesError) throw invalid("invalid_upload", `Nothing was changed: ${e.message}. A ZIP of a Playbook's files holds at most ${PLAYBOOK_UPLOAD_MAX_ENTRIES} entries.`);
     if (e instanceof TooLargeError) throw invalid("invalid_upload", `Nothing was changed: the files the steps name unpack to more than ${PLAYBOOK_UPLOAD_UNPACKED_MAX} bytes, more than a Playbook holds. Request a new upload with fewer files.`);
     throw invalid("invalid_upload", `Nothing was changed: the upload is not a ZIP WhatBuild can read (${(e as Error).message}). Zip the files again and request a new upload.`);
+  };
+  // First the names alone, which inflates nothing, to settle how the archive is read.
+  const names: string[] = [];
+  try {
+    zipEntries(bytes, (name) => (zipLitter(name) ? false : (names.push(name), false)), PLAYBOOK_UPLOAD_UNPACKED_MAX, PLAYBOOK_UPLOAD_MAX_ENTRIES);
+  } catch (e) {
+    unreadable(e);
+  }
+  const top = names.length && names.every((n) => n.includes("/")) ? names[0]!.slice(0, names[0]!.indexOf("/") + 1) : null;
+  const folder = top && names.every((n) => n.startsWith(top)) && names.filter((n) => wanted.has(n.slice(top.length))).length > names.filter((n) => wanted.has(n)).length ? top : "";
+  let list: ReturnType<typeof zipEntries> = [];
+  try {
+    list = zipEntries(bytes, (name) => !zipLitter(name) && name.startsWith(folder) && wanted.has(name.slice(folder.length)), PLAYBOOK_UPLOAD_UNPACKED_MAX, PLAYBOOK_UPLOAD_MAX_ENTRIES);
+  } catch (e) {
+    unreadable(e);
   }
   const problems: string[] = [];
-  const decoder = new TextDecoder("utf-8", { fatal: true });
-  const exact = new Map<string, Uint8Array[]>();
-  const nested = new Map<string, Uint8Array[]>();
+  const decoder = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true });
+  const found = new Map<string, Uint8Array[]>();
   for (const e of list) {
-    if (e.symlink) {
-      problems.push(`${e.name} is a symbolic link; zip the file it points to instead.`);
-      continue;
-    }
-    if (wanted.has(e.name)) exact.set(e.name, [...(exact.get(e.name) ?? []), e.data]);
-    else nested.set(inner(e.name), [...(nested.get(inner(e.name)) ?? []), e.data]);
+    if (e.symlink) problems.push(`${e.name} is a symbolic link; zip the file it points to instead.`);
+    else found.set(e.name.slice(folder.length), [...(found.get(e.name.slice(folder.length)) ?? []), e.data]);
   }
   const files = new Map<string, string>();
   for (const path of wanted) {
-    const found = exact.get(path) ?? nested.get(path);
-    if (!found) continue;
-    if (found.length > 1) {
+    const data = found.get(path);
+    if (!data) continue;
+    if (data.length > 1) {
       problems.push(`${path} is in the ZIP more than once.`);
       continue;
     }
+    let text: string;
     try {
-      files.set(path, decoder.decode(found[0]!));
+      text = decoder.decode(data[0]!);
     } catch {
       problems.push(`${path} is not UTF-8 text: the Playbook holds text files only.`);
+      continue;
     }
+    // Postgres keeps no null character in text; a UTF-16 file without its byte-order mark is full of them.
+    if (text.includes("\u0000")) problems.push(`${path} holds a null character, which no text the Playbook keeps may hold; is it UTF-16? Save it as UTF-8.`);
+    else files.set(path, text);
   }
   if (problems.length) throw invalid("invalid_upload", `Nothing was changed: ${problems.join(" ")}`, { problems });
   return files;
@@ -934,7 +948,7 @@ export const playbookRequestUpload = defineOperation({
   access: "write",
   mutates: true,
   summary: "Get a short-lived grant to PUT a Playbook's files as a ZIP, for apply to read by upload_id: a kit from disk, without its text passing through a tool call.",
-  description: `PUT one ZIP to url with exactly the headers given (curl -T kit.zip -H …), then call playbook_write(action="apply") with upload_id and the steps: a write step without content takes the file at its path in the ZIP. Zip the files at their Playbook paths (kits/canvas/README.md), at the ZIP's top or inside one folder around everything, as get_download gives them, so a downloaded folder goes back as it is. Entries no step writes are not read, so the download's ${PLAYBOOK_DOWNLOAD_MANIFEST} may stay in. Files are UTF-8 text, kept byte for byte, each at most ${PLAYBOOK_FILE_MAX_BYTES} bytes; the ZIP is at most ${PLAYBOOK_UPLOAD_MAX_BYTES / 1024 / 1024} MB. An upload's bytes cannot be replaced, a successful apply reads an upload once and answers with its size and sha256, and an upload nobody applies is discarded a day after its grant expires. Keep the grant header out of reports and logs. Refused with 409 playbook_off when the product's admins turned its Playbook off.`,
+  description: `PUT one ZIP to url with exactly the headers given (curl -T kit.zip -H …), then call playbook_write(action="apply") with upload_id and the steps: a write step without content takes the file at its path in the ZIP. Zip the files at their Playbook paths (kits/canvas/README.md), as get_download gives them, so a downloaded folder goes back as it is. When everything in the ZIP sits inside one folder, as zipping a folder makes, the paths are read from inside it if that finds more of the steps' files than reading from the top does. Entries no step writes are not read, so the download's ${PLAYBOOK_DOWNLOAD_MANIFEST} may stay in. Files are UTF-8 text, kept byte for byte (a leading byte-order mark too), without a null character, each at most ${PLAYBOOK_FILE_MAX_BYTES} bytes; the ZIP is at most ${PLAYBOOK_UPLOAD_MAX_BYTES / 1024 / 1024} MB. An upload's bytes cannot be replaced, a successful apply reads an upload once and answers with its size and sha256, and an upload nobody applies is discarded a day after its grant expires. Keep the grant header out of reports and logs. Refused with 409 playbook_off when the product's admins turned its Playbook off.`,
   input: z.strictObject({ size: z.number().int().min(0).optional().describe("The ZIP's size in bytes, when known, so an oversized one is refused before it transfers.") }),
   rest: { method: "POST", path: "/playbook/uploads" },
   mcp: { tool: "playbook", action: "request_upload" },
@@ -980,6 +994,8 @@ export const playbookGetDownload = defineOperation({
   async handler(ctx, input) {
     await requirePlaybook(ctx, false);
     const prefix = folderOf(input.prefix);
+    if (prefix && !FOLDER.test(prefix))
+      throw invalid("invalid_playbook_path", `prefix ${JSON.stringify(input.prefix)} is not a folder the Playbook can hold, so no file is under it. ${PATH_RULES} Nothing was sent.`, { prefix: input.prefix });
     const expiresAt = new Date(Date.parse(ctx.now) + ctx.ports.config.grantTtlSeconds * 1000);
     const token = ctx.ports.grants.sign({ v: 1, purpose: PLAYBOOK_DOWNLOAD_PURPOSE, t: tenantId(ctx), p: productId(ctx), px: prefix, ...requesterClaims(ctx.principal), exp: Math.floor(expiresAt.getTime() / 1000) });
     return {
@@ -992,6 +1008,9 @@ export const playbookGetDownload = defineOperation({
     };
   },
 });
+
+/** A folder a Playbook path can sit in: parts of letters, digits, dots, hyphens and underscores, each starting with a letter or digit. */
+const FOLDER = /^(?:[A-Za-z0-9][A-Za-z0-9._-]{0,79}\/){1,7}$/;
 
 /** A folder as index and read_files take it: kits/canvas is kits/canvas/, and nothing is the whole bundle. */
 function folderOf(prefix: string | undefined): string {
@@ -1025,8 +1044,9 @@ export async function playbookBundle(db: Tx, productId: string, prefix: string):
   });
   const manifest = { format: "whatbuild-playbook", format_version: 1, okf_version: OKF_VERSION, prefix: prefix || null, started, files: listed };
   entries[PLAYBOOK_DOWNLOAD_MANIFEST] = strToU8(`${JSON.stringify(manifest, null, 2)}\n`);
-  const folder = prefix ? `-${prefix.replace(/\/$/, "").replace(/\//g, "-")}` : "";
-  return { bytes: zipSync(entries), name: `${p.slug}-playbook${folder}.zip`, files: listed.length };
+  // A header carries the name, so it keeps to characters any header takes.
+  const folder = prefix ? `-${prefix.replace(/\/$/, "").replace(/[^A-Za-z0-9._-]+/g, "-")}` : "";
+  return { bytes: zipSync(entries), name: `${p.slug}-playbook${folder}.zip`.replace(/[^A-Za-z0-9._-]/g, "-"), files: listed.length };
 }
 
 /** The most steps one apply takes. */
@@ -1038,7 +1058,7 @@ export const playbookApply = defineOperation({
   access: "write",
   mutates: true,
   summary: "Write, remove and move several files of the Playbook at once: all of it, or none.",
-  description: `changes is up to ${APPLY_MAX} steps, run in order, each {action: write | remove | move, path, ...} with the fields that action takes in playbook_write, and expected_etag for every file that is there. A path, or a move's to, appears in one step only (422 playbook_same_path_twice). Every etag is checked before anything is written: when any is stale the whole change is refused with 409 playbook_stale, whose details.files give each stale file's path, current_etag and current_content, so you merge them all at once and send again. Any other refusal also leaves every file as it was. This is how files worked on outside WhatBuild come back: read them with read_files, or download a folder (get_download), change them, and apply. To keep the files' text out of the call, PUT them as a ZIP (request_upload) and pass upload_id: a write step without content takes the file at its path in the ZIP, which may sit inside one folder that holds everything. Entries no step writes are not read. A step's file missing from the ZIP refuses the whole change, naming each one. The answer gives each file written or moved with its etag, size and sha256, to check against your copy, and upload {upload_id, size, sha256} when there was one.`,
+  description: `changes is up to ${APPLY_MAX} steps, run in order, each {action: write | remove | move, path, ...} with the fields that action takes in playbook_write, and expected_etag for every file that is there. A path, or a move's to, appears in one step only (422 playbook_same_path_twice). Every etag is checked before anything is written: when any is stale the whole change is refused with 409 playbook_stale, whose details.files give each stale file's path, current_etag and current_content, so you merge them all at once and send again. Any other refusal also leaves every file as it was. This is how files worked on outside WhatBuild come back: read them with read_files, or download a folder (get_download), change them, and apply. To keep the files' text out of the call, PUT them as a ZIP (request_upload) and pass upload_id: a write step without content takes the file at its path in the ZIP, read from inside one folder when everything sits in it and that finds more of the steps' files. Entries no step writes are not read. A step's file missing from the ZIP refuses the whole change, naming each one. The answer gives each file written or moved with its etag, size and sha256, to check against your copy, and upload {upload_id, size, sha256} when there was one.`,
   input: z.strictObject({ changes: z.array(steps).min(1).max(APPLY_MAX), message, upload_id: id("upload").optional().describe('Files PUT as a ZIP (playbook_write(action="request_upload")): each write step without content takes its text from here.') }),
   rest: { method: "POST", path: "/playbook/apply" },
   mcp: { tool: "playbook", action: "apply" },

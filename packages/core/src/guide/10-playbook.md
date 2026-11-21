@@ -138,11 +138,12 @@ once. A path appears in one of its steps only.
 To work on files on your own machine (a kit, or many files at once): `get_download` a folder and
 unzip it, or `read_files` them and write them into a folder of their own, keeping the etags; change
 them, and send the changes back in one `apply`. To keep their text out of the call, zip the folder as
-it is (files at their Playbook paths, at the top or inside one folder; `_manifest.json` may stay),
+it is (files at their Playbook paths; when everything sits inside one folder, the paths are read from
+inside it if that finds more of the steps' files; `_manifest.json` may stay),
 PUT it under `request_upload`'s grant, and pass `upload_id` to `apply` with write steps that leave
 `content` out. A step whose file the ZIP lacks refuses the whole change, naming each one, and the
 upload can be tried again; a successful `apply` reads an upload once. Files are UTF-8 text, kept byte
-for byte. Every answer that gives a file's metadata gives `size`, its text's bytes as UTF-8, and
+for byte (a leading byte-order mark too), and hold no null character. Every answer that gives a file's metadata gives `size`, its text's bytes as UTF-8, and
 `sha256`, the hex SHA-256 of those bytes, so you can check that your copy, or what you sent,
 arrived whole. Moving onto a path that holds a file is refused with `409 playbook_path_taken`.
 

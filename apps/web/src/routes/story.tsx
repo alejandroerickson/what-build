@@ -95,7 +95,7 @@ export function StoryFrame({
   const wrap = useRef<HTMLDivElement>(null);
   const auto = size?.height === "auto";
   const [grown, setGrown] = useState(PAGE_HEIGHT_MIN);
-  const heard = useAutoHeight(auto, grown, setGrown);
+  const heard = useAutoHeight(auto, grown, setGrown, src);
   const frameSize = useMemo(() => (size ? { width: size.width, height: size.height === "auto" ? grown : size.height } : undefined), [size, grown]);
   const fitted = Boolean(size) && view === "fit";
   useLayoutEffect(() => {

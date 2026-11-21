@@ -212,7 +212,7 @@ function PageFrame({ page, src, drawn, title, selected, onSignal, frameRef, prot
   // the frame has nothing yet to keep the browser from zooming instead.
   const [greeted, setGreeted] = useState(false);
   const grow = useCallback((height: number) => onSignal(page.page_id, { kind: "height", height }), [onSignal, page.page_id]);
-  const heard = useAutoHeight(page.auto, page.height, grow);
+  const heard = useAutoHeight(page.auto, page.height, grow, src);
   // The sandboxed page has an opaque origin, so the message cannot be addressed to one.
   const hello = useCallback(() => {
     setGreeted(true);
@@ -463,9 +463,11 @@ export function Canvas({ version, pageSrc, drawPage, onUse, rememberMode = true,
     following.current = null;
   }, []);
   const columns = Math.max(1, version.columns ?? version.pages.length);
-  // The heights frames measured for pages whose height is "auto", this version's only.
-  const [measured, setMeasured] = useState<{ version: number; heights: Record<string, number> }>({ version: version.version, heights: {} });
-  const heights = measured.version === version.version ? measured.heights : NO_HEIGHTS;
+  // The heights frames measured for pages whose height is "auto", this canvas's only: one mockup's
+  // version 1 is not another's, so the canvas is named by its first page's address.
+  const shownCanvas = version.pages[0] ? pageSrc(version.pages[0]) : String(version.version);
+  const [measured, setMeasured] = useState<{ canvas: string; heights: Record<string, number> }>({ canvas: shownCanvas, heights: {} });
+  const heights = measured.canvas === shownCanvas ? measured.heights : NO_HEIGHTS;
   const laid = useMemo(
     () => version.pages.map((p): LaidPage => (p.height === "auto" ? { ...p, height: heights[p.page_id] ?? PAGE_HEIGHT_MIN, auto: true } : { ...p, height: p.height, auto: false })),
     [version.pages, heights],
@@ -845,8 +847,8 @@ export function Canvas({ version, pageSrc, drawPage, onUse, rememberMode = true,
   /** What a page's frame passes on: the same keys, Space held, a pinch, a press that selects the page. */
   const handleSignal = (pageId: string, s: FrameSignal) => {
     if (s.kind === "height") {
-      const v = version.version;
-      setMeasured((m) => ({ version: v, heights: { ...(m.version === v ? m.heights : {}), [pageId]: s.height } }));
+      const c = shownCanvas;
+      setMeasured((m) => ({ canvas: c, heights: { ...(m.canvas === c ? m.heights : {}), [pageId]: s.height } }));
     } else if (s.kind === "keyup") setSpace(false);
     else if (s.kind === "follow") follow(pageId, s);
     else if (s.kind === "select") {

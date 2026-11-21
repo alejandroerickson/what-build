@@ -3,6 +3,7 @@ import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/
 import { strFromU8, strToU8, unzipSync, zipSync } from "fflate";
 import { createHash, randomBytes } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { readPlaybookZip } from "@whatbuild/core";
 import { startHarness, type Browser, type Harness } from "./harness.ts";
 
 // Each product's Playbook: the starter served until the first write copies it in, files written with
@@ -617,6 +618,35 @@ describe("files to and from an agent's machine", () => {
     expect(wrong.status).toBe(401);
     // Writing takes an editor.
     expect((await vic.api("POST", `${P}/playbook/uploads`, {})).status).toBe(403);
+  });
+
+  it("keeps a file's bytes as zipped, a byte-order mark too, and refuses a null character", async () => {
+    const bom = `\uFEFF${md("Saved on Windows")}`;
+    const kept = await upload(erin, { "lessons/bom.md": bom, "kits/bin/utf16.txt": "h\u0000i\u0000" });
+    const nul = await apply(erin, { upload_id: kept.uploadId, changes: [{ action: "write", path: "lessons/bom.md" }, { action: "write", path: "kits/bin/utf16.txt" }] });
+    expect(nul.status, JSON.stringify(nul.body)).toBe(422);
+    expect(nul.body.error.message).toContain("kits/bin/utf16.txt holds a null character");
+    const ok = await apply(erin, { upload_id: kept.uploadId, changes: [{ action: "write", path: "lessons/bom.md" }] });
+    expect(ok.status, JSON.stringify(ok.body)).toBe(200);
+    expect(ok.body.results[0].sha256).toBe(sha(strToU8(bom)));
+    expect((await read(vic, "lessons/bom.md")).body.content).toBe(bom);
+  });
+
+  it("reads a whole archive one way: from its top, or from inside the one folder around it", () => {
+    const zip = (entries: Record<string, string>) => zipSync(Object.fromEntries(Object.entries(entries).map(([k, v]) => [k, strToU8(v)])));
+    // Files at the top beside a folder: a step's path is found at the top or not at all.
+    expect([...readPlaybookZip(zip({ "kits/notes.md": "in kits", "other.md": "other" }), ["notes.md"])]).toEqual([]);
+    // A folder around everything whose name is also a Playbook folder's: read from inside it, every path alike.
+    const wrapped = readPlaybookZip(zip({ "kits/a.md": "the top's a", "kits/kits/a.md": "kits' a" }), ["a.md", "kits/a.md"]);
+    expect(Object.fromEntries(wrapped)).toEqual({ "a.md": "the top's a", "kits/a.md": "kits' a" });
+    // Files that are all in one Playbook folder, zipped from the top: read from the top.
+    expect(Object.fromEntries(readPlaybookZip(zip({ "kits/a.md": "a", "kits/b.md": "b" }), ["kits/a.md", "kits/b.md"]))).toEqual({ "kits/a.md": "a", "kits/b.md": "b" });
+  });
+
+  it("refuses a download of a folder no Playbook path could sit under", async () => {
+    const odd = await vic.api("POST", `${P}/playbook/downloads`, { prefix: "notas/日本" });
+    expect(odd.status, JSON.stringify(odd.body)).toBe(422);
+    expect(odd.body.error.code).toBe("invalid_playbook_path");
   });
 
   it("downloads a folder with its etags, and the same folder uploads again as it is", async () => {

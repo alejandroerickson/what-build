@@ -5,7 +5,7 @@ import { CANVAS_TOOLS, Canvas, toolTitle, type CanvasVersion } from "../src/rout
 import { ToastProvider } from "../src/ui/toast.tsx";
 import { BACK_STEP_GAP_MS, backSteps, PAGE_MOVE_GAP_MS, pageMoves } from "../src/routes/page-moves.ts";
 import type { PageView } from "../src/routes/story-flip.tsx";
-import { nextAutoHeight, PAGE_HEIGHT_MAX, PAGE_HEIGHT_MIN } from "@whatbuild/core/page-sandbox";
+import { AUTO_HEIGHT_ANSWER_MS, nextAutoHeight, PAGE_HEIGHT_MAX, PAGE_HEIGHT_MIN } from "@whatbuild/core/page-sandbox";
 
 // The canvas's view, what it does as the board around it changes, and what its labels are called.
 // The board is laid out by hand here: the document this runs in has no layout.
@@ -512,12 +512,32 @@ describe("a page whose height is its content's", () => {
     expect(frameOf("list").style.height).toBe("840px");
   });
 
+  it("follows content a script adds to now and then, in steps of any size", () => {
+    let now = 1000;
+    vi.spyOn(performance, "now").mockImplementation(() => now);
+    showAuto();
+    reports("list", 1000);
+    // A row of 48 pixels a second after another: the page growing by itself, not with its frame.
+    for (const h of [1048, 1096, 1144]) {
+      now += 1000;
+      reports("list", h);
+    }
+    expect(frameOf("list").style.height).toBe("1144px");
+  });
+
   it("follows the rule the canvas and the Story share", () => {
-    expect(nextAutoHeight(240, 1000, null)).toEqual({ height: 1000 });
-    expect(nextAutoHeight(240, 100, null)).toBeNull();
-    expect(nextAutoHeight(1000, 1000, { from: 240, to: 1000, reported: 1000 })).toBeNull();
-    expect(nextAutoHeight(1000, 1760, { from: 240, to: 1000, reported: 1000 })).toEqual({ height: 1000, stop: true });
-    // Content that grows on its own, more slowly than the frame did, is followed.
-    expect(nextAutoHeight(1000, 1200, { from: 240, to: 1000, reported: 1000 })).toEqual({ height: 1200 });
+    const grewAt = (at: number) => ({ from: 240, to: 1000, reported: 1000, at });
+    expect(nextAutoHeight(240, 1000, null, 0)).toEqual({ height: 1000 });
+    expect(nextAutoHeight(240, 100, null, 0)).toBeNull();
+    expect(nextAutoHeight(1000, 1000, grewAt(0), 10)).toBeNull();
+    // Right after the frame grew, by what it grew or twice that: a page sized in vh.
+    expect(nextAutoHeight(1000, 1760, grewAt(0), 10)).toEqual({ height: 1000, stop: true });
+    expect(nextAutoHeight(1000, 2520, grewAt(0), 10)).toEqual({ height: 1000, stop: true });
+    // Three times, later, or by something else: content growing by itself, followed.
+    expect(nextAutoHeight(1000, 3280, grewAt(0), 10)).toEqual({ height: 3280 });
+    expect(nextAutoHeight(1000, 1760, grewAt(0), AUTO_HEIGHT_ANSWER_MS + 1)).toEqual({ height: 1760 });
+    expect(nextAutoHeight(1000, 1200, grewAt(0), 10)).toEqual({ height: 1200 });
+    // A frame that grew a few pixels says nothing of how the page answers it.
+    expect(nextAutoHeight(1002, 1004, { from: 1000, to: 1002, reported: 1002, at: 0 }, 10)).toEqual({ height: 1004 });
   });
 });
