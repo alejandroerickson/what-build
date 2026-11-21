@@ -1,6 +1,6 @@
 import {
-  AppError, CARD_FRAMES, escapeHtml, houseSpecimen, SOURCE_CARD_FRAME, houseStyle, ideaCardDocument, ideaCardResponseHeaders, MOCKUP_PAGE_RULES, pageResponseHeaders, printResponseHeaders, prototypeNotice, REFUSED_FRAME_SANDBOX, shownHtml, STORY_PAGE_RULES, styleSpecimen,
-  THEME_ATTRIBUTE, withStoryFonts, withStoryFrame, withStoryTheme, type Env, type FileVersionsTable, type Tx,
+  AppError, CARD_FRAMES, escapeHtml, houseSpecimen, SOURCE_CARD_FRAME, houseStyle, ideaCardDocument, ideaCardResponseHeaders, MOCKUP_FONTS, MOCKUP_PAGE_RULES, pageResponseHeaders, printResponseHeaders, prototypeNotice, REFUSED_FRAME_SANDBOX, shownHtml, STORY_PAGE_RULES, styleSpecimen,
+  STORY_FONTS, THEME_ATTRIBUTE, withStoryFonts, withStoryFrame, withStoryTheme, type Env, type FileVersionsTable, type Tx,
 } from "@whatbuild/core";
 import type { Context } from "hono";
 import { randomBytes } from "node:crypto";
@@ -189,13 +189,13 @@ export const isPdf = (mediaType: string) => /^application\/pdf(;|$)/i.test(media
 
 /**
  * A page as the sandbox serves it: its surface's sandboxing headers (a mockup page's allows forms,
- * whose submissions form-action 'none' still stops), the carried typefaces the page names (never
- * for a mockup, which carries its own look), the theme, and the frame script when the app's frame
+ * whose submissions form-action 'none' still stops), the carried typefaces the page names (a mockup
+ * page's from MOCKUP_FONTS, which adds Inter), the theme, and the frame script when the app's frame
  * asks. A Story preview is served by the same function, so it is shown as its version would be.
  */
 export function storyHtml(c: Context, stored: string, theme: "light" | "dark" | undefined, frame: boolean, mockup = false, site: string | null = null) {
   for (const [k, val] of Object.entries(served(pageResponseHeaders(mockup ? MOCKUP_PAGE_RULES : STORY_PAGE_RULES, ancestorOf(site)), site))) c.header(k, val);
-  const html = mockup ? stored : withStoryFonts(stored);
+  const html = withStoryFonts(stored, mockup ? MOCKUP_FONTS : STORY_FONTS);
   return c.body(frame ? withStoryFrame(html, theme) : theme ? withStoryTheme(html, theme) : html);
 }
 

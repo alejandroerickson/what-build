@@ -69,7 +69,7 @@ Google Cloud Storage behind a storage port; the official MCP SDK (stateless Stre
 React 19, React Router 7, TanStack Query 5, Vite 8; Vitest. Details in
 [architecture](../spec/02-architecture.md).
 
-**Operations.** 140 operations, each defined once and exposed through both REST and MCP, but for
+**Operations.** 142 operations, each defined once and exposed through both REST and MCP, but for
 nineteen: running the instance (its owners' ten actions on plans, organizations, guests,
 allowances, accounts and usage, and removing an account), renaming an organization or a product
 and turning a product's Playbook off or on, which its owners or admins do, deleting an organization and previewing that delete, which only its

@@ -444,6 +444,13 @@ function connectorMoved(base: string, bound: ScopeRef, fence: ConnectorScope): s
   );
 }
 
+/**
+ * The calls whose answers carry connector_address: the ones an agent starts a session with. Every
+ * answer carrying it repeated the same paragraph many times a session, and an agent tells the
+ * person once.
+ */
+const SAYS_CONNECTOR_MOVED = new Set(["products.list", "products.get", "guide"]);
+
 async function resolveProduct(env: Env, principal: Principal, given: string | undefined, connector: ConnectorScope | null): Promise<ScopeRef> {
   if (given) return parseProductRef(given);
   if (connector?.product) return { product: connector.product.product_id };
@@ -655,7 +662,7 @@ function buildServer(env: Env, principal: Principal, bound: ScopeRef | null, sig
       }
       const { result, scope, playbookMessagesWaiting } = ran;
       const echo = scopeEcho(scope, principal.level, playbookMessagesWaiting);
-      const moved = fence && bound ? connectorMoved(env.ports.config.publicBaseUrl, bound, fence) : undefined;
+      const moved = fence && bound && SAYS_CONNECTOR_MOVED.has(op.name) ? connectorMoved(env.ports.config.publicBaseUrl, bound, fence) : undefined;
       // A scoped connector lists only what is inside it.
       const shown = op.name === "products.list" && fence ? narrowProductList(fence, result as Parameters<typeof narrowProductList>[1]) : result;
       // The call an agent starts and resumes with names no product, so it gives the tools version itself.

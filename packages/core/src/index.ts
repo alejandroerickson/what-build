@@ -60,13 +60,14 @@ export { isInstanceOwner, tenantAllowanceOf, type TenantAllowance } from "./tena
 export { PREVIEWS_KEPT, printDocument, printDocumentAt, printSelection, shownHtml, STORY_PREVIEW_PURPOSE } from "./ops/story.ts";
 export { CARD_PREVIEW_PURPOSE } from "./ops/outcomes.ts";
 export { MAX_MOCKUP_PAGES, MOCKUP_UPLOAD_PURPOSE, mockupBundle, readCanvasZip, stagedPrototypeKey, stagedPrototypeKeys } from "./ops/mockups.ts";
+export { PLAYBOOK_DOWNLOAD_MANIFEST, PLAYBOOK_DOWNLOAD_PURPOSE, PLAYBOOK_UPLOAD_PURPOSE, playbookBundle, readPlaybookZip } from "./ops/playbook.ts";
 export { guideIndex, guideTopic, MCP_SERVER_NAME, TOOLS_VERSION, type GuideTopic } from "./ops/meta.ts";
 export { GUIDANCE_VERSION } from "./story-guidance.ts";
 export { PLAYBOOK_MESSAGE_DAYS, playbookMessagesWaiting, OKF_VERSION } from "./playbook.ts";
 export { HOUSE_STYLE_IDS, HOUSE_STYLES, houseSpecimen, houseStyle, pageDocument, specimenBody, styleSpecimen, type HouseStyle } from "./story-styles.ts";
 export { CLICKABLE_HOW, clickableCanvas, hrefsIn, linkedPageName, mockupIndexHtml, pagesLinkedFrom, type ClickableCanvas } from "./canvas-links.ts";
 export { FRAME_SCRIPT, frameScript, THEME_ATTRIBUTE, withPrototypeFrame, withStoryFrame, withStoryTheme } from "./story-theme.ts";
-export { STORY_FONTS, storyFontFaces, storyFontsNamed, withStoryFonts, type StoryFont } from "./story-fonts.ts";
+export { fontFacesOf, INTER, MOCKUP_FONTS, STORY_FONTS, storyFontFaces, storyFontsNamed, withStoryFonts, type StoryFont } from "./story-fonts.ts";
 
 /** Every operation, defined once. REST routes, MCP tools and `describe` are generated from this list. */
 export const OPERATIONS: OperationDef[] = [

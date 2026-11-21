@@ -725,7 +725,11 @@ Public Sans, Red Hat Display, Red Hat Text and Signika, the faces the house styl
 Latin subset of its variable font under the SIL Open Font License. A page or stylesheet that
 names one in quotes in `font-family` gets an `@font-face` for it, as a data URI, when the server shows the page or a
 specimen, and once for the whole print view; stored pages and what agents read never hold font
-data, and mockup pages get none. `story.guidance` lists them as `carried_typefaces`.
+data. `story.guidance` lists them as `carried_typefaces`. A mockup page gets the same faces and
+Inter, the app's own typeface (`MOCKUP_FONTS`), wherever it is shown: on its canvas, promoted to
+the Story, and in the print view. A team's design system often uses Inter, and embedded it was
+most of each page's weight. A Story page never gets Inter, since the Story never takes WhatBuild's
+look. Mockups' `publish` description lists the families a mockup page may name.
 
 **Guidance.** `story.guidance { section?, house_style? }` returns versioned authoring guidance
 ([`story-guidance.ts`](../../packages/core/src/story-guidance.ts)): how to settle the Story style
@@ -769,7 +773,7 @@ no export. A
 page:
 `page_id` (a slug, `[a-z0-9][a-z0-9-]*`, ≤ 80 chars), `title` (1–200), `notes` (Markdown,
 ≤ 10,000, the page's design notes), `width` (240–2,560 CSS pixels, default 1,280; 390 for a
-phone) and `height` (240–4,000, default 800), and either its HTML, returned only with
+phone) and `height` (240–4,000, default 800, or `"auto"`, the height of its content, below), and either its HTML, returned only with
 `include_html` (otherwise `html_chars`), with `html_sha256` and `html_path` (the page's HTML
 route) computed on read, or an `entry` into the version's prototype, with its `poster` and its
 frame's address, `prototype_url`, computed on read (Prototype, below). Limits: 48 pages and
@@ -873,8 +877,8 @@ limit when that is lower. An organization on a plan with limits is refused (`403
 its text is capped field by field, so it publishes pages in the call. `mockups.publish { upload_id }`
 then reads the ZIP, in `get_download`'s layout, so a downloaded version round-trips:
 
-- `manifest.json` lists the canvas's pages in order, `[{ page_id, title?, width?, height?,
-  entry?, poster? }]`, and may give `title`, `summary`, `columns`, `files` (`[{ path }]`) and
+- `manifest.json` lists the canvas's pages in order, `[{ page_id, title?, width?, height?` (pixels or
+  `"auto"`)`, entry?, poster? }]`, and may give `title`, `summary`, `columns`, `files` (`[{ path }]`) and
   `prototype` (`[{ path, sha256? }]`). Its other fields are not read.
 - `brief.md` is the brief; `pages/<page_id>.html` and `pages/<page_id>.notes.md` hold a page's
   HTML and notes; `files/<path>` holds a file; `prototype/<path>` holds a file of the prototype,
@@ -969,11 +973,30 @@ nothing of the app's, and the app's `frame-src` names its `/prototypes/`.
 **Rendering.** A page's HTML is served by `GET …/mockups/{mockup_id}/versions/{n}/pages/{page_id}/html`
 with the Story's sandbox and one addition, `allow-forms`, in the Content-Security-Policy and in
 the app's frame alike, and with the same frame script with `?frame=1` (§4.11). The Story's own
-HTML route serves a page that shows a mockup page in the same mockup sandbox. It takes no `?theme`, because a mockup carries its own look. Any role but
+HTML route serves a page that shows a mockup page in the same mockup sandbox. It takes no `?theme`, because a mockup carries its own look,
+and it embeds the carried typefaces the page names, Inter among them (§4.11). Any role but
 a Story reader may read it. A page's frame is its `width` × `height`; content taller than `height`
 scrolls inside the frame, on the canvas in interact mode and on the Story ([§7.7](07-web-app.md),
 [§7.8](07-web-app.md)). A long document can be one page that scrolls or several pages side by
-side; the choice is how people will read it. With a content site, the route hands the frame to
+side; the choice is how people will read it.
+
+**A height of `"auto"`.** A page published with `height: "auto"` takes its content's height, up to
+4,000, so an agent measures nothing before publishing. The row keeps `height` 800 and
+`height_auto` true: 800 is the height a release that does not know `"auto"` shows the page at, and
+what the print view resolves a `vh` unit against. Wherever the app shows the page (its canvas, a
+Story page that shows it or its whole canvas), the frame opens 240 tall and asks the frame script
+to measure (`measure-height`); the script reports the document's `scrollHeight` (`page-height`) at
+once, when its fonts have loaded and whenever the document or its body changes size, and the frame
+grows to each report, never shrinking, since a document is never reported shorter than its frame
+(`nextAutoHeight` in [`page-sandbox.ts`](../../packages/core/src/page-sandbox.ts)). A page that,
+within a quarter of a second of its frame growing, grew by what the frame grew or twice that, as
+one with sections `100vh` tall does, stops the frame growing, so it keeps the height it had; content
+a script adds later, in steps of any size, is followed. Nothing measured is stored: each frame measures the
+page it shows. The print view gives such a page no height of its own, so it is as tall as what it
+draws there. `get`, a Story page's mockup, the canvas a Story page shows and a download give
+`"height": "auto"`; an upload's `manifest.json` takes it. ◆ Decision: the frame script measures,
+in the frame that shows the page, rather than a browser on the server at publish, which would put
+Chromium in the image. With a content site, the route hands the frame to
 the content site as a Story page's does (§4.11), under a grant naming the version and the page.
 
 **Download.** `mockups.get_download { mockup_id, version? }` returns a short-lived grant for
@@ -1281,6 +1304,35 @@ topic. Migration [`0050_playbook.sql`](../../apps/server/src/migrations/0050_pla
   path, its history, a restore or a purge of it answers `410 playbook_file_deleted`. A path a file
   was moved away from answers `404` naming the path the file has now (`moved_to`), and changes
   nothing.
+- **Size and hash.** Wherever a file's metadata appears (`playbook.index`, `read`, `read_files`,
+  `history`, and the answers of `write`, `move`, `restore` and `apply`), it gives `size`, the text's
+  bytes as UTF-8, and `sha256`, the hex SHA-256 of those bytes, as `mockups.get` gives a page's
+  `html_sha256`: an agent that keeps a kit on its own machine checks its copy against it. Neither
+  is stored: the hash is worked out from the text where an answer gives it, in the database for
+  `index`, which leaves the text out; a read that gives no hash, as `products.get`'s summary,
+  hashes nothing. A revision that removed the file has no text, and no hash.
+- **To and from an agent's machine.** `playbook.get_download { prefix? }` returns a short-lived
+  grant to GET a folder, or the whole bundle, as a ZIP made when it is fetched: each file at its
+  Playbook path, and `_manifest.json` (no Playbook path can take a name that starts with `_`) with
+  `format` `whatbuild-playbook`, `prefix`, `started` and each file's `path`, `etag`, `revision`,
+  `size` and `sha256`, from the same read. Before the first write it holds the starter, at revision
+  0 with the etags a write takes. `playbook.request_upload` returns a grant to PUT a ZIP of files
+  (at most 25 MB) under `/api/v1/uploads/playbook/{upload_id}`, and `playbook.apply { upload_id }`
+  reads it: a write step without `content` takes the file at its path in the ZIP, so a downloaded
+  folder goes back as it is. The whole archive is read one way: from its top or, when every entry
+  sits inside one folder, from inside it, whichever finds more of the steps' files (the top when
+  they find as many). Only the files the steps name are unpacked, as UTF-8 text kept byte for byte,
+  a leading byte-order mark included, so each one's `sha256` is that of the file that was zipped; a
+  file holding a null character is refused (`422 invalid_upload`), as Postgres keeps none in text. A
+  `get_download` prefix that no Playbook path could sit under is refused with
+  `422 invalid_playbook_path`. A step's file the ZIP lacks refuses the whole change
+  (`422 playbook_upload_missing`, naming each), and leaves the upload for another try. A successful
+  `apply` reads an upload once (`409 upload_used` after) and answers with its `size` and `sha256`.
+  The Playbook holds text only: a kit takes typefaces and images from where the team keeps them.
+  ◆ Decision: a Playbook's uploads are rows of `mockup_uploads` with `kind` `playbook` (a canvas's
+  are `canvas`), so they share its grants, limits, single use and the worker's discarding of an
+  upload nobody used a day after its grant expired, and the cleanup that deleting an account, a
+  product or an organization does; each operation reads only its own kind.
 - **Links.** `whatbuild:sources/<id>`, `whatbuild:mockups/<id>[@n][#page]`,
   `whatbuild:outcomes/<id>`, `whatbuild:story/<page_id>[@n]` and `whatbuild:product` name objects
   without a host; a form written out, as `whatbuild:mockups/<mockup_id>`, is no link. A read

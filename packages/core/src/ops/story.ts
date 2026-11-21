@@ -7,6 +7,7 @@ import { conflict, invalid, notFound } from "../errors.ts";
 import { readsOnlyTheStory } from "../policy.ts";
 import type { BlobStore } from "../ports.ts";
 import { hrefsIn, pagesLinkedFrom } from "../canvas-links.ts";
+import { shownHeight } from "../page-sandbox.ts";
 import { entryAddress, prototypeAddress, prototypeNotice } from "../prototype.ts";
 import { refuseSwitchedOff } from "../limits.ts";
 import { defineOperation, type OpContext } from "../registry.ts";
@@ -335,7 +336,7 @@ async function mockupOrigin(ctx: OpContext, ref: MockupPageRef) {
  */
 async function canvasView(ctx: OpContext, ref: MockupPageRef) {
   const version = await ctx.db.selectFrom("mockup_versions").select("columns").where("version_id", "=", ref.mockup_version_id).executeTakeFirst();
-  const pages = await ctx.db.selectFrom("mockup_pages").select(["page_id", "title", "width", "height", "entry"]).where("version_id", "=", ref.mockup_version_id).orderBy("position").execute();
+  const pages = await ctx.db.selectFrom("mockup_pages").select(["page_id", "title", "width", "height", "height_auto", "entry"]).where("version_id", "=", ref.mockup_version_id).orderBy("position").execute();
   const address = pages.some((p) => p.entry) ? prototypeAddress(ctx.ports, tenantId(ctx), ref.mockup_version_id, ctx.now) : null;
   const canvas = {
     canvas: true as const,
@@ -344,7 +345,7 @@ async function canvasView(ctx: OpContext, ref: MockupPageRef) {
       page_id: p.page_id,
       title: p.title,
       width: p.width,
-      height: p.height,
+      height: shownHeight(p),
       ...(address && p.entry ? { entry: p.entry, prototype_url: `${address.base_url}${entryAddress(p.entry)}` } : {}),
     })),
     ...(address ? { prototype: address } : {}),
@@ -359,12 +360,12 @@ async function canvasView(ctx: OpContext, ref: MockupPageRef) {
  */
 async function mockupView(ctx: OpContext, ref: MockupPageRef) {
   if (ref.page_id === null) return canvasView(ctx, ref);
-  const page = await ctx.db.selectFrom("mockup_pages").select(["title", "width", "height", "entry", "html"]).where("version_id", "=", ref.mockup_version_id).where("page_id", "=", ref.page_id).executeTakeFirst();
+  const page = await ctx.db.selectFrom("mockup_pages").select(["title", "width", "height", "height_auto", "entry", "html"]).where("version_id", "=", ref.mockup_version_id).where("page_id", "=", ref.page_id).executeTakeFirst();
   const address = page?.entry ? prototypeAddress(ctx.ports, tenantId(ctx), ref.mockup_version_id, ctx.now) : null;
   const links = page?.html ? await linksOnTheStory(ctx, { ...ref, page_id: ref.page_id }, page.html) : { to: {}, off: [] };
   const size = {
     width: page?.width ?? 1280,
-    height: page?.height ?? 800,
+    height: page ? shownHeight(page) : 800,
     ...(address && page?.entry
       ? { entry: page.entry, prototype_url: `${address.base_url}${entryAddress(page.entry)}`, prototype_sandbox: address.sandbox, prototype_expires_at: address.expires_at }
       : {}),
@@ -1202,15 +1203,19 @@ async function printPages(ctx: OpContext, versionIds: string[]) {
 
 /** A canvas's pages as the print view shows them, in their order on the canvas. */
 async function canvasPrintPages(ctx: OpContext, versionId: string) {
-  const rows = await ctx.db.selectFrom("mockup_pages").select(["page_id", "title", "width", "height"]).where("version_id", "=", versionId).orderBy("position").execute();
+  const rows = await ctx.db.selectFrom("mockup_pages").select(["page_id", "title", "width", "height", "height_auto"]).where("version_id", "=", versionId).orderBy("position").execute();
   const pages = [];
-  for (const p of rows) pages.push({ page_id: p.page_id, title: p.title, frame: { width: p.width, height: p.height }, html: await mockupPageHtml(ctx.db, versionId, p.page_id, ctx.ports.blobs) });
+  for (const p of rows) pages.push({ page_id: p.page_id, title: p.title, frame: printFrame(p), html: await mockupPageHtml(ctx.db, versionId, p.page_id, ctx.ports.blobs) });
   return pages;
 }
 
 async function mockupFrame(ctx: OpContext, versionId: string, pageId: string) {
-  return ctx.db.selectFrom("mockup_pages").select(["width", "height"]).where("version_id", "=", versionId).where("page_id", "=", pageId).executeTakeFirst();
+  const p = await ctx.db.selectFrom("mockup_pages").select(["width", "height", "height_auto"]).where("version_id", "=", versionId).where("page_id", "=", pageId).executeTakeFirst();
+  return p ? printFrame(p) : undefined;
 }
+
+/** A mockup page's frame on paper: a page whose height is its content's takes no height of its own there. */
+const printFrame = (p: { width: number; height: number; height_auto: boolean }) => ({ width: p.width, height: p.height, ...(p.height_auto ? { auto: true } : {}) });
 
 /** A canvas prints under its own heading, each of its pages a section one level down. */
 function printSections(pages: Awaited<ReturnType<typeof printPages>>) {

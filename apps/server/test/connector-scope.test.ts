@@ -254,19 +254,25 @@ describe("an address written when products were in teams", () => {
     const r = body(await c.callTool({ name: "outcomes_read", arguments: { action: "list", params: {} } }));
     expect(r.status, JSON.stringify(r.json)).toBe(200);
     expect(r.json.scope.product.path).toBe(onboarding);
-    expect(r.json.connector_address).toContain(`by the address it had when products were in teams (${acme}/product-team/${slugOf(onboarding)})`);
-    expect(r.json.connector_address).toContain(`its address is now ${h.baseUrl}/mcp/t/${onboarding}.`);
+    // Said where a session starts, not on every answer.
+    expect(r.json.connector_address).toBeUndefined();
+    expect(body(await c.callTool({ name: "playbook_read", arguments: { action: "index", params: {} } })).json.connector_address).toBeUndefined();
+    const got = body(await c.callTool({ name: "products_read", arguments: { action: "get" } })).json;
+    expect(got.connector_address).toContain(`by the address it had when products were in teams (${acme}/product-team/${slugOf(onboarding)})`);
+    expect(got.connector_address).toContain(`its address is now ${h.baseUrl}/mcp/t/${onboarding}.`);
+    expect(body(await c.callTool({ name: "guide", arguments: { topic: "playbook" } })).json.connector_address).toContain(`its address is now ${h.baseUrl}/mcp/t/${onboarding}.`);
     // Still a fence around that one product.
     const other = body(await c.callTool({ name: "outcomes_read", arguments: { action: "list", product: billing, params: {} } }));
     expect(other.json.error.code).toBe("outside_connector_scope");
     const list = body(await c.callTool({ name: "products_read", arguments: { action: "list" } })).json;
     expect(list.items.map((i: { path: string }) => i.path)).toEqual([onboarding]);
+    expect(list.connector_address).toContain(`its address is now ${h.baseUrl}/mcp/t/${onboarding}.`);
     await c.close();
     const agents = (await alice.api("GET", "/api/v1/me/agents")).body.items as { client_name: string; reach: Record<string, unknown> }[];
     expect(agents.find((a) => a.client_name === "Old product agent")!.reach).toEqual({ kind: "product", path: `${acme}/product-team/${slugOf(onboarding)}`, name: "Onboarding", tenant_name: "Acme" });
     // The current address answers without the notice.
     const current = await connect(`/mcp/t/${onboarding}`);
-    expect(body(await current.callTool({ name: "outcomes_read", arguments: { action: "list", params: {} } })).json.connector_address).toBeUndefined();
+    expect(body(await current.callTool({ name: "products_read", arguments: { action: "get" } })).json.connector_address).toBeUndefined();
     await current.close();
   });
 
@@ -288,8 +294,8 @@ describe("an address written when products were in teams", () => {
 
     const old = `/mcp/t/${acme}/research/ledger`;
     const scoped = await connect(old, await h.connectAgent(alice, "Moved product agent", old));
-    const viaConnector = body(await scoped.callTool({ name: "outcomes_read", arguments: { action: "list", params: {} } }));
-    expect(viaConnector.json.scope.product.path).toBe(billing);
+    const viaConnector = body(await scoped.callTool({ name: "products_read", arguments: { action: "get" } }));
+    expect(viaConnector.json.path).toBe(billing);
     expect(viaConnector.json.connector_address).toContain(`its address is now ${h.baseUrl}/mcp/t/${billing}.`);
     await scoped.close();
   });

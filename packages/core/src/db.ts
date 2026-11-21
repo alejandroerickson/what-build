@@ -389,6 +389,8 @@ export interface MockupUploadsTable {
   sha256: string | null;
   used_at: TsNull;
   used_by_version_id: string | null;
+  /** What the ZIP is for: a canvas for mockups.publish, or a Playbook's files for playbook.apply (0052). Each reads only its own. */
+  kind: ColumnType<"canvas" | "playbook", "canvas" | "playbook" | undefined, "canvas" | "playbook">;
   created_at: Ts;
 }
 
@@ -733,7 +735,10 @@ export interface MockupPagesTable {
   /** Markdown design notes shown beside the page on the canvas. */
   notes: string;
   width: number;
+  /** The frame's height; 800 for a page whose height is its content's (height_auto). */
   height: number;
+  /** Whether the frame takes the height of the page's content, as the frame script reports it, at most 4000. */
+  height_auto: ColumnType<boolean, boolean | undefined, boolean>;
   /** The page's own document, or null for a page that enters the version's prototype. */
   html: string | null;
   /** A path in the version's prototype, with a query and a fragment if wanted; null for a page with HTML of its own. */

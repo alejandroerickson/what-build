@@ -3,7 +3,7 @@ type: Decision
 title: Each product keeps a Playbook that its people's agents write together, started from WhatBuild's starter and kept as revisions in Postgres
 description: A product's shared agent knowledge (what is current, lessons from corrections, kits, people's pages) is a Playbook, a bundle in the Open Knowledge Format served over the operations, versioned in Postgres, with messages beside it and no screen of its own.
 tags: [decision, playbook, agents, mcp, memory, data-model]
-generated: {by: agent:claude, at: 2026-11-20}
+generated: {by: agent:claude, at: 2026-11-21}
 status: stable
 ---
 
@@ -16,7 +16,7 @@ What makes an agent's work on a product good (the corrections people made, the k
 ## Decision
 
 - **One bundle per product**, of Markdown files with frontmatter (`type` required) and a kit's text files, in `playbook_files`, with every write kept in `playbook_revisions` (the latest 100 of each file) and its `whatbuild:` links in `playbook_links`.
-- **Served over the operations**, as `playbook_read`, `playbook_write` and `playbook_delete`: index, read, read_files, search, history, backlinks, housekeeping, starter; write, move, remove, restore, apply (all or none); purge for admins. Every change to a file that exists takes its etag, and a stale one is refused with the current text to merge with. A local copy is files read with their etags and sent back with `apply`.
+- **Served over the operations**, as `playbook_read`, `playbook_write` and `playbook_delete`: index, read, read_files, search, history, backlinks, housekeeping, starter; write, move, remove, restore, apply (all or none); purge for admins. Every change to a file that exists takes its etag, and a stale one is refused with the current text to merge with. A local copy is files read with their etags, or a folder downloaded as a ZIP with a manifest of them, and sent back with `apply`, whose write steps may take their text from an uploaded ZIP, so a kit never has to pass through an agent's own output. The Playbook holds text only.
 - **Git was rejected** as the store: the deployment is one stateless image on Postgres, deleting an organization must delete its history for good, and an agent without a shell could not use it. Branches and offline merges are not needed.
 - **The starter is a template, not a layer.** WhatBuild ships one (`packages/core/src/playbook-starter/`); a product serves it until its first write copies it in, keeping its etags, and the team owns it from then on. `playbook_read(action="starter")` shows the latest to compare.
 - **Agents are pointed at it**: the server's instructions and the guide say WhatBuild is used through it, `products.get` says what to read first, the guidance for each part lists the files whose `applies_to` names it, every agent's answer carries `playbook_messages_waiting`, and archiving something a file links to says which files do.

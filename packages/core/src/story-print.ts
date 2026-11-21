@@ -1,7 +1,7 @@
 import { parseHtml } from "@whatbuild/parsers";
 import { serialize } from "parse5";
 import type { StoryNode } from "./db.ts";
-import { storyFontFaces } from "./story-fonts.ts";
+import { fontFacesOf, MOCKUP_FONTS, storyFontsNamed } from "./story-fonts.ts";
 import { escapeHtml, PERMISSIONS_POLICY } from "./story-html.ts";
 
 /**
@@ -226,7 +226,10 @@ function scopeSelectorList(list: string): string {
 /** A mockup page's frame in CSS pixels, which it lays out in on paper as it does on its canvas. */
 export interface PrintFrame {
   width: number;
+  /** What a vh unit is a hundredth of; for a page whose height is its content's, the box's least height too. */
   height: number;
+  /** The page's height is its content's: on paper the page is as tall as what it draws. */
+  auto?: boolean;
 }
 
 const WIDTH_QUERY = /\(\s*(min-|max-)?width\s*(:|<=|>=|<|>|=)\s*([\d.]+)(px|em|rem)\s*\)/gi;
@@ -550,13 +553,14 @@ export function composePrintDocument(input: { productName: string; exportedAt: s
         `<section class="print-section" id="page-${p.page_id}" data-level="${p.level}" aria-labelledby="title-${p.page_id}">\n` +
         `<h${h} class="print-heading" id="title-${p.page_id}">${escapeHtml(p.title)}</h${h}>\n` +
         `<p class="print-meta">Version ${p.version} · published ${dateElement(p.published_at)}</p>\n` +
-        (p.frame ? `<div class="print-frame" data-print-frame="${p.frame.width}" style="width:${p.frame.width}px;min-height:${p.frame.height}px;--print-fit:${Math.min(1, PRINTABLE_WIDTH / p.frame.width).toFixed(4)}">${shown}</div>\n` : `${shown}\n`) +
+        (p.frame ? `<div class="print-frame" data-print-frame="${p.frame.width}" style="width:${p.frame.width}px;${p.frame.auto ? "" : `min-height:${p.frame.height}px;`}--print-fit:${Math.min(1, PRINTABLE_WIDTH / p.frame.width).toFixed(4)}">${shown}</div>\n` : `${shown}\n`) +
         `</section>`
       );
     })
     .join("\n");
-  // A face declared inside a shadow root is not used by it, so the carried typefaces the pages name are declared once, here.
-  const fonts = storyFontFaces(pages.map((p) => p.html).join("\n"));
+  // A face declared inside a shadow root is not used by it, so the carried typefaces the pages name are declared once, here:
+  // a mockup page's (the one with a frame) from the faces mockup pages get.
+  const fonts = fontFacesOf(pages.flatMap((p) => storyFontsNamed(p.html, p.frame ? MOCKUP_FONTS : undefined)));
   const script =
     `var local = new Intl.DateTimeFormat("en-GB", ${JSON.stringify(DATE_FORMAT)});` +
     'document.querySelectorAll("time[datetime]").forEach(function (t) { t.textContent = local.format(new Date(t.getAttribute("datetime"))); });' +

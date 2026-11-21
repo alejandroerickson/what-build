@@ -265,12 +265,14 @@ describe("changing an organization's slug", () => {
       const c = await connect(olga, path);
       const r = body(await c.callTool({ name: "outcomes_read", arguments: { action: "list", params: {} } }));
       expect(r.status, `${path} ${JSON.stringify(r.json)}`).toBe(200);
-      expect(r.json.connector_address).toContain(`${h.baseUrl}/mcp/t/initech-labs${path.endsWith(ini.product) ? `/${ini.product}` : ""}.`);
-      expect(r.json.connector_address).toContain("a slug it had before (initech)");
+      expect(r.json.connector_address).toBeUndefined();
+      const listed = body(await c.callTool({ name: "products_read", arguments: { action: "list" } })).json;
+      expect(listed.connector_address).toContain(`${h.baseUrl}/mcp/t/initech-labs${path.endsWith(ini.product) ? `/${ini.product}` : ""}.`);
+      expect(listed.connector_address).toContain("a slug it had before (initech)");
       await c.close();
     }
     const current = await connect(olga, "/mcp/t/initech-labs");
-    expect(body(await current.callTool({ name: "outcomes_read", arguments: { action: "list", params: {} } })).json.connector_address).toBeUndefined();
+    expect(body(await current.callTool({ name: "products_read", arguments: { action: "list" } })).json.connector_address).toBeUndefined();
     await current.close();
   });
 

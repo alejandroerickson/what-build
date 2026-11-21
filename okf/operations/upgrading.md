@@ -33,6 +33,30 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
 
 ## Unreleased
 
+- **A mockup page may take its content's height** (`height: "auto"`). The release migrates
+  (`0051_mockup_page_auto_height.sql`: `mockup_pages.height_auto`, false for every page), so
+  rehearse it on the dev deployment first; nothing to set. The migration only adds a column with a
+  default, so the previous release keeps working against the migrated schema; a page published
+  with `"auto"` keeps `height` 800, which the previous release shows it at if it serves again, and
+  a version it publishes from such a page makes it 800 tall. Agents see `"auto"` in mockups'
+  descriptions and the guide; a connected client sees them after a new session.
+- **Mockup pages get the typefaces the server carries**, as Story pages do, Inter included, when
+  they name one in quotes in `font-family`. It asks nothing of a deployment and adds no migration.
+  Pages that embed their own faces are shown as before.
+- **A moved connector's address is said where a session starts.** On a connector whose address
+  names its organization by a former slug, or its product by the address it had under a team,
+  `connector_address` now comes only with `products_read` (`list`, `get`) and `guide`, not with
+  every answer. It asks nothing of a deployment.
+- **Each Playbook file's answers give its `sha256`** beside its `size`. It asks nothing of a
+  deployment and adds no migration.
+- **Agents move a Playbook's files as ZIPs.** `playbook_read(action="get_download")` and
+  `playbook_write(action="request_upload")` are new (142 operations, 123 offered to agents), and
+  `apply` takes `upload_id`. The release migrates (`0052_playbook_uploads.sql`:
+  `mockup_uploads.kind`, `canvas` for every upload there), so rehearse it on the dev deployment
+  first; nothing to set. The migration only adds a column with a default, so the previous release
+  keeps working against the migrated schema; a Playbook upload made by the new release is never
+  read by the previous one, which would refuse it as a canvas without a `manifest.json`. A
+  connected client sees the new actions after a new session.
 - **The Playbook's answers say what happened to a path** (`tools_version` 0.69.0). It asks nothing
   of a deployment, and adds no migration. The history, a restore or a purge of a path whose file was
   deleted permanently answers `410 playbook_file_deleted`, as a read does, where it answered `404`;

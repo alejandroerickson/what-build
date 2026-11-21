@@ -39,3 +39,37 @@ export const CANVAS_FRAME_NAME = "whatbuild-canvas-page";
 
 /** What a mockup's pages can do once they are saved and opened outside this sandbox: said with every download, and in the ZIP's index.html. */
 export const OUTSIDE_THE_SANDBOX = "These pages can run their own code when opened outside WhatBuild. Only open them if you trust where they came from.";
+
+/** The least and most a mockup page's frame is tall, in CSS pixels, given or measured. */
+export const PAGE_HEIGHT_MIN = 240;
+export const PAGE_HEIGHT_MAX = 4000;
+
+/** How soon after its frame grew a report counts as the page answering that growth, in milliseconds. */
+export const AUTO_HEIGHT_ANSWER_MS = 250;
+
+/**
+ * A mockup page whose height is "auto" takes its content's: the frame opens PAGE_HEIGHT_MIN tall, the
+ * frame script reports the document's height (`page-height`), and the frame grows to it, up to
+ * PAGE_HEIGHT_MAX. It only grows, since a document is never reported shorter than its frame. A page
+ * that, right after its frame grew (within AUTO_HEIGHT_ANSWER_MS), grows by what the frame grew or
+ * twice that, as a page with one or two sections 100vh tall does, stops it growing: such a page
+ * outgrows any frame, so the frame keeps the height it had. Content that grows by itself, as a
+ * script adds a row now and then, is followed. `now` and `last.at` are in milliseconds.
+ */
+export function nextAutoHeight(
+  frame: number,
+  reported: number,
+  last: { from: number; to: number; reported: number; at: number } | null,
+  now: number,
+): { height: number; stop?: true } | null {
+  if (last && frame === last.to && now - last.at <= AUTO_HEIGHT_ANSWER_MS) {
+    const grew = last.to - last.from;
+    const more = reported - last.reported;
+    if (grew > 4 && [1, 2].some((times) => Math.abs(more - times * grew) <= 2)) return { height: frame, stop: true };
+  }
+  const height = Math.min(PAGE_HEIGHT_MAX, Math.max(PAGE_HEIGHT_MIN, Math.ceil(reported)));
+  return height > frame ? { height } : null;
+}
+
+/** A mockup page's height as answers give it: its frame's, or "auto" for its content's. */
+export const shownHeight = (p: { height: number; height_auto: boolean }): number | "auto" => (p.height_auto ? "auto" : p.height);

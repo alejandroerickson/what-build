@@ -1064,7 +1064,7 @@ Version in the inspector, whose dialog offers **Archive instead** (§7.10).
   person moves it. From then on its pages stay where they are on the screen when the board's edges
   move, as they do when a panel hides or shows and when focus mode begins or ends.
 - **Labels.** Above each page, drawn at screen size so it reads at any zoom: its number, its title,
-  its size, a button that fits that page to the window, and one that downloads that page's HTML (a
+  its size (`390 × auto` for a page whose height is its content's), a button that fits that page to the window, and one that downloads that page's HTML (a
   page that enters a prototype has none to give). A narrow label drops the size, then
   the title, then, where it would run into the next page's label, the buttons. Whatever it has
   room to show, its button is named for the page's title. The gap between rows scales with the zoom
@@ -1097,6 +1097,10 @@ Version in the inspector, whose dialog offers **Archive instead** (§7.10).
   on a page selects it.
   Holding Space pans from either mode. The browser remembers the mode (`whatbuild.mockup.mode`).
   A page's frame is its width × height: content taller than the height scrolls inside the frame.
+  A page whose height is `"auto"` opens 240 tall and grows to its content's height as its frame
+  measures it, up to 4,000 ([§4.12](04-data-model.md)); the canvas lays its pages out again, and a
+  view nobody has moved stays fitted, the whole canvas or the page it showed. A Story page that shows
+  such a page grows its frame the same way.
   In pan mode the canvas shows the page's first `height` pixels and a scroll over it moves the
   canvas; in interact mode a scroll over the page scrolls the page, and at its end stops there
   without moving the canvas.

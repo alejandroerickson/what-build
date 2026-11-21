@@ -242,7 +242,8 @@ interface MockupOrigin {
 export interface MockupPageShown extends MockupOrigin {
   canvas?: undefined;
   width: number;
-  height: number;
+  /** CSS pixels, or "auto": the height of the page's content, which its frame measures. */
+  height: number | "auto";
   /** For an entry into the mockup version's prototype: the entry, the frame's address and the sandbox it takes. */
   entry?: string;
   prototype_url?: string;
