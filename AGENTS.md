@@ -63,8 +63,8 @@ message, every pull request's text and every issue and comment is published, and
 ## What this is
 
 WhatBuild turns a product team's discovery material into outcomes, mockups and a Story for
-stakeholders. People use a React web app; agents use an MCP server exposing 121 of
-the same 140 operations: all but running the instance (plans, organizations, guests, allowances,
+stakeholders. People use a React web app; agents use an MCP server exposing 123 of
+the same 142 operations: all but running the instance (plans, organizations, guests, allowances,
 accounts and usage, which only an instance owner does), renaming an organization or a product and
 turning a product's Playbook off or on, which its owners or admins do, deleting an organization and its
 preview, which only its owners or an instance owner do, and deleting one's own account and its

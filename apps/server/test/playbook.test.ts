@@ -1,5 +1,6 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
+import { strFromU8, strToU8, unzipSync, zipSync } from "fflate";
 import { createHash, randomBytes } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { startHarness, type Browser, type Harness } from "./harness.ts";
@@ -541,6 +542,121 @@ describe("edges", () => {
     expect(marked.body).toMatchObject({ marked: 1, messages_waiting: 0 });
     const again = (await alice.api("GET", P)).body.etag as string;
     expect((await alice.api("POST", `${P}/restore`, { expected_etag: again })).status).toBe(200);
+  });
+});
+
+describe("files to and from an agent's machine", () => {
+  const sha = (bytes: Uint8Array | string) => createHash("sha256").update(bytes).digest("hex");
+  /** A ZIP PUT under a Playbook upload grant, as an agent sends a folder from disk. */
+  async function upload(who: Browser, entries: Record<string, string | Uint8Array>) {
+    const g = await who.api("POST", `${P}/playbook/uploads`, {});
+    expect(g.status, JSON.stringify(g.body)).toBe(201);
+    const zip = zipSync(Object.fromEntries(Object.entries(entries).map(([k, v]) => [k, typeof v === "string" ? strToU8(v) : v])));
+    const put = await fetch(g.body.url, { method: "PUT", headers: g.body.headers, body: zip });
+    expect(put.status).toBe(201);
+    return { uploadId: g.body.upload_id as string, zip };
+  }
+  const apply = (who: Browser, body: Record<string, unknown>) => who.api("POST", `${P}/playbook/apply`, body);
+  const readme = md("Canvas kit", "Build a canvas from the team's tokens.", "applies_to: [exploration]\n");
+  const build = "// Builds the canvas.\nexport const pages = ['board', 'phone'];\n";
+
+  it("writes the files an upload holds at the paths its steps name, inside one folder or not, once", async () => {
+    const { uploadId, zip } = await upload(erin, {
+      "canvas-kit/kits/zipped/README.md": readme,
+      "canvas-kit/kits/zipped/build.mjs": build,
+      "canvas-kit/_manifest.json": "{}",
+      "__MACOSX/canvas-kit/._README.md": "litter",
+    });
+    const { call, client } = await agent(erin, "editor");
+    const r = await call("playbook_write", "apply", { upload_id: uploadId, message: "The canvas kit from disk.", changes: [{ action: "write", path: "kits/zipped/README.md" }, { action: "write", path: "kits/zipped/build.mjs" }] });
+    expect(r.status, r.text).toBe(200);
+    expect(r.body.applied).toBe(2);
+    expect(r.body.results.map((x: { path: string; sha256: string; size: number }) => [x.path, x.sha256, x.size])).toEqual([
+      ["kits/zipped/README.md", sha(readme), Buffer.byteLength(readme)],
+      ["kits/zipped/build.mjs", sha(build), Buffer.byteLength(build)],
+    ]);
+    expect(r.body.upload).toEqual({ upload_id: uploadId, size: zip.length, sha256: sha(zip) });
+    expect((await read(vic, "kits/zipped/build.mjs")).body.content).toBe(build);
+    // An upload is read once.
+    const again = await call("playbook_write", "apply", { upload_id: uploadId, changes: [{ action: "write", path: "kits/zipped/README.md", expected_etag: r.body.results[0].etag }] });
+    expect(again.status, again.text).toBe(409);
+    expect(again.text).toContain("upload_used");
+    await client.close();
+  });
+
+  it("refuses the whole change when a step's file is missing, keeping the upload for another try", async () => {
+    const { uploadId } = await upload(erin, { "kits/partial/README.md": readme });
+    const missing = await apply(erin, { upload_id: uploadId, changes: [{ action: "write", path: "kits/partial/README.md" }, { action: "write", path: "kits/partial/build.mjs" }] });
+    expect(missing.status, JSON.stringify(missing.body)).toBe(422);
+    expect(missing.body.error).toMatchObject({ code: "playbook_upload_missing", details: { paths: ["kits/partial/build.mjs"] } });
+    expect((await read(vic, "kits/partial/README.md")).status).toBe(404);
+    // A step may carry its own text beside the upload's.
+    const mixed = await apply(erin, { upload_id: uploadId, changes: [{ action: "write", path: "kits/partial/README.md" }, { action: "write", path: "kits/partial/build.mjs", content: build }] });
+    expect(mixed.status, JSON.stringify(mixed.body)).toBe(200);
+    expect((await read(vic, "kits/partial/README.md")).body.content).toBe(readme);
+    // Without an upload, a write step needs its content.
+    const bare = await apply(erin, { changes: [{ action: "write", path: "kits/partial/other.mjs" }] });
+    expect(bare.status).toBe(422);
+    expect(bare.body.error.message).toContain("kits/partial/other.mjs has no content");
+  });
+
+  it("takes text only, and an upload of its own kind only", async () => {
+    const binary = await upload(erin, { "kits/bin/face.txt": new Uint8Array([0xff, 0xfe, 0x00, 0xd8]) });
+    const refused = await apply(erin, { upload_id: binary.uploadId, changes: [{ action: "write", path: "kits/bin/face.txt" }] });
+    expect(refused.status).toBe(422);
+    expect(refused.body.error.message).toContain("kits/bin/face.txt is not UTF-8 text");
+    // A canvas's upload is not a Playbook's, nor the other way round.
+    const canvas = await erin.api("POST", `${P}/mockups/uploads`, {});
+    expect((await apply(erin, { upload_id: canvas.body.upload_id, changes: [{ action: "write", path: "kits/bin/a.txt" }] })).status).toBe(404);
+    const mine = await upload(erin, { "kits/bin/a.txt": "a" });
+    const asCanvas = await alice.api("POST", `${P}/mockups`, { title: "Not a canvas", upload_id: mine.uploadId });
+    expect(asCanvas.status).toBe(404);
+    // A grant for one kind PUTs nothing under the other's address.
+    const g = await erin.api("POST", `${P}/playbook/uploads`, {});
+    const wrong = await fetch(g.body.url.replace("/uploads/playbook/", "/uploads/mockup/"), { method: "PUT", headers: g.body.headers, body: zipSync({ "a.txt": strToU8("a") }) });
+    expect(wrong.status).toBe(401);
+    // Writing takes an editor.
+    expect((await vic.api("POST", `${P}/playbook/uploads`, {})).status).toBe(403);
+  });
+
+  it("downloads a folder with its etags, and the same folder uploads again as it is", async () => {
+    const g = await vic.api("POST", `${P}/playbook/downloads`, { prefix: "kits/zipped" });
+    expect(g.status, JSON.stringify(g.body)).toBe(200);
+    expect(g.body).toMatchObject({ prefix: "kits/zipped/", method: "GET", media_type: "application/zip" });
+    const res = await fetch(g.body.url, { headers: g.body.headers });
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-disposition")).toMatch(/attachment; filename=".+-playbook-kits-zipped\.zip"/);
+    const files = unzipSync(new Uint8Array(await res.arrayBuffer()));
+    expect(Object.keys(files).sort()).toEqual(["_manifest.json", "kits/zipped/README.md", "kits/zipped/build.mjs"]);
+    expect(strFromU8(files["kits/zipped/build.mjs"]!)).toBe(build);
+    const manifest = JSON.parse(strFromU8(files["_manifest.json"]!));
+    const index = (await vic.api("GET", `${P}/playbook?prefix=kits/zipped`)).body.files;
+    expect(manifest).toMatchObject({ format: "whatbuild-playbook", prefix: "kits/zipped/", started: true });
+    expect(manifest.files).toEqual(index.map((f: { path: string; etag: string; revision: number; size: number; sha256: string }) => ({ path: f.path, etag: f.etag, revision: f.revision, size: f.size, sha256: f.sha256 })));
+    // Changed on disk, zipped as it came, manifest and all, and applied with the manifest's etags.
+    const changed = build.replace("'phone'", "'phone', 'tablet'");
+    const { uploadId } = await upload(erin, { ...files, "kits/zipped/build.mjs": changed });
+    const etag = manifest.files.find((f: { path: string }) => f.path === "kits/zipped/build.mjs").etag;
+    const back = await apply(erin, { upload_id: uploadId, changes: [{ action: "write", path: "kits/zipped/build.mjs", expected_etag: etag }] });
+    expect(back.status, JSON.stringify(back.body)).toBe(200);
+    expect(back.body.results[0]).toMatchObject({ revision: 2, sha256: sha(changed) });
+    // A Story reader gets no grant, and none works once the Playbook is off.
+    expect((await rita.api("POST", `${P}/playbook/downloads`, {})).status).toBe(403);
+    const later = await vic.api("POST", `${P}/playbook/downloads`, {});
+    expect((await alice.api("PUT", `${P}/playbook/enabled`, { enabled: false })).status).toBe(200);
+    expect((await vic.api("POST", `${P}/playbook/downloads`, {})).body.error.code).toBe("playbook_off");
+    expect((await fetch(later.body.url, { headers: later.body.headers })).status).toBe(409);
+    expect((await alice.api("PUT", `${P}/playbook/enabled`, { enabled: true })).status).toBe(200);
+  });
+
+  it("downloads the starter before anything is written, with the etags a write takes", async () => {
+    const fresh = await alice.api("POST", `/api/v1/tenants/${tenant}/products`, { name: "Zip Fresh", concept: "Nothing written yet." });
+    const g = await alice.api("POST", `/api/v1/p/${fresh.body.path}/playbook/downloads`, {});
+    const files = unzipSync(new Uint8Array(await (await fetch(g.body.url, { headers: g.body.headers })).arrayBuffer()));
+    const manifest = JSON.parse(strFromU8(files["_manifest.json"]!));
+    expect(manifest.started).toBe(false);
+    expect(manifest.files.map((f: { path: string }) => f.path)).toContain("using-this-playbook.md");
+    expect(manifest.files.every((f: { etag: string; revision: number }) => f.etag.startsWith("starter-") && f.revision === 0)).toBe(true);
   });
 });
 

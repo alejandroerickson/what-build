@@ -1309,6 +1309,24 @@ topic. Migration [`0050_playbook.sql`](../../apps/server/src/migrations/0050_pla
   `html_sha256`: an agent that keeps a kit on its own machine checks its copy against it. Neither
   is stored: the hash is worked out from the text where it is read, in the database for an answer
   that leaves the text out. A revision that removed the file has no text, and no hash.
+- **To and from an agent's machine.** `playbook.get_download { prefix? }` returns a short-lived
+  grant to GET a folder, or the whole bundle, as a ZIP made when it is fetched: each file at its
+  Playbook path, and `_manifest.json` (no Playbook path can take a name that starts with `_`) with
+  `format` `whatbuild-playbook`, `prefix`, `started` and each file's `path`, `etag`, `revision`,
+  `size` and `sha256`, from the same read. Before the first write it holds the starter, at revision
+  0 with the etags a write takes. `playbook.request_upload` returns a grant to PUT a ZIP of files
+  (at most 25 MB) under `/api/v1/uploads/playbook/{upload_id}`, and `playbook.apply { upload_id }`
+  reads it: a write step without `content` takes the file at its path in the ZIP, at its top or
+  inside one folder around it, so a downloaded folder goes back as it is. Only the files the steps
+  name are unpacked, as UTF-8 text kept byte for byte, so each one's `sha256` is that of the file
+  that was zipped; a step's file the ZIP lacks refuses the whole change
+  (`422 playbook_upload_missing`, naming each), and leaves the upload for another try. A successful
+  `apply` reads an upload once (`409 upload_used` after) and answers with its `size` and `sha256`.
+  The Playbook holds text only: a kit takes typefaces and images from where the team keeps them.
+  ◆ Decision: a Playbook's uploads are rows of `mockup_uploads` with `kind` `playbook` (a canvas's
+  are `canvas`), so they share its grants, limits, single use and the worker's discarding of an
+  upload nobody used a day after its grant expired, and the cleanup that deleting an account, a
+  product or an organization does; each operation reads only its own kind.
 - **Links.** `whatbuild:sources/<id>`, `whatbuild:mockups/<id>[@n][#page]`,
   `whatbuild:outcomes/<id>`, `whatbuild:story/<page_id>[@n]` and `whatbuild:product` name objects
   without a host; a form written out, as `whatbuild:mockups/<mockup_id>`, is no link. A read

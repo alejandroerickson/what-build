@@ -22,6 +22,9 @@ export function unzipParts(bytes: Uint8Array, wanted: (name: string) => boolean,
   return parts;
 }
 
+/** Entries a ZIP tool adds that are not part of what was zipped: folders, macOS's resource forks and Finder's .DS_Store. */
+export const zipLitter = (name: string) => name.endsWith("/") || name.startsWith("__MACOSX/") || name.includes("/__MACOSX/") || /(^|\/)\.DS_Store$/.test(name);
+
 /** One entry of a ZIP as zipEntries reads it. */
 export interface ZipEntry {
   /** The name as the archive stores it, decoded as UTF-8 when the archive says so. */

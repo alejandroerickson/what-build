@@ -105,6 +105,7 @@ following a file:
 | `index` | Every file, without its text, and `index_md`; `prefix` for one folder. |
 | `read` | One file's text, etag, revision, size and sha256, and each `whatbuild:` link in it with what it names now. With `revision`, that revision's text. |
 | `read_files` | Every file under a `prefix` with its text, size, sha256 and etag, up to 1 MiB an answer, `next_cursor` for more: to work on a kit on your own machine. |
+| `get_download` | A short-lived grant to GET a folder (`prefix`), or the whole bundle, as a ZIP: each file at its path, and `_manifest.json` with each one's etag, revision, size and sha256. |
 | `search` | The files whose text holds every word of `query`, with a few lines around them: up to three passages a file, each the line holding a word with the lines either side, line breaks kept. A word found only in the frontmatter shows frontmatter. |
 | `history` | A file's revisions, newest first; without a path, the bundle's recent changes and `log_md`. |
 | `backlinks` | The files that link to a source, mockup, outcome or Story page. |
@@ -120,7 +121,8 @@ following a file:
 | `move` | Moves or renames a file, keeping its history. |
 | `remove` | Removes a file. Its history stays. |
 | `restore` | Brings back a revision of a file, a removed one too, as its next revision. |
-| `apply` | Up to 200 writes, moves and removals at once: all of it, or none. |
+| `apply` | Up to 200 writes, moves and removals at once: all of it, or none. With `upload_id`, a write step without `content` takes its file from an uploaded ZIP. |
+| `request_upload` | A short-lived grant to PUT a ZIP of files for `apply` to read. |
 
 Every change keeps a revision, with who made it, through which agent, and `message` when given, a
 sentence saying why. The most recent 100 of each file are kept.
@@ -133,9 +135,14 @@ with `current_etag: null`. `apply` checks every etag before writing anything, an
 change with `409 playbook_stale`, listing every stale file with its current text, so they are merged at
 once. A path appears in one of its steps only.
 
-To work on files on your own machine (a kit, or many files at once): `read_files` them, write them
-into a folder of their own keeping the etags, change them, and send the changes back in one
-`apply`. Every answer that gives a file's metadata gives `size`, its text's bytes as UTF-8, and
+To work on files on your own machine (a kit, or many files at once): `get_download` a folder and
+unzip it, or `read_files` them and write them into a folder of their own, keeping the etags; change
+them, and send the changes back in one `apply`. To keep their text out of the call, zip the folder as
+it is (files at their Playbook paths, at the top or inside one folder; `_manifest.json` may stay),
+PUT it under `request_upload`'s grant, and pass `upload_id` to `apply` with write steps that leave
+`content` out. A step whose file the ZIP lacks refuses the whole change, naming each one, and the
+upload can be tried again; a successful `apply` reads an upload once. Files are UTF-8 text, kept byte
+for byte. Every answer that gives a file's metadata gives `size`, its text's bytes as UTF-8, and
 `sha256`, the hex SHA-256 of those bytes, so you can check that your copy, or what you sent,
 arrived whole. Moving onto a path that holds a file is refused with `409 playbook_path_taken`.
 

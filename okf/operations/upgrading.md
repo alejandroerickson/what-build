@@ -49,6 +49,14 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
   every answer. It asks nothing of a deployment.
 - **Each Playbook file's answers give its `sha256`** beside its `size`. It asks nothing of a
   deployment and adds no migration.
+- **Agents move a Playbook's files as ZIPs.** `playbook_read(action="get_download")` and
+  `playbook_write(action="request_upload")` are new (142 operations, 123 offered to agents), and
+  `apply` takes `upload_id`. The release migrates (`0052_playbook_uploads.sql`:
+  `mockup_uploads.kind`, `canvas` for every upload there), so rehearse it on the dev deployment
+  first; nothing to set. The migration only adds a column with a default, so the previous release
+  keeps working against the migrated schema; a Playbook upload made by the new release is never
+  read by the previous one, which would refuse it as a canvas without a `manifest.json`. A
+  connected client sees the new actions after a new session.
 - **The Playbook's answers say what happened to a path** (`tools_version` 0.69.0). It asks nothing
   of a deployment, and adds no migration. The history, a restore or a purge of a path whose file was
   deleted permanently answers `410 playbook_file_deleted`, as a read does, where it answered `404`;

@@ -1,4 +1,4 @@
-import { TooLargeError, TooManyEntriesError, zipEntries } from "@whatbuild/parsers";
+import { TooLargeError, TooManyEntriesError, zipEntries, zipLitter } from "@whatbuild/parsers";
 import { sql } from "kysely";
 import { strToU8, zipSync } from "fflate";
 import { z } from "zod";
@@ -406,7 +406,7 @@ export interface PrototypeUpload {
 type ProtoRow = { path: string; size: number; sha256: string; media_type: string; blob_key: string };
 
 /** Entries a ZIP tool adds that are not part of what was zipped. */
-const ZIP_LITTER = (name: string) => name.endsWith("/") || name.startsWith("__MACOSX/") || name.includes("/__MACOSX/") || /(^|\/)\.DS_Store$/.test(name);
+const ZIP_LITTER = zipLitter;
 
 /**
  * Read a canvas from a ZIP in get_download's layout. Every problem is listed at once (422); nothing
@@ -554,7 +554,8 @@ export function readCanvasZip(uploadId: string, bytes: Uint8Array): CanvasUpload
 
 /** An upload publish may read: in this product, its bytes arrived, and not read before. */
 async function usableUpload(ctx: OpContext, uploadId: string, lock = false) {
-  let q = ctx.db.selectFrom("mockup_uploads").selectAll().where("product_id", "=", productId(ctx)).where("upload_id", "=", uploadId);
+  // A Playbook's upload (kind playbook) is playbook.apply's to read, never a canvas.
+  let q = ctx.db.selectFrom("mockup_uploads").selectAll().where("product_id", "=", productId(ctx)).where("upload_id", "=", uploadId).where("kind", "=", "canvas");
   if (lock) q = q.forUpdate();
   const u = await q.executeTakeFirst();
   if (!u) throw notFound(`There is no mockup upload ${uploadId} in this product. Request one with mockups_write(action="request_upload").`);

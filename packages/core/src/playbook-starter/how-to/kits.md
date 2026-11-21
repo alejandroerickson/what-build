@@ -70,13 +70,21 @@ Choose what runs on the next person's machine with nothing to install.
 
 ## Getting a kit onto your machine, and back
 
-1. `playbook_read(action="read_files", params={prefix: "kits/canvas/"})` gives every file with its text
-   and etag.
-2. Write them into a folder of their own, and keep the etags.
-3. Change what you need, run it, check what it makes.
-4. Send the changes back in one `playbook_write(action="apply")`, each file with the etag you read; add
-   new files without one. If someone changed a file in between, nothing is written and you get their
-   text: merge, and send again.
+1. `playbook_read(action="get_download", params={prefix: "kits/canvas/"})` gives a short-lived grant:
+   GET its `url` with its `headers` and unzip into a folder of its own. Each file is at its Playbook
+   path, and `_manifest.json` gives each one's etag and sha256. Keep the manifest.
+   `playbook_read(action="read_files")` gives the same files with their etags in the answer itself,
+   when you would rather not fetch a ZIP.
+2. Change what you need, run it, check what it makes.
+3. Send the changes back in one `playbook_write(action="apply")`, each file with the etag you read; add
+   new files without one. To keep the files' text out of the call, zip the folder as it is,
+   `playbook_write(action="request_upload")`, PUT the ZIP to its `url`, and pass `upload_id` to `apply`
+   with write steps that leave `content` out. If someone changed a file in between, nothing is written
+   and you get their text: merge, and send again.
+4. Compare each file's `sha256` in the answer with your copy's, to check that it arrived whole.
+
+The Playbook holds text. A kit takes typefaces and images from wherever the team already keeps
+them, and its `README.md` says where.
 
 ## Before you run one
 

@@ -1,7 +1,7 @@
 ---
 type: Specification
 title: Every capability is one registered operation, reached identically over REST and MCP.
-description: The operation registry, the error model and bounds, the full catalogue of 140 operations with their REST routes and MCP tools, authorization and agent connection levels, upload flows, the guide and the Connect page.
+description: The operation registry, the error model and bounds, the full catalogue of 142 operations with their REST routes and MCP tools, authorization and agent connection levels, upload flows, the guide and the Connect page.
 tags: [spec, operations, rest, mcp, registry, uploads, guide]
 generated: {by: agent:claude, at: 2026-11-21}
 status: stable
@@ -258,7 +258,7 @@ it always has.
 
 ### The operation catalogue
 
-All 140 operations, generated from `OPERATIONS`. The MCP tool is the operation name's first half;
+All 142 operations, generated from `OPERATIONS`. The MCP tool is the operation name's first half;
 standalone tools (—) take their fields directly. "Needs" is the minimum role
 ([§3.5](03-accounts-and-identity.md)); `members` write actions check admin at the level
 being changed inside the handler.
@@ -394,11 +394,13 @@ being changed inside the handler.
 | `playbook` | `housekeeping` | `GET P/playbook/housekeeping` | viewer |
 | `playbook` | `starter` | `GET P/playbook/starter` | viewer |
 | `playbook` | `messages` | `GET P/playbook/messages` | viewer |
+| `playbook` | `get_download` | `POST P/playbook/downloads` | viewer |
 | `playbook` | `write` | `PUT P/playbook/file` | editor |
 | `playbook` | `remove` | `POST P/playbook/file/remove` | editor |
 | `playbook` | `move` | `POST P/playbook/file/move` | editor |
 | `playbook` | `restore` | `POST P/playbook/file/restore` | editor |
 | `playbook` | `apply` | `POST P/playbook/apply` | editor |
+| `playbook` | `request_upload` | `POST P/playbook/uploads` | editor |
 | `playbook` | `send_message` | `POST P/playbook/messages` | editor |
 | `playbook` | `mark_read` | `POST P/playbook/messages/read` | viewer (an Edit connection) |
 | `playbook` | `purge` | `DELETE P/playbook/file` | admin |
@@ -422,7 +424,11 @@ Notes on recent actions:
   messages wait. `send_message` answers `201`. `mark_read` needs an Edit connection, as any write
   does, though a viewer may mark their own, and is taken in an archived product and a read-only
   organization, where it changes only the person's own count. `purge` leaves a tombstone with the
-  reason, and a read of the path then answers `410 playbook_file_deleted`.
+  reason, and a read of the path then answers `410 playbook_file_deleted`. `get_download` returns a
+  grant for `GET /api/v1/downloads/playbook/{product_id}`, which builds the folder's ZIP when it is
+  fetched, and checks the requester as every download grant does; `request_upload` returns a grant to
+  PUT a ZIP of files for `apply`'s `upload_id` (§4.16). Every answer giving a file's metadata gives its
+  `sha256`.
 
 - A source's summary and notes have an etag of their own, as its derived text has, and a write
   over any of the three needs it once there is one
@@ -699,6 +705,7 @@ These carry bytes, identity or discovery, not operations:
 ```
 PUT  /api/v1/uploads/:grant_id                       upload relay (grant header is the credential)
 PUT  /api/v1/uploads/mockup/:upload_id               a mockup canvas's ZIP, under its upload grant
+PUT  /api/v1/uploads/playbook/:upload_id             a ZIP of a Playbook's files, under its upload grant
 GET  /api/v1/downloads/:file_version_id              an attachment's bytes under a download grant
 GET  /api/v1/downloads/export/:export_id             an export ZIP under a download grant
 GET  P/sources/:record_id/attachment?path=&version=&download=1   an attachment's bytes for the web app (ranged)
@@ -714,6 +721,7 @@ GET  P/idea/concept/card, P/outcomes/:outcome_id/card?theme=   an Idea card's fr
 GET  P/sources/:record_id/card?theme=               a source's card, on its 640 × 480 board
 GET  P/story/style/specimen, P/story/house-styles/:style/specimen?theme=   a style's specimen
 GET  /api/v1/downloads/mockup/:version_id            a mockup version's ZIP under a download grant
+GET  /api/v1/downloads/playbook/:product_id          a folder of a Playbook as a ZIP under a download grant
 GET  /api/v1/downloads/story-preview/:preview_id?theme=light|dark   a Story preview's HTML under its grant in a header, without a content site
 GET  /api/v1/downloads/card-preview/:preview_id?theme=light|dark    a card preview's front under its grant in a header, without a content site
 GET  /prototypes/:grant/<path>                       a mockup prototype's file; the grant in the path is the credential (§4.12)
@@ -942,7 +950,7 @@ in now, one to `get_skill` that the skill is retired and `guide` replaces it, an
 `assumptions_read`, `assumptions_write` or `assumptions_delete` that assumptions are retired and
 WhatBuild no longer keeps them ([§4.8](04-data-model.md)).
 
-**Tools.** Twenty-nine tools over the 121 operations an agent may be offered (all 140 but the 19 a
+**Tools.** Twenty-nine tools over the 123 operations an agent may be offered (all 142 but the 19 a
 person does only in the web app: renaming an organization or a product, turning a product's Playbook off
 or on, deleting an organization
 and its preview, deleting one's own account and its preview, running the instance, its owners'
@@ -986,8 +994,8 @@ owner's included: running the instance is done in the web app.
 | `mockups_read` | `list`, `get`, `list_versions`, `get_version`, `get_download`, `delete_impact`, `delete_archived_impact` |
 | `mockups_write` | `request_upload`, `publish`, `create_folder`, `rename_folder`, `move_folder`, `remove_folder`, `move`, `archive`, `restore` |
 | `mockups_delete` | `delete`, `delete_archived` |
-| `playbook_read` | `index`, `read`, `read_files`, `search`, `history`, `backlinks`, `housekeeping`, `starter`, `messages` |
-| `playbook_write` | `write`, `remove`, `move`, `restore`, `apply`, `send_message`, `mark_read` |
+| `playbook_read` | `index`, `read`, `read_files`, `search`, `history`, `backlinks`, `housekeeping`, `starter`, `messages`, `get_download` |
+| `playbook_write` | `write`, `remove`, `move`, `restore`, `apply`, `request_upload`, `send_message`, `mark_read` |
 | `playbook_delete` | `purge` |
 | `activity_read` | `list` |
 | `search` | standalone |

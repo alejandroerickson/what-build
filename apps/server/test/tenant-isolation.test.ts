@@ -232,6 +232,7 @@ const SCOPED: Record<string, Probe> = {
   "playbook.index": { input: () => ({}) },
   "playbook.read": { input: (a) => ({ path: a.playbook.path }) },
   "playbook.read_files": { input: () => ({ prefix: "lessons/" }) },
+  "playbook.get_download": { input: () => ({ prefix: "lessons/" }) },
   "playbook.search": { input: (a) => ({ query: a.marker }) },
   "playbook.history": { input: (a) => ({ path: a.playbook.path }), inside: (a) => [{ path: a.playbook.path }, {}] },
   "playbook.backlinks": { input: (a) => ({ uri: `whatbuild:sources/${a.source.id}` }) },
@@ -242,6 +243,7 @@ const SCOPED: Record<string, Probe> = {
   "playbook.remove": { input: (a) => ({ path: a.playbook.path, expected_etag: a.playbook.etag }) },
   "playbook.move": { input: (a) => ({ path: a.playbook.path, to: "lessons/planted.md", expected_etag: a.playbook.etag }) },
   "playbook.restore": { input: (a) => ({ path: a.playbook.path, revision: 1, expected_etag: a.playbook.etag }) },
+  "playbook.request_upload": { input: () => ({}) },
   "playbook.apply": { input: (a) => ({ changes: [{ action: "write", path: a.playbook.path, content: "---\ntype: Lesson\n---\nPlanted by an outsider.\n", expected_etag: a.playbook.etag }] }) },
   // Inside their own product, to the victim's member, who reads nothing there.
   "playbook.send_message": { input: (a) => ({ to: a.member.accountId, text: "Planted by an outsider" }) },

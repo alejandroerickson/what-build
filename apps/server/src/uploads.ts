@@ -1,6 +1,6 @@
 import {
   admitRead, admitSend, AppError, capRole, CARD_PREVIEW_PURPOSE, completeGrant, conflict, DOWNLOAD_GRANT_HEADER, effectiveRole, forbidden, isHandedOff, isVideoFile, levelAllows, membershipsFor, mockupBundle, json, MOCKUP_UPLOAD_PURPOSE, notFound,
-  OPERATIONS, resolveScope, roleAtLeast, STORY_PREVIEW_PURPOSE, toAppError, tooLarge, UPLOAD_GRANT_HEADER, videoNotAccepted, type ActorSnapshot, type ConnectionLevel, type Env, type OpContext, type Principal, type Scope, type Tx,
+  OPERATIONS, PLAYBOOK_DOWNLOAD_PURPOSE, PLAYBOOK_UPLOAD_PURPOSE, playbookBundle, resolveScope, roleAtLeast, STORY_PREVIEW_PURPOSE, toAppError, tooLarge, UPLOAD_GRANT_HEADER, videoNotAccepted, type ActorSnapshot, type ConnectionLevel, type Env, type OpContext, type Principal, type Scope, type Tx,
 } from "@whatbuild/core";
 import { Hono, type Context } from "hono";
 import { sql } from "kysely";
@@ -68,6 +68,7 @@ function relayed(body: ReadableStream<Uint8Array>): ReadableStream<Uint8Array> {
 const ISSUED_BY: Record<string, string> = {
   download: "attachments.get_download",
   mockup: "mockups.get_download",
+  [PLAYBOOK_DOWNLOAD_PURPOSE]: "playbook.get_download",
   [STORY_PREVIEW_PURPOSE]: "story.preview",
   [CARD_PREVIEW_PURPOSE]: "outcomes.card_preview",
   export: "products.exports",
@@ -192,34 +193,55 @@ export function uploadRoutes(env: Env & { config: ServerConfig }) {
     }
   });
 
-  // A canvas's ZIP for mockups.publish. Stored as it arrives, read only when publish names it.
-  app.put("/api/v1/uploads/mockup/:upload_id", async (c) => {
-    try {
-      const claims = env.ports.grants.verify(c.req.header(UPLOAD_GRANT_HEADER) ?? "");
-      if (!claims || claims["purpose"] !== MOCKUP_UPLOAD_PURPOSE || claims["u"] !== c.req.param("upload_id"))
-        throw new AppError(401, "invalid_grant", "The upload grant is missing, invalid or expired. Request a new one with mockups_write(action=\"request_upload\").");
-      const tenantId = String(claims["t"]);
-      const upload = await inTenant(env, tenantId, (trx) => trx.selectFrom("mockup_uploads").selectAll().where("upload_id", "=", c.req.param("upload_id")).executeTakeFirst());
-      if (!upload) throw notFound("No such upload grant.");
-      if (upload.uploaded_at) throw conflict("already_uploaded", "A ZIP already arrived under this grant. Publish it with upload_id, or request a new upload.");
-      if (Date.parse(upload.expires_at) < Date.now()) throw new AppError(401, "invalid_grant", "The upload grant has expired. Request a new one.");
-      const role = await inTenant(env, tenantId, async (trx) =>
-        effectiveRole(await membershipsFor(trx, upload.principal.account_id, tenantId), { tenant_id: tenantId, product_id: upload.product_id }).role,
-      );
-      if (!roleAtLeast(role, "editor")) throw forbidden("Whoever requested this upload grant can no longer write to this product. Nothing was stored.", { role, needed: "editor" });
-      const max = Math.min(Number(upload.max_bytes), env.config.relayMaxBytes);
-      const declared = c.req.header("content-length");
-      if (declared !== undefined && !/^\d+$/.test(declared)) throw new AppError(400, "invalid_length", "Content-Length is not a number.");
-      if (declared !== undefined && Number(declared) > max) throw tooLarge(`The ZIP is ${bytes(Number(declared))} bytes; a canvas's ZIP is at most ${bytes(max)}.`, { limit: max });
-      const body = c.req.raw.body;
-      if (!body) throw new AppError(400, "empty_body", "Send the ZIP's bytes as the request body.");
-      const stored = await env.ports.blobs.putStream(upload.blob_key, relayed(body), { contentType: "application/zip", maxBytes: max });
-      await inTenant(env, tenantId, (trx) => trx.updateTable("mockup_uploads").set({ uploaded_at: new Date().toISOString(), size: stored.size, sha256: stored.sha256 }).where("upload_id", "=", upload.upload_id).execute());
-      return c.json({ uploaded: true, upload_id: upload.upload_id, size: stored.size, sha256: stored.sha256, next: 'Received. Now call mockups_write(action="publish") with upload_id, and mockup_id with expected_etag for a later version. The ZIP is checked then; nothing is published until that call succeeds.' }, 201);
-    } catch (e) {
-      return fail(c, e);
-    }
-  });
+  // A ZIP stored as it arrives, read only when the operation it is for names it: a canvas's for
+  // mockups.publish, or a Playbook's files for playbook.apply. Each kind has its own address and grant.
+  const ZIPS = {
+    canvas: {
+      path: "mockup",
+      purpose: MOCKUP_UPLOAD_PURPOSE,
+      what: "a canvas's ZIP",
+      request: 'mockups_write(action="request_upload")',
+      use: "Publish it with upload_id",
+      next: 'Received. Now call mockups_write(action="publish") with upload_id, and mockup_id with expected_etag for a later version. The ZIP is checked then; nothing is published until that call succeeds.',
+    },
+    playbook: {
+      path: "playbook",
+      purpose: PLAYBOOK_UPLOAD_PURPOSE,
+      what: "a ZIP of a Playbook's files",
+      request: 'playbook_write(action="request_upload")',
+      use: "Apply it with upload_id",
+      next: 'Received. Now call playbook_write(action="apply") with upload_id and the steps, each write step whose file is in the ZIP without content. The files are read then; nothing is changed until that call succeeds.',
+    },
+  } as const;
+  for (const [kind, z] of Object.entries(ZIPS) as [keyof typeof ZIPS, (typeof ZIPS)[keyof typeof ZIPS]][]) {
+    app.put(`/api/v1/uploads/${z.path}/:upload_id`, async (c) => {
+      try {
+        const claims = env.ports.grants.verify(c.req.header(UPLOAD_GRANT_HEADER) ?? "");
+        if (!claims || claims["purpose"] !== z.purpose || claims["u"] !== c.req.param("upload_id"))
+          throw new AppError(401, "invalid_grant", `The upload grant is missing, invalid or expired. Request a new one with ${z.request}.`);
+        const tenantId = String(claims["t"]);
+        const upload = await inTenant(env, tenantId, (trx) => trx.selectFrom("mockup_uploads").selectAll().where("upload_id", "=", c.req.param("upload_id")).where("kind", "=", kind).executeTakeFirst());
+        if (!upload) throw notFound("No such upload grant.");
+        if (upload.uploaded_at) throw conflict("already_uploaded", `A ZIP already arrived under this grant. ${z.use}, or request a new upload.`);
+        if (Date.parse(upload.expires_at) < Date.now()) throw new AppError(401, "invalid_grant", "The upload grant has expired. Request a new one.");
+        const role = await inTenant(env, tenantId, async (trx) =>
+          effectiveRole(await membershipsFor(trx, upload.principal.account_id, tenantId), { tenant_id: tenantId, product_id: upload.product_id }).role,
+        );
+        if (!roleAtLeast(role, "editor")) throw forbidden("Whoever requested this upload grant can no longer write to this product. Nothing was stored.", { role, needed: "editor" });
+        const max = Math.min(Number(upload.max_bytes), env.config.relayMaxBytes);
+        const declared = c.req.header("content-length");
+        if (declared !== undefined && !/^\d+$/.test(declared)) throw new AppError(400, "invalid_length", "Content-Length is not a number.");
+        if (declared !== undefined && Number(declared) > max) throw tooLarge(`The ZIP is ${bytes(Number(declared))} bytes; ${z.what} is at most ${bytes(max)}.`, { limit: max });
+        const body = c.req.raw.body;
+        if (!body) throw new AppError(400, "empty_body", "Send the ZIP's bytes as the request body.");
+        const stored = await env.ports.blobs.putStream(upload.blob_key, relayed(body), { contentType: "application/zip", maxBytes: max });
+        await inTenant(env, tenantId, (trx) => trx.updateTable("mockup_uploads").set({ uploaded_at: new Date().toISOString(), size: stored.size, sha256: stored.sha256 }).where("upload_id", "=", upload.upload_id).execute());
+        return c.json({ uploaded: true, upload_id: upload.upload_id, size: stored.size, sha256: stored.sha256, next: z.next }, 201);
+      } catch (e) {
+        return fail(c, e);
+      }
+    });
+  }
 
   app.get("/api/v1/downloads/:file_version_id", async (c) => {
     try {
@@ -236,6 +258,28 @@ export function uploadRoutes(env: Env & { config: ServerConfig }) {
       const { principal, scope } = await requesterMayRead(env, claims, found.product_id);
       await admitSend(env, principal, scope, bytesAsked(c, found.v));
       return streamFile(c, env, found.v, found.path, true);
+    } catch (e) {
+      return fail(c, e);
+    }
+  });
+
+  // A folder of a Playbook, or all of it, as a ZIP made when it is fetched (playbook.get_download).
+  app.get("/api/v1/downloads/playbook/:product_id", async (c) => {
+    try {
+      const claims = env.ports.grants.verify(c.req.header(DOWNLOAD_GRANT_HEADER) ?? "");
+      if (!claims || claims["purpose"] !== PLAYBOOK_DOWNLOAD_PURPOSE || claims["p"] !== c.req.param("product_id") || typeof claims["px"] !== "string")
+        throw new AppError(401, "invalid_grant", "The download grant is missing, invalid or expired. Request a new one with playbook_read(action=\"get_download\").");
+      const { principal, scope } = await requesterMayRead(env, claims, c.req.param("product_id"));
+      const bundle = await inTenant(env, String(claims["t"]), (trx) => playbookBundle(trx, c.req.param("product_id"), String(claims["px"])));
+      if (!bundle) throw conflict("playbook_off", "This product's Playbook is turned off, so nothing is read from it. Its admins turn it on in the web app, in the product's Settings, under Playbook.");
+      await admitSend(env, principal, scope, bundle.bytes.byteLength);
+      return c.body(bundle.bytes as unknown as ArrayBuffer, 200, {
+        "Content-Type": "application/zip",
+        "Content-Disposition": `attachment; filename="${bundle.name}"`,
+        "Content-Length": String(bundle.bytes.byteLength),
+        "X-Content-Type-Options": "nosniff",
+        "Cache-Control": "no-store",
+      });
     } catch (e) {
       return fail(c, e);
     }

@@ -259,8 +259,8 @@ export class Worker {
       });
       // Bytes that arrived but were never attached. A direct upload nobody completed reached the store without the server hearing of it, so its grant says nothing either way: where the store signs them, look.
       for (const g of stale) if (g.blob_key && (g.uploaded_at || this.env.ports.blobs.signedUploadUrl)) await this.env.ports.blobs.delete(g.blob_key).catch(() => undefined);
-      // A canvas's ZIP: one never published goes a day after its grant expired; a published one's
-      // bytes went when it was published, and its row a week later.
+      // A canvas's ZIP, or a Playbook's files: one never published or applied goes a day after its
+      // grant expired; a used one's bytes went when it was used, and its row a week later.
       const canvases = await this.env.db.transaction().execute(async (trx) => {
         await sql`select set_config('app.tenant_id', ${tenant_id}, true)`.execute(trx);
         return trx
@@ -271,13 +271,13 @@ export class Worker {
               eb("used_at", "<", new Date(Date.now() - 7 * 86400_000).toISOString()),
             ]),
           )
-          .returning(["upload_id", "product_id", "blob_key", "uploaded_at", "used_at"])
+          .returning(["upload_id", "product_id", "blob_key", "uploaded_at", "used_at", "kind"])
           .execute();
       });
       for (const u of canvases) {
         if (!u.uploaded_at || u.used_at) continue;
         // A publish that failed may have stored the prototype's bytes already; they go with the ZIP.
-        const zip = await this.env.ports.blobs.get(u.blob_key).catch(() => null);
+        const zip = u.kind === "canvas" ? await this.env.ports.blobs.get(u.blob_key).catch(() => null) : null;
         if (zip) for (const key of stagedPrototypeKeys(tenant_id, u.product_id, u.upload_id, zip)) await this.env.ports.blobs.delete(key).catch(() => undefined);
         await this.env.ports.blobs.delete(u.blob_key).catch(() => undefined);
       }

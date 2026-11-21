@@ -389,6 +389,8 @@ export interface MockupUploadsTable {
   sha256: string | null;
   used_at: TsNull;
   used_by_version_id: string | null;
+  /** What the ZIP is for: a canvas for mockups.publish, or a Playbook's files for playbook.apply (0052). Each reads only its own. */
+  kind: ColumnType<"canvas" | "playbook", "canvas" | "playbook" | undefined, "canvas" | "playbook">;
   created_at: Ts;
 }
 
