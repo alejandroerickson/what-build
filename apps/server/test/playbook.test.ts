@@ -423,6 +423,8 @@ describe("edges", () => {
     expect(await search("quokka")).toEqual(["description: Kept apart.\ntags: [quokka, walrus]"]);
     // One passage for words it already shows, and the body's place for a word in both (walrus is in the tags too).
     expect(await search("walrus second")).toEqual(["First line names the walrus.\nSecond line."]);
+    // Passages that would repeat a line ("Second line.") are joined into one.
+    expect(await search("walrus third")).toEqual(["First line names the walrus.\nSecond line.\nThird line, after a blank.\n" + long.slice(0, 160).trim() + "…"]);
     expect(await search("snippet")).toEqual(["type: Lesson\ntitle: Snippet lines\ndescription: Kept apart."]);
   });
 
