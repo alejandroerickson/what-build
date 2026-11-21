@@ -35,7 +35,7 @@ import {
 import { effectiveRole, membershipsFor, roleAtLeast } from "../policy.ts";
 import { defineOperation, type OpContext } from "../registry.ts";
 import { expectedEtag } from "../schemas.ts";
-import { likeContaining, newEtag, newId, sameEtag, utcDay } from "../util.ts";
+import { likeContaining, newEtag, newId, sameEtag, sha256Hex, utcDay } from "../util.ts";
 import { TOOLS_VERSION } from "./meta.ts";
 
 /**
@@ -43,6 +43,9 @@ import { TOOLS_VERSION } from "./meta.ts";
  * several at once, with every revision kept; messages between people's agents beside it; and what
  * agents might tidy. See playbook.ts for the bundle's rules and the starter.
  */
+
+/** What every answer giving a file's metadata says of its size and sha256. */
+const SIZE_AND_SHA256 = "size is the file's text in bytes as UTF-8, and sha256 the hex SHA-256 of those bytes: compare it with your own copy's to check a file arrived whole.";
 
 const WHAT_IT_IS =
   "The Playbook is the product's shared knowledge, which the agents of everyone working on it read and write: what is current, lessons from people's corrections, the kits agents build pages with, people's pages, and how the team uses it. It is a bundle in the Open Knowledge Format: Markdown files with YAML frontmatter, and a kit's text files.";
@@ -66,9 +69,17 @@ type FileRow = {
   updated_at: string;
   updated_by: ActorSnapshot;
   removed_at: string | null;
+  /** The text's sha256, when the row was read without its text. */
+  sha256?: string | null;
 };
 
 const FILE_COLUMNS = ["file_id", "path", "content", "type", "title", "description", "applies_to", "tags", "status", "stale_after", "size", "revision", "etag", "created_at", "created_by", "updated_at", "updated_by", "removed_at"] as const;
+
+/** The sha256 of a file's text as UTF-8, in hex, worked out where the text is: a read that leaves the text out still gives it. */
+const CONTENT_SHA256 = sql<string | null>`encode(sha256(convert_to(content, 'UTF8')), 'hex')`;
+
+/** A file's sha256: the one read beside it, or else its text's. */
+const sha256Of = (f: { content: string | null; sha256?: string | null | undefined }) => f.sha256 ?? (f.content === null ? null : sha256Hex(f.content));
 
 const who = (a: ActorSnapshot | null | undefined) => (a ? { display_name: a.display_name || "Someone", ...(a.client ? { client: a.client } : {}) } : null);
 
@@ -85,6 +96,7 @@ function fileView(f: Omit<FileRow, "file_id" | "created_at" | "created_by"> & { 
     stale_after: f.stale_after,
     ...(f.stale_after && f.stale_after <= now ? { stale: true } : {}),
     size: f.size,
+    sha256: sha256Of(f),
     revision: f.revision,
     etag: f.etag,
     // The starter served before the first write has no time of its own.
@@ -109,13 +121,13 @@ async function liveFiles(ctx: OpContext, started: boolean, opts: { prefix?: stri
   if (!started) return starterRows().filter((f) => !opts.prefix || f.path.startsWith(opts.prefix));
   let q = ctx.db
     .selectFrom("playbook_files")
-    .select(opts.withContent ? [...FILE_COLUMNS] : FILE_COLUMNS.filter((c) => c !== "content"))
+    .select(FILE_COLUMNS.filter((c) => c !== "content"))
+    .select([(opts.withContent ? sql<string | null>`content` : sql<string | null>`null`).as("content"), CONTENT_SHA256.as("sha256")])
     .where("product_id", "=", productId(ctx))
     .where("removed_at", "is", null)
     .orderBy(sql`path collate "C"`);
   if (opts.prefix) q = q.where("path", "like", `${opts.prefix.replace(/[\\%_]/g, "\\$&")}%`);
-  const rows = (await q.execute()) as FileRow[];
-  return rows.map((r) => ({ ...r, content: opts.withContent ? r.content : null }));
+  return (await q.execute()) as FileRow[];
 }
 
 /** The file at a path that is not removed, held for the change about to be made. */
@@ -412,7 +424,7 @@ export const playbookIndex = defineOperation({
   access: "read",
   mutates: false,
   summary: "List the product's Playbook: every file with its title, description, what it applies to and its etag. Start here.",
-  description: `${WHAT_IT_IS} Read it before working on the product, and write to it as you work: guide(topic="playbook") says how, and so does its own using-this-playbook.md. It answers with okf_version (the version of the Open Knowledge Format the Playbook's files follow), files (each path, type, title, description, applies_to, tags, status, stale_after and stale when that has passed, size, revision, etag, and who wrote it last), index_md (Playbook's index.md for the folder: prefix, or the root), started (false while the product has written nothing and serves WhatBuild's starter, whose files then say from_starter) and messages_waiting. prefix limits it to a folder, as lessons/. Refused with 409 playbook_off when the product's admins turned its Playbook off.`,
+  description: `${WHAT_IT_IS} Read it before working on the product, and write to it as you work: guide(topic="playbook") says how, and so does its own using-this-playbook.md. It answers with okf_version (the version of the Open Knowledge Format the Playbook's files follow), files (each path, type, title, description, applies_to, tags, status, stale_after and stale when that has passed, size, sha256, revision, etag, and who wrote it last), index_md (Playbook's index.md for the folder: prefix, or the root), started (false while the product has written nothing and serves WhatBuild's starter, whose files then say from_starter) and messages_waiting. prefix limits it to a folder, as lessons/. Refused with 409 playbook_off when the product's admins turned its Playbook off.`,
   input: z.strictObject({ prefix: z.string().max(260).optional().describe("A folder, as kits/ or lessons/: only the files under it.") }),
   rest: { method: "GET", path: "/playbook" },
   mcp: { tool: "playbook", action: "index" },
@@ -437,7 +449,7 @@ export const playbookRead = defineOperation({
   mutates: false,
   summary: "Read one file of the Playbook: its text, etag and revision, and what each of its whatbuild: links names now.",
   description:
-    `revision reads that revision of the file instead (from playbook_read(action="history")); its text, never an etag to write with. links gives each whatbuild: link in the text (${LINK_FORM}) with the title of what it names and its status: live, archived, or missing when nothing in the product has that id. A path that held a file removed since is refused with 404 saying when, and playbook_write(action="restore") brings it back; one whose file was moved away, with 404 naming where it is now (details.moved_to); one whose file was deleted permanently, with 410 playbook_file_deleted.`,
+    `${SIZE_AND_SHA256} revision reads that revision of the file instead (from playbook_read(action="history")); its text, never an etag to write with. links gives each whatbuild: link in the text (${LINK_FORM}) with the title of what it names and its status: live, archived, or missing when nothing in the product has that id. A path that held a file removed since is refused with 404 saying when, and playbook_write(action="restore") brings it back; one whose file was moved away, with 404 naming where it is now (details.moved_to); one whose file was deleted permanently, with 410 playbook_file_deleted.`,
   input: z.strictObject({ path: pathField, revision: z.number().int().min(1).optional().describe("A revision to read, from the file's history.") }),
   rest: { method: "GET", path: "/playbook/file" },
   mcp: { tool: "playbook", action: "read" },
@@ -449,7 +461,7 @@ export const playbookRead = defineOperation({
       const f = await fileForHistory(ctx, path);
       const rev = await ctx.db.selectFrom("playbook_revisions").selectAll().where("file_id", "=", f.file_id).where("revision", "=", input.revision).executeTakeFirst();
       if (!rev) throw notFound(`${path} has no revision ${input.revision} (it is at ${f.revision}, and the most recent ${PLAYBOOK_REVISIONS_KEPT} are kept). playbook_read(action="history", params={path}) lists the ones it has.`, { path });
-      return { path: rev.path, revision: rev.revision, change: rev.change, content: rev.content, message: rev.message, created_at: rev.created_at, created_by: who(rev.created_by), current_revision: f.revision };
+      return { path: rev.path, revision: rev.revision, change: rev.change, content: rev.content, size: rev.content === null ? 0 : byteSize(rev.content), sha256: sha256Of(rev), message: rev.message, created_at: rev.created_at, created_by: who(rev.created_by), current_revision: f.revision };
     }
     const f = s.started ? await liveFile(ctx, path, false) : starterRows().find((r) => r.path === path);
     if (!f) throw await nothingAt(ctx, path, s.started);
@@ -466,7 +478,7 @@ export const playbookReadFiles = defineOperation({
   access: "read",
   mutates: false,
   summary: "Read every file under a folder, with its text and etag: to work on a kit, or several files, on your own machine.",
-  description: `Answers with files (each with its text and etag) in path order, up to 1 MiB of text an answer, and next_cursor while more remain. Write the files into a folder of their own, keep the etags, and send changes back with playbook_write(action="apply"), each file with the etag read here. Without a prefix it reads the whole bundle.`,
+  description: `Answers with files (each with its text, size, sha256 and etag) in path order, up to 1 MiB of text an answer, and next_cursor while more remain. Write the files into a folder of their own, keep the etags, compare each file's sha256 with your copy's to check it arrived whole, and send changes back with playbook_write(action="apply"), each file with the etag read here. Without a prefix it reads the whole bundle.`,
   input: z.strictObject({
     prefix: z.string().max(260).optional().describe("A folder, as kits/canvas/: only the files under it."),
     cursor: z.string().max(300).optional().describe("next_cursor from the previous answer."),
@@ -598,14 +610,14 @@ export const playbookHistory = defineOperation({
   access: "read",
   mutates: false,
   summary: "List a file's revisions, or, without a path, the Playbook's recent changes as its log.",
-  description: `With path: the file's revisions, newest first, each with its revision, change (written, removed, moved or restored), the path it had, size, message and who made it; playbook_read(action="read") with a revision reads one, and playbook_write(action="restore") brings one back. The most recent ${PLAYBOOK_REVISIONS_KEPT} of each file are kept. A path whose file was moved away answers 404 naming where it is now (details.moved_to); one whose file was deleted permanently, 410 playbook_file_deleted. Without a path: the most recent changes across the bundle, and log_md, Playbook's log.md for them.`,
+  description: `With path: the file's revisions, newest first, each with its revision, change (written, removed, moved or restored), the path it had, size and sha256 (none for a removal), message and who made it; playbook_read(action="read") with a revision reads one, and playbook_write(action="restore") brings one back. The most recent ${PLAYBOOK_REVISIONS_KEPT} of each file are kept. A path whose file was moved away answers 404 naming where it is now (details.moved_to); one whose file was deleted permanently, 410 playbook_file_deleted. Without a path: the most recent changes across the bundle, and log_md, Playbook's log.md for them.`,
   input: z.strictObject({ path: pathField.optional(), limit: z.number().int().min(1).max(200).default(50) }),
   rest: { method: "GET", path: "/playbook/history" },
   mcp: { tool: "playbook", action: "history" },
   async handler(ctx, input) {
     const s = await requirePlaybook(ctx, false);
     if (!s.started) return { started: false, revisions: [], note: "The Playbook has written nothing yet: it serves WhatBuild's starter, and its history starts with its first write." };
-    const cols = ["revision_id", "file_id", "revision", "change", "path", "message", "created_at", "created_by", sql<number>`coalesce(octet_length(content), 0)`.as("size")] as const;
+    const cols = ["revision_id", "file_id", "revision", "change", "path", "message", "created_at", "created_by", sql<number>`coalesce(octet_length(content), 0)`.as("size"), CONTENT_SHA256.as("sha256")] as const;
     if (input.path) {
       const path = input.path.trim().replace(/^\/+/, "");
       const f = await fileForHistory(ctx, path);
@@ -615,12 +627,12 @@ export const playbookHistory = defineOperation({
         removed: f.removed_at !== null,
         current_revision: f.revision,
         etag: f.etag,
-        revisions: revs.map((r) => ({ revision: r.revision, change: r.change, path: r.path, size: Number(r.size), message: r.message, created_at: r.created_at, created_by: who(r.created_by) })),
+        revisions: revs.map((r) => ({ revision: r.revision, change: r.change, path: r.path, size: Number(r.size), sha256: r.sha256, message: r.message, created_at: r.created_at, created_by: who(r.created_by) })),
       };
     }
     const revs = await ctx.db.selectFrom("playbook_revisions").select([...cols]).where("product_id", "=", productId(ctx)).orderBy("created_at", "desc").orderBy("revision_id", "desc").limit(input.limit).execute();
     return {
-      revisions: revs.map((r) => ({ revision: r.revision, change: r.change, path: r.path, size: Number(r.size), message: r.message, created_at: r.created_at, created_by: who(r.created_by) })),
+      revisions: revs.map((r) => ({ revision: r.revision, change: r.change, path: r.path, size: Number(r.size), sha256: r.sha256, message: r.message, created_at: r.created_at, created_by: who(r.created_by) })),
       log_md: logMarkdown(revs),
     };
   },
@@ -739,7 +751,7 @@ export const playbookWrite = defineOperation({
   access: "write",
   mutates: true,
   summary: "Write a file of the Playbook: a new one, or the next revision of one, with the etag of your read.",
-  description: `${PATH_RULES} A Markdown file starts with YAML frontmatter that names its type; title, description and applies_to (${PLAYBOOK_AREAS.join(", ")}) decide how agents find it. A file that is there takes expected_etag from your last read: one written since is refused with 409 stale_etag, whose details give current_content and current_etag to merge with. A new file takes none. The first write to a product's Playbook copies WhatBuild's starter in first, keeping its etags. The answer gives the file's etag and revision, its links with what each names now, and warnings (frontmatter it lacks, links that name nothing or something archived). Writing the text a file already holds changes nothing. message says why, kept with the revision.`,
+  description: `${PATH_RULES} A Markdown file starts with YAML frontmatter that names its type; title, description and applies_to (${PLAYBOOK_AREAS.join(", ")}) decide how agents find it. A file that is there takes expected_etag from your last read: one written since is refused with 409 stale_etag, whose details give current_content and current_etag to merge with. A new file takes none. The first write to a product's Playbook copies WhatBuild's starter in first, keeping its etags. The answer gives the file's etag, revision, size and sha256, its links with what each names now, and warnings (frontmatter it lacks, links that name nothing or something archived). Writing the text a file already holds changes nothing. message says why, kept with the revision.`,
   input: z.strictObject({ path: pathField, content: contentField, expected_etag: etagField, message }),
   rest: { method: "PUT", path: "/playbook/file" },
   mcp: { tool: "playbook", action: "write" },
@@ -839,7 +851,7 @@ export const playbookApply = defineOperation({
   access: "write",
   mutates: true,
   summary: "Write, remove and move several files of the Playbook at once: all of it, or none.",
-  description: `changes is up to ${APPLY_MAX} steps, run in order, each {action: write | remove | move, path, ...} with the fields that action takes in playbook_write, and expected_etag for every file that is there. A path, or a move's to, appears in one step only (422 playbook_same_path_twice). Every etag is checked before anything is written: when any is stale the whole change is refused with 409 playbook_stale, whose details.files give each stale file's path, current_etag and current_content, so you merge them all at once and send again. Any other refusal also leaves every file as it was. This is how files worked on outside WhatBuild come back: read them with read_files, change them, and apply.`,
+  description: `changes is up to ${APPLY_MAX} steps, run in order, each {action: write | remove | move, path, ...} with the fields that action takes in playbook_write, and expected_etag for every file that is there. A path, or a move's to, appears in one step only (422 playbook_same_path_twice). Every etag is checked before anything is written: when any is stale the whole change is refused with 409 playbook_stale, whose details.files give each stale file's path, current_etag and current_content, so you merge them all at once and send again. Any other refusal also leaves every file as it was. This is how files worked on outside WhatBuild come back: read them with read_files, change them, and apply. The answer gives each file written or moved with its etag, size and sha256, to check against your copy.`,
   input: z.strictObject({ changes: z.array(steps).min(1).max(APPLY_MAX), message }),
   rest: { method: "POST", path: "/playbook/apply" },
   mcp: { tool: "playbook", action: "apply" },

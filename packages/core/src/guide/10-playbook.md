@@ -32,7 +32,7 @@ nothing in it is lost.
   Idea, `derived_read(action="card_guidance")` for Evidence, and `mockups_read(action="list")` for
   Exploration.
 - `playbook_read(action="index")` lists every file with its path, type, title, description,
-  `applies_to`, status, size, revision and etag, and gives `index_md`, OKF's `index.md` for a
+  `applies_to`, status, size, sha256, revision and etag, and gives `index_md`, OKF's `index.md` for a
   folder (`prefix`), and `okf_version`, the version of the Open Knowledge Format the Playbook's files
   follow.
 - Every answer in a product says how many messages wait for your person there, as
@@ -103,8 +103,8 @@ following a file:
 | Action of `playbook_read` | Gives |
 |---|---|
 | `index` | Every file, without its text, and `index_md`; `prefix` for one folder. |
-| `read` | One file's text, etag and revision, and each `whatbuild:` link in it with what it names now. With `revision`, that revision's text. |
-| `read_files` | Every file under a `prefix` with its text and etag, up to 1 MiB an answer, `next_cursor` for more: to work on a kit on your own machine. |
+| `read` | One file's text, etag, revision, size and sha256, and each `whatbuild:` link in it with what it names now. With `revision`, that revision's text. |
+| `read_files` | Every file under a `prefix` with its text, size, sha256 and etag, up to 1 MiB an answer, `next_cursor` for more: to work on a kit on your own machine. |
 | `search` | The files whose text holds every word of `query`, with a few lines around them: up to three passages a file, each the line holding a word with the lines either side, line breaks kept. A word found only in the frontmatter shows frontmatter. |
 | `history` | A file's revisions, newest first; without a path, the bundle's recent changes and `log_md`. |
 | `backlinks` | The files that link to a source, mockup, outcome or Story page. |
@@ -135,7 +135,9 @@ once. A path appears in one of its steps only.
 
 To work on files on your own machine (a kit, or many files at once): `read_files` them, write them
 into a folder of their own keeping the etags, change them, and send the changes back in one
-`apply`. Moving onto a path that holds a file is refused with `409 playbook_path_taken`.
+`apply`. Every answer that gives a file's metadata gives `size`, its text's bytes as UTF-8, and
+`sha256`, the hex SHA-256 of those bytes, so you can check that your copy, or what you sent,
+arrived whole. Moving onto a path that holds a file is refused with `409 playbook_path_taken`.
 
 `playbook_delete(action="purge")` deletes a file and every revision of it for good: an admin's call, with
 the file's etag, a reason and `confirm` set to `"delete permanently"`. Removing is almost always what

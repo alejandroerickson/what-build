@@ -1,6 +1,6 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
-import { randomBytes } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { startHarness, type Browser, type Harness } from "./harness.ts";
 
@@ -474,6 +474,30 @@ describe("edges", () => {
     expect((await write(erin, "kits/canvas-old/README.md", md("Old canvas kit"))).status).toBe(200);
     const kit = (await vic.api("GET", `${P}/playbook/files?prefix=kits/canvas`)).body;
     expect(kit.files.map((f: { path: string }) => f.path)).toEqual(["kits/canvas/README.md", "kits/canvas/zip.mjs"]);
+  });
+
+  it("gives each file's sha256 beside its size wherever its metadata is, the same whether the text is read or not", async () => {
+    const sha = (text: string) => createHash("sha256").update(text, "utf8").digest("hex");
+    // Text beyond ASCII, so the hash is of its UTF-8 bytes.
+    const text = md("Hashes say a copy arrived whole", "Ünïcode — and “quotes”.");
+    const w = (await write(erin, "lessons/hashes.md", text)).body;
+    expect(w).toMatchObject({ size: Buffer.byteLength(text, "utf8"), sha256: sha(text) });
+    const index = (await vic.api("GET", `${P}/playbook?prefix=lessons`)).body.files.find((f: { path: string }) => f.path === "lessons/hashes.md");
+    expect(index).toMatchObject({ size: w.size, sha256: sha(text) });
+    expect((await read(vic, "lessons/hashes.md")).body.sha256).toBe(sha(text));
+    const files = (await vic.api("GET", `${P}/playbook/files?prefix=lessons`)).body.files;
+    expect(files.find((f: { path: string }) => f.path === "lessons/hashes.md").sha256).toBe(sha(text));
+    const next = md("Hashes say a copy arrived whole", "Changed.");
+    const { call } = await agent(erin, "editor");
+    const applied = (await call("playbook_write", "apply", { changes: [{ action: "write", path: "lessons/hashes.md", content: next, expected_etag: w.etag }] })).body;
+    expect(applied.results[0]).toMatchObject({ sha256: sha(next), size: Buffer.byteLength(next, "utf8") });
+    const history = (await vic.api("GET", `${P}/playbook/history?path=lessons/hashes.md`)).body.revisions;
+    expect(history.map((r: { sha256: string }) => r.sha256)).toEqual([sha(next), sha(text)]);
+    expect((await read(vic, "lessons/hashes.md", 1)).body).toMatchObject({ sha256: sha(text), size: w.size });
+    // The starter's files give theirs too, before anything is written.
+    const fresh = await alice.api("POST", `/api/v1/tenants/${tenant}/products`, { name: "Hash Fresh", concept: "Nothing written yet." });
+    const starter = (await alice.api("GET", `/api/v1/p/${fresh.body.path}/playbook/file?path=using-this-playbook.md`)).body;
+    expect(starter.sha256).toBe(sha(starter.content));
   });
 
   it("names each file an apply changed in the activity log", async () => {

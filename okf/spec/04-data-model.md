@@ -1281,6 +1281,12 @@ topic. Migration [`0050_playbook.sql`](../../apps/server/src/migrations/0050_pla
   path, its history, a restore or a purge of it answers `410 playbook_file_deleted`. A path a file
   was moved away from answers `404` naming the path the file has now (`moved_to`), and changes
   nothing.
+- **Size and hash.** Wherever a file's metadata appears (`playbook.index`, `read`, `read_files`,
+  `history`, and the answers of `write`, `move`, `restore` and `apply`), it gives `size`, the text's
+  bytes as UTF-8, and `sha256`, the hex SHA-256 of those bytes, as `mockups.get` gives a page's
+  `html_sha256`: an agent that keeps a kit on its own machine checks its copy against it. Neither
+  is stored: the hash is worked out from the text where it is read, in the database for an answer
+  that leaves the text out. A revision that removed the file has no text, and no hash.
 - **Links.** `whatbuild:sources/<id>`, `whatbuild:mockups/<id>[@n][#page]`,
   `whatbuild:outcomes/<id>`, `whatbuild:story/<page_id>[@n]` and `whatbuild:product` name objects
   without a host; a form written out, as `whatbuild:mockups/<mockup_id>`, is no link. A read
