@@ -202,7 +202,7 @@ The plans:
 
 ## Real files
 
-WhatBuild's tests make their files from nothing, which can't show what real software writes. 84 public
+WhatBuild's tests make their files from nothing, which can't show what real software writes. 77 public
 files can, named with their checksums, licences and what each should come to in
 `e2e/test-attachments.json`. None is committed, and nothing uses them by itself: not `pnpm test`, not
 CI, not a release.
