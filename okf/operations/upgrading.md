@@ -33,15 +33,20 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
 
 ## Unreleased
 
+## v0.42.0
+
 - **Each product has a Playbook its people's agents write together.** The release migrates
-  (`0050_playbook.sql`: `products.playbook_enabled`, on for every product, and `playbook_started_at`; the tables
-  `playbook_files`, `playbook_revisions`, `playbook_links` and `playbook_messages`, with row-level security), so rehearse
-  it on the dev deployment first; nothing to set. Agents get `playbook_read`, `playbook_write` and, on an
-  Admin connection, `playbook_delete`, and are told of the Playbook in the server's instructions, the guide's
-  new `playbook` topic and `products_read(action="get")`; the tools version becomes 0.68.0, so a
-  connected client sees them after a new session. People see a new section in a product's Settings,
-  Playbook, which explains it and where its admins turn it off. A product's export holds its Playbook
-  (`playbook/files/`, `playbook/revisions.jsonl`); the worker deletes messages 60 days after they were sent.
+  (`0050_playbook.sql`: `products.playbook_enabled`, on for every product, and
+  `playbook_started_at`; the tables `playbook_files`, `playbook_revisions`, `playbook_links` and
+  `playbook_messages`, with row-level security), so rehearse it on the dev deployment first;
+  nothing to set. The migration only adds columns with defaults and new tables, so the previous
+  release (v0.41.0) keeps working against the migrated schema. Agents get `playbook_read`,
+  `playbook_write` and, on an Admin connection, `playbook_delete`, and are told of the Playbook in
+  the server's instructions, the guide's new `playbook` topic and `products_read(action="get")`;
+  the tools version becomes 0.68.0, so a connected client sees them after a new session. People
+  see a new section in a product's Settings, Playbook, which explains it and where its admins turn
+  it off. A product's export holds its Playbook (`playbook/files/`, `playbook/revisions.jsonl`);
+  the worker deletes messages 60 days after they were sent.
 
 ## v0.41.0
 
