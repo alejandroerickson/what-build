@@ -23,3 +23,25 @@ writeFileSync(
     `export const GUIDE_TOPICS = ${JSON.stringify(topics, null, 2)} as const;\n`,
 );
 console.log("wrote", out.pathname, `(${topics.length} topics)`);
+
+// The starter every product's Playbook begins with, packages/core/src/playbook-starter/**/*.md, embedded the
+// same way: a product serves it until its first write copies it in.
+const starterDir = new URL("../packages/core/src/playbook-starter/", import.meta.url);
+const starterOut = new URL("starter-text.ts", starterDir);
+const starter = readdirSync(starterDir, { recursive: true })
+  .map(String)
+  .map((p) => p.split("\\").join("/"))
+  .filter((p) => p.endsWith(".md"))
+  .sort()
+  .map((path) => {
+    const content = readFileSync(new URL(path, starterDir), "utf8").replace(/\r\n/g, "\n").trimEnd() + "\n";
+    if (!content.startsWith("---\n") || !/\ntype: \S/.test(content.split("\n---\n")[0])) throw new Error(`${path} must start with frontmatter that names its type`);
+    return { path, content };
+  });
+if (!starter.length) throw new Error("no Playbook starter files found");
+writeFileSync(
+  starterOut,
+  `// Generated from packages/core/src/playbook-starter/**/*.md by scripts/gen-guide.mjs. Edit the Markdown, then run pnpm gen:guide.\n` +
+    `export const PLAYBOOK_STARTER: readonly { path: string; content: string }[] = ${JSON.stringify(starter, null, 2)};\n`,
+);
+console.log("wrote", starterOut.pathname, `(${starter.length} files)`);

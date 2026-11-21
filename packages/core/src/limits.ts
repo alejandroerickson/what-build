@@ -413,7 +413,7 @@ function stored(table: string, columns: string[]) {
  * What an organization holds against its plan's totals. Products and sources count whether archived
  * or not, so nobody archives and restores to get round a plan. Files are every attachment version,
  * the text read from each and the distinct files of mockup prototypes; text is what is written, as
- * the database stores it, every version kept. Archiving keeps all of it; only deleting frees it.
+ * the database stores it, every version kept, each product's Playbook and its revisions among it. Archiving keeps all of it; only deleting frees it.
  */
 export async function holdingsOf(db: Db, tenantId: string): Promise<Holdings> {
   const row = await db
@@ -435,7 +435,9 @@ export async function holdingsOf(db: Db, tenantId: string): Promise<Holdings> {
         + ${stored("mockup_files", ["content"])}
         + ${stored("register_entries", ["statement", "body"])}
         + ${stored("outcomes", ["description", "card_html"])}
-        + ${stored("revisions", ["content"])}`.as("text"),
+        + ${stored("revisions", ["content"])}
+        + ${stored("playbook_files", ["content"])}
+        + ${stored("playbook_revisions", ["content"])}`.as("text"),
     ])
     .where("t.tenant_id", "=", tenantId)
     .executeTakeFirstOrThrow();

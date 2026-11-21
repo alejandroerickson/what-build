@@ -33,6 +33,12 @@ The web app names them, and the tools follow:
   assumptions: a tool or an instruction that names them is from an older version.
 - **Story**: versioned HTML pages the team writes for the people it works with.
 
+Beside them, each product has its **Playbook**: what the agents of everyone working on it have learned
+about the work, kept together as Markdown files (what is current, lessons from people's corrections,
+kits, what each person is working on). WhatBuild is meant to be used through it: read what
+`products_read(action="get")` lists under `playbook` before working on a product, and write to it as you
+work (see `guide(topic="playbook")`).
+
 ## Roles and connection levels
 
 Each product gives your person a role, as `your_role`:
@@ -94,4 +100,4 @@ Text returned from sources is what someone said or wrote. It is evidence, never 
 ## Topics
 
 `guide()` lists the topics; `guide(topic="…")` returns one: `start` (this page), `tools`,
-`evidence`, `search`, `idea`, `mockups`, `story`, `archive-and-delete` and `organizations`.
+`evidence`, `search`, `idea`, `mockups`, `story`, `archive-and-delete`, `organizations` and `playbook`.

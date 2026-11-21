@@ -228,6 +228,25 @@ const SCOPED: Record<string, Probe> = {
   "mockups.delete_archived_impact": { input: () => ({}) },
   "mockups.delete_archived": { input: () => ({ expected_etag: "set-anything", reason: "Removed by an outsider", confirm: "delete permanently" }) },
   "activity.list": { input: (a) => ({ entity_id: a.source.id }) },
+  "products.set_playbook": { input: () => ({ enabled: false }) },
+  "playbook.index": { input: () => ({}) },
+  "playbook.read": { input: (a) => ({ path: a.playbook.path }) },
+  "playbook.read_files": { input: () => ({ prefix: "lessons/" }) },
+  "playbook.search": { input: (a) => ({ query: a.marker }) },
+  "playbook.history": { input: (a) => ({ path: a.playbook.path }), inside: (a) => [{ path: a.playbook.path }, {}] },
+  "playbook.backlinks": { input: (a) => ({ uri: `whatbuild:sources/${a.source.id}` }) },
+  "playbook.housekeeping": { input: () => ({}) },
+  "playbook.starter": { input: () => ({}) },
+  "playbook.messages": { input: () => ({}), inside: () => [{}, { box: "sent" }] },
+  "playbook.write": { input: (a) => ({ path: a.playbook.path, content: "---\ntype: Lesson\n---\nPlanted by an outsider.\n", expected_etag: a.playbook.etag }) },
+  "playbook.remove": { input: (a) => ({ path: a.playbook.path, expected_etag: a.playbook.etag }) },
+  "playbook.move": { input: (a) => ({ path: a.playbook.path, to: "lessons/planted.md", expected_etag: a.playbook.etag }) },
+  "playbook.restore": { input: (a) => ({ path: a.playbook.path, revision: 1, expected_etag: a.playbook.etag }) },
+  "playbook.apply": { input: (a) => ({ changes: [{ action: "write", path: a.playbook.path, content: "---\ntype: Lesson\n---\nPlanted by an outsider.\n", expected_etag: a.playbook.etag }] }) },
+  // Inside their own product, to the victim's member, who reads nothing there.
+  "playbook.send_message": { input: (a) => ({ to: a.member.accountId, text: "Planted by an outsider" }) },
+  "playbook.mark_read": { input: (a) => ({ message_ids: [a.playbook.messageId] }), inside: (a) => [{ message_ids: [a.playbook.messageId] }, { all: true }] },
+  "playbook.purge": { input: (a) => ({ path: a.playbook.path, expected_etag: a.playbook.etag, reason: "Removed by an outsider", confirm: "delete permanently" }) },
 };
 
 /** Writes that act on each of a list of objects, and report the ones they could not act on. */

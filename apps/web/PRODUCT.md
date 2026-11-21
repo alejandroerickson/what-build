@@ -80,7 +80,7 @@ permissions and one activity log.
   people read it, export it to PDF, and arrange, rename, archive and delete its pages by hand. Pages follow the product's Story style: the
   company's own design system, or a house style an agent adopted for the product. Never
   WhatBuild's own look, since a Story is often read outside the team.
-- Vocabulary is fixed: source, derived text, attachment, outcome, mockup, Story, archive. Exploration's list of mockups is headed Mockup canvases. Never "findings", "claims", "document store", "file" for an attachment, or a storage path in the UI.
+- Vocabulary is fixed: source, derived text, attachment, outcome, mockup, Story, Playbook, archive. Exploration's list of mockups is headed Mockup canvases. Never "findings", "claims", "document store", "file" for an attachment, or a storage path in the UI.
 - Spotlight tutorials for whoever can edit a product and the example organization's guests: a
   short welcome, offered once, then one for each of the four destinations, which starts by itself
   the first time the person opens it, on fixed example content that no product holds and no agent

@@ -1,7 +1,7 @@
 ---
 type: Specification
 title: Every capability is one registered operation, reached identically over REST and MCP.
-description: The operation registry, the error model and bounds, the full catalogue of 122 operations with their REST routes and MCP tools, authorization and agent connection levels, upload flows, the guide and the Connect page.
+description: The operation registry, the error model and bounds, the full catalogue of 140 operations with their REST routes and MCP tools, authorization and agent connection levels, upload flows, the guide and the Connect page.
 tags: [spec, operations, rest, mcp, registry, uploads, guide]
 generated: {by: agent:claude, at: 2026-11-18}
 status: stable
@@ -258,7 +258,7 @@ it always has.
 
 ### The operation catalogue
 
-All 122 operations, generated from `OPERATIONS`. The MCP tool is the operation name's first half;
+All 140 operations, generated from `OPERATIONS`. The MCP tool is the operation name's first half;
 standalone tools (—) take their fields directly. "Needs" is the minimum role
 ([§3.5](03-accounts-and-identity.md)); `members` write actions check admin at the level
 being changed inside the handler.
@@ -285,6 +285,7 @@ being changed inside the handler.
 | `products` | `create` | `POST /api/v1/tenants/:tenant/products` | product creator, admin or owner of the tenant |
 | `products` | `get` | `GET P` | Story reader |
 | `products` | `update` | `PATCH P` | admin, in the web app only |
+| `products` | `set_playbook` | `PUT P/playbook/enabled` | admin, in the web app only |
 | `products` | `update_concept` | `PATCH P/idea/concept` | editor |
 | `products` | `archive` | `POST P/archive` | admin |
 | `products` | `restore` | `POST P/restore` | admin |
@@ -384,11 +385,44 @@ being changed inside the handler.
 | `mockups` | `delete` | `DELETE P/mockups/:mockup_id` | admin |
 | `mockups` | `delete_archived_impact` | `GET P/archived-mockups/delete-impact` | viewer |
 | `mockups` | `delete_archived` | `DELETE P/archived-mockups` | admin |
+| `playbook` | `index` | `GET P/playbook` | viewer |
+| `playbook` | `read` | `GET P/playbook/file` | viewer |
+| `playbook` | `read_files` | `GET P/playbook/files` | viewer |
+| `playbook` | `search` | `GET P/playbook/search` | viewer |
+| `playbook` | `history` | `GET P/playbook/history` | viewer |
+| `playbook` | `backlinks` | `GET P/playbook/backlinks` | viewer |
+| `playbook` | `housekeeping` | `GET P/playbook/housekeeping` | viewer |
+| `playbook` | `starter` | `GET P/playbook/starter` | viewer |
+| `playbook` | `messages` | `GET P/playbook/messages` | viewer |
+| `playbook` | `write` | `PUT P/playbook/file` | editor |
+| `playbook` | `remove` | `POST P/playbook/file/remove` | editor |
+| `playbook` | `move` | `POST P/playbook/file/move` | editor |
+| `playbook` | `restore` | `POST P/playbook/file/restore` | editor |
+| `playbook` | `apply` | `POST P/playbook/apply` | editor |
+| `playbook` | `send_message` | `POST P/playbook/messages` | editor |
+| `playbook` | `mark_read` | `POST P/playbook/messages/read` | viewer (an Edit connection) |
+| `playbook` | `purge` | `DELETE P/playbook/file` | admin |
 | `activity` | `list` | `GET P/activity` | viewer |
 | `guide` | — | `GET /api/v1/guide` | signed in |
 | `submit_feedback` | — | `POST /api/v1/feedback` | signed in |
 
 Notes on recent actions:
+
+- The Playbook's actions ([§4.16](04-data-model.md#416-the-playbook),
+  [decision](../decisions/each-product-keeps-a-playbook-its-agents-write.md)) read and write a product's
+  shared agent knowledge. Every change to a file that exists takes its etag; a stale or missing one
+  is `409 stale_etag` with `current_content`, `current_etag`, `current_revision` and who wrote it,
+  and `apply` checks all its steps' etags first, refusing the whole change with `409 playbook_stale` and
+  `details.files`. Every call is refused with `409 playbook_off` while the product's admins have it off,
+  which they change with `products.set_playbook` in the web app only. `products.get` gives `playbook_enabled`
+  and `playbook` (`read_first`, `by_area`, `files`, `messages_waiting`); `story.guidance`,
+  `outcomes.card_guidance`, `derived.card_guidance` and, over MCP, `mockups.list` give `playbook.files`
+  for their part; archiving a source, outcome, mockup or Story page answers `playbook_cited_by` when a
+  file links to it and the Playbook is on; and every product answer over MCP carries `scope.playbook_messages_waiting` when
+  messages wait. `send_message` answers `201`. `mark_read` needs an Edit connection, as any write
+  does, though a viewer may mark their own, and is taken in an archived product and a read-only
+  organization, where it changes only the person's own count. `purge` leaves a tombstone with the
+  reason, and a read of the path then answers `410 playbook_file_deleted`.
 
 - A source's summary and notes have an etag of their own, as its derived text has, and a write
   over any of the three needs it once there is one
@@ -908,8 +942,9 @@ in now, one to `get_skill` that the skill is retired and `guide` replaces it, an
 `assumptions_read`, `assumptions_write` or `assumptions_delete` that assumptions are retired and
 WhatBuild no longer keeps them ([§4.8](04-data-model.md)).
 
-**Tools.** Twenty-six tools over the 93 operations an agent may be offered (all 111 but the 18 a
-person does only in the web app: renaming an organization or a product, deleting an organization
+**Tools.** Twenty-nine tools over the 121 operations an agent may be offered (all 140 but the 19 a
+person does only in the web app: renaming an organization or a product, turning a product's Playbook off
+or on, deleting an organization
 and its preview, deleting one's own account and its preview, running the instance, its owners'
 ten actions and removing an account, and a browser giving an attachment its first picture,
 [decision](../decisions/running-the-instance-is-done-in-the-web-app-never-by-an-agent.md)): for each noun a `_read` tool, a `_write` tool and, where something can be deleted for
@@ -951,6 +986,9 @@ owner's included: running the instance is done in the web app.
 | `mockups_read` | `list`, `get`, `list_versions`, `get_version`, `get_download`, `delete_impact`, `delete_archived_impact` |
 | `mockups_write` | `request_upload`, `publish`, `create_folder`, `rename_folder`, `move_folder`, `remove_folder`, `move`, `archive`, `restore` |
 | `mockups_delete` | `delete`, `delete_archived` |
+| `playbook_read` | `index`, `read`, `read_files`, `search`, `history`, `backlinks`, `housekeeping`, `starter`, `messages` |
+| `playbook_write` | `write`, `remove`, `move`, `restore`, `apply`, `send_message`, `mark_read` |
+| `playbook_delete` | `purge` |
 | `activity_read` | `list` |
 | `search` | standalone |
 | `guide` | standalone |
@@ -1202,11 +1240,15 @@ Its topics are Markdown files, `packages/core/src/guide/NN-<topic>.md`, each ope
 and a one-sentence summary: `start` (what WhatBuild holds, roles and levels, scoped connectors, the
 example organization), `tools` (the read, write and delete tools, paging, etags, refusals,
 retries, missing tools, activity, feedback), `evidence`, `search`, `idea`,
-`mockups`, `story`, `archive-and-delete` and `organizations`. It describes what each object is,
+`mockups`, `story`, `archive-and-delete`, `organizations` and `playbook` (a product's Playbook: the starter,
+files, versions and conflicts, links, messages and housekeeping). It describes what each object is,
 what people see, what the server enforces and refuses, limits, formats and the procedures a
 mechanism needs (an upload grant, a canvas ZIP, a preview grant); it prescribes no method, order of
-work or style. `scripts/gen-guide.mjs` embeds the topics in the server bundle, and CI fails if the
-embedded copy drifts.
+work or style, but for one thing: it, and the server's instructions, ask agents to read each
+product's Playbook before working there and to write to it as they work, where the team's own method
+lives ([decision](../decisions/each-product-keeps-a-playbook-its-agents-write.md)).
+`scripts/gen-guide.mjs` embeds the topics in the server bundle, and the Playbook's starter
+(`packages/core/src/playbook-starter/`) with them, and CI fails if either embedded copy drifts.
 
 - `guide { topic? }` returns one topic as `{ tools_version, topic, title, text }`; without a topic,
   the first topic and `topics`, the index with each topic's title and summary.

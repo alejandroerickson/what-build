@@ -212,6 +212,7 @@ from backup on request. The product-level answer to "I broke it" is:
 | Story page versions — immutable, numbered | [§4.11](04-data-model.md) |
 | Mockup versions — immutable, numbered, each the whole canvas | [§4.12](04-data-model.md) |
 | Outcome revisions — the previous text, on every content change | [§4.1](04-data-model.md) |
+| Playbook revisions — every write, move, removal and restore of every file of a product's Playbook, the latest 100 of each, readable and restorable | [§4.16](04-data-model.md#416-the-playbook) |
 | Archive and restore — for sources, annotations, outcomes, Story pages, mockups, products | §9.5 |
 | Activity — who changed what, when, through which surface | [§4.10](04-data-model.md) |
 
@@ -220,7 +221,9 @@ from backup on request. The product-level answer to "I broke it" is:
 once that version is published; the row that recorded the upload goes 7 days later. One never
 published goes, with its bytes, a day after its grant expired. The worker's hourly housekeeping
 does both (`apps/server/src/worker.ts`), as it removes the bytes of a file upload nobody
-completed. **Nor are Story previews:** the document `story.preview` made is kept as long as its
+completed. **Nor are messages between agents:** each lasts 60 days from when it was sent, read or
+not, and the same housekeeping deletes it then, or once the account it was sent to is deleted
+([§4.16](04-data-model.md#416-the-playbook)). **Nor are Story previews:** the document `story.preview` made is kept as long as its
 grant, a product keeps only its 20 newest, and the same housekeeping removes expired ones
 ([§4.11](04-data-model.md)).
 
@@ -246,8 +249,9 @@ read as, comments, summaries and notes,
 outcomes, revisions,
 the Story hierarchy, its style and every page version (JSON and HTML; a version that shows a
 mockup page names it rather than repeating it), every mockup version (its brief, each page's HTML
-and notes, its files and its prototype), tombstones, and the activity log, with a README that
-names each kind of file and what it holds
+and notes, its files and its prototype), the Playbook's files and every kept revision of them (not the
+messages between agents, each of which is one person's), tombstones, and the activity log, with a
+README that names each kind of file and what it holds
 ([§4.14](04-data-model.md)). It is readable with a ZIP tool and nothing else; no proprietary
 format, no API required to make sense of it.
 
@@ -420,8 +424,10 @@ A person deletes their own account in the web app, in the Delete account section
 [decision](../decisions/a-person-deletes-their-own-account-after-a-recent-sign-in.md)). It removes
 the person from every organization, deletes their sign-in, sessions and tokens, and deletes what is
 kept about them: their counts against limits and feedback, their counted days of use (§9.1), their
-name on the account, and their address wherever it is kept. It does **not** delete organization
-content, and actor snapshots survive ([§3.9](03-accounts-and-identity.md)): attribution on a
+name on the account, their address wherever it is kept, and the messages other people's agents
+sent theirs in the Playbook of every organization they were in, and, at the worker's next hourly
+housekeeping, in any other. It does **not** delete organization
+content (the Playbook files they wrote and the messages they sent included), and actor snapshots survive ([§3.9](03-accounts-and-identity.md)): attribution on a
 colleague's outcome is part of that organization's record, not personal data we can silently
 rewrite. Whoever wants their content gone too deletes it first, or asks the organization's admins.
 A sole owner must make someone else owner or delete the organization first, and Settings names
@@ -605,7 +611,7 @@ Rules:
     counted, each holding a place; products and sources, archived or not; and storage, the distinct
     files of its attachments' every version, the text read from each, the distinct files of its
     mockups' prototypes, and the text it has written as the database stores it (sources' texts,
-    notes, comments, Story and mockup pages, outcomes and earlier versions), every
+    notes, comments, Story and mockup pages, outcomes, each product's Playbook and earlier versions), every
     version kept. An invitation holds its place until it is accepted, declined, cancelled or runs out.
     A write is checked with the organization locked, so two at once cannot both take
     the last place: creating a product, adding or copying in sources, and any write whose input

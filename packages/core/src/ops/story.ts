@@ -20,6 +20,8 @@ import {
 import { HOUSE_STYLE_IDS, houseStyle, pageDocument, PLAIN_STYLESHEET } from "../story-styles.ts";
 import { newEtag, newId, randomToken, sha256Hex, uniq } from "../util.ts";
 import { makeRoomForPreview, openThePreview, PREVIEW_OPENING, PREVIEW_SECRET, previewGrant } from "../previews.ts";
+import { citedByPlaybook } from "../playbook.ts";
+import { playbookFilesFor } from "./playbook.ts";
 
 export const MAX_PAGES = 50;
 export const MAX_DEPTH = 6;
@@ -131,6 +133,7 @@ export const guidance = defineOperation({
       links_note: LINKS_NOTE,
       limits: { html_characters: STORY_HTML_MAX, stylesheet_characters: STORY_CSS_MAX, inline_scripts: STORY_MAX_SCRIPTS, script_characters: STORY_SCRIPT_BUDGET, pages_per_product: MAX_PAGES, hierarchy_depth: MAX_DEPTH },
       ...(picked ? { house_style: { ...picked, starter_html: starterHtml(picked.stylesheet) } } : {}),
+      ...(await playbookFilesFor(ctx, "story")),
     };
     const style = { style_workflow: STYLE_WORKFLOW, house_styles: catalogue(), carried_typefaces: CARRIED_TYPEFACES, vocabulary: VOCABULARY };
     const design = { taste: TASTE, anti_patterns: ANTI_PATTERNS, design_passes: DESIGN_PASSES, design_tools: DESIGN_TOOLS, sandbox_rules: SANDBOX_RULES, compositions: COMPOSITIONS };
@@ -925,7 +928,7 @@ export const archivePage = defineOperation({
     }
     await ctx.db.updateTable("story_pages").set({ archived_at: ctx.now, etag: newEtag(), updated_at: ctx.now, updated_by: json(ctx.actor) }).where("product_id", "=", productId(ctx)).where("page_id", "=", p.page_id).execute();
     await recordActivity(ctx, { action: "archived", entity_type: "story_page", entity_id: p.page_id, entity_title: p.title, summary: promoted.length ? `Archived the page; promoted ${promoted.length} sub-page${promoted.length === 1 ? "" : "s"}` : "Archived the page" });
-    return { page_id: p.page_id, archived_at: ctx.now, promoted_children: promoted };
+    return { page_id: p.page_id, archived_at: ctx.now, promoted_children: promoted, ...(await citedByPlaybook(ctx, "story", p.page_id)) };
   },
 });
 

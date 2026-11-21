@@ -76,6 +76,7 @@ async function productContents(ctx: OpContext) {
     story_pages: await count(db.selectFrom("story_pages").select((eb) => eb.fn.countAll<number>().as("n")).where("product_id", "=", pid).executeTakeFirst()),
     mockups: await count(db.selectFrom("mockups").select((eb) => eb.fn.countAll<number>().as("n")).where("product_id", "=", pid).executeTakeFirst()),
     exports: await count(db.selectFrom("exports").select((eb) => eb.fn.countAll<number>().as("n")).where("product_id", "=", pid).executeTakeFirst()),
+    playbook_files: await count(db.selectFrom("playbook_files").select((eb) => eb.fn.countAll<number>().as("n")).where("product_id", "=", pid).where("removed_at", "is", null).executeTakeFirst()),
     people: await count(
       db.selectFrom("memberships").select((eb) => eb.fn.countAll<number>().as("n")).where("scope_type", "=", "product").where("scope_id", "=", pid).executeTakeFirst(),
     ),
@@ -93,7 +94,7 @@ async function productDeletion(ctx: OpContext) {
     archived: Boolean(p.archived_at),
     contents,
     after_delete:
-      "Everything in the product goes, archived or not: its concept, outcomes, sources with their attachments, derived texts, summaries, notes and comments, mockups, the Story, exports and activity. " +
+      "Everything in the product goes, archived or not: its concept, outcomes, sources with their attachments, derived texts, summaries, notes and comments, mockups, the Story, its Playbook with every revision and message, exports and activity. " +
       "Roles given on this product go with it; roles on all products and on the organization stay. A connector scoped to this product reaches nothing.",
     reversible_alternative: 'products_write(action="archive") hides it and makes it read-only, and erases nothing; export it first to keep a copy.',
   };
@@ -164,7 +165,7 @@ export const deleteProduct = defineOperation({
       ...(await db.selectFrom("register_entries").select("entry_id").where("product_id", "=", pid).execute()).map((r) => r.entry_id),
     ];
     await db.deleteFrom("revisions").where("object_id", "in", authored).execute();
-    for (const table of ["mockup_uploads", "story_previews", "card_previews", "mockup_prototype_files", "mockup_files", "mockup_pages", "mockup_versions", "mockups", "mockup_folders", "story_versions", "story_pages", "story_hierarchies", "story_styles", "register_entries", "outcomes", "insights", "exports", "activity", "tombstones"] as const)
+    for (const table of ["playbook_messages", "playbook_links", "playbook_revisions", "playbook_files", "mockup_uploads", "story_previews", "card_previews", "mockup_prototype_files", "mockup_files", "mockup_pages", "mockup_versions", "mockups", "mockup_folders", "story_versions", "story_pages", "story_hierarchies", "story_styles", "register_entries", "outcomes", "insights", "exports", "activity", "tombstones"] as const)
       await db.deleteFrom(table).where("product_id", "=", pid).execute();
     // A source takes its attachments, versions, uploads, readings, derived text, search index and notes with it.
     await db.deleteFrom("records").where("product_id", "=", pid).execute();

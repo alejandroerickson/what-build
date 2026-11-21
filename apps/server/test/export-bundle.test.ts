@@ -54,6 +54,7 @@ beforeAll(async () => {
   expect((await alice.api("PATCH", `/api/v1/p/${p.body.path}/annotations/${c.body.annotation_id}`, { expected_etag: c.body.etag, note: "Texts come first." })).status).toBe(200);
   expect((await alice.api("PUT", `${P}/sources/${recordId}/agent-notes/summary`, { content: "Crews text before they call." })).status).toBe(200);
   expect((await alice.api("PUT", `${P}/story/style`, { house_style: "clear" })).status).toBe(200);
+  expect((await alice.api("PUT", `${P}/playbook/file`, { path: "lessons/texts-first.md", content: "---\ntype: Lesson\ntitle: Crews text first\n---\nText.\n" })).status).toBe(200);
   expect((await alice.api("POST", `${P}/story/pages/overview/versions`, { title: "Overview", body: '<main class="page"><h1>Overview</h1></main>' })).status).toBe(201);
   expect((await alice.api("PUT", `${P}/story/hierarchy`, { items: [{ page_id: "overview", children: [] }] })).status).toBe(200);
   // A mockup with a page of its own, a page that enters its prototype, and a file for collaborators.

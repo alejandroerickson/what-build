@@ -10,7 +10,7 @@ import { ActivityFeed, ENTITY_LABEL, useActivity, type ActivityFilter } from "..
 import { useSettingsTo } from "../shell/settings-link.ts";
 import { usePageTitle } from "../shell/slots.tsx";
 import {
-  Avatar, Button, Callout, Dialog, ErrorCallout, FormGrid, Glyph, Loading, Menu, MenuGroup, MenuItem, MenuRadio,
+  Avatar, Button, Callout, ChoiceRow, Dialog, ErrorCallout, FormGrid, Glyph, Loading, Menu, MenuGroup, MenuItem, MenuRadio,
   MenuSeparator, Sheet, SheetBody, SheetHeader, StatusBadge, TextField, useToast, tooLong,
 } from "../ui/index.tsx";
 import { DeleteDialog, listed, storedFilesWords } from "./delete-dialog.tsx";
@@ -33,6 +33,7 @@ const TYPE_FILTERS = [
   { id: "story_style", label: "Story style" },
   { id: "membership", label: "People and roles" },
   { id: "product", label: "Product settings" },
+  { id: "playbook", label: "Playbook" },
 ];
 
 /**
@@ -122,6 +123,64 @@ export function ProductGeneralSettings() {
 /** Settings → the product → People: who has a role on it, and adding people to it. */
 export function ProductPeopleSettings() {
   return <PeopleSheet />;
+}
+
+/**
+ * Settings → the product → Playbook: what the product's Playbook is, and turning it off or on. The Playbook itself
+ * is not shown in the app: people's agents read and write it for them.
+ */
+export function ProductPlaybookSettings() {
+  const { product, api: base, isAdmin, readOnlyOrganization } = useProduct();
+  const qc = useQueryClient();
+  const toast = useToast();
+  const on = product.playbook_enabled ?? product.playbook?.enabled ?? true;
+  const archived = Boolean(product.archived_at);
+  const save = useMutation({
+    mutationFn: (enabled: boolean) => api<{ playbook_enabled: boolean }>("PUT", `${base}/playbook/enabled`, { enabled }),
+    onSuccess: (r) => {
+      toast(r.playbook_enabled ? "The Playbook is on." : "The Playbook is off.");
+      void qc.invalidateQueries({ queryKey: ["product"] });
+    },
+  });
+  const files = product.playbook?.files;
+  return (
+    <Sheet className="settings-sheet" labelledBy="playbook-title">
+      <SheetHeader id="playbook-title" title="Playbook" count={product.name} />
+      <SheetBody>
+        <div className="playbook-settings">
+          <p>
+            The Playbook is where the agents of everyone working on {product.name} keep what they learn together: what the team is working on now, lessons from the
+            corrections people make, the kits agents build pages with, and what each person is working on and how they like to work. Agents read it before they start and add to it as
+            they go, so each one starts where the last one stopped.
+          </p>
+          <p>
+            {product.your_role === "guest"
+              ? "It isn\u2019t shown in WhatBuild: your agent can read it for you, so ask it what it says."
+              : "It isn\u2019t shown in WhatBuild: your agent reads and changes it for you, so ask it what it says. Every change is kept and can be undone, and an export of the product includes it."}{" "}
+            Its files are in the Open Knowledge Format, a way of writing knowledge down that people and agents can both read.
+          </p>
+          {on && (product.playbook?.started === false || files !== undefined) ? (
+            <p className="muted">{product.playbook?.started === false ? "It holds WhatBuild\u2019s starter until an agent first writes to it." : `It holds ${plural(files!, "file")}.`}</p>
+          ) : null}
+          {!isAdmin ? (
+            <Callout inset tone="info">
+              {product.your_role === "guest" ? "This is a worked example to read, so nothing in it can be changed." : "Only admins of this product can turn its Playbook off or on."}
+            </Callout>
+          ) : archived ? (
+            <Callout inset tone="attention">This product is archived and read-only. Restore it to change this.</Callout>
+          ) : null}
+          <ChoiceRow
+            label="Keep a Playbook for this product"
+            hint="When it is off, agents can neither read nor change it, and nothing points them to it. Nothing in it is lost, and turning it on again brings it back as it was."
+            checked={on}
+            disabled={!isAdmin || archived || readOnlyOrganization || save.isPending}
+            onChange={(e) => save.mutate(e.target.checked)}
+          />
+          {save.isError ? <ErrorCallout inset error={save.error} /> : null}
+        </div>
+      </SheetBody>
+    </Sheet>
+  );
 }
 
 /** Settings → the product → Export. */
@@ -566,7 +625,7 @@ function ExportSheet() {
 /** What deleting a product destroys, as products.delete_impact reports it. */
 interface ProductImpact {
   etag: string;
-  contents: { sources: number; stored_files: number; bytes: number; comments: number; outcomes: number; story_pages: number; mockups: number; exports: number; people: number };
+  contents: { sources: number; stored_files: number; bytes: number; comments: number; outcomes: number; story_pages: number; mockups: number; exports: number; playbook_files?: number; people: number };
 }
 
 /** Delete the whole product, with its name typed, one step past archiving it, which `onArchive` offers instead. */
@@ -603,6 +662,7 @@ function DeleteProductSheet({ onArchive }: { onArchive?: () => void }) {
               c.outcomes > 0 && plural(c.outcomes, "outcome"),
               listed([c.mockups > 0 && plural(c.mockups, "mockup"), c.story_pages > 0 && plural(c.story_pages, "Story page")]),
               c.exports > 0 && plural(c.exports, "export"),
+              (c.playbook_files ?? 0) > 0 && `its Playbook: ${plural(c.playbook_files!, "file")}, with every revision`,
               "its activity log",
             ].filter((x): x is string => Boolean(x));
             return (

@@ -82,6 +82,15 @@ const VERBS: Record<string, string> = {
   "mockup:folder_renamed": "renamed the mockup folder to",
   "mockup:folder_moved": "moved the mockup folder",
   "mockup:folder_removed": "removed the mockup folder",
+  "playbook:playbook_file_created": "added to the Playbook",
+  "playbook:playbook_file_written": "changed in the Playbook",
+  "playbook:playbook_file_moved": "moved in the Playbook, to",
+  "playbook:playbook_file_removed": "removed from the Playbook",
+  "playbook:playbook_file_restored": "restored in the Playbook",
+  "playbook:playbook_file_purged": "deleted from the Playbook",
+  "playbook:playbook_message_sent": "sent a message to the agents of",
+  "product:playbook_turned_on": "turned on the Playbook of",
+  "product:playbook_turned_off": "turned off the Playbook of",
   "story_hierarchy:organized": "rearranged",
   "story_style:created": "set the Story style to",
   "story_style:updated": "changed the Story style to",
@@ -114,6 +123,7 @@ export const ENTITY_LABEL: Record<string, string> = {
   story_style: "the Story style",
   product: "the product",
   membership: "people and roles",
+  playbook: "the Playbook",
 };
 
 function linkFor(app: string, i: ActivityItem, settingsTo: ReturnType<typeof useSettingsTo>): string | null {
@@ -132,7 +142,7 @@ function linkFor(app: string, i: ActivityItem, settingsTo: ReturnType<typeof use
     case "story_style":
       return `${app}/story`;
     case "product":
-      return settingsTo("product");
+      return i.action === "playbook_turned_on" || i.action === "playbook_turned_off" ? settingsTo("product/playbook") : settingsTo("product");
     case "membership":
       return i.action === "invitation_cancelled" || i.action === "invitation_declined" ? null : settingsTo("product/people");
     default:

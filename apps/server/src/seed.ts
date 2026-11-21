@@ -2,8 +2,7 @@ import { actorOf, createTenantFor, execute, houseStyle, json, newEtag, OPERATION
 import { sql } from "kysely";
 import { acceptInvitation, findOrCreateAccount, type AccountRow } from "./auth/identity.ts";
 import {
-  MOCKUP, MOCKUP_LATE_BOOKING, MOCKUP_LINKED_PAGES, HANDOFF_HTML, HANDOFF_NOTES, INTERVIEW_AGENT_NOTES, INTERVIEW_RECORDER_EXPORT, INTERVIEW_TXT, INTERVIEW_VTT, OVERVIEW_NOTES, OWNER_NOTES_MD, RESEARCH_EXPORT_MD, SAMPLE, SOURCE_CARDS, SOURCE_SUMMARIES, STORY_HTML,
-} from "./seed-content.ts";
+  MOCKUP, MOCKUP_LATE_BOOKING, MOCKUP_LINKED_PAGES, HANDOFF_HTML, HANDOFF_NOTES, INTERVIEW_AGENT_NOTES, INTERVIEW_RECORDER_EXPORT, INTERVIEW_TXT, INTERVIEW_VTT, OVERVIEW_NOTES, OWNER_NOTES_MD, RESEARCH_EXPORT_MD, SAMPLE, SOURCE_CARDS, SOURCE_SUMMARIES, STORY_HTML, PLAYBOOK_SAMPLE } from "./seed-content.ts";
 import type { Worker } from "./worker.ts";
 
 export const SEED_ACCOUNTS = [
@@ -209,6 +208,24 @@ export async function seed(env: Env, worker: Worker, log: (m: string) => void = 
     ref,
   );
   await call(env, riley, "sources.annotate", { record_id: vtt, note: "The moment to design for is the typed hand-off message, not the spreadsheet.", tags: ["hand-off"] }, ref);
+  // The product's Playbook as Sam's agent leaves it: the starter copied in by a lesson from Riley's comment, what is current, Sam's page, and a message to Riley's agents.
+  const playbookIds = { mockup: mockup["mockup_id"] as string, interview: vtt };
+  await call(env, samAgent, "playbook.write", { path: "lessons/design-the-hand-off-message.md", content: PLAYBOOK_SAMPLE.lesson(playbookIds), message: "Riley's comment on the crew lead interview." }, ref);
+  const now = await call(env, samAgent, "playbook.read", { path: "product/now.md" }, ref);
+  await call(
+    env,
+    samAgent,
+    "playbook.apply",
+    {
+      changes: [
+        { action: "write", path: "product/now.md", content: PLAYBOOK_SAMPLE.now(playbookIds), expected_etag: now["etag"] },
+        { action: "write", path: "people/sam-okafor.md", content: PLAYBOOK_SAMPLE.person(playbookIds) },
+      ],
+      message: "What the team is working on, after version 2 of the hand-off canvas.",
+    },
+    ref,
+  );
+  await call(env, samAgent, "playbook.send_message", { to: accounts[0]!.account_id, text: PLAYBOOK_SAMPLE.message }, ref);
   // The editor (the second of `people`) may start one organization of their own, given by the owner
   // (the first), who in development is the instance's owner too. The end-to-end dataset makes the
   // sample with people of its own, and records the instance's owner as the giver (`dataset.ts`).

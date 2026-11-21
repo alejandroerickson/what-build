@@ -189,6 +189,14 @@ The plans:
 - `clickable-prototypes`: a canvas's pages link to each other; the board flies to a linked page, the
   clickable view changes it in place, and the canvas or a page downloads; an agent learns of it from
   what it reads, and a hostile page's script stays in the sandbox and cannot fill the browser's history.
+- `the-playbook`: two people's agents work through one product's Playbook: the starter copied in on
+  the first write, a lesson with `whatbuild:` links, a conflict merged, a message between them, a
+  linked source archived, several changes at once; then the activity log and Settings → Playbook,
+  turning it off and on, what a viewer, a Story reader, an admin's purge and a guest of the example
+  may do, the export, and the Playbook kept inside its organization. Run it when how agents reach
+  the Playbook changes (its operations, what points agents at it, its switch, who may do what), not
+  for every change to the Playbook: a change to the starter's or the guide's words, or one the
+  server's tests cover, needs none.
 - `exploratory`: open-ended, every screen as each role and as a guest of the example, at phone width and
   in the dark theme.
 

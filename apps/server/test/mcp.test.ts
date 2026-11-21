@@ -44,7 +44,7 @@ describe("adapter parity", () => {
     // Closing an organization or an account, renaming an organization or a product, running the instance, and a person's browser giving a picture, are what an agent is never offered.
     expect(OPERATIONS.filter((o) => o.webOnly).map((o) => o.name).sort()).toEqual([
       "attachments.give_picture", "products.accounts", "products.delete_account", "products.delete_account_impact", "products.delete_tenant", "products.delete_tenant_impact", "products.guests", "products.organizations",
-      "products.remove_account", "products.remove_tenant_allowance", "products.rename_tenant", "products.set_guests", "products.set_plan", "products.set_plan_limits", "products.set_tenant_allowance",
+      "products.remove_account", "products.remove_tenant_allowance", "products.rename_tenant", "products.set_guests", "products.set_plan", "products.set_plan_limits", "products.set_playbook", "products.set_tenant_allowance",
       "products.tenant_allowances", "products.update", "products.usage",
     ]);
     // An agent never runs the instance: every operation only its owners have, or that lets them into an organization they are not in, is web-only.
@@ -65,7 +65,7 @@ describe("adapter parity", () => {
         expect(o.rest.method === "DELETE", o.name).toBe(kind === "delete");
       }
     }
-    expect([...groups.keys()].filter((t) => t.endsWith("_delete")).sort()).toEqual(["mockups_delete", "outcomes_delete", "products_delete", "sources_delete", "story_delete"]);
+    expect([...groups.keys()].filter((t) => t.endsWith("_delete")).sort()).toEqual(["mockups_delete", "outcomes_delete", "playbook_delete", "products_delete", "sources_delete", "story_delete"]);
   });
 
   it("gives every tool a title and says whether it only reads or changes data", () => {
