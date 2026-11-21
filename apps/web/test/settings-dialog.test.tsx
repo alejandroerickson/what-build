@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act } from "react";
 import { createRoot } from "react-dom/client";
-import { MemoryRouter, Route, Routes, useLocation } from "react-router";
+import { MemoryRouter, Route, Routes, useLocation, useNavigationType } from "react-router";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 // Settings is one dialog over whatever screen the person is on, addressed by ?settings=<section>: the
@@ -12,8 +12,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 window.matchMedia ??= (query: string) => ({ matches: false, media: query, onchange: null, addListener() {}, removeListener() {}, addEventListener() {}, removeEventListener() {}, dispatchEvent: () => false });
 
-const state = { role: "owner" as string, instanceOwner: false };
-const acme = () => ({ tenant_id: "t1", slug: "acme", name: "Acme", name_etag: "e", plan: "free", your_role: state.role });
+const state = { role: "owner" as string, instanceOwner: false, storyOnly: false };
+const acme = () => ({ tenant_id: "t1", slug: "acme", name: "Acme", name_etag: "e", plan: "free", your_role: state.role, story_only: state.storyOnly });
 
 vi.mock("../src/lib/api.ts", async (original) => ({
   ...(await original<typeof import("../src/lib/api.ts")>()),
@@ -89,7 +89,8 @@ describe("Settings' address", () => {
 
 function Where() {
   const loc = useLocation();
-  return <output data-testid="where">{`${loc.pathname}${loc.search}`}</output>;
+  const how = useNavigationType();
+  return <output data-testid="where" data-how={how}>{`${loc.pathname}${loc.search}`}</output>;
 }
 
 let unmount: (() => void) | null = null;
@@ -97,7 +98,7 @@ afterEach(() => {
   unmount?.();
   unmount = null;
   document.body.innerHTML = "";
-  Object.assign(state, { role: "owner", instanceOwner: false });
+  Object.assign(state, { role: "owner", instanceOwner: false, storyOnly: false });
 });
 
 async function mount(at: string, routes: React.ReactNode) {
@@ -136,6 +137,27 @@ describe("the dialog", () => {
     state.role = "member";
     const host = await dialogAt("/t/acme/planner/idea?settings=organization/access");
     expect(host.textContent).toContain("Section: organization people");
+    expect(where(host)).toBe("/t/acme/planner/idea?settings=organization/people");
+  });
+
+  it("puts the section it opened in the address in place of a Story reader's product section, keeping the rest", async () => {
+    Object.assign(state, { role: "member", storyOnly: true });
+    for (const asked of ["product/playbook", "product/people"]) {
+      const host = await mount(`/t/acme/planner/idea?view=x&settings=${asked}`, <Route path="/t/acme/planner/idea" element={<SettingsDialog product={product("story_reader")} tenantId="t1" />} />);
+      expect(host.textContent).toContain("Section: account");
+      expect(where(host)).toBe("/t/acme/planner/idea?view=x&settings=account");
+      // Replaced, not pushed: Back doesn't return to the section the person can't open.
+      expect(host.querySelector("output")?.dataset.how).toBe("REPLACE");
+      unmount?.();
+      unmount = null;
+      document.body.innerHTML = "";
+    }
+  });
+
+  it("leaves the address as it is when it opens the section asked for", async () => {
+    const host = await dialogAt("/t/acme/planner/idea?settings=agents&reach=all");
+    expect(where(host)).toBe("/t/acme/planner/idea?settings=agents&reach=all");
+    expect(host.querySelector("output")?.dataset.how).toBe("POP");
   });
 
   it("closes with Esc, leaving the screen and the rest of its address as they were", async () => {

@@ -3,7 +3,7 @@ type: Specification
 title: The web app is a person's way to run the same operations an agent runs, one screen at a time.
 description: Principles, the shell and product switching, the overview, routes, first run, and the behavior of every screen (Idea, Evidence, Exploration, Story, Activity, archive and delete, Settings, Instance admin).
 tags: [spec, web, ui, routes, shell]
-generated: {by: agent:claude, at: 2026-11-18}
+generated: {by: agent:claude, at: 2026-11-21}
 status: stable
 ---
 
@@ -1418,7 +1418,8 @@ never described as deleting. A list row showing an archived object says *Archive
   - **You**: Account (`account`) and Agents (`agents`).
 
   A section asked for that the person can't use opens the first of its group they can, else the
-  first of all. It is opened from the panel's Settings (the product's General; a Story reader's Account;
+  first of all, and the address follows: it is replaced with the section shown, the rest of it
+  kept, so a reload, Back or a copied link opens what is on screen. It is opened from the panel's Settings (the product's General; a Story reader's Account;
   for an organization with no product, its General, or its People for someone who is not an owner
   or admin), the account menu's Settings (Account), the empty seat and the first-use states'
   Connect an agent link (Agents), the read-only notice's See plan (Plan), Activity entries about the product's
