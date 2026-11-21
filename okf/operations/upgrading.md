@@ -33,6 +33,8 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
 
 ## Unreleased
 
+## v0.43.0
+
 - **A mockup page may take its content's height** (`height: "auto"`). The release migrates
   (`0051_mockup_page_auto_height.sql`: `mockup_pages.height_auto`, false for every page), so
   rehearse it on the dev deployment first; nothing to set. The migration only adds a column with a
