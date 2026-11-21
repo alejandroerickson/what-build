@@ -83,8 +83,10 @@ export function settingsGroups(product: PanelProduct | null, tenant: Tenant | nu
  * product's work, opened by `?settings=<section>` (Settings in the panel, Settings in the account
  * menu, the empty seat, a banner, a link in an email). It is about the product the panel shows, its
  * organization, and the person. A section asked for that the person can't use opens the first one of
- * its group they can, else the first of all. Closing it (Esc, the close button, the scrim) takes
- * `?settings` and what its sections keep in the address away, and leaves the screen as it was.
+ * its group they can, else the first of all, and once the sections are known the address is replaced
+ * with the one shown, so a reload, Back or a copied link opens what is on screen. Closing it (Esc,
+ * the close button, the scrim) takes `?settings` and what its sections keep in the address away,
+ * and leaves the screen as it was.
  */
 export function SettingsDialog({ product, tenantId }: { product: PanelProduct | null; tenantId: string | null }) {
   const [params] = useSearchParams();
@@ -109,6 +111,15 @@ function SettingsLayer({ requested, product, tenantId }: { requested: string; pr
   const current = all.find((s) => s.key === requested) ?? all.find((s) => s.key.split("/")[0] === group) ?? all[0]!;
   const { pathname, search, hash } = loc;
   const close = useCallback(() => navigate({ pathname, search: settingsSearch(search, null), hash }, { replace: true }), [navigate, pathname, search, hash]);
+  // Which sections are the person's is known once their products are, and for Plan the deployment's
+  // plans; while either is loading or failed to load, the address is left as it is.
+  const known = products.data !== undefined && (requested !== "organization/plan" || offered !== undefined);
+
+  // A section opened in place of the one asked for takes its place in the address, replacing it so
+  // Back doesn't return to the one the person can't use.
+  useEffect(() => {
+    if (known && current.key !== requested) navigate({ pathname, search: settingsSearch(search, current.key), hash }, { replace: true });
+  }, [known, current.key, requested, navigate, pathname, search, hash]);
 
   // Opening moves focus into the dialog, which is named Settings; closing gives it back to whatever had it.
   useEffect(() => {

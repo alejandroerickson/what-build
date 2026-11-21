@@ -36,7 +36,7 @@ other plans will too.
    gives the unscoped `/mcp` address again.
 3. **Web, as Sam, in the example organization.** Open the same product and repeat a short tour:
    Idea, Evidence, a source, Story. *Expect:* the same content as in step 2, and one line above
-   each screen naming the example organization and saying that everyone who signs in sees what its
+   each screen saying it is the example organization and that everyone who signs in sees what its
    authors change.
 4. **Web, as Sam.** On a source, open each of its sections, Text, Notes, Comments and Attachments,
    then search for a word you can see in its text and seldom elsewhere in the product, from the
@@ -91,7 +91,7 @@ other plans will too.
     **Ask for your own organization**; pressing it, the box says only "You’re on the waitlist.
     We’ll email guest@example.com when you can start your organization.", and after a reload the
     button is still gone. Its products open with a notice: "A worked example to learn from. Nothing
-    here can be changed." Settings lists the product's General, People and Export, and no section for the
+    here can be changed." Settings lists the product's General, People, Playbook and Export, and no section for the
     example organization; the product's People lists no one and says the example organization's
     people aren't shown to its guests, so nobody's details are shown to a guest
     (`okf/spec/03-accounts-and-identity.md` §3.10).

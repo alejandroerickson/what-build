@@ -3,7 +3,7 @@ type: Specification
 title: The web app is a person's way to run the same operations an agent runs, one screen at a time.
 description: Principles, the shell and product switching, the overview, routes, first run, and the behavior of every screen (Idea, Evidence, Exploration, Story, Activity, archive and delete, Settings, Instance admin).
 tags: [spec, web, ui, routes, shell]
-generated: {by: agent:claude, at: 2026-11-18}
+generated: {by: agent:claude, at: 2026-11-21}
 status: stable
 ---
 
@@ -1418,7 +1418,8 @@ never described as deleting. A list row showing an archived object says *Archive
   - **You**: Account (`account`) and Agents (`agents`).
 
   A section asked for that the person can't use opens the first of its group they can, else the
-  first of all. It is opened from the panel's Settings (the product's General; a Story reader's Account;
+  first of all, and the address follows: it is replaced with the section shown, the rest of it
+  kept, so a reload, Back or a copied link opens what is on screen. It is opened from the panel's Settings (the product's General; a Story reader's Account;
   for an organization with no product, its General, or its People for someone who is not an owner
   or admin), the account menu's Settings (Account), the empty seat and the first-use states'
   Connect an agent link (Agents), the read-only notice's See plan (Plan), Activity entries about the product's
@@ -1782,8 +1783,8 @@ never described as deleting. A list row showing an archived object says *Archive
   **Start your organization** while they have none of their own and may create one, or **Ask for
   your own organization** while they may not and are not on the waitlist yet; it shows in full until they
   press Got it, then as one line, "Example organization · read only" (remembered per organization
-  in the browser). To the organization's own people, its authors, it says in one line that they are
-  one of its authors and that what they change there is what everyone who signs in sees. It shows nothing while it loads, so no screen waits for it. The
+  in the browser). To the organization's own people, whatever their role, it says in one line
+  "Example organization. Everyone who signs in sees what its authors change." It shows nothing while it loads, so no screen waits for it. The
   overview lists the example organization after the person's own, headed **Example organization**
   with its name after it and Read only for a guest, over a line on what it is for (to a guest: a
   worked discovery to read in order, Idea, Evidence, Exploration and Story); a guest's head offers **Hide from the switcher** or **Show in the switcher**,
