@@ -14,6 +14,16 @@ export function directUploadSigning(contentType: string, expiresAt: Date, maxByt
 }
 
 /**
+ * The HTTP status a storage call was refused with: gaxios's error (the client from version 9 on)
+ * gives it as `status`, and the client's ApiError before it as `code`. Undefined for an error that
+ * is not an HTTP answer, such as a connection reset, whose `code` is a string.
+ */
+export function storageStatus(e: unknown): number | undefined {
+  const { status, code } = (e ?? {}) as { status?: unknown; code?: unknown };
+  return typeof status === "number" ? status : typeof code === "number" ? code : undefined;
+}
+
+/**
  * Google Cloud Storage, reached with the runtime's own identity — no keys in configuration.
  * The only file in the codebase that imports the GCS SDK. Every write is create-only
  * (ifGenerationMatch: 0), so a replayed upload can never overwrite stored bytes.
@@ -24,8 +34,9 @@ export class GcsBlobStore implements BlobStore {
   readonly signedDownloadUrl?: BlobStore["signedDownloadUrl"];
   readonly directUploadSource?: string;
 
-  constructor(bucketName: string, signedUrls: boolean) {
-    this.bucket = new Storage().bucket(bucketName);
+  /** `storage` is the client, made with the runtime's identity unless a test gives one of its own. */
+  constructor(bucketName: string, signedUrls: boolean, storage: Storage = new Storage()) {
+    this.bucket = storage.bucket(bucketName);
     if (signedUrls) {
       this.directUploadSource = `https://storage.googleapis.com/${bucketName}/`;
       this.signedUploadUrl = async (key, contentType, expiresAt, maxBytes) => {
@@ -47,7 +58,7 @@ export class GcsBlobStore implements BlobStore {
   }
 
   private isPrecondition(e: unknown) {
-    return (e as { code?: number }).code === 412;
+    return storageStatus(e) === 412;
   }
 
   async put(key: string, data: Uint8Array, options: { contentType: string }) {
@@ -93,7 +104,7 @@ export class GcsBlobStore implements BlobStore {
       const [buf] = await this.bucket.file(key).download();
       return new Uint8Array(buf);
     } catch (e) {
-      if ((e as { code?: number }).code === 404) throw new AppError(404, "blob_missing", `Stored bytes for ${key} are missing.`);
+      if (storageStatus(e) === 404) throw new AppError(404, "blob_missing", `Stored bytes for ${key} are missing.`);
       throw e;
     }
   }
@@ -111,7 +122,7 @@ export class GcsBlobStore implements BlobStore {
       const [m] = await this.bucket.file(key).getMetadata();
       return { size: Number(m.size ?? 0), contentType: (m.contentType as string) ?? null, sha256: ((m.metadata as Record<string, string> | undefined)?.["sha256"]) ?? null };
     } catch (e) {
-      if ((e as { code?: number }).code === 404) return null;
+      if (storageStatus(e) === 404) return null;
       throw e;
     }
   }
