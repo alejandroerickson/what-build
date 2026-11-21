@@ -556,9 +556,9 @@ instance owner, or an allowance with room), when nothing is cut for their roles.
 The scope is resolved for the caller on the first tool call; an endpoint naming an organization or
 product they cannot reach answers `404` to every call, saying so. An endpoint whose address names
 the organization by a former slug, or the product by the address it had when products were in teams
-(`/mcp/t/<tenant>/<team>/<product>`, [§3.11](#311-when-there-were-teams)), keeps working, and every
-answer through it carries `connector_address`: the current address, for the agent to tell the
-person once. A token approved for an organization's endpoint serves the endpoints inside it; one
+(`/mcp/t/<tenant>/<team>/<product>`, [§3.11](#311-when-there-were-teams)), keeps working, and its
+answers to `products_read` (`list`, `get`) and `guide`, the calls a session starts with, carry
+`connector_address`: the current address, for the agent to tell the person once. A token approved for an organization's endpoint serves the endpoints inside it; one
 approved for a product's endpoint serves that endpoint alone.
 
 Isolation is enforced three times:
@@ -877,7 +877,7 @@ editor", [§4.10](04-data-model.md)).
 **An address with a team still reaches its product.** The middle part names nothing now: the
 product is the one `team_addresses` records for that address, and otherwise the one of that slug in
 the organization (`findProduct`, [`policy.ts`](../../packages/core/src/policy.ts)). MCP takes
-`product: "tenant/team/product"` and serves `/mcp/t/<tenant>/<team>/<product>`, whose answers carry
+`product: "tenant/team/product"` and serves `/mcp/t/<tenant>/<team>/<product>`, whose answers to the calls a session starts with carry
 `connector_address` ([§3.6](#36-addressing-and-isolation)). The web app takes
 `/t/<tenant>/<team>/<product>/…` to the product's address with the rest of the path, using the
 `former_paths` that `products.list` gives a product whose slug changed. REST keeps no old routes:

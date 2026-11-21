@@ -1085,9 +1085,11 @@ Rules:
   (tenant, product with its path, `your_role` capped by the connection's level and `guest`
   for a guest of the example organization,
   `connection_level`, `example: true` in the example organization, and `tools_version`, the
-  server's tools version now). Every result through a scoped endpoint whose address names its
-  organization by a former slug, or its product by the address it had when products were in teams,
-  adds `connector_address`, the current address, for the agent to tell the person once.
+  server's tools version now). Through a scoped endpoint whose address names its organization by
+  a former slug, or its product by the address it had when products were in teams, the results of
+  `products_read` (`list`, `get`) and `guide`, the calls a session starts with, add
+  `connector_address`, the current address, for the agent to tell the person once. Other results
+  leave it out, so a session does not carry the same paragraph on every answer.
 - **Retired actions.** A call to an action earlier versions offered and this one does not
   (`products_write` `create_team`, `sources_write` `copy_to_product` and `move_to_product`) is
   `422 unknown_action`, saying what to do instead (`RETIRED_ACTIONS` in `mcp.ts`).
