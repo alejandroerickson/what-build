@@ -28,6 +28,12 @@ A page's rules are looser than a Story page's, so a working prototype fits:
 - Allowed: inline CSS; inline scripts and event handlers of any number and length; forms and their
   controls (their `submit` handlers run, but submissions go nowhere, so a handler calls
   `preventDefault()`, and a form has no `target`); images, fonts and media as `data:` URIs.
+- A typeface WhatBuild carries needs no font file: name its family in quotes in `font-family`
+  (`font-family: "Inter", system-ui, sans-serif`) and WhatBuild embeds the face when it shows or
+  prints the page. It carries Inter and the Story's faces (`carried_typefaces` in
+  `story_read(action="guidance")`); `publish`'s description lists them. The stored page, and what
+  `get` and a download give back, stay without the face, so a page opened on its own outside
+  WhatBuild renders in its fallbacks.
 - Refused: anything loaded from elsewhere (a `src` or CSS `url()` that is not `data:`, `@import`,
   `<script src>`, `<link>`), frames and embeds (`<iframe>`, `<embed>`, `<object>` and the like),
   `<base>` and `<meta http-equiv>`. A page holds at most 1,000,000 characters.

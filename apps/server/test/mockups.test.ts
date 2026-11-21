@@ -138,6 +138,24 @@ describe("mockups", () => {
     expect((await raw(alice, `${P}/mockups/${id}/versions/1/pages/cards/html`)).status).toBe(404);
   });
 
+  it("gives a page the carried typefaces it names, Inter included, when it shows it, and keeps them out of what it stores", async () => {
+    const named = `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Type</title><style>body{font-family:"Inter",system-ui,sans-serif} h1{font-family:'Signika'}</style></head><body><h1>Type</h1></body></html>`;
+    // A product of its own, so the mockups the tests after this one count stay as they are.
+    const own = await alice.api("POST", `/api/v1/tenants/${tenantSlug}/products`, { name: "Type Specimens", concept: "Pages in carried faces." });
+    const Q = `/api/v1/p/${own.body.path}`;
+    const m = await alice.api("POST", `${Q}/mockups`, { title: "Carried faces", brief: "Faces the server carries.", pages: [{ page_id: "type", title: "Type", html: named }, { page_id: "plain", title: "Plain", html: page("Plain") }] });
+    expect(m.status, JSON.stringify(m.body)).toBe(201);
+    const shown = await (await raw(alice, `${Q}/mockups/${m.body.mockup_id}/versions/1/pages/type/html?frame=1`)).text();
+    expect(shown).toContain('@font-face { font-family: "Inter"; src: url(data:font/woff2;base64,');
+    expect(shown).toContain('@font-face { font-family: "Signika"; src: url(data:font/woff2;base64,');
+    expect(shown).not.toContain('font-family: "Jost"');
+    // A page that names none is shown as stored, before the frame script.
+    const plain = await (await raw(alice, `${Q}/mockups/${m.body.mockup_id}/versions/1/pages/plain/html`)).text();
+    expect(plain).toBe(page("Plain"));
+    const stored = (await alice.api("GET", `${Q}/mockups/${m.body.mockup_id}`)).body;
+    expect(JSON.stringify(stored)).not.toContain("data:font/");
+  });
+
   it("gives a version as a ZIP through a download grant: the brief, a manifest and each page's HTML and notes", async () => {
     const g = await alice.api("POST", `${P}/mockups/${id}/downloads`, { version: 2 });
     expect(g.status).toBe(200);

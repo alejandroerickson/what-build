@@ -16,6 +16,7 @@ import {
   entryAddress, isPrototypeHtml, isPrototypeImage, PROTOTYPE_ENTRY_SUFFIX_MAX, PROTOTYPE_FILE_MAX_BYTES, PROTOTYPE_MAX_BYTES, PROTOTYPE_MAX_FILES,
   PROTOTYPE_PATH_MAX, PROTOTYPE_POSTER_MAX_BYTES, PROTOTYPE_PRODUCT_MAX_BYTES, prototypeAddress, prototypeMediaType, prototypePath, prototypeWarnings, splitEntry,
 } from "../prototype.ts";
+import { MOCKUP_FONTS } from "../story-fonts.ts";
 import { linkTemplates } from "../story-guidance.ts";
 import { isVideoFile } from "../video.ts";
 import { newEtag, newId, sha256Hex } from "../util.ts";
@@ -55,6 +56,7 @@ const DEFAULT_HEIGHT = 800;
 /** What a mockup page may hold and what is refused, as publish and request_upload say it (html-rules.ts). */
 const PAGE_RULES_TEXT =
   `What a page may hold: inline CSS; inline scripts and event handlers, of any number and length; forms and their controls, whose submit handlers run but whose submissions go nowhere (form-action 'none'), so handle submit, call preventDefault and give a form no target; images, fonts and media as data: URIs; links. ` +
+  `A typeface WhatBuild carries needs no font file: name it in quotes in font-family, with fallbacks after it, and WhatBuild embeds the face when it shows or prints the page, so the stored page stays small (${MOCKUP_FONTS.map((f) => f.family).join(", ")}; each the Latin subset of a variable font, any weight in its range). ` +
   `Refused: anything loaded from elsewhere (a src, srcset, poster or the like that is not a data: URI, a url() in CSS that is neither data: nor a #fragment, @import, <script src>, <link>), frames and embeds (<iframe>, <frame>, <frameset>, <embed>, <object>, <portal>), <base> and <meta http-equiv>. ` +
   `A page holds at most ${fmt(MOCKUP_PAGE_MAX)} characters, and a version ${fmt(MOCKUP_HTML_TOTAL)} in all, counted as a JavaScript string's length, not in bytes.`;
 const SAFE_CHECK_TEXT =

@@ -78,7 +78,7 @@ name what replaced it, and date the change. Smaller decisions are marked
 - [Renaming a mockup or a Story page changes its name and makes no version, and a later version keeps the name](renaming-a-mockup-or-story-page-makes-no-version.md)
 - [Agents write and arrange the Story; the web app reads it](agents-maintain-the-story-people-read-it.md) (superseded)
 - [Story pages follow the team's design system, never WhatBuild's](story-pages-follow-the-teams-design-system.md)
-- [Story pages name typefaces the server carries, and the server embeds them when it shows a page](story-pages-name-typefaces-the-server-carries.md)
+- [Story and mockup pages name typefaces the server carries, and the server embeds them when it shows a page](story-pages-name-typefaces-the-server-carries.md)
 - [A Story preview is the document publish would store, made by publish's own code, held for its grant's life and served in the page sandbox](a-story-preview-is-the-document-publish-would-store.md)
 - [Marking an insight reviewed applies to the revision that was read](insight-review-marks-a-revision.md) (superseded)
 - [Story PDF export is a composed print view saved by the browser](pdf-export-uses-browser-print.md)

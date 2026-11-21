@@ -1,6 +1,6 @@
-# Typefaces for Story pages
+# Typefaces for Story and mockup pages
 
-The typefaces WhatBuild embeds in a Story page that names one of them (`story-fonts.ts`). Each file
+The typefaces WhatBuild embeds in a Story or mockup page that names one of them (`story-fonts.ts`). Each file
 is the Latin subset of the family's variable font, upright (Archivo's with its width axis too), as published by Fontsource
 (fontsource.org), unmodified. Every family is licensed under the SIL Open Font License 1.1, whose
 text follows the list; none carries a Reserved Font Name.
@@ -21,8 +21,9 @@ text follows the list; none carries a Reserved Font Name.
 | `inter.woff2` | Inter | Copyright 2020 The Inter Project Authors (https://github.com/rsms/inter) |
 
 `inter.woff2` is not one of the Story's faces: it is the app's own typeface, which every Idea card's
-front carries (`idea-card.ts`), so a card reads in the app's type. Story pages never use it, since
-they never take WhatBuild's look.
+front carries (`idea-card.ts`), so a card reads in the app's type, and which a mockup page that
+names it gets (`MOCKUP_FONTS`), since a team's design system often uses it. Story pages never use
+it, since they never take WhatBuild's look.
 
 To add a family: take its Latin variable file from Fontsource, check that its licence is the OFL
 without a Reserved Font Name, add it to the table above and to `STORY_FONTS`.

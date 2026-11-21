@@ -725,7 +725,11 @@ Public Sans, Red Hat Display, Red Hat Text and Signika, the faces the house styl
 Latin subset of its variable font under the SIL Open Font License. A page or stylesheet that
 names one in quotes in `font-family` gets an `@font-face` for it, as a data URI, when the server shows the page or a
 specimen, and once for the whole print view; stored pages and what agents read never hold font
-data, and mockup pages get none. `story.guidance` lists them as `carried_typefaces`.
+data. `story.guidance` lists them as `carried_typefaces`. A mockup page gets the same faces and
+Inter, the app's own typeface (`MOCKUP_FONTS`), wherever it is shown: on its canvas, promoted to
+the Story, and in the print view. A team's design system often uses Inter, and embedded it was
+most of each page's weight. A Story page never gets Inter, since the Story never takes WhatBuild's
+look. Mockups' `publish` description lists the families a mockup page may name.
 
 **Guidance.** `story.guidance { section?, house_style? }` returns versioned authoring guidance
 ([`story-guidance.ts`](../../packages/core/src/story-guidance.ts)): how to settle the Story style

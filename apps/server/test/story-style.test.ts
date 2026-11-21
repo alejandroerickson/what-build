@@ -2,7 +2,7 @@ import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
-  composePrintDocument, FRAME_SCRIPT, GUIDANCE_VERSION, HOUSE_STYLE_IDS, HOUSE_STYLES, houseSpecimen, inspectStoryCss, inspectStoryHtml, STORY_FONTS, STORY_HTML_MAX, STORY_MAX_SCRIPTS,
+  composePrintDocument, FRAME_SCRIPT, GUIDANCE_VERSION, HOUSE_STYLE_IDS, HOUSE_STYLES, houseSpecimen, inspectStoryCss, inspectStoryHtml, MOCKUP_FONTS, STORY_FONTS, STORY_HTML_MAX, STORY_MAX_SCRIPTS,
   STORY_SCRIPT_BUDGET, storyFontFaces, storyFontsNamed, withStoryFonts, withStoryFrame,
 } from "@whatbuild/core";
 import { CANVAS_FRAME_NAME } from "@whatbuild/core/page-sandbox";
@@ -126,11 +126,27 @@ describe("carried typefaces", () => {
     expect(withStoryFonts('<p style="font-family: \'Jost\'">x</p>')).toMatch(/^<style>\n@font-face \{ font-family: "Jost";[^]*<\/style><p style/);
   });
 
+  it("give a mockup page Inter as well, and a Story page never", () => {
+    const html = page(`body { font-family: "Inter", system-ui, sans-serif; } h1 { font-family: "Signika"; }`);
+    expect(storyFontsNamed(html).map((f) => f.family)).toEqual(["Signika"]);
+    expect(storyFontsNamed(html, MOCKUP_FONTS).map((f) => f.family)).toEqual(["Signika", "Inter"]);
+    expect(withStoryFonts(html)).not.toContain('font-family: "Inter"; src:');
+    expect(withStoryFonts(html, MOCKUP_FONTS)).toContain('@font-face { font-family: "Inter"; src: url(data:font/woff2;base64,');
+    // The print view declares each face once, Inter only for a mockup page's frame.
+    const at = { version: 1, published_at: "2026-11-21T00:00:00Z", level: 1, html };
+    const storyOnly = composePrintDocument({ productName: "P", exportedAt: "2026-11-21T00:00:00Z", nonce: "n", pages: [{ page_id: "s", title: "S", ...at }] });
+    expect(storyOnly).not.toContain('font-family: "Inter"; src:');
+    expect(storyOnly.match(/@font-face \{ font-family: "Signika"/g)).toHaveLength(1);
+    const withMockup = composePrintDocument({ productName: "P", exportedAt: "2026-11-21T00:00:00Z", nonce: "n", pages: [{ page_id: "s", title: "S", ...at }, { page_id: "m", title: "M", ...at, frame: { width: 1280, height: 800 } }] });
+    expect(withMockup.match(/@font-face \{ font-family: "Inter"/g)).toHaveLength(1);
+    expect(withMockup.match(/@font-face \{ font-family: "Signika"/g)).toHaveLength(1);
+  });
+
   it("each exist, and come with their licence", async () => {
     const { readFileSync } = await import("node:fs");
     const readme = readFileSync(new URL("../../../packages/core/src/story-fonts/README.md", import.meta.url), "utf8");
-    for (const f of STORY_FONTS) {
-      expect(storyFontFaces(`"${f.family}"`), f.family).toContain(`font-weight: ${f.weight}`);
+    for (const f of MOCKUP_FONTS) {
+      expect(storyFontFaces(`"${f.family}"`, MOCKUP_FONTS), f.family).toContain(`font-weight: ${f.weight}`);
       expect(readme, f.family).toContain(`| \`${f.file}\` | ${f.family} |`);
     }
     expect(readme).toContain("SIL OPEN FONT LICENSE Version 1.1");
