@@ -111,8 +111,9 @@ function SettingsLayer({ requested, product, tenantId }: { requested: string; pr
   const current = all.find((s) => s.key === requested) ?? all.find((s) => s.key.split("/")[0] === group) ?? all[0]!;
   const { pathname, search, hash } = loc;
   const close = useCallback(() => navigate({ pathname, search: settingsSearch(search, null), hash }, { replace: true }), [navigate, pathname, search, hash]);
-  // Which sections are the person's is known once their products are, and for Plan the deployment's plans.
-  const known = !products.isPending && (requested !== "organization/plan" || offered !== undefined);
+  // Which sections are the person's is known once their products are, and for Plan the deployment's
+  // plans; while either is loading or failed to load, the address is left as it is.
+  const known = products.data !== undefined && (requested !== "organization/plan" || offered !== undefined);
 
   // A section opened in place of the one asked for takes its place in the address, replacing it so
   // Back doesn't return to the one the person can't use.

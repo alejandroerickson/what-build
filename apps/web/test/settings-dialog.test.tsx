@@ -12,7 +12,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 window.matchMedia ??= (query: string) => ({ matches: false, media: query, onchange: null, addListener() {}, removeListener() {}, addEventListener() {}, removeEventListener() {}, dispatchEvent: () => false });
 
-const state = { role: "owner" as string, instanceOwner: false, storyOnly: false };
+const state = { role: "owner" as string, instanceOwner: false, storyOnly: false, plans: [{ id: "free", name: "Free" }], plansHeld: undefined as Promise<void> | undefined };
 const acme = () => ({ tenant_id: "t1", slug: "acme", name: "Acme", name_etag: "e", plan: "free", your_role: state.role, story_only: state.storyOnly });
 
 vi.mock("../src/lib/api.ts", async (original) => ({
@@ -21,7 +21,10 @@ vi.mock("../src/lib/api.ts", async (original) => ({
     if (path === "/auth/session") return { signed_in: true, account_id: "a1", email: "olive@example.com", display_name: "Olive", tenant_allowance: { instance_owner: state.instanceOwner, remaining: 0 } };
     if (path.startsWith("/api/v1/me/products"))
       return { items: [{ product_id: "p1", name: "Planner", path: "acme/planner", tenant: acme(), your_role: "admin", stage_counts: { idea: 1, evidence: 2, exploration: 3, story: 4 } }], tenants: [acme()] };
-    if (path === "/api/v1/plans") return { plans: [{ id: "free", name: "Free" }], limits: [], file_max_bytes: 1 };
+    if (path === "/api/v1/plans") {
+      await state.plansHeld;
+      return { plans: state.plans, limits: [], file_max_bytes: 1 };
+    }
     if (path === "/api/v1/tenant-allowances") return { items: [], waitlist: [], instance_owners: [], default_allowed: 0, new_organization_plan: "free" };
     if (path.startsWith("/api/v1/me/")) return { items: [] };
     return {};
@@ -98,7 +101,7 @@ afterEach(() => {
   unmount?.();
   unmount = null;
   document.body.innerHTML = "";
-  Object.assign(state, { role: "owner", instanceOwner: false, storyOnly: false });
+  Object.assign(state, { role: "owner", instanceOwner: false, storyOnly: false, plans: [{ id: "free", name: "Free" }], plansHeld: undefined });
 });
 
 async function mount(at: string, routes: React.ReactNode) {
@@ -152,6 +155,20 @@ describe("the dialog", () => {
       unmount = null;
       document.body.innerHTML = "";
     }
+  });
+
+  it("leaves Plan in the address until the deployment's plans are known, then puts what opened in its place", async () => {
+    let release!: () => void;
+    Object.assign(state, { role: "member", plans: [], plansHeld: new Promise<void>((r) => (release = r)) });
+    const host = await dialogAt("/t/acme/planner/idea?settings=organization/plan");
+    // The plans are still loading: whatever opens meanwhile, the address is not a guess.
+    expect(where(host)).toBe("/t/acme/planner/idea?settings=organization/plan");
+    await act(async () => release());
+    for (let i = 0; i < 20; i++) await act(() => new Promise((r) => setTimeout(r, 5)));
+    // This deployment offers none, so Plan isn't the member's: People opens, and the address says so.
+    expect(host.textContent).toContain("Section: organization people");
+    expect(where(host)).toBe("/t/acme/planner/idea?settings=organization/people");
+    expect(host.querySelector("output")?.dataset.how).toBe("REPLACE");
   });
 
   it("leaves the address as it is when it opens the section asked for", async () => {
