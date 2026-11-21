@@ -226,7 +226,10 @@ function scopeSelectorList(list: string): string {
 /** A mockup page's frame in CSS pixels, which it lays out in on paper as it does on its canvas. */
 export interface PrintFrame {
   width: number;
+  /** What a vh unit is a hundredth of; for a page whose height is its content's, the box's least height too. */
   height: number;
+  /** The page's height is its content's: on paper the page is as tall as what it draws. */
+  auto?: boolean;
 }
 
 const WIDTH_QUERY = /\(\s*(min-|max-)?width\s*(:|<=|>=|<|>|=)\s*([\d.]+)(px|em|rem)\s*\)/gi;
@@ -550,7 +553,7 @@ export function composePrintDocument(input: { productName: string; exportedAt: s
         `<section class="print-section" id="page-${p.page_id}" data-level="${p.level}" aria-labelledby="title-${p.page_id}">\n` +
         `<h${h} class="print-heading" id="title-${p.page_id}">${escapeHtml(p.title)}</h${h}>\n` +
         `<p class="print-meta">Version ${p.version} · published ${dateElement(p.published_at)}</p>\n` +
-        (p.frame ? `<div class="print-frame" data-print-frame="${p.frame.width}" style="width:${p.frame.width}px;min-height:${p.frame.height}px;--print-fit:${Math.min(1, PRINTABLE_WIDTH / p.frame.width).toFixed(4)}">${shown}</div>\n` : `${shown}\n`) +
+        (p.frame ? `<div class="print-frame" data-print-frame="${p.frame.width}" style="width:${p.frame.width}px;${p.frame.auto ? "" : `min-height:${p.frame.height}px;`}--print-fit:${Math.min(1, PRINTABLE_WIDTH / p.frame.width).toFixed(4)}">${shown}</div>\n` : `${shown}\n`) +
         `</section>`
       );
     })

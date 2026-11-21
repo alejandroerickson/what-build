@@ -3,7 +3,7 @@ type: Decision
 title: Mockups are versioned canvases of agent-made HTML, in a stage called Exploration
 description: Agents build directions as sandboxed HTML pages on a canvas under a brief, versioned as a whole and downloadable to build the next one; the third stage is named Exploration.
 tags: [decision, mockups, exploration, story, security, web, agents]
-generated: {by: agent:claude, at: 2026-11-18}
+generated: {by: agent:claude, at: 2026-11-21}
 status: stable
 ---
 
@@ -42,6 +42,11 @@ the names Mockups and Exploration on 2026-10-09.
   under its cap on what one field holds. The maintainer chose this on 2026-10-14, replacing the Story's
   rules for mockup pages: a budget on script length bounds nothing the sandbox does not, and kept
   interactive prototypes off the canvas.
+- **A page has a size**: a width, and a height in pixels or `"auto"`, its content's height, which
+  the frame that shows it measures with the frame script and grows to, up to 4,000. An agent then
+  needs no browser of its own to measure pages before publishing. The maintainer chose measuring in
+  the frame on 2026-11-21, rejecting a measuring pass at publish, which would put a browser in the
+  server's image ([§4.12](../spec/04-data-model.md)).
 - **A canvas's pages may link to each other**, and a canvas whose pages link can be viewed as a
   clickable prototype. That is a way to view a canvas, not a kind of mockup
   ([decision](a-canvas-whose-pages-link-is-viewed-as-a-clickable-prototype.md)).

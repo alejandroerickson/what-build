@@ -1,8 +1,9 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { MOCKUP_PAGE_SANDBOX, STORY_PAGE_SANDBOX } from "@whatbuild/core/page-sandbox";
+import { MOCKUP_PAGE_SANDBOX, PAGE_HEIGHT_MIN, STORY_PAGE_SANDBOX } from "@whatbuild/core/page-sandbox";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Navigate, useNavigate, useParams, useSearchParams } from "react-router";
 import { api, ApiError } from "../lib/api.ts";
+import { useAutoHeight } from "../lib/auto-height.ts";
 import { useHeldUpdate } from "../lib/live.tsx";
 import { SAYS_LOADED_WITHIN_MS, useFrameReturn } from "../lib/minute.ts";
 import { useProduct } from "../lib/session.tsx";
@@ -75,8 +76,11 @@ export function StoryFrame({
   onPage?: (pageId: string) => void;
   /** For a mockup page shown alone: a link to another page of its canvas, by the name it gives. The frame is told to hand those over. */
   onLink?: (name: string) => void;
-  /** A mockup page's own size: the frame keeps it, scaled down to the room there is, never up, in a mockup page's sandbox. */
-  size?: { width: number; height: number };
+  /**
+   * A mockup page's own size: the frame keeps it, scaled down to the room there is, never up, in a
+   * mockup page's sandbox. A height of "auto" is the page's content's, which the frame measures.
+   */
+  size?: { width: number; height: number | "auto" };
   /**
    * Set when the page is an entry into a mockup's prototype: src is the entry's own address, and
    * the frame takes the sandbox the server names. The prototype's documents move inside the frame,
@@ -89,6 +93,10 @@ export function StoryFrame({
   const [loaded, setLoaded] = useState(false);
   const [room, setRoom] = useState({ width: 0, height: 0 });
   const wrap = useRef<HTMLDivElement>(null);
+  const auto = size?.height === "auto";
+  const [grown, setGrown] = useState(PAGE_HEIGHT_MIN);
+  const heard = useAutoHeight(auto, grown, setGrown);
+  const frameSize = useMemo(() => (size ? { width: size.width, height: size.height === "auto" ? grown : size.height } : undefined), [size, grown]);
   const fitted = Boolean(size) && view === "fit";
   useLayoutEffect(() => {
     if (!size || !wrap.current) return;
@@ -99,7 +107,7 @@ export function StoryFrame({
     ro.observe(el);
     return () => ro.disconnect();
   }, [size]);
-  const scale = size && room.width ? Math.min(1, room.width / size.width, fitted && room.height ? room.height / size.height : 1) : 1;
+  const scale = frameSize && room.width ? Math.min(1, room.width / frameSize.width, fitted && room.height ? room.height / frameSize.height : 1) : 1;
   const [reloads, setReloads] = useState(0);
   const loads = useRef(0);
   const ready = useRef(false);
@@ -110,6 +118,7 @@ export function StoryFrame({
     if (storyBase && onPage) frame.current?.contentWindow?.postMessage({ whatbuild: "story-base", base: storyBase }, "*");
     if (home) frame.current?.contentWindow?.postMessage({ whatbuild: "app-home", home }, "*");
     if (onLink) frame.current?.contentWindow?.postMessage({ whatbuild: "page-links" }, "*");
+    if (auto) frame.current?.contentWindow?.postMessage({ whatbuild: "measure-height" }, "*");
   };
   const helloRef = useRef(hello);
   helloRef.current = hello;
@@ -130,7 +139,7 @@ export function StoryFrame({
   useEffect(() => {
     const handle = (e: MessageEvent) => {
       if (e.source !== frame.current?.contentWindow) return;
-      const data = e.data as { whatbuild?: unknown; key?: unknown; page?: unknown } | null;
+      const data = e.data as { whatbuild?: unknown; key?: unknown; page?: unknown; height?: unknown } | null;
       if (data?.whatbuild === "frame-ready") {
         if (waiting.current) {
           clearTimeout(waiting.current);
@@ -143,10 +152,11 @@ export function StoryFrame({
       if (data?.whatbuild === "story-key" && FRAME_KEYS.includes(data.key)) onKey?.(data.key as StoryKey);
       if (data?.whatbuild === "story-page" && typeof data.page === "string" && PAGE_SLUG.test(data.page)) onPage?.(data.page);
       if (data?.whatbuild === "canvas-page" && typeof data.page === "string") onLink?.(data.page);
+      if (data?.whatbuild === "page-height") heard(data.height);
     };
     window.addEventListener("message", handle);
     return () => window.removeEventListener("message", handle);
-  }, [onKey, onPage, onLink, prototype]);
+  }, [onKey, onPage, onLink, prototype, heard]);
 
   const page = (
     <iframe
@@ -154,7 +164,7 @@ export function StoryFrame({
       ref={frame}
       title={title}
       className={size ? "story-frame-mockup" : "story-frame"}
-      style={size ? { width: size.width, height: size.height, transform: `scale(${scale})` } : { colorScheme: scheme }}
+      style={frameSize ? { width: frameSize.width, height: frameSize.height, transform: `scale(${scale})` } : { colorScheme: scheme }}
       sandbox={prototype?.sandbox ?? (size ? MOCKUP_PAGE_SANDBOX : STORY_PAGE_SANDBOX)}
       referrerPolicy="no-referrer"
       src={prototype ? src : `${src}${src.includes("?") ? "&" : "?"}frame=1`}
@@ -201,8 +211,8 @@ export function StoryFrame({
           WhatBuild put the page back.
         </Callout>
       ) : null}
-      {size ? (
-        <div className="story-mockup" style={{ width: size.width * scale, height: size.height * scale }}>
+      {frameSize ? (
+        <div className="story-mockup" style={{ width: frameSize.width * scale, height: frameSize.height * scale }}>
           {page}
         </div>
       ) : (

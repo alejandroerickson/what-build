@@ -5,6 +5,7 @@ import { CANVAS_TOOLS, Canvas, toolTitle, type CanvasVersion } from "../src/rout
 import { ToastProvider } from "../src/ui/toast.tsx";
 import { BACK_STEP_GAP_MS, backSteps, PAGE_MOVE_GAP_MS, pageMoves } from "../src/routes/page-moves.ts";
 import type { PageView } from "../src/routes/story-flip.tsx";
+import { nextAutoHeight, PAGE_HEIGHT_MAX, PAGE_HEIGHT_MIN } from "@whatbuild/core/page-sandbox";
 
 // The canvas's view, what it does as the board around it changes, and what its labels are called.
 // The board is laid out by hand here: the document this runs in has no layout.
@@ -65,7 +66,7 @@ beforeEach(() => {
   });
   vi.spyOn(HTMLElement.prototype, "offsetHeight", "get").mockImplementation(function (this: HTMLElement) {
     if (frame(this)) return parseFloat(this.style.height);
-    return this.classList.contains("xc-world") ? Math.max(...version.pages.map((p) => p.height)) : 0;
+    return this.classList.contains("xc-world") ? Math.max(...version.pages.map((p) => (p.height === "auto" ? 240 : p.height))) : 0;
   });
   vi.spyOn(HTMLElement.prototype, "offsetLeft", "get").mockImplementation(function (this: HTMLElement) {
     return frame(this) ? left(this) : 0;
@@ -462,5 +463,61 @@ describe("the toolbar's controls", () => {
     expect(marked.map((b) => b.dataset["tool"])).toEqual(["pan", "interact", "zoom-out", "zoom-in", "fit-page", "fill-width", "fit-canvas", "previous", "next"]);
     for (const b of marked) expect(b.getAttribute("title")).toBe(toolTitle(b.dataset["tool"] as keyof typeof CANVAS_TOOLS, false));
     expect(document.querySelector(".xc-tools .xc-tool-keys")?.getAttribute("title")).toBe(CANVAS_TOOLS.keys.name);
+  });
+});
+
+describe("a page whose height is its content's", () => {
+  const auto: CanvasVersion = { ...version, pages: [{ page_id: "list", title: "Crew list", width: 390, height: "auto" }, version.pages[1]!] };
+  const frameOf = (id: string) => document.querySelector(`.xc-frame[data-page="${id}"]`) as HTMLElement;
+  /** The page's document says how tall it is, as the frame script does once asked. */
+  function reports(id: string, height: number, source?: Window | null) {
+    const iframe = frameOf(id).querySelector("iframe")!;
+    act(() => window.dispatchEvent(new MessageEvent("message", { source: source === undefined ? iframe.contentWindow : source, data: { whatbuild: "page-height", height } })));
+  }
+  function showAuto() {
+    const host = document.createElement("div");
+    document.body.append(host);
+    const root = createRoot(host);
+    act(() => root.render(<Canvas version={auto} pageSrc={(p) => `about:blank#${p.page_id}`} selected={null} onSelect={() => {}} onKey={() => {}} canFocus pageView="fit" onPageView={() => {}} />));
+    unmount = () => act(() => root.unmount());
+    act(() => observers.forEach((cb) => cb()));
+  }
+
+  it("opens at the least height, grows to what its document reports, and says auto on its label", () => {
+    showAuto();
+    expect(frameOf("list").style.height).toBe(`${PAGE_HEIGHT_MIN}px`);
+    expect(label(0).querySelector(".xc-label-size")!.textContent).toBe("390 × auto");
+    reports("list", 1234.4);
+    expect(frameOf("list").style.height).toBe("1235px");
+    expect(frameOf("list").querySelector("iframe")!.getAttribute("height")).toBe("1235");
+    // A page with a height of its own keeps it.
+    expect(frameOf("wide").style.height).toBe("800px");
+    // Never shorter, never past the most, and nothing from another window.
+    reports("list", 600);
+    expect(frameOf("list").style.height).toBe("1235px");
+    reports("list", 1500, window);
+    expect(frameOf("list").style.height).toBe("1235px");
+    reports("list", 9000);
+    expect(frameOf("list").style.height).toBe(`${PAGE_HEIGHT_MAX}px`);
+  });
+
+  it("stops growing a page that grows with its frame, as one sized in vh does", () => {
+    showAuto();
+    reports("list", 840);
+    expect(frameOf("list").style.height).toBe("840px");
+    // A 100vh section and 600 pixels under it: the frame grew 600, and so did the page.
+    reports("list", 1440);
+    expect(frameOf("list").style.height).toBe("840px");
+    reports("list", 2000);
+    expect(frameOf("list").style.height).toBe("840px");
+  });
+
+  it("follows the rule the canvas and the Story share", () => {
+    expect(nextAutoHeight(240, 1000, null)).toEqual({ height: 1000 });
+    expect(nextAutoHeight(240, 100, null)).toBeNull();
+    expect(nextAutoHeight(1000, 1000, { from: 240, to: 1000, reported: 1000 })).toBeNull();
+    expect(nextAutoHeight(1000, 1760, { from: 240, to: 1000, reported: 1000 })).toEqual({ height: 1000, stop: true });
+    // Content that grows on its own, more slowly than the frame did, is followed.
+    expect(nextAutoHeight(1000, 1200, { from: 240, to: 1000, reported: 1000 })).toEqual({ height: 1200 });
   });
 });

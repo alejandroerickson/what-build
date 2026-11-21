@@ -773,7 +773,7 @@ no export. A
 page:
 `page_id` (a slug, `[a-z0-9][a-z0-9-]*`, ≤ 80 chars), `title` (1–200), `notes` (Markdown,
 ≤ 10,000, the page's design notes), `width` (240–2,560 CSS pixels, default 1,280; 390 for a
-phone) and `height` (240–4,000, default 800), and either its HTML, returned only with
+phone) and `height` (240–4,000, default 800, or `"auto"`, the height of its content, below), and either its HTML, returned only with
 `include_html` (otherwise `html_chars`), with `html_sha256` and `html_path` (the page's HTML
 route) computed on read, or an `entry` into the version's prototype, with its `poster` and its
 frame's address, `prototype_url`, computed on read (Prototype, below). Limits: 48 pages and
@@ -877,8 +877,8 @@ limit when that is lower. An organization on a plan with limits is refused (`403
 its text is capped field by field, so it publishes pages in the call. `mockups.publish { upload_id }`
 then reads the ZIP, in `get_download`'s layout, so a downloaded version round-trips:
 
-- `manifest.json` lists the canvas's pages in order, `[{ page_id, title?, width?, height?,
-  entry?, poster? }]`, and may give `title`, `summary`, `columns`, `files` (`[{ path }]`) and
+- `manifest.json` lists the canvas's pages in order, `[{ page_id, title?, width?, height?` (pixels or
+  `"auto"`)`, entry?, poster? }]`, and may give `title`, `summary`, `columns`, `files` (`[{ path }]`) and
   `prototype` (`[{ path, sha256? }]`). Its other fields are not read.
 - `brief.md` is the brief; `pages/<page_id>.html` and `pages/<page_id>.notes.md` hold a page's
   HTML and notes; `files/<path>` holds a file; `prototype/<path>` holds a file of the prototype,
@@ -973,11 +973,29 @@ nothing of the app's, and the app's `frame-src` names its `/prototypes/`.
 **Rendering.** A page's HTML is served by `GET …/mockups/{mockup_id}/versions/{n}/pages/{page_id}/html`
 with the Story's sandbox and one addition, `allow-forms`, in the Content-Security-Policy and in
 the app's frame alike, and with the same frame script with `?frame=1` (§4.11). The Story's own
-HTML route serves a page that shows a mockup page in the same mockup sandbox. It takes no `?theme`, because a mockup carries its own look. Any role but
+HTML route serves a page that shows a mockup page in the same mockup sandbox. It takes no `?theme`, because a mockup carries its own look,
+and it embeds the carried typefaces the page names, Inter among them (§4.11). Any role but
 a Story reader may read it. A page's frame is its `width` × `height`; content taller than `height`
 scrolls inside the frame, on the canvas in interact mode and on the Story ([§7.7](07-web-app.md),
 [§7.8](07-web-app.md)). A long document can be one page that scrolls or several pages side by
-side; the choice is how people will read it. With a content site, the route hands the frame to
+side; the choice is how people will read it.
+
+**A height of `"auto"`.** A page published with `height: "auto"` takes its content's height, up to
+4,000, so an agent measures nothing before publishing. The row keeps `height` 800 and
+`height_auto` true: 800 is the height a release that does not know `"auto"` shows the page at, and
+what the print view resolves a `vh` unit against. Wherever the app shows the page (its canvas, a
+Story page that shows it or its whole canvas), the frame opens 240 tall and asks the frame script
+to measure (`measure-height`); the script reports the document's `scrollHeight` (`page-height`) at
+once, when its fonts have loaded and whenever the document or its body changes size, and the frame
+grows to each report, never shrinking, since a document is never reported shorter than its frame
+(`nextAutoHeight` in [`page-sandbox.ts`](../../packages/core/src/page-sandbox.ts)). A page that grew
+by one or two times what its frame last grew, as one with sections `100vh` tall does, stops the
+frame growing, so it keeps the height it had. Nothing measured is stored: each frame measures the
+page it shows. The print view gives such a page no height of its own, so it is as tall as what it
+draws there. `get`, a Story page's mockup, the canvas a Story page shows and a download give
+`"height": "auto"`; an upload's `manifest.json` takes it. ◆ Decision: the frame script measures,
+in the frame that shows the page, rather than a browser on the server at publish, which would put
+Chromium in the image. With a content site, the route hands the frame to
 the content site as a Story page's does (§4.11), under a grant naming the version and the page.
 
 **Download.** `mockups.get_download { mockup_id, version? }` returns a short-lived grant for

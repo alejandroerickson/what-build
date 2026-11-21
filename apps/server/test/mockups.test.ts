@@ -1441,3 +1441,52 @@ describe("what publishing an upload tells and keeps", () => {
     expect(total.body.error.details.problems).toEqual([expect.stringMatching(/^The pages total [\d,]+ characters of HTML; a version holds at most 8,000,000\.$/)]);
   });
 });
+
+describe("a page whose height is its content's", () => {
+  let Q: string;
+  beforeAll(async () => {
+    const own = await alice.api("POST", `/api/v1/tenants/${tenantSlug}/products`, { name: "Auto Heights", concept: "Pages as tall as what they hold." });
+    Q = `/api/v1/p/${own.body.path}`;
+  });
+
+  it("is published as auto, read back as auto, kept by a later version, and given a height again by a number", async () => {
+    const m = await alice.api("POST", `${Q}/mockups`, { title: "Lists", brief: "How long lists read.", pages: [{ page_id: "list", title: "List", html: page("List"), width: 390, height: "auto" }, { page_id: "fixed", title: "Fixed", html: page("Fixed") }] });
+    expect(m.status, JSON.stringify(m.body)).toBe(201);
+    let v = await canvasOf(Q, m.body.mockup_id);
+    expect(v.pages.map((p: { height: unknown }) => p.height)).toEqual(["auto", 800]);
+    // A version that leaves the height out keeps it.
+    const two = await alice.api("POST", `${Q}/mockups`, { mockup_id: m.body.mockup_id, expected_etag: m.body.etag, pages: [{ page_id: "list", html: page("List, longer") }, { page_id: "fixed" }] });
+    expect(two.status, JSON.stringify(two.body)).toBe(201);
+    v = await canvasOf(Q, m.body.mockup_id);
+    expect(v.pages[0]).toMatchObject({ page_id: "list", width: 390, height: "auto" });
+    // The download says so, and the same ZIP publishes it again.
+    const g = await alice.api("POST", `${Q}/mockups/${m.body.mockup_id}/downloads`, {});
+    const zip = unzipSync(new Uint8Array(await (await fetch(g.body.url, { headers: g.body.headers })).arrayBuffer()));
+    const manifest = JSON.parse(strFromU8(zip["manifest.json"]!));
+    expect(manifest.pages.map((p: { height: unknown }) => p.height)).toEqual(["auto", 800]);
+    const up = await alice.api("POST", `${Q}/mockups/uploads`, {});
+    expect((await fetch(up.body.url, { method: "PUT", headers: up.body.headers, body: zipSync(zip) })).status).toBe(201);
+    const three = await alice.api("POST", `${Q}/mockups`, { mockup_id: m.body.mockup_id, expected_etag: two.body.etag, upload_id: up.body.upload_id });
+    expect(three.status, JSON.stringify(three.body)).toBe(201);
+    expect((await canvasOf(Q, m.body.mockup_id)).pages[0].height).toBe("auto");
+    // A number gives it a height of its own again; anything else is refused.
+    const four = await alice.api("POST", `${Q}/mockups`, { mockup_id: m.body.mockup_id, expected_etag: three.body.etag, pages: [{ page_id: "list", height: 1200 }, { page_id: "fixed" }] });
+    expect(four.status, JSON.stringify(four.body)).toBe(201);
+    expect((await canvasOf(Q, m.body.mockup_id)).pages[0].height).toBe(1200);
+    expect((await alice.api("POST", `${Q}/mockups`, { mockup_id: m.body.mockup_id, expected_etag: four.body.etag, pages: [{ page_id: "list", height: "tall" }] })).status).toBe(422);
+  });
+
+  it("reaches the Story as auto, and prints at its content's height", async () => {
+    const m = await alice.api("POST", `${Q}/mockups`, { title: "Story list", brief: "A list on the Story.", pages: [{ page_id: "crew", title: "Crew", html: page("Crew"), height: "auto" }] });
+    expect(m.status, JSON.stringify(m.body)).toBe(201);
+    const promoted = await alice.api("POST", `${Q}/story/promote-mockup`, { mockup_id: m.body.mockup_id, mockup_page_id: "crew" });
+    expect(promoted.status, JSON.stringify(promoted.body)).toBe(201);
+    const shown = (await alice.api("GET", `${Q}/story/pages/${promoted.body.page_id}`)).body;
+    expect(shown.current.mockup).toMatchObject({ width: 1280, height: "auto" });
+    const canvas = await alice.api("POST", `${Q}/story/promote-mockup`, { mockup_id: m.body.mockup_id });
+    expect(canvas.status, JSON.stringify(canvas.body)).toBe(201);
+    expect((await alice.api("GET", `${Q}/story/pages/${canvas.body.page_id}`)).body.current.mockup.pages[0]).toMatchObject({ page_id: "crew", height: "auto" });
+    const printed = await (await raw(alice, `${Q}/story/print?page_ids=${promoted.body.page_id}`)).text();
+    expect(printed).toMatch(new RegExp(`<div class="print-frame" data-print-frame="1280" style="width:1280px;--print-fit:[\\d.]+"><div data-print-page="${promoted.body.page_id}"`));
+  });
+});

@@ -39,3 +39,28 @@ export const CANVAS_FRAME_NAME = "whatbuild-canvas-page";
 
 /** What a mockup's pages can do once they are saved and opened outside this sandbox: said with every download, and in the ZIP's index.html. */
 export const OUTSIDE_THE_SANDBOX = "These pages can run their own code when opened outside WhatBuild. Only open them if you trust where they came from.";
+
+/** The least and most a mockup page's frame is tall, in CSS pixels, given or measured. */
+export const PAGE_HEIGHT_MIN = 240;
+export const PAGE_HEIGHT_MAX = 4000;
+
+/**
+ * A mockup page whose height is "auto" takes its content's: the frame opens PAGE_HEIGHT_MIN tall, the
+ * frame script reports the document's height (`page-height`), and the frame grows to it, up to
+ * PAGE_HEIGHT_MAX. It only grows, since a document is never reported shorter than its frame. A page
+ * that grew by what its frame last grew, or twice that, as a page with one or two sections 100vh
+ * tall does, stops it growing: such a page outgrows any frame, so the frame keeps the height it had.
+ * Content that grows by itself, as a script draws more, is followed.
+ */
+export function nextAutoHeight(frame: number, reported: number, last: { from: number; to: number; reported: number } | null): { height: number; stop?: true } | null {
+  if (last && frame === last.to && last.to > last.from) {
+    const grew = last.to - last.from;
+    const times = Math.round((reported - last.reported) / grew);
+    if (times >= 1 && Math.abs(reported - last.reported - times * grew) <= 2) return { height: frame, stop: true };
+  }
+  const height = Math.min(PAGE_HEIGHT_MAX, Math.max(PAGE_HEIGHT_MIN, Math.ceil(reported)));
+  return height > frame ? { height } : null;
+}
+
+/** A mockup page's height as answers give it: its frame's, or "auto" for its content's. */
+export const shownHeight = (p: { height: number; height_auto: boolean }): number | "auto" => (p.height_auto ? "auto" : p.height);

@@ -1,6 +1,7 @@
-import { CANVAS_FRAME_NAME, MOCKUP_PAGE_SANDBOX } from "@whatbuild/core/page-sandbox";
+import { CANVAS_FRAME_NAME, MOCKUP_PAGE_SANDBOX, PAGE_HEIGHT_MIN } from "@whatbuild/core/page-sandbox";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from "react";
 import { flushSync } from "react-dom";
+import { useAutoHeight } from "../lib/auto-height.ts";
 import { plural } from "../lib/format.ts";
 import { SAYS_LOADED_WITHIN_MS, tryStoppedFramesAgain, useFrameReturn, useMinuteWait } from "../lib/minute.ts";
 import { useProduct } from "../lib/session.tsx";
@@ -22,7 +23,8 @@ export interface CanvasPage {
   page_id: string;
   title: string;
   width: number;
-  height: number;
+  /** CSS pixels, or "auto": the height of the page's content, which its frame measures. */
+  height: number | "auto";
   /** A page with HTML of its own. */
   html_sha256?: string;
   html_path?: string;
@@ -31,6 +33,11 @@ export interface CanvasPage {
   poster?: string | null;
   prototype_url?: string | null;
 }
+
+/** A page as the canvas lays it out: its frame's height now, which for a page whose height is "auto" grows to its content's. */
+type LaidPage = Omit<CanvasPage, "height"> & { height: number; auto: boolean };
+
+const NO_HEIGHTS: Record<string, number> = {};
 
 /** A version's prototype address, a capability that lasts until expires_at. */
 export interface PrototypeAddress {
@@ -139,7 +146,8 @@ type FrameSignal =
   | { kind: "keyup"; key: string }
   | { kind: "zoom"; clientX: number; clientY: number; dy: number; line: boolean; pinch: boolean }
   | { kind: "select" }
-  | { kind: "follow"; page: string; hash: string };
+  | { kind: "follow"; page: string; hash: string }
+  | { kind: "height"; height: number };
 
 /** The keys a page's frame passes on to the canvas: focus mode's, the arrows, and the canvas's own. */
 const FRAME_KEYS = new Set(["f", "Escape", "ArrowLeft", "ArrowRight", " ", "h", "H", "v", "V", "0", "1", "2", "3", "+", "=", "-", "_"]);
@@ -177,7 +185,7 @@ const HELD_WORDS = {
  * new `visit` opens the page afresh, as following a link to a file in a folder does.
  */
 function PageFrame({ page, src, drawn, title, selected, onSignal, frameRef, prototype, entries, visit, takeHash }: {
-  page: CanvasPage;
+  page: LaidPage;
   src: string;
   /** The page drawn by the app itself, in place of its frame (the tutorial's fixed example). */
   drawn?: ReactNode;
@@ -203,6 +211,8 @@ function PageFrame({ page, src, drawn, title, selected, onSignal, frameRef, prot
   // takes no pointer, so a pinch or ⌘/Ctrl with scroll over a page still loading zooms the canvas:
   // the frame has nothing yet to keep the browser from zooming instead.
   const [greeted, setGreeted] = useState(false);
+  const grow = useCallback((height: number) => onSignal(page.page_id, { kind: "height", height }), [onSignal, page.page_id]);
+  const heard = useAutoHeight(page.auto, page.height, grow);
   // The sandboxed page has an opaque origin, so the message cannot be addressed to one.
   const hello = useCallback(() => {
     setGreeted(true);
@@ -211,7 +221,8 @@ function PageFrame({ page, src, drawn, title, selected, onSignal, frameRef, prot
     frame.current?.contentWindow?.postMessage({ whatbuild: "app-home", home: `${window.location.origin}${app}` }, "*");
     const hash = takeHash(page.page_id);
     if (hash) frame.current?.contentWindow?.postMessage({ whatbuild: "canvas-hash", hash }, "*");
-  }, [app, entries, page.page_id, takeHash]);
+    if (page.auto) frame.current?.contentWindow?.postMessage({ whatbuild: "measure-height" }, "*");
+  }, [app, entries, page.page_id, page.auto, takeHash]);
   const newFrame = useCallback(() => {
     setGreeted(false);
     ready.current = false;
@@ -235,7 +246,7 @@ function PageFrame({ page, src, drawn, title, selected, onSignal, frameRef, prot
     const handle = (e: MessageEvent) => {
       const el = frame.current;
       if (!el || e.source !== el.contentWindow) return;
-      const data = e.data as { whatbuild?: unknown; key?: unknown; x?: unknown; y?: unknown; dy?: unknown; line?: unknown; pinch?: unknown; page?: unknown; hash?: unknown } | null;
+      const data = e.data as { whatbuild?: unknown; key?: unknown; x?: unknown; y?: unknown; dy?: unknown; line?: unknown; pinch?: unknown; page?: unknown; hash?: unknown; height?: unknown } | null;
       if (data?.whatbuild === "frame-ready") {
         if (waiting.current) {
           clearTimeout(waiting.current);
@@ -247,6 +258,7 @@ function PageFrame({ page, src, drawn, title, selected, onSignal, frameRef, prot
       if (data?.whatbuild === "story-key" && typeof data.key === "string" && FRAME_KEYS.has(data.key)) onSignal(page.page_id, { kind: "key", key: data.key });
       else if (data?.whatbuild === "canvas-keyup" && data.key === " ") onSignal(page.page_id, { kind: "keyup", key: " " });
       else if (data?.whatbuild === "canvas-select") onSignal(page.page_id, { kind: "select" });
+      else if (data?.whatbuild === "page-height") heard(data.height);
       else if (data?.whatbuild === "canvas-page" && typeof data.page === "string") onSignal(page.page_id, { kind: "follow", page: data.page, hash: typeof data.hash === "string" ? data.hash : "" });
       else if (data?.whatbuild === "canvas-zoom" && typeof data.x === "number" && typeof data.y === "number" && typeof data.dy === "number" && Number.isFinite(data.x + data.y + data.dy)) {
         // The page reports its own pixels; the frame is drawn at the canvas's zoom.
@@ -257,7 +269,7 @@ function PageFrame({ page, src, drawn, title, selected, onSignal, frameRef, prot
     };
     window.addEventListener("message", handle);
     return () => window.removeEventListener("message", handle);
-  }, [onSignal, page.page_id, page.width, prototype, hello]);
+  }, [onSignal, page.page_id, page.width, prototype, hello, heard]);
   if (drawn !== undefined)
     return (
       <div ref={frameRef} className="xc-frame" data-page={page.page_id} data-selected={selected ? "" : undefined} style={{ width: page.width, height: page.height }}>
@@ -451,6 +463,13 @@ export function Canvas({ version, pageSrc, drawPage, onUse, rememberMode = true,
     following.current = null;
   }, []);
   const columns = Math.max(1, version.columns ?? version.pages.length);
+  // The heights frames measured for pages whose height is "auto", this version's only.
+  const [measured, setMeasured] = useState<{ version: number; heights: Record<string, number> }>({ version: version.version, heights: {} });
+  const heights = measured.version === version.version ? measured.heights : NO_HEIGHTS;
+  const laid = useMemo(
+    () => version.pages.map((p): LaidPage => (p.height === "auto" ? { ...p, height: heights[p.page_id] ?? PAGE_HEIGHT_MIN, auto: true } : { ...p, height: p.height, auto: false })),
+    [version.pages, heights],
+  );
   const panning = space || (!clickable && mode === "pan");
   // Read when the view moves, so the calls that move it stay the same across the switch.
   const asPrototype = useRef(clickable);
@@ -521,7 +540,7 @@ export function Canvas({ version, pageSrc, drawPage, onUse, rememberMode = true,
       next[id] = { left: el.offsetLeft, top: el.offsetTop, width: el.offsetWidth, height: el.offsetHeight };
     });
     setBoxes(next);
-  }, [version.version, version.pages, columns]);
+  }, [version.version, laid, columns]);
 
   const glide = useRef<number | undefined>(undefined);
   useEffect(() => () => window.clearTimeout(glide.current), []);
@@ -656,6 +675,17 @@ export function Canvas({ version, pageSrc, drawPage, onUse, rememberMode = true,
     ro.observe(vp);
     return () => ro.disconnect();
   }, [fitCanvas, fitBox, fillBox, boxes]);
+  // A page whose height is "auto" grows once its frame has measured it: the view stays fitted, as it
+  // does while the window changes, until someone moves it.
+  const grown = useRef(heights);
+  useLayoutEffect(() => {
+    if (grown.current === heights) return;
+    grown.current = heights;
+    const shown = following.current;
+    const el = shown ? frames.current.get(shown.id) : undefined;
+    if (shown && el) (shown.how === "fill" ? fillBox : fitBox)({ left: el.offsetLeft, top: el.offsetTop, width: el.offsetWidth, height: el.offsetHeight }, false);
+    else if (!touched.current) fitCanvas(false);
+  }, [heights, fitCanvas, fitBox, fillBox]);
   // Folding into a clickable prototype glides to the selected page as the others fade, and unfolding
   // glides back out. Within it a new page takes the place at once, and opens afresh.
   const placed = useRef<string | null>(null);
@@ -814,7 +844,10 @@ export function Canvas({ version, pageSrc, drawPage, onUse, rememberMode = true,
 
   /** What a page's frame passes on: the same keys, Space held, a pinch, a press that selects the page. */
   const handleSignal = (pageId: string, s: FrameSignal) => {
-    if (s.kind === "keyup") setSpace(false);
+    if (s.kind === "height") {
+      const v = version.version;
+      setMeasured((m) => ({ version: v, heights: { ...(m.version === v ? m.heights : {}), [pageId]: s.height } }));
+    } else if (s.kind === "keyup") setSpace(false);
     else if (s.kind === "follow") follow(pageId, s);
     else if (s.kind === "select") {
       if (pageId !== selected) onSelect(pageId);
@@ -935,7 +968,7 @@ export function Canvas({ version, pageSrc, drawPage, onUse, rememberMode = true,
   // and the labels, never the frames.
   const pageFrames = useMemo(
     () =>
-      version.pages.map((p) => (
+      laid.map((p) => (
         <PageFrame
           key={p.page_id}
           page={p}
@@ -954,7 +987,7 @@ export function Canvas({ version, pageSrc, drawPage, onUse, rememberMode = true,
           }}
         />
       )),
-    [version.pages, version.prototype, pageSrc, drawPage, selected, onSignal, entries, visits, takeHash],
+    [laid, version.prototype, pageSrc, drawPage, selected, onSignal, entries, visits, takeHash],
   );
 
   const worldStyle: CSSProperties = {

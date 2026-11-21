@@ -71,6 +71,10 @@ export function withStoryTheme(html: string, theme: "light" | "dark"): string {
  * Says, at most every half minute, that someone is using the frame (frame-active): a page they read
  * or press in a frame shows the app nothing, and a tab no one is using stops listening for changes
  * (apps/web/src/lib/live.tsx).
+ *
+ * Told to (measure-height), for a mockup page whose height is its content's, it says how tall the
+ * document is (page-height): at once, when its fonts have loaded, and whenever the document or its
+ * body changes size. The app sizes the frame to it (nextAutoHeight in page-sandbox.ts).
  */
 export function frameScript(prototype?: { base: string; inPlace: boolean }): string {
   const proto = prototype ? JSON.stringify(prototype.base).replace(/</g, "\\u003c") : "null";
@@ -86,6 +90,10 @@ export function frameScript(prototype?: { base: string; inPlace: boolean }): str
   'var s=/^(.*\\/t\\/[^\\/?#]+\\/)([^\\/?#]+\\/story\\/)$/.exec(story);' +
   'if(!s||u.indexOf(s[1])!==0)return null;var r=u.slice(s[1].length),i=r.indexOf("/");' +
   'return i>0&&r.slice(i+1).indexOf(s[2])===0?r.slice(i+1+s[2].length):null;}' +
+  'var measuring=false,told=0;function tall(){var h=Math.ceil(document.documentElement.scrollHeight);if(h!==told){told=h;send({whatbuild:"page-height",height:h});}}' +
+  'function measure(){if(measuring)return;measuring=true;tall();' +
+  'if(document.fonts&&document.fonts.ready)document.fonts.ready.then(tall);addEventListener("load",tall);' +
+  'if(window.ResizeObserver){var o=new ResizeObserver(function(){requestAnimationFrame(tall);});o.observe(document.documentElement);if(document.body)o.observe(document.body);}}' +
   'var used=0;function using(){var n=Date.now();if(n-used<30000)return;used=n;send({whatbuild:"frame-active"});}' +
   '["pointerdown","keydown","wheel","touchstart","scroll"].forEach(function(t){addEventListener(t,using,{capture:true,passive:true});});' +
   'addEventListener("message",function(e){' +
@@ -93,6 +101,7 @@ export function frameScript(prototype?: { base: string; inPlace: boolean }): str
   'if(e.data.whatbuild==="story-base"&&typeof e.data.base==="string")story=e.data.base;' +
   'if(e.data.whatbuild==="app-home"&&typeof e.data.home==="string")home=/^(https?:\\/\\/[^\\/?#]+)(\\/[^?#]*)$/i.exec(e.data.home);' +
   'if(e.data.whatbuild==="page-links")pages=true;' +
+  'if(e.data.whatbuild==="measure-height")measure();' +
   'if(e.data.whatbuild==="canvas-host"){canvas=true;if(e.data.entries&&typeof e.data.entries==="object")entries=e.data.entries;}' +
   'if(e.data.whatbuild==="canvas-hash"&&typeof e.data.hash==="string"){var at=document.getElementById(e.data.hash);if(at)at.scrollIntoView();}});' +
   'addEventListener("keydown",function(e){' +
