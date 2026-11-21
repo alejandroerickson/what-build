@@ -42,7 +42,13 @@ export async function keepOnlyTenants(c: pg.Client, tenantIds: string[]) {
          and not exists (select 1 from memberships m where m.account_id = a.account_id and m.tenant_id = any($1))`,
       [tenantIds],
     );
-    for (const t of await tablesWith(c, "tenant_id")) await c.query(`delete from ${t} where tenant_id is null or tenant_id <> all($1)`, [tenantIds]);
+    const tables = await tablesWith(c, "tenant_id");
+    for (const t of tables) await c.query(`delete from ${t} where tenant_id is null or tenant_id <> all($1)`, [tenantIds]);
+    // A message kept may name an account just removed: someone who has since left the organization. Sent to them, it goes; sent by them, it stays, unsigned.
+    if (tables.includes("playbook_messages")) {
+      await c.query("delete from playbook_messages m where not exists (select 1 from accounts a where a.account_id = m.to_account_id)");
+      await c.query("update playbook_messages m set from_account_id = null where from_account_id is not null and not exists (select 1 from accounts a where a.account_id = m.from_account_id)");
+    }
     await c.query("delete from tenants where tenant_id <> all($1)", [tenantIds]);
     for (const t of ["sessions", "oauth_codes", "oauth_tokens", "oauth_clients", "email_tokens"]) await c.query(`delete from ${t}`);
     await c.query("commit");

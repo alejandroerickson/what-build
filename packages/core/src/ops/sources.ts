@@ -11,6 +11,7 @@ import { expectedEtag, id, isoDate, tags } from "../schemas.ts";
 import { picturePrefixes, pictureSource, picturesOf, type PictureSeen } from "../pictures.ts";
 import { indexSource, indexText } from "../text-index.ts";
 import { likeContaining, newEtag, newId, sameEtag, slugify, uniq } from "../util.ts";
+import { citedByPlaybook } from "../playbook.ts";
 
 type RecordRow = Selectable<RecordsTable>;
 
@@ -720,7 +721,7 @@ export const archiveSources = defineOperation({
       }
       await ctx.db.updateTable("records").set({ archived_at: ctx.now, archived_by: json(ctx.actor), etag: newEtag(), updated_at: ctx.now, updated_by: json(ctx.actor) }).where("record_id", "=", rid).execute();
       await recordActivity(ctx, { action: "archived", entity_type: "source", entity_id: rid, entity_title: r.title, summary: "Archived the source" });
-      archived.push({ record_id: rid, archived_at: ctx.now });
+      archived.push({ record_id: rid, archived_at: ctx.now, ...(await citedByPlaybook(ctx, "sources", rid)) });
     }
     return { archived, failed };
   },

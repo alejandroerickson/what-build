@@ -21,6 +21,8 @@ import { isVideoFile } from "../video.ts";
 import { newEtag, newId, sha256Hex } from "../util.ts";
 import { inArrangedOrder, loadMockupFolder, mockupFolderOps, mockupFolders, topOfFolder } from "./mockup-folders.ts";
 import { storyPagesShowing } from "./story.ts";
+import { citedByPlaybook } from "../playbook.ts";
+import { playbookFilesFor } from "./playbook.ts";
 
 /**
  * Mockups are where Exploration makes things: a canvas of HTML pages an agent built (screens,
@@ -232,6 +234,8 @@ export const listMockups = defineOperation({
       folders,
       archived_hidden,
       quota: mockupQuota(rows.length),
+      // Exploration has no guidance of its own: an agent starting work there lists the mockups first.
+      ...(ctx.principal.surface === "mcp" ? await playbookFilesFor(ctx, "exploration") : {}),
       ...(archived_hidden
         ? { note: `${archived_hidden} archived mockup${archived_hidden === 1 ? " is" : "s are"} not listed; pass include_archived to see ${archived_hidden === 1 ? "it" : "them"}. Archived mockups count toward the product's ${MAX_MOCKUPS}; ${rows.length} are used.` }
         : {}),
@@ -928,7 +932,7 @@ export const archiveMockup = defineOperation({
     if (e.archived_at) return summaryView(e);
     await ctx.db.updateTable("mockups").set({ archived_at: ctx.now, etag: newEtag(), updated_at: ctx.now, updated_by: json(ctx.actor) }).where("mockup_id", "=", e.mockup_id).execute();
     await recordActivity(ctx, { action: "archived", entity_type: "mockup", entity_id: e.mockup_id, entity_title: e.title, summary: "Archived the mockup" });
-    return summaryView(await loadMockup(ctx, e.mockup_id));
+    return { ...summaryView(await loadMockup(ctx, e.mockup_id)), ...(await citedByPlaybook(ctx, "mockups", e.mockup_id)) };
   },
 });
 

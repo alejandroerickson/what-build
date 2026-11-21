@@ -12,6 +12,7 @@ import { aboutWhatBuild } from "../mail-words.ts";
 import { newEtag, newId, plainName, randomToken, sha256Hex, slugify } from "../util.ts";
 import { adviseIdeaCard, CARD_HTML_MAX, checkCardSides, checkIdeaCard } from "../idea-card.ts";
 import { actionAsRead, entryTitleAsRead, summaryAsRead, titleNeedsInvitationScope } from "./activity.ts";
+import { playbookSummary } from "./playbook.ts";
 
 async function uniqueSlug(exists: (s: string) => Promise<boolean>, base: string): Promise<string> {
   const root = slugify(base, 40, "product").padEnd(3, "0");
@@ -76,6 +77,7 @@ function productView(p: {
   name: string;
   concept: string;
   card_html: string;
+  playbook_enabled?: boolean;
   archived_at: string | null;
   etag: string;
   created_at: string;
@@ -86,6 +88,7 @@ function productView(p: {
     slug: p.slug,
     name: p.name,
     ...(readsOnlyTheStory(ctx.scope.role) ? {} : { concept: p.concept, card_chars: p.card_html.length, ...(includeCard ? { card_html: p.card_html } : {}) }),
+    ...(p.playbook_enabled === undefined || readsOnlyTheStory(ctx.scope.role) ? {} : { playbook_enabled: p.playbook_enabled }),
     archived_at: p.archived_at,
     etag: p.etag,
     created_at: p.created_at,
@@ -468,6 +471,7 @@ export const getProduct = defineOperation({
     return {
       ...productView(row, ctx, input.include_card),
       ...countsFor(ctx.scope.role, counts),
+      ...(readsOnlyTheStory(ctx.scope.role) ? {} : { playbook: await playbookSummary(ctx) }),
       ...(bare ? { note: 'The product concept has no front yet, so people see its text and a request for a picture (to draw it: outcomes_read(action="card_guidance"), then products_write(action="update_concept") with concept and card_html).' } : {}),
     };
   },
@@ -506,6 +510,29 @@ export const updateProduct = defineOperation({
     await recordActivity(ctx, { action: "updated", entity_type: "product", entity_id: pid, entity_title: input.name ?? row.name, summary: changedSummary("product", changed) });
     const next = await ctx.db.selectFrom("products").selectAll().where("product_id", "=", pid).executeTakeFirstOrThrow();
     return productView(next, { ...ctx, scope: { ...ctx.scope } });
+  },
+});
+
+export const setPlaybook = defineOperation({
+  name: "products.set_playbook",
+  scope: "product",
+  access: "admin",
+  mutates: true,
+  webOnly: "a person does it in the web app, in the product's Settings, under Playbook (`…?settings=product`)",
+  summary: "Turn the product's Playbook off or on (product admins, in the web app).",
+  description:
+    "A person's act in the web app, never an agent's. Off, its Playbook is neither read nor written, through any door, and agents are pointed at it nowhere; nothing in it is lost, and turning it on again brings it back as it was. Messages between agents wait unread while it is off, and expire as they would.",
+  input: z.strictObject({ enabled: z.boolean() }),
+  rest: { method: "PUT", path: "/playbook/enabled" },
+  mcp: { tool: "products", action: "set_playbook" },
+  async handler(ctx, input) {
+    const pid = ctx.scope.product!.product_id;
+    const row = await ctx.db.selectFrom("products").select(["playbook_enabled", "name"]).where("product_id", "=", pid).forUpdate().executeTakeFirstOrThrow();
+    if (row.playbook_enabled !== input.enabled) {
+      await ctx.db.updateTable("products").set({ playbook_enabled: input.enabled }).where("product_id", "=", pid).execute();
+      await recordActivity(ctx, { action: input.enabled ? "playbook_turned_on" : "playbook_turned_off", entity_type: "product", entity_id: pid, entity_title: row.name, summary: input.enabled ? "Turned the product's Playbook on" : "Turned the product's Playbook off" });
+    }
+    return { playbook_enabled: input.enabled };
   },
 });
 
@@ -1142,6 +1169,6 @@ export const listAccessActivity = defineOperation({
 });
 
 export const productOps = [
-  listProducts, createTenant, renameTenant, createProduct, getProduct, updateProduct, updateConcept, archiveProduct, restoreProduct,
+  listProducts, createTenant, renameTenant, createProduct, getProduct, updateProduct, setPlaybook, updateConcept, archiveProduct, restoreProduct,
   listMembers, grantMember, grantMembers, revokeMember, cancelInvitation, listAccessActivity,
 ];

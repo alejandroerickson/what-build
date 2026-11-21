@@ -3,7 +3,7 @@ type: Decision
 title: Agents learn WhatBuild from the server's own guide, with no skill to install
 description: The installable skill is retired; a read-only guide tool serves topics that describe how WhatBuild works, without prescribing how to do discovery.
 tags: [decision, mcp, agents, guide]
-generated: {by: agent:claude, at: 2026-10-26}
+generated: {by: agent:claude, at: 2026-11-20}
 status: stable
 ---
 
@@ -26,6 +26,10 @@ maintainer retired the skill on 2026-10-26.
 - The guide describes what each object is, what people see, what the server enforces and refuses,
   limits, formats and the procedures a mechanism needs. It does not prescribe a method, an order of
   work, a writing style or how to talk with the person.
+- One thing it does ask, since 2026-11-20: that agents read each product's Playbook before working there
+  and write to it as they work, as the server's instructions say too. A team's method lives in its
+  Playbook, which its agents write and which starts from WhatBuild's starter
+  ([decision](each-product-keeps-a-playbook-its-agents-write.md)); the guide still prescribes none.
 - The server's instructions and tool descriptions describe WhatBuild and its tools, and direct the
   agent to nothing outside them.
 - `TOOLS_VERSION` versions the tool list and the guide. Answers give it as `tools_version`, so an

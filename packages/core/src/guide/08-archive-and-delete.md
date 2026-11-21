@@ -19,6 +19,10 @@ lists and out of search, and erases nothing. Each comes back the same way it wen
 An archived source is read-only: any change to its title, date, tags, text, summary, notes,
 attachments or comments is refused with `409 record_archived` until it is restored.
 
+Archiving a source, outcome, mockup or Story page that a file of the product's Playbook links to answers
+`playbook_cited_by`, those files, and `playbook_note`: change them if they should no longer send agents there.
+A file of the Playbook is not archived but removed, and restored from its history (`guide(topic="playbook")`).
+
 ## Permanent delete
 
 A permanent delete cannot be undone. It needs the admin role and an Admin connection, so the `_delete`
@@ -36,6 +40,7 @@ points at it):
 | every archived Story page | `story_read(action="delete_archived_pages_impact")` | `story_delete(action="delete_archived_pages")` |
 | product | `products_read(action="delete_impact")` | `products_delete(action="delete")` |
 | comment | none: `sources_read(action="list_annotations")` shows it | `sources_delete(action="delete_annotation")` |
+| file of the Playbook, with every revision | none: `playbook_read(action="history")` shows it, and its etag | `playbook_delete(action="purge")` |
 
 The server refuses a delete without its three guards:
 

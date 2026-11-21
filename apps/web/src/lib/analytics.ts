@@ -86,7 +86,7 @@ export function screenPath(pathname: string): string {
 }
 
 /** Settings' sections, the only values of `?settings=` that are counted as a screen. */
-const SETTINGS_SECTIONS = new Set(["product", "product/people", "product/export", "organization", "organization/people", "organization/plan", "organization/access", "account", "agents"]);
+const SETTINGS_SECTIONS = new Set(["product", "product/people", "product/playbook", "product/export", "organization", "organization/people", "organization/plan", "organization/access", "account", "agents"]);
 
 /**
  * The screen Settings is, while it is open over another (`?settings=organization/plan` is

@@ -54,6 +54,7 @@ beforeAll(async () => {
   expect((await alice.api("POST", `/api/v1/tenants/${t.body.tenant.slug}/members`, { product: "logbook", email: "newcomer@example.com", role: "viewer" })).status).toBe(201);
   await h.signIn("newcomer@example.com", "Nia Newcomer");
   expect((await alice.api("POST", `${P}/exports`, {})).status).toBe(201);
+  expect((await alice.api("PUT", `${P}/playbook/file`, { path: "lessons/texts-first.md", content: "---\ntype: Lesson\ntitle: Crews text first\n---\nText.\n" })).status).toBe(200);
 
   // An agent's change, over MCP.
   const client = new Client({ name: "log-agent", version: "1.0.0" });

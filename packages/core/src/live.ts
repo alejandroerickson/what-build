@@ -21,6 +21,8 @@ const AREA_OF_TOOL: Readonly<Record<string, LiveArea>> = {
   attachments: "evidence",
   derived: "evidence",
   mockups: "exploration",
+  // The Playbook has no screen; the product's answer, which its Settings reads, says how many files it holds.
+  playbook: "idea",
 };
 
 /** The part of a product an operation changes; `other` for any kind not named above. */

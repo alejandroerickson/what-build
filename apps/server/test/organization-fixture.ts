@@ -6,7 +6,7 @@ import type { Browser, Harness } from "./harness.ts";
  * An organization with something in every kind of row a product holds: outcomes and their
  * revisions, tagged sources with attachments, readings, derived texts and their search index, annotations and agent notes, a view,
  * a Story with a style, a hierarchy, notes, a preview, a card preview and a promoted
- * mockup page, a mockup with files and a canvas upload, a mockup whose page enters a prototype, an export, an invitation and a second member. Every text it
+ * mockup page, a mockup with files and a canvas upload, a mockup whose page enters a prototype, an export, an invitation, a second member, and a lesson in its Playbook with a message to that member. Every text it
  * writes carries `marker`, so a test can tell whether any of it reached someone else.
  */
 export interface Organization {
@@ -36,6 +36,8 @@ export interface Organization {
   exportId: string;
   invitationId: string;
   member: { accountId: string; email: string };
+  /** A file of its Playbook, linking to its source, and a message from its owner's agents to its member's. */
+  playbook: { path: string; etag: string; messageId: string };
   /** Distinctive strings and ids that belong to this organization alone. */
   secrets: string[];
 }
@@ -124,6 +126,18 @@ export async function buildOrganization(h: Harness, owner: Browser, name: string
   const invitationId = invited.invitation_id ?? members.invitations?.[0]?.invitation_id;
   expect(invitationId, JSON.stringify(members)).toBeTruthy();
 
+  // Its Playbook: the starter copied in by a lesson of its own, and a message to its member.
+  const playbookPath = `lessons/${marker.toLowerCase()}.md`;
+  const lesson = ok(
+    await owner.api("PUT", `${P}/playbook/file`, {
+      path: playbookPath,
+      content: `---\ntype: Lesson\ntitle: ${marker} lesson\ndescription: ${marker} rule for every canvas.\napplies_to: [exploration]\n---\n\n${marker} said so, about whatbuild:sources/${src.record_id}.\n`,
+      message: `${marker} reason`,
+    }),
+    200,
+  );
+  const sent = ok(await owner.api("POST", `${P}/playbook/messages`, { to: memberId, text: `${marker} message to the member's agents` }));
+
   const product = ok(await owner.api("GET", P), 200);
   const source = ok(await owner.api("GET", `${P}/sources/${src.record_id}`), 200);
   const viewNow = ok(await owner.api("GET", `${P}/sources/${view.record_id}`), 200);
@@ -151,6 +165,7 @@ export async function buildOrganization(h: Harness, owner: Browser, name: string
     exportId: ex.export_id,
     invitationId,
     member: { accountId: memberId, email: memberEmail },
+    playbook: { path: playbookPath, etag: lesson.etag, messageId: sent.message_id },
     secrets: [],
   };
   org.secrets = [
@@ -179,6 +194,8 @@ export async function buildOrganization(h: Harness, owner: Browser, name: string
     org.invitationId,
     org.ownerAccountId,
     memberId,
+    org.playbook.etag,
+    org.playbook.messageId,
   ].filter(Boolean);
   return org;
 }

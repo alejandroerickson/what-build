@@ -30,8 +30,8 @@ jobs:
           node-version-file: .nvmrc
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - name: The embedded guide matches its Markdown
-        run: node scripts/gen-guide.mjs && git diff --exit-code packages/core/src/guide/guide-text.ts
+      - name: The embedded guide and Playbook starter match their Markdown
+        run: node scripts/gen-guide.mjs && git diff --exit-code packages/core/src/guide/guide-text.ts packages/core/src/playbook-starter/starter-text.ts
       - run: pnpm typecheck
       - run: pnpm test
       - run: pnpm build

@@ -1347,6 +1347,11 @@ count of changes under a heading one level below the section's own (h2 under Act
 under Access changes' h2, §7.11, and the same size in both), and load 50 at a time under "Show older changes"; the oldest day loaded may go on
 past them, so while older changes wait its count says only what is loaded ("37+ changes").
 
+Changes to the product's Playbook are entries too, naming the file's path ("Sam, via claude-code, added
+to the Playbook lessons/canvas-titles.md"), one for each file changed, several changed at once
+included, with no link, since the app shows no file of it; they filter as Playbook. Turning the Playbook off
+or on is a change to the product's settings, filtered with them, and links to Settings → Playbook.
+
 This is how a person answers "what did my colleague's agent just do to my product" without reading
 a diff. It is also the first place to look when a `409` surprises someone.
 
@@ -1405,7 +1410,7 @@ never described as deleting. A list row showing an archived object says *Archive
   down its left, grouped by whose they are, each group headed by its name; only the sections the
   person may use are listed:
   - **the product** the panel shows (not for someone who reads only its Story): General
-    (`product`), People (`product/people`) and Export (`product/export`);
+    (`product`), People (`product/people`), Playbook (`product/playbook`) and Export (`product/export`);
   - **its organization** (not for someone who reads only the Story there, nor for a guest of the
     example organization): General (`organization`) and Access changes (`organization/access`) for
     its owners and admins, People (`organization/people`) for everyone, and Plan
@@ -1435,6 +1440,19 @@ never described as deleting. A list row showing an archived object says *Archive
   only), and outstanding invitations with a cancel control. An inherited role links to People in
   the organization, where it is changed; so does the head, for someone who is not an admin. Access
   is per product; nothing is granted per page or per source.
+- **The product's Playbook** (`?settings=product/playbook`,
+  [decision](../decisions/each-product-keeps-a-playbook-its-agents-write.md)). What the Playbook is, in two
+  short paragraphs: where the agents of everyone working on the product keep what they learn
+  together, which they read before they start and add to as they go; that WhatBuild does not show
+  it, so people ask their agent what it says; that every change is kept and the export includes it
+  (to a guest of the example organization, only that their agent can read it for them); and that
+  its files are in the Open Knowledge Format. Then how many files it holds, or that it holds WhatBuild's starter until
+  an agent first writes to it, and **Keep a Playbook for this product**, a choice its admins turn off
+  and on (`products.set_playbook`, in the web app only), saying that off, agents can neither read nor
+  change it and nothing points them to it, and nothing in it is lost. Anyone else reads the choice
+  disabled, with a note that only admins change it; it is disabled too while the product is archived
+  or its organization read-only. No file of the Playbook is shown anywhere in the app; the activity log
+  names its changes (§7.9).
 - **The product's Export** (`?settings=product/export`): a copy of the whole product to download
   ([§9.4](09-data-lifecycle.md)).
 - **The organization's General** (`?settings=organization`, for its owners and admins).

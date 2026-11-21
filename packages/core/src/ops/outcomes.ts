@@ -11,6 +11,8 @@ import { expectedEtag, id } from "../schemas.ts";
 import { likeContaining, newEtag, newId } from "../util.ts";
 import { adviseIdeaCard, CARD_FRAMES, CARD_GUIDANCE, CARD_HTML_MAX, CARD_ICON_NAMES, checkCardSides, checkIdeaCard } from "../idea-card.ts";
 import { makeRoomForPreview, openThePreview, PREVIEW_OPENING, PREVIEW_SECRET, previewGrant } from "../previews.ts";
+import { citedByPlaybook } from "../playbook.ts";
+import { playbookFilesFor } from "./playbook.ts";
 
 type Row = Selectable<OutcomesTable>;
 
@@ -237,8 +239,8 @@ export const outcomeCardGuidance = defineOperation({
   input: z.strictObject({}),
   rest: { method: "GET", path: "/idea/card-guidance" },
   mcp: { tool: "outcomes", action: "card_guidance" },
-  async handler() {
-    return { guidance: CARD_GUIDANCE, icons: [...CARD_ICON_NAMES], frames: CARD_FRAMES, max_chars: CARD_HTML_MAX };
+  async handler(ctx) {
+    return { guidance: CARD_GUIDANCE, icons: [...CARD_ICON_NAMES], frames: CARD_FRAMES, max_chars: CARD_HTML_MAX, ...(await playbookFilesFor(ctx, "idea")) };
   },
 });
 
@@ -273,7 +275,8 @@ export const archiveOutcome = defineOperation({
   rest: { method: "POST", path: "/outcomes/:outcome_id/archive" },
   mcp: { tool: "outcomes", action: "archive" },
   async handler(ctx, input) {
-    return setArchived(ctx, input, true);
+    const row = await setArchived(ctx, input, true);
+    return { ...row, ...(await citedByPlaybook(ctx, "outcomes", input.outcome_id)) };
   },
 });
 

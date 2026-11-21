@@ -62,6 +62,8 @@ const DOC_PLACES = [
   /^apps\/web\/(DESIGN|PRODUCT)\.md$/,
   /(^|\/)README\.md$/,
   /^packages\/core\/src\/guide\/\d\d-[a-z0-9-]+\.md$/,
+  // The starter every product's Playbook begins as: product content the server embeds, as it does the guide.
+  /^packages\/core\/src\/playbook-starter\/([a-z0-9-]+\/)?[a-z0-9-]+\.md$/,
   /^\.github\//,
   /^e2e\/plans\/[\w-]+\.md$/,
 ];

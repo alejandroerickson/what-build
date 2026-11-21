@@ -54,11 +54,11 @@ const keys = (groups: ReturnType<typeof settingsGroups>) => groups.map((g) => `$
 
 describe("the sections a person may use", () => {
   it("gives an organization's owner every section, grouped by whose it is", () => {
-    expect(keys(settingsGroups(product("admin"), tenant(), true))).toEqual(["Planner: General, People, Export", "Acme: General, People, Plan, Access changes", "You: Account, Agents"]);
+    expect(keys(settingsGroups(product("admin"), tenant(), true))).toEqual(["Planner: General, People, Playbook, Export", "Acme: General, People, Plan, Access changes", "You: Account, Agents"]);
   });
 
   it("gives a member the organization's People and Plan, and leaves Plan out where no plans are offered", () => {
-    expect(keys(settingsGroups(product("editor"), tenant({ your_role: "member" }), true))).toEqual(["Planner: General, People, Export", "Acme: People, Plan", "You: Account, Agents"]);
+    expect(keys(settingsGroups(product("editor"), tenant({ your_role: "member" }), true))).toEqual(["Planner: General, People, Playbook, Export", "Acme: People, Plan", "You: Account, Agents"]);
     expect(keys(settingsGroups(product("editor"), tenant({ your_role: "member" }), false))[1]).toBe("Acme: People");
   });
 
@@ -67,7 +67,7 @@ describe("the sections a person may use", () => {
   });
 
   it("gives a guest of the example organization nothing of the organization", () => {
-    expect(keys(settingsGroups(product("guest"), tenant({ your_role: "guest", example: true }), true))).toEqual(["Planner: General, People, Export", "You: Account, Agents"]);
+    expect(keys(settingsGroups(product("guest"), tenant({ your_role: "guest", example: true }), true))).toEqual(["Planner: General, People, Playbook, Export", "You: Account, Agents"]);
   });
 
   it("gives an organization with no product its own sections and the person's", () => {

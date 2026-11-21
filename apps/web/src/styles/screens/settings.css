@@ -1,4 +1,4 @@
-/* Product settings: details, people on this product, export, organization, archive. */
+/* Product settings: details, people on this product, its Playbook, export, organization, archive. */
 
 .settings-note {
   padding: var(--s-3) var(--sheet-px) 0;
@@ -18,6 +18,16 @@
 .settings-anchor {
   display: block;
   scroll-margin-top: var(--s-4);
+}
+/* The product's Playbook: what it is, and turning it off or on. */
+.playbook-settings {
+  display: grid;
+  gap: var(--s-3);
+}
+.playbook-settings > p {
+  margin: 0;
+  max-width: 70ch;
+  line-height: 1.55;
 }
 .settings-foot {
   margin: var(--s-4) 0 0;
