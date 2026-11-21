@@ -19,15 +19,45 @@
   display: block;
   scroll-margin-top: var(--s-4);
 }
-/* The product's Playbook: what it is, and turning it off or on. */
-.playbook-settings {
+/* The product's Playbook: what it is and holds, then, below a hairline, turning it off or on. */
+.playbook-about,
+.playbook-setting {
   display: grid;
   gap: var(--s-3);
 }
-.playbook-settings > p {
+.playbook-about > p {
   margin: 0;
+}
+/* What it holds, as a key: a word for each part, and what that part is in muted text beside it. */
+.playbook-parts {
+  display: grid;
+  gap: var(--s-1);
   max-width: 70ch;
-  line-height: 1.55;
+  margin: 0;
+}
+.playbook-parts > div {
+  display: grid;
+  grid-template-columns: 7em minmax(0, 1fr);
+  gap: var(--s-3);
+  line-height: 1.45;
+}
+.playbook-parts dt {
+  font-weight: var(--fw-medium);
+}
+.playbook-parts dd {
+  margin: 0;
+  color: var(--muted);
+}
+.playbook-setting {
+  border-top: 1px solid var(--line);
+}
+/* The box sits on the text's left edge and level with the label's first line; its hover fill reaches into the gutter. */
+.playbook-setting .choice-row {
+  align-items: flex-start;
+  margin-inline: calc(-1 * (var(--s-2) + 1px));
+}
+.playbook-setting .choice-row input {
+  margin-top: 2px;
 }
 .settings-foot {
   margin: var(--s-4) 0 0;

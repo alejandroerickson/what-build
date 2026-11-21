@@ -1442,18 +1442,21 @@ never described as deleting. A list row showing an archived object says *Archive
   the organization, where it is changed; so does the head, for someone who is not an admin. Access
   is per product; nothing is granted per page or per source.
 - **The product's Playbook** (`?settings=product/playbook`,
-  [decision](../decisions/each-product-keeps-a-playbook-its-agents-write.md)). What the Playbook is, in two
-  short paragraphs: where the agents of everyone working on the product keep what they learn
-  together, which they read before they start and add to as they go; that WhatBuild does not show
-  it, so people ask their agent what it says; that every change is kept and the export includes it
-  (to a guest of the example organization, only that their agent can read it for them); and that
-  its files are in the Open Knowledge Format. Then how many files it holds, or that it holds WhatBuild's starter until
-  an agent first writes to it, and **Keep a Playbook for this product**, a choice its admins turn off
-  and on (`products.set_playbook`, in the web app only), saying that off, agents can neither read nor
-  change it and nothing points them to it, and nothing in it is lost. Anyone else reads the choice
-  disabled, with a note that only admins change it; it is disabled too while the product is archived
-  or its organization read-only. No file of the Playbook is shown anywhere in the app; the activity log
-  names its changes (§7.9).
+  [decision](../decisions/each-product-keeps-a-playbook-its-agents-write.md)). What the Playbook is,
+  in a sentence: where the agents of everyone working on the product keep what they learn, which
+  they read before they start and add to as they go. Then what it holds, as a key of a word and a
+  muted line each: Current work, Lessons, Kits and People. Then that WhatBuild doesn't show it, so
+  to see what it says (and, for an editor or admin, to change it) people ask their agent, and that
+  every change is kept and can be undone. A muted line gives how many files it holds, or that it
+  holds WhatBuild's starter files until an agent first writes to it (only while it is on), and that
+  an export of the product includes it, in the Open Knowledge Format. A guest of the example
+  organization, which isn't exported, is told neither that nor that changes are kept. Below a
+  hairline, **Keep a Playbook for this product**, a choice its admins turn off and on
+  (`products.set_playbook`, in the web app only), saying that off, agents can't read or change it
+  and nothing in it is lost. Anyone else reads the choice disabled, with a note above it that only
+  admins change it (a guest, that the example can't be changed); it is disabled too while the
+  product is archived, with a note to restore it under General, or its organization read-only. No
+  file of the Playbook is shown anywhere in the app; the activity log names its changes (§7.9).
 - **The product's Export** (`?settings=product/export`): a copy of the whole product to download
   ([§9.4](09-data-lifecycle.md)).
 - **The organization's General** (`?settings=organization`, for its owners and admins).

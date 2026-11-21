@@ -125,16 +125,28 @@ export function ProductPeopleSettings() {
   return <PeopleSheet />;
 }
 
+/** What a product's Playbook holds. */
+const PLAYBOOK_PARTS = [
+  { term: "Current work", holds: "What the team is working on now" },
+  { term: "Lessons", holds: "From the corrections people make" },
+  { term: "Kits", holds: "The code agents build pages with" },
+  { term: "People", holds: "What each person works on, and how they like to work" },
+];
+
 /**
- * Settings → the product → Playbook: what the product's Playbook is, and turning it off or on. The Playbook itself
- * is not shown in the app: people's agents read and write it for them.
+ * Settings → the product → Playbook: what the product's Playbook is and holds and how to see it, then, below a
+ * hairline, turning it off or on. The Playbook itself is not shown in the app: people's agents read and write it.
  */
 export function ProductPlaybookSettings() {
   const { product, api: base, isAdmin, readOnlyOrganization } = useProduct();
   const qc = useQueryClient();
   const toast = useToast();
+  const generalLink = useSettingsTo()("product");
   const on = product.playbook_enabled ?? product.playbook?.enabled ?? true;
   const archived = Boolean(product.archived_at);
+  const guest = product.your_role === "guest";
+  // A viewer's agent, like a guest's, only reads it.
+  const writes = product.your_role === "editor" || product.your_role === "admin";
   const save = useMutation({
     mutationFn: (enabled: boolean) => api<{ playbook_enabled: boolean }>("PUT", `${base}/playbook/enabled`, { enabled }),
     onSuccess: (r) => {
@@ -143,41 +155,54 @@ export function ProductPlaybookSettings() {
     },
   });
   const files = product.playbook?.files;
+  const holds = !on
+    ? null
+    : product.playbook?.started === false
+      ? "Until an agent first writes to it, it holds WhatBuild’s starter files."
+      : files !== undefined
+        ? `It holds ${plural(files, "file")}.`
+        : null;
+  // The example organization isn't exported, so its guests aren't told what an export holds.
+  const meta = [holds, guest ? null : "An export of the product includes it, in the Open Knowledge Format."].filter(Boolean).join(" ");
   return (
     <Sheet className="settings-sheet" labelledBy="playbook-title">
       <SheetHeader id="playbook-title" title="Playbook" count={product.name} />
-      <SheetBody>
-        <div className="playbook-settings">
-          <p>
-            The Playbook is where the agents of everyone working on {product.name} keep what they learn together: what the team is working on now, lessons from the
-            corrections people make, the kits agents build pages with, and what each person is working on and how they like to work. Agents read it before they start and add to it as
-            they go, so each one starts where the last one stopped.
-          </p>
-          <p>
-            {product.your_role === "guest"
-              ? "It isn\u2019t shown in WhatBuild: your agent can read it for you, so ask it what it says."
-              : "It isn\u2019t shown in WhatBuild: your agent reads and changes it for you, so ask it what it says. Every change is kept and can be undone, and an export of the product includes it."}{" "}
-            Its files are in the Open Knowledge Format, a way of writing knowledge down that people and agents can both read.
-          </p>
-          {on && (product.playbook?.started === false || files !== undefined) ? (
-            <p className="muted">{product.playbook?.started === false ? "It holds WhatBuild\u2019s starter until an agent first writes to it." : `It holds ${plural(files!, "file")}.`}</p>
-          ) : null}
-          {!isAdmin ? (
-            <Callout inset tone="info">
-              {product.your_role === "guest" ? "This is a worked example to read, so nothing in it can be changed." : "Only admins of this product can turn its Playbook off or on."}
-            </Callout>
-          ) : archived ? (
-            <Callout inset tone="attention">This product is archived and read-only. Restore it to change this.</Callout>
-          ) : null}
-          <ChoiceRow
-            label="Keep a Playbook for this product"
-            hint="When it is off, agents can neither read nor change it, and nothing points them to it. Nothing in it is lost, and turning it on again brings it back as it was."
-            checked={on}
-            disabled={!isAdmin || archived || readOnlyOrganization || save.isPending}
-            onChange={(e) => save.mutate(e.target.checked)}
-          />
-          {save.isError ? <ErrorCallout inset error={save.error} /> : null}
-        </div>
+      <SheetBody className="playbook-about">
+        <p>
+          The Playbook is where the agents of everyone working on {product.name} keep what they learn. Agents read it before they start and add to it as they go, so
+          each one starts where the last one stopped.
+        </p>
+        <dl className="playbook-parts">
+          {PLAYBOOK_PARTS.map((p) => (
+            <div key={p.term}>
+              <dt>{p.term}</dt>
+              <dd>{p.holds}</dd>
+            </div>
+          ))}
+        </dl>
+        <p>
+          WhatBuild doesn&rsquo;t show it. To see {writes ? "or change " : ""}what it says, ask your agent.{guest ? null : " Every change is kept and can be undone."}
+        </p>
+        {meta ? <p className="muted">{meta}</p> : null}
+      </SheetBody>
+      <SheetBody className="playbook-setting">
+        {!isAdmin ? (
+          <Callout inset tone="info">
+            {guest ? "This is a worked example to read, so nothing in it can be changed." : "Only admins of this product can turn its Playbook off or on."}
+          </Callout>
+        ) : archived ? (
+          <Callout inset tone="attention">
+            This product is archived and read-only. Restore it in <Link to={generalLink}>General</Link> to change this.
+          </Callout>
+        ) : null}
+        <ChoiceRow
+          label="Keep a Playbook for this product"
+          hint={"When it’s off, agents can’t read or change it. Nothing in it is lost."}
+          checked={on}
+          disabled={!isAdmin || archived || readOnlyOrganization || save.isPending}
+          onChange={(e) => save.mutate(e.target.checked)}
+        />
+        {save.isError ? <ErrorCallout inset error={save.error} /> : null}
       </SheetBody>
     </Sheet>
   );
