@@ -3,7 +3,7 @@ type: Specification
 title: Every object in a product, with its fields, limits and invariants, as the REST and MCP wire sees it.
 description: The common envelope (ids, etags, attribution, revisions), outcomes, sources and their tags, attachments, comments, summaries and notes, evidence links, the retired insights, decisions and assumptions, views, activity, Story, mockups, feedback, the product bundle, and the storage layout.
 tags: [spec, data-model, schema, revisions, story, mockups, export]
-generated: {by: agent:claude, at: 2026-11-18}
+generated: {by: agent:claude, at: 2026-11-21}
 status: stable
 ---
 
@@ -1248,7 +1248,9 @@ topic. Migration [`0050_playbook.sql`](../../apps/server/src/migrations/0050_pla
 - **Files.** A path is relative to the bundle (a leading `/` is taken off): letters, digits, dots,
   hyphens and underscores, each part starting with a letter or digit, at most 8 parts and 240
   characters, ending in `.md` or a kit's text file (`PLAYBOOK_EXTENSIONS`). `index.md` and `log.md` are
-  reserved at every level: `playbook.index` and `playbook.history` give them, generated. A Markdown file
+  reserved at every level: `playbook.index` and `playbook.history` give them, generated.
+  `playbook.index` also answers with `okf_version`, the version of the Open Knowledge Format the
+  Playbook's files follow (`OKF_VERSION` in `playbook.ts`). A Markdown file
   (`.md`, in any capitals) needs frontmatter with a `type`, as OKF requires (`422 playbook_frontmatter_missing`,
   `playbook_type_missing`); a write warns when it has no title or description, names an `applies_to`
   other than `idea`, `evidence`, `exploration`, `story` or `all`, or a `stale_after` that is no
@@ -1276,7 +1278,9 @@ topic. Migration [`0050_playbook.sql`](../../apps/server/src/migrations/0050_pla
   only where no file differing from it in capitals stands. `playbook.apply` checks every etag first and
   refuses all with `409 playbook_stale`, listing each stale file with its text. `playbook.purge` deletes every
   file a path has held, with its revisions, and leaves a tombstone with the reason, so a read of the
-  path answers `410 playbook_file_deleted`.
+  path, its history, a restore or a purge of it answers `410 playbook_file_deleted`. A path a file
+  was moved away from answers `404` naming the path the file has now (`moved_to`), and changes
+  nothing.
 - **Links.** `whatbuild:sources/<id>`, `whatbuild:mockups/<id>[@n][#page]`,
   `whatbuild:outcomes/<id>`, `whatbuild:story/<page_id>[@n]` and `whatbuild:product` name objects
   without a host; a form written out, as `whatbuild:mockups/<mockup_id>`, is no link. A read

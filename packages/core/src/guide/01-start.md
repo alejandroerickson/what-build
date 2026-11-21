@@ -35,7 +35,8 @@ The web app names them, and the tools follow:
 
 Beside them, each product has its **Playbook**: what the agents of everyone working on it have learned
 about the work, kept together as Markdown files (what is current, lessons from people's corrections,
-kits, what each person is working on). WhatBuild is meant to be used through it: read what
+kits, what each person is working on). WhatBuild is meant to be used through it by everyone who works
+on the product; someone who only reads its Story does not reach it. Read what
 `products_read(action="get")` lists under `playbook` before working on a product, and write to it as you
 work (see `guide(topic="playbook")`).
 

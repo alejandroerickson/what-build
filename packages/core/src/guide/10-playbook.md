@@ -10,7 +10,8 @@ its material. The Playbook holds what the team has learned about working on it, 
 everyone who works on it: what is current, lessons from the corrections people make, the kits agents
 build pages with, what each person is working on, and how the team uses the Playbook itself.
 
-WhatBuild is meant to be used through it. Read it before working on a product, and write to it as you
+WhatBuild is meant to be used through it by everyone who works on the product; someone who only reads
+its Story does not reach it. Read it before working on a product, and write to it as you
 work: when a person corrects you, when you write something you will write again, when the work
 changes direction, when you finish. Each agent then starts where the last one stopped, and nobody
 teaches the same thing twice. The more the team's agents work through it, the better every agent's
@@ -32,7 +33,8 @@ nothing in it is lost.
   Exploration.
 - `playbook_read(action="index")` lists every file with its path, type, title, description,
   `applies_to`, status, size, revision and etag, and gives `index_md`, OKF's `index.md` for a
-  folder (`prefix`).
+  folder (`prefix`), and `okf_version`, the version of the Open Knowledge Format the Playbook's files
+  follow.
 - Every answer in a product says how many messages wait for your person there, as
   `scope.playbook_messages_waiting`, when any do.
 
@@ -103,7 +105,7 @@ following a file:
 | `index` | Every file, without its text, and `index_md`; `prefix` for one folder. |
 | `read` | One file's text, etag and revision, and each `whatbuild:` link in it with what it names now. With `revision`, that revision's text. |
 | `read_files` | Every file under a `prefix` with its text and etag, up to 1 MiB an answer, `next_cursor` for more: to work on a kit on your own machine. |
-| `search` | The files whose text holds every word of `query`, with a few lines around them. |
+| `search` | The files whose text holds every word of `query`, with a few lines around them: up to three passages a file, each the line holding a word with the lines either side, line breaks kept. A word found only in the frontmatter shows frontmatter. |
 | `history` | A file's revisions, newest first; without a path, the bundle's recent changes and `log_md`. |
 | `backlinks` | The files that link to a source, mockup, outcome or Story page. |
 | `housekeeping` | What might be tidied (below). |
@@ -137,7 +139,9 @@ into a folder of their own keeping the etags, change them, and send the changes 
 
 `playbook_delete(action="purge")` deletes a file and every revision of it for good: an admin's call, with
 the file's etag, a reason and `confirm` set to `"delete permanently"`. Removing is almost always what
-is wanted.
+is wanted. Afterwards reading the path, its history, restoring or purging it answers `410
+playbook_file_deleted`, with the file's tombstone. A path a file was moved away from answers `404`
+whose details give `moved_to`, the path the file has now, where its history is.
 
 ## Links
 

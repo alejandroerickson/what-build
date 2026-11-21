@@ -3,7 +3,7 @@ type: Process
 title: What a deployment must do when it takes a release
 description: The changes a release asks of the people who run a deployment (settings, app registrations, behaviour they will notice), kept per release, with the unreleased ones on top until the next release carries them into its notes.
 tags: [operations, releases, upgrading, self-hosting, configuration]
-generated: {by: agent:claude, at: 2026-11-20}
+generated: {by: agent:claude, at: 2026-11-21}
 status: stable
 ---
 
@@ -32,6 +32,15 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
   upgrading.
 
 ## Unreleased
+
+- **The Playbook's answers say what happened to a path** (`tools_version` 0.69.0). It asks nothing
+  of a deployment, and adds no migration. The history, a restore or a purge of a path whose file was
+  deleted permanently answers `410 playbook_file_deleted`, as a read does, where it answered `404`;
+  a path a file was moved away from answers `404` naming where the file is now (`moved_to`).
+  `playbook_read(action="search")` gives each snippet as the lines around the word, line breaks
+  kept. The server's instructions and the guide say a Story reader does not reach the Playbook, and
+  the guide says what the index's `okf_version` is. A connected client sees the new instructions
+  after a new session.
 
 ## v0.42.0
 
