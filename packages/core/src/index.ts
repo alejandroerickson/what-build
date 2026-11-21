@@ -2,6 +2,7 @@ import { activityOps } from "./ops/activity.ts";
 import { deleteOps } from "./ops/deletes.ts";
 import { derivedOps } from "./ops/derived.ts";
 import { mockupOps } from "./ops/mockups.ts";
+import { okfOps } from "./ops/okf.ts";
 import { exportOps } from "./ops/export.ts";
 import { attachmentOps } from "./ops/attachments.ts";
 import { metaOps } from "./ops/meta.ts";
@@ -61,6 +62,7 @@ export { CARD_PREVIEW_PURPOSE } from "./ops/outcomes.ts";
 export { MAX_MOCKUP_PAGES, MOCKUP_UPLOAD_PURPOSE, mockupBundle, readCanvasZip, stagedPrototypeKey, stagedPrototypeKeys } from "./ops/mockups.ts";
 export { guideIndex, guideTopic, MCP_SERVER_NAME, TOOLS_VERSION, type GuideTopic } from "./ops/meta.ts";
 export { GUIDANCE_VERSION } from "./story-guidance.ts";
+export { OKF_MESSAGE_DAYS, okfMessagesWaiting, OKF_VERSION } from "./okf.ts";
 export { HOUSE_STYLE_IDS, HOUSE_STYLES, houseSpecimen, houseStyle, pageDocument, specimenBody, styleSpecimen, type HouseStyle } from "./story-styles.ts";
 export { CLICKABLE_HOW, clickableCanvas, hrefsIn, linkedPageName, mockupIndexHtml, pagesLinkedFrom, type ClickableCanvas } from "./canvas-links.ts";
 export { FRAME_SCRIPT, frameScript, THEME_ATTRIBUTE, withPrototypeFrame, withStoryFrame, withStoryTheme } from "./story-theme.ts";
@@ -83,6 +85,7 @@ export const OPERATIONS: OperationDef[] = [
   ...revisionOpsList,
   ...storyOps,
   ...mockupOps,
+  ...okfOps,
   ...activityOps,
   ...metaOps,
 ] as unknown as OperationDef[];

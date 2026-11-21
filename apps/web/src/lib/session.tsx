@@ -226,6 +226,10 @@ export interface Product {
   concept?: string;
   /** How long the concept card's front is, 0 when it has none. Absent for a Story reader. */
   card_chars?: number;
+  /** Whether the product's OKF is on. Absent for a Story reader. */
+  okf_enabled?: boolean;
+  /** The OKF as the product's answer gives it: absent for a Story reader; started false while it serves WhatBuild's starter. */
+  okf?: { enabled: boolean; started?: boolean; files?: number };
   archived_at: string | null;
   etag: string;
   path: string;

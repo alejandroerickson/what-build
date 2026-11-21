@@ -100,6 +100,7 @@ Idea screen's terms are a decision: [A product starts with its idea](../decision
 | **Story**, **page** | The team's communication with its stakeholders, and its versioned HTML pages. |
 | **view** | A derived source, tagged `analysis` (or `view`, `digest`), that says in its text what it was built from. |
 | **activity** | The append-only log of what changed in a product, and who changed it. |
+| **OKF** | A product's shared agent knowledge: a bundle in the Open Knowledge Format (Markdown files with frontmatter, and kits' text files) that the agents of everyone working on the product read and write together. Its parts: a **file** (its path in the bundle), a **lesson** (a correction or discovery that should change how agents work), a **kit** (code an agent wrote to make content, stored and never run by WhatBuild), a person's **page**, the **starter** WhatBuild ships, and a **message** from one person's agents to another's. In the web app it is named "OKF" and explained, and nothing of it is shown ([decision](../decisions/each-product-keeps-an-okf-its-agents-write.md)). Here "file" is right: it is a file of the bundle, never an attachment. |
 
 "Findings" and "open questions" are deliberately **not** product types. Do not introduce them.
 "Insight" and "decision" were product types until they were retired

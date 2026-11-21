@@ -166,6 +166,10 @@ export interface ProductsTable {
   concept: string;
   /** The front of the product concept's card, for people: agent-written HTML in the card kit, or "". */
   card_html: Generated<string>;
+  /** Whether the product's OKF is on; its admins turn it off and on in its Settings. */
+  okf_enabled: Generated<boolean>;
+  /** When its first write to the OKF copied the starter in; null while the OKF serves the starter. */
+  okf_started_at: TsNull;
   archived_at: TsNull;
   etag: string;
   created_at: Ts;
@@ -782,6 +786,69 @@ export interface StoryStylesTable {
   updated_by: Json<ActorSnapshot>;
 }
 
+/** A file of a product's OKF: Markdown with frontmatter, or a text file of a kit. */
+export interface OkfFilesTable {
+  file_id: string;
+  tenant_id: string;
+  product_id: string;
+  path: string;
+  /** Null while the file is removed. */
+  content: string | null;
+  type: string | null;
+  title: string | null;
+  description: string | null;
+  applies_to: Def<string[]>;
+  tags: Def<string[]>;
+  status: string | null;
+  stale_after: TsNull;
+  size: Def<number>;
+  revision: number;
+  etag: string;
+  created_at: Ts;
+  created_by: Json<ActorSnapshot>;
+  updated_at: Ts;
+  updated_by: Json<ActorSnapshot>;
+  removed_at: TsNull;
+}
+
+/** Every text an OKF file has had, one row a write. */
+export interface OkfRevisionsTable {
+  revision_id: string;
+  tenant_id: string;
+  product_id: string;
+  file_id: string;
+  revision: number;
+  change: "written" | "removed" | "moved" | "restored";
+  path: string;
+  content: string | null;
+  message: string | null;
+  created_at: Ts;
+  created_by: Json<ActorSnapshot>;
+}
+
+/** A whatbuild: link in an OKF file, kept so an object can say which files cite it. */
+export interface OkfLinksTable {
+  tenant_id: string;
+  product_id: string;
+  file_id: string;
+  target_kind: string;
+  target_id: string;
+}
+
+/** A message from one person's agent to another person's, about a product. */
+export interface OkfMessagesTable {
+  message_id: string;
+  tenant_id: string;
+  product_id: string;
+  from_account_id: string | null;
+  from_actor: Json<ActorSnapshot>;
+  to_account_id: string;
+  text: string;
+  created_at: Ts;
+  read_at: TsNull;
+  expires_at: string;
+}
+
 export interface ActivityTable {
   activity_id: string;
   tenant_id: string;
@@ -895,6 +962,10 @@ export interface DB {
   mockup_pages: MockupPagesTable;
   mockup_files: MockupFilesTable;
   mockup_prototype_files: MockupPrototypeFilesTable;
+  okf_files: OkfFilesTable;
+  okf_revisions: OkfRevisionsTable;
+  okf_links: OkfLinksTable;
+  okf_messages: OkfMessagesTable;
   activity: ActivityTable;
   tombstones: TombstonesTable;
   exports: ExportsTable;

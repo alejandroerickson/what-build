@@ -228,6 +228,25 @@ const SCOPED: Record<string, Probe> = {
   "mockups.delete_archived_impact": { input: () => ({}) },
   "mockups.delete_archived": { input: () => ({ expected_etag: "set-anything", reason: "Removed by an outsider", confirm: "delete permanently" }) },
   "activity.list": { input: (a) => ({ entity_id: a.source.id }) },
+  "products.set_okf": { input: () => ({ enabled: false }) },
+  "okf.index": { input: () => ({}) },
+  "okf.read": { input: (a) => ({ path: a.okf.path }) },
+  "okf.read_files": { input: () => ({ prefix: "lessons/" }) },
+  "okf.search": { input: (a) => ({ query: a.marker }) },
+  "okf.history": { input: (a) => ({ path: a.okf.path }), inside: (a) => [{ path: a.okf.path }, {}] },
+  "okf.backlinks": { input: (a) => ({ uri: `whatbuild:sources/${a.source.id}` }) },
+  "okf.housekeeping": { input: () => ({}) },
+  "okf.starter": { input: () => ({}) },
+  "okf.messages": { input: () => ({}), inside: () => [{}, { box: "sent" }] },
+  "okf.write": { input: (a) => ({ path: a.okf.path, content: "---\ntype: Lesson\n---\nPlanted by an outsider.\n", expected_etag: a.okf.etag }) },
+  "okf.remove": { input: (a) => ({ path: a.okf.path, expected_etag: a.okf.etag }) },
+  "okf.move": { input: (a) => ({ path: a.okf.path, to: "lessons/planted.md", expected_etag: a.okf.etag }) },
+  "okf.restore": { input: (a) => ({ path: a.okf.path, revision: 1, expected_etag: a.okf.etag }) },
+  "okf.apply": { input: (a) => ({ changes: [{ action: "write", path: a.okf.path, content: "---\ntype: Lesson\n---\nPlanted by an outsider.\n", expected_etag: a.okf.etag }] }) },
+  // Inside their own product, to the victim's member, who reads nothing there.
+  "okf.send_message": { input: (a) => ({ to: a.member.accountId, text: "Planted by an outsider" }) },
+  "okf.mark_read": { input: (a) => ({ message_ids: [a.okf.messageId] }), inside: (a) => [{ message_ids: [a.okf.messageId] }, { all: true }] },
+  "okf.purge": { input: (a) => ({ path: a.okf.path, expected_etag: a.okf.etag, reason: "Removed by an outsider", confirm: "delete permanently" }) },
 };
 
 /** Writes that act on each of a list of objects, and report the ones they could not act on. */

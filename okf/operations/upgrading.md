@@ -23,7 +23,15 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
 
 ## Unreleased
 
-Nothing yet.
+- **Each product has an OKF its people's agents write together.** The release migrates
+  (`0050_okf.sql`: `products.okf_enabled`, on for every product, and `okf_started_at`; the tables
+  `okf_files`, `okf_revisions`, `okf_links` and `okf_messages`, with row-level security), so rehearse
+  it on the dev deployment first; nothing to set. Agents get `okf_read`, `okf_write` and, on an
+  Admin connection, `okf_delete`, and are told of the OKF in the server's instructions, the guide's
+  new `okf` topic and `products_read(action="get")`; the tools version becomes 0.68.0, so a
+  connected client sees them after a new session. People see a new section in a product's Settings,
+  OKF, which explains it and where its admins turn it off. A product's export holds its OKF
+  (`okf/files/`, `okf/revisions.jsonl`); the worker deletes messages 60 days after they were sent.
 
 ## v0.41.0
 

@@ -6,7 +6,7 @@ import type { Browser, Harness } from "./harness.ts";
  * An organization with something in every kind of row a product holds: outcomes and their
  * revisions, tagged sources with attachments, readings, derived texts and their search index, annotations and agent notes, a view,
  * a Story with a style, a hierarchy, notes, a preview, a card preview and a promoted
- * mockup page, a mockup with files and a canvas upload, a mockup whose page enters a prototype, an export, an invitation and a second member. Every text it
+ * mockup page, a mockup with files and a canvas upload, a mockup whose page enters a prototype, an export, an invitation, a second member, and a lesson in its OKF with a message to that member. Every text it
  * writes carries `marker`, so a test can tell whether any of it reached someone else.
  */
 export interface Organization {
@@ -36,6 +36,8 @@ export interface Organization {
   exportId: string;
   invitationId: string;
   member: { accountId: string; email: string };
+  /** A file of its OKF, linking to its source, and a message from its owner's agents to its member's. */
+  okf: { path: string; etag: string; messageId: string };
   /** Distinctive strings and ids that belong to this organization alone. */
   secrets: string[];
 }
@@ -124,6 +126,18 @@ export async function buildOrganization(h: Harness, owner: Browser, name: string
   const invitationId = invited.invitation_id ?? members.invitations?.[0]?.invitation_id;
   expect(invitationId, JSON.stringify(members)).toBeTruthy();
 
+  // Its OKF: the starter copied in by a lesson of its own, and a message to its member.
+  const okfPath = `lessons/${marker.toLowerCase()}.md`;
+  const lesson = ok(
+    await owner.api("PUT", `${P}/okf/file`, {
+      path: okfPath,
+      content: `---\ntype: Lesson\ntitle: ${marker} lesson\ndescription: ${marker} rule for every canvas.\napplies_to: [exploration]\n---\n\n${marker} said so, about whatbuild:sources/${src.record_id}.\n`,
+      message: `${marker} reason`,
+    }),
+    200,
+  );
+  const sent = ok(await owner.api("POST", `${P}/okf/messages`, { to: memberId, text: `${marker} message to the member's agents` }));
+
   const product = ok(await owner.api("GET", P), 200);
   const source = ok(await owner.api("GET", `${P}/sources/${src.record_id}`), 200);
   const viewNow = ok(await owner.api("GET", `${P}/sources/${view.record_id}`), 200);
@@ -151,6 +165,7 @@ export async function buildOrganization(h: Harness, owner: Browser, name: string
     exportId: ex.export_id,
     invitationId,
     member: { accountId: memberId, email: memberEmail },
+    okf: { path: okfPath, etag: lesson.etag, messageId: sent.message_id },
     secrets: [],
   };
   org.secrets = [
@@ -179,6 +194,8 @@ export async function buildOrganization(h: Harness, owner: Browser, name: string
     org.invitationId,
     org.ownerAccountId,
     memberId,
+    org.okf.etag,
+    org.okf.messageId,
   ].filter(Boolean);
   return org;
 }

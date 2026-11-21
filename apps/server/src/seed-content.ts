@@ -538,3 +538,86 @@ export const MOCKUP_LINKED_PAGES = {
   days: MOCKUP.pages.days.replace('<span class="btn">Send the week</span>', '<a class="btn" href="crew-message.html">Send the week</a>'),
   message: MOCKUP.pages.message.replace('<span class="meta">or reply with a change</span>', '<a class="meta" href="day-planner.html">or change the plan</a>'),
 };
+
+/**
+ * The sample product's OKF, as Sam's agent leaves it after a week: what is current, a lesson from
+ * Riley's correction, Sam's own page, and a message to Riley's agents. Links name the sample's own
+ * objects, by the ids the seed makes.
+ */
+export const OKF_SAMPLE = {
+  now: (ids: { mockup: string; interview: string }) => `---
+type: Current Focus
+title: What the team is working on now
+description: Settling the crew hand-off message before the planner; the hand-off canvas is the work in progress.
+applies_to: [all]
+tags: [okf, current]
+status: stable
+stale_after: 2026-12-15
+---
+
+# Now
+
+## The question
+
+Can a crew lead send next week's plan to each crew in one go, from the plan, instead of typing texts? We want a yes or no from three crew leads by mid-December.
+
+## Settled
+
+- The typed hand-off message is the moment to design for, not the spreadsheet (whatbuild:sources/${ids.interview}).
+- Crews read on their phones: every crew-facing page is designed at 390 pixels wide first.
+
+## Open
+
+- Whether a late booking moves other jobs by itself, or only proposes the move. Sam is on it ([Sam's page](/people/sam-okafor.md)).
+
+## Where the work is
+
+- whatbuild:mockups/${ids.mockup}@2: the hand-off canvas, version 2, with the crew message page.
+
+## Not now
+
+- Route optimisation: crew leads plan by who can lead a job, not by distance.
+`,
+  lesson: (ids: { mockup: string; interview: string }) => `---
+type: Lesson
+title: Design the hand-off message, not the spreadsheet
+description: Riley's correction on the hand-off canvas; holds for every crew-facing page.
+applies_to: [exploration, story]
+tags: [hand-off, crews]
+status: stable
+---
+
+# Design the hand-off message, not the spreadsheet
+
+**The rule.** When a page shows a crew lead's week, start from the message each crew receives, then show the plan behind it.
+
+**What was said.** "The moment to design for is the typed hand-off message, not the spreadsheet." (Riley, on the crew lead interview)
+
+**Where.** whatbuild:sources/${ids.interview}, and the crew message page it changed: whatbuild:mockups/${ids.mockup}@2#crew-message.
+
+**How far it goes.** Every crew-facing page, and Story pages made from them.
+`,
+  person: (ids: { mockup: string }) => `---
+type: Person
+title: Sam Okafor
+description: Working on the hand-off canvas and late bookings until mid-December.
+applies_to: [all]
+stale_after: 2026-12-15
+---
+
+# Sam Okafor
+
+## Working on now
+
+The hand-off canvas (whatbuild:mockups/${ids.mockup}), and next how a late booking lands in a planned week. Why: the three crew leads we talk to in December will judge the hand-off first.
+
+## Responsible for
+
+Exploration: the canvases, and the Story pages promoted from them.
+
+## How Sam works
+
+Wants two options side by side before a recommendation.
+`,
+  message: "I've published version 2 of the hand-off canvas with a crew message page, following your comment on the interview; the lesson is in lessons/design-the-hand-off-message.md. Next I'm on late bookings, so please don't rework the crew message page this week.",
+};

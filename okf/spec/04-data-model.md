@@ -1080,6 +1080,8 @@ mockups/folders.json        the folders the mockups are arranged in, in their or
 mockups/<mockup_id>/mockup.json   with its folder (folder_id) and its place there (position)
 mockups/<mockup_id>/v<n>/{version.json,brief.md}  ·  mockups/<mockup_id>/v<n>/pages/<page_id>.{html,notes.md}
 mockups/<mockup_id>/v<n>/files/<path>  ·  mockups/<mockup_id>/v<n>/prototype/<path>
+okf/files/<path>            the OKF's files that are not removed (§4.16)
+okf/revisions.jsonl         every kept revision of every OKF file, with its text
 tombstones.json
 activity.jsonl
 ```
@@ -1092,7 +1094,8 @@ activity.jsonl
   assumption's reviews. Since version 2 a bundle holds each source's derived text as `text.md` and
   its attachments under `attachments/`; version 1 had `files/`, and each parse's passages in
   `segments.jsonl`.
-- Feedback is not part of an export.
+- Feedback is not part of an export, nor are the messages between people's agents (§4.16), each
+  of which is for one person.
 - Planned ([§9.4](09-data-lifecycle.md)): **import**, which preserves every id, version,
   revision and actor snapshot, creates a product and never merges into one (`409` if the
   `product_id` exists, unless the caller asks for a copy, which re-mints the product id only); and
@@ -1221,3 +1224,58 @@ activity.jsonl
   `story_previews` holds each document `story.preview` made (`preview_id`, the product, `page_id`,
   `html`, `shows_mockup`, `created_by`, `expires_at`), with the row-level security policy. Nothing
   refers to a row; the grant names it, and it goes when the grant expires (§4.11).
+
+## 4.16 The OKF
+
+Each product keeps an **OKF**: a bundle in the [Open Knowledge Format](https://github.com/GoogleCloudPlatform/knowledge-catalog/tree/main/okf)
+(Markdown files with YAML frontmatter, and the text files of kits) that the agents of everyone
+working on the product read and write together: what is current, lessons from people's
+corrections, kits, each person's page, and how the team uses it
+([decision](../decisions/each-product-keeps-an-okf-its-agents-write.md)). Its rules are in
+[`okf.ts`](../../packages/core/src/okf.ts) and its operations in
+[`ops/okf.ts`](../../packages/core/src/ops/okf.ts) (§6.4); agents learn it from the guide's `okf`
+topic. Migration [`0050_okf.sql`](../../apps/server/src/migrations/0050_okf.sql) made its tables.
+
+| Table | Holds |
+|---|---|
+| `products.okf_enabled` | Whether it is on (default true). Its admins turn it off and on in Settings (§7); off, every OKF call is refused with `409 okf_off` and nothing is lost. |
+| `products.okf_started_at` | When the starter was copied in; null while the product serves it. |
+| `okf_files` | One row a file: `path` (unique among files not removed, and unique whatever its capitals), its `content` (null while removed), what its frontmatter says (`type`, `title`, `description`, `applies_to`, `tags`, `status`, `stale_after`), `size`, `revision`, `etag`, who created and last changed it, `removed_at`. |
+| `okf_revisions` | Every change: the file, its `revision`, `change` (`written`, `removed`, `moved`, `restored`), the path it left, its text (null for a removal), `message`, who and when. The latest 100 of a file are kept. |
+| `okf_links` | Each `whatbuild:` link in a file that is not removed, by kind (`sources`, `mockups`, `outcomes`, `story`) and id. |
+| `okf_messages` | A message from one person's agents (`from_account_id`, `from_actor`) to another person (`to_account_id`) in the product, `text` (at most 4,000 characters), `read_at`, and `expires_at`, 60 days after it was sent. The worker's hourly housekeeping deletes it then. |
+
+- **Files.** A path is relative to the bundle (a leading `/` is taken off): letters, digits, dots,
+  hyphens and underscores, each part starting with a letter or digit, at most 8 parts and 240
+  characters, ending in `.md` or a kit's text file (`OKF_EXTENSIONS`). `index.md` and `log.md` are
+  reserved at every level: `okf.index` and `okf.history` give them, generated. A Markdown file
+  needs frontmatter with a `type`, as OKF requires (`422 okf_frontmatter_missing`,
+  `okf_type_missing`); a write warns when it has no title or description, names an `applies_to`
+  other than `idea`, `evidence`, `exploration`, `story` or `all`, or a `stale_after` that is no
+  date. Other keys are left as written. A file holds at most 256 KiB, a product at most 2,000 files
+  and 32 MiB, removed files not counted (`422 okf_file_too_large`, `okf_full`).
+- **The starter** is Markdown under [`packages/core/src/okf-starter/`](../../packages/core/src/okf-starter/),
+  embedded by `scripts/gen-guide.mjs` as `starter-text.ts`. Until a product's first write its OKF
+  serves the starter as this version ships it, at revision 0 with an etag made from each file's
+  text; the first write of any file copies the whole starter in first, by WhatBuild, keeping those
+  etags, so a write against what was served still matches. From then on the files are the team's.
+- **Versions and conflicts.** Every change makes the file's next revision. A change to a file
+  that is there needs its etag, and is refused with `409 stale_etag` and the file's current text,
+  etag, revision and writer when it is stale or missing; a new file takes none, and an etag sent
+  for a path that holds nothing is refused with `current_etag: null`
+  ([decision](../decisions/a-write-that-may-create-its-object-needs-its-etag-once-it-exists.md)).
+  A path that held a removed file goes on with that file's history. `okf.apply` checks every etag
+  first and refuses all with `409 okf_stale`, listing each stale file with its text.
+- **Links.** `whatbuild:sources/<id>`, `whatbuild:mockups/<id>[@n][#page]`,
+  `whatbuild:outcomes/<id>`, `whatbuild:story/<page_id>[@n]` and `whatbuild:product` name objects
+  without a host. A read resolves each to its title and `live`, `archived` or `missing`; archiving a
+  source, mockup, outcome or Story page that a file links to answers `okf_cited_by`.
+- **Who.** Viewers read it and mark their own messages read; editors write and send messages;
+  admins purge (§6.4); a Story reader reaches none of it, and a guest of the example organization
+  reads it. Changes are activity under `entity_type` `okf`, naming paths, never content.
+- **What goes where.** The product's export holds its files and revisions, not its messages
+  (§4.14). Deleting a product or an organization deletes its OKF, history and messages; deleting an
+  account deletes the messages sent to it, and what it wrote stays with its name, as everything it
+  added does ([§9](09-data-lifecycle.md)). A copy of an organization carries its OKF like any of its
+  tables.
+

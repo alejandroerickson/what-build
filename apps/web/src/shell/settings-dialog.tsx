@@ -5,7 +5,7 @@ import { ProductProvider, useProducts, type ProductsResponse } from "../lib/sess
 import { AgentsSettings } from "../routes/connect.tsx";
 import { OrganizationPlan } from "../routes/limits.tsx";
 import { OrganizationAccessChanges, OrganizationGeneral, OrganizationPeople } from "../routes/org.tsx";
-import { ProductExportSettings, ProductGeneralSettings, ProductPeopleSettings } from "../routes/product-misc.tsx";
+import { ProductExportSettings, ProductGeneralSettings, ProductOkfSettings, ProductPeopleSettings } from "../routes/product-misc.tsx";
 import { AccountSettings } from "../routes/settings.tsx";
 import { ErrorCallout, IconButton, Loading, SelectField, Sheet, SheetBody } from "../ui/index.tsx";
 import type { PanelProduct } from "./panel.tsx";
@@ -50,6 +50,7 @@ export function settingsGroups(product: PanelProduct | null, tenant: Tenant | nu
       items: [
         { key: "product", label: "General" },
         { key: "product/people", label: "People" },
+        { key: "product/okf", label: "OKF" },
         { key: "product/export", label: "Export" },
       ],
     });
@@ -191,11 +192,12 @@ function Section({ id, product, tenant }: { id: SettingsKey; product: PanelProdu
   switch (id) {
     case "product":
     case "product/people":
+    case "product/okf":
     case "product/export":
       if (!product) return null;
       return (
         <InProduct path={product.path}>
-          {id === "product" ? <ProductGeneralSettings /> : id === "product/people" ? <ProductPeopleSettings /> : <ProductExportSettings />}
+          {id === "product" ? <ProductGeneralSettings /> : id === "product/people" ? <ProductPeopleSettings /> : id === "product/okf" ? <ProductOkfSettings /> : <ProductExportSettings />}
         </InProduct>
       );
     case "organization":

@@ -7,7 +7,8 @@ import { checkConnectorScope, type ConnectorScope } from "./connector-scope.ts";
 import { AppError, conflict, invalid } from "./errors.ts";
 import { resolveAliases, wrongFieldHint } from "./field-aliases.ts";
 import { liveArea } from "./live.ts";
-import { exampleReadOnly, isGuest, resolveScope, type ScopeRef } from "./policy.ts";
+import { exampleReadOnly, isGuest, resolveScope, roleAtLeast, type ScopeRef } from "./policy.ts";
+import { okfMessagesWaiting } from "./okf.ts";
 import type { Ports } from "./ports.ts";
 import { callName, capRole, connectionNeeds, LEVEL_NAMES, levelAllows, type OpContext, type OperationDef, type Principal, type Scope } from "./registry.ts";
 import { enterAsGuest, guestWaiting, isGuestAccount } from "./guests.ts";
@@ -206,7 +207,7 @@ export async function execute(
   ref: ScopeRef = {},
   connector: ConnectorScope | null = null,
   signal?: AbortSignal,
-): Promise<{ result: unknown; scope: Scope }> {
+): Promise<{ result: unknown; scope: Scope; okfMessagesWaiting?: number }> {
   // Every call is counted, however it ends (`usage.ts`), and is a span of the request's trace,
   // which names the operation, the door, the agent client's family and the outcome, and nobody.
   const reached: { scope?: Scope } = {};
@@ -298,7 +299,13 @@ async function run(
   const prepared = op.prepare
     ? await op.prepare({ principal, scope, ports: env.ports, limits, now, read: (fn) => inTransaction(fn, "read") }, input as never)
     : undefined;
-  const handle = (ctx: OpContext) => op.handler(ctx, input as never, prepared);
+  // An agent's answer in a product says how many messages from other people's agents wait for it there: counted in the same transaction, after the call.
+  let waiting: number | undefined;
+  const handle = async (ctx: OpContext) => {
+    const r = await op.handler(ctx, input as never, prepared);
+    if (principal.surface === "mcp" && scope.product && roleAtLeast(scope.role, "viewer")) waiting = await okfMessagesWaiting(ctx);
+    return r;
+  };
   const result = op.bounded
     ? await boundedSearch({ db: env.db, gate: env.ports.searches }, signal, (begin) =>
         inTransaction(async (ctx) => {
@@ -310,7 +317,7 @@ async function run(
   if (enqueued) env.ports.notifyJobs?.();
   // Past the commit, so nobody hears of a change that did not happen. An export changes nothing the team has.
   if (op.mutates && !op.copiesOut && scope.product) env.ports.live?.changed(scope.product.product_id, liveArea(op));
-  return { result, scope };
+  return { result, scope, ...(waiting ? { okfMessagesWaiting: waiting } : {}) };
 }
 
 /** The refusal for a write in an organization that is read-only until it moves to another plan. */

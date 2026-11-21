@@ -3,7 +3,7 @@ type: Index
 title: Decisions
 description: Architectural decision records, each with its context, the choice, and what it constrains.
 tags: [index, decisions, adr]
-generated: {by: agent:claude, at: 2026-11-15}
+generated: {by: agent:claude, at: 2026-11-20}
 status: stable
 ---
 
@@ -121,6 +121,7 @@ name what replaced it, and date the change. Smaller decisions are marked
 - [Mail is set up through Cloudflare Email Sending over SMTP, any SMTP provider can take its place, and a dev deployment sends none](mail-is-set-up-through-cloudflare-email-sending-and-a-dev-deployment-sends-none.md)
 - [Times are UTC in data and the API, and shown in the viewer's own time zone](times-are-utc-in-data-and-local-where-shown.md)
 - [Mockups are arranged by hand, in folders one level deep that everyone in the product shares](mockups-are-arranged-by-hand-in-folders-one-level-deep.md)
+- [Each product keeps an OKF that its people's agents write together, started from WhatBuild's starter and kept as revisions in Postgres](each-product-keeps-an-okf-its-agents-write.md)
 - [The tutorial's examples are fixed content shipped with the web app, never in a product and never visible to agents](the-tutorials-examples-are-fixed-content-shipped-with-the-web-app.md)
 - [The tutorial is remembered on the account, through the person's own session, and reached by no agent](the-tutorial-is-remembered-on-the-account-and-reached-by-no-agent.md)
 - [The tutorial is five short ones, a welcome and one for each page, each starting by itself the first time its page is opened, and the person can turn them all off](the-tutorial-is-five-short-ones-each-starting-the-first-time-its-page-is-opened.md)

@@ -1,7 +1,7 @@
 ---
 type: Specification
 title: Every capability is one registered operation, reached identically over REST and MCP.
-description: The operation registry, the error model and bounds, the full catalogue of 122 operations with their REST routes and MCP tools, authorization and agent connection levels, upload flows, the guide and the Connect page.
+description: The operation registry, the error model and bounds, the full catalogue of 140 operations with their REST routes and MCP tools, authorization and agent connection levels, upload flows, the guide and the Connect page.
 tags: [spec, operations, rest, mcp, registry, uploads, guide]
 generated: {by: agent:claude, at: 2026-11-18}
 status: stable
@@ -258,7 +258,7 @@ it always has.
 
 ### The operation catalogue
 
-All 122 operations, generated from `OPERATIONS`. The MCP tool is the operation name's first half;
+All 140 operations, generated from `OPERATIONS`. The MCP tool is the operation name's first half;
 standalone tools (—) take their fields directly. "Needs" is the minimum role
 ([§3.5](03-accounts-and-identity.md)); `members` write actions check admin at the level
 being changed inside the handler.
@@ -285,6 +285,7 @@ being changed inside the handler.
 | `products` | `create` | `POST /api/v1/tenants/:tenant/products` | product creator, admin or owner of the tenant |
 | `products` | `get` | `GET P` | Story reader |
 | `products` | `update` | `PATCH P` | admin, in the web app only |
+| `products` | `set_okf` | `PUT P/okf/enabled` | admin, in the web app only |
 | `products` | `update_concept` | `PATCH P/idea/concept` | editor |
 | `products` | `archive` | `POST P/archive` | admin |
 | `products` | `restore` | `POST P/restore` | admin |
@@ -384,11 +385,42 @@ being changed inside the handler.
 | `mockups` | `delete` | `DELETE P/mockups/:mockup_id` | admin |
 | `mockups` | `delete_archived_impact` | `GET P/archived-mockups/delete-impact` | viewer |
 | `mockups` | `delete_archived` | `DELETE P/archived-mockups` | admin |
+| `okf` | `index` | `GET P/okf` | viewer |
+| `okf` | `read` | `GET P/okf/file` | viewer |
+| `okf` | `read_files` | `GET P/okf/files` | viewer |
+| `okf` | `search` | `GET P/okf/search` | viewer |
+| `okf` | `history` | `GET P/okf/history` | viewer |
+| `okf` | `backlinks` | `GET P/okf/backlinks` | viewer |
+| `okf` | `housekeeping` | `GET P/okf/housekeeping` | viewer |
+| `okf` | `starter` | `GET P/okf/starter` | viewer |
+| `okf` | `messages` | `GET P/okf/messages` | viewer |
+| `okf` | `write` | `PUT P/okf/file` | editor |
+| `okf` | `remove` | `POST P/okf/file/remove` | editor |
+| `okf` | `move` | `POST P/okf/file/move` | editor |
+| `okf` | `restore` | `POST P/okf/file/restore` | editor |
+| `okf` | `apply` | `POST P/okf/apply` | editor |
+| `okf` | `send_message` | `POST P/okf/messages` | editor |
+| `okf` | `mark_read` | `POST P/okf/messages/read` | viewer (an Edit connection) |
+| `okf` | `purge` | `DELETE P/okf/file` | admin |
 | `activity` | `list` | `GET P/activity` | viewer |
 | `guide` | — | `GET /api/v1/guide` | signed in |
 | `submit_feedback` | — | `POST /api/v1/feedback` | signed in |
 
 Notes on recent actions:
+
+- The OKF's actions ([§4.16](04-data-model.md#416-the-okf),
+  [decision](../decisions/each-product-keeps-an-okf-its-agents-write.md)) read and write a product's
+  shared agent knowledge. Every change to a file that exists takes its etag; a stale or missing one
+  is `409 stale_etag` with `current_content`, `current_etag`, `current_revision` and who wrote it,
+  and `apply` checks all its steps' etags first, refusing the whole change with `409 okf_stale` and
+  `details.files`. Every call is refused with `409 okf_off` while the product's admins have it off,
+  which they change with `products.set_okf` in the web app only. `products.get` gives `okf_enabled`
+  and `okf` (`read_first`, `by_area`, `files`, `messages_waiting`); `story.guidance`,
+  `outcomes.card_guidance`, `derived.card_guidance` and, over MCP, `mockups.list` give `okf.files`
+  for their part; archiving a source, outcome, mockup or Story page answers `okf_cited_by` when a
+  file links to it; and every product answer over MCP carries `scope.okf_messages_waiting` when
+  messages wait. `send_message` answers `201`. `mark_read` needs an Edit connection, as any write
+  does, though a viewer may mark their own.
 
 - A source's summary and notes have an etag of their own, as its derived text has, and a write
   over any of the three needs it once there is one
@@ -908,8 +940,9 @@ in now, one to `get_skill` that the skill is retired and `guide` replaces it, an
 `assumptions_read`, `assumptions_write` or `assumptions_delete` that assumptions are retired and
 WhatBuild no longer keeps them ([§4.8](04-data-model.md)).
 
-**Tools.** Twenty-six tools over the 93 operations an agent may be offered (all 111 but the 18 a
-person does only in the web app: renaming an organization or a product, deleting an organization
+**Tools.** Twenty-nine tools over the 121 operations an agent may be offered (all 140 but the 19 a
+person does only in the web app: renaming an organization or a product, turning a product's OKF off
+or on, deleting an organization
 and its preview, deleting one's own account and its preview, running the instance, its owners'
 ten actions and removing an account, and a browser giving an attachment its first picture,
 [decision](../decisions/running-the-instance-is-done-in-the-web-app-never-by-an-agent.md)): for each noun a `_read` tool, a `_write` tool and, where something can be deleted for
@@ -951,6 +984,9 @@ owner's included: running the instance is done in the web app.
 | `mockups_read` | `list`, `get`, `list_versions`, `get_version`, `get_download`, `delete_impact`, `delete_archived_impact` |
 | `mockups_write` | `request_upload`, `publish`, `create_folder`, `rename_folder`, `move_folder`, `remove_folder`, `move`, `archive`, `restore` |
 | `mockups_delete` | `delete`, `delete_archived` |
+| `okf_read` | `index`, `read`, `read_files`, `search`, `history`, `backlinks`, `housekeeping`, `starter`, `messages` |
+| `okf_write` | `write`, `remove`, `move`, `restore`, `apply`, `send_message`, `mark_read` |
+| `okf_delete` | `purge` |
 | `activity_read` | `list` |
 | `search` | standalone |
 | `guide` | standalone |
@@ -1202,11 +1238,15 @@ Its topics are Markdown files, `packages/core/src/guide/NN-<topic>.md`, each ope
 and a one-sentence summary: `start` (what WhatBuild holds, roles and levels, scoped connectors, the
 example organization), `tools` (the read, write and delete tools, paging, etags, refusals,
 retries, missing tools, activity, feedback), `evidence`, `search`, `idea`,
-`mockups`, `story`, `archive-and-delete` and `organizations`. It describes what each object is,
+`mockups`, `story`, `archive-and-delete`, `organizations` and `okf` (a product's OKF: the starter,
+files, versions and conflicts, links, messages and housekeeping). It describes what each object is,
 what people see, what the server enforces and refuses, limits, formats and the procedures a
 mechanism needs (an upload grant, a canvas ZIP, a preview grant); it prescribes no method, order of
-work or style. `scripts/gen-guide.mjs` embeds the topics in the server bundle, and CI fails if the
-embedded copy drifts.
+work or style, but for one thing: it, and the server's instructions, ask agents to read each
+product's OKF before working there and to write to it as they work, where the team's own method
+lives ([decision](../decisions/each-product-keeps-an-okf-its-agents-write.md)).
+`scripts/gen-guide.mjs` embeds the topics in the server bundle, and the OKF's starter
+(`packages/core/src/okf-starter/`) with them, and CI fails if either embedded copy drifts.
 
 - `guide { topic? }` returns one topic as `{ tools_version, topic, title, text }`; without a topic,
   the first topic and `topics`, the index with each topic's title and summary.

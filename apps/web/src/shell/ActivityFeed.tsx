@@ -82,6 +82,16 @@ const VERBS: Record<string, string> = {
   "mockup:folder_renamed": "renamed the mockup folder to",
   "mockup:folder_moved": "moved the mockup folder",
   "mockup:folder_removed": "removed the mockup folder",
+  "okf:okf_file_created": "added to the OKF",
+  "okf:okf_file_written": "changed in the OKF",
+  "okf:okf_file_moved": "moved in the OKF, to",
+  "okf:okf_file_removed": "removed from the OKF",
+  "okf:okf_file_restored": "restored in the OKF",
+  "okf:okf_changed": "changed in the OKF",
+  "okf:okf_file_purged": "deleted from the OKF",
+  "okf:okf_message_sent": "sent a message to the agents of",
+  "product:okf_turned_on": "turned on the OKF of",
+  "product:okf_turned_off": "turned off the OKF of",
   "story_hierarchy:organized": "rearranged",
   "story_style:created": "set the Story style to",
   "story_style:updated": "changed the Story style to",
@@ -114,6 +124,7 @@ export const ENTITY_LABEL: Record<string, string> = {
   story_style: "the Story style",
   product: "the product",
   membership: "people and roles",
+  okf: "the OKF",
 };
 
 function linkFor(app: string, i: ActivityItem, settingsTo: ReturnType<typeof useSettingsTo>): string | null {

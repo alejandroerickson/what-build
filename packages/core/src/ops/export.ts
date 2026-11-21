@@ -43,6 +43,8 @@ export const BUNDLE_LAYOUT: readonly { path: string; holds: string }[] = [
   { path: "mockups/<mockup_id>/v<n>/pages/<page_id>.notes.md", holds: "A page's design notes." },
   { path: "mockups/<mockup_id>/v<n>/files/<path>", holds: "A file the version carries for collaborators." },
   { path: "mockups/<mockup_id>/v<n>/prototype/<path>", holds: "A file of the version's prototype, as it was uploaded." },
+  { path: "okf/files/<path>", holds: "The product's OKF as it stands: every file that is not removed, at its path in the bundle. Messages between agents are left out: each is for one person." },
+  { path: "okf/revisions.jsonl", holds: "Every kept revision of every file of the OKF, removed ones included, one a line, with its text." },
   { path: "tombstones.json", holds: "What was deleted permanently: what it was, who deleted it, when and why." },
   { path: "activity.jsonl", holds: "The activity log, one event a line." },
 ];
@@ -258,6 +260,9 @@ export async function runExport(db: Tx, ports: Ports, job: { tenant_id: string; 
         add(`${dir}/prototype/${r.path}`, await ports.blobs.get(r.blob_key));
     }
   }
+  for (const f of await db.selectFrom("okf_files").select(["path", "content"]).where("product_id", "=", pid).where("removed_at", "is", null).orderBy(sql`path collate "C"`).execute()) add(`okf/files/${f.path}`, f.content ?? "");
+  const okfRevisions = await db.selectFrom("okf_revisions").selectAll().where("product_id", "=", pid).orderBy("file_id").orderBy("revision").execute();
+  add("okf/revisions.jsonl", okfRevisions.map((r) => JSON.stringify(r)).join("\n") + (okfRevisions.length ? "\n" : ""));
   add("tombstones.json", j(await db.selectFrom("tombstones").selectAll().where("product_id", "=", pid).execute()));
   const activity = await db.selectFrom("activity").selectAll().where("product_id", "=", pid).orderBy("activity_id").execute();
   add("activity.jsonl", activity.map((a) => JSON.stringify(a)).join("\n") + (activity.length ? "\n" : ""));

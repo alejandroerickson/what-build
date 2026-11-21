@@ -216,6 +216,8 @@ async function endAccount(ctx: OpContext, account: Ending, self: boolean) {
   for (const t of tenants) {
     const roles = `${Number(t.n)} ${Number(t.n) === 1 ? "role" : "roles"}`;
     await sql`select set_config('app.tenant_id', ${t.tenant_id}, true)`.execute(db);
+    // Messages other people's agents sent theirs, which nobody else reads. What they sent stays, as what they wrote does.
+    await db.deleteFrom("okf_messages").where("to_account_id", "=", id).execute();
     await db
       .insertInto("activity")
       .values({

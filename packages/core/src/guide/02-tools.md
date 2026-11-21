@@ -15,7 +15,7 @@ product away and changes nothing in it, so it is neither a read nor a write, and
 destroys nothing.
 
 The kinds are `products`, `members`, `sources`, `attachments`, `derived`, `outcomes`, `mockups`,
-`story` and `activity`. Each of these tools takes `action`, `params` (the action's fields),
+`story`, `okf` and `activity`. Each of these tools takes `action`, `params` (the action's fields),
 `product`, and `describe`. Called with an action, `describe: true` and no params, it returns that
 action's exact schema and guidance without running it:
 

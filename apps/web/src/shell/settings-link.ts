@@ -3,12 +3,13 @@ import { useLocation } from "react-router";
 
 /**
  * A section of Settings, the dialog that opens over whatever screen the person is on, addressed by
- * `?settings=<section>`: the product's (General, People, Export), its organization's (General,
+ * `?settings=<section>`: the product's (General, People, OKF, Export), its organization's (General,
  * People, Plan, Access changes) and the person's own (Account, Agents).
  */
 export type SettingsKey =
   | "product"
   | "product/people"
+  | "product/okf"
   | "product/export"
   | "organization"
   | "organization/people"

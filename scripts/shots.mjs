@@ -155,6 +155,7 @@ for (const device of ["desktop", "phone"]) {
     await shoot("activity", "/activity");
     // Settings, a dialog over the screen: the product's General, the organization's People and Plan, the person's own.
     await shoot("settings-product", "/idea?settings=product", { full: false });
+    await shoot("settings-okf", "/idea?settings=product/okf", { full: false });
     await shoot("settings-people", "/idea?settings=organization/people", { full: false });
     await shoot("settings-plan", "/idea?settings=organization/plan", { full: false });
     await shoot("settings-account", "/idea?settings=account", { full: false });

@@ -14,6 +14,7 @@ export type EntityType =
   | "story_hierarchy"
   | "story_style"
   | "annotation"
+  | "okf"
   | "feedback";
 
 /** Items in a sentence: "a", "a and b", "a, b and c". */

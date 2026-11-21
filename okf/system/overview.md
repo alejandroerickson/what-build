@@ -42,7 +42,12 @@ prototype carried as it is ([decision](../decisions/mockups-carry-prototypes-ser
 what a product held of them became sources
 ([decision](../decisions/insights-and-decisions-are-retired-into-evidence.md)); assumptions were
 removed, and every one deleted
-([decision](../decisions/assumptions-are-removed-and-every-one-is-deleted.md)).
+([decision](../decisions/assumptions-are-removed-and-every-one-is-deleted.md)). Beside the loop,
+each product keeps an **OKF**, where the agents of everyone working on it keep what they learn
+together (what is current, lessons from people's corrections, kits, each person's page), as
+Markdown files in the Open Knowledge Format, versioned in Postgres; WhatBuild is meant to be used
+through it, and people see it only as a setting
+([decision](../decisions/each-product-keeps-an-okf-its-agents-write.md)).
 
 **The system.** One stateless container image on Cloud Run serves the web app, REST (`/api/v1`),
 MCP (`/mcp`), OAuth (`/oauth`) and the upload relay, and runs the job worker. Postgres holds every
@@ -64,12 +69,12 @@ Google Cloud Storage behind a storage port; the official MCP SDK (stateless Stre
 React 19, React Router 7, TanStack Query 5, Vite 8; Vitest. Details in
 [architecture](../spec/02-architecture.md).
 
-**Operations.** 122 operations, each defined once and exposed through both REST and MCP, but for
-eighteen: running the instance (its owners' ten actions on plans, organizations, guests,
-allowances, accounts and usage, and removing an account), renaming an organization or a product,
-which its owners or admins do, deleting an organization and previewing that delete, which only its
+**Operations.** 140 operations, each defined once and exposed through both REST and MCP, but for
+nineteen: running the instance (its owners' ten actions on plans, organizations, guests,
+allowances, accounts and usage, and removing an account), renaming an organization or a product
+and turning a product's OKF off or on, which its owners or admins do, deleting an organization and previewing that delete, which only its
 owners or an instance owner do, and deleting one's own account and previewing that, which only its
-person does, all in the web app, and a person's browser giving a web page its first picture. Agents are offered the other 104, as 26 tools
+person does, all in the web app, and a person's browser giving a web page its first picture. Agents are offered the other 121, as 29 tools
 ([decision](../decisions/one-registry-two-front-doors.md),
 [decision](../decisions/running-the-instance-is-done-in-the-web-app-never-by-an-agent.md)).
 
@@ -163,17 +168,20 @@ in the same transaction ([derived layer](../spec/05-derived-layer.md),
 Every write of a source's title, tags, summary, notes, text or comments indexes it again the same
 way.
 
-**An agent's session**, as one might go. `products_read list` → `guide` for a topic it needs →
+**An agent's session**, as one might go. `products_read list` → `products_read get`, then the
+files its `okf` lists first through `okf_read` → `guide` for a topic it needs →
 `sources_read facets` and upload through `attachments_write` → `search`, then `derived_read text`
 around a hit → `mockups_write publish` a canvas with its brief, or `get_download` a version, build the next one in a
 project and publish the pages that changed
 ([decision](../decisions/mockups-are-versioned-canvases-in-exploration.md)) → read
 `story_read guidance` and the page's notes, `story_read preview` the call and look at the page it
-would store, `story_write publish` the same call, update the notes, `set_hierarchy`
+would store, `story_write publish` the same call, update the notes, `set_hierarchy` → `okf_write`
+a lesson when the person corrected something, and the product's current focus when it moved
 ([decision](../decisions/story-notes-are-agent-memory.md),
 [decision](../decisions/a-story-preview-is-the-document-publish-would-store.md)).
 
 **Data.** Identity, tenancy, evidence (records, attachments and their readings, derived texts,
 the search index, comments, summaries and notes), synthesis (outcomes and their revisions), mockups (versions,
-their pages and their files), Story (pages, versions, hierarchy) and operations (activity, jobs, exports, tombstones). Every table and
+their pages and their files), Story (pages, versions, hierarchy), the OKF (files, their revisions
+and links, messages) and operations (activity, jobs, exports, tombstones). Every table and
 field: [data model](../spec/04-data-model.md).

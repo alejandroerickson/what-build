@@ -14,6 +14,7 @@ import { keepCardPreview, refuseCardPreview } from "./outcomes.ts";
 import { PREVIEW_OPENING, PREVIEW_SECRET } from "../previews.ts";
 import { newEtag, newId, sameEtag } from "../util.ts";
 import { attachmentReadings, attachmentText, loadRecord, takenFrom, textFileId } from "./sources.ts";
+import { okfFilesFor } from "./okf.ts";
 
 export const TEXT_WINDOW_MAX = 20_000;
 export const AGENT_NOTE_MAX = 100_000;
@@ -440,8 +441,8 @@ export const sourceCardGuidanceOp = defineOperation({
   input: z.strictObject({}),
   rest: { method: "GET", path: "/evidence/card-guidance" },
   mcp: { tool: "derived", action: "card_guidance" },
-  async handler() {
-    return sourceCardGuidance();
+  async handler(ctx) {
+    return { ...sourceCardGuidance(), ...(await okfFilesFor(ctx, "evidence")) };
   },
 });
 

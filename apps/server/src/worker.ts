@@ -236,7 +236,7 @@ export class Worker {
     if (sent) this.log(`feedback digest: ${sent} report(s) sent`);
   }
 
-  /** Housekeeping, at most hourly: finished jobs after a week; OAuth registrations nobody connected with; people's days of use after 14 months; feedback counts of days that are over; abandoned upload grants and canvas uploads, and their bytes; expired Story previews. */
+  /** Housekeeping, at most hourly: finished jobs after a week; OAuth registrations nobody connected with; people's days of use after 14 months; feedback counts of days that are over; abandoned upload grants and canvas uploads, and their bytes; expired Story previews; messages between agents whose time is up. */
   private async prune() {
     if (Date.now() - this.lastPrune < 3600_000) return;
     this.lastPrune = Date.now();
@@ -286,6 +286,8 @@ export class Worker {
         await sql`select set_config('app.tenant_id', ${tenant_id}, true)`.execute(trx);
         await trx.deleteFrom("story_previews").where("expires_at", "<", new Date().toISOString()).execute();
         await trx.deleteFrom("card_previews").where("expires_at", "<", new Date().toISOString()).execute();
+        // A message between agents goes once its time is up, read or not.
+        await trx.deleteFrom("okf_messages").where("expires_at", "<=", new Date().toISOString()).execute();
       });
     }
   }
