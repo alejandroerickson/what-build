@@ -91,8 +91,9 @@ It writes only files it makes itself, in products of the standard organization.
     "moved in the Playbook", "removed from the Playbook", "restored in the Playbook", "sent a message to the
     agents of"), one entry for each file step 10's change touched, each naming its path. Each is
     attributed to Sam or Riley through the agent, and none of them shows the
-    message's text. Open Settings → the product → Playbook. *Expect:* the section says what the Playbook is,
-    that it isn't shown in WhatBuild, and the format its files are in. It says how many files it holds, and
+    message's text. Open Settings → the product → Playbook. *Expect:* the section says what the Playbook is
+    and holds, that it isn't shown in WhatBuild, and that an export includes it, in the Open Knowledge
+    Format. It says how many files it holds, and
     the count matches `playbook_read(action="index")`. "Keep a Playbook for this product" is ticked and can be
     changed. Check it at phone width and in the dark theme too.
 12. **Web, as Riley, with Settings → Playbook open; MCP, as Sam.** Write a new file over MCP while the
