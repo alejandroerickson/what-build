@@ -26,15 +26,17 @@ It writes only files it makes itself, in products of the standard organization.
 2. **MCP, as Sam, in the standard organization, at the default level.** Connect, list the tools,
    and read `guide(topic="playbook")`. *Expect:* `playbook_read` and `playbook_write`, and no `playbook_delete`. The
    server's instructions and `guide(topic="start")` say WhatBuild is used through each product's
-   Playbook. Every answer gives `tools_version` 0.68.0. `products_read(action="get")` on the product
+   Playbook by those who work on it, and that someone who only reads a product's Story does not
+   reach it. Every answer gives `tools_version` 0.69.0. `products_read(action="get")` on the product
    gives `playbook` with `read_first` (titles and descriptions), `by_area`, and how many files it holds.
    `playbook_read(action="index")` lists the starter (`using-this-playbook.md`, four files under `how-to/` and
    two under `product/`), each at revision 0 and marked `from_starter`, with `index_md`.
    `playbook_read(action="read", path="using-this-playbook.md")` gives its text and etag.
 3. **MCP, as Sam: refused writes first.** Write `index.md`, a file with no frontmatter, a Markdown
    file whose frontmatter has no `type`, and a path with a space in it. *Expect:* `422
-   playbook_reserved_path`, `422 playbook_frontmatter_missing`, `422 playbook_type_missing` and `422
-   invalid_playbook_path`, which says what a path may hold. Each message says what to do. `playbook_read(action="index")` still shows the
+   playbook_reserved_path`, `422 playbook_frontmatter_missing`, `422 playbook_type_missing` (which spells out
+   the Open Knowledge Format, not only "OKF") and `422 invalid_playbook_path`, which says what a path
+   may hold. Each message says what to do. `playbook_read(action="index")` still shows the
    starter at revision 0.
 4. **MCP, as Sam: the first write.** Write the lesson from step 1 at `lessons/<slug>.md`, with a
    `message` saying why. *Expect:* it is created at revision 1, with no warning about its links.
@@ -48,7 +50,8 @@ It writes only files it makes itself, in products of the standard organization.
    names nothing.
 5. **MCP, as Riley, on the same product.** Connect, and read the lesson. *Expect:* Sam's text,
    with the same etag and links Sam saw. `products_read(action="get")` lists it under `by_area` for
-   the Story. `playbook_read(action="search")` for the lesson's phrase finds it, with lines around it.
+   the Story. `playbook_read(action="search")` for the lesson's phrase finds it, with a snippet that is the line
+   holding the phrase and the lines either side of it, each on a line of its own, and no frontmatter.
 6. **MCP, as Riley and as Sam: a conflict.** Both read `product/now.md` and keep its etag. Riley
    writes it first, with a line of their own and a `message`. Sam then writes it with the same old
    etag. *Expect:* Riley's write succeeds. Sam's is refused `409 stale_etag`, whose details give
@@ -78,7 +81,9 @@ It writes only files it makes itself, in products of the standard organization.
     of them, moves the file from step 4 to `lessons/<another-slug>.md` and removes another, with
     one etag deliberately stale. *Expect:* `409 playbook_stale` listing that file with its current text,
     and nothing written: the index is as before. Send it again with the right etag. *Expect:* all
-    three applied. The moved file keeps its history under its new path. Restore the removed file
+    three applied. The moved file keeps its history under its new path. `playbook_read(action="read")` and
+    `playbook_read(action="history")` of its old path answer `404` saying it was moved and naming its
+    new path (`moved_to`), never that the path has had no file. Restore the removed file
     from `playbook_read(action="history")` with `playbook_write(action="restore")`, and it is listed again.
     `playbook_read(action="starter")` says which files differ from WhatBuild's starter.
 11. **Web, as Riley, in the standard organization.** Open the product's Activity and filter it to
@@ -92,14 +97,18 @@ It writes only files it makes itself, in products of the standard organization.
     changed. Check it at phone width and in the dark theme too.
 12. **Web, as Riley, with Settings → Playbook open; MCP, as Sam.** Write a new file over MCP while the
     section is open. *Expect:* the section's count of files goes up by one without a reload.
-13. **Web, as Riley: off.** Untick "Keep a Playbook for this product". *Expect:* a toast says the Playbook is
+13. **Web, as Riley: off.** First, over MCP as Sam, send Riley's agents another message, and as
+    Riley call a read in the product. *Expect:* its `scope` gives `playbook_messages_waiting: 1`.
+    Then untick "Keep a Playbook for this product". *Expect:* a toast says the Playbook is
     off. Over MCP, as Sam: `playbook_read(action="index")`, `playbook_read(action="messages")` and an
-    `playbook_write` each answer `409 playbook_off` and say an admin turns it on in Settings, and no answer
-    gives `playbook_messages_waiting`. `products_read(action="get")` gives no `read_first`,
+    `playbook_write` each answer `409 playbook_off` and say an admin turns it on in Settings. Over MCP,
+    as Riley, the same read as before gives no `playbook_messages_waiting`, though Riley's message is
+    still unread. `products_read(action="get")` gives no `read_first`,
     `story_read(action="guidance")` lists no Playbook files, and archiving and restoring a source that a
     file links to gives no `playbook_cited_by`. Tick it again. *Expect:* a toast says it is on, and
-    every file is back at the revision and etag it had. Activity shows it turned off and on, by
-    Riley, among the product's settings, each entry opening Settings → Playbook.
+    every file is back at the revision and etag it had. Riley's read gives
+    `playbook_messages_waiting: 1` again. Activity shows the message sent, and the Playbook turned off
+    and on by Riley among the product's settings, each of those two entries opening Settings → Playbook.
 14. **Web, as Sam, in the standard organization.** Open Settings → the product → Playbook. *Expect:* the
     same text, a note that only admins of this product turn it off or on, and the switch disabled.
 15. **MCP, as Sam, at `--level viewer`, then as Jordan.** As Sam on a Read only connection, list
@@ -111,8 +120,8 @@ It writes only files it makes itself, in products of the standard organization.
 16. **MCP, as Riley, then Sam, on an Admin connection.** As Riley at `--level admin`, purge the
     file moved in step 10 with `playbook_delete(action="purge")`: first without `confirm`, then with its
     etag, a reason and `confirm: "delete permanently"`. *Expect:* the first is refused `422`, naming
-    what is missing. The second deletes it, and its history is gone too: reading the path answers
-    `410 playbook_file_deleted` with Riley's reason. Activity on the web shows "deleted from the Playbook",
+    what is missing. The second deletes it, and its history is gone too: reading the path, and its
+    history, answer `410 playbook_file_deleted` with Riley's reason. Activity on the web shows "deleted from the Playbook",
     attributed to Riley. As Sam at `--level admin`: no `playbook_delete` is offered, and calling it
     anyway on another file made in the run is refused `403 forbidden` naming editor and admin, and
     the file stays.
@@ -135,7 +144,8 @@ It writes only files it makes itself, in products of the standard organization.
 ## Look out for
 
 - An agent pointed at the Playbook when it is off, or not pointed at it when it is on: in the server's
-  instructions, `products_read(action="get")`, each part's guidance, and the messages waiting.
+  instructions, `products_read(action="get")`, each part's guidance, and the messages waiting (a
+  count shown while it is off, with a message really waiting, or not shown again once it is on).
 - A conflict that loses either person's text, or an `apply` that writes part of a change.
 - The starter copied in twice, or its etags changed by the copy, so that an agent's etag from
   before the first write turns stale.

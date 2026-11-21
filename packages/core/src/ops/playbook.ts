@@ -155,17 +155,54 @@ async function fileAtPath(ctx: OpContext, path: string): Promise<FileRow | undef
     .executeTakeFirst()) as FileRow | undefined;
 }
 
+/**
+ * The refusal for a path that no file holds, removed or not: 410 when the file there was deleted
+ * permanently; 404 naming where it is now when it was moved away; else 404. `change` adds that
+ * nothing was changed, for a write.
+ */
+async function noFileAt(ctx: OpContext, path: string, change = false): Promise<AppError> {
+  const unchanged = change ? " Nothing was changed." : "";
+  // The file a revision kept at this path belongs to, when no file is here now: it was moved away. Its row has its current path.
+  const moved = await ctx.db
+    .selectFrom("playbook_revisions as r")
+    .innerJoin("playbook_files as f", "f.file_id", "r.file_id")
+    .select(["f.path", "f.removed_at", (eb) => eb.fn.max("r.created_at").as("at")])
+    .where("r.product_id", "=", productId(ctx))
+    .where("r.path", "=", path)
+    .where("f.path", "<>", path)
+    .groupBy(["f.file_id", "f.path", "f.removed_at"])
+    .orderBy("at", "desc")
+    .limit(1)
+    .executeTakeFirst();
+  const tomb = await tombstoneOf(ctx, "playbook_file", path);
+  // Whichever happened last at the path is what it says: a purge there after the move, or a file there again and moved away after the purge.
+  if (tomb && (!moved || Date.parse(String(tomb.deleted_at)) >= Date.parse(String(moved.at))))
+    return gone("playbook_file_deleted", `${path} was deleted permanently from the Playbook on ${tomb.deleted_at}, with every revision of it.${unchanged}`, { tombstone: tomb });
+  if (moved)
+    return notFound(
+      `The file that was at ${path} was moved, and is at ${moved.path} now${moved.removed_at ? `, where it was removed on ${utcDay(String(moved.removed_at))}` : ""}. Name ${moved.path}: its history there includes its revisions at ${path}.${unchanged}`,
+      { path, moved_to: moved.path, ...(moved.removed_at ? { removed: true } : {}) },
+    );
+  return notFound(`The Playbook has no file ${path}. playbook_read(action="index") lists the files it has.${unchanged}`, { path });
+}
+
+/** The file a path names for its history, a restore or a purge: the one there now, or the one removed from it last; refused as noFileAt says when there is none. */
+async function fileForHistory(ctx: OpContext, path: string, change = false): Promise<FileRow> {
+  const f = await fileAtPath(ctx, path);
+  if (!f) throw await noFileAt(ctx, path, change);
+  return f;
+}
+
 /** The refusal of a read of a path that holds nothing, saying when it was removed if it was. */
-async function nothingAt(ctx: OpContext, path: string, started: boolean) {
-  const removed = started ? await fileAtPath(ctx, path) : undefined;
+async function nothingAt(ctx: OpContext, path: string, started: boolean, change = false) {
+  if (!started) return notFound(`The Playbook has no file ${path}. playbook_read(action="index") lists the files it has.`, { path });
+  const removed = await fileAtPath(ctx, path);
   if (removed?.removed_at)
     return notFound(
-      `${path} was removed on ${utcDay(removed.removed_at)} by ${removed.updated_by.display_name || "someone"}, at revision ${removed.revision}. playbook_read(action="history", params={path}) lists its revisions, and playbook_write(action="restore") brings one back.`,
+      `${path} was removed on ${utcDay(removed.removed_at)} by ${removed.updated_by.display_name || "someone"}, at revision ${removed.revision}. playbook_read(action="history", params={path}) lists its revisions, and playbook_write(action="restore") brings one back.${change ? " Nothing was changed." : ""}`,
       { path, removed_at: removed.removed_at, revision: removed.revision },
     );
-  const tomb = started ? await tombstoneOf(ctx, "playbook_file", path) : undefined;
-  if (tomb) return gone("playbook_file_deleted", `${path} was deleted permanently from the Playbook on ${tomb.deleted_at}, with every revision of it.`, { tombstone: tomb });
-  return notFound(`The Playbook has no file ${path}. playbook_read(action="index") lists the files it has.`, { path });
+  return noFileAt(ctx, path, change);
 }
 
 /** The refusal of a write against a file that changed since it was read: what is there now, to merge with. */
@@ -282,7 +319,7 @@ async function removeFile(ctx: OpContext, step: Extract<WriteStep, { action: "re
   const there = await liveFile(ctx, path);
   if (!there) {
     if (step.expected_etag) throw nothingToMatch(path);
-    throw await nothingAt(ctx, path, true);
+    throw await nothingAt(ctx, path, true, true);
   }
   if (!step.expected_etag || !sameEtag(step.expected_etag, there.etag)) throw changedSince(there, step.expected_etag);
   const revision = there.revision + 1;
@@ -299,7 +336,7 @@ async function moveFile(ctx: OpContext, step: Extract<WriteStep, { action: "move
   const there = await liveFile(ctx, path);
   if (!there) {
     if (step.expected_etag) throw nothingToMatch(path);
-    throw await nothingAt(ctx, path, true);
+    throw await nothingAt(ctx, path, true, true);
   }
   if (!step.expected_etag || !sameEtag(step.expected_etag, there.etag)) throw changedSince(there, step.expected_etag);
   const twin = await caseTwin(ctx, to);
@@ -375,7 +412,7 @@ export const playbookIndex = defineOperation({
   access: "read",
   mutates: false,
   summary: "List the product's Playbook: every file with its title, description, what it applies to and its etag. Start here.",
-  description: `${WHAT_IT_IS} Read it before working on the product, and write to it as you work: guide(topic="playbook") says how, and so does its own using-this-playbook.md. It answers with files (each path, type, title, description, applies_to, tags, status, stale_after and stale when that has passed, size, revision, etag, and who wrote it last), index_md (Playbook's index.md for the folder: prefix, or the root), started (false while the product has written nothing and serves WhatBuild's starter, whose files then say from_starter) and messages_waiting. prefix limits it to a folder, as lessons/. Refused with 409 playbook_off when the product's admins turned its Playbook off.`,
+  description: `${WHAT_IT_IS} Read it before working on the product, and write to it as you work: guide(topic="playbook") says how, and so does its own using-this-playbook.md. It answers with okf_version (the version of the Open Knowledge Format the Playbook's files follow), files (each path, type, title, description, applies_to, tags, status, stale_after and stale when that has passed, size, revision, etag, and who wrote it last), index_md (Playbook's index.md for the folder: prefix, or the root), started (false while the product has written nothing and serves WhatBuild's starter, whose files then say from_starter) and messages_waiting. prefix limits it to a folder, as lessons/. Refused with 409 playbook_off when the product's admins turned its Playbook off.`,
   input: z.strictObject({ prefix: z.string().max(260).optional().describe("A folder, as kits/ or lessons/: only the files under it.") }),
   rest: { method: "GET", path: "/playbook" },
   mcp: { tool: "playbook", action: "index" },
@@ -400,7 +437,7 @@ export const playbookRead = defineOperation({
   mutates: false,
   summary: "Read one file of the Playbook: its text, etag and revision, and what each of its whatbuild: links names now.",
   description:
-    `revision reads that revision of the file instead (from playbook_read(action="history")); its text, never an etag to write with. links gives each whatbuild: link in the text (${LINK_FORM}) with the title of what it names and its status: live, archived, or missing when nothing in the product has that id. A path that held a file removed since is refused with 404 saying when, and playbook_write(action="restore") brings it back.`,
+    `revision reads that revision of the file instead (from playbook_read(action="history")); its text, never an etag to write with. links gives each whatbuild: link in the text (${LINK_FORM}) with the title of what it names and its status: live, archived, or missing when nothing in the product has that id. A path that held a file removed since is refused with 404 saying when, and playbook_write(action="restore") brings it back; one whose file was moved away, with 404 naming where it is now (details.moved_to); one whose file was deleted permanently, with 410 playbook_file_deleted.`,
   input: z.strictObject({ path: pathField, revision: z.number().int().min(1).optional().describe("A revision to read, from the file's history.") }),
   rest: { method: "GET", path: "/playbook/file" },
   mcp: { tool: "playbook", action: "read" },
@@ -409,9 +446,9 @@ export const playbookRead = defineOperation({
     const path = input.path.trim().replace(/^\/+/, "");
     if (input.revision !== undefined) {
       if (!s.started) throw notFound(`The Playbook has written nothing yet, so ${path} has no revision ${input.revision}: it serves WhatBuild's starter, at revision 0. Read it without a revision.`, { path });
-      const f = await fileAtPath(ctx, path);
-      const rev = f ? await ctx.db.selectFrom("playbook_revisions").selectAll().where("file_id", "=", f.file_id).where("revision", "=", input.revision).executeTakeFirst() : undefined;
-      if (!f || !rev) throw notFound(`${path} has no revision ${input.revision}${f ? ` (it is at ${f.revision}, and the most recent ${PLAYBOOK_REVISIONS_KEPT} are kept)` : ""}. playbook_read(action="history", params={path}) lists the ones it has.`, { path });
+      const f = await fileForHistory(ctx, path);
+      const rev = await ctx.db.selectFrom("playbook_revisions").selectAll().where("file_id", "=", f.file_id).where("revision", "=", input.revision).executeTakeFirst();
+      if (!rev) throw notFound(`${path} has no revision ${input.revision} (it is at ${f.revision}, and the most recent ${PLAYBOOK_REVISIONS_KEPT} are kept). playbook_read(action="history", params={path}) lists the ones it has.`, { path });
       return { path: rev.path, revision: rev.revision, change: rev.change, content: rev.content, message: rev.message, created_at: rev.created_at, created_by: who(rev.created_by), current_revision: f.revision };
     }
     const f = s.started ? await liveFile(ctx, path, false) : starterRows().find((r) => r.path === path);
@@ -453,23 +490,78 @@ export const playbookReadFiles = defineOperation({
   },
 });
 
-/** A few lines of a text around where a word first appears in it. */
+/** The most characters of one line a snippet gives. */
+const SNIPPET_LINE_MAX = 160;
+
+/** A line cut to SNIPPET_LINE_MAX characters around a place in it, with … where it was cut. */
+function cutLine(line: string, at = 0, length = 0): string {
+  if (line.length <= SNIPPET_LINE_MAX) return line;
+  const start = Math.max(0, Math.min(at - Math.floor((SNIPPET_LINE_MAX - length) / 2), line.length - SNIPPET_LINE_MAX));
+  const end = start + SNIPPET_LINE_MAX;
+  return `${start > 0 ? "…" : ""}${line.slice(start, end).trim()}${end < line.length ? "…" : ""}`;
+}
+
+/**
+ * A few lines of a text around where each word first appears in it: the line holding the word,
+ * with the nearest line before and after it that is not blank, line breaks kept and each line cut
+ * to SNIPPET_LINE_MAX characters. A word is looked for in the body first, and in the frontmatter
+ * only when the body lacks it; a passage never runs across the frontmatter's edge. At most three
+ * passages: a word on a line one already gives is shown by it, and a passage that would repeat a
+ * line of another is joined to it.
+ */
 function snippets(text: string, words: string[]): string[] {
-  const lower = text.toLowerCase();
-  const out: string[] = [];
-  const taken: [number, number][] = [];
+  const lines = text.replace(/^\uFEFF/, "").split(/\r?\n/);
+  const lower = lines.map((l) => l.toLowerCase());
+  // The frontmatter's lines, between its two lines of ---, which belong to neither part.
+  const fmEnd = lines[0]?.trim() === "---" ? lines.findIndex((l, i) => i > 0 && (l.trim() === "---" || l.trim() === "...")) : -1;
+  const parts: [number, number][] = fmEnd > 0 ? [[fmEnd + 1, lines.length], [1, fmEnd]] : [[0, lines.length]];
+  // Each passage: its first and last line, and the word each matching line in it is cut around.
+  const passages: { from: number; to: number; hits: Map<number, string> }[] = [];
   for (const w of words) {
-    const at = lower.indexOf(w);
-    if (at < 0) continue;
-    // A word inside a passage already given is shown by it.
-    if (taken.some(([s, e]) => at >= s && at + w.length <= e)) continue;
-    const start = Math.max(0, at - 80);
-    const end = Math.min(text.length, at + w.length + 80);
-    taken.push([start, end]);
-    out.push(`${start > 0 ? "…" : ""}${text.slice(start, end).replace(/\s+/g, " ").trim()}${end < text.length ? "…" : ""}`);
-    if (out.length === 3) break;
+    let hit: { line: number; part: [number, number] } | undefined;
+    for (const part of parts) {
+      for (let i = part[0]; i < part[1] && !hit; i++) if (lower[i]!.includes(w)) hit = { line: i, part };
+      if (hit) break;
+    }
+    if (!hit) continue;
+    const at = hit.line;
+    if (passages.some((p) => at >= p.from && at <= p.to)) continue;
+    const [from, to] = hit.part;
+    let before = at - 1;
+    while (before >= from && !lines[before]!.trim()) before--;
+    let after = at + 1;
+    while (after < to && !lines[after]!.trim()) after++;
+    const start = before >= from ? before : at;
+    const end = after < to ? after : at;
+    // Passages lie within one part, so only ones in the same part can share a line with this one.
+    const near = passages.find((p) => start <= p.to && end >= p.from);
+    if (near) {
+      near.from = Math.min(near.from, start);
+      near.to = Math.max(near.to, end);
+      near.hits.set(at, w);
+      // Grown, it may now share a line with another: join that one too.
+      for (let i = passages.length - 1; i >= 0; i--) {
+        const p = passages[i]!;
+        if (p !== near && p.from <= near.to && p.to >= near.from) {
+          near.from = Math.min(near.from, p.from);
+          near.to = Math.max(near.to, p.to);
+          for (const [line, word] of p.hits) near.hits.set(line, word);
+          passages.splice(i, 1);
+        }
+      }
+      continue;
+    }
+    if (passages.length < 3) passages.push({ from: start, to: end, hits: new Map([[at, w]]) });
   }
-  return out;
+  return passages.map((p) => {
+    const shown: string[] = [];
+    for (let i = p.from; i <= p.to; i++) {
+      const w = p.hits.get(i);
+      if (w !== undefined) shown.push(cutLine(lines[i]!, Math.max(0, lower[i]!.indexOf(w)), w.length));
+      else if (lines[i]!.trim()) shown.push(cutLine(lines[i]!));
+    }
+    return shown.join("\n");
+  });
 }
 
 export const playbookSearch = defineOperation({
@@ -506,7 +598,7 @@ export const playbookHistory = defineOperation({
   access: "read",
   mutates: false,
   summary: "List a file's revisions, or, without a path, the Playbook's recent changes as its log.",
-  description: `With path: the file's revisions, newest first, each with its revision, change (written, removed, moved or restored), the path it had, size, message and who made it; playbook_read(action="read") with a revision reads one, and playbook_write(action="restore") brings one back. The most recent ${PLAYBOOK_REVISIONS_KEPT} of each file are kept. Without a path: the most recent changes across the bundle, and log_md, Playbook's log.md for them.`,
+  description: `With path: the file's revisions, newest first, each with its revision, change (written, removed, moved or restored), the path it had, size, message and who made it; playbook_read(action="read") with a revision reads one, and playbook_write(action="restore") brings one back. The most recent ${PLAYBOOK_REVISIONS_KEPT} of each file are kept. A path whose file was moved away answers 404 naming where it is now (details.moved_to); one whose file was deleted permanently, 410 playbook_file_deleted. Without a path: the most recent changes across the bundle, and log_md, Playbook's log.md for them.`,
   input: z.strictObject({ path: pathField.optional(), limit: z.number().int().min(1).max(200).default(50) }),
   rest: { method: "GET", path: "/playbook/history" },
   mcp: { tool: "playbook", action: "history" },
@@ -516,8 +608,7 @@ export const playbookHistory = defineOperation({
     const cols = ["revision_id", "file_id", "revision", "change", "path", "message", "created_at", "created_by", sql<number>`coalesce(octet_length(content), 0)`.as("size")] as const;
     if (input.path) {
       const path = input.path.trim().replace(/^\/+/, "");
-      const f = await fileAtPath(ctx, path);
-      if (!f) throw notFound(`The Playbook has no file ${path}, and has had none there. playbook_read(action="index") lists the files it has.`, { path });
+      const f = await fileForHistory(ctx, path);
       const revs = await ctx.db.selectFrom("playbook_revisions").select([...cols]).where("file_id", "=", f.file_id).orderBy("revision", "desc").limit(input.limit).execute();
       return {
         path: f.path,
@@ -705,15 +796,14 @@ export const playbookRestore = defineOperation({
   mutates: true,
   summary: "Bring back an earlier revision of a file, or a removed file, as its next revision.",
   description:
-    "revision is from playbook_read(action=\"history\", params={path}). The file takes that revision's text at its next revision; nothing in its history is lost. A file that is there takes the etag of your last read; a removed one takes none, and comes back at its path unless another file holds it (409 playbook_path_taken). A revision that removed the file has no text to bring back: name one before it.",
+    "revision is from playbook_read(action=\"history\", params={path}). The file takes that revision's text at its next revision; nothing in its history is lost. A file that is there takes the etag of your last read; a removed one takes none, and comes back at its path unless another file holds it (409 playbook_path_taken). A revision that removed the file has no text to bring back: name one before it. A path whose file was moved away answers 404 naming where it is now (details.moved_to); one whose file was deleted permanently, 410 playbook_file_deleted.",
   input: z.strictObject({ path: pathField, revision: z.number().int().min(1), expected_etag: etagField, message }),
   rest: { method: "POST", path: "/playbook/file/restore" },
   mcp: { tool: "playbook", action: "restore" },
   async handler(ctx, input) {
     await startIfNeeded(ctx);
     const path = playbookPath(input.path);
-    const f = await fileAtPath(ctx, path);
-    if (!f) throw notFound(`The Playbook has no file ${path}, and has had none there. playbook_read(action="index") lists the files it has.`, { path });
+    const f = await fileForHistory(ctx, path, true);
     const rev = await ctx.db.selectFrom("playbook_revisions").select(["revision", "content", "path"]).where("file_id", "=", f.file_id).where("revision", "=", input.revision).executeTakeFirst();
     if (!rev) throw notFound(`${path} has no revision ${input.revision}. playbook_read(action="history", params={path}) lists the ones it has.`, { path });
     if (rev.content === null) throw invalid("playbook_nothing_to_restore", `Revision ${input.revision} of ${path} removed it, so it has no text to bring back. Restore a revision before it. Nothing was changed.`, { path, revision: input.revision });
@@ -898,7 +988,7 @@ export const playbookPurge = defineOperation({
   allowReadOnlyOrganization: true,
   summary: "DELETE PERMANENTLY: a file of the Playbook and every revision of it. Remove is the reversible alternative.",
   description:
-    "Remove (playbook_write(action=\"remove\")) keeps the history, and is almost always what is wanted; purge is for text that must not be kept, earlier revisions included. Needs admin, and a connection at Admin. Show the person the file and its history (playbook_read(action=\"history\")) first, and purge only once they approve. Takes that answer's etag as expected_etag, the person's reason, and confirm set to exactly \"delete permanently\". It deletes every file the path has held.",
+    "Remove (playbook_write(action=\"remove\")) keeps the history, and is almost always what is wanted; purge is for text that must not be kept, earlier revisions included. Needs admin, and a connection at Admin. Show the person the file and its history (playbook_read(action=\"history\")) first, and purge only once they approve. Takes that answer's etag as expected_etag, the person's reason, and confirm set to exactly \"delete permanently\". It deletes every file the path has held. A path whose file was moved away answers 404 naming where it is now (details.moved_to); one already purged, 410 playbook_file_deleted.",
   input: z.strictObject({
     path: pathField,
     ...deleteGuards,
@@ -912,8 +1002,7 @@ export const playbookPurge = defineOperation({
     // Held as writes are, so a write made after the etag was read cannot be deleted with it unseen.
     await requirePlaybook(ctx, true, true);
     const path = playbookPath(input.path);
-    const f = await fileAtPath(ctx, path);
-    if (!f) throw notFound(`The Playbook has no file ${path}, and has had none there.`, { path });
+    const f = await fileForHistory(ctx, path, true);
     if (!sameEtag(input.expected_etag, f.etag)) throw changedSince(f, input.expected_etag);
     const all = await ctx.db.selectFrom("playbook_files").select("file_id").where("product_id", "=", productId(ctx)).where("path", "=", path).execute();
     const ids = all.map((r) => r.file_id);

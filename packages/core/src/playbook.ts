@@ -136,7 +136,7 @@ function instant(v: string | null): string | null {
   return Number.isNaN(d.getTime()) ? null : d.toISOString();
 }
 
-/** What a file says of itself, and what WhatBuild would have it say better, as warnings. Refused when a Markdown file lacks the frontmatter OKF requires. */
+/** What a file says of itself, and what WhatBuild would have it say better, as warnings. Refused when a Markdown file lacks the frontmatter the Open Knowledge Format (OKF) requires. */
 export function describeFile(path: string, content: string): { meta: PlaybookFrontmatter; warnings: string[] } {
   const none: PlaybookFrontmatter = { type: null, title: null, description: null, applies_to: [], tags: [], status: null, stale_after: null };
   if (!isMarkdown(path)) return { meta: none, warnings: [] };
@@ -145,7 +145,7 @@ export function describeFile(path: string, content: string): { meta: PlaybookFro
   if (!fm)
     throw invalid("playbook_frontmatter_missing", `${path} has no frontmatter. Every Markdown file of a Playbook starts with a block of YAML between two lines of ---, which names its type at least, as:\n${example}\nNothing was changed.`, { path });
   const type = str(fm["type"]);
-  if (!type) throw invalid("playbook_type_missing", `${path}'s frontmatter names no type. OKF requires one (Lesson, Kit, Guide, Person, Product Concept: any word that says what kind of file it is), as:\n${example}\nNothing was changed.`, { path });
+  if (!type) throw invalid("playbook_type_missing", `${path}'s frontmatter names no type. The Open Knowledge Format (OKF) requires one (Lesson, Kit, Guide, Person, Product Concept: any word that says what kind of file it is), as:\n${example}\nNothing was changed.`, { path });
   const warnings: string[] = [];
   const title = str(fm["title"]);
   const description = str(fm["description"]);

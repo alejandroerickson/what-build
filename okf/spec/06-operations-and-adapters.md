@@ -3,7 +3,7 @@ type: Specification
 title: Every capability is one registered operation, reached identically over REST and MCP.
 description: The operation registry, the error model and bounds, the full catalogue of 140 operations with their REST routes and MCP tools, authorization and agent connection levels, upload flows, the guide and the Connect page.
 tags: [spec, operations, rest, mcp, registry, uploads, guide]
-generated: {by: agent:claude, at: 2026-11-18}
+generated: {by: agent:claude, at: 2026-11-21}
 status: stable
 ---
 
@@ -1246,7 +1246,7 @@ what people see, what the server enforces and refuses, limits, formats and the p
 mechanism needs (an upload grant, a canvas ZIP, a preview grant); it prescribes no method, order of
 work or style, but for one thing: it, and the server's instructions, ask agents to read each
 product's Playbook before working there and to write to it as they work, where the team's own method
-lives ([decision](../decisions/each-product-keeps-a-playbook-its-agents-write.md)).
+lives, and say that someone who only reads a product's Story does not reach it ([decision](../decisions/each-product-keeps-a-playbook-its-agents-write.md)).
 `scripts/gen-guide.mjs` embeds the topics in the server bundle, and the Playbook's starter
 (`packages/core/src/playbook-starter/`) with them, and CI fails if either embedded copy drifts.
 

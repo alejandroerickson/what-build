@@ -58,6 +58,7 @@ describe("the starter", () => {
   it("is served until the first write, at revision 0, and the product's answer says what to read first", async () => {
     const index = await vic.api("GET", `${P}/playbook`);
     expect(index.status, JSON.stringify(index.body)).toBe(200);
+    expect(index.body.okf_version).toBe("0.2");
     expect(index.body.started).toBe(false);
     const paths = index.body.files.map((f: { path: string }) => f.path);
     expect(paths).toEqual(expect.arrayContaining(["using-this-playbook.md", "how-to/lessons.md", "how-to/kits.md", "how-to/housekeeping.md", "how-to/people-and-messages.md", "product/now.md", "product/evidence-map.md"]));
@@ -124,6 +125,8 @@ describe("files", () => {
     expect(none.body.error.code).toBe("playbook_frontmatter_missing");
     const untyped = await write(erin, "lessons/plain.md", "---\ntitle: No type\n---\nText\n");
     expect(untyped.body.error.code).toBe("playbook_type_missing");
+    // The format is named, not only its initials.
+    expect(untyped.body.error.message).toContain("The Open Knowledge Format (OKF) requires one");
     const bare = await write(erin, "lessons/bare.md", "---\ntype: Lesson\napplies_to: [exploration, canvases]\nstale_after: soon\n---\nText\n");
     expect(bare.status).toBe(200);
     expect(bare.body.warnings.join(" ")).toMatch(/no title.*no description.*canvases.*stale_after/s);
@@ -191,6 +194,22 @@ describe("files", () => {
     expect(moved.body).toMatchObject({ path: "lessons/archive/bare.md", revision: 4, moved_from: "lessons/bare.md" });
     const hist = (await erin.api("GET", `${P}/playbook/history?path=lessons/archive/bare.md`)).body;
     expect(hist.revisions.map((r: { change: string }) => r.change)).toEqual(["moved", "restored", "removed", "written"]);
+    // The path it left held it, so what answers there says where it went, and changes nothing.
+    for (const r of [await read(vic, "lessons/bare.md"), await vic.api("GET", `${P}/playbook/history?path=lessons/bare.md`), await read(vic, "lessons/bare.md", 1)]) {
+      expect(r.status, JSON.stringify(r.body)).toBe(404);
+      expect(r.body.error.details).toMatchObject({ path: "lessons/bare.md", moved_to: "lessons/archive/bare.md" });
+      expect(r.body.error.message).toContain("was moved, and is at lessons/archive/bare.md now");
+      expect(r.body.error.message).not.toMatch(/has had none/);
+    }
+    const back = await erin.api("POST", `${P}/playbook/file/restore`, { path: "lessons/bare.md", revision: 1 });
+    expect(back.status).toBe(404);
+    expect(back.body.error.details.moved_to).toBe("lessons/archive/bare.md");
+    expect(back.body.error.message).toMatch(/Nothing was changed\.$/);
+    expect((await read(vic, "lessons/archive/bare.md")).body.revision).toBe(4);
+    // A path that never held a file says only that it holds none.
+    const never = await vic.api("GET", `${P}/playbook/history?path=lessons/never.md`);
+    expect(never.status).toBe(404);
+    expect(never.body.error.message).not.toMatch(/has had none|moved/);
   });
 
   it("applies several changes at once, or none, listing every stale file", async () => {
@@ -311,11 +330,21 @@ describe("who may do what", () => {
     const purged = await alice.api("DELETE", `${P}/playbook/file`, guards);
     expect(purged.status, JSON.stringify(purged.body)).toBe(200);
     expect(purged.body).toMatchObject({ purged: true, revisions_deleted: 1 });
-    expect((await vic.api("GET", `${P}/playbook/history?path=lessons/story-tone.md`)).status).toBe(404);
     const gone = await read(vic, "lessons/story-tone.md");
     expect(gone.status, JSON.stringify(gone.body)).toBe(410);
     expect(gone.body.error.code).toBe("playbook_file_deleted");
     expect(gone.body.error.details.tombstone).toMatchObject({ object_type: "playbook_file", object_id: "lessons/story-tone.md", reason: "It named a client." });
+    // Its history, a restore and another purge say the same as a read: it was deleted, not never there.
+    for (const r of [
+      await vic.api("GET", `${P}/playbook/history?path=lessons/story-tone.md`),
+      await read(vic, "lessons/story-tone.md", 1),
+      await erin.api("POST", `${P}/playbook/file/restore`, { path: "lessons/story-tone.md", revision: 1 }),
+      await alice.api("DELETE", `${P}/playbook/file`, guards),
+    ]) {
+      expect(r.status, JSON.stringify(r.body)).toBe(410);
+      expect(r.body.error.code).toBe("playbook_file_deleted");
+      expect(r.body.error.details.tombstone).toMatchObject({ object_id: "lessons/story-tone.md" });
+    }
   });
 });
 
@@ -346,6 +375,59 @@ describe("turning it off", () => {
 });
 
 describe("edges", () => {
+  it("names a moved file's current path at every path it left, and says whichever of a move and a purge came last", async () => {
+    let f = (await write(erin, "trail/one.md", md("Trail"))).body;
+    f = (await erin.api("POST", `${P}/playbook/file/move`, { path: f.path, to: "trail/two.md", expected_etag: f.etag })).body;
+    f = (await erin.api("POST", `${P}/playbook/file/move`, { path: f.path, to: "trail/three.md", expected_etag: f.etag })).body;
+    for (const at of ["trail/one.md", "trail/two.md"]) {
+      const r = await read(vic, at);
+      expect(r.status).toBe(404);
+      expect(r.body.error.details).toMatchObject({ path: at, moved_to: "trail/three.md" });
+    }
+    expect((await erin.api("POST", `${P}/playbook/file/remove`, { path: "trail/three.md", expected_etag: f.etag })).status).toBe(200);
+    const removed = await vic.api("GET", `${P}/playbook/history?path=trail/one.md`);
+    expect(removed.body.error.details).toMatchObject({ moved_to: "trail/three.md", removed: true });
+    expect(removed.body.error.message).toContain("where it was removed on");
+    // A file moved away, then another written at the path and purged: the purge is what the path says.
+    const a = (await write(erin, "trail/a.md", md("A"))).body;
+    expect((await erin.api("POST", `${P}/playbook/file/move`, { path: a.path, to: "trail/b.md", expected_etag: a.etag })).status).toBe(200);
+    const again = (await write(erin, "trail/a.md", md("A again"))).body;
+    expect((await alice.api("DELETE", `${P}/playbook/file`, { path: "trail/a.md", expected_etag: again.etag, reason: "Not to be kept.", confirm: "delete permanently" })).status).toBe(200);
+    expect((await vic.api("GET", `${P}/playbook/history?path=trail/a.md`)).status).toBe(410);
+    // And a file there after the purge, moved away since: the move is.
+    const third = (await write(erin, "trail/a.md", md("A third"))).body;
+    expect((await erin.api("POST", `${P}/playbook/file/move`, { path: third.path, to: "trail/c.md", expected_etag: third.etag })).status).toBe(200);
+    const moved = await vic.api("GET", `${P}/playbook/history?path=trail/a.md`);
+    expect(moved.status).toBe(404);
+    expect(moved.body.error.details.moved_to).toBe("trail/c.md");
+  });
+
+  it("gives search's snippets as the lines around each word, frontmatter only when the word is there alone", async () => {
+    const long = `Intro ${"filler ".repeat(40)}the zebrafinch sings ${"after ".repeat(40)}end.`;
+    const content = `---\ntype: Lesson\ntitle: Snippet lines\ndescription: Kept apart.\ntags: [quokka, walrus]\n---\n\nFirst line names the walrus.\nSecond line.\n\nThird line, after a blank.\n\n${long}\nLast line.\n`;
+    expect((await write(erin, "lessons/snippets.md", content)).status).toBe(200);
+    const search = async (q: string) => ((await vic.api("GET", `${P}/playbook/search?query=${encodeURIComponent(q)}`)).body.files as { path: string; snippets: string[] }[]).find((f) => f.path === "lessons/snippets.md")!.snippets;
+    // The first line of the body: no frontmatter before it, and the next line on its own line.
+    expect(await search("walrus")).toEqual(["First line names the walrus.\nSecond line."]);
+    // The nearest lines that are not blank, either side.
+    expect(await search("third")).toEqual(["Second line.\nThird line, after a blank.\n" + long.slice(0, 160).trim() + "…"]);
+    // A long line is cut around the word, with … where it was cut.
+    const [cut] = await search("zebrafinch");
+    const lines = cut!.split("\n");
+    expect(lines).toHaveLength(3);
+    expect(lines[0]).toBe("Third line, after a blank.");
+    expect(lines[1]).toMatch(/^….*the zebrafinch sings.*…$/);
+    expect(lines[1]!.length).toBeLessThanOrEqual(162);
+    expect(lines[2]).toBe("Last line.");
+    // A word only in the frontmatter shows the frontmatter, never its --- lines.
+    expect(await search("quokka")).toEqual(["description: Kept apart.\ntags: [quokka, walrus]"]);
+    // One passage for words it already shows, and the body's place for a word in both (walrus is in the tags too).
+    expect(await search("walrus second")).toEqual(["First line names the walrus.\nSecond line."]);
+    // Passages that would repeat a line ("Second line.") are joined into one.
+    expect(await search("walrus third")).toEqual(["First line names the walrus.\nSecond line.\nThird line, after a blank.\n" + long.slice(0, 160).trim() + "…"]);
+    expect(await search("snippet")).toEqual(["type: Lesson\ntitle: Snippet lines\ndescription: Kept apart."]);
+  });
+
   it("points agents nowhere while it is off, archiving included", async () => {
     const src = (await erin.api("POST", `${P}/sources`, { title: "Ride-along notes" })).body;
     expect((await write(erin, "lessons/ride-along.md", md("Ride-along", `whatbuild:sources/${src.record_id} shows the night shift.`))).status).toBe(200);

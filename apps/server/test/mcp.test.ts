@@ -114,6 +114,8 @@ describe("MCP", () => {
     expect(client.getInstructions()).not.toMatch(/skill|install/i);
     // An agent holding the retired one-tool-per-kind instructions is told which to follow.
     expect(client.getInstructions()).toContain("describe tools this server no longer has: these tools and the guide are current.");
+    // The Playbook is for those who work on a product: a Story reader's agent is not sent to it.
+    expect(client.getInstructions()).toContain("someone who only reads its Story does not reach it");
     // Links use the deployment's own address, never another name it answers on.
     expect(client.getInstructions()).toContain(`This deployment's address is ${h.baseUrl}.`);
     const index = text(await client.callTool({ name: "guide", arguments: {} }));
