@@ -605,6 +605,9 @@ describe("files to and from an agent's machine", () => {
     const early = await putAgain();
     expect(early.status).toBe(409);
     expect(early.error.message).toContain("A ZIP already arrived under this grant. Apply it with upload_id, or request a new upload.");
+    // An upload already applied, which looking at it would refuse as used.
+    const used = await upload(erin, { "kits/paused/used.md": readme });
+    expect((await apply(erin, { upload_id: used.uploadId, changes: [{ action: "write", path: "kits/paused/used.md" }] })).status).toBe(200);
     expect((await alice.api("PUT", `${P}/playbook/enabled`, { enabled: false })).status).toBe(200);
     try {
       for (const changes of [
@@ -617,6 +620,10 @@ describe("files to and from an agent's machine", () => {
         expect(r.status, JSON.stringify(r.body)).toBe(409);
         expect(r.body.error.code).toBe("playbook_off");
       }
+      // The used upload is refused as off, not as used: the off check comes before the upload is looked at.
+      const usedOff = await apply(erin, { upload_id: used.uploadId, changes: [{ action: "write", path: "kits/paused/used.md" }] });
+      expect(usedOff.status, JSON.stringify(usedOff.body)).toBe(409);
+      expect(usedOff.body.error.code).toBe("playbook_off");
     } finally {
       expect((await alice.api("PUT", `${P}/playbook/enabled`, { enabled: true })).status).toBe(200);
     }
