@@ -142,9 +142,25 @@ numbers is `page.goBack`, which walks every entry; the browser's own button may 
 23. **Web, as Sam.** Compare the example and standard organizations on the same mockup. *Expect:* they behave
     alike, but for what the example's being read-only explains.
 
+### Pages as tall as their content
+
+24. **MCP and web, as Sam, in the standard organization.** Publish a canvas of three pages, each about 800
+    wide with `height: "auto"`: one whose document is clearly taller than 800 (a table of 40 rows), one far
+    taller than 4,000 (400 rows), and one with a first section `100vh` tall and rows after it. *Expect:*
+    `get` gives `"height": "auto"` for each. **Web:** open it in Exploration without moving the view.
+    *Expect:* each label says `800 × auto`; each frame opens short and grows. The first grows to its
+    content's height (not 240 or 800), its last row showing with nothing to scroll inside it; the second
+    stops at 4,000 and scrolls inside its frame past that; the third stops growing soon after it opens,
+    not without end, and scrolls inside its frame. The view stays fitted as they grow: the whole canvas
+    in view, no page cut off. Fit one page from its label. *Expect:* it fits at its grown height.
+25. **MCP and web, as Sam.** Promote the canvas to the Story, and its first page alone
+    (`story_write(action="promote_mockup")`). *Expect:* on the Story's canvas the pages grow as on
+    Exploration's, and the view stays fitted; the Story page showing the first page grows its frame to the
+    content, which reads to its last row without scrolling inside the frame.
+
 ### Everywhere
 
-24. **Web, as Casey.** Do steps 3 and 7 at phone width, and steps 1 and 6 in the dark theme, and reach View, then
+26. **Web, as Casey.** Do steps 3 and 7 at phone width, and steps 1 and 6 in the dark theme, and reach View, then
     Download as ZIP, by keyboard alone. *Expect:* the toolbar stays on the screen and usable, View is in the
     details panel, focus is always visible, and buttons are named for the screen reader by what they do.
 
@@ -156,4 +172,6 @@ numbers is `page.goBack`, which walks every entry; the browser's own button may 
 - A second copy of a page's frame, a page reloading on the board when nothing asked it to, or a page's calls
   a minute running out from clicking around (a page opened afresh costs a call).
 - Web and MCP disagreeing about whether a version is clickable.
+- A page with `height: "auto"` left at 240 or 800, cut off, or a canvas that stops being fitted as its
+  frames grow.
 - A broken link that says nothing, or a message of WhatBuild's holding anything a page wrote.

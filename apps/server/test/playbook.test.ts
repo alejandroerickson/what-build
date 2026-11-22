@@ -537,12 +537,17 @@ describe("edges", () => {
     expect((await erin.api("POST", `${P}/playbook/messages`, { to: ids["vic@example.com"], text: "Archiving this for now." })).status).toBe(201);
     const etag = (await alice.api("GET", P)).body.etag as string;
     expect((await alice.api("POST", `${P}/archive`, { expected_etag: etag })).status).toBe(200);
+    // The product's answer points to the Playbook to read, not to write.
+    const how = (await erin.api("GET", P)).body.playbook.how as string;
+    expect(how).toContain("The product is archived, so its Playbook can be read but not written");
+    expect(how).not.toContain("write what you learn");
     expect((await erin.api("POST", `${P}/playbook/messages`, { to: ids["vic@example.com"], text: "Again." })).status).toBe(409);
     const marked = await vic.api("POST", `${P}/playbook/messages/read`, { all: true });
     expect(marked.status, JSON.stringify(marked.body)).toBe(200);
     expect(marked.body).toMatchObject({ marked: 1, messages_waiting: 0 });
     const again = (await alice.api("GET", P)).body.etag as string;
     expect((await alice.api("POST", `${P}/restore`, { expected_etag: again })).status).toBe(200);
+    expect((await erin.api("GET", P)).body.playbook.how).toContain("read read_first before working here, and write what you learn as you work");
   });
 });
 
@@ -555,14 +560,18 @@ describe("files to and from an agent's machine", () => {
     const zip = zipSync(Object.fromEntries(Object.entries(entries).map(([k, v]) => [k, typeof v === "string" ? strToU8(v) : v])));
     const put = await fetch(g.body.url, { method: "PUT", headers: g.body.headers, body: zip });
     expect(put.status).toBe(201);
-    return { uploadId: g.body.upload_id as string, zip };
+    const putAgain = async () => {
+      const r = await fetch(g.body.url, { method: "PUT", headers: g.body.headers, body: zip });
+      return { status: r.status, error: ((await r.json()) as { error: { code: string; message: string } }).error };
+    };
+    return { uploadId: g.body.upload_id as string, zip, putAgain };
   }
   const apply = (who: Browser, body: Record<string, unknown>) => who.api("POST", `${P}/playbook/apply`, body);
   const readme = md("Canvas kit", "Build a canvas from the team's tokens.", "applies_to: [exploration]\n");
   const build = "// Builds the canvas.\nexport const pages = ['board', 'phone'];\n";
 
   it("writes the files an upload holds at the paths its steps name, inside one folder or not, once", async () => {
-    const { uploadId, zip } = await upload(erin, {
+    const { uploadId, zip, putAgain } = await upload(erin, {
       "canvas-kit/kits/zipped/README.md": readme,
       "canvas-kit/kits/zipped/build.mjs": build,
       "canvas-kit/_manifest.json": "{}",
@@ -582,7 +591,45 @@ describe("files to and from an agent's machine", () => {
     const again = await call("playbook_write", "apply", { upload_id: uploadId, changes: [{ action: "write", path: "kits/zipped/README.md", expected_etag: r.body.results[0].etag }] });
     expect(again.status, again.text).toBe(409);
     expect(again.text).toContain("upload_used");
+    // Its grant takes no other ZIP, and says the upload was applied.
+    const late = await putAgain();
+    expect(late.status).toBe(409);
+    expect(late.error.code).toBe("already_uploaded");
+    expect(late.error.message).toContain("was applied. For a new change, request a new upload");
     await client.close();
+  });
+
+  it("refuses an apply while the Playbook is off before reading its upload, and applies it once it is on again", async () => {
+    const { uploadId, putAgain } = await upload(erin, { "kits/paused/README.md": readme });
+    // Not applied yet: a second PUT says to apply it.
+    const early = await putAgain();
+    expect(early.status).toBe(409);
+    expect(early.error.message).toContain("A ZIP already arrived under this grant. Apply it with upload_id, or request a new upload.");
+    // An upload already applied, which looking at it would refuse as used.
+    const used = await upload(erin, { "kits/paused/used.md": readme });
+    expect((await apply(erin, { upload_id: used.uploadId, changes: [{ action: "write", path: "kits/paused/used.md" }] })).status).toBe(200);
+    expect((await alice.api("PUT", `${P}/playbook/enabled`, { enabled: false })).status).toBe(200);
+    try {
+      for (const changes of [
+        [{ action: "write", path: "kits/paused/README.md" }],
+        // A step whose file the ZIP lacks is refused as off too, not as missing.
+        [{ action: "write", path: "kits/paused/README.md" }, { action: "write", path: "kits/paused/absent.md" }],
+        [{ action: "write", path: "kits/paused/absent.md" }],
+      ]) {
+        const r = await apply(erin, { upload_id: uploadId, changes });
+        expect(r.status, JSON.stringify(r.body)).toBe(409);
+        expect(r.body.error.code).toBe("playbook_off");
+      }
+      // The used upload is refused as off, not as used: the off check comes before the upload is looked at.
+      const usedOff = await apply(erin, { upload_id: used.uploadId, changes: [{ action: "write", path: "kits/paused/used.md" }] });
+      expect(usedOff.status, JSON.stringify(usedOff.body)).toBe(409);
+      expect(usedOff.body.error.code).toBe("playbook_off");
+    } finally {
+      expect((await alice.api("PUT", `${P}/playbook/enabled`, { enabled: true })).status).toBe(200);
+    }
+    const on = await apply(erin, { upload_id: uploadId, changes: [{ action: "write", path: "kits/paused/README.md" }] });
+    expect(on.status, JSON.stringify(on.body)).toBe(200);
+    expect((await read(vic, "kits/paused/README.md")).body.content).toBe(readme);
   });
 
   it("refuses the whole change when a step's file is missing, keeping the upload for another try", async () => {

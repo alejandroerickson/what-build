@@ -106,7 +106,7 @@ following a file:
 | `read` | One file's text, etag, revision, size and sha256, and each `whatbuild:` link in it with what it names now. With `revision`, that revision's text. |
 | `read_files` | Every file under a `prefix` with its text, size, sha256 and etag, up to 1 MiB an answer, `next_cursor` for more: to work on a kit on your own machine. |
 | `get_download` | A short-lived grant to GET a folder (`prefix`), or the whole bundle, as a ZIP: each file at its path, and `_manifest.json` with each one's etag, revision, size and sha256. |
-| `search` | The files whose text holds every word of `query`, with a few lines around them: up to three passages a file, each the line holding a word with the lines either side, line breaks kept. A word found only in the frontmatter shows frontmatter. |
+| `search` | The files whose text holds every word of `query`, with a few lines around them: up to three passages a file, each the line holding a word with the nearest line before and after it that isn't blank, blank lines between left out, line breaks kept. A word found only in the frontmatter shows frontmatter. |
 | `history` | A file's revisions, newest first; without a path, the bundle's recent changes and `log_md`. |
 | `backlinks` | The files that link to a source, mockup, outcome or Story page. |
 | `housekeeping` | What might be tidied (below). |

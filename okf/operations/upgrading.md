@@ -33,6 +33,15 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
 
 ## Unreleased
 
+- **The Playbook's refusals and pointers are more exact** (`tools_version` 0.70.0). It asks nothing
+  of a deployment and adds no migration. While a product's Playbook is off, `apply` with an upload
+  answers `409 playbook_off` whatever its steps, where a step whose file the ZIP lacked answered
+  `422 playbook_upload_missing`, and the upload stays usable. A PUT to the grant of an upload already
+  applied or published says so. An archived product's answer says its Playbook can be read but not
+  written. A connected client sees the new descriptions after a new session.
+- **`mockups_write(action="publish")` names `page_id`** among what a new mockup's page needs, in
+  its description and the guide. It asks nothing of a deployment.
+
 ## v0.43.1
 
 - **Nothing needs doing.** No migration, setting or step, and the server and web app are as in

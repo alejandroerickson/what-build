@@ -33,7 +33,8 @@ deletes only what it made itself in the run.
    and 390 wide. *Expect:* the front with a dashed line at 560px and a note on how tall it is; at
    390, no line, and a note below the front, clear of its last line, that a phone shows the whole
    front.
-3. **MCP, as Sam.** In a product with sources, add the first text as a source, then call
+3. **MCP, as Sam.** In a live product with sources (not the archived one, where every write is
+   refused), add the first text as a source, then call
    `sources_delete(action="delete")` on it anyway with its etag, a reason and `confirm: "delete
    permanently"`. *Expect:* `403 connection_level`, naming Admin and where the person raises it
    (WhatBuild's Settings, under Agents); the source

@@ -12,13 +12,15 @@ files are kept as revisions and its links name the product's objects. Messages p
 people's agents beside it. People see it only as a section of Settings, where an admin turns it off
 and on. This plan has Sam's agent and Riley's agent work through one product's Playbook: the starter
 copied in on first write, a correction kept as a lesson, a conflict merged, a message passed,
-a linked source archived and restored, several changes at once. It then checks the web app's
+a linked source archived and restored, several changes at once, a folder downloaded as a ZIP and
+sent back as one. It then checks the web app's
 side, the switch, the levels and roles, and that one organization's Playbook reaches nobody outside it.
 It writes only files it makes itself, in products of the standard organization.
 
 ## Steps
 
-1. **Run folder.** Pick a product of the standard organization with sources, and note its path.
+1. **Run folder.** Pick a live product of the standard organization with sources (not the archived
+   one, where every write is refused), and note its path.
    Write a short synthetic lesson into the run's folder: frontmatter with `type: Lesson`, a
    `title`, a `description` and `applies_to: [story]`, then a few lines in a phrase of its own that
    appears nowhere in the product (search first). Pick a live source of the product, and put a
@@ -27,7 +29,7 @@ It writes only files it makes itself, in products of the standard organization.
    and read `guide(topic="playbook")`. *Expect:* `playbook_read` and `playbook_write`, and no `playbook_delete`. The
    server's instructions and `guide(topic="start")` say WhatBuild is used through each product's
    Playbook by those who work on it, and that someone who only reads a product's Story does not
-   reach it. Every answer gives `tools_version` 0.69.0. `products_read(action="get")` on the product
+   reach it. Every answer gives `tools_version` 0.70.0. `products_read(action="get")` on the product
    gives `playbook` with `read_first` (titles and descriptions), `by_area`, and how many files it holds.
    `playbook_read(action="index")` lists the starter (`using-this-playbook.md`, four files under `how-to/` and
    two under `product/`), each at revision 0 and marked `from_starter`, with `index_md`.
@@ -51,7 +53,8 @@ It writes only files it makes itself, in products of the standard organization.
 5. **MCP, as Riley, on the same product.** Connect, and read the lesson. *Expect:* Sam's text,
    with the same etag and links Sam saw. `products_read(action="get")` lists it under `by_area` for
    the Story. `playbook_read(action="search")` for the lesson's phrase finds it, with a snippet that is the line
-   holding the phrase and the lines either side of it, each on a line of its own, and no frontmatter.
+   holding the phrase and the nearest line before and after it that isn't blank (blank lines
+   between left out), each on a line of its own, and no frontmatter.
 6. **MCP, as Riley and as Sam: a conflict.** Both read `product/now.md` and keep its etag. Riley
    writes it first, with a line of their own and a `message`. Sam then writes it with the same old
    etag. *Expect:* Riley's write succeeds. Sam's is refused `409 stale_etag`, whose details give
@@ -86,7 +89,24 @@ It writes only files it makes itself, in products of the standard organization.
     new path (`moved_to`), never that the path has had no file. Restore the removed file
     from `playbook_read(action="history")` with `playbook_write(action="restore")`, and it is listed again.
     `playbook_read(action="starter")` says which files differ from WhatBuild's starter.
-11. **Web, as Riley, in the standard organization.** Open the product's Activity and filter it to
+11. **MCP, as Sam: a folder downloaded.** `playbook_read(action="get_download", prefix="how-to/")`, then
+    `get_download` without a prefix. GET each `url` with the `headers` given, into a folder of its
+    own in the run's folder, and unzip. *Expect:* every file at its Playbook path (only those under
+    `how-to/` in the first), and a `_manifest.json` whose `etag`, `revision`, `size` and `sha256` for
+    each file equal what `playbook_read(action="read")` gives for it. The sha256 of each file's bytes
+    (`shasum -a 256`) equals that value, and `playbook_read(action="index")` gives `size` and `sha256`
+    for every file.
+12. **MCP, as Sam: a folder sent back.** In the whole download, change one file of `how-to/`, and zip
+    the folder as it is, manifest and all. `playbook_write(action="request_upload")`, PUT the ZIP to
+    its `url` with its `headers`, then `apply` with `upload_id`: first a write step without `content`
+    for the changed file (with the manifest's etag) and one for a path the ZIP lacks. *Expect:* `422
+    playbook_upload_missing` naming only the missing path, and nothing changed. Then the good step
+    alone. *Expect:* the file written at its next revision, its `sha256` equal to the edited file's,
+    the answer's `upload` giving the ZIP's `size` and `sha256` (equal to the file's on disk), and no
+    other file of the ZIP written (the index shows no other revision moved). `apply` the same upload
+    again. *Expect:* `409 upload_used`. PUT to the same grant again. *Expect:* `409
+    already_uploaded`, saying the upload was applied and that a new change needs a new upload.
+13. **Web, as Riley, in the standard organization.** Open the product's Activity and filter it to
     the Playbook. *Expect:* each change above, said in words ("added to the Playbook", "changed in the Playbook",
     "moved in the Playbook", "removed from the Playbook", "restored in the Playbook", "sent a message to the
     agents of"), one entry for each file step 10's change touched, each naming its path. Each is
@@ -96,29 +116,34 @@ It writes only files it makes itself, in products of the standard organization.
     Format. It says how many files it holds, and
     the count matches `playbook_read(action="index")`. "Keep a Playbook for this product" is ticked and can be
     changed. Check it at phone width and in the dark theme too.
-12. **Web, as Riley, with Settings → Playbook open; MCP, as Sam.** Write a new file over MCP while the
+14. **Web, as Riley, with Settings → Playbook open; MCP, as Sam.** Write a new file over MCP while the
     section is open. *Expect:* the section's count of files goes up by one without a reload.
-13. **Web, as Riley: off.** First, over MCP as Sam, send Riley's agents another message, and as
+15. **Web, as Riley: off.** First, over MCP as Sam, send Riley's agents another message, and as
     Riley call a read in the product. *Expect:* its `scope` gives `playbook_messages_waiting: 1`.
-    Then untick "Keep a Playbook for this product". *Expect:* a toast says the Playbook is
+    Also as Sam, take a `get_download` grant, and `request_upload` and PUT a ZIP holding one new
+    file under `lessons/`, without applying it. Then untick "Keep a Playbook for this product". *Expect:* a toast says the Playbook is
     off. Over MCP, as Sam: `playbook_read(action="index")`, `playbook_read(action="messages")` and an
-    `playbook_write` each answer `409 playbook_off` and say an admin turns it on in Settings. Over MCP,
+    `playbook_write` each answer `409 playbook_off` and say an admin turns it on in Settings. So do
+    `get_download`, `request_upload`, a GET under the download grant taken before, and an `apply`
+    with the pending upload, whether its steps name only the ZIP's file or also one the ZIP lacks. Over MCP,
     as Riley, the same read as before gives no `playbook_messages_waiting`, though Riley's message is
     still unread. `products_read(action="get")` gives no `read_first`,
     `story_read(action="guidance")` lists no Playbook files, and archiving and restoring a source that a
     file links to gives no `playbook_cited_by`. Tick it again. *Expect:* a toast says it is on, and
-    every file is back at the revision and etag it had. Riley's read gives
+    every file is back at the revision and etag it had, and the pending upload applies, writing its
+    file. Riley's read gives
     `playbook_messages_waiting: 1` again. Activity shows the message sent, and the Playbook turned off
     and on by Riley among the product's settings, each of those two entries opening Settings → Playbook.
-14. **Web, as Sam, in the standard organization.** Open Settings → the product → Playbook. *Expect:* the
+16. **Web, as Sam, in the standard organization.** Open Settings → the product → Playbook. *Expect:* the
     same text, a note that only admins of this product turn it off or on, and the switch disabled.
-15. **MCP, as Sam, at `--level viewer`, then as Jordan.** As Sam on a Read only connection, list
+17. **MCP, as Sam, at `--level viewer`, then as Jordan.** As Sam on a Read only connection, list
     the tools. *Expect:* `playbook_read` and no `playbook_write`. Reading the index and Sam's sent messages
-    works. As Jordan, a Story reader, on the unscoped connector and on one scoped to the product:
+    works, and so does `get_download`; `playbook_write(action="request_upload")` called anyway is refused `403
+    connection_level`. As Jordan, a Story reader, on the unscoped connector and on one scoped to the product:
     *Expect:* no Playbook tool is listed, and `playbook_read(action="index")` called anyway is refused `403
-    forbidden`, saying Jordan is a Story reader and it needs viewer. `products_read(action="get")`
+    forbidden`, saying Jordan is a Story reader and it needs viewer, and so is `get_download`. `products_read(action="get")`
     gives Jordan no `playbook`.
-16. **MCP, as Riley, then Sam, on an Admin connection.** As Riley at `--level admin`, purge the
+18. **MCP, as Riley, then Sam, on an Admin connection.** As Riley at `--level admin`, purge the
     file moved in step 10 with `playbook_delete(action="purge")`: first without `confirm`, then with its
     etag, a reason and `confirm: "delete permanently"`. *Expect:* the first is refused `422`, naming
     what is missing. The second deletes it, and its history is gone too: reading the path, and its
@@ -126,15 +151,16 @@ It writes only files it makes itself, in products of the standard organization.
     attributed to Riley. As Sam at `--level admin`: no `playbook_delete` is offered, and calling it
     anyway on another file made in the run is refused `403 forbidden` naming editor and admin, and
     the file stays.
-17. **MCP, as Sam: the export.** `products_export(action="export")` on the product, then download
+19. **MCP, as Sam: the export.** `products_export(action="export")` on the product, then download
     it when it is ready. *Expect:* the ZIP holds `playbook/files/` with every file not removed, at its
     path, and `playbook/revisions.jsonl`, and no message. Its README or manifest says what each holds.
-18. **The example organization, as a guest** (`guest@example.com`). Over MCP, read
+20. **The example organization, as a guest** (`guest@example.com`). Over MCP, read
     `playbook_read(action="index")` on a product of the example organization, then try `playbook_write` there.
     *Expect:* the index answers (the starter, or what the example's authors wrote). No `playbook_write`
-    is offered; called anyway, a write and a message are each refused `403 example_read_only`. On the web, Settings → the product
+    is offered; called anyway, a write, a message and `request_upload` are each refused `403
+    example_read_only`. `get_download` gives a grant, and its ZIP downloads. On the web, Settings → the product
     → Playbook says it is a worked example to read, and the switch is disabled.
-19. **The synthetic organization, as Morgan; the standard organization's Playbook from outside.** Over
+21. **The synthetic organization, as Morgan; the standard organization's Playbook from outside.** Over
     MCP as Morgan, read Crewboard's Playbook. *Expect:* the sample's files (a lesson, what is current, a
     person's page) and, for whoever it was sent to, a message waiting. As Morgan, call
     `playbook_read(action="index")` and `playbook_read(action="read")` of the lesson from step 4 on the standard
@@ -148,6 +174,8 @@ It writes only files it makes itself, in products of the standard organization.
   instructions, `products_read(action="get")`, each part's guidance, and the messages waiting (a
   count shown while it is off, with a message really waiting, or not shown again once it is on).
 - A conflict that loses either person's text, or an `apply` that writes part of a change.
+- A ZIP whose files or manifest differ from what `playbook_read` gives, or an `apply` from an upload
+  that writes a file no step named.
 - The starter copied in twice, or its etags changed by the copy, so that an agent's etag from
   before the first write turns stale.
 - A message's text, or anything from the Playbook, shown in the web app, which shows only its

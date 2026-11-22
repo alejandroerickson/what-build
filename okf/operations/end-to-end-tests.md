@@ -25,7 +25,7 @@ with Google Chrome installed. Building the golden master needs a pull of product
 
 | Piece | What it is |
 |---|---|
-| The golden master | The database `golden` in the instance's own embedded Postgres (`.what-build/e2e/pg`, port `54339`) and its files (`.what-build/e2e/golden-blobs`). It is built once and stays as it is until it is built again. `.what-build/e2e/golden.json` says which pull it was built from, when, at which commit and schema, the three organizations' slugs, every product's path, and that the pull checked an instance owner owns what it took (`owned_by_instance_owners`). |
+| The golden master | The database `golden` in the instance's own embedded Postgres (`.what-build/e2e/pg`, port `54339`) and its files (`.what-build/e2e/golden-blobs`). It is built once and stays as it is until it is built again. `.what-build/e2e/golden.json` says which pull it was built from, when, at which commit and schema, the three organizations' slugs, every product's path and which of them are archived (which `pnpm e2e run` marks, since every write in one is refused), and that the pull checked an instance owner owns what it took (`owned_by_instance_owners`). |
 | The instance | `pnpm dev:e2e`: the database `e2e`, made fresh from the golden master each time it starts, with its own files (`.what-build/e2e/blobs`), on `http://localhost:5283` (API `:8797`). It runs beside `pnpm dev`. Mail only prints. Its web app comes from the dev server, which sends the app's `frame-src` and none of its other page headers: a release's image on the Docker host sends them all. |
 | Plans | `e2e/plans/*.md`, Markdown steps in the product's vocabulary, each saying who acts, through which door, and what to expect. `e2e/plans/README.md` is the format. |
 | The browser driver | `pnpm e2e browser <command>`: a real Chrome kept open by a small daemon between commands, addressed by role, accessible name and label. The daemon listens on 127.0.0.1 and takes a command only with the token it writes to `.what-build/e2e/browser.json`, which only its owner can read, so a web page cannot drive it. |
@@ -187,11 +187,12 @@ The plans:
   deletes it; someone it no longer holds asks for, and starts, their own, where archiving makes no
   room under a total and deleting does.
 - `clickable-prototypes`: a canvas's pages link to each other; the board flies to a linked page, the
-  clickable view changes it in place, and the canvas or a page downloads; an agent learns of it from
-  what it reads, and a hostile page's script stays in the sandbox and cannot fill the browser's history.
+  clickable view changes it in place, and the canvas or a page downloads; a page with `height: "auto"`
+  grows to its content on the board and the Story; an agent learns of it from what it reads, and a hostile page's script stays in the sandbox and cannot fill the browser's history.
 - `the-playbook`: two people's agents work through one product's Playbook: the starter copied in on
   the first write, a lesson with `whatbuild:` links, a conflict merged, a message between them, a
-  linked source archived, several changes at once; then the activity log and Settings → Playbook,
+  linked source archived, several changes at once, a folder downloaded and sent back as a ZIP
+  with its sha256 checked; then the activity log and Settings → Playbook,
   turning it off and on, what a viewer, a Story reader, an admin's purge and a guest of the example
   may do, the export, and the Playbook kept inside its organization. Run it when how agents reach
   the Playbook changes (its operations, what points agents at it, its switch, who may do what), not
