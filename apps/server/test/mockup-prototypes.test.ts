@@ -51,9 +51,12 @@ let P: string;
 let tenantId: string;
 let productId: string;
 
+/** The grant of the newest upload, to PUT under it again. */
+let lastGrant: { url: string; headers: Record<string, string> };
 async function upload(b: Browser, base: string, entries: Record<string, Uint8Array | string>) {
   const g = await b.api("POST", `${base}/mockups/uploads`, {});
   expect(g.status, JSON.stringify(g.body)).toBe(201);
+  lastGrant = g.body;
   const bytes = zipSync(Object.fromEntries(Object.entries(entries).map(([k, v]) => [k, typeof v === "string" ? strToU8(v) : v])));
   const put = await fetch(g.body.url, { method: "PUT", headers: g.body.headers, body: bytes });
   expect(put.status).toBe(201);
@@ -110,6 +113,12 @@ describe("a mockup's prototype", () => {
     });
     const r = await alice.api("POST", `${P}/mockups`, { upload_id: uploadId });
     expect(r.status, JSON.stringify(r.body)).toBe(201);
+    // A PUT under the grant of an upload already published says so, and that a new version needs a new upload.
+    const late = await fetch(lastGrant.url, { method: "PUT", headers: lastGrant.headers, body: zipSync({ "a.txt": strToU8("a") }) });
+    expect(late.status).toBe(409);
+    const lateError = ((await late.json()) as { error: { code: string; message: string } }).error;
+    expect(lateError.code).toBe("already_uploaded");
+    expect(lateError.message).toContain("was published. For a new version, request a new upload");
     mockupId = r.body.mockup_id;
     etag = r.body.etag;
     // Publish answers with what comes next; get reads the version, with its prototype's address.

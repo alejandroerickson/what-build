@@ -73,8 +73,17 @@ export type GoldenRecord = {
   synthetic?: string;
   synthetic_organizations?: string[];
   products: string[];
+  /** The products among `products` that are archived, where every write is refused; absent from a golden master built before it was recorded. */
+  archived_products?: string[];
   owned_by_instance_owners?: true;
 };
+
+/** The golden master's products, one a line, each archived one marked, as a run lists them. */
+export function productLines(golden: GoldenRecord): string[] {
+  if (!golden.archived_products) return [...golden.products, "(which are archived is not recorded: build the golden master again)"];
+  const archived = new Set(golden.archived_products);
+  return golden.products.map((p) => (archived.has(p) ? `${p}   (archived: every write is refused)` : p));
+}
 
 /** The golden master's organizations whose people are their own, whom the development sign-in's people are not added to. */
 export function ownPeopleOf(golden: GoldenRecord): string[] {
@@ -171,9 +180,13 @@ async function buildGolden(args: string[]) {
         await made.pool.end();
       }
       const migration = (await c.query<{ name: string }>("select max(name) as name from schema_migrations")).rows[0]!.name;
-      const products = (
-        await c.query<{ path: string }>("select t.slug || '/' || p.slug as path from products p join tenants t on t.tenant_id = p.tenant_id order by 1")
-      ).rows.map((r) => r.path);
+      const rows = (
+        await c.query<{ path: string; archived: boolean }>(
+          "select t.slug || '/' || p.slug as path, p.archived_at is not null as archived from products p join tenants t on t.tenant_id = p.tenant_id order by 1",
+        )
+      ).rows;
+      const products = rows.map((r) => r.path);
+      const archivedProducts = rows.filter((r) => r.archived).map((r) => r.path);
       // restorePull loads only a pull that checked an instance owner owns every organization in it.
       const synthetics = [SYNTHETIC, ...brought.filter((slug) => slug !== SYNTHETIC)];
       record = {
@@ -186,10 +199,11 @@ async function buildGolden(args: string[]) {
         synthetic: SYNTHETIC,
         ...(synthetics.length > 1 ? { synthetic_organizations: synthetics } : {}),
         products,
+        archived_products: archivedProducts,
         owned_by_instance_owners: true,
       };
       console.log(`The golden master is ${keep.slug}, the example organization in the copy ${s.name}, ${standard.slug}, a copy of it that is not the example, and ${synthetics.length > 1 ? `${synthetics.length} synthetic organizations with people of their own, ${SYNTHETIC} among them` : `${SYNTHETIC}, a synthetic organization with people of its own`}:
-  ${products.join("\n  ")}`);
+  ${productLines(record).join("\n  ")}`);
     } finally {
       await c.end();
     }
@@ -312,7 +326,7 @@ function startRun(plan: string | undefined) {
   Example     ${golden?.example ?? golden?.sandbox ?? "?"}   (the example organization)
   Standard    ${golden?.standard ?? "?"}   (the same products, not the example)
   Synthetic   ${golden?.synthetic ?? "none: build the golden master again"}   (its own people: morgan, casey, avery; sam reads its Story)
-  Products    ${golden?.products.join("\n              ") ?? "?"}
+  Products    ${golden ? productLines(golden).join("\n              ") : "?"}
   Folder      ${dir}
   Recording   log.jsonl, and screenshots in shots/
   Report      write it to ${join(dir, "report.md")}`);

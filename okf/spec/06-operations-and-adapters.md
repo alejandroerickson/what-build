@@ -415,9 +415,11 @@ Notes on recent actions:
   shared agent knowledge. Every change to a file that exists takes its etag; a stale or missing one
   is `409 stale_etag` with `current_content`, `current_etag`, `current_revision` and who wrote it,
   and `apply` checks all its steps' etags first, refusing the whole change with `409 playbook_stale` and
-  `details.files`. Every call is refused with `409 playbook_off` while the product's admins have it off,
+  `details.files`. Every call is refused with `409 playbook_off` while the product's admins have it off
+  (`apply` before it reads an upload, which stays for when the Playbook is on again),
   which they change with `products.set_playbook` in the web app only. `products.get` gives `playbook_enabled`
-  and `playbook` (`read_first`, `by_area`, `files`, `messages_waiting`); `story.guidance`,
+  and `playbook` (`read_first`, `by_area`, `files`, `messages_waiting`, and `how`, which in an archived
+  product says the Playbook can be read but not written until the product is restored); `story.guidance`,
   `outcomes.card_guidance`, `derived.card_guidance` and, over MCP, `mockups.list` give `playbook.files`
   for their part; archiving a source, outcome, mockup or Story page answers `playbook_cited_by` when a
   file links to it and the Playbook is on; and every product answer over MCP carries `scope.playbook_messages_waiting` when
@@ -1229,7 +1231,8 @@ of preference for an agent (`packages/core/src/ops/attachments.ts`):
 expires_at, next }`; `url` is `/api/v1/uploads/mockup/:upload_id` and the grant is sent as
 `X-WhatBuild-Upload-Grant`. `max_bytes` is 25 MB, or the relay's limit when lower, and the grant
 expires as a file's does. The relay checks the grant and its expiry (`401 invalid_grant`), takes
-one ZIP under it (a second PUT is `409 already_uploaded`), checks that whoever requested it can
+one ZIP under it (a second PUT is `409 already_uploaded`, saying to publish the upload or, once it
+was published, that a new version needs a new upload), checks that whoever requested it can
 still write to the product (`403 forbidden`), and stores the bytes with their size and SHA-256,
 answering `201` with what to call next. Nothing is read or published then:
 `mockups.publish { upload_id }` reads the ZIP before its transaction, checks it, and publishes

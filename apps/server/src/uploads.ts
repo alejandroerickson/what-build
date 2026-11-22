@@ -202,6 +202,7 @@ export function uploadRoutes(env: Env & { config: ServerConfig }) {
       what: "a canvas's ZIP",
       request: 'mockups_write(action="request_upload")',
       use: "Publish it with upload_id",
+      used: "A ZIP already arrived under this grant and was published. For a new version, request a new upload with mockups_write(action=\"request_upload\").",
       next: 'Received. Now call mockups_write(action="publish") with upload_id, and mockup_id with expected_etag for a later version. The ZIP is checked then; nothing is published until that call succeeds.',
     },
     playbook: {
@@ -210,6 +211,7 @@ export function uploadRoutes(env: Env & { config: ServerConfig }) {
       what: "a ZIP of a Playbook's files",
       request: 'playbook_write(action="request_upload")',
       use: "Apply it with upload_id",
+      used: "A ZIP already arrived under this grant and was applied. For a new change, request a new upload with playbook_write(action=\"request_upload\").",
       next: 'Received. Now call playbook_write(action="apply") with upload_id and the steps, each write step whose file is in the ZIP without content. The files are read then; nothing is changed until that call succeeds.',
     },
   } as const;
@@ -222,7 +224,7 @@ export function uploadRoutes(env: Env & { config: ServerConfig }) {
         const tenantId = String(claims["t"]);
         const upload = await inTenant(env, tenantId, (trx) => trx.selectFrom("mockup_uploads").selectAll().where("upload_id", "=", c.req.param("upload_id")).where("kind", "=", kind).executeTakeFirst());
         if (!upload) throw notFound("No such upload grant.");
-        if (upload.uploaded_at) throw conflict("already_uploaded", `A ZIP already arrived under this grant. ${z.use}, or request a new upload.`);
+        if (upload.uploaded_at) throw conflict("already_uploaded", upload.used_at ? z.used : `A ZIP already arrived under this grant. ${z.use}, or request a new upload.`);
         if (Date.parse(upload.expires_at) < Date.now()) throw new AppError(401, "invalid_grant", "The upload grant has expired. Request a new one.");
         const role = await inTenant(env, tenantId, async (trx) =>
           effectiveRole(await membershipsFor(trx, upload.principal.account_id, tenantId), { tenant_id: tenantId, product_id: upload.product_id }).role,

@@ -938,7 +938,11 @@ async function usablePlaybookUpload(ctx: OpContext, uploadId: string, lock = fal
 async function prepareApplyUpload(ctx: PrepareContext, input: { upload_id?: string | undefined; changes: { action: string; path: string; content?: string | undefined }[] }) {
   if (!input.upload_id) return undefined;
   const paths = input.changes.filter((c) => c.action === "write" && c.content === undefined).map((c) => playbookPath(c.path));
-  const u = await ctx.read((c) => usablePlaybookUpload(c, input.upload_id!));
+  // A Playbook that is off is refused before its upload is looked at, so the upload stays for when it is back on.
+  const u = await ctx.read(async (c) => {
+    await requirePlaybook(c, true);
+    return usablePlaybookUpload(c, input.upload_id!);
+  });
   return { upload_id: u.upload_id, files: readPlaybookZip(await ctx.ports.blobs.get(u.blob_key), paths) };
 }
 
@@ -1064,6 +1068,8 @@ export const playbookApply = defineOperation({
   mcp: { tool: "playbook", action: "apply" },
   prepare: prepareApplyUpload,
   async handler(ctx, input, upload) {
+    // First, so a Playbook that is off answers playbook_off whatever the steps and the upload hold.
+    await startIfNeeded(ctx);
     const missing = input.changes.filter((c) => c.action === "write" && c.content === undefined);
     if (missing.length && !upload)
       throw invalid("invalid_input", `${missing.map((c) => c.path).join(", ")} ${missing.length === 1 ? "has" : "have"} no content: give each write step its content, or pass upload_id with the files in a ZIP. Nothing was changed.`, { paths: missing.map((c) => c.path) });
@@ -1080,7 +1086,6 @@ export const playbookApply = defineOperation({
         );
       for (const c of input.changes) if (c.action === "write" && c.content === undefined) c.content = upload.files.get(playbookPath(c.path))!;
     }
-    await startIfNeeded(ctx);
     const seen = new Set<string>();
     for (const c of input.changes) {
       for (const p of [c.path, ...(c.action === "move" ? [c.to] : [])]) {
@@ -1295,7 +1300,9 @@ export async function playbookSummary(ctx: OpContext) {
     read_first: files.filter((f) => f.applies_to.includes("all")).map((f) => ({ path: f.path, title: f.title, description: f.description })),
     by_area: { idea: by("idea"), evidence: by("evidence"), exploration: by("exploration"), story: by("story") },
     messages_waiting: await playbookMessagesWaiting(ctx),
-    how: 'The product\'s Playbook is how its people\'s agents work together: read read_first before working here, and write what you learn as you work. playbook_read(action="index") lists every file; guide(topic="playbook") says how it works.',
+    how: ctx.scope.product?.archived_at
+      ? 'The product\'s Playbook is how its people\'s agents work together. The product is archived, so its Playbook can be read but not written: read read_first for what the team learned. An admin of the product restores it with products_write(action="restore"), or in the web app, in the product\'s Settings, under General. playbook_read(action="index") lists every file; guide(topic="playbook") says how it works.'
+      : 'The product\'s Playbook is how its people\'s agents work together: read read_first before working here, and write what you learn as you work. playbook_read(action="index") lists every file; guide(topic="playbook") says how it works.',
   };
 }
 

@@ -1327,7 +1327,10 @@ topic. Migration [`0050_playbook.sql`](../../apps/server/src/migrations/0050_pla
   `get_download` prefix that no Playbook path could sit under is refused with
   `422 invalid_playbook_path`. A step's file the ZIP lacks refuses the whole change
   (`422 playbook_upload_missing`, naming each), and leaves the upload for another try. A successful
-  `apply` reads an upload once (`409 upload_used` after) and answers with its `size` and `sha256`.
+  `apply` reads an upload once (`409 upload_used` after; a PUT to its grant then is `409
+  already_uploaded`, saying it was applied) and answers with its `size` and `sha256`. While the
+  Playbook is off, `apply` is refused with `409 playbook_off` before the upload is read, whatever its
+  steps, and the upload stays usable for when it is on again.
   The Playbook holds text only: a kit takes typefaces and images from where the team keeps them.
   ◆ Decision: a Playbook's uploads are rows of `mockup_uploads` with `kind` `playbook` (a canvas's
   are `canvas`), so they share its grants, limits, single use and the worker's discarding of an
