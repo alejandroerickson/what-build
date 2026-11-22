@@ -33,6 +33,12 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
 
 ## Unreleased
 
+## v0.43.1
+
+- **Nothing needs doing.** No migration, setting or step, and the server and web app are as in
+  v0.43.0: only the list of real files the attachment check runs changed (it no longer holds
+  video, which WhatBuild does not take). The tools are unchanged (version 0.69.0).
+
 ## v0.43.0
 
 - **A mockup page may take its content's height** (`height: "auto"`). The release migrates
