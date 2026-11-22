@@ -73,6 +73,10 @@ describe("English", () => {
     expect(r.body.error.message).toBe("You are an editor on product Planner; products.update needs admin. Ask an admin of the product for admin access.");
   });
 
+  it("names page_id among what a new mockup's page needs, as the schema requires", () => {
+    expect(op("mockups.publish").description).toContain("at least one page with its page_id (a slug you choose, as onboarding-a), a title and html");
+  });
+
   it("gives the limits of a mockup page as people read numbers", () => {
     expect(op("mockups.publish").description).toContain("A page holds at most 1,000,000 characters, and a version 8,000,000 in all");
   });

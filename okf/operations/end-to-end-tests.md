@@ -187,8 +187,8 @@ The plans:
   deletes it; someone it no longer holds asks for, and starts, their own, where archiving makes no
   room under a total and deleting does.
 - `clickable-prototypes`: a canvas's pages link to each other; the board flies to a linked page, the
-  clickable view changes it in place, and the canvas or a page downloads; an agent learns of it from
-  what it reads, and a hostile page's script stays in the sandbox and cannot fill the browser's history.
+  clickable view changes it in place, and the canvas or a page downloads; a page with `height: "auto"`
+  grows to its content on the board and the Story; an agent learns of it from what it reads, and a hostile page's script stays in the sandbox and cannot fill the browser's history.
 - `the-playbook`: two people's agents work through one product's Playbook: the starter copied in on
   the first write, a lesson with `whatbuild:` links, a conflict merged, a message between them, a
   linked source archived, several changes at once, a folder downloaded and sent back as a ZIP

@@ -39,6 +39,8 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
   `422 playbook_upload_missing`, and the upload stays usable. A PUT to the grant of an upload already
   applied or published says so. An archived product's answer says its Playbook can be read but not
   written. A connected client sees the new descriptions after a new session.
+- **`mockups_write(action="publish")` names `page_id`** among what a new mockup's page needs, in
+  its description and the guide. It asks nothing of a deployment.
 
 ## v0.43.1
 

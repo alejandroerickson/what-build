@@ -116,7 +116,8 @@ At most 50 files and 2,000,000 characters a version.
 ## Versions
 
 A version is the whole canvas, and every version stays readable.
-`mockups_write(action="publish")` without `mockup_id` creates the mockup. A later version takes the
+`mockups_write(action="publish")` without `mockup_id` creates the mockup: a title, a brief, and at
+least one page, each with its `page_id` (a slug you choose, as `onboarding-a`), a title and HTML. A later version takes the
 mockup's etag (from `get`) and only what changes: `pages` is the whole canvas in order; a page that
 keeps its `page_id` keeps its title, notes, size and HTML unless they are sent, and a page left out is
 dropped from that version. `from_version: N` starts from an earlier version. Each publish makes a
@@ -171,7 +172,7 @@ etag for a later version). An upload publishes once (`409 upload_used`).
   `columns`, as `get_download` writes them; other keys, such as `format`, are not read. What the call
   gives wins over the manifest, and the brief comes from `brief.md` or the call, never both. A new
   mockup published from an upload alone needs a `title`, a `brief.md`, and at least one page with a
-  title and its HTML:
+  `page_id`, a title and its HTML:
 
   ```json
   {
