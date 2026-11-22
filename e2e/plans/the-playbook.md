@@ -53,8 +53,8 @@ It writes only files it makes itself, in products of the standard organization.
 5. **MCP, as Riley, on the same product.** Connect, and read the lesson. *Expect:* Sam's text,
    with the same etag and links Sam saw. `products_read(action="get")` lists it under `by_area` for
    the Story. `playbook_read(action="search")` for the lesson's phrase finds it, with a snippet that is the line
-   holding the phrase and the nearest line before and after it that isn't blank (any blank lines
-   between kept), each on a line of its own, and no frontmatter.
+   holding the phrase and the nearest line before and after it that isn't blank (blank lines
+   between left out), each on a line of its own, and no frontmatter.
 6. **MCP, as Riley and as Sam: a conflict.** Both read `product/now.md` and keep its etag. Riley
    writes it first, with a line of their own and a `message`. Sam then writes it with the same old
    etag. *Expect:* Riley's write succeeds. Sam's is refused `409 stale_etag`, whose details give
