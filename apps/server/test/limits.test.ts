@@ -1,4 +1,4 @@
-import { CONTENT_TABLES, dayOf, definedPlans, LIMITS, OTHER_TENANT_TABLES, type BlobStore, type Limits } from "@whatbuild/core";
+import { CONTENT_TABLES, dayOf, definedPlans, isProductTotal, LIMITS, OTHER_TENANT_TABLES, PRODUCT_TOTAL_DEFAULTS, unlimitedProductTotal, type BlobStore, type Limits } from "@whatbuild/core";
 import { plansFrom } from "../src/plans-config.ts";
 import { sql } from "kysely";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -124,11 +124,16 @@ describe("an organization's plan", () => {
     // The web app picks out the few a person can run into by key.
     const keys = mine.deployment_limits.map((l: { key: string }) => l.key);
     expect(new Set(keys).size).toBe(keys.length);
-    expect(keys).toEqual(expect.arrayContaining(["file_max_bytes", "parse_cap_bytes", "attachments_per_source", "mockups_per_product", "story_pages_per_product"]));
-    // Nobody meets them on the unlimited plan, and what each person does there is counted all the same.
+    expect(keys).toEqual(expect.arrayContaining(["file_max_bytes", "parse_cap_bytes", "attachments_per_source"]));
+    // What each product holds is a plan's, so it is among the plan's limits.
+    expect(keys).not.toContain("mockups_per_product");
+    expect(keys).not.toContain("story_pages_per_product");
+    // Nobody meets them on the unlimited plan, but for the Playbook's size (mockups and Story pages
+    // have no limit there), and what each person does there is counted all the same.
     const roomy = await limitsOf(root, unlimited.slug);
     expect(roomy).toMatchObject({ plan: "unlimited", you_meet_them: false });
-    expect(roomy.limits.every((l: { value: unknown }) => l.value === null)).toBe(true);
+    for (const l of roomy.limits as { key: string; value: unknown }[])
+      expect(l.value, l.key).toBe(isProductTotal(l.key) ? unlimitedProductTotal(l.key) : null);
     expect(roomy.limits.find((l: { key: string }) => l.key === "writes_per_day").used).toBeGreaterThan(0);
   });
 
@@ -692,6 +697,91 @@ describe("the plans offered", () => {
     expect(back.status, JSON.stringify(back.body)).toBe(200);
     expect((await records()).free.changed).toEqual({});
     expect((await limitsOf(ned)).limits.find((l: { key: string }) => l.key === "sources_max").value).toBe(BASE.sources_max);
+  });
+});
+
+describe("what each product holds", () => {
+  const page = (heading: string) => `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>${heading}</title></head><body><h1>${heading}</h1></body></html>`;
+  const publishMockup = (who: Browser, at: string, title: string) => who.api("POST", `${at}/mockups`, { title, pages: [{ page_id: "a", title: "A", html: page(title) }] });
+  const publishPage = (who: Browser, at: string, id: string) => who.api("POST", `${at}/story/pages/${id}/versions`, { title: id, body: `<p>${id}</p>` });
+  const lesson = (title: string) => `---\ntype: Lesson\ntitle: ${title}\ndescription: What ${title} says.\n---\n\nText.\n`;
+  const record = async () => (await root.api("GET", "/api/v1/organizations")).body.plan_records.free as { etag: string | null; changed: Record<string, unknown> };
+  const planEtag = async () => {
+    const e = (await record()).etag;
+    return e ? { expected_etag: e } : {};
+  };
+
+  it("is a plan's to set, from the plan's dialog and its API, and the defaults hold until it is changed", async () => {
+    // The example file sets the defaults, and a plan that leaves them out takes them.
+    for (const key of ["mockups_max", "story_pages_max", "playbook_files_max", "playbook_bytes_max"] as const) {
+      expect(FREE_AS_SHIPPED[key], key).toBe(PRODUCT_TOTAL_DEFAULTS[key]);
+      expect(PRO_AS_SHIPPED[key], key).toBe(PRODUCT_TOTAL_DEFAULTS[key]);
+    }
+    const listed = (await root.api("GET", "/api/v1/organizations")).body;
+    expect(listed.limits.filter((l: { key: string }) => isProductTotal(l.key))).toEqual([
+      expect.objectContaining({ key: "mockups_max", group: "total", per: "Each product", refusal: "409 quota_exceeded" }),
+      expect.objectContaining({ key: "story_pages_max", group: "total", per: "Each product", refusal: "409 quota_exceeded" }),
+      expect.objectContaining({ key: "playbook_files_max", group: "total", per: "Each product", refusal: "422 playbook_full" }),
+      expect.objectContaining({ key: "playbook_bytes_max", group: "total", per: "Each product", refusal: "422 playbook_full" }),
+    ]);
+    expect(listed.plan_defaults.free).toMatchObject({ mockups_max: 50, story_pages_max: 50 });
+    expect((await fay.api("PATCH", "/api/v1/plans", { plan: "free", limits: { mockups_max: 2 } })).status).toBe(403);
+    expect((await root.api("PATCH", "/api/v1/plans", { plan: "free", limits: { mockups_max: -1 }, ...(await planEtag()) })).status).toBe(422);
+    const set = await root.api("PATCH", "/api/v1/plans", { plan: "free", limits: { mockups_max: 2, story_pages_max: 1, playbook_bytes_max: 1 }, ...(await planEtag()) });
+    expect(set.status, JSON.stringify(set.body)).toBe(200);
+    expect((await record()).changed).toEqual({ mockups_max: 2, story_pages_max: 1, playbook_bytes_max: 1 });
+    const mine = (await limitsOf(ned)).limits as { key: string; value: unknown; used?: number }[];
+    expect(mine.find((l) => l.key === "mockups_max")).toMatchObject({ value: 2, unit: "mockups" });
+    expect(mine.find((l) => l.key === "mockups_max")!.used).toBeUndefined();
+    expect(mine.find((l) => l.key === "playbook_files_max")!.value).toBe(PRODUCT_TOTAL_DEFAULTS.playbook_files_max);
+    // The plans offered say so too, as /plans shows them.
+    const offered = (await (await fetch(`${h.baseUrl}/api/v1/plans`)).json()) as { plans: { id: string; limits: Limits }[] };
+    expect(offered.plans.find((p) => p.id === "free")!.limits).toMatchObject({ mockups_max: 2, story_pages_max: 1 });
+  });
+
+  it("refuses a product past the plan's mockups, Story pages and Playbook, and lets it hold more once the plan does", async () => {
+    // Mockups, archived ones included; a new version counts nothing.
+    const first = await publishMockup(ned, P, "First");
+    expect(first.status, JSON.stringify(first.body)).toBe(201);
+    expect((await publishMockup(ned, P, "Second")).status).toBe(201);
+    expect((await ned.api("POST", `${P}/mockups`, { mockup_id: first.body.mockup_id, expected_etag: first.body.etag, summary: "Still one mockup." })).status).toBe(201);
+    expect((await ned.api("GET", `${P}/mockups`)).body.quota).toMatchObject({ used: 2, limit: 2 });
+    const third = await publishMockup(ned, P, "Third");
+    expect(third.status).toBe(409);
+    expect(third.body.error).toMatchObject({ code: "quota_exceeded", details: { quota: "mockups", limit: 2, used: 2 } });
+    expect(third.body.error.message).toMatch(/on this organization's plan a product holds at most 2 mockups/);
+    // Story pages.
+    expect((await publishPage(ned, P, "one")).status).toBe(201);
+    const second = await publishPage(ned, P, "two");
+    expect(second.status).toBe(409);
+    expect(second.body.error).toMatchObject({ code: "quota_exceeded", details: { quota: "story_pages", limit: 1, used: 1, unit: "pages" } });
+    expect((await ned.api("GET", `${P}/story/guidance`)).body.limits.pages_per_product).toBe(1);
+    // The Playbook's size.
+    const full = await ned.api("PUT", `${P}/playbook/file`, { path: "lessons/tight.md", content: lesson("Tight") });
+    expect(full.status).toBe(422);
+    expect(full.body.error).toMatchObject({ code: "playbook_full", details: { max: 1 } });
+    // No limit, and a higher one, let it hold more from the next call.
+    const raised = await root.api("PATCH", "/api/v1/plans", { plan: "free", limits: { mockups_max: 3, story_pages_max: null, playbook_bytes_max: null }, ...(await planEtag()) });
+    expect(raised.status, JSON.stringify(raised.body)).toBe(200);
+    expect((await publishMockup(ned, P, "Third")).status).toBe(201);
+    expect((await publishMockup(ned, P, "Fourth")).body.error).toMatchObject({ code: "quota_exceeded", details: { limit: 3 } });
+    expect((await publishPage(ned, P, "two")).status).toBe(201);
+    expect((await ned.api("GET", `${P}/story/guidance`)).body.limits.pages_per_product).toBeNull();
+    expect((await ned.api("PUT", `${P}/playbook/file`, { path: "lessons/roomy.md", content: lesson("Roomy") })).status).toBe(200);
+    // The files a Playbook holds, the starter's among them once it is copied in.
+    const files = (await ned.api("GET", `${P}/playbook`)).body.files.length as number;
+    expect((await root.api("PATCH", "/api/v1/plans", { plan: "free", limits: { playbook_files_max: files }, ...(await planEtag()) })).status).toBe(200);
+    const more = await ned.api("PUT", `${P}/playbook/file`, { path: "lessons/one-more.md", content: lesson("One more") });
+    expect(more.body.error).toMatchObject({ code: "playbook_full", details: { files: files + 1, max: files } });
+  });
+
+  it("lets an organization on no plan's limits hold any number of mockups and Story pages", async () => {
+    expect((await root.api("GET", `${U}/mockups`)).body.quota).toMatchObject({ used: 0, limit: null });
+    expect((await root.api("GET", `${U}/story/guidance`)).body.limits.pages_per_product).toBeNull();
+    // Back to the plan as configured.
+    const back = await root.api("PATCH", "/api/v1/plans", { plan: "free", reset: true, ...(await planEtag()) });
+    expect(back.status, JSON.stringify(back.body)).toBe(200);
+    expect((await limitsOf(ned)).limits.find((l: { key: string }) => l.key === "mockups_max").value).toBe(PRODUCT_TOTAL_DEFAULTS.mockups_max);
   });
 });
 

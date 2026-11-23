@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from "node:crypto";
-import { AppError, conflict, enterAsGuest, planName, escapeHtml, gone, invalid, isGuestAccount, isInstanceOwner, readGuests, tenantAllowanceOf, newId, notFound, oneLine, plainName, randomToken, safeNext, sha256Hex, SIGN_IN_LINK_MINUTES, SIGN_IN_LINK_SUBJECT, SIGN_IN_LINKS_PER_HOUR, unauthenticated, type Db, type InvitationsTable, type Mailer } from "@whatbuild/core";
+import { AppError, askForOrganization, conflict, enterAsGuest, planName, escapeHtml, gone, invalid, isGuestAccount, isInstanceOwner, readGuests, tenantAllowanceOf, newId, notFound, oneLine, plainName, randomToken, safeNext, sha256Hex, SIGN_IN_LINK_MINUTES, SIGN_IN_LINK_SUBJECT, SIGN_IN_LINKS_PER_HOUR, unauthenticated, type Db, type InvitationsTable, type Mailer } from "@whatbuild/core";
 import { Hono, type Context } from "hono";
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 import { sql, type Selectable } from "kysely";
@@ -92,11 +92,13 @@ export function authRoutes(deps: { db: Db; config: ServerConfig; mailer: Mailer 
   /**
    * Invite-only mode: new accounts only for listed emails or domains, the instance's owners,
    * someone with an invitation, or an address an instance owner has let create an organization;
-   * and anyone, as a guest, while an instance owner lets guests sign up themselves.
+   * and anyone while an instance owner lets guests sign up themselves, or lets people start a
+   * number of organizations a day themselves.
    */
   const mayJoin = async (email: string) => {
     if (!config.signupAllowlist) return true;
-    if ((await readGuests(db)).self_serve) return true;
+    const guests = await readGuests(db);
+    if (guests.self_serve || guests.organizations_per_day > 0) return true;
     const e = email.toLowerCase();
     if (config.signupAllowlist.some((a) => (a.startsWith("@") ? e.endsWith(a) : e === a))) return true;
     if (config.instanceOwners.includes(e)) return true;
@@ -256,9 +258,12 @@ export function authRoutes(deps: { db: Db; config: ServerConfig; mailer: Mailer 
     return c.json({ items, more: Math.max(0, ordered.length - shown.length) }, 200, { "Cache-Control": "no-store" });
   });
 
-  app.get("/auth/methods", async (c) =>
-    c.json({ email_link: config.mailer !== "none", google: Boolean(config.googleClientId && config.googleClientSecret), microsoft: microsoftSignIn(config), dev: config.devAuth, session_days: config.sessionDays, analytics_id: await analyticsFor(c) }),
-  );
+  app.get("/auth/methods", async (c) => {
+    const guests = await readGuests(db);
+    // Whether anyone may make an account here, so the sign-in page can say so to a newcomer.
+    const open = !config.signupAllowlist || guests.self_serve || guests.organizations_per_day > 0;
+    return c.json({ email_link: config.mailer !== "none", google: Boolean(config.googleClientId && config.googleClientSecret), microsoft: microsoftSignIn(config), dev: config.devAuth, session_days: config.sessionDays, analytics_id: await analyticsFor(c), open });
+  });
 
   /**
    * The measurement ID, where the app should measure: on the deployment's own address, not another
@@ -458,9 +463,10 @@ export function authRoutes(deps: { db: Db; config: ServerConfig; mailer: Mailer 
   });
 
   /**
-   * Ask for an organization of one's own: join the waitlist the instance's owners read
-   * (`products.tenant_allowances`), as the public site's form does. Asking again keeps one's place
-   * and adds what was sent. Someone who may already start one has no need to ask.
+   * Ask for an organization of one's own: one of the day's places, while the deployment gives
+   * them and one is left, or else the waitlist the instance's owners read
+   * (`products.tenant_allowances`), as the public site's form does (`places.ts`). Asking again
+   * keeps one's place and adds what was sent. Someone who may already start one has no need to ask.
    */
   app.post("/api/v1/me/ask-for-organization", async (c) => {
     const p = await requirePrincipal(c);
@@ -471,19 +477,39 @@ export function authRoutes(deps: { db: Db; config: ServerConfig; mailer: Mailer 
     const allowance = await tenantAllowanceOf(db, config, p);
     if (allowance.remaining === null || allowance.remaining > 0)
       throw invalid("may_start_one", "You may already start an organization; there is no need to ask.");
-    await db
-      .insertInto("interest")
-      .values({ interest_id: newId(), email: p.email.toLowerCase(), name: p.display_name, organization: body.data.organization || null, note: body.data.note || null })
-      .onConflict((oc) =>
-        oc.expression(sql`lower(email)`).doUpdateSet({
-          name: sql`coalesce(excluded.name, interest.name)`,
-          organization: sql`coalesce(excluded.organization, interest.organization)`,
-          note: sql`coalesce(excluded.note, interest.note)`,
-          updated_at: sql`now()`,
-        }),
-      )
-      .execute();
+    await askForOrganization(db, { config, mailer }, p, body.data);
     return c.json(await meOf(p));
+  });
+
+  /**
+   * Start using WhatBuild, the public site's button, after signing in: where to go next. Someone already in an
+   * organization goes to it; someone who may start one, or takes one of the day's places, goes to
+   * start it; anyone else joins the waitlist and is told so.
+   */
+  app.post("/api/v1/me/start", async (c) => {
+    const p = await requirePrincipal(c);
+    const member = await db.selectFrom("memberships").select("account_id").where("account_id", "=", p.account_id).limit(1).executeTakeFirst();
+    const allowance = member ? null : await tenantAllowanceOf(db, config, p);
+    const next = member ? "in" : allowance!.remaining === null || allowance!.remaining > 0 ? "start" : (await askForOrganization(db, { config, mailer }, p)) === "place" ? "start" : "waitlist";
+    return c.json({ next, ...(await meOf(p)) }, 200, { "Cache-Control": "no-store" });
+  });
+
+  /**
+   * Which page of the public site a new account came from (`?landing=` on the address it signed
+   * in to), so the site's landing pages can be compared. Kept once, and only in the account's first day.
+   */
+  app.post("/api/v1/me/came-from", async (c) => {
+    const p = await requirePrincipal(c);
+    const body = z.strictObject({ page: z.string().max(100).regex(/^\/[a-z0-9/-]*$/) }).safeParse(await c.req.json().catch(() => ({})));
+    if (!body.success) throw invalid("invalid_input", "Send page: the path of a page of the public site, such as /what-to-build/.");
+    await db
+      .updateTable("accounts")
+      .set({ came_from: body.data.page })
+      .where("account_id", "=", p.account_id)
+      .where("came_from", "is", null)
+      .where("created_at", ">", new Date(Date.now() - 86_400_000).toISOString())
+      .execute();
+    return c.json({ received: true });
   });
 
   /**

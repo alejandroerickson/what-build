@@ -3,7 +3,7 @@ type: Specification
 title: Every capability is one registered operation, reached identically over REST and MCP.
 description: The operation registry, the error model and bounds, the full catalogue of 142 operations with their REST routes and MCP tools, authorization and agent connection levels, upload flows, the guide and the Connect page.
 tags: [spec, operations, rest, mcp, registry, uploads, guide]
-generated: {by: agent:claude, at: 2026-11-21}
+generated: {by: agent:claude, at: 2026-11-23}
 status: stable
 ---
 
@@ -135,9 +135,10 @@ tenant.
   says which etag to pass and where to read it, or to leave it out for the first write, and names
   another etag of the object sent in its place ([§4.1](04-data-model.md)).
 - **`quota_exceeded`** carries `{ quota, limit, used, unit }` in `details`. It is returned for the
-  50 Story pages and the 50 mockups a product holds ([§9.2](09-data-lifecycle.md)), the mockups'
-  adding `archived`, and for a plan's daily allowances, which add `resets_at`
-  ([§9.7](09-data-lifecycle.md)). A call past a day's allowance that would also meet a total names
+  Story pages and the mockups a product holds, as many as its organization's plan allows (quota
+  `story_pages` and `mockups`, 50 each unless the plan says otherwise, [§9.2](09-data-lifecycle.md)),
+  the mockups' adding `archived`, for a plan's other totals, and for its daily allowances, which add
+  `resets_at` ([§9.7](09-data-lifecycle.md)). A call past a day's allowance that would also meet a total names
   the total, with the day's allowance in `details.also`. An allowance set to 0 is switched off and answers
   `403 plan_restricted` instead.
 - **`429`** is returned for sign-in links (five per address per hour), for a fourth URL fetch a
@@ -735,7 +736,9 @@ GET  /documents/:grant/<name>?theme=&frame=          on a content site: a docume
 GET  /api/v1/meta                                    release, MCP server name and tools version, sign-in methods, where the privacy page and the public site are (public)
 GET  /api/v1/plans                                   the plans the deployment offers (none, if it defines none), every limit of each and its price, starting_plan, example, whether guests may sign up, and what the privacy page names (public)
 GET  /api/v1/me/guest-pass                           a guest account's place: let in when there is room, or why not and when to ask again
-POST /api/v1/me/ask-for-organization                 join the waitlist for an organization of one's own (§3.2)
+POST /api/v1/me/ask-for-organization                 one of the day's places, or the waitlist, for an organization of one's own (§3.2)
+POST /api/v1/me/start                                Start using WhatBuild after sign-in: where to go, taking a place or joining the waitlist (§3.2)
+POST /api/v1/me/came-from { page }                   which landing page of the site a new account came from, kept once (§7.3)
 GET  /api/v1/connect                                 what Connect an agent shows
 GET|PATCH /api/v1/me; GET /api/v1/me/agents; PATCH|DELETE /api/v1/me/agents/:family; POST /api/v1/me/sign-out-everywhere
 GET  /api/v1/me/invitations                          the invitations waiting for this person's answer (§3.2)

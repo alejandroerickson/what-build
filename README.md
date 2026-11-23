@@ -6,12 +6,11 @@
 
 <h3 align="center">What to build?</h3>
 
-<p align="center"><strong>Product discovery at the speed of AI Engineering.</strong></p>
+<p align="center"><strong>Product engineering at the speed of AI engineering.</strong></p>
 
 <p align="center">
-  WhatBuild accelerates collaborative agentic discovery, facilitates alignment, and tells the story
-  of your build. At the finish line, WhatBuild provides context to your ticket-creation agent so
-  that your team can hit the ground running.
+  WhatBuild is the workspace where you and your agents turn what you know about your users into a
+  product concept, as fast as your coding agents can build it.
 </p>
 
 <p align="center">

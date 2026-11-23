@@ -13,7 +13,8 @@ import type { OperationDef, Principal, Scope } from "./registry.ts";
  * - Limits belong to a plan, never to one organization. The deployment defines its plans and every
  *   limit each sets (`WHATBUILD_PLANS`, `plans.ts`); on `unlimited`, which this WhatBuild's own
  *   organizations and every organization of a deployment that defines no plans are on, nobody meets
- *   any. Only an instance owner moves an organization to another plan.
+ *   any but what each product holds, at its defaults (`productTotal`). Only an instance owner moves an
+ *   organization to another plan.
  * - Everyone in an organization meets its plan's limits, its owners included. A guest of the example
  *   organization meets only the guests' calls a minute and bytes downloaded a day.
  * - A day's use is counted on every plan, so an organization moved to a plan during a day meets what
@@ -22,10 +23,10 @@ import type { OperationDef, Principal, Scope } from "./registry.ts";
  */
 
 export {
-  configurePlans, defaultPlans, definedPlans, GUEST_DEFAULTS, GUEST_FIELDS, guestLimits, isDefinedPlan, LIMITS, PLAN_ID, planCatalogue, planName, UNLIMITED,
-  type GuestKey, type GuestSettings, type LimitInfo, type LimitKey, type Limits, type Plan, type PlanDefinition, type PlanEntry, type PlanSetting, type PlanSettings,
+  configurePlans, defaultPlans, definedPlans, GUEST_DEFAULTS, GUEST_FIELDS, guestLimits, isDefinedPlan, isProductTotal, LIMITS, PLAN_ID, planCatalogue, planName, PRODUCT_TOTAL_DEFAULTS, PRODUCT_TOTALS, productTotalsOf, UNLIMITED, unlimitedProductTotal,
+  type GuestKey, type GuestSettings, type LimitInfo, type LimitKey, type Limits, type Plan, type PlanDefinition, type PlanEntry, type PlanSetting, type PlanSettings, type ProductTotal,
 } from "./plans.ts";
-import { guestLimits, UNLIMITED, type LimitKey, type Limits, type Plan } from "./plans.ts";
+import { guestLimits, UNLIMITED, unlimitedProductTotal, type LimitKey, type Limits, type Plan, type ProductTotal } from "./plans.ts";
 import { readGuests, readPlans } from "./settings.ts";
 
 const MiB = 1024 * 1024;
@@ -91,8 +92,13 @@ export async function limitsFor(db: Db, scope: Pick<Scope, "tenant" | "tenantRol
   const guest = scope.tenantRole === "guest";
   if (!guest && scope.tenant.plan === UNLIMITED) return null;
   const state = await loadLimits(db, scope.tenant.tenant_id);
-  if (guest) return { ...state, limits: guestLimits(await readGuests(db)), guest };
+  if (guest) return { ...state, limits: guestLimits(await readGuests(db), state.limits), guest };
   return state.limits ? { ...state, limits: state.limits, guest } : null;
+}
+
+/** The most a product holds of one kind: its organization's plan's, null for none; where no plan's limits apply, `unlimitedProductTotal`. */
+export function productTotal(lc: Pick<LimitContext, "limits"> | null | undefined, key: ProductTotal): number | null {
+  return lc ? lc.limits[key] : unlimitedProductTotal(key);
 }
 
 /** Where a day's use is counted: an organization's day, whatever its plan. */

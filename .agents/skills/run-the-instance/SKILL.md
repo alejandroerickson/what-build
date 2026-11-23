@@ -57,6 +57,7 @@ found). Its panel lists its sections:
 | see who may start organizations, and the waitlist | Starting organizations (`/admin/starting`), Who can start organizations, Waitlist |
 | let someone start an organization | Starting organizations, Let them start one on the Waitlist, or Let someone start organizations |
 | see and set how guests come in | Guests (`/admin/guests`, where there is an example organization) |
+| let people start organizations themselves, up to a number a day | Guests, New organizations a day |
 | see every account | People (`/admin/people`) |
 | delete an organization | Organizations, Delete on its row |
 | remove an account | People, Remove on the account |
@@ -73,7 +74,10 @@ is the same for everyone, an instance owner included: it changes nothing.
    sign-in.
 2. **Define or change the plans** (only when the deployment sells plans):
    - Edit the deployment's plans file in the form of `deploy/plans.example.json`: every plan's id,
-     name, what it is for, every limit (sizes as bytes or "10 MB"), and its price or null.
+     name, what it is for, every limit (sizes as bytes or "10 MB"), and its price or null. What each
+     product holds (`mockups_max`, `story_pages_max`, `playbook_files_max`, `playbook_bytes_max`)
+     may be left out, and then keeps its default (50, 50, 2,000, "32 MB"), which Unlimited
+     organizations meet too.
    - Check it: `corepack pnpm plans <file> <starting plan id>`. It prints each plan as the server
      will read it, or what is wrong.
    - Store it and make a new revision, with the commands in `cloud-run.md`; the first time, or with
@@ -92,7 +96,11 @@ is the same for everyone, an instance owner included: it changes nothing.
    again. Everyone has a place for one organization there, even someone never given an allowance.
 5. **Let people in**: the person reads the Waitlist under Starting organizations and presses Let them start one
    for whoever they choose, which gives an allowance of 1 and emails them. Being on the waitlist
-   lets nobody in by itself.
+   lets nobody in by itself, unless **New organizations a day** (under Guests) is above 0: then
+   people start organizations themselves up to that number each UTC day, and the waitlist gets the
+   next free places first, by email, without the owner doing anything. It starts at 0. The number
+   is the deployment's: never write it into the repository, and nothing shows it to visitors.
+   Suggest starting low and raising it as the deployment holds up.
 6. **Guests**: only with an example organization. The person changes them under Guests in
    Instance admin; suggest raising the numbers as the deployment grows, and leaving anyone may sign
    up as a guest (`self_serve`) off unless they ask.

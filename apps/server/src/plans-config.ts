@@ -1,13 +1,15 @@
 import { readFileSync } from "node:fs";
-import { LIMITS, PLAN_ID, UNLIMITED, type Limits, type PlanDefinition } from "@whatbuild/core";
+import { isProductTotal, LIMITS, PLAN_ID, PRODUCT_TOTAL_DEFAULTS, UNLIMITED, type Limits, type PlanDefinition } from "@whatbuild/core";
 
 /**
  * The plans a deployment offers, read from `WHATBUILD_PLANS`: JSON, or the path of a JSON file,
  * `{ "plans": [{ id, name, about, price, limits }] }` (`deploy/plans.example.json`). A deployment
  * that sets nothing offers no plans, and every organization on it is unlimited. Every limit is
- * required, so a plan never meets a limit nobody chose; a size may be bytes or a string such as
- * "10 MB" (1 MB is 1,048,576 bytes, as the app writes sizes). A plan that cannot be read stops the
- * server from starting, saying what is wrong.
+ * required, so a plan never meets a limit nobody chose, but for what each product holds
+ * (`PRODUCT_TOTALS`), which a plan left out holds at its default, what every organization held
+ * before a plan could set it; a size may be bytes or a string such as "10 MB" (1 MB is 1,048,576
+ * bytes, as the app writes sizes). A plan that cannot be read stops the server from starting, saying
+ * what is wrong.
  */
 export function plansFrom(value: string | undefined): PlanDefinition[] {
   const raw = value?.trim();
@@ -58,11 +60,12 @@ function limitsFrom(value: unknown, where: string): Limits {
   const given = value as Record<string, unknown>;
   const unknown = Object.keys(given).filter((k) => !LIMITS.some((l) => l.key === k));
   if (unknown.length) throw new Error(`${where}: ${unknown.join(", ")} ${unknown.length === 1 ? "is not a limit" : "are not limits"}. The limits are ${LIMITS.map((l) => l.key).join(", ")}.`);
-  const missing = LIMITS.filter((l) => !(l.key in given)).map((l) => l.key);
+  const missing = LIMITS.filter((l) => !(l.key in given) && !isProductTotal(l.key)).map((l) => l.key);
   if (missing.length) throw new Error(`${where}: every limit must be given; ${missing.join(", ")} ${missing.length === 1 ? "is" : "are"} missing.`);
   const out: Record<string, unknown> = {};
   for (const l of LIMITS) {
-    const v = given[l.key];
+    // What each product holds may be left out: it is then what every organization held before plans set it.
+    const v = !(l.key in given) && isProductTotal(l.key) ? PRODUCT_TOTAL_DEFAULTS[l.key] : given[l.key];
     const nullable = l.group === "total" || l.key === "sent_bytes_per_day";
     if (l.group === "switch") {
       if (typeof v !== "boolean") throw new Error(`${where}: ${l.key} must be true or false.`);

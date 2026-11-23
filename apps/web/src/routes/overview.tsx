@@ -66,10 +66,10 @@ export function OverviewPage() {
         </div>
         <div className="overview-pitch">
           <p className="overview-question">What to build?</p>
-          <p className="overview-tagline">Product discovery at the speed of AI Engineering.</p>
+          <p className="overview-tagline">Product engineering at the speed of AI engineering.</p>
           <p className="overview-about">
-            WhatBuild accelerates collaborative agentic discovery, facilitates alignment, and tells the story of your build. At the
-            finish line, WhatBuild provides context to your ticket-creation agent so that your team can hit the ground running.
+            WhatBuild is the workspace where you and your agents turn what you know about your users into a product concept, as fast as
+            your coding agents can build it.
           </p>
           <Link to={settingsTo("agents")} className="overview-agent-link">
             <Glyph name="bot" size="sm" />
@@ -161,7 +161,7 @@ function Organization({ tenant, products, showArchived, onShowArchived, onCreate
         <div className="overview-example-intro">
           <p>
           {guest
-            ? "A worked discovery to learn from. Open its product and read Idea, Evidence, Exploration and Story in order."
+            ? "The demo: a team's work, start to finish. Open its product and read Idea, Evidence, Exploration and Story in order."
             : `Everyone who signs in can read this organization.${shown.some((p) => p.your_role === "editor" || p.your_role === "admin") ? " You’re one of its authors." : ""}`}
           </p>
         </div>
@@ -203,7 +203,7 @@ function StartYourOwn({ mayStart, asked }: { mayStart: boolean; asked: boolean }
         end={
           mayStart ? (
             <ButtonLink to="/welcome" variant="primary" icon="plus">
-              Start your organization
+              Start your own organization
             </ButtonLink>
           ) : null
         }

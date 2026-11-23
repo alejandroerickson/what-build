@@ -220,6 +220,40 @@ Read and nothing else. Without it, read the numbers in the dashboard. That permi
 sites, so `pnpm usage` takes the site's tag from the visits themselves when the account has one site
 with visits; with more, set `CF_ANALYTICS_SITE_TAG` (in the site's address in the dashboard).
 
+## Comparing the landing pages
+
+While the Worker splits the front page's visitors (`LANDING_SPLIT`,
+[decision](../decisions/the-landing-pages-are-compared-by-a-split-at-the-edge.md)), compare, for
+the same days:
+
+- **Visits to each page**: Cloudflare Web Analytics, page views of `/` and of `/what-to-build/`
+  (the dashboard's paths, or `pnpm usage`).
+- **Accounts made from each page**, and how far they went, in production's database (while anyone
+  may sign up, Start using WhatBuild makes an account):
+
+  ```sql
+  select a.came_from as page, count(distinct a.account_id) as accounts,
+         count(distinct t.tenant_id) as organizations,
+         count(distinct r.tenant_id) as with_a_source
+  from accounts a
+  left join tenants t on t.created_by->>'account_id' = a.account_id
+  left join records r on r.tenant_id = t.tenant_id
+  where a.created_at >= '<first day>' and a.came_from is not null
+  group by 1;
+  ```
+
+- **Requests to hear from us from each page**, while nobody may sign up and the page asks for an
+  email instead:
+
+  ```sql
+  select page, count(*) from interest where created_at >= '<first day>' group by page;
+  ```
+
+Accounts (or requests) over visits, per page, is the comparison; organizations, and organizations
+with a source, show whether one page brings people who stay. Visits that reach `/what-to-build/` directly,
+by a shared link, count for it too. Google Analytics, for those who accept cookies, also has each
+`generate_lead` with the page it was sent from.
+
 ## After a deploy
 
 ```bash

@@ -3,7 +3,7 @@ type: System Concept
 title: WhatBuild runs as one stateless Cloud Run service with Postgres and a Cloud Storage bucket.
 description: What a deployment on Cloud Run is made of, how deploy/cloud-run/setup.sh creates it, sign-in, deploying and restore points before migrating, its alerts and traces, cost, names, and useful commands; backups and the dev deployment have guides of their own.
 tags: [operations, deployment, cloud-run, gcp]
-generated: {by: agent:claude, at: 2026-11-20}
+generated: {by: agent:claude, at: 2026-11-23}
 status: stable
 ---
 
@@ -217,7 +217,8 @@ creates on one of those plans, whose limits everyone in it meets; it must name a
 defines, or the service does not start. Left out, they are unlimited. Instance owners'
 organizations are always unlimited, and they move any organization to another plan in Instance
 admin, under Organizations. Under Plans they change a plan's limits and price over what the file
-sets, for every organization on it, and under Guests they set the guests' settings: whether anyone may sign up as a guest, and how many come in
+sets, for every organization on it, what each product holds among them (its mockups, Story pages
+and Playbook, which a file may leave out to keep the defaults), and under Guests they set the guests' settings: whether anyone may sign up as a guest, and how many come in
 ([§3.10](../spec/03-accounts-and-identity.md#310-the-example-organization)). The guests'
 settings start closed to self-serve sign-up, with the defaults in the code; raise them as the
 deployment grows. Nothing in WhatBuild takes payment: an instance owner moves an organization to a
@@ -369,6 +370,12 @@ tells them apart by Host. Put them in front of the service one of three ways:
   rule; and turn off Email Address Obfuscation and Rocket Loader, which rewrite HTML. A request
   that sends nothing for 100 seconds is cut off; no WhatBuild operation runs that long.
 
+  **Comparing the landing pages.** Deploy the Worker with `--var LANDING_SPLIT:0.5` to send half
+  of the front page's visitors to `/what-to-build/`, the same ones each visit, and never a crawler
+  ([decision](../decisions/the-landing-pages-are-compared-by-a-split-at-the-edge.md)); any share
+  from 0 to 1 works. Deploy again without it to end the test. How to read the result is in
+  [analytics](analytics.md#comparing-the-landing-pages).
+
   **Down for maintenance.** To take the deployment down on purpose (its database is out of reach,
   or a repair needs nobody writing), deploy the Worker as usual with one more setting,
   `--var MAINTENANCE:<day>`, such as `2027-01-15`, the day it is expected back. Every address on
@@ -473,7 +480,9 @@ answer. Cloud Run's own request log line for it is dropped (`whatbuild-refused-r
 **Who asked for an organization.** The site's form, and guests who ask in the app, write to the
 `interest` table ([§4.13](../spec/04-data-model.md)); nothing sends mail about a new request.
 Instance owners read it in Instance admin, under Starting organizations → **Waitlist**, and let
-someone in from there.
+someone in from there. With **New organizations a day** above 0 (Instance admin → Guests), people
+start organizations themselves up to that number each UTC day, and the waitlist gets the next free
+places first, by email ([decision](../decisions/people-start-a-number-of-organizations-a-day-themselves.md)).
 
 ## Alerts
 
@@ -604,7 +613,17 @@ a stranger's) never wakes it, so it cannot keep the database awake. A Postgres t
 minutes with no query) therefore sleeps about six minutes after the last request, while the
 instance may stay up. On Neon's free plan a project has 100 CU-hours a month, 400 hours at its
 smallest size, and its compute is suspended until the month ends once they are used up: a
-deployment people use through much of the day needs the Launch plan. One
+deployment people use through much of the day needs the Launch plan. `pnpm attention`, which every
+agent session starts with, says when the month's pace so far (over a day or more) uses production's
+hours up before the month ends, or 80% of them are used: the hours used, the day they run out, and
+to pay for a Neon plan before then. It reads them from Neon's API (`GET /projects/{id}`:
+`compute_time_seconds`, in CU-seconds, and `consumption_period_start` and `_end`) for the project
+named by `NEON_PROJECT` in `.env`, with the key the build's restore points before migrating use
+(`whatbuild-neon-api-key` in the Secret Manager of the project `GCP_PROJECT` names, read with the
+maintainer's `gcloud`; [What is where](#what-is-where)), or `NEON_API_KEY` from the environment. `NEON_CU_HOURS` in `.env` is the hours the project's plan
+gives it a month: 100 when it is not set, Neon's Free plan; on a paid plan, which bills hours past
+its allowance instead of suspending, set a budget, or `0` to turn the check off. It says nothing
+when a setting is missing or Neon does not answer within a few seconds. One
 instance runs at most (`MAX_INSTANCES`, default 1), which is ample for a few teams and makes that
 the ceiling, give or take: Google may run a second for a few minutes in a sudden spike, or while a
 deploy replaces a revision. Builds deploy a new image and keep the setting. The smallest Cloud SQL instance is roughly
@@ -722,7 +741,7 @@ closed are still billed on Workers Paid, and the zone's rate limit is what bound
 | Secrets | `whatbuild-database-url`, `whatbuild-grant-key`, optional `whatbuild-smtp-url` ([Mail](mail.md)), `whatbuild-google-client-secret`, `whatbuild-edge-key` (behind Cloudflare; also the Worker's `EDGE_KEY`) | read by the runtime identity only |
 | Images | Artifact Registry `whatbuild` | the ten most recent always kept; others deleted after 30 days |
 | Log exclusions | `whatbuild-request-addresses` and `whatbuild-refused-requests` on the `_Default` sink | Cloud Run logs every request itself, with its whole address, the client's IP and its browser, for 30 days. The first drops its line for an address with a query (a search's words, a sign-in link's token) or an invitation link; the service's own line for it, masked, stays. The second drops its line for a `403` or a `429`: a request without the edge key, refused before the service logs anything, or one Cloud Run refused for want of an instance, so a flood of them writes no logs to pay for. The request metrics count them all, and the service's own line stays for each `403` it gives |
-| Restore points (Neon, optional) | branches `pre-migrate-<time>-<commit>`, secret `whatbuild-neon-api-key` | one per deploy before migrating, the newest three kept; the key reaches only the Neon project and is read by the build identity |
+| Restore points (Neon, optional) | branches `pre-migrate-<time>-<commit>`, secret `whatbuild-neon-api-key` | one per deploy before migrating, the newest three kept; the key reaches only the Neon project and is read by the build identity, and by `pnpm attention` through the maintainer's `gcloud` for the month's compute hours ([What it costs](#what-it-costs)) |
 | Alerts | seven policies named `whatbuild: …` (ten with the kill switch), one email channel, and with the kill switch a Pub/Sub channel to its topic | made by `deploy/cloud-run/alerts.mjs` ([Alerts](#alerts)) |
 | Kill switch (optional) | service, identity, Pub/Sub topic and push subscription `whatbuild-kill-switch`; role `whatbuildKillSwitch` in each project whose service it closes; budget `WhatBuild: every project` on the billing account | made by `deploy/cloud-run/kill-switch.sh`; the service is private and reachable from inside the project only, and its identity may change who calls the services it closes, nothing else ([A hard limit on the bill](#a-hard-limit-on-the-bill)) |
 | Traces | a project of their own (`TRACES_PROJECT`): trace storage `_Trace` in `us`, BigQuery dataset `whatbuild_traces` | runs nothing; the runtime identity has Cloud Telemetry Traces Writer there, and nothing else ([Traces](#traces)) |

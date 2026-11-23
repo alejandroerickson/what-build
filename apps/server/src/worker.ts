@@ -2,7 +2,7 @@ import { hostname } from "node:os";
 import { SpanKind, SpanStatusCode, type Span } from "@opentelemetry/api";
 import { ParseInterrupted, ParseStopped } from "@whatbuild/parsers";
 import {
-  indexSources, markExportFailed, PICTURE_ATTEMPTS, PICTURE_FILES, pictureGivenUp, pruneFeedbackCounts, pruneUsage, runDerivation, runEvidenceMove, runExport, runPicture, sendFeedbackDigest, stagedPrototypeKeys, type Env,
+  givePlaces, indexSources, markExportFailed, PICTURE_ATTEMPTS, PICTURE_FILES, pictureGivenUp, pruneFeedbackCounts, pruneUsage, runDerivation, runEvidenceMove, runExport, runPicture, sendFeedbackDigest, stagedPrototypeKeys, type Env,
 } from "@whatbuild/core";
 import { sql } from "kysely";
 import { CONNECTION_NOTICE_JOB, sendConnectionNotice, type ConnectionNoticeJob } from "./auth/connection-notice.ts";
@@ -181,6 +181,7 @@ export class Worker {
           if (this.stopped) break;
           await this.prune().catch((e) => this.log(`prune: ${(e as Error).message}`));
           await this.feedbackDigest().catch((e) => this.log(`feedback digest: ${(e as Error).message}`));
+          await this.placesOfTheDay().catch((e) => this.log(`places of the day: ${(e as Error).message}`));
           await this.giveUpAbandoned().catch((e) => this.log(`give up: ${(e as Error).message}`));
           // A stop may have come during any of that, and the claim itself may cross with one.
           if (this.stopped) break;
@@ -234,6 +235,20 @@ export class Worker {
     this.lastDigestCheck = Date.now();
     const sent = await sendFeedbackDigest(this.env.db, this.env.ports);
     if (sent) this.log(`feedback digest: ${sent} report(s) sent`);
+  }
+
+  private lastPlacesCheck = 0;
+
+  /**
+   * The day's places to start an organization that are still free, given to the people waiting,
+   * earliest first, each told by email (`places.ts`): looked at on start and at most every ten
+   * minutes while the worker is awake, so it never wakes the service itself.
+   */
+  private async placesOfTheDay() {
+    if (Date.now() - this.lastPlacesCheck < DIGEST_CHECK_MS) return;
+    this.lastPlacesCheck = Date.now();
+    const { released } = await givePlaces(this.env.db, this.env.ports);
+    if (released.length) this.log(`places of the day: ${released.length} given to the waitlist`);
   }
 
   /** Housekeeping, at most hourly: finished jobs after a week; OAuth registrations nobody connected with; people's days of use after 14 months; feedback counts of days that are over; abandoned upload grants and canvas uploads, and their bytes; expired Story previews; messages between agents whose time is up. */

@@ -3,7 +3,7 @@ type: Decision
 title: Mockups are versioned canvases of agent-made HTML, in a stage called Exploration
 description: Agents build directions as sandboxed HTML pages on a canvas under a brief, versioned as a whole and downloadable to build the next one; the third stage is named Exploration.
 tags: [decision, mockups, exploration, story, security, web, agents]
-generated: {by: agent:claude, at: 2026-11-21}
+generated: {by: agent:claude, at: 2026-11-23}
 status: stable
 ---
 
@@ -116,8 +116,9 @@ the names Mockups and Exploration on 2026-10-09.
   one exists.
 - A team places a mockup beside the argument it belongs to, by hand or through an agent. A page it
   has not placed still reads, at the end of the tree.
-- A whole canvas takes one of the Story's 50 pages, however many pages it holds. In the print view it
-  expands, page by page, so a print view counts sections rather than Story pages.
+- A whole canvas takes one of the Story's pages (50 unless the plan says otherwise), however many
+  pages it holds. In the print view it expands, page by page, so a print view counts sections
+  rather than Story pages.
 - Collaborators share a canvas's styles and components by pulling its files into their projects,
   not through WhatBuild drawing pages from them. If their pages still drift apart, pages drawn from
   a shared stylesheet and components is the change to revisit (an open question on the
@@ -128,8 +129,8 @@ the names Mockups and Exploration on 2026-10-09.
   rules and sandbox there.
 - Each version stores every page's HTML and every file in full, so a long run of versions costs
   storage; 48 pages and 8,000,000 characters of HTML, 50 files and 2,000,000 characters of files a
-  version, and 50 mockups a product, bound it. A prototype's bytes are stored once per mockup by
-  hash, and bounded by its own limits.
+  version, and the mockups a product holds (50 unless the organization's plan says otherwise),
+  bound it. A prototype's bytes are stored once per mockup by hash, and bounded by its own limits.
 
 ## Constrains
 

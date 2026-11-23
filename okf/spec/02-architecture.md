@@ -3,7 +3,7 @@ type: Specification
 title: WhatBuild is one TypeScript application image over Postgres and an object store, and the same code runs on a laptop with only Node.
 description: The requirements behind the stack, the stack itself, the deployment shape, ports and adapters, the operation protocol, the local development contract, cross-cutting rules, and the repository layout.
 tags: [spec, architecture, stack, development, deployment]
-generated: {by: agent:claude, at: 2026-11-15}
+generated: {by: agent:claude, at: 2026-11-23}
 status: stable
 ---
 
@@ -136,8 +136,8 @@ before the service moves to it, Cloud Storage for blobs, Secret Manager for secr
   ([§3.10](03-accounts-and-identity.md#310-the-example-organization)). Nothing about it runs
   on a schedule. A plan's limits are counted in Postgres (`limit_counters`), so every
   instance counts against the same totals ([§9.7](09-data-lifecycle.md)).
-- **The public site rides along.** Behind Cloudflare the Worker serves its pages (the front page,
-  the plans and the privacy page) from the edge and passes on only its form; with `MAINTENANCE`
+- **The public site rides along.** Behind Cloudflare the Worker serves its pages (its two landing
+  pages, the plans and the privacy page) from the edge and passes on only its form; with `MAINTENANCE`
   set it answers every address on both domains with the site's page down for maintenance. Otherwise, with
   `WHATBUILD_SITE_URL` set (for example `https://what-build.com`), requests whose Host is that site
   get its pages and its interest form; `www.` redirects to it and every other path redirects to the
@@ -400,10 +400,9 @@ deployment is involved
   ([decision](../decisions/the-server-counts-how-whatbuild-is-used-naming-nobody.md)); browser
   analytics only for people who accept it, by screen and operation, never by content or name
   ([§9.1](09-data-lifecycle.md)).
-- **Rate limits and quotas** are to be enforced in one middleware shared by both adapters, so
-  neither can drift from the other ([§9.2](09-data-lifecycle.md)). Planned: today only sign-in
-  links are rate-limited (five per address per hour) and the only enforced quota is 50 Story pages
-  per product.
+- **Rate limits and quotas** are enforced in one layer shared by both adapters (`execute`, and for
+  what each product holds the operation that adds to it), so neither can drift from the other
+  ([§9.2](09-data-lifecycle.md), [§9.7](09-data-lifecycle.md#97-plans-and-limits)).
 
 ## 2.9 Repository layout
 

@@ -113,11 +113,23 @@ and create an organization. The check is made when a sign-in link is asked for a
 followed, since what let the address in can be taken away in between. Every account, once in,
 reads the example organization ([§3.10](#310-the-example-organization)).
 
+**New organizations a day** (◆ [decision](../decisions/people-start-a-number-of-organizations-a-day-themselves.md)).
+An instance owner may let people start organizations themselves, up to `organizations_per_day` each
+UTC day (the guests' settings; 0, the default, lets in only those an owner lets in). Above 0 anyone
+may make an account, whatever the allowlist says. A place is an allowance of 1 WhatBuild gives,
+never to an address an owner already gave one (0 included). **Start using WhatBuild** on the public site leads
+through sign-in to `/start` (`POST /api/v1/me/start`): someone in an organization goes to the
+overview (`next: "in"`), someone who may start one or takes one of the day's places goes to
+`/welcome` (`"start"`), anyone else joins the waitlist (`"waitlist"`). Nothing tells a visitor the
+number.
+
 **The waitlist.** Someone who may not start an organization asks for one with one click: as a
 guest on the waiting page, in the example organization's banner or on the overview
 (`POST /api/v1/me/ask-for-organization { organization?, note? }`; `422 may_start_one` for someone
-who already may), or with the public site's form. Both write the `interest` row for their address,
-and asking again keeps their place. `GET /api/v1/me` gives `asked_for_organization_at`. Instance
+who already may), or with the public site's form. Asking takes one of the day's places while one is
+left; otherwise both write the `interest` row for their address, and asking again keeps their place.
+The day's free places go to the waitlist first, earliest first, each told by email ("Your place on
+WhatBuild is ready"), when someone asks and every ten minutes while the worker is awake. `GET /api/v1/me` gives `asked_for_organization_at`. Instance
 owners read the waitlist with `products.tenant_allowances` (`waitlist`: those who asked and have no
 allowance, earliest first) and let someone in by giving their address an allowance of 1, which
 emails them where to start.

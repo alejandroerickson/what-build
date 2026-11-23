@@ -7,7 +7,8 @@ import { defineOperation, type OpContext } from "../registry.ts";
 import { expectedEtag } from "../schemas.ts";
 import { isInstanceOwner } from "../tenant-allowance.ts";
 import { aboutWhatBuild } from "../mail-words.ts";
-import { newEtag, plainName, utcDay } from "../util.ts";
+import { placeReadyMail } from "../places.ts";
+import { newEtag, plainName } from "../util.ts";
 
 /**
  * Allowances to create organizations, kept by the instance's owners. They belong to no
@@ -56,14 +57,7 @@ async function waitlist(ctx: OpContext) {
  */
 function allowanceMail(ctx: OpContext, to: string, allowed: number, waitlist: { asked_at: string | null } | null) {
   const welcome = `${ctx.ports.config.publicBaseUrl}/welcome`;
-  if (waitlist) {
-    const joined = waitlist.asked_at && /^\d{4}-\d{2}-\d{2}/.test(waitlist.asked_at) ? ` on ${utcDay(waitlist.asked_at)} (UTC)` : "";
-    return {
-      to,
-      subject: "Your place on WhatBuild is ready",
-      text: `You joined the WhatBuild waitlist${joined}. Your place is ready.\n\n` + `Start your organization, signing in as ${to}:\n${welcome}\n`,
-    };
-  }
+  if (waitlist) return placeReadyMail(ctx.ports.config.publicBaseUrl, to, waitlist.asked_at);
   // Only an owner of the instance sends this. Their name is still theirs to choose: one line, bounded.
   const who = plainName(ctx.actor.display_name);
   return {

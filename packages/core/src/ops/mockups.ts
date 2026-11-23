@@ -25,6 +25,8 @@ import { inArrangedOrder, loadMockupFolder, mockupFolderOps, mockupFolders, topO
 import { storyPagesShowing } from "./story.ts";
 import { citedByPlaybook } from "../playbook.ts";
 import { playbookFilesFor } from "./playbook.ts";
+import { productTotal } from "../limits.ts";
+import { PRODUCT_TOTAL_DEFAULTS } from "../plans.ts";
 
 /**
  * Mockups are where Exploration makes things: a canvas of HTML pages an agent built (screens,
@@ -34,7 +36,6 @@ import { playbookFilesFor } from "./playbook.ts";
  * entries into it (prototype.ts).
  */
 
-export const MAX_MOCKUPS = 50;
 export const MAX_MOCKUP_PAGES = 48;
 /** The most characters one page holds. */
 export const MOCKUP_PAGE_MAX = MOCKUP_PAGE_RULES.maxChars;
@@ -221,7 +222,7 @@ export const listMockups = defineOperation({
   access: "read",
   mutates: false,
   summary: "The product's mockups and the folders they are arranged in: title, summary, folder, current version and etag, without pages.",
-  description: `items is every mockup in the order people see them: those in no folder first, then each folder's, folder by folder, all in the order the team gave them by hand (move, move_folder); a mockup's folder_id is null in no folder. folders lists the product's folders in their order, each with its etag (rename_folder takes it) and mockup_count, the mockups in it that are not archived. Archived mockups are left out unless include_archived; archived_hidden says how many were left out. page_count is the current version's. quota is how many mockups the product holds, {used, limit}: archived ones count, and publishing a new mockup at the limit (${MAX_MOCKUPS}) is refused with 409 quota_exceeded; a new version of a mockup the product has counts nothing.`,
+  description: `items is every mockup in the order people see them: those in no folder first, then each folder's, folder by folder, all in the order the team gave them by hand (move, move_folder); a mockup's folder_id is null in no folder. folders lists the product's folders in their order, each with its etag (rename_folder takes it) and mockup_count, the mockups in it that are not archived. Archived mockups are left out unless include_archived; archived_hidden says how many were left out. page_count is the current version's. quota is how many mockups the product holds, {used, limit}: archived ones count, and publishing a new mockup at the limit, which the organization's plan sets (${PRODUCT_TOTAL_DEFAULTS.mockups_max} unless it says otherwise; null where it sets none), is refused with 409 quota_exceeded; a new version of a mockup the product has counts nothing.`,
   input: z.strictObject({ include_archived: z.boolean().default(false) }),
   rest: { method: "GET", path: "/mockups" },
   mcp: { tool: "mockups", action: "list" },
@@ -234,25 +235,26 @@ export const listMockups = defineOperation({
       .execute();
     const folders = await mockupFolders(ctx);
     const arranged = inArrangedOrder(rows, folders);
+    const limit = productTotal(ctx.limits, "mockups_max");
     const shown = input.include_archived ? arranged : arranged.filter((r) => !r.archived_at);
     const archived_hidden = rows.length - shown.length;
     return {
       items: shown.map((r) => ({ ...summaryView(r), page_count: Number(r.page_count ?? 0) })),
       folders,
       archived_hidden,
-      quota: mockupQuota(rows.length),
+      quota: mockupQuota(rows.length, limit),
       // Exploration has no guidance of its own: an agent starting work there lists the mockups first.
       ...(ctx.principal.surface === "mcp" ? await playbookFilesFor(ctx, "exploration") : {}),
       ...(archived_hidden
-        ? { note: `${archived_hidden} archived mockup${archived_hidden === 1 ? " is" : "s are"} not listed; pass include_archived to see ${archived_hidden === 1 ? "it" : "them"}. Archived mockups count toward the product's ${MAX_MOCKUPS}; ${rows.length} are used.` }
+        ? { note: `${archived_hidden} archived mockup${archived_hidden === 1 ? " is" : "s are"} not listed; pass include_archived to see ${archived_hidden === 1 ? "it" : "them"}.${limit === null ? "" : ` Archived mockups count toward the product's ${limit}; ${rows.length} are used.`}` }
         : {}),
     };
   },
 });
 
-/** How many mockups a product holds against its limit, archived ones included, as quota_exceeded reports it. */
-function mockupQuota(used: number) {
-  return { used, limit: MAX_MOCKUPS, unit: "mockups", archived_included: true };
+/** How many mockups a product holds against its plan's limit (null for none), archived ones included, as quota_exceeded reports it. */
+function mockupQuota(used: number, limit: number | null) {
+  return { used, limit, unit: "mockups", archived_included: true };
 }
 
 export const getMockup = defineOperation({
@@ -660,7 +662,7 @@ export const publishMockup = defineOperation({
   mutates: true,
   summary: "Publish the next version of a mockup's canvas, or create a mockup with its first version. A later version keeps whatever you omit.",
   description:
-    `Without mockup_id, creates a mockup: give a title, a brief and at least one page with its page_id (a slug you choose, as onboarding-a), a title and html, and no expected_etag (one sent is refused with 409 stale_etag and current_etag null, as there is nothing to match). A new mockup goes first among the mockups in no folder, or first in the folder folder_id names; a later version stays where the mockup is, and move files it elsewhere. With mockup_id, publishes the next version: pass the mockup's etag, and send only what changes. A title left out stays the mockup's title as it is now, which rename changes without a version; summary, brief and columns left out come from the base version. pages, when given, is the whole canvas in order: a page you leave out is dropped from this version, and a page whose page_id was on the base version keeps its title, notes, size and html unless you send them, so a version that changes one page sends that page's html alone. The brief is Markdown: what the canvas explores, for whom, the questions it is meant to answer, and what each page tries; write it for the next agent as much as for people. Each page is one self-contained HTML document shown in a sandboxed frame of width × height CSS pixels (default ${DEFAULT_WIDTH} × ${DEFAULT_HEIGHT}; 390 wide for a phone; height at most ${PAGE_HEIGHT_MAX}, or "auto" for the content's height), with no network. ${PAGE_RULES_TEXT} ${SAFE_CHECK_TEXT} ${TALL_PAGES_TEXT} columns sets how many pages sit side by side before the canvas wraps; null keeps one row. files carries text files for collaborators to pull into their own projects (DESIGN.md, components, tokens), at most ${MAX_MOCKUP_FILES} and ${(MOCKUP_FILES_TOTAL / 1_000_000).toFixed(0)} million characters a version; WhatBuild never uses them to draw a page, so inline what a page needs. Like pages, files when given is the whole set: a path that was on the base keeps its content unless you send it, a path you leave out is dropped, a new path needs content, and [] drops them all; omit files to keep them. ${PROTOTYPE_TEXT} A version published without an upload keeps its base's prototype, and its pages may enter it. from_version: N starts from that earlier version instead of the current one. To keep page HTML out of the call, upload the canvas as a ZIP (request_upload) and pass upload_id: the ZIP gives pages, files and the brief, and its manifest.json may give title, summary and columns, which the call's own win over; a new mockup from an upload alone needs title in the manifest, brief.md and a page with its HTML. The call gives the rest, and the result names from_upload with upload {upload_id, size, sha256}, the ZIP's own bytes as its PUT answered. At most ${MAX_MOCKUP_PAGES} pages, ${(MOCKUP_HTML_TOTAL / 1_000_000).toFixed(0)} million characters of HTML in all, and ${MAX_MOCKUPS} mockups in a product, archived ones included (list gives quota, used and limit). It answers with what you need next, not the canvas you sent: mockup_id, title, current_version and current_version_id, the etag to publish the next version with, based_on_version, page_ids in the canvas's order, url (the canvas in the web app, to give the person), and prototype_warnings when an upload brings a prototype; mockups_read(action="get") reads the version back. ${PAGE_LINKS_TEXT}`,
+    `Without mockup_id, creates a mockup: give a title, a brief and at least one page with its page_id (a slug you choose, as onboarding-a), a title and html, and no expected_etag (one sent is refused with 409 stale_etag and current_etag null, as there is nothing to match). A new mockup goes first among the mockups in no folder, or first in the folder folder_id names; a later version stays where the mockup is, and move files it elsewhere. With mockup_id, publishes the next version: pass the mockup's etag, and send only what changes. A title left out stays the mockup's title as it is now, which rename changes without a version; summary, brief and columns left out come from the base version. pages, when given, is the whole canvas in order: a page you leave out is dropped from this version, and a page whose page_id was on the base version keeps its title, notes, size and html unless you send them, so a version that changes one page sends that page's html alone. The brief is Markdown: what the canvas explores, for whom, the questions it is meant to answer, and what each page tries; write it for the next agent as much as for people. Each page is one self-contained HTML document shown in a sandboxed frame of width × height CSS pixels (default ${DEFAULT_WIDTH} × ${DEFAULT_HEIGHT}; 390 wide for a phone; height at most ${PAGE_HEIGHT_MAX}, or "auto" for the content's height), with no network. ${PAGE_RULES_TEXT} ${SAFE_CHECK_TEXT} ${TALL_PAGES_TEXT} columns sets how many pages sit side by side before the canvas wraps; null keeps one row. files carries text files for collaborators to pull into their own projects (DESIGN.md, components, tokens), at most ${MAX_MOCKUP_FILES} and ${(MOCKUP_FILES_TOTAL / 1_000_000).toFixed(0)} million characters a version; WhatBuild never uses them to draw a page, so inline what a page needs. Like pages, files when given is the whole set: a path that was on the base keeps its content unless you send it, a path you leave out is dropped, a new path needs content, and [] drops them all; omit files to keep them. ${PROTOTYPE_TEXT} A version published without an upload keeps its base's prototype, and its pages may enter it. from_version: N starts from that earlier version instead of the current one. To keep page HTML out of the call, upload the canvas as a ZIP (request_upload) and pass upload_id: the ZIP gives pages, files and the brief, and its manifest.json may give title, summary and columns, which the call's own win over; a new mockup from an upload alone needs title in the manifest, brief.md and a page with its HTML. The call gives the rest, and the result names from_upload with upload {upload_id, size, sha256}, the ZIP's own bytes as its PUT answered. At most ${MAX_MOCKUP_PAGES} pages, ${(MOCKUP_HTML_TOTAL / 1_000_000).toFixed(0)} million characters of HTML in all, and as many mockups in a product, archived ones included, as the organization's plan allows (${PRODUCT_TOTAL_DEFAULTS.mockups_max} unless it says otherwise; list gives quota, used and limit). It answers with what you need next, not the canvas you sent: mockup_id, title, current_version and current_version_id, the etag to publish the next version with, based_on_version, page_ids in the canvas's order, url (the canvas in the web app, to give the person), and prototype_warnings when an upload brings a prototype; mockups_read(action="get") reads the version back. ${PAGE_LINKS_TEXT}`,
   input: z.strictObject({
     mockup_id: id("mockup").optional().describe("Omit to create a mockup."),
     folder_id: id("mockup folder").nullable().optional().describe('For a new mockup: the folder it goes in, at its top (mockups_read(action="list") gives the folders). Omit, or null, for no folder.'),
@@ -724,12 +726,13 @@ export const publishMockup = defineOperation({
         .where("product_id", "=", pid)
         .executeTakeFirst();
       const used = Number(count?.n ?? 0);
-      if (used >= MAX_MOCKUPS) {
+      const limit = productTotal(ctx.limits, "mockups_max");
+      if (limit !== null && used >= limit) {
         const archived = Number(count?.archived ?? 0);
         throw conflict(
           "quota_exceeded",
-          `Nothing was published: a product holds at most ${MAX_MOCKUPS} mockups, archived ones included, and this one holds ${used}${archived ? ` (${archived} archived)` : ""}. A new version of one of them counts nothing, and deleting one makes room (mockups list with include_archived shows them all).`,
-          { quota: "mockups", ...mockupQuota(used), archived },
+          `Nothing was published: on this organization's plan a product holds at most ${limit} ${limit === 1 ? "mockup" : "mockups"}, archived ones included, and this one holds ${used}${archived ? ` (${archived} archived)` : ""}. A new version of one of them counts nothing, and deleting one makes room (mockups list with include_archived shows them all), which the product's admins can do; archiving one does not. Whoever runs this WhatBuild can also raise the plan's limit, or move the organization to another plan.`,
+          { quota: "mockups", ...mockupQuota(used, limit), archived },
         );
       }
     }

@@ -54,8 +54,8 @@ has the product panel beside it rather than a panel of its own.
 ## Constrains
 
 - A new screen above 20px needs a new decision; the exception is the overview's intro only, and
-  the public site's page, which reuses that intro
-  ([decision](the-public-site-is-pages-built-with-the-app.md)).
+  the public site's landing pages, which set their own type
+  ([decision](the-site-opens-on-landing-pages-the-scroll-tells.md)).
 - Tokens live in `apps/web/src/styles/tokens.css`; the screen is `apps/web/src/routes/overview.tsx`.
 
 Specified in: [07-web-app §7.2 and §7.3](../spec/07-web-app.md), [DESIGN.md](../../apps/web/DESIGN.md).

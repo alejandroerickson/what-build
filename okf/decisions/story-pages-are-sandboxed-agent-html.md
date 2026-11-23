@@ -3,7 +3,7 @@ type: Decision
 title: Story pages are agent-authored HTML shown only in a sandbox
 description: Agents publish self-contained HTML pages; the server validates them and serves them into an isolated frame.
 tags: [decision, story, security]
-generated: {by: agent:claude, at: 2026-11-02}
+generated: {by: agent:claude, at: 2026-11-23}
 status: stable
 ---
 
@@ -42,6 +42,8 @@ Stakeholder pages benefit from rich layout that agents can write, but that HTML 
 
 ## Constrains
 
-- Limits: 50 pages per product, nesting depth 6.
+- Limits: the pages per product the organization's plan allows, 50 unless it says otherwise
+  ([decision](limits-belong-to-plans-and-each-organization-is-on-a-plan-of-its-own.md)), and
+  nesting depth 6.
 
 Specified in: [04-data-model](../spec/04-data-model.md), [07-web-app](../spec/07-web-app.md).

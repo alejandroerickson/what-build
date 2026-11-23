@@ -1,24 +1,14 @@
-import { useEffect, useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { pageView, startAnalytics, useCookieChoice } from "../lib/analytics.ts";
 import { api } from "../lib/api.ts";
 import { BrandMark } from "../shell/brand.tsx";
 import { CookieChoice } from "../shell/CookieChoice.tsx";
-import { Journey } from "../shell/journey.tsx";
-import { Button, buttonClass } from "../ui/button.tsx";
-import { Callout, ErrorCallout } from "../ui/feedback.tsx";
-import { FormGrid, TextArea, TextField, tooLong } from "../ui/field.tsx";
-import { Glyph } from "../ui/glyph.tsx";
-import { Sheet, SheetBody, SheetHeader } from "../ui/layout.tsx";
+import { buttonClass } from "../ui/button.tsx";
+import { Callout } from "../ui/feedback.tsx";
+import { Sheet } from "../ui/layout.tsx";
 import { LIMITS } from "@whatbuild/core/plans";
 import type { PlansCatalogue } from "../lib/limits.ts";
 import { PlanComparison } from "../routes/plan-comparison.tsx";
-
-/** The limits the server sets on what someone leaves here. */
-const EMAIL_MAX = 320;
-const WORDS_MAX = 200;
-const NOTE_MAX = 2000;
-
-const EMPTY = { email: "", name: "", organization: "", note: "", website: "" };
 
 /** The Google Analytics measurement ID, which whoever serves the page writes into it; null for none. */
 export const ANALYTICS_ID = document.querySelector<HTMLMetaElement>('meta[name="whatbuild-analytics"]')?.content || null;
@@ -37,7 +27,16 @@ export interface SitePrivacy {
  * What only the deployment knows of its plans, its guests and who runs it (`/api/v1/plans`), which
  * whoever serves the page writes into it, so a visit asks the service nothing; null when it wrote nothing.
  */
-const WRITTEN: (PlansCatalogue & { guests?: { self_serve: boolean; open: boolean }; privacy?: SitePrivacy }) | null = (() => {
+const WRITTEN:
+  | (PlansCatalogue & {
+      guests?: { self_serve: boolean; open: boolean };
+      /** Whether anyone may make an account, as a guest or to start an organization. */
+      sign_up?: boolean;
+      /** The example organization, as the deployment describes it: its name, its first product and that product's first sentence. */
+      example_about?: { organization: string; product: string; about: string } | null;
+      privacy?: SitePrivacy;
+    })
+  | null = (() => {
   try {
     const raw = document.querySelector<HTMLMetaElement>('meta[name="whatbuild-site"]')?.content;
     return raw ? JSON.parse(raw) : null;
@@ -59,63 +58,79 @@ export function useSite() {
   return site;
 }
 
-/**
- * What every page of the public site shares: the canvas without the app's panel, the theme the
- * system asks for, analytics once a visitor accepts, and the footer.
- */
-export function SiteFrame({ children, home, explore }: { children: ReactNode; home?: boolean; explore?: boolean }) {
-  const site = useSite();
-  const [cookiesOpen, setCookiesOpen] = useState(false);
-  const choice = useCookieChoice();
-  const accepted = Boolean(ANALYTICS_ID) && choice === "accepted";
-
-  // The theme follows the system here: the site has no setting for it.
+/** The theme the system asks for, kept current: the site has no setting for it. */
+export function useSystemTheme(follow = true) {
   useEffect(() => {
+    if (!follow) return;
     const media = window.matchMedia("(prefers-color-scheme: dark)");
     const apply = () => document.documentElement.setAttribute("data-theme", media.matches ? "dark" : "light");
     media.addEventListener("change", apply);
     return () => media.removeEventListener("change", apply);
-  }, []);
+  }, [follow]);
+}
 
+/** Analytics once a visitor accepts, and the cookie notice, which every page of the site carries. */
+export function useSiteCookies() {
+  const [cookiesOpen, setCookiesOpen] = useState(false);
+  const choice = useCookieChoice();
+  const accepted = Boolean(ANALYTICS_ID) && choice === "accepted";
   useEffect(() => {
     if (!accepted || !ANALYTICS_ID) return;
     startAnalytics(ANALYTICS_ID);
     pageView(location.pathname);
   }, [accepted]);
+  const notice = ANALYTICS_ID ? (
+    <CookieChoice
+      lead="Analytics cookies?"
+      ask="They show us how this site is used. A cookie remembers your answer either way."
+      link={
+        <a href="/cookies" className={buttonClass("quiet", "sm")}>
+          Cookies
+        </a>
+      }
+      open={cookiesOpen}
+      onClose={() => setCookiesOpen(false)}
+    />
+  ) : null;
+  return { openCookies: () => setCookiesOpen(true), notice };
+}
 
+/** The site's footer: signing in, its other pages, the cookie question and the source. */
+export function SiteFoot({ className, home, explore, onCookies }: { className?: string; home?: boolean; explore?: boolean; onCookies: () => void }) {
+  const site = useSite();
+  return (
+    <footer className={className ? `site-foot ${className}` : "site-foot"}>
+      <span>
+        {explore ? "Been here before?" : "Already invited?"} <a href="/signin">Sign in</a>
+      </span>
+      <span className="site-foot-end">
+        {home ? site?.plans?.length ? <a href={sitePath("plans")}>Plans</a> : null : <a href={sitePath("")}>WhatBuild</a>}
+        <a href={sitePath("privacy")}>Privacy</a>
+        {ANALYTICS_ID ? (
+          <button type="button" className="site-foot-link" onClick={onCookies}>
+            Cookies
+          </button>
+        ) : null}
+        <a href="https://github.com/alejandroerickson/what-build">Source on GitHub</a>
+      </span>
+    </footer>
+  );
+}
+
+/**
+ * What the site's plans and privacy pages share: the canvas without the app's panel, the theme the
+ * system asks for, analytics once a visitor accepts, and the footer.
+ */
+export function SiteFrame({ children, home, explore }: { children: ReactNode; home?: boolean; explore?: boolean }) {
+  useSystemTheme();
+  const { openCookies, notice } = useSiteCookies();
   return (
     <div className="site">
       <main id="main" className="overview site-main">
         {children}
-        <footer className="site-foot">
-          <span>
-            {explore ? "Been here before?" : "Already invited?"} <a href="/signin">Sign in</a>
-          </span>
-          <span className="site-foot-end">
-            {home ? site?.plans?.length ? <a href={sitePath("plans")}>Plans</a> : null : <a href={sitePath("")}>WhatBuild</a>}
-            <a href={sitePath("privacy")}>Privacy</a>
-            {ANALYTICS_ID ? (
-              <button type="button" className="site-foot-link" onClick={() => setCookiesOpen(true)}>
-                Cookies
-              </button>
-            ) : null}
-            <a href="https://github.com/alejandroerickson/what-build">Source on GitHub</a>
-          </span>
-        </footer>
+        <SiteFoot home={home} explore={explore} onCookies={openCookies} />
       </main>
-      {ANALYTICS_ID ? (
-        <CookieChoice
-          lead="Analytics cookies?"
-          ask="They show us how this site is used. A cookie remembers your answer either way."
-          link={
-            <a href="/cookies" className={buttonClass("quiet", "sm")}>
-              Cookies
-            </a>
-          }
-          open={cookiesOpen}
-          onClose={() => setCookiesOpen(false)}
-        />
-      ) : null}
+      {notice}
     </div>
   );
 }
@@ -124,113 +139,9 @@ export function SiteFrame({ children, home, explore }: { children: ReactNode; ho
  * A page of the site by name, wherever the site is served: at its own domain's root, or under
  * /site/ on the app's origin when the deployment names no site domain (as in development).
  */
-export function sitePath(page: "" | "plans" | "privacy"): string {
+export function sitePath(page: "" | "plans" | "privacy" | "what-to-build"): string {
   const base = location.pathname.startsWith("/site/") ? "/site/" : "/";
   return page ? `${base}${page}/` : base;
-}
-
-/**
- * The public site's front page, at the site's own domain: the overview's intro, then a form to hear
- * when WhatBuild opens. Everything else on that domain belongs to the app, so "Sign in" is a plain
- * link the server sends on to it.
- */
-export function SitePage() {
-  const site = useSite();
-  // While anyone may sign up as a guest, the way in is to explore the example; the form is for a team's own organization.
-  const explore = Boolean(site?.guests?.self_serve && site.guests.open);
-  const [form, setForm] = useState(EMPTY);
-  const [state, setState] = useState<{ status: "idle" | "sending" | "sent" } | { status: "error"; error: unknown }>({ status: "idle" });
-  const set = (key: keyof typeof EMPTY) => (e: { target: { value: string } }) => setForm((f) => ({ ...f, [key]: e.target.value }));
-
-  const fits = !tooLong(form.email, EMAIL_MAX) && !tooLong(form.name, WORDS_MAX) && !tooLong(form.organization, WORDS_MAX) && !tooLong(form.note, NOTE_MAX);
-  const submit = async (e: FormEvent) => {
-    e.preventDefault();
-    if (!fits) return;
-    setState({ status: "sending" });
-    try {
-      await api("POST", "/api/v1/interest", form);
-      setState({ status: "sent" });
-    } catch (error) {
-      setState({ status: "error", error });
-    }
-  };
-
-  return (
-    <SiteFrame home explore={explore}>
-        <Sheet className="overview-intro" labelledBy="site-title">
-          <div className="overview-head">
-            <h1 id="site-title" className="overview-lockup">
-              <BrandMark size={34} />
-              <span>WhatBuild</span>
-            </h1>
-          </div>
-          <div className="overview-pitch">
-            <p className="overview-question">What to build?</p>
-            <p className="overview-tagline">Product discovery at the speed of AI Engineering.</p>
-            <p className="overview-about">
-              WhatBuild accelerates collaborative agentic discovery, facilitates alignment, and tells the story of your build. At the
-              finish line, WhatBuild provides context to your ticket-creation agent so that your team can hit the ground running.
-            </p>
-            {explore ? (
-              <span className="site-ways-in">
-                <a href="/signin?next=%2F" className="overview-agent-link">
-                  <Glyph name="arrow-right" size="sm" />
-                  Explore a real discovery
-                </a>
-                <a href="#interest" className="site-quiet-link">
-                  Start your team&rsquo;s own
-                </a>
-              </span>
-            ) : (
-              <a href="#interest" className="overview-agent-link">
-                <Glyph name="arrow-right" size="sm" />
-                Hear when it opens
-              </a>
-            )}
-          </div>
-          <Journey />
-        </Sheet>
-
-        <Sheet className="site-interest" labelledBy="interest-title">
-          <span id="interest" className="site-anchor" />
-          <SheetHeader level={2} id="interest-title" title={explore ? "Your team’s own organization" : "In private preview"} />
-          <SheetBody className="site-interest-body">
-            {state.status === "sent" ? (
-              <Callout inset tone="positive" title="Thank you">
-                We’ll write to {form.email.trim()} when WhatBuild opens to more teams.
-              </Callout>
-            ) : (
-              <form className="site-form" onSubmit={submit}>
-                <p className="site-lede">
-                  {explore
-                    ? "Teams are let in a few at a time. Leave your email and we’ll write when yours can start; meanwhile, explore the example as a guest. We use your email for nothing else."
-                    : "Leave your email and we’ll write when your team can start. We use it for nothing else."}
-                </p>
-                <FormGrid>
-                  <TextField label="Email" type="email" autoComplete="email" required maxLength={EMAIL_MAX} value={form.email} onChange={set("email")} />
-                  <TextField label="Name" optional autoComplete="name" maxLength={WORDS_MAX} value={form.name} onChange={set("name")} />
-                  <TextField label="Team or company" optional autoComplete="organization" maxLength={WORDS_MAX} value={form.organization} onChange={set("organization")} />
-                  <TextArea label="What are you deciding?" optional rows={3} maxLength={NOTE_MAX} value={form.note} onChange={set("note")} />
-                </FormGrid>
-                {/* People never see this field; bots fill it in and are ignored. */}
-                <div className="site-trap" aria-hidden="true">
-                  <label>
-                    Website
-                    <input tabIndex={-1} autoComplete="off" value={form.website} onChange={set("website")} />
-                  </label>
-                </div>
-                {state.status === "error" ? <ErrorCallout inset error={state.error} /> : null}
-                <div className="site-actions">
-                  <Button type="submit" variant="primary" busy={state.status === "sending"} busyLabel="Sending…" disabled={!fits}>
-                    Keep me posted
-                  </Button>
-                </div>
-              </form>
-            )}
-          </SheetBody>
-        </Sheet>
-    </SiteFrame>
-  );
 }
 
 /**
@@ -267,12 +178,12 @@ export function SitePlansPage() {
       </Sheet>
       {explore ? (
         <Callout tone="info" title="Try it first">
-          Sign in and explore a real discovery in the example organization, as a guest: read it, search it and point your agent at it.{" "}
-          <a href="/signin?next=%2F">Explore the example</a>. Teams are let in a few at a time; <a href={`${sitePath("")}#interest`}>hear when yours can start</a>.
+          Sign in and explore the demo as a guest: read it, search it and point your agent at it.{" "}
+          <a href="/signin?next=%2F">Explore the example</a>. People are let in a few at a time; <a href={`${sitePath("")}#start`}>hear when you can start</a>.
         </Callout>
       ) : (
         <Callout tone="info" title="In private preview">
-          Teams are let in a few at a time. <a href={`${sitePath("")}#interest`}>Hear when yours can start</a>.
+          People are let in a few at a time. <a href={`${sitePath("")}#start`}>Hear when you can start</a>.
         </Callout>
       )}
     </SiteFrame>

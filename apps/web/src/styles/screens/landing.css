@@ -1,0 +1,982 @@
+/*
+ * The site's two landing pages (src/site/landing/): one plain statement per screen beside a
+ * picture the scroll moves, then one form. Display type here is the site's, not the app's: these
+ * pages are what a stranger meets, so they take a larger scale than Studio's twenty pixel ceiling.
+ *
+ * Each picture is drawn on a 1440 × 900 stage. The script sets on the section:
+ *   --ld-fit, --ld-ox, --ld-oy  the scale that fits the stage to the window, and where it sits;
+ *   --ld-s, --ld-x, --ld-y      the stage's actual scale and place, which on a narrow or upright
+ *                               window shows only the part of the stage the picture uses.
+ * Words are not drawn on the stage: they keep real sizes, scaled with --ld-fit on a wide window.
+ */
+
+.ld {
+  --ld-bg: var(--canvas);
+  --ld-text: var(--text);
+  --ld-muted: var(--muted);
+  --ld-faint: var(--faint);
+  --ld-accent: var(--accent);
+  --ld-accent-hover: var(--accent-hover);
+  --ld-on-accent: var(--accent-text);
+  --ld-dot: #d3d3d3;
+  --ld-tie: rgb(30 30 30 / 0.22);
+  --ld-field: var(--panel);
+  --ld-field-line: var(--line-2);
+  min-height: 100vh;
+  background: var(--ld-bg);
+  color: var(--ld-text);
+}
+:root[data-theme="dark"] .ld {
+  --ld-dot: #353535;
+  --ld-tie: rgb(255 255 255 / 0.26);
+}
+/* The dark stage keeps its own night, whatever the system asks for. */
+.ld-win {
+  --ld-bg: #0f0f10;
+  --ld-text: #f2f2f2;
+  --ld-muted: #a8a8a8;
+  --ld-faint: #9a9a9a;
+  --ld-accent: #5a53e8;
+  --ld-accent-hover: #4a43d6;
+  --ld-on-accent: #ffffff;
+  --ld-lite: #8b85ff;
+  --ld-tie: rgb(255 255 255 / 0.28);
+  --ld-field: #1c1c1f;
+  --ld-field-line: rgb(255 255 255 / 0.16);
+}
+
+/* A scroll bar that always shows: where you are, and how much is left. */
+html.ld-root::-webkit-scrollbar {
+  width: 14px;
+}
+html.ld-root::-webkit-scrollbar-track {
+  background: var(--line);
+}
+html.ld-root::-webkit-scrollbar-thumb {
+  min-height: 56px;
+  border: 3px solid var(--line);
+  border-radius: 10px;
+  background: var(--line-strong);
+}
+@supports not selector(::-webkit-scrollbar) {
+  html.ld-root {
+    scrollbar-color: var(--line-strong) var(--line);
+  }
+}
+
+.ld-skip {
+  position: absolute;
+  top: -80px;
+  left: 12px;
+  z-index: 60;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: var(--ld-text);
+  color: var(--ld-bg);
+  font-size: 15px;
+  font-weight: 500;
+}
+.ld-skip:focus {
+  top: 12px;
+}
+
+/* The bar at the top: the mark, and one way in for people who already have one. */
+.ld-bar {
+  position: fixed;
+  inset: 0 0 auto;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 64px;
+  padding: 0 32px;
+  background: color-mix(in srgb, var(--ld-bg) 92%, transparent);
+}
+.ld-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--ld-text);
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  text-decoration: none;
+}
+.ld-signin {
+  padding: 8px 4px;
+  color: var(--ld-muted);
+  font-size: 15px;
+  text-decoration: none;
+}
+.ld-signin:hover {
+  color: var(--ld-text);
+}
+
+/* Type: a statement, the sentence under it, and the dark stage's question and line. */
+.ld-h1,
+.ld-h2,
+.ld-huge,
+.ld-deck {
+  margin: 0;
+  font-weight: 600;
+  text-wrap: balance;
+}
+.ld-h1 {
+  font-size: calc(64px * var(--ld-fit));
+  line-height: 1.02;
+  letter-spacing: -0.035em;
+}
+.ld-h2 {
+  font-size: calc(60px * var(--ld-fit));
+  line-height: 1.04;
+  letter-spacing: -0.035em;
+}
+.ld-sub {
+  margin: calc(22px * var(--ld-fit)) 0 0;
+  max-width: 50ch;
+  color: var(--ld-muted);
+  font-size: max(15px, calc(20px * var(--ld-fit)));
+  line-height: 1.45;
+  text-wrap: pretty;
+}
+
+/* Actions: one filled, one quiet. */
+.ld-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 22px;
+  margin-top: 30px;
+}
+.ld-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 50px;
+  padding: 0 24px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--ld-accent);
+  color: var(--ld-on-accent);
+  font: 600 16px / 1 var(--font);
+  text-decoration: none;
+  cursor: pointer;
+  transition:
+    background-color 0.12s var(--ease),
+    transform 0.12s var(--ease);
+}
+.ld-btn:hover {
+  background: var(--ld-accent-hover);
+}
+.ld-btn:active {
+  transform: scale(0.98);
+}
+.ld-btn:disabled {
+  opacity: 0.7;
+  cursor: progress;
+}
+.ld-quiet {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ld-text);
+  font-size: 16px;
+  font-weight: 500;
+  text-decoration: none;
+}
+.ld-quiet svg {
+  transition: transform 0.12s var(--ease);
+}
+.ld-quiet:hover svg {
+  transform: translateX(3px);
+}
+.ld :focus-visible {
+  outline: 2px solid var(--ld-accent);
+  outline-offset: 3px;
+  border-radius: 6px;
+}
+.ld-win :focus-visible {
+  outline-color: var(--ld-lite);
+}
+
+/* A gentle prompt at the foot of the first screen, gone once the page moves. */
+.ld-cue {
+  position: absolute;
+  bottom: 22px;
+  left: 50%;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  color: var(--ld-muted);
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  pointer-events: none;
+  transform: translateX(-50%);
+  transition: opacity 0.3s var(--ease);
+  animation: ld-bob 2.2s ease-in-out infinite;
+}
+@keyframes ld-bob {
+  0%,
+  100% {
+    translate: 0 0;
+  }
+  50% {
+    translate: 0 6px;
+  }
+}
+.ld-journey[data-scrolled] .ld-cue {
+  opacity: 0;
+}
+/* On the dark stage the window lies along the foot of the first screen, so the prompt sits above it. */
+.ld-win .ld-cue {
+  top: calc(var(--ld-oy) + 650px * var(--ld-fit));
+  bottom: auto;
+}
+
+/* The stage every picture is drawn on. */
+.ld-journey {
+  --ld-fit: 1;
+  --ld-ox: 0px;
+  --ld-oy: 0px;
+  --ld-s: 1;
+  --ld-x: 0px;
+  --ld-y: 0px;
+  position: relative;
+}
+.ld-stage {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 1440px;
+  height: 900px;
+  transform: translate(var(--ld-x), var(--ld-y)) scale(var(--ld-s));
+  transform-origin: 0 0;
+}
+.ld-svg {
+  position: absolute;
+  inset: 0;
+  width: 1440px;
+  height: 900px;
+  overflow: visible;
+  pointer-events: none;
+}
+.ld-ties line {
+  stroke: var(--ld-tie);
+  stroke-width: 1.5;
+  stroke-dasharray: 3 5;
+}
+.ld-arcs path {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 1.75;
+  stroke-linecap: round;
+}
+
+/* A piece of evidence, drawn without its contents. --c is how loose it still is: 1 coloured, 0 white and in its place. */
+.ld-tile {
+  --mk: rgb(0 0 0 / 0.17);
+  --c: 0;
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 54px;
+  height: 68px;
+  border-radius: 7px;
+  background: #fff;
+  box-shadow:
+    0 0 0 1px rgb(0 0 0 / 0.07),
+    0 1px 3px rgb(0 0 0 / 0.07);
+  will-change: transform;
+}
+.ld-tile::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--hue, #fff);
+  opacity: var(--c);
+}
+.ld-tile::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+}
+/* Read by the agent. */
+.ld-tile.ld-read {
+  --mk: rgb(90 83 232 / 0.62);
+}
+.ld-k-doc::after {
+  background:
+    linear-gradient(var(--mk), var(--mk)) 9px 12px / 60% 4px no-repeat,
+    linear-gradient(var(--mk), var(--mk)) 9px 22px / 72% 4px no-repeat,
+    linear-gradient(var(--mk), var(--mk)) 9px 32px / 48% 4px no-repeat,
+    linear-gradient(var(--mk), var(--mk)) 9px 42px / 64% 4px no-repeat;
+}
+.ld-k-sheet::after {
+  background:
+    linear-gradient(var(--mk), var(--mk)) 8px 14px / calc(100% - 16px) 2px no-repeat,
+    linear-gradient(var(--mk), var(--mk)) 8px 25px / calc(100% - 16px) 2px no-repeat,
+    linear-gradient(var(--mk), var(--mk)) 8px 36px / calc(100% - 16px) 2px no-repeat,
+    linear-gradient(var(--mk), var(--mk)) 8px 47px / calc(100% - 16px) 2px no-repeat,
+    linear-gradient(var(--mk), var(--mk)) 22px 10px / 2px 42px no-repeat;
+}
+.ld-k-rec {
+  width: 66px;
+  height: 50px;
+}
+.ld-k-rec::after {
+  background:
+    linear-gradient(var(--mk), var(--mk)) 12px 21px / 4px 8px no-repeat,
+    linear-gradient(var(--mk), var(--mk)) 19px 14px / 4px 22px no-repeat,
+    linear-gradient(var(--mk), var(--mk)) 26px 18px / 4px 14px no-repeat,
+    linear-gradient(var(--mk), var(--mk)) 33px 10px / 4px 30px no-repeat,
+    linear-gradient(var(--mk), var(--mk)) 40px 17px / 4px 16px no-repeat,
+    linear-gradient(var(--mk), var(--mk)) 47px 21px / 4px 8px no-repeat;
+}
+.ld-k-chat {
+  width: 62px;
+  height: 44px;
+  border-radius: 14px 14px 14px 4px;
+}
+.ld-k-chat::after {
+  background:
+    linear-gradient(var(--mk), var(--mk)) 11px 14px / 64% 4px no-repeat,
+    linear-gradient(var(--mk), var(--mk)) 11px 24px / 40% 4px no-repeat;
+}
+.ld-k-slide {
+  width: 74px;
+  height: 48px;
+}
+.ld-k-slide::after {
+  background:
+    linear-gradient(var(--mk), var(--mk)) 9px 9px / 46% 5px no-repeat,
+    linear-gradient(var(--mk), var(--mk)) 9px 20px / 38% 19px no-repeat,
+    linear-gradient(var(--mk), var(--mk)) 39px 21px / 34% 3px no-repeat,
+    linear-gradient(var(--mk), var(--mk)) 39px 29px / 26% 3px no-repeat;
+}
+.ld-k-photo {
+  width: 60px;
+  height: 50px;
+}
+.ld-k-photo::after {
+  background: linear-gradient(var(--mk), var(--mk)) 7px 7px / calc(100% - 14px) calc(100% - 14px) no-repeat;
+  opacity: 0.55;
+}
+
+/* A person, and the agent. */
+.ld-who {
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: var(--hue);
+  color: #3b3b3b;
+  will-change: transform;
+}
+.ld-who svg {
+  width: 24px;
+  height: 24px;
+}
+.ld-agent {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 16px;
+  height: 16px;
+  margin: -8px 0 0 -8px;
+  border-radius: 50%;
+  background: #5a53e8;
+  box-shadow:
+    0 0 0 3px #fff,
+    0 2px 6px rgb(0 0 0 / 0.2);
+  will-change: transform;
+}
+
+/* A product concept drawn as a mockup, the ring of the one narrowed to, and the Story. */
+.ld-frame {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 250px;
+  height: 176px;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow:
+    0 0 0 1px rgb(0 0 0 / 0.07),
+    0 2px 8px rgb(0 0 0 / 0.07);
+  will-change: transform, opacity;
+}
+.ld-frame::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background:
+    linear-gradient(#ececec, #ececec) 0 0 / 100% 26px no-repeat,
+    linear-gradient(var(--fill, #e4e3fb), var(--fill, #e4e3fb)) 18px 44px / 42% 92px no-repeat,
+    linear-gradient(#e2e2e2, #e2e2e2) 142px 48px / 38% 8px no-repeat,
+    linear-gradient(#e2e2e2, #e2e2e2) 142px 64px / 30% 8px no-repeat,
+    linear-gradient(#e2e2e2, #e2e2e2) 142px 80px / 34% 8px no-repeat,
+    linear-gradient(#e2e2e2, #e2e2e2) 142px 116px / 24% 20px no-repeat;
+}
+.ld-ring {
+  position: absolute;
+  inset: -2px;
+  border-radius: 14px;
+  box-shadow: 0 0 0 2px #5a53e8;
+  opacity: 0;
+}
+.ld-concept .ld-ring {
+  opacity: 1;
+}
+.ld-page {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 210px;
+  height: 270px;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow:
+    0 0 0 1px rgb(0 0 0 / 0.07),
+    0 2px 8px rgb(0 0 0 / 0.07);
+  will-change: transform, opacity;
+}
+.ld-page::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background:
+    linear-gradient(#1e1e1e, #1e1e1e) 22px 34px / 58% 12px no-repeat,
+    linear-gradient(#e2e2e2, #e2e2e2) 22px 64px / 80% 6px no-repeat,
+    linear-gradient(#e2e2e2, #e2e2e2) 22px 78px / 72% 6px no-repeat,
+    linear-gradient(#e2e2e2, #e2e2e2) 22px 92px / 76% 6px no-repeat,
+    linear-gradient(#e4e3fb, #e4e3fb) 22px 116px / 80% 72px no-repeat,
+    linear-gradient(#e2e2e2, #e2e2e2) 22px 204px / 70% 6px no-repeat,
+    linear-gradient(#e2e2e2, #e2e2e2) 22px 218px / 60% 6px no-repeat;
+}
+.ld-live {
+  position: absolute;
+  top: 16px;
+  left: 22px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #5a53e8;
+}
+
+/* ---------- The front page: words scroll past on the left, the picture stays on the right. ---------- */
+
+.ld-graphic {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  height: 100svh;
+  overflow: hidden;
+  background: radial-gradient(circle, var(--ld-dot) 1px, transparent 1.4px) 0 0 / 24px 24px;
+}
+.ld-steps {
+  position: relative;
+  z-index: 2;
+  margin-top: -100vh;
+  margin-top: -100svh;
+}
+.ld-step {
+  position: relative;
+  height: 100vh;
+  height: 100svh;
+  pointer-events: none;
+}
+.ld-one .ld-copy {
+  position: absolute;
+  top: 50%;
+  left: calc(var(--ld-ox) + 120px * var(--ld-fit));
+  width: calc(620px * var(--ld-fit));
+  pointer-events: auto;
+  transform: translateY(-50%);
+}
+.ld-one .ld-frame {
+  transform-origin: 0 0;
+}
+.ld-one .ld-page,
+.ld-one .ld-agent,
+.ld-concept {
+  opacity: 0;
+}
+.ld-lane {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 120px;
+  height: 600px;
+  border-radius: 0 0 60px 60px;
+  background: var(--accent);
+  opacity: 0;
+  will-change: transform, opacity;
+}
+.ld-block {
+  position: absolute;
+  top: 0;
+  left: 37px;
+  width: 46px;
+  height: 30px;
+  border-radius: 7px;
+  background: #fff;
+  opacity: 0;
+}
+.ld-ship {
+  position: absolute;
+  bottom: 22px;
+  left: 22px;
+  display: grid;
+  place-items: center;
+  width: 76px;
+  height: 76px;
+  border-radius: 50%;
+  background: #fff;
+}
+.ld-ship svg {
+  width: 34px;
+  height: 34px;
+  stroke: var(--accent);
+}
+
+/* ---------- The dark stage: the window, pinned while the scroll runs each scene. ---------- */
+
+.ld-win .ld-journey {
+  height: 920vh;
+}
+.ld-pin {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  height: 100svh;
+  overflow: hidden;
+}
+.ld-heads {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.ld-hd {
+  position: absolute;
+  top: calc(var(--ld-oy) + 96px * var(--ld-fit));
+  right: 0;
+  left: 0;
+  padding: 0 24px;
+  text-align: center;
+  will-change: opacity, transform;
+}
+.ld-hd .ld-h2 {
+  max-width: calc(940px * var(--ld-fit));
+  margin: 0 auto;
+  font-size: calc(64px * var(--ld-fit));
+}
+.ld-hd .ld-sub {
+  margin: calc(18px * var(--ld-fit)) auto 0;
+}
+.ld-hd-hero {
+  top: calc(var(--ld-oy) + 132px * var(--ld-fit));
+}
+.ld-huge {
+  font-size: calc(112px * var(--ld-fit));
+  line-height: 0.98;
+  letter-spacing: -0.04em;
+}
+.ld-deck {
+  max-width: 24ch;
+  margin: calc(20px * var(--ld-fit)) auto 0;
+  font-size: max(18px, calc(30px * var(--ld-fit)));
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+}
+.ld-hd-hero .ld-sub {
+  margin-top: calc(16px * var(--ld-fit));
+}
+.ld-hd-hero .ld-actions {
+  justify-content: center;
+  pointer-events: auto;
+}
+.ld-space {
+  position: absolute;
+  inset: 0;
+  perspective: 1700px;
+  perspective-origin: 50% 42%;
+}
+.ld-rig {
+  position: absolute;
+  top: 300px;
+  left: 300px;
+  width: 840px;
+  height: 520px;
+  transform-style: preserve-3d;
+  will-change: transform;
+}
+.ld-face {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: 16px;
+  background: #f7f7f8;
+  box-shadow:
+    0 40px 90px rgb(0 0 0 / 0.55),
+    0 0 0 1px rgb(255 255 255 / 0.06);
+  backface-visibility: hidden;
+}
+.ld-back {
+  transform: rotateY(180deg);
+}
+.ld-chrome {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  height: 34px;
+  padding-left: 14px;
+  background: #ebebec;
+}
+.ld-chrome i {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #d2d2d4;
+}
+.ld-side {
+  position: absolute;
+  top: 34px;
+  bottom: 0;
+  left: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 150px;
+  padding: 22px 18px;
+  background: #efeff0;
+}
+.ld-side b {
+  display: block;
+  height: 8px;
+  border-radius: 4px;
+  background: #dadadc;
+}
+.ld-side b.ld-on {
+  background: #d9d7fb;
+}
+.ld-content {
+  position: absolute;
+  top: 34px;
+  right: 0;
+  bottom: 0;
+  left: 150px;
+}
+.ld-page-big {
+  top: 58px;
+  left: 206px;
+  width: 280px;
+  height: 360px;
+}
+.ld-agentl {
+  position: absolute;
+  top: 80px;
+  left: 160px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 520px;
+  height: 360px;
+  padding: 34px 30px;
+  border-radius: 16px;
+  background: #26262b;
+  box-shadow: 0 0 0 1px rgb(255 255 255 / 0.14);
+  opacity: 0;
+  will-change: transform, opacity;
+}
+.ld-agentl b {
+  display: block;
+  height: 9px;
+  border-radius: 5px;
+  background: #4a4a52;
+}
+.ld-cursor {
+  width: 10px;
+  height: 18px;
+  border-radius: 2px;
+  background: var(--ld-lite);
+  animation: ld-blink 1.1s steps(2) infinite;
+}
+@keyframes ld-blink {
+  50% {
+    opacity: 0;
+  }
+}
+.ld-label {
+  position: absolute;
+  color: #cfcfcf;
+  font-size: 16px;
+  font-weight: 500;
+  white-space: nowrap;
+  opacity: 0;
+}
+.ld-label-agent {
+  top: 728px;
+  left: 290px;
+}
+.ld-label-you {
+  top: 250px;
+  left: 1150px;
+}
+.ld-buildline {
+  position: absolute;
+  top: 599px;
+  left: 470px;
+  width: 0;
+  height: 2px;
+  background: var(--ld-lite);
+}
+.ld-builder {
+  top: 600px;
+  left: 470px;
+  background: var(--ld-lite);
+  box-shadow: 0 0 0 3px var(--ld-bg);
+  opacity: 0;
+}
+.ld-mover {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 40px;
+  height: 28px;
+  border-radius: 7px;
+  background: #f7f7f8;
+  opacity: 0;
+}
+.ld-goal {
+  position: absolute;
+  top: 564px;
+  left: 1080px;
+  display: grid;
+  place-items: center;
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 2px var(--ld-lite);
+  opacity: 0;
+}
+.ld-goal svg {
+  width: 32px;
+  height: 32px;
+  stroke: var(--ld-lite);
+}
+.ld-goal.ld-goal-full {
+  background: var(--ld-lite);
+  box-shadow: none;
+}
+.ld-goal.ld-goal-full svg {
+  stroke: var(--ld-bg);
+}
+
+/* ---------- The last screen: one thing to do. ---------- */
+
+.ld-close {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+  padding: 150px 24px 56px;
+  text-align: center;
+  scroll-margin-top: 24px;
+}
+.ld-close-title {
+  margin: 0;
+  font-size: clamp(38px, 5vw, 68px);
+  font-weight: 600;
+  line-height: 1.04;
+  letter-spacing: -0.035em;
+  text-wrap: balance;
+}
+.ld-close-lede {
+  max-width: 46ch;
+  margin: 0;
+  color: var(--ld-muted);
+  font-size: clamp(16px, 1.4vw, 20px);
+  line-height: 1.45;
+  text-wrap: pretty;
+}
+.ld-join {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: min(100%, 500px);
+  margin-top: 12px;
+}
+.ld-join-label {
+  color: var(--ld-muted);
+  font-size: 14px;
+  font-weight: 500;
+  text-align: left;
+}
+.ld-join-row {
+  display: flex;
+  gap: 10px;
+}
+.ld-input {
+  flex: 1;
+  min-width: 0;
+  height: 56px;
+  padding: 0 16px;
+  border: 1px solid var(--ld-field-line);
+  border-radius: 12px;
+  background: var(--ld-field);
+  color: var(--ld-text);
+  font: 400 17px / 1 var(--font);
+}
+.ld-input:focus-visible {
+  border-color: var(--ld-accent);
+  outline-offset: 0;
+}
+.ld-close .ld-btn {
+  height: 56px;
+  padding: 0 28px;
+  font-size: 17px;
+}
+.ld-close .ld-btn-big {
+  height: 60px;
+  padding: 0 40px;
+  font-size: 18px;
+}
+.ld-thanks {
+  margin: 12px 0 0;
+  font-size: 18px;
+  font-weight: 500;
+}
+.ld-error {
+  margin: 4px 0 0;
+  color: var(--bad);
+  font-size: 15px;
+  text-align: left;
+}
+.ld-fine {
+  margin: 4px 0 0;
+  color: var(--ld-faint);
+  font-size: 15px;
+}
+.ld-fine a {
+  color: inherit;
+  text-underline-offset: 3px;
+}
+.ld-fine a:hover {
+  color: var(--ld-text);
+}
+.ld-foot.site-foot {
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 28px 32px 40px;
+}
+
+/* ---------- A narrow or upright window: the picture takes the top, the words the foot. ---------- */
+
+@media (max-width: 720px), (max-aspect-ratio: 6/5) {
+  .ld-bar {
+    height: 56px;
+    padding: 0 16px;
+  }
+  .ld-h1 {
+    font-size: clamp(30px, 8.6vw, 48px);
+    line-height: 1.04;
+  }
+  .ld-h2,
+  .ld-hd .ld-h2 {
+    max-width: none;
+    font-size: clamp(26px, 7.2vw, 42px);
+    line-height: 1.06;
+  }
+  .ld-sub,
+  .ld-hd .ld-sub {
+    margin-top: 12px;
+    font-size: clamp(16px, 4.2vw, 19px);
+  }
+  .ld-br {
+    display: none;
+  }
+  .ld-actions {
+    gap: 18px;
+    margin-top: 20px;
+  }
+  .ld-one .ld-copy {
+    top: auto;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    width: auto;
+    padding: 28px 16px 28px;
+    background: linear-gradient(to bottom, transparent, var(--ld-bg) 24px);
+    transform: none;
+  }
+  .ld-one .ld-step-hero .ld-copy {
+    padding-bottom: 76px;
+  }
+  .ld-hd {
+    top: 72px;
+    padding: 0 16px;
+  }
+  .ld-hd-hero {
+    top: 80px;
+  }
+  .ld-huge {
+    font-size: clamp(46px, 13vw, 76px);
+  }
+  .ld-deck {
+    margin-top: 12px;
+    font-size: clamp(19px, 5vw, 26px);
+  }
+  .ld-hd-hero .ld-sub {
+    margin-top: 10px;
+  }
+  .ld-win .ld-cue {
+    top: auto;
+    bottom: 22px;
+  }
+  .ld-label {
+    font-size: 46px;
+  }
+  .ld-label-agent {
+    top: 870px;
+    left: 120px;
+  }
+  .ld-label-you {
+    top: 236px;
+    left: 690px;
+  }
+  .ld-close {
+    padding: 104px 16px 40px;
+  }
+  .ld-join-row {
+    flex-direction: column;
+  }
+  .ld-close .ld-btn {
+    width: 100%;
+  }
+  .ld-foot.site-foot {
+    padding: 24px 16px 32px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ld-cue,
+  .ld-cursor {
+    animation: none;
+  }
+}

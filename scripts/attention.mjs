@@ -1,16 +1,18 @@
 #!/usr/bin/env node
 // What in this repository is waiting for someone, for an agent to tell the person at the start of
 // a session (AGENTS.md): dependency updates and alerts, a red run on main, an accepted vulnerability
-// whose time is up, unreleased changes production lacks, git hooks that are off, and copies outside
-// production that may hold an organization no instance owner owns: pulls, golden masters and their
-// exports from before pulls checked owners, and a dev copy taken before then.
-// Each line names the skill that handles it. Prints nothing when nothing is waiting.
+// whose time is up, unreleased changes production lacks, git hooks that are off, copies outside
+// production that may hold an organization no instance owner owns (pulls, golden masters and their
+// exports from before pulls checked owners, and a dev copy taken before then), and production's
+// database on pace to use up its month's compute hours on Neon.
+// Each line names the skill that handles it, if one does. Prints nothing when nothing is waiting.
 //
 //   pnpm attention
 
 import { execFile } from "node:child_process";
-import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, realpathSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 
 const run = promisify(execFile);
@@ -95,12 +97,27 @@ const readJson = (path) => {
 };
 const plural = (names, one, many) => (names.length === 1 ? one : many);
 
+// The main checkout: pulls and .env live there, shared by every worktree of the clone.
+async function mainCheckout() {
+  const common = await out("git", ["rev-parse", "--path-format=absolute", "--git-common-dir"]).catch(() => "");
+  return common ? dirname(common) : ".";
+}
+
+// The deployment's values in the main checkout's .env: each setting's value, or "" when it or the
+// file is missing.
+async function settings() {
+  let env = "";
+  try {
+    env = readFileSync(join(await mainCheckout(), ".env"), "utf8");
+  } catch {}
+  return (key) => new RegExp(`^${key}=["']?([^"'\n]*)`, "m").exec(env)?.[1]?.trim() ?? "";
+}
+
 // Local: copies outside production that may hold an organization no instance owner owns
 // (okf/operations/copying-an-organization.md). Pulls and .env live in the main checkout; each
 // checkout has its own golden master.
 async function copies() {
-  const common = await out("git", ["rev-parse", "--path-format=absolute", "--git-common-dir"]).catch(() => "");
-  const top = common ? dirname(common) : ".";
+  const top = await mainCheckout();
   const pulls = resolve(process.env.WHATBUILD_FIXTURE_DIR ?? join(top, ".what-build/fixtures"));
   const unchecked = (existsSync(pulls) ? readdirSync(pulls) : []).filter((d) => {
     const r = readJson(join(pulls, d, "pulled.json"));
@@ -124,13 +141,7 @@ async function copies() {
       `${plural(old, "a golden master or export", `${old.length} golden masters or exports`)} (${old.map((f) => dirname(f).replace(`${top}/`, "")).join(", ")}) ${plural(old, "was", "were")} built before pulls checked who owns each organization: build the golden master again (\`pnpm fixture pull\`, \`pnpm e2e golden\`), delete old exports, and load a new one on the Docker host`,
       "run-end-to-end-tests",
     );
-  let env = "";
-  try {
-    env = readFileSync(join(top, ".env"), "utf8");
-  } catch {
-    return;
-  }
-  const value = (key) => new RegExp(`^${key}=["']?([^"'\n]*)`, "m").exec(env)?.[1]?.trim() ?? "";
+  const value = await settings();
   if (value("NEON_DEV_PROJECT")) {
     const named = value("NEON_DEV_COPY_ORGANIZATIONS");
     const taken = Date.parse(value("NEON_DEV_COPY_TAKEN"));
@@ -140,6 +151,69 @@ async function copies() {
         "rehearse-on-the-dev-deployment",
       );
   }
+}
+
+// The compute hours (CU-hours) a Neon project has each month on Neon's Free plan, which suspends
+// its compute once they are used, until the month ends. `NEON_CU_HOURS` in .env sets another.
+const NEON_FREE_CU_HOURS = 100;
+const DAY = 86_400_000;
+const day = (t) => new Date(t).toISOString().slice(0, 10);
+
+/**
+ * What to say about a Neon project's compute hours this billing period, or null while they are in
+ * hand: said once the period's pace so far uses them up before it ends (read from a day or more of
+ * it), or 80% of them are used. `seconds` is Neon's `compute_time_seconds` (CU-seconds), `start` and
+ * `end` the period's bounds and `now` the time, in milliseconds.
+ */
+export function neonHours({ seconds, allowance, start, end, now = Date.now() }) {
+  if (!(allowance > 0) || !(seconds >= 0) || !(start < now && now < end)) return null;
+  const used = seconds / 3600;
+  const elapsed = now - start;
+  const perDay = (used / elapsed) * DAY;
+  const runsOut = perDay > 0 ? start + (allowance / perDay) * DAY : Infinity;
+  const near = used >= 0.8 * allowance;
+  const short = runsOut < end && (elapsed >= DAY || near);
+  if (!near && !short) return null;
+  const has = `production's database has used ${used.toFixed(1)} of its ${allowance} Neon compute hours (CU-hours) this month`;
+  const suspends = "Neon suspends it, and WhatBuild with it";
+  if (used >= allowance) return `${has}, so ${suspends}, until ${day(end)}: pay for a Neon plan now`;
+  const pace = `${perDay.toFixed(1)} a day`;
+  if (short)
+    return `${has}, ${pace}: at that pace they run out on ${day(runsOut)} and ${suspends}, until ${day(end)}. Pay for a Neon plan before ${day(runsOut)}`;
+  return `${has}, ${pace}, which lasts until they renew on ${day(end)} with little to spare; if they run out first, ${suspends}. Pay for a Neon plan if the pace rises`;
+}
+
+// Production's database on Neon: its compute hours this month, from Neon's API
+// (`GET /projects/{id}`). The key is the one the build's restore points use, from Secret Manager,
+// or NEON_API_KEY. Silent when a setting is missing or Neon does not answer within a few seconds:
+// a session's start stays fast.
+async function neon() {
+  const value = await settings();
+  const project = value("NEON_PROJECT");
+  const allowance = Number(value("NEON_CU_HOURS") || NEON_FREE_CU_HOURS);
+  if (!project || !(allowance > 0)) return;
+  const signal = AbortSignal.timeout(6000);
+  try {
+    const key =
+      process.env.NEON_API_KEY ||
+      (value("GCP_PROJECT") &&
+        (await run("gcloud", ["secrets", "versions", "access", "latest", "--secret", "whatbuild-neon-api-key", "--project", value("GCP_PROJECT")], { signal })).stdout.trim());
+    if (!key) return;
+    const response = await fetch(`https://console.neon.tech/api/v2/projects/${encodeURIComponent(project)}`, {
+      headers: { Authorization: `Bearer ${key}`, Accept: "application/json" },
+      signal,
+    });
+    if (!response.ok) return;
+    const p = (await response.json())?.project ?? {};
+    // A period Neon does not give (its zero time, year 1) is the calendar month, as on the Free plan.
+    const now = Date.now();
+    const given = (iso) => (Date.parse(iso) > Date.parse("2000-01-01") ? Date.parse(iso) : NaN);
+    const month = new Date(now);
+    const start = given(p.consumption_period_start) || Date.UTC(month.getUTCFullYear(), month.getUTCMonth(), 1);
+    const end = given(p.consumption_period_end) || Date.UTC(month.getUTCFullYear(), month.getUTCMonth() + 1, 1);
+    const line = neonHours({ seconds: Number(p.compute_time_seconds), allowance, start, end, now });
+    if (line) say(line);
+  } catch {}
 }
 
 async function github() {
@@ -208,10 +282,21 @@ async function github() {
   }
 }
 
-await Promise.all([hooks(), github(), copies()]);
-accepted();
+// Run as a script, not when a test imports neonHours.
+const main = (() => {
+  try {
+    return realpathSync(process.argv[1]) === fileURLToPath(import.meta.url);
+  } catch {
+    return false;
+  }
+})();
 
-if (lines.length) {
-  console.log("Waiting for attention in this repository:");
-  console.log(lines.join("\n"));
+if (main) {
+  await Promise.all([hooks(), github(), copies(), neon()]);
+  accepted();
+
+  if (lines.length) {
+    console.log("Waiting for attention in this repository:");
+    console.log(lines.join("\n"));
+  }
 }

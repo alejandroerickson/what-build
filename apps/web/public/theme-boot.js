@@ -2,7 +2,13 @@
 // because the app's Content-Security-Policy allows only same-origin scripts (no inline ones).
 // The stored choice is "light", "dark" or "system" (the default); html[data-theme] is always the
 // resolved "light" or "dark". The app keeps it current when the choice or the system changes.
+// A page that has one theme only says so in html[data-theme-fixed], which wins.
 (function () {
+  var fixed = document.documentElement.getAttribute("data-theme-fixed");
+  if (fixed === "light" || fixed === "dark") {
+    document.documentElement.setAttribute("data-theme", fixed);
+    return;
+  }
   var choice = "system";
   try {
     var stored = localStorage.getItem("whatbuild.theme");

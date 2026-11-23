@@ -161,7 +161,7 @@ It writes only files it makes itself, in products of the standard organization.
     *Expect:* the index answers (the starter, or what the example's authors wrote). No `playbook_write`
     is offered; called anyway, a write, a message and `request_upload` are each refused `403
     example_read_only`. `get_download` gives a grant, and its ZIP downloads. On the web, Settings → the product
-    → Playbook says it is a worked example to read, and the switch is disabled.
+    → Playbook says it is the demo, to read, and the switch is disabled.
 21. **The synthetic organization, as Morgan; the standard organization's Playbook from outside.** Over
     MCP as Morgan, read Crewboard's Playbook. *Expect:* the sample's files (a lesson, what is current, a
     person's page) and, for whoever it was sent to, a message waiting. As Morgan, call

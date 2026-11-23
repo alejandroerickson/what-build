@@ -199,9 +199,11 @@ gives each page's `html_sha256` and each file's `sha256`: they hash the text as 
 
 ## Limits
 
-A version holds at most 48 pages and 8,000,000 characters of HTML. A product holds at most 50 mockups,
-archived ones included; `list` gives `quota` with `used` and `limit`. Folders are not limited; each
-has a name of its own in its product, whatever its capitals.
+A version holds at most 48 pages and 8,000,000 characters of HTML. A product holds as many mockups,
+archived ones included, as its organization's plan allows: 50 unless the plan says otherwise, and no
+limit where `limit` is null. `list` gives `quota` with `used` and `limit`; publishing a new mockup at the
+limit is refused with `409 quota_exceeded`, and a new version of one counts nothing. Folders are not
+limited; each has a name of its own in its product, whatever its capitals.
 
 ## Promoting a page or a whole canvas to the Story
 

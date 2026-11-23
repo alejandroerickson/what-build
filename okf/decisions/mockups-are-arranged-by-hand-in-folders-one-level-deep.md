@@ -3,7 +3,7 @@ type: Decision
 title: Mockups are arranged by hand, in folders one level deep that everyone in the product shares
 description: A mockup sits in one folder or in none, people and agents order the folders and the mockups in them by hand, and arranging changes no mockup, so a team keeps a busy Exploration legible without hiding work from one another.
 tags: [decision, mockups, exploration, web, agents]
-generated: {by: agent:claude, at: 2026-11-13}
+generated: {by: agent:claude, at: 2026-11-23}
 status: stable
 ---
 
@@ -33,8 +33,9 @@ able to arrange as people do.
 - Rejected: visibility limited to some people. A product's roles say who reads it, and a viewer
   reads everything; a mockup some cannot see would have to hold in search, export, the activity
   log, the Story and every agent connection, to tidy a list.
-- Rejected: tags. A mockup belongs in one place, a product holds at most 50, and a list filtered
-  by tag shows less at a glance than folders that open and close.
+- Rejected: tags. A mockup belongs in one place, a product holds a few dozen (50 unless its plan
+  says otherwise), and a list filtered by tag shows less at a glance than folders that open and
+  close.
 - Rejected: an arrangement of each person's own. A folder's name is how people and agents say
   where a mockup is, which only a shared one can do.
 - Sources keep tags and no folders

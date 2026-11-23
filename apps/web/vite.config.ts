@@ -22,13 +22,14 @@ export default defineConfig({
   build: {
     outDir: "dist",
     sourcemap: true,
-    // The app, and the public site's pages (dist/site/index.html, dist/site/plans/index.html, dist/site/privacy/index.html), which the server serves on the site's own host.
+    // The app, and the public site's pages (dist/site/index.html, dist/site/plans/index.html, dist/site/privacy/index.html, dist/site/what-to-build/index.html), which the server serves on the site's own host.
     rollupOptions: {
       input: {
         app: fileURLToPath(new URL("index.html", import.meta.url)),
         site: fileURLToPath(new URL("site/index.html", import.meta.url)),
         "site-plans": fileURLToPath(new URL("site/plans/index.html", import.meta.url)),
         "site-privacy": fileURLToPath(new URL("site/privacy/index.html", import.meta.url)),
+        "site-what-to-build": fileURLToPath(new URL("site/what-to-build/index.html", import.meta.url)),
       },
     },
   },

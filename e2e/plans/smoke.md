@@ -91,10 +91,12 @@ other plans will too.
     the same address. *Expect:* the overview lists the example organization, marked Example
     organization and Read only, and, since the guest may not start one, its **Your own
     organization** box says "Your team’s work goes in an organization of your own." and offers
-    **Ask for your own organization**; pressing it, the box says only "You’re on the waitlist.
-    We’ll email guest@example.com when you can start your organization.", and after a reload the
-    button is still gone. Its products open with a notice: "A worked example to learn from. Nothing
-    here can be changed." Settings lists the product's General, People, Playbook and Export, and no section for the
+    **Start your own organization**; pressing it, the box says only "Your organization is on its
+    way. We’ll email guest@example.com as soon as it’s ready.", and after a reload the button is still
+    gone (the golden master gives no organizations a day). Its products open with a notice, "Your
+    organization is on its way", saying the address they will hear at and that nothing here can be
+    changed; before they pressed it, the notice was "Like what you see?", inviting them to start their
+    own organization. Settings lists the product's General, People, Playbook and Export, and no section for the
     example organization; the product's People lists no one and says the example organization's
     people aren't shown to its guests, so nobody's details are shown to a guest
     (`okf/spec/03-accounts-and-identity.md` §3.10).

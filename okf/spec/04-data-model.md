@@ -3,7 +3,7 @@ type: Specification
 title: Every object in a product, with its fields, limits and invariants, as the REST and MCP wire sees it.
 description: The common envelope (ids, etags, attribution, revisions), outcomes, sources and their tags, attachments, comments, summaries and notes, evidence links, the retired insights, decisions and assumptions, views, activity, Story, mockups, feedback, the product bundle, and the storage layout.
 tags: [spec, data-model, schema, revisions, story, mockups, export]
-generated: {by: agent:claude, at: 2026-11-21}
+generated: {by: agent:claude, at: 2026-11-23}
 status: stable
 ---
 
@@ -493,7 +493,9 @@ version is immutable: `version` (1, 2, 3…), `title`, `summary` (describes the 
 `published_at`, `published_by`, and `html_sha256` (computed on read, so identical HTML can be
 recognised without reading it). The database keeps a version's words beside its HTML for search
 ([§8.3](08-search.md)), in no answer and no export. Readers see the latest version; any version
-can be read by number. Limit: 50 pages per product (`409 quota_exceeded`). Agents write pages; agents
+can be read by number. Limit: the pages per product the organization's plan allows, archived ones
+included, 50 unless it says otherwise (`story_pages_max`, [§9.7](09-data-lifecycle.md#97-plans-and-limits);
+`409 quota_exceeded`). Agents write pages; agents
 and people arrange, rename, archive and restore them, and admins delete them
 ([decision](../decisions/agents-write-the-story-people-arrange-it.md)). `story.list_pages` leaves
 archived pages out unless `include_archived`, and says how many it left out (`archived_hidden`, with
@@ -777,9 +779,9 @@ phone) and `height` (240–4,000, default 800, or `"auto"`, the height of its co
 `include_html` (otherwise `html_chars`), with `html_sha256` and `html_path` (the page's HTML
 route) computed on read, or an `entry` into the version's prototype, with its `poster` and its
 frame's address, `prototype_url`, computed on read (Prototype, below). Limits: 48 pages and
-8,000,000 characters of HTML in a version; 50 mockups in a product,
-archived ones included (`409 quota_exceeded`, whose details give `used`, `limit` and how many are
-`archived`).
+8,000,000 characters of HTML in a version; the mockups in a product the organization's plan allows,
+archived ones included, 50 unless it says otherwise (`mockups_max`, [§9.7](09-data-lifecycle.md#97-plans-and-limits);
+`409 quota_exceeded`, whose details give `used`, `limit` and how many are `archived`).
 
 **Folders and order.** A product's mockups are arranged by hand, in one arrangement everyone in
 the product sees
@@ -1063,13 +1065,20 @@ transaction, so a send that fails leaves them for the next try ([mail](../operat
 Otherwise reports stay in the database for whoever runs the deployment
 (◆ [decision](../decisions/feedback-names-nobody-and-reaches-the-maintainers-in-a-daily-digest.md)).
 
+**Where an account came from.** `accounts.came_from` is the path of the public site's landing page
+(`/`, `/what-to-build/`) a new account's sign-in started from (`?landing=` on its link, sent by the
+web app as `POST /api/v1/me/came-from`), kept once and only in the account's first day, to compare
+the landing pages ([decision](../decisions/the-landing-pages-are-compared-by-a-split-at-the-edge.md)).
+
 **Interest: the waitlist.** The public site's form (`POST /api/v1/interest { email, name?,
-organization?, note? }`, no sign-in) records someone asking for an organization of their own, and so
+organization?, note?, page? }`, no sign-in) records someone asking for an organization of their own, and so
 does a signed-in person who may not start one (`POST /api/v1/me/ask-for-organization`,
 [§3.2](03-accounts-and-identity.md#32-accounts-and-sign-in)), under their account's address
 and name: `email` ≤ 320 chars,
-`name` and `organization` ≤ 200, `note` ≤ 2,000. One row per address, compared without case; a
-repeat updates the fields it sends. The answer is the same `{ received: true }` for a new address,
+`name` and `organization` ≤ 200, `note` ≤ 2,000; `page` is the site's page it was sent from, its
+path (`/`, `/what-to-build/`), and anything else is dropped. One row per address, compared without
+case; a repeat updates the fields it sends, but `page` keeps the first one, so the landing pages can
+be compared ([decision](../decisions/the-landing-pages-are-compared-by-a-split-at-the-edge.md)). The answer is the same `{ received: true }` for a new address,
 a repeat and a bot (a hidden `website` field), so it never reveals who asked. New rows are limited
 to 200 an hour across the site (`429 rate_limited`). Not tenant content. Instance owners read it as
 the waitlist in `products.tenant_allowances`, which leaves out anyone given an allowance
@@ -1277,8 +1286,10 @@ topic. Migration [`0050_playbook.sql`](../../apps/server/src/migrations/0050_pla
   (`.md`, in any capitals) needs frontmatter with a `type`, as OKF requires (`422 playbook_frontmatter_missing`,
   `playbook_type_missing`); a write warns when it has no title or description, names an `applies_to`
   other than `idea`, `evidence`, `exploration`, `story` or `all`, or a `stale_after` that is no
-  date. Other keys are left as written. A file holds at most 256 KiB, a product at most 2,000 files
-  and 32 MiB, removed files not counted (`422 playbook_file_too_large`, `playbook_full`). Its text, every kept
+  date. Other keys are left as written. A file holds at most 256 KiB (`422 playbook_file_too_large`);
+  a product the files and bytes its organization's plan allows, removed files not counted, 2,000 files
+  and 32 MiB unless it says otherwise (`playbook_files_max`, `playbook_bytes_max`,
+  [§9.7](09-data-lifecycle.md#97-plans-and-limits); `422 playbook_full`). Its text, every kept
   revision included, counts toward the storage its organization's plan keeps (§9.7), as everything
   written in WhatBuild does.
 - **The starter** is Markdown under [`packages/core/src/playbook-starter/`](../../packages/core/src/playbook-starter/),
