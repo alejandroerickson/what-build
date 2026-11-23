@@ -240,15 +240,18 @@ describe("the product concept's card", () => {
   });
 });
 
-describe("the request for a concept's picture", () => {
-  it("is left out where the concept cannot be written: an archived product, a read-only organization", async () => {
+describe("the request for a card's picture", () => {
+  it("is left out where the card cannot be written: an archived product, a read-only organization", async () => {
     const t = (await alice.api("POST", "/api/v1/tenants", { name: "Bare Co" })).body.tenant.slug;
     const made = await alice.api("POST", `/api/v1/tenants/${t}/products`, { name: "Bare", concept: "A concept with no front." });
     const B = `/api/v1/p/${made.body.path}`;
+    expect((await alice.api("POST", `${B}/outcomes`, { title: "An outcome with no front" })).status).toBe(201);
     expect((await alice.api("GET", B)).body.note).toContain("no front yet");
+    expect((await alice.api("GET", `${B}/outcomes`)).body.note).toContain("no front yet");
     await h.db.updateTable("tenants").set({ read_only_since: new Date().toISOString() }).where("slug", "=", t).execute();
     try {
       expect((await alice.api("GET", B)).body).not.toHaveProperty("note");
+      expect((await alice.api("GET", `${B}/outcomes`)).body).not.toHaveProperty("note");
     } finally {
       await h.db.updateTable("tenants").set({ read_only_since: null }).where("slug", "=", t).execute();
     }
@@ -256,6 +259,7 @@ describe("the request for a concept's picture", () => {
     const archived = await alice.api("GET", B);
     expect(archived.body.archived_at).toBeTruthy();
     expect(archived.body).not.toHaveProperty("note");
+    expect((await alice.api("GET", `${B}/outcomes`)).body).not.toHaveProperty("note");
     expect((await alice.api("PATCH", `${B}/idea/concept`, { expected_etag: archived.body.etag, concept: "Changed." })).body.error.code).toBe("product_archived");
   });
 });

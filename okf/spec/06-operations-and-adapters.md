@@ -624,8 +624,9 @@ Notes on recent actions:
   side and does not send the other is refused (`422 card_sides_together`, `details.missing`
   naming it); the back of a card with no front yet may change alone. A write that leaves an outcome
   with no front says so in `note`, and so do `outcomes.list` (counting the current outcomes with no
-  front, for an editor or above) and `products.get` (for an editor or above, when the concept has
-  none and the product can be written: never in an archived product or a read-only organization). A write that touches a card returns `card_advice`, a list of what the guidance asks that
+  front) and `products.get` (when the concept has none), each for an editor or above and only where
+  the card can be written: never in an archived product or a read-only organization. A write that
+  touches a card returns `card_advice`, a list of what the guidance asks that
   WhatBuild can check and the card misses (more words than a front holds, the outcome's title
   repeated, more than one hue, fixed colours, an empty back);
   it never refuses the write. `outcomes.list` gives `card_chars`, the front's length, in its

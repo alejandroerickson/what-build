@@ -39,9 +39,10 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
   `422 playbook_upload_missing`, and the upload stays usable. A PUT to the grant of an upload already
   applied or published says so. An archived product's answer says its Playbook can be read but not
   written. A connected client sees the new descriptions after a new session.
-- **A product's answer asks only for what can be done.** `products_read(action="get")` no longer asks
-  for the concept's picture in an archived product or a read-only organization, where
-  `update_concept` is refused, and while a product's Playbook is off its `playbook` carries a `how`
+- **A product's answer asks only for what can be done.** `products_read(action="get")` and
+  `outcomes_read(action="list")` no longer ask for a card's picture in an archived product or a
+  read-only organization, where the card's writes are refused, and while a product's Playbook is off
+  its `playbook` carries a `how`
   saying the product's admins turned it off and turn it on in the web app. It asks nothing of a
   deployment and adds no migration (`tools_version` 0.70.0, as above). A connected client sees the
   new guide after a new session.

@@ -112,8 +112,9 @@ export const listOutcomes = defineOperation({
       if (input.query) a = a.where(sql<boolean>`(title ilike ${likeContaining(input.query)} or description ilike ${likeContaining(input.query)})`);
       archived_hidden = Number((await a.executeTakeFirst())?.n ?? 0);
     }
-    // Outcomes with no front, for whoever can draw them.
-    const bare = roleAtLeast(ctx.scope.role, "editor") ? items.filter((o) => !o.card_html && !o.archived_at).length : 0;
+    // Outcomes with no front, for whoever can draw them: not where their writes are refused, in an archived product or a read-only organization.
+    const writable = !ctx.scope.product!.archived_at && !ctx.scope.tenant?.read_only;
+    const bare = writable && roleAtLeast(ctx.scope.role, "editor") ? items.filter((o) => !o.card_html && !o.archived_at).length : 0;
     const notes = [
       archived_hidden ? `${archived_hidden} archived outcome${archived_hidden === 1 ? " is" : "s are"} not listed; pass include_archived to see ${archived_hidden === 1 ? "it" : "them"}.` : "",
       bare ? `${bare} of these outcomes ${bare === 1 ? "has" : "have"} no front yet (card_chars 0), so people see only ${bare === 1 ? "its" : "their"} text (outcomes_read(action="card_guidance") says how a front is drawn).` : "",
