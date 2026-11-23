@@ -75,7 +75,10 @@ other plans will too.
    (`story_read` `list_pages`) in the product from step 2, and read the first window of one source's
    text with `derived_read(action="text")`. *Expect:* the same items the web showed in step 2, with the
    same titles and counts, and the same words the source's Text showed. Back in the web, Sam's Idea
-   no longer shows Connect your agent and the panel no longer shows the seat. The golden master's
+   no longer shows Connect your agent and the panel no longer shows the seat. Over MCP,
+   `products_read(action="get")` on step 6's archived product. *Expect:* its `playbook.how` says the
+   Playbook can be read but not written until an admin restores the product, and no `note` asks for
+   a picture of its concept, whether or not the concept has one. The golden master's
    products have something in every list, so make one with none: **as Riley**, create a product in
    the standard organization from the overview's New product, with a name of the run's own and no
    concept; Sam edits it, as every product there. (If the organization's plan refuses another

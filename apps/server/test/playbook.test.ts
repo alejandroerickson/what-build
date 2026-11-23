@@ -365,7 +365,11 @@ describe("turning it off", () => {
     expect(refused.status).toBe(409);
     expect(refused.body.error.code).toBe("playbook_off");
     expect((await write(erin, "lessons/x.md", md("X"))).body.error.code).toBe("playbook_off");
-    expect((await vic.api("GET", P)).body.playbook).toEqual({ enabled: false });
+    const offAnswer = (await vic.api("GET", P)).body.playbook;
+    expect(offAnswer).toEqual({ enabled: false, how: expect.stringContaining("409 playbook_off") });
+    expect(offAnswer.how).toContain("in the product's Settings, under Playbook");
+    expect(offAnswer.how).toContain("Nothing in it is lost");
+    expect(offAnswer.how).not.toMatch(/playbook_read|playbook_write|guide\(/);
     expect((await vic.api("GET", `${P}/story/guidance?section=writing`)).body.playbook).toBeUndefined();
     expect((await a.call("mockups_read", "list")).body.playbook).toBeUndefined();
     const activity = (await alice.api("GET", `${P}/activity?limit=5`)).body.items.map((i: { action: string }) => i.action);

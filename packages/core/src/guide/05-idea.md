@@ -43,7 +43,9 @@ cards, with the editor role.
   the guidance advises (too many words, the title repeated, more than one hue, fixed colours, an
   empty back). It never refuses the write.
 - A card with no front shows people its text and a request for a picture, and
-  `products_read(action="get")`, `outcomes_read(action="list")` and the write itself say so in `note`.
+  `products_read(action="get")`, `outcomes_read(action="list")` and the write itself say so in `note`
+  (the two reads only where the card can be written: not in an archived product or a read-only
+  organization).
 
 ## Previewing a front
 
