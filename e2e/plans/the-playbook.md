@@ -127,7 +127,9 @@ It writes only files it makes itself, in products of the standard organization.
     `get_download`, `request_upload`, a GET under the download grant taken before, and an `apply`
     with the pending upload, whether its steps name only the ZIP's file or also one the ZIP lacks. Over MCP,
     as Riley, the same read as before gives no `playbook_messages_waiting`, though Riley's message is
-    still unread. `products_read(action="get")` gives no `read_first`,
+    still unread. `products_read(action="get")` gives no `read_first`: its `playbook` is
+    `enabled: false` with a `how` that says the product's admins turn it on in Settings and nothing
+    in it is lost, naming none of the Playbook's tools;
     `story_read(action="guidance")` lists no Playbook files, and archiving and restoring a source that a
     file links to gives no `playbook_cited_by`. Tick it again. *Expect:* a toast says it is on, and
     every file is back at the revision and etag it had, and the pending upload applies, writing its
