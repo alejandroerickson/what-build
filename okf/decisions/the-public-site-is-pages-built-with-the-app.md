@@ -1,7 +1,7 @@
 ---
 type: Decision
 title: The public site is pages built with the app, served from Cloudflare's edge or by host from the image
-description: what-build.com is pages in the web app's build, one recording requests to hear when WhatBuild opens, one comparing the plans and the privacy page; behind Cloudflare the Worker serves them so visitors never wake the service, and the image can serve them by Host for any other front.
+description: what-build.com is pages in the web app's build, two landing pages that record requests to hear when WhatBuild opens, one comparing the plans and the privacy page; behind Cloudflare the Worker serves them so visitors never wake the service, and the image can serve them by Host for any other front.
 tags: [decision, deployment, web, site]
 generated: {by: agent:claude, at: 2026-10-26}
 status: stable
@@ -21,10 +21,11 @@ instance is alive, so crawlers visiting the page every few minutes would keep on
 
 - The pages are Vite entries of their own (`apps/web/site/index.html`, `site/plans/index.html`
   for `/plans` and `site/privacy/index.html` for `/privacy`, both added on 2026-10-26, the second
-  [by decision](the-privacy-page-is-a-page-of-the-public-site.md)) on the Studio tokens and primitives, with none of the app's
-  routing, session or data, built with the app. The front page reuses the overview's intro, its
-  copy and its display type, the one place above the 20px ceiling
-  ([decision](the-overview-is-the-front-door.md)). The plans page shows the plans from the build
+  [by decision](the-privacy-page-is-a-page-of-the-public-site.md), and `site/what-to-build/index.html`
+  for `/what-to-build`, added on 2026-11-23) on the Studio tokens and primitives, with none of the app's
+  routing, session or data, built with the app. The front page and `/what-to-build` are landing
+  pages with display type of their own
+  ([decision](the-site-opens-on-landing-pages-the-scroll-tells.md)). The plans page shows the plans from the build
   (`@whatbuild/core/plans`), so it asks the service nothing.
 - What only the deployment knows is written into a page by whoever serves it: the Google Analytics
   ID (`whatbuild-analytics`), and the plans, whether guests may sign up and what the privacy page
@@ -36,7 +37,7 @@ instance is alive, so crawlers visiting the page every few minutes would keep on
   the app (302), and passes only `POST /api/v1/interest` to the service.
 - **Behind any other front**, the image does the same by Host: `WHATBUILD_SITE_URL` names the site,
   read from the Host header or from `X-Forwarded-Host`. On the app's origin, set or not, the pages
-  are at `/site/`, `/site/plans/` and `/site/privacy/`, with the same facts written in.
+  are at `/site/`, `/site/plans/`, `/site/privacy/` and `/site/what-to-build/`, with the same facts written in.
 - Requests to hear from us go to the `interest` table: one row per address, repeats update it, a
   hidden field drops bots, and 200 new rows an hour is the flood limit. Like feedback, nothing
   reads it back over HTTP; operators query it. It is not an operation: it is not for agents and
@@ -59,7 +60,8 @@ instance is alive, so crawlers visiting the page every few minutes would keep on
   route in `deploy/cloudflare/worker.js`, and `SITE_PATHS` in `apps/server/src/site.ts`. So are its
   headers (`PAGE_HEADERS`, and `PAGE_SECURITY_HEADERS` in `apps/server/src/public-routes.ts` with
   `RESPONSE_HEADERS` in `apps/server/src/app.ts`, which `response-headers.test.ts` compares).
-- The pages are `apps/web/src/site/`, styled in `apps/web/src/styles/screens/site.css`; the plans
+- The pages are `apps/web/src/site/`, styled in `apps/web/src/styles/screens/site.css` and, for the
+  landing pages, `landing.css`; the plans
   table is the app's own (`apps/web/src/routes/plan-comparison.tsx`).
 
 Specified in: [02-architecture §2.3](../spec/02-architecture.md), [04-data-model §4.13](../spec/04-data-model.md),

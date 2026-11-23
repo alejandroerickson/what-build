@@ -21,6 +21,10 @@
         "products_max": 1,
         "sources_max": 50,
         "storage_max_bytes": "200 MB",
+        "mockups_max": 50,
+        "story_pages_max": 50,
+        "playbook_files_max": 2000,
+        "playbook_bytes_max": "32 MB",
         "sent_bytes_per_day": "300 MB",
         "fetch_url": true,
         "documents_only": true
@@ -47,6 +51,10 @@
         "products_max": null,
         "sources_max": 2000,
         "storage_max_bytes": "10 GB",
+        "mockups_max": 50,
+        "story_pages_max": 50,
+        "playbook_files_max": 2000,
+        "playbook_bytes_max": "32 MB",
         "sent_bytes_per_day": "1 GB",
         "fetch_url": true,
         "documents_only": false

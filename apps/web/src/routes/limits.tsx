@@ -248,7 +248,8 @@ function Today({ l }: { l: OrganizationLimits }) {
 
 /**
  * The limits on what someone adds that they can run into, said as sentences. A file's size is the
- * most that can be uploaded here, which the deployment says, and the plan's.
+ * most that can be uploaded here, which the deployment says, and the plan's. What a product holds is
+ * the plan's, or its default where no plan's limits apply, so it is said on every plan.
  */
 function WhatYouAdd({ l }: { l: OrganizationLimits }) {
   const meets = l.you_meet_them === true;
@@ -257,13 +258,18 @@ function WhatYouAdd({ l }: { l: OrganizationLimits }) {
   const fileMax = largestFile(l);
   const readCap = deployment("parse_cap_bytes");
   const attachments = deployment("attachments_per_source");
-  const mockups = deployment("mockups_per_product");
-  const pages = deployment("story_pages_per_product");
+  const product = (k: string) => {
+    const v = l.limits.find((x) => x.key === k)?.value;
+    return typeof v === "number" ? v : null;
+  };
+  const mockups = product("mockups_max");
+  const pages = product("story_pages_max");
+  const held = [mockups !== null ? plural(mockups, "mockup") : null, pages !== null ? plural(pages, "Story page") : null].filter(Boolean);
   const lines = [
     Number.isFinite(fileMax) ? `Files up to ${size(fileMax)} each.` : null,
     readCap !== undefined && readCap < fileMax ? `Text is read from files up to ${size(readCap)}; a larger file is kept but not read.` : null,
     attachments !== undefined ? `Up to ${attachments.toLocaleString("en-US")} attachments on a source.` : null,
-    mockups !== undefined && pages !== undefined ? `Up to ${mockups.toLocaleString("en-US")} mockups and ${pages.toLocaleString("en-US")} Story pages in a product.` : null,
+    held.length ? `Up to ${held.join(" and ")} in a product, archived ones included.` : null,
     planned("documents_only") === true ? "Files must be ones WhatBuild reads: text, Markdown, transcripts, HTML, Word, PDF, spreadsheets or XML. Pro keeps recordings, images and any other file too." : null,
     planned("fetch_url") === false ? "Adding a file from a link is off on this plan." : null,
   ].filter((x): x is string => Boolean(x));
@@ -317,13 +323,13 @@ function EveryLimit({ l }: { l: OrganizationLimits }) {
   const counted = l.limits.some((x) => x.used !== undefined);
   return (
     <Sheet labelledBy="every-limit-title">
-      <SheetHeader id="every-limit-title" title={l.plan === "unlimited" ? "Limits (none on this plan)" : `Limits of the ${l.plan_name} plan`} count={l.limits.length} />
+      <SheetHeader id="every-limit-title" title={l.plan === "unlimited" ? "Limits (on this plan, only what a product holds)" : `Limits of the ${l.plan_name} plan`} count={l.limits.length} />
       <div className="limits-scroll">
         <Table head={["Limit", "Counted over", { label: "Allowed", num: true }, ...(counted ? [{ label: "Used", num: true }] : []), "Over the limit"]}>
           {l.limits.map((a: LimitValue) => (
             <Row key={a.key} label={a.label} help={a.help}>
               <Cell className="muted">{a.per}</Cell>
-              <Cell label="Allowed" num>{l.plan === "unlimited" ? <span className="faint">None</span> : amount(a.value, a.unit)}</Cell>
+              <Cell label="Allowed" num>{l.plan === "unlimited" && a.value === null ? <span className="faint">None</span> : amount(a.value, a.unit)}</Cell>
               {counted ? (
                 <Cell label="Used" num>
                   {a.used === undefined ? <NotCounted /> : a.unit === "bytes" ? formatBytes(a.used) : a.used.toLocaleString("en-US")}

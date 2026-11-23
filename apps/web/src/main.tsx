@@ -19,6 +19,7 @@ import { CookiesPage } from "./routes/cookies.tsx";
 import { AcceptInvite, NotFound, NotVisible, SignIn } from "./routes/auth.tsx";
 import { IdeaPage } from "./routes/idea.tsx";
 import { Welcome } from "./routes/org.tsx";
+import { StartFree } from "./routes/start.tsx";
 import { OverviewPage } from "./routes/overview.tsx";
 import { ActivityPage } from "./routes/product-misc.tsx";
 import { PlansPage } from "./routes/plans.tsx";
@@ -209,6 +210,8 @@ const router = createBrowserRouter([{ element: <Root />, errorElement: <RouteErr
   { path: "/join/:code", element: <Navigate to="/" replace />, errorElement: <RouteError /> },
   // An invitation's link is answered from outside the guests' gate: someone invited who isn't in yet takes no guest's place to read it.
   { path: "/invite/:token", element: <RequireSession><AcceptInvite /></RequireSession>, errorElement: <RouteError /> },
+  // Start using WhatBuild on the public site leads here after sign-in, from outside the guests' gate: it decides where they go.
+  { path: "/start", element: <RequireSession><StartFree /></RequireSession>, errorElement: <RouteError /> },
   {
     element: (
       <RequireSession>

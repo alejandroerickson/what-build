@@ -30,6 +30,41 @@ describe("the Cloudflare Worker", () => {
     expect(asked[0]).toMatchObject({ cf: { cacheTtl: 3600, cacheEverything: true }, key: "the deployment's edge key" });
   });
 
+  it("serves the second landing page from its own page in the build", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("down", { status: 503 })));
+    const built: string[] = [];
+    const ASSETS = { fetch: async (r: Request) => (built.push(new URL(r.url).pathname), new Response("<html><head></head><body>window</body></html>", { headers: { "Content-Type": "text/html" } })) };
+    for (const path of ["/what-to-build", "/what-to-build/"]) {
+      const res = await worker.fetch(new Request(`https://example.com${path}`), { ...env, ASSETS });
+      expect(res.status).toBe(200);
+    }
+    expect(built).toEqual(["/site/what-to-build/", "/site/what-to-build/"]);
+  });
+
+  it("sends a share of the front page's visitors to the second landing page, the same ones each time, and never a crawler", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("down", { status: 503 })));
+    const ASSETS = { fetch: async () => new Response("<html><head></head><body>front</body></html>", { headers: { "Content-Type": "text/html" } }) };
+    const visit = (ip: string, split?: string, ua = "Mozilla/5.0 (Macintosh)") =>
+      worker.fetch(new Request("https://example.com/?ref=hn", { headers: { "cf-connecting-ip": ip, "user-agent": ua } }), { ...env, ASSETS, ...(split === undefined ? {} : { LANDING_SPLIT: split }) });
+    // Off unless the deployment asks for it.
+    expect((await visit("203.0.113.7")).status).toBe(200);
+    expect((await visit("203.0.113.7", "0")).status).toBe(200);
+    // All of them, keeping the address's query, and never cached.
+    const sent = await visit("203.0.113.7", "1");
+    expect(sent.status).toBe(302);
+    expect(sent.headers.get("location")).toBe("https://example.com/what-to-build/?ref=hn");
+    expect(sent.headers.get("cache-control")).toBe("no-store");
+    expect((await visit("203.0.113.7", "1", "Mozilla/5.0 (compatible; Googlebot/2.1)")).status).toBe(200);
+    // Half of them, each the same way every time.
+    const ips = Array.from({ length: 400 }, (_, i) => `198.51.${i >> 8}.${i & 255}`);
+    const first = await Promise.all(ips.map(async (ip) => (await visit(ip, "0.5")).status));
+    const again = await Promise.all(ips.map(async (ip) => (await visit(ip, "0.5")).status));
+    expect(again).toEqual(first);
+    const share = first.filter((s) => s === 302).length / ips.length;
+    expect(share).toBeGreaterThan(0.4);
+    expect(share).toBeLessThan(0.6);
+  });
+
   it("serves the site's pages as the build has them when the service does not answer", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response("down", { status: 503 })));
     const ASSETS = { fetch: async () => new Response("<html><head></head><body>front</body></html>", { headers: { "Content-Type": "text/html" } }) };

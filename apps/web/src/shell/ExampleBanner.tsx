@@ -16,10 +16,13 @@ function readSeen(slug: string): boolean {
 }
 
 /**
- * What every screen of the example organization says above its content. To a guest: that it is a
- * worked example to read, that nothing in it changes, and where their own work goes; in full until
- * they have read it, then as one line that stays. To its own people, who may only read: that every
- * account reads what its authors write. It says nothing while it loads, so a screen never waits for it.
+ * What every screen of the example organization, the demo, says above its content. To a guest with
+ * no organization of their own, an invitation: like what you see, start using WhatBuild and engineer
+ * your next product; the button starts one where they may, or takes one of the day's places, or puts
+ * them in line, and then the banner says it is on its way. To a guest with one: that this is the
+ * demo, to read. In full until they press Got it, then as one line that stays, with the same
+ * button. To its own people, who may only read: that every account reads what its authors write. It
+ * says nothing while it loads, so a screen never waits for it.
  */
 export function ExampleBanner({ tenant }: { tenant: { tenant_id: string; slug: string; name: string } }) {
   const me = useMe();
@@ -41,30 +44,36 @@ export function ExampleBanner({ tenant }: { tenant: { tenant_id: string; slug: s
     );
   const ownOrgs = products.data!.tenants.filter((t) => !t.example).length;
   const mayStart = me.data.tenant_allowance.remaining !== 0;
-  // Someone who may not start one yet may ask to; once they have, the overview says they are waiting.
-  const start = ownOrgs ? null : mayStart ? (
-    <ButtonLink to="/welcome" size="sm" variant={seen ? "quiet" : "primary"}>
-      Start your organization
+  const waiting = !ownOrgs && !mayStart && Boolean(me.data.asked_for_organization_at);
+  const start = ownOrgs || waiting ? null : mayStart ? (
+    <ButtonLink to="/welcome" size="sm" variant="primary">
+      Start using WhatBuild
     </ButtonLink>
-  ) : me.data.asked_for_organization_at ? null : (
-    <AskForOrganization variant={seen ? "quiet" : "primary"} />
+  ) : (
+    <AskForOrganization label="Start using WhatBuild" />
   );
   if (seen)
     return (
       <p className="canvas-banner example-line">
         <Glyph name="library" size="sm" />
         <span>
-          <b>Example organization</b> · read only
+          <b>Demo</b> · read only
+          {waiting ? " · your organization is on its way" : null}
           {left}
         </span>
         {start}
       </p>
     );
+  const [title, words] = ownOrgs
+    ? ["This is the demo", "A demo to learn from. Nothing here can be changed."]
+    : waiting
+      ? ["Your organization is on its way", `We’ll email ${me.data.email} as soon as it’s ready. Meanwhile, read on: nothing here can be changed.`]
+      : ["Like what you see?", "Start using WhatBuild and engineer your next product. This demo is here to read: nothing in it can be changed."];
   return (
     <div className="canvas-banner example-notice">
       <Callout
         tone="info"
-        title="This is the example organization"
+        title={title}
         action={
           <>
             {start}
@@ -84,7 +93,7 @@ export function ExampleBanner({ tenant }: { tenant: { tenant_id: string; slug: s
           </>
         }
       >
-        A worked example to learn from. Nothing here can be changed.
+        {words}
       </Callout>
     </div>
   );

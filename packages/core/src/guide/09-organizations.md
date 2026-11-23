@@ -19,8 +19,8 @@ sent a day, and always sent.
 `products_write(action="create_tenant")` starts an organization. It needs an allowance from whoever
 runs this WhatBuild; belonging to an organization never gives one, and the action is offered only when
 the person has room in one. Without it the call is refused with `403 tenant_allowance`, whose
-message says whom to ask; in the web app, **Ask for your own organization** puts a person on the
-waitlist the instance's owners read. Where new organizations start on a plan the deployment
+message says whom to ask; in the web app, **Start your own organization** gives a person one of the
+day's places where the deployment gives them, or puts them on the waitlist the instance's owners read. Where new organizations start on a plan the deployment
 defines, each person has one organization on it, and moving that one to another plan frees its
 place. The answer's `plan` says which plan the new organization is on.
 
@@ -46,7 +46,10 @@ organization holds (people who do more than read the Story, an invitation not ye
 place; products and sources, archived or not; and storage, every version: files, which are attachments,
 the text read from each attachment, kept as a file of its own, and prototypes, and text written in
 WhatBuild). What each
-person is sent a day (attachments, mockup downloads, exports) is capped too.
+person is sent a day (attachments, mockup downloads, exports) is capped too, and so is what each
+product holds: its mockups and Story pages, archived ones included, and its Playbook's files and size.
+Those last hold everywhere, at their defaults (50 mockups, 50 Story pages, a Playbook of 2,000 files and
+32 MiB) where no plan's limits apply.
 `products_read(action="limits", params={"tenant": "…"})`, or with `product` set to a product in it,
 lists every limit with its value (null for none) and what is used of it: today's for a daily one, a
 day being a UTC day; what the organization holds for a total, also in `holds`. It compares the plans

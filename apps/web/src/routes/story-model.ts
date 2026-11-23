@@ -5,8 +5,8 @@ import type { CanvasPage, PrototypeAddress } from "./mockup-canvas.tsx";
  * a person moves one. Pure functions, so dragging, the keyboard and the retry after a 409 share them.
  */
 
-/** The server's limits (story.publish counts archived pages too, and story.set_hierarchy). */
-export const MAX_PAGES = 50;
+/** The most pages one print view takes (story.print), and how deep the tree goes (story.set_hierarchy). */
+export const PRINT_MAX_PAGES = 50;
 export const MAX_DEPTH = 6;
 
 /** What a page's current version shows: HTML of its own, one page of a mockup, or a mockup's whole canvas. */

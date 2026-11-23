@@ -3,7 +3,7 @@ type: Roadmap
 title: Phases 0 to 5 are mostly built, with an example organization every account reads and plans that set every limit; durability, data rights and public sign-up come next.
 description: What is built and what is not, phase by phase, with acceptance criteria; the open questions that remain, the ones already settled, the risks, and problems seen that are not yet explained.
 tags: [roadmap, status, phases, open-questions, risks, problems]
-generated: {by: agent:claude, at: 2026-11-21}
+generated: {by: agent:claude, at: 2026-11-23}
 status: stable
 ---
 
@@ -258,7 +258,9 @@ and nothing speaks of plans; every organization on a plan of its own, the one th
 names for one made on an allowance (`WHATBUILD_NEW_ORGANIZATION_PLAN`, unlimited unless named) and
 unlimited for one an instance owner makes; limits that belong to plans, never to one
 organization: the public sandbox's limits on how often and how much, the totals an organization
-holds (people, products, sources, storage) and the bytes sent to each person a day; only
+holds (people, products, sources, storage), what each product holds (mockups, Story pages, its
+Playbook's files and size, at their defaults where no plan's limits apply) and the bytes sent to
+each person a day; only
 instance owners moving an organization to another plan; one organization each on the starting
 plan, so one moved to another plan frees its owner's place; an organization moved back to the
 starting plan while its creator already has one there, read-only for a year instead; and a
@@ -289,6 +291,9 @@ visitors, invitation links, seats, baselines and daily reset.
 - A deployment's plans are read from `WHATBUILD_PLANS`, a plan that cannot be read stops the server
   from starting, and a plan it does not define is refused (`422 unknown_plan`); a deployment that
   defines none offers none, and every organization on it is unlimited.
+- What each product holds is set per plan from the plan's dialog and `products.set_plan_limits`,
+  refused past it, and held at its defaults where a plans file leaves it out and where no plan's
+  limits apply.
 - Someone who may not start an organization joins the waitlist once; an instance owner reads it and,
   giving an allowance, takes them off it.
 
@@ -371,13 +376,16 @@ served from WhatBuild's starter until its first write; files written with etags 
 revisions, read, searched, moved, removed, restored and applied several at once; `whatbuild:` links
 resolved, with the files that cite an object; messages between people's agents; housekeeping
 candidates; pointers to it in the product's answer and each part's guidance; Settings → Playbook to
-turn it off. The end-to-end plan `the-playbook` has two people's agents work through one Playbook.
+turn it off; its files and size set per plan, 2,000 files and 32 MiB unless a plan says otherwise
+([§9.7](09-data-lifecycle.md#97-plans-and-limits)). The end-to-end plan `the-playbook` has two
+people's agents work through one Playbook.
 
 Next, none of it decided:
 
 - The product's `search` reading the Playbook beside the material, so one query finds both.
 - A worked Playbook in the example organization, written by its authors, so a new team sees one grown.
-- Per-plan limits on the Playbook's size, should the fixed ones (2,000 files, 32 MiB) not fit a plan.
+- A download of the whole Playbook streamed rather than built in memory, should a plan let one grow
+  far past 32 MiB.
 - Kits shared by an organization's products, if teams copy kits from one product to another often.
 - WhatBuild pointing each person's agent only at the team's files and that person's own, by the
   `people` key the starter's convention writes, should agents checking it themselves not be enough.

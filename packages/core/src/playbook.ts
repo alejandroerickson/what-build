@@ -16,10 +16,10 @@ export const OKF_VERSION = "0.2";
 
 /** The most a file may hold, in bytes of UTF-8. */
 export const PLAYBOOK_FILE_MAX_BYTES = 256 * 1024;
-/** The most files a product's Playbook holds, removed ones not counted. */
-export const PLAYBOOK_FILES_MAX = 2000;
-/** The most its files hold together, removed ones not counted, in bytes of UTF-8. */
-export const PLAYBOOK_TOTAL_MAX_BYTES = 32 * 1024 * 1024;
+/*
+ * The most files a product's Playbook holds, and the bytes of UTF-8 they hold together, removed ones
+ * not counted, are the organization's plan's (`playbook_files_max`, `playbook_bytes_max` in `plans.ts`).
+ */
 /** How many of a file's revisions are kept: the most recent. */
 export const PLAYBOOK_REVISIONS_KEPT = 100;
 /** How long a message lasts, read or not. */

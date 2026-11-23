@@ -313,29 +313,24 @@ describe("a mockup beside the product's sources", () => {
     expect(v2.pages[0].html).toBeUndefined();
   });
 
-  it("holds at most 50 mockups in a product, archived ones included", async () => {
+  it("holds any number of mockups where no plan limits them, and lists the archived ones apart", async () => {
+    // This instance defines no plans, so every organization is unlimited: no cap on mockups (a plan's mockups_max is tested in limits.test.ts).
     const t = await alice.api("POST", `/api/v1/tenants/${tenantSlug}/products`, { name: "Crowded" });
     const Q = `/api/v1/p/${t.body.path}`;
-    for (let i = 0; i < 50; i++) expect((await alice.api("POST", `${Q}/mockups`, { title: `M${i}`, pages: [{ page_id: "a", title: "A", html: page("A") }] })).status).toBe(201);
+    for (let i = 0; i < 51; i++) expect((await alice.api("POST", `${Q}/mockups`, { title: `M${i}`, pages: [{ page_id: "a", title: "A", html: page("A") }] })).status).toBe(201);
     const full = await alice.api("GET", `${Q}/mockups`);
-    expect(full.body).toMatchObject({ archived_hidden: 0, quota: { used: 50, limit: 50, unit: "mockups", archived_included: true } });
+    expect(full.body).toMatchObject({ archived_hidden: 0, quota: { used: 51, limit: null, unit: "mockups", archived_included: true } });
     expect(full.body.note).toBeUndefined();
-    // Archived mockups leave the list and still count.
+    // Archived mockups leave the list, and the note says how to see them, with no quota to count against.
     for (const m of full.body.items.slice(0, 3)) expect((await alice.api("POST", `${Q}/mockups/${m.mockup_id}/archive`, { expected_etag: m.etag })).status).toBe(200);
     const list = await alice.api("GET", `${Q}/mockups`);
-    expect(list.body.items).toHaveLength(47);
-    expect(list.body).toMatchObject({ archived_hidden: 3, quota: { used: 50, limit: 50 } });
-    expect(list.body.note).toBe("3 archived mockups are not listed; pass include_archived to see them. Archived mockups count toward the product's 50; 50 are used.");
+    expect(list.body.items).toHaveLength(48);
+    expect(list.body).toMatchObject({ archived_hidden: 3, quota: { used: 51, limit: null } });
+    expect(list.body.note).toBe("3 archived mockups are not listed; pass include_archived to see them.");
     const all = await alice.api("GET", `${Q}/mockups?include_archived=true`);
-    expect(all.body.items).toHaveLength(50);
-    expect(all.body).toMatchObject({ archived_hidden: 0, quota: { used: 50 } });
-    const over = await alice.api("POST", `${Q}/mockups`, { title: "One more", pages: [{ page_id: "a", title: "A", html: page("A") }] });
-    expect(over.status).toBe(409);
-    expect(over.body.error.code).toBe("quota_exceeded");
-    expect(over.body.error.details).toMatchObject({ quota: "mockups", limit: 50, used: 50, archived: 3 });
-    expect(over.body.error.message).toMatch(/at most 50 mockups, archived ones included, and this one holds 50 \(3 archived\)/);
+    expect(all.body.items).toHaveLength(51);
     // The product's counts are what the stages show: live mockups only.
-    expect((await alice.api("GET", Q)).body.counts.mockups).toBe(47);
+    expect((await alice.api("GET", Q)).body.counts.mockups).toBe(48);
   });
 });
 

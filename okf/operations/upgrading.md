@@ -3,7 +3,7 @@ type: Process
 title: What a deployment must do when it takes a release
 description: The changes a release asks of the people who run a deployment (settings, app registrations, behaviour they will notice), kept per release, with the unreleased ones on top until the next release carries them into its notes.
 tags: [operations, releases, upgrading, self-hosting, configuration]
-generated: {by: agent:claude, at: 2026-11-21}
+generated: {by: agent:claude, at: 2026-11-23}
 status: stable
 ---
 
@@ -33,6 +33,17 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
 
 ## Unreleased
 
+- **A plan sets what each product holds**: its mockups and Story pages, archived ones included, and
+  its Playbook's files and size (`mockups_max`, `story_pages_max`, `playbook_files_max`,
+  `playbook_bytes_max`), which an instance owner changes in Instance admin → Plans like every other
+  limit. Nothing needs doing and nothing changes until someone does: a `WHATBUILD_PLANS` file that
+  leaves them out gives them the values every organization held before (50, 50, 2,000 and 32 MiB).
+  On Unlimited, and on a plan no longer defined, mockups and Story pages now have no limit, where
+  they stopped at 50, and the Playbook keeps 2,000 files and 32 MiB. A deployment may add them to its plans file
+  (`deploy/plans.example.json` shows them). `products.limits` now gives them among `limits`, and
+  its `deployment_limits` no longer has `mockups_per_product` or `story_pages_per_product`. No
+  migration (`tools_version` 0.70.0, as below); a connected client sees the new descriptions after a
+  new session.
 - **The Playbook's refusals and pointers are more exact** (`tools_version` 0.70.0). It asks nothing
   of a deployment and adds no migration. While a product's Playbook is off, `apply` with an upload
   answers `409 playbook_off` whatever its steps, where a step whose file the ZIP lacked answered
@@ -47,6 +58,19 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
   above). A connected client sees the new guide after a new session.
 - **`mockups_write(action="publish")` names `page_id`** among what a new mockup's page needs, in
   its description and the guide. It asks nothing of a deployment.
+- **The public site has two landing pages** in place of the overview's intro: `/` and
+  `/what-to-build/`. Behind Cloudflare, deploy the Worker again with the release, as always, or the
+  site keeps the old page. The Worker takes one more optional setting, `LANDING_SPLIT` (0 to 1), the
+  share of the front page's visitors it sends to `/what-to-build/` to compare the two; unset, nobody
+  is. The release migrates (`0053_where_people_came_from.sql` adds `interest.page` and
+  `accounts.came_from`, null for every row), which the previous release never reads or writes, so
+  it keeps working on the migrated schema.
+- **New organizations a day.** Instance admin → Guests has a new setting, how many organizations
+  people may start themselves each day; it starts at 0, which changes nothing: only the people an
+  owner lets in start one. Above 0, anyone may sign up, Start using WhatBuild on the site signs them in and
+  starts their organization, and the waitlist is let in first, by email, from the next free places.
+- **The sign-in page no longer says** "WhatBuild is a free preview: don't keep anything here you
+  can't afford to lose." The privacy page says WhatBuild is provided as is, without warranty.
 
 ## v0.43.1
 

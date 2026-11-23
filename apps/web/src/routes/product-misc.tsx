@@ -188,7 +188,7 @@ export function ProductPlaybookSettings() {
       <SheetBody className="playbook-setting">
         {!isAdmin ? (
           <Callout inset tone="info">
-            {guest ? "This is a worked example to read, so nothing in it can be changed." : "Only admins of this product can turn its Playbook off or on."}
+            {guest ? "This is the demo, to read: nothing in it can be changed." : "Only admins of this product can turn its Playbook off or on."}
           </Callout>
         ) : archived ? (
           <Callout inset tone="attention">
@@ -256,7 +256,7 @@ function ProductDetails() {
         <div className="settings-note">
           <Callout inset tone="info">
             {product.your_role === "guest"
-              ? "This is a worked example to read, so nothing in it can be changed."
+              ? "This is the demo, to read: nothing in it can be changed."
               : <>Only admins can change these. You&rsquo;re {product.your_role === "editor" ? "an editor" : "a viewer"} here.</>}
           </Callout>
         </div>

@@ -3,7 +3,7 @@ type: Specification
 title: Nothing is ever trapped - say what we promise, keep export open, and never let a limit block a read.
 description: What we tell people, limits and quotas (enforced and planned), backups and in-product versioning, export, archive and permanent delete of everything archivable and of an organization, the operator runbooks, plans and their limits, how retired insights and decisions became sources, and how assumptions were removed.
 tags: [spec, lifecycle, quotas, backups, export, archive, delete, limits, plans]
-generated: {by: agent:claude, at: 2026-11-15}
+generated: {by: agent:claude, at: 2026-11-23}
 status: stable
 ---
 
@@ -38,8 +38,8 @@ in its organization, which it outlasts the account; a limited time for the log, 
 backups) and what the person can do (export, delete their account in Settings or by asking,
 ask to see, correct, delete or object, complain to their authority). It carries the month it last
 changed in a way that matters, and no number that a setting or a release could change. The sign-in
-page carries one line under its form ("WhatBuild is a free preview: don’t keep anything here you
-can’t afford to lose."), with links to Privacy and Cookies.
+page carries links to Privacy and Cookies under its form. The privacy page says WhatBuild is
+provided as is, without warranty.
 
 What only the deployment knows comes from its settings, as `privacy` in `GET /api/v1/plans`, which
 whoever serves the page writes into it ([§7.3](07-web-app.md#73-routes)): who
@@ -129,9 +129,10 @@ running without a compliance program.
 | Looking for tables on one page of a PDF | 200,000 rows fitted to columns, and 10,000,000,000 cells checked against columns; what is left reads as lines, and a line that would overdraw the cells reads as a line at once ([§5.3](05-derived-layer.md)) | Yes |
 | Attachments per source | 50 | Yes — `409 too_many_attachments` |
 | A derived text written whole | 2,000,000 characters; a longer one is uploaded as an attachment and its text taken | Yes — `422 too_long` |
-| Story pages | 50 per product | Yes — `409 quota_exceeded`, quota `story_pages` |
-| Mockups | 50 per product, archived ones included; 48 pages and 8,000,000 characters of HTML, and 50 files and 2,000,000 characters of files, in a version | Yes — `409 quota_exceeded`, quota `mockups`; `422` for a version |
-| A mockup's prototype | 2,000 files and 64 MB in a version, 25 MB a file; 500 MB of distinct prototype bytes per product | Yes — `422 invalid_upload`; `409 quota_exceeded`, quota `prototype_bytes` |
+| Story pages | The plan's per product, archived ones included (§9.7): 50 unless it says otherwise | Yes — `409 quota_exceeded`, quota `story_pages` |
+| Mockups | The plan's per product, archived ones included (§9.7): 50 unless it says otherwise; 48 pages and 8,000,000 characters of HTML, and 50 files and 2,000,000 characters of files, in a version | Yes — `409 quota_exceeded`, quota `mockups`; `422` for a version |
+| A mockup's prototype | 2,000 files and 64 MB in a version, 25 MB a file; 500 MB of distinct prototype bytes per product, fixed, since a prototype comes only in a canvas's ZIP, which no organization on a plan with limits uploads (§9.7 rule 5) | Yes — `422 invalid_upload`; `409 quota_exceeded`, quota `prototype_bytes` |
+| A product's Playbook | The plan's per product, removed files not counted (§9.7): 2,000 files and 32 MiB unless it says otherwise; 256 KiB a file | Yes — `422 playbook_full`; `422 playbook_file_too_large` |
 | A mockup canvas uploaded as a ZIP | 25 MB packed, or the relay's limit when lower; 96 MB unpacked and 2,148 entries | Yes — `413 too_large`; `422 invalid_upload` past the unpacked size or the entries |
 | Story previews | 20 per product, each kept as long as its grant (30 minutes by default) | Yes — a new one drops the oldest, whose grant then answers `404` |
 | REST or MCP request body | 5 MB | Yes — `413 too_large` (MCP: `413` with a JSON-RPC error) |
@@ -140,6 +141,7 @@ running without a compliance program.
 | OAuth client registrations | 50 an hour waiting for their first connection; one that never connects is removed after 7 days | Yes — `429 rate_limited` |
 | Exports in progress | one per product at a time | Yes — `409 export_in_progress` |
 | People, products and sources (archived ones included), and storage, per organization | The plan's (§9.7) | Yes, on a plan the deployment defines — `409 quota_exceeded` |
+| Mockups and Story pages (archived ones included), and the Playbook's files and size, per product | The plan's (§9.7), and their defaults where no plan's limits apply | Yes, on every plan — `409 quota_exceeded`, `422 playbook_full` |
 | Writes and calls a minute, writes, sources, exports, uploaded bytes and bytes sent a day | The plan's (§9.7) | Yes, on a plan the deployment defines — `429 rate_limited`, `409 quota_exceeded`, `413 too_large`, `403 plan_restricted` |
 | Organization exports | 2 / day | Planned |
 
@@ -471,7 +473,8 @@ one of its plans, for one made on an allowance; and who moves it;
 ◆ [decision](../decisions/the-deployment-defines-its-plans-and-billing-stays-outside-the-repository.md)).
 Limits belong to plans, never to one organization. On a plan the deployment defines everyone in the
 organization, its owners included, meets the plan's limits below, beside the ones every
-organization has (§9.2), whichever is lower; on the unlimited plan nobody does. A guest of the
+organization has (§9.2), whichever is lower; on the unlimited plan nobody does, but for what each
+product holds, which meets its defaults there (below). A guest of the
 example organization meets only the guests' calls a minute and bytes downloaded a day
 ([§3.10](03-accounts-and-identity.md#310-the-example-organization)). The code is
 [`packages/core/src/plans.ts`](../../packages/core/src/plans.ts) (what a plan is, and the plans
@@ -486,7 +489,9 @@ an organization to another plan).
 `id` is lowercase letters, digits, `-` and `_`, starting with a letter, and never `unlimited`;
 `name` is what people read (1 to 40 characters); `about` says what the plan is for; `price` is what
 it costs as people read it, such as "$20 a month", or null; `limits` gives every limit below, none
-left out, a size as bytes or as text such as "10 MB" (1 MB is 1,048,576 bytes). A plan that cannot
+left out but what each product holds, which a plan that leaves it out holds at its default (so a file
+written before a plan could set them reads as before), a size as bytes or as text such as "10 MB" (1 MB
+is 1,048,576 bytes). A plan that cannot
 be read stops the server from starting, saying what is wrong, and so does a
 `WHATBUILD_NEW_ORGANIZATION_PLAN` that names a plan the deployment does not define. A deployment
 that sets nothing offers no plans: every organization is unlimited and nothing in the app speaks of
@@ -503,7 +508,8 @@ in it ([§3.5](03-accounts-and-identity.md#35-roles)), each limit of its plan wi
 for none, and `file_max_bytes` never more than the deployment's `upload_max_bytes`), what it is counted over, its refusal and what is used of it: for a daily one what the
 caller and everyone together used today (on every plan, rule 10), for a total what the organization
 holds; the plans offered side by side; and the deployment's own limits, each with a key that stays
-the same (`file_max_bytes`, `relay_max_bytes`, `upload_max_bytes`, `attachments_per_source`, …) and, where one does, the
+the same (`file_max_bytes`, `relay_max_bytes`, `upload_max_bytes`, `attachments_per_source`, …; what
+each product holds is among the plan's limits instead) and, where one does, the
 setting that changes it. The web app shows a person what they can run into, and an instance owner
 all of it. `GET /api/v1/plans`, public, gives the plans offered with every limit and each one's
 price (none on a deployment that offers no plans), `starting_plan`, whether the deployment has an
@@ -526,6 +532,10 @@ instead, set on the same page ([§3.10](03-accounts-and-identity.md#310-the-exam
 | Products, archived ones included | `products_max` | the organization | `409 quota_exceeded` |
 | Sources, archived ones included | `sources_max` | the organization | `409 quota_exceeded` |
 | Storage: files and text, every version | `storage_max_bytes` | the organization | `409 quota_exceeded`; an upload grant's `max_bytes` is what is left |
+| Mockups, archived ones included; a new version counts nothing (default 50) | `mockups_max` | each product | `409 quota_exceeded`, quota `mockups` |
+| Story pages, archived ones included (default 50) | `story_pages_max` | each product | `409 quota_exceeded`, quota `story_pages` |
+| Files in the Playbook, removed ones not counted (default 2,000) | `playbook_files_max` | each product | `422 playbook_full` |
+| What the Playbook's files hold together, removed ones not counted (default 32 MiB) | `playbook_bytes_max` | each product | `422 playbook_full` |
 | Calls, reads included | `requests_per_minute` | each person, each minute | `429 rate_limited` |
 | Writes | `writes_per_minute` | each person, each minute | `429 rate_limited` |
 | Writes | `writes_per_day` | each person, each day | `409 quota_exceeded` |
@@ -545,6 +555,18 @@ The totals and `sent_bytes_per_day` may be null, no limit; every other limit is 
 the last two a switch. The example file's values are a starting point, set by what an organization
 may cost at most and what a real discovery uses: one product with a few dozen sources holds tens of
 megabytes.
+
+**What each product holds** (`mockups_max`, `story_pages_max`, `playbook_files_max`,
+`playbook_bytes_max`, `PRODUCT_TOTALS` in `plans.ts`) is a plan's like any other total, and the
+Playbook's limits also hold where no plan's limits apply. Their defaults (`PRODUCT_TOTAL_DEFAULTS`:
+50 mockups, 50 Story pages, a Playbook of 2,000 files and 32 MiB) are what every organization met
+before a plan could set them, and what a plan's definition that leaves them out gets. An
+organization on `unlimited`, or on a plan the deployment no longer defines, has no limit on mockups
+and Story pages, and the Playbook's defaults, since its download is built in memory
+(`unlimitedProductTotal`). They are checked in the operation that adds to them (`productTotal` in
+`limits.ts`), and `products.limits` gives them on `unlimited` too, without `used`.
+◆ Decision: on `unlimited` mockups and Story pages have no limit (the maintainer, 2026-11-23: their
+own products stopped at 50 mockups); the Playbook keeps its size until its download streams.
 
 Rules:
 

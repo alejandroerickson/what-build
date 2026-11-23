@@ -74,7 +74,7 @@ export function SignIn() {
   // The server's rule: a path on this origin, or home.
   const next = safeNext(params.get("next"));
   const [email, setEmail] = useState("");
-  const methods = useQuery({ queryKey: ["auth-methods"], queryFn: () => api<{ email_link: boolean; google: boolean; microsoft?: boolean; dev: boolean }>("GET", "/auth/methods") });
+  const methods = useQuery({ queryKey: ["auth-methods"], queryFn: () => api<{ email_link: boolean; google: boolean; microsoft?: boolean; dev: boolean; open?: boolean }>("GET", "/auth/methods") });
   const me = useMe();
   const qc = useQueryClient();
   const navigate = useNavigate();
@@ -93,6 +93,8 @@ export function SignIn() {
   });
   if (me.data) return <Navigate to={next} replace />;
   const error = params.get("error");
+  // Start using WhatBuild on the public site leads here, on its way to /start.
+  const starting = next === "/start" || next.startsWith("/start?");
   // The server's reference for a refused sign-in, shown only in its own form, so a crafted link cannot put words here.
   const ref = params.get("ref");
   const reference = ref && SIGN_IN_REFERENCE.test(ref) ? ref : null;
@@ -118,9 +120,13 @@ export function SignIn() {
   return (
     <EntryPage title="Sign in · WhatBuild">
       <Sheet labelledBy="signin-title">
-        <SheetHeader level={1} id="signin-title" title={next.startsWith("/invite/") ? "Sign in to see your invitation" : "Sign in to WhatBuild"} />
+        <SheetHeader level={1} id="signin-title" title={next.startsWith("/invite/") ? "Sign in to see your invitation" : starting ? "Start using WhatBuild" : "Sign in to WhatBuild"} />
         <SheetBody className="entry-form">
           {next.startsWith("/invite/") && !error ? <p className="muted">Use the email your invitation was sent to. You’ll choose whether to join once you’ve signed in.</p> : null}
+          {/* A newcomer from the public site's buttons: signing in is how an account is made, where anyone may make one. */}
+          {!next.startsWith("/invite/") && !error && methods.data?.open ? (
+            <p className="muted">{starting ? "Sign in to create your account and start your organization." : "New here? Signing in creates your account."}</p>
+          ) : null}
           {error === "link_expired" ? (
             <Callout inset tone="attention" title="That sign-in link has expired">
               Enter your email for a new one.
@@ -226,9 +232,9 @@ export function SignIn() {
           ) : null}
         </Sheet>
       ) : null}
-      {/* The one line every sign-in page carries (okf/spec/09-data-lifecycle.md §9.1), with the way to Privacy and Cookies. */}
+      {/* The way to Privacy and Cookies, which every sign-in page carries (okf/spec/09-data-lifecycle.md §9.1). */}
       <p className="entry-fine">
-        WhatBuild is a free preview: don’t keep anything here you can’t afford to lose. <PrivacyLink /> · <Link to="/cookies">Cookies</Link>
+        <PrivacyLink /> · <Link to="/cookies">Cookies</Link>
       </p>
     </EntryPage>
   );

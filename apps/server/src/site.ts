@@ -8,10 +8,18 @@ import type { ServerConfig } from "./config.ts";
 import { pageHeaders, siteCatalogue } from "./public-routes.ts";
 
 /** What the site's own origin serves; any other path there belongs to the app and is sent to it. */
-const SITE_PATHS = new Set(["/", "/plans", "/plans/", "/privacy", "/privacy/", "/api/v1/interest", "/api/v1/plans", "/favicon.svg", "/theme-boot.js", "/health"]);
+const SITE_PATHS = new Set(["/", "/plans", "/plans/", "/privacy", "/privacy/", "/what-to-build", "/what-to-build/", "/api/v1/interest", "/api/v1/plans", "/favicon.svg", "/theme-boot.js", "/health"]);
 
 /** The site's pages, by their path on its own domain, and where each is in the build. */
-const SITE_PAGES: Record<string, string> = { "/": "index.html", "/plans": "plans/index.html", "/plans/": "plans/index.html", "/privacy": "privacy/index.html", "/privacy/": "privacy/index.html" };
+const SITE_PAGES: Record<string, string> = {
+  "/": "index.html",
+  "/plans": "plans/index.html",
+  "/plans/": "plans/index.html",
+  "/privacy": "privacy/index.html",
+  "/privacy/": "privacy/index.html",
+  "/what-to-build": "what-to-build/index.html",
+  "/what-to-build/": "what-to-build/index.html",
+};
 
 /** An attribute's value, written into HTML. */
 const attr = (v: string) => v.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -39,17 +47,20 @@ const Interest = z.object({
   name: z.string().trim().max(200).optional(),
   organization: z.string().trim().max(200).optional(),
   note: z.string().trim().max(2000).optional(),
+  // Which of the site's pages it was sent from, to compare the landing pages; anything else is dropped.
+  page: z.string().max(200).optional(),
   // A field people never see. Anything that fills it in is a bot, and is thanked and ignored.
   website: z.string().max(2000).optional(),
 });
 
 /**
- * The public site: a page that says what WhatBuild is and takes requests to hear when it opens, a
- * page of the plans it offers, and the privacy page.
+ * The public site: two landing pages that say what WhatBuild is and take requests to hear when it
+ * opens (the front page, and the dark stage at /what-to-build/), a page of the plans it offers, and
+ * the privacy page.
  * The same image serves it, chosen by the Host (or X-Forwarded-Host) header: requests for WHATBUILD_SITE_URL's host get
  * the site, `www.` redirects to it, and every other path on it goes to the app at
- * WHATBUILD_PUBLIC_URL. On the app's origin the pages are at /site/, /site/plans/ and
- * /site/privacy/, which is where a deployment without WHATBUILD_SITE_URL has them.
+ * WHATBUILD_PUBLIC_URL. On the app's origin the pages are at /site/, /site/plans/, /site/privacy/
+ * and /site/what-to-build/, which is where a deployment without WHATBUILD_SITE_URL has them.
  */
 export function siteRoutes(deps: { db: Db; config: ServerConfig }) {
   const { db, config } = deps;
@@ -93,6 +104,7 @@ export function siteRoutes(deps: { db: Db; config: ServerConfig }) {
     const body = Interest.safeParse(await c.req.json().catch(() => ({})));
     if (!body.success) throw invalid("invalid_input", "Enter an email address.");
     const { email, name, organization, note, website } = body.data;
+    const page = body.data.page && /^\/[a-z0-9/-]*$/.test(body.data.page) ? body.data.page : null;
     if (website) return c.json({ received: true });
     const recent = await db
       .selectFrom("interest")
@@ -103,12 +115,13 @@ export function siteRoutes(deps: { db: Db; config: ServerConfig }) {
     const fields = { name: name || null, organization: organization || null, note: note || null };
     await db
       .insertInto("interest")
-      .values({ interest_id: newId(), email, ...fields })
+      .values({ interest_id: newId(), email, ...fields, page })
       .onConflict((oc) =>
         oc.expression(sql`lower(email)`).doUpdateSet({
           name: sql`coalesce(excluded.name, interest.name)`,
           organization: sql`coalesce(excluded.organization, interest.organization)`,
           note: sql`coalesce(excluded.note, interest.note)`,
+          page: sql`coalesce(interest.page, excluded.page)`,
           updated_at: sql`now()`,
         }),
       )

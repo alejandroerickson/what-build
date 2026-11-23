@@ -25,9 +25,9 @@ and **Cleo** are three such addresses, signed in with `pnpm e2e browser signin <
 
 1. **Web, as Ana, a new address.** Sign in. *Expect:* the overview lists the example organization,
    and a sheet, Your own organization, says "Your team’s work goes in an organization of your
-   own." and offers **Ask for your own organization**; there is no Start your organization. Press
-   it. *Expect:* the sheet then says only "You’re on the waitlist. We’ll email <Ana's address> when
-   you can start your organization."; a reload keeps it. The example's banner offers no button to
+   own." and offers **Start your own organization**. Press it (the golden master gives no
+   organizations a day, so it puts Ana on the waitlist). *Expect:* the sheet then says only "Your
+   organization is on its way. We’ll email <Ana's address> as soon as it’s ready."; a reload keeps it. The example's banner offers no button to
    ask again. Open `/welcome`. *Expect:* "You’re not in an organization yet." and the same
    waitlist line, and nothing about this WhatBuild's owners.
 2. **Web, as Riley.** Open **Instance admin** from the account menu. *Expect:* it opens on
@@ -47,7 +47,7 @@ and **Cleo** are three such addresses, signed in with `pnpm e2e browser signin <
    you to start an organization on WhatBuild.", then a sentence on what WhatBuild is (ending
    "There’s more at <the site>." only where the deployment has a public site), then "Start here,
    signing in as <that address>:" and the link to `/welcome`.
-3. **Web, as Ana.** Reload the overview, start an organization from Start your organization with a
+3. **Web, as Ana.** Reload the overview, start an organization from Start your own organization with a
    name of the run's own and a first product. *Expect:* the form says only "Name your organization
    and its first product." above its fields, and under its button "It starts on the Free plan.
    Compare plans", the link opening the plans in a new tab; it lists no limits, and says nothing of

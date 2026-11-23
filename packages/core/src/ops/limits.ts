@@ -5,8 +5,9 @@ import { checkEtag } from "../common.ts";
 import { json, type Db } from "../db.ts";
 import { conflict, forbidden, invalid, notFound } from "../errors.ts";
 import { guestCounts } from "../guests.ts";
+import { placesToday } from "../places.ts";
 import {
-  definedPlans, GUEST_DEFAULTS, GUEST_FIELDS, holdingsOf, isDefinedPlan, LIMITS, loadLimits, organizationToday, PLAN_ID, planCatalogue, planName, UNLIMITED, usageToday,
+  definedPlans, GUEST_DEFAULTS, GUEST_FIELDS, holdingsOf, isDefinedPlan, isProductTotal, LIMITS, loadLimits, organizationToday, PLAN_ID, planCatalogue, planName, UNLIMITED, unlimitedProductTotal, usageToday,
   type Holdings, type LimitKey, type LimitState, type Plan,
 } from "../limits.ts";
 import { readGuests, readPlans, saveSetting, settingRecord } from "../settings.ts";
@@ -19,9 +20,8 @@ import { STORY_HTML_MAX } from "../story-html.ts";
 import { newEtag } from "../util.ts";
 import { ownerAddresses, tellOwnersReadOnly } from "../organization-notices.ts";
 import { MAX_ATTACHMENTS, uploadMaxBytes } from "./attachments.ts";
-import { MAX_MOCKUPS, MOCKUP_HTML_TOTAL, MOCKUP_PAGE_MAX } from "./mockups.ts";
+import { MOCKUP_HTML_TOTAL, MOCKUP_PAGE_MAX } from "./mockups.ts";
 import { MAX_BATCH } from "./sources.ts";
-import { MAX_PAGES } from "./story.ts";
 
 /**
  * An organization's plan, the limits it sets and what the organization holds against them: everyone
@@ -96,7 +96,10 @@ function requireInstanceOwner(ctx: OpContext) {
     throw forbidden("Only an owner of this WhatBuild instance can see every organization's plan or change one.");
 }
 
-/** The limits every organization on this deployment has, whatever its plan, set where the service is deployed. */
+/**
+ * The limits every organization on this deployment has, whatever its plan, set where the service is
+ * deployed. What each product holds is a plan's (`PRODUCT_TOTALS`), so it is among `limits`.
+ */
 function deploymentLimits(ports: Pick<Ports, "blobs" | "config">) {
   const cfg = ports.config;
   return [
@@ -111,10 +114,8 @@ function deploymentLimits(ports: Pick<Ports, "blobs" | "config">) {
     { key: "url_fetch_max_bytes", label: "A file fetched from a URL", value: cfg.urlFetchMaxBytes, unit: "bytes", set_by: "WHATBUILD_URL_FETCH_MAX_BYTES" },
     { key: "request_body_max_bytes", label: "A request body", value: REST_BODY_MAX_BYTES, unit: "bytes", set_by: null },
     { key: "story_page_max_chars", label: "A Story page", value: STORY_HTML_MAX, unit: "characters", set_by: null },
-    { key: "story_pages_per_product", label: "Story pages in a product", value: MAX_PAGES, unit: "pages", set_by: null },
     { key: "mockup_page_max_chars", label: "A mockup page", value: MOCKUP_PAGE_MAX, unit: "characters", set_by: null },
     { key: "mockup_html_max_chars", label: "A mockup version's HTML, all pages", value: MOCKUP_HTML_TOTAL, unit: "characters", set_by: null },
-    { key: "mockups_per_product", label: "Mockups in a product", value: MAX_MOCKUPS, unit: "mockups", set_by: null },
     { key: "attachments_per_source", label: "Attachments on a source", value: MAX_ATTACHMENTS, unit: "attachments", set_by: null },
     { key: "sources_per_call", label: "Sources in one archive or restore call", value: MAX_BATCH, unit: "sources", set_by: null },
     { key: "sign_in_links_per_hour", label: "Sign-in links for one address", value: SIGN_IN_LINKS_PER_HOUR, unit: "an hour", set_by: null },
@@ -124,7 +125,7 @@ function deploymentLimits(ports: Pick<Ports, "blobs" | "config">) {
 /**
  * Each limit with the value the organization's plan sets (null for none) and, where it has one, what
  * is used of it: today's for the daily ones, counted on every plan; what the organization holds for
- * its totals.
+ * its totals. Where no plan's limits apply, a product's totals are their defaults, which still apply.
  */
 async function limitsView(ports: Pick<Ports, "blobs" | "config">, db: Db, state: LimitState, accountId: string | null, holdings: Holdings | null) {
   const used = accountId ? await usageToday(db, state, accountId) : null;
@@ -133,7 +134,7 @@ async function limitsView(ports: Pick<Ports, "blobs" | "config">, db: Db, state:
     : {};
   if (holdings) for (const [k, f] of Object.entries(HELD)) usedOf[k as LimitKey] = f(holdings);
   return LIMITS.map((l) => {
-    const planned = state.limits ? state.limits[l.key] : null;
+    const planned = state.limits ? state.limits[l.key] : isProductTotal(l.key) ? unlimitedProductTotal(l.key) : null;
     // A plan takes no larger a file than the deployment can.
     const value = l.key === "file_max_bytes" && typeof planned === "number" ? Math.min(planned, uploadMaxBytes(ports)) : planned;
     return {
@@ -154,7 +155,7 @@ export const organizationLimits = defineOperation({
   mutates: false,
   summary: "An organization's plan, the limits it sets, what the organization holds against them, and what you have used of each today.",
   description:
-    "plan is the organization's plan, one this WhatBuild defines (plans lists them) or unlimited, and an organization is on one plan of its own. On a defined plan everyone in the organization meets the plan's limits, its owners included: limits lists each with its value (null for no limit), what it is counted over, the error a call over it receives and what is used of it (used): what you, or everyone together, used today for a daily one, a day being a UTC day that starts again at allowances_restart_at; what the organization holds for a total (people, products and sources, archived ones included, storage in bytes). holds gives the totals, with storage split into files (attachments, the text read from each attachment, which is kept as a file of its own, and prototypes' files) and text (what is written in WhatBuild itself: derived texts, notes, comments, Story and mockup pages, entries, outcomes, each product's Playbook, and the earlier versions of all of them); what is archived still counts under products, sources and storage, and only deleting makes room under them. On the unlimited plan nobody meets them, and you_meet_them is false; so does an organization on a plan this WhatBuild no longer defines (undefined_plan), until it is moved. read_only, when present, means the organization went back to the plan new organizations start on while whoever started it already had one there: everyone in it may read, export, delete and take people out, as their roles allow, every other write is refused (409 organization_read_only), and it is kept until kept_until. In the example organization a guest meets only the guests' limits on calls a minute and bytes downloaded a day. deployment_limits are the ones every organization has, whatever its plan; file_max_bytes, in limits and in plans, is never more than the upload_max_bytes among them, the largest file this deployment can take. plans compares the plans this WhatBuild offers. Only an instance owner moves an organization to another plan; tell the person to ask whoever runs this WhatBuild. Someone who reads only the Story everywhere in the organization (a story_reader on its products and nothing more) reads none of this: 403.",
+    "plan is the organization's plan, one this WhatBuild defines (plans lists them) or unlimited, and an organization is on one plan of its own. On a defined plan everyone in the organization meets the plan's limits, its owners included: limits lists each with its value (null for no limit), what it is counted over, the error a call over it receives and what is used of it (used): what you, or everyone together, used today for a daily one, a day being a UTC day that starts again at allowances_restart_at; what the organization holds for a total (people, products and sources, archived ones included, storage in bytes); the totals counted over each product (mockups_max, story_pages_max, playbook_files_max, playbook_bytes_max) give no used, and a call past one says what the product holds. holds gives the totals, with storage split into files (attachments, the text read from each attachment, which is kept as a file of its own, and prototypes' files) and text (what is written in WhatBuild itself: derived texts, notes, comments, Story and mockup pages, entries, outcomes, each product's Playbook, and the earlier versions of all of them); what is archived still counts under products, sources and storage, and only deleting makes room under them. On the unlimited plan nobody meets them, and you_meet_them is false, but for what each product holds, whose limits then give their defaults (50 mockups, 50 Story pages, and a Playbook of 2,000 files and 32 MB); so does an organization on a plan this WhatBuild no longer defines (undefined_plan), until it is moved. read_only, when present, means the organization went back to the plan new organizations start on while whoever started it already had one there: everyone in it may read, export, delete and take people out, as their roles allow, every other write is refused (409 organization_read_only), and it is kept until kept_until. In the example organization a guest meets only the guests' limits on calls a minute and bytes downloaded a day. deployment_limits are the ones every organization has, whatever its plan; file_max_bytes, in limits and in plans, is never more than the upload_max_bytes among them, the largest file this deployment can take. plans compares the plans this WhatBuild offers. Only an instance owner moves an organization to another plan; tell the person to ask whoever runs this WhatBuild. Someone who reads only the Story everywhere in the organization (a story_reader on its products and nothing more) reads none of this: 403.",
   input: z.strictObject({ tenant }),
   rest: { method: "GET", path: "/limits" },
   mcp: { tool: "products", action: "limits" },
@@ -356,7 +357,7 @@ export const setPlanLimits = defineOperation({
   connection: "admin",
   summary: "Change a plan's limits or its price, for every organization on it (instance owners).",
   description:
-    "Name the plan by its id, one this WhatBuild defines (products.organizations lists them). limits changes only the limits it names (a total, or the bytes sent a day, may be null: no limit); price is what the plan costs as people read it, such as \"$20 a month\", or null for none, and left out keeps the one it has; reset puts every limit back to what the deployment's configuration defines first. A change applies from the next call to every organization on the plan; never to one organization alone, which moves to another plan instead (products.set_plan). Pass expected_etag from products.organizations (plan_records) once the plan has been changed before. Returns the plans offered.",
+    "Name the plan by its id, one this WhatBuild defines (products.organizations lists them). limits changes only the limits it names, any of those products.organizations lists in limits, what each product holds among them (a total, or the bytes sent a day, may be null: no limit); price is what the plan costs as people read it, such as \"$20 a month\", or null for none, and left out keeps the one it has; reset puts every limit back to what the deployment's configuration defines first. A change applies from the next call to every organization on the plan; never to one organization alone, which moves to another plan instead (products.set_plan). Pass expected_etag from products.organizations (plan_records) once the plan has been changed before. Returns the plans offered.",
   input: z.strictObject({
     plan: z.string().trim().regex(PLAN_ID, "A plan's id: lowercase letters, digits, - and _."),
     limits: planLimitsPatch.optional(),
@@ -401,7 +402,7 @@ export const guestSettings = defineOperation({
   mutates: false,
   summary: "How guests come in and what they may do, with how many are in and waiting now (instance owners).",
   description:
-    "Guests are accounts in no organization, with no allowance to start one: they read the example organization and nothing else, and wait in line when every place is taken. settings are what this deployment has (each field in fields, with its default in defaults); now gives how many guests are in, waiting, came in for the first time today, and have ever come in. Change them with products.set_guests, whose expected_etag is etag.",
+    "Guests are accounts in no organization, with no allowance to start one: they read the example organization and nothing else, and wait in line when every place is taken. settings are what this deployment has (each field in fields, with its default in defaults), organizations_per_day among them: how many organizations people may start themselves each UTC day. now gives how many guests are in, waiting, came in for the first time today, and have ever come in, and organizations_today, the day's places given. Change them with products.set_guests, whose expected_etag is etag.",
   input: z.strictObject({}),
   rest: { method: "GET", path: "/guests" },
   mcp: { tool: "products", action: "guests" },
@@ -410,7 +411,8 @@ export const guestSettings = defineOperation({
     const settings = await readGuests(ctx.db);
     const record = await settingRecord(ctx.db, "guests");
     // With no sign-up allowlist nothing limits who makes an account, whatever self_serve says, so the page says so.
-    return { settings, defaults: GUEST_DEFAULTS, fields: GUEST_FIELDS, open_without_allowlist: !ctx.ports.config.signupAllowlist, etag: record.etag, updated_at: record.updated_at, updated_by: record.updated_by, now: await guestCounts(ctx.db, settings) };
+    const organizations_today = (await placesToday(ctx.db, settings.organizations_per_day, new Date(ctx.now))).given;
+    return { settings, defaults: GUEST_DEFAULTS, fields: GUEST_FIELDS, open_without_allowlist: !ctx.ports.config.signupAllowlist, etag: record.etag, updated_at: record.updated_at, updated_by: record.updated_by, now: { ...(await guestCounts(ctx.db, settings)), organizations_today } };
   },
 });
 
@@ -424,7 +426,7 @@ export const setGuestSettings = defineOperation({
   connection: "admin",
   summary: "Change how guests come in and what they may do (instance owners).",
   description:
-    "Changes only the settings it names: self_serve (anyone may sign up as a guest), at_once (guests in at once; 0 lets none in), new_per_day, idle_minutes, minutes_per_day, requests_per_minute and sent_bytes_per_day. A change applies from the next call; guests already in keep their place until it frees. Pass expected_etag from products.guests once they have been changed before.",
+    "Changes only the settings it names: self_serve (anyone may sign up as a guest), organizations_per_day (organizations people may start themselves each UTC day, past which they join the waitlist, which gets the next places first; 0 lets only those an instance owner lets in), at_once (guests in at once; 0 lets none in), new_per_day, idle_minutes, minutes_per_day, requests_per_minute and sent_bytes_per_day. A change applies from the next call; guests already in keep their place until it frees. Pass expected_etag from products.guests once they have been changed before.",
   input: guestPatch.extend({ expected_etag: expectedEtag.optional() }),
   rest: { method: "PATCH", path: "/guests" },
   mcp: { tool: "products", action: "set_guests" },

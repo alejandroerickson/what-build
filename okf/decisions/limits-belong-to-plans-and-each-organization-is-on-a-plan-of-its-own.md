@@ -3,7 +3,7 @@ type: Decision
 title: Limits belong to plans, never to one organization, and each organization is on a plan of its own
 description: A plan sets every limit, the totals an organization holds included; an instance owner moves an organization between plans and changes no organization's limits.
 tags: [decision, limits, plans, tenancy, billing, cost]
-generated: {by: agent:claude, at: 2026-11-15}
+generated: {by: agent:claude, at: 2026-11-23}
 status: stable
 ---
 
@@ -19,13 +19,17 @@ free organization that kept within its days still grew without end. The maintain
 come, and that one plan covers exactly one organization. The same day they chose that each person
 has one organization at a time on the plan new ones start on, what becomes of a paid organization
 that stops being paid for, and that the plans themselves are the deployment's
-([decision](the-deployment-defines-its-plans-and-billing-stays-outside-the-repository.md)).
+([decision](the-deployment-defines-its-plans-and-billing-stays-outside-the-repository.md)). What
+each product holds (mockups, Story pages, the Playbook's files and size) was fixed in the code for
+every organization; the maintainer chose on 2026-11-23 that a plan sets it as it sets every other
+limit.
 
 ## Decision
 
 - **Plans:** the ones the deployment defines (`WHATBUILD_PLANS`), each setting every limit, and
   `unlimited`, never offered, which sets none: the deployment's own organizations, and every
-  organization of a deployment that defines no plans.
+  organization of a deployment that defines no plans. What each product holds is the exception
+  below.
 - **An instance owner changes a plan's limits and price** (`products.set_plan_limits`,
   Instance admin → Plans), in the web app and never through an agent
   ([decision](running-the-instance-is-done-in-the-web-app-never-by-an-agent.md)), for every
@@ -34,6 +38,14 @@ that stops being paid for, and that the plans themselves are the deployment's
 - **Totals beside the days:** people with more than the Story reader role (an invitation holds
   a place), products and sources, archived or not, and storage (files, and text as stored, every
   version), all per organization; and the bytes sent to each person a day.
+- **Totals per product:** the mockups and Story pages a product holds, archived or not, and its
+  Playbook's files and bytes. They have defaults (`PRODUCT_TOTAL_DEFAULTS`: 50, 50, 2,000 and
+  32 MiB), the values every organization met before plans set them, which a plan's definition may
+  leave out. Where no plan's limits apply (on `unlimited`, or on a plan no longer defined) mockups
+  and Story pages have no limit, and the Playbook keeps its defaults, since its download is built in
+  memory. The maintainer chose on 2026-11-23 to lift the mockups' 50 on `unlimited`, which their
+  own organizations are on; a deployment's organizations on `unlimited` may then hold more than
+  before, never less.
 - **Archived products and sources count.** Otherwise someone archives what they hold, adds as much
   again, and restores what they need in turn, and a plan's totals limit nothing. Deleting is how to
   make room, so restoring adds nothing and no total refuses it.
@@ -81,7 +93,8 @@ that stops being paid for, and that the plans themselves are the deployment's
 
 - Every limit is a field of `Limits` in `packages/core/src/plans.ts`, listed in `LIMITS` with its
   unit, what it is counted over and its refusal; `products.limits`, `/api/v1/plans` and the web
-  app are built from them.
+  app are built from them. A total per product is also in `PRODUCT_TOTALS`, and is read through
+  `productTotal` (`packages/core/src/limits.ts`) in the operation that adds to it.
 - An allowance is counted by `tenantsCreatedBy` (`packages/core/src/tenant-allowance.ts`), and
   whether the starting plan would be read-only is decided in `products.set_plan`, with the tenant's
   `read_only_since` and `kept_until`; `execute` refuses a write there unless the operation is

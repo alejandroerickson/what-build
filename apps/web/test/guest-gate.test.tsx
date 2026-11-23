@@ -100,12 +100,12 @@ describe("the guest gate", () => {
     state.remaining = 0;
     const host = await gate();
     expect(host.textContent).not.toContain("open a few at a time");
-    expect([...host.querySelectorAll("button")].map((b) => b.textContent)).toContain("Ask for your own organization");
+    expect([...host.querySelectorAll("button")].map((b) => b.textContent)).toContain("Start your own organization");
     unmount?.();
     state.waitlisted = "2026-10-26T15:00:00.000Z";
     const text = (await gate()).textContent ?? "";
-    expect(text).toContain("You’re on the waitlist. We’ll email gus@example.com when you can start your organization.");
-    expect(text).not.toContain("Ask for your own organization");
+    expect(text).toContain("Your organization is on its way. We’ll email gus@example.com as soon as it’s ready.");
+    expect(text).not.toContain("Start your own organization");
   });
 
   it("tells a new guest past today's places when they open again in the title and badge alone", async () => {

@@ -89,7 +89,7 @@ are people she invites.
     with its value and what Dana used today. `products_read(action="list")` gives the tenant's new slug
     and the old one under `former_slugs`.
 11. **Web, as Eli** (now in no organization). Eli is a guest of the example again: sign in and
-    find Ask for your own organization on the overview. Ask. **As Riley,** let Eli start one from
+    find Start your own organization on the overview, and press it. **As Riley,** let Eli start one from
     the Waitlist under Starting organizations. **As Eli,** start an organization with a product.
     *Expect:* Eli owns his own Free organization, and its product opens on Idea under Connect your
     agent, as Dana's did in step 2 (Eli has no agent connected yet); being invited elsewhere earlier
@@ -106,7 +106,7 @@ are people she invites.
     not offered, or is refused with `403 tenant_allowance` saying who decides.
 13. **Web, as Dana.** In Settings → the organization's General, delete it: the dialog lists what goes
     (its product with its sources, and how many people lose their roles), asks why and
-    for its name typed. *Expect:* it goes, and Dana's overview offers Start your organization
+    for its name typed. *Expect:* it goes, and Dana's overview offers Start your own organization
     again without a reload; as Fay, its Story is gone; as Riley, Instance admin's Organizations no
     longer lists it and Starting organizations shows Dana with "has 0" again.
 14. **Web, as Riley.** Clean up: remove the accounts this run made (Instance admin → People, Remove), including Eli,

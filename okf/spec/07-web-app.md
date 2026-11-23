@@ -3,7 +3,7 @@ type: Specification
 title: The web app is a person's way to run the same operations an agent runs, one screen at a time.
 description: Principles, the shell and product switching, the overview, routes, first run, and the behavior of every screen (Idea, Evidence, Exploration, Story, Activity, archive and delete, Settings, Instance admin).
 tags: [spec, web, ui, routes, shell]
-generated: {by: agent:claude, at: 2026-11-21}
+generated: {by: agent:claude, at: 2026-11-23}
 status: stable
 ---
 
@@ -355,8 +355,8 @@ place.
 
 **The overview** (`/`, [decision](../decisions/the-overview-is-the-front-door.md)). The page that
 introduces WhatBuild and is good to share as a screenshot. An intro sheet carries the mark and
-wordmark, the question "What to build?", the tagline "Product discovery at the speed of AI
-Engineering.", two sentences on what the app does, and a link to Connect an agent, which opens
+wordmark, the question "What to build?", the tagline "Product engineering at the speed of AI
+engineering.", the sentence the public site's landing pages open with on what WhatBuild is, and a link to Connect an agent, which opens
 Settings at Agents over it. Beside the overview the panel shows the product the person was last in
 (One panel everywhere, above), marking no row current. Beside the intro, small and
 quiet, "From idea to story": Idea, Evidence, Exploration and Story, each with a line on what a
@@ -436,8 +436,8 @@ place, with the old address's query kept (`apps/web/src/routes/addresses.tsx`), 
 already sent, and bookmarks, keep working.
 
 **The public site** is not part of the app: on the site's domain (served by the Cloudflare Worker,
-or by the image on the host named by `WHATBUILD_SITE_URL`), `/` is a
-page with the overview's intro and a form to hear when a team can start, `/plans` the plans side by
+or by the image on the host named by `WHATBUILD_SITE_URL`), `/` and `/what-to-build` are landing
+pages, `/plans` the plans side by
 side, `/privacy` the privacy notice ([§9.1](09-data-lifecycle.md),
 [decision](../decisions/the-privacy-page-is-a-page-of-the-public-site.md)), and every other path
 redirects to the app. Whoever serves a page writes into it what only the
@@ -446,10 +446,33 @@ set them, whether anyone may sign up as a guest, and who runs the deployment, wh
 else handles the data, for the privacy page. The Worker asks the service for it through
 Cloudflare's cache, an hour at a time; without it, a page shows the plans as the build has them,
 and the privacy page says it did not load.
-While guests may sign up, the front page leads with **Explore a real discovery** (sign-in, then the
-example organization as a guest), with **Start your team's own** beside it pointing at the form, and
-the plans page says the same. On the app's origin, which is where a deployment without a site
-host has them, they are at `/site/`, `/site/plans/` and `/site/privacy/` (in development,
+
+**The landing pages** ([decision](../decisions/the-site-opens-on-landing-pages-the-scroll-tells.md))
+tell the same six steps, one plain statement per screen with a sentence under it, beside a picture
+the scroll moves: "Product engineering at the speed of AI engineering"; everything you know about
+your users in one place; your agents work on the evidence itself; explore product concepts; tell the
+story of what you are building; your coding agent builds straight from the concept. At `/` the
+words scroll up beside a picture that stays put; `/what-to-build` is always dark and pins its stage,
+the window, while the scroll runs each scene, under "What to build?". On a narrow or upright window
+the picture takes the top and the words the foot. A Scroll prompt bobs gently at the foot of the
+first screen and goes once the page moves; with reduced motion each scene shows settled. Where
+anyone may make an account (`sign_up` in what the page is told), **Start using WhatBuild** signs them in and
+goes to `/start`, which starts their organization or puts them on the waitlist
+([§3.2](03-accounts-and-identity.md#32-accounts-and-sign-in)), and the last screen repeats it as a
+large button; where nobody may yet, it leads to the form at the foot, which asks for an email only
+and records it (`POST /api/v1/interest`, with the page it was sent from). The price of each plan
+with one and Compare plans sit under it. Links to sign in carry `?landing=<the page's path>` through
+sign-in, which the app sends once (`POST /api/v1/me/came-from`). Nothing on either page asks the
+service anything until someone sends the form or follows a link to sign in. Behind Cloudflare the
+Worker sends a share of the visitors to `/` (`LANDING_SPLIT`) to `/what-to-build/`, the same
+visitors each time and never a crawler, to compare the two
+([decision](../decisions/the-landing-pages-are-compared-by-a-split-at-the-edge.md)). While guests
+may sign up, looking comes first: **Explore the demo** (sign-in, then the example organization as a
+guest) is the filled button, with Start using WhatBuild beside it as the quiet one, and the last
+screen says what a team builds in the demo, from the deployment (`example_about`: the first sentence
+of its first product's concept), over a large Explore the demo and "Or start using WhatBuild"; the
+plans page says the same. The newcomer's words promise neither "free" nor "now". On the app's origin, which is where a deployment without a site
+host has them, they are at `/site/`, `/site/plans/`, `/site/privacy/` and `/site/what-to-build/` (in development,
 `http://localhost:5273/site/`, where the pages ask the local server)
 ([decision](../decisions/the-public-site-is-pages-built-with-the-app.md)). When the deployment
 uses Google Analytics, whoever serves the page writes the measurement ID into it (a
@@ -497,18 +520,19 @@ new tab ([§7.8](#78-story), [§6](06-operations-and-adapters.md)).
    ask someone who uses WhatBuild for an invitation, and, on a deployment with a public site, to
    join the waitlist at its address, linked to the site's form. A refused Microsoft sign-in says to
    write to the deployment's contact, where it names one, with the reference. Wherever sign-in returns to is a path on this origin or `/`,
-   by the server's rule (`safeNext`). Under the form, one line says WhatBuild is a free preview
-   and links to Privacy, the notice of what is kept and why ([§9.1](09-data-lifecycle.md)), and
-   to Cookies.
+   by the server's rule (`safeNext`). Under the form are links to Privacy and Cookies. Where anyone
+   may make an account (`open` in `/auth/methods`), a line says signing in creates their account;
+   arriving from Start using WhatBuild (`next` is `/start`), the title is "Start using WhatBuild". Privacy is the notice
+   of what is kept and why ([§9.1](09-data-lifecycle.md)).
 2. **The example organization first.** A new account with no organization of its own lands on the
    overview, where the example organization ([§3.10](03-accounts-and-identity.md)) is listed,
    tagged Example organization and Read only, under a sheet, **Your own organization**, that says
-   "Your team’s work goes in an organization of your own." and offers **Start your organization**
-   where the account may create one, or, where it may not, **Ask for your own organization**,
-   which puts them on the waitlist with one click
+   "Your team’s work goes in an organization of your own." and offers **Start your own
+   organization**: a link to `/welcome` where the account may create one, or, where it may not, a
+   button that takes one of the day's places and goes to `/welcome`, or puts them on the waitlist
    ([§3.2](03-accounts-and-identity.md#32-accounts-and-sign-in)). Once they are on it, the sheet
-   says only "You’re on the waitlist. We’ll email <their address> when you can start your
-   organization.", as every screen that says they are on the waitlist does.
+   says only "Your organization is on its way. We’ll email <their address> as soon as it’s
+   ready.", as every screen that says they are on the waitlist does.
 3. **First run** (`/welcome`): name the organization and the first product in one form, for an
    account that may create one ([§3.3](03-accounts-and-identity.md)). The sheet holds the heading
    ("Welcome, <first name>"), "Name your organization and its first product.", the Organization
@@ -521,7 +545,7 @@ new tab ([§7.8](#78-story), [§6](06-operations-and-adapters.md)).
    sheet are Privacy and, for someone with an organization of their own, Back to your products.
    The same form, titled New organization, starts another. An account in no organization that may
    not start one reads "You’re not in an organization yet." (with "Accept an invitation to join
-   one." when one waits) and the same **Ask for your own organization** as the overview, or the
+   one." when one waits) and the same **Start your own organization** as the overview, or the
    waitlist line once asked. One that has started all it may reads, under "You can’t start another
    organization", "To start another organization, write to <contact>." where the deployment names
    a contact (`WHATBUILD_PRIVACY_CONTACT`, as the organization's Plan page uses it), or "ask this
@@ -1312,7 +1336,8 @@ page of a mockup reaches it by promotion, from the mockup (§7.7).
 - **Export to PDF.** The dialog lists every page as checkboxes, in the Story's order, then archived pages, with Select all, Clear and a count; it opens with the page or pages it was
   asked for already selected, and the person can change the selection. The count and Select all
   cover the pages the Story shows; an archived page goes in only when ticked, and the count adds it
-  ("3 of 24 pages selected, and 1 archived"). One line says that each page's current version opens
+  ("3 of 24 pages selected, and 1 archived"). A print view takes 50 pages (`story.print`), so where
+  more are chosen the count says that the first 50, in the Story's order, open. One line says that each page's current version opens
   in a new tab, to save as PDF from the browser's print dialog. The PDF holds a contents list, then
   each selected page at its current version under its title, with its version number and publish
   date; it leaves out a page's notes, earlier versions, and anything a page draws with scripts. **Open print view**
@@ -1554,7 +1579,8 @@ never described as deleting. A list row showing an archived object says *Archive
   (changes, files uploaded), in the same form. **What you can add**: the largest file that can be
   uploaded (the lower of the plan's and the deployment's `upload_max_bytes`, which past the upload
   relay's limit needs a store that signs direct uploads), the size above which a file is kept but not read when that is
-  smaller, attachments on a source, mockups and Story pages in a product, and, where the plan says
+  smaller, attachments on a source, the mockups and Story pages a product holds, archived ones
+  included (the plan's, or their defaults on Unlimited), and, where the plan says
   so, that files must be in a format WhatBuild reads (a plan with `documents_only` off keeps any
   file) or that adding a file from a link is off. Then **Plans**, the plans side by side with this
   one marked **Your plan**. Nothing here changes a plan or a limit: an instance owner moves an
@@ -1729,10 +1755,12 @@ never described as deleting. A list row showing an archived object says *Archive
   plans, never to one organization, to raise as WhatBuild grows; the plans side by side (below);
   and in the head a button for each plan, which opens **The** plan: its price, as people read it,
   then every limit in a field (bytes in MB; a total, or the bytes sent a day, with **No limit**
-  beside it) next to what the deployment's configuration sets, saved under the plan's etag
+  beside it), what each product holds among them (mockups, Story pages, the Playbook's files and
+  size), next to what the deployment's configuration sets, saved under the plan's etag
   (`products.set_plan_limits`) for every organization on it, with **Back to the configured
   limits**. Then **Limits of the** plan of one of the owner's own organizations (one row each: what
-  it counts and over what, what it allows, what is used, the refusal a call over it gets) and
+  it counts and over what, what it allows, what is used, the refusal a call over it gets; on
+  Unlimited, **None** but for what a product holds, at its defaults) and
   **Limits of this deployment**, with what sets each, which are the same for every organization;
   an owner in no organization of their own has the plans side by side only.
   - **Guests** (`/admin/guests`, where the deployment has an example organization): what a guest is, a badge for whether anyone can sign up as one,
@@ -1785,16 +1813,19 @@ never described as deleting. A list row showing an archived object says *Archive
   its link to Plans.
 - **The example organization** ([§3.10](03-accounts-and-identity.md)), in
   `apps/web/src/shell/ExampleBanner.tsx`. Every screen of a product in it carries a notice above
-  its content. To a guest, under "This is the example organization", it says "A worked example to
-  learn from. Nothing here can be changed.", with
-  **Start your organization** while they have none of their own and may create one, or **Ask for
-  your own organization** while they may not and are not on the waitlist yet; it shows in full until they
-  press Got it, then as one line, "Example organization · read only" (remembered per organization
-  in the browser). To the organization's own people, whatever their role, it says in one line
+  its content. To a guest with no organization of their own it is an invitation: "Like what you
+  see?", "Start using WhatBuild and engineer your next product. This demo is here to read: nothing in
+  it can be changed.", with **Start using WhatBuild** (to
+  `/welcome` where they may create one; otherwise it takes one of the day's places or puts them on
+  the waitlist), and once they are on it, "Your organization is on its way" with the address they
+  will hear at. To a guest with one of their own, "This is the demo", "A demo to learn from.
+  Nothing here can be changed." It shows in full until they press Got
+  it, then as one line, "Demo · read only", keeping the button (remembered per
+  organization in the browser). To the organization's own people, whatever their role, it says in one line
   "Example organization. Everyone who signs in sees what its authors change." It shows nothing while it loads, so no screen waits for it. The
   overview lists the example organization after the person's own, headed **Example organization**
   with its name after it and Read only for a guest, over a line on what it is for (to a guest: a
-  worked discovery to read in order, Idea, Evidence, Exploration and Story); a guest's head offers **Hide from the switcher** or **Show in the switcher**,
+  demo: a team's work to read in order, Idea, Evidence, Exploration and Story); a guest's head offers **Hide from the switcher** or **Show in the switcher**,
   whether the product switch offers it under Switch organization, the account's own choice
   (`hide_example`), and so does **Example organization** in Settings under Account. Inside a
   product of the example, the product switch's line says "Example organization · " and its name.

@@ -1,7 +1,7 @@
 import { useMemo, useState, type CSSProperties } from "react";
 import { useProduct } from "../lib/session.tsx";
 import { Button, ChoiceRow, Dialog } from "../ui/index.tsx";
-import { flatten, MAX_PAGES, type PageSummary, type StoryNode } from "./story-model.ts";
+import { flatten, PRINT_MAX_PAGES, type PageSummary, type StoryNode } from "./story-model.ts";
 
 /**
  * Export to PDF: the person picks pages, and the browser prints the server's print view. Each
@@ -20,7 +20,9 @@ export function ExportDialog({ tree, archived, preselect, onClose }: { tree: Sto
   // The count and Select all cover the Story as it reads; an archived page is added only by ticking it.
   const live = useMemo(() => flatten(tree).map((r) => r.node.page_id), [tree]);
   const [picked, setPicked] = useState<Set<string>>(() => new Set(preselect.filter((id) => all.includes(id))));
-  const ids = all.filter((id) => picked.has(id)).slice(0, MAX_PAGES);
+  const chosen = all.filter((id) => picked.has(id));
+  // A Story may hold more pages than one print view takes: the first of those chosen open, in the tree's order.
+  const ids = chosen.slice(0, PRINT_MAX_PAGES);
   const pickedLive = live.filter((id) => picked.has(id)).length;
   const pickedArchived = archived.filter((p) => picked.has(p.page_id)).length;
   const href = ids.length ? `${base}/story/print?page_ids=${ids.map(encodeURIComponent).join(",")}` : undefined;
@@ -55,6 +57,7 @@ export function ExportDialog({ tree, archived, preselect, onClose }: { tree: Sto
         <span className="small muted" aria-live="polite">
           {pickedLive} of {live.length} {live.length === 1 ? "page" : "pages"} selected
           {pickedArchived ? `, and ${pickedArchived} archived` : ""}
+          {chosen.length > ids.length ? `. The print view takes ${PRINT_MAX_PAGES} at a time, so the first ${PRINT_MAX_PAGES} open` : ""}
         </span>
         <span className="row">
           <Button size="sm" variant="quiet" onClick={() => setPicked(new Set([...live, ...archived.filter((p) => picked.has(p.page_id)).map((p) => p.page_id)]))}>

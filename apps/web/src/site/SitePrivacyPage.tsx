@@ -120,6 +120,15 @@ export function SitePrivacyPage() {
               </p>
             </SheetBody>
           </Sheet>
+          <Sheet labelledBy="privacy-warranty">
+            <SheetHeader id="privacy-warranty" title="No warranty" />
+            <SheetBody>
+              <p className="privacy-text">
+                WhatBuild is provided as is, without warranty of any kind. Whoever runs it is not liable for any loss or damage that comes from using it, including the loss
+                of anything kept in it, as far as the law allows. Keep your own copy of what matters: export is always available.
+              </p>
+            </SheetBody>
+          </Sheet>
         </>
       ) : (
         // The deployment's part was not written in (its service did not answer whoever serves the

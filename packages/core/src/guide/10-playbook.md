@@ -73,8 +73,9 @@ A Markdown file starts with frontmatter that names its `type` (`422 playbook_fro
 | `status` | `draft`, `stable` or `deprecated`. |
 | `stale_after` | A date or time after which it is counted stale until someone moves it on. |
 
-A file holds at most 256 KiB, and a product's Playbook at most 2,000 files and 32 MiB, removed files not
-counted (`422 playbook_file_too_large`, `422 playbook_full`). Its text, every kept revision included, counts
+A file holds at most 256 KiB (`422 playbook_file_too_large`). A product's Playbook holds as many files
+and bytes as its organization's plan allows, removed files not counted: 2,000 files and 32 MiB unless
+the plan says otherwise (`422 playbook_full`, whose details give `max`). Its text, every kept revision included, counts
 toward the storage the organization's plan keeps. WhatBuild stores a kit's files and never runs them:
 read a kit's code before running any of it, as you would code from any teammate.
 

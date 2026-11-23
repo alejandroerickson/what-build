@@ -14,7 +14,9 @@
 // CF_ANALYTICS_TOKEN, a Cloudflare Web Analytics site token: its beacon sets no cookie, so it
 // counts every visit to the site's pages, those who decline included; and MAINTENANCE, which closes
 // both domains behind a page that says WhatBuild is down for maintenance, until the day it names
-// (e.g. 2027-01-15), if it names one. One secret (wrangler secret
+// (e.g. 2027-01-15), if it names one; and LANDING_SPLIT, the share of the front page's visitors
+// (from 0 to 1, e.g. 0.5) sent to the second landing page, /what-to-build/, to compare the two.
+// One secret (wrangler secret
 // put): EDGE_KEY, the service's WHATBUILD_EDGE_KEY, sent with every request passed on, so the
 // service refuses whoever goes around this Worker to its run.app address
 // (apps/server/src/edge-key.ts).
@@ -81,7 +83,29 @@ function pageHeaders(analytics, beacon) {
 const attr = (v) => v.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
 /** The site's pages, by path, and where each is in the build. */
-const SITE_PAGES = { "/": "/site/", "/plans": "/site/plans/", "/plans/": "/site/plans/", "/privacy": "/site/privacy/", "/privacy/": "/site/privacy/" };
+const SITE_PAGES = { "/": "/site/", "/plans": "/site/plans/", "/plans/": "/site/plans/", "/privacy": "/site/privacy/", "/privacy/": "/site/privacy/", "/what-to-build": "/site/what-to-build/", "/what-to-build/": "/site/what-to-build/" };
+
+/** Crawlers and link previews always get the front page, so search results and shared links show one page. */
+const NOT_A_PERSON = /bot|crawl|spider|slurp|preview|facebookexternalhit|embedly|whatsapp|telegram|slack|discord|linkedin|headless/i;
+
+/**
+ * Whether this visitor to the front page goes to the second landing page instead, for the A/B test
+ * of the two (LANDING_SPLIT, from 0 to 1; unset or 0, nobody does). A visitor is placed by their
+ * address, hashed here and kept nowhere, so they see the same page each visit with no cookie.
+ */
+function toSecondLanding(request, env) {
+  const share = Number(env.LANDING_SPLIT);
+  if (!(share > 0)) return false;
+  if (NOT_A_PERSON.test(request.headers.get("user-agent") ?? "")) return false;
+  const who = request.headers.get("cf-connecting-ip") ?? "";
+  let h = 0x811c9dc5;
+  for (let i = 0; i < who.length; i++) h = Math.imul(h ^ who.charCodeAt(i), 0x01000193);
+  // Mix the bits, so neighbouring addresses land on either side as often as any others.
+  h = Math.imul(h ^ (h >>> 16), 0x85ebca6b);
+  h = Math.imul(h ^ (h >>> 13), 0xc2b2ae35);
+  h ^= h >>> 16;
+  return (h >>> 0) / 2 ** 32 < share;
+}
 
 /** How long Cloudflare keeps the service's answer about plans, guests and who runs it: it wakes the service at most this often. */
 const CATALOGUE_SECONDS = 3600;
@@ -156,6 +180,8 @@ export default {
       return maintenance(request, url, env);
     }
     if (site && url.host === site) {
+      if (url.pathname === "/" && read && toSecondLanding(request, env))
+        return new Response(null, { status: 302, headers: { Location: `https://${site}/what-to-build/${url.search}`, "Cache-Control": "no-store" } });
       if (Object.hasOwn(SITE_PAGES, url.pathname) && read) return sitePage(request, url, env);
       if (SITE_FILES.test(url.pathname) && read) return env.ASSETS.fetch(request);
       if (url.pathname === "/api/v1/interest") return forward(request, url, env);

@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { READ_ONLY_ALLOWS } from "@whatbuild/core/read-only";
-import { createContext, useContext, type ReactNode } from "react";
-import { Navigate, useLocation, useParams } from "react-router";
+import { createContext, useContext, useEffect, type ReactNode } from "react";
+import { Navigate, useLocation, useNavigate, useParams } from "react-router";
 import { Loading } from "../ui/index.tsx";
 import { api, ApiError, isMinuteRefusal } from "./api.ts";
 import type { ReadOnly } from "./limits.ts";
@@ -187,7 +187,8 @@ export function useAskForOrganization() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: () => api<Me>("POST", "/api/v1/me/ask-for-organization", {}),
-    onSuccess: (me) => qc.setQueryData(["me"], (old: Me | undefined) => (old ? { ...old, asked_for_organization_at: me.asked_for_organization_at } : old)),
+    // Asking may give one of the day's places at once, so the allowance changes too.
+    onSuccess: (me) => qc.setQueryData(["me"], (old: Me | undefined) => (old ? { ...old, tenant_allowance: me.tenant_allowance, guest: me.guest, asked_for_organization_at: me.asked_for_organization_at } : old)),
   });
 }
 
@@ -207,10 +208,31 @@ export function useSignOut() {
   };
 }
 
+/**
+ * A link from one of the public site's landing pages carries `?landing=<its path>` through sign-in.
+ * Once signed in, it is told to the server (which keeps it on an account in its first day, to compare
+ * the landing pages) and taken off the address.
+ */
+function useCameFrom(signedIn: boolean) {
+  const loc = useLocation();
+  const navigate = useNavigate();
+  useEffect(() => {
+    if (!signedIn) return;
+    const params = new URLSearchParams(loc.search);
+    const page = params.get("landing");
+    if (!page) return;
+    params.delete("landing");
+    void api("POST", "/api/v1/me/came-from", { page }).catch(() => undefined);
+    const rest = params.toString();
+    navigate(`${loc.pathname}${rest ? `?${rest}` : ""}${loc.hash}`, { replace: true });
+  }, [signedIn, loc.pathname, loc.search, loc.hash, navigate]);
+}
+
 /** Renders children only once the session is known; anyone signed out goes to sign-in and comes back. */
 export function RequireSession({ children }: { children: ReactNode }) {
   const me = useMe();
   const loc = useLocation();
+  useCameFrom(Boolean(me.data));
   if (me.isPending) return <div className="center-page"><Loading label="Checking your sign-in…" /></div>;
   if (me.isError) return <Navigate to={`/signin?next=${encodeURIComponent(loc.pathname + loc.search)}`} replace />;
   return <>{children}</>;
@@ -326,7 +348,7 @@ export function ProductProvider({ children, fallback, path: given }: { children:
 export function cannotWriteReason(ctx: Pick<ProductCtx, "product" | "readOnlyOrganization">): string {
   if (ctx.readOnlyOrganization) return `${ctx.product.tenant.name} is read-only, so nothing new can be added to it until it moves to another plan. ${READ_ONLY_ALLOWS}`;
   if (ctx.product.archived_at) return "This product is archived. An admin can restore it in Settings.";
-  if (ctx.product.your_role === "guest") return "This is a worked example to read, so nothing in it can be added or changed.";
+  if (ctx.product.your_role === "guest") return "This is the demo, to read: nothing in it can be added or changed.";
   return "You’re a viewer here. An admin of this product can make you an editor.";
 }
 

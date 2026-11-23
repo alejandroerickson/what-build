@@ -84,6 +84,17 @@ describe("the public site", () => {
     expect(signedIn.status).toBe(403);
   });
 
+  it("keeps the first page of the site someone asked from, to compare the landing pages", async () => {
+    await hostRequest(h.baseUrl, site, "POST", "/api/v1/interest", { email: "sam@example.com", page: "/what-to-build/" });
+    await hostRequest(h.baseUrl, site, "POST", "/api/v1/interest", { email: "sam@example.com", page: "/" });
+    await hostRequest(h.baseUrl, site, "POST", "/api/v1/interest", { email: "kim@example.com", page: "javascript:alert(1)" });
+    const rows = await h.db.selectFrom("interest").select(["email", "page"]).where("email", "in", ["sam@example.com", "kim@example.com"]).orderBy("email").execute();
+    expect(rows).toEqual([
+      { email: "kim@example.com", page: null },
+      { email: "sam@example.com", page: "/what-to-build/" },
+    ]);
+  });
+
   it("refuses a missing address, and thanks a bot without storing anything", async () => {
     const bad = await fetch(`${h.baseUrl}/api/v1/interest`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ email: "not an address" }) });
     expect(bad.status).toBe(422);
@@ -119,9 +130,11 @@ describe("the public site's plans page", () => {
   beforeAll(async () => {
     const dist = mkdtempSync(join(tmpdir(), "wb-web-"));
     mkdirSync(join(dist, "site", "plans"), { recursive: true });
+    mkdirSync(join(dist, "site", "what-to-build"), { recursive: true });
     writeFileSync(join(dist, "index.html"), "<p>the app</p>");
     writeFileSync(join(dist, "site", "index.html"), "<html><head><title>site</title></head><body></body></html>");
     writeFileSync(join(dist, "site", "plans", "index.html"), "<html><head><title>plans</title></head><body></body></html>");
+    writeFileSync(join(dist, "site", "what-to-build", "index.html"), "<html><head><title>what to build</title></head><body></body></html>");
     h = await startHarness({ siteUrl: `https://${site}`, webDist: dist, instanceOwners: ["root@example.com"] });
   });
   afterAll(() => h.close());
@@ -139,6 +152,14 @@ describe("the public site's plans page", () => {
       expect(written.plans.find((p: { id: string }) => p.id === "pro").price).toBe('US$10 a "month"');
       expect(written.guests).toEqual({ self_serve: true, open: true });
     }
+    // The second landing page is a page of the site's own, with the same facts written in, on its host and on the app's.
+    for (const path of ["/what-to-build", "/what-to-build/"]) {
+      const res = await hostRequest(h.baseUrl, site, "GET", path);
+      expect(res.status).toBe(200);
+      expect(res.text).toContain("<title>what to build</title>");
+      expect(res.text).toContain('<meta name="whatbuild-site"');
+    }
+    expect((await fetch(`${h.baseUrl}/site/what-to-build/`)).status).toBe(200);
     // The same, from the service, for the Cloudflare Worker to write in: answered on the site's host too.
     const asked = await hostRequest(h.baseUrl, site, "GET", "/api/v1/plans");
     expect(asked.status).toBe(200);

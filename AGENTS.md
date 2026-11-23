@@ -8,7 +8,8 @@ one copy.
 Run `corepack pnpm attention`. It prints what is waiting in this repository: Dependabot's pull
 requests and the alerts nobody has accepted, a failed run on `main`, an accepted vulnerability whose
 time is up, changes production lacks, git hooks that are off, copies outside production that may
-hold an organization no instance owner owns. If it prints anything, tell the person in a line or two before you start their task,
+hold an organization no instance owner owns, production's database on pace to use up its month's
+compute hours on Neon. If it prints anything, tell the person in a line or two before you start their task,
 and offer to handle each item with the skill it names. This is how the maintainer hears of these
 chores. Do not act on an item unasked. An accepted vulnerability has been looked at already, and
 prints nothing until its fix can be made or its acceptance needs another look: its line then gives

@@ -32,12 +32,52 @@ export type Limits = {
   products_max: number | null;
   sources_max: number | null;
   storage_max_bytes: number | null;
+  /** What each product holds at once (`PRODUCT_TOTALS`); null is no limit. */
+  mockups_max: number | null;
+  story_pages_max: number | null;
+  playbook_files_max: number | null;
+  playbook_bytes_max: number | null;
   /** Bytes WhatBuild sends each person a day: files, exports and pages they open; null is no limit. */
   sent_bytes_per_day: number | null;
   fetch_url: boolean;
   documents_only: boolean;
 };
 export type LimitKey = keyof Limits;
+
+/** The totals a plan sets on what each product holds, rather than the whole organization. */
+export const PRODUCT_TOTALS = ["mockups_max", "story_pages_max", "playbook_files_max", "playbook_bytes_max"] as const;
+export type ProductTotal = (typeof PRODUCT_TOTALS)[number];
+
+export function isProductTotal(key: string): key is ProductTotal {
+  return (PRODUCT_TOTALS as readonly string[]).includes(key);
+}
+
+/**
+ * What a product holds at most where no plan says otherwise: on a plan whose definition leaves the
+ * total out, on `unlimited`, and on a plan the deployment no longer defines. They are what every
+ * organization held before a plan could set them, so a deployment meets them until an instance owner
+ * changes a plan's.
+ */
+export const PRODUCT_TOTAL_DEFAULTS: Record<ProductTotal, number> = {
+  mockups_max: 50,
+  story_pages_max: 50,
+  playbook_files_max: 2000,
+  playbook_bytes_max: 32 * 1024 * 1024,
+};
+
+/**
+ * The most a product holds of one kind where no plan's limits apply (`unlimited`, a plan the
+ * deployment no longer defines): no limit on mockups and Story pages; the Playbook keeps its default
+ * size, since its download is built in memory.
+ */
+export function unlimitedProductTotal(key: ProductTotal): number | null {
+  return key === "mockups_max" || key === "story_pages_max" ? null : PRODUCT_TOTAL_DEFAULTS[key];
+}
+
+/** A plan's totals on what each product holds, or, where no plan's limits apply, `unlimitedProductTotal`. */
+export function productTotalsOf(limits: Limits | null | undefined): Pick<Limits, ProductTotal> {
+  return Object.fromEntries(PRODUCT_TOTALS.map((k) => [k, limits ? limits[k] : unlimitedProductTotal(k)])) as Pick<Limits, ProductTotal>;
+}
 
 /** A plan as the deployment defines it: its id, name, what it is for, every limit it starts with, and its price as people read it, if any. */
 export interface PlanDefinition {
@@ -97,13 +137,14 @@ export type PlanEntry = ReturnType<typeof planCatalogue>[number];
 
 /**
  * What a guest of the example organization meets: its calls a minute and bytes downloaded a day, as
- * the guests' settings say. A guest writes nothing (refused before any limit), so the rest is closed.
+ * the guests' settings say. A guest writes nothing (refused before any limit), so the rest is closed;
+ * a product's totals are the example's plan's (`plan`), for what its lists say of them.
  */
-export function guestLimits(g: Pick<GuestSettings, "requests_per_minute" | "sent_bytes_per_day">): Limits {
+export function guestLimits(g: Pick<GuestSettings, "requests_per_minute" | "sent_bytes_per_day">, plan?: Limits | null): Limits {
   return {
     requests_per_minute: g.requests_per_minute, writes_per_minute: 0, writes_per_day: 0, sources_per_day: 0, exports_per_day: 0, org_writes_per_day: 0,
     file_max_bytes: 0, bytes_per_day: 0, org_bytes_per_day: 0, text_max_chars: 0, batch_max: 0,
-    members_max: null, products_max: null, sources_max: null, storage_max_bytes: null, sent_bytes_per_day: g.sent_bytes_per_day,
+    members_max: null, products_max: null, sources_max: null, storage_max_bytes: null, ...productTotalsOf(plan), sent_bytes_per_day: g.sent_bytes_per_day,
     fetch_url: false, documents_only: true,
   };
 }
@@ -120,6 +161,12 @@ const MiB = 1024 * 1024;
 export interface GuestSettings {
   /** Anyone may make an account and come in as a guest; off, accounts are made only for people invited or let in. */
   self_serve: boolean;
+  /**
+   * Organizations people may start themselves each UTC day, without an instance owner letting them
+   * in (`places.ts`); past it they join the waitlist, which gets the next places first. 0: only the
+   * people an instance owner lets in. Above 0, anyone may also make an account to start one.
+   */
+  organizations_per_day: number;
   /** Guests in at once; 0 lets no guest in. */
   at_once: number;
   /** Guests coming in for the first time, each UTC day. */
@@ -137,6 +184,7 @@ export type GuestKey = keyof GuestSettings;
 
 export const GUEST_DEFAULTS: GuestSettings = {
   self_serve: false,
+  organizations_per_day: 0,
   at_once: 25,
   new_per_day: 50,
   idle_minutes: 30,
@@ -146,8 +194,14 @@ export const GUEST_DEFAULTS: GuestSettings = {
 };
 
 /** Every guest setting, in the order the instance's page shows them. */
-export const GUEST_FIELDS: { key: GuestKey; label: string; unit: "switch" | "guests" | "minutes" | "calls" | "bytes"; help: string }[] = [
+export const GUEST_FIELDS: { key: GuestKey; label: string; unit: "switch" | "organizations" | "guests" | "minutes" | "calls" | "bytes"; help: string }[] = [
   { key: "self_serve", label: "Anyone can sign up as a guest", unit: "switch", help: "Off, an account is made only for someone invited, listed or given an allowance." },
+  {
+    key: "organizations_per_day",
+    label: "New organizations a day",
+    unit: "organizations",
+    help: "People who sign up start their own organization without waiting for you, up to this many each UTC day. Past it they join the waitlist, which gets the next places first, by email. 0: only the people you let in.",
+  },
   { key: "at_once", label: "Guests in at once", unit: "guests", help: "Past it, a guest waits in line and comes in when a place frees. 0 lets no guest in." },
   { key: "new_per_day", label: "New guests a day", unit: "guests", help: "Guests coming in for the first time, each UTC day. Past it, they come back the next day." },
   { key: "idle_minutes", label: "A place frees after", unit: "minutes", help: "Minutes without a call from the guest or their agent." },
@@ -163,7 +217,7 @@ export interface LimitInfo {
   /** What one unit is, for a person: "calls", "bytes". */
   unit: string;
   /** What the limit is counted over. */
-  per: "Each person, each minute" | "Each person, each day" | "Everyone together, each day" | "The whole organization" | "Each file" | "Each text field" | "Each call" | "Each person";
+  per: "Each person, each minute" | "Each person, each day" | "Everyone together, each day" | "The whole organization" | "Each product" | "Each file" | "Each text field" | "Each call" | "Each person";
   /** The error a caller over the limit receives. */
   refusal: string;
   help: string;
@@ -175,6 +229,10 @@ export const LIMITS: LimitInfo[] = [
   { key: "products_max", group: "total", label: "Products", unit: "products", per: "The whole organization", refusal: "409 quota_exceeded", help: "Every product, archived or not. Deleting one makes room." },
   { key: "sources_max", group: "total", label: "Sources", unit: "sources", per: "The whole organization", refusal: "409 quota_exceeded", help: "Every source, archived or not. Deleting one makes room." },
   { key: "storage_max_bytes", group: "total", label: "Storage", unit: "bytes", per: "The whole organization", refusal: "409 quota_exceeded", help: "Attachments with every version and the text read from each, and everything written, earlier versions included. Archiving keeps it all; deleting frees it." },
+  { key: "mockups_max", group: "total", label: "Mockups", unit: "mockups", per: "Each product", refusal: "409 quota_exceeded", help: "Every mockup in a product, archived or not. A new version of one counts nothing; deleting one makes room." },
+  { key: "story_pages_max", group: "total", label: "Story pages", unit: "pages", per: "Each product", refusal: "409 quota_exceeded", help: "Every page of a product's Story, archived or not. Deleting one makes room." },
+  { key: "playbook_files_max", group: "total", label: "Playbook files", unit: "files", per: "Each product", refusal: "422 playbook_full", help: "Files in a product's Playbook, removed ones not counted." },
+  { key: "playbook_bytes_max", group: "total", label: "Playbook size", unit: "bytes", per: "Each product", refusal: "422 playbook_full", help: "What a product's Playbook files hold together, removed ones not counted." },
   { key: "requests_per_minute", group: "frequency", label: "Calls", unit: "calls", per: "Each person, each minute", refusal: "429 rate_limited", help: "Every call a person or their agent makes, reads included." },
   { key: "writes_per_minute", group: "frequency", label: "Writes", unit: "writes", per: "Each person, each minute", refusal: "429 rate_limited", help: "Calls that change something." },
   { key: "writes_per_day", group: "frequency", label: "Writes", unit: "writes", per: "Each person, each day", refusal: "409 quota_exceeded", help: "A day runs from midnight to midnight UTC." },

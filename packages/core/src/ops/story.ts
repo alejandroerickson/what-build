@@ -9,7 +9,7 @@ import type { BlobStore } from "../ports.ts";
 import { hrefsIn, pagesLinkedFrom } from "../canvas-links.ts";
 import { shownHeight } from "../page-sandbox.ts";
 import { entryAddress, prototypeAddress, prototypeNotice } from "../prototype.ts";
-import { refuseSwitchedOff } from "../limits.ts";
+import { productTotal, refuseSwitchedOff } from "../limits.ts";
 import { defineOperation, type OpContext } from "../registry.ts";
 import { expectedEtag, id } from "../schemas.ts";
 import { escapeHtml, inspectStoryCss, inspectStoryHtml, STORY_CSS_MAX, STORY_HTML_MAX, STORY_MAX_SCRIPTS, STORY_SCRIPT_BUDGET } from "../story-html.ts";
@@ -24,8 +24,21 @@ import { makeRoomForPreview, openThePreview, PREVIEW_OPENING, PREVIEW_SECRET, pr
 import { citedByPlaybook } from "../playbook.ts";
 import { playbookFilesFor } from "./playbook.ts";
 
-export const MAX_PAGES = 50;
 export const MAX_DEPTH = 6;
+
+/**
+ * Refuse a new page where the product's Story already holds as many pages, archived ones included,
+ * as the organization's plan allows (`story_pages_max`, null for no limit).
+ */
+function refuseStoryFull(ctx: OpContext, used: number) {
+  const limit = productTotal(ctx.limits, "story_pages_max");
+  if (limit !== null && used >= limit)
+    throw conflict(
+      "quota_exceeded",
+      `On this organization's plan a product’s Story holds at most ${limit} ${limit === 1 ? "page" : "pages"}, archived ones included, and this one holds ${used}. Deleting a page no longer needed makes room, which the product's admins can do; archiving one does not. Whoever runs this WhatBuild can also raise the plan's limit, or move the organization to another plan.`,
+      { quota: "story_pages", limit, used, unit: "pages" },
+    );
+}
 
 const pageId = z
   .string()
@@ -132,7 +145,7 @@ export const guidance = defineOperation({
         : { none: true, next: "Settle the Story style with the person before the first page: see style_workflow." },
       links,
       links_note: LINKS_NOTE,
-      limits: { html_characters: STORY_HTML_MAX, stylesheet_characters: STORY_CSS_MAX, inline_scripts: STORY_MAX_SCRIPTS, script_characters: STORY_SCRIPT_BUDGET, pages_per_product: MAX_PAGES, hierarchy_depth: MAX_DEPTH },
+      limits: { html_characters: STORY_HTML_MAX, stylesheet_characters: STORY_CSS_MAX, inline_scripts: STORY_MAX_SCRIPTS, script_characters: STORY_SCRIPT_BUDGET, pages_per_product: productTotal(ctx.limits, "story_pages_max"), hierarchy_depth: MAX_DEPTH },
       ...(picked ? { house_style: { ...picked, starter_html: starterHtml(picked.stylesheet) } } : {}),
       ...(await playbookFilesFor(ctx, "story")),
     };
@@ -647,7 +660,7 @@ async function draftVersion(ctx: OpContext, input: PublishInput, opts: { lock: b
     const problems = inspectStoryHtml(html);
     if (problems.length) throw invalid("invalid_html", `${opts.refused}: ${problems.join(" ")}`, { problems });
     const count = await ctx.db.selectFrom("story_pages").select((eb) => eb.fn.countAll<number>().as("n")).where("product_id", "=", pid).executeTakeFirst();
-    if (Number(count?.n ?? 0) >= MAX_PAGES) throw conflict("quota_exceeded", `A product’s Story holds at most ${MAX_PAGES} pages, archived ones included.`, { quota: "story_pages", limit: MAX_PAGES, used: Number(count?.n ?? 0), unit: "pages" });
+    refuseStoryFull(ctx, Number(count?.n ?? 0));
     return { existing: null, n: 1, title: input.title, summary, html, mockup: null, carried: [] as (typeof CARRIED)[number][], based_on_version: null };
   }
   if (existing.archived_at) throw conflict("page_archived", `Page "${input.page_id}" is archived; restore it before publishing.`);
@@ -859,7 +872,7 @@ export const setHierarchy = defineOperation({
   summary: "Replace the Story's navigation tree. Uses the hierarchy's own etag; never touches page content.",
   description: `items is the whole tree, not a patch: nodes are {page_id, children}; the title, description and kind get_hierarchy adds are accepted and ignored, so its items can be sent back as they are. Each page at most once, depth at most ${MAX_DEPTH}, every page live and published. A page that shows a mockup page or a whole canvas is placed and nested like any other, and may hold other pages. Pages you leave out of items become unplaced; to place an unplaced page, add it to items. Pass expected_etag from get_hierarchy; before the first save its etag is null, and expected_etag may be null or left out.`,
   input: z.strictObject({
-    items: z.array(nodeSchema).max(MAX_PAGES),
+    items: z.array(nodeSchema),
     expected_etag: expectedEtag.nullable().optional().describe("The etag get_hierarchy gave; null, or omitted, before the first save (get_hierarchy then gives etag: null)."),
   }),
   rest: { method: "PUT", path: "/story/hierarchy" },
@@ -1074,7 +1087,7 @@ export const promoteMockup = defineOperation({
     if (!existing) {
       if (input.expected_etag) throw conflict("stale_etag", `Page "${input.page_id}" doesn’t exist yet, so there is no etag to match. Leave expected_etag out to create it.`, { current_etag: null });
       const count = await ctx.db.selectFrom("story_pages").select((eb) => eb.fn.countAll<number>().as("n")).where("product_id", "=", pid).executeTakeFirst();
-      if (Number(count?.n ?? 0) >= MAX_PAGES) throw conflict("quota_exceeded", `A product’s Story holds at most ${MAX_PAGES} pages, archived ones included.`, { quota: "story_pages", limit: MAX_PAGES, used: Number(count?.n ?? 0), unit: "pages" });
+      refuseStoryFull(ctx, Number(count?.n ?? 0));
       pageIdOut = input.page_id ?? (await freeSlug(ctx, mp?.page_id ?? slugOf(m.title)));
       const title = input.title ?? mp?.title ?? m.title;
       const summary = input.summary ?? `From the mockup "${m.title}", version ${mv.n}.`;

@@ -17,12 +17,10 @@ import {
   linksIn,
   PLAYBOOK_AREAS,
   PLAYBOOK_FILE_MAX_BYTES,
-  PLAYBOOK_FILES_MAX,
   PLAYBOOK_MESSAGE_DAYS,
   PLAYBOOK_MESSAGE_MAX,
   PLAYBOOK_QUIET_DAYS,
   PLAYBOOK_REVISIONS_KEPT,
-  PLAYBOOK_TOTAL_MAX_BYTES,
   OKF_VERSION,
   playbookMessagesWaiting,
   playbookPath,
@@ -35,6 +33,8 @@ import {
   type PlaybookArea,
 } from "../playbook.ts";
 import { effectiveRole, membershipsFor, roleAtLeast } from "../policy.ts";
+import { productTotal } from "../limits.ts";
+import { PRODUCT_TOTAL_DEFAULTS } from "../plans.ts";
 import { defineOperation, type OpContext, type PrepareContext } from "../registry.ts";
 import { expectedEtag, id } from "../schemas.ts";
 import { likeContaining, newEtag, newId, sameEtag, sha256Hex, utcDay } from "../util.ts";
@@ -243,18 +243,21 @@ async function startIfNeeded(ctx: OpContext) {
   if (!s.started) await copyStarterIn(ctx, TOOLS_VERSION, newId);
 }
 
-/** Refuse a change that would take the Playbook past its limits. */
+/** Refuse a change that would take the Playbook past the files and bytes the organization's plan allows it (null for no limit). */
 async function checkTotals(ctx: OpContext) {
+  const maxFiles = productTotal(ctx.limits, "playbook_files_max");
+  const maxBytes = productTotal(ctx.limits, "playbook_bytes_max");
+  if (maxFiles === null && maxBytes === null) return;
   const r = await ctx.db
     .selectFrom("playbook_files")
     .select((eb) => [eb.fn.countAll<string>().as("n"), eb.fn.coalesce(eb.fn.sum<string>("size"), sql<string>`0`).as("bytes")])
     .where("product_id", "=", productId(ctx))
     .where("removed_at", "is", null)
     .executeTakeFirstOrThrow();
-  if (Number(r.n) > PLAYBOOK_FILES_MAX)
-    throw invalid("playbook_full", `The Playbook would hold ${r.n} files; it holds at most ${PLAYBOOK_FILES_MAX}. Merge or remove files first (playbook_read(action="housekeeping") names candidates). Nothing was changed.`, { files: Number(r.n), max: PLAYBOOK_FILES_MAX });
-  if (Number(r.bytes) > PLAYBOOK_TOTAL_MAX_BYTES)
-    throw invalid("playbook_full", `The Playbook's files would hold ${r.bytes} bytes together; they hold at most ${PLAYBOOK_TOTAL_MAX_BYTES}. Shorten or remove files first. Nothing was changed.`, { bytes: Number(r.bytes), max: PLAYBOOK_TOTAL_MAX_BYTES });
+  if (maxFiles !== null && Number(r.n) > maxFiles)
+    throw invalid("playbook_full", `The Playbook would hold ${r.n} files; on this organization's plan it holds at most ${maxFiles}. Merge or remove files first (playbook_read(action="housekeeping") names candidates). Nothing was changed.`, { files: Number(r.n), max: maxFiles });
+  if (maxBytes !== null && Number(r.bytes) > maxBytes)
+    throw invalid("playbook_full", `The Playbook's files would hold ${r.bytes} bytes together; on this organization's plan they hold at most ${maxBytes}. Shorten or remove files first. Nothing was changed.`, { bytes: Number(r.bytes), max: maxBytes });
 }
 
 type Change = "written" | "removed" | "moved" | "restored";
@@ -858,8 +861,9 @@ export const PLAYBOOK_UPLOAD_PURPOSE = "playbook_upload";
 export const PLAYBOOK_DOWNLOAD_PURPOSE = "playbook";
 /** The most a ZIP of a Playbook's files is, packed and unpacked, and the entries it may hold. */
 const PLAYBOOK_UPLOAD_MAX_BYTES = 25 * 1024 * 1024;
-const PLAYBOOK_UPLOAD_UNPACKED_MAX = PLAYBOOK_TOTAL_MAX_BYTES;
-const PLAYBOOK_UPLOAD_MAX_ENTRIES = PLAYBOOK_FILES_MAX + 500;
+/** What one ZIP may unpack to and hold: a whole Playbook at its default size, whatever a plan allows. */
+const PLAYBOOK_UPLOAD_UNPACKED_MAX = PRODUCT_TOTAL_DEFAULTS.playbook_bytes_max;
+const PLAYBOOK_UPLOAD_MAX_ENTRIES = PRODUCT_TOTAL_DEFAULTS.playbook_files_max + 500;
 /** The download's own file, beside the Playbook's: a name no Playbook path can take, as each part of one starts with a letter or digit. */
 export const PLAYBOOK_DOWNLOAD_MANIFEST = "_manifest.json";
 
@@ -875,7 +879,7 @@ export function readPlaybookZip(bytes: Uint8Array, paths: string[]): Map<string,
   const wanted = new Set(paths);
   const unreadable = (e: unknown): never => {
     if (e instanceof TooManyEntriesError) throw invalid("invalid_upload", `Nothing was changed: ${e.message}. A ZIP of a Playbook's files holds at most ${PLAYBOOK_UPLOAD_MAX_ENTRIES} entries.`);
-    if (e instanceof TooLargeError) throw invalid("invalid_upload", `Nothing was changed: the files the steps name unpack to more than ${PLAYBOOK_UPLOAD_UNPACKED_MAX} bytes, more than a Playbook holds. Request a new upload with fewer files.`);
+    if (e instanceof TooLargeError) throw invalid("invalid_upload", `Nothing was changed: the files the steps name unpack to more than ${PLAYBOOK_UPLOAD_UNPACKED_MAX} bytes, more than one upload takes. Request a new upload with fewer files, and send the rest in another.`);
     throw invalid("invalid_upload", `Nothing was changed: the upload is not a ZIP WhatBuild can read (${(e as Error).message}). Zip the files again and request a new upload.`);
   };
   // First the names alone, which inflates nothing, to settle how the archive is read.

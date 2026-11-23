@@ -2,6 +2,7 @@ import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { PRODUCT_TOTAL_DEFAULTS, PRODUCT_TOTALS } from "@whatbuild/core";
 import { plansFrom, startingPlanFrom } from "../src/plans-config.ts";
 import { EXAMPLE_PLANS } from "./harness.ts";
 
@@ -50,6 +51,18 @@ describe("the deployment's plans", () => {
     expect(() => plansFrom("{ not json")).toThrow(/WHATBUILD_PLANS is not JSON/);
     expect(() => plansFrom('{"tiers": []}')).toThrow(/must be \{ "plans": \[ … \] \}/);
     expect(() => plansFrom("/nowhere/plans.json")).toThrow(/can't be read/);
+  });
+
+  it("give what each product holds its default where a plan leaves it out, as a file written before a plan could set it does", () => {
+    const [free] = example();
+    const older = { ...free!, limits: { ...free!.limits } } as { limits: Record<string, unknown> };
+    for (const key of PRODUCT_TOTALS) delete older.limits[key];
+    const [read] = plansFrom(inline([older]));
+    expect(read!.limits).toMatchObject(PRODUCT_TOTAL_DEFAULTS);
+    expect(plansFrom(inline([{ ...free, limits: { ...free!.limits, mockups_max: 200, story_pages_max: null, playbook_bytes_max: "64 MB" } }]))[0]!.limits).toMatchObject({
+      mockups_max: 200, story_pages_max: null, playbook_bytes_max: 64 * 1024 * 1024,
+    });
+    expect(() => plansFrom(inline([{ ...free, limits: { ...free!.limits, mockups_max: -1 } }]))).toThrow(/mockups_max must be a whole number of at least 0, or null for no limit\./);
   });
 
   it("name the plan organizations start on only if it is one of them", () => {

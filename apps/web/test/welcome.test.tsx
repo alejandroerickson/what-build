@@ -83,11 +83,11 @@ describe("Welcome, for someone in no organization who may not start one", () => 
     expect(host.querySelector("h1")?.textContent).toBe("Welcome, Maya");
     expect(body(host).querySelector("p")?.textContent).toBe("You’re not in an organization yet.");
     expect(body(host).textContent).not.toMatch(/owners|invite you/);
-    const ask = [...body(host).querySelectorAll("button")].find((b) => b.textContent?.includes("Ask for your own organization"));
+    const ask = [...body(host).querySelectorAll("button")].find((b) => b.textContent?.includes("Start your own organization"));
     expect(ask).toBeTruthy();
     await act(async () => ask!.click());
     await settle();
-    expect(body(host).textContent).toBe("You’re not in an organization yet.You’re on the waitlist. We’ll email maya@example.com when you can start your organization.");
+    expect(body(host).textContent).toBe("You’re not in an organization yet.Your organization is on its way. We’ll email maya@example.com as soon as it’s ready.");
   });
 
   it("says to accept the invitation waiting for them", async () => {

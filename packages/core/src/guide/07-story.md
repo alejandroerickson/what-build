@@ -37,7 +37,10 @@ own design system. People preview every house style in the web app, light and da
 ## Publishing
 
 `story_write(action="publish")` publishes a new version of a page, creating the page on its first
-version.
+version. A product's Story holds as many pages, archived ones included, as its organization's plan
+allows: 50 unless the plan says otherwise, given as `limits.pages_per_product` in the guidance (null
+for no limit). A new page past it is refused with `409 quota_exceeded`; a new version of a page counts
+nothing.
 
 - **`body`** takes only the markup inside `<body>` (usually one `<main class="page">`) and wraps it in
   a document with the product's Story style, so every page carries the same stylesheet and none is

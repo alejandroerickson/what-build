@@ -45,6 +45,8 @@ export interface AccountsTable {
   display_name: string;
   email_verified_at: TsNull;
   created_at: Ts;
+  /** Which page of the public site the account came from (`/`, `/what-to-build/`), kept once in its first day; null otherwise. */
+  came_from: Generated<string | null>;
   deleted_at: TsNull;
   /** The person hid the example organization from the app's panel. */
   hide_example: Def<boolean>;
@@ -279,6 +281,8 @@ export interface InterestTable {
   name: string | null;
   organization: string | null;
   note: string | null;
+  /** The site's page the request came from ("/", "/what-to-build/"); null from the app. The first one is kept. */
+  page: string | null;
   created_at: Ts;
   updated_at: Ts;
 }

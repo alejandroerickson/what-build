@@ -2,6 +2,7 @@ import { closeSync, existsSync, fstatSync, openSync, readFileSync } from "node:f
 import { extname, isAbsolute, join, normalize, relative, resolve, sep } from "node:path";
 import { DOCUMENT_ROUTE, LIMITS, MCP_SERVER_NAME, planCatalogue, readGuests, readPlans, TOOLS_VERSION, unauthenticated, type Db } from "@whatbuild/core";
 import { Hono } from "hono";
+import { sql } from "kysely";
 import type { Release } from "./app.ts";
 import { restPrincipal } from "./auth/identity.ts";
 import { microsoftSignIn, type ServerConfig } from "./config.ts";
@@ -11,6 +12,25 @@ import { microsoftSignIn, type ServerConfig } from "./config.ts";
  * plans as an instance owner set them, the largest file it takes, whom to write to, whether anyone
  * may come in as a guest, and what the privacy page says of who runs it.
  */
+/**
+ * What the site says of the example organization, which every guest reads: its name, its first
+ * product's name and the first sentence of that product's concept. Read from the deployment, never
+ * written into the site, since each deployment has its own example, or none.
+ */
+async function exampleAbout(db: Db, slug: string | null): Promise<{ organization: string; product: string; about: string } | null> {
+  if (!slug) return null;
+  return db.transaction().execute(async (trx) => {
+    const tenant = await trx.selectFrom("tenants").select(["tenant_id", "name"]).where("slug", "=", slug).executeTakeFirst();
+    if (!tenant) return null;
+    await sql`select set_config('app.tenant_id', ${tenant.tenant_id}, true)`.execute(trx);
+    const product = await trx.selectFrom("products").select(["name", "concept"]).where("tenant_id", "=", tenant.tenant_id).where("archived_at", "is", null).orderBy("created_at").limit(1).executeTakeFirst();
+    if (!product) return null;
+    const plain = product.concept.replace(/[#*_`>]/g, "").replace(/\s+/g, " ").trim();
+    const about = (plain.split(/(?<=[.!?])\s/)[0] ?? "").slice(0, 240);
+    return { organization: tenant.name, product: product.name, about };
+  });
+}
+
 export async function siteCatalogue(db: Db, config: ServerConfig) {
   const guests = await readGuests(db);
   return {
@@ -24,6 +44,9 @@ export async function siteCatalogue(db: Db, config: ServerConfig) {
     file_max_bytes: config.blobStore === "gcs" && config.gcsSignedUrls ? config.fileMaxBytes : Math.min(config.fileMaxBytes, config.relayMaxBytes),
     contact: config.privacyContact,
     guests: { self_serve: guests.self_serve, open: guests.at_once > 0 },
+    // Whether anyone may make an account, as a guest or to start an organization; never how many may.
+    sign_up: !config.signupAllowlist || guests.self_serve || guests.organizations_per_day > 0,
+    example_about: await exampleAbout(db, config.exampleTenant).catch(() => null),
     // What the site's privacy page says that only the deployment knows.
     privacy: {
       operator: config.operator,
