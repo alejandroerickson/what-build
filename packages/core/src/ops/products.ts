@@ -466,8 +466,9 @@ export const getProduct = defineOperation({
     const pid = ctx.scope.product!.product_id;
     const row = await ctx.db.selectFrom("products").selectAll().where("product_id", "=", pid).executeTakeFirstOrThrow();
     const counts = (await countProducts(ctx.db, [pid])).get(pid)!;
-    // A concept with no front yet, for whoever can draw it.
-    const bare = roleAtLeast(ctx.scope.role, "editor") && !row.card_html && row.concept.trim();
+    // A concept with no front yet, for whoever can draw it: not where update_concept is refused, in an archived product or a read-only organization.
+    const writable = !ctx.scope.product!.archived_at && !ctx.scope.tenant?.read_only;
+    const bare = writable && roleAtLeast(ctx.scope.role, "editor") && !row.card_html && row.concept.trim();
     return {
       ...productView(row, ctx, input.include_card),
       ...countsFor(ctx.scope.role, counts),

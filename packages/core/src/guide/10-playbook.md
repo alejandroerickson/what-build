@@ -20,7 +20,8 @@ team does.
 
 People don't see the Playbook in the web app. A product's admins turn it off and on in its Settings,
 under Playbook. Off, every call to it is refused with `409 playbook_off`, nothing points agents at it, and
-nothing in it is lost.
+nothing in it is lost: `products_read(action="get")` gives `playbook` as `enabled: false` with a `how`
+saying so and who turns it on.
 
 ## Where to start
 

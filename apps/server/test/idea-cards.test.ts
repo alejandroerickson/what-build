@@ -240,6 +240,26 @@ describe("the product concept's card", () => {
   });
 });
 
+describe("the request for a concept's picture", () => {
+  it("is left out where the concept cannot be written: an archived product, a read-only organization", async () => {
+    const t = (await alice.api("POST", "/api/v1/tenants", { name: "Bare Co" })).body.tenant.slug;
+    const made = await alice.api("POST", `/api/v1/tenants/${t}/products`, { name: "Bare", concept: "A concept with no front." });
+    const B = `/api/v1/p/${made.body.path}`;
+    expect((await alice.api("GET", B)).body.note).toContain("no front yet");
+    await h.db.updateTable("tenants").set({ read_only_since: new Date().toISOString() }).where("slug", "=", t).execute();
+    try {
+      expect((await alice.api("GET", B)).body).not.toHaveProperty("note");
+    } finally {
+      await h.db.updateTable("tenants").set({ read_only_since: null }).where("slug", "=", t).execute();
+    }
+    expect((await alice.api("POST", `${B}/archive`, { expected_etag: made.body.etag })).status).toBe(200);
+    const archived = await alice.api("GET", B);
+    expect(archived.body.archived_at).toBeTruthy();
+    expect(archived.body).not.toHaveProperty("note");
+    expect((await alice.api("PATCH", `${B}/idea/concept`, { expected_etag: archived.body.etag, concept: "Changed." })).body.error.code).toBe("product_archived");
+  });
+});
+
 describe("an agent connected at Edit", () => {
   it("is offered the concept's card and the preview, not the rename, and writes the concept", async () => {
     const token = await h.connectAgent(eddie, "edit-agent", undefined, "editor");

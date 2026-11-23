@@ -1286,10 +1286,13 @@ export async function playbookFilesFor(ctx: OpContext, area: PlaybookArea): Prom
   return { playbook: { files, how: 'The product\'s Playbook: what its team\'s agents learned about this work. Read these with playbook_read(action="read"), and write what you learn as you work (guide(topic="playbook")).' } };
 }
 
+const PLAYBOOK_OFF_HOW =
+  "This product's Playbook is turned off by its admins, so agents neither read it nor write to it: every call to it is refused with 409 playbook_off. Its admins turn it on in the web app, in the product's Settings, under Playbook. Nothing in it is lost.";
+
 /** The Playbook as a product's answer gives it: whether it is on, and, when it is, what to read first and what waits. */
 export async function playbookSummary(ctx: OpContext) {
   const s = await ctx.db.selectFrom("products").select(["playbook_enabled", "playbook_started_at"]).where("product_id", "=", productId(ctx)).executeTakeFirstOrThrow();
-  if (!s.playbook_enabled) return { enabled: false };
+  if (!s.playbook_enabled) return { enabled: false, how: PLAYBOOK_OFF_HOW };
   if (!roleAtLeast(ctx.scope.role, "viewer")) return { enabled: true };
   const files = await liveFiles(ctx, s.playbook_started_at !== null);
   const by = (a: PlaybookArea) => files.filter((f) => f.applies_to.includes(a)).map((f) => f.path);

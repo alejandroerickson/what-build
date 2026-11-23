@@ -419,7 +419,10 @@ Notes on recent actions:
   (`apply` before it reads an upload, which stays for when the Playbook is on again),
   which they change with `products.set_playbook` in the web app only. `products.get` gives `playbook_enabled`
   and `playbook` (`read_first`, `by_area`, `files`, `messages_waiting`, and `how`, which in an archived
-  product says the Playbook can be read but not written until the product is restored); `story.guidance`,
+  product says the Playbook can be read but not written until the product is restored); while it is off,
+  `playbook` is `enabled: false` and a `how` that says its admins turned it off, that calls to it are
+  refused with `409 playbook_off` until they turn it on in the web app, and that nothing in it is lost,
+  pointing agents at nothing in it; `story.guidance`,
   `outcomes.card_guidance`, `derived.card_guidance` and, over MCP, `mockups.list` give `playbook.files`
   for their part; archiving a source, outcome, mockup or Story page answers `playbook_cited_by` when a
   file links to it and the Playbook is on; and every product answer over MCP carries `scope.playbook_messages_waiting` when
@@ -621,8 +624,8 @@ Notes on recent actions:
   side and does not send the other is refused (`422 card_sides_together`, `details.missing`
   naming it); the back of a card with no front yet may change alone. A write that leaves an outcome
   with no front says so in `note`, and so do `outcomes.list` (counting the current outcomes with no
-  front, for an editor or above) and `products.get` (for a product admin, when the concept has
-  none). A write that touches a card returns `card_advice`, a list of what the guidance asks that
+  front, for an editor or above) and `products.get` (for an editor or above, when the concept has
+  none and the product can be written: never in an archived product or a read-only organization). A write that touches a card returns `card_advice`, a list of what the guidance asks that
   WhatBuild can check and the card misses (more words than a front holds, the outcome's title
   repeated, more than one hue, fixed colours, an empty back);
   it never refuses the write. `outcomes.list` gives `card_chars`, the front's length, in its
