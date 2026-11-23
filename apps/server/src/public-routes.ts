@@ -15,12 +15,13 @@ import { microsoftSignIn, type ServerConfig } from "./config.ts";
 /**
  * What the site says of the example organization, which every guest reads: its name, its first
  * product's name and the first sentence of that product's concept. Read from the deployment, never
- * written into the site, since each deployment has its own example, or none.
+ * written into the site, since each deployment has its own example, or none. The organization is the
+ * one marked as the example at start-up, which `WHATBUILD_EXAMPLE_TENANT` may name by a slug it had
+ * before (`syncExampleTenant`).
  */
-async function exampleAbout(db: Db, slug: string | null): Promise<{ organization: string; product: string; about: string } | null> {
-  if (!slug) return null;
+async function exampleAbout(db: Db): Promise<{ organization: string; product: string; about: string } | null> {
   return db.transaction().execute(async (trx) => {
-    const tenant = await trx.selectFrom("tenants").select(["tenant_id", "name"]).where("slug", "=", slug).executeTakeFirst();
+    const tenant = await trx.selectFrom("tenants").select(["tenant_id", "name"]).where("example", "=", true).executeTakeFirst();
     if (!tenant) return null;
     await sql`select set_config('app.tenant_id', ${tenant.tenant_id}, true)`.execute(trx);
     const product = await trx.selectFrom("products").select(["name", "concept"]).where("tenant_id", "=", tenant.tenant_id).where("archived_at", "is", null).orderBy("created_at").limit(1).executeTakeFirst();
@@ -46,7 +47,7 @@ export async function siteCatalogue(db: Db, config: ServerConfig) {
     guests: { self_serve: guests.self_serve, open: guests.at_once > 0 },
     // Whether anyone may make an account, as a guest or to start an organization; never how many may.
     sign_up: !config.signupAllowlist || guests.self_serve || guests.organizations_per_day > 0,
-    example_about: await exampleAbout(db, config.exampleTenant).catch(() => null),
+    example_about: await exampleAbout(db).catch(() => null),
     // What the site's privacy page says that only the deployment knows.
     privacy: {
       operator: config.operator,

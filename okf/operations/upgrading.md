@@ -33,6 +33,8 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
 
 ## Unreleased
 
+## v0.44.0
+
 - **A plan sets what each product holds**: its mockups and Story pages, archived ones included, and
   its Playbook's files and size (`mockups_max`, `story_pages_max`, `playbook_files_max`,
   `playbook_bytes_max`), which an instance owner changes in Instance admin → Plans like every other

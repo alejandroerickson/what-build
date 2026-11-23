@@ -70,6 +70,12 @@ describe("the example organization, for a guest", () => {
     expect(await syncExampleTenant(h.db, ex.tenant.slug, () => {})).toBe(ex.tenant.id);
   });
 
+  it("is described to the public site by its first product, whatever slug the deployment names it by", async () => {
+    const plans = (await fetch(`${h.baseUrl}/api/v1/plans`).then((r) => r.json())) as { example_about: { organization: string; product: string; about: string } | null };
+    const first = (await h.db.selectFrom("products").select("name").where("product_id", "=", ex.product.id).executeTakeFirstOrThrow()).name;
+    expect(plans.example_about).toMatchObject({ organization: "Example Works", product: first, about: expect.any(String) });
+  });
+
   it("lists its products for every account, marked as the example, with the guest's role", async () => {
     const list = (await gus.api("GET", "/api/v1/me/products")).body;
     expect(list.items.map((i: { path: string }) => i.path).sort()).toEqual([ex.product.path, ex.annex.path].sort());
