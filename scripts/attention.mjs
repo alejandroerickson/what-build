@@ -219,7 +219,7 @@ async function neon() {
 const RUN_FIELDS = "workflowName,displayTitle,event,conclusion,status,createdAt,url";
 
 /** How a line names the event that started a run, when a workflow has runs of more than one. */
-const EVENTS = { schedule: (n) => `scheduled ${n} run`, push: (n) => `${n} run for a push`, workflow_dispatch: (n) => `${n} run started by hand` };
+const EVENTS = { schedule: (n) => `scheduled ${n} run`, push: (n) => `${n} run for a push`, workflow_dispatch: (n) => `${n} run started by hand`, dynamic: (n) => `${n} run` };
 
 /**
  * The workflows whose latest finished run on main did not pass, as lines to print. A workflow's runs
@@ -269,6 +269,8 @@ async function github() {
     api(`repos/${repo}/code-scanning/alerts?state=open&per_page=100`),
     api(`repos/${repo}/secret-scanning/alerts?state=open&per_page=100`),
     // The weekly scheduled runs are listed apart, so that a busy week's pushes do not crowd them out.
+    // Only the last five weeks of them count below: a workflow no longer scheduled leaves no failure
+    // standing for months.
     ...[[], ["--event", "schedule"]].map((only) =>
       json("gh", ["run", "list", "-R", repo, "--branch", "main", ...only, "--limit", "60", "--json", RUN_FIELDS]).catch(() => []),
     ),
@@ -287,7 +289,7 @@ async function github() {
   if (codeScanning?.length) say(`${codeScanning.length} open code scanning alert${codeScanning.length === 1 ? "" : "s"} (CodeQL)`, "triage-security-findings");
   if (secrets?.length) say(`${secrets.length} open secret scanning alert${secrets.length === 1 ? "" : "s"}: rotate first`, "audit-for-leaks");
 
-  for (const r of failedRuns([...(runs ?? []), ...(scheduled ?? [])])) say(r.text, r.skill);
+  for (const r of failedRuns([...(runs ?? []), ...(scheduled ?? []).filter((s) => days(s.createdAt) <= 35)])) say(r.text, r.skill);
 
   // What production lacks: it runs releases only.
   await out("git", ["fetch", "--quiet", "--tags", "origin", "main"]).catch(() => {});

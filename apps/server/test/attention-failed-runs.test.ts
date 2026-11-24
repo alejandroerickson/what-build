@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 // scripts/attention.mjs, which tells an agent at the start of a session what is waiting, a failed run on main among it.
+// The repository's scripts have no vitest project of their own, so the server's runs this one.
 type Run = { workflowName: string; displayTitle: string; event: string; conclusion: string; status: string; createdAt: string; url: string };
 const attention = (await import(new URL("../../../scripts/attention.mjs", import.meta.url).href)) as {
   failedRuns(runs: Run[]): { text: string; skill: string }[];
@@ -38,6 +39,17 @@ describe("a failed run on main", () => {
       run("CI", "push", "success", "2026-11-24T02:00:00Z"),
       run("CI", "push", "failure", "2026-11-24T01:00:00Z"),
     ])).toEqual([]);
+  });
+
+  it("goes by when each run started, though the schedule's own list comes after the others", () => {
+    const general = [run("Security", "push", "success", "2026-12-01T02:00:00Z"), run("Security", "schedule", "failure", "2026-11-23T18:02:18Z")];
+    const scheduled = [run("Security", "schedule", "success", "2026-11-30T18:00:00Z"), general[1]!];
+    expect(attention.failedRuns([...general, ...scheduled])).toEqual([]);
+  });
+
+  it("says a run of another event without naming the event", () => {
+    const lines = attention.failedRuns([run("CodeQL", "dynamic", "failure", "2026-11-24T01:00:00Z"), run("CodeQL", "push", "success", "2026-11-24T00:00:00Z")]);
+    expect(lines.map((l) => l.text)).toEqual([expect.stringMatching(/^the last CodeQL run on main failed /)]);
   });
 
   it("names the workflow alone when it runs for one event", () => {
