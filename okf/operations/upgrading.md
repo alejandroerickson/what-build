@@ -33,6 +33,12 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
 
 ## Unreleased
 
+## v0.44.1
+
+- **Nothing needs doing.** No migration, setting or step, and the server is as in v0.44.0: only
+  what a search result shows of the public site's landing pages changed (the home page's title and
+  site name, and both pages' descriptions). The tools are unchanged (version 0.70.0).
+
 ## v0.44.0
 
 - **A plan sets what each product holds**: its mockups and Story pages, archived ones included, and
