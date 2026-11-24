@@ -559,8 +559,9 @@ function LimitField({ limit, value, onChange }: { limit: { key: string; label: s
   if (limit.group === "switch")
     return (
       <label className="limits-switch">
-        <input type="checkbox" checked={Boolean(value)} onChange={(e) => onChange(e.target.checked)} />
-        <span>{value ? "On" : "Off"}</span>
+        {/* Named by the setting; whether it is on is the checkbox's own state, so the word beside it is only shown. */}
+        <input type="checkbox" aria-label={limit.label} checked={Boolean(value)} onChange={(e) => onChange(e.target.checked)} />
+        <span aria-hidden="true">{value ? "On" : "Off"}</span>
       </label>
     );
   const bytes = limit.unit === "bytes";
