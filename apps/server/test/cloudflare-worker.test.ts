@@ -44,8 +44,8 @@ describe("the Cloudflare Worker", () => {
   it("sends a share of the front page's visitors to the second landing page, the same ones each time, and never a crawler", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response("down", { status: 503 })));
     const ASSETS = { fetch: async () => new Response("<html><head></head><body>front</body></html>", { headers: { "Content-Type": "text/html" } }) };
-    const visit = (ip: string, split?: string, ua = "Mozilla/5.0 (Macintosh)") =>
-      worker.fetch(new Request("https://example.com/?ref=hn", { headers: { "cf-connecting-ip": ip, "user-agent": ua } }), { ...env, ASSETS, ...(split === undefined ? {} : { LANDING_SPLIT: split }) });
+    const visit = (ip: string, split?: string, ua = "Mozilla/5.0 (Macintosh)", query = "?ref=hn") =>
+      worker.fetch(new Request(`https://example.com/${query}`, { headers: { "cf-connecting-ip": ip, "user-agent": ua } }), { ...env, ASSETS, ...(split === undefined ? {} : { LANDING_SPLIT: split }) });
     // Off unless the deployment asks for it.
     expect((await visit("203.0.113.7")).status).toBe(200);
     expect((await visit("203.0.113.7", "0")).status).toBe(200);
@@ -55,6 +55,10 @@ describe("the Cloudflare Worker", () => {
     expect(sent.headers.get("location")).toBe("https://example.com/what-to-build/?ref=hn");
     expect(sent.headers.get("cache-control")).toBe("no-store");
     expect((await visit("203.0.113.7", "1", "Mozilla/5.0 (compatible; Googlebot/2.1)")).status).toBe(200);
+    // Anyone who asks for the front page itself gets it, so both pages can be seen from any address.
+    expect((await visit("203.0.113.7", "1", undefined, "?split=off")).status).toBe(200);
+    expect((await visit("203.0.113.7", "1", undefined, "?ref=hn&split=off")).status).toBe(200);
+    expect((await visit("203.0.113.7", "1", undefined, "?split=on")).status).toBe(302);
     // Half of them, each the same way every time.
     const ips = Array.from({ length: 400 }, (_, i) => `198.51.${i >> 8}.${i & 255}`);
     const first = await Promise.all(ips.map(async (ip) => (await visit(ip, "0.5")).status));

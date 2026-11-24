@@ -465,8 +465,8 @@ with one and Compare plans sit under it. Links to sign in carry `?landing=<the p
 sign-in, which the app sends once (`POST /api/v1/me/came-from`). Nothing on either page asks the
 service anything until someone sends the form or follows a link to sign in. Behind Cloudflare the
 Worker sends a share of the visitors to `/` (`LANDING_SPLIT`) to `/what-to-build/`, the same
-visitors each time and never a crawler, to compare the two
-([decision](../decisions/the-landing-pages-are-compared-by-a-split-at-the-edge.md)). While guests
+visitors each time and never a crawler, to compare the two; `/?split=off` is the front page for
+anyone ([decision](../decisions/the-landing-pages-are-compared-by-a-split-at-the-edge.md)). While guests
 may sign up, looking comes first: **Explore the demo** (sign-in, then the example organization as a
 guest) is the filled button, with Start using WhatBuild beside it as the quiet one, and the last
 screen says what a team builds in the demo, from the deployment (`example_about`: the first sentence

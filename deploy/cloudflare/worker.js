@@ -92,10 +92,12 @@ const NOT_A_PERSON = /bot|crawl|spider|slurp|preview|facebookexternalhit|embedly
  * Whether this visitor to the front page goes to the second landing page instead, for the A/B test
  * of the two (LANDING_SPLIT, from 0 to 1; unset or 0, nobody does). A visitor is placed by their
  * address, hashed here and kept nowhere, so they see the same page each visit with no cookie.
+ * `/?split=off` is the front page whichever side an address is on, so whoever runs the test can
+ * see both pages: the second is always at /what-to-build/.
  */
-function toSecondLanding(request, env) {
+function toSecondLanding(request, url, env) {
   const share = Number(env.LANDING_SPLIT);
-  if (!(share > 0)) return false;
+  if (!(share > 0) || url.searchParams.get("split") === "off") return false;
   if (NOT_A_PERSON.test(request.headers.get("user-agent") ?? "")) return false;
   const who = request.headers.get("cf-connecting-ip") ?? "";
   let h = 0x811c9dc5;
@@ -180,7 +182,7 @@ export default {
       return maintenance(request, url, env);
     }
     if (site && url.host === site) {
-      if (url.pathname === "/" && read && toSecondLanding(request, env))
+      if (url.pathname === "/" && read && toSecondLanding(request, url, env))
         return new Response(null, { status: 302, headers: { Location: `https://${site}/what-to-build/${url.search}`, "Cache-Control": "no-store" } });
       if (Object.hasOwn(SITE_PAGES, url.pathname) && read) return sitePage(request, url, env);
       if (SITE_FILES.test(url.pathname) && read) return env.ASSETS.fetch(request);

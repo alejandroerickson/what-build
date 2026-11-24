@@ -33,6 +33,10 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
 
 ## Unreleased
 
+- **`/?split=off` is the front page whatever the split**, so both landing pages can be seen from
+  an address `LANDING_SPLIT` sends to `/what-to-build/`. Behind Cloudflare, it reaches the site
+  when the Worker is deployed with the release, as always. Nothing else needs doing.
+
 ## v0.44.1
 
 - **Nothing needs doing.** No migration, setting or step, and the server is as in v0.44.0: only

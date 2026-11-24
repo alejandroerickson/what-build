@@ -251,7 +251,8 @@ the same days:
 
 Accounts (or requests) over visits, per page, is the comparison; organizations, and organizations
 with a source, show whether one page brings people who stay. Visits that reach `/what-to-build/` directly,
-by a shared link, count for it too. Google Analytics, for those who accept cookies, also has each
+by a shared link, count for it too, and visits to `/?split=off` (the front page from any address)
+count for `/`. Google Analytics, for those who accept cookies, also has each
 `generate_lead` with the page it was sent from.
 
 ## After a deploy
