@@ -71,12 +71,12 @@ function limitsFrom(value: unknown, where: string): Limits {
       if (typeof v !== "boolean") throw new Error(`${where}: ${l.key} must be true or false.`);
       out[l.key] = v;
     } else if (v === null && nullable) out[l.key] = null;
-    else if (typeof v === "number" && Number.isInteger(v) && v >= 0) out[l.key] = v;
+    else if (typeof v === "number" && Number.isInteger(v) && v >= (l.min ?? 0)) out[l.key] = v;
     else if (typeof v === "string" && l.unit === "bytes") {
       const m = /^\s*(\d+(?:\.\d+)?)\s*(b|kb|mb|gb|tb)\s*$/i.exec(v);
       if (!m) throw new Error(`${where}: ${l.key} must be bytes, or a size such as "10 MB".`);
       out[l.key] = Math.round(Number(m[1]) * UNITS[m[2]!.toLowerCase()]!);
-    } else throw new Error(`${where}: ${l.key} must be a whole number of at least 0${nullable ? ", or null for no limit" : ""}${l.unit === "bytes" ? ', or a size such as "10 MB"' : ""}.`);
+    } else throw new Error(`${where}: ${l.key} must be a whole number of at least ${l.min ?? 0}${nullable ? ", or null for no limit" : ""}${l.unit === "bytes" ? ', or a size such as "10 MB"' : ""}.`);
   }
   return out as Limits;
 }

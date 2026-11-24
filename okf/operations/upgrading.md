@@ -33,6 +33,19 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
 
 ## Unreleased
 
+- **Mockups and Story pages keep their newest 10 versions, and older ones are deleted.** Publishing
+  a version of a mockup or a Story page past what its organization's plan keeps
+  (`mockup_versions_max`, `story_page_versions_max`) deletes its oldest versions, for good; a mockup
+  also keeps every version a Story page shows. A plans file that leaves them out, Unlimited, and a
+  deployment that defines no plans all keep 10. Nothing is deleted when the release deploys: a
+  mockup or Story page past the number loses its oldest versions the next time someone publishes
+  it. To keep more, or every version (null), set them in each plan of the deployment's plans file
+  (`deploy/plans.example.json` keeps 5 on Free and 10 on Pro) or in Instance admin → Plans, before
+  people publish; Unlimited and a deployment that defines no plans always keep 10. Agents are told in
+  the answer (`versions_deleted`), and reading a deleted version answers `410 version_deleted`. No
+  migration (`tools_version` 0.71.0); a connected client sees the new descriptions after a new
+  session.
+
 ## v0.44.2
 
 - **`/?split=off` is the front page whatever the split**, so both landing pages can be seen from

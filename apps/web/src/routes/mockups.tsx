@@ -2,7 +2,7 @@ import { OUTSIDE_THE_SANDBOX } from "@whatbuild/core/page-sandbox";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useState } from "react";
 import { Link, Navigate, useNavigate, useParams, useSearchParams } from "react-router";
-import { api, ApiError } from "../lib/api.ts";
+import { api, ApiError, deletedVersion } from "../lib/api.ts";
 import { attribution, deletedSentence, formatBytes, formatDate, formatDateTime, plural } from "../lib/format.ts";
 import { Markdown } from "../lib/markdown.tsx";
 import { useHeldUpdate } from "../lib/live.tsx";
@@ -133,10 +133,12 @@ export function MockupsIndex() {
 
 // ---- The inspector ------------------------------------------------------------------------------
 
-export function MockupInspector({ e, shown, versions, onVersion, selected, clickable, onView, actions }: {
+export function MockupInspector({ e, shown, versions, versionsKept, onVersion, selected, clickable, onView, actions }: {
   e: MockupView;
   shown: MockupVersion;
   versions: VersionItem[] | undefined;
+  /** How many versions each mockup keeps on the organization's plan; null keeps every one. */
+  versionsKept?: number | null;
   onVersion: (n: number) => void;
   selected: string | null;
   clickable: boolean;
@@ -237,6 +239,7 @@ export function MockupInspector({ e, shown, versions, onVersion, selected, click
               : []),
           ]}
         />
+        {canWrite && typeof versionsKept === "number" ? <p className="versions-kept">Keeps the newest {versionsKept === 1 ? "version" : `${versionsKept} versions`}, and any a Story page shows.</p> : null}
         <OnTheStory mockup={e} shown={shown} page={null} />
         {/* Not disabled while it prepares: that would drop the keyboard's focus to the page. */}
         <Button size="sm" icon="download" className="story-export-button" onClick={download} aria-disabled={downloading || undefined}>
@@ -468,7 +471,7 @@ export function MockupPage() {
   const versions = useQuery({
     queryKey: ["mockup-versions", base, mockupId],
     enabled: e.isSuccess,
-    queryFn: () => api<{ items: VersionItem[] }>("GET", `${base}/mockups/${mockupId}/versions?limit=100`),
+    queryFn: () => api<{ items: VersionItem[]; versions_kept?: number | null }>("GET", `${base}/mockups/${mockupId}/versions?limit=100`),
   });
   const wantsOld = asked !== null && e.data !== undefined && asked !== e.data.current_version;
   const old = useQuery({
@@ -612,7 +615,13 @@ export function MockupPage() {
         <Callout tone="attention" title={`You’re looking at an earlier version: ${old.data.version} of ${x.current_version}`} action={<Button size="sm" onClick={() => onVersion(x.current_version)}>Show the current version</Button>} />
       ) : null}
       {wantsOld && old.isError ? (
-        <Callout tone="attention" title={`This mockup has no version ${asked}`} action={<Button size="sm" onClick={() => onVersion(x.current_version)}>Show the current version</Button>} />
+        <Callout
+          tone="attention"
+          title={deletedVersion(old.error) ? `Version ${asked} was deleted` : `This mockup has no version ${asked}`}
+          action={<Button size="sm" onClick={() => onVersion(x.current_version)}>Show the current version</Button>}
+        >
+          {deletedVersion(old.error) ? "The organization’s plan keeps only each mockup’s newest versions, and those a Story page shows." : null}
+        </Callout>
       ) : null}
       {shown ? <Canvas
           key={shown.version}
@@ -632,6 +641,7 @@ export function MockupPage() {
             e={x}
             shown={shown}
             versions={versions.data?.items}
+            versionsKept={versions.data?.versions_kept}
             onVersion={onVersion}
             selected={shownPage}
             clickable={clickable}

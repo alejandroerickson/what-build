@@ -13,6 +13,8 @@ export interface Limit {
   per: string;
   refusal: string;
   help: string;
+  /** The least it may be set to, where that is more than 0. */
+  min?: number;
 }
 
 /** A limit's value: a number, a switch, or null for no limit. */

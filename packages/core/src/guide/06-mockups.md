@@ -115,7 +115,11 @@ At most 50 files and 2,000,000 characters a version.
 
 ## Versions
 
-A version is the whole canvas, and every version stays readable.
+A version is the whole canvas. A mockup keeps its newest versions, as many as its organization's
+plan says (10 unless it says otherwise; `list_versions` gives `versions_kept`), and every version a
+Story page shows. Publishing past them deletes the oldest, and `versions_deleted` in the answer names
+them. A deleted version's number is never used again, and reading it answers `410 version_deleted`
+with the versions kept.
 `mockups_write(action="publish")` without `mockup_id` creates the mockup: a title, a brief, and at
 least one page, each with its `page_id` (a slug you choose, as `onboarding-a`), a title and HTML. A later version takes the
 mockup's etag (from `get`) and only what changes: `pages` is the whole canvas in order; a page that

@@ -362,6 +362,13 @@ input[type="file"]::file-selector-button {
   outline-offset: 1px;
 }
 
+/* Under an inspector's version picker: how many versions the plan keeps. */
+.versions-kept {
+  margin: var(--s-2) 0 0;
+  color: var(--faint);
+  font-size: var(--fs-sm);
+}
+
 /* A select-like button in the inspector; use as a Menu trigger (triggerClassName="field-button"). */
 .field-button {
   display: flex;

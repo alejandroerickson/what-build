@@ -40,7 +40,7 @@ function readLimit(key: keyof Limits, v: unknown): number | boolean | null | und
   if (!info) return undefined;
   if (info.group === "switch") return typeof v === "boolean" ? v : undefined;
   if (v === null) return info.group === "total" || key === "sent_bytes_per_day" ? null : undefined;
-  return typeof v === "number" && Number.isInteger(v) && v >= 0 ? v : undefined;
+  return typeof v === "number" && Number.isInteger(v) && v >= (info.min ?? 0) ? v : undefined;
 }
 
 /** Each plan's limits and price as the deployment has them: an instance owner's changes over what its configuration defines. */

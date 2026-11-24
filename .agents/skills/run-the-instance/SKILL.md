@@ -75,9 +75,12 @@ is the same for everyone, an instance owner included: it changes nothing.
 2. **Define or change the plans** (only when the deployment sells plans):
    - Edit the deployment's plans file in the form of `deploy/plans.example.json`: every plan's id,
      name, what it is for, every limit (sizes as bytes or "10 MB"), and its price or null. What each
-     product holds (`mockups_max`, `story_pages_max`, `playbook_files_max`, `playbook_bytes_max`)
-     may be left out, and then keeps its default (50, 50, 2,000, "32 MB"), which Unlimited
-     organizations meet too.
+     product holds (`mockups_max`, `story_pages_max`, `playbook_files_max`, `playbook_bytes_max`,
+     `mockup_versions_max`, `story_page_versions_max`) may be left out, and then keeps its default
+     (50, 50, 2,000, "32 MB", 10, 10). Unlimited organizations have no limit on mockups and Story
+     pages, and meet the rest at their defaults. The two versions limits are how many versions each
+     mockup and Story page keeps (at least 1, or null for every one): publishing past them deletes
+     the oldest for good, so tell the person that before lowering one.
    - Check it: `corepack pnpm plans <file> <starting plan id>`. It prints each plan as the server
      will read it, or what is wrong.
    - Store it and make a new revision, with the commands in `cloud-run.md`; the first time, or with

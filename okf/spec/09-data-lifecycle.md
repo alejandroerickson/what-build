@@ -211,8 +211,8 @@ from backup on request. The product-level answer to "I broke it" is:
 |---|---|
 | Attachment versions — every upload to the same path | [§4.5](04-data-model.md) |
 | Readings — what every version of every attachment was read as, retained and readable by id | [§5.1](05-derived-layer.md) |
-| Story page versions — immutable, numbered | [§4.11](04-data-model.md) |
-| Mockup versions — immutable, numbered, each the whole canvas | [§4.12](04-data-model.md) |
+| Story page versions — immutable, numbered, the newest the plan keeps (`story_page_versions_max`, default 10) | [§4.11](04-data-model.md) |
+| Mockup versions — immutable, numbered, each the whole canvas; the newest the plan keeps (`mockup_versions_max`, default 10), and every version a Story page shows | [§4.12](04-data-model.md) |
 | Outcome revisions — the previous text, on every content change | [§4.1](04-data-model.md) |
 | Playbook revisions — every write, move, removal and restore of every file of a product's Playbook, the latest 100 of each, readable and restorable | [§4.16](04-data-model.md#416-the-playbook) |
 | Archive and restore — for sources, annotations, outcomes, Story pages, mockups, products | §9.5 |
@@ -536,6 +536,8 @@ instead, set on the same page ([§3.10](03-accounts-and-identity.md#310-the-exam
 | Story pages, archived ones included (default 50) | `story_pages_max` | each product | `409 quota_exceeded`, quota `story_pages` |
 | Files in the Playbook, removed ones not counted (default 2,000) | `playbook_files_max` | each product | `422 playbook_full` |
 | What the Playbook's files hold together, removed ones not counted (default 32 MiB) | `playbook_bytes_max` | each product | `422 playbook_full` |
+| Versions of a mockup kept, besides those a Story page shows; at least 1 (default 10) | `mockup_versions_max` | each mockup | none: publishing past it deletes the oldest |
+| Versions of a Story page kept; at least 1 (default 10) | `story_page_versions_max` | each Story page | none: publishing past it deletes the oldest |
 | Calls, reads included | `requests_per_minute` | each person, each minute | `429 rate_limited` |
 | Writes | `writes_per_minute` | each person, each minute | `429 rate_limited` |
 | Writes | `writes_per_day` | each person, each day | `409 quota_exceeded` |
@@ -557,16 +559,31 @@ may cost at most and what a real discovery uses: one product with a few dozen so
 megabytes.
 
 **What each product holds** (`mockups_max`, `story_pages_max`, `playbook_files_max`,
-`playbook_bytes_max`, `PRODUCT_TOTALS` in `plans.ts`) is a plan's like any other total, and the
-Playbook's limits also hold where no plan's limits apply. Their defaults (`PRODUCT_TOTAL_DEFAULTS`:
-50 mockups, 50 Story pages, a Playbook of 2,000 files and 32 MiB) are what every organization met
-before a plan could set them, and what a plan's definition that leaves them out gets. An
-organization on `unlimited`, or on a plan the deployment no longer defines, has no limit on mockups
-and Story pages, and the Playbook's defaults, since its download is built in memory
-(`unlimitedProductTotal`). They are checked in the operation that adds to them (`productTotal` in
-`limits.ts`), and `products.limits` gives them on `unlimited` too, without `used`.
+`playbook_bytes_max`, `mockup_versions_max`, `story_page_versions_max`, `PRODUCT_TOTALS` in
+`plans.ts`) is a plan's like any other total, and the Playbook's limits and the versions kept also
+hold where no plan's limits apply. Their defaults (`PRODUCT_TOTAL_DEFAULTS`: 50 mockups, 50 Story
+pages, a Playbook of 2,000 files and 32 MiB, 10 versions of each mockup and each Story page) are
+what a plan's definition that leaves them out gets; the first four are what every organization met
+before a plan could set them. An organization on `unlimited`, or on a plan the deployment no longer
+defines, has no limit on mockups and Story pages, the Playbook's defaults, since its download is
+built in memory, and 10 versions of each mockup and Story page (`unlimitedProductTotal`). They are
+checked in the operation that adds to them (`productTotal` in `limits.ts`), and `products.limits`
+gives them on `unlimited` too, without `used`.
 ◆ Decision: on `unlimited` mockups and Story pages have no limit (the maintainer, 2026-11-23: their
 own products stopped at 50 mockups); the Playbook keeps its size until its download streams.
+
+**The versions kept** refuse nothing: publishing a version of a mockup (`mockups.publish`) or a Story
+page (`story.publish`, `story.promote_mockup`) past them deletes the oldest in the same transaction
+(`versions-kept.ts`), and the answer names them in `versions_deleted`. The newest are kept, the
+current one always among them. A mockup also keeps every version a Story page version shows; when a
+Story page's trim deletes the last version showing one, the mockup is trimmed too. A deleted mockup
+version's pages, files and prototype rows go with it, and its prototype's bytes once no version
+holds them (`delete_blobs`). Numbers are never reused: a read of a deleted version answers `410
+version_deleted` with the versions kept, and `version_count` stays the newest number. A plan that
+keeps fewer than an object holds trims it at its next version; nothing is trimmed until then. Every
+trim records `versions_deleted` in the activity. At least one version is always kept, so a plan's
+value is at least 1, or null to keep every one.
+◆ Decision: [mockups and Story pages keep their newest versions](../decisions/mockups-and-story-pages-keep-their-newest-versions.md).
 
 Rules:
 

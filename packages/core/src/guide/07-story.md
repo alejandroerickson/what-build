@@ -51,6 +51,10 @@ nothing.
 - On a later version, the title, summary and page left out carry forward (`carried_forward` names
   them). `patch_html` fixes text by exact find and replace; `from_version: N` restores an earlier
   version as a new one. `html_sha256` on every version shows identical HTML without reading it.
+- A page keeps its newest versions, as many as its organization's plan says (10 unless it says
+  otherwise; `list_versions` gives `versions_kept`). Publishing or promoting past them deletes the
+  oldest (`versions_deleted` names them), and reading one answers `410 version_deleted`. A mockup
+  version that only a deleted Story version showed goes too, once the mockup holds more than it keeps.
 - The title is the page's name, in the navigation, above the page and to its readers; each version
   keeps the title it was published with. `story_write(action="rename_page")` changes the name with
   the page's etag and makes no version, leaving the HTML, and any heading in it, as it is. A title

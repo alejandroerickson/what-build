@@ -25,6 +25,8 @@
         "story_pages_max": 50,
         "playbook_files_max": 2000,
         "playbook_bytes_max": "32 MB",
+        "mockup_versions_max": 5,
+        "story_page_versions_max": 5,
         "sent_bytes_per_day": "300 MB",
         "fetch_url": true,
         "documents_only": true
@@ -55,6 +57,8 @@
         "story_pages_max": 50,
         "playbook_files_max": 2000,
         "playbook_bytes_max": "32 MB",
+        "mockup_versions_max": 10,
+        "story_page_versions_max": 10,
         "sent_bytes_per_day": "1 GB",
         "fetch_url": true,
         "documents_only": false

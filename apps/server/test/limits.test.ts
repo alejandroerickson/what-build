@@ -723,6 +723,8 @@ describe("what each product holds", () => {
       expect.objectContaining({ key: "story_pages_max", group: "total", per: "Each product", refusal: "409 quota_exceeded" }),
       expect.objectContaining({ key: "playbook_files_max", group: "total", per: "Each product", refusal: "422 playbook_full" }),
       expect.objectContaining({ key: "playbook_bytes_max", group: "total", per: "Each product", refusal: "422 playbook_full" }),
+      expect.objectContaining({ key: "mockup_versions_max", group: "total", per: "Each mockup", refusal: "none: the oldest is deleted" }),
+      expect.objectContaining({ key: "story_page_versions_max", group: "total", per: "Each Story page", refusal: "none: the oldest is deleted" }),
     ]);
     expect(listed.plan_defaults.free).toMatchObject({ mockups_max: 50, story_pages_max: 50 });
     expect((await fay.api("PATCH", "/api/v1/plans", { plan: "free", limits: { mockups_max: 2 } })).status).toBe(403);
@@ -782,6 +784,97 @@ describe("what each product holds", () => {
     const back = await root.api("PATCH", "/api/v1/plans", { plan: "free", reset: true, ...(await planEtag()) });
     expect(back.status, JSON.stringify(back.body)).toBe(200);
     expect((await limitsOf(ned)).limits.find((l: { key: string }) => l.key === "mockups_max").value).toBe(PRODUCT_TOTAL_DEFAULTS.mockups_max);
+  });
+});
+
+describe("the versions each mockup and Story page keeps", () => {
+  const page = (heading: string) => `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>${heading}</title></head><body><h1>${heading}</h1></body></html>`;
+  let mockupId: string | undefined;
+  let etag: string | undefined;
+  /** Publish the kept mockup's next version, or its first. */
+  const publish = async (heading: string) => {
+    const r = await ned.api("POST", `${P}/mockups`, mockupId ? { mockup_id: mockupId, expected_etag: etag, pages: [{ page_id: "a", html: page(heading) }] } : { title: "Kept", pages: [{ page_id: "a", title: "A", html: page(heading) }] });
+    expect(r.status, JSON.stringify(r.body)).toBe(201);
+    mockupId = r.body.mockup_id;
+    etag = r.body.etag;
+    return r.body;
+  };
+  const versionsOf = async (path: string) => ((await ned.api("GET", path)).body.items as { version: number }[]).map((v) => v.version);
+  beforeAll(() => tweak({ writes_per_day: 10_000, org_writes_per_day: 10_000, mockup_versions_max: 2, story_page_versions_max: 2 }));
+  afterAll(() => reset());
+
+  it("are listed with the plan's other totals, and an instance owner can't set fewer than one", async () => {
+    const listed = (await root.api("GET", "/api/v1/organizations")).body;
+    expect(listed.limits.filter((l: { key: string }) => l.key.endsWith("_versions_max"))).toEqual([
+      expect.objectContaining({ key: "mockup_versions_max", group: "total", per: "Each mockup", unit: "versions", min: 1 }),
+      expect.objectContaining({ key: "story_page_versions_max", group: "total", per: "Each Story page", unit: "versions", min: 1 }),
+    ]);
+    expect(FREE_AS_SHIPPED).toMatchObject({ mockup_versions_max: 5, story_page_versions_max: 5 });
+    expect(PRO_AS_SHIPPED).toMatchObject({ mockup_versions_max: 10, story_page_versions_max: 10 });
+    const zero = await root.api("PATCH", "/api/v1/plans", { plan: "free", limits: { mockup_versions_max: 0 } });
+    expect(zero.status).toBe(422);
+  });
+
+  it("delete a mockup's oldest versions past the plan's, keeping those a Story page shows", async () => {
+    await publish("One");
+    expect((await publish("Two")).versions_deleted).toBeUndefined();
+    // The Story shows version 2, so it stays when newer ones come.
+    const promoted = await ned.api("POST", `${P}/story/promote-mockup`, { mockup_id: mockupId, version: 2, page_id: "kept-board" });
+    expect(promoted.status, JSON.stringify(promoted.body)).toBe(201);
+    expect(await publish("Three")).toMatchObject({ versions_deleted: [1], versions_kept: 2 });
+    expect((await publish("Four")).versions_deleted).toBeUndefined();
+    const list = await ned.api("GET", `${P}/mockups/${mockupId}/versions`);
+    expect(list.body.versions_kept).toBe(2);
+    expect(list.body.items.map((v: { version: number }) => v.version)).toEqual([4, 3, 2]);
+    // Reading a deleted version says so, and which it keeps; a number it never reached is not found.
+    const gone = await ned.api("GET", `${P}/mockups/${mockupId}/versions/1`);
+    expect(gone.status).toBe(410);
+    expect(gone.body.error).toMatchObject({ code: "version_deleted", details: { version: 1, versions_kept: [2, 3, 4] } });
+    expect(gone.body.error.message).toContain("It keeps versions 2 to 4.");
+    expect((await ned.api("GET", `${P}/mockups/${mockupId}/versions/9`)).status).toBe(404);
+    expect((await ned.api("POST", `${P}/mockups`, { mockup_id: mockupId, expected_etag: etag, from_version: 1 })).status).toBe(410);
+    // What deleting it would destroy counts the versions it holds, not its newest number.
+    expect((await fay.api("GET", `${P}/mockups/${mockupId}/delete-impact`)).body.version_count).toBe(3);
+    const log = (await ned.api("GET", `${P}/activity?entity_type=mockup`)).body.items as { action: string; summary: string; entity_id: string }[];
+    expect(log.find((i) => i.action === "versions_deleted" && i.entity_id === mockupId)!.summary).toBe("Deleted version 1: the organization's plan keeps each mockup's newest 2");
+  });
+
+  it("delete a Story page's oldest versions, and a mockup version only they showed", async () => {
+    // The page that shows mockup version 2 moves to version 4, twice: its first version, which showed version 2, goes, and version 2 with it.
+    const pe = (await ned.api("GET", `${P}/story/pages/kept-board`)).body.etag;
+    const second = await ned.api("POST", `${P}/story/promote-mockup`, { mockup_id: mockupId, version: 4, page_id: "kept-board", expected_etag: pe });
+    expect(second.status, JSON.stringify(second.body)).toBe(201);
+    expect(second.body.versions_deleted).toBeUndefined();
+    const third = await ned.api("POST", `${P}/story/promote-mockup`, { mockup_id: mockupId, version: 4, page_id: "kept-board", expected_etag: second.body.etag });
+    expect(third.body).toMatchObject({ versions_deleted: [1], versions_kept: 2 });
+    expect(await versionsOf(`${P}/story/pages/kept-board/versions`)).toEqual([3, 2]);
+    expect(await versionsOf(`${P}/mockups/${mockupId}/versions`)).toEqual([4, 3]);
+    // Publishing HTML of its own trims as promoting does.
+    const fourth = await ned.api("POST", `${P}/story/pages/kept-board/versions`, { expected_etag: third.body.etag, body: "<p>Its own words now.</p>" });
+    expect(fourth.status, JSON.stringify(fourth.body)).toBe(201);
+    expect(fourth.body).toMatchObject({ versions_deleted: [2], versions_kept: 2 });
+    const old = await ned.api("GET", `${P}/story/pages/kept-board/versions/1`);
+    expect(old.status).toBe(410);
+    expect(old.body.error).toMatchObject({ code: "version_deleted", details: { versions_kept: [3, 4] } });
+    expect((await ned.api("POST", `${P}/story/pages/kept-board/versions`, { expected_etag: fourth.body.etag, from_version: 2 })).status).toBe(410);
+    expect((await ned.api("GET", `${P}/story/pages/kept-board/versions`)).body.versions_kept).toBe(2);
+    expect((await fay.api("GET", `${P}/story/pages/kept-board/delete-impact`)).body.version_count).toBe(2);
+  });
+
+  it("keep every version where the plan sets no number, and ten on the unlimited plan", async () => {
+    tweak({ mockup_versions_max: null });
+    for (const heading of ["Five", "Six", "Seven"]) expect((await publish(heading)).versions_deleted).toBeUndefined();
+    expect(await versionsOf(`${P}/mockups/${mockupId}/versions`)).toEqual([7, 6, 5, 4, 3]);
+    expect((await ned.api("GET", `${P}/mockups/${mockupId}/versions`)).body.versions_kept).toBeNull();
+    const first = await root.api("POST", `${U}/mockups`, { title: "Roomy", pages: [{ page_id: "a", title: "A", html: page("1") }] });
+    let e = first.body.etag as string;
+    for (let n = 2; n <= 11; n++) {
+      const r = await root.api("POST", `${U}/mockups`, { mockup_id: first.body.mockup_id, expected_etag: e, pages: [{ page_id: "a", html: page(String(n)) }] });
+      expect(r.status, JSON.stringify(r.body)).toBe(201);
+      e = r.body.etag;
+      if (n < 11) expect(r.body.versions_deleted).toBeUndefined();
+      else expect(r.body).toMatchObject({ versions_deleted: [1], versions_kept: 10 });
+    }
   });
 });
 

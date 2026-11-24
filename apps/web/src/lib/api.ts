@@ -155,3 +155,8 @@ export function putWithProgress(url: string, headers: Record<string, string>, fi
     xhr.send(file);
   });
 }
+
+/** Whether a read failed because the version asked for was deleted, past what the organization's plan keeps. */
+export function deletedVersion(error: unknown): boolean {
+  return error instanceof ApiError && error.code === "version_deleted";
+}
