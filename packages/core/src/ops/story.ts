@@ -23,6 +23,7 @@ import { newEtag, newId, randomToken, sha256Hex, uniq } from "../util.ts";
 import { makeRoomForPreview, openThePreview, PREVIEW_OPENING, PREVIEW_SECRET, previewGrant } from "../previews.ts";
 import { citedByPlaybook } from "../playbook.ts";
 import { playbookFilesFor } from "./playbook.ts";
+import { noSuchVersion, trimStoryVersions, versionsKept } from "./versions-kept.ts";
 
 export const MAX_DEPTH = 6;
 
@@ -516,7 +517,7 @@ export const listVersions = defineOperation({
   mutates: false,
   summary: "A page's published versions, newest first, without HTML.",
   description:
-    "Versions are immutable and numbered 1, 2, 3…; read any one with get_version, and restore one with publish from_version. html_sha256 tells versions with identical HTML apart without reading it. A Story reader (story_reader) gets 404 for an archived page.",
+    "Versions are immutable and numbered 1, 2, 3…; read any one with get_version, and restore one with publish from_version. html_sha256 tells versions with identical HTML apart without reading it. versions_kept is how many versions each Story page keeps on the organization's plan (null: every one): publishing past it deletes the oldest, and reading a deleted one answers 410 version_deleted. A Story reader (story_reader) gets 404 for an archived page.",
   input: z.strictObject({ page_id: pageId, limit: z.number().int().min(1).max(100).default(25), before: z.number().int().min(1).optional().describe("Only versions numbered below this.") }),
   rest: { method: "GET", path: "/story/pages/:page_id/versions" },
   mcp: { tool: "story", action: "list_versions" },
@@ -533,7 +534,7 @@ export const listVersions = defineOperation({
     if (input.before) q = q.where("n", "<", input.before);
     const rows = await q.orderBy("n", "desc").limit(input.limit + 1).execute();
     const items = rows.slice(0, input.limit).map((v) => ({ version_id: v.version_id, version: v.n, title: v.title, summary: v.summary, html_sha256: v.html_sha256, published_at: v.created_at, published_by: v.created_by }));
-    return { items, next_before: rows.length > input.limit ? items[items.length - 1]!.version : null };
+    return { items, next_before: rows.length > input.limit ? items[items.length - 1]!.version : null, versions_kept: versionsKept(ctx, "story_page_versions_max") };
   },
 });
 
@@ -550,7 +551,7 @@ export const getVersion = defineOperation({
   async handler(ctx, input) {
     const p = await loadReadablePage(ctx, input.page_id);
     const v = await ctx.db.selectFrom("story_versions").select("version_id").where("product_id", "=", productId(ctx)).where("page_id", "=", input.page_id).where("n", "=", input.version).executeTakeFirst();
-    if (!v) throw notFound(`Page "${input.page_id}" has no version ${input.version}.`);
+    if (!v) throw await noSuchVersion(ctx, { page_id: input.page_id }, input.version, `Page "${input.page_id}" has no version ${input.version}.`);
     return { ...(await versionView(ctx, v.version_id, input.include_html)), page_archived_at: p.archived_at, is_current: v.version_id === p.current_version_id };
   },
 });
@@ -669,7 +670,7 @@ async function draftVersion(ctx: OpContext, input: PublishInput, opts: { lock: b
   let base = ctx.db.selectFrom("story_versions").select(["n", "title", "summary", "html", "mockup"]).where("product_id", "=", pid).where("page_id", "=", input.page_id);
   base = input.from_version ? base.where("n", "=", input.from_version) : base.where("version_id", "=", existing.current_version_id);
   const from = await base.executeTakeFirst();
-  if (!from) throw notFound(`Page "${input.page_id}" has no version ${input.from_version}; its versions run from 1 to ${existing.version_count}.`, { version_count: existing.version_count });
+  if (!from) throw await noSuchVersion(ctx, { page_id: input.page_id }, input.from_version!, `Page "${input.page_id}" has no version ${input.from_version}; its newest is ${existing.version_count}.`);
   const carried = CARRIED.filter((f) => input[f] === undefined && !(f === "html" && ways.length > 0));
   // The title is the page's name, which rename_page changes without a version: a version that sends
   // none keeps the name the page has now, whichever version it starts from.
@@ -705,7 +706,7 @@ export const publish = defineOperation({
   mutates: true,
   summary: "Publish a new version of a Story page (creating the page on its first version). A later version keeps whatever you omit.",
   description:
-    `Call guidance first, and get_page before revising (read its agent_notes too). Send the same call to preview first: it checks everything publish checks and gives you the exact page to look at, publishing nothing. A page's first version: omit expected_etag, give a title, and give body (or html for a whole document of your own, or neither for a generated title page). Prefer body: it is only the markup inside <body>, and WhatBuild puts the product's Story style around it, so the stylesheet is never sent and every page carries the same one. A later version: pass the page etag and send only what changes — the title you omit stays the page's title as it is now (rename_page changes it without a version), the summary and html you omit are taken from the current version, and carried_forward in the result names them. To change a sentence, patch_html applies exact find/replace edits instead of re-sending the page. After set_style, restyle: true gives a page the new stylesheet and keeps its content. from_version: N starts from that earlier version instead, so from_version alone restores it as a new version under the page's title now; compare html_sha256 to confirm the HTML is identical. The HTML is validated and every problem is listed at once (422). summary describes the page itself. Publishing never places the page in the navigation: call set_hierarchy afterwards, and update the page's notes with write_notes (agent_notes_etag is in the result). If a response is lost, sending the same call again is safe: once the version has landed it fails with stale_etag, and get_page shows it. links_to_no_page in the result names the Story pages this page links to (links.story_page) that a reader can't open, since no such page is published or it is archived: publish them, or change the links. Never invent facts, owners or dates, and never present what is still unconfirmed as settled.`,
+    `Call guidance first, and get_page before revising (read its agent_notes too). Send the same call to preview first: it checks everything publish checks and gives you the exact page to look at, publishing nothing. A page's first version: omit expected_etag, give a title, and give body (or html for a whole document of your own, or neither for a generated title page). Prefer body: it is only the markup inside <body>, and WhatBuild puts the product's Story style around it, so the stylesheet is never sent and every page carries the same one. A later version: pass the page etag and send only what changes — the title you omit stays the page's title as it is now (rename_page changes it without a version), the summary and html you omit are taken from the current version, and carried_forward in the result names them. To change a sentence, patch_html applies exact find/replace edits instead of re-sending the page. After set_style, restyle: true gives a page the new stylesheet and keeps its content. from_version: N starts from that earlier version instead, so from_version alone restores it as a new version under the page's title now; compare html_sha256 to confirm the HTML is identical. Each page keeps as many versions as the organization's plan says (10 unless it says otherwise; list_versions gives versions_kept): a version published past them deletes the oldest, and the result names them in versions_deleted. The HTML is validated and every problem is listed at once (422). summary describes the page itself. Publishing never places the page in the navigation: call set_hierarchy afterwards, and update the page's notes with write_notes (agent_notes_etag is in the result). If a response is lost, sending the same call again is safe: once the version has landed it fails with stale_etag, and get_page shows it. links_to_no_page in the result names the Story pages this page links to (links.story_page) that a reader can't open, since no such page is published or it is archived: publish them, or change the links. Never invent facts, owners or dates, and never present what is still unconfirmed as settled.`,
   input: publishInput,
   rest: { method: "POST", path: "/story/pages/:page_id/versions" },
   mcp: { tool: "story", action: "publish" },
@@ -731,6 +732,7 @@ export const publish = defineOperation({
         .execute();
       await recordActivity(ctx, { action: "updated", entity_type: "story_page", entity_id: input.page_id, entity_title: d.title, summary: `Published version ${d.n}${input.from_version ? ` from version ${input.from_version}` : ""}` });
     }
+    const versions_deleted = d.existing ? await trimStoryVersions(ctx, { page_id: input.page_id, title: d.title }) : [];
     const p = await loadPage(ctx, input.page_id);
     const noPage = d.mockup ? [] : await linksToNoPage(ctx, d.html, input.page_id);
     return {
@@ -741,6 +743,7 @@ export const publish = defineOperation({
       agent_notes_etag: p.agent_notes_etag,
       placed: await isPlaced(ctx, input.page_id),
       ...(noPage.length ? { links_to_no_page: noPage, links_to_no_page_note: LINKS_TO_NO_PAGE_NOTE } : {}),
+      ...(versions_deleted.length ? { versions_deleted, versions_kept: versionsKept(ctx, "story_page_versions_max") } : {}),
     };
   },
 });
@@ -1050,7 +1053,7 @@ export const promoteMockup = defineOperation({
   mutates: true,
   summary: "Show one page of a mockup, or its whole canvas, in the Story: a Story page version that points at it as it is in one mockup version, never a copy.",
   description:
-    "mockup_page_id chooses the page on the canvas; omit it to show the whole canvas, which takes one Story page however many pages the canvas has. page_id chooses the Story page. A page_id no page has yet creates the page under that id. The page_id of an existing page, with its etag, publishes that page's next version showing the mockup page or canvas, which is how a Story page moves to a newer mockup version: it never follows the mockup by itself. Without page_id, the new page's id is the mockup page's own slug, or a slug of the mockup's title for a whole canvas, with -2, -3… if that is taken. A new page is titled with the mockup page's title, or the mockup's for a whole canvas, unless you give one. Name the page_id when you can: if a response is lost, the same call sent again then fails with stale_etag instead of making a second page. version is the mockup version, the current one when omitted. The Story page shows a mockup page at its own size, scaled to fit, in the same sandbox, and a whole canvas as the mockup's board, to pan and zoom, with each page's title. On a whole canvas, links between its pages fly between them. A page shown alone takes a link to another page of its canvas to the Story page that shows that page, or to a Story page showing the whole canvas; links_off_story in the answer names the pages it links to that no Story page shows, so promote those too or show the whole canvas. A Story reader sees that and nothing else of the mockup: never its brief, notes, files or other versions. Publishing html or body on the page later replaces it with HTML of its own. A new page is unplaced, like any page: it reads at the end of the tree until set_hierarchy places it, and an existing page keeps its place. placed in the result says which.",
+    "mockup_page_id chooses the page on the canvas; omit it to show the whole canvas, which takes one Story page however many pages the canvas has. page_id chooses the Story page. A page_id no page has yet creates the page under that id. The page_id of an existing page, with its etag, publishes that page's next version showing the mockup page or canvas, which is how a Story page moves to a newer mockup version: it never follows the mockup by itself. A mockup keeps every version a Story page version shows, past the versions its plan keeps; that next version may delete the page's oldest versions as publish does (versions_deleted), and a mockup version only they showed then goes too. Without page_id, the new page's id is the mockup page's own slug, or a slug of the mockup's title for a whole canvas, with -2, -3… if that is taken. A new page is titled with the mockup page's title, or the mockup's for a whole canvas, unless you give one. Name the page_id when you can: if a response is lost, the same call sent again then fails with stale_etag instead of making a second page. version is the mockup version, the current one when omitted. The Story page shows a mockup page at its own size, scaled to fit, in the same sandbox, and a whole canvas as the mockup's board, to pan and zoom, with each page's title. On a whole canvas, links between its pages fly between them. A page shown alone takes a link to another page of its canvas to the Story page that shows that page, or to a Story page showing the whole canvas; links_off_story in the answer names the pages it links to that no Story page shows, so promote those too or show the whole canvas. A Story reader sees that and nothing else of the mockup: never its brief, notes, files or other versions. Publishing html or body on the page later replaces it with HTML of its own. A new page is unplaced, like any page: it reads at the end of the tree until set_hierarchy places it, and an existing page keeps its place. placed in the result says which.",
   input: z.strictObject({
     mockup_id: id("mockup"),
     mockup_page_id: mockupPageId.optional(),
@@ -1070,8 +1073,9 @@ export const promoteMockup = defineOperation({
     if (!m) throw notFound(`There is no mockup ${input.mockup_id} in this product.`);
     let vq = ctx.db.selectFrom("mockup_versions").select(["version_id", "n"]).where("mockup_id", "=", m.mockup_id);
     vq = input.version ? vq.where("n", "=", input.version) : vq.where("version_id", "=", m.current_version_id);
-    const mv = await vq.executeTakeFirst();
-    if (!mv) throw notFound(`Mockup ${m.mockup_id} has no version ${input.version}; its versions run from 1 to ${m.version_count}.`);
+    // Held until the Story page's version lands, so a trim of the mockup can't delete it meanwhile (versions-kept.ts).
+    const mv = await vq.forShare().executeTakeFirst();
+    if (!mv) throw await noSuchVersion(ctx, { mockup_id: m.mockup_id }, input.version!, `Mockup ${m.mockup_id} has no version ${input.version}; its newest is ${m.version_count}.`);
     const pages = await ctx.db.selectFrom("mockup_pages").select(["page_id", "title"]).where("version_id", "=", mv.version_id).orderBy("position").execute();
     // Without a page, the Story page shows the whole canvas.
     const mp = input.mockup_page_id === undefined ? null : pages.find((p) => p.page_id === input.mockup_page_id);
@@ -1120,6 +1124,7 @@ export const promoteMockup = defineOperation({
         .execute();
       await recordActivity(ctx, { action: "updated", entity_type: "story_page", entity_id: pageIdOut, entity_title: title, summary: `Published version ${n}, showing ${what}` });
     }
+    const versions_deleted = existing ? await trimStoryVersions(ctx, { page_id: pageIdOut, title: input.title ?? existing.title }) : [];
     const p = await loadPage(ctx, pageIdOut);
     const current = await versionView(ctx, p.current_version_id, false);
     const off = current.mockup && "links_off_story" in current.mockup ? current.mockup.links_off_story ?? [] : [];
@@ -1131,6 +1136,7 @@ export const promoteMockup = defineOperation({
       agent_notes_etag: p.agent_notes_etag,
       placed: await isPlaced(ctx, pageIdOut),
       ...(off.length ? { links_off_story: off, links_off_story_note: LINKS_OFF_STORY_NOTE } : {}),
+      ...(versions_deleted.length ? { versions_deleted, versions_kept: versionsKept(ctx, "story_page_versions_max") } : {}),
     };
   },
 });
@@ -1305,16 +1311,19 @@ async function pageDeletion(ctx: OpContext, p: Awaited<ReturnType<typeof loadPag
   const h = await ctx.db.selectFrom("story_hierarchies").select("items").where("product_id", "=", productId(ctx)).executeTakeFirst();
   const promoted = h ? removeFromTree(h.items, p.page_id).promoted : [];
   const current = await ctx.db.selectFrom("story_versions").select("mockup").where("version_id", "=", p.current_version_id).executeTakeFirst();
+  // The versions it holds, which its plan's trim may have made fewer than its newest number.
+  const held = await ctx.db.selectFrom("story_versions").select((eb) => eb.fn.countAll<number>().as("n")).where("product_id", "=", productId(ctx)).where("page_id", "=", p.page_id).executeTakeFirst();
+  const versions = Number(held?.n ?? 0);
   return {
     page_id: p.page_id,
     title: p.title,
     etag: p.etag,
     archived: Boolean(p.archived_at),
-    version_count: p.version_count,
+    version_count: versions,
     sub_pages_promoted: promoted,
     shows_mockup: current?.mockup ? { mockup_id: current.mockup.mockup_id, version: current.mockup.version, page_id: current.mockup.page_id } : null,
     after_delete:
-      `Every version of the page (${p.version_count}) goes, with its HTML and notes. ` +
+      `Every version of the page (${versions}) goes, with its HTML and notes. ` +
       (promoted.length ? `Its ${promoted.length} sub-page${promoted.length === 1 ? "" : "s"} move up into its place in the navigation. ` : "") +
       "Links to it from other pages stop opening. A mockup it shows is not touched.",
     reversible_alternative: 'story_write(action="archive_page") takes it out of the navigation and erases nothing.',
@@ -1387,7 +1396,8 @@ async function archivedPagesDeletion(ctx: OpContext, lock = false) {
   let q = ctx.db
     .selectFrom("story_pages as p")
     .innerJoin("story_versions as v", "v.version_id", "p.current_version_id")
-    .select(["p.page_id", "p.title", "p.etag", "p.archived_at", "p.version_count", "v.mockup"])
+    .select(["p.page_id", "p.title", "p.etag", "p.archived_at", "v.mockup"])
+    .select((eb) => eb.selectFrom("story_versions as sv").whereRef("sv.product_id", "=", "p.product_id").whereRef("sv.page_id", "=", "p.page_id").select(eb.fn.countAll<number>().as("n")).as("versions_held"))
     .where("p.product_id", "=", productId(ctx))
     .where("p.archived_at", "is not", null)
     .orderBy("p.title")
@@ -1399,7 +1409,7 @@ async function archivedPagesDeletion(ctx: OpContext, lock = false) {
     title: r.title,
     etag: r.etag,
     archived_at: r.archived_at,
-    version_count: r.version_count,
+    version_count: Number(r.versions_held ?? 0),
     shows_mockup: r.mockup ? { mockup_id: r.mockup.mockup_id, version: r.mockup.version, page_id: r.mockup.page_id } : null,
   }));
   const freed = uniq(pages.flatMap((p) => (p.shows_mockup ? [p.shows_mockup.mockup_id] : [])));

@@ -27,6 +27,7 @@ import { citedByPlaybook } from "../playbook.ts";
 import { playbookFilesFor } from "./playbook.ts";
 import { productTotal } from "../limits.ts";
 import { PRODUCT_TOTAL_DEFAULTS } from "../plans.ts";
+import { noSuchVersion, trimMockupVersions, versionsKept } from "./versions-kept.ts";
 
 /**
  * Mockups are where Exploration makes things: a canvas of HTML pages an agent built (screens,
@@ -212,7 +213,7 @@ async function versionView(ctx: OpContext, versionId: string, withHtml: boolean,
 
 async function versionIdOf(ctx: OpContext, mockupId: string, n: number) {
   const v = await ctx.db.selectFrom("mockup_versions").select("version_id").where("product_id", "=", productId(ctx)).where("mockup_id", "=", mockupId).where("n", "=", n).executeTakeFirst();
-  if (!v) throw notFound(`Mockup ${mockupId} has no version ${n}.`);
+  if (!v) throw await noSuchVersion(ctx, { mockup_id: mockupId }, n, `Mockup ${mockupId} has no version ${n}.`);
   return v.version_id;
 }
 
@@ -286,7 +287,8 @@ export const listMockupVersions = defineOperation({
   access: "read",
   mutates: false,
   summary: "A mockup's versions, newest first, without pages.",
-  description: "Versions are immutable and numbered 1, 2, 3…; read one with get_version, and start from one with publish from_version.",
+  description:
+    "Versions are immutable and numbered 1, 2, 3…; read one with get_version, and start from one with publish from_version. versions_kept is how many versions each mockup keeps on the organization's plan (null: every one): publishing past it deletes the oldest, except those a Story page shows, so the numbers listed may have gaps, and reading a deleted one answers 410 version_deleted.",
   input: z.strictObject({ mockup_id: id("mockup"), limit: z.number().int().min(1).max(100).default(25), before: z.number().int().min(1).optional().describe("Only versions numbered below this.") }),
   rest: { method: "GET", path: "/mockups/:mockup_id/versions" },
   mcp: { tool: "mockups", action: "list_versions" },
@@ -302,7 +304,7 @@ export const listMockupVersions = defineOperation({
     if (input.before) q = q.where("v.n", "<", input.before);
     const rows = await q.orderBy("v.n", "desc").limit(input.limit + 1).execute();
     const items = rows.slice(0, input.limit).map((v) => ({ version_id: v.version_id, version: v.n, title: v.title, summary: v.summary, page_count: Number(v.page_count ?? 0), file_count: Number(v.file_count ?? 0), published_at: v.created_at, published_by: v.created_by }));
-    return { items, next_before: rows.length > input.limit ? items[items.length - 1]!.version : null };
+    return { items, next_before: rows.length > input.limit ? items[items.length - 1]!.version : null, versions_kept: versionsKept(ctx, "mockup_versions_max") };
   },
 });
 
@@ -662,7 +664,7 @@ export const publishMockup = defineOperation({
   mutates: true,
   summary: "Publish the next version of a mockup's canvas, or create a mockup with its first version. A later version keeps whatever you omit.",
   description:
-    `Without mockup_id, creates a mockup: give a title, a brief and at least one page with its page_id (a slug you choose, as onboarding-a), a title and html, and no expected_etag (one sent is refused with 409 stale_etag and current_etag null, as there is nothing to match). A new mockup goes first among the mockups in no folder, or first in the folder folder_id names; a later version stays where the mockup is, and move files it elsewhere. With mockup_id, publishes the next version: pass the mockup's etag, and send only what changes. A title left out stays the mockup's title as it is now, which rename changes without a version; summary, brief and columns left out come from the base version. pages, when given, is the whole canvas in order: a page you leave out is dropped from this version, and a page whose page_id was on the base version keeps its title, notes, size and html unless you send them, so a version that changes one page sends that page's html alone. The brief is Markdown: what the canvas explores, for whom, the questions it is meant to answer, and what each page tries; write it for the next agent as much as for people. Each page is one self-contained HTML document shown in a sandboxed frame of width × height CSS pixels (default ${DEFAULT_WIDTH} × ${DEFAULT_HEIGHT}; 390 wide for a phone; height at most ${PAGE_HEIGHT_MAX}, or "auto" for the content's height), with no network. ${PAGE_RULES_TEXT} ${SAFE_CHECK_TEXT} ${TALL_PAGES_TEXT} columns sets how many pages sit side by side before the canvas wraps; null keeps one row. files carries text files for collaborators to pull into their own projects (DESIGN.md, components, tokens), at most ${MAX_MOCKUP_FILES} and ${(MOCKUP_FILES_TOTAL / 1_000_000).toFixed(0)} million characters a version; WhatBuild never uses them to draw a page, so inline what a page needs. Like pages, files when given is the whole set: a path that was on the base keeps its content unless you send it, a path you leave out is dropped, a new path needs content, and [] drops them all; omit files to keep them. ${PROTOTYPE_TEXT} A version published without an upload keeps its base's prototype, and its pages may enter it. from_version: N starts from that earlier version instead of the current one. To keep page HTML out of the call, upload the canvas as a ZIP (request_upload) and pass upload_id: the ZIP gives pages, files and the brief, and its manifest.json may give title, summary and columns, which the call's own win over; a new mockup from an upload alone needs title in the manifest, brief.md and a page with its HTML. The call gives the rest, and the result names from_upload with upload {upload_id, size, sha256}, the ZIP's own bytes as its PUT answered. At most ${MAX_MOCKUP_PAGES} pages, ${(MOCKUP_HTML_TOTAL / 1_000_000).toFixed(0)} million characters of HTML in all, and as many mockups in a product, archived ones included, as the organization's plan allows (${PRODUCT_TOTAL_DEFAULTS.mockups_max} unless it says otherwise; list gives quota, used and limit). It answers with what you need next, not the canvas you sent: mockup_id, title, current_version and current_version_id, the etag to publish the next version with, based_on_version, page_ids in the canvas's order, url (the canvas in the web app, to give the person), and prototype_warnings when an upload brings a prototype; mockups_read(action="get") reads the version back. ${PAGE_LINKS_TEXT}`,
+    `Without mockup_id, creates a mockup: give a title, a brief and at least one page with its page_id (a slug you choose, as onboarding-a), a title and html, and no expected_etag (one sent is refused with 409 stale_etag and current_etag null, as there is nothing to match). A new mockup goes first among the mockups in no folder, or first in the folder folder_id names; a later version stays where the mockup is, and move files it elsewhere. With mockup_id, publishes the next version: pass the mockup's etag, and send only what changes. A title left out stays the mockup's title as it is now, which rename changes without a version; summary, brief and columns left out come from the base version. pages, when given, is the whole canvas in order: a page you leave out is dropped from this version, and a page whose page_id was on the base version keeps its title, notes, size and html unless you send them, so a version that changes one page sends that page's html alone. The brief is Markdown: what the canvas explores, for whom, the questions it is meant to answer, and what each page tries; write it for the next agent as much as for people. Each page is one self-contained HTML document shown in a sandboxed frame of width × height CSS pixels (default ${DEFAULT_WIDTH} × ${DEFAULT_HEIGHT}; 390 wide for a phone; height at most ${PAGE_HEIGHT_MAX}, or "auto" for the content's height), with no network. ${PAGE_RULES_TEXT} ${SAFE_CHECK_TEXT} ${TALL_PAGES_TEXT} columns sets how many pages sit side by side before the canvas wraps; null keeps one row. files carries text files for collaborators to pull into their own projects (DESIGN.md, components, tokens), at most ${MAX_MOCKUP_FILES} and ${(MOCKUP_FILES_TOTAL / 1_000_000).toFixed(0)} million characters a version; WhatBuild never uses them to draw a page, so inline what a page needs. Like pages, files when given is the whole set: a path that was on the base keeps its content unless you send it, a path you leave out is dropped, a new path needs content, and [] drops them all; omit files to keep them. ${PROTOTYPE_TEXT} A version published without an upload keeps its base's prototype, and its pages may enter it. from_version: N starts from that earlier version instead of the current one. Each mockup keeps as many versions as the organization's plan says (${PRODUCT_TOTAL_DEFAULTS.mockup_versions_max} unless it says otherwise; list_versions gives versions_kept): a version published past them deletes the oldest, except those a Story page shows, and the answer names them in versions_deleted. To keep page HTML out of the call, upload the canvas as a ZIP (request_upload) and pass upload_id: the ZIP gives pages, files and the brief, and its manifest.json may give title, summary and columns, which the call's own win over; a new mockup from an upload alone needs title in the manifest, brief.md and a page with its HTML. The call gives the rest, and the result names from_upload with upload {upload_id, size, sha256}, the ZIP's own bytes as its PUT answered. At most ${MAX_MOCKUP_PAGES} pages, ${(MOCKUP_HTML_TOTAL / 1_000_000).toFixed(0)} million characters of HTML in all, and as many mockups in a product, archived ones included, as the organization's plan allows (${PRODUCT_TOTAL_DEFAULTS.mockups_max} unless it says otherwise; list gives quota, used and limit). It answers with what you need next, not the canvas you sent: mockup_id, title, current_version and current_version_id, the etag to publish the next version with, based_on_version, page_ids in the canvas's order, url (the canvas in the web app, to give the person), and prototype_warnings when an upload brings a prototype; mockups_read(action="get") reads the version back. ${PAGE_LINKS_TEXT}`,
   input: z.strictObject({
     mockup_id: id("mockup").optional().describe("Omit to create a mockup."),
     folder_id: id("mockup folder").nullable().optional().describe('For a new mockup: the folder it goes in, at its top (mockups_read(action="list") gives the folders). Omit, or null, for no folder.'),
@@ -879,6 +881,7 @@ export const publishMockup = defineOperation({
         ...(prototype.length ? [`a prototype of ${prototype.length} file${prototype.length === 1 ? "" : "s"}`] : []),
       ])}`,
     });
+    const versions_deleted = existing ? await trimMockupVersions(ctx, { mockup_id, title }) : [];
     if (canvas) {
       const u = await ctx.db
         .updateTable("mockup_uploads")
@@ -907,6 +910,7 @@ export const publishMockup = defineOperation({
       clickable: { ...clickable, ...(clickable.viewable ? { url: `${url}?view=clickable` } : {}) },
       ...(upload ? { from_upload: upload.upload_id, upload } : {}),
       ...(canvas?.prototype ? { prototype_warnings: canvas.prototype.warnings } : {}),
+      ...(versions_deleted.length ? { versions_deleted, versions_kept: versionsKept(ctx, "mockup_versions_max") } : {}),
       next: 'Show the person url. mockups_read(action="get") reads the version back: the brief, each page\'s notes, size and hash, the files and the prototype. Publish the next version with this etag.',
     };
   },
@@ -1023,12 +1027,15 @@ async function mockupDeletion(ctx: OpContext, e: Awaited<ReturnType<typeof loadM
     .where("v.mockup_id", "=", e.mockup_id)
     .executeTakeFirst();
   const blobs = await prototypeBlobsOf(ctx.db, e.mockup_id);
+  // The versions it holds, which its plan's trim may have made fewer than its newest number.
+  const held = await ctx.db.selectFrom("mockup_versions").select((eb) => eb.fn.countAll<number>().as("n")).where("mockup_id", "=", e.mockup_id).executeTakeFirst();
+  const versions = Number(held?.n ?? 0);
   return {
     mockup_id: e.mockup_id,
     title: e.title,
     etag: e.etag,
     archived: Boolean(e.archived_at),
-    version_count: e.version_count,
+    version_count: versions,
     page_versions: Number(pages?.n ?? 0),
     prototype_files: blobs.length,
     prototype_bytes: blobs.reduce((n, b) => n + b.size, 0),
@@ -1038,7 +1045,7 @@ async function mockupDeletion(ctx: OpContext, e: Awaited<ReturnType<typeof loadM
       ? showing.length === 1
         ? "A Story page shows it. Delete that page, or publish it with HTML of its own, first."
         : `${showing.length} Story pages show it. Delete those pages, or publish them with HTML of their own, first.`
-      : `Every version (${e.version_count}) goes, with its pages, notes, files, prototype and brief.` +
+      : `Every version (${versions}) goes, with its pages, notes, files, prototype and brief.` +
         (earlier.length ? ` ${earlier.length === 1 ? "An earlier Story page version shows it and will show" : `${earlier.length} earlier Story page versions show it and will show`} an empty page.` : ""),
     reversible_alternative: 'mockups_write(action="archive") takes it out of the list and keeps every version.',
   };
@@ -1117,7 +1124,14 @@ async function destroyMockup(ctx: OpContext, e: { mockup_id: string; title: stri
  * held, as it is for a single delete, and stays; the etag stands for the ones that would go.
  */
 async function archivedMockupsDeletion(ctx: OpContext, lock = false) {
-  let q = ctx.db.selectFrom("mockups").selectAll().where("product_id", "=", productId(ctx)).where("archived_at", "is not", null).orderBy("title").orderBy("mockup_id");
+  let q = ctx.db
+    .selectFrom("mockups")
+    .selectAll()
+    .select((eb) => eb.selectFrom("mockup_versions as mv").whereRef("mv.mockup_id", "=", "mockups.mockup_id").select(eb.fn.countAll<number>().as("n")).as("versions_held"))
+    .where("product_id", "=", productId(ctx))
+    .where("archived_at", "is not", null)
+    .orderBy("title")
+    .orderBy("mockup_id");
   if (lock) q = q.forUpdate();
   const rows = await q.execute();
   const mockups = [];
@@ -1128,7 +1142,7 @@ async function archivedMockupsDeletion(ctx: OpContext, lock = false) {
       title: e.title,
       etag: e.etag,
       archived_at: e.archived_at,
-      version_count: e.version_count,
+      version_count: Number(e.versions_held ?? 0),
       story_pages_showing: showing.map((p) => ({ page_id: p.page_id, title: p.title, archived: Boolean(p.archived_at) })),
     });
   }

@@ -47,9 +47,11 @@ place; products and sources, archived or not; and storage, every version: files,
 the text read from each attachment, kept as a file of its own, and prototypes, and text written in
 WhatBuild). What each
 person is sent a day (attachments, mockup downloads, exports) is capped too, and so is what each
-product holds: its mockups and Story pages, archived ones included, and its Playbook's files and size.
-Those last hold everywhere, at their defaults (50 mockups, 50 Story pages, a Playbook of 2,000 files and
-32 MiB) where no plan's limits apply.
+product holds: its mockups and Story pages, archived ones included, its Playbook's files and size,
+and the versions each mockup and Story page keeps, past which publishing deletes the oldest rather
+than refusing. A plan that leaves one out holds it at its default (50 mockups, 50 Story pages, a
+Playbook of 2,000 files and 32 MiB, 10 versions); on `unlimited` mockups and Story pages have no
+limit, and the rest keep their defaults.
 `products_read(action="limits", params={"tenant": "…"})`, or with `product` set to a product in it,
 lists every limit with its value (null for none) and what is used of it: today's for a daily one, a
 day being a UTC day; what the organization holds for a total, also in `holds`. It compares the plans

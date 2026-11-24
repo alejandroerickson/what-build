@@ -567,6 +567,43 @@ describe("prototype paths and warnings", () => {
   });
 });
 
+describe("the versions a mockup with a prototype keeps", () => {
+  it("deletes the oldest version's prototype rows, and their bytes once no version holds them", async () => {
+    // Where no plan says otherwise, as on this organization's, a mockup keeps its newest 10 versions.
+    const first = await alice.api("POST", `${P}/mockups`, {
+      upload_id: await upload(alice, P, { "manifest.json": manifest([{ page_id: "board", title: "Board", entry: "index.html" }], { title: "Kept board" }), "prototype/index.html": "<p>Board</p>", "prototype/app.css": "body { color: navy; }" }),
+    });
+    expect(first.status, JSON.stringify(first.body)).toBe(201);
+    const mockupId = first.body.mockup_id as string;
+    let etag = first.body.etag as string;
+    const one = await rows("mockup_prototype_files", sql`version_id = ${first.body.current_version_id}`);
+    const keyOf = (path: string) => one.find((r) => r["path"] === path)!["blob_key"] as string;
+    // Version 2 changes the stylesheet and keeps the page's bytes; versions 3 to 10 carry both forward.
+    const second = await alice.api("POST", `${P}/mockups`, {
+      mockup_id: mockupId,
+      expected_etag: etag,
+      upload_id: await upload(alice, P, { "manifest.json": manifest([{ page_id: "board", entry: "index.html" }], { prototype: [{ path: "index.html" }, { path: "app.css" }] }), "prototype/app.css": "body { color: teal; }" }),
+    });
+    expect(second.status, JSON.stringify(second.body)).toBe(201);
+    etag = second.body.etag;
+    for (let n = 3; n <= 10; n++) {
+      const r = await alice.api("POST", `${P}/mockups`, { mockup_id: mockupId, expected_etag: etag, summary: `Version ${n}` });
+      expect(r.status, JSON.stringify(r.body)).toBe(201);
+      expect(r.body.versions_deleted).toBeUndefined();
+      etag = r.body.etag;
+    }
+    const eleventh = await alice.api("POST", `${P}/mockups`, { mockup_id: mockupId, expected_etag: etag, summary: "Version 11" });
+    expect(eleventh.body).toMatchObject({ versions_deleted: [1], versions_kept: 10 });
+    expect(await rows("mockup_prototype_files", sql`version_id = ${first.body.current_version_id}`)).toEqual([]);
+    await h.worker.drain();
+    // The first stylesheet was version 1's alone; the page's bytes are every version's.
+    expect(await h.blobs.stat(keyOf("app.css"))).toBeNull();
+    expect(await h.blobs.stat(keyOf("index.html"))).not.toBeNull();
+    const current = (await alice.api("GET", `${P}/mockups/${mockupId}`)).body.current;
+    expect((await fetch(`${current.prototype.base_url}index.html`)).status).toBe(200);
+  });
+});
+
 describe("on a content site of its own", () => {
   let c: Harness;
   let owner: Browser;

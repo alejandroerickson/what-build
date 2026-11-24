@@ -37,6 +37,9 @@ export type Limits = {
   story_pages_max: number | null;
   playbook_files_max: number | null;
   playbook_bytes_max: number | null;
+  /** The versions each mockup and each Story page keeps: publishing past them deletes the oldest (`versions-kept.ts`). */
+  mockup_versions_max: number | null;
+  story_page_versions_max: number | null;
   /** Bytes WhatBuild sends each person a day: files, exports and pages they open; null is no limit. */
   sent_bytes_per_day: number | null;
   fetch_url: boolean;
@@ -44,8 +47,11 @@ export type Limits = {
 };
 export type LimitKey = keyof Limits;
 
-/** The totals a plan sets on what each product holds, rather than the whole organization. */
-export const PRODUCT_TOTALS = ["mockups_max", "story_pages_max", "playbook_files_max", "playbook_bytes_max"] as const;
+/**
+ * The totals a plan sets on what each product holds, rather than the whole organization: its
+ * mockups, Story pages and Playbook, and the versions each of its mockups and Story pages keeps.
+ */
+export const PRODUCT_TOTALS = ["mockups_max", "story_pages_max", "playbook_files_max", "playbook_bytes_max", "mockup_versions_max", "story_page_versions_max"] as const;
 export type ProductTotal = (typeof PRODUCT_TOTALS)[number];
 
 export function isProductTotal(key: string): key is ProductTotal {
@@ -54,21 +60,25 @@ export function isProductTotal(key: string): key is ProductTotal {
 
 /**
  * What a product holds at most where no plan says otherwise: on a plan whose definition leaves the
- * total out, on `unlimited`, and on a plan the deployment no longer defines. They are what every
- * organization held before a plan could set them, so a deployment meets them until an instance owner
- * changes a plan's.
+ * total out, on `unlimited`, and on a plan the deployment no longer defines. Its mockups, Story pages
+ * and Playbook are what every organization held before a plan could set them; the versions each
+ * mockup and Story page keeps are 10, so a deployment meets them until an instance owner changes a
+ * plan's.
  */
 export const PRODUCT_TOTAL_DEFAULTS: Record<ProductTotal, number> = {
   mockups_max: 50,
   story_pages_max: 50,
   playbook_files_max: 2000,
   playbook_bytes_max: 32 * 1024 * 1024,
+  mockup_versions_max: 10,
+  story_page_versions_max: 10,
 };
 
 /**
  * The most a product holds of one kind where no plan's limits apply (`unlimited`, a plan the
  * deployment no longer defines): no limit on mockups and Story pages; the Playbook keeps its default
- * size, since its download is built in memory.
+ * size, since its download is built in memory; each mockup and Story page keeps its default number of
+ * versions, so what the database holds of earlier versions stays bounded.
  */
 export function unlimitedProductTotal(key: ProductTotal): number | null {
   return key === "mockups_max" || key === "story_pages_max" ? null : PRODUCT_TOTAL_DEFAULTS[key];
@@ -217,10 +227,12 @@ export interface LimitInfo {
   /** What one unit is, for a person: "calls", "bytes". */
   unit: string;
   /** What the limit is counted over. */
-  per: "Each person, each minute" | "Each person, each day" | "Everyone together, each day" | "The whole organization" | "Each product" | "Each file" | "Each text field" | "Each call" | "Each person";
-  /** The error a caller over the limit receives. */
+  per: "Each person, each minute" | "Each person, each day" | "Everyone together, each day" | "The whole organization" | "Each product" | "Each mockup" | "Each Story page" | "Each file" | "Each text field" | "Each call" | "Each person";
+  /** The error a caller over the limit receives, or what happens instead where nothing is refused. */
   refusal: string;
   help: string;
+  /** The least it may be set to, where that is more than 0. */
+  min?: number;
 }
 
 /** Every limit, in the order the control panel shows them. */
@@ -233,6 +245,8 @@ export const LIMITS: LimitInfo[] = [
   { key: "story_pages_max", group: "total", label: "Story pages", unit: "pages", per: "Each product", refusal: "409 quota_exceeded", help: "Every page of a product's Story, archived or not. Deleting one makes room." },
   { key: "playbook_files_max", group: "total", label: "Playbook files", unit: "files", per: "Each product", refusal: "422 playbook_full", help: "Files in a product's Playbook, removed ones not counted." },
   { key: "playbook_bytes_max", group: "total", label: "Playbook size", unit: "bytes", per: "Each product", refusal: "422 playbook_full", help: "What a product's Playbook files hold together, removed ones not counted." },
+  { key: "mockup_versions_max", group: "total", label: "Versions of a mockup", unit: "versions", per: "Each mockup", refusal: "none: the oldest is deleted", min: 1, help: "Publishing past it deletes the oldest versions, except those a Story page shows." },
+  { key: "story_page_versions_max", group: "total", label: "Versions of a Story page", unit: "versions", per: "Each Story page", refusal: "none: the oldest is deleted", min: 1, help: "Publishing past it deletes the oldest versions." },
   { key: "requests_per_minute", group: "frequency", label: "Calls", unit: "calls", per: "Each person, each minute", refusal: "429 rate_limited", help: "Every call a person or their agent makes, reads included." },
   { key: "writes_per_minute", group: "frequency", label: "Writes", unit: "writes", per: "Each person, each minute", refusal: "429 rate_limited", help: "Calls that change something." },
   { key: "writes_per_day", group: "frequency", label: "Writes", unit: "writes", per: "Each person, each day", refusal: "409 quota_exceeded", help: "A day runs from midnight to midnight UTC." },

@@ -2,7 +2,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { MOCKUP_PAGE_SANDBOX, PAGE_HEIGHT_MIN, STORY_PAGE_SANDBOX } from "@whatbuild/core/page-sandbox";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Navigate, useNavigate, useParams, useSearchParams } from "react-router";
-import { api, ApiError } from "../lib/api.ts";
+import { api, ApiError, deletedVersion } from "../lib/api.ts";
 import { useAutoHeight } from "../lib/auto-height.ts";
 import { useHeldUpdate } from "../lib/live.tsx";
 import { SAYS_LOADED_WITHIN_MS, useFrameReturn } from "../lib/minute.ts";
@@ -304,7 +304,7 @@ export function StoryPage() {
   const versions = useQuery({
     queryKey: ["story-versions", base, pageId],
     enabled: Boolean(pageId) && page.isSuccess,
-    queryFn: () => api<{ items: VersionItem[] }>("GET", `${base}/story/pages/${pageId}/versions?limit=100`),
+    queryFn: () => api<{ items: VersionItem[]; versions_kept?: number | null }>("GET", `${base}/story/pages/${pageId}/versions?limit=100`),
   });
   const wantsOld = asked !== null && page.data !== undefined && asked !== page.data.current_version;
   const old = useQuery({
@@ -541,8 +541,12 @@ export function StoryPage() {
             />
           ) : null}
           {wantsOld && old.isError ? (
-            <Callout tone="attention" title={`This page has no version ${asked}`} action={<ButtonLink size="sm" to={`${app}/story/${pageId}`}>Show the current version</ButtonLink>}>
-              It has {p.current_version} {p.current_version === 1 ? "version" : "versions"}.
+            <Callout
+              tone="attention"
+              title={deletedVersion(old.error) ? `Version ${asked} was deleted` : `This page has no version ${asked}`}
+              action={<ButtonLink size="sm" to={`${app}/story/${pageId}`}>Show the current version</ButtonLink>}
+            >
+              {deletedVersion(old.error) ? "The organization’s plan keeps only each Story page’s newest versions." : `Its newest is version ${p.current_version}.`}
             </Callout>
           ) : null}
           {shown?.mockup?.canvas ? (
@@ -579,7 +583,7 @@ export function StoryPage() {
           ) : null}
           <Inspector title={p.title}>
             {shown ? (
-              <StoryInspectorBody page={p} shown={shown} versions={versions.data?.items} onExport={() => setExporting([p.page_id])} actions={actions} />
+              <StoryInspectorBody page={p} shown={shown} versions={versions.data?.items} versionsKept={versions.data?.versions_kept} onExport={() => setExporting([p.page_id])} actions={actions} />
             ) : (
               <Loading variant="lines" />
             )}

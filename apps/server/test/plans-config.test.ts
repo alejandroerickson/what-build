@@ -63,6 +63,9 @@ describe("the deployment's plans", () => {
       mockups_max: 200, story_pages_max: null, playbook_bytes_max: 64 * 1024 * 1024,
     });
     expect(() => plansFrom(inline([{ ...free, limits: { ...free!.limits, mockups_max: -1 } }]))).toThrow(/mockups_max must be a whole number of at least 0, or null for no limit\./);
+    // A mockup or Story page keeps at least its current version.
+    expect(() => plansFrom(inline([{ ...free, limits: { ...free!.limits, mockup_versions_max: 0 } }]))).toThrow(/mockup_versions_max must be a whole number of at least 1, or null for no limit\./);
+    expect(plansFrom(inline([{ ...free, limits: { ...free!.limits, story_page_versions_max: null } }]))[0]!.limits.story_page_versions_max).toBeNull();
   });
 
   it("name the plan organizations start on only if it is one of them", () => {

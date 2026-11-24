@@ -30,10 +30,12 @@ function Shows({ mockup: m }: { mockup: MockupShown }) {
   );
 }
 
-export function StoryInspectorBody({ page, shown, versions, onExport, actions }: {
+export function StoryInspectorBody({ page, shown, versions, versionsKept, onExport, actions }: {
   page: PageView;
   shown: VersionView;
   versions: VersionItem[] | undefined;
+  /** How many versions each Story page keeps on the organization's plan; null keeps every one. */
+  versionsKept?: number | null;
   onExport: () => void;
   actions: PageActions;
 }) {
@@ -84,6 +86,7 @@ export function StoryInspectorBody({ page, shown, versions, onExport, actions }:
             },
           ]}
         />
+        {canWrite && typeof versionsKept === "number" ? <p className="versions-kept">Keeps the newest {versionsKept === 1 ? "version" : `${versionsKept} versions`}.</p> : null}
         <div className="story-about-actions">
           <Button size="sm" icon="download" onClick={onExport}>
             Export to PDF…

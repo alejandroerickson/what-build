@@ -493,7 +493,11 @@ version is immutable: `version` (1, 2, 3…), `title`, `summary` (describes the 
 `published_at`, `published_by`, and `html_sha256` (computed on read, so identical HTML can be
 recognised without reading it). The database keeps a version's words beside its HTML for search
 ([§8.3](08-search.md)), in no answer and no export. Readers see the latest version; any version
-can be read by number. Limit: the pages per product the organization's plan allows, archived ones
+kept can be read by number. A page keeps its newest versions, as many as the organization's plan
+says (`story_page_versions_max`, 10 unless it says otherwise; `story.list_versions` gives
+`versions_kept`): publishing past them deletes the oldest, the answer names them in
+`versions_deleted`, and a read of one answers `410 version_deleted`
+([§9.7](09-data-lifecycle.md#97-plans-and-limits)). Limit: the pages per product the organization's plan allows, archived ones
 included, 50 unless it says otherwise (`story_pages_max`, [§9.7](09-data-lifecycle.md#97-plans-and-limits);
 `409 quota_exceeded`). Agents write pages; agents
 and people arrange, rename, archive and restore them, and admins delete them
@@ -762,7 +766,11 @@ side by side), each with design notes, and a brief that says what the canvas exp
 ([decision](../decisions/mockups-are-versioned-canvases-in-exploration.md)). Fields:
 `mockup_id`, `title` (1–200), `summary` (≤ 2,000, shown in the list), `folder_id` (the folder it
 sits in, or null; Folders and order, below), `archived_at`,
-`current_version`, `etag`, and an append-only list of **versions**. A version is immutable and is
+`current_version`, `etag`, and a list of **versions**: the newest the organization's plan keeps
+(`mockup_versions_max`, 10 unless it says otherwise; `mockups.list_versions` gives `versions_kept`)
+and every version a Story page shows. Publishing past them deletes the oldest, the answer names them
+in `versions_deleted`, and a read of one answers `410 version_deleted`
+([§9.7](09-data-lifecycle.md#97-plans-and-limits)). A version is immutable and is
 the whole canvas: `version` (1, 2, 3…), `title`, `summary`, `brief` (Markdown, ≤ 50,000: what the
 canvas explores, for whom, the questions it should answer, what each page tries), `columns` (1–12
 pages side by side before the canvas wraps, or null for one row), the `pages` in order, the
@@ -1022,7 +1030,7 @@ changed and no activity recorded, for the title it already has. An archived mock
 the summary.
 
 **Archive.** `mockups.archive` and `mockups.restore` take the etag. An archived mockup leaves the
-list unless `include_archived`, and every version stays readable. `mockups.list` says how many
+list unless `include_archived`, and every version it keeps stays readable. `mockups.list` says how many
 archived mockups it left out (`archived_hidden`, and a `note` when there are any), and always
 gives `quota { used, limit, unit, archived_included }`: the product's mockups against its 50,
 archived ones counted, so an agent sees the limit before a publish meets it. `products.get`'s

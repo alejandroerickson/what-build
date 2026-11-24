@@ -1176,8 +1176,9 @@ Version in the inspector, whose dialog offers **Archive instead** (§7.10).
   remembered choice still holds, and the control names no key.
 - **The inspector:** **View** (Canvas or Clickable prototype, for a canvas of more than one page;
   while its pages do not link, Clickable prototype is disabled, with a line that says so and, for
-  whoever can publish, **Copy a request for your agent**); **Version** (a menu of every version with
-  its date, who published the shown one and when, its page count, its prototype's files and size
+  whoever can publish, **Copy a request for your agent**); **Version** (a menu of every version kept with
+  its date, and for whoever can write a line under it saying how many the plan keeps, "Keeps the
+  newest 10 versions, and any a Story page shows"; who published the shown one and when, its page count, its prototype's files and size
   when it carries one, **Download as ZIP** for the whole canvas, which a person opens from its
   `index.html` and an agent builds the next version from, [§4.12](04-data-model.md), and under it
   **Rename…** and **Archive** for whoever can write, or **Restore** alone on an archived mockup,
@@ -1188,7 +1189,7 @@ Version in the inspector, whose dialog offers **Archive instead** (§7.10).
   length; one opens in a dialog as rendered Markdown or as source text, never as HTML, with Copy).
 - A callout above the canvas appears only for a state the person must know: the mockup is
   archived (with **Restore** for whoever can write), an earlier version is shown (with **Show the current version**), or the version asked
-  for does not exist.
+  for does not exist, or was deleted past what the plan keeps, which it says.
 - **Downloading.** A toast says that a page runs its own code outside WhatBuild, with every download.
 - **On the Story** ([decision](../decisions/agents-write-the-story-people-arrange-it.md)). Under
   the selected page's title, each Story page that shows the selected page is named and linked with the
@@ -1227,7 +1228,8 @@ page of a mockup reaches it by promotion, from the mockup (§7.7).
   A callout appears above
   the page only for a state the reader must know: the page is archived (with **Restore** for an
   editor), an earlier version is
-  shown (with **Show the current version**), or the page tried to open another address in its
+  shown (with **Show the current version**), a version asked for does not exist or was deleted past
+  what the plan keeps (the inspector's About says, for an editor, "Keeps the newest 10 versions"), or the page tried to open another address in its
   place, and was put back (past what a minute allows, it waits for the next, §7.1).
 - **A page from a mockup** ([§4.11](04-data-model.md)) is shown at its own size, scaled down and
   never up, on paper as on the canvas, without the app's theme. Content taller than the page's

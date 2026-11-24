@@ -24,7 +24,8 @@ the names Mockups and Exploration on 2026-10-09.
   no categories), under a Markdown **brief** that says what the canvas explores, and which
   outcomes it tests.
 - **A version is the whole canvas.** Every publish makes the next version; a later version keeps
-  the fields and the pages it does not change.
+  the fields and the pages it does not change. A mockup keeps its newest versions, as many as its
+  plan says, and those the Story shows ([decision](mockups-and-story-pages-keep-their-newest-versions.md)).
 - Pages are untrusted, like Story pages, and shown only in the Story's sandbox
   ([decision](story-pages-are-sandboxed-agent-html.md)), without the app's theme.
 - **A version may carry a prototype**, a team's multi-file prototype as it is, and a page may be an

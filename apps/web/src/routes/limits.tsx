@@ -108,7 +108,7 @@ function PlanSummary({ l, owner }: { l: OrganizationLimits; owner: boolean }) {
                 {l.undefined_plan
                   ? `${org} is on a plan this WhatBuild no longer defines, so no limit applies until whoever runs it moves ${org} to another.`
                   : l.plan === "unlimited"
-                    ? `${org} has no limits: nobody in it meets any.${offered ? " This plan is for this WhatBuild’s own organizations." : ""}`
+                    ? `${org} has no limits: nobody in it meets any${keptOnUnlimited(l.limits)}.${offered ? " This plan is for this WhatBuild’s own organizations." : ""}`
                     : `${l.plan_about} Everyone in ${org} meets its limits, owners and their agents included.`}
               </p>
             )}
@@ -554,7 +554,13 @@ export function InstancePlansSheet() {
 const MiB = 1024 * 1024;
 
 /** A limit's value in a field: bytes as MB, switches as on or off, a total or bytes sent possibly no limit. */
-function LimitField({ limit, value, onChange }: { limit: { key: string; label: string; unit: string; group: string; per: string }; value: Amount; onChange: (v: Amount) => void }) {
+/** What the unlimited plan still keeps: each mockup's and Story page's newest versions. */
+function keptOnUnlimited(limits: LimitValue[]): string {
+  const kept = limits.find((l) => l.key === "mockup_versions_max")?.value;
+  return typeof kept === "number" ? `, though each mockup and Story page keeps only its newest ${kept} versions` : "";
+}
+
+function LimitField({ limit, value, onChange }: { limit: { key: string; label: string; unit: string; group: string; per: string; min?: number }; value: Amount; onChange: (v: Amount) => void }) {
   const nullable = limit.group === "total" || limit.key === "sent_bytes_per_day";
   if (limit.group === "switch")
     return (
@@ -572,7 +578,7 @@ function LimitField({ limit, value, onChange }: { limit: { key: string; label: s
         className="input num"
         type="number"
         inputMode={bytes ? "decimal" : "numeric"}
-        min={0}
+        min={limit.min ?? 0}
         step={bytes ? 0.1 : 1}
         disabled={value === null}
         aria-label={`${limit.label}, ${limit.per.toLowerCase()}${bytes ? ", in MB" : ""}`}
@@ -582,7 +588,7 @@ function LimitField({ limit, value, onChange }: { limit: { key: string; label: s
       {bytes ? <span className="faint">MB</span> : null}
       {nullable ? (
         <label className="limits-switch limits-nolimit">
-          <input type="checkbox" checked={value === null} onChange={(e) => onChange(e.target.checked ? null : 0)} />
+          <input type="checkbox" checked={value === null} onChange={(e) => onChange(e.target.checked ? null : (limit.min ?? 0))} />
           <span>No limit</span>
         </label>
       ) : null}
@@ -590,7 +596,7 @@ function LimitField({ limit, value, onChange }: { limit: { key: string; label: s
   );
 }
 
-const valid = (v: Amount) => v === null || typeof v === "boolean" || (Number.isFinite(v) && v >= 0);
+const valid = (v: Amount, min = 0) => v === null || typeof v === "boolean" || (Number.isFinite(v) && v >= min);
 
 /** Change a plan's limits and price, for every organization on it, from the next call. */
 function PlanLimitsDialog({ plan, all, onClose }: { plan: string; all: InstanceOrganizations; onClose: () => void }) {
@@ -603,7 +609,7 @@ function PlanLimitsDialog({ plan, all, onClose }: { plan: string; all: InstanceO
   const [price, setPrice] = useState(entry.price ?? "");
   const value = (k: string): Amount => (k in draft ? draft[k]! : (entry.limits[k] ?? null));
   const changed = Object.keys(draft).filter((k) => draft[k] !== entry.limits[k]);
-  const invalid = changed.some((k) => !valid(draft[k]!)) || tooLong(price, PRICE_MAX);
+  const invalid = changed.some((k) => !valid(draft[k]!, all.limits.find((l) => l.key === k)?.min)) || tooLong(price, PRICE_MAX);
   const priceChanged = price.trim() !== (entry.price ?? "");
   const dirty = changed.length > 0 || priceChanged;
   const onPlan = all.items.filter((o) => o.plan === plan).length;

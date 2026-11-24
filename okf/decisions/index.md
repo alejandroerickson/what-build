@@ -83,6 +83,7 @@ name what replaced it, and date the change. Smaller decisions are marked
 - [Marking an insight reviewed applies to the revision that was read](insight-review-marks-a-revision.md) (superseded)
 - [Story PDF export is a composed print view saved by the browser](pdf-export-uses-browser-print.md)
 - [Mockups are versioned canvases of agent-made HTML, in a stage called Exploration](mockups-are-versioned-canvases-in-exploration.md)
+- [Mockups and Story pages keep their newest versions, as many as the plan says, and a mockup keeps what the Story shows](mockups-and-story-pages-keep-their-newest-versions.md)
 - [A mockup version may carry a team's prototype as it is, served in the sandbox from a short-lived capability path](mockups-carry-prototypes-served-from-a-capability-path.md)
 - [A canvas whose pages link can be viewed as a clickable prototype, and there is no separate kind of mockup](a-canvas-whose-pages-link-is-viewed-as-a-clickable-prototype.md)
 - [With a content site, every page and inline file is served from it under a short-lived address the app's own route hands off to](with-a-content-site-every-page-and-inline-file-is-served-from-it.md)
