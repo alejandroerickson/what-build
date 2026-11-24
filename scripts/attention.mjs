@@ -216,6 +216,43 @@ async function neon() {
   } catch {}
 }
 
+const RUN_FIELDS = "workflowName,displayTitle,event,conclusion,status,createdAt,url";
+
+/** How a line names the event that started a run, when a workflow has runs of more than one. */
+const EVENTS = { schedule: (n) => `scheduled ${n} run`, push: (n) => `${n} run for a push`, workflow_dispatch: (n) => `${n} run started by hand` };
+
+/**
+ * The workflows whose latest finished run on main did not pass, as lines to print. A workflow's runs
+ * are told apart by the event that started them: a push run of Security skips the jobs only its
+ * weekly schedule runs, so its passing says nothing of the scheduled run's failure. Of Dependabot's
+ * runs, only its regular update of each ecosystem counts: an update for one package answers an
+ * alert, which is reported with the alerts.
+ */
+export function failedRuns(runs) {
+  const seen = new Set();
+  const finished = runs
+    .filter((r) => r.status === "completed" && !seen.has(r.url) && seen.add(r.url))
+    .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt));
+  const events = new Map();
+  for (const r of finished) events.set(r.workflowName, (events.get(r.workflowName) ?? new Set()).add(r.event));
+  const latest = new Map();
+  for (const r of finished) {
+    const dependabot = r.workflowName === "Dependabot Updates";
+    if (dependabot && / for /.test(r.displayTitle)) continue;
+    const key = dependabot ? r.displayTitle.replace(/ - Update #\d+$/, "") : `${r.workflowName}\n${r.event}`;
+    if (latest.has(key)) continue;
+    const name = dependabot ? `Dependabot update (${key})` : r.workflowName;
+    const several = !dependabot && events.get(r.workflowName).size > 1;
+    latest.set(key, { ...r, name, run: several ? (EVENTS[r.event] ?? ((n) => `${n} run for ${r.event}`))(name) : `${name} run` });
+  }
+  return [...latest.values()]
+    .filter((r) => r.conclusion !== "success" && r.conclusion !== "skipped")
+    .map((r) => ({
+      text: `the last ${r.run} on main ${r.conclusion === "failure" ? "failed" : `ended ${r.conclusion}`} ${ago(r.createdAt)}: ${r.url}`,
+      skill: r.name === "CI" ? "" : "triage-security-findings",
+    }));
+}
+
 async function github() {
   try {
     await run("gh", ["auth", "status"]);
@@ -226,12 +263,15 @@ async function github() {
   const repo = await out("gh", ["repo", "view", "--json", "nameWithOwner", "--jq", ".nameWithOwner"]);
   const api = (path) => json("gh", ["api", path]).catch(() => null);
 
-  const [prs, dependabot, codeScanning, secrets, runs] = await Promise.all([
+  const [prs, dependabot, codeScanning, secrets, runs, scheduled] = await Promise.all([
     json("gh", ["pr", "list", "-R", repo, "--author", "app/dependabot", "--json", "number,title,createdAt"]).catch(() => []),
     api(`repos/${repo}/dependabot/alerts?state=open&per_page=100`),
     api(`repos/${repo}/code-scanning/alerts?state=open&per_page=100`),
     api(`repos/${repo}/secret-scanning/alerts?state=open&per_page=100`),
-    json("gh", ["run", "list", "-R", repo, "--branch", "main", "--limit", "60", "--json", "workflowName,displayTitle,conclusion,status,createdAt,url"]).catch(() => []),
+    // The weekly scheduled runs are listed apart, so that a busy week's pushes do not crowd them out.
+    ...[[], ["--event", "schedule"]].map((only) =>
+      json("gh", ["run", "list", "-R", repo, "--branch", "main", ...only, "--limit", "60", "--json", RUN_FIELDS]).catch(() => []),
+    ),
   ]);
 
   for (const p of prs ?? []) say(`Dependabot's pull request #${p.number}, ${p.title}, opened ${ago(p.createdAt)}`, "triage-security-findings");
@@ -247,22 +287,7 @@ async function github() {
   if (codeScanning?.length) say(`${codeScanning.length} open code scanning alert${codeScanning.length === 1 ? "" : "s"} (CodeQL)`, "triage-security-findings");
   if (secrets?.length) say(`${secrets.length} open secret scanning alert${secrets.length === 1 ? "" : "s"}: rotate first`, "audit-for-leaks");
 
-  // The latest finished run of each workflow on main. Of Dependabot's runs, only its regular update of
-  // each ecosystem counts: an update for one package answers an alert, which is reported above.
-  const latest = new Map();
-  for (const r of runs ?? []) {
-    if (r.status !== "completed") continue;
-    const dependabot = r.workflowName === "Dependabot Updates";
-    if (dependabot && / for /.test(r.displayTitle)) continue;
-    const key = dependabot ? r.displayTitle.replace(/ - Update #\d+$/, "") : r.workflowName;
-    if (!latest.has(key)) latest.set(key, { ...r, workflowName: dependabot ? `Dependabot update (${key})` : r.workflowName });
-  }
-  for (const r of latest.values()) {
-    const name = r.workflowName;
-    if (r.conclusion === "success" || r.conclusion === "skipped") continue;
-    const skill = name === "CI" ? "" : "triage-security-findings";
-    say(`the last ${name} run on main ${r.conclusion === "failure" ? "failed" : `ended ${r.conclusion}`} ${ago(r.createdAt)}: ${r.url}`, skill);
-  }
+  for (const r of failedRuns([...(runs ?? []), ...(scheduled ?? [])])) say(r.text, r.skill);
 
   // What production lacks: it runs releases only.
   await out("git", ["fetch", "--quiet", "--tags", "origin", "main"]).catch(() => {});
@@ -282,7 +307,7 @@ async function github() {
   }
 }
 
-// Run as a script, not when a test imports neonHours.
+// Run as a script, not when a test imports neonHours or failedRuns.
 const main = (() => {
   try {
     return realpathSync(process.argv[1]) === fileURLToPath(import.meta.url);
