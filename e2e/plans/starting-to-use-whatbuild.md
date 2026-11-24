@@ -13,7 +13,24 @@ of the day's places and opens their own organization, or puts them in line and l
 demo meanwhile; the line gets the next places first, by email; and with nobody let in, the site
 asks for an email instead. Each step signs in as a new address, so each is a new person.
 
-**Trying it yourself.** Serve the instance (`pnpm dev:e2e`), open `http://localhost:5283/site/` and
+**Serve it with sign-up closed.** `pnpm dev:e2e` sets no sign-up allowlist, and with none anyone
+can make an account whatever the guests' settings say, so step 9 could never close it. Serve the
+instance for the whole plan with Riley alone on the allowlist:
+`WHATBUILD_SIGNUP_ALLOWLIST=riley@example.com pnpm dev:e2e`. Steps 1 to 8 hold the same with it:
+from step 1, guests' sign-up and New organizations a day each let anyone make an account.
+
+**The tutorials.** Riley, in step 1, and each new person after is offered the tutorial's welcome,
+over a darkened screen, on the first screen with a product's panel they reach. As the plans'
+[README](README.md#what-a-plan-runs-on) says, press **Turn off tutorials** on it and go on: it is
+expected, not a finding.
+
+**Reading the site again.** In development the site asks the server for what only the deployment
+knows (`/api/v1/plans`), which the browser may keep for up to five minutes, so a reload just after
+Riley changes the guests' settings can show the page as it was. Close the browser first
+(`pnpm e2e browser stop`; the next command opens a fresh one, with nothing kept), or use a new
+private window. The sign-in page reads the same.
+
+**Trying it yourself.** Serve the instance as above, open `http://localhost:5283/site/` and
 `http://localhost:5283/site/what-to-build/`, and on the sign-in page type any new address under
 Development sign-in and press **As the email above**: every new address is a new person. Riley
 (`riley` in Development sign-in) owns the instance and changes its settings. Mail only prints, in
@@ -31,8 +48,8 @@ new person whose mail still reaches you; delete each such account afterwards in 
    **Explore the demo** as the filled button under the headline and Start using WhatBuild beside it
    as the quiet one, a small Scroll prompt at the foot of the first screen that goes once the page
    moves, and, at the end, a line saying what a team builds in the demo (the first sentence of the
-   example's first product), a large Explore the demo, "Or start using WhatBuild", and the plans'
-   prices with Compare plans. Nothing promises "free" or "now". No number of places anywhere. While
+   example's first product), a large Explore the demo, "Or start using WhatBuild", and each plan,
+   with its price if one is set, and Compare plans. Nothing promises "free" or "now". No number of places anywhere. While
    scrolling, the page asks the service nothing (the browser's requests). The same on
    `/site/what-to-build/`, on a dark stage.
 3. **Web, from `/site/what-to-build/`, as `new1@example.com`.** Press Start using WhatBuild.
@@ -40,7 +57,8 @@ new person whose mail still reaches you; delete each such account afterwards in 
    account and its foot has only
    Privacy and Cookies, with no line about a free preview. Sign in: *Expect:* the address has no
    `?landing=` left in it, the Welcome screen asks for an organization and a first product, and
-   starting it opens the product's Idea with **Connect your agent** first.
+   starting it opens the product's Idea with **Connect your agent** first, once the tutorial's
+   welcome over it is turned off.
 4. **Web, from `/site/`, as `new2@example.com`.** As step 3. *Expect:* the same, their own
    organization started.
 5. **Web, from `/site/`, as `new3@example.com`.** Press Start using WhatBuild and sign in.
@@ -51,18 +69,23 @@ new person whose mail still reaches you; delete each such account afterwards in 
 6. **Web, as Riley.** Open Instance admin → Starting organizations. *Expect:* `new1` and `new2`
    each with an allowance of 1, given by "New organizations a day", not by Riley; `new3` first on
    the waitlist.
-7. **Web, as Riley, then as `new4@example.com`.** Riley sets New organizations a day to 3; then
-   `new4` presses Start using WhatBuild on `/site/` and signs in. *Expect:* the place freed goes to `new3`, who
-   was first in line: the instance's output prints the mail "Your place on WhatBuild is ready" to
-   `new3@example.com`, with a link to `/welcome`; `new4` is told their organization is on its way.
-   Signing in again as `new3` and opening `/welcome` lets them start one.
+7. **Web, as Riley, then as `new4@example.com`.** Riley sets New organizations a day to 3, which
+   makes one more place today but gives it to nobody yet: it goes to the first in line when someone
+   next asks for an organization, or when the worker next looks (as it starts, then at most every
+   ten minutes). Then `new4` presses Start using WhatBuild on `/site/` and signs in. *Expect:* the
+   place goes to `new3`, who was first in line, by the time `new4` is answered (at `new4`'s asking,
+   unless the worker gave it first): the instance's output prints the mail "Your place on WhatBuild
+   is ready" to `new3@example.com`, with a link to `/welcome`, once; `new4` is told their
+   organization is on its way. Signing in again as `new3` and opening `/welcome` lets them start one.
 8. **Web, from `/site/`, as `new5@example.com`.** Press **Explore the demo** and sign in.
    *Expect:* the overview with the demo, as a guest. Its products open with "Like what you see?" and
    "Start using WhatBuild and engineer your next product.", with **Start using WhatBuild**; pressing
    it says the organization is on its way (no places left
    today), and the banner says the same from then on.
 9. **Web, as Riley, then signed out.** Riley sets New organizations a day to 0 and turns guests'
-   sign-up off; reload `/site/`. *Expect:* Start using WhatBuild now leads to the form at the end,
+   sign-up off; open `/site/` again in a fresh browser (see Reading the site again, above). This
+   holds only on an instance served with a sign-up allowlist, as above: with none, sign-up stays
+   open. *Expect:* Start using WhatBuild now leads to the form at the end,
    which asks for an email only and thanks the visitor; Explore the demo is gone; the sign-in page
    no longer says signing in makes an account.
 
