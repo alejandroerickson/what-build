@@ -28,7 +28,7 @@ expected, not a finding.
 knows (`/api/v1/plans`), which the browser may keep for up to five minutes, so a reload just after
 Riley changes the guests' settings can show the page as it was. Close the browser first
 (`pnpm e2e browser stop`; the next command opens a fresh one, with nothing kept), or use a new
-private window. The sign-in page reads the same.
+private window.
 
 **Trying it yourself.** Serve the instance as above, open `http://localhost:5283/site/` and
 `http://localhost:5283/site/what-to-build/`, and on the sign-in page type any new address under
@@ -48,8 +48,10 @@ new person whose mail still reaches you; delete each such account afterwards in 
    **Explore the demo** as the filled button under the headline and Start using WhatBuild beside it
    as the quiet one, a small Scroll prompt at the foot of the first screen that goes once the page
    moves, and, at the end, a line saying what a team builds in the demo (the first sentence of the
-   example's first product), a large Explore the demo, "Or start using WhatBuild", and each plan,
-   with its price if one is set, and Compare plans. Nothing promises "free" or "now". No number of places anywhere. While
+   example's first product), a large Explore the demo, and "Or start using WhatBuild". Where any
+   plan has a price, a line of the priced plans follows with Compare plans; this instance's plans
+   (`deploy/plans.example.json`) have none, so there is no such line. Nothing promises "free" or
+   "now". No number of places anywhere. While
    scrolling, the page asks the service nothing (the browser's requests). The same on
    `/site/what-to-build/`, on a dark stage.
 3. **Web, from `/site/what-to-build/`, as `new1@example.com`.** Press Start using WhatBuild.
