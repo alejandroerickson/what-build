@@ -22,7 +22,8 @@ only people who accept cookies ([decision](analytics-only-for-people-who-accept-
 - The Worker sends a share of the visitors to `/` to `/what-to-build/` (302, `no-store`), set by
   `LANDING_SPLIT` from 0 to 1; unset or 0, nobody. A visitor is placed by a hash of their address,
   computed in the Worker and kept nowhere, so the same visitor sees the same page with no cookie.
-  Crawlers and link previews always get `/`.
+  Crawlers and link previews always get `/`, and so does `/?split=off`, so whoever runs the test
+  can see both pages from an address the split sends to the second (added 2026-11-23).
 - The two pages keep their own addresses, so Cloudflare Web Analytics counts each page's visits,
   every visitor included.
 - Each page says which it is wherever it leads: the form sends `page` (`interest.page` keeps the
