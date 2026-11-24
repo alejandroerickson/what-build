@@ -100,6 +100,7 @@ Read it before asking the maintainer for anything:
 | `CF_ANALYTICS_TOKEN` | the Web Analytics site token (public in the page; not the site's tag) | Worker `CF_ANALYTICS_TOKEN` |
 | `CF_ANALYTICS_API_TOKEN` (optional) | an account token with **Account Analytics: Read**, for reading Web Analytics | `pnpm usage` |
 | `WORKER_ORIGIN`, `WORKER_SITE_HOST`, `WORKER_APP_URL` | the Worker's other settings | `wrangler deploy` |
+| `LANDING_SPLIT` (while the landing pages are compared) | the share of the front page's visitors sent to `/what-to-build/` ([below](#comparing-the-landing-pages)) | Worker `LANDING_SPLIT` |
 | `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID` | Workers deploys and zone settings | `wrangler` |
 | `GCP_PROJECT`, `GCP_REGION` | the Google Cloud project and region | `gcloud`, `pnpm usage` |
 
@@ -116,10 +117,13 @@ set -a; . ./.env; set +a
 corepack pnpm --filter @whatbuild/web build
 npx wrangler deploy --config deploy/cloudflare/wrangler.toml \
   --var ORIGIN:$WORKER_ORIGIN --var SITE_HOST:$WORKER_SITE_HOST --var APP_URL:$WORKER_APP_URL \
-  --var ANALYTICS_ID:$GA_MEASUREMENT_ID --var CF_ANALYTICS_TOKEN:$CF_ANALYTICS_TOKEN
+  --var ANALYTICS_ID:$GA_MEASUREMENT_ID --var CF_ANALYTICS_TOKEN:$CF_ANALYTICS_TOKEN \
+  ${LANDING_SPLIT:+--var LANDING_SPLIT:$LANDING_SPLIT}
 ```
 
-Leaving out `ANALYTICS_ID` or `CF_ANALYTICS_TOKEN` turns that tool off on the site.
+Leaving out `ANALYTICS_ID` or `CF_ANALYTICS_TOKEN` turns that tool off on the site, and leaving out
+`LANDING_SPLIT` ends the comparison of the landing pages: before a deploy, check that `.env` has it
+while a comparison runs.
 
 ## Connecting another deployment
 

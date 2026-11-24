@@ -373,7 +373,9 @@ tells them apart by Host. Put them in front of the service one of three ways:
   **Comparing the landing pages.** Deploy the Worker with `--var LANDING_SPLIT:0.5` to send half
   of the front page's visitors to `/what-to-build/`, the same ones each visit, and never a crawler
   ([decision](../decisions/the-landing-pages-are-compared-by-a-split-at-the-edge.md)); any share
-  from 0 to 1 works. Deploy again without it to end the test. To see both pages from any address,
+  from 0 to 1 works. Every deploy of the Worker passes it again or ends the test, so keep the share
+  in `LANDING_SPLIT` in `.env`, which the deploy command passes ([analytics](analytics.md#where-the-settings-live));
+  take it out and deploy again to end the test. To see both pages from any address,
   open `/what-to-build/` and `/?split=off`, which is the front page whatever side the address is
   on. How to read the result is in [analytics](analytics.md#comparing-the-landing-pages).
 
