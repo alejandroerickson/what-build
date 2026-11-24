@@ -1768,7 +1768,9 @@ never described as deleting. A list row showing an archived object says *Archive
   minute, then each setting in a field next to its default, saved together under their etag
   (`products.set_guests`).
   - **Starting organizations** (`/admin/starting`; `apps/web/src/routes/instance.tsx`): **Who can start
-  organizations**: what the rule is, the default for every other address and who the owners are;
+  organizations**: what the rule is, what every other address may start (the default, or, while it
+  is none, one each while New organizations a day, from Guests, has places left, else none) and who
+  the owners are;
   then each address with an allowance: its person or "no account yet", how many it may create and
   has created, who gave it and when, the note, and what is left. **Let someone start
   organizations** opens a dialog for an address, a number, a note and whether to tell them by

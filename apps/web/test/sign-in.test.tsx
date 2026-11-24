@@ -165,3 +165,15 @@ describe("asking for a sign-in link", () => {
     }
   });
 });
+
+describe("the browser tab's title", () => {
+  it("follows the heading where Start using WhatBuild leads, and says Sign in elsewhere", async () => {
+    const starting = await signInPageAt(`?next=${encodeURIComponent("/start")}`);
+    expect(starting.querySelector("h1")?.textContent).toBe("Start using WhatBuild");
+    expect(document.title).toBe("Start using WhatBuild · WhatBuild");
+    unmount?.();
+    unmount = null;
+    await signInPageAt("");
+    expect(document.title).toBe("Sign in · WhatBuild");
+  });
+});

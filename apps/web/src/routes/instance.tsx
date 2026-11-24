@@ -51,6 +51,17 @@ function organizations(n: number, kindName?: string | null) {
   return n === 1 ? `1 ${kind}organization` : `${n.toLocaleString("en-US")} ${kind}organizations`;
 }
 
+/** How many organizations people may start themselves each UTC day: the guests' settings, an instance owner's to read. */
+function usePlacesADay(enabled: boolean) {
+  const q = useQuery({
+    queryKey: ["instance-guests"],
+    queryFn: () => api<{ settings: Record<string, number | boolean> }>("GET", "/api/v1/guests"),
+    enabled,
+  });
+  const n = q.data?.settings["organizations_per_day"];
+  return typeof n === "number" ? n : undefined;
+}
+
 /** Who may start organizations, and the waitlist: an instance owner's, and Instance admin's count of who is waiting. */
 export function useAllowances() {
   const me = useMe();
@@ -70,6 +81,7 @@ export function AdminStarting() {
   const owner = me.data?.tenant_allowance.instance_owner ?? false;
   const plans = usePlans();
   const q = useAllowances();
+  const perDay = usePlacesADay(owner);
   const [editing, setEditing] = useState<Allowance | "new" | null>(null);
   const [removing, setRemoving] = useState<Allowance | null>(null);
   const remove = useMutation({
@@ -116,9 +128,11 @@ export function AdminStarting() {
               : "Each person listed can start organizations up to the number they’re given. Owners can start any number."}
           </p>
         )}
-        {q.data && kindName !== undefined ? (
+        {q.data && kindName !== undefined && (q.data.default_allowed || perDay !== undefined) ? (
           <p className="muted">
-            Everyone else can start {q.data.default_allowed ? organizations(q.data.default_allowed, kindName) : "none"}. Owners: {q.data.instance_owners.join(", ")}. Both are set where the service is deployed.
+            {q.data.default_allowed
+              ? `Everyone else can start ${organizations(q.data.default_allowed, kindName)}. Owners: ${q.data.instance_owners.join(", ")}. Both are set where the service is deployed.`
+              : `${perDay ? `Everyone else can start one themselves while the day’s places last (New organizations a day, ${perDay}, in Guests); past them, they join the waitlist.` : "Everyone else can start none: New organizations a day, in Guests, is 0."} Owners: ${q.data.instance_owners.join(", ")}, set where the service is deployed.`}
           </p>
         ) : null}
       </SheetBody>

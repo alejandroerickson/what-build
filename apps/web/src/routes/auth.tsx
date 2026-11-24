@@ -118,7 +118,7 @@ export function SignIn() {
     </>
   );
   return (
-    <EntryPage title="Sign in · WhatBuild">
+    <EntryPage title={starting ? "Start using WhatBuild · WhatBuild" : "Sign in · WhatBuild"}>
       <Sheet labelledBy="signin-title">
         <SheetHeader level={1} id="signin-title" title={next.startsWith("/invite/") ? "Sign in to see your invitation" : starting ? "Start using WhatBuild" : "Sign in to WhatBuild"} />
         <SheetBody className="entry-form">

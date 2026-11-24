@@ -18,7 +18,7 @@ HTMLDialogElement.prototype.close ??= function (this: HTMLDialogElement) {
 };
 window.matchMedia ??= ((query: string) => ({ matches: false, media: query, onchange: null, addListener() {}, removeListener() {}, addEventListener() {}, removeEventListener() {}, dispatchEvent: () => false })) as never;
 
-const state = { plans: true, plansPending: false, plansFail: false };
+const state = { plans: true, plansPending: false, plansFail: false, perDay: 0 };
 const by = { display_name: "Olive Owner" };
 
 vi.mock("../src/lib/api.ts", async (original) => ({
@@ -32,6 +32,7 @@ vi.mock("../src/lib/api.ts", async (original) => ({
       return state.plans
         ? { plans: [{ id: "free", name: "Free", about: "", price: null, limits: {} }], starting_plan: "free", limits: [], file_max_bytes: 0, contact: null }
         : { plans: [], starting_plan: "unlimited", limits: [], file_max_bytes: 0, contact: null };
+    if (path === "/api/v1/guests") return { settings: { self_serve: false, organizations_per_day: state.perDay } };
     if (path === "/api/v1/tenant-allowances")
       return {
         instance_owners: ["olive@example.com"],
@@ -55,6 +56,7 @@ afterEach(() => {
   state.plans = true;
   state.plansPending = false;
   state.plansFail = false;
+  state.perDay = 0;
 });
 
 async function page() {
@@ -109,7 +111,7 @@ describe("how many organizations someone can start", () => {
     state.plansFail = true;
     const host = await page();
     expect(host.textContent).toContain("Each person listed can start organizations up to the number they’re given.");
-    expect(host.textContent).toContain("Everyone else can start none.");
+    expect(host.textContent).toContain("Everyone else can start none: New organizations a day, in Guests, is 0.");
     await act(async () => button(host, "Change how many sam@example.com can start").click());
     const dialog = document.querySelector("dialog[open]")!;
     expect(dialog.textContent).toContain("The number counts the organizations they’ve started, not read-only ones or ones they’re invited to.");
@@ -122,5 +124,13 @@ describe("how many organizations someone can start", () => {
     const dialog = document.querySelector("dialog[open]")!;
     expect(dialog.textContent).toContain("The number counts the organizations they’ve started, not read-only ones or ones they’re invited to.");
     expect(dialog.textContent).not.toContain("another plan");
+  });
+
+  it("says anyone may start one themselves while New organizations a day has places", async () => {
+    state.perDay = 2;
+    const host = await page();
+    expect(host.textContent).toContain("Everyone else can start one themselves while the day’s places last (New organizations a day, 2, in Guests); past them, they join the waitlist.");
+    expect(host.textContent).not.toContain("Everyone else can start none");
+    expect(host.textContent).toContain("Owners: olive@example.com, set where the service is deployed.");
   });
 });
