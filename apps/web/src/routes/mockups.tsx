@@ -491,6 +491,8 @@ export function MockupPage() {
   const { actions, dialogs } = useMockupActions();
 
   const shown = wantsOld ? old.data : e.data?.current;
+  // When the version asked for is gone or never was, the notice says so, the canvas shows nothing, and the inspector holds the current version.
+  const lost = wantsOld && old.isError;
   // Viewed as a clickable prototype (?view=clickable), when this version can be: one page at a time, starting at the first.
   const clickable = params.get("view") === "clickable" && Boolean(shown?.clickable.viewable);
   const shownPage = shown?.pages.some((p) => p.page_id === selected) ? selected : clickable ? (shown?.pages[0]?.page_id ?? null) : null;
@@ -636,10 +638,10 @@ export function MockupPage() {
           clickable={clickable}
           onFollow={stepTo}
           onDownloadPage={downloadPage}
-        /> : <Loading variant="lines" />}
-      <Inspector title={x.title}>{shown ? <MockupInspector
+        /> : lost ? null : <Loading variant="lines" />}
+      <Inspector title={x.title}>{shown || lost ? <MockupInspector
             e={x}
-            shown={shown}
+            shown={shown ?? x.current}
             versions={versions.data?.items}
             versionsKept={versions.data?.versions_kept}
             onVersion={onVersion}

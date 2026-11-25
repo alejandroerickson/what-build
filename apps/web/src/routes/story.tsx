@@ -582,8 +582,9 @@ export function StoryPage() {
             <Loading variant="lines" />
           ) : null}
           <Inspector title={p.title}>
-            {shown ? (
-              <StoryInspectorBody page={p} shown={shown} versions={versions.data?.items} versionsKept={versions.data?.versions_kept} onExport={() => setExporting([p.page_id])} actions={actions} />
+            {/* When the version asked for is gone or never was, the notice says so and the inspector holds the current version. */}
+            {shown || (wantsOld && old.isError) ? (
+              <StoryInspectorBody page={p} shown={shown ?? p.current} versions={versions.data?.items} versionsKept={versions.data?.versions_kept} onExport={() => setExporting([p.page_id])} actions={actions} />
             ) : (
               <Loading variant="lines" />
             )}
