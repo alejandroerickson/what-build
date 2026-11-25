@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { api } from "./api.ts";
 import { formatBytes, formatDate } from "./format.ts";
 
-/** A plan's id, as the deployment defines it, or "unlimited", the plan with no limits. */
+/** A plan's id, as the deployment defines it, or "unlimited", which limits only what a product holds (`unlimitedLifts`). */
 export type Plan = string;
 
 export interface Limit {
@@ -21,7 +21,7 @@ export interface Limit {
 export type Amount = number | boolean | null;
 
 export interface LimitValue extends Limit {
-  /** What the organization's plan sets; null for no limit, and on the unlimited plan. */
+  /** What the organization's plan sets; null for no limit, as on the unlimited plan for all but what a product holds. */
   value: Amount;
   /** What is used of it: today's for a daily limit, counted on every plan; what the organization holds for a total. */
   used?: number;

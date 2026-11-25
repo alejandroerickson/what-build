@@ -132,6 +132,10 @@ describe("an organization's plan", () => {
     // have no limit there), and what each person does there is counted all the same.
     const roomy = await limitsOf(root, unlimited.slug);
     expect(roomy).toMatchObject({ plan: "unlimited", you_meet_them: false });
+    // It says what it lifts and what it keeps, never that it has no limits at all.
+    expect(roomy.plan_about).toBe(
+      "No limit on what people and their agents do, nor on how many mockups and Story pages a product holds; each product’s Playbook keeps to 2,000 files and 32 MB, and each mockup and Story page keeps its newest 10 versions. For this WhatBuild’s own organizations; never offered.",
+    );
     for (const l of roomy.limits as { key: string; value: unknown }[])
       expect(l.value, l.key).toBe(isProductTotal(l.key) ? unlimitedProductTotal(l.key) : null);
     expect(roomy.limits.find((l: { key: string }) => l.key === "writes_per_day").used).toBeGreaterThan(0);

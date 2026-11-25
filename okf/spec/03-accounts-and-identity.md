@@ -343,7 +343,9 @@ Every tenant is on a plan of its own, and a plan covers exactly one tenant: a se
 a second plan, billed on its own. **The plans are the deployment's.** It defines them in
 `WHATBUILD_PLANS` ([§9.7](09-data-lifecycle.md#97-plans-and-limits)): each one's id, name, what it is
 for, every limit it sets and its price, if any. The code knows only `unlimited`, which sets no
-limit and is never offered: it is for the deployment's own organizations, and for every
+limit on what people and their agents do, nor on how many mockups and Story pages a product holds,
+but keeps each product's Playbook to its size and each mockup's and Story page's newest versions
+([§9.7](09-data-lifecycle.md#97-plans-and-limits)), and is never offered: it is for the deployment's own organizations, and for every
 organization of a deployment that defines no plans, as a self-hosted one does. One created on an
 allowance gets the plan the deployment names in `WHATBUILD_NEW_ORGANIZATION_PLAN`, which must be
 one it defines, or `unlimited` when it names none; one an instance owner creates is always

@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act } from "react";
+import { act, type ReactNode } from "react";
 import { createRoot } from "react-dom/client";
 import { renderToStaticMarkup } from "react-dom/server";
 import { MemoryRouter, Route, Routes } from "react-router";
@@ -23,6 +23,8 @@ const FRESH = {
   storyOnly: false,
   /** The server refuses the person, whatever their list says. */
   refused: false,
+  /** The deployment defines plans; a self-hosted one defines none. */
+  offered: true,
 };
 const state = { ...FRESH };
 const asked: string[] = [];
@@ -60,13 +62,30 @@ const plans = () => [
   { id: "pro", name: "Pro", about: "For a few products and their discoveries.", price: "$10 a month", limits: PRO },
 ];
 
+/** What Instance admin reads of every organization: Acme, on Free, and the plans with their limits. */
+const organizations = () => ({
+  plans: plans(),
+  plan_defaults: { free: FREE, pro: PRO },
+  plan_records: {},
+  plan_names: { free: "Free", pro: "Pro", unlimited: "Unlimited" },
+  new_organization_plan: "free",
+  limits: info,
+  items: [
+    {
+      slug: "acme", name: "Acme", name_etag: "n1", plan: "free", created_at: "2026-10-01T00:00:00.000Z", created_by: { display_name: "Ada Example" },
+      holds: state.holds, etag: null, plan_changed_at: null, plan_changed_by: null, today: { people_writing: 0, writes: 0, sources: 0, exports: 0, bytes: 0 },
+    },
+  ],
+});
+
 vi.mock("../src/lib/api.ts", async (original) => ({
   ...(await original<typeof import("../src/lib/api.ts")>()),
   api: vi.fn(async (_method: string, path: string) => {
     asked.push(path);
     if (path === "/api/v1/me/products") return { items: [], tenants: [{ slug: "acme", name: "Acme", plan: state.plan, ...(state.storyOnly ? { story_only: true } : {}) }] };
     if (state.refused && path.endsWith("/limits")) throw new (await original<typeof import("../src/lib/api.ts")>()).ApiError(403, "forbidden", "You read only the Story in Acme.");
-    if (path === "/api/v1/plans") return { plans: plans(), starting_plan: "free", limits: info, file_max_bytes: 100 * MB, contact: state.contact };
+    if (path === "/api/v1/organizations") return organizations();
+    if (path === "/api/v1/plans") return { plans: state.offered ? plans() : [], starting_plan: "free", limits: info, file_max_bytes: 100 * MB, contact: state.contact };
     const guest = state.meets === "calls_per_minute_only";
     const values = state.plan === "free" ? FREE : state.plan === "pro" ? PRO : null;
     return {
@@ -102,7 +121,16 @@ vi.mock("../src/lib/session.tsx", async (original) => ({
 // Asked as the shell's modules load; jsdom has no media queries.
 window.matchMedia ??= (query: string) => ({ matches: false, media: query, onchange: null, addListener() {}, removeListener() {}, addEventListener() {}, removeEventListener() {}, dispatchEvent: () => false }) as MediaQueryList;
 
-const { InstanceLimitsSheets, OrganizationPlan } = await import("../src/routes/limits.tsx");
+const { PlansPage } = await import("../src/routes/plans.tsx");
+const { InstanceLimitsSheets, InstanceOrganizationsSheet, InstancePlansSheet, OrganizationPlan } = await import("../src/routes/limits.tsx");
+
+// jsdom has no modal dialogs.
+HTMLDialogElement.prototype.showModal ??= function (this: HTMLDialogElement) {
+  this.open = true;
+};
+HTMLDialogElement.prototype.close ??= function (this: HTMLDialogElement) {
+  this.open = false;
+};
 
 function PlanPage() {
   return <OrganizationPlan tenant="acme" />;
@@ -252,7 +280,11 @@ describe("Plan", () => {
     Object.assign(state, { plan: "unlimited", meets: false });
     const host = await page();
     const text = host.textContent ?? "";
-    expect(text).toContain("Acme has no limits: nobody in it meets any.");
+    // It says what Unlimited lifts and what each product still keeps, never that it has no limits.
+    expect(text).toContain(
+      "Acme is Unlimited. No limit on what people and their agents do, nor on how many mockups and Story pages a product holds; each product’s Playbook keeps to 2,000 files and 32 MB, and each mockup and Story page keeps its newest 10 versions.",
+    );
+    expect(text).not.toContain("has no limits");
     expect(rows(host, "holds-title")[0]).toBe("PeopleStory readers don’t count.2 · no limit");
     expect(host.querySelector('[aria-labelledby="today-title"]')).toBeNull();
     expect(text).toContain("Files up to 25 MB each.");
@@ -303,6 +335,63 @@ describe("Plan", () => {
     expect(text).toContain("Limits of this deployment");
     expect(text).toContain("WHATBUILD_PARSE_MEMORY_MB");
     expect([...host.querySelectorAll("th[role=columnheader]")].map((th) => th.textContent)).toContain("Used");
+  });
+});
+
+/** One of Instance admin's sheets, signed in as an owner of this WhatBuild, at an address. */
+async function admin(sheet: ReactNode, at: string) {
+  state.instanceOwner = true;
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const host = document.createElement("div");
+  document.body.append(host);
+  const root = createRoot(host);
+  unmount = () => act(() => root.unmount());
+  await act(async () => {
+    root.render(
+      <QueryClientProvider client={qc}>
+        <MemoryRouter initialEntries={[at]}>{sheet}</MemoryRouter>
+      </QueryClientProvider>,
+    );
+  });
+  for (let i = 0; i < 20 && host.textContent?.includes("Loading"); i++) await act(() => new Promise((r) => setTimeout(r, 5)));
+  await act(() => new Promise((r) => setTimeout(r, 10)));
+  return host;
+}
+
+describe("Instance admin's plans", () => {
+  it("says, in an organization's choice of plan, what Unlimited lifts and what it keeps", async () => {
+    const host = await admin(<InstanceOrganizationsSheet />, "/admin/organizations?org=acme");
+    const choice = [...host.querySelectorAll("dialog label")].find((l) => l.textContent?.startsWith("Unlimited"));
+    expect(choice?.textContent).toContain(
+      "No limit on what people and their agents do, nor on how many mockups and Story pages a product holds; each product’s Playbook keeps to 2,000 files and 32 MB, and each mockup and Story page keeps its newest 10 versions. For this WhatBuild’s own organizations; never offered.",
+    );
+    expect(host.querySelector("dialog")?.textContent).not.toContain("No limits.");
+  });
+
+  it("names each No limit checkbox in a plan's limits by the limit it lifts", async () => {
+    const host = await admin(<InstancePlansSheet />, "/admin/plans");
+    const edit = host.querySelector<HTMLButtonElement>('button[aria-label="Edit the Pro plan"]');
+    expect(edit).not.toBeNull();
+    await act(async () => edit!.click());
+    const names = [...host.querySelectorAll<HTMLInputElement>("dialog .limits-nolimit input[type=checkbox]")].map((c) => c.getAttribute("aria-label"));
+    expect(names).toContain("Products: no limit");
+    expect(names).toContain("Sources: no limit");
+    // Every row's is its own, so a screen reader tells them apart.
+    expect(new Set(names).size).toBe(names.length);
+    // Pro sets no limit on products, so its checkbox is ticked; sources have one.
+    const box = (name: string) => host.querySelector<HTMLInputElement>(`dialog input[aria-label="${name}"]`);
+    expect(box("Products: no limit")?.checked).toBe(true);
+    expect(box("Sources: no limit")?.checked).toBe(false);
+  });
+});
+
+describe("the plans, where the deployment offers none", () => {
+  it("says what each product still keeps, never that there are no limits at all", async () => {
+    state.offered = false;
+    const host = await admin(<PlansPage />, "/plans");
+    expect(host.textContent).toContain(
+      "This WhatBuild offers no plans: every organization here meets only the limits the deployment sets for all, and each product’s Playbook keeps to 2,000 files and 32 MB, and each mockup and Story page keeps its newest 10 versions.",
+    );
   });
 });
 
