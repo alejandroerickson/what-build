@@ -3,7 +3,7 @@ type: Index
 title: Decisions
 description: Architectural decision records, each with its context, the choice, and what it constrains.
 tags: [index, decisions, adr]
-generated: {by: agent:claude, at: 2026-11-20}
+generated: {by: agent:claude, at: 2026-11-25}
 status: stable
 ---
 
@@ -99,6 +99,7 @@ name what replaced it, and date the change. Smaller decisions are marked
 - [Copies outside production hold only organizations an instance owner owns, and synthetic ones; customers' organizations never leave production](copies-outside-production-hold-only-organizations-an-instance-owner-owns.md)
 - [A copy of production holds only the organizations it is for, by default the example organization, and nothing of any other leaves production](a-copy-of-production-holds-only-the-organizations-it-is-for.md) (superseded)
 - [End-to-end tests are written plans that an agent runs through the web app and MCP, on a local instance reset to a golden master made from production's example organization](end-to-end-tests-are-plans-an-agent-runs-on-a-golden-master.md)
+- [WhatBuild says product engineering, not product discovery](whatbuild-says-product-engineering-not-product-discovery.md)
 - [A product starts with its idea, a product concept and the outcomes its users should achieve](a-product-starts-with-an-idea-concept-and-outcomes.md)
 - [The product concept and each outcome is a card with a front for people and a back for agents, and agents write both](idea-cards-have-a-front-for-people-and-a-back-for-agents.md)
 - [The web app uses the Studio design system](studio-design-system.md)

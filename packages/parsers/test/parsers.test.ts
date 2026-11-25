@@ -875,7 +875,7 @@ describe("XLSX", () => {
 
 describe("PDF", () => {
   it("reads the text layer per page", async () => {
-    const r = await derive(makePdf(["Discovery notes.", "We heard pricing twice."]), "notes.pdf");
+    const r = await derive(makePdf(["Interview notes.", "We heard pricing twice."]), "notes.pdf");
     expect(r.status).toBe("ready");
     expect(r.segments[0]).toMatchObject({ text: "# Page 1", page: 1, heading_level: 1 });
     expect(r.segments.slice(1).map((s) => s.text).join(" ")).toContain("We heard pricing twice.");

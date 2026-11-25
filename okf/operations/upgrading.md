@@ -3,7 +3,7 @@ type: Process
 title: What a deployment must do when it takes a release
 description: The changes a release asks of the people who run a deployment (settings, app registrations, behaviour they will notice), kept per release, with the unreleased ones on top until the next release carries them into its notes.
 tags: [operations, releases, upgrading, self-hosting, configuration]
-generated: {by: agent:claude, at: 2026-11-23}
+generated: {by: agent:claude, at: 2026-11-25}
 status: stable
 ---
 
@@ -45,6 +45,12 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
   the answer (`versions_deleted`), and reading a deleted version answers `410 version_deleted`. No
   migration (`tools_version` 0.71.0); a connected client sees the new descriptions after a new
   session.
+- **WhatBuild says product engineering, not product discovery**, in the app, the site, the tutorial,
+  the mail, the guide, the operations' descriptions and the MCP server's instructions. It asks
+  nothing of a deployment and adds no migration (`tools_version` 0.71.0, as above); a connected
+  client sees the new instructions after a new session. A plans file whose plans' descriptions
+  (`about`) came from `deploy/plans.example.json` may still say "discovery" until its owner changes
+  them in that file.
 
 ## v0.44.2
 

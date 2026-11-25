@@ -110,7 +110,7 @@ export async function seed(env: Env, worker: Worker, log: (m: string) => void = 
     "story.publish",
     {
       page_id: "overview",
-      title: "Where Crewboard's discovery stands",
+      title: "Where Crewboard stands",
       summary: "Planning costs an afternoon a week; the hand-off is where mistakes happen.",
       html: STORY_HTML(
         {

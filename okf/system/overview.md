@@ -3,7 +3,7 @@ type: System Concept
 title: WhatBuild at three altitudes
 description: The whole system from the top down, the major parts, and the mechanics underneath, with links to the detail.
 tags: [overview, architecture, tenancy, access, mcp]
-generated: {by: agent:claude, at: 2026-11-18}
+generated: {by: agent:claude, at: 2026-11-25}
 status: stable
 ---
 
@@ -13,7 +13,7 @@ Read from the top and stop when you have what you need.
 
 ## 10,000 ft: the whole picture
 
-**What it is.** A product team's discovery material (interview transcripts, call notes, survey
+**What it is.** A product team's evidence (interview transcripts, call notes, survey
 exports, documents) goes in. WhatBuild stores it, reads each source's attachments into one
 readable text, and gives people and their agents one place to turn it into outcomes, mockups
 and a Story for stakeholders. Agents search what the sources say for what

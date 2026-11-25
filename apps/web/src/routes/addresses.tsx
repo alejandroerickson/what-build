@@ -184,7 +184,7 @@ function EmptyOrganization({ tenant }: { tenant: ProductsResponse["tenants"][num
       />
       <EmptyState size="inline" title={mayCreate ? "No products yet" : "Nothing to open yet"}>
         {mayCreate
-          ? "A product holds one discovery: its Idea, Evidence, Exploration and Story. Create one to start."
+          ? "A product holds its Idea, Evidence, Exploration and Story. Create one to start."
           : `Ask an admin of ${tenant.name} for a role on a product.`}
       </EmptyState>
       {creating && products.data ? <CreateProductDialog tenants={products.data.tenants} tenant={tenant.slug} onClose={() => setCreating(false)} /> : null}

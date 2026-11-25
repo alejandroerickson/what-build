@@ -2,14 +2,14 @@
 
 What WhatBuild holds, how it is organized, who may do what, and the other topics of this guide.
 
-WhatBuild holds product-discovery material and what the people working on a product make of it. People work in
+WhatBuild holds a product team's evidence and what the people working on a product make of it. People work in
 the web app; agents work through this MCP server. Both reach the same operations and the same data,
 under the person's own account. WhatBuild contains no AI: it parses, stores, searches and checks
 deterministically.
 
 ## Organizations and products
 
-Everything lives in a **product** (one discovery), inside a **tenant** (an organization).
+Everything lives in a **product** (one product and its work), inside a **tenant** (an organization).
 `products_read(action="list")` lists the products you can reach, with the tenants they are in. Every
 product-scoped call takes `product`: a `product_id` or its path (`tenant/product`). It may be left
 out when the connector is scoped to one product, or when you can reach only one product outside the
@@ -79,7 +79,7 @@ nothing. Work elsewhere needs a connector scoped there, or the unscoped one (`/m
 
 A deployment may have one organization every account reads: the **example organization**, marked
 `example: true` in `products_read(action="list")` and in a product's `scope`. Its authors wrote it to
-show what a discovery in WhatBuild looks like.
+show what a product in WhatBuild looks like.
 
 - Anyone who is not one of its members is its guest (`your_role` guest, a viewer of every product).
 - A guest's every write there, an export and a preview included, is refused with

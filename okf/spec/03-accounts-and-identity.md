@@ -3,7 +3,7 @@ type: Specification
 title: Accounts belong to tenants, tenants hold products, and one role check decides every call.
 description: The account → tenant → product hierarchy, sign-in, roles and what they grant, plans and their limits, addressing and isolation, caller identity, attribution, the example organization every account reads, and how teams were removed.
 tags: [spec, accounts, tenancy, roles, identity, oauth, isolation, example, limits]
-generated: {by: agent:claude, at: 2026-11-17}
+generated: {by: agent:claude, at: 2026-11-25}
 status: stable
 ---
 
@@ -19,7 +19,7 @@ through; identity lives in [`apps/server/src/auth`](../../apps/server/src/auth).
 ```
 account              one person's sign-in; may belong to several tenants
 tenant               an organization: the isolation boundary
-└── product          one discovery
+└── product          one product and its work
     ├── outcomes
     ├── sources      records → attachments → readings; derived text, summary, notes, comments
     ├── mockups      versions, pages, files
@@ -796,7 +796,7 @@ A deployment may name one organization as its **example organization**: a worked
 every signed-in account reads and nobody but its own members changes. The maintainer's public
 deployment names one; a self-hosted deployment leaves the setting out and has none
 (◆ [decision](../decisions/every-account-reads-the-example-organization-which-only-its-staff-write.md)).
-It shows what a discovery in WhatBuild looks like, and a person can always go back to it.
+It shows what a product in WhatBuild looks like, and a person can always go back to it.
 
 **Which organization.** `WHATBUILD_EXAMPLE_TENANT` holds its slug. At start-up the server sets
 `tenants.example` on that organization and clears it on every other (`syncExampleTenant`,

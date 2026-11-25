@@ -1048,7 +1048,7 @@ describe("the totals of a plan", () => {
   it("leave an organization past its totals with everything it holds: read, searched, exported, restored and deleted, and adding refused with what makes room", async () => {
     const products = `/api/v1/tenants/${free.slug}/products`;
     tweak({ products_max: 2, sources_per_day: 1000, exports_per_day: 1000 });
-    const made = await fay.api("POST", products, { name: "Shelved discovery" });
+    const made = await fay.api("POST", products, { name: "Shelved product" });
     expect(made.status, JSON.stringify(made.body)).toBe(201);
     const Q = `/api/v1/p/${made.body.path}`;
     const shelved = await addSource(fay, "Sample source later shelved");
@@ -1091,7 +1091,7 @@ describe("the totals of a plan", () => {
     // Deleting works, and comes down by what it takes.
     expect((await deleteSource(fay, shelved.body.record_id)).status).toBe(200);
     expect((await holds()).sources).toBe(before.sources - 1);
-    expect((await deleteProduct(fay, Q, "Shelved discovery")).status).toBe(200);
+    expect((await deleteProduct(fay, Q, "Shelved product")).status).toBe(200);
     expect((await holds()).products).toBe(before.products - 1);
     reset();
   });

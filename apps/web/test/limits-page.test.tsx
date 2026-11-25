@@ -58,8 +58,8 @@ const held = (key: string) =>
   ({ members_max: state.holds.members + state.holds.invited, products_max: state.holds.products, sources_max: state.holds.sources, storage_max_bytes: state.holds.storage.total })[key];
 
 const plans = () => [
-  { id: "free", name: "Free", about: "For trying WhatBuild on one discovery.", price: null, limits: FREE },
-  { id: "pro", name: "Pro", about: "For a few products and their discoveries.", price: "$10 a month", limits: PRO },
+  { id: "free", name: "Free", about: "For trying WhatBuild on one product.", price: null, limits: FREE },
+  { id: "pro", name: "Pro", about: "For a few products.", price: "$10 a month", limits: PRO },
 ];
 
 /** What Instance admin reads of every organization: Acme, on Free, and the plans with their limits. */
@@ -92,7 +92,7 @@ vi.mock("../src/lib/api.ts", async (original) => ({
       organization: { slug: "acme", name: "Acme" },
       plan: state.plan,
       plan_name: { free: "Free", pro: "Pro", unlimited: "Unlimited" }[state.plan],
-      plan_about: "For trying WhatBuild on one discovery.",
+      plan_about: "For trying WhatBuild on one product.",
       you_meet_them: state.meets,
       ...(guest ? {} : { holds: state.holds }),
       allowances_restart_at: "2026-10-26T00:00:00.000Z",

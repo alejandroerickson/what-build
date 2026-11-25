@@ -77,7 +77,7 @@ export const CONNECT: Stop = { id: "connect", title: "Connect an agent", line: [
 /** Each tutorial's stops, in order; the welcome's on whatever page the person is on, each page's on that page. */
 export const TUTORIALS: Record<Part, readonly Stop[]> = {
   welcome: [
-    { id: "nav", title: "Main navigation", line: ["Four stages of product discovery."], target: "nav", side: "right" },
+    { id: "nav", title: "Main navigation", line: ["Four stages of product engineering."], target: "nav", side: "right" },
     {
       id: "agents",
       title: "Agents",

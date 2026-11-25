@@ -3,7 +3,7 @@ type: Index
 title: The WhatBuild specification is ten documents, read in order.
 description: What WhatBuild is in one paragraph, the ten spec files with what each settles, the conventions they share, and the decisions that shape the rest.
 tags: [spec, index, conventions]
-generated: {by: agent:claude, at: 2026-11-13}
+generated: {by: agent:claude, at: 2026-11-25}
 status: stable
 ---
 
@@ -12,8 +12,8 @@ status: stable
 The bundle's entry point is [okf/index.md](../index.md); this file maps the `spec/` directory. What
 is built and what is not is tracked in the [roadmap](10-roadmap.md).
 
-WhatBuild is open-source software for rapid product discovery. A team collects discovery
-material (interviews, sales calls, research exports, documents, decks) and the application gives
+WhatBuild is open-source software for rapid product engineering. A team collects evidence
+(interviews, sales calls, research exports, documents, decks) and the application gives
 that material an opinionated home, derives precise, addressable text from every source, and helps
 the team turn it into outcomes and mockups, then tell the story to
 stakeholders. A person works through a web application. An agent works through a Model
@@ -65,8 +65,8 @@ That is how it is developed and how CI runs it.
 3. **Operations are defined once.** A single operation registry generates the REST routes, the MCP
    tools, and their self-descriptions, so the two adapters cannot drift.
    → [Operations](06-operations-and-adapters.md)
-4. **Tenant → product → everything.** A product is one discovery. Every object belongs to
-   exactly one product; the product is explicit in every request.
+4. **Tenant → product → everything.** Every object belongs to exactly one product; the product is
+   explicit in every request.
    → [Accounts, tenants, products, roles](03-accounts-and-identity.md)
 5. **Roles, checked in one place.** Story reader, viewer, editor and admin on a product or on all
    products, owner, admin, product creator and member of the tenant; the highest applies. What you cannot see answers `404`; what you can see but may

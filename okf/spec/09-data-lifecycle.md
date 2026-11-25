@@ -3,7 +3,7 @@ type: Specification
 title: Nothing is ever trapped - say what we promise, keep export open, and never let a limit block a read.
 description: What we tell people, limits and quotas (enforced and planned), backups and in-product versioning, export, archive and permanent delete of everything archivable and of an organization, the operator runbooks, plans and their limits, how retired insights and decisions became sources, and how assumptions were removed.
 tags: [spec, lifecycle, quotas, backups, export, archive, delete, limits, plans]
-generated: {by: agent:claude, at: 2026-11-23}
+generated: {by: agent:claude, at: 2026-11-25}
 status: stable
 ---
 
@@ -557,7 +557,7 @@ instead, set on the same page ([§3.10](03-accounts-and-identity.md#310-the-exam
 
 The totals and `sent_bytes_per_day` may be null, no limit; every other limit is a number, or for
 the last two a switch. The example file's values are a starting point, set by what an organization
-may cost at most and what a real discovery uses: one product with a few dozen sources holds tens of
+may cost at most and what a real product uses: one with a few dozen sources holds tens of
 megabytes.
 
 **What each product holds** (`mockups_max`, `story_pages_max`, `playbook_files_max`,

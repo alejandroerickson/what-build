@@ -442,7 +442,7 @@ describe("who may answer", () => {
     const mail = h.mailer.sent.at(-1)!;
     const [, , about, , sign, at, , lasts] = mail.text.split("\n");
     // No public site here, so nothing says where to read more.
-    expect(about).toBe("WhatBuild turns a product team’s discovery material into outcomes, mockups and a Story for stakeholders.");
+    expect(about).toBe("WhatBuild turns a product team’s evidence into outcomes, mockups and a Story for stakeholders.");
     expect(sign).toBe("Accept or decline, signing in as mailed@example.com:");
     expect(at).toBe(link);
     expect(lasts).toBe("The link works for 7 days.");
