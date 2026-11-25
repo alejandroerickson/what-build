@@ -59,6 +59,7 @@ vi.mock("../src/lib/api.ts", async (original) => {
   const real = await original<typeof import("../src/lib/api.ts")>();
   const gone = () => new real.ApiError(410, "version_deleted", "Version 1 was deleted.", { versions_kept: [3, 12] });
   const never = () => new real.ApiError(404, "not_found", "No such version.");
+  const failed = () => new real.ApiError(500, "internal", "Something went wrong.");
   return {
     ...real,
     api: vi.fn(async (_method: string, path: string) => {
@@ -67,12 +68,14 @@ vi.mock("../src/lib/api.ts", async (original) => {
       if (path.startsWith(`${BASE}/mockups/m1/versions?`)) return { items: [{ version: 12, page_count: 0, published_at: NOW }, { version: 3, page_count: 0, published_at: NOW }], versions_kept: 10 };
       if (path === `${BASE}/mockups/m1/versions/1`) throw gone();
       if (path === `${BASE}/mockups/m1/versions/40`) throw never();
+      if (path === `${BASE}/mockups/m1/versions/50`) throw failed();
       if (path === `${BASE}/story/hierarchy`) return { etag: "h1", items: [{ page_id: "overview", title: "Overview", kind: "page", archived_at: null, children: [] }], unplaced: [] };
       if (path.startsWith(`${BASE}/story/pages?`)) return { items: [{ page_id: "overview", title: "Overview", archived_at: null, etag: "s1" }] };
       if (path.startsWith(`${BASE}/story/pages/overview?`)) return storyPage;
       if (path.startsWith(`${BASE}/story/pages/overview/versions?`)) return { items: [{ version: 12, title: "Overview", published_at: NOW, published_by: actor }], versions_kept: 10 };
       if (path.startsWith(`${BASE}/story/pages/overview/versions/1?`)) throw gone();
       if (path.startsWith(`${BASE}/story/pages/overview/versions/40?`)) throw never();
+      if (path.startsWith(`${BASE}/story/pages/overview/versions/50?`)) throw failed();
       if (path.startsWith(`${BASE}/story/style`)) return { style: null, styles: [] };
       return { items: [] };
     }),
@@ -138,12 +141,20 @@ describe("a mockup at a version it no longer has", () => {
     expect(loading(inspector)).toBe(0);
     // The inspector holds the current version's details, and the versions kept.
     expect(inspector.textContent).toContain("Checkout");
-    expect(inspector.textContent).toContain("12");
+    expect(inspector.textContent).toContain("12 · current");
   });
 
   it("says a number never published isn't there, and leaves nothing loading", async () => {
     const { host, inspector } = await open(`${APP}/exploration/mockups/m1?v=40`);
     expect(host.textContent).toContain("This mockup has no version 40");
+    expect(loading(host)).toBe(0);
+    expect(loading(inspector)).toBe(0);
+  });
+
+  it("says a version that failed for another reason couldn't be loaded, and offers to try again", async () => {
+    const { host, inspector } = await open(`${APP}/exploration/mockups/m1?v=50`);
+    expect(host.textContent).toContain("Version 50 couldn’t be loaded");
+    expect(host.textContent).not.toContain("has no version");
     expect(loading(host)).toBe(0);
     expect(loading(inspector)).toBe(0);
   });
@@ -164,5 +175,12 @@ describe("a Story page at a version it no longer has", () => {
     expect(host.textContent).toContain("This page has no version 40");
     expect(loading(host)).toBe(0);
     expect(loading(inspector)).toBe(0);
+  });
+
+  it("says a version that failed for another reason couldn't be loaded, and offers to try again", async () => {
+    const { host } = await open(`${APP}/story/overview?v=50`);
+    expect(host.textContent).toContain("Version 50 couldn’t be loaded");
+    expect(host.textContent).not.toContain("has no version");
+    expect(loading(host)).toBe(0);
   });
 });

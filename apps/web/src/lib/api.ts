@@ -160,3 +160,8 @@ export function putWithProgress(url: string, headers: Record<string, string>, fi
 export function deletedVersion(error: unknown): boolean {
   return error instanceof ApiError && error.code === "version_deleted";
 }
+
+/** Whether a read failed because the version asked for is gone or never was (410 or 404), rather than for a reason a retry may cure. */
+export function missingVersion(error: unknown): boolean {
+  return error instanceof ApiError && (error.status === 404 || error.status === 410);
+}

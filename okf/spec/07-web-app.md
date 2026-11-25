@@ -1189,8 +1189,9 @@ Version in the inspector, whose dialog offers **Archive instead** (§7.10).
   length; one opens in a dialog as rendered Markdown or as source text, never as HTML, with Copy).
 - A callout above the canvas appears only for a state the person must know: the mockup is
   archived (with **Restore** for whoever can write), an earlier version is shown (with **Show the current version**), or the version asked
-  for does not exist, or was deleted past what the plan keeps, which it says. Then the canvas
-  shows nothing and the inspector holds the current version, so nothing is left loading.
+  for does not exist, or was deleted past what the plan keeps, which it says (a version that
+  failed to load for another reason says it couldn't be loaded, with **Try again**). Then the
+  canvas shows nothing and the inspector holds the current version, so nothing is left loading.
 - **Downloading.** A toast says that a page runs its own code outside WhatBuild, with every download.
 - **On the Story** ([decision](../decisions/agents-write-the-story-people-arrange-it.md)). Under
   the selected page's title, each Story page that shows the selected page is named and linked with the

@@ -2,7 +2,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { MOCKUP_PAGE_SANDBOX, PAGE_HEIGHT_MIN, STORY_PAGE_SANDBOX } from "@whatbuild/core/page-sandbox";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Navigate, useNavigate, useParams, useSearchParams } from "react-router";
-import { api, ApiError, deletedVersion } from "../lib/api.ts";
+import { api, ApiError, deletedVersion, missingVersion } from "../lib/api.ts";
 import { useAutoHeight } from "../lib/auto-height.ts";
 import { useHeldUpdate } from "../lib/live.tsx";
 import { SAYS_LOADED_WITHIN_MS, useFrameReturn } from "../lib/minute.ts";
@@ -541,13 +541,17 @@ export function StoryPage() {
             />
           ) : null}
           {wantsOld && old.isError ? (
-            <Callout
-              tone="attention"
-              title={deletedVersion(old.error) ? `Version ${asked} was deleted` : `This page has no version ${asked}`}
-              action={<ButtonLink size="sm" to={`${app}/story/${pageId}`}>Show the current version</ButtonLink>}
-            >
-              {deletedVersion(old.error) ? "The organization’s plan keeps only each Story page’s newest versions." : `Its newest is version ${p.current_version}.`}
-            </Callout>
+            missingVersion(old.error) ? (
+              <Callout
+                tone="attention"
+                title={deletedVersion(old.error) ? `Version ${asked} was deleted` : `This page has no version ${asked}`}
+                action={<ButtonLink size="sm" to={`${app}/story/${pageId}`}>Show the current version</ButtonLink>}
+              >
+                {deletedVersion(old.error) ? "The organization’s plan keeps only each Story page’s newest versions." : `Its newest is version ${p.current_version}.`}
+              </Callout>
+            ) : (
+              <ErrorCallout title={`Version ${asked} couldn’t be loaded`} error={old.error} onRetry={() => old.refetch()} />
+            )
           ) : null}
           {shown?.mockup?.canvas ? (
             <StoryCanvas
