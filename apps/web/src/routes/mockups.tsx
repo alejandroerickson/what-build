@@ -2,7 +2,7 @@ import { OUTSIDE_THE_SANDBOX } from "@whatbuild/core/page-sandbox";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useState } from "react";
 import { Link, Navigate, useNavigate, useParams, useSearchParams } from "react-router";
-import { api, ApiError, deletedVersion } from "../lib/api.ts";
+import { api, ApiError, deletedVersion, missingVersion } from "../lib/api.ts";
 import { attribution, deletedSentence, formatBytes, formatDate, formatDateTime, plural } from "../lib/format.ts";
 import { Markdown } from "../lib/markdown.tsx";
 import { useHeldUpdate } from "../lib/live.tsx";
@@ -491,6 +491,8 @@ export function MockupPage() {
   const { actions, dialogs } = useMockupActions();
 
   const shown = wantsOld ? old.data : e.data?.current;
+  // When the version asked for is gone or never was, the notice says so, the canvas shows nothing, and the inspector holds the current version.
+  const lost = wantsOld && old.isError;
   // Viewed as a clickable prototype (?view=clickable), when this version can be: one page at a time, starting at the first.
   const clickable = params.get("view") === "clickable" && Boolean(shown?.clickable.viewable);
   const shownPage = shown?.pages.some((p) => p.page_id === selected) ? selected : clickable ? (shown?.pages[0]?.page_id ?? null) : null;
@@ -508,9 +510,13 @@ export function MockupPage() {
   const stepTo = useCallback((pageId: string | null) => select(pageId, { step: mayStep() }), [select, mayStep]);
   const onView = (toClickable: boolean) => {
     const next = new URLSearchParams(params);
+    // From a version that failed to load, the inspector holds the current version, so the view changes there.
+    const on = shown ?? (lost ? e.data?.current : undefined);
+    if (lost) next.delete("v");
     if (toClickable) {
       next.set("view", "clickable");
-      if (shownPage ?? shown?.pages[0]) next.set("page", shownPage ?? shown!.pages[0]!.page_id);
+      const first = shownPage ?? on?.pages[0]?.page_id;
+      if (first) next.set("page", first);
     } else next.delete("view");
     setParams(next);
   };
@@ -615,13 +621,17 @@ export function MockupPage() {
         <Callout tone="attention" title={`You’re looking at an earlier version: ${old.data.version} of ${x.current_version}`} action={<Button size="sm" onClick={() => onVersion(x.current_version)}>Show the current version</Button>} />
       ) : null}
       {wantsOld && old.isError ? (
-        <Callout
-          tone="attention"
-          title={deletedVersion(old.error) ? `Version ${asked} was deleted` : `This mockup has no version ${asked}`}
-          action={<Button size="sm" onClick={() => onVersion(x.current_version)}>Show the current version</Button>}
-        >
-          {deletedVersion(old.error) ? "The organization’s plan keeps only each mockup’s newest versions, and those a Story page shows." : null}
-        </Callout>
+        missingVersion(old.error) ? (
+          <Callout
+            tone="attention"
+            title={deletedVersion(old.error) ? `Version ${asked} was deleted` : `This mockup has no version ${asked}`}
+            action={<Button size="sm" onClick={() => onVersion(x.current_version)}>Show the current version</Button>}
+          >
+            {deletedVersion(old.error) ? "The organization’s plan keeps only each mockup’s newest versions, and those a Story page shows." : `Its newest is version ${x.current_version}.`}
+          </Callout>
+        ) : (
+          <ErrorCallout title={`Version ${asked} couldn’t be loaded`} error={old.error} onRetry={() => old.refetch()} />
+        )
       ) : null}
       {shown ? <Canvas
           key={shown.version}
@@ -636,10 +646,10 @@ export function MockupPage() {
           clickable={clickable}
           onFollow={stepTo}
           onDownloadPage={downloadPage}
-        /> : <Loading variant="lines" />}
-      <Inspector title={x.title}>{shown ? <MockupInspector
+        /> : lost ? null : <Loading variant="lines" />}
+      <Inspector title={x.title}>{shown || lost ? <MockupInspector
             e={x}
-            shown={shown}
+            shown={shown ?? x.current}
             versions={versions.data?.items}
             versionsKept={versions.data?.versions_kept}
             onVersion={onVersion}

@@ -198,6 +198,11 @@ The plans:
   the Playbook changes (its operations, what points agents at it, its switch, who may do what), not
   for every change to the Playbook: a change to the starter's or the guide's words, or one the
   server's tests cover, needs none.
+- `versions-kept`: a mockup and a Story page published past the versions their plan keeps: what
+  each publish deletes and names, the mockup version a Story page shows kept, numbers never used
+  again, a deleted version read over MCP (`410 version_deleted`) and opened in the web app, the
+  activity log, what delete dialogs count, a promotion that trims, a plan keeping fewer trimming at
+  the next version, and Instance admin → Plans refusing fewer than one.
 - `exploratory`: open-ended, every screen as each role and as a guest of the example, at phone width and
   in the dark theme.
 

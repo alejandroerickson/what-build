@@ -1189,7 +1189,9 @@ Version in the inspector, whose dialog offers **Archive instead** (§7.10).
   length; one opens in a dialog as rendered Markdown or as source text, never as HTML, with Copy).
 - A callout above the canvas appears only for a state the person must know: the mockup is
   archived (with **Restore** for whoever can write), an earlier version is shown (with **Show the current version**), or the version asked
-  for does not exist, or was deleted past what the plan keeps, which it says.
+  for does not exist, or was deleted past what the plan keeps, which it says (a version that
+  failed to load for another reason says it couldn't be loaded, with **Try again**). Then the
+  canvas shows nothing and the inspector holds the current version, so nothing is left loading.
 - **Downloading.** A toast says that a page runs its own code outside WhatBuild, with every download.
 - **On the Story** ([decision](../decisions/agents-write-the-story-people-arrange-it.md)). Under
   the selected page's title, each Story page that shows the selected page is named and linked with the
@@ -1229,8 +1231,10 @@ page of a mockup reaches it by promotion, from the mockup (§7.7).
   the page only for a state the reader must know: the page is archived (with **Restore** for an
   editor), an earlier version is
   shown (with **Show the current version**), a version asked for does not exist or was deleted past
-  what the plan keeps (the inspector's About says, for an editor, "Keeps the newest 10 versions"), or the page tried to open another address in its
-  place, and was put back (past what a minute allows, it waits for the next, §7.1).
+  what the plan keeps (the inspector's About says, for an editor, "Keeps the newest 10 versions";
+  then no page is shown and the inspector holds the current version), or the page tried to open
+  another address in its place, and was put back (past what a minute allows, it waits for the
+  next, §7.1).
 - **A page from a mockup** ([§4.11](04-data-model.md)) is shown at its own size, scaled down and
   never up, on paper as on the canvas, without the app's theme. Content taller than the page's
   height scrolls inside its frame, scaled with it. A control beside the crumbs, and `2` and `3` (from inside the page too), choose between
