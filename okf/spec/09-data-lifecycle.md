@@ -99,7 +99,11 @@ example organization, whether an instance owner made it, and how it ended. Each 
 WhatBuild is kept under a pseudonym, a keyed hash of their account that only the deployment can
 compute, for 14 months, or until their account is deleted. Nothing kept names an organization, a product, a record, an address or
 content. Only the instance's owners read the totals (`products.usage`), which leave the owners out
-unless asked. `/cookies` says so under Counting without cookies.
+unless asked. `/cookies` says so under Counting without cookies. While the landing pages are
+compared, the server also counts each press of their buttons by day, page and button, naming
+nobody; an account keeps the landing page and button it came from, if it came from one, and when
+it first came back, which go when the account is deleted
+([decision](../decisions/the-landing-pages-are-compared-by-a-split-at-the-edge.md)).
 
 **In the example organization** nobody but its own members writes, and every account reads what
 they write; every screen there says so ([§3.10](03-accounts-and-identity.md#310-the-example-organization)).

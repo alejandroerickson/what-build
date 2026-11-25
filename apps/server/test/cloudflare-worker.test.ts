@@ -55,6 +55,9 @@ describe("the Cloudflare Worker", () => {
     expect(sent.headers.get("location")).toBe("https://example.com/what-to-build/?ref=hn");
     expect(sent.headers.get("cache-control")).toBe("no-store");
     expect((await visit("203.0.113.7", "1", "Mozilla/5.0 (compatible; Googlebot/2.1)")).status).toBe(200);
+    expect((await visit("203.0.113.7", "1", "LinkedInBot/1.0 (compatible; Mozilla/5.0; Apache-HttpClient +http://www.linkedin.com)")).status).toBe(200);
+    // Someone reading in LinkedIn's app is a person, split like anyone else.
+    expect((await visit("203.0.113.7", "1", "Mozilla/5.0 (iPhone; CPU iPhone OS 18_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 [LinkedInApp]/9.31.1")).status).toBe(302);
     // Anyone who asks for the front page itself gets it, so both pages can be seen from any address.
     expect((await visit("203.0.113.7", "1", undefined, "?split=off")).status).toBe(200);
     expect((await visit("203.0.113.7", "1", undefined, "?ref=hn&split=off")).status).toBe(200);
@@ -119,8 +122,9 @@ describe("the Cloudflare Worker", () => {
     const forged = { headers: { "X-WhatBuild-Edge-Key": "a key guessed by a caller" } };
     await worker.fetch(new Request("https://app.example.com/api/v1/meta", forged), { ...env, EDGE_KEY: "the deployment's edge key" });
     await worker.fetch(new Request("https://example.com/api/v1/interest", { method: "POST", body: "{}" }), { ...env, EDGE_KEY: "the deployment's edge key" });
+    await worker.fetch(new Request("https://example.com/api/v1/pressed", { method: "POST", body: "{}" }), { ...env, EDGE_KEY: "the deployment's edge key" });
     await worker.fetch(new Request("https://app.example.com/mcp", forged), env);
-    expect(keys).toEqual(["the deployment's edge key", "the deployment's edge key", null]);
+    expect(keys).toEqual(["the deployment's edge key", "the deployment's edge key", "the deployment's edge key", null]);
   });
 
   it("passes a live stream on as it arrives, unread and unkept", async () => {

@@ -47,6 +47,10 @@ export interface AccountsTable {
   created_at: Ts;
   /** Which page of the public site the account came from (`/`, `/what-to-build/`), kept once in its first day; null otherwise. */
   came_from: Generated<string | null>;
+  /** Which of that page's buttons it came by (`explore`, `start`), kept with `came_from`; null otherwise. */
+  came_via: Generated<string | null>;
+  /** Its first call to an operation on a later UTC day than the one it was made (`first-return.ts`); null until then. */
+  returned_at: Generated<string | null>;
   deleted_at: TsNull;
   /** The person hid the example organization from the app's panel. */
   hide_example: Def<boolean>;
@@ -301,6 +305,16 @@ export interface UsageCallsTable {
   owner: boolean;
   outcome: string;
   calls: Generated<number>;
+}
+
+/** How often each landing page's buttons are pressed, per UTC day. Names nobody (`site.ts`). */
+export interface LandingPressesTable {
+  day: string;
+  /** The landing page, by its path on the site: `/`, `/what-to-build/`. */
+  page: string;
+  /** `explore` (Explore the demo) or `start` (Start using WhatBuild). */
+  button: string;
+  presses: Generated<number>;
 }
 
 /** Each day a person used a part of WhatBuild, the person named by a keyed hash of their account. */
@@ -981,6 +995,7 @@ export interface DB {
   limit_counters: LimitCountersTable;
   tenant_allowances: TenantAllowancesTable;
   usage_calls: UsageCallsTable;
+  landing_presses: LandingPressesTable;
   usage_people: UsagePeopleTable;
 }
 

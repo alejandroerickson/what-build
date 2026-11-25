@@ -52,15 +52,16 @@ new person whose mail still reaches you; delete each such account afterwards in 
    plan has a price, a line of the priced plans follows with Compare plans; this instance's plans
    (`deploy/plans.example.json`) have none, so there is no such line. Nothing promises "free" or
    "now". No number of places anywhere. While
-   scrolling, the page asks the service nothing (the browser's requests). The same on
-   `/site/what-to-build/`, on a dark stage.
+   scrolling, the page asks the service nothing (the browser's requests); pressing a button sends
+   one `POST /api/v1/pressed` with the page and the button. The same on `/site/what-to-build/`, on a
+   dark stage.
 3. **Web, from `/site/what-to-build/`, as `new1@example.com`.** Press Start using WhatBuild.
    *Expect:* the sign-in page, titled **Start using WhatBuild**, says signing in creates their
    account and its foot has only
    Privacy and Cookies, with no line about a free preview. Sign in: *Expect:* the address has no
-   `?landing=` left in it, the Welcome screen asks for an organization and a first product, and
-   starting it opens the product's Idea with **Connect your agent** first, once the tutorial's
-   welcome over it is turned off.
+   `?landing=` or `button=` left in it, the Welcome screen asks for an organization and a first
+   product, and starting it opens the product's Idea with **Connect your agent** first, once the
+   tutorial's welcome over it is turned off.
 4. **Web, from `/site/`, as `new2@example.com`.** As step 3. *Expect:* the same, their own
    organization started.
 5. **Web, from `/site/`, as `new3@example.com`.** Press Start using WhatBuild and sign in.
@@ -98,4 +99,4 @@ new person whose mail still reaches you; delete each such account afterwards in 
 - Start using WhatBuild leading anywhere that is not one of: Welcome, the overview with the line saying the
   organization is on its way, or the form at the end of the page.
 - Someone in line who is never told, or two people given the same place.
-- `?landing=` staying on an address after sign-in.
+- `?landing=` or `button=` staying on an address after sign-in.

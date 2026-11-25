@@ -1,5 +1,5 @@
 import type { ServerType } from "@hono/node-server";
-import { usageSettled, type FileParser, type LiveChanges, type PictureMaker } from "@whatbuild/core";
+import { returnsSettled, usageSettled, type FileParser, type LiveChanges, type PictureMaker } from "@whatbuild/core";
 import type { Pool } from "pg";
 import type { Worker } from "./worker.ts";
 
@@ -30,6 +30,7 @@ export async function shutDown(parts: { worker: Worker; parser: FileParser; pict
     });
   await drained;
   await usageSettled();
+  await returnsSettled();
   await parts.tracing?.shutdown();
   await parts.pool.end();
 }

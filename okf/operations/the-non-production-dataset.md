@@ -47,7 +47,8 @@ text is invented and its addresses are at `example.com` or a `.example` domain. 
 holds about 230 synthetic sources and builds in about a minute.
 
 What only a running deployment keeps stays out, as it does from a pull: the sessions and
-connections the synthetic people's sign-ins made, the guests' places, usage counts. The waitlist
+connections the synthetic people's sign-ins made, the guests' places, usage counts, the landing
+pages' presses. The waitlist
 and the allowances given to the synthetic people stay, since they are part of the shape.
 
 ## How it is built, and its schema

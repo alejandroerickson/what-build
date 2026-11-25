@@ -45,6 +45,16 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
   the answer (`versions_deleted`), and reading a deleted version answers `410 version_deleted`. No
   migration (`tools_version` 0.71.0); a connected client sees the new descriptions after a new
   session.
+- **The landing pages are followed from a visit to people coming back**
+  ([the landing-page funnel](analytics.md#the-landing-page-funnel)). The release migrates
+  (`0054_the_landing_funnel.sql` adds `accounts.came_via`, `accounts.returned_at` and the table
+  `landing_presses`, all empty), which the previous release never reads or writes, so it keeps
+  working on the migrated schema and going back needs only its image. Behind Cloudflare, deploy the
+  Worker with the release, as always: it serves the pages that count their buttons' presses and
+  passes those counts on (`POST /api/v1/pressed`); until then nothing is counted. With it, people
+  reading in LinkedIn's app are split like everyone else, where until now they always got `/`; only
+  LinkedIn's link previews still do. An account made before the release gets `returned_at` at its
+  first call after it. Nothing else needs doing.
 
 ## v0.44.2
 
