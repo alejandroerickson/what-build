@@ -1,3 +1,4 @@
+import { unlimitedKeeps } from "@whatbuild/core/unlimited-plan";
 import { usePlans } from "../lib/limits.ts";
 import { ButtonLink, ErrorCallout, Loading, Sheet, SheetBody, SheetHeader } from "../ui/index.tsx";
 import { EntryPage } from "./auth.tsx";
@@ -24,7 +25,7 @@ export function PlansPage() {
           </SheetBody>
         ) : !q.data.plans.length ? (
           <SheetBody>
-            <p className="muted">This WhatBuild offers no plans: every organization here has no limits but the ones the deployment sets for all.</p>
+            <p className="muted">This WhatBuild offers no plans: every organization here meets only the limits the deployment sets for all, and {unlimitedKeeps()}.</p>
           </SheetBody>
         ) : (
           <PlanComparison plans={q.data.plans} limits={q.data.limits} fileMaxBytes={q.data.file_max_bytes} />

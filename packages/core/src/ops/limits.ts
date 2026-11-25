@@ -17,6 +17,7 @@ import { defineOperation, type OpContext } from "../registry.ts";
 import { expectedEtag } from "../schemas.ts";
 import { isInstanceOwner, tenantAllowanceOf } from "../tenant-allowance.ts";
 import { STORY_HTML_MAX } from "../story-html.ts";
+import { aboutUnlimited } from "../unlimited-plan.ts";
 import { newEtag } from "../util.ts";
 import { ownerAddresses, tellOwnersReadOnly } from "../organization-notices.ts";
 import { MAX_ATTACHMENTS, uploadMaxBytes } from "./attachments.ts";
@@ -87,7 +88,7 @@ function knownPlan(id: string, unlimited: boolean) {
 
 /** What a plan is for, in a sentence. */
 function aboutPlan(plan: string): string {
-  if (plan === UNLIMITED) return "No limits. For this WhatBuild's own organizations; never offered.";
+  if (plan === UNLIMITED) return aboutUnlimited();
   return definedPlans().find((p) => p.id === plan)?.about ?? "A plan this WhatBuild no longer defines: no limit applies until the organization moves to another plan.";
 }
 
@@ -271,7 +272,7 @@ export const setOrganizationPlan = defineOperation({
   connection: "admin",
   summary: "Move an organization to another plan (instance owners).",
   description:
-    "Name the organization with tenant, its slug or id, and its new plan: one this WhatBuild defines (products.organizations lists them in plans), whose limits everyone in it meets, or unlimited, which has none and is for this WhatBuild's own organizations; any other is refused (422 unknown_plan). Limits belong to plans: an organization's own can't be changed. A move applies to the next call anyone makes there, and what the organization already holds stays, even past the new plan's totals, until people delete enough, or take people out. Each person has one organization on the plan new organizations start on: moving one there whose creator already has theirs (or all an instance owner let them have) makes it read-only instead, kept for a year (read_only, with kept_until), and products.organizations marks it starting_plan_is_read_only beforehand; its owners, but you, are mailed that it is (owners_notified says how many). Everyone in a read-only organization may read, export, delete and take people out, as their roles allow; every other write is refused (409 organization_read_only). Moving it to another plan, or to the starting plan once its creator has no other there, makes it writable again. Pass expected_etag from products.organizations once the organization's plan has been changed before; for one never changed, leave it out. Returns the organization's plan and limits as products.limits gives them.",
+    "Name the organization with tenant, its slug or id, and its new plan: one this WhatBuild defines (products.organizations lists them in plans), whose limits everyone in it meets, or unlimited, which has none but what each product keeps (its Playbook's size, and each mockup's and Story page's newest versions) and is for this WhatBuild's own organizations; any other is refused (422 unknown_plan). Limits belong to plans: an organization's own can't be changed. A move applies to the next call anyone makes there, and what the organization already holds stays, even past the new plan's totals, until people delete enough, or take people out. Each person has one organization on the plan new organizations start on: moving one there whose creator already has theirs (or all an instance owner let them have) makes it read-only instead, kept for a year (read_only, with kept_until), and products.organizations marks it starting_plan_is_read_only beforehand; its owners, but you, are mailed that it is (owners_notified says how many). Everyone in a read-only organization may read, export, delete and take people out, as their roles allow; every other write is refused (409 organization_read_only). Moving it to another plan, or to the starting plan once its creator has no other there, makes it writable again. Pass expected_etag from products.organizations once the organization's plan has been changed before; for one never changed, leave it out. Returns the organization's plan and limits as products.limits gives them.",
   input: z.strictObject({
     tenant,
     plan: z.string().trim().regex(PLAN_ID, "A plan's id: lowercase letters, digits, - and _."),

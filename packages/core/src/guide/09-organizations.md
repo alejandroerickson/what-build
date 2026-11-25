@@ -36,7 +36,8 @@ invitation in the web app.
 ## Plans and limits
 
 An organization is on one plan of its own: one the deployment defines, or `unlimited`, which sets
-no limit. `products_read(action="list")` gives each tenant's `plan`. The plans, their names, limits
+no limit on what people and their agents do, nor on how many mockups and Story pages a product
+holds, and keeps the rest of what each product holds (below). `products_read(action="list")` gives each tenant's `plan`. The plans, their names, limits
 and prices are each deployment's own, and a deployment may define none, so that every organization
 there is unlimited. Limits belong to the plan, never to one organization.
 

@@ -1562,33 +1562,36 @@ never described as deleting. A list row showing an archived object says *Archive
   is the same for everyone who reads it, an instance owner included. What a person sees is said in
   words, for someone using WhatBuild rather than running it. **Plan**: the plan's name and price,
   what it is for, that everyone in the organization meets its limits, owners and their agents
-  included (an unlimited organization has none, and one on a plan the deployment no longer defines
-  meets none until it is moved); for a read-only organization, a Read-only mark and a note headed
-  with how long it is kept ("Kept until 26 Oct 2027 · 365 days left", the day in UTC, as every
-  refusal and Instance admin's Organizations give it) that says it went back to the
-  starting plan while whoever started it already has an organization there, what everyone can still
-  do there (the sentence every read-only notice gives), and how to move it to another plan, in place of **What you can add**; on
-  the starting plan, where there is another, how to move to another plan (write to the deployment's
-  contact, or ask whoever runs this WhatBuild) and that each organization has a plan of its own; and,
-  where the deployment offers plans, that the organization's name and plan, and the name and email
-  of everyone in it, are visible to whoever runs this WhatBuild, who uses them to write to its
-  people, and to bill the organization where a plan has a price, with a link to Privacy. **What** the organization **holds**: people (counting
-  invitations not yet accepted; Story readers don't count), products and sources (archived
-  ones count, and deleting one makes room), and storage (split into files, which are attachments, the text read from each, kept as a file of its own, and prototypes, and text; archiving keeps it, deleting frees it), each
-  as "6 of 50" over a thin bar, with "Nearly full" from 80% and "Full", with its mark, when it is
-  reached, or "no limit". **Today**, with when it starts over (midnight UTC): **You** (changes,
-  sources added, files uploaded, data sent to you, exports) and **Everyone in** the organization
-  (changes, files uploaded), in the same form. **What you can add**: the largest file that can be
-  uploaded (the lower of the plan's and the deployment's `upload_max_bytes`, which past the upload
-  relay's limit needs a store that signs direct uploads), the size above which a file is kept but not read when that is
-  smaller, attachments on a source, the mockups and Story pages a product holds, archived ones
-  included (the plan's, or their defaults on Unlimited), and, where the plan says
-  so, that files must be in a format WhatBuild reads (a plan with `documents_only` off keeps any
-  file) or that adding a file from a link is off. Then **Plans**, the plans side by side with this
-  one marked **Your plan**. Nothing here changes a plan or a limit: an instance owner moves an
-  organization to another plan, and reads every limit with the refusal a call over it gets, in
-  Instance admin. Settings knows from `products.list`'s `story_only` whom to leave Plan out for, so
-  it never asks for a plan it would be refused.
+  included (an unlimited organization has none but what each product holds, which says so, with
+  the numbers it applies: the Playbook's files and size, and the versions each mockup and Story page
+  keeps; and one on a plan the deployment no longer defines meets none until it is moved); for a
+  read-only organization, a Read-only mark and a note headed with how long it is kept ("Kept until
+  26 Oct 2027 · 365 days left", the day in UTC, as every refusal and Instance admin's Organizations
+  give it) that says it went back to the starting plan while whoever started it already has an
+  organization there, what everyone can still do there (the sentence every read-only notice gives),
+  and how to move it to another plan, in place of **What you can add**; on the starting plan, where
+  there is another, how to move to another plan (write to the deployment's contact, or ask whoever
+  runs this WhatBuild) and that each organization has a plan of its own; and, where the deployment
+  offers plans, that the organization's name and plan, and the name and email of everyone in it, are
+  visible to whoever runs this WhatBuild, who uses them to write to its people, and to bill the
+  organization where a plan has a price, with a link to Privacy. **What** the organization
+  **holds**: people (counting invitations not yet accepted; Story readers don't count), products and
+  sources (archived ones count, and deleting one makes room), and storage (split into files, which
+  are attachments, the text read from each, kept as a file of its own, and prototypes, and text;
+  archiving keeps it, deleting frees it), each as "6 of 50" over a thin bar, with "Nearly full" from
+  80% and "Full", with its mark, when it is reached, or "no limit". **Today**, with when it starts
+  over (midnight UTC): **You** (changes, sources added, files uploaded, data sent to you, exports)
+  and **Everyone in** the organization (changes, files uploaded), in the same form. **What you can
+  add**: the largest file that can be uploaded (the lower of the plan's and the deployment's
+  `upload_max_bytes`, which past the upload relay's limit needs a store that signs direct uploads),
+  the size above which a file is kept but not read when that is smaller, attachments on a source,
+  the mockups and Story pages a product holds, archived ones included (the plan's, or their defaults
+  on Unlimited), and, where the plan says so, that files must be in a format WhatBuild reads (a plan
+  with `documents_only` off keeps any file) or that adding a file from a link is off. Then
+  **Plans**, the plans side by side with this one marked **Your plan**. Nothing here changes a plan
+  or a limit: an instance owner moves an organization to another plan, and reads every limit with
+  the refusal a call over it gets, in Instance admin. Settings knows from `products.list`'s
+  `story_only` whom to leave Plan out for, so it never asks for a plan it would be refused.
 - **The organization's Access changes** (`?settings=organization/access`, for its owners and
   admins): the organization's access log (`members.activity`), drawn as the Activity feed is
   (§7.9), newest first, with a rename as "renamed the organization to …", someone whose last role
@@ -1741,23 +1744,25 @@ never described as deleting. A list row showing an archived object says *Archive
   etag (`products.rename_tenant`; an instance owner renames any organization, member or not).
   Change plan opens **Plan of** the organization, a dialog over the list (`?org=<slug>`): what it
   holds, then a choice between the deployment's plans and Unlimited, each with its price where the
-  deployment names one, what it is for and its totals in words, the current one marked; when the
-  organization holds more than the chosen plan's totals, a note says by how much and that nothing
-  is removed; when the starting plan would make it read-only (`starting_plan_is_read_only`), a
-  note says so instead: its creator already has an organization on that plan, its people keep
-  reading, exporting and deleting for a year, and another plan makes it writable again; a
-  read-only organization says since when and until when, and choosing the starting plan once its
-  creator has a place for it offers **Make it writable**;
-  **Move to** the chosen plan saves under the plan's etag (`products.set_plan`), and the toast says
-  when it is read-only and until when; closing it takes
-  `org` off the address and leaves the list as it was.
+  deployment names one, what it is for and its totals in words (Unlimited's, the sentence its
+  `plan_about` gives: no limit on what people and their agents do, nor on how many mockups and Story
+  pages a product holds, while each product's Playbook keeps its size and each mockup and Story page
+  its newest versions), the current one marked; when the organization holds more than the chosen
+  plan's totals, a note says by how much and that nothing is removed; when the starting plan would
+  make it read-only (`starting_plan_is_read_only`), a note says so instead: its creator already has
+  an organization on that plan, its people keep reading, exporting and deleting for a year, and
+  another plan makes it writable again; a read-only organization says since when and until when, and
+  choosing the starting plan once its creator has a place for it offers **Make it writable**; **Move
+  to** the chosen plan saves under the plan's etag (`products.set_plan`), and the toast says when it
+  is read-only and until when; closing it takes `org` off the address and leaves the list as it was.
   - **People** (`/admin/people`; `apps/web/src/routes/people.tsx`): every account, below.
   - **Plans** (`/admin/plans`, where the deployment offers plans; elsewhere it says this WhatBuild
     offers none and every organization is Unlimited): that limits belong to
   plans, never to one organization, to raise as WhatBuild grows; the plans side by side (below);
   and in the head a button for each plan, which opens **The** plan: its price, as people read it,
   then every limit in a field (bytes in MB; a total, or the bytes sent a day, with **No limit**
-  beside it), what each product holds among them (mockups, Story pages, the Playbook's files and
+  beside it, a checkbox named by the limit it lifts, "Products: no limit"), what each product holds
+  among them (mockups, Story pages, the Playbook's files and
   size), next to what the deployment's configuration sets, saved under the plan's etag
   (`products.set_plan_limits`) for every organization on it, with **Back to the configured
   limits**. Then **Limits of the** plan of one of the owner's own organizations (one row each: what

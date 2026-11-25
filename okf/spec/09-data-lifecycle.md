@@ -466,7 +466,9 @@ Planned, a deliverable of [Phase 6](10-roadmap.md):
 ## 9.7 Plans and limits
 
 Every organization is on a plan of its own: one the deployment defines, or `unlimited`, which sets
-no limit and is never offered ([§3.3](03-accounts-and-identity.md) says which an
+no limit on what people and their agents do, nor on how many mockups and Story pages a product
+holds, keeps the rest of what each product holds (below), and is never offered
+([§3.3](03-accounts-and-identity.md) says which an
 organization gets: the deployment's `WHATBUILD_NEW_ORGANIZATION_PLAN`, unlimited unless it names
 one of its plans, for one made on an allowance; and who moves it;
 ◆ [decision](../decisions/limits-belong-to-plans-and-each-organization-is-on-a-plan-of-its-own.md),

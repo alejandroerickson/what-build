@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { READ_ONLY_ALLOWS } from "@whatbuild/core/read-only";
+import { aboutUnlimited, unlimitedLifts } from "@whatbuild/core/unlimited-plan";
 import { useState, type ReactNode } from "react";
 import { Link, useSearchParams } from "react-router";
 import { api, ApiError } from "../lib/api.ts";
@@ -108,7 +109,7 @@ function PlanSummary({ l, owner }: { l: OrganizationLimits; owner: boolean }) {
                 {l.undefined_plan
                   ? `${org} is on a plan this WhatBuild no longer defines, so no limit applies until whoever runs it moves ${org} to another.`
                   : l.plan === "unlimited"
-                    ? `${org} has no limits: nobody in it meets any${keptOnUnlimited(l.limits)}.${offered ? " This plan is for this WhatBuild’s own organizations." : ""}`
+                    ? `${org} is Unlimited. ${unlimitedLifts(Object.fromEntries(l.limits.map((x) => [x.key, x.value])))}${offered ? " This plan is for this WhatBuild’s own organizations." : ""}`
                     : `${l.plan_about} Everyone in ${org} meets its limits, owners and their agents included.`}
               </p>
             )}
@@ -554,12 +555,6 @@ export function InstancePlansSheet() {
 const MiB = 1024 * 1024;
 
 /** A limit's value in a field: bytes as MB, switches as on or off, a total or bytes sent possibly no limit. */
-/** What the unlimited plan still keeps: each mockup's and Story page's newest versions. */
-function keptOnUnlimited(limits: LimitValue[]): string {
-  const kept = limits.find((l) => l.key === "mockup_versions_max")?.value;
-  return typeof kept === "number" ? `, though each mockup and Story page keeps only its newest ${kept} versions` : "";
-}
-
 function LimitField({ limit, value, onChange }: { limit: { key: string; label: string; unit: string; group: string; per: string; min?: number }; value: Amount; onChange: (v: Amount) => void }) {
   const nullable = limit.group === "total" || limit.key === "sent_bytes_per_day";
   if (limit.group === "switch")
@@ -588,8 +583,9 @@ function LimitField({ limit, value, onChange }: { limit: { key: string; label: s
       {bytes ? <span className="faint">MB</span> : null}
       {nullable ? (
         <label className="limits-switch limits-nolimit">
-          <input type="checkbox" checked={value === null} onChange={(e) => onChange(e.target.checked ? null : (limit.min ?? 0))} />
-          <span>No limit</span>
+          {/* Named by the limit it lifts, so each row's is told apart; the words beside it are only shown. */}
+          <input type="checkbox" aria-label={`${limit.label}: no limit`} checked={value === null} onChange={(e) => onChange(e.target.checked ? null : (limit.min ?? 0))} />
+          <span aria-hidden="true">No limit</span>
         </label>
       ) : null}
     </span>
@@ -980,7 +976,7 @@ function PlanDialog({ org, all, onClose }: { org: InstanceOrganization; all: Ins
                   {org.plan === id ? <span className="faint"> · {org.read_only ? "its plan now, read-only" : "its plan now"}</span> : null}
                 </>
               }
-              hint={id === "unlimited" ? "No limits. For this WhatBuild’s own organizations; never offered." : `${entry(id)?.about ?? ""} ${totalsInWords(entry(id))}.`}
+              hint={id === "unlimited" ? aboutUnlimited() : `${entry(id)?.about ?? ""} ${totalsInWords(entry(id))}.`}
             />
           ))}
         </fieldset>
