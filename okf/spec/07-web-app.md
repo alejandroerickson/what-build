@@ -1761,7 +1761,8 @@ never described as deleting. A list row showing an archived object says *Archive
   plans, never to one organization, to raise as WhatBuild grows; the plans side by side (below);
   and in the head a button for each plan, which opens **The** plan: its price, as people read it,
   then every limit in a field (bytes in MB; a total, or the bytes sent a day, with **No limit**
-  beside it, a checkbox named by the limit it lifts, "Products: no limit"), what each product holds among them (mockups, Story pages, the Playbook's files and
+  beside it, a checkbox named by the limit it lifts, "Products: no limit"), what each product holds
+  among them (mockups, Story pages, the Playbook's files and
   size), next to what the deployment's configuration sets, saved under the plan's etag
   (`products.set_plan_limits`) for every organization on it, with **Back to the configured
   limits**. Then **Limits of the** plan of one of the owner's own organizations (one row each: what
