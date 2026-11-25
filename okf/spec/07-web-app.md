@@ -3,7 +3,7 @@ type: Specification
 title: The web app is a person's way to run the same operations an agent runs, one screen at a time.
 description: Principles, the shell and product switching, the overview, routes, first run, and the behavior of every screen (Idea, Evidence, Exploration, Story, Activity, archive and delete, Settings, Instance admin).
 tags: [spec, web, ui, routes, shell]
-generated: {by: agent:claude, at: 2026-11-23}
+generated: {by: agent:claude, at: 2026-11-25}
 status: stable
 ---
 
@@ -446,6 +446,20 @@ set them, whether anyone may sign up as a guest, and who runs the deployment, wh
 else handles the data, for the privacy page. The Worker asks the service for it through
 Cloudflare's cache, an hour at a time; without it, a page shows the plans as the build has them,
 and the privacy page says it did not load.
+
+**A link to the site** shows a card where it is shared (LinkedIn, X, Slack, iMessage): each landing
+page names a description in its own hero sentence, and one social card, `og:image` and
+`twitter:image` (`summary_large_image`), a 1200 × 630 picture of the mark, the name and the tagline
+on the front page's dotted canvas beside a real screen of the app: the sample product's Idea, as its
+owner sees it with an agent connected (`apps/web/public/social-card.png`, served at `/social-card.png`, made by
+`node scripts/social-card.mjs` against `pnpm dev`, [local development](../operations/local-development.md)).
+The build gives a page's canonical link, its `og:url` and the card's address from the site's root,
+and whoever serves the page makes them whole, since a link preview needs the whole address: on the
+site's domain, or, without one, under `/site/` on the app's origin. The second landing page's
+canonical link and `og:url` name `/`, the page crawlers and link previews of `/` always get.
+◆ Decision: one card for both landing pages, in the front page's look. They say the same thing,
+every link preview of `/` gets the front page, and the second page is a variant under test whose
+`og:url` names `/`. A change to the tagline or to that screen makes the card again.
 
 **The landing pages** ([decision](../decisions/the-site-opens-on-landing-pages-the-scroll-tells.md))
 tell the same six steps, one plain statement per screen with a sentence under it, beside a picture

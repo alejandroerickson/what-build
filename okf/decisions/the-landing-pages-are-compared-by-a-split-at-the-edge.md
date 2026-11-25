@@ -3,7 +3,7 @@ type: Decision
 title: The two landing pages are compared by a split at the edge, with no cookie
 description: The Worker sends a share of the front page's visitors to /what-to-build/, placed by their hashed address and never a crawler, and each request to hear from us records the page it came from.
 tags: [decision, site, analytics, privacy]
-generated: {by: agent:claude, at: 2026-11-23}
+generated: {by: agent:claude, at: 2026-11-25}
 status: stable
 ---
 
@@ -25,7 +25,8 @@ only people who accept cookies ([decision](analytics-only-for-people-who-accept-
   Crawlers and link previews always get `/`, and so does `/?split=off`, so whoever runs the test
   can see both pages from an address the split sends to the second (added 2026-11-23).
 - The two pages keep their own addresses, so Cloudflare Web Analytics counts each page's visits,
-  every visitor included.
+  every visitor included. The second page's canonical link and `og:url` name `/`, so search engines
+  take the two for one page, and so do link previews that follow `og:url` (added 2026-11-25).
 - Each page says which it is wherever it leads: the form sends `page` (`interest.page` keeps the
   first), and its links to sign in carry `?landing=`, which the app sends once a new account is in
   (`accounts.came_from`). Accounts made over visits, per page, is the comparison; organizations

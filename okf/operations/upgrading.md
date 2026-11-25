@@ -3,7 +3,7 @@ type: Process
 title: What a deployment must do when it takes a release
 description: The changes a release asks of the people who run a deployment (settings, app registrations, behaviour they will notice), kept per release, with the unreleased ones on top until the next release carries them into its notes.
 tags: [operations, releases, upgrading, self-hosting, configuration]
-generated: {by: agent:claude, at: 2026-11-23}
+generated: {by: agent:claude, at: 2026-11-25}
 status: stable
 ---
 
@@ -45,6 +45,12 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
   the answer (`versions_deleted`), and reading a deleted version answers `410 version_deleted`. No
   migration (`tools_version` 0.71.0); a connected client sees the new descriptions after a new
   session.
+- **A link to the site shows a card** (LinkedIn, X, Slack, iMessage): both landing pages name a
+  social card and a canonical address, and no longer say they are in private preview. Behind
+  Cloudflare, deploy the Worker with the release, as always: the Worker makes the card's address
+  whole, and until it is deployed again, link previews get the pages without a card. Behind any
+  other front, the image does it. A link shared before may keep its old preview on LinkedIn for
+  about a week; its Post Inspector reads the site again ([Cloud Run guide](cloud-run.md)).
 
 ## v0.44.2
 

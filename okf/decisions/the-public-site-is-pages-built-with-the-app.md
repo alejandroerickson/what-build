@@ -3,7 +3,7 @@ type: Decision
 title: The public site is pages built with the app, served from Cloudflare's edge or by host from the image
 description: what-build.com is pages in the web app's build, two landing pages that record requests to hear when WhatBuild opens, one comparing the plans and the privacy page; behind Cloudflare the Worker serves them so visitors never wake the service, and the image can serve them by Host for any other front.
 tags: [decision, deployment, web, site]
-generated: {by: agent:claude, at: 2026-10-26}
+generated: {by: agent:claude, at: 2026-11-25}
 status: stable
 ---
 
@@ -31,7 +31,11 @@ instance is alive, so crawlers visiting the page every few minutes would keep on
   ID (`whatbuild-analytics`), and the plans, whether guests may sign up and what the privacy page
   names (`whatbuild-site`, the service's `GET /api/v1/plans`). The Worker asks the service for the second through Cloudflare's
   cache, so a visit wakes the service at most once an hour; without an answer, a page shows the
-  plans as the build has them.
+  plans as the build has them. So is where the page is: its canonical link, its `og:url` and its
+  social card's address (`og:image`, `twitter:image`), which the build gives from the site's root,
+  are made whole on the origin that serves it, since a link preview needs the whole address and only
+  whoever serves the page knows its domain (added 2026-11-25,
+  [§7.3](../spec/07-web-app.md#73-routes)).
 - **Behind Cloudflare**, the Worker (`deploy/cloudflare/worker.js`) serves the pages and their files
   from the build it was deployed with, redirects `www.` to the site (301) and every other path to
   the app (302), and passes only `POST /api/v1/interest` to the service.
@@ -59,7 +63,9 @@ instance is alive, so crawlers visiting the page every few minutes would keep on
 - The site's paths are listed twice and must agree: `SITE_PAGES`, `SITE_FILES` and the interest
   route in `deploy/cloudflare/worker.js`, and `SITE_PATHS` in `apps/server/src/site.ts`. So are its
   headers (`PAGE_HEADERS`, and `PAGE_SECURITY_HEADERS` in `apps/server/src/public-routes.ts` with
-  `RESPONSE_HEADERS` in `apps/server/src/app.ts`, which `response-headers.test.ts` compares).
+  `RESPONSE_HEADERS` in `apps/server/src/app.ts`, which `response-headers.test.ts` compares), and
+  the addresses made whole (`ADDRESSES` in the Worker, `PAGE_ADDRESS` and `CARD_ADDRESS` in
+  `site.ts`), which match the tags as the landing pages' HTML writes them.
 - The pages are `apps/web/src/site/`, styled in `apps/web/src/styles/screens/site.css` and, for the
   landing pages, `landing.css`; the plans
   table is the app's own (`apps/web/src/routes/plan-comparison.tsx`).
