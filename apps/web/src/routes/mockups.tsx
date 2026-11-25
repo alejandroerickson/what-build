@@ -627,7 +627,7 @@ export function MockupPage() {
             title={deletedVersion(old.error) ? `Version ${asked} was deleted` : `This mockup has no version ${asked}`}
             action={<Button size="sm" onClick={() => onVersion(x.current_version)}>Show the current version</Button>}
           >
-            {deletedVersion(old.error) ? "The organization’s plan keeps only each mockup’s newest versions, and those a Story page shows." : null}
+            {deletedVersion(old.error) ? "The organization’s plan keeps only each mockup’s newest versions, and those a Story page shows." : `Its newest is version ${x.current_version}.`}
           </Callout>
         ) : (
           <ErrorCallout title={`Version ${asked} couldn’t be loaded`} error={old.error} onRetry={() => old.refetch()} />

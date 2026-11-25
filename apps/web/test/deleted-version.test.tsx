@@ -147,6 +147,7 @@ describe("a mockup at a version it no longer has", () => {
   it("says a number never published isn't there, and leaves nothing loading", async () => {
     const { host, inspector } = await open(`${APP}/exploration/mockups/m1?v=40`);
     expect(host.textContent).toContain("This mockup has no version 40");
+    expect(host.textContent).toContain("Its newest is version 12.");
     expect(loading(host)).toBe(0);
     expect(loading(inspector)).toBe(0);
   });

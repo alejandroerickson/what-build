@@ -19,7 +19,8 @@ over MCP and in the web app, Morgan (owner) opens the delete dialogs, Avery read
 Riley owns this WhatBuild. Pages it publishes are a line of synthetic HTML each, such as
 `<h1>Version 7</h1>`, written into the run's folder. Below, **M** is the mockup step 2 makes and **P**
 the Story page that shows it. Free keeps 5 of each and Pro 10 in `deploy/plans.example.json`, which the
-end-to-end instance offers; the unlimited plan keeps 10.
+end-to-end instance offers; the unlimited plan keeps 10. Exploration and the Story may open with
+their panels hidden: show them before reading an inspector.
 
 ## Steps
 
@@ -49,13 +50,14 @@ end-to-end instance offers; the unlimited plan keeps 10.
    the organization's plan keeps only each mockup's newest versions and those a Story page shows,
    with **Show the current version**; nothing on the screen keeps loading: the canvas is empty, and
    the inspector shows the current version, N + 3. With `?v=` N + 8: "This mockup has no version
-   N + 8", and again nothing keeps loading. Press Show the current version. *Expect:* version N + 3
+   N + 8" and "Its newest is version N + 3.", and again nothing keeps loading. Press Show the current version. *Expect:* version N + 3
    draws, and the address loses `?v=`. In the inspector's Version list, versions 2 and 3 are not
    offered, and 1 is.
 5. **MCP, as Casey.** `activity_read(action="list")` with `entity_type: "mockup"` and M's id.
    *Expect:* two `versions_deleted` entries by Casey through MCP, newest first: "Deleted version 3:
    the organization's plan keeps each mockup's newest N, and those a Story page shows", then the same
-   for version 2, each after the publish that made it. **Web, as Casey.** Open the product's
+   for version 2, each listed just above the publish that made it (the log is newest first).
+   **Web, as Casey.** Open the product's
    Activity. *Expect:* each says Casey deleted earlier versions of M, with the same sentence.
 6. **Web, as Casey.** M's inspector. *Expect:* it says "Keeps the newest N versions, and any a Story
    page shows." **Web, as Morgan.** From M's menu, choose Delete permanently. *Expect:* the dialog
@@ -102,9 +104,9 @@ end-to-end instance offers; the unlimited plan keeps 10.
    *Expect:* `versions_deleted` lists P's versions 3 to S - 2, `versions_kept: 5`. The activity log
    says each mockup's newest 5 and each Story page's newest 5. **Web, as Casey.** M's inspector says
    "Keeps the newest 5 versions, and any a Story page shows."
-10. **Web, as Riley.** In Instance admin → Plans, Edit Free. Type 0 in Versions of a mockup, then in
-    Versions of a Story page. *Expect:* Save stays disabled for each. Tick that row's No limit and
-    untick it. *Expect:* the field comes back as 1, the least it takes. Cancel, and check that Free
+10. **Web, as Riley.** In Instance admin → Plans, Edit Free. In Versions of a mockup, type 4.
+    *Expect:* Save becomes enabled. Type 0. *Expect:* Save is disabled again. Do the same in
+    Versions of a Story page. Tick that row's No limit and untick it. *Expect:* the field comes back as 1, the least it takes. Cancel, and check that Free
     still says 5 of each. Then, in Organizations, move the synthetic organization back to the plan
     step 1 read.
 
