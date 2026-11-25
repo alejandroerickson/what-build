@@ -404,7 +404,7 @@ export const createProduct = defineOperation({
   mutates: true,
   summary: "Create a product, with its own outcomes, sources, mockups and Story (product creators, admins and owners of the organization).",
   description:
-    `A product holds the work on one product. Give it a name and, when you know it, its product concept, which heads the Idea screen. ${WHAT_A_CONCEPT_IS} Returns the product with its \`path\`. A product creator who makes one becomes its admin, and gives others roles on it with members_write(action="grant").`,
+    `A product holds its Idea, Evidence, Exploration and Story. Give it a name and, when you know it, its product concept, which heads the Idea screen. ${WHAT_A_CONCEPT_IS} Returns the product with its \`path\`. A product creator who makes one becomes its admin, and gives others roles on it with members_write(action="grant").`,
   input: z.strictObject({
     tenant: z.string().min(1).describe("Tenant slug or id."),
     name: z.string().trim().min(1).max(100),
