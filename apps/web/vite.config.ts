@@ -15,8 +15,9 @@ export default defineConfig({
     port: Number(process.env["WHATBUILD_WEB_PORT"] ?? 5273),
     strictPort: true,
     // What production's policy lets the app frame (PAGE_SECURITY_HEADERS, apps/server/src/public-routes.ts), so a page
-    // that sends its frame to another site is refused here too. Only this directive: the rest would refuse the dev server's own scripts.
-    headers: { "Content-Security-Policy": "frame-src 'self'" },
+    // that sends its frame to another site is refused here too, and the bot check's frame, which a server with the
+    // Turnstile keys adds (BOT_CHECK_SOURCES). Only this directive: the rest would refuse the dev server's own scripts.
+    headers: { "Content-Security-Policy": "frame-src 'self' https://challenges.cloudflare.com" },
     proxy: Object.fromEntries(proxied.map((p) => [p, { target: api, changeOrigin: false }])),
   },
   build: {

@@ -11,7 +11,7 @@ import { ANALYTICS_ID, SiteFrame, sitePath, useSite } from "./SitePage.tsx";
  * When the page's own text last changed in a way that matters to a person: what is kept, why, who
  * handles it, for how long, or what they can do. A change of wording alone leaves it.
  */
-const LAST_CHANGED = "October 2026";
+const LAST_CHANGED = "November 2026";
 
 function Kept({ lead, children }: { lead: string; children: ReactNode }) {
   return (
@@ -74,8 +74,14 @@ export function SitePrivacyPage() {
                 </Kept>
                 <Kept lead="Records of running the service.">
                   Your sessions, the agents you have connected, a log of requests, and how much you use WhatBuild, to keep it within its limits and fair to everyone. WhatBuild
-                  also counts how it is used, under a code in place of your name. None of it holds your content.
+                  also counts how it is used, under a code in place of your name, and for a short time counts requests under a code made from the address they come from, to stop
+                  floods. None of it holds your content.
                 </Kept>
+                {site?.bot_check ? (
+                  <Kept lead="A check that you’re a person.">
+                    When you sign in or join the waitlist, Cloudflare Turnstile looks at your browser to tell people from scripts, and tells WhatBuild only whether you passed.
+                  </Kept>
+                ) : null}
                 {analytics ? (
                   <Kept lead="Analytics, if you accept it.">
                     Google Analytics sees which screens you open and what you do there, never names or content. <a href="/cookies">Cookies</a> shows your choice and lets you change it.

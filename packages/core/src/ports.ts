@@ -1,5 +1,6 @@
 import type { ParsedFile } from "@whatbuild/parsers";
 import type { SearchGate } from "./bounded-search.ts";
+import type { AbuseLimits } from "./abuse-limits.ts";
 import type { LiveArea } from "./live.ts";
 
 /**
@@ -149,6 +150,8 @@ export interface CoreConfig {
   privacyContact?: string | null;
   /** The public site's origin (WHATBUILD_SITE_URL), which mails that bring someone in point to; null or absent for none. */
   siteUrl?: string | null;
+  /** What anyone may make the deployment do before they are let in, or do to strangers (`abuse-limits.ts`); the defaults when absent. */
+  abuseLimits?: AbuseLimits;
 }
 
 export interface Ports {

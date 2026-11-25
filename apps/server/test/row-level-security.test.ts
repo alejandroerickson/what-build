@@ -39,6 +39,7 @@ const NOT_TENANT_DATA: Record<string, string> = {
   instance_settings: "what an instance owner sets for the whole deployment: the guests' settings and each plan's limits and price",
   guest_passes: "a guest's place: accounts in no organization, reading the example as guests",
   feedback_counts: "how many reports a person sent today, for the daily limit; no organization, and never which reports",
+  abuse_counters: "the abuse limits' windows: counts per client address (a keyed hash), per organization by its ID, or for the deployment, and nothing an organization wrote",
   usage_calls: "how the service is used: counts of calls, naming no organization, product or person",
   usage_people: "who came back, under a pseudonym: no organization, product or account",
 };

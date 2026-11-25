@@ -107,6 +107,9 @@ async function main() {
     // Many people try to get in as on a deployment taking sign-ups: let in by the allowlist (one of
     // the synthetic organizations' domain), an invitation or an allowance, and otherwise refused.
     ...(PEOPLE ? { WHATBUILD_SIGNUP_ALLOWLIST: process.env["WHATBUILD_SIGNUP_ALLOWLIST"] ?? planPeople(PEOPLE_COUNT).allowlist } : {}),
+    // A thousand synthetic people bring more into one organization in a day than its invitations a
+    // day allow (abuse-limits.ts), so that limit is off here unless asked for.
+    ...(PEOPLE ? { WHATBUILD_ABUSE_LIMITS: process.env["WHATBUILD_ABUSE_LIMITS"] ?? "invitations_per_organization=off" } : {}),
     // The golden master's example stays the example; the server reads this at start-up.
     ...(exampleTenant ? { WHATBUILD_EXAMPLE_TENANT: exampleTenant } : {}),
   } as Record<string, string | undefined>;

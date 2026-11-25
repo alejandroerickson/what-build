@@ -33,6 +33,14 @@ accept, the organization is not in `products_read(action="list")` and a connecto
 answers `404`, so an agent whose person expects an organization there can tell them to look for the
 invitation in the web app.
 
+Inviting has limits of its own, on every plan, since each invitation emails someone: an
+organization makes only so many in a UTC day, the number the deployment sets (`invitations_per_day`
+among `deployment_limits` in `products_read(action="limits")`); past it, a grant that would invite
+answers `429 rate_limited`, whose details give `abuse_limit` and `resets_at`, and a role given at
+once to someone already in the organization is not counted. When the deployment has sent all the
+email it sends in an hour, an invitation is still made, its answer says `emailed: false`, and its
+`invite_link` works: give it to the person to pass on.
+
 ## Plans and limits
 
 An organization is on one plan of its own: one the deployment defines, or `unlimited`, which sets

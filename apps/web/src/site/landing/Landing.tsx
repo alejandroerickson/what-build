@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { api, ApiError } from "../../lib/api.ts";
+import { BOT_CHECK_FIELD, useBotCheck } from "../../lib/bot-check.tsx";
 import type { PlanEntry } from "../../lib/limits.ts";
 import { BrandMark } from "../../shell/brand.tsx";
 import { tooLong } from "../../ui/field.tsx";
@@ -123,6 +124,8 @@ const EMAIL_MAX = 320;
 function Close({ ways }: { ways: Ways }) {
   const site = useSite();
   const page = ways.page;
+  // The bot check, where the deployment asks for one: the request waits for its token.
+  const check = useBotCheck(ways.open ? null : site?.bot_check, "waitlist");
   const [email, setEmail] = useState("");
   const [website, setWebsite] = useState("");
   const [state, setState] = useState<{ status: "idle" | "sending" | "sent" } | { status: "error"; message: string }>({ status: "idle" });
@@ -134,7 +137,7 @@ function Close({ ways }: { ways: Ways }) {
     }
     setState({ status: "sending" });
     try {
-      await api("POST", "/api/v1/interest", { email, website, page });
+      await api("POST", "/api/v1/interest", { email, website, page, [BOT_CHECK_FIELD]: await check.take() });
       setState({ status: "sent" });
     } catch (error) {
       setState({ status: "error", message: error instanceof ApiError || error instanceof Error ? error.message : "That didn’t send. Try again." });
@@ -183,6 +186,7 @@ function Close({ ways }: { ways: Ways }) {
               {state.status === "sending" ? "Sending…" : "Request access"}
             </button>
           </div>
+          {check.slot}
           {/* People never see this field; bots fill it in and are ignored. */}
           <div className="site-trap" aria-hidden="true">
             <label>

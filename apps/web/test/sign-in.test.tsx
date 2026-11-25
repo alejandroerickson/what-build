@@ -166,6 +166,87 @@ describe("asking for a sign-in link", () => {
   });
 });
 
+describe("the bot check", () => {
+  /** Cloudflare's widget, standing in for its script: it hands a token once drawn, or fails. */
+  function standInTurnstile(outcome: "token" | "error") {
+    const drawn: Record<string, unknown>[] = [];
+    const reset = vi.fn();
+    window.turnstile = {
+      render(_el: HTMLElement, options: Record<string, unknown>) {
+        drawn.push(options);
+        setTimeout(() => (outcome === "token" ? (options["callback"] as (t: string) => void)("token-1") : (options["error-callback"] as () => void)()));
+        return "widget-1";
+      },
+      reset,
+      remove: vi.fn(),
+    };
+    return { drawn, reset };
+  }
+  afterEach(() => {
+    delete window.turnstile;
+  });
+  const askFor = async (host: HTMLElement, email: string) => {
+    const input = host.querySelector<HTMLInputElement>('input[type="email"]')!;
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, email);
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    await act(async () => host.querySelector<HTMLButtonElement>('button[type="submit"]')!.click());
+    await act(() => new Promise((r) => setTimeout(r, 20)));
+  };
+
+  it("sends the widget's token with the request for a link, then asks the widget for the next", async () => {
+    const widget = standInTurnstile("token");
+    const fetched = vi.spyOn(globalThis, "fetch").mockImplementation(async () => new Response(JSON.stringify({ received: true }), { status: 200 }));
+    try {
+      const host = await signInPageAt("", { email_link: true, google: false, microsoft: false, dev: false, bot_check: { site_key: "1x00000000000000000000AA" } } as never);
+      await act(() => new Promise((r) => setTimeout(r, 10)));
+      expect(widget.drawn[0]).toMatchObject({ sitekey: "1x00000000000000000000AA", action: "sign_in", appearance: "interaction-only" });
+      await askFor(host, "maya@example.com");
+      const sent = fetched.mock.calls.find(([url]) => String(url).endsWith("/auth/email"))!;
+      expect(JSON.parse(String((sent[1] as RequestInit).body))).toMatchObject({ email: "maya@example.com", bot_check: "token-1" });
+      expect(widget.reset).toHaveBeenCalledWith("widget-1");
+      expect(host.querySelector(".callout-title")?.textContent).toBe("Check your email");
+    } finally {
+      fetched.mockRestore();
+    }
+  });
+
+  it("says so, and sends nothing, when the widget could not decide", async () => {
+    standInTurnstile("error");
+    const fetched = vi.spyOn(globalThis, "fetch").mockImplementation(async () => new Response(JSON.stringify({ received: true }), { status: 200 }));
+    try {
+      const host = await signInPageAt("", { email_link: true, google: false, microsoft: false, dev: false, bot_check: { site_key: "1x00000000000000000000AA" } } as never);
+      await act(() => new Promise((r) => setTimeout(r, 10)));
+      await askFor(host, "maya@example.com");
+      expect(fetched.mock.calls.some(([url]) => String(url).endsWith("/auth/email"))).toBe(false);
+      expect(host.textContent).toContain("WhatBuild couldn’t check that you’re a person. Reload the page and try again.");
+    } finally {
+      fetched.mockRestore();
+    }
+  });
+
+  it("asks for nothing, and loads nothing, where the deployment has no bot check", async () => {
+    const fetched = vi.spyOn(globalThis, "fetch").mockImplementation(async () => new Response(JSON.stringify({ received: true }), { status: 200 }));
+    try {
+      const host = await signInPageAt("", { email_link: true, google: false, microsoft: false, dev: false });
+      await askFor(host, "maya@example.com");
+      const sent = fetched.mock.calls.find(([url]) => String(url).endsWith("/auth/email"))!;
+      expect(JSON.parse(String((sent[1] as RequestInit).body))).not.toHaveProperty("bot_check");
+      expect(document.querySelector('script[src*="challenges.cloudflare.com"]')).toBeNull();
+      expect(host.querySelector(".bot-check")).toBeNull();
+    } finally {
+      fetched.mockRestore();
+    }
+  });
+
+  it("explains a sign-in refused by the check, and one refused for too many new accounts", async () => {
+    expect((await signInPageAt("?error=bot_check")).textContent).toContain("WhatBuild couldn’t check that you’re a person");
+    unmount?.();
+    expect((await signInPageAt("?error=too_many_accounts")).textContent).toContain("WhatBuild is making too many new accounts just now");
+  });
+});
+
 describe("the browser tab's title", () => {
   it("follows the heading where Start using WhatBuild leads, and says Sign in elsewhere", async () => {
     const starting = await signInPageAt(`?next=${encodeURIComponent("/start")}`);

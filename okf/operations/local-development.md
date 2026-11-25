@@ -146,7 +146,26 @@ same answer on the page and no link.
 an instance already running: `pnpm dev` (`http://localhost:5273`, the default), the end-to-end
 instance (`http://localhost:5283`), or a [Docker host](end-to-end-on-a-docker-host.md) through its
 tunnel. Running it again adds only what is missing. It refuses an address that is not on this
-machine and a server without the development sign-in, so it never touches a deployment.
+machine and a server without the development sign-in, so it never touches a deployment. Past a few
+hundred people, one organization takes more invitations in a day than the abuse limits allow
+([§9.2](../spec/09-data-lifecycle.md#92-limits-and-quotas)): `pnpm dev:people` turns that limit off
+for its instance, and another instance needs `WHATBUILD_ABUSE_LIMITS=invitations_per_organization=off`.
+
+## The bot check and the abuse limits, locally
+
+`pnpm dev` asks for no bot check. To try Cloudflare Turnstile's widget on the sign-in page and the
+waitlist's form, start it with Cloudflare's test keys, which pass every check from any host,
+`localhost` included (the widget loads from `challenges.cloudflare.com`, so this needs the network):
+
+```sh
+WHATBUILD_TURNSTILE_SITE_KEY=1x00000000000000000000AA WHATBUILD_TURNSTILE_SECRET_KEY=1x0000000000000000000000000000000AA corepack pnpm dev
+```
+
+`2x00000000000000000000AB` with `2x0000000000000000000000000000000AA` always fails, and
+`3x00000000000000000000FF` forces the interactive challenge. The abuse limits count only the
+deployment's ceilings here, since no edge key names a client; `WHATBUILD_ABUSE_LIMITS` changes
+them as on a deployment. `pnpm abuse-test` floods an instance of its own through every limit
+([the abuse test](abuse-test.md)).
 
 ## A copy of production
 

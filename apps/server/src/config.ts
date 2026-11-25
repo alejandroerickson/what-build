@@ -1,4 +1,4 @@
-import type { PlanDefinition } from "@whatbuild/core";
+import { abuseLimitsFrom, type AbuseLimits, type PlanDefinition } from "@whatbuild/core";
 import { plansFrom, startingPlanFrom } from "./plans-config.ts";
 
 /**
@@ -23,6 +23,17 @@ export interface ServerConfig {
   edgeKey: string | null;
   /** The public site's origin (e.g. https://what-build.com), served by host beside the app; null for none. */
   siteUrl: string | null;
+  /** What anyone may make the deployment do before they are let in, or do to strangers (WHATBUILD_ABUSE_LIMITS, `abuse-limits.ts`). */
+  abuseLimits: AbuseLimits;
+  /**
+   * The bot check (Cloudflare Turnstile): its site key, which pages carry (WHATBUILD_TURNSTILE_SITE_KEY),
+   * and its secret key, with which the server asks Cloudflare whether a page's token is good
+   * (WHATBUILD_TURNSTILE_SECRET_KEY). Both or neither; null, nobody is asked to pass one (bot-check.ts).
+   */
+  turnstileSiteKey: string | null;
+  turnstileSecretKey: string | null;
+  /** Where the server checks a token; Cloudflare's siteverify, or a stand-in in tests. */
+  turnstileVerifyUrl: string;
   /**
    * A content site of its own (WHATBUILD_CONTENT_URL): an origin on another registrable domain than
    * the app's, served by this image by host. It serves mockups' prototypes (prototype.ts), every
@@ -196,6 +207,11 @@ function contentOrigin(v: string | undefined, publicBaseUrl: string, mode: Serve
   return url.origin;
 }
 
+/** Cloudflare's siteverify, where the server asks whether a Turnstile token is good. */
+export const TURNSTILE_VERIFY_URL = "https://challenges.cloudflare.com/turnstile/v0/siteverify";
+/** Cloudflare's documented test secret keys (always passes, always fails, already spent). */
+export const TURNSTILE_TEST_SECRET = /^[123]x0{31}AA$/;
+
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
   // Development behaviour (sign in as anyone, a published grant key, printed mail) only when asked
   // for by name: a server started with NODE_ENV unset, misspelt or anything else runs as production.
@@ -231,6 +247,14 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
     if (azureClientId && !GUID.test(azureClientId)) throw new Error("WHATBUILD_AZURE_CLIENT_ID must be a managed identity's client ID, a GUID.");
   }
   const plans = plansFrom(env["WHATBUILD_PLANS"]);
+  const turnstileSiteKey = env["WHATBUILD_TURNSTILE_SITE_KEY"]?.trim() || null;
+  const turnstileSecretKey = env["WHATBUILD_TURNSTILE_SECRET_KEY"]?.trim() || null;
+  if (Boolean(turnstileSiteKey) !== Boolean(turnstileSecretKey))
+    throw new Error("WHATBUILD_TURNSTILE_SITE_KEY and WHATBUILD_TURNSTILE_SECRET_KEY go together: set both to turn the bot check on, or neither to leave it off.");
+  if (turnstileSiteKey && !/^[\w-]{1,100}$/.test(turnstileSiteKey)) throw new Error("WHATBUILD_TURNSTILE_SITE_KEY must be a Turnstile widget's site key, such as 0x4AAAAAAA….");
+  // Cloudflare's test keys pass or fail every check whatever made the token, so production never takes them.
+  if (mode === "production" && turnstileSecretKey && TURNSTILE_TEST_SECRET.test(turnstileSecretKey))
+    throw new Error("WHATBUILD_TURNSTILE_SECRET_KEY is one of Cloudflare's test keys, which production refuses: use the secret key of the deployment's own widget.");
   return {
     env: mode,
     port,
@@ -238,6 +262,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
     redirectToPublicUrl: env["WHATBUILD_REDIRECT_TO_PUBLIC_URL"]?.trim() !== "0",
     edgeKey,
     siteUrl: env["WHATBUILD_SITE_URL"] ? env["WHATBUILD_SITE_URL"].replace(/\/+$/, "") : null,
+    abuseLimits: abuseLimitsFrom(env["WHATBUILD_ABUSE_LIMITS"]),
+    turnstileSiteKey,
+    turnstileSecretKey,
+    turnstileVerifyUrl: TURNSTILE_VERIFY_URL,
     contentUrl,
     prototypeGrantSeconds: Math.max(60, Math.round(num(env["WHATBUILD_PROTOTYPE_GRANT_HOURS"], 8) * 3600)),
     databaseUrl: env["DATABASE_URL"] ?? "",

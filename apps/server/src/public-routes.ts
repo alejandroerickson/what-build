@@ -5,6 +5,7 @@ import { Hono } from "hono";
 import { sql } from "kysely";
 import type { Release } from "./app.ts";
 import { restPrincipal } from "./auth/identity.ts";
+import { botCheckFor } from "./bot-check.ts";
 import { microsoftSignIn, type ServerConfig } from "./config.ts";
 
 /**
@@ -47,6 +48,8 @@ export async function siteCatalogue(db: Db, config: ServerConfig) {
     guests: { self_serve: guests.self_serve, open: guests.at_once > 0 },
     // Whether anyone may make an account, as a guest or to start an organization; never how many may.
     sign_up: !config.signupAllowlist || guests.self_serve || guests.organizations_per_day > 0,
+    // The bot check's site key, which the waitlist's form shows the widget with; null where it is off.
+    bot_check: botCheckFor(config),
     example_about: await exampleAbout(db).catch(() => null),
     // What the site's privacy page says that only the deployment knows.
     privacy: {
@@ -139,17 +142,25 @@ const ANALYTICS_SOURCES = {
   "connect-src": "https://*.google-analytics.com https://*.analytics.google.com https://*.googletagmanager.com",
 };
 
+/** Cloudflare Turnstile's host, by directive: its script, and the frame it decides in (bot-check.ts). */
+export const BOT_CHECK_SOURCES = {
+  "script-src": "https://challenges.cloudflare.com",
+  "frame-src": "https://challenges.cloudflare.com",
+};
+
 /**
- * PAGE_SECURITY_HEADERS, letting Google Analytics in when the deployment uses it, letting the
+ * PAGE_SECURITY_HEADERS, letting Google Analytics in when the deployment uses it, Cloudflare's
+ * bot check when it has one (bot-check.ts), letting the
  * app frame what the content site serves when it has one: prototypes, and the documents the app's
  * own routes hand off to it (content-documents.ts). After a redirect a browser matches a source by
  * its host alone, and the content site serves nothing else. A store that signs direct uploads gets
  * the app's PUTs of files past the relay, to that store's own bucket and no other.
  */
-export function pageHeaders(analytics: boolean, contentUrl: string | null = null, uploadsTo: string | null = null) {
-  if (!analytics && !contentUrl && !uploadsTo) return PAGE_SECURITY_HEADERS;
-  const csp = PAGE_SECURITY_HEADERS["Content-Security-Policy"].split("; ").map((d) => {
-    const directive = d.split(" ")[0]!;
+export function pageHeaders(analytics: boolean, contentUrl: string | null = null, uploadsTo: string | null = null, botCheck = false) {
+  if (!analytics && !contentUrl && !uploadsTo && !botCheck) return PAGE_SECURITY_HEADERS;
+  const csp = PAGE_SECURITY_HEADERS["Content-Security-Policy"].split("; ").map((d0) => {
+    const directive = d0.split(" ")[0]!;
+    const d = botCheck && directive in BOT_CHECK_SOURCES ? `${d0} ${BOT_CHECK_SOURCES[directive as keyof typeof BOT_CHECK_SOURCES]}` : d0;
     const name = directive as keyof typeof ANALYTICS_SOURCES;
     const withAnalytics = analytics && ANALYTICS_SOURCES[name] ? `${d} ${ANALYTICS_SOURCES[name]}` : d;
     if (uploadsTo && directive === "connect-src") return `${withAnalytics} ${uploadsTo}`;
@@ -182,8 +193,8 @@ function readFileIfAny(file: string) {
   }
 }
 
-export function staticRoutes(dist: string, opts: { analytics?: boolean; contentUrl?: string | null; uploadsTo?: string | null } = {}) {
-  const headers = pageHeaders(Boolean(opts.analytics), opts.contentUrl ?? null, opts.uploadsTo ?? null);
+export function staticRoutes(dist: string, opts: { analytics?: boolean; contentUrl?: string | null; uploadsTo?: string | null; botCheck?: boolean } = {}) {
+  const headers = pageHeaders(Boolean(opts.analytics), opts.contentUrl ?? null, opts.uploadsTo ?? null, Boolean(opts.botCheck));
   const root = resolve(dist);
   const app = new Hono();
   const indexPath = join(root, "index.html");

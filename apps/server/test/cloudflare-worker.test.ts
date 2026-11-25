@@ -123,6 +123,31 @@ describe("the Cloudflare Worker", () => {
     expect(keys).toEqual(["the deployment's edge key", "the deployment's edge key", null]);
   });
 
+  it("names the client's address as Cloudflare saw it, never one a caller sent, and nobody on a request of its own", async () => {
+    const seen: (string | null)[] = [];
+    vi.stubGlobal("fetch", vi.fn(async (r: Request) => (seen.push(r.headers.get("x-whatbuild-client-address")), new Response('{"plans":[]}'))));
+    const forged = { "X-WhatBuild-Client-Address": "192.0.2.1" };
+    await worker.fetch(new Request("https://app.example.com/auth/email", { method: "POST", body: "{}", headers: { ...forged, "cf-connecting-ip": "203.0.113.7" } }), { ...env, EDGE_KEY: "the deployment's edge key" });
+    await worker.fetch(new Request("https://example.com/api/v1/interest", { method: "POST", body: "{}", headers: { "cf-connecting-ip": "2001:db8::5" } }), { ...env, EDGE_KEY: "the deployment's edge key" });
+    // A forged header with no address from Cloudflare is dropped, and so is the Worker's own request for the plans.
+    await worker.fetch(new Request("https://app.example.com/oauth/register", { method: "POST", body: "{}", headers: forged }), { ...env, EDGE_KEY: "the deployment's edge key" });
+    const ASSETS = { fetch: async () => new Response("<html><head></head><body>front</body></html>", { headers: { "Content-Type": "text/html" } }) };
+    await worker.fetch(new Request("https://example.com/", { headers: forged }), { ...env, ASSETS, EDGE_KEY: "the deployment's edge key" });
+    expect(seen).toEqual(["203.0.113.7", "2001:db8::5", null, null]);
+  });
+
+  it("lets the site's pages load the bot check's widget only when the service asks for it", async () => {
+    const ASSETS = { fetch: async () => new Response("<html><head></head><body>front</body></html>", { headers: { "Content-Type": "text/html" } }) };
+    const csp = async (catalogue: string) => {
+      vi.stubGlobal("fetch", vi.fn(async () => new Response(catalogue)));
+      return (await worker.fetch(new Request("https://example.com/"), { ...env, ASSETS })).headers.get("content-security-policy")!;
+    };
+    const on = await csp('{"plans":[],"bot_check":{"site_key":"0x4AAAAAAA-example"}}');
+    expect(on).toContain("script-src 'self' https://challenges.cloudflare.com");
+    expect(on).toContain("frame-src 'self' https://challenges.cloudflare.com");
+    for (const off of ['{"plans":[],"bot_check":null}', '{"plans":[]}', "not json"]) expect(await csp(off)).not.toContain("challenges.cloudflare.com");
+  });
+
   it("passes a live stream on as it arrives, unread and unkept", async () => {
     const encoder = new TextEncoder();
     let send!: (text: string) => void;

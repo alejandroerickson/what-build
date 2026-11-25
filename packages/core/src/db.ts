@@ -253,6 +253,15 @@ export interface FeedbackCountsTable {
   sent: number;
 }
 
+/** One window of an abuse limit (`abuse-limits.ts`): how much a client address, an organization or the deployment took in it. */
+export interface AbuseCountersTable {
+  name: string;
+  /** A client address's key (never the address), an organization's ID, or "" for the deployment. */
+  subject: string;
+  starts_at: string;
+  n: number;
+}
+
 /** What an instance owner sets for the whole deployment (`settings.ts`): the guests' settings and each plan's limits and price. */
 export interface InstanceSettingsTable {
   key: string;
@@ -940,6 +949,7 @@ export interface DB {
   jobs: JobsTable;
   feedback: FeedbackTable;
   feedback_counts: FeedbackCountsTable;
+  abuse_counters: AbuseCountersTable;
   interest: InterestTable;
   instance_settings: InstanceSettingsTable;
   guest_passes: GuestPassesTable;

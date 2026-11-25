@@ -46,6 +46,28 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
   migration (`tools_version` 0.71.0); a connected client sees the new descriptions after a new
   session.
 
+- **Abuse limits, per client address and for the deployment.** Sign-in links and agent
+  registrations are limited per client address in an hour; the sign-in links and invitations the
+  deployment emails in an hour, the accounts it makes in an hour for people nobody let in, and the
+  waitlist have ceilings; an organization makes at most 100 invitations a day, on any plan. The
+  defaults are in [§9.2](../spec/09-data-lifecycle.md#92-limits-and-quotas); a deployment changes them in
+  `WHATBUILD_ABUSE_LIMITS`, and a name or number it does not take stops the server at start. The
+  deployment-wide limits on the waitlist (200 an hour) and on agent registrations waiting to
+  connect (now 200, was 50) become two of them. Behind Cloudflare, client addresses count only
+  once the Worker is deployed with the release (it passes `X-WhatBuild-Client-Address`) and the
+  service holds the edge key; until then, and on any deployment without them, only the ceilings and
+  the organization's day apply. An invitation the hour's mail cannot cover is made with its link and
+  not emailed (`emailed: false`). Re-run `PROJECT_ID=$P node deploy/cloud-run/alerts.mjs` for the
+  new alert, `whatbuild: an abuse ceiling filled`. Migration `0054_abuse_counters` adds a table the
+  previous release never reads, so it keeps working against the migrated schema.
+  `tools_version` 0.72.0: `members.grant` and `members.grant_many` describe the daily cap.
+- **An optional bot check, Cloudflare Turnstile.** With `WHATBUILD_TURNSTILE_SITE_KEY` and
+  `WHATBUILD_TURNSTILE_SECRET_KEY` (both, or neither), asking for a sign-in link, starting Google or
+  Microsoft sign-in and joining the waitlist ask for its token. Without them nothing changes. To
+  turn it on behind the Worker, deploy the Worker with the release first, then give the service the
+  keys ([cloud-run.md](cloud-run.md#the-bot-check)), and name Cloudflare in `WHATBUILD_PROVIDERS`.
+  Production refuses Cloudflare's test keys.
+
 ## v0.44.2
 
 - **`/?split=off` is the front page whatever the split**, so both landing pages can be seen from

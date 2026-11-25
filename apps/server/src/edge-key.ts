@@ -1,10 +1,16 @@
 import { createHash, timingSafeEqual } from "node:crypto";
-import type { MiddlewareHandler } from "hono";
+import type { Context, MiddlewareHandler } from "hono";
 
 /** The header the proxy in front (deploy/cloudflare/worker.js) sends the key in. */
 export const EDGE_KEY_HEADER = "X-WhatBuild-Edge-Key";
 
 const digest = (s: string) => createHash("sha256").update(s).digest();
+
+/** Whether a request carries this edge key. */
+export function carriesEdgeKey(c: Context, key: string): boolean {
+  const given = c.req.header(EDGE_KEY_HEADER);
+  return Boolean(given) && timingSafeEqual(digest(given!), digest(key));
+}
 
 /**
  * With an edge key (WHATBUILD_EDGE_KEY), the service answers only requests that carry it, which

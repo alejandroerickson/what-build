@@ -519,7 +519,14 @@ new tab ([§7.8](#78-story), [§6](06-operations-and-adapters.md)).
    you? Close this tab and nothing happens." under it. A sign-in refused as invite-only says to
    ask someone who uses WhatBuild for an invitation, and, on a deployment with a public site, to
    join the waitlist at its address, linked to the site's form. A refused Microsoft sign-in says to
-   write to the deployment's contact, where it names one, with the reference. Wherever sign-in returns to is a path on this origin or `/`,
+   write to the deployment's contact, where it names one, with the reference. Where the deployment
+   has the bot check ([§3.2](03-accounts-and-identity.md#32-accounts-and-sign-in)), Cloudflare
+   Turnstile's widget sits under the ways to sign in, drawn only when it needs the person to do
+   something; Email me a sign-in link and Continue with Microsoft or Google wait for its token, and
+   a check that could not decide says "WhatBuild couldn’t check that you’re a person. Reload the
+   page and try again." A sign-in refused for too many new accounts says WhatBuild is making too
+   many just now, to try in an hour or ask someone who uses it for an invitation; one refused by the
+   bot check says to try again. The public site's waitlist form carries the same widget. Wherever sign-in returns to is a path on this origin or `/`,
    by the server's rule (`safeNext`). Under the form are links to Privacy and Cookies. Where anyone
    may make an account (`open` in `/auth/methods`), a line says signing in creates their account;
    arriving from Start using WhatBuild (`next` is `/start`), the title is "Start using WhatBuild". Privacy is the notice

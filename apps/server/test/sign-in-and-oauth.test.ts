@@ -128,13 +128,13 @@ describe("client registration", () => {
     expect(name).toHaveLength(100);
   });
 
-  it("takes at most 50 registrations an hour that have not led to a connection", async () => {
+  it("takes at most the deployment's ceiling of registrations an hour that have not led to a connection", async () => {
     const pending = async () =>
       Number(
         (await sql<{ n: string }>`select count(*) as n from oauth_clients c where c.created_at > now() - interval '1 hour' and not exists (select 1 from oauth_tokens t where t.client_id = c.client_id)`.execute(h.db))
           .rows[0]!.n,
       );
-    const flood = Array.from({ length: 50 - (await pending()) }, (_, i) => `wbc_flood_${i}`);
+    const flood = Array.from({ length: h.config.abuseLimits.agent_registrations_per_hour! - (await pending()) }, (_, i) => `wbc_flood_${i}`);
     await h.db.insertInto("oauth_clients").values(flood.map((client_id) => ({ client_id, client_name: "Flood", redirect_uris: JSON.stringify(["https://flood.example/cb"]) }))).execute();
     try {
       const refused = await postJson("/oauth/register", { client_name: "One too many", redirect_uris: ["https://agent.example/cb"] });

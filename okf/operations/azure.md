@@ -867,6 +867,21 @@ admit only some networks, `az containerapp ingress access-restriction set` with 
 address range. That also shuts out agents that run on a vendor's servers and call `/mcp` from
 there; agents on a person's own machine inside the range still connect.
 
+### Abuse limits and the bot check
+
+The abuse limits ([§9.2](../spec/09-data-lifecycle.md#92-limits-and-quotas)) apply here as
+everywhere, but Container Apps' ingress names no client the service can trust (there is no edge
+key), so only the deployment's ceilings and each organization's invitations a day count, not the
+limits per client address. Change the numbers with `WHATBUILD_ABUSE_LIMITS` in the app's
+environment. A deployment for one organization's own people, invite-only, rarely meets them.
+
+The bot check stays off unless the deployment adds a Cloudflare Turnstile widget's keys: make a
+widget for the app's host in a Cloudflare account, put its secret key in the vault as
+`turnstile-secret-key`, and give the app `WHATBUILD_TURNSTILE_SECRET_KEY=secretref:turnstile-secret-key`
+and `WHATBUILD_TURNSTILE_SITE_KEY=<site key>` together, as the other secrets are given in step 8
+([decision](../decisions/the-bot-check-is-cloudflare-turnstile-and-a-deployment-may-leave-it-off.md)).
+The pages then load Cloudflare's widget, so people's browsers must reach `challenges.cloudflare.com`.
+
 ### Private networking
 
 Where policy forbids public endpoints: a virtual network with a subnet delegated to

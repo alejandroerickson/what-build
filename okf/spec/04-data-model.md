@@ -1087,8 +1087,10 @@ and name: `email` ≤ 320 chars,
 path (`/`, `/what-to-build/`), and anything else is dropped. One row per address, compared without
 case; a repeat updates the fields it sends, but `page` keeps the first one, so the landing pages can
 be compared ([decision](../decisions/the-landing-pages-are-compared-by-a-split-at-the-edge.md)). The answer is the same `{ received: true }` for a new address,
-a repeat and a bot (a hidden `website` field), so it never reveals who asked. New rows are limited
-to 200 an hour across the site (`429 rate_limited`). Not tenant content. Instance owners read it as
+a repeat and a bot (a hidden `website` field), so it never reveals who asked. Where the deployment
+has the bot check, a request without a good token is refused (`403 bot_check_failed`); past it,
+requests are limited per client address and across the deployment in an hour (`429 rate_limited`,
+[§9.2](09-data-lifecycle.md#92-limits-and-quotas)). Not tenant content. Instance owners read it as
 the waitlist in `products.tenant_allowances`, which leaves out anyone given an allowance
 ([decision](../decisions/the-public-site-is-pages-built-with-the-app.md)).
 
@@ -1152,7 +1154,9 @@ activity.jsonl
   policy keyed on the transaction-local `app.tenant_id`. Directory tables (accounts, sessions,
   tokens, OAuth clients, tenants and their former slugs, products and the addresses some had under a team (`team_addresses`), memberships, invitations) and the job queue,
   feedback and its daily counts, the public site's interest form, the usage counts, the limits'
-  counters and `schema_migrations` have no
+  counters, the abuse limits' counters (`abuse_counters`: a limit's window, its subject, a client
+  address's keyed hash, an organization's ID or the deployment, and how many it took; deleted two
+  days after the window began) and `schema_migrations` have no
   row-level security and
   are reached only through the authorization layer. Policies are forced, because the app's role owns
   the tables. [`apps/server/test/row-level-security.test.ts`](../../apps/server/test/row-level-security.test.ts)

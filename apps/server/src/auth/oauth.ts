@@ -1,8 +1,9 @@
 import { createHash, createHmac, timingSafeEqual } from "node:crypto";
-import { escapeHtml, json, newId, randomToken, sha256Hex, type ConnectionLevel, type Db } from "@whatbuild/core";
+import { abuseLog, escapeHtml, json, newId, randomToken, retryAfter, sha256Hex, spend, type ConnectionLevel, type Db } from "@whatbuild/core";
 import { Hono, type Context } from "hono";
 import { getCookie, setCookie } from "hono/cookie";
 import { sql } from "kysely";
+import { clientAddress, clientKey } from "../client-address.ts";
 import type { ServerConfig } from "../config.ts";
 import { connectedAtBefore, heldAt, queueConnectionNotice } from "./connection-notice.ts";
 import { connectorBound, connectorReach, type ConnectorReach } from "./connector-reach.ts";
@@ -21,8 +22,6 @@ const SCOPE = "whatbuild";
 
 /** Registration is open to anyone, so what one may store is bounded. */
 export const REDIRECT_URI_MAX_CHARS = 500;
-/** Registrations in the last hour that have not yet led to a connection, beyond which registration waits. */
-export const PENDING_REGISTRATIONS_PER_HOUR = 50;
 /** A registration that never led to a connection is forgotten after this many days. */
 export const UNUSED_CLIENT_DAYS = 7;
 
@@ -231,21 +230,38 @@ export function oauthRoutes(deps: { db: Db; config: ServerConfig; notifyJobs?: (
     if (uris.some((u) => u.length > REDIRECT_URI_MAX_CHARS)) return oauthError(c, 400, "invalid_redirect_uri", `A redirect URI is at most ${REDIRECT_URI_MAX_CHARS} characters.`);
     const bad = uris.find((u) => !validRedirectUri(u));
     if (bad) return oauthError(c, 400, "invalid_redirect_uri", `Not an acceptable redirect URI: ${bad}. Use https, http on a loopback host, or a private-use scheme.`);
-    // Anyone may register, so registrations that have not yet led to a connection are counted, like sign-in links.
-    const hourAgo = Date.now() - 3600_000;
-    const pending = await db
-      .selectFrom("oauth_clients as c")
-      .select((eb) => [eb.fn.countAll<string>().as("n"), eb.fn.min("c.created_at").as("oldest")])
-      .where("c.created_at", ">", new Date(hourAgo).toISOString())
-      .where(({ not, exists, selectFrom }) => not(exists(selectFrom("oauth_tokens as t").select("t.token_hash").whereRef("t.client_id", "=", "c.client_id"))))
-      .executeTakeFirst();
-    if (Number(pending?.n ?? 0) >= PENDING_REGISTRATIONS_PER_HOUR) {
-      c.header("Retry-After", String(Math.max(1, Math.ceil((Date.parse(String(pending!.oldest)) - hourAgo) / 1000))));
-      return oauthError(c, 429, "rate_limited", "Too many MCP clients registered in the last hour without connecting. Try again later.");
+    // Anyone may register, so each client address's registrations are counted in its hour, where
+    // the service knows the address (abuse-limits.ts); a refused registration adds nothing.
+    const key = clientKey(clientAddress(c, config), config.grantKey);
+    const mine = key ? await spend(db, "agent_registrations_per_address", key, config.abuseLimits) : null;
+    if (mine && !mine.ok) {
+      c.header("Retry-After", String(retryAfter(mine.resets_at)));
+      return oauthError(c, 429, "rate_limited", "Too many MCP clients registered from your network in the last hour. Try again later.");
     }
+    // And across the deployment, registrations in the last hour that have not yet led to a
+    // connection: counted and made one registration at a time, so a burst cannot pass the ceiling.
+    const ceiling = config.abuseLimits.agent_registrations_per_hour;
+    const hourAgo = Date.now() - 3600_000;
     const name = clientName(body.client_name);
     const client_id = `wbc_${newId().toLowerCase()}`;
-    await db.insertInto("oauth_clients").values({ client_id, client_name: name, redirect_uris: json(uris) }).execute();
+    const made = await db.transaction().execute(async (trx) => {
+      await sql`select pg_advisory_xact_lock(hashtext('whatbuild oauth registration'))`.execute(trx);
+      const pending = await trx
+        .selectFrom("oauth_clients as c")
+        .select((eb) => [eb.fn.countAll<string>().as("n"), eb.fn.min("c.created_at").as("oldest")])
+        .where("c.created_at", ">", new Date(hourAgo).toISOString())
+        .where(({ not, exists, selectFrom }) => not(exists(selectFrom("oauth_tokens as t").select("t.token_hash").whereRef("t.client_id", "=", "c.client_id"))))
+        .executeTakeFirst();
+      const n = Number(pending?.n ?? 0);
+      if (ceiling !== null && n >= ceiling) return { refused: true as const, oldest: String(pending!.oldest) };
+      await trx.insertInto("oauth_clients").values({ client_id, client_name: name, redirect_uris: json(uris) }).execute();
+      return { refused: false as const, filled: ceiling !== null && n + 1 === ceiling };
+    });
+    if (made.refused) {
+      c.header("Retry-After", String(Math.max(1, Math.ceil((Date.parse(made.oldest) - hourAgo) / 1000))));
+      return oauthError(c, 429, "rate_limited", "Too many MCP clients registered in the last hour without connecting. Try again later.");
+    }
+    if (made.filled) abuseLog({ event: "abuse_ceiling_reached", limit: "agent_registrations_per_hour", value: ceiling, window: "hour" });
     return c.json(
       {
         client_id,

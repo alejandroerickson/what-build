@@ -1143,11 +1143,14 @@ Rules:
   and `wb_session` over HTTP ([§3.8](03-accounts-and-identity.md#38-identity-of-the-caller)).
 - **Sign-in endpoints** (`apps/server/src/auth/routes.ts`): `POST /auth/email` sends a link to an
   address that may sign in, and answers every address alike (`{ received: true }`, or `429` past
-  five an hour, counted for any address), sending the mail after the answer
-  ([§3.2](03-accounts-and-identity.md));
+  five an hour for the address, past the client's limit or the deployment's mail for the hour,
+  each counted for any address), sending the mail after the answer
+  ([§3.2](03-accounts-and-identity.md), [§9.2](09-data-lifecycle.md#92-limits-and-quotas));
   `GET /auth/verify?token=` shows its page and changes nothing, and `POST /auth/verify` (form field
   `token`, same origin only) uses it and signs in; `GET /auth/google`, `/auth/microsoft` and their
-  `/callback`s run OpenID Connect; `POST /auth/dev-sign-in`, and `GET /auth/dev-accounts`, which
+  `/callback`s run OpenID Connect; where the deployment has the bot check, `POST /auth/email` takes
+  its token in `bot_check` and `GET /auth/google` and `/auth/microsoft` in the query, and each
+  refuses without a good one (`403 bot_check_failed`, or back to `/signin?error=bot_check`); `POST /auth/dev-sign-in`, and `GET /auth/dev-accounts`, which
   lists the server's accounts for the sign-in page to offer, exist outside production;
   `POST /auth/sign-out`; `GET /auth/session` answers the web app's "who is signed in" with
   `signed_in` and, when true, what `GET /api/v1/me` returns, so being signed out is a `200` there

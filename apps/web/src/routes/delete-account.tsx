@@ -3,6 +3,7 @@ import { ACCOUNT_DELETION } from "@whatbuild/core/account-deletion";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Link, Navigate, useSearchParams } from "react-router";
 import { api, ApiError } from "../lib/api.ts";
+import { BOT_CHECK_FIELD, useBotCheck, useProviderLink, type BotCheckSetting } from "../lib/bot-check.tsx";
 import { forgetPersonalState } from "../lib/local-state.ts";
 import { useMe } from "../lib/session.tsx";
 import { Button, ButtonLink, Callout, ErrorCallout, Loading, OneLine, Sheet, SheetBody, SheetHeader, TextField } from "../ui/index.tsx";
@@ -205,8 +206,12 @@ function OnlyOwner({ orgs }: { orgs: AccountDeleteImpact["organizations"] }) {
 
 /** A sign-in that is not recent: sign in again, by any way this WhatBuild offers, and come back here. */
 function SignInAgain({ impact: d, cancel }: { impact: AccountDeleteImpact; cancel: ReactNode }) {
-  const methods = useQuery({ queryKey: ["auth-methods"], queryFn: () => api<{ email_link: boolean; google: boolean; microsoft?: boolean }>("GET", "/auth/methods") });
-  const send = useMutation({ mutationFn: () => api<{ sent: boolean; dev_note?: string }>("POST", "/auth/email", { email: d.email, next: HERE }) });
+  const methods = useQuery({ queryKey: ["auth-methods"], queryFn: () => api<{ email_link: boolean; google: boolean; microsoft?: boolean; bot_check?: BotCheckSetting }>("GET", "/auth/methods") });
+  // Signing in again meets the bot check as the sign-in page does, where the deployment asks for one.
+  const check = useBotCheck(methods.data?.bot_check, "sign_in");
+  const [providerError, setProviderError] = useState<string | null>(null);
+  const provider = useProviderLink(check.take, setProviderError);
+  const send = useMutation({ mutationFn: async () => api<{ sent: boolean; dev_note?: string }>("POST", "/auth/email", { email: d.email, next: HERE, [BOT_CHECK_FIELD]: await check.take() }) });
   const back = encodeURIComponent(HERE);
   const m = methods.data;
   return (
@@ -221,7 +226,9 @@ function SignInAgain({ impact: d, cancel }: { impact: AccountDeleteImpact; cance
         </Callout>
       )}
       {send.isError ? <ErrorCallout inset error={send.error} /> : null}
+      {providerError ? <ErrorCallout inset error={new Error(providerError)} /> : null}
       {methods.isError ? <ErrorCallout inset error={methods.error} onRetry={() => void methods.refetch()} /> : null}
+      {check.slot}
       <div className="farewell-actions">
         {cancel}
         {m?.email_link && !send.isSuccess ? (
@@ -230,12 +237,12 @@ function SignInAgain({ impact: d, cancel }: { impact: AccountDeleteImpact; cance
           </Button>
         ) : null}
         {m?.microsoft ? (
-          <a className="btn btn-secondary btn-md" href={`/auth/microsoft?next=${back}`}>
+          <a className="btn btn-secondary btn-md" href={`/auth/microsoft?next=${back}`} onClick={check.on ? provider.go(`/auth/microsoft?next=${back}`) : undefined}>
             Continue with Microsoft
           </a>
         ) : null}
         {m?.google ? (
-          <a className="btn btn-secondary btn-md" href={`/auth/google?next=${back}`}>
+          <a className="btn btn-secondary btn-md" href={`/auth/google?next=${back}`} onClick={check.on ? provider.go(`/auth/google?next=${back}`) : undefined}>
             Continue with Google
           </a>
         ) : null}

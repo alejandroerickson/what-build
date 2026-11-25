@@ -76,6 +76,22 @@ Sign-in methods, each optional per deployment:
 There is no password. First sign-in creates the account. No method of signing in accepts anything:
 someone invited joins only by choosing to ([below](#invitations)).
 
+**Limits and the bot check at the door** ([§9.2](09-data-lifecycle.md#92-limits-and-quotas)).
+Asking for an email link is limited per client address and by the sign-in links and invitations
+the deployment emails in an hour, counted alike for every address (`429 rate_limited`, with
+`Retry-After`). A first sign-in that would make an account for someone nobody let in (not on the
+allowlist, not an instance owner, with no allowance and no invitation waiting) is limited per client
+address and across the deployment in an hour; past either, it ends on `/signin?error=too_many_accounts`,
+and the page says WhatBuild is making too many new accounts just now, to try in an hour or ask to be
+invited. A deployment with Cloudflare Turnstile's keys shows its widget on the sign-in page, and on
+signing in again before deleting an account: asking for an email link sends its token
+(`bot_check`), and Continue with Google or Microsoft waits for the token and carries it to
+`/auth/google` or `/auth/microsoft`; a request without a good one is refused
+(`403 bot_check_failed`, or back to `/signin?error=bot_check`, where the page says WhatBuild
+couldn't check that the person is one, and to try again). `GET /auth/methods` gives the widget's
+site key as `bot_check` (`null` where there is none). The widget mostly decides by itself and shows
+itself only when it needs the person to do something.
+
 Every method returns to `next`, the path the person was on, only when it is a path on this origin:
 one with a scheme or host, a backslash, whitespace or a control character, an encoded slash,
 backslash, percent sign or control character in its path, or a path that normalizes to begin
@@ -720,9 +736,11 @@ endpoint) answers `400` on WhatBuild's own page, naming the OAuth error, signed 
 
 Registration is bounded, since anyone may register: at most 10 redirect URIs of at most 500
 characters (`400 invalid_redirect_uri`), and a name of at most 100 characters, with control and
-format characters removed. At most 50 registrations an hour may be waiting for their first
-connection; past that, registration answers `429 rate_limited` with `Retry-After`, and a
-registration that led to a connection stops counting. A registration that never led to a
+format characters removed. Registrations are limited per client address in an hour, where the
+service knows the address, and across the deployment to those waiting for their first connection
+in the last hour (200 by default, `WHATBUILD_ABUSE_LIMITS`, [§9.2](09-data-lifecycle.md#92-limits-and-quotas));
+past either, registration answers `429 rate_limited` with `Retry-After`, and a registration that
+led to a connection stops counting. A registration that never led to a
 connection is removed after seven days; one that ever did is kept. Request bodies to `/oauth/*`
 are limited to 64 KB (`413`, `invalid_request`).
 

@@ -27,8 +27,11 @@ they sign in with, their name, the addresses they invite; their organizations: e
 names and emails of its people, which whoever runs the deployment sees, to write to them and,
 where a plan has a price, to bill it; what they and their agents add, with their name on it; the records of running
 the service: sessions, connected agents, a log of requests that holds no content, how much they
-use WhatBuild (the counts held against limits and a guest's place), and counts of use under a
-code in place of their name; analytics, when the deployment has it and the
+use WhatBuild (the counts held against limits and a guest's place), counts of use under a
+code in place of their name, and, for a short time, counts under a code made from the address their
+requests come from, to stop floods (§9.2); the bot check, when the deployment has it: on signing in
+and joining the waitlist, Cloudflare Turnstile looks at their browser to tell a person from a script
+and tells WhatBuild only whether it passed; analytics, when the deployment has it and the
 person accepted; what they send: feedback and a request for an organization of their own), why (because they use
 WhatBuild; to run it safely and improve it, which they may object to; by consent, for analytics),
 who else handles it (the deployment's providers, in the deployment's own words; the people in the
@@ -170,13 +173,57 @@ Rules:
    Deleting makes room under products, sources and storage; removing someone, or an invitation
    cancelled or declined, under people. The UI says so where it matters.
 
-**Abuse limits**, which are not quotas but belong beside them. Built: the sign-in link limit,
-the limits on OAuth client registration and on sign-in and OAuth request bodies
-([§3.8](03-accounts-and-identity.md)), invite-only mode (`WHATBUILD_SIGNUP_ALLOWLIST`, [§3.2](03-accounts-and-identity.md)), in
-which an instance owner lets people in one at a time with an allowance, and a guest's limit on calls
-a minute in the example organization (§9.7).
+**Abuse limits**, which are not quotas but belong beside them: what anyone can make a deployment do
+before they are let in, or do to strangers through it (`packages/core/src/abuse-limits.ts`). Each
+deployment sets its own numbers in `WHATBUILD_ABUSE_LIMITS` (`name=number` or `name=off`, separated
+by commas; a name or number it does not take stops the server at start), and every other keeps its
+default. Windows are fixed: an hour from the top of the hour, or a UTC day. A refused request adds
+nothing, and a refused call that would have taken several (`members.grant_many`) takes none.
+
+| Limit | Default | Counted per | What a person sees past it |
+|---|---|---|---|
+| `sign_in_links_per_address` | 20 an hour | client address | `429 rate_limited`: too many sign-in links asked for from their network; try later, or sign in another way |
+| `mail_per_hour` | 500 an hour | deployment | Sign-in links and invitations emailed. A sign-in link: `429`, WhatBuild has sent all the email it sends in an hour. An invitation is made, its answer says `emailed: false`, and its link works ("Not emailed" in the web app) |
+| `new_accounts_per_address` | 10 an hour | client address | Accounts made by people nobody let in. Signing in ends on the sign-in page: WhatBuild is making too many new accounts just now; try in an hour, or ask to be invited |
+| `new_accounts_per_hour` | 100 an hour | deployment | The same |
+| `waitlist_per_address` | 5 an hour | client address | `429`: too many requests from their network |
+| `waitlist_per_hour` | 200 an hour | deployment | `429`: too many requests right now; try in an hour |
+| `agent_registrations_per_address` | 20 an hour | client address | `429 rate_limited` with `Retry-After`; the agent says it could not register |
+| `agent_registrations_per_hour` | 200 waiting for their first connection in the last hour | deployment | The same |
+| `invitations_per_organization` | 100 a day | organization | `429 rate_limited`, saying when the day starts again; a role given at once to someone already in the organization is not one |
+
+- **Who counts as one client.** The address the request came from, an IPv4 address whole and an
+  IPv6 address by its first 64 bits, and only where the service can trust it: behind the Cloudflare
+  Worker with the edge key, which names it in `X-WhatBuild-Client-Address`
+  ([decision](../decisions/abuse-limits-count-a-client-address-only-where-the-edge-key-vouches-for-it.md)).
+  Elsewhere only the deployment's ceilings and the organization's day apply. An address is kept as
+  a keyed hash, never as itself, and its counts go two days after their window began.
+- **Who is never counted as a new account.** An address with an account, and one someone let in:
+  on the allowlist, an instance owner, one an instance owner gave an allowance, or one with an
+  invitation waiting. A flood of strangers cannot keep out the people a team invited.
+- **The same for every address.** A sign-in link is counted, against the client and the hour's
+  mail, whether or not the address may sign in and is mailed, so the answer never tells them apart
+  ([§3.2](03-accounts-and-identity.md#32-accounts-and-sign-in)).
+- **The deployment's ceilings are shared.** Once one fills, everyone meets it until its window
+  ends. The server logs `abuse_ceiling_reached` with the limit's name when one fills, which an alert
+  watches ([cloud-run.md](../operations/cloud-run.md#abuse-limits)).
+- **The bot check.** A deployment with Cloudflare Turnstile's keys (`WHATBUILD_TURNSTILE_SITE_KEY`,
+  `WHATBUILD_TURNSTILE_SECRET_KEY`) asks for its token, before any limit is counted, on asking for a
+  sign-in link, starting Google or Microsoft sign-in, and joining the waitlist: the forms anyone can
+  send without being signed in that mail someone or make an account. Without the keys nothing asks
+  ([decision](../decisions/the-bot-check-is-cloudflare-turnstile-and-a-deployment-may-leave-it-off.md)).
+  Invitations and feedback come from people signed in, and from their agents, which no bot check
+  can ask, so they have limits only.
+
+Beside these: five sign-in links an hour per email address, the limits on sign-in and OAuth request
+bodies ([§3.8](03-accounts-and-identity.md)), feedback's ten reports a person and 200 for the
+deployment a UTC day, invite-only mode (`WHATBUILD_SIGNUP_ALLOWLIST`, [§3.2](03-accounts-and-identity.md)), in
+which an instance owner lets people in one at a time with an allowance, a guest's limit on calls
+a minute in the example organization (§9.7), and the plans' limits on what people do inside an
+organization (§9.7). [The abuse test](../operations/abuse-test.md) floods a local instance to check
+them all together.
 The operator's view of usage by organization is built: `products.organizations` and Instance
-admin's Organizations give each organization's plan, what it holds and today's use. Planned: per-IP sign-up limits.
+admin's Organizations give each organization's plan, what it holds and today's use.
 
 ## 9.3 Durability: backups and what is versioned
 

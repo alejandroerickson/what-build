@@ -78,6 +78,21 @@ const POLICIES = [
     severity: "ERROR",
   },
   {
+    displayName: `${service}: an abuse ceiling filled`,
+    documentation: doc(
+      `One of the deployment's abuse ceilings filled for its window (the log line abuse_ceiling_reached names which): the sign-in links and invitations it emails in an hour, the accounts it makes in an hour for people nobody let in, requests to join the waitlist, or agents registered without connecting. Until the window ends, everyone meets that ceiling, not only whoever filled it. A flood looks like one ceiling filling hour after hour; a launch or an invitation round looks like one hour.`,
+      "Abuse limits",
+    ),
+    conditions: [
+      {
+        displayName: "a ceiling filled",
+        conditionMatchedLog: { filter: `${revision} AND jsonPayload.event = "abuse_ceiling_reached"` },
+      },
+    ],
+    alertStrategy: { notificationRateLimit: { period: "3600s" }, autoClose: "1800s" },
+    severity: "WARNING",
+  },
+  {
     displayName: `${service}: memory`,
     documentation: doc(`An instance has used more than 85% of its memory for five minutes. At the limit Cloud Run stops it, with every request it was serving and the upload it was reading.`),
     conditions: [
