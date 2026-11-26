@@ -1,12 +1,13 @@
 // A Cloudflare Worker in front of WhatBuild's Cloud Run service, written for Cloudflare's free plan.
 //
 // The public site is served here, from the built web app (apps/web/dist), so nothing that visits
-// it, crawlers included, wakes the service; only a request to hear from us is passed on. The app's
-// own domain is passed on whole, but for paths it never serves, which scanners probe and which are
-// answered here. Cloud Run picks the service by the Host header, which only
-// Cloudflare Enterprise can rewrite, so each request goes to the service's run.app name and the
-// domain the browser asked for travels in X-Forwarded-Host. Cookies, redirects and streamed
-// responses pass through untouched. See okf/operations/cloud-run.md, "A custom domain".
+// it, crawlers included, wakes the service; only a request to hear from us, and a landing page's
+// count of a button pressed, are passed on. The app's own domain is passed on whole, but for paths
+// it never serves, which scanners probe and which are answered here. Cloud Run picks the service by
+// the Host header, which only Cloudflare Enterprise can rewrite, so each request goes to the
+// service's run.app name and the domain the browser asked for travels in X-Forwarded-Host.
+// Cookies, redirects and streamed responses pass through untouched. See
+// okf/operations/cloud-run.md, "A custom domain".
 //
 // Settings (wrangler --var): ORIGIN, the service's run.app URL; SITE_HOST, the site's domain
 // (e.g. example.com); APP_URL, the app's origin (e.g. https://app.example.com); and, optionally,
@@ -26,6 +27,9 @@
 
 /** The site's own paths. Every other path on its domain belongs to the app. */
 const SITE_FILES = /^\/(assets\/.+|favicon\.svg|theme-boot\.js)$/;
+
+/** What the site's pages send the service: a request to hear from us, and a landing page's button pressed (apps/server/src/site.ts). */
+const SITE_API = new Set(["/api/v1/interest", "/api/v1/pressed"]);
 
 /**
  * Paths the app never serves, which scanners ask for by the hundred: a first part that is a dotfile
@@ -98,8 +102,12 @@ const attr = (v) => v.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</
 /** The site's pages, by path, and where each is in the build. */
 const SITE_PAGES = { "/": "/site/", "/plans": "/site/plans/", "/plans/": "/site/plans/", "/privacy": "/site/privacy/", "/privacy/": "/site/privacy/", "/what-to-build": "/site/what-to-build/", "/what-to-build/": "/site/what-to-build/" };
 
-/** Crawlers and link previews always get the front page, so search results and shared links show one page. */
-const NOT_A_PERSON = /bot|crawl|spider|slurp|preview|facebookexternalhit|embedly|whatsapp|telegram|slack|discord|linkedin|headless/i;
+/**
+ * Crawlers and link previews always get the front page, so search results and shared links show one
+ * page. A person reading in an app's own browser is split like anyone else: LinkedIn's app names
+ * itself `LinkedInApp`, and only its preview, `LinkedInBot`, is kept to the front page.
+ */
+const NOT_A_PERSON = /bot|crawl|spider|slurp|preview|facebookexternalhit|embedly|whatsapp|telegram|slack|discord|headless/i;
 
 /**
  * Whether this visitor to the front page goes to the second landing page instead, for the A/B test
@@ -207,7 +215,7 @@ export default {
         return new Response(null, { status: 302, headers: { Location: `https://${site}/what-to-build/${url.search}`, "Cache-Control": "no-store" } });
       if (Object.hasOwn(SITE_PAGES, url.pathname) && read) return sitePage(request, url, env);
       if (SITE_FILES.test(url.pathname) && read) return env.ASSETS.fetch(request);
-      if (url.pathname === "/api/v1/interest") return forward(request, url, env);
+      if (SITE_API.has(url.pathname)) return forward(request, url, env);
       // Temporary, not permanent: the site may grow pages of its own at these paths.
       return Response.redirect(`${env.APP_URL}${url.pathname}${url.search}`, 302);
     }

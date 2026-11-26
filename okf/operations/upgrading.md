@@ -45,6 +45,16 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
   the answer (`versions_deleted`), and reading a deleted version answers `410 version_deleted`. No
   migration (`tools_version` 0.71.0); a connected client sees the new descriptions after a new
   session.
+- **The landing pages are followed from a visit to people coming back**
+  ([the landing-page funnel](analytics.md#the-landing-page-funnel)). The release migrates
+  (`0054_the_landing_funnel.sql` adds `accounts.came_via`, `accounts.returned_at` and the table
+  `landing_presses`, all empty), which the previous release never reads or writes, so it keeps
+  working on the migrated schema and going back needs only its image. Behind Cloudflare, deploy the
+  Worker with the release, as always: it serves the pages that count their buttons' presses and
+  passes those counts on (`POST /api/v1/pressed`); until then nothing is counted. With it, people
+  reading in LinkedIn's app are split like everyone else, where until now they always got `/`; only
+  LinkedIn's link previews still do. An account made before the release gets `returned_at` at its
+  first call after it. Nothing else needs doing.
 
 - **Abuse limits, per client address and for the deployment.** Sign-in links and agent
   registrations are limited per client address in an hour; the sign-in links and invitations the
@@ -58,7 +68,7 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
   service holds the edge key; until then, and on any deployment without them, only the ceilings and
   the organization's day apply. An invitation the hour's mail cannot cover is made with its link and
   not emailed (`emailed: false`). Re-run `PROJECT_ID=$P node deploy/cloud-run/alerts.mjs` for the
-  new alert, `whatbuild: an abuse ceiling filled`. Migration `0054_abuse_counters` adds a table the
+  new alert, `whatbuild: an abuse ceiling filled`. Migration `0055_abuse_counters` adds a table the
   previous release never reads, so it keeps working against the migrated schema.
   `tools_version` 0.72.0: `members.grant` and `members.grant_many` describe the daily cap.
 - **An optional bot check, Cloudflare Turnstile.** With `WHATBUILD_TURNSTILE_SITE_KEY` and

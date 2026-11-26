@@ -461,9 +461,12 @@ goes to `/start`, which starts their organization or puts them on the waitlist
 ([§3.2](03-accounts-and-identity.md#32-accounts-and-sign-in)), and the last screen repeats it as a
 large button; where nobody may yet, it leads to the form at the foot, which asks for an email only
 and records it (`POST /api/v1/interest`, with the page it was sent from). The price of each plan
-with one and Compare plans sit under it. Links to sign in carry `?landing=<the page's path>` through
-sign-in, which the app sends once (`POST /api/v1/me/came-from`). Nothing on either page asks the
-service anything until someone sends the form or follows a link to sign in. Behind Cloudflare the
+with one and Compare plans sit under it. Links to sign in carry `?landing=<the page's path>` and
+`&button=` (`explore` or `start`) through sign-in, which the app sends once (`POST
+/api/v1/me/came-from`) and takes off the address. Each press of Explore the demo or Start using
+WhatBuild is counted for its page and button (`POST /api/v1/pressed`, sent so that it outlives the
+page; [the funnel](../operations/analytics.md#the-landing-page-funnel)). Nothing on either page
+asks the service anything until someone presses one of its buttons or sends the form. Behind Cloudflare the
 Worker sends a share of the visitors to `/` (`LANDING_SPLIT`) to `/what-to-build/`, the same
 visitors each time and never a crawler, to compare the two; `/?split=off` is the front page for
 anyone ([decision](../decisions/the-landing-pages-are-compared-by-a-split-at-the-edge.md)). While guests

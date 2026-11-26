@@ -3,7 +3,7 @@ type: Index
 title: Decisions
 description: Architectural decision records, each with its context, the choice, and what it constrains.
 tags: [index, decisions, adr]
-generated: {by: agent:claude, at: 2026-11-20}
+generated: {by: agent:claude, at: 2026-11-25}
 status: stable
 ---
 
@@ -124,6 +124,7 @@ name what replaced it, and date the change. Smaller decisions are marked
 - [The Cloud Run deployment runs releases only; a release's tag starts its deploy, which waits for approval](production-runs-releases-after-approval.md)
 - [Each Cloud Run deploy on Neon branches the database before migrating, as a restore point](each-deploy-branches-the-neon-database-before-migrating.md)
 - [A release that migrates is rehearsed on a dev deployment that holds a copy of production, before production's deploy is approved](releases-are-rehearsed-on-a-dev-deployment-holding-a-copy-of-production.md)
+- [A deployment's capacity is load-tested on a dev deployment, signed in as synthetic people, never on production](capacity-is-load-tested-on-a-dev-deployment-signed-in-as-synthetic-people.md)
 - [Mail is set up through Cloudflare Email Sending over SMTP, any SMTP provider can take its place, and a dev deployment sends none](mail-is-set-up-through-cloudflare-email-sending-and-a-dev-deployment-sends-none.md)
 - [Times are UTC in data and the API, and shown in the viewer's own time zone](times-are-utc-in-data-and-local-where-shown.md)
 - [Mockups are arranged by hand, in folders one level deep that everyone in the product shares](mockups-are-arranged-by-hand-in-folders-one-level-deep.md)

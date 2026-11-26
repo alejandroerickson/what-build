@@ -16,13 +16,13 @@ export type Organization = { tenant_id: string; slug: string; name: string; exam
 
 /**
  * What belongs to the deployment rather than to an organization, and stays behind: sign-in and
- * connections, allowances to create organizations, the public site's interest list, usage counts,
- * how much feedback each person sent today, the abuse limits' counts, the instance owners' settings
- * (guests, plans' limits and prices) and guests' places.
+ * connections, allowances to create organizations, the public site's interest list, usage counts and
+ * the landing pages' presses, how much feedback each person sent today, the abuse limits' counts,
+ * the instance owners' settings (guests, plans' limits and prices) and guests' places.
  */
 export const DEPLOYMENT_TABLES = [
   "sessions", "email_tokens", "personal_access_tokens", "oauth_clients", "oauth_codes", "oauth_tokens",
-  "tenant_allowances", "interest", "usage_calls", "usage_people", "feedback_counts", "abuse_counters", "instance_settings", "guest_passes",
+  "tenant_allowances", "interest", "usage_calls", "usage_people", "landing_presses", "feedback_counts", "abuse_counters", "instance_settings", "guest_passes",
 ];
 
 /** The column that marks the example organization: a deployment that has not yet taken the release that replaced the public sandbox marks the sandbox instead. */

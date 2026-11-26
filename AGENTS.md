@@ -106,7 +106,7 @@ that folder. If your tool does not load skills, read the `SKILL.md` files direct
 | `audit-for-leaks` | When asked to check the repository or its history for secrets or private material, when something may have leaked, or to make the repository public. |
 | `triage-security-findings` | When `pnpm security`, the Security or CodeQL workflow, or Dependabot reports something; when adding or upgrading a dependency; before a release. |
 | `run-end-to-end-tests` | When asked to run the end-to-end, smoke or acceptance tests or a test plan, to test a release (on the Docker host), to QA the app through the browser and MCP, or to build the golden master. |
-| `read-usage` | When asked how a deployment is used: which features, through the app and agents, whether people come back, what fails; for analytics or insights; or to connect a deployment to its analytics. |
+| `read-usage` | When asked how a deployment is used: which features, through the app and agents, whether people come back, what fails; for analytics or insights; for the landing-page funnel; or to connect a deployment to its analytics. |
 | `run-the-instance` | When asked about a deployment's plans, prices or limits, the plan new organizations start on, moving an organization to another plan, a read-only organization, the waitlist, guests, who can start organizations, or deleting an organization or removing a person. |
 | `set-up-mail` | When asked to set up, check or repair a deployment's email; when invitations or sign-in links do not arrive or fail; to rotate the mail token or change provider. |
 
@@ -158,12 +158,13 @@ conducts each one that changes something:
 | serve the golden master on a Docker host (a NAS) with each release, and test there | `end-to-end-on-a-docker-host.md` | `run-end-to-end-tests` |
 | check for known vulnerabilities and private material | `security-checks.md` | `triage-security-findings`, `audit-for-leaks` |
 | rehearse a release on the dev deployment; refresh or reset its copy of production; set it up | `dev-deployment.md` | `rehearse-on-the-dev-deployment` |
+| measure what a deployment can take with a load test on the dev deployment | `load-testing.md` | |
 | know what is backed up, check that backups run, restore a dump, perform the restore drill | `backups.md` | `perform-the-restore-drill` (the drill) |
 | go back after a release broke a deployment | `recovering-from-a-bad-release.md` | `recover-a-deployment` |
 | test on a copy of production on this machine | `a-copy-of-production.md` | `test-on-a-copy-of-production` |
 | build the non-production dataset (the instance owners' organizations beside synthetic ones) that the local copy, the golden master and dev load | `the-non-production-dataset.md` | `test-on-a-copy-of-production` |
 | copy some organizations out of a deployment (the example organization by default): to test on or to dev (only the instance owners' organizations), or into another production deployment's new database | `copying-an-organization.md` | `copy-an-organization` |
-| find out how a deployment is used (features, agents, people coming back, the site); connect its analytics | `analytics.md` | `read-usage` |
+| find out how a deployment is used (features, agents, people coming back, the site); follow each landing page's visitors through the funnel; connect its analytics | `analytics.md` | `read-usage` |
 | know what mail a deployment sends and through what; set it up, check it, rotate its token, change provider | `mail.md` | `set-up-mail` |
 | define or change a deployment's plans, their limits and prices (`WHATBUILD_PLANS`; its file's path is `PLANS_FILE` in `.env`), or offer none; move organizations between plans; let people in from the waitlist; set the guests' limits | `cloud-run.md` (Plans), spec §9.7 | `run-the-instance` |
 

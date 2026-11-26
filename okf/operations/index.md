@@ -3,7 +3,7 @@ type: Index
 title: Operations
 description: Running WhatBuild locally and in production.
 tags: [index, operations]
-generated: {by: agent:claude, at: 2026-10-27}
+generated: {by: agent:claude, at: 2026-11-25}
 status: stable
 ---
 
@@ -19,6 +19,7 @@ status: stable
 - [Upgrading](upgrading.md): what a deployment must do when it takes a release, kept per release, with the unreleased changes on top until the next release's notes carry them.
 - [Releasing](releasing.md): a release is a version tag on `main` with its notes and image; numbering versions, publishing one, and approving the production deploy it starts.
 - [The dev deployment](dev-deployment.md): a second Cloud Run deployment holding a copy of production, where a release that migrates is rehearsed before production moves; rehearsing, putting it back, refreshing the copy, setting one up.
+- [Load testing](load-testing.md): measuring what a deployment can take with a stepped load test on the dev deployment, signed in as synthetic people: matching dev to production, sizing the test against the database's month and the spending cap, running each kind of traffic, watching the instance and the database, reading where it breaks, scaling out, and cleaning up.
 - [Backups](backups.md): what each deployment keeps, where and for how long, the nightly dump, checking that backups run, restoring a dump and checking it, and the restore drill.
 - [Erasure](erasure.md): what an operator does beyond the product when someone asks to be removed: deleting their account for them, passing on content requests, where a deleted person still is and for how long, taking them out sooner, and ending accounts again after a restore.
 - [Recovering from a bad release](recovering-from-a-bad-release.md): when a new version breaks a deployment, on Cloud Run or Azure: what runs, whether it migrated, going back, restoring the database, checking, fixing forward.

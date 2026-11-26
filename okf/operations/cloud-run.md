@@ -377,7 +377,7 @@ tells them apart by Host. Put them in front of the service one of three ways:
   in `LANDING_SPLIT` in `.env`, which the deploy command passes ([analytics](analytics.md#where-the-settings-live));
   take it out and deploy again to end the test. To see both pages from any address,
   open `/what-to-build/` and `/?split=off`, which is the front page whatever side the address is
-  on. How to read the result is in [analytics](analytics.md#comparing-the-landing-pages).
+  on. How to read the result, and how to remove a page, is in [analytics](analytics.md#the-landing-page-funnel).
 
   **Down for maintenance.** To take the deployment down on purpose (its database is out of reach,
   or a repair needs nobody writing), deploy the Worker as usual with one more setting,

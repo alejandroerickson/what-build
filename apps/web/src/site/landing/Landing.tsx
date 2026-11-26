@@ -12,11 +12,13 @@ import { startWindow } from "./window.ts";
 /**
  * The site's two landing pages. Each tells the same six steps, from what you know about your users
  * to software that ships, as one plain statement per screen beside a picture the scroll moves.
- * Nothing here asks the service anything until someone sends the form or follows a link to sign in.
+ * Nothing here asks the service anything until someone presses one of its buttons or sends the form.
  */
 
-/** The two landing pages, by their path on the site, carried through sign-in to compare the two. */
+/** The two landing pages, by their path on the site, carried through sign-in to compare the two (`LANDING_PAGES` in apps/server/src/site.ts). */
 type LandingPath = "/" | "/what-to-build/";
+/** A landing page's buttons: Explore the demo, and Start using WhatBuild (`LANDING_BUTTONS` in apps/server/src/site.ts). */
+type LandingButton = "explore" | "start";
 
 /** What the deployment lets a visitor do, as whoever serves the page wrote it in; never how many it lets in. */
 interface Ways {
@@ -41,8 +43,17 @@ function useWays(page: LandingPath): Ways {
   return { open: Boolean(site?.sign_up), explore: Boolean(site?.guests?.self_serve && site.guests.open), page, mock: mockPhrase(site?.example_about) };
 }
 
-/** A link to sign in that goes on to `to`, saying which landing page it came from. */
-const signInTo = (to: string, page: LandingPath) => `/signin?next=${encodeURIComponent(`${to}?landing=${page}`)}`;
+/** A link to sign in that goes on to `to`, saying which landing page, and which of its buttons, it came from. */
+const signInTo = (to: string, page: LandingPath, button: LandingButton) => `/signin?next=${encodeURIComponent(`${to}?landing=${page}&button=${button}`)}`;
+
+/**
+ * Tells the service that one of the page's buttons was pressed, to compare the landing pages by how
+ * many of their visitors act: a count for the day, the page and the button, which names nobody. It
+ * is sent so that it outlives the page the press leaves, and a failure is ignored.
+ */
+function pressed(page: LandingPath, button: LandingButton) {
+  void fetch("/api/v1/pressed", { method: "POST", keepalive: true, headers: { "content-type": "application/json" }, body: JSON.stringify({ page, button }) }).catch(() => undefined);
+}
 
 /** The page owns the scroll bar's look while it is shown, and, for the dark stage, the theme. */
 function usePageChrome(theme: "dark" | null) {
@@ -70,7 +81,7 @@ function Bar() {
 }
 
 /** Where Start using WhatBuild leads: sign-in and on to start an organization, or, where nobody may sign up yet, the form at the foot. */
-const startHref = (ways: Ways) => (ways.open ? signInTo("/start", ways.page) : "#start");
+const startHref = (ways: Ways) => (ways.open ? signInTo("/start", ways.page, "start") : "#start");
 
 /**
  * The first thing to do is look: while guests may come in, Explore the demo leads (a guest's
@@ -80,17 +91,17 @@ function Actions({ ways }: { ways: Ways }) {
   if (!ways.explore)
     return (
       <div className="ld-actions">
-        <a className="ld-btn" href={startHref(ways)}>
+        <a className="ld-btn" href={startHref(ways)} onClick={() => pressed(ways.page, "start")}>
           Start using WhatBuild
         </a>
       </div>
     );
   return (
     <div className="ld-actions">
-      <a className="ld-btn" href={signInTo("/", ways.page)}>
+      <a className="ld-btn" href={signInTo("/", ways.page, "explore")} onClick={() => pressed(ways.page, "explore")}>
         Explore the demo
       </a>
-      <a className="ld-quiet" href={startHref(ways)}>
+      <a className="ld-quiet" href={startHref(ways)} onClick={() => pressed(ways.page, "start")}>
         Start using WhatBuild <Glyph name="arrow-right" size="sm" />
       </a>
     </div>
@@ -118,8 +129,8 @@ const EMAIL_MAX = 320;
 
 /**
  * The last screen asks for one thing. Where anyone may make an account, the demo or Start using WhatBuild; where nobody may
- * yet, an email, to hear when they can. Sending it, or following a link to sign in, is all on the
- * page that wakes the service. Either says which landing page it came from, to compare the two.
+ * yet, an email, to hear when they can. Sending it, or pressing a button, is all on the page that
+ * wakes the service. Each says which landing page it came from, to compare the two.
  */
 function Close({ ways }: { ways: Ways }) {
   const site = useSite();
@@ -154,17 +165,17 @@ function Close({ ways }: { ways: Ways }) {
           <p className="ld-close-lede">
             {ways.mock ? `See how a team works in WhatBuild: in the demo, they are building ${ways.mock}.` : "See how a team works in WhatBuild, from its first interviews to its plan, in the demo."}
           </p>
-          <a className="ld-btn ld-btn-big" href={signInTo("/", page)}>
+          <a className="ld-btn ld-btn-big" href={signInTo("/", page, "explore")} onClick={() => pressed(page, "explore")}>
             Explore the demo
           </a>
-          <a className="ld-quiet" href={signInTo("/start", page)}>
+          <a className="ld-quiet" href={signInTo("/start", page, "start")} onClick={() => pressed(page, "start")}>
             Or start using WhatBuild <Glyph name="arrow-right" size="sm" />
           </a>
         </>
       ) : ways.open ? (
         <>
           <p className="ld-close-lede">Sign in and start your own organization.</p>
-          <a className="ld-btn ld-btn-big" href={signInTo("/start", page)}>
+          <a className="ld-btn ld-btn-big" href={signInTo("/start", page, "start")} onClick={() => pressed(page, "start")}>
             Start using WhatBuild
           </a>
         </>

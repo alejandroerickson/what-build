@@ -1,6 +1,6 @@
 ---
 name: read-usage
-description: Find out how a WhatBuild deployment is used and say what it means. Gathers the server's own counts (every operation, through the web app and agents, and people coming back), Google Analytics (screens, actions, search, sources) and Cloudflare Web Analytics (visits to the public site). Use when asked what people use, which features are used or ignored, whether people come back, how agents use WhatBuild, where errors happen, how the site is doing, for analytics, usage, engagement, retention or insights, or to connect a deployment to its analytics.
+description: Find out how a WhatBuild deployment is used and say what it means. Gathers the server's own counts (every operation, through the web app and agents, and people coming back), Google Analytics (screens, actions, search, sources) and Cloudflare Web Analytics (visits to the public site), and produces the landing-page funnel. Use when asked what people use, which features are used or ignored, whether people come back, how agents use WhatBuild, where errors happen, how the site is doing, for analytics, usage, engagement, retention or insights, for the landing-page funnel or whether a landing page turns people away, or to connect a deployment to its analytics.
 ---
 
 # Read usage
@@ -55,6 +55,30 @@ work.
    - three to five findings, each with its evidence and a suggested next step;
    - caveats: small numbers, the owners left out, and that Google Analytics sees only people who
      accept it.
+
+## The landing-page funnel
+
+When asked for the landing-page funnel, how the two landing pages compare, or whether one of them
+turns people away, follow "The landing-page funnel" in `okf/operations/analytics.md`:
+
+1. **The days.** The comparison's first day is the day the Worker began splitting visitors
+   (`LANDING_SPLIT`); a deployment keeps that in its own notes. Ask if you cannot find it. Every
+   source covers the same UTC days, from the first day to today.
+2. **Visits.** `corepack pnpm usage --days <N>`, N counting the first day and today: Cloudflare's
+   `paths`, the visits to `/` and to `/what-to-build/`.
+3. **The other steps.** Run the guide's two queries as they are written, with `first_day` set, as
+   a role that only reads the database.
+4. **Report**, for each page and button: visits, presses, accounts, came into the demo, joined the
+   waitlist, organizations, agents, and back within a week over `week_old`; each step as a share
+   of the one before; whether each page has had the visitors the deployment's rule asks before
+   anything is read from it; and, for each step with enough people, whether the two pages differ
+   by more than chance (a two-proportion test). Say what the deployment's rule then says to do, if
+   it has one, and never change the split or remove a page unasked.
+5. Keep the same caveats as any report, and the guide's own: `/?split=off` counts for `/`, presses
+   count the owners, Cloudflare samples small counts, and the latest week cannot have come back yet.
+
+A deployment's numbers, its first day and its rule stay out of the repository, like every other
+number here.
 
 ## Connecting a deployment to analytics
 

@@ -39,6 +39,7 @@ export { SIGN_IN_LINK_MINUTES, SIGN_IN_LINK_SUBJECT } from "./sign-in-link.ts";
 export * from "./limits.ts";
 export * from "./abuse-limits.ts";
 export * from "./guests.ts";
+export { noteReturn, returnsSettled } from "./first-return.ts";
 export { askForOrganization, givePlaces, placeReadyMail, placesToday, type PlacePorts } from "./places.ts";
 export * from "./settings.ts";
 export { endSignIns } from "./accounts.ts";

@@ -42,6 +42,7 @@ const NOT_TENANT_DATA: Record<string, string> = {
   abuse_counters: "the abuse limits' windows: counts per client address (a keyed hash), per organization by its ID, or for the deployment, and nothing an organization wrote",
   usage_calls: "how the service is used: counts of calls, naming no organization, product or person",
   usage_people: "who came back, under a pseudonym: no organization, product or account",
+  landing_presses: "how often the public site's landing pages' buttons are pressed, per day: naming nobody",
 };
 
 /** Guarded tables the organization below leaves empty, and why. */

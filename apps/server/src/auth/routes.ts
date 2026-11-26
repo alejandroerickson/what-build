@@ -11,6 +11,7 @@ import { connectorReach } from "./connector-reach.ts";
 import { acceptInvitation, accountByEmail, clearSessionCookies, createSession, declineInvitation, endEverything, findOrCreateAccount, invitationPlace, isOwnOrigin, restPrincipal, sessionTokens, setSessionCookie } from "./identity.ts";
 import { returnsTo } from "./oauth.ts";
 import { authPage, authPageHeaders } from "./page.ts";
+import { LANDING_BUTTONS } from "../site.ts";
 
 /** The sample's people, whom the development sign-in page offers first (`seed.ts`). */
 const DEV_SAMPLE_PEOPLE = ["riley@example.com", "sam@example.com", "jordan@example.com"];
@@ -549,16 +550,19 @@ export function authRoutes(deps: { db: Db; config: ServerConfig; mailer: Mailer 
   });
 
   /**
-   * Which page of the public site a new account came from (`?landing=` on the address it signed
-   * in to), so the site's landing pages can be compared. Kept once, and only in the account's first day.
+   * Which page of the public site a new account came from, and by which of its buttons (`?landing=`
+   * and `&button=` on the address it signed in to), so the site's landing pages can be compared.
+   * Kept once, and only in the account's first day.
    */
   app.post("/api/v1/me/came-from", async (c) => {
     const p = await requirePrincipal(c);
-    const body = z.strictObject({ page: z.string().max(100).regex(/^\/[a-z0-9/-]*$/) }).safeParse(await c.req.json().catch(() => ({})));
-    if (!body.success) throw invalid("invalid_input", "Send page: the path of a page of the public site, such as /what-to-build/.");
+    const body = z
+      .strictObject({ page: z.string().max(100).regex(/^\/[a-z0-9/-]*$/), button: z.enum(LANDING_BUTTONS).optional() })
+      .safeParse(await c.req.json().catch(() => ({})));
+    if (!body.success) throw invalid("invalid_input", `Send page: the path of a page of the public site, such as /what-to-build/; and, if it came by one of the page's buttons, button: ${LANDING_BUTTONS.join(" or ")}.`);
     await db
       .updateTable("accounts")
-      .set({ came_from: body.data.page })
+      .set({ came_from: body.data.page, came_via: body.data.button ?? null })
       .where("account_id", "=", p.account_id)
       .where("came_from", "is", null)
       .where("created_at", ">", new Date(Date.now() - 86_400_000).toISOString())

@@ -47,7 +47,7 @@ production's own accounts.
 | the organizations: settings, products and everything in them, invitations, activity, queued jobs | every other organization |
 | the accounts their rows refer to, chiefly their members, with addresses and names | every other account |
 | the record of migrations, so the database it lands in knows its schema | sessions, agents' connections and tokens, sign-in links |
-| their files: everything under `t/<tenant_id>/` in the bucket | allowances to create organizations, the public site's interest list, usage counts, feedback and its daily counts |
+| their files: everything under `t/<tenant_id>/` in the bucket | allowances to create organizations, the public site's interest list, usage counts, the landing pages' presses, feedback and its daily counts |
 
 The schema comes from the deployment (`pg_dump --schema-only`). The organizations' rows are read in
 one snapshot, as `pg_dump` reads, through a role that sees every organization and changes nothing:

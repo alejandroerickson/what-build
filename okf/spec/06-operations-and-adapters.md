@@ -738,7 +738,8 @@ GET  /api/v1/plans                                   the plans the deployment of
 GET  /api/v1/me/guest-pass                           a guest account's place: let in when there is room, or why not and when to ask again
 POST /api/v1/me/ask-for-organization                 one of the day's places, or the waitlist, for an organization of one's own (§3.2)
 POST /api/v1/me/start                                Start using WhatBuild after sign-in: where to go, taking a place or joining the waitlist (§3.2)
-POST /api/v1/me/came-from { page }                   which landing page of the site a new account came from, kept once (§7.3)
+POST /api/v1/me/came-from { page, button? }          which landing page of the site a new account came from, and by which button, kept once (§7.3)
+POST /api/v1/pressed { page, button }                a landing page's button pressed, counted per day, page and button (public, §7.3)
 GET  /api/v1/connect                                 what Connect an agent shows
 GET|PATCH /api/v1/me; GET /api/v1/me/agents; PATCH|DELETE /api/v1/me/agents/:family; POST /api/v1/me/sign-out-everywhere
 GET  /api/v1/me/invitations                          the invitations waiting for this person's answer (§3.2)
