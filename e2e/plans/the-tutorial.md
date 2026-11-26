@@ -94,6 +94,10 @@ as a person arrives, never by opening a product's address.
     Agents, and a toast says "Tutorial finished. It stays in your account menu." Everything in the
     bubble, the welcome, the pill and the badges reads in dark. Repeat a few stops at 1024 wide.
     *Expect:* the bubble stays inside the window and never covers what it names.
+11. **Web, as another new guest, from Explore the demo on `/site/`.** Sign in from there. *Expect:*
+    the demo's Idea, and the welcome over it before any click. Press Start the tutorial. *Expect:*
+    the WhatBuild tutorial begins there, on the product's own content, and ends on the "No agent
+    connected" seat; Idea's own tutorial does not start after it until Idea is opened again.
 
 ## Look out for
 

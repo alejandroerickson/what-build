@@ -59,7 +59,7 @@ describe("a landing page's buttons", () => {
     const start = links(host, /start using WhatBuild/i);
     expect(explore.length).toBeGreaterThan(0);
     expect(start.length).toBeGreaterThan(0);
-    for (const a of explore) expect(new URL(a.href).searchParams.get("next")).toBe("/?landing=/&button=explore");
+    for (const a of explore) expect(new URL(a.href).searchParams.get("next")).toBe("/demo?landing=/&button=explore");
     for (const a of start) expect(new URL(a.href).searchParams.get("next")).toBe("/start?landing=/&button=start");
     act(() => explore[0]!.click());
     act(() => start[0]!.click());
@@ -74,6 +74,7 @@ describe("a landing page's buttons", () => {
     const host = await show("LandingWindow");
     act(() => links(host, /Explore the demo/)[0]!.click());
     expect(presses()).toEqual([{ page: "/what-to-build/", button: "explore" }]);
+    expect(new URL(links(host, /Explore the demo/)[0]!.href).searchParams.get("next")).toBe("/demo?landing=/what-to-build/&button=explore");
     expect(new URL(links(host, /start using WhatBuild/i)[0]!.href).searchParams.get("next")).toBe("/start?landing=/what-to-build/&button=start");
   });
 

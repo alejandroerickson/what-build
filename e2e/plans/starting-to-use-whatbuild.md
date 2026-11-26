@@ -8,10 +8,10 @@ surfaces: [web]
 # Starting to use WhatBuild
 
 What a stranger meets after pressing a button on the public site: Explore the demo lets them in as
-a guest, where every screen invites them to start using WhatBuild; Start using WhatBuild takes one
-of the day's places and opens their own organization, or puts them in line and lets them into the
-demo meanwhile; the line gets the next places first, by email; and with nobody let in, the site
-asks for an email instead. Each step signs in as a new address, so each is a new person.
+a guest, straight into the demo, where every screen invites them to start using WhatBuild; Start
+using WhatBuild takes one of the day's places and opens their own organization, or puts them in
+line and lets them into the demo meanwhile; the line gets the next places first, by email; and with
+nobody let in, the site asks for an email instead. Each step signs in as a new address, so each is a new person.
 
 **Serve it with sign-up closed.** `pnpm dev:e2e` sets no sign-up allowlist, and with none anyone
 can make an account whatever the guests' settings say, so step 9 could never close it. Serve the
@@ -80,11 +80,16 @@ new person whose mail still reaches you; delete each such account afterwards in 
    unless the worker gave it first): the instance's output prints the mail "Your place on WhatBuild
    is ready" to `new3@example.com`, with a link to `/welcome`, once; `new4` is told their
    organization is on its way. Signing in again as `new3` and opening `/welcome` lets them start one.
-8. **Web, from `/site/`, as `new5@example.com`.** Press **Explore the demo** and sign in.
-   *Expect:* the overview with the demo, as a guest. Its products open with "Like what you see?" and
-   "Start using WhatBuild and engineer your next product.", with **Start using WhatBuild**; pressing
-   it says the organization is on its way (no places left
-   today), and the banner says the same from then on.
+8. **Web, from `/site/`, as `new5@example.com`, at 1280 wide and again at 390 as `new6@example.com`.**
+   Press **Explore the demo**. *Expect:* the sign-in page, titled **Explore the demo**, says "Sign in
+   to open the demo. New here? Signing in creates your account." Sign in. *Expect:* the demo itself,
+   as a guest: the example's first product on its Idea, its product concept in view without
+   scrolling, and the address with no `?landing=` or `button=` left in it; never the overview. At
+   1280, the tutorial's welcome over it (turn it off, as above); at 390, none. The Idea opens with
+   "Like what you see?" and "Start using WhatBuild and engineer your next product.", with **Start
+   using WhatBuild**; pressing it says the organization is on its way (no places left today), and
+   the banner says the same from then on. On `/site/plans/`, **Explore the demo** in Try it first
+   leads to the same sign-in page.
 9. **Web, as Riley, then signed out.** Riley sets New organizations a day to 0 and turns guests'
    sign-up off; open `/site/` again in a fresh browser (see Reading the site again, above). This
    holds only on an instance served with a sign-up allowlist, as above: with none, sign-up stays
@@ -98,5 +103,7 @@ new person whose mail still reaches you; delete each such account afterwards in 
   the number is the deployment's.
 - Start using WhatBuild leading anywhere that is not one of: Welcome, the overview with the line saying the
   organization is on its way, or the form at the end of the page.
+- Explore the demo leading anywhere after sign-in but the demo's product, or a screen that waits
+  on "Opening the demo…".
 - Someone in line who is never told, or two people given the same place.
 - `?landing=` or `button=` staying on an address after sign-in.

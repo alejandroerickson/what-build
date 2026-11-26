@@ -212,7 +212,8 @@ export function useSignOut() {
  * A link from one of the public site's landing pages carries `?landing=<its path>` through sign-in,
  * and `&button=` for the button pressed (`explore` or `start`). Once signed in, they are told to the
  * server (which keeps them on an account in its first day, to compare the landing pages) and taken
- * off the address.
+ * off the address, at every arrival that carries them: one that comes again after they were taken
+ * off, as the development sign-in's second move to the same address does, loses them too.
  */
 function useCameFrom(signedIn: boolean) {
   const loc = useLocation();
@@ -228,7 +229,7 @@ function useCameFrom(signedIn: boolean) {
     void api("POST", "/api/v1/me/came-from", { page, ...(button === "explore" || button === "start" ? { button } : {}) }).catch(() => undefined);
     const rest = params.toString();
     navigate(`${loc.pathname}${rest ? `?${rest}` : ""}${loc.hash}`, { replace: true });
-  }, [signedIn, loc.pathname, loc.search, loc.hash, navigate]);
+  }, [signedIn, loc.key, loc.pathname, loc.search, loc.hash, navigate]);
 }
 
 /** Renders children only once the session is known; anyone signed out goes to sign-in and comes back. */

@@ -179,7 +179,7 @@ export function SitePlansPage() {
       {explore ? (
         <Callout tone="info" title="Try it first">
           Sign in and explore the demo as a guest: read it, search it and point your agent at it.{" "}
-          <a href="/signin?next=%2F">Explore the example</a>. People are let in a few at a time; <a href={`${sitePath("")}#start`}>hear when you can start</a>.
+          <a href="/signin?next=%2Fdemo">Explore the demo</a>. People are let in a few at a time; <a href={`${sitePath("")}#start`}>hear when you can start</a>.
         </Callout>
       ) : (
         <Callout tone="info" title="In private preview">

@@ -3,7 +3,7 @@ type: Specification
 title: The web app is a person's way to run the same operations an agent runs, one screen at a time.
 description: Principles, the shell and product switching, the overview, routes, first run, and the behavior of every screen (Idea, Evidence, Exploration, Story, Activity, archive and delete, Settings, Instance admin).
 tags: [spec, web, ui, routes, shell]
-generated: {by: agent:claude, at: 2026-11-23}
+generated: {by: agent:claude, at: 2026-11-25}
 status: stable
 ---
 
@@ -385,6 +385,8 @@ has which role, the person's own included, is in Settings under the organization
 /plans                                        Plans: the plans offered side by side, with their prices; readable signed out
 /                   ?archived=1&create=1      the overview: what WhatBuild is, and every product; new product; first run with no organization
 /products                                     → / (with its query)
+/demo                                         → the demo: the example organization's first product, as the overview lists
+                                              it, on its first screen; with none, /. Where Explore the demo leads after sign-in
 /account-deleted                              Your account has been deleted (signed out)
 
 any screen          ?settings=<section>       Settings, the dialog over the screen (§7.11): product, product/people,
@@ -462,19 +464,20 @@ goes to `/start`, which starts their organization or puts them on the waitlist
 large button; where nobody may yet, it leads to the form at the foot, which asks for an email only
 and records it (`POST /api/v1/interest`, with the page it was sent from). The price of each plan
 with one and Compare plans sit under it. Links to sign in carry `?landing=<the page's path>` and
-`&button=` (`explore` or `start`) through sign-in, which the app sends once (`POST
-/api/v1/me/came-from`) and takes off the address. Each press of Explore the demo or Start using
+`&button=` (`explore` or `start`) through sign-in, which the app sends (`POST
+/api/v1/me/came-from`, which the server keeps once) and takes off the address at every arrival that
+carries them. Each press of Explore the demo or Start using
 WhatBuild is counted for its page and button (`POST /api/v1/pressed`, sent so that it outlives the
 page; [the funnel](../operations/analytics.md#the-landing-page-funnel)). Nothing on either page
 asks the service anything until someone presses one of its buttons or sends the form. Behind Cloudflare the
 Worker sends a share of the visitors to `/` (`LANDING_SPLIT`) to `/what-to-build/`, the same
 visitors each time and never a crawler, to compare the two; `/?split=off` is the front page for
 anyone ([decision](../decisions/the-landing-pages-are-compared-by-a-split-at-the-edge.md)). While guests
-may sign up, looking comes first: **Explore the demo** (sign-in, then the example organization as a
-guest) is the filled button, with Start using WhatBuild beside it as the quiet one, and the last
+may sign up, looking comes first: **Explore the demo** (sign-in, then the demo itself: `/demo`, the
+example organization's first product on its Idea, as a guest) is the filled button, with Start using WhatBuild beside it as the quiet one, and the last
 screen says what a team builds in the demo, from the deployment (`example_about`: the first sentence
 of its first product's concept), over a large Explore the demo and "Or start using WhatBuild"; the
-plans page says the same. The newcomer's words promise neither "free" nor "now". On the app's origin, which is where a deployment without a site
+plans page says the same, with an Explore the demo link of its own. The newcomer's words promise neither "free" nor "now". On the app's origin, which is where a deployment without a site
 host has them, they are at `/site/`, `/site/plans/`, `/site/privacy/` and `/site/what-to-build/` (in development,
 `http://localhost:5273/site/`, where the pages ask the local server)
 ([decision](../decisions/the-public-site-is-pages-built-with-the-app.md)). When the deployment
@@ -525,10 +528,15 @@ new tab ([§7.8](#78-story), [§6](06-operations-and-adapters.md)).
    write to the deployment's contact, where it names one, with the reference. Wherever sign-in returns to is a path on this origin or `/`,
    by the server's rule (`safeNext`). Under the form are links to Privacy and Cookies. Where anyone
    may make an account (`open` in `/auth/methods`), a line says signing in creates their account;
-   arriving from Start using WhatBuild (`next` is `/start`), the title is "Start using WhatBuild". Privacy is the notice
+   arriving from Start using WhatBuild (`next` is `/start`), the title is "Start using WhatBuild".
+   Arriving from Explore the demo (`next` is `/demo`), the title is "Explore the demo", and the
+   line says "Sign in to open the demo.", then, where anyone may make an account, "New here?
+   Signing in creates your account.". Privacy is the notice
    of what is kept and why ([§9.1](09-data-lifecycle.md)).
-2. **The example organization first.** A new account with no organization of its own lands on the
-   overview, where the example organization ([§3.10](03-accounts-and-identity.md)) is listed,
+2. **The example organization first.** From Explore the demo, a new account lands in the demo
+   itself, the example organization's first product, on its Idea (`/demo`), where its banner invites
+   a guest to start using WhatBuild. Otherwise a new account with no organization of its own lands
+   on the overview, where the example organization ([§3.10](03-accounts-and-identity.md)) is listed,
    tagged Example organization and Read only, under a sheet, **Your own organization**, that says
    "Your team’s work goes in an organization of your own." and offers **Start your own
    organization**: a link to `/welcome` where the account may create one, or, where it may not, a

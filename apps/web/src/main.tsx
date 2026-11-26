@@ -12,7 +12,7 @@ import { LiveUpdates } from "./lib/live.tsx";
 import { loadNewRelease, releasedSinceLoad } from "./lib/new-release.ts";
 import { CurrentTenantAddress, productHome, ProductProvider, RequireSession, useProduct, useProductParams, type Product } from "./lib/session.tsx";
 import {
-  BARE_PRODUCT_ROUTE, BareProductPath, FORMER_PRODUCT_ROUTE, FormerProductAddress, OrganizationHome, OrganizationSettingsAddress, PRODUCT_ROUTE, ProductSettingsAddress, YourSettingsAddress,
+  BARE_PRODUCT_ROUTE, BareProductPath, DemoAddress, FORMER_PRODUCT_ROUTE, FormerProductAddress, OrganizationHome, OrganizationSettingsAddress, PRODUCT_ROUTE, ProductSettingsAddress, YourSettingsAddress,
 } from "./routes/addresses.tsx";
 import { AdminGate, AdminGuests, AdminOrganizations, AdminPlans } from "./routes/admin.tsx";
 import { CookiesPage } from "./routes/cookies.tsx";
@@ -226,6 +226,8 @@ const router = createBrowserRouter([{ element: <Root />, errorElement: <RouteErr
       { element: <PlainShell><Outlet /></PlainShell>, children: [
         { path: "/", element: <OverviewPage /> },
       ] },
+      // Explore the demo on the public site leads here after sign-in, inside the guests' gate: a guest waits for a place to read it.
+      { path: "/demo", element: <DemoAddress /> },
       { path: "/products", element: <ProductsRedirect /> },
       { path: "/connect", element: <YourSettingsAddress section="agents" /> },
       { path: "/settings", element: <YourSettingsAddress section="account" /> },
