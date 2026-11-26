@@ -4,6 +4,7 @@ import { createRoot } from "react-dom/client";
 import { renderToStaticMarkup } from "react-dom/server";
 import { MemoryRouter, Route, Routes } from "react-router";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { PRODUCT_TOTAL_DEFAULTS, unlimitedProductTotal } from "@whatbuild/core/plans";
 
 // An organization's Plan, in Settings, says to its people what plan it is on, what it holds against
 // the plan's totals and what they used today, in words, with the plans side by side, the same for an
@@ -59,6 +60,17 @@ const LIMIT_INFO = [
   ["documents_only", "switch", "Uploads limited to formats the parsers read", ""],
 ] as const;
 const info = LIMIT_INFO.map(([key, group, label, unit]) => ({ key, group, label, unit, per: "Each person, each day", refusal: key === "requests_per_minute" ? "429 rate_limited" : "409 quota_exceeded", help: "" }));
+/** What each product holds, as `products.limits` lists it. */
+const PRODUCT_LIMIT_INFO = (
+  [
+    ["mockups_max", "Mockups", "mockups"],
+    ["story_pages_max", "Story pages", "pages"],
+    ["playbook_files_max", "Playbook files", "files"],
+    ["playbook_bytes_max", "Playbook size", "bytes"],
+    ["mockup_versions_max", "Versions of a mockup", "versions"],
+    ["story_page_versions_max", "Versions of a Story page", "versions"],
+  ] as const
+).map(([key, label, unit]) => ({ key, group: "total", label, unit, per: "Each product", refusal: "409 quota_exceeded", help: "" }));
 const held = (key: string) =>
   ({ members_max: state.holds.members + state.holds.invited, products_max: state.holds.products, sources_max: state.holds.sources, storage_max_bytes: state.holds.storage.total })[key];
 
@@ -102,11 +114,17 @@ vi.mock("../src/lib/api.ts", async (original) => ({
       you_meet_them: state.meets,
       ...(guest ? {} : { holds: state.holds }),
       allowances_restart_at: "2026-10-26T00:00:00.000Z",
-      limits: info.map((l) => ({
-        ...l,
-        value: values ? (values as Record<string, unknown>)[l.key] ?? null : null,
-        ...(guest ? {} : held(l.key) !== undefined ? { used: held(l.key) } : used[l.key] !== undefined ? { used: used[l.key] } : {}),
-      })),
+      limits: [
+        ...info.map((l) => ({
+          ...l,
+          value: values ? (values as Record<string, unknown>)[l.key] ?? null : null,
+          ...(guest ? {} : held(l.key) !== undefined ? { used: held(l.key) } : used[l.key] !== undefined ? { used: used[l.key] } : {}),
+        })),
+        // What each product holds: on a plan, its defaults; on Unlimited, or a plan the deployment no
+        // longer defines, what the server gives there, a number for the Playbook and versions, none for
+        // mockups and Story pages.
+        ...PRODUCT_LIMIT_INFO.filter((l) => !guest).map((l) => ({ ...l, value: values ? PRODUCT_TOTAL_DEFAULTS[l.key] : unlimitedProductTotal(l.key) })),
+      ],
       plans: plans(),
       deployment_limits: [
         { key: "file_max_bytes", label: "File size", value: 100 * MB, unit: "bytes", set_by: "WHATBUILD_FILE_MAX_BYTES" },
@@ -347,12 +365,61 @@ describe("Plan", () => {
     for (let i = 0; i < 20 && !host.textContent?.includes("Limits of"); i++) await act(() => new Promise((r) => setTimeout(r, 5)));
     const text = host.textContent ?? "";
     expect(text).toContain("Limits of the Free plan");
+    expect(host.querySelector(".limits-lead")?.textContent).toBe("Read through Acme, one of your organizations, which is on the Free plan. Used is counted in Acme.");
+    // The line says whose figures the table holds, and a screen reader hears it with the table.
+    expect(host.querySelector("table")?.getAttribute("aria-describedby")).toBe("every-limit-lead");
+    expect(host.querySelector("#every-limit-lead")?.classList.contains("limits-lead")).toBe(true);
     expect(text).toContain("429 rate_limited");
     expect(text).toContain("Limits of this deployment");
     expect(text).toContain("WHATBUILD_PARSE_MEMORY_MB");
     expect([...host.querySelectorAll("th[role=columnheader]")].map((th) => th.textContent)).toContain("Used");
   });
+  it("names, on Unlimited, the organization and plan the limits are read through, and says only what a product holds is limited", async () => {
+    state.plan = "unlimited";
+    const host = await admin(<InstanceLimitsSheets />, "/admin/plans");
+    const title = host.querySelector("#every-limit-title")?.textContent ?? "";
+    expect(title).toContain("Limits of the Unlimited plan");
+    expect(title).not.toContain("this plan");
+    expect(host.querySelector(".limits-lead")?.textContent).toBe(
+      "Read through Acme, one of your organizations, which is on the Unlimited plan. Used is counted in Acme. No limit on what people and their agents do, nor on how many mockups and Story pages a product holds; each product’s Playbook keeps to 2,000 files and 32 MB, and each mockup and Story page keeps its newest 10 versions.",
+    );
+    expectLineAgreesWithRows(host);
+  });
+
+  it("names, on a plan the deployment no longer defines, the plan the organization is on and the Unlimited limits it meets", async () => {
+    state.plan = "gold";
+    const host = await admin(<InstanceLimitsSheets />, "/admin/plans");
+    expect(host.querySelector("#every-limit-title")?.textContent).toContain("Limits of the Unlimited plan");
+    const lead = host.querySelector(".limits-lead")?.textContent ?? "";
+    expect(lead).toContain(
+      "Read through Acme, one of your organizations, which is on the gold plan. This WhatBuild no longer defines that plan, so Acme meets the Unlimited plan’s limits until it is moved.",
+    );
+    expectLineAgreesWithRows(host);
+    expect(host.querySelector(".limits-scroll")?.textContent).not.toContain("No limit");
+  });
 });
+
+/**
+ * Where no plan's limits apply, the line under Instance admin's every-limit table says what is lifted
+ * and what is kept with the numbers its own rows allow: the Playbook's and versions' limits as numbers,
+ * mockups and Story pages as None.
+ */
+function expectLineAgreesWithRows(host: HTMLElement) {
+  const lead = host.querySelector(".limits-lead")?.textContent ?? "";
+  expect(allowedText(host, "Mockups")).toBe("None");
+  expect(allowedText(host, "Story pages")).toBe("None");
+  expect(lead).toContain("nor on how many mockups and Story pages a product holds");
+  expect(allowedText(host, "Playbook files")).toBe("2,000");
+  expect(lead).toContain("Playbook keeps to 2,000 files and 32 MB");
+  expect(allowedText(host, "Versions of a mockup")).toBe("10");
+  expect(lead).toContain("keeps its newest 10 versions");
+}
+
+/** What the every-limit table's row of a limit allows, as it reads. */
+function allowedText(host: HTMLElement, label: string) {
+  const row = [...host.querySelectorAll(".limits-scroll tr[role=row]")].find((r) => r.querySelector("[role=rowheader]")?.textContent === label);
+  return row?.querySelector("td[data-label=Allowed]")?.textContent;
+}
 
 /** One of Instance admin's sheets, signed in as an owner of this WhatBuild, at an address. */
 async function admin(sheet: ReactNode, at: string) {

@@ -320,18 +320,36 @@ export function InstanceLimitsSheets() {
   );
 }
 
-/** Every limit of an organization's plan with what is used of it and the refusal a call over it gets. */
+/**
+ * Every limit of an organization's plan with what is used of it and the refusal a call over it gets,
+ * under a line naming the organization they are read through, whose plan it is and whose use the Used
+ * column counts. On Unlimited, or a plan the deployment no longer defines, which meets Unlimited's
+ * limits, the line says what Unlimited lifts and what it keeps, from the rows' own values, so the rows
+ * reading None agree with it.
+ */
 function EveryLimit({ l }: { l: OrganizationLimits }) {
   const counted = l.limits.some((x) => x.used !== undefined);
+  const unlimited = l.plan === "unlimited" || Boolean(l.undefined_plan);
+  const org = l.organization.name;
+  const through = `Read through ${org}, one of your organizations, which is on the ${l.plan_name} plan.${
+    l.undefined_plan ? ` This WhatBuild no longer defines that plan, so ${org} meets the Unlimited plan’s limits until it is moved.` : ""
+  }`;
+  const used = counted ? ` Used is counted in ${org}.` : "";
+  const what = unlimited ? ` ${unlimitedLifts(Object.fromEntries(l.limits.map((x) => [x.key, x.value])))}` : "";
   return (
     <Sheet labelledBy="every-limit-title">
-      <SheetHeader id="every-limit-title" title={l.plan === "unlimited" ? "Limits (on this plan, only what a product holds)" : `Limits of the ${l.plan_name} plan`} count={l.limits.length} />
+      <SheetHeader id="every-limit-title" title={`Limits of the ${unlimited ? "Unlimited" : l.plan_name} plan`} count={l.limits.length} />
+      <p id="every-limit-lead" className="limits-foot limits-lead">
+        {through}
+        {used}
+        {what}
+      </p>
       <div className="limits-scroll">
-        <Table head={["Limit", "Counted over", { label: "Allowed", num: true }, ...(counted ? [{ label: "Used", num: true }] : []), "Over the limit"]}>
+        <Table describedBy="every-limit-lead" head={["Limit", "Counted over", { label: "Allowed", num: true }, ...(counted ? [{ label: "Used", num: true }] : []), "Over the limit"]}>
           {l.limits.map((a: LimitValue) => (
             <Row key={a.key} label={a.label} help={a.help}>
               <Cell className="muted">{a.per}</Cell>
-              <Cell label="Allowed" num>{l.plan === "unlimited" && a.value === null ? <span className="faint">None</span> : amount(a.value, a.unit)}</Cell>
+              <Cell label="Allowed" num>{unlimited && a.value === null ? <span className="faint">None</span> : amount(a.value, a.unit)}</Cell>
               {counted ? (
                 <Cell label="Used" num>
                   {a.used === undefined ? <NotCounted /> : a.unit === "bytes" ? formatBytes(a.used) : a.used.toLocaleString("en-US")}
@@ -1038,9 +1056,9 @@ function PlanDialog({ org, all, onClose }: { org: InstanceOrganization; all: Ins
  * A table that stays a table to a screen reader when a phone lays each row out as a block: the
  * roles are written out, because a browser drops them once `display` changes.
  */
-function Table({ head, className = "", children }: { head: (string | { label: string; num?: boolean })[]; className?: string; children: ReactNode }) {
+function Table({ head, className = "", describedBy, children }: { head: (string | { label: string; num?: boolean })[]; className?: string; describedBy?: string; children: ReactNode }) {
   return (
-    <table role="table" className={`limits-table ${className}`}>
+    <table role="table" className={`limits-table ${className}`} aria-describedby={describedBy}>
       <thead role="rowgroup">
         <tr role="row">
           {head.map((h) => {
