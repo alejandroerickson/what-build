@@ -33,6 +33,8 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
 
 ## Unreleased
 
+## v0.46.0
+
 - **A canvas's pages load in turns and stay loaded, and publish refuses a prototype whose pages load
   too much.** On the board and in the clickable view the selected page loads first, then the two
   beside it, then the rest eight at a time, and a move shows the next page at once; a page still
