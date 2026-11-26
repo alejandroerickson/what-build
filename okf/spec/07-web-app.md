@@ -3,7 +3,7 @@ type: Specification
 title: The web app is a person's way to run the same operations an agent runs, one screen at a time.
 description: Principles, the shell and product switching, the overview, routes, first run, and the behavior of every screen (Idea, Evidence, Exploration, Story, Activity, archive and delete, Settings, Instance admin).
 tags: [spec, web, ui, routes, shell]
-generated: {by: agent:claude, at: 2026-11-23}
+generated: {by: agent:claude, at: 2026-11-25}
 status: stable
 ---
 
@@ -385,6 +385,8 @@ has which role, the person's own included, is in Settings under the organization
 /plans                                        Plans: the plans offered side by side, with their prices; readable signed out
 /                   ?archived=1&create=1      the overview: what WhatBuild is, and every product; new product; first run with no organization
 /products                                     → / (with its query)
+/demo                                         → the demo: the example organization's first product, as the overview lists
+                                              it, on its first screen; with none, /. Where Explore the demo leads after sign-in
 /account-deleted                              Your account has been deleted (signed out)
 
 any screen          ?settings=<section>       Settings, the dialog over the screen (§7.11): product, product/people,
@@ -447,6 +449,20 @@ else handles the data, for the privacy page. The Worker asks the service for it 
 Cloudflare's cache, an hour at a time; without it, a page shows the plans as the build has them,
 and the privacy page says it did not load.
 
+**A link to the site** shows a card where it is shared (LinkedIn, X, Slack, iMessage): each landing
+page names a description in its own hero sentence, and one social card, `og:image` and
+`twitter:image` (`summary_large_image`), a 1200 × 630 picture of the mark, the name and the tagline
+on the front page's dotted canvas beside a real screen of the app: the sample product's Idea, as its
+owner sees it with an agent connected (`apps/web/public/social-card.png`, served at `/social-card.png`, made by
+`node scripts/social-card.mjs` against `pnpm dev`, [local development](../operations/local-development.md)).
+The build gives a page's canonical link, its `og:url` and the card's address from the site's root,
+and whoever serves the page makes them whole, since a link preview needs the whole address: on the
+site's domain, or, without one, under `/site/` on the app's origin. The second landing page's
+canonical link and `og:url` name `/`, the page crawlers and link previews of `/` always get.
+◆ Decision: one card for both landing pages, in the front page's look. They say the same thing,
+every link preview of `/` gets the front page, and the second page is a variant under test whose
+`og:url` names `/`. A change to the tagline or to that screen makes the card again.
+
 **The landing pages** ([decision](../decisions/the-site-opens-on-landing-pages-the-scroll-tells.md))
 tell the same six steps, one plain statement per screen with a sentence under it, beside a picture
 the scroll moves: "Product engineering at the speed of AI engineering"; everything you know about
@@ -455,26 +471,36 @@ story of what you are building; your coding agent builds straight from the conce
 words scroll up beside a picture that stays put; `/what-to-build` is always dark and pins its stage,
 the window, while the scroll runs each scene, under "What to build?". On a narrow or upright window
 the picture takes the top and the words the foot. A Scroll prompt bobs gently at the foot of the
-first screen and goes once the page moves; with reduced motion each scene shows settled. Where
+first screen and goes once the page moves; with reduced motion each scene shows settled. The bar
+at the top, the mark and Sign in, is solid, so nothing scrolls across the mark; on `/` the words
+fade into it as they pass under. The last screen and the footer fill the window together, so no
+scene's picture shows above it, wherever the page is scrolled to or a link leads. Where
 anyone may make an account (`sign_up` in what the page is told), **Start using WhatBuild** signs them in and
-goes to `/start`, which starts their organization or puts them on the waitlist
+goes to `/start`, which opens Welcome to start their organization or puts them on the waitlist
 ([§3.2](03-accounts-and-identity.md#32-accounts-and-sign-in)), and the last screen repeats it as a
-large button; where nobody may yet, it leads to the form at the foot, which asks for an email only
+large button; where nobody may yet, it leads to the form at the foot, and puts the cursor in its
+email field, which keeps its full height at every width. The form asks for an email only
 and records it (`POST /api/v1/interest`, with the page it was sent from). The price of each plan
 with one and Compare plans sit under it. Links to sign in carry `?landing=<the page's path>` and
-`&button=` (`explore` or `start`) through sign-in, which the app sends once (`POST
-/api/v1/me/came-from`) and takes off the address. Each press of Explore the demo or Start using
+`&button=` (`explore` or `start`) through sign-in, which the app sends (`POST
+/api/v1/me/came-from`, which the server keeps once) and takes off the address at every arrival that
+carries them. Each press of Explore the demo or Start using
 WhatBuild is counted for its page and button (`POST /api/v1/pressed`, sent so that it outlives the
 page; [the funnel](../operations/analytics.md#the-landing-page-funnel)). Nothing on either page
 asks the service anything until someone presses one of its buttons or sends the form. Behind Cloudflare the
 Worker sends a share of the visitors to `/` (`LANDING_SPLIT`) to `/what-to-build/`, the same
 visitors each time and never a crawler, to compare the two; `/?split=off` is the front page for
 anyone ([decision](../decisions/the-landing-pages-are-compared-by-a-split-at-the-edge.md)). While guests
-may sign up, looking comes first: **Explore the demo** (sign-in, then the example organization as a
-guest) is the filled button, with Start using WhatBuild beside it as the quiet one, and the last
+may sign up, looking comes first: **Explore the demo** (sign-in, then the demo itself: `/demo`, the
+example organization's first product on its Idea, as a guest) is the filled button, with Start using WhatBuild beside it as the quiet one, and the last
 screen says what a team builds in the demo, from the deployment (`example_about`: the first sentence
-of its first product's concept), over a large Explore the demo and "Or start using WhatBuild"; the
-plans page says the same. The newcomer's words promise neither "free" nor "now". On the app's origin, which is where a deployment without a site
+of its first product's concept), over a large Explore the demo and "Or start using WhatBuild".
+The plans page ends as the last screen does, under "Find out what’s worth building": while guests
+may sign up, the same line over Explore the demo, which opens the demo itself as on the landing pages
+(`/demo`), and Start using WhatBuild beside it; where anyone
+else may make an account, "Sign in and start your own organization." over Start using WhatBuild
+alone. Its links carry `?landing=/plans/` and the button, and no press is counted there. Where
+nobody may sign up yet, it says that people are let in a few at a time, with a link to the form. The newcomer's words promise neither "free" nor "now". On the app's origin, which is where a deployment without a site
 host has them, they are at `/site/`, `/site/plans/`, `/site/privacy/` and `/site/what-to-build/` (in development,
 `http://localhost:5273/site/`, where the pages ask the local server)
 ([decision](../decisions/the-public-site-is-pages-built-with-the-app.md)). When the deployment
@@ -532,19 +558,26 @@ new tab ([§7.8](#78-story), [§6](06-operations-and-adapters.md)).
    bot check says to try again. The public site's waitlist form carries the same widget. Wherever sign-in returns to is a path on this origin or `/`,
    by the server's rule (`safeNext`). Under the form are links to Privacy and Cookies. Where anyone
    may make an account (`open` in `/auth/methods`), a line says signing in creates their account;
-   arriving from Start using WhatBuild (`next` is `/start`), the title is "Start using WhatBuild". Privacy is the notice
+   arriving from Start using WhatBuild (`next` is `/start`), the title is "Start using WhatBuild".
+   Arriving from Explore the demo (`next` is `/demo`), the title is "Explore the demo", and the
+   line says "Sign in to open the demo.", then, where anyone may make an account, "New here?
+   Signing in creates your account.". Privacy is the notice
    of what is kept and why ([§9.1](09-data-lifecycle.md)).
-2. **The example organization first.** A new account with no organization of its own lands on the
-   overview, where the example organization ([§3.10](03-accounts-and-identity.md)) is listed,
+2. **The example organization first.** From Explore the demo, a new account lands in the demo
+   itself, the example organization's first product, on its Idea (`/demo`), where its banner invites
+   a guest to start using WhatBuild. Otherwise a new account with no organization of its own lands
+   on the overview, where the example organization ([§3.10](03-accounts-and-identity.md)) is listed,
    tagged Example organization and Read only, under a sheet, **Your own organization**, that says
    "Your team’s work goes in an organization of your own." and offers **Start your own
-   organization**: a link to `/welcome` where the account may create one, or, where it may not, a
-   button that takes one of the day's places and goes to `/welcome`, or puts them on the waitlist
+   organization**: a link to `/welcome` where the account may create one or one of the day's places
+   is open to it, which uses no place by itself; or, where neither, a button that goes to `/welcome`
+   when a place held for them from the waitlist is there, or puts them on the waitlist
    ([§3.2](03-accounts-and-identity.md#32-accounts-and-sign-in)). Once they are on it, the sheet
    says only "Your organization is on its way. We’ll email <their address> as soon as it’s
    ready.", as every screen that says they are on the waitlist does.
 3. **First run** (`/welcome`): name the organization and the first product in one form, for an
-   account that may create one ([§3.3](03-accounts-and-identity.md)). The sheet holds the heading
+   account that may create one, or for which one of the day's places is open
+   ([§3.3](03-accounts-and-identity.md#33-tenants)). The sheet holds the heading
    ("Welcome, <first name>"), "Name your organization and its first product.", the Organization
    ("Your company or group."), Product ("The product you’re working on.") and Product concept
    fields, and Start organization; under the button, for someone who is not an instance owner,
@@ -553,7 +586,12 @@ new tab ([§7.8](#78-story), [§6](06-operations-and-adapters.md)).
    stays. The plan's limits wait until one is reached, and what whoever runs this WhatBuild sees of
    an organization is on its Plan page; a deployment that offers no plans shows no line. Under the
    sheet are Privacy and, for someone with an organization of their own, Back to your products.
-   The same form, titled New organization, starts another. An account in no organization that may
+   The same form, titled New organization, starts another. Opening the form takes no place:
+   pressing Start organization does, and the form stays while they type, even if the place goes
+   meanwhile. When the last place went to someone else first (`409 places_taken`), nothing is
+   started, they join the waitlist with the organization's name they typed, and the sheet reads
+   "The last open place was taken just before you." and the waitlist line
+   ([§3.2](03-accounts-and-identity.md#32-accounts-and-sign-in)). An account in no organization that may
    not start one reads "You’re not in an organization yet." (with "Accept an invitation to join
    one." when one waits) and the same **Start your own organization** as the overview, or the
    waitlist line once asked. One that has started all it may reads, under "You can’t start another
@@ -569,7 +607,10 @@ new tab ([§7.8](#78-story), [§6](06-operations-and-adapters.md)).
    write there and has no agent connected, is **Connect your agent** (§7.5): the steps for the
    agent they choose, the same as in Settings → Agents (which the empty seat opens, and `/connect`
    leads to). They copy one address (for Claude Code, a command), add it in their agent, sign in on
-   the WhatBuild page it opens, and come back ([§6.8](06-operations-and-adapters.md)).
+   the WhatBuild page it opens, and come back ([§6.8](06-operations-and-adapters.md)). A moment
+   after the product first opens, the tutorial's welcome is offered over it in a window 1024 pixels
+   wide or wider, unless tutorials are off, whether or not they took it in the example organization
+   first ([§7.4](#the-tutorial)).
 
 No page is readable without an account. Someone who wants to look before committing to anything
 signs up and reads the example organization as a guest while there is room
@@ -591,7 +632,7 @@ pages, **Idea**, **Evidence**, **Exploration** and **Story**, each on its own pa
   the app's phone width): no offer, nothing starting by itself and no menu item, and a tutorial
   that is up closes where it is, with the toast "The tutorial is in your account menu." (none at
   phone width, where the panel is a drawer).
-- **The welcome first.** Offered once per person, on the first screen they land on that shows the
+- **The welcome first.** Offered on the first screen someone lands on that shows the
   panel of a product where they get it, the overview included, before they click anything: a
   welcome over the darkened screen, "Take the WhatBuild tutorial?", "Under a minute: the four
   pages, and an agent at work.", beside their avatar "Each page has a short tutorial of its own the
@@ -599,19 +640,27 @@ pages, **Idea**, **Evidence**, **Exploration** and **Story**, each on its own pa
   its left), **Not now** and **Start the tutorial**. On a screen beside the product (the overview, a
   page not found), what decides is the product its panel shows, and Start the tutorial goes to that
   product's Idea and begins there; with no product in the panel, nothing is offered until there is
-  one. A guest is offered it on their first screen with a product of the example organization in
-  the panel; someone offered it as a guest is not offered it again on a product of their own. The
-  rule is one function (`tutorialFor`), fed by the product's own screens and by the panel beside
-  them.
-- **Then each page's own, the first time.** Once the welcome has been offered, each page's
-  tutorial starts by itself, a moment after the person arrives, the first time they open that page
-  (Idea and Evidence at their own address, so a source's own screen starts nothing; Exploration and
-  Story at any of theirs), with nothing else up and no Settings dialog open. Each arrival at a page
-  decides once, and closing a tutorial is no arrival: the welcome closed on Idea leaves Idea's own
-  for the next time the person opens Idea. Nothing starts by itself on a screen beside the product
-  but the welcome. The rule is one function (`dueTutorial`).
+  one. It is offered once in the example organization and once on a product of the person's own
+  ([decision](../decisions/the-tutorial-is-five-short-ones-each-starting-the-first-time-its-page-is-opened.md)).
+  A guest is offered it on their first screen with a product of the example organization in the
+  panel. Once they start an organization of their own, or join one, the same offer comes again
+  on the first screen with a product of it in the panel, usually its Idea right after Start
+  organization, and never again once it is taken, closed or turned off there. Someone offered it
+  first on a product of their own is not offered it in the example organization. Who gets it is one
+  function (`tutorialFor`), fed by the product's own screens and by the panel beside them.
+- **Then each page's own, the first time.** Once the welcome has been offered where they are (the
+  example organization, or a product of their own), each page's tutorial starts by itself, a moment
+  after the person arrives, the first time they open that page (Idea and Evidence at their own
+  address, so a source's own screen starts nothing; Exploration and Story at any of theirs), with
+  nothing else up and no Settings dialog open. A page's tutorial seen in the example organization
+  does not start again on a product of their own. Each arrival at a page decides once, and closing a
+  tutorial is no arrival: the welcome closed on Idea leaves Idea's own for the next time the person
+  opens Idea. Nothing starts by itself on a screen beside the product but the welcome. The rule is
+  one function (`dueTutorial`).
 - **Shown once.** A tutorial counts as shown as soon as it starts (the welcome as soon as it is
-  offered), so none starts by itself twice; closed part-way, it is taken again from the start.
+  offered), so none starts by itself twice, but for the welcome's second offer above; closed
+  part-way, it is taken again from the start. The welcome taken from the account menu counts as
+  offered where it is taken.
   Afterwards each is in the account menu (§7.2), which every screen with such a panel has: **Take
   the <page> tutorial** for the page on screen, a source's own screen counting as Evidence (taken
   there, it goes to the list of sources first), or **Take the WhatBuild tutorial** elsewhere, with
@@ -623,16 +672,17 @@ pages, **Idea**, **Evidence**, **Exploration** and **Story**, each on its own pa
   starts by itself, the welcome included; every tutorial stays in the account menu, and a tutorial
   taken from there while they are off has no Turn off tutorials. Settings → Account (§7.11) turns
   them on again.
-- **Remembered on the account**, not in the browser: which tutorials have been shown, and whether
-  tutorials are off, which `GET /api/v1/me` gives as `tutorial` and `PATCH /api/v1/me` keeps when a
-  tutorial starts and when they are turned off or on
+- **Remembered on the account**, not in the browser: which tutorials have been shown, whether the
+  welcome has been offered on a product of the person's own, and whether tutorials are off, which
+  `GET /api/v1/me` gives as `tutorial` and `PATCH /api/v1/me` keeps when a tutorial starts and when
+  they are turned off or on
   ([§3.2](03-accounts-and-identity.md#32-accounts-and-sign-in),
   [decision](../decisions/the-tutorial-is-remembered-on-the-account-and-reached-by-no-agent.md)).
   A reload, a sign-out, leaving the product, the browser's Back to another page, or a guest's gate
   taking over closes a tutorial that is up, without a word; the screen arrived at decides what
   starts next.
 - **The stops** (`stops.ts`), each a thing's own name and at most one line:
-  - **WhatBuild**: the main navigation (**Main navigation**, "Four stages of product discovery."),
+  - **WhatBuild**: the main navigation (**Main navigation**, "Four stages of product engineering."),
     then the agent stage (**Agents**). It lights the product's own screen, with no examples, on
     whatever page it starts on.
   - **Idea**: Idea in the navigation ("Your product’s elevator pitch."), the product concept, its
@@ -712,6 +762,10 @@ pages, **Idea**, **Evidence**, **Exploration** and **Story**, each on its own pa
   Turn off tutorials with its own toast. Taking a tutorial from the account menu flies the pill back
   out to its first stop. Finishing says "Tutorial finished. It stays in your account menu." With
   reduced motion nothing flies and the stage shows its last frame; the account button still pulses.
+  A toast that points at the account menu goes as soon as the person leaves the screens of that
+  panel, the product's own screens or the screen beside them it was raised on: the screen they go
+  to may have no account menu, as the Welcome form, which Start using WhatBuild opens, has none.
+  Moving between the product's own pages keeps it.
 - **Access.** The bubble, the welcome and the stage are dialogs named by their title and described
   by their line; focus goes to the primary button at each stop, stays in the bubble and what is
   there to be tried, and goes back where it was when the tutorial closes. Each stop is announced
@@ -1688,8 +1742,12 @@ never described as deleting. A list row showing an archived object says *Archive
   toast, and the list is asked for again. On a phone the buttons take a line under the words.
 - **The waiting page** (any signed-in address, for a guest account that is not in; `GuestGate` in
   `apps/web/src/shell/guest-gate.tsx`). A guest account sees the app only while it holds a place
-  (`GET /api/v1/me/guest-pass`). The app asks only when the guest does something: when it opens,
-  when they move to another screen or come back to the tab once the last answer is a minute old,
+  (`GET /api/v1/me/guest-pass`), but for Welcome (`/welcome`), which reads nothing of the example
+  and asks for no place: someone for whom one of the day's places is open starts their organization
+  there however full the example is, and keeps the form while they type. Once it is started they
+  are a guest no longer: the app reads them again before their product opens, so the waiting page
+  does not come back. The app asks only when the guest does something: when it opens, when they
+  move to another screen or come back to the tab once the last answer is a minute old,
   and when they press **Try again**; never on a timer, so a tab left open neither holds a place
   nor keeps the database awake. The server decides the place on every call the guest makes, and a
   call refused with `guest_waiting` brings the waiting page at once, from the refusal's own
@@ -1697,8 +1755,9 @@ never described as deleting. A list row showing an archived object says *Archive
   badge: **WhatBuild is full right now** with its place in line and the progress mark, then "Try
   again within two minutes to keep your place." and **Try again**; **Today's places for new guests
   are taken** or **You've used today's time**, the badge saying when it opens again, and no line
-  under it; or that no guests are let in, "Try again later.", with **Try again**. Then **Ask for
-  your own organization** (or, once asked, the waitlist line), **Sign out** and **Settings**
+  under it; or that no guests are let in, "Try again later.", with **Try again**. Then **Start
+  your own organization** (a link to `/welcome` where one of the day's places is open to them, or,
+  once asked, the waitlist line), **Sign out** and **Settings**
   (`/settings`, a page of its own for them), which a waiting guest still reaches. A guest that is in sees, on the example's one-line notice, the time
   left today.
 - **Cookies** (`/cookies`, readable signed out; `apps/web/src/routes/cookies.tsx`). What cookies
@@ -1839,8 +1898,9 @@ never described as deleting. A list row showing an archived object says *Archive
   its content. To a guest with no organization of their own it is an invitation: "Like what you
   see?", "Start using WhatBuild and engineer your next product. This demo is here to read: nothing in
   it can be changed.", with **Start using WhatBuild** (to
-  `/welcome` where they may create one; otherwise it takes one of the day's places or puts them on
-  the waitlist), and once they are on it, "Your organization is on its way" with the address they
+  `/welcome` where they may create one or one of the day's places is open to them, using no place
+  by itself; otherwise it goes to `/welcome` when a place held for them from the waitlist is there,
+  or puts them on the waitlist), and once they are on it, "Your organization is on its way" with the address they
   will hear at. To a guest with one of their own, "This is the demo", "A demo to learn from.
   Nothing here can be changed." It shows in full until they press Got
   it, then as one line, "Demo · read only", keeping the button (remembered per

@@ -70,6 +70,22 @@ export function BareProductPath() {
 }
 
 
+/**
+ * `/demo`, where Explore the demo on the public site leads after sign-in: the example
+ * organization's first product, as the overview lists it, on its first screen. Where there is no
+ * example organization, or nothing in it to open, the overview, which says what there is. It waits
+ * for the landing page and button it came by to be told to the server and leave the address
+ * (`useCameFrom`), so they are told once and go nowhere else.
+ */
+export function DemoAddress() {
+  const products = useProducts();
+  const { search } = useLocation();
+  if (products.isPending || new URLSearchParams(search).has("landing")) return <div className="center-page"><Loading label="Opening the demo…" /></div>;
+  const example = products.data?.tenants.find((t) => t.example);
+  const demo = example ? products.data?.items.find((p) => p.tenant.tenant_id === example.tenant_id) : undefined;
+  return <Navigate replace to={demo ? `/t/${demo.path}/${productHome(demo.your_role)}` : "/"} />;
+}
+
 /** An address with Settings open at `key` on `pathname`, whatever else the old address's query held kept. */
 function withSettings(pathname: string, search: string, key: SettingsKey): string {
   const next = new URLSearchParams(search);

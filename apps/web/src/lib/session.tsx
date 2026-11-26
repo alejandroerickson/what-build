@@ -25,24 +25,40 @@ export interface Me {
   hide_example: boolean;
   /** When they asked for an organization of their own: they are on the waitlist. */
   asked_for_organization_at?: string | null;
+  /**
+   * With no allowance of their own: one of the day's places is open, so they may start an
+   * organization now. Nothing holds it for them; starting the organization takes it.
+   */
+  place_open?: boolean;
   /** The web app's tutorials: which the person has been shown, and whether they turned them off. */
   tutorial?: TutorialState;
+}
+
+/** Whether the person may start an organization now: an instance owner, room in their allowance, or one of the day's places open to them. */
+export function mayStartOrganization(me: Pick<Me, "tenant_allowance" | "place_open">): boolean {
+  return me.tenant_allowance.remaining !== 0 || Boolean(me.place_open);
 }
 
 /** The web app's tutorials: the welcome, then one for each of a product's four pages. */
 export type TutorialPart = "welcome" | "idea" | "evidence" | "exploration" | "story";
 
+/**
+ * What the account keeps of the tutorials shown: each tutorial, and `welcome-own` once the welcome
+ * has been offered on a product of the person's own, not only in the example organization.
+ */
+export type TutorialSeen = TutorialPart | "welcome-own";
+
 /** The web app's tutorials, as the account keeps them (`PATCH /api/v1/me`), so they follow the person between browsers. */
 export interface TutorialState {
   /** The tutorials the person has been shown, which start by themselves no more. */
-  seen: TutorialPart[];
+  seen: TutorialSeen[];
   /** The person turned tutorials off: none starts by itself. */
   off: boolean;
 }
 
 /** What `PATCH /api/v1/me` takes: tutorials to add to those seen, and tutorials off or on. */
 export interface TutorialPatch {
-  seen?: TutorialPart[];
+  seen?: TutorialSeen[];
   off?: boolean;
 }
 
@@ -182,13 +198,19 @@ export function useSaveTutorial() {
   });
 }
 
-/** Ask for an organization of one's own: join the waitlist the instance's owners read. */
+/**
+ * Ask for an organization of one's own: join the waitlist the instance's owners read, with the
+ * organization's name where they typed one, unless one of the day's places is open to them.
+ */
 export function useAskForOrganization() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: () => api<Me>("POST", "/api/v1/me/ask-for-organization", {}),
-    // Asking may give one of the day's places at once, so the allowance changes too.
-    onSuccess: (me) => qc.setQueryData(["me"], (old: Me | undefined) => (old ? { ...old, tenant_allowance: me.tenant_allowance, guest: me.guest, asked_for_organization_at: me.asked_for_organization_at } : old)),
+    mutationFn: (sent: { organization?: string } | void) => api<Me>("POST", "/api/v1/me/ask-for-organization", sent ?? {}),
+    // Asking may give them the place held for them from the waitlist, or find one of the day's places open, so those change too.
+    onSuccess: (me) =>
+      qc.setQueryData(["me"], (old: Me | undefined) =>
+        old ? { ...old, tenant_allowance: me.tenant_allowance, guest: me.guest, asked_for_organization_at: me.asked_for_organization_at, place_open: me.place_open } : old,
+      ),
   });
 }
 
@@ -212,7 +234,8 @@ export function useSignOut() {
  * A link from one of the public site's landing pages carries `?landing=<its path>` through sign-in,
  * and `&button=` for the button pressed (`explore` or `start`). Once signed in, they are told to the
  * server (which keeps them on an account in its first day, to compare the landing pages) and taken
- * off the address.
+ * off the address, at every arrival that carries them: one that comes again after they were taken
+ * off, as the development sign-in's second move to the same address does, loses them too.
  */
 function useCameFrom(signedIn: boolean) {
   const loc = useLocation();
@@ -228,7 +251,7 @@ function useCameFrom(signedIn: boolean) {
     void api("POST", "/api/v1/me/came-from", { page, ...(button === "explore" || button === "start" ? { button } : {}) }).catch(() => undefined);
     const rest = params.toString();
     navigate(`${loc.pathname}${rest ? `?${rest}` : ""}${loc.hash}`, { replace: true });
-  }, [signedIn, loc.pathname, loc.search, loc.hash, navigate]);
+  }, [signedIn, loc.key, loc.pathname, loc.search, loc.hash, navigate]);
 }
 
 /** Renders children only once the session is known; anyone signed out goes to sign-in and comes back. */

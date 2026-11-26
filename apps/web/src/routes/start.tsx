@@ -7,9 +7,9 @@ import { Button, ErrorCallout, Loading } from "../ui/index.tsx";
 
 /**
  * Start using WhatBuild, the public site's button, once signed in. Someone already in an organization goes to
- * the overview; someone who may start one, or takes one of the day's places, goes to start it; anyone
- * else is on the waitlist and goes to the overview, which says their organization is on its way,
- * with the demo to explore meanwhile.
+ * the overview; someone who may start one, or for whom one of the day's places is open, goes to
+ * start it, and uses the place only by starting it; anyone else is on the waitlist and goes to the
+ * overview, which says their organization is on its way, with the demo to explore meanwhile.
  */
 export function StartFree() {
   const qc = useQueryClient();

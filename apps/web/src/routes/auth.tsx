@@ -100,6 +100,12 @@ export function SignIn() {
   const error = params.get("error");
   // Start using WhatBuild on the public site leads here, on its way to /start.
   const starting = next === "/start" || next.startsWith("/start?");
+  // Explore the demo leads here, on its way to /demo.
+  const exploring = next === "/demo" || next.startsWith("/demo?");
+  const heading = next.startsWith("/invite/") ? "Sign in to see your invitation" : starting ? "Start using WhatBuild" : exploring ? "Explore the demo" : "Sign in to WhatBuild";
+  // What a newcomer from one of the public site's buttons is told signing in does: creating an account, only where anyone may make one.
+  const creates = methods.data?.open ? "New here? Signing in creates your account." : null;
+  const lead = starting ? (methods.data?.open ? "Sign in to create your account and start your organization." : null) : exploring ? ["Sign in to open the demo.", creates].filter(Boolean).join(" ") : creates;
   // The server's reference for a refused sign-in, shown only in its own form, so a crafted link cannot put words here.
   const ref = params.get("ref");
   const reference = ref && SIGN_IN_REFERENCE.test(ref) ? ref : null;
@@ -123,15 +129,13 @@ export function SignIn() {
     </>
   );
   return (
-    <EntryPage title={starting ? "Start using WhatBuild · WhatBuild" : "Sign in · WhatBuild"}>
+    <EntryPage title={starting || exploring ? `${heading} · WhatBuild` : "Sign in · WhatBuild"}>
       <Sheet labelledBy="signin-title">
-        <SheetHeader level={1} id="signin-title" title={next.startsWith("/invite/") ? "Sign in to see your invitation" : starting ? "Start using WhatBuild" : "Sign in to WhatBuild"} />
+        <SheetHeader level={1} id="signin-title" title={heading} />
         <SheetBody className="entry-form">
           {next.startsWith("/invite/") && !error ? <p className="muted">Use the email your invitation was sent to. You’ll choose whether to join once you’ve signed in.</p> : null}
-          {/* A newcomer from the public site's buttons: signing in is how an account is made, where anyone may make one. */}
-          {!next.startsWith("/invite/") && !error && methods.data?.open ? (
-            <p className="muted">{starting ? "Sign in to create your account and start your organization." : "New here? Signing in creates your account."}</p>
-          ) : null}
+          {/* A newcomer from the public site's buttons: what signing in opens, and that it is how an account is made, where anyone may make one. */}
+          {!next.startsWith("/invite/") && !error && lead ? <p className="muted">{lead}</p> : null}
           {error === "link_expired" ? (
             <Callout inset tone="attention" title="That sign-in link has expired">
               Enter your email for a new one.

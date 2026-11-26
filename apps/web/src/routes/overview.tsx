@@ -1,7 +1,7 @@
 import { Link, Navigate, useSearchParams } from "react-router";
 import { plural, relativeTime } from "../lib/format.ts";
 import { markdownText } from "../lib/markdown.tsx";
-import { mayCreateProducts, ownFirst, productHome, useHideExample, useMe, useProducts, type ProductsResponse, type ProductSummary } from "../lib/session.tsx";
+import { mayCreateProducts, mayStartOrganization, ownFirst, productHome, useHideExample, useMe, useProducts, type ProductsResponse, type ProductSummary } from "../lib/session.tsx";
 import { AskForOrganization } from "../shell/ask-for-organization.tsx";
 import { BrandMark } from "../shell/brand.tsx";
 import { Journey } from "../shell/journey.tsx";
@@ -38,7 +38,7 @@ export function OverviewPage() {
   if (products.data && !products.data.tenants.length) return <Navigate to="/welcome" replace />;
   const tenants = ownFirst(products.data?.tenants ?? []);
   const ownOrgs = tenants.filter((t) => !t.example).length;
-  const mayStart = me.data?.tenant_allowance.remaining !== 0;
+  const mayStart = me.data ? mayStartOrganization(me.data) : true;
   const asked = Boolean(me.data?.asked_for_organization_at);
   const all = products.data?.items ?? [];
   const items = all.filter((p) => !p.archived_at);

@@ -32,8 +32,9 @@ reads every product of the example and is refused every write with `403 example_
 holds no organization of their own.
 
 **The tutorials.** Whoever can edit a product, and a guest of the example, is offered the web
-app's tutorial once, at 1024 pixels wide or wider: on the first screen with a product's panel
-(often the overview, right after signing in), a welcome over a darkened screen; after it, each of
+app's tutorial at 1024 pixels wide or wider: on the first screen with a product's panel
+(often the overview, right after signing in), a welcome over a darkened screen, once in the
+example and once more on the first product of their own; after it, each of
 a product's pages starts a short tutorial of its own the first time it is opened. None of the people
 above has been shown any in a fresh copy, nor has any new account. Unless the plan is about the
 tutorials ([`the-tutorial.md`](the-tutorial.md)), press **Turn off tutorials** on the welcome and

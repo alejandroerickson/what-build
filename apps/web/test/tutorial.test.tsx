@@ -4,6 +4,7 @@ import { createRoot } from "react-dom/client";
 import { renderToStaticMarkup } from "react-dom/server";
 import { MemoryRouter, Route, Routes, useLocation, useNavigate } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { TutorialSeen } from "../src/lib/session.tsx";
 
 // The spotlight tutorials: who gets them, the welcome and the four pages' tutorials and their stops,
 // which starts by itself where, what the account menu says, the content they show on each page, and
@@ -33,7 +34,9 @@ let example = false;
 type Kept = { seen: string[]; off: boolean };
 let kept: Kept = { seen: [], off: false };
 let agents: unknown[] = [];
-const ALL = ["welcome", "idea", "evidence", "exploration", "story"];
+/** The welcome offered on a product of the person's own: what the account keeps for it there. */
+const OFFERED: TutorialSeen[] = ["welcome", "welcome-own"];
+const ALL: TutorialSeen[] = [...OFFERED, "idea", "evidence", "exploration", "story"];
 const tenant = () => ({ tenant_id: "t1", slug: "acme", name: "Acme", example });
 
 vi.mock("../src/lib/api.ts", async (original) => ({
@@ -54,7 +57,7 @@ vi.mock("../src/lib/api.ts", async (original) => ({
   }),
 }));
 
-const { tutorialFor, dueTutorial, pageOf, sectionOf, menuItem, pillWords, TUTORIAL_MIN_WIDTH, TOO_NARROW_QUERY } = await import("../src/tutorial/state.ts");
+const { tutorialFor, dueTutorial, welcomeSeen, pageOf, sectionOf, menuItem, pillWords, TUTORIAL_MIN_WIDTH, TOO_NARROW_QUERY } = await import("../src/tutorial/state.ts");
 const { PHONE_QUERY } = await import("../src/ui/media.ts");
 const { CANVAS_TOOLS, toolTitle } = await import("../src/routes/mockup-canvas.tsx");
 const { toolLabel, toolsSaid, layoutLabels } = await import("../src/tutorial/diagram.tsx");
@@ -93,15 +96,33 @@ describe("who gets the tutorials", () => {
   });
 
   it("starts the welcome by itself until it has been offered, then each page's the first time that page is opened, and nothing once tutorials are off", () => {
-    expect(dueTutorial({ seen: [], off: false }, "evidence")).toBe("welcome");
-    expect(dueTutorial({ seen: [], off: false }, null)).toBe("welcome");
-    expect(dueTutorial({ seen: ["welcome"], off: false }, "evidence")).toBe("evidence");
-    expect(dueTutorial({ seen: ["welcome", "evidence"], off: false }, "evidence")).toBeNull();
-    expect(dueTutorial({ seen: ["welcome"], off: false }, null)).toBeNull();
-    expect(dueTutorial({ seen: [], off: true }, "idea")).toBeNull();
-    expect(dueTutorial({ seen: ["welcome"], off: true }, "story")).toBeNull();
-    // Before the account is known, nothing starts.
-    expect(dueTutorial(undefined, "idea")).toBeNull();
+    for (const example of [false, true]) {
+      const offered: TutorialSeen[] = example ? ["welcome"] : OFFERED;
+      expect(dueTutorial({ seen: [], off: false }, "evidence", example)).toBe("welcome");
+      expect(dueTutorial({ seen: [], off: false }, null, example)).toBe("welcome");
+      expect(dueTutorial({ seen: [...offered], off: false }, "evidence", example)).toBe("evidence");
+      expect(dueTutorial({ seen: [...offered, "evidence"], off: false }, "evidence", example)).toBeNull();
+      expect(dueTutorial({ seen: [...offered], off: false }, null, example)).toBeNull();
+      expect(dueTutorial({ seen: [], off: true }, "idea", example)).toBeNull();
+      expect(dueTutorial({ seen: [...offered], off: true }, "story", example)).toBeNull();
+      // Before the account is known, nothing starts.
+      expect(dueTutorial(undefined, "idea", example)).toBeNull();
+    }
+  });
+
+  it("offers the welcome offered in the example organization once more on a product of the person's own, and offered there, nowhere again", () => {
+    expect(welcomeSeen(true)).toEqual(["welcome"]);
+    expect(welcomeSeen(false)).toEqual(["welcome", "welcome-own"]);
+    // Offered as a guest of the example, with every page's seen there too: on their own product, the welcome again.
+    expect(dueTutorial({ seen: ["welcome", "idea", "evidence", "exploration", "story"], off: false }, "idea", false)).toBe("welcome");
+    expect(dueTutorial({ seen: ["welcome"], off: false }, null, false)).toBe("welcome");
+    // Offered there, it comes no more, and the pages seen in the example start nothing.
+    expect(dueTutorial({ seen: ["welcome", "welcome-own", "idea"], off: false }, "idea", false)).toBeNull();
+    expect(dueTutorial({ seen: ["welcome", "welcome-own"], off: false }, "story", false)).toBe("story");
+    // Offered first on their own product, it is not offered in the example either.
+    expect(dueTutorial({ seen: ["welcome", "welcome-own"], off: false }, null, true)).toBeNull();
+    // Turned off, nothing comes on their own product either.
+    expect(dueTutorial({ seen: ["welcome"], off: true }, "idea", false)).toBeNull();
   });
 
   it("knows the page an address is in, and the page whose tutorial it can show", () => {
@@ -142,7 +163,7 @@ describe("the tutorials and their stops", () => {
   });
 
   it("enter each page at its item in the main navigation; the welcome lights the navigation, then plays an agent at work", () => {
-    expect(TUTORIALS.welcome[0]).toMatchObject({ title: "Main navigation", line: ["Four stages of product discovery."], target: "nav" });
+    expect(TUTORIALS.welcome[0]).toMatchObject({ title: "Main navigation", line: ["Four stages of product engineering."], target: "nav" });
     expect(TUTORIALS.welcome[1]).toMatchObject({ id: "agents", stage: true });
     for (const place of ["idea", "evidence", "exploration", "story"] as const) expect(TUTORIALS[place][0]!.target, place).toBe(`nav-${place}`);
   });
@@ -375,17 +396,55 @@ describe("the welcome", () => {
     expect(welcome()?.textContent).toContain("Each page has a short tutorial of its own the first time you open it.");
     expect(welcome()?.getAttribute("aria-modal")).toBe("true");
     expect([...welcome()!.querySelectorAll("button")].map((b) => b.textContent)).toEqual(["Turn off tutorials", "Not now", "Start the tutorial"]);
-    expect(calls).toContainEqual({ method: "PATCH", path: "/api/v1/me", body: { tutorial: { seen: ["welcome"] } } });
+    // Offered on a product of their own, it is kept as offered there, so it comes nowhere again.
+    expect(calls).toContainEqual({ method: "PATCH", path: "/api/v1/me", body: { tutorial: { seen: ["welcome", "welcome-own"] } } });
     // Nothing starts until it is asked for.
     expect(api).toMatchObject({ mode: "welcome", showing: false });
   });
 
-  it("is offered to a guest of the example organization too", async () => {
+  it("is offered to a guest of the example organization too, kept as offered in the example only", async () => {
     role = "guest";
     example = true;
     kept = { seen: [], off: false };
     await mount();
     expect(welcome()).not.toBeNull();
+    expect(calls).toContainEqual({ method: "PATCH", path: "/api/v1/me", body: { tutorial: { seen: ["welcome"] } } });
+  });
+
+  it("is offered once more on a product of their own to someone offered it in the example, and then no more", async () => {
+    // Every tutorial seen in the example as a guest, then an organization of their own started.
+    role = "admin";
+    example = false;
+    kept = { seen: ["welcome", "idea", "evidence", "exploration", "story"], off: false };
+    await mount();
+    expect(welcome()?.textContent).toContain("Take the WhatBuild tutorial?");
+    expect(calls).toContainEqual({ method: "PATCH", path: "/api/v1/me", body: { tutorial: { seen: ["welcome", "welcome-own"] } } });
+    await press("Not now");
+    expect(kept.seen).toEqual(["welcome", "idea", "evidence", "exploration", "story", "welcome-own"]);
+    // A reload: nothing comes, on Idea or on any page, whose tutorials were seen in the example.
+    fresh();
+    await mount();
+    expect(welcome()).toBeNull();
+    expect(api?.mode).toBe("off");
+    await act(async () => goTo("/t/acme/harvest/evidence"));
+    await settle();
+    expect(api?.mode).toBe("off");
+  });
+
+  it("taken from the account menu on a product of their own before it was offered there, counts as offered there", async () => {
+    role = "editor";
+    example = false;
+    // Offered in the example, then tutorials turned off: nothing comes by itself on their own product.
+    kept = { seen: ["welcome"], off: true };
+    await mount("/t/acme/harvest/activity");
+    expect(welcome()).toBeNull();
+    // Beside the product's pages, the account menu offers the welcome.
+    const welcomeItem = await menuItemEl();
+    expect(welcomeItem?.textContent).toContain("Take the WhatBuild tutorial");
+    await act(async () => (welcomeItem as HTMLElement).click());
+    await settle(300);
+    expect(api).toMatchObject({ mode: "stop", part: "welcome" });
+    expect(calls).toContainEqual({ method: "PATCH", path: "/api/v1/me", body: { tutorial: { seen: ["welcome", "welcome-own"] } } });
   });
 
   it("is offered to nobody who is a viewer or a Story reader, who was offered it before, or who turned tutorials off", async () => {
@@ -432,7 +491,7 @@ describe("the welcome", () => {
     // Still on Idea: its own tutorial waits.
     await settle();
     expect(api?.mode).toBe("off");
-    expect(kept.seen).toEqual(["welcome"]);
+    expect(kept.seen).toEqual(OFFERED);
     // Away and back to Idea, it starts.
     await act(async () => goTo("/t/acme/harvest/activity"));
     await settle();
@@ -466,7 +525,7 @@ describe("each page's tutorial", () => {
       ["/t/acme/harvest/exploration/mockups/m1", "exploration", "Exploration", 7],
       ["/t/acme/harvest/story", "story", "Story", 4],
     ] as const) {
-      kept = { seen: ["welcome"], off: false };
+      kept = { seen: [...OFFERED], off: false };
       await mount(path);
       expect(api, part).toMatchObject({ mode: "stop", part, at: 0, showing: true });
       expect(title(), part).toBe(first);
@@ -480,9 +539,9 @@ describe("each page's tutorial", () => {
     role = "editor";
     example = false;
     for (const [path, seen] of [
-      ["/t/acme/harvest/activity", ["welcome"]],
-      ["/t/acme/harvest/evidence/rec1", ["welcome"]],
-      ["/t/acme/harvest/evidence", ["welcome", "evidence"]],
+      ["/t/acme/harvest/activity", OFFERED],
+      ["/t/acme/harvest/evidence/rec1", OFFERED],
+      ["/t/acme/harvest/evidence", [...OFFERED, "evidence"]],
     ] as const) {
       kept = { seen: [...seen], off: false };
       await mount(path);
@@ -495,7 +554,7 @@ describe("each page's tutorial", () => {
     role = "editor";
     example = false;
     agents = [{ client_name: "Claude" }];
-    kept = { seen: ["welcome"], off: false };
+    kept = { seen: [...OFFERED], off: false };
     await mount("/t/acme/harvest/evidence");
     expect(count()).toBe("1 of 3");
     await press("Next");
@@ -507,7 +566,7 @@ describe("each page's tutorial", () => {
   it("closes with the close button into the account menu, which offers the page's tutorial", async () => {
     role = "editor";
     example = false;
-    kept = { seen: ["welcome"], off: false };
+    kept = { seen: [...OFFERED], off: false };
     await mount("/t/acme/harvest/idea");
     await press("Next");
     await press("Close the tutorial");
@@ -535,10 +594,28 @@ describe("each page's tutorial", () => {
     expect(api).toMatchObject({ mode: "stop", part: "evidence", at: 0, showing: true });
   });
 
+  it("leaves its toast up across the product's screens, and takes it away on leaving the product for a screen without the account menu", async () => {
+    // A guest closes Evidence's tutorial, then presses Start using WhatBuild for the Welcome form.
+    role = "guest";
+    example = true;
+    kept = { seen: ["welcome"], off: false };
+    await mount("/t/acme/harvest/evidence");
+    expect(api).toMatchObject({ mode: "stop", part: "evidence" });
+    await press("Close the tutorial");
+    expect(document.body.textContent).toContain("The tutorial is in your account menu.");
+    await act(async () => goTo("/t/acme/harvest/activity"));
+    await settle(300);
+    expect(document.body.textContent).toContain("The tutorial is in your account menu.");
+    await act(async () => goTo("/welcome"));
+    await settle(300);
+    expect(document.body.textContent).not.toContain("The tutorial is in your account menu.");
+    expect(document.querySelector(".toast")).toBeNull();
+  });
+
   it("closes, without a word, when a move it did not make (the browser's Back) leaves its page", async () => {
     role = "editor";
     example = false;
-    kept = { seen: ["welcome"], off: false };
+    kept = { seen: [...OFFERED], off: false };
     await mount("/t/acme/harvest/evidence");
     expect(api?.mode).toBe("stop");
     await act(async () => goTo("/t/acme/harvest/story"));
@@ -554,7 +631,7 @@ describe("turning tutorials off", () => {
   it("closes the tutorial, keeps tutorials off on the account, and Undo turns them on again", async () => {
     role = "editor";
     example = false;
-    kept = { seen: ["welcome"], off: false };
+    kept = { seen: [...OFFERED], off: false };
     await mount("/t/acme/harvest/story");
     await press("Turn off tutorials");
     expect(api?.mode).toBe("off");
@@ -572,7 +649,7 @@ describe("turning tutorials off", () => {
     kept = { seen: [], off: false };
     await mount();
     await press("Turn off tutorials");
-    expect(kept).toEqual({ seen: ["welcome"], off: true });
+    expect(kept).toEqual({ seen: OFFERED, off: true });
     await act(async () => goTo("/t/acme/harvest/evidence"));
     await settle();
     expect(api?.mode).toBe("off");
@@ -581,7 +658,7 @@ describe("turning tutorials off", () => {
   it("leaves each tutorial in the account menu, whose bubble then has no Turn off tutorials", async () => {
     role = "editor";
     example = false;
-    kept = { seen: ["welcome"], off: true };
+    kept = { seen: [...OFFERED], off: true };
     await mount("/t/acme/harvest/evidence");
     expect(api?.mode).toBe("off");
     const item = await menuItemEl();
@@ -661,7 +738,7 @@ describe("taking over from the overview", () => {
   it("begins the welcome's first stop when the overview's Start the tutorial brought the person here, and leaves Idea's for later", async () => {
     role = "editor";
     example = false;
-    kept = { seen: ["welcome"], off: false };
+    kept = { seen: [...OFFERED], off: false };
     await mount({ pathname: "/t/acme/harvest/idea", state: { tutorial: { part: "welcome", from: "welcome" } } });
     expect(welcome()).toBeNull();
     expect(api).toMatchObject({ mode: "stop", part: "welcome", at: 0 });

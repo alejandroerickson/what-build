@@ -1,11 +1,11 @@
-import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, useRef, useState, type FormEvent, type MouseEvent, type ReactNode } from "react";
 import { api, ApiError } from "../../lib/api.ts";
 import { BOT_CHECK_FIELD, useBotCheck } from "../../lib/bot-check.tsx";
 import type { PlanEntry } from "../../lib/limits.ts";
 import { BrandMark } from "../../shell/brand.tsx";
 import { tooLong } from "../../ui/field.tsx";
 import { Glyph } from "../../ui/glyph.tsx";
-import { SiteFoot, sitePath, useSite, useSiteCookies, useSystemTheme } from "../SitePage.tsx";
+import { DEMO, demoLine, signInTo, SiteFoot, sitePath, useSite, useSiteCookies, useSystemTheme, useWays, type SiteButton, type Ways as SiteWays } from "../SitePage.tsx";
 import { startOneLine } from "./one-line.ts";
 import { startWindow } from "./window.ts";
 
@@ -17,41 +17,15 @@ import { startWindow } from "./window.ts";
 
 /** The two landing pages, by their path on the site, carried through sign-in to compare the two (`LANDING_PAGES` in apps/server/src/site.ts). */
 type LandingPath = "/" | "/what-to-build/";
-/** A landing page's buttons: Explore the demo, and Start using WhatBuild (`LANDING_BUTTONS` in apps/server/src/site.ts). */
-type LandingButton = "explore" | "start";
-
-/** What the deployment lets a visitor do, as whoever serves the page wrote it in; never how many it lets in. */
-interface Ways {
-  /** Anyone may make an account: Start using WhatBuild signs them in and starts their organization, or puts them in line. */
-  open: boolean;
-  /** Anyone may come into the demo (the example organization) as a guest. */
-  explore: boolean;
-  page: LandingPath;
-  /** The demo's product in a phrase, from the deployment: "ADIT, an exploration management system for …". */
-  mock: string | null;
-}
-
-/** "ADIT is an exploration management system for X." becomes "ADIT, an exploration management system for X". */
-function mockPhrase(about: { product: string; about: string } | null | undefined): string | null {
-  if (!about) return null;
-  const said = /^(.{1,80}?) is (an? .+?)\.?$/.exec(about.about.trim());
-  return said ? `${said[1]}, ${said[2]}` : about.product || null;
-}
-
-function useWays(page: LandingPath): Ways {
-  const site = useSite();
-  return { open: Boolean(site?.sign_up), explore: Boolean(site?.guests?.self_serve && site.guests.open), page, mock: mockPhrase(site?.example_about) };
-}
-
-/** A link to sign in that goes on to `to`, saying which landing page, and which of its buttons, it came from. */
-const signInTo = (to: string, page: LandingPath, button: LandingButton) => `/signin?next=${encodeURIComponent(`${to}?landing=${page}&button=${button}`)}`;
+/** What the deployment lets a visitor of a landing page do. */
+type Ways = SiteWays<LandingPath>;
 
 /**
  * Tells the service that one of the page's buttons was pressed, to compare the landing pages by how
  * many of their visitors act: a count for the day, the page and the button, which names nobody. It
  * is sent so that it outlives the page the press leaves, and a failure is ignored.
  */
-function pressed(page: LandingPath, button: LandingButton) {
+function pressed(page: LandingPath, button: SiteButton) {
   void fetch("/api/v1/pressed", { method: "POST", keepalive: true, headers: { "content-type": "application/json" }, body: JSON.stringify({ page, button }) }).catch(() => undefined);
 }
 
@@ -83,6 +57,30 @@ function Bar() {
 /** Where Start using WhatBuild leads: sign-in and on to start an organization, or, where nobody may sign up yet, the form at the foot. */
 const startHref = (ways: Ways) => (ways.open ? signInTo("/start", ways.page, "start") : "#start");
 
+/** The waitlist form's email field, which Start using WhatBuild leads to where nobody may sign up yet. */
+const EMAIL_FIELD = "ld-email";
+
+/**
+ * Start using WhatBuild, where it leads to the form at the foot: the page goes to the form and the
+ * email field takes focus, so typing, and a screen reader, start where the button said. Once the
+ * form is sent the field is gone, and the link only goes to the thanks; a click that opens a new
+ * tab stays a plain link.
+ */
+function toTheForm(e: MouseEvent<HTMLAnchorElement>) {
+  const field = document.getElementById(EMAIL_FIELD);
+  if (!field || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+  e.preventDefault();
+  if (location.hash !== "#start") history.pushState(history.state, "", "#start");
+  document.getElementById("start")?.scrollIntoView({ block: "start" });
+  field.focus({ preventScroll: true });
+}
+
+/** A press of Start using WhatBuild: counted, and, where it leads to the form, the form's field focused. */
+const pressStart = (ways: Ways) => (e: MouseEvent<HTMLAnchorElement>) => {
+  pressed(ways.page, "start");
+  if (!ways.open) toTheForm(e);
+};
+
 /**
  * The first thing to do is look: while guests may come in, Explore the demo leads (a guest's
  * sign-in), and Start using WhatBuild follows it. Without guests, Start using WhatBuild is the one action.
@@ -91,17 +89,17 @@ function Actions({ ways }: { ways: Ways }) {
   if (!ways.explore)
     return (
       <div className="ld-actions">
-        <a className="ld-btn" href={startHref(ways)} onClick={() => pressed(ways.page, "start")}>
+        <a className="ld-btn" href={startHref(ways)} onClick={pressStart(ways)}>
           Start using WhatBuild
         </a>
       </div>
     );
   return (
     <div className="ld-actions">
-      <a className="ld-btn" href={signInTo("/", ways.page, "explore")} onClick={() => pressed(ways.page, "explore")}>
+      <a className="ld-btn" href={signInTo(DEMO, ways.page, "explore")} onClick={() => pressed(ways.page, "explore")}>
         Explore the demo
       </a>
-      <a className="ld-quiet" href={startHref(ways)} onClick={() => pressed(ways.page, "start")}>
+      <a className="ld-quiet" href={startHref(ways)} onClick={pressStart(ways)}>
         Start using WhatBuild <Glyph name="arrow-right" size="sm" />
       </a>
     </div>
@@ -162,10 +160,8 @@ function Close({ ways }: { ways: Ways }) {
       </h2>
       {ways.explore ? (
         <>
-          <p className="ld-close-lede">
-            {ways.mock ? `See how a team works in WhatBuild: in the demo, they are building ${ways.mock}.` : "See how a team works in WhatBuild, from its first interviews to its plan, in the demo."}
-          </p>
-          <a className="ld-btn ld-btn-big" href={signInTo("/", page, "explore")} onClick={() => pressed(page, "explore")}>
+          <p className="ld-close-lede">{demoLine(ways.mock)}</p>
+          <a className="ld-btn ld-btn-big" href={signInTo(DEMO, page, "explore")} onClick={() => pressed(page, "explore")}>
             Explore the demo
           </a>
           <a className="ld-quiet" href={signInTo("/start", page, "start")} onClick={() => pressed(page, "start")}>
@@ -188,11 +184,11 @@ function Close({ ways }: { ways: Ways }) {
         </p>
       ) : (
         <form className="ld-join" onSubmit={submit}>
-          <label className="ld-join-label" htmlFor="ld-email">
+          <label className="ld-join-label" htmlFor={EMAIL_FIELD}>
             Your email
           </label>
           <div className="ld-join-row">
-            <input id="ld-email" className="ld-input" type="email" required autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+            <input id={EMAIL_FIELD} className="ld-input" type="email" required autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} />
             <button type="submit" className="ld-btn" disabled={state.status === "sending"}>
               {state.status === "sending" ? "Sending…" : "Request access"}
             </button>

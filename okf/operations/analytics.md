@@ -3,7 +3,7 @@ type: System Concept
 title: Analytics in production - the server's own counts, Google Analytics behind the cookie choice, Cloudflare Web Analytics on the site
 description: What each source measures and for whom, where every setting lives, how an agent reads them all (pnpm usage, products.usage), how a deployment connects its own analytics, the Google Analytics settings to keep, and how a person's counted days are found and removed.
 tags: [operations, analytics, usage, google-analytics, cloudflare, privacy]
-generated: {by: agent:claude, at: 2026-11-13}
+generated: {by: agent:claude, at: 2026-11-25}
 status: stable
 ---
 
@@ -324,6 +324,9 @@ page has turned people away. Mind that:
   `/what-to-build/` include those who reach it by a shared link;
 - presses count everyone, the instance's owners included, and a person who presses twice counts
   twice; accounts count people, once;
+- the plans page's Explore the demo and Start using WhatBuild carry `/plans/`, so the accounts
+  made from it are a row of their own, with no presses, and neither landing page's: a visitor who
+  went there by Compare plans counts for the plans page, not for the page that sent them;
 - Cloudflare samples page loads, so small counts of visits come in steps;
 - an account counts on the day it was made, and comes back within a week only once that week is
   over: `week_old` is the share's denominator;

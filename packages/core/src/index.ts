@@ -40,7 +40,7 @@ export * from "./limits.ts";
 export * from "./abuse-limits.ts";
 export * from "./guests.ts";
 export { noteReturn, returnsSettled } from "./first-return.ts";
-export { askForOrganization, givePlaces, placeReadyMail, placesToday, type PlacePorts } from "./places.ts";
+export { askForOrganization, givePlaces, placeOpen, placeReadyMail, placesToday, type PlacePorts } from "./places.ts";
 export * from "./settings.ts";
 export { endSignIns } from "./accounts.ts";
 export { CONTENT_TABLES, OTHER_TENANT_TABLES } from "./tenant-tables.ts";

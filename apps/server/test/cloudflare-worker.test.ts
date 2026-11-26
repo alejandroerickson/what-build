@@ -72,6 +72,30 @@ describe("the Cloudflare Worker", () => {
     expect(share).toBeLessThan(0.6);
   });
 
+  it("names each page's address and its social card's whole, on the site's domain, for link previews", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("down", { status: 503 })));
+    const page = `<html><head><link rel="canonical" href="/"  />\n<meta property="og:url" content="/" />\n<meta property="og:image" content="/social-card.png" />\n<meta name="twitter:image" content="/social-card.png" />\n<meta property="og:image:width" content="1200" /></head><body>front</body></html>`;
+    const ASSETS = {
+      fetch: async (r: Request) =>
+        new URL(r.url).pathname === "/social-card.png" ? new Response("the card", { headers: { "Content-Type": "image/png" } }) : new Response(page, { headers: { "Content-Type": "text/html", "Content-Length": String(page.length) } }),
+    };
+    // A link preview of the front page, and the second page's own address.
+    for (const [path, ua] of [["/", "LinkedInBot/1.0 (compatible; Mozilla/5.0; Apache-HttpClient +http://www.linkedin.com)"], ["/what-to-build/", "Mozilla/5.0 (Macintosh)"]]) {
+      const res = await worker.fetch(new Request(`https://example.com${path}`, { headers: { "user-agent": ua } }), { ...env, ASSETS, LANDING_SPLIT: "1" });
+      expect(res.status).toBe(200);
+      expect(res.headers.get("content-length")).toBeNull();
+      const text = await res.text();
+      expect(text).toContain('<link rel="canonical" href="https://example.com/"  />');
+      expect(text).toContain('<meta property="og:url" content="https://example.com/" />');
+      expect(text).toContain('<meta property="og:image" content="https://example.com/social-card.png" />');
+      expect(text).toContain('<meta name="twitter:image" content="https://example.com/social-card.png" />');
+      expect(text).toContain('<meta property="og:image:width" content="1200" />');
+    }
+    // The card itself is the build's, served on the site's domain.
+    const card = await worker.fetch(new Request("https://example.com/social-card.png", { headers: { "user-agent": "LinkedInBot/1.0" } }), { ...env, ASSETS });
+    expect([card.status, card.headers.get("content-type"), await card.text()]).toEqual([200, "image/png", "the card"]);
+  });
+
   it("serves the site's pages as the build has them when the service does not answer", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response("down", { status: 503 })));
     const ASSETS = { fetch: async () => new Response("<html><head></head><body>front</body></html>", { headers: { "Content-Type": "text/html" } }) };

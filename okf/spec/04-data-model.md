@@ -3,7 +3,7 @@ type: Specification
 title: Every object in a product, with its fields, limits and invariants, as the REST and MCP wire sees it.
 description: The common envelope (ids, etags, attribution, revisions), outcomes, sources and their tags, attachments, comments, summaries and notes, evidence links, the retired insights, decisions and assumptions, views, activity, Story, mockups, feedback, the product bundle, and the storage layout.
 tags: [spec, data-model, schema, revisions, story, mockups, export]
-generated: {by: agent:claude, at: 2026-11-23}
+generated: {by: agent:claude, at: 2026-11-25}
 status: stable
 ---
 
@@ -164,14 +164,14 @@ archived outcomes out unless `include_archived`, and says how many it left out: 
 
 ## 4.3 Sources
 
-A source is one discovery event or document. It is stored as a **record**, so its id is
+A source is one event or document. It is stored as a **record**, so its id is
 `record_id`.
 
 | Field | Rule |
 |---|---|
 | `record_id` | Never changes, whatever else does (including a move to another product). |
 | `title` | 1–300 chars. Says what it is (who, what, when), never a file name. |
-| `date` | `YYYY-MM-DD`: the date of the **event or document** the discovery question turns on, never the upload date. `null` when genuinely unknown. The web app calls it the **date captured**. |
+| `date` | `YYYY-MM-DD`: the date of the **event or document** itself, never the upload date. `null` when genuinely unknown. The web app calls it the **date captured**. |
 | `slug` | Derived from the title. |
 | `tags` | ≤ 50, each 1–50 chars: what the material is, whom it concerns, what it bears on (§4.4). Stored NFKC-normalized, spacing collapsed, lower-case, without repeats. |
 | `copied_from` | `{ product_id, record_id }` when the source was copied from another product, as sources were until teams were removed; nothing copies one now ([§3.7](03-accounts-and-identity.md)). |
@@ -224,8 +224,8 @@ folder and no organization field
 ([decision](../decisions/sources-are-described-by-tags.md)).
 
 - A tag says what the material is (`interview`, `workshop`, `deck`, `analysis`), whom it concerns
-  (an organization, a segment) or what it bears on. Tags are free text and describe discovery
-  work, never a built-in classification. Derived material is tagged `analysis` (or `view`,
+  (an organization, a segment) or what it bears on. Tags are free text and describe the team's
+  material, never a built-in classification. Derived material is tagged `analysis` (or `view`,
   `digest`) (§4.9).
 - `sources.facets` lists what sources can be filtered by: `tags`, the tags in use with the number
   of sources carrying each, most used first and then A to Z (at most 500; `tags_truncated` says the
@@ -1073,8 +1073,9 @@ transaction, so a send that fails leaves them for the next try ([mail](../operat
 Otherwise reports stay in the database for whoever runs the deployment
 (◆ [decision](../decisions/feedback-names-nobody-and-reaches-the-maintainers-in-a-daily-digest.md)).
 
-**Where an account came from.** `accounts.came_from` is the path of the public site's landing page
-(`/`, `/what-to-build/`) a new account's sign-in started from, and `accounts.came_via` the button
+**Where an account came from.** `accounts.came_from` is the path of the public site's page a new
+account's sign-in started from (a landing page, `/` or `/what-to-build/`, or the plans page,
+`/plans/`), and `accounts.came_via` the button
 it came by (`explore`, Explore the demo; `start`, Start using WhatBuild): `?landing=` and
 `&button=` on its link, sent by the web app as `POST /api/v1/me/came-from`, kept once and only in
 the account's first day. `accounts.returned_at` is when the account first came back: its first
@@ -1086,7 +1087,8 @@ clears them.
 
 **Interest: the waitlist.** The public site's form (`POST /api/v1/interest { email, name?,
 organization?, note?, page? }`, no sign-in) records someone asking for an organization of their own, and so
-does a signed-in person who may not start one (`POST /api/v1/me/ask-for-organization`,
+does a signed-in person who may not start one and for whom none of the day's places is open
+(`POST /api/v1/me/ask-for-organization`,
 [§3.2](03-accounts-and-identity.md#32-accounts-and-sign-in)), under their account's address
 and name: `email` ≤ 320 chars,
 `name` and `organization` ≤ 200, `note` ≤ 2,000; `page` is the site's page it was sent from, its
@@ -1208,6 +1210,12 @@ activity.jsonl
   ([`0048_accounts_tutorial.sql`](../../apps/server/src/migrations/0048_accounts_tutorial.sql)),
   counting the welcome seen for whoever had been offered it, each page they had got past, and every
   tutorial for whoever had finished it.
+  [`0056_welcome_on_own_product.sql`](../../apps/server/src/migrations/0056_welcome_on_own_product.sql)
+  lets `tutorials_seen` hold `welcome-own` too: the welcome offered on a product of the person's
+  own, which comes once more after the example organization's ([§7.4](07-web-app.md#the-tutorial)).
+  It gave `welcome-own` to whoever had been offered the welcome and was in an organization other
+  than the example, so it does not come again for them; a guest of the example who had been
+  offered it is offered it once more on the first product of their own.
 - **An organization's name and slug** ([§3.3](03-accounts-and-identity.md#33-tenants),
   [`0036_organization_names.sql`](../../apps/server/src/migrations/0036_organization_names.sql)):
   `tenants.name_etag`, which guards the name and slug its owners and the instance's owners change;

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useMe, useProducts } from "../lib/session.tsx";
+import { mayStartOrganization, useMe, useProducts } from "../lib/session.tsx";
 import { Button, ButtonLink, Callout, Glyph } from "../ui/index.tsx";
 import { AskForOrganization } from "./ask-for-organization.tsx";
 import { timeLeft, useGuestPass } from "./guest-gate.tsx";
@@ -43,7 +43,7 @@ export function ExampleBanner({ tenant }: { tenant: { tenant_id: string; slug: s
       </p>
     );
   const ownOrgs = products.data!.tenants.filter((t) => !t.example).length;
-  const mayStart = me.data.tenant_allowance.remaining !== 0;
+  const mayStart = mayStartOrganization(me.data);
   const waiting = !ownOrgs && !mayStart && Boolean(me.data.asked_for_organization_at);
   const start = ownOrgs || waiting ? null : mayStart ? (
     <ButtonLink to="/welcome" size="sm" variant="primary">

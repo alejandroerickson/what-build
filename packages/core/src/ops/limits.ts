@@ -407,7 +407,7 @@ export const guestSettings = defineOperation({
   mutates: false,
   summary: "How guests come in and what they may do, with how many are in and waiting now (instance owners).",
   description:
-    "Guests are accounts in no organization, with no allowance to start one: they read the example organization and nothing else, and wait in line when every place is taken. settings are what this deployment has (each field in fields, with its default in defaults), organizations_per_day among them: how many organizations people may start themselves each UTC day. now gives how many guests are in, waiting, came in for the first time today, and have ever come in, and organizations_today, the day's places given. Change them with products.set_guests, whose expected_etag is etag.",
+    "Guests are accounts in no organization, with no allowance to start one: they read the example organization and nothing else, and wait in line when every place is taken. settings are what this deployment has (each field in fields, with its default in defaults), organizations_per_day among them: how many organizations people may start themselves each UTC day. now gives how many guests are in, waiting, came in for the first time today, and have ever come in, and organizations_today, the day's places used: those organizations were started on today, and those held for people let in from the waitlist today. Change them with products.set_guests, whose expected_etag is etag.",
   input: z.strictObject({}),
   rest: { method: "GET", path: "/guests" },
   mcp: { tool: "products", action: "guests" },

@@ -3,7 +3,7 @@ type: System Concept
 title: WhatBuild keeps each organization's material to its own people, and treats agent-written HTML, uploads and source text as hostile
 description: The threat model: what is protected, who the attackers are, the trust boundaries, and each control with where it lives in code and the decision that governs it.
 tags: [security, threat-model, tenancy, identity, oauth, example, limits, uploads]
-generated: {by: agent:claude, at: 2026-11-18}
+generated: {by: agent:claude, at: 2026-11-25}
 status: draft
 ---
 
@@ -15,7 +15,7 @@ holds each one; the linked decisions say why. Observed in the code on 2026-10-10
 
 ## What is protected
 
-- **Discovery material and what is built from it**: sources, their attachments and text, outcomes,
+- **Evidence and what is built from it**: sources, their attachments and text, outcomes,
   mockups and the Story. Transcripts carry customers' words and personal data.
 - **The boundaries** between organizations, between products in one, and between roles.
 - **Who people are** (to a guest of the example organization, who its people are), and **credentials**:

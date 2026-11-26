@@ -91,7 +91,7 @@ describe("who may create an organization", () => {
     expect(notice.subject).toBe("Owen Owner invited you to WhatBuild");
     expect(notice.text).toBe(
       "Owen Owner (owen@staff.example) invited you to start an organization on WhatBuild.\n\n" +
-        "WhatBuild turns a product team’s discovery material into outcomes, mockups and a Story for stakeholders.\n\n" +
+        "WhatBuild turns a product team’s evidence into outcomes, mockups and a Story for stakeholders.\n\n" +
         `Start here, signing in as nina@elsewhere.example:\n${h.baseUrl}/welcome\n`,
     );
     expect(await ask("nina@elsewhere.example")).toBe(true);
@@ -159,7 +159,7 @@ describe("on a deployment with a public site", () => {
       const owen = await sited.signIn("owen@staff.example", "Owen Owner");
       await owen.api("PUT", A, { email: "sol@elsewhere.example", allowed: 1 });
       expect(sited.mailer.sent.at(-1)!.text).toContain(
-        "\n\nWhatBuild turns a product team’s discovery material into outcomes, mockups and a Story for stakeholders. There’s more at https://site.example.\n\n",
+        "\n\nWhatBuild turns a product team’s evidence into outcomes, mockups and a Story for stakeholders. There’s more at https://site.example.\n\n",
       );
     } finally {
       await sited.close();

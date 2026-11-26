@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from "node:crypto";
-import { abuseRefusal, AppError, askForOrganization, retryAfter, spend, type AbuseLimitName, conflict, enterAsGuest, planName, escapeHtml, gone, invalid, isGuestAccount, isInstanceOwner, readGuests, tenantAllowanceOf, newId, notFound, oneLine, plainName, randomToken, safeNext, sha256Hex, SIGN_IN_LINK_MINUTES, SIGN_IN_LINK_SUBJECT, SIGN_IN_LINKS_PER_HOUR, unauthenticated, type Db, type InvitationsTable, type Mailer } from "@whatbuild/core";
+import { abuseRefusal, AppError, askForOrganization, retryAfter, spend, type AbuseLimitName, conflict, enterAsGuest, planName, escapeHtml, gone, invalid, isGuestAccount, isInstanceOwner, placeOpen, readGuests, tenantAllowanceOf, newId, notFound, oneLine, plainName, randomToken, safeNext, sha256Hex, SIGN_IN_LINK_MINUTES, SIGN_IN_LINK_SUBJECT, SIGN_IN_LINKS_PER_HOUR, unauthenticated, type Db, type InvitationsTable, type Mailer } from "@whatbuild/core";
 import { Hono, type Context } from "hono";
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 import { sql, type Selectable } from "kysely";
@@ -48,8 +48,12 @@ function signInLinkPage(email: string, token: string): string {
   );
 }
 
-/** The web app's tutorials, in their order: the welcome, then one for each of a product's four pages. */
-const TUTORIALS = ["welcome", "idea", "evidence", "exploration", "story"] as const;
+/**
+ * What the account keeps of the web app's tutorials shown, in their order: the welcome, the welcome
+ * offered on a product of the person's own besides the example organization (`welcome-own`), then
+ * one for each of a product's four pages.
+ */
+const TUTORIALS = ["welcome", "welcome-own", "idea", "evidence", "exploration", "story"] as const;
 
 /** The domain of an address, lower case. */
 const domainOf = (address: string) => address.slice(address.lastIndexOf("@") + 1).toLowerCase();
@@ -501,6 +505,8 @@ export function authRoutes(deps: { db: Db; config: ServerConfig; mailer: Mailer 
       guest: await isGuestAccount(db, config, p),
       // When they asked for an organization of their own (on the waitlist), from here or the public site.
       asked_for_organization_at: asked?.created_at ?? null,
+      // With no allowance of their own: whether one of the day's places is open, which they take only by starting an organization in the web app.
+      place_open: tenant_allowance.source === "default" && tenant_allowance.remaining === 0 ? await placeOpen(db, config, p) : false,
     };
   };
 
@@ -518,10 +524,12 @@ export function authRoutes(deps: { db: Db; config: ServerConfig; mailer: Mailer 
   });
 
   /**
-   * Ask for an organization of one's own: one of the day's places, while the deployment gives
-   * them and one is left, or else the waitlist the instance's owners read
-   * (`products.tenant_allowances`), as the public site's form does (`places.ts`). Asking again
-   * keeps one's place and adds what was sent. Someone who may already start one has no need to ask.
+   * Ask for an organization of one's own: where one of the day's places is open, nothing is written
+   * and the answer's `place_open` says they may start one now, taking the place only by starting it;
+   * a place held for them from the waitlist becomes their allowance; otherwise they join the waitlist
+   * the instance's owners read (`products.tenant_allowances`), as the public site's form does
+   * (`places.ts`). Asking again keeps one's place and adds what was sent. Someone who may already
+   * start one has no need to ask.
    */
   app.post("/api/v1/me/ask-for-organization", async (c) => {
     const p = await requirePrincipal(c);
@@ -538,8 +546,9 @@ export function authRoutes(deps: { db: Db; config: ServerConfig; mailer: Mailer 
 
   /**
    * Start using WhatBuild, the public site's button, after signing in: where to go next. Someone already in an
-   * organization goes to it; someone who may start one, or takes one of the day's places, goes to
-   * start it; anyone else joins the waitlist and is told so.
+   * organization goes to it; someone who may start one, or for whom one of the day's places is open,
+   * goes to start it, and uses the place only when they do; anyone else joins the waitlist and is
+   * told so.
    */
   app.post("/api/v1/me/start", async (c) => {
     const p = await requirePrincipal(c);

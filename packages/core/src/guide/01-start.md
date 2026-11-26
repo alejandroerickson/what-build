@@ -2,7 +2,7 @@
 
 What WhatBuild holds, how it is organized, who may do what, and the other topics of this guide.
 
-WhatBuild holds product-discovery material and what the people working on a product make of it. People work in
+WhatBuild holds a product team's evidence and what the people working on a product make of it. People work in
 the web app; agents work through this MCP server. Both reach the same operations and the same data,
 under the person's own account. WhatBuild contains no AI: it parses, stores, searches and checks
 deterministically.

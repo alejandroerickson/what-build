@@ -26,7 +26,7 @@
 // (apps/server/src/client-address.ts).
 
 /** The site's own paths. Every other path on its domain belongs to the app. */
-const SITE_FILES = /^\/(assets\/.+|favicon\.svg|theme-boot\.js)$/;
+const SITE_FILES = /^\/(assets\/.+|favicon\.svg|theme-boot\.js|social-card\.png)$/;
 
 /** What the site's pages send the service: a request to hear from us, and a landing page's button pressed (apps/server/src/site.ts). */
 const SITE_API = new Set(["/api/v1/interest", "/api/v1/pressed"]);
@@ -99,6 +99,13 @@ function pageHeaders(analytics, beacon, botCheck = false) {
 /** An attribute's value, written into HTML. */
 const attr = (v) => v.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
+/**
+ * A page's own address and its social card's, which the build gives from the site's root (its
+ * canonical link and og:url, og:image and twitter:image), made whole on the site's domain: a link
+ * preview (LinkedIn, X, Slack, iMessage) needs the whole address. As sitePage in apps/server/src/site.ts.
+ */
+const ADDRESSES = /(<link rel="canonical" href="|<meta (?:property="og:(?:url|image)"|name="twitter:image") content=")\//g;
+
 /** The site's pages, by path, and where each is in the build. */
 const SITE_PAGES = { "/": "/site/", "/plans": "/site/plans/", "/plans/": "/site/plans/", "/privacy": "/site/privacy/", "/privacy/": "/site/privacy/", "/what-to-build": "/site/what-to-build/", "/what-to-build/": "/site/what-to-build/" };
 
@@ -167,10 +174,10 @@ async function sitePage(request, url, env) {
     site ? `<meta name="whatbuild-site" content="${attr(site)}" />` : "",
     beacon ? `<script defer src="https://static.cloudflareinsights.com/beacon.min.js" data-cf-beacon='{"token": "${beacon}"}'></script>` : "",
   ].join("");
-  const body = head ? (await page.text()).replace("</head>", `${head}\n</head>`) : page.body;
-  const response = new Response(body, page);
+  const html = (await page.text()).replace(ADDRESSES, `$1https://${env.SITE_HOST}/`);
+  const response = new Response(head ? html.replace("</head>", `${head}\n</head>`) : html, page);
   for (const [name, value] of Object.entries(pageHeaders(Boolean(id), Boolean(beacon), botCheck))) response.headers.set(name, value);
-  if (head) response.headers.delete("Content-Length");
+  response.headers.delete("Content-Length");
   response.headers.set("Cache-Control", "no-cache");
   return response;
 }

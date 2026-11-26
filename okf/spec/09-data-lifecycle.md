@@ -3,7 +3,7 @@ type: Specification
 title: Nothing is ever trapped - say what we promise, keep export open, and never let a limit block a read.
 description: What we tell people, limits and quotas (enforced and planned), backups and in-product versioning, export, archive and permanent delete of everything archivable and of an organization, the operator runbooks, plans and their limits, how retired insights and decisions became sources, and how assumptions were removed.
 tags: [spec, lifecycle, quotas, backups, export, archive, delete, limits, plans]
-generated: {by: agent:claude, at: 2026-11-23}
+generated: {by: agent:claude, at: 2026-11-25}
 status: stable
 ---
 
@@ -104,8 +104,9 @@ compute, for 14 months, or until their account is deleted. Nothing kept names an
 content. Only the instance's owners read the totals (`products.usage`), which leave the owners out
 unless asked. `/cookies` says so under Counting without cookies. While the landing pages are
 compared, the server also counts each press of their buttons by day, page and button, naming
-nobody; an account keeps the landing page and button it came from, if it came from one, and when
-it first came back, which go when the account is deleted
+nobody. An account keeps the page of the site it came from, a landing page or the plans page, and
+the button it came by, if it came from one. It also keeps when it first came back. These go when
+the account is deleted
 ([decision](../decisions/the-landing-pages-are-compared-by-a-split-at-the-edge.md)).
 
 **In the example organization** nobody but its own members writes, and every account reads what
@@ -222,8 +223,9 @@ nothing, and a refused call that would have taken several (`members.grant_many`)
 Beside these: five sign-in links an hour per email address, the limits on sign-in and OAuth request
 bodies ([§3.8](03-accounts-and-identity.md)), feedback's ten reports a person and 200 for the
 deployment a UTC day, invite-only mode (`WHATBUILD_SIGNUP_ALLOWLIST`, [§3.2](03-accounts-and-identity.md)), in
-which an instance owner lets people in one at a time with an allowance, a guest's limit on calls
-a minute in the example organization (§9.7), and the plans' limits on what people do inside an
+which an instance owner lets people in one at a time with an allowance, New organizations a day,
+which bounds how many organizations people start themselves each UTC day (§9.7), a guest's limit on
+calls a minute in the example organization (§9.7), and the plans' limits on what people do inside an
 organization (§9.7). [The abuse test](../operations/abuse-test.md) floods a local instance to check
 them all together.
 The operator's view of usage by organization is built: `products.organizations` and Instance
@@ -578,6 +580,18 @@ through `readPlans`; reset goes back to the configured limits. A price set or cl
 replaces the configured one. A plan the deployment does not define is refused (`422
 unknown_plan`). A guest of the example meets the guests' calls a minute and bytes downloaded a day
 instead, set on the same page ([§3.10](03-accounts-and-identity.md#310-the-example-organization)).
+
+**New organizations a day** (`organizations_per_day`, Instance admin → Guests) bounds how many
+organizations people start themselves each UTC day, on the plan new organizations start on
+([§3.2](03-accounts-and-identity.md#32-accounts-and-sign-in),
+◆ [decision](../decisions/people-start-a-number-of-organizations-a-day-themselves.md)). A place
+counts only when an organization starts on it, or when it is held for someone let in from the
+waitlist, who gets the next places first; opening the Welcome form uses none. The place is taken in
+the transaction that creates the organization, under one lock across the deployment, so the day's
+number holds however many start at once, and whoever presses Start organization after the last
+place went is refused with `409 places_taken`, starts nothing and joins the waitlist. Instance
+owners read the day's places used in `products.guests` (`now.organizations_today`); nothing tells a
+visitor the number.
 
 | Limit | Setting | Counted over | Refusal |
 |---|---|---|---|

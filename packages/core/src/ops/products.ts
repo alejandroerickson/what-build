@@ -281,7 +281,8 @@ export const createTenant = defineOperation({
   rest: { method: "POST", path: "/tenants" },
   mcp: { tool: "products", action: "create_tenant" },
   async handler(ctx, input) {
-    await requireTenantAllowance(ctx.db, ctx.ports.config, ctx.principal);
+    // In the web app, someone with no allowance of their own starts their first on one of the day's places, taken here.
+    await requireTenantAllowance(ctx.db, ctx.ports.config, ctx.principal, { place: ctx.principal.surface === "web", now: new Date(ctx.now) });
     // Whoever runs the instance decides what organizations cost it: theirs are unlimited, everyone
     // else's on the plan the deployment names (WHATBUILD_NEW_ORGANIZATION_PLAN), unlimited unless it says free.
     const plan = isInstanceOwner(ctx.ports.config, ctx.principal.email) ? "unlimited" : (ctx.ports.config.newOrganizationPlan ?? "unlimited");
