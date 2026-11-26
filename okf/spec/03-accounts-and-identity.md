@@ -141,9 +141,10 @@ them, and the answer's `place_open` sends them to `/welcome`; where a place is o
 buttons are links to `/welcome` and ask nothing. Otherwise both write the `interest` row for their
 address, and asking again keeps their place. **The waitlist gets the next places first**: the day's
 free places go to those waiting, earliest first, before anyone new, when someone asks and every ten
-minutes while the worker is awake. Each is held for its person, counted on the day it is given
-whether or not they use it, and told by email ("Your place on WhatBuild is ready"), or there and then
-when they are the one asking. While someone waits for a free place, it is open to nobody else: no
+minutes while the worker is awake. Someone who joined an organization while they waited is passed
+over, and stays on the waitlist for an owner to let in. Each is held for its person, counted on the
+day it is given whether or not they use it, and told by email ("Your place on WhatBuild is ready"),
+or there and then when they are the one asking. While someone waits for a free place, it is open to nobody else: no
 newcomer sees it as open, and Start organization refuses it to them with `409 places_taken`.
 `GET /api/v1/me` gives `asked_for_organization_at`. Instance owners read the waitlist with
 `products.tenant_allowances` (`waitlist`: those who asked and have no allowance, earliest first)
@@ -333,9 +334,15 @@ one to what the tenant already has writes nothing. A change is recorded in the t
   (`tenant_allowances`), like an invitation, so it can be given before the account exists, and an
   allowance above 0 lets that address sign up while sign-up is limited ([§3.2](#32-accounts-and-sign-in)).
 - **An address without one has the deployment's default**, `WHATBUILD_TENANT_ALLOWANCE`, which is 0.
-- Over it, `products.create_tenant` answers `403 tenant_allowance` with `allowed` and `created`.
-  The check holds a lock on the account for the transaction, so two creations at once cannot both
-  take the last place.
+- **One of the day's places**, where the deployment gives them (`organizations_per_day`,
+  [§3.2](#32-accounts-and-sign-in), ◆ [decision](../decisions/people-start-a-number-of-organizations-a-day-themselves.md)):
+  in the web app, an account with no allowance of its own and in no organization starts its first
+  organization on one. `products.create_tenant` takes the place in the transaction that creates the
+  organization, under one lock across the deployment. When none is left for the account, it answers
+  `409 places_taken` and starts nothing. An agent takes no place.
+- Over the allowance, with no place to take, `products.create_tenant` answers
+  `403 tenant_allowance` with `allowed` and `created`. The check holds a lock on the account for the
+  transaction, so two creations at once cannot both take the last place.
 - Only instance owners read and change allowances, in the web app only (Who can start
   organizations and Waitlist, in Instance admin → Starting organizations; no agent is offered them, ◆
   [decision](../decisions/running-the-instance-is-done-in-the-web-app-never-by-an-agent.md)): `products.tenant_allowances`,

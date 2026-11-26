@@ -37,9 +37,11 @@ organization starts on it.
   `409 places_taken`, nothing is started, the app puts them on the waitlist with the name they typed,
   and the form gives way to "The last open place was taken just before you." and the waitlist line.
 - **The waitlist goes first**: the day's free places go to those waiting, earliest first, before
-  anyone new, whenever someone asks and every ten minutes while the worker is awake. Each is held
-  for its person, told by email ("Your place on WhatBuild is ready"), and counts on the day it was
-  given whether or not they use it: they were promised it. Nothing runs while the service sleeps.
+  anyone new, whenever someone asks and every ten minutes while the worker is awake. Someone who
+  joined an organization while they waited is passed over, and stays on the waitlist for an owner
+  to let in by hand. Each is held for its person, told by email ("Your place on WhatBuild is
+  ready"), and counts on the day it was given whether or not they use it: they were promised it.
+  Nothing runs while the service sleeps.
 - **Sign-up opens with it**: above 0, anyone may make an account, as when guests may sign up.
 - **Nothing tells a visitor the number**: not the site, `GET /api/v1/plans` (it says only
   `sign_up`), the sign-in page or the app. Instance owners see the day's places used in `products.guests`.

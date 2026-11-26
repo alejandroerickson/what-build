@@ -16,12 +16,12 @@ email; and with nobody let in, the site asks for an email instead. Each step sig
 address, so each is a new person.
 
 **Serve it with sign-up closed.** `pnpm dev:e2e` sets no sign-up allowlist, and with none anyone
-can make an account whatever the guests' settings say, so step 11 could never close it. Serve the
+can make an account whatever the guests' settings say, so step 12 could never close it. Serve the
 instance for the whole plan with Riley alone on the allowlist:
-`WHATBUILD_SIGNUP_ALLOWLIST=riley@example.com pnpm dev:e2e`. Steps 1 to 10 hold the same with it:
+`WHATBUILD_SIGNUP_ALLOWLIST=riley@example.com pnpm dev:e2e`. Steps 1 to 11 hold the same with it:
 from step 1, guests' sign-up and New organizations a day each let anyone make an account.
 
-**Two people at once.** Step 6 needs two people signed in at the same time: one in the plan's
+**Two people at once.** Step 7 needs two people signed in at the same time: one in the plan's
 browser (`pnpm e2e browser`), the other in a second browser of your own, such as a private window,
 signed in the same way.
 
@@ -72,38 +72,45 @@ new person whose mail still reaches you; delete each such account afterwards in 
 5. **Web, from `/site/`, as `new2@example.com`.** As step 3, and start the organization.
    *Expect:* starting it opens the product's Idea with **Connect your agent** first, once the
    tutorial's welcome over it is turned off.
-6. **Web, from `/site/`, as `new3@example.com` and, in a second browser, `new4@example.com`.** Each
+6. **Web, as Riley, then from `/site/` as `waiting@example.com`.** Riley sets **Guests in at once**
+   to 0 in Instance admin → Guests, so no guest comes into the example, and New organizations a day
+   to 3, which leaves two places open today. Then `waiting` presses **Explore the demo** and signs
+   in. *Expect:* the waiting page, "WhatBuild isn’t letting guests in right now", with **Start your
+   own organization** as a link. Following it opens the Welcome form. Starting the organization
+   opens the product's Idea, not the waiting page, and moving to Evidence and back stays in the
+   app. Riley then sets Guests in at once back to what it was.
+7. **Web, from `/site/`, as `new3@example.com` and, in a second browser, `new4@example.com`.** Each
    presses Start using WhatBuild and signs in. *Expect:* both see the Welcome form. `new3` fills it
    in and starts their organization, which takes the day's last place. Then `new4`, whose form is
    still open, fills it in and presses Start organization. *Expect:* nothing is started; the form
    gives way to "The last open place was taken just before you." and "Your organization is on its
    way. We’ll email new4@example.com as soon as it’s ready.", with no number of places or day. Its
    overview, and the example's products, then say their organization is on its way.
-7. **Web, from `/site/`, as `new5@example.com`.** Press Start using WhatBuild and sign in.
+8. **Web, from `/site/`, as `new5@example.com`.** Press Start using WhatBuild and sign in.
    *Expect:* the overview, with the demo to read and a line saying their organization is on its way
    and that `new5@example.com` will hear as soon as it is ready; no Welcome form, and no number of
    places or day. The example's products open with "Your organization is on its way", the address
    they will hear at, and that nothing here can be changed.
-8. **Web, as Riley.** Open Instance admin → Starting organizations. *Expect:* `new2` and `new3`
-   each with an allowance of 1, given by "New organizations a day", not by Riley, and one
+9. **Web, as Riley.** Open Instance admin → Starting organizations. *Expect:* `new2`, `waiting`
+   and `new3` each with an allowance of 1, given by "New organizations a day", not by Riley, and one
    organization started; still no `new1`; `new4` first on the waitlist, with the organization's
    name they typed, and `new5` after.
-9. **Web, as Riley, then as `new6@example.com`.** Riley sets New organizations a day to 3, which
-   makes one more place today but gives it to nobody yet: it goes to the first in line when someone
-   next asks for an organization, or when the worker next looks (as it starts, then at most every
-   ten minutes). Then `new6` presses Start using WhatBuild on `/site/` and signs in. *Expect:* the
-   place goes to `new4`, who was first in line, by the time `new6` is answered (at `new6`'s asking,
-   unless the worker gave it first): the instance's output prints the mail "Your place on WhatBuild
-   is ready" to `new4@example.com`, with a link to `/welcome`, once; `new6` is told their
-   organization is on its way, and `new5` stays first in line. Signing in again as
-   `new4` and opening `/welcome` shows the form, and starting the organization works: the place was
-   held for them.
-10. **Web, from `/site/`, as `new7@example.com`.** Press **Explore the demo** and sign in.
+10. **Web, as Riley, then as `new6@example.com`.** Riley sets New organizations a day to 4, which
+    makes one more place today but gives it to nobody yet: it goes to the first in line when someone
+    next asks for an organization, or when the worker next looks (as it starts, then at most every
+    ten minutes). Then `new6` presses Start using WhatBuild on `/site/` and signs in. *Expect:* the
+    place goes to `new4`, who was first in line, by the time `new6` is answered (at `new6`'s asking,
+    unless the worker gave it first): the instance's output prints the mail "Your place on WhatBuild
+    is ready" to `new4@example.com`, with a link to `/welcome`, once; `new6` is told their
+    organization is on its way, and `new5` stays first in line. Signing in again as
+    `new4` and opening `/welcome` shows the form, and starting the organization works: the place was
+    held for them.
+11. **Web, from `/site/`, as `new7@example.com`.** Press **Explore the demo** and sign in.
     *Expect:* the overview with the demo, as a guest. Its products open with "Like what you see?"
     and "Start using WhatBuild and engineer your next product.", with **Start using WhatBuild**;
     pressing it says the organization is on its way (no places left today), and the banner says
     the same from then on.
-11. **Web, as Riley, then signed out.** Riley sets New organizations a day to 0 and turns guests'
+12. **Web, as Riley, then signed out.** Riley sets New organizations a day to 0 and turns guests'
     sign-up off; open `/site/` again in a fresh browser (see Reading the site again, above). This
     holds only on an instance served with a sign-up allowlist, as above: with none, sign-up stays
     open. *Expect:* Start using WhatBuild now leads to the form at the end,
@@ -122,4 +129,6 @@ new person whose mail still reaches you; delete each such account afterwards in 
   organizations a day" with nothing started, for anyone not let in from the waitlist.
 - Someone who pressed Start organization after the last place went left with their organization
   half started, or with no word that they are in line.
+- Someone who started their organization from the waiting page shown the waiting page again over
+  their own product.
 - `?landing=` or `button=` staying on an address after sign-in.

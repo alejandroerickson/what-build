@@ -83,7 +83,11 @@ async function give(db: Db, email: string, now: Date): Promise<boolean> {
   return Boolean(made);
 }
 
-/** The people waiting: asked for an organization, have no allowance, are not an owner; earliest first. */
+/**
+ * The people waiting: asked for an organization, have no allowance, are not an owner, and are in no
+ * organization; earliest first. Someone who joined an organization while they waited is passed over,
+ * as Start organization passes them over (`mayTakePlace`), and stays on the waitlist an owner reads.
+ */
 async function waiting(db: Db, owners: Set<string>, n: number) {
   if (n <= 0) return [];
   const rows = await db
@@ -91,6 +95,9 @@ async function waiting(db: Db, owners: Set<string>, n: number) {
     .leftJoin("tenant_allowances as a", (j) => j.on(sql`a.email`, "=", sql`lower(i.email)`))
     .select([sql<string>`lower(i.email)`.as("email"), "i.created_at"])
     .where("a.email", "is", null)
+    .where(
+      sql<boolean>`NOT EXISTS (SELECT 1 FROM accounts ac JOIN memberships m ON m.account_id = ac.account_id WHERE lower(ac.email) = lower(i.email) AND ac.deleted_at IS NULL)`,
+    )
     .orderBy("i.created_at")
     .limit(n + owners.size)
     .execute();

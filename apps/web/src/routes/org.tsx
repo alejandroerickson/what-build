@@ -54,7 +54,11 @@ export function Welcome() {
       return p.path;
     },
     onSuccess: async (path) => {
-      await qc.invalidateQueries({ queryKey: ["products"] });
+      // A guest who started on one of the day's places is a guest no longer, and has used the place:
+      // what the app holds of them is read again before their product opens, so the guests' gate
+      // lets them through rather than showing the waiting page they may have come from.
+      await Promise.all([qc.invalidateQueries({ queryKey: ["products"] }), qc.invalidateQueries({ queryKey: ["me"] })]);
+      qc.removeQueries({ queryKey: ["guest-pass"] });
       navigate(`/t/${path}/idea`);
     },
     // Nothing was started: they join the waitlist with the name they typed, and read why, unless a place opened again meanwhile.

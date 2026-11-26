@@ -174,6 +174,30 @@ describe("new organizations a day", () => {
     expect((await givePlaces(h.db, h.ports, undefined, day(3))).released).toEqual([]);
   });
 
+  it("passes over, when giving places to the waitlist, someone who joined an organization while they waited", async () => {
+    await setDaily(50);
+    const ida = await h.signIn("ida@example.com", "Ida");
+    const jon = await h.signIn("jon@example.com", "Jon");
+    // No place is open today, so both join the waitlist: Ida first.
+    await openPlaces(0);
+    for (const b of [ida, jon]) expect((await b.api<Me>("POST", "/api/v1/me/ask-for-organization", {})).body).toMatchObject({ place_open: false, asked_for_organization_at: expect.any(String) });
+    // Meanwhile Ida joins someone's organization.
+    expect((await owner.api("POST", "/api/v1/tenants", { name: "Owen's studio" })).status).toBe(201);
+    const studio = (await owner.api<{ tenants: { slug: string; name: string }[] }>("GET", "/api/v1/me/products")).body.tenants.find((t) => t.name === "Owen's studio")!;
+    expect((await owner.api("POST", `/api/v1/tenants/${studio.slug}/members`, { email: "ida@example.com", role: "editor", all_products: true })).status).toBe(201);
+    // Places come free. Jon gets one; Ida, in an organization now, gets none and no mail, and stays on the waitlist for an owner to let in.
+    await setDaily(50);
+    const mailed = h.mailer.sent.length;
+    const { released } = await givePlaces(h.db, h.ports);
+    expect(released).toContain("jon@example.com");
+    expect(released).not.toContain("ida@example.com");
+    expect(h.mailer.sent.slice(mailed).map((m) => m.to)).not.toContain("ida@example.com");
+    expect(await allowanceOf("ida@example.com")).toBeUndefined();
+    expect(await me(ida)).toMatchObject({ place_open: false, asked_for_organization_at: expect.any(String), tenant_allowance: { remaining: 0, source: "default" } });
+    const waitlist = (await owner.api<{ waitlist: { email: string }[] }>("GET", "/api/v1/tenant-allowances")).body.waitlist.map((w) => w.email);
+    expect(waitlist).toContain("ida@example.com");
+  });
+
   it("never says on the public site how many organizations a day it gives", async () => {
     await setDaily(7);
     const plans = await (await fetch(`${h.baseUrl}/api/v1/plans`)).text();

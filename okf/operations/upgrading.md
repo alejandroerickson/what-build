@@ -39,8 +39,9 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
   organization, and someone who looks and leaves uses none. Whoever presses it after the day's last
   place went is told so, starts nothing and joins the waitlist with the name they typed. A place let
   go to someone on the waitlist is still held for them, by email, and counts on the day it is given.
-  Starting organizations in Instance admin therefore lists only those who started one or were let
-  in. Places already given before the release stay their holders' allowances. Welcome no longer
+  Someone on the waitlist who joined an organization meanwhile is passed over, and stays on the
+  waitlist for an owner to let in. Starting organizations in Instance admin therefore lists only
+  those who started one or were let in. Places already given before the release stay their holders' allowances. Welcome no longer
   waits behind the guests' waiting page. An agent's `create_tenant` takes no place, as before. No
   migration and nothing to do (`tools_version` 0.72.0, for the guide's wording); a number set for
   New organizations a day now counts organizations started, so an owner who set it to allow for

@@ -104,7 +104,8 @@ is the same for everyone, an instance owner included: it changes nothing.
    next free places first, by email, without the owner doing anything. A place is used when someone
    starts an organization on it, or when it is held for someone let in from the waitlist; someone
    who opens the Welcome form and leaves uses none, so the number is organizations started, not
-   people who looked. It starts at 0. The number
+   people who looked. Someone in line who joined an organization meanwhile gets no place by
+   itself, and stays on the waitlist for the person to let in. It starts at 0. The number
    is the deployment's: never write it into the repository, and nothing shows it to visitors.
    Suggest starting low and raising it as the deployment holds up.
 6. **Guests**: only with an example organization. The person changes them under Guests in

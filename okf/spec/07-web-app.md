@@ -539,7 +539,7 @@ new tab ([§7.8](#78-story), [§6](06-operations-and-adapters.md)).
    ready.", as every screen that says they are on the waitlist does.
 3. **First run** (`/welcome`): name the organization and the first product in one form, for an
    account that may create one, or for which one of the day's places is open
-   ([§3.3](03-accounts-and-identity.md)). The sheet holds the heading
+   ([§3.3](03-accounts-and-identity.md#33-tenants)). The sheet holds the heading
    ("Welcome, <first name>"), "Name your organization and its first product.", the Organization
    ("Your company or group."), Product ("The product you’re working on.") and Product concept
    fields, and Start organization; under the button, for someone who is not an instance owner,
@@ -1690,8 +1690,10 @@ never described as deleting. A list row showing an archived object says *Archive
   `apps/web/src/shell/guest-gate.tsx`). A guest account sees the app only while it holds a place
   (`GET /api/v1/me/guest-pass`), but for Welcome (`/welcome`), which reads nothing of the example
   and asks for no place: someone for whom one of the day's places is open starts their organization
-  there however full the example is, and keeps the form while they type. The app asks only when the guest does something: when it opens,
-  when they move to another screen or come back to the tab once the last answer is a minute old,
+  there however full the example is, and keeps the form while they type. Once it is started they
+  are a guest no longer: the app reads them again before their product opens, so the waiting page
+  does not come back. The app asks only when the guest does something: when it opens, when they
+  move to another screen or come back to the tab once the last answer is a minute old,
   and when they press **Try again**; never on a timer, so a tab left open neither holds a place
   nor keeps the database awake. The server decides the place on every call the guest makes, and a
   call refused with `guest_waiting` brings the waiting page at once, from the refusal's own
