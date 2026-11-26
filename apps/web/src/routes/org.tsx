@@ -5,7 +5,7 @@ import { Link, useNavigate } from "react-router";
 import { api, ApiError, qs } from "../lib/api.ts";
 import { aRole, formatDate, plural, ROLE_WORD, roleWords, scopeWords, slugProblem } from "../lib/format.ts";
 import { keptLine, usePlans, type Plan } from "../lib/limits.ts";
-import { useMe, useProducts } from "../lib/session.tsx";
+import { mayStartOrganization, useAskForOrganization, useMe, useProducts } from "../lib/session.tsx";
 import { ActivityLog, type ActivityItem } from "../shell/ActivityFeed.tsx";
 import { InvitationsSheet, useInvitations } from "../shell/invitations.tsx";
 import {
@@ -31,15 +31,21 @@ const CONCEPT_MAX = 8000;
 
 // ---- First run ----------------------------------------------------------------------------------
 
+/** The refusal of Start organization when the last of the day's places went to someone else first. */
+const placesTaken = (e: unknown) => e instanceof ApiError && e.code === "places_taken";
+
 export function Welcome() {
   const me = useMe();
   const products = useProducts();
   const invitations = useInvitations();
   const qc = useQueryClient();
   const navigate = useNavigate();
+  const ask = useAskForOrganization();
   const [org, setOrg] = useState("");
   const [product, setProduct] = useState("");
   const [concept, setConcept] = useState("");
+  // The last open place went to someone else between opening the form and pressing Start organization.
+  const [missed, setMissed] = useState(false);
   const ready = Boolean(org.trim()) && Boolean(product.trim()) && !tooLong(org, NAME_MAX) && !tooLong(product, NAME_MAX) && !tooLong(concept, CONCEPT_MAX);
   const create = useMutation({
     mutationFn: async () => {
@@ -51,18 +57,25 @@ export function Welcome() {
       await qc.invalidateQueries({ queryKey: ["products"] });
       navigate(`/t/${path}/idea`);
     },
+    // Nothing was started: they join the waitlist with the name they typed, and read why, unless a place opened again meanwhile.
+    onError: (e) => {
+      if (placesTaken(e)) ask.mutate({ organization: org.trim() }, { onSuccess: (m) => setMissed(!mayStartOrganization(m)) });
+    },
   });
   const first = me.data?.display_name.split(" ")[0];
-  const allowance = me.data?.tenant_allowance;
   // The example organization is everyone's to read, not one of theirs.
   const hasOrgs = Boolean(products.data?.tenants.some((t) => !t.example));
   const example = products.data?.tenants.find((t) => t.example);
   const invited = Boolean(invitations.data?.items.length);
   const contact = useContact();
+  // Someone shown the form keeps it while they type, even if the place they would take goes meanwhile: pressing Start organization says so.
+  const [formShown, setFormShown] = useState(false);
+  const mayStart = me.data ? mayStartOrganization(me.data) : true;
+  if (me.data && mayStart && !formShown) setFormShown(true);
   // Nothing here for them to set up: only the people who run this WhatBuild let anyone start an
-  // organization. Someone in none may ask for one, as on Home; someone who started all they may is
-  // told whom to write to.
-  if (me.data && allowance?.remaining === 0) {
+  // organization, or one of the day's places that is open. Someone in none may ask for one, as on
+  // Home; someone who started all they may is told whom to write to.
+  if (me.data && !mayStart && (!formShown || missed)) {
     return (
       <EntryPage title="Welcome · WhatBuild" wide>
         <InvitationsSheet />
@@ -71,7 +84,11 @@ export function Welcome() {
           <SheetBody className="entry-form">
             {!hasOrgs ? (
               <>
-                <p>You&rsquo;re not in an organization yet.{invited ? " Accept an invitation to join one." : ""}</p>
+                {missed ? (
+                  <p>The last open place was taken just before you.</p>
+                ) : (
+                  <p>You&rsquo;re not in an organization yet.{invited ? " Accept an invitation to join one." : ""}</p>
+                )}
                 <AskForOrganization />
               </>
             ) : (
@@ -111,8 +128,8 @@ export function Welcome() {
           <TextField label="Organization" hint="Your company or group." required maxLength={NAME_MAX} value={org} onChange={(e) => setOrg(e.target.value)} />
           <TextField label="Product" hint="The product you’re working on." required maxLength={NAME_MAX} value={product} onChange={(e) => setProduct(e.target.value)} />
           <TextArea label="Product concept" optional hint="Who it’s for, their problem, and how the product solves it." maxLength={CONCEPT_MAX} rows={3} value={concept} onChange={(e) => setConcept(e.target.value)} />
-          {create.isError ? <ErrorCallout inset error={create.error} /> : null}
-          <Button type="submit" variant="primary" busy={create.isPending} busyLabel="Starting…" disabled={!ready}>
+          {create.isError && !(placesTaken(create.error) && (ask.isPending || missed)) ? <ErrorCallout inset error={create.error} /> : null}
+          <Button type="submit" variant="primary" busy={create.isPending || ask.isPending} busyLabel="Starting…" disabled={!ready}>
             Start organization
           </Button>
           <NewOrganizationPlan plan={me.data?.new_organization_plan ?? "unlimited"} />

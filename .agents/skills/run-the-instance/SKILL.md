@@ -101,7 +101,10 @@ is the same for everyone, an instance owner included: it changes nothing.
    for whoever they choose, which gives an allowance of 1 and emails them. Being on the waitlist
    lets nobody in by itself, unless **New organizations a day** (under Guests) is above 0: then
    people start organizations themselves up to that number each UTC day, and the waitlist gets the
-   next free places first, by email, without the owner doing anything. It starts at 0. The number
+   next free places first, by email, without the owner doing anything. A place is used when someone
+   starts an organization on it, or when it is held for someone let in from the waitlist; someone
+   who opens the Welcome form and leaves uses none, so the number is organizations started, not
+   people who looked. It starts at 0. The number
    is the deployment's: never write it into the repository, and nothing shows it to visitors.
    Suggest starting low and raising it as the deployment holds up.
 6. **Guests**: only with an example organization. The person changes them under Guests in

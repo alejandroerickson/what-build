@@ -3,7 +3,7 @@ type: Specification
 title: The web app is a person's way to run the same operations an agent runs, one screen at a time.
 description: Principles, the shell and product switching, the overview, routes, first run, and the behavior of every screen (Idea, Evidence, Exploration, Story, Activity, archive and delete, Settings, Instance admin).
 tags: [spec, web, ui, routes, shell]
-generated: {by: agent:claude, at: 2026-11-23}
+generated: {by: agent:claude, at: 2026-11-25}
 status: stable
 ---
 
@@ -457,7 +457,7 @@ the window, while the scroll runs each scene, under "What to build?". On a narro
 the picture takes the top and the words the foot. A Scroll prompt bobs gently at the foot of the
 first screen and goes once the page moves; with reduced motion each scene shows settled. Where
 anyone may make an account (`sign_up` in what the page is told), **Start using WhatBuild** signs them in and
-goes to `/start`, which starts their organization or puts them on the waitlist
+goes to `/start`, which opens Welcome to start their organization or puts them on the waitlist
 ([§3.2](03-accounts-and-identity.md#32-accounts-and-sign-in)), and the last screen repeats it as a
 large button; where nobody may yet, it leads to the form at the foot, which asks for an email only
 and records it (`POST /api/v1/interest`, with the page it was sent from). The price of each plan
@@ -531,13 +531,15 @@ new tab ([§7.8](#78-story), [§6](06-operations-and-adapters.md)).
    overview, where the example organization ([§3.10](03-accounts-and-identity.md)) is listed,
    tagged Example organization and Read only, under a sheet, **Your own organization**, that says
    "Your team’s work goes in an organization of your own." and offers **Start your own
-   organization**: a link to `/welcome` where the account may create one, or, where it may not, a
-   button that takes one of the day's places and goes to `/welcome`, or puts them on the waitlist
+   organization**: a link to `/welcome` where the account may create one or one of the day's places
+   is open to it, which uses no place by itself; or, where neither, a button that goes to `/welcome`
+   when a place held for them from the waitlist is there, or puts them on the waitlist
    ([§3.2](03-accounts-and-identity.md#32-accounts-and-sign-in)). Once they are on it, the sheet
    says only "Your organization is on its way. We’ll email <their address> as soon as it’s
    ready.", as every screen that says they are on the waitlist does.
 3. **First run** (`/welcome`): name the organization and the first product in one form, for an
-   account that may create one ([§3.3](03-accounts-and-identity.md)). The sheet holds the heading
+   account that may create one, or for which one of the day's places is open
+   ([§3.3](03-accounts-and-identity.md)). The sheet holds the heading
    ("Welcome, <first name>"), "Name your organization and its first product.", the Organization
    ("Your company or group."), Product ("The product you’re working on.") and Product concept
    fields, and Start organization; under the button, for someone who is not an instance owner,
@@ -546,7 +548,12 @@ new tab ([§7.8](#78-story), [§6](06-operations-and-adapters.md)).
    stays. The plan's limits wait until one is reached, and what whoever runs this WhatBuild sees of
    an organization is on its Plan page; a deployment that offers no plans shows no line. Under the
    sheet are Privacy and, for someone with an organization of their own, Back to your products.
-   The same form, titled New organization, starts another. An account in no organization that may
+   The same form, titled New organization, starts another. Opening the form takes no place:
+   pressing Start organization does, and the form stays while they type, even if the place goes
+   meanwhile. When the last place went to someone else first (`409 places_taken`), nothing is
+   started, they join the waitlist with the organization's name they typed, and the sheet reads
+   "The last open place was taken just before you." and the waitlist line
+   ([§3.2](03-accounts-and-identity.md#32-accounts-and-sign-in)). An account in no organization that may
    not start one reads "You’re not in an organization yet." (with "Accept an invitation to join
    one." when one waits) and the same **Start your own organization** as the overview, or the
    waitlist line once asked. One that has started all it may reads, under "You can’t start another
@@ -1681,7 +1688,9 @@ never described as deleting. A list row showing an archived object says *Archive
   toast, and the list is asked for again. On a phone the buttons take a line under the words.
 - **The waiting page** (any signed-in address, for a guest account that is not in; `GuestGate` in
   `apps/web/src/shell/guest-gate.tsx`). A guest account sees the app only while it holds a place
-  (`GET /api/v1/me/guest-pass`). The app asks only when the guest does something: when it opens,
+  (`GET /api/v1/me/guest-pass`), but for Welcome (`/welcome`), which reads nothing of the example
+  and asks for no place: someone for whom one of the day's places is open starts their organization
+  there however full the example is, and keeps the form while they type. The app asks only when the guest does something: when it opens,
   when they move to another screen or come back to the tab once the last answer is a minute old,
   and when they press **Try again**; never on a timer, so a tab left open neither holds a place
   nor keeps the database awake. The server decides the place on every call the guest makes, and a
@@ -1690,8 +1699,9 @@ never described as deleting. A list row showing an archived object says *Archive
   badge: **WhatBuild is full right now** with its place in line and the progress mark, then "Try
   again within two minutes to keep your place." and **Try again**; **Today's places for new guests
   are taken** or **You've used today's time**, the badge saying when it opens again, and no line
-  under it; or that no guests are let in, "Try again later.", with **Try again**. Then **Ask for
-  your own organization** (or, once asked, the waitlist line), **Sign out** and **Settings**
+  under it; or that no guests are let in, "Try again later.", with **Try again**. Then **Start
+  your own organization** (a link to `/welcome` where one of the day's places is open to them, or,
+  once asked, the waitlist line), **Sign out** and **Settings**
   (`/settings`, a page of its own for them), which a waiting guest still reaches. A guest that is in sees, on the example's one-line notice, the time
   left today.
 - **Cookies** (`/cookies`, readable signed out; `apps/web/src/routes/cookies.tsx`). What cookies
@@ -1832,8 +1842,9 @@ never described as deleting. A list row showing an archived object says *Archive
   its content. To a guest with no organization of their own it is an invitation: "Like what you
   see?", "Start using WhatBuild and engineer your next product. This demo is here to read: nothing in
   it can be changed.", with **Start using WhatBuild** (to
-  `/welcome` where they may create one; otherwise it takes one of the day's places or puts them on
-  the waitlist), and once they are on it, "Your organization is on its way" with the address they
+  `/welcome` where they may create one or one of the day's places is open to them, using no place
+  by itself; otherwise it goes to `/welcome` when a place held for them from the waitlist is there,
+  or puts them on the waitlist), and once they are on it, "Your organization is on its way" with the address they
   will hear at. To a guest with one of their own, "This is the demo", "A demo to learn from.
   Nothing here can be changed." It shows in full until they press Got
   it, then as one line, "Demo · read only", keeping the button (remembered per

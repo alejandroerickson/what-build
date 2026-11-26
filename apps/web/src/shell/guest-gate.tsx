@@ -42,13 +42,16 @@ const PASS_FRESH_MS = 60_000;
  * page), never on a timer, so an open tab nobody looks at neither holds a place nor keeps the
  * database awake. The server decides the place on every call the guest makes, and a call refused
  * because they are not in brings the waiting page at once. An invitation waiting for them shows on
- * either, since accepting one ends the wait. Anyone else goes straight through.
+ * either, since accepting one ends the wait. Welcome (`/welcome`) reads nothing of the example, so
+ * it takes no guest's place: someone for whom one of the day's places is open starts their
+ * organization there however full the example is, and stays on the form while they type. Anyone
+ * else goes straight through.
  */
 export function GuestGate({ children }: { children: ReactNode }) {
   const me = useMe();
   const loc = useLocation();
   const qc = useQueryClient();
-  const guest = Boolean(me.data?.guest);
+  const guest = Boolean(me.data?.guest) && loc.pathname !== "/welcome";
   const pass = useQuery({
     queryKey: ["guest-pass"],
     queryFn: () => api<GuestPass>("GET", "/api/v1/me/guest-pass"),

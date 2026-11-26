@@ -3,7 +3,7 @@ type: System Concept
 title: WhatBuild runs as one stateless Cloud Run service with Postgres and a Cloud Storage bucket.
 description: What a deployment on Cloud Run is made of, how deploy/cloud-run/setup.sh creates it, sign-in, deploying and restore points before migrating, its alerts and traces, cost, names, and useful commands; backups and the dev deployment have guides of their own.
 tags: [operations, deployment, cloud-run, gcp]
-generated: {by: agent:claude, at: 2026-11-23}
+generated: {by: agent:claude, at: 2026-11-25}
 status: stable
 ---
 
@@ -486,6 +486,10 @@ Instance owners read it in Instance admin, under Starting organizations → **Wa
 someone in from there. With **New organizations a day** above 0 (Instance admin → Guests), people
 start organizations themselves up to that number each UTC day, and the waitlist gets the next free
 places first, by email ([decision](../decisions/people-start-a-number-of-organizations-a-day-themselves.md)).
+A place counts when an organization starts on it, or when it is held for someone let in from the
+waitlist: someone who presses Start using WhatBuild and leaves the Welcome form uses none, so
+Starting organizations lists only those who started one or were let in, and `products.guests`
+gives the day's places used (`now.organizations_today`).
 
 ## Alerts
 

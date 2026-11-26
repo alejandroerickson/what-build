@@ -3,7 +3,7 @@ type: Specification
 title: Every capability is one registered operation, reached identically over REST and MCP.
 description: The operation registry, the error model and bounds, the full catalogue of 142 operations with their REST routes and MCP tools, authorization and agent connection levels, upload flows, the guide and the Connect page.
 tags: [spec, operations, rest, mcp, registry, uploads, guide]
-generated: {by: agent:claude, at: 2026-11-23}
+generated: {by: agent:claude, at: 2026-11-25}
 status: stable
 ---
 
@@ -736,8 +736,8 @@ GET  /documents/:grant/<name>?theme=&frame=          on a content site: a docume
 GET  /api/v1/meta                                    release, MCP server name and tools version, sign-in methods, where the privacy page and the public site are (public)
 GET  /api/v1/plans                                   the plans the deployment offers (none, if it defines none), every limit of each and its price, starting_plan, example, whether guests may sign up, and what the privacy page names (public)
 GET  /api/v1/me/guest-pass                           a guest account's place: let in when there is room, or why not and when to ask again
-POST /api/v1/me/ask-for-organization                 one of the day's places, or the waitlist, for an organization of one's own (§3.2)
-POST /api/v1/me/start                                Start using WhatBuild after sign-in: where to go, taking a place or joining the waitlist (§3.2)
+POST /api/v1/me/ask-for-organization                 whether one of the day's places is open, or else the waitlist, for an organization of one's own; holds no place (§3.2)
+POST /api/v1/me/start                                Start using WhatBuild after sign-in: where to go, to Welcome where a place is open, using none, or joining the waitlist (§3.2)
 POST /api/v1/me/came-from { page, button? }          which landing page of the site a new account came from, and by which button, kept once (§7.3)
 POST /api/v1/pressed { page, button }                a landing page's button pressed, counted per day, page and button (public, §7.3)
 GET  /api/v1/connect                                 what Connect an agent shows

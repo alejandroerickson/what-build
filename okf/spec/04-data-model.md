@@ -3,7 +3,7 @@ type: Specification
 title: Every object in a product, with its fields, limits and invariants, as the REST and MCP wire sees it.
 description: The common envelope (ids, etags, attribution, revisions), outcomes, sources and their tags, attachments, comments, summaries and notes, evidence links, the retired insights, decisions and assumptions, views, activity, Story, mockups, feedback, the product bundle, and the storage layout.
 tags: [spec, data-model, schema, revisions, story, mockups, export]
-generated: {by: agent:claude, at: 2026-11-23}
+generated: {by: agent:claude, at: 2026-11-25}
 status: stable
 ---
 
@@ -1086,7 +1086,8 @@ clears them.
 
 **Interest: the waitlist.** The public site's form (`POST /api/v1/interest { email, name?,
 organization?, note?, page? }`, no sign-in) records someone asking for an organization of their own, and so
-does a signed-in person who may not start one (`POST /api/v1/me/ask-for-organization`,
+does a signed-in person who may not start one and for whom none of the day's places is open
+(`POST /api/v1/me/ask-for-organization`,
 [§3.2](03-accounts-and-identity.md#32-accounts-and-sign-in)), under their account's address
 and name: `email` ≤ 320 chars,
 `name` and `organization` ≤ 200, `note` ≤ 2,000; `page` is the site's page it was sent from, its

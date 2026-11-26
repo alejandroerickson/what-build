@@ -3,7 +3,7 @@ type: Process
 title: What a deployment must do when it takes a release
 description: The changes a release asks of the people who run a deployment (settings, app registrations, behaviour they will notice), kept per release, with the unreleased ones on top until the next release carries them into its notes.
 tags: [operations, releases, upgrading, self-hosting, configuration]
-generated: {by: agent:claude, at: 2026-11-23}
+generated: {by: agent:claude, at: 2026-11-25}
 status: stable
 ---
 
@@ -33,6 +33,18 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
 
 ## Unreleased
 
+- **A day's place is used only when an organization starts on it.** With New organizations a day
+  above 0, Start using WhatBuild, and Start your own organization in the app, now only say whether
+  a place is open and take people to the Welcome form; the place is taken when they press Start
+  organization, and someone who looks and leaves uses none. Whoever presses it after the day's last
+  place went is told so, starts nothing and joins the waitlist with the name they typed. A place let
+  go to someone on the waitlist is still held for them, by email, and counts on the day it is given.
+  Starting organizations in Instance admin therefore lists only those who started one or were let
+  in. Places already given before the release stay their holders' allowances. Welcome no longer
+  waits behind the guests' waiting page. An agent's `create_tenant` takes no place, as before. No
+  migration and nothing to do (`tools_version` 0.72.0, for the guide's wording); a number set for
+  New organizations a day now counts organizations started, so an owner who set it to allow for
+  people who look and leave may lower it.
 - **Mockups and Story pages keep their newest 10 versions, and older ones are deleted.** Publishing
   a version of a mockup or a Story page past what its organization's plan keeps
   (`mockup_versions_max`, `story_page_versions_max`) deletes its oldest versions, for good; a mockup
