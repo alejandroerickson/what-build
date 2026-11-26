@@ -117,6 +117,9 @@ export function contentDocumentRoutes(env: Env & { config: ServerConfig }) {
               async enqueue() {
                 throw new Error("A document is only read.");
               },
+              afterCommit() {
+                throw new Error("A document is only read.");
+              },
             };
             return printDocumentAt(ctx, versions);
           });

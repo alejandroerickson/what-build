@@ -190,6 +190,7 @@ export function createPorts(config: ServerConfig, blobs: BlobStore, mailer: Mail
       instanceOwners: config.instanceOwners,
       defaultTenantAllowance: config.defaultTenantAllowance,
       newOrganizationPlan: config.newOrganizationPlan,
+      abuseLimits: config.abuseLimits,
       // Derived from the grant key, so a deployment sets nothing new and its pseudonyms are its own.
       usageKey: createHmac("sha256", config.grantKey).update("whatbuild usage people").digest("base64url"),
       // A deployment that sends no mail keeps its feedback in the database.
@@ -343,7 +344,7 @@ export function createApp(deps: { db: Db; ports: Ports; config: ServerConfig; re
     const opened = ["document", "iframe", "frame"].includes(c.req.header("sec-fetch-dest") ?? "");
     return c.json({ error: { code: "not_found", status: 404, message: opened ? "WhatBuild has nothing at this address." : `No route ${c.req.method} ${c.req.path}.` } }, 404);
   });
-  if (deps.config.webDist) app.route("/", staticRoutes(deps.config.webDist, { analytics: Boolean(deps.config.analyticsId), contentUrl: deps.config.contentUrl, uploadsTo: deps.ports.blobs.directUploadSource ?? null }));
+  if (deps.config.webDist) app.route("/", staticRoutes(deps.config.webDist, { analytics: Boolean(deps.config.analyticsId), contentUrl: deps.config.contentUrl, uploadsTo: deps.ports.blobs.directUploadSource ?? null, botCheck: Boolean(deps.config.turnstileSiteKey) }));
 
   app.onError((err, c) => {
     if (err instanceof AppError) return c.json({ error: err.toJSON() }, err.status as 400);

@@ -112,6 +112,8 @@ name what replaced it, and date the change. Smaller decisions are marked
 - [People start a number of organizations a day themselves, and the waitlist gets the next places first](people-start-a-number-of-organizations-a-day-themselves.md)
 - [The app has one address, and a page opened on another of the deployment's names moves to it](the-app-has-one-address-and-pages-on-other-hosts-move-to-it.md)
 - [Behind Cloudflare, the service answers only requests that carry the Worker's key](behind-cloudflare-the-service-answers-only-requests-that-carry-the-workers-key.md)
+- [Abuse limits count a client address only where the edge key vouches for it, and the deployment's ceilings stand behind them](abuse-limits-count-a-client-address-only-where-the-edge-key-vouches-for-it.md)
+- [The bot check is Cloudflare Turnstile, on the forms that mail someone or make an account, and a deployment may leave it off](the-bot-check-is-cloudflare-turnstile-and-a-deployment-may-leave-it-off.md)
 - [Lists filter from the panel; a table's header only sorts or searches](lists-filter-from-the-panel.md)
 - [An empty list says what belongs in it and what to ask an agent; adding by hand stays in the header](empty-lists-lead-with-the-agent.md)
 - [An assumption may be recorded before any evidence cites it](register-entries-may-start-uncited.md) (superseded)

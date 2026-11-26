@@ -33,6 +33,9 @@ async function grantContext(env: Env, trx: Tx, productId: string, actor: ActorSn
       await trx.insertInto("jobs").values({ tenant_id: tenant.tenant_id, kind, payload: json(payload) }).execute();
       enqueued.value = true;
     },
+    afterCommit() {
+      throw new Error("An upload's work sends nothing after it commits.");
+    },
   };
 }
 

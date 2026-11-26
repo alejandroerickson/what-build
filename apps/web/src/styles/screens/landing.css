@@ -881,6 +881,10 @@ html.ld-root::-webkit-scrollbar-thumb {
   padding: 0 40px;
   font-size: 18px;
 }
+/* The bot check's widget, under the row while it needs the person to act (data-shown, lib/bot-check.tsx). */
+.ld-join .bot-check[data-shown] {
+  margin-top: 10px;
+}
 .ld-thanks {
   margin: 12px 0 0;
   font-size: 18px;

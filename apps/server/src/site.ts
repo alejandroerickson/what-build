@@ -1,9 +1,11 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
-import { AppError, invalid, newId, type Db } from "@whatbuild/core";
+import { abuseRefusal, invalid, newId, retryAfter, spend, spendPerClient, type WindowedLimitName, type Db } from "@whatbuild/core";
 import { Hono } from "hono";
 import { sql } from "kysely";
 import { z } from "zod";
+import { botCheckFailed, BOT_CHECK_FIELD, passesBotCheck } from "./bot-check.ts";
+import { clientAddress, clientKeys } from "./client-address.ts";
 import type { ServerConfig } from "./config.ts";
 import { pageHeaders, siteCatalogue } from "./public-routes.ts";
 
@@ -51,8 +53,6 @@ function sitePage(path: string, analyticsId: string | null, site: unknown, at: {
   return head ? page.replace("</head>", `${head}\n</head>`) : page;
 }
 
-/** New requests to hear from us accepted per hour across the whole site, a crude guard against floods. */
-const INTEREST_PER_HOUR = 200;
 /** Presses of the landing pages' buttons counted per hour by one process, a crude guard against floods; past it they are dropped. */
 const PRESSES_PER_HOUR = 2000;
 const Pressed = z.strictObject({ page: z.enum(LANDING_PAGES), button: z.enum(LANDING_BUTTONS) });
@@ -66,6 +66,8 @@ const Interest = z.object({
   page: z.string().max(200).optional(),
   // A field people never see. Anything that fills it in is a bot, and is thanked and ignored.
   website: z.string().max(2000).optional(),
+  // The bot check's token, where the deployment has one (bot-check.ts).
+  [BOT_CHECK_FIELD]: z.string().max(4096).optional(),
 });
 
 /**
@@ -94,7 +96,7 @@ export function siteRoutes(deps: { db: Db; config: ServerConfig }) {
     if (!file || !existsSync(file)) return null;
     return sitePage(file, config.analyticsId, await siteCatalogue(db, config).catch(() => null), at);
   };
-  const pageResponse = (html: string) => new Response(html, { status: 200, headers: { ...pageHeaders(Boolean(config.analyticsId)), "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-cache" } });
+  const pageResponse = (html: string) => new Response(html, { status: 200, headers: { ...pageHeaders(Boolean(config.analyticsId), null, null, Boolean(config.turnstileSiteKey)), "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-cache" } });
 
   if (ownSite)
     app.use("*", async (c, next) => {
@@ -137,20 +139,31 @@ export function siteRoutes(deps: { db: Db; config: ServerConfig }) {
     return c.json({ received: true });
   });
 
-  /** Ask to hear when WhatBuild opens. The same answer for a new address, a repeat and a bot. */
+  /**
+   * Ask to hear when WhatBuild opens. The same answer for a new address, a repeat and a bot that
+   * fills in the hidden field. Past the bot check, each request counts against its client address's
+   * hour and the deployment's (`abuse-limits.ts`), a repeat included.
+   */
   app.post("/api/v1/interest", async (c) => {
     const body = Interest.safeParse(await c.req.json().catch(() => ({})));
     if (!body.success) throw invalid("invalid_input", "Enter an email address.");
     const { email, name, organization, note, website } = body.data;
     const page = body.data.page && /^\/[a-z0-9/-]*$/.test(body.data.page) ? body.data.page : null;
     if (website) return c.json({ received: true });
-    const recent = await db
-      .selectFrom("interest")
-      .select((eb) => eb.fn.countAll<number>().as("n"))
-      .where("created_at", ">", new Date(Date.now() - 3600_000).toISOString())
-      .executeTakeFirst();
-    if (Number(recent?.n ?? 0) >= INTEREST_PER_HOUR) throw new AppError(429, "rate_limited", "Too many requests right now. Try again in an hour.");
+    const address = clientAddress(c, config);
+    if (!(await passesBotCheck(config, db, body.data[BOT_CHECK_FIELD], "waitlist", address))) throw botCheckFailed();
+    const keys = clientKeys(address, config.grantKey);
+    const refuse = (refused: { limit: number; resets_at: string }, name: WindowedLimitName, message: string) => {
+      c.header("Retry-After", String(retryAfter(refused.resets_at)));
+      return abuseRefusal(message, name, refused.limit, refused.resets_at);
+    };
     const fields = { name: name || null, organization: organization || null, note: note || null };
+    await db.transaction().execute(async (trx) => {
+      const mine = await spendPerClient(trx, "waitlist", keys, config.abuseLimits);
+      if (!mine.ok) throw refuse(mine, mine.name, "Too many requests from your network in the last hour. Try again later.");
+      const all = await spend(trx, "waitlist_per_hour", "", config.abuseLimits);
+      if (!all.ok) throw refuse(all, "waitlist_per_hour", "Too many requests right now. Try again in an hour.");
+    });
     await db
       .insertInto("interest")
       .values({ interest_id: newId(), email, ...fields, page })

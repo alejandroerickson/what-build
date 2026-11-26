@@ -27,7 +27,9 @@ Cloud Run filters by caller address only there too, with Cloud Armor.
   every request it passes on, and drops one a caller sent when it has none
   (`deploy/cloudflare/worker.js`).
 - Unset, nothing is refused: local development, the dev deployment on its `run.app` address, Azure
-  and any deployment without the Worker.
+  and any deployment without the Worker. The key also decides whether the abuse limits count a
+  client's address: only one the Worker seals with it is trusted
+  ([decision](abuse-limits-count-a-client-address-only-where-the-edge-key-vouches-for-it.md)).
 - Rejected: a load balancer with internal ingress, or with Cloud Armor allowing only Cloudflare's
   addresses, which costs a fixed sum each month for what a header does.
 

@@ -447,7 +447,9 @@ Worker passes them all, since none has a dot in its first part. The app's `frame
 Deploys keep the setting; removing it puts everything back on the app's origin.
 
 **Behind Cloudflare, nobody goes around it.** Two settings keep a stranger from flooding the
-service, or keeping it and its database awake, from outside what the Worker allows:
+service, or keeping it and its database awake, from outside what the Worker allows. The Worker
+answers only on its custom domains (`workers_dev` and `preview_urls` are off in `wrangler.toml`), so
+no `workers.dev` or preview address reaches the service outside the zone's rules:
 
 - **A rate limit** in the app's zone (Security > WAF > Rate limiting rules). The free plan has one
   rule, which may match on the path alone and counts by IP over 10 seconds. Make it match every
@@ -479,7 +481,12 @@ curl -s -o /dev/null -w '%{http_code}\n' https://app.example.com/api/v1/meta    
 ```
 
 The Worker keeps its secret across deploys, and the service its setting across builds; `setup.sh`
-passes the secret on whenever it exists. Anything else that calls the service (a scheduler, a
+passes the secret on whenever it exists. With the key, the Worker also names the client's address
+(`CF-Connecting-IPv6`, or else `CF-Connecting-IP`) in `X-WhatBuild-Client-Address` on every request
+it passes on, sealed with the key in `X-WhatBuild-Client-Seal`, replacing whatever a client sent in
+either, and the service counts its abuse limits per client ([Abuse limits](#abuse-limits)); it
+trusts no address without the key and a seal that matches, so a Worker older than the service
+passes on nothing it believes. Anything else that calls the service (a scheduler, a
 script) calls the public URL, through the Worker. To change the
 key, add a version to the secret, put it on the Worker, then update the service as above: requests
 in the moments between the two are refused. Without a Worker in front, set no key. A flood sent
@@ -498,6 +505,143 @@ A place counts when an organization starts on it, or when it is held for someone
 waitlist: someone who presses Start using WhatBuild and leaves the Welcome form uses none, so
 Starting organizations lists only those who started one or were let in, and `products.guests`
 gives the day's places used (`now.organizations_today`).
+
+## Abuse limits
+
+What anyone can make the deployment do before they are let in, or do to strangers through it, is
+limited per client address and for the whole deployment, and an organization's invitations a day
+([§9.2](../spec/09-data-lifecycle.md#92-limits-and-quotas), which lists each limit, its default and
+what a person sees past it). The defaults suit a small deployment open to the public. To change
+some, set `WHATBUILD_ABUSE_LIMITS` to the ones that change, as `name=number` or `name=off`,
+separated by commas or semicolons (semicolons need no escaping in `gcloud`'s `--update-env-vars`;
+`setup.sh` takes `ABUSE_LIMITS` with commas), and keep the deployment's values with its other
+settings:
+
+```bash
+gcloud run services update whatbuild --project $P --region $R \
+  --update-env-vars '^|^WHATBUILD_ABUSE_LIMITS=mail_per_hour=<amount>;waitlist_per_address=<amount>'
+```
+
+A name or number the server does not take stops it at start, so check a new revision is serving.
+Client addresses count only behind the Worker with the edge key (above), each limit per client
+address with one per IPv6 /48 beside it; without them, only the deployment's ceilings and each
+organization's day apply. Two days a limit per client may need raising for: a team invited at once
+from one office, each asking for a sign-in link (`sign_in_links_per_address`; Google and Microsoft
+sign-in take none), and a launch where many people add WhatBuild to a hosted agent (such as
+claude.ai), which registers their agents from a few addresses of its own
+(`agent_registrations_per_address`).
+
+**Check that client addresses arrive**, after deploying the Worker of a release and whenever the
+limits seem not to bite. A Worker older than the service sends the edge key and no sealed address,
+and every limit per client is then off: the server logs `client_address_missing` as an error once
+an instance, which `whatbuild: errors in the log` mails. To look:
+
+```bash
+gcloud logging read 'jsonPayload.event="client_address_missing"' --project $P --freshness 1d --limit 5 --format 'value(timestamp, jsonPayload.path)'
+```
+
+Nothing there, after someone has asked for a sign-in link or joined the waitlist through the site
+since the Worker was deployed, means addresses arrive. To see it counted, ask for a sign-in link at
+`https://app.example.com/signin`, then, in the database, rows for the hour with a client's key:
+
+```sql
+select name, count(*) from abuse_counters
+where (name like '%_per_address' or name like '%_per_ipv6_48') and starts_at > now() - interval '1 hour'
+group by name;
+```
+
+If the log has the line, deploy the Worker from the release the service runs
+("A custom domain" under [Setting it up](#setting-it-up)).
+
+When a ceiling for the deployment fills, the server logs `abuse_ceiling_reached` with its name, and
+`whatbuild: an abuse ceiling filled` mails it ([Alerts](#alerts)). Until the window ends (the top of
+the next hour), everyone meets that ceiling. Agent registrations are the exception: past the number
+kept waiting for a first connection (`agent_registrations_waiting`), the oldest is forgotten and
+nobody is refused, and the line comes when ones under an hour old are being forgotten, at most once
+an hour on each instance, which means a flood. To see which filled and how often:
+
+```bash
+gcloud logging read 'jsonPayload.event="abuse_ceiling_reached"' --project $P --freshness 7d --limit 50 \
+  --format 'value(timestamp, jsonPayload.limit, jsonPayload.value)'
+```
+
+One filling once, around a launch or an invitation round, is people: raise it if it keeps
+happening. One filling hour after hour is a flood: leave it, and look at the service's own request
+lines for the paths (`gcloud run services logs read`; Cloud Run's own line for a `403` or a `429` is
+dropped, [What is where](#what-is-where)) and at Cloudflare's Security events for the addresses;
+the zone's rate limit (above) or a WAF rule can block a source outright. [The abuse test](abuse-test.md)
+shows what each limit lets through.
+
+### The bot check
+
+Asking for a sign-in link, starting Google or Microsoft sign-in, and joining the waitlist can ask
+for Cloudflare Turnstile's token, so a script cannot send them at all without passing it
+([decision](../decisions/the-bot-check-is-cloudflare-turnstile-and-a-deployment-may-leave-it-off.md)).
+It is off until the service has both keys. To turn it on:
+
+1. **Make a widget** in the Cloudflare dashboard (Turnstile → Add widget), or with the API using a
+   token that holds Account → Turnstile → Edit: mode Managed, and the hostnames the forms are on,
+   the app's (`app.example.com`) and the public site's (`example.com`). The site key is public; the
+   secret key is a secret.
+2. **Store the secret key** in Secret Manager, readable by the service:
+
+   ```bash
+   printf '%s' '<secret key>' | gcloud secrets create whatbuild-turnstile-secret-key --project $P --replication-policy=automatic --data-file=-
+   gcloud secrets add-iam-policy-binding whatbuild-turnstile-secret-key --project $P \
+     --member serviceAccount:whatbuild-runtime@$P.iam.gserviceaccount.com --role roles/secretmanager.secretAccessor
+   ```
+
+3. **Deploy the Worker** from a build of a release that has the bot check, so the site's pages may
+   load the widget once the service asks for it (`script-src` and `frame-src` name
+   `https://challenges.cloudflare.com` only then).
+4. **Give the service both keys**, together (one without the other stops it at start):
+
+   ```bash
+   gcloud run services update whatbuild --project $P --region $R \
+     --update-secrets WHATBUILD_TURNSTILE_SECRET_KEY=whatbuild-turnstile-secret-key:latest \
+     --update-env-vars WHATBUILD_TURNSTILE_SITE_KEY=<site key>
+   ```
+
+5. **Check it.** `curl -s https://app.example.com/auth/methods` gives `bot_check` with the site key,
+   and a request without a token is refused:
+   `curl -s -X POST https://app.example.com/auth/email -H 'content-type: application/json' -d '{"email":"someone@example.com"}'`
+   answers `403 bot_check_failed`. Then sign in through the browser, and send the waitlist's form
+   from the site. The Worker keeps the service's catalogue, which tells the site's pages, for an
+   hour; until it refreshes, the waitlist's form has no widget and is refused with "Reload the page
+   and try again", so turn it on when nobody is waiting on that form, or purge the zone's whole
+   cache (Caching → Configuration → Purge Everything): the Worker keeps the catalogue under the
+   service's `run.app` address, which purging one of the zone's own addresses does not reach.
+6. **Name Cloudflare** among the deployment's providers in `WHATBUILD_PROVIDERS`, which the privacy
+   page shows: Turnstile sees the browser of whoever sends those forms, when they send them, and
+   nothing of anyone who only reads a page.
+
+`setup.sh` does steps 2 and 4 given `TURNSTILE_SITE_KEY` and `TURNSTILE_SECRET_KEY`, and passes the
+secret on to the service whenever it exists, never to the migration job, which has no site key
+and would not start with half of the pair. Once the secret exists, every run of `setup.sh` needs
+`TURNSTILE_SITE_KEY` again, since it sets all the service's settings anew; without it, or with a
+site key and no secret, it stops before changing anything. To turn it off, remove both from the
+service, `--remove-secrets WHATBUILD_TURNSTILE_SECRET_KEY --remove-env-vars
+WHATBUILD_TURNSTILE_SITE_KEY`, and delete the secret. Production refuses Cloudflare's test keys. A
+widget's secret key can be rotated in the dashboard; add it as a new version of the secret and
+deploy a revision (`gcloud run services update … --update-secrets` as above).
+
+**When it refuses everyone.** Each refused check is logged with its reason, never the token
+(`bot_check_refused`, or `bot_check_unavailable` while siteverify cannot be reached; people already
+signed in are not affected). What means nobody new can sign in is logged as an error, at most once
+an hour on each instance, which `whatbuild: errors in the log` mails:
+
+| Reason | What it means | What to do |
+|---|---|---|
+| `bot_check_unavailable` | The service cannot reach `challenges.cloudflare.com`. | Cloudflare's status page; nothing to do on the deployment, and the forms work again when it answers. |
+| `wrong_host` | A good token, made on a host the service does not name: the line gives `token_hostname` and the service's `hosts`. | Set `WHATBUILD_PUBLIC_URL` and `WHATBUILD_SITE_URL` to the hosts the widget is on, or add the host to the widget. |
+| `wrong_action` | A good token made for another form: a web app and a server of different releases. | Deploy the Worker and the service from the same release. |
+| `wrong_secret` | Cloudflare refuses the secret key. | Add the widget's secret key as a new version of `whatbuild-turnstile-secret-key`, and deploy a revision. |
+| `bot_check_refused_all` | The first 20 tokens of an hour were all refused, none passed: a flood of scripts, or a site key that does not go with the secret key. | Compare `WHATBUILD_TURNSTILE_SITE_KEY` with the widget's; sign in through the browser to see whether a person passes. |
+
+```bash
+gcloud logging read 'jsonPayload.event=("bot_check_refused" OR "bot_check_unavailable" OR "bot_check_refused_all")' --project $P --freshness 1d --limit 50 \
+  --format 'value(timestamp, severity, jsonPayload.reason, jsonPayload.error_codes, jsonPayload.token_hostname)'
+```
 
 ## The database's connections
 
@@ -614,7 +758,7 @@ gcloud run services update whatbuild --project $P --region $R --update-secrets D
 
 ## Alerts
 
-[`deploy/cloud-run/alerts.mjs`](../../deploy/cloud-run/alerts.mjs) creates seven alert policies, and three more with the kill switch ([A hard limit on the bill](#a-hard-limit-on-the-bill)), in
+[`deploy/cloud-run/alerts.mjs`](../../deploy/cloud-run/alerts.mjs) creates eight alert policies, and three more with the kill switch ([A hard limit on the bill](#a-hard-limit-on-the-bill)), in
 Cloud Monitoring, or brings them up to date, each mailed to `ALERT_EMAIL` (by default the `gcloud`
 account running it); `setup.sh` runs it. They read only what Cloud Run measures and logs
 ([decision](../decisions/alerts-watch-the-platform-and-traces-go-to-a-project-of-their-own.md)):
@@ -622,7 +766,8 @@ account running it); `setup.sh` runs it. They read only what Cloud Run measures 
 | Policy | Mails when | Look first at |
 |---|---|---|
 | `whatbuild: server errors` | a 5xx response in five minutes | the service's error lines, below; a 503 or 504 with none means no instance could serve, or a request ran past the server's five-minute limit (`timed_out`), or a stream past the service's `--timeout`, when `WHATBUILD_LIVE_STREAM_MINUTES` is not below it |
-| `whatbuild: errors in the log` | a line of severity ERROR from the service (Cloud Run's request log aside), at most one mail an hour | the line itself: an unexpected error names its request, `request_id`; `Memory limit … exceeded` |
+| `whatbuild: errors in the log` | a line of severity ERROR from the service (Cloud Run's request log aside), at most one mail an hour | the line itself: an unexpected error names its request, `request_id`; `Memory limit … exceeded`; a bot check that refuses everyone ([The bot check](#the-bot-check)); `client_address_missing` ([Abuse limits](#abuse-limits)) |
+| `whatbuild: an abuse ceiling filled` | a deployment's abuse ceiling filled for its window (`abuse_ceiling_reached`), at most one mail an hour | [Abuse limits](#abuse-limits): which ceiling, and whether it fills hour after hour |
 | `whatbuild: memory` | an instance above 85% of its memory for five minutes | the worker's log lines for the file being read; [Parsing](#setting-it-up) for the limits and the service's memory |
 | `whatbuild: a job failed` | a failed run of `whatbuild-backup` or `whatbuild-migrate` | `gcloud run jobs executions list --job <job>`; [Backups](backups.md) or [Recovering](recovering-from-a-bad-release.md) |
 | `whatbuild: a flood of requests` | more than 3,000 requests in five minutes, however they were answered | Cloud Run's request log, for the paths asked for and the addresses asking |
@@ -868,11 +1013,11 @@ closed are still billed on Workers Paid, and the zone's rate limit is what bound
 | Build identity | the project's default compute identity, or `BUILD_SA` | deploy to Cloud Run, push images, write logs, read `<project>_cloudbuild`; `setup.sh` takes away the Editor role Google gives it |
 | Database | Cloud SQL instance `whatbuild-db`, database and user `whatbuild` (with `CLOUD_SQL=1`) | or the Postgres named by `DATABASE_URL` |
 | Bucket | `<project>-whatbuild-files` | private, uniform access, public access prevented; versioned, noncurrent versions deleted after 30 days |
-| Secrets | `whatbuild-database-url`, `whatbuild-grant-key`, optional `whatbuild-smtp-url` ([Mail](mail.md)), `whatbuild-google-client-secret`, `whatbuild-edge-key` (behind Cloudflare; also the Worker's `EDGE_KEY`), `whatbuild-database-url-pooled` (the service's, behind [Neon's pooler](#the-databases-connections)) | read by the runtime identity only |
+| Secrets | `whatbuild-database-url`, `whatbuild-grant-key`, optional `whatbuild-smtp-url` ([Mail](mail.md)), `whatbuild-google-client-secret`, `whatbuild-edge-key` (behind Cloudflare; also the Worker's `EDGE_KEY`), `whatbuild-turnstile-secret-key` (the bot check; the service's only, never the migration job's), `whatbuild-database-url-pooled` (the service's, behind [Neon's pooler](#the-databases-connections)) | read by the runtime identity only |
 | Images | Artifact Registry `whatbuild` | the ten most recent always kept; others deleted after 30 days |
-| Log exclusions | `whatbuild-request-addresses` and `whatbuild-refused-requests` on the `_Default` sink | Cloud Run logs every request itself, with its whole address, the client's IP and its browser, for 30 days. The first drops its line for an address with a query (a search's words, a sign-in link's token) or an invitation link; the service's own line for it, masked, stays. The second drops its line for a `403` or a `429`: a request without the edge key, refused before the service logs anything, or one Cloud Run refused for want of an instance, so a flood of them writes no logs to pay for. The request metrics count them all, and the service's own line stays for each `403` it gives |
+| Log exclusions | `whatbuild-request-addresses` and `whatbuild-refused-requests` on the `_Default` sink | Cloud Run logs every request itself, with its whole address, the client's IP and its browser, for 30 days. The first drops its line for an address with a query (a search's words, a sign-in link's token) or an invitation link; the service's own line for it, masked, stays. The second drops its line for a `403` or a `429`: a request without the edge key, refused before the service logs anything, or one Cloud Run refused for want of an instance, so a flood of them writes no logs to pay for. The request metrics count them all, and the service's own line stays for each `403` or `429` it gives (an abuse limit's, the bot check's) |
 | Restore points (Neon, optional) | branches `pre-migrate-<time>-<commit>`, secret `whatbuild-neon-api-key` | one per deploy before migrating, the newest three kept; the key reaches only the Neon project and is read by the build identity, and by `pnpm attention` through the maintainer's `gcloud` for the month's compute hours ([What it costs](#what-it-costs)) |
-| Alerts | seven policies named `whatbuild: …` (ten with the kill switch), one email channel, and with the kill switch a Pub/Sub channel to its topic | made by `deploy/cloud-run/alerts.mjs` ([Alerts](#alerts)) |
+| Alerts | eight policies named `whatbuild: …` (eleven with the kill switch), one email channel, and with the kill switch a Pub/Sub channel to its topic | made by `deploy/cloud-run/alerts.mjs` ([Alerts](#alerts)) |
 | Kill switch (optional) | service, identity, Pub/Sub topic and push subscription `whatbuild-kill-switch`; role `whatbuildKillSwitch` in each project whose service it closes; budget `WhatBuild: every project` on the billing account | made by `deploy/cloud-run/kill-switch.sh`; the service is private and reachable from inside the project only, and its identity may change who calls the services it closes, nothing else ([A hard limit on the bill](#a-hard-limit-on-the-bill)) |
 | Traces | a project of their own (`TRACES_PROJECT`): trace storage `_Trace` in `us`, BigQuery dataset `whatbuild_traces` | runs nothing; the runtime identity has Cloud Telemetry Traces Writer there, and nothing else ([Traces](#traces)) |
 | Backup (another Postgres, set up by hand) | job `whatbuild-backup`, scheduler job `whatbuild-backup-nightly`, identity `whatbuild-backup`, bucket `<project>-backups`, secret `whatbuild-backup-database-url` | a `pg_dump` each night as a read-only role that bypasses row-level security; the identity adds and reads dumps, never deletes; dumps expire after 35 days ([Backups](backups.md)) |
@@ -893,5 +1038,6 @@ gcloud run services update whatbuild --region $R --update-env-vars WHATBUILD_SIG
 The specification makes these an acceptance test, not a good intention
 ([§9.3](../spec/09-data-lifecycle.md), [Phase 6](../spec/10-roadmap.md)): a restore from backup
 into a scratch instance, performed and written up; an export round-tripping into a fresh instance;
-abuse limits tested; and the privacy page naming who runs the deployment, an address for privacy
-requests and its providers (The privacy page, above). None of that is done yet.
+abuse limits tested ([the abuse test](abuse-test.md) floods a local instance through them); and the
+privacy page naming who runs the deployment, an address for privacy requests and its providers (The
+privacy page, above).

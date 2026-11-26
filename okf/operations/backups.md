@@ -39,8 +39,11 @@ the policies hide, so it runs as a role of its own that reads everything and can
 `CREATE ROLE whatbuild_backup LOGIN PASSWORD '…' BYPASSRLS; GRANT pg_read_all_data TO
 whatbuild_backup;` (run by a role that has `BYPASSRLS` itself). The dumps go to a bucket of their
 own, which the backup identity may add to and read but not delete from, so a fault in the job
-cannot erase the dumps before it. They expire after 35 days. The job runs the stock `postgres`
-image, of the same major version as the database:
+cannot erase the dumps before it. They expire after 35 days. The dump leaves out the rows of
+`abuse_counters`, the abuse limits' counts, which hold clients' keyed hashes the deployment keeps
+for two days only ([security](../system/security.md)); a restore starts their windows afresh, and
+loses nothing else. The job runs the stock `postgres` image, of the same major version as the
+database:
 
 ```bash
 P=my-whatbuild R=northamerica-northeast2 SA=whatbuild-backup@$P.iam.gserviceaccount.com
@@ -61,7 +64,7 @@ gcloud run jobs create whatbuild-backup --project $P --region $R --image docker.
   --service-account $SA --set-secrets DATABASE_URL=whatbuild-backup-database-url:latest \
   --add-volume name=backups,type=cloud-storage,bucket=$P-backups --add-volume-mount volume=backups,mount-path=/backups \
   --memory 512Mi --max-retries 1 --task-timeout 15m --command sh \
-  --args=-c,'set -eu; f="whatbuild-$(date -u +%Y-%m-%dT%H%MZ).dump"; pg_dump "$DATABASE_URL" --format=custom --file="/tmp/$f"; cp "/tmp/$f" "/backups/$f"'
+  --args=-c,'set -eu; f="whatbuild-$(date -u +%Y-%m-%dT%H%MZ).dump"; pg_dump "$DATABASE_URL" --format=custom --exclude-table-data=abuse_counters --file="/tmp/$f"; cp "/tmp/$f" "/backups/$f"'
 gcloud run jobs add-iam-policy-binding whatbuild-backup --project $P --region $R --member serviceAccount:$SA --role roles/run.invoker
 gcloud services enable cloudscheduler.googleapis.com --project $P
 gcloud scheduler jobs create http whatbuild-backup-nightly --project $P --location $R \
@@ -90,7 +93,7 @@ with no dump, a failed execution, or a dump much smaller than the night before n
 
 ## Restoring a dump
 
-A dump holds every row; the files stay in the bucket. Restore it into an empty database owned by
+A dump holds every row but the abuse limits' counts; the files stay in the bucket. Restore it into an empty database owned by
 the application's role. The steps below put a dump into an empty database the same way whether it is
 last night's going back into production's or a [copy of some organizations](copying-an-organization.md)
 going into the dev deployment's. Restoring production's from before an account was deleted brings the
@@ -104,7 +107,7 @@ people's data: keep it in a directory only you can read, and delete it once it i
 ```bash
 umask 077; D=$(mktemp -d)
 gcloud storage cp gs://$P-backups/whatbuild-<time>.dump $D/database.dump            # last night's
-pg_dump --format=custom --file=$D/database.dump \
+pg_dump --format=custom --exclude-table-data=abuse_counters --file=$D/database.dump \
   "$(gcloud secrets versions access latest --secret whatbuild-backup-database-url --project $P)"   # or now
 ```
 
@@ -183,7 +186,7 @@ diff from.txt to.txt && echo "every table matches"; rm from.txt to.txt
 
 A dump of a database that is still in use differs from it by whatever was written since; compare
 with the dump's source just after taking it, or expect small differences in `activity` and
-`sessions`. Then use it: sign in, open a product, a source and its text, and search.
+`sessions`. `abuse_counters` is empty in the restore, since the dump leaves its rows out. Then use it: sign in, open a product, a source and its text, and search.
 
 ## The restore drill
 

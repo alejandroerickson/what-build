@@ -444,8 +444,9 @@ side, `/privacy` the privacy notice ([§9.1](09-data-lifecycle.md),
 [decision](../decisions/the-privacy-page-is-a-page-of-the-public-site.md)), and every other path
 redirects to the app. Whoever serves a page writes into it what only the
 service knows (`whatbuild-site`, the answer of `GET /api/v1/plans`): the plans as an instance owner
-set them, whether anyone may sign up as a guest, and who runs the deployment, where to write and who
-else handles the data, for the privacy page. The Worker asks the service for it through
+set them, whether anyone may sign up as a guest, the bot check's site key for the waitlist's form
+(`bot_check`; the Worker lets the widget into a page's policy only when it is set), and who runs the
+deployment, where to write and who else handles the data, for the privacy page. The Worker asks the service for it through
 Cloudflare's cache, an hour at a time; without it, a page shows the plans as the build has them,
 and the privacy page says it did not load.
 
@@ -548,7 +549,17 @@ new tab ([§7.8](#78-story), [§6](06-operations-and-adapters.md)).
    you? Close this tab and nothing happens." under it. A sign-in refused as invite-only says to
    ask someone who uses WhatBuild for an invitation, and, on a deployment with a public site, to
    join the waitlist at its address, linked to the site's form. A refused Microsoft sign-in says to
-   write to the deployment's contact, where it names one, with the reference. Wherever sign-in returns to is a path on this origin or `/`,
+   write to the deployment's contact, where it names one, with the reference. Where the deployment
+   has the bot check ([§3.2](03-accounts-and-identity.md#32-accounts-and-sign-in)), Email me a
+   sign-in link and Continue with Microsoft or Google run Cloudflare Turnstile's check when pressed,
+   each for a token of its own, and nothing of Cloudflare's loads before; its widget appears under
+   the ways to sign in only when it needs the person to do something. A check that could not decide
+   says "WhatBuild couldn’t check that you’re a person. Try again, or reload the page." until the
+   next try. A sign-in refused for too many new accounts from the person's network says to try from
+   another network, where a sign-in link still works, or in an hour, or to ask for an invitation;
+   one refused for the deployment's says WhatBuild is making too many just now, to try in an hour or
+   ask someone who uses it for an invitation; one refused by the bot check says to try again. The
+   public site's waitlist form runs the same check when it is sent. Wherever sign-in returns to is a path on this origin or `/`,
    by the server's rule (`safeNext`). Under the form are links to Privacy and Cookies. Where anyone
    may make an account (`open` in `/auth/methods`), a line says signing in creates their account;
    arriving from Start using WhatBuild (`next` is `/start`), the title is "Start using WhatBuild".

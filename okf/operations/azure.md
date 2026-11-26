@@ -867,6 +867,41 @@ admit only some networks, `az containerapp ingress access-restriction set` with 
 address range. That also shuts out agents that run on a vendor's servers and call `/mcp` from
 there; agents on a person's own machine inside the range still connect.
 
+### Abuse limits and the bot check
+
+The abuse limits ([§9.2](../spec/09-data-lifecycle.md#92-limits-and-quotas)) apply here as
+everywhere, but Container Apps' ingress names no client the service can trust (there is no edge
+key), so only the deployment's ceilings, the number of agent registrations kept waiting, and each
+organization's invitations a day count, not the limits per client. Change the numbers with
+`WHATBUILD_ABUSE_LIMITS` in the app's environment. A deployment for one organization's own people,
+invite-only, rarely meets them: a sign-in link for an address that may not sign in is never mailed
+and takes nothing from the hour's mail, and nobody else makes an account. Anyone can still fill the
+waitlist's ceiling, or, knowing a hundred addresses of people who may sign in (each takes five links
+an hour), the hour's mail, until the hour ends; the server then logs `abuse_ceiling_reached` with the limit's name (there
+is no alert here: look for it with
+`az containerapp logs show … --tail 300 | grep abuse_ceiling_reached`), and the bot check below
+stops a script before it counts.
+
+The bot check stays off unless the deployment adds a Cloudflare Turnstile widget's keys
+([decision](../decisions/the-bot-check-is-cloudflare-turnstile-and-a-deployment-may-leave-it-off.md)).
+Make a widget for the app's host in a Cloudflare account, store its secret key in the vault, and
+give the app both keys together (one without the other stops it at start); the migration job
+needs neither:
+
+```bash
+printf '%s' '<secret key>' | put whatbuild-turnstile-secret-key
+az containerapp secret set --subscription "$AZ_SUBSCRIPTION" -g "$AZ_RG" -n "$AZ_APP" -o none --secrets \
+  "turnstile-secret-key=keyvaultref:https://$AZ_KEYVAULT.vault.azure.net/secrets/whatbuild-turnstile-secret-key,identityref:$AZ_IDENTITY_ID"
+az containerapp update --subscription "$AZ_SUBSCRIPTION" -g "$AZ_RG" -n "$AZ_APP" -o none --set-env-vars \
+  WHATBUILD_TURNSTILE_SECRET_KEY=secretref:turnstile-secret-key WHATBUILD_TURNSTILE_SITE_KEY=<site key>
+```
+
+The pages then load Cloudflare's widget, so people's browsers must reach `challenges.cloudflare.com`,
+and Cloudflare sees the browser of whoever sends those forms: name it among the deployment's
+providers in `WHATBUILD_PROVIDERS`, which the privacy page shows. A refused check is logged with its
+reason; one that refuses everyone (Cloudflare out of reach, a host or secret that does not match the
+widget) is logged as an error, once an hour.
+
 ### Private networking
 
 Where policy forbids public endpoints: a virtual network with a subnet delegated to
@@ -934,7 +969,7 @@ az containerapp update --subscription "$AZ_SUBSCRIPTION" -g "$AZ_RG" -n "$AZ_APP
 | Thing | Where | Notes |
 |---|---|---|
 | Names and IDs | `.env.azure` in the operator's clone | gitignored; never a secret |
-| Secrets | Key Vault: `whatbuild-database-url`, `whatbuild-grant-key`, `whatbuild-postgres-admin-password`, `whatbuild-postgres-password`, optional `whatbuild-smtp-url`, `whatbuild-microsoft-client-secret` | the app and the job read the first two (and the optional ones) by managed identity |
+| Secrets | Key Vault: `whatbuild-database-url`, `whatbuild-grant-key`, `whatbuild-postgres-admin-password`, `whatbuild-postgres-password`, optional `whatbuild-smtp-url`, `whatbuild-microsoft-client-secret`, `whatbuild-turnstile-secret-key` | the app and the job read the first two (and the optional ones) by managed identity |
 | The storage account's key | the environment's storage definition | Container Apps keeps it; rotating the key means `az containerapp env storage set` again |
 | Files | share `whatbuild-files`, under `<tenant>/…`, each with a `.meta.json` beside it | the filesystem adapter's layout |
 | Logs | workspace `log-whatbuild`, `az containerapp logs show` | structured request logs; no content, no tokens |

@@ -33,6 +33,8 @@ const WRITTEN:
       guests?: { self_serve: boolean; open: boolean };
       /** Whether anyone may make an account, as a guest or to start an organization. */
       sign_up?: boolean;
+      /** The bot check's site key, for the waitlist's form; null where the deployment asks for none. */
+      bot_check?: { site_key: string } | null;
       /** The example organization, as the deployment describes it: its name, its first product and that product's first sentence. */
       example_about?: { organization: string; product: string; about: string } | null;
       privacy?: SitePrivacy;

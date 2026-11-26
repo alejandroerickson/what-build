@@ -1476,3 +1476,8 @@ button.crumb[aria-expanded="true"] {
     bottom: var(--s-4);
   }
 }
+
+/* The bot check (lib/bot-check.tsx): Cloudflare's widget, drawn when a form is sent, and visible only while it needs the person to act (data-shown). */
+.bot-check:empty {
+  display: none;
+}

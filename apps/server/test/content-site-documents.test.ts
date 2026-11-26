@@ -423,11 +423,13 @@ describe("the app's pages", () => {
     expect(csp).not.toContain("'unsafe-inline'");
   });
 
-  it("are let frame the same by the dev server as by a deployment without a content site, so a frame sent to another site is refused there too", async () => {
-    const { PAGE_SECURITY_HEADERS } = await import("../src/public-routes.ts");
-    const frameSrc = PAGE_SECURITY_HEADERS["Content-Security-Policy"].split("; ").find((d) => d.startsWith("frame-src "));
-    expect(frameSrc).toBe("frame-src 'self'");
-    expect(readFileSync(new URL("../../web/vite.config.ts", import.meta.url), "utf8")).toContain(`headers: { "Content-Security-Policy": "${frameSrc}" }`);
+  it("are let frame the same by the dev server as by a deployment with the bot check and without a content site, so a frame sent to another site is refused there too", async () => {
+    const { PAGE_SECURITY_HEADERS, pageHeaders } = await import("../src/public-routes.ts");
+    const frameSrc = (headers: { "Content-Security-Policy": string }) => headers["Content-Security-Policy"].split("; ").find((d) => d.startsWith("frame-src "));
+    expect(frameSrc(PAGE_SECURITY_HEADERS)).toBe("frame-src 'self'");
+    // The bot check's frame, which a server with the Turnstile keys lets in (BOT_CHECK_SOURCES), and nothing else.
+    expect(frameSrc(pageHeaders(false, null, null, true))).toBe("frame-src 'self' https://challenges.cloudflare.com");
+    expect(readFileSync(new URL("../../web/vite.config.ts", import.meta.url), "utf8")).toContain(`headers: { "Content-Security-Policy": "${frameSrc(pageHeaders(false, null, null, true))}" }`);
   });
 });
 

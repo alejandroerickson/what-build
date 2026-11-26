@@ -1,6 +1,6 @@
 ---
 name: set-up-mail
-description: Set up, check, repair or change the mail a WhatBuild deployment sends (sign-in links, invitations, allowance notices), on Cloudflare Email Sending, any SMTP provider, or the ACS Email API with managed identity. Use when asked to set up email, SMTP or a sender address, when invitations or sign-in links are not arriving, land in spam or fail with an internal error, when email sign-in is missing from the sign-in page, when rotating or replacing the mail token, when changing mail provider, or when giving a new deployment mail.
+description: Set up, check, repair or change the mail a WhatBuild deployment sends (sign-in links, invitations, allowance notices), on Cloudflare Email Sending, any SMTP provider, or the ACS Email API with managed identity. Use when asked to set up email, SMTP or a sender address, when invitations or sign-in links are not arriving, are shown as Not emailed, are refused because the hour's mail is used up, land in spam or fail with an internal error, when email sign-in is missing from the sign-in page, when rotating or replacing the mail token, when changing mail provider, or when giving a new deployment mail.
 ---
 
 # Set up mail

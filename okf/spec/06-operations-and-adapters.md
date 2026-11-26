@@ -141,7 +141,8 @@ tenant.
   `resets_at` ([§9.7](09-data-lifecycle.md)). A call past a day's allowance that would also meet a total names
   the total, with the day's allowance in `details.also`. An allowance set to 0 is switched off and answers
   `403 plan_restricted` instead.
-- **`429`** is returned for sign-in links (five per address per hour), for a fourth URL fetch a
+- **`429`** is returned for sign-in links (five per email address per hour, and the abuse limits of
+  [§9.2](09-data-lifecycle.md#92-limits-and-quotas)), for a fourth URL fetch a
   person starts while three of theirs are in progress (`attachments.fetch_url`, on each instance), and
   for calls and writes a minute on a plan with limits (and a guest's calls in the example organization),
   with `{ limit, per, retry_after_seconds }` in `details` and a `Retry-After` header on REST. An
@@ -223,8 +224,10 @@ tenant.
 - REST request bodies are limited to 5 MB (`413 too_large`), and so are MCP's (`413`, read only
   once the token is checked); file bytes and mockup canvases go through upload grants
   (§6.7). Sign-in (`/auth/*`) and OAuth (`/oauth/*`) bodies are limited to 64 KB (`413`).
-- OAuth client registration: at most 50 an hour waiting for their first connection
-  (`429 rate_limited`), 10 redirect URIs of 500 characters each ([§3.8](03-accounts-and-identity.md)).
+- OAuth client registration: limited per client address and per IPv6 /48 in an hour
+  (`429 rate_limited`), with the deployment's registrations waiting for their first connection
+  kept to a number by forgetting the oldest ([§9.2](09-data-lifecycle.md#92-limits-and-quotas)),
+  and 10 redirect URIs of 500 characters each ([§3.8](03-accounts-and-identity.md)).
 
 ## 6.4 REST
 
@@ -687,8 +690,10 @@ Notes on recent actions:
   does the same for up to 100 people at one scope, each with their own role, in one transaction
   that counts as one write: a refusal of any of them (a role that does not apply there, an
   address sent twice, the last owner demoted, the plan's total of people reached) changes nothing
-  and names the address in `details.email`. Its invitations are emailed once every role is given;
-  one that could not be emailed answers `emailed: false` and keeps its `invite_link`.
+  and names the address in `details.email`. Its invitations are emailed once every role is given.
+  Either one's invitation is emailed after its call commits; one that could not be emailed (its
+  send failed, or the deployment's mail for the hour, [§9.2](09-data-lifecycle.md#92-limits-and-quotas),
+  is used up) is still made, answers `emailed: false` and keeps its `invite_link`.
 - `members.revoke` removes the grant at exactly the scope named; with `whole_tenant: true` (and no
   product or `all_products`) it removes every grant the person holds in the tenant, which takes them out of
   it. That needs tenant admin, or owner when they are an owner.
@@ -734,7 +739,7 @@ GET  /api/v1/downloads/card-preview/:preview_id?theme=light|dark    a card previ
 GET  /prototypes/:grant/<path>                       a mockup prototype's file; the grant in the path is the credential (§4.12)
 GET  /documents/:grant/<name>?theme=&frame=          on a content site: a document the app's route handed off, or an agent's preview (below)
 GET  /api/v1/meta                                    release, MCP server name and tools version, sign-in methods, where the privacy page and the public site are (public)
-GET  /api/v1/plans                                   the plans the deployment offers (none, if it defines none), every limit of each and its price, starting_plan, example, whether guests may sign up, and what the privacy page names (public)
+GET  /api/v1/plans                                   the plans the deployment offers (none, if it defines none), every limit of each and its price, starting_plan, example, whether guests may sign up, the bot check's site key (bot_check, or null), and what the privacy page names (public)
 GET  /api/v1/me/guest-pass                           a guest account's place: let in when there is room, or why not and when to ask again
 POST /api/v1/me/ask-for-organization                 whether one of the day's places is open, or else the waitlist, for an organization of one's own; holds no place (§3.2)
 POST /api/v1/me/start                                Start using WhatBuild after sign-in: where to go, to Welcome where a place is open, using none, or joining the waitlist (§3.2)
@@ -1144,11 +1149,14 @@ Rules:
   and `wb_session` over HTTP ([§3.8](03-accounts-and-identity.md#38-identity-of-the-caller)).
 - **Sign-in endpoints** (`apps/server/src/auth/routes.ts`): `POST /auth/email` sends a link to an
   address that may sign in, and answers every address alike (`{ received: true }`, or `429` past
-  five an hour, counted for any address), sending the mail after the answer
-  ([§3.2](03-accounts-and-identity.md));
+  five an hour for the address, past the client's limit or the deployment's mail for the hour,
+  each counted for any address), sending the mail after the answer
+  ([§3.2](03-accounts-and-identity.md), [§9.2](09-data-lifecycle.md#92-limits-and-quotas));
   `GET /auth/verify?token=` shows its page and changes nothing, and `POST /auth/verify` (form field
   `token`, same origin only) uses it and signs in; `GET /auth/google`, `/auth/microsoft` and their
-  `/callback`s run OpenID Connect; `POST /auth/dev-sign-in`, and `GET /auth/dev-accounts`, which
+  `/callback`s run OpenID Connect; where the deployment has the bot check, `POST /auth/email` takes
+  its token in `bot_check` and `GET /auth/google` and `/auth/microsoft` in the query, and each
+  refuses without a good one (`403 bot_check_failed`, or back to `/signin?error=bot_check`); `POST /auth/dev-sign-in`, and `GET /auth/dev-accounts`, which
   lists the server's accounts for the sign-in page to offer, exist outside production;
   `POST /auth/sign-out`; `GET /auth/session` answers the web app's "who is signed in" with
   `signed_in` and, when true, what `GET /api/v1/me` returns, so being signed out is a `200` there

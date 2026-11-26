@@ -4,6 +4,7 @@ import { SIGN_IN_LINK_MINUTES, SIGN_IN_LINK_SUBJECT } from "@whatbuild/core/sign
 import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
 import { Link, Navigate, useNavigate, useParams, useSearchParams } from "react-router";
 import { api, ApiError, retryRead } from "../lib/api.ts";
+import { BOT_CHECK_FIELD, useBotCheck, useProviderLink, withBotCheckRefused, type BotCheckSetting } from "../lib/bot-check.tsx";
 import { useMe, useSignOut } from "../lib/session.tsx";
 import { BrandMark } from "../shell/brand.tsx";
 import { InvitationWords, orgOf, roleWords, useInvitationAnswer, type Invitation } from "../shell/invitations.tsx";
@@ -74,7 +75,10 @@ export function SignIn() {
   // The server's rule: a path on this origin, or home.
   const next = safeNext(params.get("next"));
   const [email, setEmail] = useState("");
-  const methods = useQuery({ queryKey: ["auth-methods"], queryFn: () => api<{ email_link: boolean; google: boolean; microsoft?: boolean; dev: boolean; open?: boolean }>("GET", "/auth/methods") });
+  const methods = useQuery({ queryKey: ["auth-methods"], queryFn: () => api<{ email_link: boolean; google: boolean; microsoft?: boolean; dev: boolean; open?: boolean; bot_check?: BotCheckSetting }>("GET", "/auth/methods") });
+  // The bot check, where the deployment asks for one: an email link and each provider wait for its token.
+  const check = useBotCheck(methods.data?.bot_check, "sign_in");
+  const provider = useProviderLink(check.take);
   const me = useMe();
   const qc = useQueryClient();
   const navigate = useNavigate();
@@ -83,7 +87,10 @@ export function SignIn() {
   // Whom a refused sign-in may write to, and where the public site's waitlist is, where the deployment names them.
   const contact = useContact();
   const site = useSiteUrl();
-  const send = useMutation({ mutationFn: () => api<{ received: boolean; dev_note?: string }>("POST", "/auth/email", { email: email.trim(), next }) });
+  const send = useMutation({
+    onMutate: provider.clear,
+    mutationFn: async () => api<{ received: boolean; dev_note?: string }>("POST", "/auth/email", { email: email.trim(), next, [BOT_CHECK_FIELD]: await check.take() }),
+  });
   const dev = useMutation({
     mutationFn: (e: string) => api("POST", "/auth/dev-sign-in", { email: e, next }),
     onSuccess: async () => {
@@ -91,7 +98,8 @@ export function SignIn() {
       navigate(next, { replace: true });
     },
   });
-  if (me.data) return <Navigate to={next} replace />;
+  // Someone signed in goes straight on: a check refused as they started a provider's sign-in again goes with them, to be told there.
+  if (me.data) return <Navigate to={params.get("error") === "bot_check" ? withBotCheckRefused(next) : next} replace />;
   const error = params.get("error");
   // Start using WhatBuild on the public site leads here, on its way to /start.
   const starting = next === "/start" || next.startsWith("/start?");
@@ -153,6 +161,19 @@ export function SignIn() {
             <Callout inset tone="attention" title="That Microsoft sign-in came from another directory">
               WhatBuild here takes accounts from one organization’s directory. If you used your work account in it, the server’s setup may be wrong: {tellOperator}
             </Callout>
+          ) : error === "bot_check" ? (
+            <Callout inset tone="attention" title="WhatBuild couldn’t check that you’re a person">
+              Try again. If it keeps happening, reload the page.
+            </Callout>
+          ) : error === "too_many_accounts" ? (
+            <Callout inset tone="attention" title="WhatBuild is making too many new accounts just now">
+              It makes only so many in an hour for people nobody invited. Try again in an hour, or ask someone who uses WhatBuild to invite you.
+            </Callout>
+          ) : error === "too_many_accounts_from_network" ? (
+            <Callout inset tone="attention" title="Too many new accounts were made from your network">
+              WhatBuild makes only so many in an hour from one network for people nobody invited. Try from another network, such as your phone’s: a sign-in link you were sent still
+              works there until it expires. Or try again in an hour, or ask someone who uses WhatBuild to invite you.
+            </Callout>
           ) : error === "microsoft_unverified" ? (
             // From a link made before the two refusals had codes of their own.
             <Callout inset tone="attention" title="That Microsoft sign-in didn’t work here">
@@ -189,7 +210,12 @@ export function SignIn() {
           {methods.data?.microsoft ? (
             <>
               {emailLink ? <div className="entry-or">or</div> : null}
-              <a className={`btn ${emailLink ? "btn-secondary" : "btn-primary"} btn-md btn-wide`} href={`/auth/microsoft?next=${encodeURIComponent(next)}`}>
+              <a
+                className={`btn ${emailLink ? "btn-secondary" : "btn-primary"} btn-md btn-wide`}
+                href={`/auth/microsoft?next=${encodeURIComponent(next)}`}
+                onClick={check.on ? provider.go(`/auth/microsoft?next=${encodeURIComponent(next)}`) : undefined}
+                aria-busy={provider.going?.startsWith("/auth/microsoft") || undefined}
+              >
                 Continue with Microsoft
               </a>
             </>
@@ -197,11 +223,18 @@ export function SignIn() {
           {methods.data?.google ? (
             <>
               {emailLink && !methods.data.microsoft ? <div className="entry-or">or</div> : null}
-              <a className="btn btn-secondary btn-md btn-wide" href={`/auth/google?next=${encodeURIComponent(next)}`}>
+              <a
+                className="btn btn-secondary btn-md btn-wide"
+                href={`/auth/google?next=${encodeURIComponent(next)}`}
+                onClick={check.on ? provider.go(`/auth/google?next=${encodeURIComponent(next)}`) : undefined}
+                aria-busy={provider.going?.startsWith("/auth/google") || undefined}
+              >
                 Continue with Google
               </a>
             </>
           ) : null}
+          {provider.error ? <ErrorCallout inset error={new Error(provider.error)} /> : null}
+          {check.slot}
           {methods.isError ? <ErrorCallout inset error={methods.error} onRetry={() => methods.refetch()} /> : null}
         </SheetBody>
       </Sheet>

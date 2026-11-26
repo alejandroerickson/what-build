@@ -20,7 +20,11 @@
 // One secret (wrangler secret
 // put): EDGE_KEY, the service's WHATBUILD_EDGE_KEY, sent with every request passed on, so the
 // service refuses whoever goes around this Worker to its run.app address
-// (apps/server/src/edge-key.ts).
+// (apps/server/src/edge-key.ts). With it, each request passed on names the address Cloudflare saw
+// it come from in X-WhatBuild-Client-Address, sealed with the key in X-WhatBuild-Client-Seal,
+// replacing whatever the client sent in either, for the service to count its abuse limits per
+// client (apps/server/src/client-address.ts). The service trusts only an address the seal proves
+// this Worker named, so no client makes one up, whichever of the two is deployed first.
 
 /** The site's own paths. Every other path on its domain belongs to the app. */
 const SITE_FILES = /^\/(assets\/.+|favicon\.svg|theme-boot\.js|social-card\.png)$/;
@@ -50,14 +54,37 @@ const PAGE_HEADERS = {
   "Permissions-Policy":
     "accelerometer=(), browsing-topics=(), camera=(), display-capture=(), geolocation=(), gyroscope=(), hid=(), idle-detection=(), magnetometer=(), microphone=(), midi=(), payment=(), publickey-credentials-get=(), screen-wake-lock=(), serial=(), usb=(), xr-spatial-tracking=()",
   "Content-Security-Policy":
-    "default-src 'self'; script-src 'self'; style-src 'self'; font-src 'self' data:; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'",
+    "default-src 'self'; script-src 'self'; style-src 'self'; font-src 'self' data:; img-src 'self' data:; frame-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'",
 };
 
-function forward(request, url, env, init = {}) {
+/** The edge key as an HMAC key, made once for each key this Worker is given. */
+let sealing = null;
+
+/** base64url of an HMAC-SHA256 of the client's address keyed with the edge key, as the service checks it (sealOf in apps/server/src/client-address.ts). */
+async function sealOf(address, edgeKey) {
+  if (sealing?.edgeKey !== edgeKey) {
+    const key = crypto.subtle.importKey("raw", new TextEncoder().encode(edgeKey), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+    sealing = { edgeKey, key };
+  }
+  const mac = new Uint8Array(await crypto.subtle.sign("HMAC", await sealing.key, new TextEncoder().encode(`whatbuild client address ${address}`)));
+  return btoa(String.fromCharCode(...mac)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+async function forward(request, url, env, init = {}) {
   const forwarded = new Request(new URL(url.pathname + url.search, env.ORIGIN), request);
   forwarded.headers.set("X-Forwarded-Host", url.host);
+  forwarded.headers.delete("X-WhatBuild-Client-Address");
+  forwarded.headers.delete("X-WhatBuild-Client-Seal");
   if (env.EDGE_KEY) forwarded.headers.set("X-WhatBuild-Edge-Key", env.EDGE_KEY);
   else forwarded.headers.delete("X-WhatBuild-Edge-Key");
+  // Only Cloudflare sets these; a request this Worker makes itself has none, and names nobody. The
+  // IPv6 address when there is one, so a zone that gives IPv6 visitors a made-up IPv4 address
+  // (Pseudo IPv4) still counts them by their own network.
+  const client = request.headers.get("cf-connecting-ipv6") || request.headers.get("cf-connecting-ip");
+  if (client && env.EDGE_KEY) {
+    forwarded.headers.set("X-WhatBuild-Client-Address", client);
+    forwarded.headers.set("X-WhatBuild-Client-Seal", await sealOf(client, env.EDGE_KEY));
+  }
   return fetch(forwarded, { redirect: "manual", ...init });
 }
 
@@ -74,8 +101,14 @@ const BEACON_SOURCES = {
   "connect-src": "https://cloudflareinsights.com",
 };
 
-function pageHeaders(analytics, beacon) {
-  const sources = [analytics ? ANALYTICS_SOURCES : {}, beacon ? BEACON_SOURCES : {}];
+/** Cloudflare Turnstile's host, for the waitlist's bot check (BOT_CHECK_SOURCES in apps/server/src/public-routes.ts). */
+const BOT_CHECK_SOURCES = {
+  "script-src": "https://challenges.cloudflare.com",
+  "frame-src": "https://challenges.cloudflare.com",
+};
+
+function pageHeaders(analytics, beacon, botCheck = false) {
+  const sources = [analytics ? ANALYTICS_SOURCES : {}, beacon ? BEACON_SOURCES : {}, botCheck ? BOT_CHECK_SOURCES : {}];
   const csp = PAGE_HEADERS["Content-Security-Policy"].split("; ").map((d) => {
     const extra = sources.map((s) => s[d.split(" ")[0]]).filter(Boolean);
     return extra.length ? `${d} ${extra.join(" ")}` : d;
@@ -148,6 +181,14 @@ async function sitePage(request, url, env) {
   const id = /^G-[A-Z0-9]+$/.test(env.ANALYTICS_ID ?? "") ? env.ANALYTICS_ID : null;
   const beacon = /^[0-9a-f]{32}$/.test(env.CF_ANALYTICS_TOKEN ?? "") ? env.CF_ANALYTICS_TOKEN : null;
   const site = await catalogue(url, env);
+  // Whether the service asks the waitlist's form for the bot check, so the page may load its widget.
+  const botCheck = (() => {
+    try {
+      return Boolean(site && JSON.parse(site).bot_check?.site_key);
+    } catch {
+      return false;
+    }
+  })();
   const head = [
     id ? `<meta name="whatbuild-analytics" content="${id}" />` : "",
     site ? `<meta name="whatbuild-site" content="${attr(site)}" />` : "",
@@ -155,7 +196,7 @@ async function sitePage(request, url, env) {
   ].join("");
   const html = (await page.text()).replace(ADDRESSES, `$1https://${env.SITE_HOST}/`);
   const response = new Response(head ? html.replace("</head>", `${head}\n</head>`) : html, page);
-  for (const [name, value] of Object.entries(pageHeaders(Boolean(id), Boolean(beacon)))) response.headers.set(name, value);
+  for (const [name, value] of Object.entries(pageHeaders(Boolean(id), Boolean(beacon), botCheck))) response.headers.set(name, value);
   response.headers.delete("Content-Length");
   response.headers.set("Cache-Control", "no-cache");
   return response;

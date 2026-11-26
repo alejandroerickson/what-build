@@ -15,6 +15,7 @@
     "dataset": "tsx apps/server/src/dataset.ts",
     "usage": "tsx apps/server/src/usage-report.ts",
     "people": "tsx apps/server/src/people.ts",
+    "abuse-test": "tsx apps/server/src/abuse-test.ts",
     "plans": "tsx apps/server/src/plans-check.ts",
     "e2e": "tsx apps/server/src/e2e.ts",
     "build": "apps/web/node_modules/.bin/vite build apps/web && node apps/server/build.mjs",

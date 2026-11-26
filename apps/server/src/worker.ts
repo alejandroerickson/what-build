@@ -2,7 +2,7 @@ import { hostname } from "node:os";
 import { SpanKind, SpanStatusCode, type Span } from "@opentelemetry/api";
 import { ParseInterrupted, ParseStopped } from "@whatbuild/parsers";
 import {
-  givePlaces, indexSources, markExportFailed, PICTURE_ATTEMPTS, PICTURE_FILES, pictureGivenUp, pruneFeedbackCounts, pruneUsage, runDerivation, runEvidenceMove, runExport, runPicture, sendFeedbackDigest, stagedPrototypeKeys, type Env,
+  givePlaces, indexSources, markExportFailed, PICTURE_ATTEMPTS, PICTURE_FILES, pictureGivenUp, pruneAbuseCounters, pruneFeedbackCounts, pruneUsage, runDerivation, runEvidenceMove, runExport, runPicture, sendFeedbackDigest, stagedPrototypeKeys, type Env,
 } from "@whatbuild/core";
 import { sql } from "kysely";
 import { CONNECTION_NOTICE_JOB, sendConnectionNotice, type ConnectionNoticeJob } from "./auth/connection-notice.ts";
@@ -251,7 +251,7 @@ export class Worker {
     if (released.length) this.log(`places of the day: ${released.length} given to the waitlist`);
   }
 
-  /** Housekeeping, at most hourly: finished jobs after a week; OAuth registrations nobody connected with; people's days of use after 14 months; feedback counts of days that are over; abandoned upload grants and canvas uploads, and their bytes; expired Story previews; messages between agents whose time is up. */
+  /** Housekeeping, at most hourly: finished jobs after a week; OAuth registrations nobody connected with; people's days of use after 14 months; feedback counts of days that are over; the abuse limits' windows two days after they began, and the bot check's tokens with them; abandoned upload grants and canvas uploads, and their bytes; expired Story previews; messages between agents whose time is up. */
   private async prune() {
     if (Date.now() - this.lastPrune < 3600_000) return;
     this.lastPrune = Date.now();
@@ -259,6 +259,7 @@ export class Worker {
     await pruneOAuthClients(this.env.db);
     await pruneUsage(this.env.db);
     await pruneFeedbackCounts(this.env.db);
+    await pruneAbuseCounters(this.env.db);
     // The counters behind an organization's limits: a minute's are read within that minute, a day's that day.
     await sql`delete from limit_counters where (bucket = 'minute' and starts_at < now() - interval '1 hour') or starts_at < now() - interval '3 days'`.execute(this.env.db);
     const tenants = await sql<{ tenant_id: string }>`select distinct tenant_id from tenants`.execute(this.env.db);

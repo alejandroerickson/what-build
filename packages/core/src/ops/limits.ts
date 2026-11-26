@@ -12,6 +12,7 @@ import {
 } from "../limits.ts";
 import { readGuests, readPlans, saveSetting, settingRecord } from "../settings.ts";
 import { REST_BODY_MAX_BYTES, SIGN_IN_LINKS_PER_HOUR, type Ports } from "../ports.ts";
+import { DEFAULT_ABUSE_LIMITS } from "../abuse-limits.ts";
 import { membershipsFor, readsOnlyTheStoryIn, tenantNamed } from "../policy.ts";
 import { defineOperation, type OpContext } from "../registry.ts";
 import { expectedEtag } from "../schemas.ts";
@@ -103,6 +104,7 @@ function requireInstanceOwner(ctx: OpContext) {
  */
 function deploymentLimits(ports: Pick<Ports, "blobs" | "config">) {
   const cfg = ports.config;
+  const invitations = (cfg.abuseLimits ?? DEFAULT_ABUSE_LIMITS).invitations_per_organization;
   return [
     { key: "file_max_bytes", label: "File size", value: cfg.fileMaxBytes, unit: "bytes", set_by: "WHATBUILD_FILE_MAX_BYTES" },
     { key: "relay_max_bytes", label: "File size through the upload relay", value: cfg.relayMaxBytes, unit: "bytes", set_by: "WHATBUILD_RELAY_MAX_BYTES" },
@@ -119,7 +121,9 @@ function deploymentLimits(ports: Pick<Ports, "blobs" | "config">) {
     { key: "mockup_html_max_chars", label: "A mockup version's HTML, all pages", value: MOCKUP_HTML_TOTAL, unit: "characters", set_by: null },
     { key: "attachments_per_source", label: "Attachments on a source", value: MAX_ATTACHMENTS, unit: "attachments", set_by: null },
     { key: "sources_per_call", label: "Sources in one archive or restore call", value: MAX_BATCH, unit: "sources", set_by: null },
-    { key: "sign_in_links_per_hour", label: "Sign-in links for one address", value: SIGN_IN_LINKS_PER_HOUR, unit: "an hour", set_by: null },
+    { key: "sign_in_links_per_hour", label: "Sign-in links for one email address", value: SIGN_IN_LINKS_PER_HOUR, unit: "an hour", set_by: null },
+    // An abuse limit (abuse-limits.ts) every organization can meet, listed while the deployment keeps it on.
+    ...(invitations === null ? [] : [{ key: "invitations_per_organization", label: "Invitations one organization makes", value: invitations, unit: "a day", set_by: "WHATBUILD_ABUSE_LIMITS" }]),
   ];
 }
 

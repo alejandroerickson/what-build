@@ -1,10 +1,16 @@
 import { createHash, timingSafeEqual } from "node:crypto";
-import type { MiddlewareHandler } from "hono";
+import type { Context, MiddlewareHandler } from "hono";
 
 /** The header the proxy in front (deploy/cloudflare/worker.js) sends the key in. */
 export const EDGE_KEY_HEADER = "X-WhatBuild-Edge-Key";
 
 const digest = (s: string) => createHash("sha256").update(s).digest();
+
+/** Whether a request carries this edge key. */
+export function carriesEdgeKey(c: Context, key: string): boolean {
+  const given = c.req.header(EDGE_KEY_HEADER);
+  return Boolean(given) && timingSafeEqual(digest(given!), digest(key));
+}
 
 /**
  * With an edge key (WHATBUILD_EDGE_KEY), the service answers only requests that carry it, which
@@ -15,11 +21,8 @@ const digest = (s: string) => createHash("sha256").update(s).digest();
  */
 export function requireEdgeKey(key: string | null, publicBaseUrl: string): MiddlewareHandler {
   if (!key) return async (_c, next) => next();
-  const expected = digest(key);
   return async (c, next) => {
-    if (c.req.path === "/health") return next();
-    const given = c.req.header(EDGE_KEY_HEADER);
-    if (given && timingSafeEqual(digest(given), expected)) return next();
+    if (c.req.path === "/health" || carriesEdgeKey(c, key)) return next();
     return c.text(`This address does not serve WhatBuild. Open ${publicBaseUrl} instead.`, 403, { "Cache-Control": "no-store" });
   };
 }

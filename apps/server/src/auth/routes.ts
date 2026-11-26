@@ -1,9 +1,11 @@
 import { createHash, randomBytes } from "node:crypto";
-import { AppError, askForOrganization, conflict, enterAsGuest, planName, escapeHtml, gone, invalid, isGuestAccount, isInstanceOwner, placeOpen, readGuests, tenantAllowanceOf, newId, notFound, oneLine, plainName, randomToken, safeNext, sha256Hex, SIGN_IN_LINK_MINUTES, SIGN_IN_LINK_SUBJECT, SIGN_IN_LINKS_PER_HOUR, unauthenticated, type Db, type InvitationsTable, type Mailer } from "@whatbuild/core";
+import { abuseRefusal, AppError, askForOrganization, hasRoom, retryAfter, spend, spendPerClient, type WindowedLimitName, conflict, enterAsGuest, planName, escapeHtml, gone, invalid, isGuestAccount, isInstanceOwner, placeOpen, readGuests, tenantAllowanceOf, newId, notFound, oneLine, plainName, randomToken, safeNext, sha256Hex, SIGN_IN_LINK_MINUTES, SIGN_IN_LINK_SUBJECT, SIGN_IN_LINKS_PER_HOUR, unauthenticated, type Db, type InvitationsTable, type Mailer } from "@whatbuild/core";
 import { Hono, type Context } from "hono";
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 import { sql, type Selectable } from "kysely";
 import { z } from "zod";
+import { botCheckFailed, botCheckFor, BOT_CHECK_FIELD, passesBotCheck } from "../bot-check.ts";
+import { clientAddress, clientKeys } from "../client-address.ts";
 import { microsoftSignIn, type ServerConfig } from "../config.ts";
 import { connectorReach } from "./connector-reach.ts";
 import { acceptInvitation, accountByEmail, clearSessionCookies, createSession, declineInvitation, endEverything, findOrCreateAccount, invitationPlace, isOwnOrigin, restPrincipal, sessionTokens, setSessionCookie } from "./identity.ts";
@@ -104,15 +106,54 @@ export function authRoutes(deps: { db: Db; config: ServerConfig; mailer: Mailer 
     if (!config.signupAllowlist) return true;
     const guests = await readGuests(db);
     if (guests.self_serve || guests.organizations_per_day > 0) return true;
+    return (await vouchedFor(email)) || Boolean(await accountByEmail(db, email));
+  };
+
+  /**
+   * Whether someone let this address in: the allowlist, an instance owner, an allowance an instance
+   * owner gave it, or an invitation waiting for it. A new account for anyone else came through a
+   * door left open to everyone, and is counted against the limits on new accounts.
+   */
+  const vouchedFor = async (email: string) => {
     const e = email.toLowerCase();
-    if (config.signupAllowlist.some((a) => (a.startsWith("@") ? e.endsWith(a) : e === a))) return true;
+    if (config.signupAllowlist?.some((a) => (a.startsWith("@") ? e.endsWith(a) : e === a))) return true;
     if (config.instanceOwners.includes(e)) return true;
     const allowance = await db.selectFrom("tenant_allowances").select("allowed").where("email", "=", e).where("allowed", ">", 0).executeTakeFirst();
     if (allowance) return true;
-    const existing = await db.selectFrom("accounts").select("account_id").where(sql<boolean>`lower(email) = ${e}`).where("deleted_at", "is", null).executeTakeFirst();
-    if (existing) return true;
     const invited = await db.selectFrom("invitations").select("invitation_id").where(sql<boolean>`lower(email) = ${e}`).where("accepted_at", "is", null).where("expires_at", ">", new Date().toISOString()).executeTakeFirst();
     return Boolean(invited);
+  };
+
+  /**
+   * Whether a new account for `email`, made through a door open to everyone, is refused: null when
+   * there is room under the limit for its client address and the deployment's ceiling for the hour
+   * (`abuse-limits.ts`), otherwise the sign-in page's error for whichever refused, its network's or
+   * the deployment's, since only the first is lifted by trying from elsewhere. An address that has an
+   * account, or that someone let in, is never counted, so a flood of strangers cannot keep out the
+   * people a team invited.
+   */
+  const accountRefused = async (c: Context, email: string): Promise<"too_many_accounts_from_network" | "too_many_accounts" | null> => {
+    if ((await accountByEmail(db, email)) || (await vouchedFor(email))) return null;
+    const keys = clientKeys(clientAddress(c, config), config.grantKey);
+    const network = new Error("refused for the network");
+    const everyone = new Error("refused for the deployment");
+    try {
+      await db.transaction().execute(async (trx) => {
+        if (!(await spendPerClient(trx, "new_accounts", keys, config.abuseLimits)).ok) throw network;
+        if (!(await spend(trx, "new_accounts_per_hour", "", config.abuseLimits)).ok) throw everyone;
+      });
+      return null;
+    } catch (e) {
+      if (e === network) return "too_many_accounts_from_network";
+      if (e === everyone) return "too_many_accounts";
+      throw e;
+    }
+  };
+
+  /** A refusal under an abuse limit, saying when its window starts again. */
+  const tooMany = (c: Context, message: string, name: WindowedLimitName, refused: { limit: number; resets_at: string }) => {
+    c.header("Retry-After", String(retryAfter(refused.resets_at)));
+    return abuseRefusal(message, name, refused.limit, refused.resets_at);
   };
 
   const startSession = async (c: Context, accountId: string) => {
@@ -130,13 +171,18 @@ export function authRoutes(deps: { db: Db; config: ServerConfig; mailer: Mailer 
    * Email a single-use sign-in link to an address that may sign in here. Every address gets the
    * same answer, at the same speed, and meets the same hourly limit, so the form never says whether
    * an address has an account, an invitation or an allowance: one that may not sign in is sent
-   * nothing, and its request is counted as a link would be. The email goes out after the answer,
+   * nothing, and its request is counted as a link would be, but for the hour's mail, which counts
+   * what is mailed and, once used, refuses every address alike. The email goes out after the answer,
    * so a slow mail server does not tell them apart either; a failure to send it is logged.
    */
   app.post("/auth/email", async (c) => {
     if (config.mailer === "none") throw notFound("Sign-in links by email aren’t set up on this server. Sign in another way.");
-    const body = z.strictObject({ email: z.string().trim().email().max(320), next: z.string().max(2000).optional() }).safeParse(await c.req.json().catch(() => ({})));
+    const body = z
+      .strictObject({ email: z.string().trim().email().max(320), next: z.string().max(2000).optional(), [BOT_CHECK_FIELD]: z.string().max(4096).optional() })
+      .safeParse(await c.req.json().catch(() => ({})));
     if (!body.success) throw invalid("invalid_input", "Enter a valid email.");
+    const address = clientAddress(c, config);
+    if (!(await passesBotCheck(config, db, body.data[BOT_CHECK_FIELD], "sign_in", address))) throw botCheckFailed();
     const email = body.data.email;
     const recent = await db
       .selectFrom("email_tokens")
@@ -146,13 +192,24 @@ export function authRoutes(deps: { db: Db; config: ServerConfig; mailer: Mailer 
       .executeTakeFirst();
     if (Number(recent?.n ?? 0) >= SIGN_IN_LINKS_PER_HOUR) throw new AppError(429, "rate_limited", "Too many sign-in links for this email in the last hour. Use the latest one, or try again later.");
     const allowed = await mayJoin(email);
-    // A link is made either way, so the limit counts every address alike; one that may not sign in
-    // is never sent, and opening it would be refused all the same.
+    // A link is made either way, and counted against the client either way, so neither the answer
+    // nor the client's limit says whether an address may sign in; one that may not is never sent,
+    // and opening it would be refused all the same. The hour's mail counts only a link that is
+    // mailed, so a script naming addresses nobody mails cannot use it up; once it is used, every
+    // address is refused alike. Both lock the hour's row until the link is stored (`hasRoom` takes
+    // nothing from it), so under a burst they wait alike and their speed says nothing either.
     const token = randomToken();
-    await db
-      .insertInto("email_tokens")
-      .values({ token_hash: sha256Hex(token), email, purpose: "sign_in", redirect: safeNext(body.data.next), expires_at: new Date(Date.now() + SIGN_IN_LINK_MINUTES * 60_000).toISOString() })
-      .execute();
+    const keys = clientKeys(address, config.grantKey);
+    await db.transaction().execute(async (trx) => {
+      const mine = await spendPerClient(trx, "sign_in_links", keys, config.abuseLimits);
+      if (!mine.ok) throw tooMany(c, "Too many sign-in links were asked for from your network in the last hour. Try again later, or sign in another way.", mine.name, mine);
+      const mail = allowed ? await spend(trx, "mail_per_hour", "", config.abuseLimits) : await hasRoom(trx, "mail_per_hour", "", config.abuseLimits);
+      if (!mail.ok) throw tooMany(c, "WhatBuild has sent all the email it sends in an hour. Try again later, or sign in another way.", "mail_per_hour", mail);
+      await trx
+        .insertInto("email_tokens")
+        .values({ token_hash: sha256Hex(token), email, purpose: "sign_in", redirect: safeNext(body.data.next), expires_at: new Date(Date.now() + SIGN_IN_LINK_MINUTES * 60_000).toISOString() })
+        .execute();
+    });
     if (allowed) {
       const link = `${config.publicBaseUrl}/auth/verify?token=${token}`;
       void mailer
@@ -195,6 +252,12 @@ export function authRoutes(deps: { db: Db; config: ServerConfig; mailer: Mailer 
     if (!row) return c.redirect("/signin?error=link_expired", 303);
     // What let the address in may have gone since: an invitation can be cancelled while the email is in transit.
     if (!(await mayJoin(row.email))) return c.redirect("/signin?error=invite_only", 303);
+    const refused = await accountRefused(c, row.email);
+    if (refused) {
+      // The link is given back, so it can be pressed again while it lasts: from another network, or once there is room.
+      await db.updateTable("email_tokens").set({ used_at: null }).where("token_hash", "=", sha256Hex(token)).where("used_at", "=", now).execute();
+      return c.redirect(`/signin?error=${refused}`, 303);
+    }
     const { account } = await findOrCreateAccount(db, row.email);
     await startSession(c, account.account_id);
     return c.redirect(safeNext(row.redirect), 303);
@@ -267,7 +330,7 @@ export function authRoutes(deps: { db: Db; config: ServerConfig; mailer: Mailer 
     const guests = await readGuests(db);
     // Whether anyone may make an account here, so the sign-in page can say so to a newcomer.
     const open = !config.signupAllowlist || guests.self_serve || guests.organizations_per_day > 0;
-    return c.json({ email_link: config.mailer !== "none", google: Boolean(config.googleClientId && config.googleClientSecret), microsoft: microsoftSignIn(config), dev: config.devAuth, session_days: config.sessionDays, analytics_id: await analyticsFor(c), open });
+    return c.json({ email_link: config.mailer !== "none", google: Boolean(config.googleClientId && config.googleClientSecret), microsoft: microsoftSignIn(config), dev: config.devAuth, session_days: config.sessionDays, analytics_id: await analyticsFor(c), open, bot_check: botCheckFor(config) });
   });
 
   /**
@@ -326,6 +389,8 @@ export function authRoutes(deps: { db: Db; config: ServerConfig; mailer: Mailer 
   /** What every method does once it has an address it trusts: admission, the account, a session. Invitations wait for their person's answer. */
   const completeSignIn = async (c: Context, email: string, name: string | undefined, next: string) => {
     if (!(await mayJoin(email))) return c.redirect("/signin?error=invite_only");
+    const refused = await accountRefused(c, email);
+    if (refused) return c.redirect(`/signin?error=${refused}`);
     const { account } = await findOrCreateAccount(db, email, name);
     await startSession(c, account.account_id);
     return c.redirect(next);
@@ -335,6 +400,7 @@ export function authRoutes(deps: { db: Db; config: ServerConfig; mailer: Mailer 
 
   app.get("/auth/google", async (c) => {
     if (!config.googleClientId) throw notFound("Google sign-in isn’t set up on this server.");
+    if (!(await passesBotCheck(config, db, c.req.query(BOT_CHECK_FIELD), "sign_in", clientAddress(c, config)))) return c.redirect(`/signin?error=bot_check&next=${encodeURIComponent(safeNext(c.req.query("next")))}`);
     return beginOidc(c, "/auth/google", "https://accounts.google.com/o/oauth2/v2/auth", { client_id: config.googleClientId });
   });
 
@@ -365,6 +431,7 @@ export function authRoutes(deps: { db: Db; config: ServerConfig; mailer: Mailer 
 
   app.get("/auth/microsoft", async (c) => {
     if (!microsoftSignIn(config)) throw notFound("Microsoft sign-in isn’t set up on this server.");
+    if (!(await passesBotCheck(config, db, c.req.query(BOT_CHECK_FIELD), "sign_in", clientAddress(c, config)))) return c.redirect(`/signin?error=bot_check&next=${encodeURIComponent(safeNext(c.req.query("next")))}`);
     return beginOidc(c, "/auth/microsoft", `https://login.microsoftonline.com/${config.microsoftTenant}/oauth2/v2.0/authorize`, { client_id: config.microsoftClientId! });
   });
 

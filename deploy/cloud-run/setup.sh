@@ -46,6 +46,14 @@
 #   GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET   an OAuth web client for "Continue with Google" (optional).
 #                       The secret may instead be created in Secret Manager as
 #                       whatbuild-google-client-secret, and only GOOGLE_CLIENT_ID passed.
+#   TURNSTILE_SITE_KEY, TURNSTILE_SECRET_KEY   a Cloudflare Turnstile widget's keys, for the bot
+#                       check on asking for a sign-in link, starting Google or Microsoft sign-in and
+#                       joining the waitlist (optional; both or neither). The secret key may instead
+#                       be created in Secret Manager as whatbuild-turnstile-secret-key, and only
+#                       TURNSTILE_SITE_KEY passed (okf/operations/cloud-run.md, The bot check).
+#   ABUSE_LIMITS        the abuse limits this deployment changes, as name=number or name=off,
+#                       e.g. "mail_per_hour=300,waitlist_per_address=3" (optional; each keeps its
+#                       default otherwise; okf/spec/09-data-lifecycle.md §9.2)
 #   SIGNED_URLS=1       let files past the service's own 25 MB route go straight to the bucket, from
 #                       the web app and agents alike. Without it, nothing larger can be uploaded,
 #                       whatever a plan's file limit says.
@@ -98,6 +106,19 @@ secret() { # secret NAME VALUE — create or add a version, reading the value fr
 
 if [ -z "${CLOUD_SQL:-}" ] && [ -z "${DATABASE_URL:-}" ]; then
   echo "Choose a database: CLOUD_SQL=1 to create one, or DATABASE_URL=postgres://… for an existing Postgres." >&2
+  exit 1
+fi
+# The bot check's keys go together, or the new revision would not start: a secret key given or
+# already in Secret Manager needs the site key, and a site key needs its secret key. Every run sets
+# all the service's settings again, so a re-run passes the site key again too.
+TURNSTILE_SECRET_HELD=""
+if [ -n "${TURNSTILE_SECRET_KEY:-}" ] || $G secrets describe whatbuild-turnstile-secret-key >/dev/null 2>&1; then TURNSTILE_SECRET_HELD=1; fi
+if [ -n "$TURNSTILE_SECRET_HELD" ] && [ -z "${TURNSTILE_SITE_KEY:-}" ]; then
+  echo "The bot check's secret key is set (TURNSTILE_SECRET_KEY, or whatbuild-turnstile-secret-key in Secret Manager): pass its widget's TURNSTILE_SITE_KEY too, or delete that secret to leave the bot check off (okf/operations/cloud-run.md, The bot check)." >&2
+  exit 1
+fi
+if [ -n "${TURNSTILE_SITE_KEY:-}" ] && [ -z "$TURNSTILE_SECRET_HELD" ]; then
+  echo "TURNSTILE_SITE_KEY needs its secret key: pass TURNSTILE_SECRET_KEY, or create whatbuild-turnstile-secret-key in Secret Manager (okf/operations/cloud-run.md, The bot check)." >&2
   exit 1
 fi
 
@@ -188,15 +209,20 @@ SECRETS="DATABASE_URL=whatbuild-database-url:latest,WHATBUILD_GRANT_KEY=whatbuil
 if [ -n "${SMTP_URL:-}" ]; then secret whatbuild-smtp-url "$SMTP_URL"; fi
 if [ -n "${GOOGLE_CLIENT_SECRET:-}" ]; then secret whatbuild-google-client-secret "$GOOGLE_CLIENT_SECRET"; fi
 if [ -n "${PLANS_FILE:-}" ]; then secret whatbuild-plans "$(cat "$PLANS_FILE")"; fi
+if [ -n "${TURNSTILE_SECRET_KEY:-}" ]; then secret whatbuild-turnstile-secret-key "$TURNSTILE_SECRET_KEY"; fi
 # Each of these may also be created by hand in Secret Manager, and the service uses it whenever it
 # exists. The edge key always is, once the Cloudflare Worker is in front and has it
-# (okf/operations/cloud-run.md, A custom domain).
-for pair in WHATBUILD_SMTP_URL=whatbuild-smtp-url WHATBUILD_GOOGLE_CLIENT_SECRET=whatbuild-google-client-secret WHATBUILD_EDGE_KEY=whatbuild-edge-key WHATBUILD_PLANS=whatbuild-plans; do
+# (okf/operations/cloud-run.md, A custom domain); the bot check's secret key goes with its site key
+# (TURNSTILE_SITE_KEY below; okf/operations/cloud-run.md, The bot check).
+for pair in WHATBUILD_SMTP_URL=whatbuild-smtp-url WHATBUILD_GOOGLE_CLIENT_SECRET=whatbuild-google-client-secret WHATBUILD_EDGE_KEY=whatbuild-edge-key WHATBUILD_PLANS=whatbuild-plans WHATBUILD_TURNSTILE_SECRET_KEY=whatbuild-turnstile-secret-key; do
   if $G secrets describe "${pair#*=}" >/dev/null 2>&1; then
     $G secrets add-iam-policy-binding "${pair#*=}" --member "serviceAccount:$RUNTIME_SA" --role roles/secretmanager.secretAccessor >/dev/null
     SECRETS="$SECRETS,$pair:latest"
   fi
 done
+# The migration job gets every secret but the bot check's: its site key is a setting only the service
+# has, and the server refuses to start with half of the pair, so the job would stop every release.
+JOB_SECRETS="$(printf '%s' "$SECRETS" | tr ',' '\n' | grep -v '^WHATBUILD_TURNSTILE_SECRET_KEY=' | paste -sd, -)"
 
 step "First image (Cloud Build)"
 $G builds submit --region "$REGION" --tag "$IMAGE" .
@@ -215,6 +241,9 @@ ENV_VARS="$ENV_VARS,WHATBUILD_LIVE_MAX_STREAMS=100,WHATBUILD_LIVE_STREAM_MINUTES
 [ -n "${NEW_ORGANIZATION_PLAN:-}" ] && ENV_VARS="$ENV_VARS,WHATBUILD_NEW_ORGANIZATION_PLAN=$NEW_ORGANIZATION_PLAN"
 [ -n "${EXAMPLE_TENANT:-}" ] && ENV_VARS="$ENV_VARS,WHATBUILD_EXAMPLE_TENANT=$EXAMPLE_TENANT"
 [ -n "${SITE_URL:-}" ] && ENV_VARS="$ENV_VARS,WHATBUILD_SITE_URL=$SITE_URL"
+[ -n "${TURNSTILE_SITE_KEY:-}" ] && ENV_VARS="$ENV_VARS,WHATBUILD_TURNSTILE_SITE_KEY=$TURNSTILE_SITE_KEY"
+# Its commas held as semicolons, as the lists above are, until ENV_ARG below turns them back into commas.
+[ -n "${ABUSE_LIMITS:-}" ] && ENV_VARS="$ENV_VARS,WHATBUILD_ABUSE_LIMITS=${ABUSE_LIMITS//,/;}"
 [ -n "${DATABASE_POOL_SIZE:-}" ] && ENV_VARS="$ENV_VARS,WHATBUILD_DATABASE_POOL_SIZE=$DATABASE_POOL_SIZE"
 if [ -n "${TRACES_PROJECT:-}" ]; then
   step "Traces, in $TRACES_PROJECT"
@@ -235,10 +264,10 @@ ENV_ARG="${ENV_ARG//;/,}"
 
 step "Migration job $JOB"
 if $G run jobs describe "$JOB" --region "$REGION" >/dev/null 2>&1; then
-  $G run jobs update "$JOB" --region "$REGION" --image "$IMAGE" --set-secrets "$SECRETS" ${CLOUDSQL_FLAGS[@]+"${CLOUDSQL_FLAGS[@]}"}
+  $G run jobs update "$JOB" --region "$REGION" --image "$IMAGE" --set-secrets "$JOB_SECRETS" ${CLOUDSQL_FLAGS[@]+"${CLOUDSQL_FLAGS[@]}"}
 else
   $G run jobs create "$JOB" --region "$REGION" --image "$IMAGE" --service-account "$RUNTIME_SA" \
-    --command node --args main.js,migrate --set-secrets "$SECRETS" ${CLOUDSQL_FLAGS[@]+"${CLOUDSQL_FLAGS[@]}"} \
+    --command node --args main.js,migrate --set-secrets "$JOB_SECRETS" ${CLOUDSQL_FLAGS[@]+"${CLOUDSQL_FLAGS[@]}"} \
     --max-retries 0 --task-timeout 600
 fi
 $G run jobs execute "$JOB" --region "$REGION" --wait
