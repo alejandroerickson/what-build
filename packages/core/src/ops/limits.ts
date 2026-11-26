@@ -18,7 +18,7 @@ import { defineOperation, type OpContext } from "../registry.ts";
 import { expectedEtag } from "../schemas.ts";
 import { isInstanceOwner, tenantAllowanceOf } from "../tenant-allowance.ts";
 import { STORY_HTML_MAX } from "../story-html.ts";
-import { aboutUnlimited } from "../unlimited-plan.ts";
+import { aboutUnlimited, unlimitedLifts } from "../unlimited-plan.ts";
 import { newEtag } from "../util.ts";
 import { ownerAddresses, tellOwnersReadOnly } from "../organization-notices.ts";
 import { MAX_ATTACHMENTS, uploadMaxBytes } from "./attachments.ts";
@@ -90,7 +90,7 @@ function knownPlan(id: string, unlimited: boolean) {
 /** What a plan is for, in a sentence. */
 function aboutPlan(plan: string): string {
   if (plan === UNLIMITED) return aboutUnlimited();
-  return definedPlans().find((p) => p.id === plan)?.about ?? "A plan this WhatBuild no longer defines: no limit applies until the organization moves to another plan.";
+  return definedPlans().find((p) => p.id === plan)?.about ?? `A plan this WhatBuild no longer defines, so the organization meets the Unlimited plan’s limits until it moves to another plan. ${unlimitedLifts()}`;
 }
 
 function requireInstanceOwner(ctx: OpContext) {
@@ -209,7 +209,7 @@ export const listOrganizations = defineOperation({
   mutates: false,
   summary: "Every organization on this instance, with its plan, what it holds, who created it and what it used today (instance owners).",
   description:
-    "For the instance's owners: new_organization_plan, the plan an organization someone else creates gets on this deployment (WHATBUILD_NEW_ORGANIZATION_PLAN), plans, the plans this deployment defines (WHATBUILD_PLANS) with each one's limits and price, empty when it offers none, and each organization with its slug (and former_slugs, the ones it had before), name, plan, read_only when it is read-only (since, and kept_until), starting_plan_is_read_only when moving it to the starting plan would make it read-only, undefined_plan when it is on a plan the deployment no longer defines (it meets no limit until moved), whether it is the example organization, who created it and when, what it holds (people, products and sources, archived ones included, storage in bytes) and what everyone in it used today, whatever its plan. It names no product and holds none of an organization's content. Move an organization to another plan with products.set_plan, whose expected_etag is etag; rename one with products.rename_tenant, whose expected_etag is name_etag.",
+    "For the instance's owners: new_organization_plan, the plan an organization someone else creates gets on this deployment (WHATBUILD_NEW_ORGANIZATION_PLAN), plans, the plans this deployment defines (WHATBUILD_PLANS) with each one's limits and price, empty when it offers none, and each organization with its slug (and former_slugs, the ones it had before), name, plan, read_only when it is read-only (since, and kept_until), starting_plan_is_read_only when moving it to the starting plan would make it read-only, undefined_plan when it is on a plan the deployment no longer defines (it meets the unlimited plan's limits until moved), whether it is the example organization, who created it and when, what it holds (people, products and sources, archived ones included, storage in bytes) and what everyone in it used today, whatever its plan. It names no product and holds none of an organization's content. Move an organization to another plan with products.set_plan, whose expected_etag is etag; rename one with products.rename_tenant, whose expected_etag is name_etag.",
   input: z.strictObject({}),
   rest: { method: "GET", path: "/organizations" },
   mcp: { tool: "products", action: "organizations" },

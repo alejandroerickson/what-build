@@ -1636,7 +1636,8 @@ never described as deleting. A list row showing an archived object says *Archive
   what it is for, that everyone in the organization meets its limits, owners and their agents
   included (an unlimited organization has none but what each product holds, which says so, with
   the numbers it applies: the Playbook's files and size, and the versions each mockup and Story page
-  keeps; and one on a plan the deployment no longer defines meets none until it is moved); for a
+  keeps; and one on a plan the deployment no longer defines meets the same as an unlimited one
+  until an instance owner moves it to another plan, which it says, with the same numbers); for a
   read-only organization, a Read-only mark and a note headed with how long it is kept ("Kept until
   26 Oct 2027 · 365 days left", the day in UTC, as every refusal and Instance admin's Organizations
   give it) that says it went back to the starting plan while whoever started it already has an
@@ -1838,15 +1839,17 @@ never described as deleting. A list row showing an archived object says *Archive
   plans, never to one organization, to raise as WhatBuild grows; the plans side by side (below);
   and in the head a button for each plan, which opens **The** plan: its price, as people read it,
   then every limit in a field (bytes in MB; a total, or the bytes sent a day, with **No limit**
-  beside it, a checkbox named by the limit it lifts, "Products: no limit"), what each product holds
-  among them (mockups, Story pages, the Playbook's files and
-  size), next to what the deployment's configuration sets, saved under the plan's etag
-  (`products.set_plan_limits`) for every organization on it, with **Back to the configured
-  limits**. Then **Limits of the** plan of one of the owner's own organizations (one row each: what
-  it counts and over what, what it allows, what is used, the refusal a call over it gets; on
-  Unlimited, **None** but for what a product holds, at its defaults) and
-  **Limits of this deployment**, with what sets each, which are the same for every organization;
-  an owner in no organization of their own has the plans side by side only.
+  beside it, a checkbox named by the limit it lifts, "Products: no limit", whose unticking brings
+  back the number the field had, or, for a field that opened at no limit, what the configuration
+  sets, and where it sets none, what every product keeps by default for what a product holds (10
+  versions, never 1) or the least allowed for the rest), what each product holds among them
+  (mockups, Story pages, the Playbook's files and size), next to what the deployment's
+  configuration sets, saved under the plan's etag (`products.set_plan_limits`) for every
+  organization on it, with **Back to the configured limits**. Then **Limits of the** plan of one of
+  the owner's own organizations (one row each: what it counts and over what, what it allows, what
+  is used, the refusal a call over it gets; on Unlimited, **None** but for what a product holds, at
+  its defaults) and **Limits of this deployment**, with what sets each, which are the same for
+  every organization; an owner in no organization of their own has the plans side by side only.
   - **Guests** (`/admin/guests`, where the deployment has an example organization): what a guest is, a badge for whether anyone can sign up as one,
   how many are in (of the places), waiting, new today (of the day's) and ever, refreshed every half
   minute, then each setting in a field next to its default, saved together under their etag

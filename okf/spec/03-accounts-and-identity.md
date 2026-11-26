@@ -400,7 +400,8 @@ end-to-end instance use `deploy/plans.example.json`, whose plans are Free and Pr
 create would get. Limits belong to plans, never to one tenant: on a plan the deployment defines
 everyone in the tenant meets its limits, its owners included; on unlimited nobody does, and nor
 does anyone in a tenant left on a plan the deployment no longer defines (`undefined_plan`), until
-it moves. The limits and their refusals are in [§9.7](09-data-lifecycle.md).
+it moves, but for what each product holds: its Playbook's size and the versions each mockup and
+Story page keeps. The limits and their refusals are in [§9.7](09-data-lifecycle.md).
 
 - Everyone in the tenant, but someone who reads only the Story everywhere in it ([§3.5](#35-roles)),
   reads its plan and limits with `products.limits` (scope `tenant`, access `any`): each limit with what is used of it (today's for a daily one, counted on every plan; what

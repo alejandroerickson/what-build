@@ -534,14 +534,14 @@ defines, its owners included. The plans and their limits come from the deploymen
 (`WHATBUILD_PLANS`, read once at start-up), never from a request; a new organization's plan comes
 from the deployment (`WHATBUILD_NEW_ORGANIZATION_PLAN`); limits belong to plans, and only an
 instance owner moves an organization to another plan or changes a plan's limits, so nobody raises
-their own. An organization left on a plan the deployment no longer defines meets no limit until it
-is moved, and the instance's page marks it. A guest meets the guests' calls a minute and downloads
-a day. A guest account, in no organization, comes into the example only while there is
-room (`enterAsGuest`), under the guests' settings an instance owner sets: places at once, new
-guests a day, time each a day, calls a minute and downloads a day; past them it waits, and every
-call into the example from it is refused `429 guest_waiting`, changing nothing. Self-serve sign-up
-is off until an instance owner turns it on, and then an account costs a row but no place. A mockup
-page on a plan with limits has a mockup
+their own. An organization left on a plan the deployment no longer defines meets what an unlimited
+one does until it is moved (no limit but what each product holds), and the instance's page marks
+it. A guest meets the guests' calls a minute and downloads a day. A guest account, in no
+organization, comes into the example only while there is room (`enterAsGuest`), under the guests'
+settings an instance owner sets: places at once, new guests a day, time each a day, calls a minute
+and downloads a day; past them it waits, and every call into the example from it is refused
+`429 guest_waiting`, changing nothing. Self-serve sign-up is off until an instance owner turns it
+on, and then an account costs a row but no place. A mockup page on a plan with limits has a mockup
 page's rules, with no script budget: the budget is no control (above), and the cap on what one
 field holds (200,000 characters by default) already bounds a page, and the daily writes bound how
 many.

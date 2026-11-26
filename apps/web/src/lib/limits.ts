@@ -83,7 +83,7 @@ export interface OrganizationLimits {
   plan: Plan;
   plan_name: string;
   plan_about: string;
-  /** On a plan the deployment no longer defines: no limit applies until it moves. */
+  /** On a plan the deployment no longer defines: it meets what an unlimited organization meets until it moves. */
   undefined_plan?: true;
   read_only?: ReadOnly;
   /** "calls_per_minute_only": a guest of the example organization. */
@@ -137,7 +137,7 @@ export interface InstanceOrganization {
   read_only?: ReadOnly;
   /** Moving it to the starting plan would make it read-only: whoever started it already has an organization there. */
   starting_plan_is_read_only?: true;
-  /** On a plan the deployment no longer defines: no limit applies until it moves. */
+  /** On a plan the deployment no longer defines: it meets what an unlimited organization meets until it moves. */
   undefined_plan?: true;
   example?: true;
   created_at: string;
