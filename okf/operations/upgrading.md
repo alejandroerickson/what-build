@@ -41,7 +41,8 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
   pages blank until a reload; the clickable view also reopened each page it moved to. Publish now
   refuses (`422 invalid_input`) an upload whose prototype gives a page a document loading more than
   20 files or 1 MB, or the pages more than 12 MB together: an agent republishing such a canvas is
-  told to make each page its own light screen. Canvases already published are not touched and keep
+  pointed to the guide's ways of bringing it within the limits, and what each changes for the people
+  who view it. Canvases already published are not touched and keep
   loading in turns. Nothing needs doing, and no migration (`tools_version` 0.73.0); a connected
   client sees the new descriptions after a new session.
 

@@ -955,8 +955,10 @@ names one of its HTML documents (`index.html`, `app/checkout.html?plan=pro#step-
   to what its pages load: each page's document, with the files it and its stylesheets load, at most
   20 files and 1 MB; the pages together at most 12 MB, each counted as it loads (its own HTML, or
   its document's load again for every page that enters it). Past either, `422 invalid_input` names
-  each document once, with the pages that enter it, and says how to make each page its own light
-  screen. A version that carries its base's prototype without an upload is not checked again.
+  each document once, with the pages that enter it, and points to the guide's mockups topic, whose
+  What a page loads describes what is counted, what people see, and the ways a heavy prototype comes
+  within the limits, with what each changes for the people who view it. A version that carries its
+  base's prototype without an upload is not checked again.
 - **Stateless.** A prototype's documents run in an opaque origin, which has no browser storage and
   no cookies; WhatBuild injects no stand-in, so each document load starts fresh. State lives in
   script variables while a document is open, or in the address (query or hash) across documents.

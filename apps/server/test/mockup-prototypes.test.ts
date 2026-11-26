@@ -578,7 +578,7 @@ describe("prototype paths and warnings", () => {
     expect(heavy.status).toBe(422);
     expect(heavy.body.error.details.problems).toEqual([
       `app.html, which 4 pages enter (a, b, c, …), loads ${PAGE_LOAD_FILES + 1} files, 1 KB with itself, each time a page's frame opens it; a page loads at most ${PAGE_LOAD_FILES} files and 1.0 MB, so that it shows at once.`,
-      "Make each canvas page its own light screen: give it only what it draws, its scripts in one file and its styles in another, keep what happens within the screen (a dialog, a tab, a button's result) inside its page, and make a move to another screen a link to that canvas page, rather than the whole prototype behind every page.",
+      'Each page loads its document and all it loads afresh, so a prototype entered by many pages costs its whole weight for each. guide(topic="mockups"), under What a page loads, describes the ways a heavy prototype comes within these limits (bundling and trimming it, a document for each screen, a page of its own for each screen, fewer pages) and what each changes for the people who view the canvas.',
     ]);
     // Each page is light enough, but every page's frame fetches it again, and together they are too much.
     const big = "x".repeat(PAGE_LOAD_BYTES - 64 * 1024);

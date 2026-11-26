@@ -121,7 +121,8 @@ numbers is `page.goBack`, which walks every entry; the browser's own button may 
     link to the third stays in its frame. In the clickable view, the first changes the page and the second
     moves within it. An entry page has no download button on its label. Upload too a canvas of 4 pages that
     each enter a document loading 25 files. *Expect:* `422 invalid_input` names that document once, with the 4
-    pages, and says how to make each page its own light screen. Then 40 pages that each enter a document of 10
+    pages, and points to the guide's ways of bringing a prototype within the limits; `guide(topic="mockups")`
+    describes them under What a page loads. Then 40 pages that each enter a document of 10
     files and 200 KB. *Expect:* it publishes. **Web:** the selected page draws first and the others fill in,
     each a sheet saying Loading until it has, never white, until every page has drawn; press **2**, then the
     arrows, and each page shows drawn at once. In the clickable view the arrows and the page menu show the

@@ -98,17 +98,8 @@ load only one another.
 - **Forms** run their `submit` handlers and submit nowhere. A link between its documents moves within
   the page's frame; a PDF it links to does not open in the frame (browsers refuse a PDF in a sandbox),
   though its scripts can fetch the bytes.
-- **One light screen a page.** A frame keeps nothing between loads (browsers cache nothing a
-  sandboxed frame loads), and every page of a canvas loads when it opens, each fetching again its
-  document and everything that loads. Make each canvas page its own screen with only what it draws:
-  its scripts in one file and its styles in another, and no large data (fixtures, icon sets) it does
-  not show. What happens within a screen (a dialog, a tab, a button's result) stays inside its page;
-  a move to another screen is a link to that canvas page, which people move to at once. Do not put
-  the whole prototype behind every page, each a different view of it.
-- **What pages may load.** Publish refuses (`422 invalid_input`) a page whose document loads more
-  than 20 files, or more than 1 MB with itself, counting what its stylesheets load, and a canvas
-  whose pages load more than 12 MB together, each page counted as it loads. The refusal names each
-  document once with the pages that enter it.
+- **What a page loads** is held to limits, below: every page loads its document and all it loads
+  afresh, so a prototype entered by many pages costs its whole weight for each.
 - **`prototype_warnings`** in publish's result names each file and what will not work there (a
   root-relative or remote address, an address the prototype does not hold, a script that uses
   storage or cookies). A warning never refuses.
@@ -116,6 +107,58 @@ load only one another.
   entry page.
 - Limits: 2,000 files and 64 MB a prototype, 25 MB a file, 500 MB of distinct prototype bytes in a
   product. A version published without an upload keeps its base's prototype.
+
+## What a page loads
+
+Every page of a canvas loads when the canvas opens, a few at a time outward from the page people are
+on, and stays loaded, so moving between loaded pages shows the next one at once. A page that enters a
+prototype loads its document and every file that document loads, and loads them again for each page
+that enters it: browsers cache nothing a sandboxed frame loads, so pages share nothing. A page with
+HTML of its own is one document.
+
+- **What publish counts.** For each page that enters the prototype: the files its document names to
+  load (a `<script src>`, a stylesheet or other `<link href>`, an `<img>`, a `srcset`, a `poster`, an
+  SVG `href`) and the files its stylesheets name (`url()`, `@import`), each once, with their bytes and
+  the document's own. A page with HTML of its own counts the bytes of its HTML. A file a script loads
+  (`fetch`, `import()`, a script element it adds) is not counted, and still loads every time.
+- **What publish refuses** (`422 invalid_input`): a page whose document loads more than 20 files, or
+  more than 1 MB with itself, and a canvas whose pages load more than 12 MB together. The refusal
+  names each document once, with the pages that enter it, the files and bytes it loads, and the
+  canvas's total, so a publish is also a way to measure. A refused publish changes nothing, and the
+  current version stays as it is.
+- **What people see.** Within the limits a canvas opens in a few seconds on an ordinary connection,
+  and a move between pages, by the arrows, the page menu or a link, shows the next page at once. A
+  page still loading shows the progress mark and "Loading" in its place. What happens inside a page
+  (a dialog, a menu, a tab, a field typed in) stays in that page, and in the clickable view a page
+  someone used starts again from the beginning when they come back to it.
+
+### Bringing a heavy prototype in
+
+A prototype built as one app, with every canvas page entering it through a `?query` or `#fragment`
+that opens one of its screens or states, loads the whole app for each page, and a canvas of many
+such pages is past the limits. These ways bring it within them, each changing something different for
+the people who view the canvas; they combine.
+
+- **Bundle and trim.** Build each document to load one script and one stylesheet, minified, with the
+  styles it does not use removed and small icons inlined, and load large data (fixtures, icon sets,
+  sample records) only in the screens that show it. People see the same prototype, sooner. This is
+  often enough for a document a little past the limits.
+- **A document for each screen.** Build each screen as its own HTML document that loads only that
+  screen's code, styles and data (a bundler's multi-page build, with what the screens share in a
+  small common file, which counts for every page that loads it), and give each canvas page its
+  screen's document. A link to another screen names that screen's document, so a click moves the
+  canvas to its page. People see the same screens and move between them as pages of the canvas; what
+  one screen changes reaches the next only if the address carries it.
+- **A page of its own for each screen.** Save each screen as a page with HTML of its own, held to the
+  rules under Pages: its markup as it shows, the styles it uses inline, its images as `data:` URIs,
+  and only the small scripts its own controls need (a menu that opens, a dialog, a tab). Pages link
+  to each other by `page_id`. Each is one document and shows at once. People see each screen as it
+  looks, and its own controls work; what needed the app's logic (records that change across
+  screens, a simulated assistant, a search) works only as far as the page's own script goes.
+- **Fewer pages.** States of one screen that differ by a control (a menu open, a field filled) can be
+  one page whose control works, instead of a page each. A canvas still past 12 MB can become several
+  canvases, one for each part of the product. People see fewer pages in each canvas, and find the
+  rest in the others.
 
 ## Files
 

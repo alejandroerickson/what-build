@@ -50,11 +50,17 @@ are to be made to make them lighter and flatter.
   page's document, with what it and its stylesheets load, at most 20 files and 1 MB; the pages
   together at most 12 MB, each page counted as it loads (its own HTML, or its document's load,
   counted again for every page that enters it). The refusal is `422 invalid_input`, naming each
-  document once with the pages that enter it, and saying how to make pages light. A version that
+  document once with the pages that enter it, and pointing to the guide's ways of bringing a heavy
+  prototype within the limits. A version that
   carries its base's prototype forward without an upload is not checked again.
-- **Agents are told to make each page its own light screen**: only what it draws, its scripts in one
-  file and its styles in another, an interaction within a screen inside its page, and a move to
-  another screen a link to that canvas page, in the guide, the tool's description and the refusal.
+- **The guide gives a person's agent what it needs without the person knowing how a prototype is
+  built** (its mockups topic, under What a page loads): what publish counts, what it refuses, what
+  people see, and the ways a heavy prototype comes within the limits (bundling and trimming it, a
+  document for each screen, a page of its own for each screen, fewer pages), each with what it
+  changes for the people who view the canvas. The refusal and the tool's description point there.
+  As the guide's own decision has it, this describes the mechanism and what people see, and
+  prescribes no method ([decision](agents-learn-whatbuild-from-the-servers-guide.md)). Many of the
+  people who bring a prototype in are not developers, and their agents decide and explain.
 - Rejected: keeping the page before on show until the next has loaded (a click that seems to do
   nothing); a server cache of prototype files (the server's own time per file measured at a few tens
   of milliseconds: the cost is the bytes and the round trips, which nothing caches in an opaque
