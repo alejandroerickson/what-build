@@ -2,7 +2,8 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { startHarness, type Browser, type Harness } from "./harness.ts";
 
 // A deployment that defines no plans, as a self-hosted one does: every organization is unlimited,
-// nothing offers or bills a plan, and an organization left on a plan nobody defines meets no limit.
+// nothing offers or bills a plan, and an organization left on a plan nobody defines meets what an
+// unlimited one does.
 
 let h: Harness;
 let root: Browser; // an instance owner
@@ -39,11 +40,15 @@ describe("a deployment with no plans", () => {
     expect((await root.api("PATCH", "/api/v1/plans", { plan: "free", price: "$20 a month" })).body.error.code).toBe("unknown_plan");
   });
 
-  it("lets an organization on a plan nobody defines any longer meet no limit, and says so", async () => {
+  it("lets an organization on a plan nobody defines any longer meet what an unlimited one does, and says so", async () => {
     await h.db.updateTable("tenants").set({ plan: "gold" }).where("slug", "=", slug).execute();
     const limits = (await ada.api("GET", `/api/v1/tenants/${slug}/limits`)).body;
     expect(limits).toMatchObject({ plan: "gold", plan_name: "gold", undefined_plan: true, you_meet_them: false });
-    expect(limits.plan_about).toMatch(/no longer defines/);
+    // Its products still keep the Playbook's size and each mockup's and Story page's newest versions.
+    expect(limits.plan_about).toBe(
+      "A plan this WhatBuild no longer defines, so the organization meets the Unlimited plan’s limits until it moves to another plan. No limit on what people and their agents do, nor on how many mockups and Story pages a product holds; each product’s Playbook keeps to 2,000 files and 32 MB, and each mockup and Story page keeps its newest 10 versions.",
+    );
+    expect(limits.limits.find((l: { key: string }) => l.key === "story_page_versions_max")).toMatchObject({ value: 10 });
     const listed = (await root.api("GET", "/api/v1/organizations")).body.items.find((o: { slug: string }) => o.slug === slug);
     expect(listed).toMatchObject({ plan: "gold", undefined_plan: true });
     // It works as any organization does.

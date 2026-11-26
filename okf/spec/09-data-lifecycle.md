@@ -582,7 +582,8 @@ example, with two plans, Free and Pro; local development, the end-to-end instanc
 it, and the image carries it at `/app/plans.example.json`. A deployment's own file, with its own
 plans and prices, is kept with its other settings, outside this repository. The database holds only
 which plan an organization is on (`tenants.plan`, any such id), so an organization can be left on a
-plan the deployment no longer defines: it meets no limit until an instance owner moves it, and
+plan the deployment no longer defines: until an instance owner moves it, it meets what an
+organization on `unlimited` meets (no limit but what each product holds, below), and
 `products.limits` and `products.organizations` mark it `undefined_plan`.
 
 `products.limits` gives everyone in the organization, but someone who reads only the Story everywhere

@@ -42,7 +42,7 @@ export function dayOf(now: Date): { day_start: string; day_end: string } {
 export interface LimitState {
   tenant_id: string;
   plan: Plan;
-  /** The organization is on a plan the deployment no longer defines: it meets no limit until it is moved. */
+  /** The organization is on a plan the deployment no longer defines: until it is moved it meets what `unlimited` does, no limit but what each product holds. */
   undefined_plan?: true;
   /** The plan's limits; null on the unlimited plan, or one the deployment no longer defines. */
   limits: Limits | null;

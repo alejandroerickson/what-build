@@ -1,7 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { isProductTotal, PRODUCT_TOTAL_DEFAULTS } from "@whatbuild/core/plans";
 import { READ_ONLY_ALLOWS } from "@whatbuild/core/read-only";
 import { aboutUnlimited, unlimitedLifts } from "@whatbuild/core/unlimited-plan";
-import { useState, type ReactNode } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import { Link, useSearchParams } from "react-router";
 import { api, ApiError } from "../lib/api.ts";
 import { formatBytes, formatDate, formatDateTime, plural, slugProblem, untilTime } from "../lib/format.ts";
@@ -107,7 +108,7 @@ function PlanSummary({ l, owner }: { l: OrganizationLimits; owner: boolean }) {
             ) : (
               <p>
                 {l.undefined_plan
-                  ? `${org} is on a plan this WhatBuild no longer defines, so no limit applies until whoever runs it moves ${org} to another.`
+                  ? `${org} is on a plan this WhatBuild no longer defines, so it meets the Unlimited plan’s limits until whoever runs it moves ${org} to another. ${unlimitedLifts(Object.fromEntries(l.limits.map((x) => [x.key, x.value])))}`
                   : l.plan === "unlimited"
                     ? `${org} is Unlimited. ${unlimitedLifts(Object.fromEntries(l.limits.map((x) => [x.key, x.value])))}${offered ? " This plan is for this WhatBuild’s own organizations." : ""}`
                     : `${l.plan_about} Everyone in ${org} meets its limits, owners and their agents included.`}
@@ -555,8 +556,32 @@ export function InstancePlansSheet() {
 const MiB = 1024 * 1024;
 
 /** A limit's value in a field: bytes as MB, switches as on or off, a total or bytes sent possibly no limit. */
-function LimitField({ limit, value, onChange }: { limit: { key: string; label: string; unit: string; group: string; per: string; min?: number }; value: Amount; onChange: (v: Amount) => void }) {
+function LimitField({
+  limit,
+  value,
+  fallback,
+  onChange,
+}: {
+  limit: { key: string; label: string; unit: string; group: string; per: string; min?: number };
+  value: Amount;
+  /** What unticking No limit gives a field that has had no number since it opened, if the configuration sets one. */
+  fallback?: Amount;
+  onChange: (v: Amount) => void;
+}) {
   const nullable = limit.group === "total" || limit.key === "sent_bytes_per_day";
+  // The number the field held when No limit was ticked, which unticking brings back. A field with none
+  // gets the configured number, then, for what a product holds, the default every product keeps, and
+  // only then the least allowed: a versions field at 1 deletes versions for good at the next publish.
+  const before = useRef<number | null>(null);
+  const noLimit = (on: boolean) => {
+    if (on) {
+      if (typeof value === "number" && Number.isFinite(value)) before.current = value;
+      onChange(null);
+      return;
+    }
+    const otherwise = isProductTotal(limit.key) ? PRODUCT_TOTAL_DEFAULTS[limit.key] : (limit.min ?? 0);
+    onChange(before.current ?? (typeof fallback === "number" ? fallback : otherwise));
+  };
   if (limit.group === "switch")
     return (
       <label className="limits-switch">
@@ -576,7 +601,7 @@ function LimitField({ limit, value, onChange }: { limit: { key: string; label: s
         min={limit.min ?? 0}
         step={bytes ? 0.1 : 1}
         disabled={value === null}
-        aria-label={`${limit.label}, ${limit.per.toLowerCase()}${bytes ? ", in MB" : ""}`}
+        aria-label={`${limit.label}, ${limit.per.charAt(0).toLowerCase()}${limit.per.slice(1)}${bytes ? ", in MB" : ""}`}
         value={shown}
         onChange={(e) => onChange(e.target.value === "" ? Number.NaN : bytes ? Math.round(Number(e.target.value) * MiB) : Number(e.target.value))}
       />
@@ -584,7 +609,7 @@ function LimitField({ limit, value, onChange }: { limit: { key: string; label: s
       {nullable ? (
         <label className="limits-switch limits-nolimit">
           {/* Named by the limit it lifts, so each row's is told apart; the words beside it are only shown. */}
-          <input type="checkbox" aria-label={`${limit.label}: no limit`} checked={value === null} onChange={(e) => onChange(e.target.checked ? null : (limit.min ?? 0))} />
+          <input type="checkbox" aria-label={`${limit.label}: no limit`} checked={value === null} onChange={(e) => noLimit(e.target.checked)} />
           <span aria-hidden="true">No limit</span>
         </label>
       ) : null}
@@ -660,7 +685,7 @@ function PlanLimitsDialog({ plan, all, onClose }: { plan: string; all: InstanceO
               <Row key={l.key} label={l.label} help={l.help}>
                 <Cell className="muted">{l.per}</Cell>
                 <Cell className="limits-value">
-                  <LimitField limit={l} value={value(l.key)} onChange={(v) => setDraft((d) => ({ ...d, [l.key]: v }))} />
+                  <LimitField limit={l} value={value(l.key)} fallback={defaults[l.key]} onChange={(v) => setDraft((d) => ({ ...d, [l.key]: v }))} />
                 </Cell>
                 <Cell label="Default" className="num muted">{amount(defaults[l.key] ?? null, l.unit)}</Cell>
               </Row>

@@ -15,7 +15,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 const MB = 1024 * 1024;
 const FRESH = {
   instanceOwner: false,
-  plan: "free" as "free" | "pro" | "unlimited",
+  /** gold: a plan the deployment no longer defines. */
+  plan: "free" as "free" | "pro" | "unlimited" | "gold",
   meets: true as boolean | "calls_per_minute_only",
   contact: null as string | null,
   holds: { members: 2, invited: 0, products: 1, sources: 41, storage: { files: 30 * MB, text: 4 * MB, total: 34 * MB } },
@@ -25,6 +26,10 @@ const FRESH = {
   refused: false,
   /** The deployment defines plans; a self-hosted one defines none. */
   offered: true,
+  /** What the deployment's configuration sets for Pro, where a test changes it. */
+  proDefaults: null as Record<string, unknown> | null,
+  /** Limits Instance admin lists beside the usual ones. */
+  extraInfo: [] as { key: string; group: string; label: string; unit: string; per: string; refusal: string; help: string; min?: number }[],
 };
 const state = { ...FRESH };
 const asked: string[] = [];
@@ -65,11 +70,11 @@ const plans = () => [
 /** What Instance admin reads of every organization: Acme, on Free, and the plans with their limits. */
 const organizations = () => ({
   plans: plans(),
-  plan_defaults: { free: FREE, pro: PRO },
+  plan_defaults: { free: FREE, pro: state.proDefaults ?? PRO },
   plan_records: {},
   plan_names: { free: "Free", pro: "Pro", unlimited: "Unlimited" },
   new_organization_plan: "free",
-  limits: info,
+  limits: [...info, ...state.extraInfo],
   items: [
     {
       slug: "acme", name: "Acme", name_etag: "n1", plan: "free", created_at: "2026-10-01T00:00:00.000Z", created_by: { display_name: "Ada Example" },
@@ -91,7 +96,8 @@ vi.mock("../src/lib/api.ts", async (original) => ({
     return {
       organization: { slug: "acme", name: "Acme" },
       plan: state.plan,
-      plan_name: { free: "Free", pro: "Pro", unlimited: "Unlimited" }[state.plan],
+      plan_name: { free: "Free", pro: "Pro", unlimited: "Unlimited", gold: "gold" }[state.plan],
+      ...(state.plan === "gold" ? { undefined_plan: true } : {}),
       plan_about: "For trying WhatBuild on one discovery.",
       you_meet_them: state.meets,
       ...(guest ? {} : { holds: state.holds }),
@@ -293,6 +299,16 @@ describe("Plan", () => {
     for (const internal of INTERNALS) expect(text).not.toContain(internal);
   });
 
+  it("says what an organization on a plan nobody defines any longer still keeps, never that no limit applies", async () => {
+    Object.assign(state, { plan: "gold", meets: false });
+    const host = await page();
+    const text = host.textContent ?? "";
+    expect(text).toContain(
+      "Acme is on a plan this WhatBuild no longer defines, so it meets the Unlimited plan’s limits until whoever runs it moves Acme to another. No limit on what people and their agents do, nor on how many mockups and Story pages a product holds; each product’s Playbook keeps to 2,000 files and 32 MB, and each mockup and Story page keeps its newest 10 versions.",
+    );
+    expect(text).not.toContain("no limit applies");
+  });
+
   it("gives a guest of the example organization no holdings and no allowances", async () => {
     state.meets = "calls_per_minute_only";
     const host = await page();
@@ -382,6 +398,37 @@ describe("Instance admin's plans", () => {
     const box = (name: string) => host.querySelector<HTMLInputElement>(`dialog input[aria-label="${name}"]`);
     expect(box("Products: no limit")?.checked).toBe(true);
     expect(box("Sources: no limit")?.checked).toBe(false);
+  });
+
+  it("names each limit's field by what it is counted over, keeping Story's capital", async () => {
+    state.extraInfo = [{ key: "story_page_versions_max", group: "total", label: "Versions of a Story page", unit: "versions", per: "Each Story page", refusal: "none: the oldest is deleted", help: "", min: 1 }];
+    const host = await admin(<InstancePlansSheet />, "/admin/plans");
+    await act(async () => host.querySelector<HTMLButtonElement>('button[aria-label="Edit the Pro plan"]')!.click());
+    expect(host.querySelector('dialog input[aria-label="Versions of a Story page, each Story page"]')).not.toBeNull();
+    expect(host.querySelector('dialog input[aria-label="Sources, each person, each day"]')).not.toBeNull();
+  });
+
+  it("brings back the number a field had when No limit is ticked and unticked, never the least allowed", async () => {
+    state.extraInfo = [{ key: "story_page_versions_max", group: "total", label: "Versions of a Story page", unit: "versions", per: "Each Story page", refusal: "none: the oldest is deleted", help: "", min: 1 }];
+    state.proDefaults = { ...PRO, products_max: 3 };
+    const host = await admin(<InstancePlansSheet />, "/admin/plans");
+    await act(async () => host.querySelector<HTMLButtonElement>('button[aria-label="Edit the Pro plan"]')!.click());
+    const box = (name: string) => host.querySelector<HTMLInputElement>(`dialog input[aria-label="${name}"]`)!;
+    const field = (name: string) => host.querySelector<HTMLInputElement>(`dialog input[aria-label="${name}"]`)!;
+    // Pro keeps 2,000 sources: ticked and unticked, it keeps 2,000, not 0.
+    await act(async () => box("Sources: no limit").click());
+    expect(field("Sources, each person, each day").disabled).toBe(true);
+    await act(async () => box("Sources: no limit").click());
+    expect(field("Sources, each person, each day").value).toBe("2000");
+    // Nothing changed, so there is nothing to save.
+    expect([...host.querySelectorAll<HTMLButtonElement>("dialog button")].find((b) => b.textContent === "Save")?.disabled).toBe(true);
+    // A field that opened at no limit gets what the configuration sets for the plan.
+    await act(async () => box("Products: no limit").click());
+    expect(field("Products, each person, each day").value).toBe("3");
+    // And where it sets none on what a product holds, what every product keeps by default: 10
+    // versions, never the least allowed (1), which would delete versions for good at the next publish.
+    await act(async () => box("Versions of a Story page: no limit").click());
+    expect(field("Versions of a Story page, each Story page").value).toBe("10");
   });
 });
 
