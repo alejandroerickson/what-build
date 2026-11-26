@@ -1,4 +1,4 @@
-import type { PlanDefinition } from "@whatbuild/core";
+import { SEARCH_SLOTS, type PlanDefinition } from "@whatbuild/core";
 import { plansFrom, startingPlanFrom } from "./plans-config.ts";
 
 /**
@@ -33,6 +33,14 @@ export interface ServerConfig {
   /** How long a prototype's address lasts, in seconds (WHATBUILD_PROTOTYPE_GRANT_HOURS, 8 by default). */
   prototypeGrantSeconds: number;
   databaseUrl: string;
+  /**
+   * The most connections the process holds to the database at once (WHATBUILD_DATABASE_POOL_SIZE, 10
+   * by default), shared by its requests, its worker and its searches. A request holds one for each
+   * transaction, its round trips to the database included, so this bounds how many requests an
+   * instance works on at once however idle its CPU. Each instance holds its own, so this times the
+   * most instances, beside every other client, must fit the database's connection limit.
+   */
+  databasePoolSize: number;
   /** Allow the development-only "sign in as" control. Never on in production. */
   devAuth: boolean;
   blobStore: "fs" | "memory" | "gcs";
@@ -168,6 +176,25 @@ function domainList(v: string | undefined): string[] {
   return domains;
 }
 
+/**
+ * `ServerConfig.databasePoolSize`: its default, and the range a deployment may set. Below the least,
+ * the searches one process runs at once (`SEARCH_SLOTS`, 3) and the worker's job would leave a
+ * request one connection or none. The server is one process on one CPU, and the most is already more
+ * connections than it keeps busy with a database near it; a larger value is more likely a slip than
+ * a plan.
+ */
+export const DATABASE_POOL_SIZE = { default: 10, least: SEARCH_SLOTS + 2, most: 100 } as const;
+
+/** WHATBUILD_DATABASE_POOL_SIZE: a whole number in `DATABASE_POOL_SIZE`'s range, or the default when unset. Anything else stops the server starting. */
+export function databasePoolSizeFrom(v: string | undefined): number {
+  const raw = v?.trim() ?? "";
+  if (raw === "") return DATABASE_POOL_SIZE.default;
+  const n = /^\d{1,4}$/.test(raw) ? Number(raw) : NaN;
+  if (!(n >= DATABASE_POOL_SIZE.least && n <= DATABASE_POOL_SIZE.most))
+    throw new Error(`WHATBUILD_DATABASE_POOL_SIZE must be a whole number from ${DATABASE_POOL_SIZE.least} to ${DATABASE_POOL_SIZE.most}, the most connections each instance holds to the database; leave it unset for ${DATABASE_POOL_SIZE.default}.`);
+  return n;
+}
+
 const MAILERS: ServerConfig["mailer"][] = ["console", "smtp", "acs", "memory", "none"];
 
 function num(v: string | undefined, fallback: number): number {
@@ -231,6 +258,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
     if (azureClientId && !GUID.test(azureClientId)) throw new Error("WHATBUILD_AZURE_CLIENT_ID must be a managed identity's client ID, a GUID.");
   }
   const plans = plansFrom(env["WHATBUILD_PLANS"]);
+  const databasePoolSize = databasePoolSizeFrom(env["WHATBUILD_DATABASE_POOL_SIZE"]);
   return {
     env: mode,
     port,
@@ -241,6 +269,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
     contentUrl,
     prototypeGrantSeconds: Math.max(60, Math.round(num(env["WHATBUILD_PROTOTYPE_GRANT_HOURS"], 8) * 3600)),
     databaseUrl: env["DATABASE_URL"] ?? "",
+    databasePoolSize,
     devAuth,
     blobStore,
     blobDir: env["WHATBUILD_BLOB_DIR"] ?? ".what-build/blobs",

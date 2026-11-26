@@ -33,6 +33,14 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
 
 ## Unreleased
 
+- **The database connections each instance holds are a setting**, `WHATBUILD_DATABASE_POOL_SIZE`:
+  10 when unset, as before; otherwise a whole number from 5 to 100, and on anything else the server
+  does not start. Nothing needs doing, and a deployment that sets nothing keeps 10. One that raises
+  it first checks that its most instances times the pool, with the migration job, the backup and
+  anyone else connected, fits its database's connection limit
+  ([the database's connections](cloud-run.md#the-databases-connections)); on Cloud Run it passes
+  `DATABASE_POOL_SIZE` to every later run of `setup.sh`, which otherwise sets 10 again. No
+  migration.
 - **Mockups and Story pages keep their newest 10 versions, and older ones are deleted.** Publishing
   a version of a mockup or a Story page past what its organization's plan keeps
   (`mockup_versions_max`, `story_page_versions_max`) deletes its oldest versions, for good; a mockup

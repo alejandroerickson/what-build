@@ -1,7 +1,7 @@
 ---
 type: Process
 title: A deployment's capacity is measured with a stepped load test on a dev deployment, signed in as synthetic people, never on production.
-description: For the agent measuring what a deployment can take; what a load test answers, matching dev to production, sizing the test against the database's month and the spending cap, the synthetic people it signs in as, running each kind of traffic in steps, watching the instance and the database, reading where it breaks, scaling out, and cleaning up.
+description: For the agent measuring what a deployment can take; what a load test answers, matching dev to production, sizing the test against the database's month and the spending cap, the synthetic people it signs in as, running each kind of traffic in steps, watching the instance and the database, reading where it breaks, trying a larger database pool, scaling out, and cleaning up.
 tags: [operations, load-test, capacity, dev, cloud-run, neon, k6]
 generated: {by: agent:claude, at: 2026-11-25}
 status: draft
@@ -32,6 +32,7 @@ deployment's own notes, never in this repository.
   connections, or the database's compute.
 - **Scaling**: when Cloud Run starts another instance, how long an instance takes to start, and
   what the maximum instances mean in people.
+- **The pool**: how far a larger `WHATBUILD_DATABASE_POOL_SIZE` moves what one instance serves.
 - **The database**: the compute size the load needs, the connections it holds, and the compute
   hours an hour of it uses.
 
@@ -197,13 +198,15 @@ do nothing, are the round trip itself.
 Find the step where the median or the 95th percentile first rises well past the steps before, and
 say which of these explains it:
 
-- **The database connections.** Each instance holds at most 10 (`createDb` in
-  [`apps/server/src/database.ts`](../../apps/server/src/database.ts)). A request runs its
-  statements one after another, each one round trip, and holds a connection for each, for a whole
-  transaction at a time. So an instance serves at most about 10 ÷ (statements per request × one
-  round trip) such requests a second, whatever its CPU. Signs: CPU well under half, the service's
-  connections all open but almost none `active` in Postgres, latency doubling within one step and
-  no failures until Cloud Run refuses. A database further away lowers the ceiling in proportion.
+- **The database connections.** Each instance holds at most `WHATBUILD_DATABASE_POOL_SIZE`, 10
+  unless the deployment sets it ([the database's connections](cloud-run.md#the-databases-connections)).
+  A request runs its statements one after another, each one round trip, and holds a connection for
+  each, for a whole transaction at a time. So an instance serves at most about the pool ÷
+  (statements per request × one round trip) such requests a second, whatever its CPU. Signs: CPU
+  well under half, the service's connections all open but almost none `active` in Postgres, latency
+  doubling within one step and no failures until Cloud Run refuses. A database further away lowers
+  the ceiling in proportion, and a larger pool raises it until another of these limits comes first
+  ([A larger pool](#a-larger-pool)).
 - **The instance's concurrent requests** (`--concurrency`): an open live stream holds one for as
   long as it lasts (at most `WHATBUILD_LIVE_MAX_STREAMS` of them), and requests waiting for a
   database connection hold theirs too. Past it, with no instance left to start, Cloud Run holds
@@ -235,9 +238,38 @@ gcloud logging read 'resource.type="cloud_run_revision" AND resource.labels.serv
   --project $P --freshness 1h --order=asc --format='value(timestamp,labels.instanceId,textPayload)'
 ```
 
-Each instance holds its own 10 connections, so the database's connection limit bounds how many may
-run. A first request after the database has suspended also waits for it to start: time one after
-it has been idle past its suspend timeout.
+Each instance holds its own pool, so the database's connection limit bounds how many may run
+([the database's connections](cloud-run.md#the-databases-connections)). A first request after the
+database has suspended also waits for it to start: time one after it has been idle past its
+suspend timeout.
+
+## A larger pool
+
+When the connections are what gives out first, try a larger `WHATBUILD_DATABASE_POOL_SIZE` on dev
+before production takes it. The service must run an image that reads the setting (a release or a
+commit of `main` from after it was added; an older image ignores it), and dev's compute must be
+sized as production's for the test, since Neon's connection limit follows the compute's size:
+
+```bash
+psql "$DB" -Atc 'show max_connections'     # the most the pool, times the instances, and every other client may hold
+gcloud run services describe whatbuild --project $P --region $R --format=json | python3 -c '
+import sys, json; e = json.load(sys.stdin)["spec"]["template"]["spec"]["containers"][0].get("env", [])
+print([v for v in e if v["name"] == "WHATBUILD_DATABASE_POOL_SIZE"] or "the default, 10")'
+```
+
+1. Run the mix at the default first, the same day, as the baseline to compare with.
+2. Set the size, a new revision with the same image, and wait for it to serve:
+   `gcloud run services update whatbuild --project $P --region $R --update-env-vars WHATBUILD_DATABASE_POOL_SIZE=<n>`.
+   Two sizes tell more than one: twice and four times the default, say.
+3. Run the same mix, with `RATES` going past the baseline's knee, and the stream run too, while
+   watching the database's connections and the instance's CPU and concurrency ([Watching it](#watching-it)).
+4. Read where the knee moved. It moves up with the pool while the connections are the limit: all
+   of them open at the knee, few `active`, CPU still well under its limit. It stops moving where
+   the CPU nears its limit, where requests in flight reach `--concurrency` less the open streams,
+   or where the database's connections turn `active` with waits on CPU or I/O and its compute
+   scales up. The size past which the knee no longer moves is the most that helps; a deployment
+   takes no more than that, and no more than its database allows for every instance and client
+   ([the database's connections](cloud-run.md#the-databases-connections)).
 
 ## Afterwards
 
@@ -253,7 +285,8 @@ it has been idle past its suspend timeout.
 
 2. The server's usage counts for the day include the test. Where nobody else used the deployment
    that day, take them out: `delete from usage_people where day = '<day>'; delete from usage_calls where day = '<day>'`.
-3. Put back every setting changed for the test: the maximum instances (a new revision with the
-   same image), the database compute's limits.
+3. Put back every setting changed for the test: the maximum instances and the pool's size (a new
+   revision with the same image; `--remove-env-vars WHATBUILD_DATABASE_POOL_SIZE` where dev had
+   none), the database compute's limits.
 4. Check: no account at `load-test-%@example.com`, no organization `load-test-synthetic`, no jobs
    waiting, the service's settings as before. `rm -r $L`.

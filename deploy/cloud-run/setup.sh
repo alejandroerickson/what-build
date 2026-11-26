@@ -52,6 +52,10 @@
 #   MAX_INSTANCES       the most instances that run at once, default 1; each one kept busy all month
 #                       costs roughly US$62 in northamerica-northeast2, so this is also the
 #                       ceiling on the service's instance time
+#   DATABASE_POOL_SIZE  the most connections each instance holds to the database, 5 to 100
+#                       (optional; 10 when left out). MAX_INSTANCES times it, with the backup and
+#                       anyone else connected, must fit the database's connection limit
+#                       (okf/operations/cloud-run.md, The database's connections)
 #   PLANS_FILE          the path of the deployment's plans, as JSON (deploy/plans.example.json is
 #                       the form; optional). Kept outside this repository, with the deployment's
 #                       own settings, and stored as the secret whatbuild-plans. Left out, the
@@ -211,6 +215,7 @@ ENV_VARS="$ENV_VARS,WHATBUILD_LIVE_MAX_STREAMS=100,WHATBUILD_LIVE_STREAM_MINUTES
 [ -n "${NEW_ORGANIZATION_PLAN:-}" ] && ENV_VARS="$ENV_VARS,WHATBUILD_NEW_ORGANIZATION_PLAN=$NEW_ORGANIZATION_PLAN"
 [ -n "${EXAMPLE_TENANT:-}" ] && ENV_VARS="$ENV_VARS,WHATBUILD_EXAMPLE_TENANT=$EXAMPLE_TENANT"
 [ -n "${SITE_URL:-}" ] && ENV_VARS="$ENV_VARS,WHATBUILD_SITE_URL=$SITE_URL"
+[ -n "${DATABASE_POOL_SIZE:-}" ] && ENV_VARS="$ENV_VARS,WHATBUILD_DATABASE_POOL_SIZE=$DATABASE_POOL_SIZE"
 if [ -n "${TRACES_PROJECT:-}" ]; then
   step "Traces, in $TRACES_PROJECT"
   if [ "$TRACES_PROJECT" = "$PROJECT_ID" ]; then

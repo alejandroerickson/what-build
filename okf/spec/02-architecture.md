@@ -3,7 +3,7 @@ type: Specification
 title: WhatBuild is one TypeScript application image over Postgres and an object store, and the same code runs on a laptop with only Node.
 description: The requirements behind the stack, the stack itself, the deployment shape, ports and adapters, the operation protocol, the local development contract, cross-cutting rules, and the repository layout.
 tags: [spec, architecture, stack, development, deployment]
-generated: {by: agent:claude, at: 2026-11-23}
+generated: {by: agent:claude, at: 2026-11-25}
 status: stable
 ---
 
@@ -83,6 +83,16 @@ before the service moves to it, Cloud Storage for blobs, Secret Manager for secr
   carried on application context, never at module scope. No module-level mutable state and no
   in-process caches of tenant data. MCP runs in stateless mode with no session affinity. The one
   exception is the list of tabs listening for changes, below.
+- **Each instance holds its own connections.** A pool of at most `WHATBUILD_DATABASE_POOL_SIZE`
+  connections (10 by default; a whole number from 5 to 100, or the server does not start) serves an
+  instance's requests, its worker and its searches, whichever command it runs (`openDatabase` in
+  [`apps/server/src/database.ts`](../../apps/server/src/database.ts)). A request holds one for each
+  transaction, its round trips included, so the pool bounds the requests an instance works on at
+  once. Nothing is kept on a connection between transactions: an organization's scope and a
+  search's time limit are set for the transaction, advisory locks are transaction-level, and there
+  is no `LISTEN`, `NOTIFY`, session `SET`, temporary table or SQL `PREPARE`, so the server also runs
+  behind a pooler in transaction mode. The most instances times the pool, with every other client,
+  must fit the database's connection limit ([sizing it](../operations/cloud-run.md#the-databases-connections)).
 - **Open tabs hear of changes** from a stream the same process serves (`GET P/live`,
   `apps/server/src/live.ts`), which says only which part of a product changed (`story`, `idea`,
   `evidence`, `exploration` or `other`). A tab then reads what changed through the same operations as
