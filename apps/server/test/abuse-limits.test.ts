@@ -197,6 +197,12 @@ describe("behind the Worker, with the edge key", () => {
     expect((await h.db.selectFrom("abuse_counters").select("n").where("name", "=", "agent_registrations_per_address").where("subject", "=", mine).execute()).map((r) => r.n)).toEqual([1]);
   });
 
+  it("lets no more through than a limit when a client's requests arrive together", async () => {
+    const burst = await Promise.all(Array.from({ length: 12 }, (_, i) => askLink(h, "203.0.113.250", `burst-${i}@example.com`)));
+    expect(burst.filter((r) => r.status === 200)).toHaveLength(3);
+    expect(burst.filter((r) => r.status === 429).every((r) => r.limit === "sign_in_links_per_address")).toBe(true);
+  });
+
   it("keeps no client's address in the database, only keyed hashes", async () => {
     const rows = await h.db.selectFrom("abuse_counters").select(["name", "subject"]).execute();
     expect(rows.length).toBeGreaterThan(0);
@@ -313,7 +319,8 @@ describe("without the edge key", () => {
 
   it("stops sending sign-in links at the deployment's mail for the hour, alike for every address", async () => {
     expect((await ask("three@example.com")).status).toBe(200);
-    // Taken by a link that is never sent too, so the answer never says whether an address may sign in.
+    // Sign-up is open here, so every link is mailed; one that is never sent is counted alike too
+    // ("a sign-in link for an address that may not sign in", below).
     expect((await ask("four@example.com")).status).toBe(200);
     const refused = await ask("five@example.com");
     expect(refused.status).toBe(429);
