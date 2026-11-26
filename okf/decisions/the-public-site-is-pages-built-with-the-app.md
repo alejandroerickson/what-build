@@ -34,7 +34,8 @@ instance is alive, so crawlers visiting the page every few minutes would keep on
   plans as the build has them.
 - **Behind Cloudflare**, the Worker (`deploy/cloudflare/worker.js`) serves the pages and their files
   from the build it was deployed with, redirects `www.` to the site (301) and every other path to
-  the app (302), and passes only `POST /api/v1/interest` to the service.
+  the app (302), and passes only `POST /api/v1/interest` and a landing page's count of a button
+  pressed, `POST /api/v1/pressed`, to the service.
 - **Behind any other front**, the image does the same by Host: `WHATBUILD_SITE_URL` names the site,
   read from the Host header or from `X-Forwarded-Host`. On the app's origin, set or not, the pages
   are at `/site/`, `/site/plans/`, `/site/privacy/` and `/site/what-to-build/`, with the same facts written in.

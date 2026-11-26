@@ -100,7 +100,7 @@ Read it before asking the maintainer for anything:
 | `CF_ANALYTICS_TOKEN` | the Web Analytics site token (public in the page; not the site's tag) | Worker `CF_ANALYTICS_TOKEN` |
 | `CF_ANALYTICS_API_TOKEN` (optional) | an account token with **Account Analytics: Read**, for reading Web Analytics | `pnpm usage` |
 | `WORKER_ORIGIN`, `WORKER_SITE_HOST`, `WORKER_APP_URL` | the Worker's other settings | `wrangler deploy` |
-| `LANDING_SPLIT` (while the landing pages are compared) | the share of the front page's visitors sent to `/what-to-build/` ([below](#comparing-the-landing-pages)) | Worker `LANDING_SPLIT` |
+| `LANDING_SPLIT` (while the landing pages are compared) | the share of the front page's visitors sent to `/what-to-build/` ([below](#the-landing-page-funnel)) | Worker `LANDING_SPLIT` |
 | `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID` | Workers deploys and zone settings | `wrangler` |
 | `GCP_PROJECT`, `GCP_REGION` | the Google Cloud project and region | `gcloud`, `pnpm usage` |
 
@@ -224,40 +224,118 @@ Read and nothing else. Without it, read the numbers in the dashboard. That permi
 sites, so `pnpm usage` takes the site's tag from the visits themselves when the account has one site
 with visits; with more, set `CF_ANALYTICS_SITE_TAG` (in the site's address in the dashboard).
 
-## Comparing the landing pages
+## The landing-page funnel
 
-While the Worker splits the front page's visitors (`LANDING_SPLIT`,
-[decision](../decisions/the-landing-pages-are-compared-by-a-split-at-the-edge.md)), compare, for
-the same days:
+While the Worker splits the front page's visitors between the two landing pages (`LANDING_SPLIT`,
+[decision](../decisions/the-landing-pages-are-compared-by-a-split-at-the-edge.md)), each page is
+followed from a visit to people coming back, so that a page that turns people away can be found and
+removed. An agent produces it on request with the `read-usage` skill, for the UTC days from the
+comparison's first day to today:
 
-- **Visits to each page**: Cloudflare Web Analytics, page views of `/` and of `/what-to-build/`
-  (the dashboard's paths, or `pnpm usage`).
-- **Accounts made from each page**, and how far they went, in production's database (while anyone
-  may sign up, Start using WhatBuild makes an account):
+| Step | What is counted, for each page | Where |
+|---|---|---|
+| Visits | page loads that start a visit, of `/` and of `/what-to-build/` | Cloudflare Web Analytics |
+| A button pressed | presses of Explore the demo (`explore`) and of Start using WhatBuild (`start`) | `landing_presses`, a count per day, page and button that names nobody |
+| Asked to hear from us | the form at the foot, which Start using WhatBuild leads to while nobody may sign up | `interest.page` |
+| Signed in | new accounts made from the page, by the button they came by (`unknown` for a link from before the button was kept) | `accounts.came_from`, `came_via` |
+| ... came into the demo | of those, guests let into the example organization | `guest_passes.first_in_at` |
+| ... joined the waitlist | of those, asked for an organization of their own, from the site or the app | `interest`, by address |
+| Organization started | of those, started one | `tenants.created_by` |
+| Agent connected | of those, connected an agent | `oauth_tokens` |
+| Came back within a week | of those made at least seven days ago, used WhatBuild again, through the web app or an agent, on a later UTC day within seven days | `accounts.returned_at` |
 
-  ```sql
-  select a.came_from as page, count(distinct a.account_id) as accounts,
-         count(distinct t.tenant_id) as organizations,
-         count(distinct r.tenant_id) as with_a_source
-  from accounts a
-  left join tenants t on t.created_by->>'account_id' = a.account_id
-  left join records r on r.tenant_id = t.tenant_id
-  where a.created_at >= '<first day>' and a.came_from is not null
-  group by 1;
-  ```
+**Visits.** `corepack pnpm usage --days <N>`, where N counts the days from the first day to today,
+both included: under Cloudflare Web Analytics, `paths` gives the visits to `/` and to
+`/what-to-build/`, from midnight UTC on the first day (up to 31 days at a time; for a longer
+comparison, add up periods of at most 31 days in the dashboard).
 
-- **Requests to hear from us from each page**, while nobody may sign up and the page asks for an
-  email instead:
+**The rest**, in the deployment's database, as any role that reads it (the one `pnpm usage` reads,
+[above](#reading-it-all); `psql "$URL" -f funnel.sql`). Set `first_day` in each. Every step:
 
-  ```sql
-  select page, count(*) from interest where created_at >= '<first day>' group by page;
-  ```
+```sql
+-- The landing-page funnel: one row for each landing page and button, for the UTC days from
+-- first_day to last_day. Set first_day to the comparison's first day.
+with period as (
+  select date '2026-12-01' as first_day, (now() at time zone 'utc')::date as last_day
+),
+pressed as (
+  select page, button, sum(presses)::int as presses
+  from landing_presses, period
+  where day between first_day and last_day
+  group by page, button
+),
+made as (
+  select a.came_from as page, coalesce(a.came_via, 'unknown') as button,
+    a.created_at <= now() - interval '7 days' as week_old,
+    a.returned_at < a.created_at + interval '7 days' as back_within_week,
+    exists (select 1 from guest_passes g where g.account_id = a.account_id and g.first_in_at is not null) as into_demo,
+    exists (select 1 from interest i where lower(i.email) = lower(a.email)) as joined_waitlist,
+    exists (select 1 from tenants t where t.created_by->>'account_id' = a.account_id) as started_organization,
+    exists (select 1 from oauth_tokens o where o.account_id = a.account_id) as connected_agent
+  from accounts a, period
+  where a.came_from is not null and (a.created_at at time zone 'utc')::date between first_day and last_day
+),
+signed_in as (
+  select page, button, count(*)::int as accounts,
+    count(*) filter (where into_demo)::int as into_demo,
+    count(*) filter (where joined_waitlist)::int as joined_waitlist,
+    count(*) filter (where started_organization)::int as organizations,
+    count(*) filter (where connected_agent)::int as agents,
+    count(*) filter (where week_old)::int as week_old,
+    count(*) filter (where week_old and back_within_week)::int as back_within_week
+  from made
+  group by page, button
+)
+select page, button, coalesce(presses, 0) as presses, coalesce(accounts, 0) as accounts,
+  coalesce(into_demo, 0) as into_demo, coalesce(joined_waitlist, 0) as joined_waitlist,
+  coalesce(organizations, 0) as organizations, coalesce(agents, 0) as agents,
+  coalesce(week_old, 0) as week_old, coalesce(back_within_week, 0) as back_within_week
+from pressed full join signed_in using (page, button)
+order by page, button;
+```
 
-Accounts (or requests) over visits, per page, is the comparison; organizations, and organizations
-with a source, show whether one page brings people who stay. Visits that reach `/what-to-build/` directly,
-by a shared link, count for it too, and visits to `/?split=off` (the front page from any address)
-count for `/`. Google Analytics, for those who accept cookies, also has each
-`generate_lead` with the page it was sent from.
+And the form at the foot, while nobody may sign up:
+
+```sql
+-- Requests to hear from us, by the landing page each was first sent from.
+with period as (
+  select date '2026-12-01' as first_day, (now() at time zone 'utc')::date as last_day
+)
+select page, count(*)::int as requests
+from interest, period
+where page is not null and (created_at at time zone 'utc')::date between first_day and last_day
+group by page
+order by page;
+```
+
+`apps/server/test/landing-funnel.test.ts` runs both queries as they are written here, so they keep
+matching the schema.
+
+**Reading it.** Divide each step by the one before it, page by page, and compare the two pages at
+the same step: presses over visits says whether a page moves its visitors to act, accounts over
+presses whether its promise survives the sign-in, and the later steps whether the people it brings
+stay. A step needs enough people on both pages before a difference means anything: compare the two
+shares with a two-proportion test, or see whether their 95% intervals overlap, and with a few
+dozen people a step say only that it is too early. Each deployment sets its own rule for when a
+page has turned people away. Mind that:
+
+- visits to `/` include `/?split=off` (whoever runs the test, mostly) and every visitor the split
+  does not reach (crawlers that run scripts, a deployment without the Worker), and visits to
+  `/what-to-build/` include those who reach it by a shared link;
+- presses count everyone, the instance's owners included, and a person who presses twice counts
+  twice; accounts count people, once;
+- Cloudflare samples page loads, so small counts of visits come in steps;
+- an account counts on the day it was made, and comes back within a week only once that week is
+  over: `week_old` is the share's denominator;
+- Google Analytics, for those who accept cookies, also has each `generate_lead` with the page it
+  was sent from, and the sources visitors came from.
+
+**Removing a page.** First send everyone to the page that stays: deploy the Worker with
+`LANDING_SPLIT` at `1` to keep `/what-to-build/`, or without it to keep `/`, and change `.env` to
+match ([Cloud Run](cloud-run.md)). Then, in a later release, delete the page that went: keeping
+`/`, take `/what-to-build/` out of `SITE_PAGES` (the Worker and `apps/server/src/site.ts`) and the
+build, and the split with it; keeping `/what-to-build/`, the front page serves that page instead.
+Both are changes to the [decision](../decisions/the-landing-pages-are-compared-by-a-split-at-the-edge.md).
 
 ## After a deploy
 
