@@ -14,11 +14,13 @@ function Where() {
 }
 
 let unmount: (() => void) | null = null;
-afterEach(() => {
+/** Takes the page away, to show another in the same test. */
+function close() {
   unmount?.();
   unmount = null;
   document.body.innerHTML = "";
-});
+}
+afterEach(close);
 
 /** Where the sign-in page sends someone already signed in who opened `/signin?next=<next>`. */
 async function returnsTo(next: string): Promise<string> {
@@ -62,7 +64,7 @@ describe("where the sign-in page returns to", () => {
  */
 async function signInPageAt(
   search: string,
-  methods = { email_link: true, google: false, microsoft: true, dev: false },
+  methods: { email_link: boolean; google: boolean; microsoft: boolean; dev: boolean; open?: boolean } = { email_link: true, google: false, microsoft: true, dev: false },
   deployment: { contact?: string | null; site?: string | null } = {},
 ): Promise<HTMLElement> {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } });
@@ -171,9 +173,35 @@ describe("the browser tab's title", () => {
     const starting = await signInPageAt(`?next=${encodeURIComponent("/start")}`);
     expect(starting.querySelector("h1")?.textContent).toBe("Start using WhatBuild");
     expect(document.title).toBe("Start using WhatBuild · WhatBuild");
-    unmount?.();
-    unmount = null;
+    close();
+    await signInPageAt(`?next=${encodeURIComponent("/demo?landing=/&button=explore")}`);
+    expect(document.title).toBe("Explore the demo · WhatBuild");
+    close();
     await signInPageAt("");
     expect(document.title).toBe("Sign in · WhatBuild");
+  });
+});
+
+describe("the way in from Explore the demo", () => {
+  const open = { email_link: true, google: false, microsoft: false, dev: false, open: true };
+
+  it("says signing in opens the demo, and that it creates the account where anyone may make one", async () => {
+    const host = await signInPageAt(`?next=${encodeURIComponent("/demo?landing=/what-to-build/&button=explore")}`, open);
+    expect(host.querySelector("h1")?.textContent).toBe("Explore the demo");
+    expect(host.querySelector(".entry-form > p.muted")?.textContent).toBe("Sign in to open the demo. New here? Signing in creates your account.");
+  });
+
+  it("still says it opens the demo where nobody may make an account", async () => {
+    const host = await signInPageAt(`?next=${encodeURIComponent("/demo")}`, { ...open, open: false });
+    expect(host.querySelector(".entry-form > p.muted")?.textContent).toBe("Sign in to open the demo.");
+  });
+
+  it("leaves plain sign-in as it was", async () => {
+    const host = await signInPageAt("", open);
+    expect(host.querySelector("h1")?.textContent).toBe("Sign in to WhatBuild");
+    expect(host.querySelector(".entry-form > p.muted")?.textContent).toBe("New here? Signing in creates your account.");
+    close();
+    const closed = await signInPageAt("", { ...open, open: false });
+    expect(closed.querySelector(".entry-form > p.muted")).toBeNull();
   });
 });

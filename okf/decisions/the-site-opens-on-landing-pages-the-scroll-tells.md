@@ -3,7 +3,7 @@ type: Decision
 title: The site opens on landing pages the scroll tells, one plain statement per screen
 description: what-build.com's front page and /what-to-build/ tell the same six steps beside a picture the scroll moves, with display type of their own, and lead to one form that is the only thing on them that wakes the service.
 tags: [decision, web, site, design, marketing]
-generated: {by: agent:claude, at: 2026-11-23}
+generated: {by: agent:claude, at: 2026-11-25}
 status: stable
 ---
 
@@ -17,6 +17,9 @@ chose two of three directions explored as mockups: words that scroll past a pict
 window on a dark stage. They rejected the third, a before and after per screen, because someone who
 only scrolls passes its scenes without seeing them. The site's pages are still served from the
 edge ([decision](the-public-site-is-pages-built-with-the-app.md)), so a visit must not wake the service.
+On 2026-11-25 the maintainer chose that Explore the demo lead into the demo itself: from a plain
+sign-in page and then the overview, which repeats the landing page's pitch, a visitor had to scroll
+past the pitch to find the demo, more than a screen down on a phone.
 
 ## Decision
 
@@ -33,7 +36,9 @@ edge ([decision](the-public-site-is-pages-built-with-the-app.md)), so a visit mu
 - Looking comes first: while guests may come in, **Explore the demo** is the main button and
   **Start using WhatBuild** the second (the maintainer's words, 2026-11-23: neither promises "free"
   or "now"), and the demo's banner invites a guest to start using WhatBuild and engineer their next
-  product. Start using WhatBuild signs the visitor in and starts their
+  product. Explore the demo signs the visitor in on a page titled "Explore the demo" that says
+  signing in opens it, and opens the demo itself, the example organization's first product on its
+  Idea (`/demo` in the app), never the overview. Start using WhatBuild signs the visitor in and starts their
   organization, or puts them in line
   ([decision](people-start-a-number-of-organizations-a-day-themselves.md)), where anyone may make an
   account; where nobody may yet, it leads to the form at the foot, which asks for an email only.
@@ -55,6 +60,8 @@ edge ([decision](the-public-site-is-pages-built-with-the-app.md)), so a visit mu
 
 - The pictures are `apps/web/src/site/landing/` (`motion.ts`, `one-line.ts`, `window.ts`), styled in
   `apps/web/src/styles/screens/landing.css` under the `ld-` prefix.
+- Explore the demo, on both pages and the plans page, links to sign-in with `next` at `/demo`,
+  which `DemoAddress` (`apps/web/src/routes/addresses.tsx`) opens and the sign-in page titles.
 - `/what-to-build` is listed with the site's other paths (`SITE_PAGES` in
   `deploy/cloudflare/worker.js`, `SITE_PATHS` and `SITE_PAGES` in `apps/server/src/site.ts`, the
   Vite entry `apps/web/site/what-to-build/index.html`).

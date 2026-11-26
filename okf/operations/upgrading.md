@@ -59,6 +59,11 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
   reading in LinkedIn's app are split like everyone else, where until now they always got `/`; only
   LinkedIn's link previews still do. An account made before the release gets `returned_at` at its
   first call after it. Nothing else needs doing.
+- **Explore the demo opens the demo itself.** On the landing pages and the plans page it leads to
+  a sign-in page titled Explore the demo, then to the example organization's first product, on its
+  Idea, instead of the overview. People who sign in any other way still land on the overview. No
+  migration. Behind Cloudflare, deploy the Worker with the release, as always: until then the pages
+  it serves still lead to the overview.
 
 ## v0.44.2
 

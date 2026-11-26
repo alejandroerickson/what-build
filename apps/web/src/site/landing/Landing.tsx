@@ -79,6 +79,9 @@ function Bar() {
   );
 }
 
+/** Where Explore the demo leads after sign-in: the app opens the demo itself there (`DemoAddress` in apps/web/src/routes/addresses.tsx). */
+const DEMO = "/demo";
+
 /** Where Start using WhatBuild leads: sign-in and on to start an organization, or, where nobody may sign up yet, the form at the foot. */
 const startHref = (ways: Ways) => (ways.open ? signInTo("/start", ways.page, "start") : "#start");
 
@@ -97,7 +100,7 @@ function Actions({ ways }: { ways: Ways }) {
     );
   return (
     <div className="ld-actions">
-      <a className="ld-btn" href={signInTo("/", ways.page, "explore")} onClick={() => pressed(ways.page, "explore")}>
+      <a className="ld-btn" href={signInTo(DEMO, ways.page, "explore")} onClick={() => pressed(ways.page, "explore")}>
         Explore the demo
       </a>
       <a className="ld-quiet" href={startHref(ways)} onClick={() => pressed(ways.page, "start")}>
@@ -162,7 +165,7 @@ function Close({ ways }: { ways: Ways }) {
           <p className="ld-close-lede">
             {ways.mock ? `See how a team works in WhatBuild: in the demo, they are building ${ways.mock}.` : "See how a team works in WhatBuild, from its first interviews to its plan, in the demo."}
           </p>
-          <a className="ld-btn ld-btn-big" href={signInTo("/", page, "explore")} onClick={() => pressed(page, "explore")}>
+          <a className="ld-btn ld-btn-big" href={signInTo(DEMO, page, "explore")} onClick={() => pressed(page, "explore")}>
             Explore the demo
           </a>
           <a className="ld-quiet" href={signInTo("/start", page, "start")} onClick={() => pressed(page, "start")}>
