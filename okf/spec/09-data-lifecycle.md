@@ -228,8 +228,9 @@ three times larger by default.
   ([§3.2](03-accounts-and-identity.md#32-accounts-and-sign-in)). The hour's mail counts what is
   mailed, so a script naming addresses that are never mailed cannot use it up; once it is used,
   every address is refused alike. A link that is not mailed waits on the hour's count as one that
-  is, so a burst of requests does not tell them apart by how long each takes. A refused new account gives its sign-in link back, so it can be
-  pressed again from another network, or once there is room, while it lasts.
+  is, so a burst of requests does not tell them apart by how long each takes. A refused new
+  account gives its sign-in link back, so it can be pressed again from another network, or once
+  there is room, while it lasts.
 - **The deployment's ceilings are shared.** Once one fills, everyone meets it until its window
   ends. The server logs `abuse_ceiling_reached` with the limit's name when one fills (for agent
   registrations, when ones under an hour old are forgotten), which an alert watches
