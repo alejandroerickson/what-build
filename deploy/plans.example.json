@@ -3,7 +3,7 @@
     {
       "id": "free",
       "name": "Free",
-      "about": "For trying WhatBuild on one product.",
+      "about": "For trying WhatBuild on one discovery.",
       "price": null,
       "limits": {
         "requests_per_minute": 50,
@@ -35,7 +35,7 @@
     {
       "id": "pro",
       "name": "Pro",
-      "about": "For a product team and its products.",
+      "about": "For a product team and its discoveries.",
       "price": null,
       "limits": {
         "requests_per_minute": 300,

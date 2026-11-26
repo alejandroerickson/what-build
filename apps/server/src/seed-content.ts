@@ -1,5 +1,5 @@
 /**
- * The sample product. Entirely synthetic: the people, organizations and product are invented.
+ * The sample discovery. Entirely synthetic: the people, organizations and product are invented.
  * It exists so a new install shows the whole loop — sources and their texts, outcomes, a mockup
  * and the Story — before anyone uploads anything.
  */
@@ -307,14 +307,14 @@ export const STORY_HTML = (links: { handOff: string }, css: string) => `<!doctyp
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Where Crewboard stands</title>
+<title>Where Crewboard's discovery stands</title>
 <style>
 ${css}</style>
 </head>
 <body>
 <main class="page">
 <header class="opening">
-<p class="kicker">Crewboard · Where the work stands</p>
+<p class="kicker">Crewboard · Where discovery stands</p>
 <h1>The costly part of planning is sending the plan, not making it</h1>
 <p class="lead">Crew leads spend a Friday afternoon building next week. The mistakes that reach customers happen afterwards, when the plan is typed out to each crew.</p>
 <p class="meta">Sample product · Working interpretation</p>
@@ -338,7 +338,7 @@ ${css}</style>
 /** Notes for agents on the overview page: what the page is for and what is still to do. */
 export const OVERVIEW_NOTES = `## Purpose
 
-The one-screen summary of where Crewboard stands, for Riley and the two advisors. Keep it to a single screen.
+The one-screen summary of where Crewboard's discovery stands, for Riley and the two advisors. Keep it to a single screen.
 
 ## Still to fold in
 

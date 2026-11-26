@@ -48,9 +48,7 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
 - **WhatBuild says product engineering, not product discovery**, in the app, the site, the tutorial,
   the mail, the guide, the operations' descriptions and the MCP server's instructions. It asks
   nothing of a deployment and adds no migration (`tools_version` 0.71.0, as above); a connected
-  client sees the new instructions after a new session. A plans file whose plans' descriptions
-  (`about`) came from `deploy/plans.example.json` may still say "discovery" until its owner changes
-  them in that file.
+  client sees the new instructions after a new session.
 
 ## v0.44.2
 

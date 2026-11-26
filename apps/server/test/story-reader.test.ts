@@ -43,7 +43,7 @@ beforeAll(async () => {
   await h.worker.drain();
   const v1 = await alice.api("POST", `${P}/story/pages/overview/versions`, {
     title: "Overview",
-    summary: "Where the product stands.",
+    summary: "Where the discovery stands.",
     html: html("Overview", `<h1>Overview</h1><p>Numbers close on Fridays (source ${recordId}).</p>`),
   });
   const page = await alice.api("GET", `${P}/story/pages/overview?include_html=false`);
@@ -96,7 +96,7 @@ describe("a Story reader", () => {
 
     const v1 = await rita.api("GET", `${P}/story/pages/overview/versions/1`);
     expect(v1.status).toBe(200);
-    expect(v1.body).toMatchObject({ version: 1, summary: "Where the product stands.", is_current: false });
+    expect(v1.body).toMatchObject({ version: 1, summary: "Where the discovery stands.", is_current: false });
     // The page itself is not changed: what its author wrote about the evidence is the reader's to read.
     expect(v1.body.html).toContain(`source ${recordId}`);
     expect(JSON.stringify(v1.body)).not.toContain("Finance lead interview");

@@ -23,13 +23,13 @@ const TOOL_TEXT: Record<string, { title: string; parts: Parts; forStoryReader?: 
   products_read: {
     title: "Read products and organizations",
     parts: [
-      ["Find the products you can reach, the example organization's among them, and the tenants they are in; read a product and its concept."],
+      ["Find the products (discoveries) you can reach, the example organization's among them, and the tenants they are in; read a product and its concept."],
       ["Read an organization's plan and limits.", "limits"],
       ["Get a download grant for a finished export.", "exports"],
       ["Read what deleting a product would destroy.", "delete_impact"],
     ],
     forStoryReader: [
-      ["Find the products you can reach and the tenants they are in; read a product: your role in it and how many Story pages it has."],
+      ["Find the products (discoveries) you can reach and the tenants they are in; read a product: your role in it and how many Story pages it has."],
     ],
   },
   products_write: {

@@ -164,8 +164,8 @@ archived outcomes out unless `include_archived`, and says how many it left out: 
 
 ## 4.3 Sources
 
-A source is one piece of evidence: an event or a document. It is stored as a **record**, so its
-id is `record_id`.
+A source is one event or document. It is stored as a **record**, so its id is
+`record_id`.
 
 | Field | Rule |
 |---|---|

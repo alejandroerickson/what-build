@@ -10,10 +10,10 @@ import type { StoryContent } from "./types.ts";
 const ROOT = "tutorial-story-1";
 const CANVAS = "tutorial-story-canvas";
 
-function WhereCrewboardStands() {
+function WhereDiscoveryStands() {
   return (
     <article className="tut-story-page">
-      <p className="tut-story-kicker">Crewboard · Where the work stands</p>
+      <p className="tut-story-kicker">Crewboard · Where discovery stands</p>
       <h1>The costly part of planning is sending the plan, not making it</h1>
       <p className="tut-story-lead">
         Crew leads spend a Friday afternoon building next week. The mistakes that reach customers happen afterwards, when the plan is typed out to each crew.
@@ -33,7 +33,7 @@ export const STORY: StoryContent = {
   tree: [
     {
       page_id: ROOT,
-      title: "Where Crewboard stands",
+      title: "Where Crewboard’s discovery stands",
       description: "",
       kind: "story_page",
       children: [
@@ -49,14 +49,14 @@ export const STORY: StoryContent = {
   ],
   page: {
     id: ROOT,
-    title: "Where Crewboard stands",
-    summary: "The one-screen summary of where Crewboard stands.",
+    title: "Where Crewboard’s discovery stands",
+    summary: "The one-screen summary of where Crewboard’s discovery stands.",
     version: 1,
     publishedAt: "2026-09-04T09:00:00.000Z",
     notes: [
       "### Purpose",
       "",
-      "The one-screen summary of where Crewboard stands, for the owner and two advisors. Keep it to a single screen.",
+      "The one-screen summary of where Crewboard’s discovery stands, for the owner and two advisors. Keep it to a single screen.",
       "",
       "### On this Story",
       "",
@@ -64,5 +64,5 @@ export const STORY: StoryContent = {
     ].join("\n"),
   },
   style: { name: "Clear", line: "A house style" },
-  draw: () => <WhereCrewboardStands />,
+  draw: () => <WhereDiscoveryStands />,
 };

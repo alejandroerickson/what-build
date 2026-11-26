@@ -441,7 +441,7 @@ export function StoryPage() {
             </EmptyState>
           ) : (
             <FirstUse title="No Story pages yet" ask={`Draft the first Story page for ${product.name} in WhatBuild from its outcomes and evidence.`}>
-              The Story tells stakeholders where this product stands.
+              The Story tells stakeholders where this discovery stands.
               {style.data ? (
                 <p className="story-first-style">
                   <Button size="sm" variant="quiet" icon="palette" onClick={() => setStyling(true)}>

@@ -306,7 +306,7 @@ function Specimen() {
           <Row label="Menu">
             <div className="row">
               <Menu label="Page actions" triggerClassName="btn btn-secondary btn-md" align="start" trigger={<><Glyph name="ellipsis" />Page actions</>}>
-                <MenuLabel>Where the product stands</MenuLabel>
+                <MenuLabel>Where discovery stands</MenuLabel>
                 <MenuItem icon="pencil" kbd="F2">Rename</MenuItem>
                 <MenuItem icon="corner-down-right">Add child page</MenuItem>
                 <MenuItem icon="folder-input">Move to…</MenuItem>
@@ -376,7 +376,7 @@ function Specimen() {
       </Sheet>
 
       <div className="system-chrome">
-        <Crumbs items={[{ label: "Story", to: "/_system" }, { label: "Where the product stands", to: "/_system" }, { label: "The problem: planning breaks at the hand-off, not at the grid", to: "/_system" }, { label: "What crew leads told us about Friday afternoons" }]} />
+        <Crumbs items={[{ label: "Story", to: "/_system" }, { label: "Where discovery stands", to: "/_system" }, { label: "The problem: planning breaks at the hand-off, not at the grid", to: "/_system" }, { label: "What crew leads told us about Friday afternoons" }]} />
       </div>
 
       <div className="stack">

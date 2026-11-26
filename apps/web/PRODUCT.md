@@ -28,7 +28,7 @@ Google Cloud Run. Recorded in `okf/spec/02-architecture.md`.
 - **Stakeholders** who read the Story and nothing else, as **Story readers**: a role that reads
   only the Story's live pages, never the evidence behind them
   ([decision](../../okf/decisions/a-story-reader-reads-only-the-story.md)).
-- **People evaluating the approach**, who should see a real, fully derived product (the example
+- **People evaluating the approach**, who should see a real, fully derived discovery (the example
   organization), which they read as a guest as soon as they sign up.
 
 ## Product Purpose
@@ -60,7 +60,7 @@ permissions and one activity log.
 
 - Four destinations inside a product: **Idea, Evidence, Exploration, Story**. Everything else is
   a sub-view.
-- Hierarchy: tenant (organization) → product (one product and its work), with no level between
+- Hierarchy: tenant (organization) → product (one discovery), with no level between
   them. Roles are given in three places: in the organization (owner, admin, product creator, who
   creates products and is admin of each one they create, or member), on all its products (every product,
   including ones made later), and on one product. A product role is admin, editor, viewer (reads

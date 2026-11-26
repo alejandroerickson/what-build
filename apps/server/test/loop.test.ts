@@ -30,7 +30,7 @@ beforeAll(async () => {
 });
 afterAll(async () => h?.close());
 
-describe("the core loop through REST", () => {
+describe("the discovery loop through REST", () => {
   it("creates a tenant and a product", async () => {
     const t = await alice.api("POST", "/api/v1/tenants", { name: "Acme Research" });
     expect(t.status).toBe(201);

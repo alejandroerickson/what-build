@@ -241,7 +241,7 @@ describe("the tutorial's content, one object per page", () => {
   it("has the Story page, and under it the canvas promoted from Exploration with its three pages", () => {
     const { tree, page, draw } = TUTORIAL.story;
     const rows = flatten(tree);
-    expect(rows[0]!.node).toMatchObject({ page_id: page.id, title: "Where Crewboard stands", kind: "story_page" });
+    expect(rows[0]!.node).toMatchObject({ page_id: page.id, title: "Where Crewboard’s discovery stands", kind: "story_page" });
     expect(rows[1]!.node.kind).toBe("canvas");
     expect(rows.slice(2).map((r) => r.node.title)).toEqual(TUTORIAL.exploration.pages.map((p) => p.title));
     expect(isValidElement(draw())).toBe(true);

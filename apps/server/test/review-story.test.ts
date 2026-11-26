@@ -176,12 +176,12 @@ describe("publishing a later version", () => {
   });
 
   it("regenerates a generated title page when only its title changes", async () => {
-    const v1 = await alice.api("POST", `${P}/story/pages/cover/versions`, { title: "Cover", summary: "Where the product stands." });
+    const v1 = await alice.api("POST", `${P}/story/pages/cover/versions`, { title: "Cover", summary: "Where the discovery stands." });
     const v2 = await alice.api("POST", `${P}/story/pages/cover/versions`, { title: "Cover page", expected_etag: v1.body.etag });
     expect(v2.status).toBe(201);
     const page = await alice.api("GET", `${P}/story/pages/cover`);
     expect(page.body.current.html).toContain("<h1>Cover page</h1>");
-    expect(page.body.current.html).toContain("Where the product stands.");
+    expect(page.body.current.html).toContain("Where the discovery stands.");
   });
 
   it("returns the notes etag from publish, and takes write_notes without an etag only while the notes are empty", async () => {

@@ -58,7 +58,7 @@ async function open(): Promise<HTMLElement> {
   await act(async () => {
     root.render(
       <QueryClientProvider client={qc}>
-        <MemoryRouter initialEntries={["/t/example/crewboard"]}>
+        <MemoryRouter initialEntries={["/t/example/discovery"]}>
           <GuestGate>
             <Screen />
           </GuestGate>
@@ -85,13 +85,13 @@ describe("a guest's place in the web app", () => {
 
   it("is asked about again when the guest moves to another screen, once it is a minute old", async () => {
     await open();
-    await act(async () => go("/t/example/crewboard/evidence"));
+    await act(async () => go("/t/example/discovery/evidence"));
     await settle();
     expect(passAsks()).toBe(1);
     await act(async () => {
       await vi.advanceTimersByTimeAsync(61_000);
     });
-    await act(async () => go("/t/example/crewboard/story"));
+    await act(async () => go("/t/example/discovery/story"));
     await settle();
     expect(passAsks()).toBe(2);
   });

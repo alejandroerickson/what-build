@@ -131,7 +131,7 @@ for (const device of ["desktop", "phone"]) {
         await page.locator(".show-pill").click();
         await page.waitForTimeout(300);
       }
-      await page.getByRole("button", { name: "Actions for “Where Crewboard stands”" }).click();
+      await page.getByRole("button", { name: "Actions for “Where Crewboard's discovery stands”" }).click();
       await page.getByRole("menuitem", { name: /Export with its subpages/ }).click();
       await page.getByRole("dialog", { name: "Export to PDF" }).waitFor();
       await page.waitForTimeout(300);

@@ -18,7 +18,7 @@ status: stable
   does well when it can reach every source's words precisely. The product is designed so
   that an agent connected over MCP is a first-class contributor, not an integration.
 - **People evaluating the approach.** This is demonstration software. Someone should be able to
-  read a real, fully derived product, the **sample product**, and be working in their own
+  read a real, fully derived discovery, the **sample product**, and be working in their own
   organization a minute after entering an email address. The sample product is seeded by
   `pnpm dev` ([`apps/server/src/seed.ts`](../../apps/server/src/seed.ts)); a public, read-only copy
   that needs no account is planned ([roadmap](10-roadmap.md)).
@@ -82,9 +82,9 @@ Idea screen's terms are a decision: [A product starts with its idea](../decision
 |---|---|
 | **account** | One person's sign-in. May belong to several tenants. |
 | **tenant** | An organization: the isolation boundary, which holds its products directly. Shown as "organization" in the UI. Never "workspace", and never divided into teams ([decision](../decisions/an-organization-holds-its-products-directly-with-no-teams.md)). |
-| **product** | One product and its work. Owns all of the objects below. |
+| **product** | One discovery. Owns all of the objects below. |
 | **role** | Story reader (`story_reader`), viewer, editor or admin on a product or on all products of a tenant; owner, admin, product creator or member of a tenant. A Story reader reads only the Story's live pages; a viewer reads everything in the product and changes nothing; a product creator creates products. |
-| **source** | One piece of evidence (an event or a document), with metadata, its derived text and its attachments. Stored as a record: `record_id` in the API. The destination that holds them is **Evidence**; never "library", "document store", "bucket" or a storage path. |
+| **source** | One event or document, with metadata, its derived text and its attachments. Stored as a record: `record_id` in the API. The destination that holds them is **Evidence**; never "library", "document store", "bucket" or a storage path. |
 | **attachment** | A file kept with a source, in the app, the API, the MCP tools and the documentation alike, with no role. Every attachment is read and what was read kept, never searched. Never "file" for the concept ("file" is for bytes and formats); the database's tables keep the names `files` and `file_versions`. |
 | **derived text** | A source's words as one Markdown document, taken from an attachment's text until someone writes or edits it; in prose, "a source's text". What search reads, with the title, tags, summary, notes and comments. |
 | **reading** | One read of one version of an attachment (an attachment is "read"); a `derivation` in the API. |
@@ -92,7 +92,7 @@ Idea screen's terms are a decision: [A product starts with its idea](../decision
 | **summary**, **notes** | A source's short summary, written for people, and its freeform notes, kept by people and agents ([§4.6](04-data-model.md)). |
 | **product concept** | Who the product is for, the problem they have, and how the product solves it. A card that heads the **Idea** screen: its back is the product's `concept` field. |
 | **card** | The product concept or an outcome as the **Idea** screen shows it: a **front**, the picture people see first, which an agent draws (`card_html`), and a **back**, the text agents read first (`concept`, `description`), which people open with More info. Agents write both sides together ([decision](../decisions/idea-cards-have-a-front-for-people-and-a-back-for-agents.md)). |
-| **outcome** | What the product's users should be able to achieve with it, written from their side ("The crew lead plans next week in minutes"), not a feature, a task or a finding. Not the team's own goals. The outcomes are the compass everything else in a product is read against; an outcome cites no evidence. The destination that holds the product concept and the outcomes is **Idea**. |
+| **outcome** | What the product's users should be able to achieve with it, written from their side ("The crew lead plans next week in minutes"), not a feature, a task or a finding. Not the discovery's own goals. The outcomes are the compass everything else in a product is read against; an outcome cites no evidence. The destination that holds the product concept and the outcomes is **Idea**. |
 | **mockup** | A canvas of HTML pages an agent built from the evidence (screens, flows, alternatives side by side), each page with design notes, under a Markdown **brief** that says what the canvas explores. A version is the whole canvas. Never "exploration", "board" or "prototype". The destination that holds the mockups is **Exploration**, whose list of them is headed **Mockup canvases**. |
 | **clickable prototype** | A way to view a canvas whose pages link to each other: one page at a time, each link changing the page in place. It is not a kind of mockup, and not the multi-file prototype below. |
 | **prototype** | The multi-file part a mockup version may carry: a team's clickable prototype as it is (HTML documents, scripts, styles, fonts, images, fixtures), which canvas pages enter. Only this part is a prototype; the mockup is never called one, and its download or export is never called a bundle of it. |
@@ -110,8 +110,8 @@ types until assumptions were removed and every one deleted
 ([decision](../decisions/assumptions-are-removed-and-every-one-is-deleted.md)); a product keeps
 none, and the words no longer name anything in WhatBuild.
 
-What WhatBuild is for is **product engineering**, never "product discovery", and a product is never
-called "a discovery" ([decision](../decisions/whatbuild-says-product-engineering-not-product-discovery.md)).
+What WhatBuild is for is **product engineering**, said first and more often than discovery, which
+stays a plain word for the work on one product ([decision](../decisions/whatbuild-says-product-engineering-not-product-discovery.md)).
 
 ## 1.5 Non-negotiable behaviors
 
