@@ -32,17 +32,23 @@ export interface Me {
 /** The web app's tutorials: the welcome, then one for each of a product's four pages. */
 export type TutorialPart = "welcome" | "idea" | "evidence" | "exploration" | "story";
 
+/**
+ * What the account keeps of the tutorials shown: each tutorial, and `welcome-own` once the welcome
+ * has been offered on a product of the person's own, not only in the example organization.
+ */
+export type TutorialSeen = TutorialPart | "welcome-own";
+
 /** The web app's tutorials, as the account keeps them (`PATCH /api/v1/me`), so they follow the person between browsers. */
 export interface TutorialState {
   /** The tutorials the person has been shown, which start by themselves no more. */
-  seen: TutorialPart[];
+  seen: TutorialSeen[];
   /** The person turned tutorials off: none starts by itself. */
   off: boolean;
 }
 
 /** What `PATCH /api/v1/me` takes: tutorials to add to those seen, and tutorials off or on. */
 export interface TutorialPatch {
-  seen?: TutorialPart[];
+  seen?: TutorialSeen[];
   off?: boolean;
 }
 

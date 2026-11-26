@@ -593,7 +593,10 @@ new tab ([§7.8](#78-story), [§6](06-operations-and-adapters.md)).
    write there and has no agent connected, is **Connect your agent** (§7.5): the steps for the
    agent they choose, the same as in Settings → Agents (which the empty seat opens, and `/connect`
    leads to). They copy one address (for Claude Code, a command), add it in their agent, sign in on
-   the WhatBuild page it opens, and come back ([§6.8](06-operations-and-adapters.md)).
+   the WhatBuild page it opens, and come back ([§6.8](06-operations-and-adapters.md)). A moment
+   after the product first opens, the tutorial's welcome is offered over it in a window 1024 pixels
+   wide or wider, unless tutorials are off, whether or not they took it in the example organization
+   first ([§7.4](#the-tutorial)).
 
 No page is readable without an account. Someone who wants to look before committing to anything
 signs up and reads the example organization as a guest while there is room
@@ -615,7 +618,7 @@ pages, **Idea**, **Evidence**, **Exploration** and **Story**, each on its own pa
   the app's phone width): no offer, nothing starting by itself and no menu item, and a tutorial
   that is up closes where it is, with the toast "The tutorial is in your account menu." (none at
   phone width, where the panel is a drawer).
-- **The welcome first.** Offered once per person, on the first screen they land on that shows the
+- **The welcome first.** Offered on the first screen someone lands on that shows the
   panel of a product where they get it, the overview included, before they click anything: a
   welcome over the darkened screen, "Take the WhatBuild tutorial?", "Under a minute: the four
   pages, and an agent at work.", beside their avatar "Each page has a short tutorial of its own the
@@ -623,19 +626,27 @@ pages, **Idea**, **Evidence**, **Exploration** and **Story**, each on its own pa
   its left), **Not now** and **Start the tutorial**. On a screen beside the product (the overview, a
   page not found), what decides is the product its panel shows, and Start the tutorial goes to that
   product's Idea and begins there; with no product in the panel, nothing is offered until there is
-  one. A guest is offered it on their first screen with a product of the example organization in
-  the panel; someone offered it as a guest is not offered it again on a product of their own. The
-  rule is one function (`tutorialFor`), fed by the product's own screens and by the panel beside
-  them.
-- **Then each page's own, the first time.** Once the welcome has been offered, each page's
-  tutorial starts by itself, a moment after the person arrives, the first time they open that page
-  (Idea and Evidence at their own address, so a source's own screen starts nothing; Exploration and
-  Story at any of theirs), with nothing else up and no Settings dialog open. Each arrival at a page
-  decides once, and closing a tutorial is no arrival: the welcome closed on Idea leaves Idea's own
-  for the next time the person opens Idea. Nothing starts by itself on a screen beside the product
-  but the welcome. The rule is one function (`dueTutorial`).
+  one. It is offered once in the example organization and once on a product of the person's own
+  ([decision](../decisions/the-tutorial-is-five-short-ones-each-starting-the-first-time-its-page-is-opened.md)).
+  A guest is offered it on their first screen with a product of the example organization in the
+  panel. Once they start an organization of their own, or join one, the same offer comes again
+  on the first screen with a product of it in the panel, usually its Idea right after Start
+  organization, and never again once it is taken, closed or turned off there. Someone offered it
+  first on a product of their own is not offered it in the example organization. Who gets it is one
+  function (`tutorialFor`), fed by the product's own screens and by the panel beside them.
+- **Then each page's own, the first time.** Once the welcome has been offered where they are (the
+  example organization, or a product of their own), each page's tutorial starts by itself, a moment
+  after the person arrives, the first time they open that page (Idea and Evidence at their own
+  address, so a source's own screen starts nothing; Exploration and Story at any of theirs), with
+  nothing else up and no Settings dialog open. A page's tutorial seen in the example organization
+  does not start again on a product of their own. Each arrival at a page decides once, and closing a
+  tutorial is no arrival: the welcome closed on Idea leaves Idea's own for the next time the person
+  opens Idea. Nothing starts by itself on a screen beside the product but the welcome. The rule is
+  one function (`dueTutorial`).
 - **Shown once.** A tutorial counts as shown as soon as it starts (the welcome as soon as it is
-  offered), so none starts by itself twice; closed part-way, it is taken again from the start.
+  offered), so none starts by itself twice, but for the welcome's second offer above; closed
+  part-way, it is taken again from the start. The welcome taken from the account menu counts as
+  offered where it is taken.
   Afterwards each is in the account menu (§7.2), which every screen with such a panel has: **Take
   the <page> tutorial** for the page on screen, a source's own screen counting as Evidence (taken
   there, it goes to the list of sources first), or **Take the WhatBuild tutorial** elsewhere, with
@@ -647,9 +658,10 @@ pages, **Idea**, **Evidence**, **Exploration** and **Story**, each on its own pa
   starts by itself, the welcome included; every tutorial stays in the account menu, and a tutorial
   taken from there while they are off has no Turn off tutorials. Settings → Account (§7.11) turns
   them on again.
-- **Remembered on the account**, not in the browser: which tutorials have been shown, and whether
-  tutorials are off, which `GET /api/v1/me` gives as `tutorial` and `PATCH /api/v1/me` keeps when a
-  tutorial starts and when they are turned off or on
+- **Remembered on the account**, not in the browser: which tutorials have been shown, whether the
+  welcome has been offered on a product of the person's own, and whether tutorials are off, which
+  `GET /api/v1/me` gives as `tutorial` and `PATCH /api/v1/me` keeps when a tutorial starts and when
+  they are turned off or on
   ([§3.2](03-accounts-and-identity.md#32-accounts-and-sign-in),
   [decision](../decisions/the-tutorial-is-remembered-on-the-account-and-reached-by-no-agent.md)).
   A reload, a sign-out, leaving the product, the browser's Back to another page, or a guest's gate
@@ -736,6 +748,10 @@ pages, **Idea**, **Evidence**, **Exploration** and **Story**, each on its own pa
   Turn off tutorials with its own toast. Taking a tutorial from the account menu flies the pill back
   out to its first stop. Finishing says "Tutorial finished. It stays in your account menu." With
   reduced motion nothing flies and the stage shows its last frame; the account button still pulses.
+  A toast that points at the account menu goes as soon as the person leaves the screens of that
+  panel, the product's own screens or the screen beside them it was raised on: the screen they go
+  to may have no account menu, as the Welcome form, which Start using WhatBuild opens, has none.
+  Moving between the product's own pages keeps it.
 - **Access.** The bubble, the welcome and the stage are dialogs named by their title and described
   by their line; focus goes to the primary button at each stop, stays in the bubble and what is
   there to be tried, and goes back where it was when the tutorial closes. Each stop is announced

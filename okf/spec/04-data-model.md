@@ -1205,6 +1205,12 @@ activity.jsonl
   ([`0048_accounts_tutorial.sql`](../../apps/server/src/migrations/0048_accounts_tutorial.sql)),
   counting the welcome seen for whoever had been offered it, each page they had got past, and every
   tutorial for whoever had finished it.
+  [`0056_welcome_on_own_product.sql`](../../apps/server/src/migrations/0056_welcome_on_own_product.sql)
+  lets `tutorials_seen` hold `welcome-own` too: the welcome offered on a product of the person's
+  own, which comes once more after the example organization's ([§7.4](07-web-app.md#the-tutorial)).
+  It gave `welcome-own` to whoever had been offered the welcome and was in an organization other
+  than the example, so it does not come again for them; a guest of the example who had been
+  offered it is offered it once more on the first product of their own.
 - **An organization's name and slug** ([§3.3](03-accounts-and-identity.md#33-tenants),
   [`0036_organization_names.sql`](../../apps/server/src/migrations/0036_organization_names.sql)):
   `tenants.name_etag`, which guards the name and slug its owners and the instance's owners change;

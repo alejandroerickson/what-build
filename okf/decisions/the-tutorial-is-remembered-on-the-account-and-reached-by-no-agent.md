@@ -3,7 +3,7 @@ type: Decision
 title: The tutorial is remembered on the account, through the person's own session, and reached by no agent
 description: Which of the web app's tutorials the person has been shown, and whether they turned tutorials off, are two columns of the account, read and written through GET and PATCH /api/v1/me, which only a web app session reaches, so the state follows the person between browsers and survives signing out, for a guest account too, and is no operation.
 tags: [decision, web, accounts, onboarding, tutorial, agents]
-generated: {by: agent:claude, at: 2026-11-17}
+generated: {by: agent:claude, at: 2026-11-25}
 status: stable
 ---
 
@@ -11,7 +11,8 @@ status: stable
 
 ## Context
 
-Each of the web app's tutorials starts by itself once per person
+Each of the web app's tutorials starts by itself once per person, the welcome once in the example
+organization and once on a product of the person's own
 ([decision](the-tutorial-is-five-short-ones-each-starting-the-first-time-its-page-is-opened.md)),
 and the person can turn them all off. That has to survive signing out, which clears the app's browser storage
 (`apps/web/src/lib/local-state.ts`), and follow the person to another browser. It must work for a
@@ -22,8 +23,9 @@ already keeps one display choice of the person's own this way: hiding the exampl
 ## Decision
 
 - Two columns of `accounts` (migration `0049`, which replaced the one tutorial's three of `0048`):
-  `tutorials_seen`, the tutorials shown (`welcome`, `idea`, `evidence`, `exploration`, `story`),
-  and `tutorials_off`. `GET /api/v1/me` and `/auth/session` give them as
+  `tutorials_seen`, the tutorials shown (`welcome`, `idea`, `evidence`, `exploration`, `story`,
+  and since migration `0056` `welcome-own`, the welcome offered on a product of the person's own
+  besides the example organization), and `tutorials_off`. `GET /api/v1/me` and `/auth/session` give them as
   `tutorial: { seen, off }`; `PATCH /api/v1/me` with `tutorial` adds the tutorials `seen` names,
   sets `off`, and with `reset: true` forgets those seen.
 - It is a route outside the registry, as `hide_example` is, not an operation: it needs no role,

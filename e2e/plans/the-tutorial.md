@@ -1,14 +1,15 @@
 ---
-title: The tutorial's welcome is offered once, on the first screen with a product's panel, and each page's short tutorial starts by itself the first time that page is opened, for whoever can edit the product and the example's guests, on fixed examples, remembered on the account, and all of them can be turned off
+title: The tutorial's welcome is offered on the first screen with a product's panel, once in the example and once more on the first product of one's own, and each page's short tutorial starts by itself the first time that page is opened, for whoever can edit the product and the example's guests, on fixed examples, remembered on the account, and all of them can be turned off
 organizations: [synthetic, example]
-people: [casey, avery, guest]
+people: [casey, avery, guest, riley]
 surfaces: [web, mcp]
 ---
 
 # The tutorials
 
 The tutorials show a newcomer around a product: the screen darkens around one thing at a time and
-a bubble names it. A short welcome (the WhatBuild tutorial) is offered once; after it, each of a
+a bubble names it. A short welcome (the WhatBuild tutorial) is offered once in the example
+organization and once more on the first product of one's own; after it, each of a
 product's four pages has a tutorial of its own, which starts by itself the first time the page is
 opened, on example content that ships with the web app and replaces the product's own while it
 runs. Which have been shown, and whether tutorials are off, is kept on the account. The examples
@@ -94,7 +95,27 @@ as a person arrives, never by opening a product's address.
     Agents, and a toast says "Tutorial finished. It stays in your account menu." Everything in the
     bubble, the welcome, the pill and the badges reads in dark. Repeat a few stops at 1024 wide.
     *Expect:* the bubble stays inside the window and never covers what it names.
-11. **Web, as another new guest, from Explore the demo on `/site/`.** Sign in from there. *Expect:*
+11. **Web, as the same guest, starting an organization of their own, in light at 1280 wide.**
+    First, as Riley, in Instance admin → Guests, set **New organizations a day** to 2 if it is less:
+    one place for this guest and one for the new address in step 12. With only 1, step 12 joins the
+    waitlist. As the guest, open Exploration in the example and close its tutorial. Then open Story,
+    whose tutorial has not been shown yet: Idea's and Evidence's were shown in step 10, so they start
+    nothing. Close Story's tutorial with Esc, and while its toast "The tutorial is in your account
+    menu." is up, press **Start using WhatBuild** in the demo's banner. *Expect:* the Welcome form
+    with no toast, since it has no account menu. Name an organization and a product and press Start
+    organization. *Expect:* the new product's Idea, Connect your agent first, and a moment later the
+    same welcome as in step 10, "Take the WhatBuild tutorial?", over the darkened screen, before any
+    click; no toast from the example. Press Start the tutorial and walk it to Finish: Main
+    navigation, Agents, then the seat. Reload, and open Evidence, Exploration and Story. *Expect:* no
+    welcome and no tutorial: each page's was shown in the example. `GET /api/v1/me` lists
+    `welcome-own` in `tutorial.seen`.
+12. **Web, as a new address that never opens the example, at 1280 wide.** Press Start using
+    WhatBuild on `/site/` and sign in. *Expect:* the Welcome form, not the waitlist: the second of
+    the day's places. Start an organization. *Expect:* the welcome on its Idea. Press Not now and
+    reload. *Expect:* no welcome; Idea's own tutorial starts, since the welcome closed on Idea leaves
+    it for the next visit. Close it, and open a product of the example. *Expect:* no welcome there
+    either.
+13. **Web, as another new guest, from Explore the demo on `/site/`.** Sign in from there. *Expect:*
     the demo's Idea, and the welcome over it before any click. Press Start the tutorial. *Expect:*
     the WhatBuild tutorial begins there, on the product's own content, and ends on the "No agent
     connected" seat; Idea's own tutorial does not start after it until Idea is opened again.
@@ -110,3 +131,6 @@ as a person arrives, never by opening a product's address.
 - Two tutorials one after the other on the same visit to a page (the welcome, then Idea's).
 - Focus escaping the bubble with Tab, or not coming back where it was when the tutorial closes.
 - A welcome that waits for a click into the product instead of coming on the first screen.
+- A welcome offered a third time, or a second time on one's own products; none on the first product
+  of one's own after the example.
+- A toast about the account menu on a screen that has none, such as the Welcome form.

@@ -46,8 +46,12 @@ function signInLinkPage(email: string, token: string): string {
   );
 }
 
-/** The web app's tutorials, in their order: the welcome, then one for each of a product's four pages. */
-const TUTORIALS = ["welcome", "idea", "evidence", "exploration", "story"] as const;
+/**
+ * What the account keeps of the web app's tutorials shown, in their order: the welcome, the welcome
+ * offered on a product of the person's own besides the example organization (`welcome-own`), then
+ * one for each of a product's four pages.
+ */
+const TUTORIALS = ["welcome", "welcome-own", "idea", "evidence", "exploration", "story"] as const;
 
 /** The domain of an address, lower case. */
 const domainOf = (address: string) => address.slice(address.lastIndexOf("@") + 1).toLowerCase();

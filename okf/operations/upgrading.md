@@ -79,6 +79,16 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
   nobody may sign up, Start using WhatBuild puts the cursor in the form's email field, which keeps
   its height on a phone. No migration or setting. Behind Cloudflare, it reaches visitors when the
   Worker is deployed with the release, as always. Nothing else needs doing.
+- **The tutorial's welcome comes once more on a product of one's own.** Someone offered it in the
+  example organization is offered it again, once, on the first product of their own they open.
+  People will notice: a guest who explored the demo and then starts an organization sees the
+  welcome there. The release migrates (`0056_welcome_on_own_product.sql` lets
+  `accounts.tutorials_seen` hold `welcome-own`, and gives it to whoever was offered the welcome and
+  is in an organization other than the example, so the welcome does not come back for anyone
+  already using their own). The previous release leaves `welcome-own` alone and never offers the
+  welcome twice, so going back needs only its image. A toast that points at the account menu now
+  goes when the person leaves the screens it is about, so it no longer follows a guest onto the
+  Welcome form. Nothing needs doing.
 
 ## v0.44.2
 
