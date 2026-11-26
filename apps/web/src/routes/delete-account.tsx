@@ -3,7 +3,7 @@ import { ACCOUNT_DELETION } from "@whatbuild/core/account-deletion";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Link, Navigate, useSearchParams } from "react-router";
 import { api, ApiError } from "../lib/api.ts";
-import { BOT_CHECK_FIELD, useBotCheck, useProviderLink, type BotCheckSetting } from "../lib/bot-check.tsx";
+import { BOT_CHECK_FIELD, BOT_CHECK_REFUSED, useBotCheck, useProviderLink, type BotCheckSetting } from "../lib/bot-check.tsx";
 import { forgetPersonalState } from "../lib/local-state.ts";
 import { useMe } from "../lib/session.tsx";
 import { Button, ButtonLink, Callout, ErrorCallout, Loading, OneLine, Sheet, SheetBody, SheetHeader, TextField } from "../ui/index.tsx";
@@ -209,9 +209,22 @@ function SignInAgain({ impact: d, cancel }: { impact: AccountDeleteImpact; cance
   const methods = useQuery({ queryKey: ["auth-methods"], queryFn: () => api<{ email_link: boolean; google: boolean; microsoft?: boolean; bot_check?: BotCheckSetting }>("GET", "/auth/methods") });
   // Signing in again meets the bot check as the sign-in page does, where the deployment asks for one.
   const check = useBotCheck(methods.data?.bot_check, "sign_in");
-  const [providerError, setProviderError] = useState<string | null>(null);
-  const provider = useProviderLink(check.take, setProviderError);
-  const send = useMutation({ mutationFn: async () => api<{ sent: boolean; dev_note?: string }>("POST", "/auth/email", { email: d.email, next: HERE, [BOT_CHECK_FIELD]: await check.take() }) });
+  const provider = useProviderLink(check.take);
+  // A provider's sign-in that the server refused for the check comes back here saying so (the sign-in page sends someone signed in straight on).
+  const [params, setParams] = useSearchParams();
+  const refused = params.has(BOT_CHECK_REFUSED);
+  const forgetRefused = () => {
+    provider.clear();
+    if (refused)
+      setParams(
+        (p) => {
+          p.delete(BOT_CHECK_REFUSED);
+          return p;
+        },
+        { replace: true },
+      );
+  };
+  const send = useMutation({ onMutate: forgetRefused, mutationFn: async () => api<{ sent: boolean; dev_note?: string }>("POST", "/auth/email", { email: d.email, next: HERE, [BOT_CHECK_FIELD]: await check.take() }) });
   const back = encodeURIComponent(HERE);
   const m = methods.data;
   return (
@@ -226,7 +239,12 @@ function SignInAgain({ impact: d, cancel }: { impact: AccountDeleteImpact; cance
         </Callout>
       )}
       {send.isError ? <ErrorCallout inset error={send.error} /> : null}
-      {providerError ? <ErrorCallout inset error={new Error(providerError)} /> : null}
+      {provider.error ? <ErrorCallout inset error={new Error(provider.error)} /> : null}
+      {refused && !provider.error && !send.isPending && !send.isSuccess ? (
+        <Callout inset tone="attention" title="WhatBuild couldn’t check that you’re a person">
+          Try again. If it keeps happening, reload the page.
+        </Callout>
+      ) : null}
       {methods.isError ? <ErrorCallout inset error={methods.error} onRetry={() => void methods.refetch()} /> : null}
       {check.slot}
       <div className="farewell-actions">

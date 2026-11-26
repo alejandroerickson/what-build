@@ -29,8 +29,8 @@ where a plan has a price, to bill it; what they and their agents add, with their
 the service: sessions, connected agents, a log of requests that holds no content, how much they
 use WhatBuild (the counts held against limits and a guest's place), counts of use under a
 code in place of their name, and, for a short time, counts under a code made from the address their
-requests come from, to stop floods (§9.2); the bot check, when the deployment has it: on signing in
-and joining the waitlist, Cloudflare Turnstile looks at their browser to tell a person from a script
+requests come from, to stop floods (§9.2); the bot check, when the deployment has it: when they send a form to sign in
+or join the waitlist, and never while they only read a page, Cloudflare Turnstile looks at their browser to tell a person from a script
 and tells WhatBuild only whether it passed; analytics, when the deployment has it and the
 person accepted; what they send: feedback and a request for an organization of their own), why (because they use
 WhatBuild; to run it safely and improve it, which they may object to; by consent, for analytics),
@@ -181,19 +181,21 @@ Rules:
 **Abuse limits**, which are not quotas but belong beside them: what anyone can make a deployment do
 before they are let in, or do to strangers through it (`packages/core/src/abuse-limits.ts`). Each
 deployment sets its own numbers in `WHATBUILD_ABUSE_LIMITS` (`name=number` or `name=off`, separated
-by commas; a name or number it does not take stops the server at start), and every other keeps its
-default. Windows are fixed: an hour from the top of the hour, or a UTC day. A refused request adds
-nothing, and a refused call that would have taken several (`members.grant_many`) takes none.
-Each limit per client address has one per IPv6 /48 beside it, three times larger by default.
+by commas or semicolons; a name or number it does not take stops the server at start), and every
+other keeps its default. Windows are fixed: an hour from the top of the hour, or a UTC day; the one
+limit that is not counted in a window, `agent_registrations_waiting`, is a number kept at once. A
+refused request adds nothing, and a refused call that would have taken several
+(`members.grant_many`) takes none. Each limit per client address has one per IPv6 /48 beside it,
+three times larger by default.
 
 | Limit | Default | Counted per | What a person sees past it |
 |---|---|---|---|
 | `sign_in_links_per_address` | 20 an hour | client address | `429 rate_limited`: too many sign-in links asked for from their network; try later, or sign in another way |
 | `sign_in_links_per_ipv6_48` | 60 an hour | IPv6 /48 | The same |
-| `mail_per_hour` | 500 an hour | deployment | Sign-in links and invitations emailed. A sign-in link: `429`, WhatBuild has sent all the email it sends in an hour. An invitation is made, its answer says `emailed: false`, and its link works ("Not emailed" in the web app) |
-| `new_accounts_per_address` | 10 an hour | client address | Accounts made by people nobody let in. Signing in ends on the sign-in page: WhatBuild is making too many new accounts just now; try in an hour, or ask to be invited |
+| `mail_per_hour` | 500 an hour | deployment | Sign-in links and invitations emailed. A sign-in link: `429`, WhatBuild has sent all the email it sends in an hour, for every address alike once it is used. An invitation is made, its answer says `emailed: false`, and its link works ("Not emailed" in the web app) |
+| `new_accounts_per_address` | 10 an hour | client address | Accounts made by people nobody let in. Signing in ends on the sign-in page: too many new accounts were made from their network; try from another network, where a sign-in link still works until it expires, or in an hour, or ask to be invited |
 | `new_accounts_per_ipv6_48` | 30 an hour | IPv6 /48 | The same |
-| `new_accounts_per_hour` | 100 an hour | deployment | The same |
+| `new_accounts_per_hour` | 100 an hour | deployment | Signing in ends on the sign-in page: WhatBuild is making too many new accounts just now; try in an hour, or ask to be invited |
 | `waitlist_per_address` | 5 an hour | client address | `429`: too many requests from their network |
 | `waitlist_per_ipv6_48` | 15 an hour | IPv6 /48 | The same |
 | `waitlist_per_hour` | 200 an hour | deployment | `429`: too many requests right now; try in an hour |
@@ -220,9 +222,12 @@ Each limit per client address has one per IPv6 /48 beside it, three times larger
 - **Who is never counted as a new account.** An address with an account, and one someone let in:
   on the allowlist, an instance owner, one an instance owner gave an allowance, or one with an
   invitation waiting. A flood of strangers cannot keep out the people a team invited.
-- **The same for every address.** A sign-in link is counted, against the client and the hour's
-  mail, whether or not the address may sign in and is mailed, so the answer never tells them apart
-  ([§3.2](03-accounts-and-identity.md#32-accounts-and-sign-in)).
+- **The same for every address.** A sign-in link is counted against the client whether or not the
+  address may sign in and is mailed, so neither the answer nor the client's limit tells them apart
+  ([§3.2](03-accounts-and-identity.md#32-accounts-and-sign-in)). The hour's mail counts what is
+  mailed, so a script naming addresses that are never mailed cannot use it up; once it is used,
+  every address is refused alike. A refused new account gives its sign-in link back, so it can be
+  pressed again from another network, or once there is room, while it lasts.
 - **The deployment's ceilings are shared.** Once one fills, everyone meets it until its window
   ends. The server logs `abuse_ceiling_reached` with the limit's name when one fills (for agent
   registrations, when ones under an hour old are forgotten), which an alert watches
@@ -232,7 +237,8 @@ Each limit per client address has one per IPv6 /48 beside it, three times larger
 - **The bot check.** A deployment with Cloudflare Turnstile's keys (`WHATBUILD_TURNSTILE_SITE_KEY`,
   `WHATBUILD_TURNSTILE_SECRET_KEY`) asks for its token, before any limit is counted, on asking for a
   sign-in link, starting Google or Microsoft sign-in, and joining the waitlist: the forms anyone can
-  send without being signed in that mail someone or make an account. Each token is taken once.
+  send without being signed in that mail someone or make an account. The page runs the check when
+  the form is sent, and nothing of Cloudflare's loads before. Each token is taken once.
   Without the keys nothing asks
   ([decision](../decisions/the-bot-check-is-cloudflare-turnstile-and-a-deployment-may-leave-it-off.md)).
   Invitations and feedback come from people signed in, and from their agents, which no bot check

@@ -141,7 +141,8 @@ tenant.
   `resets_at` ([§9.7](09-data-lifecycle.md)). A call past a day's allowance that would also meet a total names
   the total, with the day's allowance in `details.also`. An allowance set to 0 is switched off and answers
   `403 plan_restricted` instead.
-- **`429`** is returned for sign-in links (five per address per hour), for a fourth URL fetch a
+- **`429`** is returned for sign-in links (five per email address per hour, and the abuse limits of
+  [§9.2](09-data-lifecycle.md#92-limits-and-quotas)), for a fourth URL fetch a
   person starts while three of theirs are in progress (`attachments.fetch_url`, on each instance), and
   for calls and writes a minute on a plan with limits (and a guest's calls in the example organization),
   with `{ limit, per, retry_after_seconds }` in `details` and a `Retry-After` header on REST. An
@@ -736,7 +737,7 @@ GET  /api/v1/downloads/card-preview/:preview_id?theme=light|dark    a card previ
 GET  /prototypes/:grant/<path>                       a mockup prototype's file; the grant in the path is the credential (§4.12)
 GET  /documents/:grant/<name>?theme=&frame=          on a content site: a document the app's route handed off, or an agent's preview (below)
 GET  /api/v1/meta                                    release, MCP server name and tools version, sign-in methods, where the privacy page and the public site are (public)
-GET  /api/v1/plans                                   the plans the deployment offers (none, if it defines none), every limit of each and its price, starting_plan, example, whether guests may sign up, and what the privacy page names (public)
+GET  /api/v1/plans                                   the plans the deployment offers (none, if it defines none), every limit of each and its price, starting_plan, example, whether guests may sign up, the bot check's site key (bot_check, or null), and what the privacy page names (public)
 GET  /api/v1/me/guest-pass                           a guest account's place: let in when there is room, or why not and when to ask again
 POST /api/v1/me/ask-for-organization                 whether one of the day's places is open, or else the waitlist, for an organization of one's own; holds no place (§3.2)
 POST /api/v1/me/start                                Start using WhatBuild after sign-in: where to go, to Welcome where a place is open, using none, or joining the waitlist (§3.2)

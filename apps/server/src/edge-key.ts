@@ -21,11 +21,8 @@ export function carriesEdgeKey(c: Context, key: string): boolean {
  */
 export function requireEdgeKey(key: string | null, publicBaseUrl: string): MiddlewareHandler {
   if (!key) return async (_c, next) => next();
-  const expected = digest(key);
   return async (c, next) => {
-    if (c.req.path === "/health") return next();
-    const given = c.req.header(EDGE_KEY_HEADER);
-    if (given && timingSafeEqual(digest(given), expected)) return next();
+    if (c.req.path === "/health" || carriesEdgeKey(c, key)) return next();
     return c.text(`This address does not serve WhatBuild. Open ${publicBaseUrl} instead.`, 403, { "Cache-Control": "no-store" });
   };
 }

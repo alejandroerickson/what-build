@@ -238,7 +238,7 @@ ENV_VARS="$ENV_VARS,WHATBUILD_LIVE_MAX_STREAMS=100,WHATBUILD_LIVE_STREAM_MINUTES
 [ -n "${EXAMPLE_TENANT:-}" ] && ENV_VARS="$ENV_VARS,WHATBUILD_EXAMPLE_TENANT=$EXAMPLE_TENANT"
 [ -n "${SITE_URL:-}" ] && ENV_VARS="$ENV_VARS,WHATBUILD_SITE_URL=$SITE_URL"
 [ -n "${TURNSTILE_SITE_KEY:-}" ] && ENV_VARS="$ENV_VARS,WHATBUILD_TURNSTILE_SITE_KEY=$TURNSTILE_SITE_KEY"
-# Its limits separated by semicolons, which reach the service as commas (abuse-limits.ts reads either).
+# Its commas held as semicolons, as the lists above are, until ENV_ARG below turns them back into commas.
 [ -n "${ABUSE_LIMITS:-}" ] && ENV_VARS="$ENV_VARS,WHATBUILD_ABUSE_LIMITS=${ABUSE_LIMITS//,/;}"
 if [ -n "${TRACES_PROJECT:-}" ]; then
   step "Traces, in $TRACES_PROJECT"

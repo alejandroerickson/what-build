@@ -51,13 +51,18 @@ limited new accounts once sign-up opens.
   within minutes of registering, keeps its place. A registration that connected, or holds a code
   it is exchanging, is never forgotten. The default (1,000) is larger than a refusing ceiling
   could be, since a larger number means a flood must be faster to push out an agent mid-sign-in.
-- **Counted alike for every address.** A sign-in link counts against the client and the hour's
-  mail whether or not it is sent, so neither says whether an address may sign in. New accounts for
-  people someone let in (the allowlist, an instance owner, an allowance, an invitation) are never
-  counted, so a flood cannot keep out the people a team invited.
+- **Counted alike for every address.** A sign-in link counts against the client whether or not it
+  is sent, so neither the answer nor the client's limit says whether an address may sign in. The
+  hour's mail counts what is mailed, and once it is used refuses every address alike: counting a
+  link that is never sent let a script that sends nothing fill it, and stop everyone's sign-in links
+  and invitations for the hour, where before the limits a link for a stranger did nothing at all.
+  New accounts for people someone let in (the allowlist, an instance owner, an allowance, an
+  invitation) are never counted, so a flood cannot keep out the people a team invited, and a new
+  account refused gives its sign-in link back, to be pressed again from another network.
 - **Fixed windows in Postgres** (`abuse_counters`): an hour from the top of the hour or a UTC day,
   one conditional upsert per request, so a refused request adds nothing, every instance shares the
-  count, and a refusal inside a transaction gives back what the call took. A deployment's ceiling is
+  count, and a refusal inside a transaction gives back what the call took. The registrations kept
+  waiting are the one number counted otherwise: from the registrations themselves, under a lock. A deployment's ceiling is
   taken from in a short transaction of its own, never one that waits on anything else: the upsert
   locks its row until the transaction ends, so an invitation is emailed after its call commits.
 - **Each deployment sets the numbers** (`WHATBUILD_ABUSE_LIMITS`), with defaults meant for a small
@@ -70,7 +75,10 @@ limited new accounts once sign-up opens.
   or a second instance loses; sliding windows, which cost more per request for a bound that is
   only twice as tight at a window's edge; counting IPv6 by /48 alone, which would make a campus or
   an office on one /48 a single client; a release order (the Worker before the service) in place of
-  the seal, which every deployment behind Cloudflare would have to remember.
+  the seal, which every deployment behind Cloudflare would have to remember; counting a sign-in
+  link that is never mailed against the hour's mail (above); giving a client back a registration
+  once its agent connects, which would let one account register and connect agents without end,
+  each connection mailing its person.
 
 ## Consequences
 
@@ -78,7 +86,13 @@ limited new accounts once sign-up opens.
   ceiling for everyone until the window ends. Another proxy that names the client may be trusted
   the same way later; until then such a deployment relies on its ceilings and its own front.
 - People behind one address (an office, a carrier's NAT) share its limits, and people in one
-  IPv6 /48 (a campus, a large office) share its limits too.
+  IPv6 /48 (a campus, a large office) share its limits too. So do agents hosted on Cloudflare
+  Workers, which reach another zone from one address, and a hosted agent client registering many
+  people's agents from a few addresses can meet a client's limit at a launch, which the deployment
+  then raises.
+- Whether a sign-in link took from the hour's mail tells whether its address may sign in, to
+  someone who can bring the hour's mail to one short of its ceiling with addresses of their own:
+  one address an hour, at the cost of everyone's mail for that hour.
 - A flood that fills a ceiling refuses everyone under it until the window ends: a person's sign-in
   link is refused, and an invitation is made but not emailed, until the next hour.
 - A flood of agent registrations faster than the number kept, in the minutes between an agent

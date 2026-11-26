@@ -74,7 +74,7 @@ Four things keep a tab from hearing what it may not know, each holding if anothe
   it comes from the app's own origin, so another site cannot sign a person in to an account it
   chose (login CSRF). The link works once, however many requests bring it at the same moment: one
   conditional update marks it used, and only the request that made it signs in. It lasts
-  15 minutes, five an hour per address; its page is never framed or cached and sends no referrer
+  15 minutes, five an hour per email address; its page is never framed or cached and sends no referrer
   off its origin.
 - What anyone can make WhatBuild do before they are let in is bounded by the abuse limits
   ([§9.2](../spec/09-data-lifecycle.md#92-limits-and-quotas), `packages/core/src/abuse-limits.ts`):
@@ -87,10 +87,13 @@ Four things keep a tab from hearing what it may not know, each holding if anothe
   address a client made up is never trusted, behind an old Worker either. A client is an IPv4
   address, or an IPv6 /64 and, under limits three times larger, its /48, so one person's IPv6 range
   is a few clients, not thousands. It is kept only as an HMAC keyed from the grant key, for two
-  days. A request with the edge key and no sealed address is logged as an error, once an instance:
-  the limits per client are off until the Worker is deployed. A deployment with Cloudflare
-  Turnstile's keys asks for its token on asking for a sign-in link, starting Google or Microsoft
-  sign-in, and joining the waitlist (`apps/server/src/bot-check.ts`): the server checks each token
+  days, and left out of the nightly dump ([backups](../operations/backups.md#the-nightly-dump)); whoever
+  holds the grant key could still turn an IPv4 key back into its address by trying every address. A
+  request with the edge key and no sealed address is logged as an error, once an instance: the
+  limits per client are off until the Worker is deployed. A deployment with Cloudflare Turnstile's
+  keys asks for its token on asking for a sign-in link, starting Google or Microsoft sign-in, and
+  joining the waitlist (`apps/server/src/bot-check.ts`); the page runs the check when the form is
+  sent, and loads nothing of Cloudflare's before. The server checks each token
   with Cloudflare, for its form's action and the deployment's own hosts, takes each once (keeping
   its hash while it is good, since Cloudflare's own refusal of a repeat is not immediate), refuses
   while Cloudflare cannot be asked, logs every refusal's reason and never the token, and logs as an
@@ -98,7 +101,8 @@ Four things keep a tab from hearing what it may not know, each holding if anothe
   ([decision](../decisions/the-bot-check-is-cloudflare-turnstile-and-a-deployment-may-leave-it-off.md)).
 - Nothing tells someone signed out, or outside an organization, whether an address has an
   account. The sign-in form answers every address alike, at the same speed and under the same
-  hourly limit, and mails a link only to one that may sign in; an invite-only refusal is shown only
+  hourly limits, and mails a link only to one that may sign in. The hour's mail counts only what is
+  mailed, and once it is used refuses every address alike; an invite-only refusal is shown only
   after a sign-in proves the address is the person's. Giving a role invites anyone the giver does
   not already see in the organization, account or not, with the same answer either way
   ([decision](../decisions/a-role-is-given-at-once-only-to-someone-already-seen-in-the-organization.md)).
@@ -349,7 +353,10 @@ Four things keep a tab from hearing what it may not know, each holding if anothe
   `null` for a sandboxed document wherever it is served. App pages send `Cross-Origin-Opener-Policy:
   same-origin`, `X-Frame-Options: DENY`, `frame-ancestors 'none'`, `script-src 'self'` and a
   `style-src` without `'unsafe-inline'`, and frame only their own origin and the content site's
-  `/prototypes/` and `/documents/` (`apps/server/src/public-routes.ts`). The browser holds every navigation
+  `/prototypes/` and `/documents/` (`apps/server/src/public-routes.ts`). With the bot check's keys,
+  `script-src` and `frame-src` also name `https://challenges.cloudflare.com` on every app page, since
+  one document serves the whole app and the widget is on two of its screens, and on the site's
+  pages (accepted, below). The browser holds every navigation
   of a frame to that, whoever starts it and when, so a page cannot show another site in WhatBuild's frame;
   the dev server sends the same `frame-src`, so local testing sees it (`apps/web/vite.config.ts`).
   The canvas names every page's frame alike (`CANVAS_FRAME_NAME` in `packages/core/src/page-sandbox.ts`),
@@ -572,16 +579,42 @@ example organization's staff on what they wrote and in its activity log. These t
   (another proxy, Azure's ingress, the dev deployment, local development) counts only the
   deployment's ceilings, so one script can fill a ceiling for everyone there until its window ends
   ([decision](../decisions/abuse-limits-count-a-client-address-only-where-the-edge-key-vouches-for-it.md)).
+  Another proxy that names the client, trusted the same way, would change it.
 - The deployment's ceilings are shared: a flood that fills one (the hour's mail, new accounts, the
   waitlist) refuses everyone under it until the window ends, which is the price of a bound on what
-  a flood from many addresses can cost; the alert says when one fills. Clients behind one address
-  (an office, a carrier's NAT) share its limits, and clients in one IPv6 /48 (a campus, a large
-  office) share its limits too.
+  a flood from many addresses can cost; the alert says when one fills. A ceiling counted per
+  organization or per sender would change it, at the cost of no bound across them.
+- Clients behind one address (an office, a carrier's NAT) share its limits, and clients in one
+  IPv6 /48 (a campus, a large office) share its limits too. Among them, every agent hosted on
+  Cloudflare Workers, which reaches another zone from one address Cloudflare gives all of them, is
+  one client, so one script on a Worker can use up their agent registrations for the hour; keying
+  those requests on the calling zone (Cloudflare's `CF-Worker` header) would change it, once
+  Cloudflare documents that a Worker cannot set that header itself. A hosted agent client that
+  registers many people's agents from a few addresses can meet a client's limit on registrations
+  at a launch; the deployment raises `agent_registrations_per_address` then. People invited
+  together from one office each ask for a sign-in link, and more than the client's limit in an hour
+  wait for the next, or sign in with Google or Microsoft; the deployment raises
+  `sign_in_links_per_address` for such a day. An invitation's own link cannot stand in for the
+  sign-in, since whoever invited them holds it too.
+- The hour's mail counts only what is mailed, so whether a sign-in link counted is a sign of
+  whether its address may sign in. Reading it means bringing the deployment's mail for the hour to
+  one short of its ceiling with links to addresses of one's own that may sign in, knowing what
+  everyone else sent, then asking for a link for the address and one more for one's own: one
+  address learned an hour, at the cost of the hour's mail for everyone, which the alert reports.
+  Counting links that are never mailed would close it, and let a script with no mail sent fill the
+  ceiling instead, which is worse.
 - Agent registrations are never refused for the deployment's number, but a flood faster than that
   number in the minutes between an agent registering and its person choosing Allow pushes that
-  agent's registration out, and it registers again.
+  agent's registration out, and it registers again. A larger number makes the flood need to be
+  faster.
 - With the bot check, a person whose browser cannot reach Cloudflare, or while siteverify is down,
-  cannot ask for a sign-in link or start Google or Microsoft sign-in: the forms fail closed.
+  cannot ask for a sign-in link or start Google or Microsoft sign-in: the forms fail closed. A
+  deployment that would rather let them through leaves the check off.
+- With the bot check's keys, every app page lets Cloudflare's script (`challenges.cloudflare.com`,
+  loaded without an integrity hash, since Cloudflare changes it) run in the app's origin once a
+  sign-in form is sent, the delete-account step included, and a deployment not otherwise behind
+  Cloudflare takes Cloudflare on as a party it trusts. Only a page of its own for sign-in, loaded
+  apart from the app, would narrow it to those screens.
 - The limit on concurrent URL fetches is counted per instance; a deployment runs one.
 - Without a content site, PDFs open inline on the app's origin, since browsers will not render a
   sandboxed PDF. With one, a PDF is the one document on the content site with a real origin, and

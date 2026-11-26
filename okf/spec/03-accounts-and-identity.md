@@ -52,7 +52,7 @@ tenant               an organization: the isolation boundary
 
 Sign-in methods, each optional per deployment:
 
-- **Email link** — a single-use link valid 15 minutes, at most five per address per hour. Opening
+- **Email link** — a single-use link valid 15 minutes, at most five per email address per hour. Opening
   it (`GET /auth/verify?token=…`) changes nothing: mail scanners fetch every link in a message,
   so it answers a page that says "You’re about to sign in as <address>.", with one button, Sign in
   as <address>, and under it "Not you? Close this tab and nothing happens.", whose form posts the
@@ -77,20 +77,26 @@ There is no password. First sign-in creates the account. No method of signing in
 someone invited joins only by choosing to ([below](#invitations)).
 
 **Limits and the bot check at the door** ([§9.2](09-data-lifecycle.md#92-limits-and-quotas)).
-Asking for an email link is limited per client address and by the sign-in links and invitations
-the deployment emails in an hour, counted alike for every address (`429 rate_limited`, with
-`Retry-After`). A first sign-in that would make an account for someone nobody let in (not on the
-allowlist, not an instance owner, with no allowance and no invitation waiting) is limited per client
-address and across the deployment in an hour; past either, it ends on `/signin?error=too_many_accounts`,
-and the page says WhatBuild is making too many new accounts just now, to try in an hour or ask to be
-invited. A deployment with Cloudflare Turnstile's keys shows its widget on the sign-in page, and on
-signing in again before deleting an account: asking for an email link sends its token
-(`bot_check`), and Continue with Google or Microsoft waits for the token and carries it to
-`/auth/google` or `/auth/microsoft`; a request without a good one is refused
-(`403 bot_check_failed`, or back to `/signin?error=bot_check`, where the page says WhatBuild
-couldn't check that the person is one, and to try again). `GET /auth/methods` gives the widget's
-site key as `bot_check` (`null` where there is none). The widget mostly decides by itself and shows
-itself only when it needs the person to do something.
+Asking for an email link is limited per client address, counted alike whether or not the address
+may sign in, and by the sign-in links and invitations the deployment emails in an hour, which once
+used refuses every address alike (`429 rate_limited`, with `Retry-After`). A first sign-in that
+would make an account for someone nobody let in (not on the allowlist, not an instance owner, with
+no allowance and no invitation waiting) is limited per client address and across the deployment in
+an hour. Past its network's limit it ends on `/signin?error=too_many_accounts_from_network`, and the
+page says to try from another network, where a sign-in link still works until it expires, or in an
+hour, or to ask to be invited; past the deployment's, on `/signin?error=too_many_accounts`, and the
+page says WhatBuild is making too many new accounts just now, to try in an hour or ask to be
+invited. Either way a sign-in link is given back, unused. A deployment with Cloudflare Turnstile's
+keys asks for its token on the sign-in page, and on signing in again before deleting an account:
+sending Email me a sign-in link runs the check and sends its token (`bot_check`), and Continue with
+Google or Microsoft runs it and carries the token to `/auth/google` or `/auth/microsoft`; a request
+without a good one is refused (`403 bot_check_failed`, or back to `/signin?error=bot_check`, where
+the page says WhatBuild couldn't check that the person is one, and to try again; someone signed in
+is sent on to where they were with `bot_check_refused`, and the page they return to says so).
+`GET /auth/methods` gives the widget's site key as `bot_check`, `{ "site_key": "…" }`, or `null`
+where there is none. Nothing of Cloudflare's loads until a form is sent. The check mostly decides by
+itself in a second or two, and its widget shows itself only when it needs the person to do
+something.
 
 Every method returns to `next`, the path the person was on, only when it is a path on this origin:
 one with a scheme or host, a backslash, whitespace or a control character, an encoded slash,
@@ -401,7 +407,8 @@ it moves. The limits and their refusals are in [§9.7](09-data-lifecycle.md).
   the tenant holds for a total, also given as `holds`), and the plans offered side by side
   (`plans`). Anyone, signed in or not, reads the plans offered at `GET /api/v1/plans`, with each
   one's price as the deployment set it (a plan without one shows none), `starting_plan`, whether
-  the deployment has an example organization (`example`) and whether guests may sign up; `plans`
+  the deployment has an example organization (`example`), whether guests may sign up, and the bot
+  check's site key for the waitlist's form (`bot_check`, as in `/auth/methods`); `plans`
   is empty on a deployment that offers none. There is no billing in WhatBuild: an instance owner
   moves an organization when it pays, and a billing service kept outside the repository would do
   the same through `products.set_plan` over REST.

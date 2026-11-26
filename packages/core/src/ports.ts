@@ -105,7 +105,7 @@ export interface LiveChanges {
 
 /** The largest JSON body the REST API reads; file bytes go through upload grants. */
 export const REST_BODY_MAX_BYTES = 5 * 1024 * 1024;
-/** Sign-in links one address may ask for in an hour. */
+/** Sign-in links one email address may ask for in an hour. */
 export const SIGN_IN_LINKS_PER_HOUR = 5;
 
 export interface CoreConfig {

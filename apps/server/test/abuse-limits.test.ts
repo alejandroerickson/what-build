@@ -1,6 +1,9 @@
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
-import { abuseLimitsFrom, DEFAULT_ABUSE_LIMITS, pruneAbuseCounters, type AbuseLimits } from "@whatbuild/core";
+import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { abuseLimitsFrom, DEFAULT_ABUSE_LIMITS, listenToAbuseLog, pruneAbuseCounters, type AbuseLimits } from "@whatbuild/core";
 import { sql } from "kysely";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { CLIENT_ADDRESS_HEADER, CLIENT_SEAL_HEADER, clientKeys, clientOf, ipv6BlockOf, namedBy } from "../src/client-address.ts";
@@ -12,6 +15,18 @@ const KEY = "an-edge-key-of-at-least-32-random-characters";
 
 /** Limits small enough to reach in a test, the rest as a deployment gets them. */
 const limits = (set: Partial<AbuseLimits>): AbuseLimits => ({ ...DEFAULT_ABUSE_LIMITS, ...set });
+
+/**
+ * The windows start at the top of each hour (and each UTC day), so a test that fills one over
+ * several requests would find it empty again if the hour turned halfway: each group of them starts
+ * with a minute left in the hour at least, waiting for the next when there is less.
+ */
+async function roomInTheHour(): Promise<void> {
+  const left = 3_600_000 - (Date.now() % 3_600_000);
+  if (left < 60_000) await new Promise((r) => setTimeout(r, left + 500));
+}
+/** How long `roomInTheHour` may take, as a hook's timeout. */
+const AT_MOST_A_MINUTE = 75_000;
 
 /** A request as the Cloudflare Worker passes it on: with the edge key, from `from`. */
 function edge(h: Harness, from: string | null) {
@@ -73,6 +88,9 @@ describe("the abuse limits' settings", () => {
     for (const secret of ["1x0000000000000000000000000000000AA", "2x0000000000000000000000000000000AA", "3x0000000000000000000000000000000AA"])
       expect(() => loadConfig({ ...production, WHATBUILD_TURNSTILE_SITE_KEY: "0x4AAAAAAAexample", WHATBUILD_TURNSTILE_SECRET_KEY: secret })).toThrow(/test keys/);
     expect(loadConfig({ ...production, WHATBUILD_TURNSTILE_SITE_KEY: "0x4AAAAAAAexample", WHATBUILD_TURNSTILE_SECRET_KEY: "0x4AAAAAAAexample-secret" }).turnstileSecretKey).toBe("0x4AAAAAAAexample-secret");
+    // A test site key's widget hands out a dummy token a real secret key refuses: nobody new could sign in.
+    for (const site of ["1x00000000000000000000AA", "2x00000000000000000000AB", "1x00000000000000000000BB", "3x00000000000000000000FF"])
+      expect(() => loadConfig({ ...production, WHATBUILD_TURNSTILE_SITE_KEY: site, WHATBUILD_TURNSTILE_SECRET_KEY: "0x4AAAAAAAexample-secret" }), site).toThrow(/test keys/);
   });
 });
 
@@ -108,6 +126,7 @@ describe("a client's address", () => {
 
 describe("behind the Worker, with the edge key", () => {
   let h: Harness;
+  beforeAll(roomInTheHour, AT_MOST_A_MINUTE);
   beforeAll(async () => {
     h = await startHarness({
       edgeKey: KEY,
@@ -137,15 +156,18 @@ describe("behind the Worker, with the edge key", () => {
     for (const [i, who] of ["new1@example.com", "new2@example.com", "new3@example.com"].entries()) expect((await askLink(h, `198.51.100.${i + 1}`, who)).status).toBe(200);
     expect(await followLink(h, "new1@example.com", from)).toBe("/");
     expect(await followLink(h, "new2@example.com", from)).toBe("/");
-    expect(await followLink(h, "new3@example.com", from)).toBe("/signin?error=too_many_accounts");
-    // Another client still makes one.
-    expect((await askLink(h, "198.51.100.99", "new3@example.com")).status).toBe(200);
+    // Refused for its network, which trying from another lifts, unlike the deployment's ceiling.
+    expect(await followLink(h, "new3@example.com", from)).toBe("/signin?error=too_many_accounts_from_network");
+    // The link is given back: pressed again from another client, it makes the account.
     expect(await followLink(h, "new3@example.com", "203.0.113.21")).toBe("/");
     // An address with an account signs in again from the same client, and so does one someone let in.
     expect((await askLink(h, "198.51.100.98", "new1@example.com")).status).toBe(200);
     expect(await followLink(h, "new1@example.com", from)).toBe("/");
     expect((await askLink(h, "198.51.100.97", "vouched@example.com")).status).toBe(200);
     expect(await followLink(h, "vouched@example.com", from)).toBe("/");
+    // A stranger from that client is still refused.
+    expect((await askLink(h, "198.51.100.95", "new4@example.com")).status).toBe(200);
+    expect(await followLink(h, "new4@example.com", from)).toBe("/signin?error=too_many_accounts_from_network");
   });
 
   it("limits a client's requests to join the waitlist, after the hidden field and the bot check", async () => {
@@ -201,6 +223,9 @@ describe("behind the Worker, with the edge key", () => {
     const burst = await Promise.all(Array.from({ length: 12 }, (_, i) => askLink(h, "203.0.113.250", `burst-${i}@example.com`)));
     expect(burst.filter((r) => r.status === 200)).toHaveLength(3);
     expect(burst.filter((r) => r.status === 429).every((r) => r.limit === "sign_in_links_per_address")).toBe(true);
+    // Agent registrations from one client too, under the advisory lock and the conditional count alike.
+    const registered = await Promise.all(Array.from({ length: 10 }, () => edge(h, "203.0.113.251")("/oauth/register", { client_name: "burst", redirect_uris: ["http://127.0.0.1:9/cb"] })));
+    expect(registered.map((r) => r.status).sort()).toEqual([201, 201, ...Array(8).fill(429)]);
   });
 
   it("keeps no client's address in the database, only keyed hashes", async () => {
@@ -213,6 +238,7 @@ describe("behind the Worker, with the edge key", () => {
 describe("behind a Cloudflare Worker older than the service", () => {
   let h: Harness;
   const errors: string[] = [];
+  beforeAll(roomInTheHour, AT_MOST_A_MINUTE);
   beforeAll(async () => {
     h = await startHarness({ edgeKey: KEY, signupAllowlist: null, abuseLimits: limits({ sign_in_links_per_address: 1 }) });
   });
@@ -252,6 +278,13 @@ describe("agent registrations waiting for a first connection", () => {
       await sql<{ client_id: string; client_name: string }>`select client_id, client_name from oauth_clients c where not exists (select 1 from oauth_tokens t where t.client_id = c.client_id) and not exists (select 1 from oauth_codes o where o.client_id = c.client_id) order by created_at`.execute(h.db)
     ).rows;
 
+  const heard: Record<string, unknown>[] = [];
+  let deaf = () => {};
+  beforeAll(() => {
+    deaf = listenToAbuseLog((line) => heard.push(line));
+  });
+  afterAll(() => deaf());
+
   it("are kept to the deployment's number: past it the oldest is forgotten, never one that connected, and nobody is refused", async () => {
     const real = (await (await register("Connected agent")).json()) as { client_id: string };
     await h.signIn("agent-owner@example.com");
@@ -273,6 +306,10 @@ describe("agent registrations waiting for a first connection", () => {
     expect(await waitingNow()).toHaveLength(5);
   });
 
+  it("say once an hour, for the alert, that registrations under an hour old are being forgotten", async () => {
+    expect(heard.filter((l) => l["event"] === "abuse_ceiling_reached")).toEqual([expect.objectContaining({ limit: "agent_registrations_waiting", value: 5 })]);
+  });
+
   it("let an agent that registers during a flood go on to sign its person in", async () => {
     const mine = (await (await register("A real agent")).json()) as { client_id: string };
     const res = await fetch(`${h.baseUrl}/oauth/authorize?client_id=${mine.client_id}&redirect_uri=${encodeURIComponent("https://agent.example/cb")}&response_type=code&code_challenge=x&code_challenge_method=S256`, { redirect: "manual" });
@@ -283,28 +320,46 @@ describe("agent registrations waiting for a first connection", () => {
 
 describe("a sign-in link for an address that may not sign in", () => {
   let h: Harness;
+  beforeAll(roomInTheHour, AT_MOST_A_MINUTE);
   beforeAll(async () => {
-    h = await startHarness({ edgeKey: KEY, signupAllowlist: ["listed@example.com"], abuseLimits: limits({ sign_in_links_per_address: 2, mail_per_hour: 3 }) });
+    h = await startHarness({ edgeKey: KEY, signupAllowlist: ["team-a@example.com", "team-b@example.com", "team-c@example.com", "team-d@example.com"], abuseLimits: limits({ sign_in_links_per_address: 2, mail_per_hour: 3 }) });
   });
   afterAll(async () => h?.close());
 
-  it("is counted as one that is mailed, against the client and the hour's mail, so neither limit says who may sign in", async () => {
-    expect((await askLink(h, "203.0.113.120", "listed@example.com")).status).toBe(200);
+  it("is counted against the client as one that is mailed, so the client's limit never says who may sign in", async () => {
+    expect((await askLink(h, "203.0.113.120", "team-a@example.com")).status).toBe(200);
     expect((await askLink(h, "203.0.113.120", "unlisted-1@example.com")).status).toBe(200);
+    // The second was never mailed, and still took the client's second link.
     expect(await askLink(h, "203.0.113.120", "unlisted-2@example.com")).toMatchObject({ status: 429, limit: "sign_in_links_per_address" });
-    expect((await askLink(h, "203.0.113.121", "unlisted-3@example.com")).status).toBe(200);
-    expect(await askLink(h, "203.0.113.122", "listed@example.com")).toMatchObject({ status: 429, limit: "mail_per_hour" });
-    await expect.poll(() => h.mailer.sent.length).toBe(1);
-    expect(h.mailer.sent.map((m) => m.to)).toEqual(["listed@example.com"]);
+    expect(await askLink(h, "203.0.113.120", "team-b@example.com")).toMatchObject({ status: 429, limit: "sign_in_links_per_address" });
+  });
+
+  it("is never counted against the hour's mail, which counts what is mailed, and once that is used every address is refused alike", async () => {
+    // Links nobody mails, from many clients, take nothing from the hour's three.
+    for (const n of [3, 4, 5, 6]) expect((await askLink(h, `203.0.113.${120 + n}`, `unlisted-${n}@example.com`)).status).toBe(200);
+    expect((await askLink(h, "203.0.113.130", "team-b@example.com")).status).toBe(200);
+    expect((await askLink(h, "203.0.113.131", "team-c@example.com")).status).toBe(200);
+    // The hour's mail is used (a@, b@, c@): an address that would be mailed and one that would not get the same refusal.
+    expect(await askLink(h, "203.0.113.132", "team-d@example.com")).toMatchObject({ status: 429, limit: "mail_per_hour" });
+    expect(await askLink(h, "203.0.113.133", "unlisted-7@example.com")).toMatchObject({ status: 429, limit: "mail_per_hour" });
+    await expect.poll(() => h.mailer.sent.length).toBe(3);
+    expect(h.mailer.sent.map((m) => m.to).sort()).toEqual(["team-a@example.com", "team-b@example.com", "team-c@example.com"]);
   });
 });
 
 describe("without the edge key", () => {
   let h: Harness;
+  const heard: Record<string, unknown>[] = [];
+  let deaf = () => {};
+  beforeAll(roomInTheHour, AT_MOST_A_MINUTE);
   beforeAll(async () => {
     h = await startHarness({ signupAllowlist: null, abuseLimits: limits({ sign_in_links_per_address: 1, mail_per_hour: 4, new_accounts_per_hour: 1 }) });
+    deaf = listenToAbuseLog((line) => heard.push(line));
   });
-  afterAll(async () => h?.close());
+  afterAll(async () => {
+    deaf();
+    await h?.close();
+  });
 
   const ask = async (email: string, from = "203.0.113.50") => {
     const res = await fetch(`${h.baseUrl}/auth/email`, { method: "POST", headers: { "content-type": "application/json", [CLIENT_ADDRESS_HEADER]: from }, body: JSON.stringify({ email }) });
@@ -333,6 +388,15 @@ describe("without the edge key", () => {
     expect(await followLink(h, "three@example.com")).toBe("/signin?error=too_many_accounts");
   });
 
+  it("logs each ceiling once, as it fills, for the alert, naming no address", async () => {
+    const filled = heard.filter((l) => l["event"] === "abuse_ceiling_reached");
+    expect(filled.map((l) => [l["limit"], l["value"], l["window"]])).toEqual([
+      ["mail_per_hour", 4, "hour"],
+      ["new_accounts_per_hour", 1, "hour"],
+    ]);
+    for (const l of filled) expect(JSON.stringify(l)).not.toMatch(/@|203\.0\.113/);
+  });
+
   it("are pruned by the worker two days after their window began", async () => {
     await sql`insert into abuse_counters (name, subject, starts_at, n) values ('mail_per_hour', '', now() - interval '3 days', 9)`.execute(h.db);
     await pruneAbuseCounters(h.db);
@@ -342,8 +406,70 @@ describe("without the edge key", () => {
   });
 });
 
+describe("new accounts for people nobody let in, whichever way they sign in", () => {
+  let h: Harness;
+  /** The claims the stand-in for Google's token endpoint puts in the next ID token. */
+  let claims: Record<string, unknown> = {};
+  const realFetch = globalThis.fetch;
+  const idToken = (payload: Record<string, unknown>) => `${Buffer.from(JSON.stringify({ alg: "none", typ: "JWT" })).toString("base64url")}.${Buffer.from(JSON.stringify(payload)).toString("base64url")}.`;
+  beforeAll(roomInTheHour, AT_MOST_A_MINUTE);
+  beforeAll(async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      if (url === "https://oauth2.googleapis.com/token") return Response.json({ id_token: idToken(claims) });
+      return realFetch(input, init);
+    });
+    h = await startHarness({ signupAllowlist: null, googleClientId: "google-client", googleClientSecret: "google-secret", abuseLimits: limits({ new_accounts_per_hour: 2 }) });
+  });
+  afterAll(async () => {
+    await h?.close();
+    vi.restoreAllMocks();
+  });
+
+  /** Sign in with Google as `email`, as its consent screen would send the browser back; where it ends. */
+  const withGoogle = async (email: string) => {
+    claims = { aud: "google-client", email, email_verified: true, name: "Someone" };
+    const start = await fetch(`${h.baseUrl}/auth/google?next=/`, { redirect: "manual" });
+    const state = new URL(start.headers.get("location")!).searchParams.get("state");
+    const cookie = (start.headers.get("set-cookie") ?? "").split(";")[0]!;
+    return (await fetch(`${h.baseUrl}/auth/google/callback?code=c&state=${state}`, { redirect: "manual", headers: { cookie } })).headers.get("location");
+  };
+
+  it("are counted alike from Google and a sign-in link, and never for an address with an invitation waiting", async () => {
+    expect(await withGoogle("g-new-1@example.com")).toBe("/");
+    expect((await fetch(`${h.baseUrl}/auth/email`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ email: "link-new@example.com" }) })).status).toBe(200);
+    expect(await followLink(h, "link-new@example.com")).toBe("/");
+    // The hour's two are made.
+    expect(await withGoogle("g-new-2@example.com")).toBe("/signin?error=too_many_accounts");
+    expect(await withGoogle("g-new-1@example.com")).toBe("/");
+    const inviter = await h.signIn("inviter-g@example.com", "Ingrid Inviter");
+    const org = (await inviter.api("POST", "/api/v1/tenants", { name: "Google Invites" })).body.tenant.slug as string;
+    expect((await inviter.api("POST", `/api/v1/tenants/${org}/members`, { email: "g-invited@example.com", role: "member" })).status).toBe(201);
+    expect(await withGoogle("g-invited@example.com")).toBe("/");
+  });
+});
+
+describe("a deployment's ceiling under a burst", () => {
+  let h: Harness;
+  beforeAll(roomInTheHour, AT_MOST_A_MINUTE);
+  beforeAll(async () => {
+    h = await startHarness({ abuseLimits: limits({ waitlist_per_hour: 5 }) });
+  });
+  afterAll(async () => h?.close());
+
+  it("lets exactly its number through when requests from everywhere arrive together", async () => {
+    const answers = await Promise.all(
+      Array.from({ length: 30 }, (_, i) => fetch(`${h.baseUrl}/api/v1/interest`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ email: `together-${i}@example.com` }) })),
+    );
+    expect(answers.map((r) => r.status).sort()).toEqual([...Array(5).fill(200), ...Array(25).fill(429)]);
+    expect(await h.db.selectFrom("interest").select("email").execute()).toHaveLength(5);
+    expect((await h.db.selectFrom("abuse_counters").select("n").where("name", "=", "waitlist_per_hour").execute()).map((r) => r.n)).toEqual([5]);
+  });
+});
+
 describe("invitations", () => {
   let h: Harness;
+  beforeAll(roomInTheHour, AT_MOST_A_MINUTE);
   beforeAll(async () => {
     h = await startHarness({ abuseLimits: limits({ invitations_per_organization: 3, mail_per_hour: 4 }) });
     h.acceptsInvitations = false;
@@ -376,7 +502,31 @@ describe("invitations", () => {
     expect((await owner.api("POST", `/api/v1/tenants/${other}/members`, { email: "i4@example.com", role: "member" })).status).toBe(201);
     // The limit is shown among the deployment's.
     const l = await owner.api("GET", `/api/v1/tenants/${tenant}/limits`);
-    expect(l.body.deployment_limits).toContainEqual({ key: "invitations_per_day", label: "Invitations one organization makes", value: 3, unit: "a day", set_by: "WHATBUILD_ABUSE_LIMITS" });
+    expect(l.body.deployment_limits).toContainEqual({ key: "invitations_per_organization", label: "Invitations one organization makes", value: 3, unit: "a day", set_by: "WHATBUILD_ABUSE_LIMITS" });
+  });
+
+  it("a role given at once, to someone already in the organization, is not one", async () => {
+    const owner = await h.signIn("roles@example.com", "Rae Roles");
+    const tenant = (await owner.api("POST", "/api/v1/tenants", { name: "Roles Test" })).body.tenant.slug as string;
+    const members = `/api/v1/tenants/${tenant}/members`;
+    // Someone brought in by the organization's first invitation, accepted.
+    await h.signIn("member@example.com", "Mel Member");
+    h.acceptsInvitations = true;
+    try {
+      expect((await owner.api("POST", members, { email: "member@example.com", role: "member" })).status).toBe(201);
+    } finally {
+      h.acceptsInvitations = false;
+    }
+    expect((await owner.api("POST", members, { email: "r2@example.com", role: "member" })).status).toBe(201);
+    expect((await owner.api("POST", members, { email: "r3@example.com", role: "member" })).status).toBe(201);
+    expect((await owner.api("POST", members, { email: "r4@example.com", role: "member" })).status).toBe(429);
+    // The day's three are made; roles for the one already in it still go, alone and in a batch.
+    const one = await owner.api("POST", members, { email: "member@example.com", role: "admin" });
+    expect(one.status, JSON.stringify(one.body)).toBeLessThan(300);
+    expect(one.body.invited).toBeFalsy();
+    const many = await owner.api("POST", `${members}/many`, { people: [{ email: "member@example.com", role: "creator" }] });
+    expect(many.status, JSON.stringify(many.body)).toBeLessThan(300);
+    expect(many.body.results[0].invited).toBeFalsy();
   });
 
   it("past the deployment's mail for the hour, an invitation is made with its link and not emailed", async () => {
@@ -507,19 +657,35 @@ describe("the bot check", () => {
   });
   afterAll(async () => verify?.close());
 
-  const withKeys = (secret: string, extra = {}) =>
-    startHarness({ turnstileSiteKey: "1x00000000000000000000AA", turnstileSecretKey: secret, turnstileVerifyUrl: verify.url, googleClientId: "google-client", googleClientSecret: "google-secret", ...extra });
+  /** A web build of the app's shell and the site's front page, to read the headers they are served with. */
+  const dist = (() => {
+    const d = mkdtempSync(join(tmpdir(), "wb-bot-check-"));
+    mkdirSync(join(d, "site"));
+    writeFileSync(join(d, "index.html"), "<!doctype html><title>WhatBuild</title>");
+    writeFileSync(join(d, "site", "index.html"), "<!doctype html><title>The site</title>");
+    return d;
+  })();
+  const providers = { googleClientId: "google-client", googleClientSecret: "google-secret", microsoftTenant: "00000000-0000-4000-8000-000000000001", microsoftClientId: "microsoft-client", microsoftClientSecret: "microsoft-secret", webDist: dist };
+  const withKeys = (secret: string, extra = {}) => startHarness({ turnstileSiteKey: "1x00000000000000000000AA", turnstileSecretKey: secret, turnstileVerifyUrl: verify.url, ...providers, ...extra });
+  /** The script-src and frame-src a page at `path` is served with. */
+  const policy = async (h: Harness, path: string) => {
+    const csp = (await fetch(`${h.baseUrl}${path}`)).headers.get("content-security-policy") ?? "";
+    return csp.split("; ").filter((d) => /^(script|frame)-src /.test(d));
+  };
   const post = (h: Harness, path: string, body: object) => fetch(`${h.baseUrl}${path}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
   const DUMMY = "XXXX.DUMMY.TOKEN.XXXX";
 
   it("is off without keys: no page carries it and no form asks for a token", async () => {
-    const h = await startHarness({ googleClientId: "google-client", googleClientSecret: "google-secret" });
+    const h = await startHarness(providers);
     try {
       expect(((await (await fetch(`${h.baseUrl}/auth/methods`)).json()) as { bot_check: unknown }).bot_check).toBeNull();
       expect(((await (await fetch(`${h.baseUrl}/api/v1/plans`)).json()) as { bot_check: unknown }).bot_check).toBeNull();
       expect((await post(h, "/auth/email", { email: "a@example.com" })).status).toBe(200);
       expect((await post(h, "/api/v1/interest", { email: "a@example.com" })).status).toBe(200);
       expect((await fetch(`${h.baseUrl}/auth/google?next=/`, { redirect: "manual" })).headers.get("location")).toMatch(/^https:\/\/accounts\.google\.com\//);
+      expect((await fetch(`${h.baseUrl}/auth/microsoft?next=/`, { redirect: "manual" })).headers.get("location")).toMatch(/^https:\/\/login\.microsoftonline\.com\//);
+      // Neither the app's pages nor the site's let Cloudflare's script in.
+      for (const path of ["/", "/t/acme", "/site/"]) for (const d of await policy(h, path)) expect([path, d]).not.toEqual([path, expect.stringContaining("challenges.cloudflare.com")]);
     } finally {
       await h.close();
     }
@@ -539,11 +705,19 @@ describe("the bot check", () => {
       expect(h.mailer.sent).toEqual([]);
       expect(await h.db.selectFrom("interest").select("email").execute()).toEqual([]);
       expect((await post(h, "/auth/email", { email: "b@example.com", bot_check: DUMMY })).status).toBe(200);
+      // No client address is known without the edge key, so none is sent to Cloudflare.
+      expect(verify.asked.at(-1)?.has("remoteip")).toBe(false);
       expect((await post(h, "/api/v1/interest", { email: "b@example.com", bot_check: DUMMY })).status).toBe(200);
       expect(verify.asked.at(-1)?.get("response")).toBe(DUMMY);
       // Starting Google sign-in without one goes back to the sign-in page, keeping where it was going.
       expect((await fetch(`${h.baseUrl}/auth/google?next=/t/acme`, { redirect: "manual" })).headers.get("location")).toBe("/signin?error=bot_check&next=%2Ft%2Facme");
       expect((await fetch(`${h.baseUrl}/auth/google?next=/&bot_check=${DUMMY}`, { redirect: "manual" })).headers.get("location")).toMatch(/^https:\/\/accounts\.google\.com\//);
+      // Microsoft's alike.
+      expect((await fetch(`${h.baseUrl}/auth/microsoft?next=/t/acme`, { redirect: "manual" })).headers.get("location")).toBe("/signin?error=bot_check&next=%2Ft%2Facme");
+      expect((await fetch(`${h.baseUrl}/auth/microsoft?next=/&bot_check=${DUMMY}`, { redirect: "manual" })).headers.get("location")).toMatch(/^https:\/\/login\.microsoftonline\.com\//);
+      // Every page of the app, a single-page app, and the site's pages let the widget's script and frame in.
+      for (const path of ["/", "/t/acme", "/site/"])
+        expect([path, await policy(h, path)]).toEqual([path, [expect.stringMatching(/^script-src 'self'.* https:\/\/challenges\.cloudflare\.com/), expect.stringMatching(/^frame-src 'self'.* https:\/\/challenges\.cloudflare\.com/)]]);
     } finally {
       await h.close();
     }
@@ -556,6 +730,7 @@ describe("the bot check", () => {
         expect((await post(h, "/auth/email", { email: "c@example.com", bot_check: DUMMY })).status).toBe(403);
         expect((await post(h, "/api/v1/interest", { email: "c@example.com", bot_check: DUMMY })).status).toBe(403);
         expect((await fetch(`${h.baseUrl}/auth/google?next=/&bot_check=${DUMMY}`, { redirect: "manual" })).headers.get("location")).toMatch(/^\/signin\?error=bot_check/);
+        expect((await fetch(`${h.baseUrl}/auth/microsoft?next=/&bot_check=${DUMMY}`, { redirect: "manual" })).headers.get("location")).toMatch(/^\/signin\?error=bot_check/);
       } finally {
         await h.close();
       }

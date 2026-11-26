@@ -23,6 +23,10 @@
 name = "whatbuild-edge"
 main = "worker.js"
 compatibility_date = "2026-09-01"
+# Only the custom domains reach the Worker: no workers.dev address and no preview addresses, which
+# would sit outside the zone, its rate limit and its WAF rules, and could serve an older version.
+workers_dev = false
+preview_urls = false
 
 [assets]
 directory = "../../apps/web/dist"

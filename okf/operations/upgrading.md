@@ -126,13 +126,23 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
   filled`, and the new words of `whatbuild: errors in the log`. Migration `0055_abuse_counters` adds
   a table the previous release never reads, so it keeps working against the migrated schema.
   `tools_version` 0.72.0: `members.grant` and `members.grant_many` describe the daily cap, and the
-  refusal of `members.grant_many` says in `room_for` how many more the organization can invite today.
+  refusal of `members.grant_many` says in `room_for` how many more the organization can invite today;
+  `products.limits` lists the cap as `invitations_per_organization`, the name its refusal gives.
+  A deployment with the [nightly dump](backups.md#the-nightly-dump) adds
+  `--exclude-table-data=abuse_counters` to its job's `pg_dump`, so its dumps keep no client's keyed
+  hash past the two days (`gcloud run jobs update whatbuild-backup --args=…` with the guide's
+  arguments).
+- **The Worker answers only on its custom domains.** `wrangler.toml` turns off its `workers.dev`
+  address and its preview addresses, which sat outside the zone's rate limit and WAF rules; the
+  next deploy of the Worker removes them. Anything that called the Worker there calls the app's
+  domain instead.
 - **An optional bot check, Cloudflare Turnstile.** With `WHATBUILD_TURNSTILE_SITE_KEY` and
   `WHATBUILD_TURNSTILE_SECRET_KEY` (both, or neither), asking for a sign-in link, starting Google or
   Microsoft sign-in and joining the waitlist ask for its token. Without them nothing changes. To
   turn it on behind the Worker, deploy the Worker with the release first, then give the service the
   keys ([cloud-run.md](cloud-run.md#the-bot-check)), and name Cloudflare in `WHATBUILD_PROVIDERS`.
-  Production refuses Cloudflare's test keys. On Cloud Run, `setup.sh` gives the secret key to the
+  The page runs the check when a form is sent, and loads nothing of Cloudflare's before.
+  Production refuses Cloudflare's test keys, site key and secret key alike. On Cloud Run, `setup.sh` gives the secret key to the
   service only, never the migration job, and once the secret exists it stops unless
   `TURNSTILE_SITE_KEY` is passed too. Each refused check is logged with its reason; one that refuses
   everyone (Cloudflare out of reach, a host or secret that does not match the widget) is logged as

@@ -121,9 +121,9 @@ function deploymentLimits(ports: Pick<Ports, "blobs" | "config">) {
     { key: "mockup_html_max_chars", label: "A mockup version's HTML, all pages", value: MOCKUP_HTML_TOTAL, unit: "characters", set_by: null },
     { key: "attachments_per_source", label: "Attachments on a source", value: MAX_ATTACHMENTS, unit: "attachments", set_by: null },
     { key: "sources_per_call", label: "Sources in one archive or restore call", value: MAX_BATCH, unit: "sources", set_by: null },
-    { key: "sign_in_links_per_hour", label: "Sign-in links for one address", value: SIGN_IN_LINKS_PER_HOUR, unit: "an hour", set_by: null },
+    { key: "sign_in_links_per_hour", label: "Sign-in links for one email address", value: SIGN_IN_LINKS_PER_HOUR, unit: "an hour", set_by: null },
     // An abuse limit (abuse-limits.ts) every organization can meet, listed while the deployment keeps it on.
-    ...(invitations === null ? [] : [{ key: "invitations_per_day", label: "Invitations one organization makes", value: invitations, unit: "a day", set_by: "WHATBUILD_ABUSE_LIMITS" }]),
+    ...(invitations === null ? [] : [{ key: "invitations_per_organization", label: "Invitations one organization makes", value: invitations, unit: "a day", set_by: "WHATBUILD_ABUSE_LIMITS" }]),
   ];
 }
 

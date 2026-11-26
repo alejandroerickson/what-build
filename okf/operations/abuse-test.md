@@ -50,8 +50,10 @@ the client's address in `X-WhatBuild-Client-Address`, sealed with the key in
 for IPv6). So the limits per client count here as behind the Worker.
 
 `WHATBUILD_ABUSE_LIMITS=… corepack pnpm abuse-test` runs it with other numbers, as a deployment
-would set them; the report says which it used. A run takes a few minutes, most of it the
-invitation churn and the Cloudflare checks.
+would set them; the report says which it used. The server sends mail only to the catcher, whatever
+the shell sets. A run takes a few minutes, most of it the invitation churn and the Cloudflare
+checks. The windows start at the top of each hour, so a run that begins in an hour's last six
+minutes waits for the next, and never meets fresh limits halfway.
 
 ## What it does, in order
 
@@ -64,7 +66,8 @@ by everything before them.
    `sign_in_links_per_address` get through and are mailed; the rest are refused.
 3. **Sign-ups from one client**: a link asked for each new address, from anywhere, and followed
    from one client. As many as `new_accounts_per_address` accounts are made; the rest end on
-   `/signin?error=too_many_accounts`. Every link is mailed, since the address could sign in.
+   `/signin?error=too_many_accounts_from_network`. Every link is mailed, since the address could
+   sign in.
 4. **Sign-ups from many clients**, each its own. Accounts are made until `new_accounts_per_hour`
    (what the hour has left after phase 3).
 5. **The waitlist**: from one client (`waitlist_per_address`), a bot filling in the hidden field
@@ -84,7 +87,10 @@ by everything before them.
    invitation from the second organization made with its link and not emailed.
 
 All along, a person in a second organization reads their product every second and a half and adds
-an outcome every few, under their own plan's limits, from before the floods to the end.
+an outcome every sixth request, under their own plan's limits, from before the floods to the end.
+No abuse limit applies to what they do, so their answers show the server keeping up with the floods
+beside them; what the floods do to other organizations is in phase 8, where the second
+organization's own sign-in link and invitation meet the deployment's spent mail.
 
 ## Reading the report
 
@@ -103,11 +109,13 @@ by git):
   stays out of other organizations. Its times rise during the floods only as much as one machine
   running the floods, the server and the Cloudflare checks together slows everything.
 
-A mail total past `mail_per_hour`, more registrations kept waiting than
-`agent_registrations_waiting`, an agent that could not sign in after the flood, or a refusal for
-the second organization makes the run fail: it says which, and exits with an error after writing
-the report. A step that lets through more than its limit is a failure too: compare each line with
-the limits the report names, and say which, with the report.
+The run fails, saying which, and exits with an error after writing the report, when anything
+gets past a limit: a step from one client, or from one /48, that lets through more than its limit
+per client; any request without a token let through; more accounts made for strangers in the run
+than `new_accounts_per_hour`, more waitlist entries than `waitlist_per_hour`, more invitations
+from one organization than `invitations_per_organization`, more mail in all than `mail_per_hour`,
+or more registrations kept waiting than `agent_registrations_waiting`; a hidden-field bot stored;
+an agent that could not sign in after the flood; or a refusal for the second organization.
 
 ## What it does not cover
 

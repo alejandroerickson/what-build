@@ -874,7 +874,13 @@ everywhere, but Container Apps' ingress names no client the service can trust (t
 key), so only the deployment's ceilings, the number of agent registrations kept waiting, and each
 organization's invitations a day count, not the limits per client. Change the numbers with
 `WHATBUILD_ABUSE_LIMITS` in the app's environment. A deployment for one organization's own people,
-invite-only, rarely meets them.
+invite-only, rarely meets them: a sign-in link for an address that may not sign in is never mailed
+and takes nothing from the hour's mail, and nobody else makes an account. Anyone can still fill the
+waitlist's ceiling, or, knowing a hundred addresses of people who may sign in (each takes five links
+an hour), the hour's mail, until the hour ends; the server then logs `abuse_ceiling_reached` with the limit's name (there
+is no alert here: look for it with
+`az containerapp logs show … --tail 300 | grep abuse_ceiling_reached`), and the bot check below
+stops a script before it counts.
 
 The bot check stays off unless the deployment adds a Cloudflare Turnstile widget's keys
 ([decision](../decisions/the-bot-check-is-cloudflare-turnstile-and-a-deployment-may-leave-it-off.md)).

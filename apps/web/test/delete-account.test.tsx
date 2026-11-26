@@ -191,6 +191,16 @@ describe("Delete account, in Settings", () => {
     expect(host.textContent).toContain("Check your email");
   });
 
+  it("says so when a provider's sign-in again came back refused by the bot check, until the next try", async () => {
+    state.impact.recent_until = null;
+    const host = await section("/settings?delete=account&bot_check_refused=1");
+    expect(host.textContent).toContain("WhatBuild couldn’t check that you’re a person");
+    await click(button(host, "Email me a sign-in link"));
+    expect(host.textContent).toContain("Check your email");
+    expect(host.textContent).not.toContain("couldn’t check that you’re a person");
+    expect(at).toBe("/settings?delete=account");
+  });
+
   it("says the account wasn't deleted when the server refuses, and moves to signing in again", async () => {
     const host = await section();
     await type(host.querySelector("input") as HTMLInputElement, "dana@example.com");

@@ -9,7 +9,8 @@ import { AppError } from "./errors.ts";
  * the waitlist, agent registrations, invitations, and the mail they send.
  *
  * - A limit is counted per client, per organization, or for the whole deployment, in fixed windows
- *   of an hour or a UTC day (`abuse_counters`). A refused request adds nothing.
+ *   of an hour or a UTC day (`abuse_counters`). A refused request adds nothing. The hour's mail
+ *   counts what is mailed; once it is used, a request that would mail nothing is refused alike.
  * - A client is counted only where the service can trust its address: behind a proxy that names it
  *   with the edge key (`client-address.ts` in the server). Elsewhere only the deployment's ceilings
  *   apply. An IPv4 address is one client. An IPv6 address is counted by its /64 and again, under
@@ -123,6 +124,20 @@ export async function spend(db: Db, name: WindowedLimitName, subject: string, li
   return { ok: true, n, filled };
 }
 
+/**
+ * Whether a limit's window has room for one more, adding nothing: for a request a limit counts only
+ * when it does what the limit counts (a sign-in link is counted against the hour's mail only when it
+ * is mailed), so that once the window is used it is refused alike with the ones counted.
+ */
+export async function hasRoom(db: Db, name: WindowedLimitName, subject: string, limits: AbuseLimits, now = new Date()): Promise<Spent> {
+  const limit = limits[name];
+  const { starts_at, resets_at } = windowOf(ABUSE_LIMITS[name].window, now);
+  if (limit === null) return { ok: true, n: 0, filled: false };
+  const row = await db.selectFrom("abuse_counters").select("n").where("name", "=", name).where("subject", "=", subject).where("starts_at", "=", starts_at).executeTakeFirst();
+  const n = Number(row?.n ?? 0);
+  return n < limit ? { ok: true, n, filled: false } : { ok: false, limit, resets_at };
+}
+
 /** A client, as the limits per client count it: its address's keyed hash, and, for an IPv6 address, its /48's. */
 export interface ClientKeys {
   address: string;
@@ -151,10 +166,24 @@ export async function spendPerClient(db: Db, what: ClientLimited, keys: ClientKe
   return { ok: true };
 }
 
-/** A structured line in the server's log, as the rest of the server writes them; never an address or an email. */
+/** Who hears the abuse log besides the server's own log: tests. */
+const listeners = new Set<(line: Record<string, unknown>) => void>();
+
+/**
+ * A structured line in the server's log, as the rest of the server writes them; never an address or
+ * an email. Tests hear it only when they listen (`listenToAbuseLog`), so their output stays quiet.
+ */
 export function abuseLog(fields: Record<string, unknown>): void {
+  const line = { at: new Date().toISOString(), severity: "WARNING", ...fields };
+  for (const hear of listeners) hear(line);
   if (process.env["NODE_ENV"] === "test") return;
-  console.warn(JSON.stringify({ at: new Date().toISOString(), severity: "WARNING", ...fields }));
+  console.warn(JSON.stringify(line));
+}
+
+/** For tests: hear every line `abuseLog` writes, until the returned function is called. */
+export function listenToAbuseLog(hear: (line: Record<string, unknown>) => void): () => void {
+  listeners.add(hear);
+  return () => void listeners.delete(hear);
 }
 
 /** Seconds until a window starts again, for Retry-After. */
@@ -164,7 +193,8 @@ export function retryAfter(resetsAt: string, now = Date.now()): number {
 
 /**
  * A refusal under an abuse limit: `429 rate_limited`, whose details name the limit (`abuse_limit`),
- * give its number (`limit`, as a plan's refusals do) and say when its window starts again.
+ * give its number and its window (`limit` and `per`, an hour or a day, as a plan's refusals give
+ * them; not what ABUSE_LIMITS calls `per`, what it is counted per) and say when its window starts again.
  */
 export function abuseRefusal(message: string, name: WindowedLimitName, limit: number, resetsAt: string, now = Date.now(), details: Record<string, unknown> = {}) {
   return new AppError(429, "rate_limited", message, { abuse_limit: name, limit, per: ABUSE_LIMITS[name].window, resets_at: resetsAt, retry_after_seconds: retryAfter(resetsAt, now), ...details });

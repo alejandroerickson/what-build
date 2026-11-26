@@ -22,9 +22,15 @@ Azure, locally), and must keep working as before.
 
 ## Decision
 
-- **Cloudflare Turnstile**, in managed mode with the widget drawn only when it needs the person
+- **Cloudflare Turnstile**, in managed mode with the widget shown only when it needs the person
   (`appearance: interaction-only`). It is free, and the deployments
   behind Cloudflare already trust it with their traffic.
+- **The check runs when the form is sent** (`execution: "execute"`): the page loads Cloudflare's
+  script and runs the check when someone presses Email me a sign-in link, Continue with Google or
+  Microsoft, or Request access, and nothing of Cloudflare's loads or runs while a page is only read,
+  so the privacy page can say it happens when someone signs in or joins the waitlist, which is what
+  makes it necessary for a service they asked for. It costs the press a second or two. Each press
+  runs it afresh for a token of its own, and none is refreshed in the background.
 - **On the forms that mail someone or make an account, and that anyone can send:** asking for a
   sign-in link (`POST /auth/email`), starting Google or Microsoft sign-in (`GET /auth/google`,
   `/auth/microsoft`), and joining the waitlist (`POST /api/v1/interest`). Signing in again before
@@ -50,15 +56,18 @@ Azure, locally), and must keep working as before.
   test use them.
 - Rejected: a check of our own (a puzzle, a proof of work), which a script solves as easily as a
   person and which needs upkeep; hCaptcha and reCAPTCHA, which add a third party the Cloudflare
-  deployments do not otherwise have.
+  deployments do not otherwise have; running the check as the page opens, which spares the press
+  its wait but has Cloudflare look at every visitor's browser, those who never send a form
+  included.
 
 ## Consequences
 
 - A person whose browser cannot reach `challenges.cloudflare.com` (a blocker, a filtering network),
   or while siteverify is down, cannot ask for a sign-in link or start Google or Microsoft sign-in
   there. Someone already signed in is not affected.
-- The pages that carry the widget allow `https://challenges.cloudflare.com` in `script-src` and
-  `frame-src`; the widget works under the app's `Cross-Origin-Embedder-Policy: credentialless`.
+- Every app page allows `https://challenges.cloudflare.com` in `script-src` and `frame-src`, since
+  one document serves the whole app and a page's policy is the one it loaded with; so do the site's
+  pages. The widget works under the app's `Cross-Origin-Embedder-Policy: credentialless`.
 - Turning it on takes an order: the Worker that serves the site's pages first (its policy lets the
   widget in), then the keys on the service. The site's pages learn of it from the service's
   catalogue, which the Worker caches for an hour.

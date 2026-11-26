@@ -251,7 +251,7 @@ export class Worker {
     if (released.length) this.log(`places of the day: ${released.length} given to the waitlist`);
   }
 
-  /** Housekeeping, at most hourly: finished jobs after a week; OAuth registrations nobody connected with; people's days of use after 14 months; feedback counts of days that are over; abandoned upload grants and canvas uploads, and their bytes; expired Story previews; messages between agents whose time is up. */
+  /** Housekeeping, at most hourly: finished jobs after a week; OAuth registrations nobody connected with; people's days of use after 14 months; feedback counts of days that are over; the abuse limits' windows two days after they began, and the bot check's tokens with them; abandoned upload grants and canvas uploads, and their bytes; expired Story previews; messages between agents whose time is up. */
   private async prune() {
     if (Date.now() - this.lastPrune < 3600_000) return;
     this.lastPrune = Date.now();

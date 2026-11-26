@@ -193,17 +193,32 @@ function check(ok: boolean, what: string): void {
   if (!ok) failures.push(what);
 }
 
-/** What the answers were, by what stopped each: a status and the limit or code that says why. */
-function tally(phase: string, answers: Answer[], mails: number, ok: (a: Answer) => boolean, note?: string): Row {
+/**
+ * What the answers were, by what stopped each: a status and the limit or code that says why. `most`
+ * is what the limits let through, where they name a number: more than that fails the run.
+ */
+function tally(phase: string, answers: Answer[], mails: number, ok: (a: Answer) => boolean, opts: { note?: string; most?: number | null } = {}): Row {
   const stopped: Record<string, number> = {};
   for (const a of answers.filter((x) => !ok(x))) {
     const why = `${a.status} ${a.limit ?? a.code ?? (a.location ? a.location.replace(/^.*error=/, "") : "?")}`;
     stopped[why] = (stopped[why] ?? 0) + 1;
   }
-  const row = { phase, attempts: answers.length, through: answers.filter(ok).length, stopped, mails, ...(note ? { note } : {}) };
+  const row = { phase, attempts: answers.length, through: answers.filter(ok).length, stopped, mails, ...(opts.note ? { note: opts.note } : {}) };
   rows.push(row);
-  console.log(`  ${phase}: ${row.through} of ${row.attempts} got through; stopped: ${Object.entries(stopped).map(([k, v]) => `${v} × ${k}`).join(", ") || "none"}; ${mails} mails sent`);
+  console.log(`  ${phase}: ${row.through} of ${row.attempts} got through; stopped: ${Object.entries(stopped).map(([k, v]) => `${v} × ${k}`).join(", ") || "none"}; ${mails} mails sent${opts.note ? `; ${opts.note}` : ""}`);
+  if (opts.most !== undefined && opts.most !== null) check(row.through <= opts.most, `${phase}: ${row.through} got through, past the ${opts.most} its limit allows`);
   return row;
+}
+
+/**
+ * The windows are hours from the top of the hour, so a run that crossed one would meet fresh limits
+ * halfway through and its counts would mean nothing: a run starts with room for itself in the hour.
+ */
+async function roomInTheHour(minutes: number): Promise<void> {
+  const left = 3_600_000 - (Date.now() % 3_600_000);
+  if (left >= minutes * 60_000) return;
+  console.log(`Waiting ${Math.ceil(left / 1000)} seconds for the top of the hour, so the run stays in one hour's windows…`);
+  await new Promise((r) => setTimeout(r, left + 1000));
 }
 
 // ---- The second organization, working as usual throughout -----------------------------------------
@@ -238,6 +253,8 @@ async function main() {
     WHATBUILD_EDGE_KEY: EDGE_KEY,
     WHATBUILD_TURNSTILE_SITE_KEY: TEST_SITE_KEY,
     WHATBUILD_TURNSTILE_SECRET_KEY: TEST_SECRET_KEY,
+    // Mail goes to the catcher whatever the shell sets: never a provider, never the terminal.
+    WHATBUILD_MAILER: "smtp",
     WHATBUILD_SMTP_URL: `smtp://127.0.0.1:${mail.port}`,
     WHATBUILD_MAIL_FROM: "WhatBuild <no-reply@example.com>",
     WHATBUILD_BLOB_DIR: resolve(root, ".what-build/abuse-blobs"),
@@ -283,10 +300,11 @@ async function main() {
     console.log(`WhatBuild on ${base}, with the bot check (Cloudflare's test keys) and the edge key; mail caught on port ${mail.port}.`);
     console.log(`Abuse limits: ${Object.entries(limits).map(([k, v]) => `${k}=${v ?? "off"}`).join(", ")}\n`);
     const mailsSince = (n: number) => mail.caught.length - n;
+    await roomInTheHour(6);
     const count = async (sql: string) => Number((await admin.query(sql)).rows[0].n);
 
-    // The second organization: someone working in their own product all along, reading every half
-    // second and writing every few, as the floods run.
+    // The second organization: someone working in their own product all along, reading every second
+    // and a half and writing every sixth request, as the floods run.
     const bystanderCookie = await devSignIn("bystander@example.com");
     const t = await call("POST", "/api/v1/tenants", { cookie: bystanderCookie, body: { name: "Bystander Co" } });
     const tenant = t.body.tenant.slug as string;
@@ -316,8 +334,8 @@ async function main() {
       const m = mail.caught.length;
       const links = await flood(50, (i) => call("POST", "/auth/email", { from: manyClients(1)(i), body: { email: `notoken${i}@example.com` } }));
       const waitlist = await flood(50, (i) => call("POST", "/api/v1/interest", { from: manyClients(2)(i), body: { email: `notoken${i}@example.com` } }));
-      tally("Sign-in links without a bot check token", links, 0, (a) => a.status === 200);
-      tally("Waitlist without a bot check token", waitlist, 0, (a) => a.status === 200);
+      tally("Sign-in links without a bot check token", links, 0, (a) => a.status === 200, { most: 0 });
+      tally("Waitlist without a bot check token", waitlist, 0, (a) => a.status === 200, { most: 0 });
       rows.at(-1)!.mails = mailsSince(m);
     });
 
@@ -326,7 +344,7 @@ async function main() {
       const m = mail.caught.length;
       const answers = await flood(100, (i) => call("POST", "/auth/email", { from: "198.18.10.1", body: { email: `stranger${i}@example.com`, bot_check: TOKEN } }));
       await new Promise((r) => setTimeout(r, 1000));
-      tally("Sign-in links for 100 addresses, from one client", answers, mailsSince(m), (a) => a.status === 200);
+      tally("Sign-in links for 100 addresses, from one client", answers, mailsSince(m), (a) => a.status === 200, { most: limits.sign_in_links_per_address });
     });
 
     // 3. Sign-ups: links asked for from anywhere, each followed (the account made) from one client.
@@ -343,32 +361,38 @@ async function main() {
       return call("POST", "/auth/verify", { from: followFrom, form: new URLSearchParams({ token }) });
     };
     const madeAccount = (a: Answer) => a.status === 303 && a.location === "/";
+    let madeByStrangers = 0;
     await phase("sign-ups, one client", async () => {
       const m = mail.caught.length;
       const before = await count("select count(*) as n from accounts");
       const answers = await flood(30, (i) => signUp(`signup-one-${i}@example.com`, manyClients(20)(i), "198.18.11.1"));
       const made = (await count("select count(*) as n from accounts")) - before;
-      tally("Sign-ups of 30 new addresses, from one client", answers, mailsSince(m), madeAccount, `${made} accounts made`);
+      madeByStrangers += made;
+      tally("Sign-ups of 30 new addresses, from one client", answers, mailsSince(m), madeAccount, { note: `${made} accounts made`, most: limits.new_accounts_per_address });
+      check(limits.new_accounts_per_address === null || made <= limits.new_accounts_per_address, `${made} accounts made from one client, past new_accounts_per_address`);
     });
     await phase("sign-ups, many clients", async () => {
       const m = mail.caught.length;
       const before = await count("select count(*) as n from accounts");
       const answers = await flood(150, (i) => signUp(`signup-many-${i}@example.com`, manyClients(30)(i), manyClients(40)(i)));
       const made = (await count("select count(*) as n from accounts")) - before;
-      tally("Sign-ups of 150 new addresses, each from its own client", answers, mailsSince(m), madeAccount, `${made} accounts made`);
+      madeByStrangers += made;
+      tally("Sign-ups of 150 new addresses, each from its own client", answers, mailsSince(m), madeAccount, { note: `${made} accounts made` });
+      check(limits.new_accounts_per_hour === null || madeByStrangers <= limits.new_accounts_per_hour, `${madeByStrangers} accounts made by people nobody let in, past new_accounts_per_hour`);
     });
 
     // 4. The waitlist, from one client and from many, and a bot that fills in the hidden field.
     await phase("waitlist", async () => {
       const before = await count("select count(*) as n from interest");
       const one = await flood(30, (i) => call("POST", "/api/v1/interest", { from: "198.18.12.1", body: { email: `wait-one-${i}@example.com`, bot_check: TOKEN } }));
-      tally("Waitlist, 30 addresses from one client", one, 0, (a) => a.status === 200);
+      tally("Waitlist, 30 addresses from one client", one, 0, (a) => a.status === 200, { most: limits.waitlist_per_address });
       const trap = await flood(20, (i) => call("POST", "/api/v1/interest", { from: manyClients(50)(i), body: { email: `trap-${i}@example.com`, website: "https://spam.example.com", bot_check: TOKEN } }));
       const many = await flood(300, (i) => call("POST", "/api/v1/interest", { from: manyClients(60)(i), body: { email: `wait-many-${i}@example.com`, bot_check: TOKEN } }));
       const stored = (await count("select count(*) as n from interest")) - before;
       const trapped = await count("select count(*) as n from interest where email like 'trap-%'");
-      tally("Waitlist, 300 addresses each from its own client", many, 0, (a) => a.status === 200, `${stored} entries stored in all; the hidden field's 20 were thanked and ${trapped} stored`);
-      void trap;
+      tally("Waitlist, 300 addresses each from its own client", many, 0, (a) => a.status === 200, { note: `${stored} entries stored in all; the hidden field's 20 were thanked and ${trapped} stored` });
+      check(trap.every((a) => a.status === 200) && trapped === 0, "a request that filled in the hidden field was refused or stored");
+      check(limits.waitlist_per_hour === null || stored <= limits.waitlist_per_hour, `${stored} waitlist entries stored, past waitlist_per_hour`);
     });
 
     // 5. Agent registrations: from one client, from many /64s of one IPv6 /48, and from many
@@ -376,14 +400,14 @@ async function main() {
     await phase("agent registrations", async () => {
       const register = (from: string, name = "flood") => call("POST", "/oauth/register", { from, body: { client_name: name, redirect_uris: ["http://127.0.0.1:9/cb"] } });
       const waiting = () => count("select count(*) as n from oauth_clients c where not exists (select 1 from oauth_tokens t where t.client_id = c.client_id) and not exists (select 1 from oauth_codes o where o.client_id = c.client_id)");
-      tally("Agent registrations, 40 from one client", await flood(40, () => register("198.18.13.1")), 0, (a) => a.status === 201);
-      tally("Agent registrations, 100 from 100 /64s of one IPv6 /48", await flood(100, (i) => register(`2001:db8:a5:${(i + 1).toString(16)}::1`)), 0, (a) => a.status === 201);
+      tally("Agent registrations, 40 from one client", await flood(40, () => register("198.18.13.1")), 0, (a) => a.status === 201, { most: limits.agent_registrations_per_address });
+      tally("Agent registrations, 100 from 100 /64s of one IPv6 /48", await flood(100, (i) => register(`2001:db8:a5:${(i + 1).toString(16)}::1`)), 0, (a) => a.status === 201, { most: limits.agent_registrations_per_ipv6_48 });
       const most = limits.agent_registrations_waiting;
       const n = (most ?? 1000) + 250;
       const answers = await flood(n, (i) => register(manyClients(70)(i)));
       const real = await register("198.18.13.200", "an agent registering during the flood");
       const authorize = real.status === 201 ? await call("GET", `/oauth/authorize?client_id=${real.body.client_id}&redirect_uri=${encodeURIComponent("http://127.0.0.1:9/cb")}&response_type=code&code_challenge=x&code_challenge_method=S256`) : null;
-      tally(`Agent registrations, ${n} each from its own client`, answers, 0, (a) => a.status === 201, `${await waiting()} kept waiting (the number is ${most ?? "off"}); an agent registering after them: ${real.status}, and its sign-in ${authorize?.status === 302 ? "opens" : "fails"}`);
+      tally(`Agent registrations, ${n} each from its own client`, answers, 0, (a) => a.status === 201, { note: `${await waiting()} kept waiting (the number is ${most ?? "off"}); an agent registering after them: ${real.status}, and its sign-in ${authorize?.status === 302 ? "opens" : "fails"}` });
       check(most === null || (await waiting()) <= most, `more agent registrations kept waiting than ${most}`);
       check(authorize?.status === 302, "an agent registering during the flood could not go on to sign its person in");
     });
@@ -396,7 +420,7 @@ async function main() {
       let m = mail.caught.length;
       const people = Array.from({ length: 100 }, (_, i) => ({ email: `invited-${i}@example.com`, role: "member" }));
       const all = await call("POST", `/api/v1/tenants/${org}/members/many`, { cookie: attacker, body: { people } });
-      tally("Invitations to 100 addresses in one call, from a new organization", [all], mailsSince(m), (a) => a.status === 201, all.status === 201 ? undefined : "all or nothing: none made");
+      tally("Invitations to 100 addresses in one call, from a new organization", [all], mailsSince(m), (a) => a.status === 201, all.status === 201 ? {} : { note: "all or nothing: none made" });
       // Inviting and cancelling, again and again, to mail one stranger after another.
       m = mail.caught.length;
       const churn: Answer[] = [];
@@ -409,7 +433,7 @@ async function main() {
           while (Date.now() < until && (await call("POST", `/api/v1/tenants/${org}/invitations/cancel`, { cookie: attacker, body: { invitation_id: a.body.invitation_id } })).status !== 200) await new Promise((r) => setTimeout(r, 2000));
         else await new Promise((r) => setTimeout(r, 2000));
       }
-      tally("Invite and cancel for 65 seconds, from a new organization", churn, mailsSince(m), (a) => a.status === 201);
+      tally("Invite and cancel for 65 seconds, from a new organization", churn, mailsSince(m), (a) => a.status === 201, { most: limits.invitations_per_organization });
       const owner = await devSignIn("owner@example.com");
       const own = (await call("POST", "/api/v1/tenants", { cookie: owner, body: { name: "Owner Flood Test" } })).body.tenant.slug as string;
       m = mail.caught.length;
@@ -417,7 +441,8 @@ async function main() {
       const answers = [await batch(0, 100), await batch(100, 50), ...(await flood(10, (i) => call("POST", `/api/v1/tenants/${own}/members`, { cookie: owner, body: { email: `owner-single-${i}@example.com`, role: "member" } })))];
       const made = await count(`select count(*) as n from invitations i join tenants t on t.tenant_id = i.tenant_id where t.slug = '${own}'`);
       await new Promise((r) => setTimeout(r, 1000));
-      tally("Invitations from an organization on any plan: 100, then 50, then 10 one at a time", answers, mailsSince(m), (a) => a.status === 201, `${made} invitations made`);
+      tally("Invitations from an organization on any plan: 100, then 50, then 10 one at a time", answers, mailsSince(m), (a) => a.status === 201, { note: `${made} invitations made` });
+      check(limits.invitations_per_organization === null || made <= limits.invitations_per_organization, `${made} invitations made by one organization in a day, past invitations_per_organization`);
     });
 
     // 7. The deployment's mail for the hour: sign-in links for strangers from many clients, until it is used.
@@ -430,7 +455,9 @@ async function main() {
       const person = await call("POST", "/auth/email", { from: "198.18.14.1", body: { email: "bystander@example.com", bot_check: TOKEN } });
       const before = mail.caught.length;
       const invited = await call("POST", `/api/v1/tenants/${tenant}/members`, { cookie: bystanderCookie, body: { email: "colleague@example.com", role: "member" } });
-      tally("After it: the second organization's person asks for a sign-in link, then invites a colleague", [person, invited], mailsSince(before), (a) => a.status === 200 || a.status === 201, `invitation: ${invited.status}, emailed ${invited.body?.emailed === false ? "no" : "yes"}; link: ${person.status} ${person.limit ?? ""}`);
+      tally("After it: the second organization's person asks for a sign-in link, then invites a colleague", [person, invited], mailsSince(before), (a) => a.status === 200 || a.status === 201, {
+        note: `invitation: ${invited.status}, emailed ${invited.body?.emailed === false ? "no" : "yes"}; link: ${person.status} ${person.limit ?? ""}`,
+      });
     });
 
     running = false;

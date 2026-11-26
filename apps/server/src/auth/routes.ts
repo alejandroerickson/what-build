@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from "node:crypto";
-import { abuseRefusal, AppError, askForOrganization, retryAfter, spend, spendPerClient, type WindowedLimitName, conflict, enterAsGuest, planName, escapeHtml, gone, invalid, isGuestAccount, isInstanceOwner, placeOpen, readGuests, tenantAllowanceOf, newId, notFound, oneLine, plainName, randomToken, safeNext, sha256Hex, SIGN_IN_LINK_MINUTES, SIGN_IN_LINK_SUBJECT, SIGN_IN_LINKS_PER_HOUR, unauthenticated, type Db, type InvitationsTable, type Mailer } from "@whatbuild/core";
+import { abuseRefusal, AppError, askForOrganization, hasRoom, retryAfter, spend, spendPerClient, type WindowedLimitName, conflict, enterAsGuest, planName, escapeHtml, gone, invalid, isGuestAccount, isInstanceOwner, placeOpen, readGuests, tenantAllowanceOf, newId, notFound, oneLine, plainName, randomToken, safeNext, sha256Hex, SIGN_IN_LINK_MINUTES, SIGN_IN_LINK_SUBJECT, SIGN_IN_LINKS_PER_HOUR, unauthenticated, type Db, type InvitationsTable, type Mailer } from "@whatbuild/core";
 import { Hono, type Context } from "hono";
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 import { sql, type Selectable } from "kysely";
@@ -125,23 +125,27 @@ export function authRoutes(deps: { db: Db; config: ServerConfig; mailer: Mailer 
   };
 
   /**
-   * Room for a new account for `email`, made through a door open to everyone: under the limit for
-   * its client address and the deployment's ceiling for the hour (`abuse-limits.ts`). An address
-   * that has an account, or that someone let in, is never counted, so a flood of strangers cannot
-   * keep out the people a team invited.
+   * Whether a new account for `email`, made through a door open to everyone, is refused: null when
+   * there is room under the limit for its client address and the deployment's ceiling for the hour
+   * (`abuse-limits.ts`), otherwise the sign-in page's error for whichever refused, its network's or
+   * the deployment's, since only the first is lifted by trying from elsewhere. An address that has an
+   * account, or that someone let in, is never counted, so a flood of strangers cannot keep out the
+   * people a team invited.
    */
-  const roomForAccount = async (c: Context, email: string): Promise<boolean> => {
-    if ((await accountByEmail(db, email)) || (await vouchedFor(email))) return true;
+  const accountRefused = async (c: Context, email: string): Promise<"too_many_accounts_from_network" | "too_many_accounts" | null> => {
+    if ((await accountByEmail(db, email)) || (await vouchedFor(email))) return null;
     const keys = clientKeys(clientAddress(c, config), config.grantKey);
-    const refused = new Error("refused");
+    const network = new Error("refused for the network");
+    const everyone = new Error("refused for the deployment");
     try {
       await db.transaction().execute(async (trx) => {
-        if (!(await spendPerClient(trx, "new_accounts", keys, config.abuseLimits)).ok) throw refused;
-        if (!(await spend(trx, "new_accounts_per_hour", "", config.abuseLimits)).ok) throw refused;
+        if (!(await spendPerClient(trx, "new_accounts", keys, config.abuseLimits)).ok) throw network;
+        if (!(await spend(trx, "new_accounts_per_hour", "", config.abuseLimits)).ok) throw everyone;
       });
-      return true;
+      return null;
     } catch (e) {
-      if (e === refused) return false;
+      if (e === network) return "too_many_accounts_from_network";
+      if (e === everyone) return "too_many_accounts";
       throw e;
     }
   };
@@ -167,7 +171,8 @@ export function authRoutes(deps: { db: Db; config: ServerConfig; mailer: Mailer 
    * Email a single-use sign-in link to an address that may sign in here. Every address gets the
    * same answer, at the same speed, and meets the same hourly limit, so the form never says whether
    * an address has an account, an invitation or an allowance: one that may not sign in is sent
-   * nothing, and its request is counted as a link would be. The email goes out after the answer,
+   * nothing, and its request is counted as a link would be, but for the hour's mail, which counts
+   * what is mailed and, once used, refuses every address alike. The email goes out after the answer,
    * so a slow mail server does not tell them apart either; a failure to send it is logged.
    */
   app.post("/auth/email", async (c) => {
@@ -187,15 +192,17 @@ export function authRoutes(deps: { db: Db; config: ServerConfig; mailer: Mailer 
       .executeTakeFirst();
     if (Number(recent?.n ?? 0) >= SIGN_IN_LINKS_PER_HOUR) throw new AppError(429, "rate_limited", "Too many sign-in links for this email in the last hour. Use the latest one, or try again later.");
     const allowed = await mayJoin(email);
-    // A link is made either way, so the limits count every address alike, the client's and the
-    // deployment's mail included; one that may not sign in is never sent, and opening it would be
-    // refused all the same.
+    // A link is made either way, and counted against the client either way, so neither the answer
+    // nor the client's limit says whether an address may sign in; one that may not is never sent,
+    // and opening it would be refused all the same. The hour's mail counts only a link that is
+    // mailed, so a script naming addresses nobody mails cannot use it up; once it is used, every
+    // address is refused alike.
     const token = randomToken();
     const keys = clientKeys(address, config.grantKey);
     await db.transaction().execute(async (trx) => {
       const mine = await spendPerClient(trx, "sign_in_links", keys, config.abuseLimits);
       if (!mine.ok) throw tooMany(c, "Too many sign-in links were asked for from your network in the last hour. Try again later, or sign in another way.", mine.name, mine);
-      const mail = await spend(trx, "mail_per_hour", "", config.abuseLimits);
+      const mail = allowed ? await spend(trx, "mail_per_hour", "", config.abuseLimits) : await hasRoom(trx, "mail_per_hour", "", config.abuseLimits);
       if (!mail.ok) throw tooMany(c, "WhatBuild has sent all the email it sends in an hour. Try again later, or sign in another way.", "mail_per_hour", mail);
       await trx
         .insertInto("email_tokens")
@@ -244,7 +251,12 @@ export function authRoutes(deps: { db: Db; config: ServerConfig; mailer: Mailer 
     if (!row) return c.redirect("/signin?error=link_expired", 303);
     // What let the address in may have gone since: an invitation can be cancelled while the email is in transit.
     if (!(await mayJoin(row.email))) return c.redirect("/signin?error=invite_only", 303);
-    if (!(await roomForAccount(c, row.email))) return c.redirect("/signin?error=too_many_accounts", 303);
+    const refused = await accountRefused(c, row.email);
+    if (refused) {
+      // The link is given back, so it can be pressed again while it lasts: from another network, or once there is room.
+      await db.updateTable("email_tokens").set({ used_at: null }).where("token_hash", "=", sha256Hex(token)).where("used_at", "=", now).execute();
+      return c.redirect(`/signin?error=${refused}`, 303);
+    }
     const { account } = await findOrCreateAccount(db, row.email);
     await startSession(c, account.account_id);
     return c.redirect(safeNext(row.redirect), 303);
@@ -376,7 +388,8 @@ export function authRoutes(deps: { db: Db; config: ServerConfig; mailer: Mailer 
   /** What every method does once it has an address it trusts: admission, the account, a session. Invitations wait for their person's answer. */
   const completeSignIn = async (c: Context, email: string, name: string | undefined, next: string) => {
     if (!(await mayJoin(email))) return c.redirect("/signin?error=invite_only");
-    if (!(await roomForAccount(c, email))) return c.redirect("/signin?error=too_many_accounts");
+    const refused = await accountRefused(c, email);
+    if (refused) return c.redirect(`/signin?error=${refused}`);
     const { account } = await findOrCreateAccount(db, email, name);
     await startSession(c, account.account_id);
     return c.redirect(next);

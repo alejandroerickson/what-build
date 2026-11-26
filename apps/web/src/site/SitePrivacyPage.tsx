@@ -79,7 +79,8 @@ export function SitePrivacyPage() {
                 </Kept>
                 {site?.bot_check ? (
                   <Kept lead="A check that you’re a person.">
-                    When you sign in or join the waitlist, Cloudflare Turnstile looks at your browser to tell people from scripts, and tells WhatBuild only whether you passed.
+                    When you ask for a sign-in link, start signing in with Google or Microsoft, or join the waitlist, Cloudflare Turnstile looks at your browser to tell
+                    people from scripts, and tells WhatBuild only whether you passed. Nothing of it loads while you only read a page.
                   </Kept>
                 ) : null}
                 {analytics ? (

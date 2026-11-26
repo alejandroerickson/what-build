@@ -149,7 +149,8 @@ tunnel. Running it again adds only what is missing. It refuses an address that i
 machine and a server without the development sign-in, so it never touches a deployment. Past a few
 hundred people, one organization takes more invitations in a day than the abuse limits allow
 ([§9.2](../spec/09-data-lifecycle.md#92-limits-and-quotas)): `pnpm dev:people` turns that limit off
-for its instance, and another instance needs `WHATBUILD_ABUSE_LIMITS=invitations_per_organization=off`.
+for its instance, beside any other limits `WHATBUILD_ABUSE_LIMITS` sets unless it names that one,
+and another instance needs `WHATBUILD_ABUSE_LIMITS=invitations_per_organization=off`.
 
 ## The bot check and the abuse limits, locally
 

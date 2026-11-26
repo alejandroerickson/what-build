@@ -211,6 +211,8 @@ function contentOrigin(v: string | undefined, publicBaseUrl: string, mode: Serve
 export const TURNSTILE_VERIFY_URL = "https://challenges.cloudflare.com/turnstile/v0/siteverify";
 /** Cloudflare's documented test secret keys (always passes, always fails, already spent). */
 export const TURNSTILE_TEST_SECRET = /^[123]x0{31}AA$/;
+/** Cloudflare's documented test site keys, whose widget hands out a dummy token that only a test secret key takes. */
+export const TURNSTILE_TEST_SITE_KEY = /^[123]x0{20}[A-F]{2}$/;
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
   // Development behaviour (sign in as anyone, a published grant key, printed mail) only when asked
@@ -255,6 +257,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
   // Cloudflare's test keys pass or fail every check whatever made the token, so production never takes them.
   if (mode === "production" && turnstileSecretKey && TURNSTILE_TEST_SECRET.test(turnstileSecretKey))
     throw new Error("WHATBUILD_TURNSTILE_SECRET_KEY is one of Cloudflare's test keys, which production refuses: use the secret key of the deployment's own widget.");
+  // A test site key's widget hands out a dummy token that a real secret key always refuses: nobody new could sign in.
+  if (mode === "production" && turnstileSiteKey && TURNSTILE_TEST_SITE_KEY.test(turnstileSiteKey))
+    throw new Error("WHATBUILD_TURNSTILE_SITE_KEY is one of Cloudflare's test keys, which production refuses: use the site key of the deployment's own widget.");
   return {
     env: mode,
     port,
