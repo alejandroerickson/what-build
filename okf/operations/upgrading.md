@@ -3,7 +3,7 @@ type: Process
 title: What a deployment must do when it takes a release
 description: The changes a release asks of the people who run a deployment (settings, app registrations, behaviour they will notice), kept per release, with the unreleased ones on top until the next release carries them into its notes.
 tags: [operations, releases, upgrading, self-hosting, configuration]
-generated: {by: agent:claude, at: 2026-11-23}
+generated: {by: agent:claude, at: 2026-11-25}
 status: stable
 ---
 
@@ -55,6 +55,16 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
   reading in LinkedIn's app are split like everyone else, where until now they always got `/`; only
   LinkedIn's link previews still do. An account made before the release gets `returned_at` at its
   first call after it. Nothing else needs doing.
+- **The tutorial's welcome comes once more on a product of one's own.** Someone offered it in the
+  example organization is offered it again, once, on the first product of their own they open.
+  People will notice: a guest who explored the demo and then starts an organization sees the
+  welcome there. The release migrates (`0056_welcome_on_own_product.sql` lets
+  `accounts.tutorials_seen` hold `welcome-own`, and gives it to whoever was offered the welcome and
+  is in an organization other than the example, so the welcome does not come back for anyone
+  already using their own). The previous release leaves `welcome-own` alone and never offers the
+  welcome twice, so going back needs only its image. A toast that points at the account menu now
+  goes when the person leaves the screens it is about, so it no longer follows a guest onto the
+  Welcome form. Nothing needs doing.
 
 ## v0.44.2
 

@@ -3,7 +3,7 @@ type: Specification
 title: Accounts belong to tenants, tenants hold products, and one role check decides every call.
 description: The account → tenant → product hierarchy, sign-in, roles and what they grant, plans and their limits, addressing and isolation, caller identity, attribution, the example organization every account reads, and how teams were removed.
 tags: [spec, accounts, tenancy, roles, identity, oauth, isolation, example, limits]
-generated: {by: agent:claude, at: 2026-11-17}
+generated: {by: agent:claude, at: 2026-11-25}
 status: stable
 ---
 
@@ -48,7 +48,7 @@ tenant               an organization: the isolation boundary
 | `email` | Unique (case-insensitive), verified by the sign-in itself. |
 | `display_name` | 1–100 chars. Appears in attribution, which copies it; an ended account keeps none. |
 | `hide_example` | The person hid the example organization from the app's panel ([§3.10](#310-the-example-organization)); `PATCH /api/v1/me` sets it, with or without the display name. |
-| `tutorials_seen`, `tutorials_off` | The web app's tutorials ([§7.4](07-web-app.md#the-tutorial)): which the person has been shown, of `welcome`, `idea`, `evidence`, `exploration` and `story`, so none starts by itself twice, and whether they turned tutorials off. `GET /api/v1/me` gives them as `tutorial: { seen, off }`, `seen` in that order; `PATCH /api/v1/me` with `tutorial` adds the tutorials `seen` names to those seen before, sets `off`, and with `reset: true` forgets those seen (development uses it to be offered them again). Only the person's own session reaches them, whatever roles they hold, a guest account's included; no operation and no agent does ([decision](../decisions/the-tutorial-is-remembered-on-the-account-and-reached-by-no-agent.md)). Ending the account clears them. |
+| `tutorials_seen`, `tutorials_off` | The web app's tutorials ([§7.4](07-web-app.md#the-tutorial)): which the person has been shown, of `welcome`, `idea`, `evidence`, `exploration` and `story`, so none starts by itself twice, with `welcome-own` once the welcome has been offered on a product of their own, since it comes once in the example organization and once more there; and whether they turned tutorials off. `GET /api/v1/me` gives them as `tutorial: { seen, off }`, `seen` in the order `welcome`, `welcome-own`, `idea`, `evidence`, `exploration`, `story`; `PATCH /api/v1/me` with `tutorial` adds the tutorials `seen` names to those seen before, sets `off`, and with `reset: true` forgets those seen (development uses it to be offered them again). Only the person's own session reaches them, whatever roles they hold, a guest account's included; no operation and no agent does ([decision](../decisions/the-tutorial-is-remembered-on-the-account-and-reached-by-no-agent.md)). Ending the account clears them. |
 
 Sign-in methods, each optional per deployment:
 

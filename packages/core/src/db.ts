@@ -54,7 +54,10 @@ export interface AccountsTable {
   deleted_at: TsNull;
   /** The person hid the example organization from the app's panel. */
   hide_example: Def<boolean>;
-  /** The web app's tutorials the person has been shown: `welcome`, `idea`, `evidence`, `exploration`, `story`. */
+  /**
+   * The web app's tutorials the person has been shown: `welcome`, `idea`, `evidence`, `exploration`,
+   * `story`, and `welcome-own` once the welcome has been offered on a product of their own.
+   */
   tutorials_seen: Def<string[]>;
   /** The person turned tutorials off: none starts by itself. */
   tutorials_off: Def<boolean>;

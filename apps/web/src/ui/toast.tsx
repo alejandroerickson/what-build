@@ -12,8 +12,9 @@ interface Toast {
   leaving?: boolean;
 }
 
-type Push = (message: ReactNode, opts?: { tone?: ToastTone; action?: Toast["action"] }) => void;
-const ToastContext = createContext<Push>(() => {});
+/** Shows a toast, and gives back what takes it away early, for a toast about a screen the person may leave first. */
+type Push = (message: ReactNode, opts?: { tone?: ToastTone; action?: Toast["action"] }) => () => void;
+const ToastContext = createContext<Push>(() => () => {});
 
 /** A toast with no timer: it says something still true and offers what to do about it, and stays until that is done, it is closed, or its screen goes. */
 export interface StandingToast {
@@ -28,8 +29,9 @@ const EXIT_MS = 160;
 /**
  * Short confirmations at the bottom of the window, at most three. A toast leaves after 5s (8s when
  * it carries an action such as Undo); hovering or focusing the toasts pauses every timer, so the
- * action stays reachable for as long as someone is on it. A screen may also hold one standing toast
- * above them (`useStandingToast`).
+ * action stays reachable for as long as someone is on it. Whoever raised a toast may take it away
+ * sooner, as a screen does with a toast about itself when the person leaves it. A screen may also
+ * hold one standing toast above them (`useStandingToast`).
  */
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
@@ -73,8 +75,14 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       setToasts((all) => [...all.filter((t) => !t.leaving).slice(-2), { id, message, tone: opts.tone ?? "neutral", action: opts.action }]);
       timers.current.set(id, { left: opts.action ? 8000 : 5000, started: Date.now() });
       arm(id);
+      return () => {
+        const t = timers.current.get(id);
+        if (!t) return;
+        if (t.handle) clearTimeout(t.handle);
+        remove(id);
+      };
     },
-    [arm],
+    [arm, remove],
   );
 
   useEffect(() => {

@@ -20,7 +20,8 @@ instance for the whole plan with Riley alone on the allowlist:
 from step 1, guests' sign-up and New organizations a day each let anyone make an account.
 
 **The tutorials.** Riley, in step 1, and each new person after is offered the tutorial's welcome,
-over a darkened screen, on the first screen with a product's panel they reach. As the plans'
+over a darkened screen, on the first screen with a product's panel they reach, and someone offered
+it in the example is offered it once more on their own new product. As the plans'
 [README](README.md#what-a-plan-runs-on) says, press **Turn off tutorials** on it and go on: it is
 expected, not a finding.
 

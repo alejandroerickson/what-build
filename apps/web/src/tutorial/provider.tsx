@@ -7,7 +7,7 @@ import { useToast } from "../ui/index.tsx";
 import { PHONE_QUERY, prefersReducedMotion, useMediaQuery } from "../ui/media.ts";
 import { accountButton, boxOf, fly } from "./flight.ts";
 import { TutorialLayer } from "./layer.tsx";
-import { dueTutorial, menuItem, pageOf, pillWords, sectionOf, TOO_NARROW_QUERY, tutorialFor } from "./state.ts";
+import { dueTutorial, menuItem, pageOf, pillWords, sectionOf, TOO_NARROW_QUERY, tutorialFor, welcomeSeen } from "./state.ts";
 import { PLACES, stopsFor, type Part, type Stop } from "./stops.ts";
 import "./tutorial.css";
 
@@ -18,16 +18,20 @@ import "./tutorial.css";
  * page still and the panels shown, the account menu to offer the tutorial of the page on screen, and
  * the layer (layer.tsx) to darken the screen around one thing at a time.
  *
- * There are five: the welcome, offered once on the first screen someone lands on, and one for each
- * of a product's four pages, which starts by itself the first time they open that page (not on the
- * visit the welcome was offered on) and stays on it. Every screen with a product's panel has a
- * provider: a product's own screens (`inside`), and the screens beside them that show the panel of the
- * product the person was last in, the overview above all, where only the welcome comes. Away from the
- * product, starting one goes into the product, which takes it from there.
+ * There are five: the welcome, offered on the first screen someone lands on, and one for each of a
+ * product's four pages, which starts by itself the first time they open that page (not on the visit
+ * the welcome was offered on) and stays on it. The welcome offered in the example organization is
+ * offered once more on the first product of the person's own; offered there, never again. Every
+ * screen with a product's panel has a provider: a product's own screens (`inside`), and the screens
+ * beside them that show the panel of the product the person was last in, the overview above all,
+ * where only the welcome comes. Away from the product, starting one goes into the product, which
+ * takes it from there.
  *
  * Which have been shown, and whether the person turned tutorials off, live on their account
  * (`PATCH /api/v1/me`), so nothing starts by itself twice, in this browser or another. A tutorial is
  * shown once it starts; closed part-way, it is taken again from the account menu, from the start.
+ * A toast that points at the account menu goes when the person leaves these screens, since the
+ * screen they go to may have no account menu (the Welcome form has none).
  */
 
 export type Mode = "off" | "welcome" | "stop";
@@ -155,6 +159,8 @@ export function TutorialProvider({ target, inside, children }: { target: Tutoria
   // The page on screen: whose tutorial the account menu offers, and whose starts by itself on arriving.
   const section = inside ? sectionOf(pathname) : null;
   const page = inside ? pageOf(pathname) : null;
+  // The welcome is offered once in the example organization and once on a product of the person's own.
+  const example = Boolean(target?.example);
 
   const [running, setRunning] = useState<Part | null>(null);
   const part: Part = running ?? section ?? "welcome";
@@ -181,6 +187,29 @@ export function TutorialProvider({ target, inside, children }: { target: Tutoria
   const onPlaced = useRef<(() => void) | null>(null);
   /** Where the running tutorial was started: leaving it, by a move the tutorial did not make, closes it. */
   const startedAt = useRef<string | null>(null);
+
+  /**
+   * The toasts that point at the account menu go when the person leaves these screens: the screen they
+   * go to may have no account menu (the Welcome form has none), where Show me would do nothing.
+   */
+  const pointers = useRef<(() => void)[]>([]);
+  const alive = useRef(true);
+  useEffect(() => {
+    alive.current = true;
+    return () => {
+      alive.current = false;
+      pointers.current.forEach((take) => take());
+      pointers.current = [];
+    };
+  }, []);
+  const pointAtMenu = useCallback(
+    (message: string, withShowMe = true) => {
+      if (!alive.current) return;
+      const take = toast(message, withShowMe ? { action: { label: "Show me", onClick: showMe } } : undefined);
+      pointers.current = [...pointers.current.slice(-2), take];
+    },
+    [toast],
+  );
 
   const current = mode === "stop" ? (stops[Math.min(at, stops.length - 1)] ?? null) : null;
 
@@ -264,8 +293,8 @@ export function TutorialProvider({ target, inside, children }: { target: Tutoria
 
   const later = useCallback(() => {
     if (mode === "off") return;
-    void close(mode === "welcome" ? "welcome" : "stop").then(() => toast("The tutorial is in your account menu.", { action: { label: "Show me", onClick: showMe } }));
-  }, [mode, close, toast]);
+    void close(mode === "welcome" ? "welcome" : "stop").then(() => pointAtMenu("The tutorial is in your account menu."));
+  }, [mode, close, pointAtMenu]);
 
   const turnOff = useCallback(() => {
     if (mode === "off") return;
@@ -279,10 +308,10 @@ export function TutorialProvider({ target, inside, children }: { target: Tutoria
     (connect: boolean) => {
       if (mode !== "stop") return;
       void close("finished", connect ? () => navigate(settingsTo("agents")) : undefined).then(() =>
-        toast("Tutorial finished. It stays in your account menu.", connect ? undefined : { action: { label: "Show me", onClick: showMe } }),
+        pointAtMenu("Tutorial finished. It stays in your account menu.", !connect),
       );
     },
-    [mode, close, navigate, settingsTo, toast],
+    [mode, close, navigate, settingsTo, pointAtMenu],
   );
 
   /** The welcome, offered over the darkened screen: Not now, or Start the tutorial. */
@@ -291,8 +320,8 @@ export function TutorialProvider({ target, inside, children }: { target: Tutoria
     setRunning("welcome");
     setMode("welcome");
     setPhase("in");
-    save({ seen: ["welcome"] });
-  }, [save]);
+    save({ seen: welcomeSeen(example) });
+  }, [save, example]);
 
   const start = useCallback(
     (p: Part, from: From) => {
@@ -303,7 +332,9 @@ export function TutorialProvider({ target, inside, children }: { target: Tutoria
         return;
       }
       if (from !== "welcome") returnTo.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-      if (!kept?.seen.includes(p)) save({ seen: [p] });
+      // Taken, it counts as shown: the welcome as offered on this kind of product, like the offer itself.
+      const shown = p === "welcome" ? welcomeSeen(example) : [p];
+      if (!shown.every((s) => kept?.seen.includes(s))) save({ seen: shown });
       // A page's tutorial runs on its page: from the account menu on a source's own screen, to the list of sources.
       if (p !== "welcome" && pageOf(pathname) !== p) {
         startedAt.current = `${app}/${PLACES[p].path}`;
@@ -329,7 +360,7 @@ export function TutorialProvider({ target, inside, children }: { target: Tutoria
         };
       } else setPhase("in");
     },
-    [eligible, inside, app, navigate, pathname, kept, hasAgent, save, enter],
+    [eligible, inside, app, navigate, pathname, kept, example, hasAgent, save, enter],
   );
   const startRef = useRef(start);
   startRef.current = start;
@@ -361,19 +392,20 @@ export function TutorialProvider({ target, inside, children }: { target: Tutoria
     start(ask.part, ask.from);
   }, [inside, location.state, location.search, pathname, eligible, kept, navigate, start, arrival]);
 
-  // A moment after arriving, with nothing else up: the welcome until it has been offered, then the page's own the first time.
+  // A moment after arriving, with nothing else up: the welcome until it has been offered on this kind
+  // of product, then the page's own the first time.
   const settingsOpen = params.has(SETTINGS_PARAM);
   useEffect(() => {
     if (decided.current === arrival || mode !== "off" || busy.current || settingsOpen || !eligible || !kept) return;
     if ((location.state as HandOff)?.tutorial) return;
     const t = setTimeout(() => {
       decided.current = arrival;
-      const due = dueTutorial(kept, page);
+      const due = dueTutorial(kept, page, example);
       if (due === "welcome") offer();
       else if (due) startRef.current(due, "self");
     }, 700);
     return () => clearTimeout(t);
-  }, [arrival, page, kept, eligible, mode, settingsOpen, location.state, offer]);
+  }, [arrival, page, kept, example, eligible, mode, settingsOpen, location.state, offer]);
 
   const placed = useCallback(() => onPlaced.current?.(), []);
   const atCanvas = current?.id === "canvas";
@@ -399,9 +431,9 @@ export function TutorialProvider({ target, inside, children }: { target: Tutoria
       setShowing(false);
       setLeaving(false);
       returnTo.current = null;
-      if (say) toast("The tutorial is in your account menu.", offerMenu ? { action: { label: "Show me", onClick: showMe } } : undefined);
+      if (say) pointAtMenu("The tutorial is in your account menu.", offerMenu);
     },
-    [mode, toast],
+    [mode, pointAtMenu],
   );
 
   // A move the tutorial did not make (the browser's Back, say) closes it: the screen arrived at decides what comes next.
