@@ -27,10 +27,13 @@ only people who accept cookies ([decision](analytics-only-for-people-who-accept-
   can see both pages from an address the split sends to the second (added 2026-11-23). A person
   reading in an app's own browser, LinkedIn's among them, is split like anyone else.
 - The two pages keep their own addresses, so Cloudflare Web Analytics counts each page's visits,
-  every visitor included.
+  every visitor included. The second page's canonical link and `og:url` name `/`, so search engines
+  take the two for one page, and so do link previews that follow `og:url` (added 2026-11-25).
 - Each page says which it is wherever it leads: the form sends `page` (`interest.page` keeps the
   first), and its links to sign in carry `?landing=` and `&button=` (`explore` or `start`), which
-  the app sends once a new account is in (`accounts.came_from`, `came_via`).
+  the app sends once a new account is in (`accounts.came_from`, `came_via`). The plans page's
+  links carry `?landing=/plans/`, so the accounts it makes are kept apart from both pages' and
+  count for neither; no press is counted there (added 2026-11-25).
 - Each press of a page's buttons is counted on the server, one more for its UTC day, page and
   button (`landing_presses`, `POST /api/v1/pressed`), with no cookie and naming nobody, so the
   step from a visit to acting is seen for every visitor (added 2026-11-25). An account keeps when
@@ -59,6 +62,7 @@ only people who accept cookies ([decision](analytics-only-for-people-who-accept-
 - `toSecondLanding` and `SITE_API` in `deploy/cloudflare/worker.js`; `page` and `/api/v1/pressed`
   in `apps/server/src/site.ts`; `0053_where_people_came_from.sql` and `0054_the_landing_funnel.sql`;
   `came-from` in `apps/server/src/auth/routes.ts`; `pressed` in `apps/web/src/site/landing/Landing.tsx`;
+  `signInTo` in `apps/web/src/site/SitePage.tsx`;
   `packages/core/src/first-return.ts`.
 
 Specified in: [07-web-app §7.3](../spec/07-web-app.md#73-routes), [04-data-model §4.13](../spec/04-data-model.md), [09-data-lifecycle §9.1](../spec/09-data-lifecycle.md).

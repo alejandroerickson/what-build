@@ -107,6 +107,76 @@ describe("the tutorials on the account", () => {
     const row = await h.db.selectFrom("accounts").select(["tutorials_seen", "tutorials_off"]).where("account_id", "=", id).executeTakeFirstOrThrow();
     expect(row).toEqual({ tutorials_seen: [], tutorials_off: false });
   });
+
+  it("keep the welcome offered on a product of the person's own apart from the welcome offered in the example, in its order", async () => {
+    const wren = await h.signIn("wren@guest.example", "Wren Guest");
+    // Offered in the example as a guest: the welcome alone.
+    expect((await wren.api("PATCH", "/api/v1/me", { tutorial: { seen: ["welcome", "idea"] } })).body.tutorial).toEqual({ seen: ["welcome", "idea"], off: false });
+    // Offered once more on a product of their own.
+    const own = await wren.api("PATCH", "/api/v1/me", { tutorial: { seen: ["welcome", "welcome-own"] } });
+    expect(own.status).toBe(200);
+    expect(own.body.tutorial).toEqual({ seen: ["welcome", "welcome-own", "idea"], off: false });
+    expect((await wren.api("GET", "/auth/session")).body.tutorial).toEqual({ seen: ["welcome", "welcome-own", "idea"], off: false });
+    // Every one of them at once is still a list the account keeps.
+    expect((await wren.api("PATCH", "/api/v1/me", { tutorial: { seen: ["welcome", "welcome-own", "idea", "evidence", "exploration", "story"] } })).status).toBe(200);
+    for (const seen of [["own"], ["welcome_own"], ["welcome-example"]]) expect((await wren.api("PATCH", "/api/v1/me", { tutorial: { seen } })).status, seen[0]).toBe(422);
+  });
+});
+
+describe("the migration that offers the welcome once more on a product of the person's own", () => {
+  const name = `t_${randomBytes(6).toString("hex")}`;
+  const url = inject("appUrlTemplate").replace("{db}", name);
+  let client: pg.Client;
+
+  beforeAll(async () => {
+    const admin = new pg.Client({ connectionString: inject("adminUrl") });
+    await admin.connect();
+    await admin.query(`create database "${name}" owner whatbuild`).catch(async () => admin.query(`create database "${name}"`));
+    await admin.end();
+    client = new pg.Client({ connectionString: url });
+    await client.connect();
+    const dir = fileURLToPath(new URL("../src/migrations/", import.meta.url));
+    const files = readdirSync(dir).filter((f) => /^\d{4}_.*\.sql$/.test(f)).sort();
+    const at = files.indexOf("0056_welcome_on_own_product.sql");
+    expect(at).toBeGreaterThan(0);
+    for (const f of files.slice(0, at)) await client.query(readFileSync(`${dir}${f}`, "utf8"));
+    const actor = JSON.stringify({ account_id: "OWNER", display_name: "Owner", surface: "web", client: null });
+    await client.query(`insert into tenants (tenant_id, slug, name, created_by, example) values ('EX', 'example', 'Example', $1, true), ('OWN', 'own', 'Own', $1, false)`, [actor]);
+    // Offered the welcome and in an organization of their own; offered it only as a guest of the
+    // example; offered it as one of the example's authors only; never offered it, in an organization;
+    // and offered it with tutorials turned off since.
+    const people: [string, string[], boolean, string[]][] = [
+      ["MEMBER", ["welcome", "idea"], false, ["OWN"]],
+      ["GUEST", ["welcome", "idea", "evidence", "exploration", "story"], false, []],
+      ["AUTHOR", ["welcome"], false, ["EX"]],
+      ["NEVER", [], false, ["OWN"]],
+      ["OFF", ["welcome"], true, ["OWN", "EX"]],
+    ];
+    for (const [id, seen, off, tenants] of people) {
+      await client.query("insert into accounts (account_id, email, display_name, tutorials_seen, tutorials_off) values ($1, $2, $1, $3, $4)", [id, `${id.toLowerCase()}@example.com`, seen, off]);
+      for (const t of tenants)
+        await client.query("insert into memberships (membership_id, tenant_id, scope_type, scope_id, account_id, role, created_by) values ($1, $2, 'tenant', $2, $3, 'admin', $4)", [`${id}-${t}`, t, id, actor]);
+    }
+    await client.query(readFileSync(`${dir}${files[at]}`, "utf8"));
+  }, 120_000);
+  afterAll(async () => client?.end());
+
+  it("counts the welcome offered on a product of their own for whoever was offered it and is in an organization other than the example", async () => {
+    const rows = (await client.query<{ account_id: string; tutorials_seen: string[]; tutorials_off: boolean }>("select account_id, tutorials_seen, tutorials_off from accounts order by account_id")).rows;
+    expect(Object.fromEntries(rows.map((r) => [r.account_id, r.tutorials_seen]))).toEqual({
+      AUTHOR: ["welcome"],
+      GUEST: ["welcome", "idea", "evidence", "exploration", "story"],
+      MEMBER: ["welcome", "idea", "welcome-own"],
+      NEVER: [],
+      OFF: ["welcome", "welcome-own"],
+    });
+    expect(Object.fromEntries(rows.map((r) => [r.account_id, r.tutorials_off]))).toMatchObject({ OFF: true, MEMBER: false });
+  });
+
+  it("keeps welcome-own, and still refuses a tutorial there is none of", async () => {
+    await client.query("update accounts set tutorials_seen = array['welcome', 'welcome-own'] where account_id = 'GUEST'");
+    await expect(client.query("update accounts set tutorials_seen = array['tour'] where account_id = 'NEVER'")).rejects.toThrow(/accounts_tutorials_seen_check/);
+  });
 });
 
 describe("the migration from the one tutorial of twenty stops", () => {

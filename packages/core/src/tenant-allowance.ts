@@ -1,6 +1,7 @@
 import { sql } from "kysely";
 import type { Db } from "./db.ts";
 import { AppError } from "./errors.ts";
+import { takePlace } from "./places.ts";
 import { planName, UNLIMITED } from "./plans.ts";
 import type { CoreConfig } from "./ports.ts";
 
@@ -52,13 +53,36 @@ export async function tenantAllowanceOf(db: Db, config: AllowanceConfig, account
 }
 
 /**
- * Refuses an account that may not create another organization. Holds a lock on the account until
- * the transaction ends, so two creations at once cannot both take the last place.
+ * The refusal for someone who would have started their organization on one of the day's places,
+ * when none is left for them: the last went to someone else first, or to the waitlist.
  */
-export async function requireTenantAllowance(db: Db, config: AllowanceConfig, account: { account_id: string; email: string }): Promise<void> {
+export function placesTaken(): AppError {
+  return new AppError(
+    409,
+    "places_taken",
+    "The last open place to start an organization was taken just before you, so nothing was started. Join the waitlist with Start your own organization, and we’ll email you when your place is ready.",
+  );
+}
+
+/**
+ * Refuses an account that may not create another organization. Holds a lock on the account until
+ * the transaction ends, so two creations at once cannot both take the last place. With `place`, in
+ * the web app, an account with no allowance of its own and in no organization starts its first on
+ * one of the day's places, which it takes here, in the transaction that creates the organization,
+ * or is refused with `409 places_taken` when none is left (`places.ts`).
+ */
+export async function requireTenantAllowance(db: Db, config: AllowanceConfig, account: { account_id: string; email: string }, opts: { place?: boolean; now?: Date } = {}): Promise<void> {
   await sql`select pg_advisory_xact_lock(hashtextextended(${`tenant_allowance:${account.account_id}`}, 0))`.execute(db);
-  const a = await tenantAllowanceOf(db, config, account);
+  let a = await tenantAllowanceOf(db, config, account);
   if (a.remaining === null || a.remaining > 0) return;
+  if (opts.place && a.source === "default") {
+    const place = await takePlace(db, config, account, opts.now);
+    if (place === "taken") return;
+    if (place === "gone") throw placesTaken();
+    // A place held for them from the waitlist may have come in the meantime.
+    a = await tenantAllowanceOf(db, config, account);
+    if (a.remaining === null || a.remaining > 0) return;
+  }
   const details = { allowed: a.allowed, created: a.created };
   if (!a.allowed)
     throw new AppError(

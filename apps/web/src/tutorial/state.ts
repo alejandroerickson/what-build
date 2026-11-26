@@ -1,4 +1,4 @@
-import type { TutorialState } from "../lib/session.tsx";
+import type { TutorialSeen, TutorialState } from "../lib/session.tsx";
 import { partLabel, PLACES, type Part, type Place } from "./stops.ts";
 
 /**
@@ -50,13 +50,23 @@ export function pageOf(pathname: string): Place | null {
 }
 
 /**
- * The tutorial that starts by itself on arriving at a screen: the welcome until it has been offered,
- * then the page's own the first time that page is opened. Nothing once tutorials are off, and nothing
- * before the account is known.
+ * What the account keeps once the welcome is offered or taken on a product. In the example
+ * organization it is the welcome alone, so it is offered once more on the first product of the
+ * person's own. On a product of their own it is `welcome-own` too, so it is offered nowhere again.
  */
-export function dueTutorial(state: TutorialState | undefined, page: Place | null): Part | null {
+export function welcomeSeen(example: boolean): TutorialSeen[] {
+  return example ? ["welcome"] : ["welcome", "welcome-own"];
+}
+
+/**
+ * The tutorial that starts by itself on arriving at a screen: the welcome until it has been offered
+ * on this kind of product (the example organization, or a product of the person's own), then the
+ * page's own the first time that page is opened. Nothing once tutorials are off, and nothing before
+ * the account is known.
+ */
+export function dueTutorial(state: TutorialState | undefined, page: Place | null, example: boolean): Part | null {
   if (!state || state.off) return null;
-  if (!state.seen.includes("welcome")) return "welcome";
+  if (!welcomeSeen(example).every((s) => state.seen.includes(s))) return "welcome";
   return page && !state.seen.includes(page) ? page : null;
 }
 

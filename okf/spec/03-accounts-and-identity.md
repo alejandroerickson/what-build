@@ -3,7 +3,7 @@ type: Specification
 title: Accounts belong to tenants, tenants hold products, and one role check decides every call.
 description: The account → tenant → product hierarchy, sign-in, roles and what they grant, plans and their limits, addressing and isolation, caller identity, attribution, the example organization every account reads, and how teams were removed.
 tags: [spec, accounts, tenancy, roles, identity, oauth, isolation, example, limits]
-generated: {by: agent:claude, at: 2026-11-17}
+generated: {by: agent:claude, at: 2026-11-25}
 status: stable
 ---
 
@@ -48,7 +48,7 @@ tenant               an organization: the isolation boundary
 | `email` | Unique (case-insensitive), verified by the sign-in itself. |
 | `display_name` | 1–100 chars. Appears in attribution, which copies it; an ended account keeps none. |
 | `hide_example` | The person hid the example organization from the app's panel ([§3.10](#310-the-example-organization)); `PATCH /api/v1/me` sets it, with or without the display name. |
-| `tutorials_seen`, `tutorials_off` | The web app's tutorials ([§7.4](07-web-app.md#the-tutorial)): which the person has been shown, of `welcome`, `idea`, `evidence`, `exploration` and `story`, so none starts by itself twice, and whether they turned tutorials off. `GET /api/v1/me` gives them as `tutorial: { seen, off }`, `seen` in that order; `PATCH /api/v1/me` with `tutorial` adds the tutorials `seen` names to those seen before, sets `off`, and with `reset: true` forgets those seen (development uses it to be offered them again). Only the person's own session reaches them, whatever roles they hold, a guest account's included; no operation and no agent does ([decision](../decisions/the-tutorial-is-remembered-on-the-account-and-reached-by-no-agent.md)). Ending the account clears them. |
+| `tutorials_seen`, `tutorials_off` | The web app's tutorials ([§7.4](07-web-app.md#the-tutorial)): which the person has been shown, of `welcome`, `idea`, `evidence`, `exploration` and `story`, so none starts by itself twice, with `welcome-own` once the welcome has been offered on a product of their own, since it comes once in the example organization and once more there; and whether they turned tutorials off. `GET /api/v1/me` gives them as `tutorial: { seen, off }`, `seen` in the order `welcome`, `welcome-own`, `idea`, `evidence`, `exploration`, `story`; `PATCH /api/v1/me` with `tutorial` adds the tutorials `seen` names to those seen before, sets `off`, and with `reset: true` forgets those seen (development uses it to be offered them again). Only the person's own session reaches them, whatever roles they hold, a guest account's included; no operation and no agent does ([decision](../decisions/the-tutorial-is-remembered-on-the-account-and-reached-by-no-agent.md)). Ending the account clears them. |
 
 Sign-in methods, each optional per deployment:
 
@@ -117,22 +117,38 @@ reads the example organization ([§3.10](#310-the-example-organization)).
 An instance owner may let people start organizations themselves, up to `organizations_per_day` each
 UTC day (the guests' settings; 0, the default, lets in only those an owner lets in). Above 0 anyone
 may make an account, whatever the allowlist says. A place is an allowance of 1 WhatBuild gives,
-never to an address an owner already gave one (0 included). **Start using WhatBuild** on the public site leads
-through sign-in to `/start` (`POST /api/v1/me/start`): someone in an organization goes to the
-overview (`next: "in"`), someone who may start one or takes one of the day's places goes to
-`/welcome` (`"start"`), anyone else joins the waitlist (`"waitlist"`). Nothing tells a visitor the
-number.
+counted on the UTC day it is given, never to an address an owner already gave one (0 included) nor
+to an account already in an organization. **A place is used only when an organization starts on
+it**: someone with no allowance of their own takes one by pressing Start organization on `/welcome`,
+in the web app only, in the transaction that creates the organization (`products.create_tenant`),
+under one lock across the deployment, so the day's number holds however many press it at once.
+Someone who opens the form and leaves uses none. When the last place went to someone else between
+opening the form and pressing Start organization, the call is refused with `409 places_taken` and
+starts nothing; the web app then asks for an organization for them, with the name they typed, which
+puts them on the waitlist, and the form gives way to "The last open place was taken just before
+you." and the waitlist line ([§7.3](07-web-app.md#73-routes)). An agent takes no place: its
+`create_tenant` meets the allowance alone. `GET /api/v1/me` gives `place_open`: whether a place is
+open to the account now, which nothing holds for it. **Start using WhatBuild** on the public site
+leads through sign-in to `/start` (`POST /api/v1/me/start`): someone in an organization goes to the
+overview (`next: "in"`), someone who may start one, or for whom a place is open, goes to `/welcome`
+(`"start"`), anyone else joins the waitlist (`"waitlist"`). Nothing tells a visitor the number.
 
 **The waitlist.** Someone who may not start an organization asks for one with one click: as a
 guest on the waiting page, in the example organization's banner or on the overview
 (`POST /api/v1/me/ask-for-organization { organization?, note? }`; `422 may_start_one` for someone
-who already may), or with the public site's form. Asking takes one of the day's places while one is
-left; otherwise both write the `interest` row for their address, and asking again keeps their place.
-The day's free places go to the waitlist first, earliest first, each told by email ("Your place on
-WhatBuild is ready"), when someone asks and every ten minutes while the worker is awake. `GET /api/v1/me` gives `asked_for_organization_at`. Instance
-owners read the waitlist with `products.tenant_allowances` (`waitlist`: those who asked and have no
-allowance, earliest first) and let someone in by giving their address an allowance of 1, which
-emails them where to start.
+who already may), or with the public site's form. Asking writes nothing while a place is open to
+them, and the answer's `place_open` sends them to `/welcome`; where a place is open, the app's
+buttons are links to `/welcome` and ask nothing. Otherwise both write the `interest` row for their
+address, and asking again keeps their place. **The waitlist gets the next places first**: the day's
+free places go to those waiting, earliest first, before anyone new, when someone asks and every ten
+minutes while the worker is awake. Someone who joined an organization while they waited is passed
+over, and stays on the waitlist for an owner to let in. Each is held for its person, counted on the
+day it is given whether or not they use it, and told by email ("Your place on WhatBuild is ready"),
+or there and then when they are the one asking. While someone waits for a free place, it is open to nobody else: no
+newcomer sees it as open, and Start organization refuses it to them with `409 places_taken`.
+`GET /api/v1/me` gives `asked_for_organization_at`. Instance owners read the waitlist with
+`products.tenant_allowances` (`waitlist`: those who asked and have no allowance, earliest first)
+and let someone in by giving their address an allowance of 1, which emails them where to start.
 
 ### Invitations
 
@@ -318,9 +334,15 @@ one to what the tenant already has writes nothing. A change is recorded in the t
   (`tenant_allowances`), like an invitation, so it can be given before the account exists, and an
   allowance above 0 lets that address sign up while sign-up is limited ([§3.2](#32-accounts-and-sign-in)).
 - **An address without one has the deployment's default**, `WHATBUILD_TENANT_ALLOWANCE`, which is 0.
-- Over it, `products.create_tenant` answers `403 tenant_allowance` with `allowed` and `created`.
-  The check holds a lock on the account for the transaction, so two creations at once cannot both
-  take the last place.
+- **One of the day's places**, where the deployment gives them (`organizations_per_day`,
+  [§3.2](#32-accounts-and-sign-in), ◆ [decision](../decisions/people-start-a-number-of-organizations-a-day-themselves.md)):
+  in the web app, an account with no allowance of its own and in no organization starts its first
+  organization on one. `products.create_tenant` takes the place in the transaction that creates the
+  organization, under one lock across the deployment. When none is left for the account, it answers
+  `409 places_taken` and starts nothing. An agent takes no place.
+- Over the allowance, with no place to take, `products.create_tenant` answers
+  `403 tenant_allowance` with `allowed` and `created`. The check holds a lock on the account for the
+  transaction, so two creations at once cannot both take the last place.
 - Only instance owners read and change allowances, in the web app only (Who can start
   organizations and Waitlist, in Instance admin → Starting organizations; no agent is offered them, ◆
   [decision](../decisions/running-the-instance-is-done-in-the-web-app-never-by-an-agent.md)): `products.tenant_allowances`,
@@ -828,6 +850,7 @@ as a guest too, and never waits.
 | Setting (the guests', in Instance admin → Guests) | Starts at | What it does |
 |---|---|---|
 | `self_serve` | off | Anyone may sign up as a guest ([§3.2](#32-accounts-and-sign-in)). |
+| `organizations_per_day` | 0 | New organizations a day: organizations people start themselves each UTC day, past which they join the waitlist ([§3.2](#32-accounts-and-sign-in)). A place counts when an organization starts on it, or when it is held for someone let in from the waitlist; someone who only looks uses none. |
 | `at_once` | 25 | Places: guest accounts in at once. Past it, a guest waits in line and comes in when they ask again once a place is free, in the order they started waiting, keeping their place while they ask at least every two minutes (the web app's waiting page asks when they press Try again or come back to the tab; it never asks on a timer). 0 lets no guest in. |
 | `new_per_day` | 50 | Guest accounts coming in for the first time, each UTC day; past it, they come back the next day. |
 | `idle_minutes` | 30 | A place frees after this long without a call. |

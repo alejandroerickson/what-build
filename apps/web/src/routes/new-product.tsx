@@ -3,7 +3,7 @@ import { useState } from "react";
 import { Link, useNavigate } from "react-router";
 import { api } from "../lib/api.ts";
 import { useOrganizationLimits } from "../lib/limits.ts";
-import { mayCreateProducts, useMe, type ProductsResponse } from "../lib/session.tsx";
+import { mayCreateProducts, mayStartOrganization, useMe, type ProductsResponse } from "../lib/session.tsx";
 import { LimitReached, RefusalCallout } from "../shell/limit-reached.tsx";
 import { Button, Callout, Dialog, SelectField, TextArea, TextField, tooLong } from "../ui/index.tsx";
 
@@ -84,7 +84,7 @@ export function CreateProductDialog({ onClose, tenants, tenant }: { onClose: () 
       ) : (
         <Callout inset tone="info">
           Creating a product needs a product creator, admin or owner of its organization. Ask one of its owners or admins to make you a product creator
-          {me.data?.tenant_allowance.remaining !== 0 ? (
+          {!me.data || mayStartOrganization(me.data) ? (
             <>
               , or <Link to="/welcome">start your own organization</Link>
             </>

@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { request } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -29,6 +29,7 @@ describe("the public site", () => {
     mkdirSync(join(dist, "site"));
     writeFileSync(join(dist, "index.html"), "<p>the app</p>");
     writeFileSync(join(dist, "site", "index.html"), "<p>the site</p>");
+    writeFileSync(join(dist, "social-card.png"), "the card");
     h = await startHarness({ siteUrl: `https://${site}`, webDist: dist });
   });
   afterAll(() => h.close());
@@ -39,6 +40,9 @@ describe("the public site", () => {
     expect(page.text).toContain("the site");
     const app = await fetch(`${h.baseUrl}/`);
     expect(await app.text()).toContain("the app");
+    // The social card its pages name, which link previews fetch from the site's host.
+    const card = await hostRequest(h.baseUrl, site, "GET", "/social-card.png");
+    expect([card.status, card.text]).toEqual([200, "the card"]);
   });
 
   it("redirects www to the site, and the app's paths to the app", async () => {
@@ -128,6 +132,57 @@ describe("the public site with Google Analytics", () => {
     const withIt = await page("G-TEST123");
     expect(withIt.text).toContain('<meta name="whatbuild-analytics" content="G-TEST123" />');
     expect(withIt.csp).toContain("https://*.googletagmanager.com");
+  });
+});
+
+describe("the public site's link previews", () => {
+  it("name the page's address and its social card's whole, on the site's own domain or on the app's origin", async () => {
+    const dist = mkdtempSync(join(tmpdir(), "wb-web-"));
+    mkdirSync(join(dist, "site", "what-to-build"), { recursive: true });
+    // As the build writes them: the addresses from the site's root.
+    const head = (canonical: string) =>
+      `<html><head><link rel="canonical" href="${canonical}"  />\n<meta property="og:url" content="${canonical}" />\n<meta property="og:image" content="/social-card.png" />\n<meta name="twitter:image" content="/social-card.png" />\n<meta property="og:image:width" content="1200" /></head><body></body></html>`;
+    writeFileSync(join(dist, "site", "index.html"), head("/"));
+    writeFileSync(join(dist, "site", "what-to-build", "index.html"), head("/"));
+    const page = async (siteUrl: string | null, path: string, host: string) => {
+      const config = { ...loadConfig({ NODE_ENV: "test", WHATBUILD_PUBLIC_URL: "https://app.what-build.test" }), siteUrl, webDist: dist };
+      return (await siteRoutes({ db: null as never, config }).request(path, { headers: { host } })).text();
+    };
+    for (const [siteUrl, path, host] of [
+      ["https://what-build.test", "/", "what-build.test"],
+      ["https://what-build.test", "/what-to-build", "what-build.test"],
+      // The same page on the app's origin names the site's own address.
+      ["https://what-build.test", "/site/what-to-build/", "app.what-build.test"],
+    ] as const) {
+      const text = await page(siteUrl, path, host);
+      expect(text).toContain('<link rel="canonical" href="https://what-build.test/"  />');
+      expect(text).toContain('<meta property="og:url" content="https://what-build.test/" />');
+      expect(text).toContain('<meta property="og:image" content="https://what-build.test/social-card.png" />');
+      expect(text).toContain('<meta name="twitter:image" content="https://what-build.test/social-card.png" />');
+      expect(text).toContain('<meta property="og:image:width" content="1200" />');
+    }
+    // Without a domain of its own, the site's pages are under /site/ on the app's origin, and the build's files at its root.
+    const text = await page(null, "/site/what-to-build/", "app.what-build.test");
+    expect(text).toContain('<link rel="canonical" href="https://app.what-build.test/site/"  />');
+    expect(text).toContain('<meta property="og:url" content="https://app.what-build.test/site/" />');
+    expect(text).toContain('<meta property="og:image" content="https://app.what-build.test/social-card.png" />');
+  });
+
+  it("are the landing pages' own tags, each written as the server and the Worker find it", async () => {
+    const dist = mkdtempSync(join(tmpdir(), "wb-web-"));
+    mkdirSync(join(dist, "site", "what-to-build"), { recursive: true });
+    for (const page of ["index.html", "what-to-build/index.html"]) writeFileSync(join(dist, "site", page), readFileSync(new URL(`../../web/site/${page}`, import.meta.url), "utf8"));
+    const config = { ...loadConfig({ NODE_ENV: "test", WHATBUILD_PUBLIC_URL: "https://app.what-build.test" }), siteUrl: "https://what-build.test", webDist: dist };
+    for (const path of ["/", "/what-to-build/"]) {
+      const text = await (await siteRoutes({ db: null as never, config }).request(path, { headers: { host: "what-build.test" } })).text();
+      const tags = text.match(/<link rel="canonical"[^>]*>|<meta (?:property="og:(?:url|image)"|name="twitter:(?:image|card)")[^>]*>/g) ?? [];
+      expect(tags).toHaveLength(5);
+      for (const tag of tags.filter((t) => !t.includes("twitter:card"))) expect([path, tag]).toEqual([path, expect.stringMatching(/"https:\/\/what-build\.test\//)]);
+      expect(text).toContain('<meta name="twitter:card" content="summary_large_image" />');
+      expect(text).toContain('<meta property="og:image:width" content="1200" />');
+      expect(text).toContain('<meta property="og:image:height" content="630" />');
+      expect(text).not.toMatch(/og:description" content="[^"]*private preview/i);
+    }
   });
 });
 

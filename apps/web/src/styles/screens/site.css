@@ -105,7 +105,7 @@
   }
 }
 
-/* The plans page: a short head, the plans side by side, then how to hear when it opens. */
+/* The plans page: a short head, the plans side by side, then Start using WhatBuild, or how to hear when it opens. */
 .site-main > .sheet + .sheet,
 .site-main > .sheet + .callout {
   margin-top: var(--s-4);
@@ -138,6 +138,44 @@
   color: var(--muted);
   font-size: var(--fs-lead);
   line-height: var(--lh-body);
+}
+/* The landing pages' last screen, in the app's words: a line, the filled button, and the quiet one beside it. */
+.site-plans-start {
+  padding: var(--s-5) var(--sheet-px);
+}
+.site-plans-start-title {
+  margin: 0 0 var(--s-1h);
+  font-size: var(--fs-h1);
+  font-weight: var(--fw-semibold);
+  letter-spacing: -0.01em;
+  line-height: var(--lh-tight);
+}
+.site-plans-start-lede {
+  margin: 0;
+  max-width: 60ch;
+  color: var(--muted);
+  font-size: var(--fs-lead);
+  line-height: var(--lh-body);
+}
+.site-plans-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2) var(--s-5);
+  margin-top: var(--s-4);
+}
+.site-plans-quiet {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-1);
+  color: var(--text);
+  font-weight: var(--fw-medium);
+  text-decoration: none;
+}
+.site-plans-quiet:hover {
+  color: var(--text);
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 /* The privacy page: the plans page's head with the month it last changed, then prose, with one list of what is kept under plain leads. */

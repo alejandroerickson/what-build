@@ -1,13 +1,14 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act } from "react";
 import { createRoot } from "react-dom/client";
-import { MemoryRouter, Route, Routes, useLocation } from "react-router";
+import { MemoryRouter, Route, Routes, useLocation, useNavigate } from "react-router";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 // The welcome is offered on the first screen that shows a product's panel, the overview included,
 // before anything is clicked: whoever the panel's product gives the tutorials to gets the welcome
 // there, and the account menu's item. Starting it goes into the product, which takes it from there.
-// No page's tutorial starts on the overview: a page's starts on its page.
+// No page's tutorial starts on the overview: a page's starts on its page. Offered in the example
+// organization, the welcome is offered once more beside a product of the person's own.
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 window.matchMedia = (query: string) =>
@@ -56,6 +57,14 @@ function Product() {
   return <output data-testid="product">{`${pathname} ${JSON.stringify(state)}`}</output>;
 }
 
+/** Moves to another screen, as a link would: Start using WhatBuild to the Welcome form, say. */
+let goTo: (path: string) => void = () => {};
+function Go() {
+  const navigate = useNavigate();
+  goTo = (path) => navigate(path);
+  return null;
+}
+
 let unmount: (() => void) | null = null;
 afterEach(() => {
   unmount?.();
@@ -75,8 +84,11 @@ async function overview() {
       <QueryClientProvider client={qc}>
         <ToastProvider>
           <MemoryRouter initialEntries={["/"]}>
+            <Go />
             <Routes>
               <Route path="/" element={<PlainShell><h1>Your products</h1></PlainShell>} />
+              {/* The Welcome form stands alone: it has no panel and no account menu. */}
+              <Route path="/welcome" element={<h1>Welcome, Sam</h1>} />
               <Route path="/t/:tenant/:product/*" element={<Product />} />
             </Routes>
           </MemoryRouter>
@@ -110,7 +122,7 @@ describe("the tutorial on the overview", () => {
     kept = { seen: [], off: false };
     await overview();
     expect(welcome()?.textContent).toContain("Take the WhatBuild tutorial?");
-    expect(calls).toContainEqual({ method: "PATCH", path: "/api/v1/me", body: { tutorial: { seen: ["welcome"] } } });
+    expect(calls).toContainEqual({ method: "PATCH", path: "/api/v1/me", body: { tutorial: { seen: ["welcome", "welcome-own"] } } });
     await click(button("Start the tutorial"));
     expect(product()).toBe('/t/acme/harvest/idea {"tutorial":{"part":"welcome","from":"welcome"}}');
   });
@@ -121,6 +133,30 @@ describe("the tutorial on the overview", () => {
     kept = { seen: [], off: false };
     await overview();
     expect(welcome()).not.toBeNull();
+    expect(calls).toContainEqual({ method: "PATCH", path: "/api/v1/me", body: { tutorial: { seen: ["welcome"] } } });
+  });
+
+  it("offers the welcome once more beside a product of their own to someone offered it in the example", async () => {
+    role = "admin";
+    example = false;
+    kept = { seen: ["welcome", "idea"], off: false };
+    await overview();
+    expect(welcome()).not.toBeNull();
+    expect(calls).toContainEqual({ method: "PATCH", path: "/api/v1/me", body: { tutorial: { seen: ["welcome", "welcome-own"] } } });
+  });
+
+  it("takes away the toast that points at the account menu when the person leaves for a screen without one", async () => {
+    role = "guest";
+    example = true;
+    kept = { seen: [], off: false };
+    await overview();
+    await click(button("Not now"));
+    expect(document.body.textContent).toContain("The tutorial is in your account menu.");
+    await act(async () => goTo("/welcome"));
+    await act(async () => new Promise((r) => setTimeout(r, 300)));
+    expect(document.querySelector("h1")?.textContent).toBe("Welcome, Sam");
+    expect(document.body.textContent).not.toContain("The tutorial is in your account menu.");
+    expect(document.querySelector(".toast")).toBeNull();
   });
 
   it("closes with Not now, and offers the welcome from the account menu after, going into the product to take it", async () => {
@@ -145,7 +181,7 @@ describe("the tutorial on the overview", () => {
     await overview();
     await click(button("Turn off tutorials"));
     expect(welcome()).toBeNull();
-    expect(kept).toEqual({ seen: ["welcome"], off: true });
+    expect(kept).toEqual({ seen: ["welcome", "welcome-own"], off: true });
     expect(document.body.textContent).toContain("Tutorials are off. Turn them on again in Settings.");
     expect((await menuItem())?.textContent).toContain("Take the WhatBuild tutorial");
   });
@@ -153,7 +189,7 @@ describe("the tutorial on the overview", () => {
   it("starts nothing once the welcome has been offered: a page's tutorial starts on its page", async () => {
     role = "editor";
     example = false;
-    kept = { seen: ["welcome"], off: false };
+    kept = { seen: ["welcome", "welcome-own"], off: false };
     await overview();
     expect(welcome()).toBeNull();
     expect(document.querySelector(".tut-layer")).toBeNull();

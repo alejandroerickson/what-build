@@ -3,7 +3,7 @@ type: System Concept
 title: Running WhatBuild locally, testing it, and checking the interface
 description: The one-command development setup, the test and build commands, and the browser scripts.
 tags: [development, testing, local]
-generated: {by: agent:claude, at: 2026-11-23}
+generated: {by: agent:claude, at: 2026-11-25}
 status: stable
 ---
 
@@ -22,8 +22,8 @@ corepack pnpm dev
 `:8787`, the job worker in-process, and Vite on `:5273`. Open http://localhost:5273 and use the
 development sign-in, which offers every account on the server with what it is there: the sample's
 people first (Riley Chen, Sam Okafor, or Jordan Ellis, a Story reader who sees only Crewboard's Story),
-then anyone you have signed in as since, newest first. Each account is offered the tutorial's welcome once, on the first product it can edit or, as a
-guest, on the example's, and each page's tutorial starts by itself the first time it opens that
+then anyone you have signed in as since, newest first. Each account is offered the tutorial's welcome once on the example's products, as a
+guest, and once on the first product of its own it can edit, and each page's tutorial starts by itself the first time it opens that
 page; to see them again, have the account forget them from the browser's console while signed in
 as it:
 `fetch("/api/v1/me", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tutorial: { reset: true, off: false } }) })`,
@@ -205,6 +205,11 @@ its tag and so starts the same workflow; [releasing](releasing.md) is how to mak
   changing.
 - `node scripts/shots.mjs <outdir> [baseUrl]` captures every screen in light and dark, at desktop
   and phone width. `SHOTS=name,name` limits it to some screens.
+- `node scripts/social-card.mjs [baseUrl]` makes the public site's social card again,
+  `apps/web/public/social-card.png` ([§7.3](../spec/07-web-app.md#73-routes)): it connects the
+  sample owner as an agent (`pnpm e2e mcp connect`, pointed at `baseUrl`), captures the sample
+  product's Idea and sets it beside the mark, the name and the tagline. Run it when the front
+  page's tagline or that screen changes, and look at the picture before committing it.
 - `node scripts/prototype-check.mjs [baseUrl]` publishes a synthetic multi-file prototype to the
   sample product (several documents, relative assets, a module and a classic script, a font, a
   nested iframe, a form with a submit handler, a document that guards `localStorage`) and checks

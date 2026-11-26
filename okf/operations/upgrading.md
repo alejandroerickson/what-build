@@ -43,11 +43,11 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
   (`deploy/plans.example.json` keeps 5 on Free and 10 on Pro) or in Instance admin → Plans, before
   people publish; Unlimited and a deployment that defines no plans always keep 10. Agents are told in
   the answer (`versions_deleted`), and reading a deleted version answers `410 version_deleted`. No
-  migration (`tools_version` 0.71.0); a connected client sees the new descriptions after a new
+  migration (`tools_version` 0.72.0); a connected client sees the new descriptions after a new
   session.
 - **WhatBuild says product engineering, not product discovery**, in the app, the site, the tutorial,
   the mail, the guide, the operations' descriptions and the MCP server's instructions. It asks
-  nothing of a deployment and adds no migration (`tools_version` 0.71.0, as above); a connected
+  nothing of a deployment and adds no migration (`tools_version` 0.72.0, as above); a connected
   client sees the new instructions after a new session.
 - **The landing pages are followed from a visit to people coming back**
   ([the landing-page funnel](analytics.md#the-landing-page-funnel)). The release migrates
@@ -64,6 +64,44 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
   Idea, instead of the overview. People who sign in any other way still land on the overview. No
   migration. Behind Cloudflare, deploy the Worker with the release, as always: until then the pages
   it serves still lead to the overview.
+- **A link to the site shows a card** (LinkedIn, X, Slack, iMessage): both landing pages name a
+  social card and a canonical address, and no longer say they are in private preview. Behind
+  Cloudflare, deploy the Worker with the release, as always: the Worker makes the card's address
+  whole, and until it is deployed again, link previews get the pages without a card. Behind any
+  other front, the image does it. A link shared before may keep its old preview on LinkedIn for
+  about a week; its Post Inspector reads the site again ([Cloud Run guide](cloud-run.md)).
+- **The site's plans page offers Start using WhatBuild wherever anyone may sign up**, as the
+  landing pages do, with Explore the demo first while guests may come in; it no longer says people
+  are let in a few at a time unless nobody may sign up. Accounts made from it come into the
+  landing-page funnel as `/plans/`, a row of their own
+  ([the funnel](analytics.md#the-landing-page-funnel)). On the landing pages, the bar at the top is
+  solid, the last screen fills the window with nothing of the last picture above it, and, where
+  nobody may sign up, Start using WhatBuild puts the cursor in the form's email field, which keeps
+  its height on a phone. No migration or setting. Behind Cloudflare, it reaches visitors when the
+  Worker is deployed with the release, as always. Nothing else needs doing.
+- **The tutorial's welcome comes once more on a product of one's own.** Someone offered it in the
+  example organization is offered it again, once, on the first product of their own they open.
+  People will notice: a guest who explored the demo and then starts an organization sees the
+  welcome there. The release migrates (`0056_welcome_on_own_product.sql` lets
+  `accounts.tutorials_seen` hold `welcome-own`, and gives it to whoever was offered the welcome and
+  is in an organization other than the example, so the welcome does not come back for anyone
+  already using their own). The previous release leaves `welcome-own` alone and never offers the
+  welcome twice, so going back needs only its image. A toast that points at the account menu now
+  goes when the person leaves the screens it is about, so it no longer follows a guest onto the
+  Welcome form. Nothing needs doing.
+- **A day's place is used only when an organization starts on it.** With New organizations a day
+  above 0, Start using WhatBuild, and Start your own organization in the app, now only say whether
+  a place is open and take people to the Welcome form; the place is taken when they press Start
+  organization, and someone who looks and leaves uses none. Whoever presses it after the day's last
+  place went is told so, starts nothing and joins the waitlist with the name they typed. A place let
+  go to someone on the waitlist is still held for them, by email, and counts on the day it is given.
+  Someone on the waitlist who joined an organization meanwhile is passed over, and stays on the
+  waitlist for an owner to let in. Starting organizations in Instance admin therefore lists only
+  those who started one or were let in. Places already given before the release stay their holders' allowances. Welcome no longer
+  waits behind the guests' waiting page. An agent's `create_tenant` takes no place, as before. No
+  migration and nothing to do (`tools_version` 0.72.0, for the guide's wording); a number set for
+  New organizations a day now counts organizations started, so an owner who set it to allow for
+  people who look and leave may lower it.
 
 ## v0.44.2
 

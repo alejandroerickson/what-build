@@ -5,6 +5,7 @@ import { BrandMark } from "../shell/brand.tsx";
 import { CookieChoice } from "../shell/CookieChoice.tsx";
 import { buttonClass } from "../ui/button.tsx";
 import { Callout } from "../ui/feedback.tsx";
+import { Glyph } from "../ui/glyph.tsx";
 import { Sheet } from "../ui/layout.tsx";
 import { LIMITS } from "@whatbuild/core/plans";
 import type { PlansCatalogue } from "../lib/limits.ts";
@@ -57,6 +58,45 @@ export function useSite() {
   }, [site]);
   return site;
 }
+
+/** The site's pages that lead people to sign in, by their path on the site: the two landing pages and the plans page. */
+export type SiteEntry = "/" | "/what-to-build/" | "/plans/";
+/** The buttons that lead to sign-in: Explore the demo, and Start using WhatBuild (`LANDING_BUTTONS` in apps/server/src/site.ts). */
+export type SiteButton = "explore" | "start";
+
+/** What the deployment lets a visitor do, as whoever serves the page wrote it in; never how many it lets in. */
+export interface Ways<P extends SiteEntry = SiteEntry> {
+  /** Anyone may make an account: Start using WhatBuild signs them in and starts their organization, or puts them in line. */
+  open: boolean;
+  /** Anyone may come into the demo (the example organization) as a guest. */
+  explore: boolean;
+  page: P;
+  /** The demo's product in a phrase, from the deployment: "ADIT, an exploration management system for …". */
+  mock: string | null;
+}
+
+/** "ADIT is an exploration management system for X." becomes "ADIT, an exploration management system for X". */
+function mockPhrase(about: { product: string; about: string } | null | undefined): string | null {
+  if (!about) return null;
+  const said = /^(.{1,80}?) is (an? .+?)\.?$/.exec(about.about.trim());
+  return said ? `${said[1]}, ${said[2]}` : about.product || null;
+}
+
+/** What a page of the site offers: the landing pages and the plans page read the deployment the same way. */
+export function useWays<P extends SiteEntry>(page: P): Ways<P> {
+  const site = useSite();
+  return { open: Boolean(site?.sign_up), explore: Boolean(site?.guests?.self_serve && site.guests.open), page, mock: mockPhrase(site?.example_about) };
+}
+
+/** A link to sign in that goes on to `to`, saying which page of the site, and which of its buttons, it came from. */
+export const signInTo = (to: string, page: SiteEntry, button: SiteButton) => `/signin?next=${encodeURIComponent(`${to}?landing=${page}&button=${button}`)}`;
+
+/** Where Explore the demo leads after sign-in: the app opens the demo itself there (`DemoAddress` in apps/web/src/routes/addresses.tsx). */
+export const DEMO = "/demo";
+
+/** What the demo is, over Explore the demo: what the team in it builds, from the deployment. */
+export const demoLine = (mock: string | null) =>
+  mock ? `See how a team works in WhatBuild: in the demo, they are building ${mock}.` : "See how a team works in WhatBuild, from its first interviews to its plan, in the demo.";
 
 /** The theme the system asks for, kept current: the site has no setting for it. */
 export function useSystemTheme(follow = true) {
@@ -145,18 +185,50 @@ export function sitePath(page: "" | "plans" | "privacy" | "what-to-build"): stri
 }
 
 /**
+ * The plans page's last word, where anyone may make an account: what the landing pages' last screen
+ * says. While guests may come in, Explore the demo leads and Start using WhatBuild follows it.
+ */
+function PlansStart({ ways }: { ways: Ways<"/plans/"> }) {
+  return (
+    <Sheet className="site-plans-start" labelledBy="plans-start-title">
+      <h2 id="plans-start-title" className="site-plans-start-title">
+        Find out what’s worth building
+      </h2>
+      <p className="site-plans-start-lede">{ways.explore ? demoLine(ways.mock) : "Sign in and start your own organization."}</p>
+      <div className="site-plans-actions">
+        {ways.explore ? (
+          <>
+            <a className={buttonClass("primary", "md")} href={signInTo(DEMO, ways.page, "explore")}>
+              Explore the demo
+            </a>
+            <a className="site-plans-quiet" href={signInTo("/start", ways.page, "start")}>
+              Start using WhatBuild <Glyph name="arrow-right" size="sm" />
+            </a>
+          </>
+        ) : (
+          <a className={buttonClass("primary", "md")} href={signInTo("/start", ways.page, "start")}>
+            Start using WhatBuild
+          </a>
+        )}
+      </div>
+    </Sheet>
+  );
+}
+
+/**
  * The site's plans page: the plans side by side in the few numbers anyone reads at a glance, every
- * limit behind a disclosure, and the way to hear when WhatBuild opens.
+ * limit behind a disclosure, and, as on the landing pages, Start using WhatBuild where anyone may
+ * make an account, or the way to hear when they can.
  */
 export function SitePlansPage() {
   const site = useSite();
+  const ways = useWays("/plans/");
   useEffect(() => {
     document.title = "Plans · WhatBuild";
   }, []);
   const plans = site?.plans ?? [];
-  const explore = Boolean(site?.guests?.self_serve && site.guests.open);
   return (
-    <SiteFrame explore={explore}>
+    <SiteFrame explore={ways.open || ways.explore}>
       <Sheet className="site-plans-intro" labelledBy="plans-title">
         <a href={sitePath("")} className="site-lockup" aria-label="WhatBuild, home">
           <BrandMark size={22} />
@@ -176,11 +248,8 @@ export function SitePlansPage() {
         </h2>
         <PlanComparison plans={plans} limits={site?.limits ?? LIMITS} fileMaxBytes={site?.file_max_bytes ?? Number.POSITIVE_INFINITY} />
       </Sheet>
-      {explore ? (
-        <Callout tone="info" title="Try it first">
-          Sign in and explore the demo as a guest: read it, search it and point your agent at it.{" "}
-          <a href="/signin?next=%2Fdemo">Explore the demo</a>. People are let in a few at a time; <a href={`${sitePath("")}#start`}>hear when you can start</a>.
-        </Callout>
+      {ways.open ? (
+        <PlansStart ways={ways} />
       ) : (
         <Callout tone="info" title="In private preview">
           People are let in a few at a time. <a href={`${sitePath("")}#start`}>Hear when you can start</a>.

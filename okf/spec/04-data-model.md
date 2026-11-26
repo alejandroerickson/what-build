@@ -1073,8 +1073,9 @@ transaction, so a send that fails leaves them for the next try ([mail](../operat
 Otherwise reports stay in the database for whoever runs the deployment
 (◆ [decision](../decisions/feedback-names-nobody-and-reaches-the-maintainers-in-a-daily-digest.md)).
 
-**Where an account came from.** `accounts.came_from` is the path of the public site's landing page
-(`/`, `/what-to-build/`) a new account's sign-in started from, and `accounts.came_via` the button
+**Where an account came from.** `accounts.came_from` is the path of the public site's page a new
+account's sign-in started from (a landing page, `/` or `/what-to-build/`, or the plans page,
+`/plans/`), and `accounts.came_via` the button
 it came by (`explore`, Explore the demo; `start`, Start using WhatBuild): `?landing=` and
 `&button=` on its link, sent by the web app as `POST /api/v1/me/came-from`, kept once and only in
 the account's first day. `accounts.returned_at` is when the account first came back: its first
@@ -1086,7 +1087,8 @@ clears them.
 
 **Interest: the waitlist.** The public site's form (`POST /api/v1/interest { email, name?,
 organization?, note?, page? }`, no sign-in) records someone asking for an organization of their own, and so
-does a signed-in person who may not start one (`POST /api/v1/me/ask-for-organization`,
+does a signed-in person who may not start one and for whom none of the day's places is open
+(`POST /api/v1/me/ask-for-organization`,
 [§3.2](03-accounts-and-identity.md#32-accounts-and-sign-in)), under their account's address
 and name: `email` ≤ 320 chars,
 `name` and `organization` ≤ 200, `note` ≤ 2,000; `page` is the site's page it was sent from, its
@@ -1204,6 +1206,12 @@ activity.jsonl
   ([`0048_accounts_tutorial.sql`](../../apps/server/src/migrations/0048_accounts_tutorial.sql)),
   counting the welcome seen for whoever had been offered it, each page they had got past, and every
   tutorial for whoever had finished it.
+  [`0056_welcome_on_own_product.sql`](../../apps/server/src/migrations/0056_welcome_on_own_product.sql)
+  lets `tutorials_seen` hold `welcome-own` too: the welcome offered on a product of the person's
+  own, which comes once more after the example organization's ([§7.4](07-web-app.md#the-tutorial)).
+  It gave `welcome-own` to whoever had been offered the welcome and was in an organization other
+  than the example, so it does not come again for them; a guest of the example who had been
+  offered it is offered it once more on the first product of their own.
 - **An organization's name and slug** ([§3.3](03-accounts-and-identity.md#33-tenants),
   [`0036_organization_names.sql`](../../apps/server/src/migrations/0036_organization_names.sql)):
   `tenants.name_etag`, which guards the name and slug its owners and the instance's owners change;
