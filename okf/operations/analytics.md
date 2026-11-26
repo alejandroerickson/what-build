@@ -112,6 +112,9 @@ The service keeps `WHATBUILD_ANALYTICS_ID` across deploys (Cloud Build only upda
 ([Cloud Run](cloud-run.md)): every `wrangler deploy` passes all its other settings, from the web app
 built at the same commit:
 
+In bash (zsh passes `${LANDING_SPLIT:+…}` on as one word, which `wrangler` refuses as an unknown
+argument):
+
 ```bash
 set -a; . ./.env; set +a
 corepack pnpm --filter @whatbuild/web build
@@ -123,7 +126,9 @@ npx wrangler deploy --config deploy/cloudflare/wrangler.toml \
 
 Leaving out `ANALYTICS_ID` or `CF_ANALYTICS_TOKEN` turns that tool off on the site, and leaving out
 `LANDING_SPLIT` ends the comparison of the landing pages: before a deploy, check that `.env` has it
-while a comparison runs.
+while a comparison runs. `wrangler` ends with "No targets deployed": the Worker's routes are the
+zone's, set in Cloudflare, not in `wrangler.toml`, and the new version serves on them all the same;
+compare the site's page with the build's, as [releasing](releasing.md#moving-production) shows.
 
 ## Connecting another deployment
 
