@@ -3,7 +3,7 @@ type: Specification
 title: Nothing is ever trapped - say what we promise, keep export open, and never let a limit block a read.
 description: What we tell people, limits and quotas (enforced and planned), backups and in-product versioning, export, archive and permanent delete of everything archivable and of an organization, the operator runbooks, plans and their limits, how retired insights and decisions became sources, and how assumptions were removed.
 tags: [spec, lifecycle, quotas, backups, export, archive, delete, limits, plans]
-generated: {by: agent:claude, at: 2026-11-25}
+generated: {by: agent:claude, at: 2026-11-26}
 status: stable
 ---
 
@@ -141,6 +141,7 @@ running without a compliance program.
 | Story pages | The plan's per product, archived ones included (§9.7): 50 unless it says otherwise | Yes — `409 quota_exceeded`, quota `story_pages` |
 | Mockups | The plan's per product, archived ones included (§9.7): 50 unless it says otherwise; 48 pages and 8,000,000 characters of HTML, and 50 files and 2,000,000 characters of files, in a version | Yes — `409 quota_exceeded`, quota `mockups`; `422` for a version |
 | A mockup's prototype | 2,000 files and 64 MB in a version, 25 MB a file; 500 MB of distinct prototype bytes per product, fixed, since a prototype comes only in a canvas's ZIP, which no organization on a plan with limits uploads (§9.7 rule 5) | Yes — `422 invalid_upload`; `409 quota_exceeded`, quota `prototype_bytes` |
+| What a canvas's pages load | 20 files and 1 MB for each page's document with what it loads; 12 MB for the pages together, each counted as it loads; fixed, checked when an upload brings a prototype ([§4.12](04-data-model.md#412-mockups)) | Yes — `422 invalid_input` |
 | A product's Playbook | The plan's per product, removed files not counted (§9.7): 2,000 files and 32 MiB unless it says otherwise; 256 KiB a file | Yes — `422 playbook_full`; `422 playbook_file_too_large` |
 | A mockup canvas uploaded as a ZIP | 25 MB packed, or the relay's limit when lower; 96 MB unpacked and 2,148 entries | Yes — `413 too_large`; `422 invalid_upload` past the unpacked size or the entries |
 | Story previews | 20 per product, each kept as long as its grant (30 minutes by default) | Yes — a new one drops the oldest, whose grant then answers `404` |

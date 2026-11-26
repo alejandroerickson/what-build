@@ -3,7 +3,7 @@ type: Specification
 title: The web app is a person's way to run the same operations an agent runs, one screen at a time.
 description: Principles, the shell and product switching, the overview, routes, first run, and the behavior of every screen (Idea, Evidence, Exploration, Story, Activity, archive and delete, Settings, Instance admin).
 tags: [spec, web, ui, routes, shell]
-generated: {by: agent:claude, at: 2026-11-25}
+generated: {by: agent:claude, at: 2026-11-26}
 status: stable
 ---
 
@@ -1155,6 +1155,19 @@ Version in the inspector, whose dialog offers **Archive instead** (§7.10).
   an agent. A mockup opens fitted to the window, and stays fitted as the window changes until the
   person moves it. From then on its pages stay where they are on the screen when the board's edges
   move, as they do when a panel hides or shows and when focus mode begins or ends.
+- **Pages load in turns, and stay loaded** ([decision](../decisions/a-canvas-loads-light-pages-in-turns-and-shows-a-page-at-once.md)). A page that enters a prototype loads every file
+  its document loads, and a frame keeps none of them, so dozens loading at once ask for more than a
+  browser takes, and it refuses some, leaving pages that never draw. So in either view they load
+  outward from the selected page (or the first): it first and alone, then the two beside it, then
+  the rest eight at a time, nearest first and the next before the previous. A page selected later
+  goes to the front, and one that has not said it loaded within 8 seconds no longer holds back the
+  others. A page keeps its frame once loaded, so moving between loaded pages loads nothing. A page
+  with HTML of its own is one document, and loads as soon as it is near the view (in the clickable
+  view, at once). Until its document has loaded, a page is a sheet in the panel's colour with the
+  progress mark and "Loading" at the page's own scale, its frame not drawn, so no page shows white
+  or half drawn. A page that takes the keyboard by itself, as one that focuses a field or opens a
+  dialog as it loads, gives it back unless a person pressed in it or pressed Tab in the moment
+  before, so the arrows keep moving between pages.
 - **Labels.** Above each page, drawn at screen size so it reads at any zoom: its number, its title,
   its size (`390 × auto` for a page whose height is its content's), a button that fits that page to the window, and one that downloads that page's HTML (a
   page that enters a prototype has none to give). A narrow label drops the size, then
@@ -1175,8 +1188,11 @@ Version in the inspector, whose dialog offers **Archive instead** (§7.10).
 - **Viewed as a clickable prototype** (`?view=clickable`, chosen under **View** in the inspector). One
   page at a time on the plain board, at its own size or smaller, in interact mode, with no labels or
   outline. The others fade as the view glides to the page, and back again on the way out. A link,
-  the arrows and the page menu change the page in place and open it afresh, as a link to a file in a
-  folder does. A page's request moves nothing unless a person did something moments ago, and then at
+  the arrows and the page menu change the page in place at once: every page loads behind the one
+  on show, in turns, so the next is ready, and one still loading shows its sheet. A page a person
+  used (the frame says so at the first press, key, scroll or wheel) opens afresh behind the others
+  once it is left, as a link to a file in a folder opens it; one nobody used stays as it is, and a
+  page used on the board opens afresh as the view folds. A page's request moves nothing unless a person did something moments ago, and then at
   most four times a second, since each opening spends one of the person's calls. A move is a step the
   browser's Back returns from at most once a second; otherwise it moves without one. The same holds on
   the board and for every page on the Story, for links and for keys a frame passes on. It starts at the selected page, or the first. The toolbar keeps fit, fill,

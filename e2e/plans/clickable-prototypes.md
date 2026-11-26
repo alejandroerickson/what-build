@@ -53,7 +53,9 @@ numbers is `page.goBack`, which walks every entry; the browser's own button may 
    `view=clickable`. The fade needs sampling frame by frame, since a screenshot cannot show it. The rails stay, and the toolbar keeps fit, fill, the arrows, the page menu and the keys,
    with no pan, interact or zoom. No page label means no page download here.
 7. **Web, as Casey.** Click through to Crew message and back. *Expect:* each click changes the page in place,
-   at no more than its own size, and Crew message shows at phone width. A page you return to opens afresh.
+   at no more than its own size, at once, and Crew message shows at phone width. A page you used (clicked or
+   typed in) opens afresh when you return to it; one you only looked at is as you left it. No blank or white
+   page shows between them (sample frame by frame, as for the fade).
    Use Back and Forward, the arrows and the page menu. *Expect:* each moves between pages and the address
    follows. Reload. *Expect:* the same page, in the same view.
 8. **Web, as Casey.** Press **F**, then **Show panels**. *Expect:* the page takes the window with the toolbar
@@ -117,7 +119,13 @@ numbers is `page.goBack`, which walks every entry; the browser's own button may 
     the first two and the third has no page of its own. *Expect:* `clickable` is `viewable`, even with no links
     between its own pages. **Web:** on the board, a link to the document the other page enters flies there; a
     link to the third stays in its frame. In the clickable view, the first changes the page and the second
-    moves within it. An entry page has no download button on its label.
+    moves within it. An entry page has no download button on its label. Upload too a canvas of 4 pages that
+    each enter a document loading 25 files. *Expect:* `422 invalid_input` names that document once, with the 4
+    pages, and says how to make each page its own light screen. Then 40 pages that each enter a document of 10
+    files and 200 KB. *Expect:* it publishes. **Web:** the selected page draws first and the others fill in,
+    each a sheet saying Loading until it has, never white, until every page has drawn; press **2**, then the
+    arrows, and each page shows drawn at once. In the clickable view the arrows and the page menu show the
+    next page at once (sample frame by frame).
 19. **Web, as Sam.** Download that ZIP and open its `index.html` from disk. *Expect:* it links into `prototype/`,
     and a plain document opens.
 
@@ -172,6 +180,8 @@ numbers is `page.goBack`, which walks every entry; the browser's own button may 
 - A second copy of a page's frame, a page reloading on the board when nothing asked it to, or a page's calls
   a minute running out from clicking around (a page opened afresh costs a call).
 - Web and MCP disagreeing about whether a version is clickable.
+- On a canvas of many prototype entries, a page left white for good, or the board asking for every page's
+  files at once.
 - A page with `height: "auto"` left at 240 or 800, cut off, or a canvas that stops being fitted as its
   frames grow.
 - A broken link that says nothing, or a message of WhatBuild's holding anything a page wrote.

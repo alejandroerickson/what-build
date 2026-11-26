@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { CANVAS_TOOLS, Canvas, toolTitle, type CanvasVersion } from "../src/routes/mockup-canvas.tsx";
 import { ToastProvider } from "../src/ui/toast.tsx";
+import { FRAME_TURN_MS, FRAMES_AT_ONCE, turnOrder } from "../src/routes/frame-turns.ts";
 import { BACK_STEP_GAP_MS, backSteps, PAGE_MOVE_GAP_MS, pageMoves } from "../src/routes/page-moves.ts";
 import type { PageView } from "../src/routes/story-flip.tsx";
 import { AUTO_HEIGHT_ANSWER_MS, nextAutoHeight, PAGE_HEIGHT_MAX, PAGE_HEIGHT_MIN } from "@whatbuild/core/page-sandbox";
@@ -298,7 +299,7 @@ describe("links between a canvas's pages", () => {
     act(draw);
     unmount = () => act(() => root.unmount());
     act(() => observers.forEach((cb) => cb()));
-    return { state, setClickable: (on: boolean) => { state.clickable = on; act(draw); } };
+    return { state, setClickable: (on: boolean) => { state.clickable = on; act(draw); }, redraw: () => act(draw) };
   }
 
   it("follows a link on the canvas by moving to the page it names, whose frame is never replaced", () => {
@@ -370,7 +371,7 @@ describe("links between a canvas's pages", () => {
     expect(followed).toEqual([]);
   });
 
-  it("as a clickable prototype, shows one page with no labels or pan and zoom, and opens a linked page afresh", () => {
+  it("as a clickable prototype, shows one page with no labels or pan and zoom, and a linked page at once in the frame it loaded in", () => {
     showClickable({ clickable: true });
     expect(viewport().dataset["view"]).toBe("clickable");
     expect(document.querySelector(".xc-labels")).toBeNull();
@@ -378,10 +379,48 @@ describe("links between a canvas's pages", () => {
     expect(document.querySelector('[aria-label="Mode"]')).toBeNull();
     expect(document.querySelector('[aria-label="Show pages"]')).toBeTruthy();
     expect(view().z).toBeLessThanOrEqual(1);
+    // Every page loads behind the one on show, wherever it sits, so the next is ready.
+    expect([...document.querySelectorAll("iframe")].map((f) => f.getAttribute("loading"))).toEqual(["eager", "eager"]);
     const was = document.querySelector('.xc-frame[data-page="wide"] iframe');
     linkClicked("phone", "wide");
     expect((document.querySelector('.xc-frame[data-page="wide"]') as HTMLElement).dataset["selected"]).toBe("");
-    expect(document.querySelector('.xc-frame[data-page="wide"] iframe')).not.toBe(was);
+    expect(document.querySelector('.xc-frame[data-page="wide"] iframe')).toBe(was);
+  });
+
+  it("takes the keyboard back from a page that takes it by itself, and leaves it with a page a person pressed in", () => {
+    vi.useFakeTimers();
+    try {
+      showClickable();
+      const phone = document.querySelector('.xc-frame[data-page="phone"] iframe') as HTMLIFrameElement;
+      // The document this runs in moves no focus out of a frame, so what is checked is that the canvas gives it back.
+      const givesBack = vi.spyOn(phone, "blur");
+      const takes = () => {
+        phone.tabIndex = 0;
+        phone.focus();
+        // A frame taking the focus is heard only as the window losing it.
+        act(() => window.dispatchEvent(new Event("blur")));
+        act(() => vi.advanceTimersByTime(200));
+      };
+      takes();
+      expect(givesBack).toHaveBeenCalledTimes(1);
+      act(() => window.dispatchEvent(new MessageEvent("message", { source: phone.contentWindow, data: { whatbuild: "canvas-select" } })));
+      takes();
+      expect(givesBack).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("as a clickable prototype, opens a page someone used afresh once it is left, and leaves one nobody used as it is", () => {
+    const { state, redraw } = showClickable({ clickable: true });
+    const phone = document.querySelector('.xc-frame[data-page="phone"] iframe') as HTMLIFrameElement;
+    act(() => window.dispatchEvent(new MessageEvent("message", { source: phone.contentWindow, data: { whatbuild: "frame-active" } })));
+    linkClicked("phone", "wide");
+    expect(document.querySelector('.xc-frame[data-page="phone"] iframe')).not.toBe(phone);
+    const wide = document.querySelector('.xc-frame[data-page="wide"] iframe');
+    state.id = "phone";
+    redraw();
+    expect(document.querySelector('.xc-frame[data-page="wide"] iframe')).toBe(wide);
   });
 
   it("offers a page's download on its label on the canvas alone, and for a page with its own HTML alone", () => {
@@ -406,6 +445,127 @@ describe("links between a canvas's pages", () => {
     expect(tools.querySelector('.xc-page-menu')).toBeTruthy();
     expect(tools.textContent).not.toMatch(/Clickable|Download/);
     expect(tools.querySelector('[aria-label="View"]')).toBeNull();
+  });
+});
+
+describe("pages that enter a prototype, loading in turns", () => {
+  const before = { pages: version.pages, prototype: version.prototype };
+  beforeEach(() => {
+    version.pages = Array.from({ length: 16 }, (_, i) => ({ page_id: `p${i + 1}`, title: `Screen ${i + 1}`, width: 400, height: 300, prototype_url: `/prototypes/grant/p/${i + 1}.html` }));
+    version.prototype = { base_url: "/prototypes/grant/", expires_at: "2099-01-01T00:00:00Z", sandbox: "allow-scripts" };
+  });
+  afterEach(() => {
+    version.pages = before.pages;
+    version.prototype = before.prototype;
+  });
+
+  function showPrototype(first: string, clickable = false) {
+    const host = document.createElement("div");
+    document.body.append(host);
+    const root = createRoot(host);
+    const state = { id: first as string | null };
+    const draw = () =>
+      root.render(
+        <ToastProvider>
+          <Canvas
+            version={version}
+            pageSrc={(p) => `about:blank#${p.page_id}`}
+            selected={state.id}
+            onSelect={(id) => {
+              state.id = id;
+              draw();
+            }}
+            onKey={() => {}}
+            canFocus
+            pageView="fit"
+            onPageView={() => {}}
+            clickable={clickable}
+            onFollow={(id) => {
+              state.id = id;
+              draw();
+            }}
+          />
+        </ToastProvider>,
+      );
+    act(draw);
+    unmount = () => act(() => root.unmount());
+    act(() => observers.forEach((cb) => cb()));
+    return { select: (id: string) => ((state.id = id), act(draw)) };
+  }
+  /** The pages with a frame, by number. */
+  const framed = () => [...document.querySelectorAll<HTMLElement>(".xc-frame")].filter((f) => f.querySelector("iframe")).map((f) => Number(f.dataset["page"]!.slice(1))).sort((a, b) => a - b);
+  const frameOf = (n: number) => document.querySelector<HTMLIFrameElement>(`.xc-frame[data-page="p${n}"] iframe`)!;
+  const loadingSays = (n: number) => document.querySelector(`.xc-frame[data-page="p${n}"] .xc-loading`)?.textContent ?? null;
+  const loads = (...ns: number[]) => {
+    for (const n of ns) {
+      act(() => frameOf(n).dispatchEvent(new Event("load")));
+      act(() => window.dispatchEvent(new MessageEvent("message", { source: frameOf(n).contentWindow, data: { whatbuild: "frame-ready" } })));
+    }
+  };
+  const range = (a: number, b: number) => Array.from({ length: b - a + 1 }, (_, i) => a + i);
+
+  it("take turns outward from the page asked for, the next before the previous", () => {
+    expect(turnOrder(["a", "b", "c", "d", "e"], "c")).toEqual(["c", "d", "b", "e", "a"]);
+    expect(turnOrder(["a", "b", "c"], null)).toEqual(["a", "b", "c"]);
+    expect(turnOrder(["a", "b", "c"], "c")).toEqual(["c", "b", "a"]);
+  });
+
+  it("load the page asked for alone, then those beside it, then a few at a time, each saying it is loading until it has", () => {
+    showPrototype("p5");
+    expect(framed()).toEqual([5]);
+    expect(loadingSays(5)).toBe("Loading");
+    expect(loadingSays(9)).toBe("Loading");
+    const first = frameOf(5);
+    loads(5);
+    expect(loadingSays(5)).toBeNull();
+    expect(framed()).toEqual([4, 5, 6]);
+    loads(6, 4);
+    expect(FRAMES_AT_ONCE).toBe(8);
+    expect(framed()).toEqual(range(1, 11));
+    loads(7);
+    expect(framed()).toEqual(range(1, 12));
+    loads(3, 8, 2, 9, 1, 10, 11, 12);
+    expect(framed()).toEqual(range(1, 16));
+    // A page keeps the frame it loaded in.
+    expect(frameOf(5)).toBe(first);
+  });
+
+  it("give a page asked for its turn at once, whatever else is loading", () => {
+    const { select } = showPrototype("p1");
+    loads(1, 2, 3);
+    expect(framed()).toEqual(range(1, 11));
+    select("p16");
+    expect(framed()).toEqual([...range(1, 11), 16]);
+  });
+
+  it("let the others go on when a page has not said it loaded in time", () => {
+    vi.useFakeTimers();
+    try {
+      showPrototype("p5");
+      act(() => vi.advanceTimersByTime(FRAME_TURN_MS - 10));
+      expect(framed()).toEqual([5]);
+      act(() => vi.advanceTimersByTime(20));
+      expect(framed()).toEqual([4, 5, 6]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("as a clickable prototype, load behind the page on show, show a loaded page at once, and show one still to load at once too, saying so", () => {
+    const { select } = showPrototype("p5", true);
+    loads(5, 6, 4);
+    const next = frameOf(6);
+    act(() => (document.querySelector('[data-tool="next"]') as HTMLButtonElement).click());
+    expect((document.querySelector(".xc-frame[data-selected]") as HTMLElement).dataset["page"]).toBe("p6");
+    expect(frameOf(6)).toBe(next);
+    expect(loadingSays(6)).toBeNull();
+    // A page far from the one on show takes the place at once, and says it is loading until it has.
+    select("p16");
+    expect((document.querySelector(".xc-frame[data-selected]") as HTMLElement).dataset["page"]).toBe("p16");
+    expect(framed()).toContain(16);
+    expect(loadingSays(16)).toBe("Loading");
+    loads(16);
+    expect(loadingSays(16)).toBeNull();
   });
 });
 

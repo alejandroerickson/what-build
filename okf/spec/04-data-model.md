@@ -3,7 +3,7 @@ type: Specification
 title: Every object in a product, with its fields, limits and invariants, as the REST and MCP wire sees it.
 description: The common envelope (ids, etags, attribution, revisions), outcomes, sources and their tags, attachments, comments, summaries and notes, evidence links, the retired insights, decisions and assumptions, views, activity, Story, mockups, feedback, the product bundle, and the storage layout.
 tags: [spec, data-model, schema, revisions, story, mockups, export]
-generated: {by: agent:claude, at: 2026-11-25}
+generated: {by: agent:claude, at: 2026-11-26}
 status: stable
 ---
 
@@ -951,6 +951,12 @@ names one of its HTML documents (`index.html`, `app/checkout.html?plan=pro#step-
   does not hold, and a script (a file, inline, or an event handler) that uses `localStorage`,
   `sessionStorage`, IndexedDB or `document.cookie`, which are unavailable and throw. A warning
   never refuses.
+- **What pages load** ([decision](../decisions/a-canvas-loads-light-pages-in-turns-and-shows-a-page-at-once.md)). A frame keeps nothing between loads, so an upload's prototype is held
+  to what its pages load: each page's document, with the files it and its stylesheets load, at most
+  20 files and 1 MB; the pages together at most 12 MB, each counted as it loads (its own HTML, or
+  its document's load again for every page that enters it). Past either, `422 invalid_input` names
+  each document once, with the pages that enter it, and says how to make each page its own light
+  screen. A version that carries its base's prototype without an upload is not checked again.
 - **Stateless.** A prototype's documents run in an opaque origin, which has no browser storage and
   no cookies; WhatBuild injects no stand-in, so each document load starts fresh. State lives in
   script variables while a document is open, or in the address (query or hash) across documents.

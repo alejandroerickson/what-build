@@ -3,7 +3,7 @@ type: Specification
 title: Every capability is one registered operation, reached identically over REST and MCP.
 description: The operation registry, the error model and bounds, the full catalogue of 142 operations with their REST routes and MCP tools, authorization and agent connection levels, upload flows, the guide and the Connect page.
 tags: [spec, operations, rest, mcp, registry, uploads, guide]
-generated: {by: agent:claude, at: 2026-11-25}
+generated: {by: agent:claude, at: 2026-11-26}
 status: stable
 ---
 
@@ -597,7 +597,7 @@ Notes on recent actions:
   the version's `prototype { file_count, bytes, base_url, expires_at, sandbox }` (with its files
   under `include_files`) and each entry page's `prototype_url`, and `publish` answers with
   `prototype_warnings`. `publish`'s and `request_upload`'s descriptions state that a prototype is
-  stateless, uses relative addresses and no network, and what its warnings mean.
+  stateless, uses relative addresses and no network, what its pages may load, and what its warnings mean.
   `mockups.get_download` gives a version as a ZIP through a grant, for an agent to build the next
   version elsewhere and for a person to open from its `index.html` ([§4.12](04-data-model.md)). `mockups.get` lists the Story pages that show
   its pages or its whole canvas.

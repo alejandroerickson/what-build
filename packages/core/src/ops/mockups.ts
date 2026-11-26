@@ -13,8 +13,8 @@ import { expectedEtag, formatIssues, id } from "../schemas.ts";
 import { inspectMockupHtml, MOCKUP_PAGE_RULES } from "../html-rules.ts";
 import type { BlobStore } from "../ports.ts";
 import {
-  entryAddress, isPrototypeHtml, isPrototypeImage, PROTOTYPE_ENTRY_SUFFIX_MAX, PROTOTYPE_FILE_MAX_BYTES, PROTOTYPE_MAX_BYTES, PROTOTYPE_MAX_FILES,
-  PROTOTYPE_PATH_MAX, PROTOTYPE_POSTER_MAX_BYTES, PROTOTYPE_PRODUCT_MAX_BYTES, prototypeAddress, prototypeMediaType, prototypePath, prototypeWarnings, splitEntry,
+  CANVAS_LOAD_BYTES, type DocumentLoad, entryAddress, isPrototypeHtml, isPrototypeImage, PROTOTYPE_ENTRY_SUFFIX_MAX, PROTOTYPE_FILE_MAX_BYTES, PROTOTYPE_MAX_BYTES, PROTOTYPE_MAX_FILES,
+  PROTOTYPE_PATH_MAX, PROTOTYPE_POSTER_MAX_BYTES, PROTOTYPE_PRODUCT_MAX_BYTES, prototypeAddress, prototypeMediaType, prototypePath, PAGE_LOAD_BYTES, PAGE_LOAD_FILES, readPrototype, splitEntry,
 } from "../prototype.ts";
 import { MOCKUP_FONTS } from "../story-fonts.ts";
 import { PAGE_HEIGHT_MAX, PAGE_HEIGHT_MIN, shownHeight } from "../page-sandbox.ts";
@@ -71,6 +71,7 @@ const SAFE_CHECK_TEXT =
 const PROTOTYPE_TEXT =
   `A version may also carry a prototype: a team's multi-file prototype as it is (HTML documents that link to one another, scripts, styles, fonts, images, audio, fixtures), uploaded under prototype/ in the canvas ZIP and never sent in a call; never a video, which WhatBuild does not keep (415 video_not_accepted lists every video and every other problem); at most ${fmt(PROTOTYPE_MAX_FILES)} files and ${PROTOTYPE_MAX_BYTES / MIB} MB, ${PROTOTYPE_FILE_MAX_BYTES / MIB} MB a file, and ${PROTOTYPE_PRODUCT_MAX_BYTES / MIB} MB of distinct prototype bytes in a product. Its files are any bytes, given back byte for byte, and are not held to a page's HTML rules: they are served in the sandbox under a short-lived address of their own, and load only one another, by relative address, with no network. A page with entry instead of html enters it: the path of one of its HTML documents, with a ?query and #fragment if wanted; several pages may enter one prototype, and its links move between its documents inside the page's frame. ` +
   `A prototype is stateless: localStorage, sessionStorage, IndexedDB and document.cookie are unavailable in WhatBuild's sandbox and throw, so each document load starts fresh; keep state in script variables while a document is open, or in the address (query or hash) across its documents. Forms run their submit handlers and submit nowhere. A root-relative address (/assets/app.js) points outside the prototype and does not load: build with a relative base (./). ` +
+  `A frame keeps nothing between loads, and every page of a canvas loads when it opens, so a page's document and everything it loads are fetched again each time: make each canvas page its own light screen, with only what it draws, its scripts in one file and its styles in another; keep what happens within a screen (a dialog, a tab, a button's result) inside its page, and make a move to another screen a link to that canvas page, never the whole prototype behind every page. Publish refuses a page whose document loads more than ${PAGE_LOAD_FILES} files or ${PAGE_LOAD_BYTES / MIB} MB with itself, counting what its stylesheets load, and a canvas whose pages load more than ${CANVAS_LOAD_BYTES / MIB} MB together, each page counted as it loads. ` +
   "Publish answers with prototype_warnings, naming each file: root-relative and remote addresses, addresses the prototype does not hold, and scripts that use browser storage or cookies. A warning never refuses.";
 /** How a canvas's pages link to each other, and what that gives people. */
 const PAGE_LINKS_TEXT =
@@ -596,7 +597,7 @@ async function putOnce(blobs: BlobStore, key: string, data: Uint8Array, contentT
 
 /** What prepare hands publish: the canvas, and its prototype's files stored, with what publish should say about them. */
 interface PreparedCanvas extends Omit<CanvasUpload, "prototype"> {
-  prototype?: { listed: PrototypeUpload["listed"]; stored: ProtoRow[]; warnings: string[] };
+  prototype?: { listed: PrototypeUpload["listed"]; stored: ProtoRow[]; warnings: string[]; loads: Map<string, DocumentLoad> };
 }
 
 /**
@@ -616,7 +617,7 @@ async function prepareCanvas(
   const { prototype, ...rest } = canvas;
   if (!prototype) return rest;
   const typed = prototype.files.map((f) => ({ ...f, sha256: sha256Hex(f.data), media_type: prototypeMediaType(f.path, f.data) }));
-  const warnings = prototypeWarnings(typed);
+  const { warnings, loads } = readPrototype(typed);
   // The base's blobs by hash, so bytes it already holds are not stored again.
   const known = new Map<string, string>();
   if (input.mockup_id) {
@@ -644,7 +645,46 @@ async function prepareCanvas(
   // A few at a time: a prototype of two thousand files is two thousand writes.
   for (let i = 0; i < pending.length; i += 8) await Promise.all(pending.slice(i, i + 8).map((run) => run()));
   stored.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
-  return { ...rest, prototype: { listed: prototype.listed, stored, warnings } };
+  return { ...rest, prototype: { listed: prototype.listed, stored, warnings, loads } };
+}
+
+/** A size in bytes as people read it. */
+const sizeOf = (bytes: number) => (bytes >= MIB ? `${(bytes / MIB).toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`);
+
+/**
+ * What a canvas's pages load, held to PAGE_LOAD_FILES and PAGE_LOAD_BYTES a page and CANVAS_LOAD_BYTES
+ * for the pages together: each page's own HTML, or the document it enters with what that loads,
+ * counted for every page that enters it, since each page's frame fetches it again. Each document too
+ * heavy is named once, with the pages that enter it. A page entering a document this upload does
+ * not carry is not counted.
+ */
+function canvasLoadProblems(pages: { page_id: string; html?: string | null; entry?: string | null }[], loads: Map<string, DocumentLoad>): string[] {
+  const heavy = new Map<string, { load: DocumentLoad; pages: string[] }>();
+  let total = 0;
+  for (const pg of pages) {
+    if (!pg.entry) {
+      total += Buffer.byteLength(pg.html ?? "");
+      continue;
+    }
+    const split = splitEntry(pg.entry);
+    const load = "path" in split ? loads.get(split.path) : undefined;
+    if (!load || !("path" in split)) continue;
+    total += load.bytes;
+    if (load.files <= PAGE_LOAD_FILES && load.bytes <= PAGE_LOAD_BYTES) continue;
+    const named = heavy.get(split.path) ?? { load, pages: [] };
+    named.pages.push(pg.page_id);
+    heavy.set(split.path, named);
+  }
+  const out = [...heavy].map(([path, { load, pages: ids }]) => {
+    const who = ids.length === 1 ? `page ${ids[0]} enters` : `${ids.length} pages enter (${ids.slice(0, 3).join(", ")}${ids.length > 3 ? ", …" : ""})`;
+    return `${path}, which ${who}, loads ${load.files} ${load.files === 1 ? "file" : "files"}, ${sizeOf(load.bytes)} with itself, each time a page's frame opens it; a page loads at most ${PAGE_LOAD_FILES} files and ${sizeOf(PAGE_LOAD_BYTES)}, so that it shows at once.`;
+  });
+  if (total > CANVAS_LOAD_BYTES) out.push(`The pages load ${sizeOf(total)} together, each page's frame fetching its document and all it loads; a canvas's pages load at most ${sizeOf(CANVAS_LOAD_BYTES)}, so that it opens in a few seconds.`);
+  if (out.length)
+    out.push(
+      "Make each canvas page its own light screen: give it only what it draws, its scripts in one file and its styles in another, keep what happens within the screen (a dialog, a tab, a button's result) inside its page, and make a move to another screen a link to that canvas page, rather than the whole prototype behind every page.",
+    );
+  return out;
 }
 
 type PageRow = { page_id: string; title: string; notes: string; width: number; height: number; height_auto: boolean; html: string | null; entry: string | null; poster: string | null };
@@ -806,6 +846,7 @@ export const publishMockup = defineOperation({
         else if (poster.size > PROTOTYPE_POSTER_MAX_BYTES) problems.push(`${where}'s poster ${pg.poster} is ${fmt(poster.size)} bytes; a poster is at most ${fmt(PROTOTYPE_POSTER_MAX_BYTES)}.`);
       }
     });
+    if (canvas?.prototype) problems.push(...canvasLoadProblems(pages, canvas.prototype.loads));
     if (problems.length) throw invalid("invalid_input", `Nothing was published: ${problems.join(" ")}`, { problems });
     if (canvas?.prototype) {
       // Distinct bytes across the product's mockups: a blob two versions share counts once.

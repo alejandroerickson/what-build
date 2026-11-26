@@ -3,7 +3,7 @@ type: Process
 title: What a deployment must do when it takes a release
 description: The changes a release asks of the people who run a deployment (settings, app registrations, behaviour they will notice), kept per release, with the unreleased ones on top until the next release carries them into its notes.
 tags: [operations, releases, upgrading, self-hosting, configuration]
-generated: {by: agent:claude, at: 2026-11-25}
+generated: {by: agent:claude, at: 2026-11-26}
 status: stable
 ---
 
@@ -32,6 +32,18 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
   upgrading.
 
 ## Unreleased
+
+- **A canvas's pages load in turns and stay loaded, and publish refuses a prototype whose pages load
+  too much.** On the board and in the clickable view the selected page loads first, then the two
+  beside it, then the rest eight at a time, and a move shows the next page at once; a page still
+  loading is a sheet that says so, never white. Before, every page of a canvas loaded at once, which
+  for dozens of pages entering a heavy prototype was more than the browser would take, and left
+  pages blank until a reload; the clickable view also reopened each page it moved to. Publish now
+  refuses (`422 invalid_input`) an upload whose prototype gives a page a document loading more than
+  20 files or 1 MB, or the pages more than 12 MB together: an agent republishing such a canvas is
+  told to make each page its own light screen. Canvases already published are not touched and keep
+  loading in turns. Nothing needs doing, and no migration (`tools_version` 0.73.0); a connected
+  client sees the new descriptions after a new session.
 
 ## v0.45.0
 

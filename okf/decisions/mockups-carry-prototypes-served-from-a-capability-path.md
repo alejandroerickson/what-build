@@ -3,7 +3,7 @@ type: Decision
 title: A mockup version may carry a team's prototype as it is, served in the sandbox from a short-lived capability path
 description: Multi-file prototypes come in unchanged, stateless, and canvas pages enter them; every file is served under a signed path that the sandbox policy confines the prototype to, on the app's origin until a separate content site is set.
 tags: [decision, mockups, prototype, security, sandbox, storage, story, web, agents]
-generated: {by: agent:claude, at: 2026-11-13}
+generated: {by: agent:claude, at: 2026-11-26}
 status: stable
 ---
 
@@ -76,7 +76,9 @@ sees the promoted page and nothing else of the mockup ([decision](a-story-reader
 
 - A prototype runs on the canvas and the Story as at home, if it uses relative addresses, no
   network and no browser storage; publish names what does not.
-- Browsers may cache nothing an opaque origin loads, so each frame fetches every file it uses.
+- Browsers may cache nothing an opaque origin loads, so each frame fetches every file it uses,
+  each time it opens a document. So a canvas's pages are held to what they load, take turns to
+  load, and stay loaded ([decision](a-canvas-loads-light-pages-in-turns-and-shows-a-page-at-once.md)).
 - New bytes are stored once per mockup by hash, so a version that changes one file costs one file.
 - A grant in a URL reads one immutable version, names nobody and lasts hours; a prototype can send
   its own address away, and with it only what it already holds.

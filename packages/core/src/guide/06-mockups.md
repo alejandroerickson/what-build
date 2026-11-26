@@ -98,6 +98,17 @@ load only one another.
 - **Forms** run their `submit` handlers and submit nowhere. A link between its documents moves within
   the page's frame; a PDF it links to does not open in the frame (browsers refuse a PDF in a sandbox),
   though its scripts can fetch the bytes.
+- **One light screen a page.** A frame keeps nothing between loads (browsers cache nothing a
+  sandboxed frame loads), and every page of a canvas loads when it opens, each fetching again its
+  document and everything that loads. Make each canvas page its own screen with only what it draws:
+  its scripts in one file and its styles in another, and no large data (fixtures, icon sets) it does
+  not show. What happens within a screen (a dialog, a tab, a button's result) stays inside its page;
+  a move to another screen is a link to that canvas page, which people move to at once. Do not put
+  the whole prototype behind every page, each a different view of it.
+- **What pages may load.** Publish refuses (`422 invalid_input`) a page whose document loads more
+  than 20 files, or more than 1 MB with itself, counting what its stylesheets load, and a canvas
+  whose pages load more than 12 MB together, each page counted as it loads. The refusal names each
+  document once with the pages that enter it.
 - **`prototype_warnings`** in publish's result names each file and what will not work there (a
   root-relative or remote address, an address the prototype does not hold, a script that uses
   storage or cookies). A warning never refuses.
