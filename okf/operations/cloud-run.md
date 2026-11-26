@@ -605,7 +605,9 @@ It is off until the service has both keys. To turn it on:
 5. **Check it.** `curl -s https://app.example.com/auth/methods` gives `bot_check` with the site key,
    and a request without a token is refused:
    `curl -s -X POST https://app.example.com/auth/email -H 'content-type: application/json' -d '{"email":"someone@example.com"}'`
-   answers `403 bot_check_failed`. Then sign in through the browser, and send the waitlist's form
+   answers `403 bot_check_failed`; on a deployment without email sign-in that path answers
+   `404 not_found`, and `curl -s -o /dev/null -w '%{redirect_url}' https://app.example.com/auth/google`
+   shows the refusal instead, `/signin?error=bot_check`. Then sign in through the browser, and send the waitlist's form
    from the site. The Worker keeps the service's catalogue, which tells the site's pages, for an
    hour; until it refreshes, the waitlist's form has no widget and is refused with "Reload the page
    and try again", so turn it on when nobody is waiting on that form, or purge the zone's whole
