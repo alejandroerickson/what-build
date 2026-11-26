@@ -142,7 +142,7 @@ describe("the tutorials and their stops", () => {
   });
 
   it("enter each page at its item in the main navigation; the welcome lights the navigation, then plays an agent at work", () => {
-    expect(TUTORIALS.welcome[0]).toMatchObject({ title: "Main navigation", line: ["Four stages of product discovery."], target: "nav" });
+    expect(TUTORIALS.welcome[0]).toMatchObject({ title: "Main navigation", line: ["Four stages of product engineering."], target: "nav" });
     expect(TUTORIALS.welcome[1]).toMatchObject({ id: "agents", stage: true });
     for (const place of ["idea", "evidence", "exploration", "story"] as const) expect(TUTORIALS[place][0]!.target, place).toBe(`nav-${place}`);
   });

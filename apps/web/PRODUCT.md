@@ -33,10 +33,10 @@ Google Cloud Run. Recorded in `okf/spec/02-architecture.md`.
 
 ## Product Purpose
 
-Turn a pile of discovery material — interviews, sales calls, research exports, documents, decks —
+Turn a pile of material — interviews, sales calls, research exports, documents, decks —
 into something a team can act on: outcomes, mockups and a stakeholder Story,
 with the evidence behind them kept whole and searchable.
-Success is that a team keeps its discovery and its ideas in one place, where people and their
+Success is that a team keeps its research and its ideas in one place, where people and their
 agents find what they heard by searching, and that an agent's work is visible, attributed and
 reviewable rather than lost in a chat.
 
@@ -50,7 +50,7 @@ is the most complete control panel.
 
 ## Operating Context
 
-Discovery arrives in bursts around interview rounds, research readouts and sales calls. People
+Evidence arrives in bursts around interview rounds, research readouts and sales calls. People
 read far more than they write: browsing sources, reading their text, reading synthesis, reviewing a
 small set of agreements. Agents do the heavy lifting in the user's own chat or coding client, and
 people check the results in the web app. The web app and the agent share one account, one set of
@@ -60,9 +60,9 @@ permissions and one activity log.
 
 - Four destinations inside a product: **Idea, Evidence, Exploration, Story**. Everything else is
   a sub-view.
-- Hierarchy: tenant (organization) → product (one discovery), with no level between them. Roles
-  are given in three places: in the organization (owner, admin, product creator, who creates
-  products and is admin of each one they create, or member), on all its products (every product,
+- Hierarchy: tenant (organization) → product (one discovery), with no level between
+  them. Roles are given in three places: in the organization (owner, admin, product creator, who
+  creates products and is admin of each one they create, or member), on all its products (every product,
   including ones made later), and on one product. A product role is admin, editor, viewer (reads
   everything in the product and changes nothing) or Story reader (reads only the Story's live
   pages); each is named so it says what it reaches. A person without a role on a product cannot

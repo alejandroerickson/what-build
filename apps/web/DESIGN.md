@@ -1,6 +1,6 @@
 ---
 name: WhatBuild
-description: Studio, a quiet floating-panel workspace for product discovery evidence.
+description: Studio, a quiet floating-panel workspace for product engineering.
 colors:
   canvas: "#f0f0f0"
   panel: "#ffffff"

@@ -3,7 +3,7 @@ type: Specification
 title: The web app is a person's way to run the same operations an agent runs, one screen at a time.
 description: Principles, the shell and product switching, the overview, routes, first run, and the behavior of every screen (Idea, Evidence, Exploration, Story, Activity, archive and delete, Settings, Instance admin).
 tags: [spec, web, ui, routes, shell]
-generated: {by: agent:claude, at: 2026-11-23}
+generated: {by: agent:claude, at: 2026-11-25}
 status: stable
 ---
 
@@ -625,7 +625,7 @@ pages, **Idea**, **Evidence**, **Exploration** and **Story**, each on its own pa
   taking over closes a tutorial that is up, without a word; the screen arrived at decides what
   starts next.
 - **The stops** (`stops.ts`), each a thing's own name and at most one line:
-  - **WhatBuild**: the main navigation (**Main navigation**, "Four stages of product discovery."),
+  - **WhatBuild**: the main navigation (**Main navigation**, "Four stages of product engineering."),
     then the agent stage (**Agents**). It lights the product's own screen, with no examples, on
     whatever page it starts on.
   - **Idea**: Idea in the navigation ("Your product’s elevator pitch."), the product concept, its

@@ -66,7 +66,7 @@ const TOOL_TEXT: Record<string, { title: string; parts: Parts; forStoryReader?: 
   sources_read: {
     title: "Read sources",
     parts: [
-      ["Find and read sources, the discovery evidence, by their details: tags, dates, who added them, words in their titles. Read their comments and what deleting one would destroy."],
+      ["Find and read sources, the product's evidence, by their details: tags, dates, who added them, words in their titles. Read their comments and what deleting one would destroy."],
       ["Metadata only: search finds what sources say, and derived_read reads their text."],
     ],
   },
@@ -386,7 +386,7 @@ function listedTools(principal: Principal, offered: Definitions) {
 const FEEDBACK_OFF = " The person turned off submit_feedback for this connection, so it is not listed: that is not an older tool list.";
 
 export const SERVER_INSTRUCTIONS =
-  "WhatBuild holds product discovery. Organizations (tenants) hold products. Each product has its Idea (a product concept and outcomes), " +
+  "WhatBuild is for product engineering. Organizations (tenants) hold products. Each product has its Idea (a product concept and outcomes), " +
   "its Evidence (sources, with their attachments and text), its Exploration (mockups) and its Story (pages for the people the team works with). " +
   "Each kind of object has a _read tool, a _write tool that creates, changes, archives and restores, and, where it can be deleted for good, a _delete tool; a product also has products_export, which takes a copy away and changes nothing in it. " +
   "Each takes an action, the action's fields in params, and the product; describe=true returns an action's schema and guidance without running it. " +

@@ -63,7 +63,7 @@ message, every pull request's text and every issue and comment is published, and
 
 ## What this is
 
-WhatBuild turns a product team's discovery material into outcomes, mockups and a Story for
+WhatBuild turns a product team's evidence into outcomes, mockups and a Story for
 stakeholders. People use a React web app; agents use an MCP server exposing 123 of
 the same 142 operations: all but running the instance (plans, organizations, guests, allowances,
 accounts and usage, which only an instance owner does), renaming an organization or a product and

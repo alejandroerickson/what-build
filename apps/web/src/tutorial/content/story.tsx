@@ -18,7 +18,7 @@ function WhereDiscoveryStands() {
       <p className="tut-story-lead">
         Crew leads spend a Friday afternoon building next week. The mistakes that reach customers happen afterwards, when the plan is typed out to each crew.
       </p>
-      <p className="tut-story-meta">Tutorial discovery · Working interpretation</p>
+      <p className="tut-story-meta">Tutorial example · Working interpretation</p>
       <hr />
       <h2>What we heard</h2>
       <p>

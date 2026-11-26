@@ -144,7 +144,7 @@ export function specimenBody(): string {
 <h2 id="plan" data-label="Release plan">Each release removes one step where mistakes enter</h2>
 <p>Every release goes to two pilot crews first. A step moves only when the pilots say the one before it works.</p>
 <ol class="timeline">
-<li data-state="done"><time datetime="2026-09">September 2026</time><strong>Discovery round</strong><p>Two interviews, an owner call and a survey of crew leads.</p></li>
+<li data-state="done"><time datetime="2026-09">September 2026</time><strong>Research round</strong><p>Two interviews, an owner call and a survey of crew leads.</p></li>
 <li aria-current="step"><time datetime="2026-11">November 2026</time><strong>One message per crew</strong><p>Each crew lead gets their week, generated from the plan.</p></li>
 <li><time datetime="2027-01">January 2027</time><strong>Confirm and flag</strong><p>Crew leads confirm the week or flag a change for the office.</p></li>
 <li><time datetime="2027-03">March 2027</time><strong>Late jobs from a phone</strong><p>A late booking placed in minutes, with what it moves shown.</p></li>

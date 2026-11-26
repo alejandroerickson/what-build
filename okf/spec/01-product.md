@@ -1,9 +1,9 @@
 ---
 type: Specification
-title: WhatBuild turns a team's discovery material into insight and a story, with agents as first-class contributors.
+title: WhatBuild turns a team's evidence into insight and a story, with agents as first-class contributors.
 description: Who the product is for, the core loop, the four screens, the vocabulary, the non-negotiable behaviors, and what the product is not.
 tags: [spec, product, vocabulary, principles]
-generated: {by: agent:claude, at: 2026-11-18}
+generated: {by: agent:claude, at: 2026-11-25}
 status: stable
 ---
 
@@ -11,7 +11,7 @@ status: stable
 
 ## 1.1 Who it is for
 
-- **A team exploring a product idea** who has a growing pile of discovery material and wants it to
+- **A team exploring a product idea** who has a growing pile of research and wants it to
   add up to something: explicit direction, evidence-backed insight, and a story stakeholders can
   read.
 - **The agents working with them.** Most of the reading, searching and drafting is work an agent
@@ -84,7 +84,7 @@ Idea screen's terms are a decision: [A product starts with its idea](../decision
 | **tenant** | An organization: the isolation boundary, which holds its products directly. Shown as "organization" in the UI. Never "workspace", and never divided into teams ([decision](../decisions/an-organization-holds-its-products-directly-with-no-teams.md)). |
 | **product** | One discovery. Owns all of the objects below. |
 | **role** | Story reader (`story_reader`), viewer, editor or admin on a product or on all products of a tenant; owner, admin, product creator or member of a tenant. A Story reader reads only the Story's live pages; a viewer reads everything in the product and changes nothing; a product creator creates products. |
-| **source** | One discovery event or document, with metadata, its derived text and its attachments. Stored as a record: `record_id` in the API. The destination that holds them is **Evidence**; never "library", "document store", "bucket" or a storage path. |
+| **source** | One event or document, with metadata, its derived text and its attachments. Stored as a record: `record_id` in the API. The destination that holds them is **Evidence**; never "library", "document store", "bucket" or a storage path. |
 | **attachment** | A file kept with a source, in the app, the API, the MCP tools and the documentation alike, with no role. Every attachment is read and what was read kept, never searched. Never "file" for the concept ("file" is for bytes and formats); the database's tables keep the names `files` and `file_versions`. |
 | **derived text** | A source's words as one Markdown document, taken from an attachment's text until someone writes or edits it; in prose, "a source's text". What search reads, with the title, tags, summary, notes and comments. |
 | **reading** | One read of one version of an attachment (an attachment is "read"); a `derivation` in the API. |
@@ -109,6 +109,9 @@ of them is now sources. "Assumption" (an entry in a reviewed register) and "revi
 types until assumptions were removed and every one deleted
 ([decision](../decisions/assumptions-are-removed-and-every-one-is-deleted.md)); a product keeps
 none, and the words no longer name anything in WhatBuild.
+
+What WhatBuild is for is **product engineering**, said first and more often than discovery, which
+stays a plain word for the work on one product ([decision](../decisions/whatbuild-says-product-engineering-not-product-discovery.md)).
 
 ## 1.5 Non-negotiable behaviors
 
@@ -147,7 +150,7 @@ none, and the words no longer name anything in WhatBuild.
 9. **Data leaves as easily as it arrives.** Export is complete, in an open format, available to
    anyone who can read the product at any time, through both adapters, and **never blocked by a
    quota** ([§9.4](09-data-lifecycle.md)).
-10. **Product independence.** Built-in fields and filters describe discovery work and
+10. **Product independence.** Built-in fields and filters describe research and
     source formats, never the domain of the product being studied. Domain concepts live in source
     content and ordinary tags. Stored data must stay readable when a built-in choice is retired.
 11. **Adapter parity.** Every operation is available through both REST and MCP with the same
@@ -162,7 +165,7 @@ Prove upload → read → search → reading a source's text end to end through 
 
 ## 1.6 What this product is not
 
-- Not a general document manager: a source is discovery evidence, described by a title and tags
+- Not a general document manager: a source is evidence, described by a title and tags
   rather than filed in folders; what it says is searched, and its attachments are kept, never
   searched.
 - Not a chat product: it has no built-in LLM and needs no model API key. Intelligence arrives

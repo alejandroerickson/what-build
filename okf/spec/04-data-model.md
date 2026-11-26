@@ -3,7 +3,7 @@ type: Specification
 title: Every object in a product, with its fields, limits and invariants, as the REST and MCP wire sees it.
 description: The common envelope (ids, etags, attribution, revisions), outcomes, sources and their tags, attachments, comments, summaries and notes, evidence links, the retired insights, decisions and assumptions, views, activity, Story, mockups, feedback, the product bundle, and the storage layout.
 tags: [spec, data-model, schema, revisions, story, mockups, export]
-generated: {by: agent:claude, at: 2026-11-23}
+generated: {by: agent:claude, at: 2026-11-25}
 status: stable
 ---
 
@@ -164,14 +164,14 @@ archived outcomes out unless `include_archived`, and says how many it left out: 
 
 ## 4.3 Sources
 
-A source is one discovery event or document. It is stored as a **record**, so its id is
+A source is one event or document. It is stored as a **record**, so its id is
 `record_id`.
 
 | Field | Rule |
 |---|---|
 | `record_id` | Never changes, whatever else does (including a move to another product). |
 | `title` | 1–300 chars. Says what it is (who, what, when), never a file name. |
-| `date` | `YYYY-MM-DD`: the date of the **event or document** the discovery question turns on, never the upload date. `null` when genuinely unknown. The web app calls it the **date captured**. |
+| `date` | `YYYY-MM-DD`: the date of the **event or document** itself, never the upload date. `null` when genuinely unknown. The web app calls it the **date captured**. |
 | `slug` | Derived from the title. |
 | `tags` | ≤ 50, each 1–50 chars: what the material is, whom it concerns, what it bears on (§4.4). Stored NFKC-normalized, spacing collapsed, lower-case, without repeats. |
 | `copied_from` | `{ product_id, record_id }` when the source was copied from another product, as sources were until teams were removed; nothing copies one now ([§3.7](03-accounts-and-identity.md)). |
@@ -224,8 +224,8 @@ folder and no organization field
 ([decision](../decisions/sources-are-described-by-tags.md)).
 
 - A tag says what the material is (`interview`, `workshop`, `deck`, `analysis`), whom it concerns
-  (an organization, a segment) or what it bears on. Tags are free text and describe discovery
-  work, never a built-in classification. Derived material is tagged `analysis` (or `view`,
+  (an organization, a segment) or what it bears on. Tags are free text and describe the team's
+  material, never a built-in classification. Derived material is tagged `analysis` (or `view`,
   `digest`) (§4.9).
 - `sources.facets` lists what sources can be filtered by: `tags`, the tags in use with the number
   of sources carrying each, most used first and then A to Z (at most 500; `tags_truncated` says the
