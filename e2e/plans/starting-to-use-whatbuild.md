@@ -50,22 +50,25 @@ new person whose mail still reaches you; delete each such account afterwards in 
    **New organizations a day** to 2. *Expect:* the field's help says people start their own
    organization without waiting, up to this many each UTC day, that past it they join the
    waitlist, and that someone who looks and leaves uses no place. `GET /api/v1/plans` says
-   `sign_up: true` and nowhere the number 2 or `organizations_per_day`.
-2. **Web, signed out, on `/site/`.** Read the first screen and scroll to the end. *Expect:* Start
-   **Explore the demo** as the filled button under the headline and Start using WhatBuild beside it
-   as the quiet one, a small Scroll prompt at the foot of the first screen that goes once the page
-   moves, and, at the end, a line saying what a team builds in the demo (the first sentence of the
-   example's first product), a large Explore the demo, and "Or start using WhatBuild". Where any
-   plan has a price, a line of the priced plans follows with Compare plans; this instance's plans
-   (`deploy/plans.example.json`) have none, so there is no such line. Nothing promises "free" or
-   "now". No number of places anywhere. While
-   scrolling, the page asks the service nothing (the browser's requests); pressing a button sends
-   one `POST /api/v1/pressed` with the page and the button. No words run across WhatBuild or Sign
-   in at the top while scrolling, and at the end nothing of the last scene's picture shows above
-   "Find out what’s worth building.", at 390 and 1280 wide. The same on `/site/what-to-build/`, on a
-   dark stage. Then open `/site/plans/`: *Expect:* under the plans, "Find out what’s worth
-   building", the same line about the demo, Explore the demo as the filled button and Start using
-   WhatBuild beside it; nothing says people are let in a few at a time. Each link to sign in carries
+   `sign_up: true` and nothing gives the day's number of places: no `organizations_per_day`, nor
+   any other field for it. A 2 among the plans' limits (Free's people) is a plan's limit, not the
+   day's places.
+2. **Web, signed out, on `/site/`, in a fresh browser** (see Reading the site again, above: one
+   kept from before step 1 can show the site as it was then, closed). Read the first screen and
+   scroll to the end. *Expect:* Start **Explore the demo** as the filled button under the headline
+   and Start using WhatBuild beside it as the quiet one, a small Scroll prompt at the foot of the
+   first screen that goes once the page moves, and, at the end, a line saying what a team builds in
+   the demo (the first sentence of the example's first product), a large Explore the demo, and "Or
+   start using WhatBuild". Where any plan has a price, a line of the priced plans follows with
+   Compare plans; this instance's plans (`deploy/plans.example.json`) have none, so there is no
+   such line. Nothing promises "free" or "now". No number of places anywhere. While scrolling, the
+   page asks the service nothing (the browser's requests); pressing a button sends one
+   `POST /api/v1/pressed` with the page and the button. No words run across WhatBuild or Sign in at
+   the top while scrolling, and at the end nothing of the last scene's picture shows above "Find
+   out what’s worth building.", at 390 and 1280 wide. The same on `/site/what-to-build/`, on a dark
+   stage. Then open `/site/plans/`: *Expect:* under the plans, "Find out what’s worth building",
+   the same line about the demo, Explore the demo as the filled button and Start using WhatBuild
+   beside it; nothing says people are let in a few at a time. Each link to sign in carries
    `landing=/plans/` and its button; pressing one sends no `POST /api/v1/pressed`.
 3. **Web, from `/site/what-to-build/`, as `new1@example.com`.** Press Start using WhatBuild.
    *Expect:* the sign-in page, titled **Start using WhatBuild**, says signing in creates their
@@ -80,11 +83,14 @@ new person whose mail still reaches you; delete each such account afterwards in 
    tutorial's welcome over it is turned off.
 6. **Web, as Riley, then from `/site/` as `waiting@example.com`.** Riley sets **Guests in at once**
    to 0 in Instance admin → Guests, so no guest comes into the example, and New organizations a day
-   to 3, which leaves two places open today. Then `waiting` presses **Explore the demo** and signs
-   in. *Expect:* the waiting page, "WhatBuild isn’t letting guests in right now", with **Start your
-   own organization** as a link. Following it opens the Welcome form. Starting the organization
-   opens the product's Idea, not the waiting page, and moving to Evidence and back stays in the
-   app. Riley then sets Guests in at once back to what it was.
+   to 3, which leaves two places open today. With no guest let in, `/site/` offers no **Explore the
+   demo** (it shows it only while guests can sign up and are let in): in a fresh browser, check it
+   is gone, then open the address it leads to,
+   `/signin?next=%2Fdemo%3Flanding%3D%2F%26button%3Dexplore`, as someone holding an old link would,
+   and sign in as `waiting`. *Expect:* the waiting page, "WhatBuild isn’t letting guests in right
+   now", with **Start your own organization** as a link. Following it opens the Welcome form.
+   Starting the organization opens the product's Idea, not the waiting page, and moving to Evidence
+   and back stays in the app. Riley then sets Guests in at once back to what it was.
 7. **Web, from `/site/`, as `new3@example.com` and, in a second browser, `new4@example.com`.** Each
    presses Start using WhatBuild and signs in. *Expect:* both see the Welcome form. `new3` fills it
    in and starts their organization, which takes the day's last place. Then `new4`, whose form is
@@ -137,7 +143,8 @@ new person whose mail still reaches you; delete each such account afterwards in 
 - Start using WhatBuild leading anywhere that is not one of: Welcome, the overview with the line saying the
   organization is on its way, or the form at the end of the page.
 - Explore the demo leading anywhere after sign-in but the demo's product (or, while no guest is let
-  in, the waiting page), or a screen that waits on "Opening the demo…".
+  in and its address is opened directly, the waiting page), or a screen that waits on "Opening the
+  demo…".
 - Someone in line who is never told, two people given the same place, or more organizations
   started on the day's places than the number.
 - A place used by someone who only opened the Welcome form: an allowance given by "New

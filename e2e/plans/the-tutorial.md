@@ -84,7 +84,10 @@ as a person arrives, never by opening a product's address.
    item in the account menu. **Below 1024 wide (1023 × 768), as someone not yet offered it (Sam):**
    no welcome and no item. At 1024 wide, the welcome. With a tutorial up at 1100 wide, narrow the
    window to 900. *Expect:* it closes, with the toast "The tutorial is in your account menu.";
-   widened again, the menu offers it.
+   widened again, the account menu offers the tutorial of the page on screen, not the one that
+   closed: **Take the Idea tutorial** on a product's Idea, and **Take the WhatBuild tutorial** only
+   on a screen without a tutorial of its own (any but a product's Idea, Evidence, Exploration and
+   Story), such as the overview or Activity.
 10. **Web, as a guest of the example organization, in dark.** Sign in with a new address and wait
     on the screen you land on. *Expect:* the welcome there, before any click. Press Not now.
     *Expect:* it flies into the account button, and the toast says the tutorial is in the account
@@ -115,10 +118,15 @@ as a person arrives, never by opening a product's address.
     reload. *Expect:* no welcome; Idea's own tutorial starts, since the welcome closed on Idea leaves
     it for the next visit. Close it, and open a product of the example. *Expect:* no welcome there
     either.
-13. **Web, as another new guest, from Explore the demo on `/site/`.** Sign in from there. *Expect:*
-    the demo's Idea, and the welcome over it before any click. Press Start the tutorial. *Expect:*
-    the WhatBuild tutorial begins there, on the product's own content, and ends on the "No agent
-    connected" seat; Idea's own tutorial does not start after it until Idea is opened again.
+13. **Web, as another new guest, from Explore the demo on `/site/`.** First, as Riley, in Instance
+    admin → Guests, turn on **Anyone can sign up as a guest** if it is off, and keep **Guests in at
+    once** above 0: the golden master serves with sign-up as a guest off, and `/site/` offers
+    Explore the demo only while guests can sign up and are let in. Open `/site/` in a fresh browser
+    (the site's settings may be kept for a few minutes) and sign in from Explore the demo.
+    *Expect:* the demo's Idea, and the welcome over it before any click. Press Start the tutorial.
+    *Expect:* the WhatBuild tutorial begins there, on the product's own content, and ends on the
+    "No agent connected" seat; Idea's own tutorial does not start after it until Idea is opened
+    again.
 
 ## Look out for
 

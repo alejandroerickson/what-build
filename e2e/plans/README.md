@@ -38,7 +38,10 @@ example and once more on the first product of their own; after it, each of
 a product's pages starts a short tutorial of its own the first time it is opened. None of the people
 above has been shown any in a fresh copy, nor has any new account. Unless the plan is about the
 tutorials ([`the-tutorial.md`](the-tutorial.md)), press **Turn off tutorials** on the welcome and
-go on: the welcome is expected, not a finding, and off, no page's tutorial interrupts the plan.
+go on: the welcome is expected, not a finding, and off, no page's tutorial interrupts the plan. A
+welcome closed any other way (Not now, Esc) is not offered there again, and each page's own
+tutorial then starts the first time that page is opened, over the screen; it is expected too, and
+**Turn off tutorials** in its foot turns them all off.
 
 A plan never names or quotes the content, which is a copy of production: it says "a product with
 sources", "a word you can see in a source's text", "the archived product", and the agent finds one
