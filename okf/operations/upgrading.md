@@ -64,6 +64,12 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
   Idea, instead of the overview. People who sign in any other way still land on the overview. No
   migration. Behind Cloudflare, deploy the Worker with the release, as always: until then the pages
   it serves still lead to the overview.
+- **A link to the site shows a card** (LinkedIn, X, Slack, iMessage): both landing pages name a
+  social card and a canonical address, and no longer say they are in private preview. Behind
+  Cloudflare, deploy the Worker with the release, as always: the Worker makes the card's address
+  whole, and until it is deployed again, link previews get the pages without a card. Behind any
+  other front, the image does it. A link shared before may keep its old preview on LinkedIn for
+  about a week; its Post Inspector reads the site again ([Cloud Run guide](cloud-run.md)).
 
 ## v0.44.2
 

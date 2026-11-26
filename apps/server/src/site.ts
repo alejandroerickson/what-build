@@ -8,7 +8,7 @@ import type { ServerConfig } from "./config.ts";
 import { pageHeaders, siteCatalogue } from "./public-routes.ts";
 
 /** What the site's own origin serves; any other path there belongs to the app and is sent to it. */
-const SITE_PATHS = new Set(["/", "/plans", "/plans/", "/privacy", "/privacy/", "/what-to-build", "/what-to-build/", "/api/v1/interest", "/api/v1/pressed", "/api/v1/plans", "/favicon.svg", "/theme-boot.js", "/health"]);
+const SITE_PATHS = new Set(["/", "/plans", "/plans/", "/privacy", "/privacy/", "/what-to-build", "/what-to-build/", "/api/v1/interest", "/api/v1/pressed", "/api/v1/plans", "/favicon.svg", "/theme-boot.js", "/social-card.png", "/health"]);
 
 /** The site's pages, by their path on its own domain, and where each is in the build. */
 const SITE_PAGES: Record<string, string> = {
@@ -29,14 +29,21 @@ export const LANDING_BUTTONS = ["explore", "start"] as const;
 /** An attribute's value, written into HTML. */
 const attr = (v: string) => v.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
+/** A page's own address in the build, from the site's root: its canonical link and og:url. */
+const PAGE_ADDRESS = /(<link rel="canonical" href="|<meta property="og:url" content=")\//g;
+/** Its social card's address in the build, from the root: og:image and twitter:image. */
+const CARD_ADDRESS = /(<meta (?:property="og:image"|name="twitter:image") content=")\//g;
+
 /**
  * A page of the site, carrying the deployment's Google Analytics ID for the page to load once a
  * visitor accepts, and what only the deployment knows of its plans, its guests and who runs it
  * (`whatbuild-site`, from `/api/v1/plans`): written in by whoever serves the page, so the page asks
- * the service nothing.
+ * the service nothing. Its own address and its social card's are made whole, since a link preview
+ * (LinkedIn, X, Slack, iMessage) needs the whole address: the page's where the site's pages are
+ * (`pages`), the card's on the origin that serves the build's files (`files`).
  */
-function sitePage(path: string, analyticsId: string | null, site: unknown): string {
-  const page = readFileSync(path, "utf8");
+function sitePage(path: string, analyticsId: string | null, site: unknown, at: { pages: string; files: string }): string {
+  const page = readFileSync(path, "utf8").replace(PAGE_ADDRESS, `$1${at.pages}/`).replace(CARD_ADDRESS, `$1${at.files}/`);
   const head = [
     analyticsId ? `<meta name="whatbuild-analytics" content="${attr(analyticsId)}" />` : "",
     site ? `<meta name="whatbuild-site" content="${attr(JSON.stringify(site))}" />` : "",
@@ -77,12 +84,15 @@ export function siteRoutes(deps: { db: Db; config: ServerConfig }) {
   const appHost = new URL(config.publicBaseUrl).host;
   const ownSite = site && site.host !== appHost ? site : null;
   const dist = config.webDist ? join(resolve(config.webDist), "site") : null;
+  // Where the site's pages are, which their canonical links name, from either origin: its own
+  // domain, or /site/ on the app's without one. Either origin serves the build's files.
+  const at = ownSite ? { pages: ownSite.origin, files: ownSite.origin } : { pages: `${config.publicBaseUrl}/site`, files: config.publicBaseUrl };
 
   /** The site's page at `path` on its own domain, with what only the deployment knows written in; null when the build has no such page. */
   const page = async (path: string) => {
     const file = dist && SITE_PAGES[path] ? join(dist, SITE_PAGES[path]) : null;
     if (!file || !existsSync(file)) return null;
-    return sitePage(file, config.analyticsId, await siteCatalogue(db, config).catch(() => null));
+    return sitePage(file, config.analyticsId, await siteCatalogue(db, config).catch(() => null), at);
   };
   const pageResponse = (html: string) => new Response(html, { status: 200, headers: { ...pageHeaders(Boolean(config.analyticsId)), "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-cache" } });
 

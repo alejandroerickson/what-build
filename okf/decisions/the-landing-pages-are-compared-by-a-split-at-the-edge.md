@@ -27,7 +27,8 @@ only people who accept cookies ([decision](analytics-only-for-people-who-accept-
   can see both pages from an address the split sends to the second (added 2026-11-23). A person
   reading in an app's own browser, LinkedIn's among them, is split like anyone else.
 - The two pages keep their own addresses, so Cloudflare Web Analytics counts each page's visits,
-  every visitor included.
+  every visitor included. The second page's canonical link and `og:url` name `/`, so search engines
+  take the two for one page, and so do link previews that follow `og:url` (added 2026-11-25).
 - Each page says which it is wherever it leads: the form sends `page` (`interest.page` keeps the
   first), and its links to sign in carry `?landing=` and `&button=` (`explore` or `start`), which
   the app sends once a new account is in (`accounts.came_from`, `came_via`).

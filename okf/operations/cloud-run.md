@@ -3,7 +3,7 @@ type: System Concept
 title: WhatBuild runs as one stateless Cloud Run service with Postgres and a Cloud Storage bucket.
 description: What a deployment on Cloud Run is made of, how deploy/cloud-run/setup.sh creates it, sign-in, deploying and restore points before migrating, its alerts and traces, cost, names, and useful commands; backups and the dev deployment have guides of their own.
 tags: [operations, deployment, cloud-run, gcp]
-generated: {by: agent:claude, at: 2026-11-23}
+generated: {by: agent:claude, at: 2026-11-25}
 status: stable
 ---
 
@@ -378,6 +378,14 @@ tells them apart by Host. Put them in front of the service one of three ways:
   take it out and deploy again to end the test. To see both pages from any address,
   open `/what-to-build/` and `/?split=off`, which is the front page whatever side the address is
   on. How to read the result, and how to remove a page, is in [analytics](analytics.md#the-landing-page-funnel).
+
+  **Link previews.** A link to the site shows the social card the landing pages name, with their
+  addresses made whole on `SITE_HOST` by the Worker ([§7.3](../spec/07-web-app.md#73-routes)). The
+  card keeps its address, `/social-card.png`, and LinkedIn keeps what it read of a link for about a
+  week: after a release that changes the card or the pages' titles, give the site's address to
+  LinkedIn's Post Inspector, which reads it again.
+  To see what a scraper reads, ask with its user agent:
+  `curl -sA 'LinkedInBot/1.0' https://example.com/ | grep -E 'og:|twitter:|canonical'`.
 
   **Down for maintenance.** To take the deployment down on purpose (its database is out of reach,
   or a repair needs nobody writing), deploy the Worker as usual with one more setting,
