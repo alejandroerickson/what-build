@@ -67,6 +67,15 @@ const DOC_PLACES = [
   /^\.github\//,
   /^e2e\/plans\/[\w-]+\.md$/,
 ];
+
+/**
+ * Places documents were allowed until the folder moved, each with the day after the move: a commit
+ * made before then may add documents there. The Playbook was first called the OKF, and its starter
+ * was in packages/core/src/okf-starter/ until it became playbook-starter/ on 2026-11-21.
+ */
+const DOC_PLACES_BEFORE = [
+  [/^packages\/core\/src\/okf-starter\/([a-z0-9-]+\/)?[a-z0-9-]+\.md$/, Date.parse("2026-11-22T00:00:00Z")],
+];
 const DOC_EXT = /\.(md|markdown|mdx|txt|log|rst|org)$/i;
 const TEST_DIR = /(^|\/)(test|tests|__fixtures__)\//;
 
@@ -239,7 +248,8 @@ function checkPath(path, where, when = Date.now()) {
   if (!TOP_LEVEL.has(top) && !moved) report(where, "top-level", `a new top-level entry \`${top}\`; the repository keeps a fixed set (TOP_LEVEL in ${SELF})`);
   if (top === ".claude" && ![...CLAUDE_DIR].some((p) => path === p || path.startsWith(`${p}/`)))
     report(where, "agent-local", "a file in .claude/ besides the skills link and CLAUDE.md; local agent settings stay out of the repository");
-  if (DOC_EXT.test(path) && !moved && !DOC_PLACES.some((re) => re.test(path)) && !TEST_DIR.test(path))
+  const before = DOC_PLACES_BEFORE.some(([re, until]) => when < until && re.test(path));
+  if (DOC_EXT.test(path) && !moved && !before && !DOC_PLACES.some((re) => re.test(path)) && !TEST_DIR.test(path))
     report(where, "stray-document", "a document outside okf/ and the places the public-repository decision allows; notes go in _private/");
   checkNever(path, where);
 }

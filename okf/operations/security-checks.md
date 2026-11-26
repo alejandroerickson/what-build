@@ -74,7 +74,7 @@ leaves the machine; CI shows what got past them.
 | `narration` | in commit messages and the text beside the code only: an account of the work in the first person (*I* or *we* checked, tried, found…), a session as the work's context (*the next session*, *this agent session*), or the conversation (*as discussed*, *you asked*) |
 | `top-level` | a top-level file or directory not in `TOP_LEVEL` |
 | `agent-local` | anything in `.claude/` but the link to the skills and `CLAUDE.md`, the link to `AGENTS.md` |
-| `stray-document` | a document (`.md`, `.txt`, `.log`…) outside `playbook/`, `.agents/skills/`, `.github/` (where `SECURITY.md` and `CONTRIBUTING.md` are), `AGENTS.md`, a `README.md`, the web app's `PRODUCT.md` and `DESIGN.md`, the product's guide (`packages/core/src/guide/`) and the Playbook starter it serves (`packages/core/src/playbook-starter/`), the end-to-end test plans in `e2e/plans/` and test folders |
+| `stray-document` | a document (`.md`, `.txt`, `.log`…) outside `okf/`, `.agents/skills/`, `.github/` (where `SECURITY.md` and `CONTRIBUTING.md` are), `AGENTS.md`, a `README.md`, the web app's `PRODUCT.md` and `DESIGN.md`, the product's guide (`packages/core/src/guide/`) and the Playbook starter it serves (`packages/core/src/playbook-starter/`), the end-to-end test plans in `e2e/plans/` and test folders |
 | `never-commit` | `.env` files, `_private/`, `.what-build/`, keys, certificates, database files and dumps, wherever they are |
 | `media` | images, PDFs, office documents, recordings and archives outside `apps/web/public/` and `.github/assets/` (the README's pictures); these are how real data slips in |
 | `large-file` | a file over 1 MB other than `pnpm-lock.yaml` and the README's animated tour, `.github/assets/whatbuild.gif` |
@@ -85,7 +85,12 @@ Content and secret rules hold for every commit ever published. The placement rul
 holds the script: earlier history kept documents in other places. The entries the root gave up for
 folders on 2026-10-24 (`SECURITY.md`, `CLAUDE.md`, `DESIGN.md`, `PRODUCT.md`, `.impeccable/`,
 `Dockerfile`, `cloudbuild.yaml`, `.githooks/`) are allowed at the root in commits made before
-2026-10-26 (`MOVED_FROM_TOP_LEVEL`). `identity`, `session-link` and
+2026-10-26 (`MOVED_FROM_TOP_LEVEL`). The Playbook was first called the OKF, and its starter's
+documents are allowed in their first folder, `packages/core/src/okf-starter/`, in commits made
+before 2026-11-22 (`DOC_PLACES_BEFORE`). When an allowed folder of documents moves, its old path
+goes into `DOC_PLACES_BEFORE` in the same change, with the day after the move: the branches and
+pull request refs that still hold it are published commits too, and the weekly check of every one
+fails on them otherwise. `identity`, `session-link` and
 `narration` hold for what was published from 2026-10-24, the day they were added. What came
 before was audited by hand that day, and what it found stays: a personal address as the author of
 commits up to 2026-10-01, one session link, and first-person lines in two pull requests. None of
