@@ -1,6 +1,6 @@
 import { createHash, randomBytes } from "node:crypto";
 import { request } from "node:http";
-import { PERMISSIONS_POLICY, prototypePath, prototypeWarnings, requestedPrototypePath } from "@whatbuild/core";
+import { CANVAS_LOAD_BYTES, PAGE_LOAD_BYTES, PAGE_LOAD_FILES, PERMISSIONS_POLICY, prototypePath, prototypeWarnings, readPrototype, requestedPrototypePath } from "@whatbuild/core";
 import { strFromU8, strToU8, unzipSync, Zip, ZipPassThrough, zipSync } from "fflate";
 import { sql } from "kysely";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -557,6 +557,52 @@ describe("prototype paths and warnings", () => {
     expect(prototypeWarnings([{ path: "a.html", media_type: "text/html; charset=utf-8", data: html }])).toEqual([
       "a.html uses sessionStorage, indexedDB, document.cookie: unavailable in WhatBuild's sandbox, and each throws; guard them or remove them.",
     ]);
+  });
+
+  it("counts what each document loads each time a frame opens it, its stylesheets' files too", () => {
+    const file = (path: string, media_type: string, data: string | Uint8Array) => ({ path, media_type, data: typeof data === "string" ? strToU8(data) : data });
+    const doc = file("index.html", "text/html; charset=utf-8", '<!doctype html><link rel="stylesheet" href="app.css"><script src="a.js"></script><script src="a.js"></script><img src="i.png">');
+    const files = [doc, file("app.css", "text/css", "@font-face { font-family: F; src: url(f.woff2) }"), file("f.woff2", "font/woff2", new Uint8Array(10)), file("a.js", "text/javascript", "void 0;"), file("i.png", "image/png", new Uint8Array(20))];
+    const load = readPrototype(files).loads.get("index.html")!;
+    expect(load.files).toBe(4);
+    expect(load.bytes).toBe(doc.data.length + files.slice(1).reduce((n, f) => n + f.data.length, 0));
+  });
+
+  it("refuses a page whose document loads too much to show at once, and a canvas whose pages load too much together", async () => {
+    const scripts = Object.fromEntries(Array.from({ length: PAGE_LOAD_FILES + 1 }, (_, i) => [`prototype/js/${i}.js`, "void 0;"]));
+    const many = `<!doctype html>${Object.keys(scripts).map((k) => `<script src="${k.slice("prototype/".length)}"></script>`).join("")}`;
+    const pages = ["a", "b", "c", "d"].map((id) => ({ page_id: id, title: id.toUpperCase(), entry: `app.html?screen=${id}` }));
+    const heavy = await alice.api("POST", `${P}/mockups`, {
+      upload_id: await upload(alice, P, { "manifest.json": manifest([...pages, { page_id: "light", title: "Light", entry: "light.html" }]), "brief.md": "Heavy", "prototype/app.html": many, ...scripts, "prototype/light.html": "<p>Light</p>" }),
+    });
+    expect(heavy.status).toBe(422);
+    expect(heavy.body.error.details.problems).toEqual([
+      `app.html, which 4 pages enter (a, b, c, …), loads ${PAGE_LOAD_FILES + 1} files, 1 KB with itself, each time a page's frame opens it; a page loads at most ${PAGE_LOAD_FILES} files and 1.0 MB, so that it shows at once.`,
+      'Each page loads its document and all it loads afresh, so a prototype entered by many pages costs its whole weight for each. guide(topic="mockups"), under What a page loads, describes the ways a heavy prototype comes within these limits (bundling and trimming it, a document for each screen, a page of its own for each screen, fewer pages) and what each changes for the people who view the canvas.',
+    ]);
+    // Each page is light enough, but every page's frame fetches it again, and together they are too much.
+    const big = "x".repeat(PAGE_LOAD_BYTES - 64 * 1024);
+    const count = Math.floor(CANVAS_LOAD_BYTES / big.length) + 1;
+    const together = await alice.api("POST", `${P}/mockups`, {
+      upload_id: await upload(alice, P, {
+        "manifest.json": manifest(Array.from({ length: count }, (_, i) => ({ page_id: `s${i}`, title: `S${i}`, entry: `screen.html?n=${i}` }))),
+        "brief.md": "Together",
+        "prototype/screen.html": '<!doctype html><script src="data.js"></script>',
+        "prototype/data.js": `window.d="${big}"`,
+      }),
+    });
+    expect(together.status).toBe(422);
+    expect(together.body.error.details.problems[0]).toMatch(/^The pages load 1[23]\.\d MB together, each page's frame fetching its document and all it loads; a canvas's pages load at most 12\.0 MB, so that it opens in a few seconds\.$/);
+    // One page fewer fits.
+    const fits = await alice.api("POST", `${P}/mockups`, {
+      upload_id: await upload(alice, P, {
+        "manifest.json": manifest(Array.from({ length: count - 1 }, (_, i) => ({ page_id: `s${i}`, title: `S${i}`, entry: `screen.html?n=${i}` }))),
+        "brief.md": "Fits",
+        "prototype/screen.html": '<!doctype html><script src="data.js"></script>',
+        "prototype/data.js": `window.d="${big}"`,
+      }),
+    });
+    expect(fits.status, JSON.stringify(fits.body)).toBe(201);
   });
 
   it("masks a prototype's and a document's address in the server's log, and the app frames a content site's prototypes and documents only", () => {

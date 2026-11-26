@@ -29,7 +29,7 @@ It writes only files it makes itself, in products of the standard organization.
    and read `guide(topic="playbook")`. *Expect:* `playbook_read` and `playbook_write`, and no `playbook_delete`. The
    server's instructions and `guide(topic="start")` say WhatBuild is used through each product's
    Playbook by those who work on it, and that someone who only reads a product's Story does not
-   reach it. Every answer gives `tools_version` 0.72.0. `products_read(action="get")` on the product
+   reach it. Every answer gives `tools_version` 0.73.0. `products_read(action="get")` on the product
    gives `playbook` with `read_first` (titles and descriptions), `by_area`, and how many files it holds.
    `playbook_read(action="index")` lists the starter (`using-this-playbook.md`, four files under `how-to/` and
    two under `product/`), each at revision 0 and marked `from_starter`, with `index_md`.

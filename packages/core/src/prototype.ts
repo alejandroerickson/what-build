@@ -28,6 +28,22 @@ export const PROTOTYPE_GRANT_PURPOSE = "prototype";
 export const PROTOTYPE_ROUTE = "/prototypes";
 /** The most warnings publish lists; past it, one line says how many more there were. */
 const MAX_WARNINGS = 100;
+/**
+ * What a canvas's pages may load, which publish holds an uploaded prototype to. A frame keeps
+ * nothing between loads (an opaque origin's loads are not cached), so each time a page opens its
+ * frame fetches again everything its document loads, and every page of a canvas loads at once.
+ * A page loads at most PAGE_LOAD_FILES files and PAGE_LOAD_BYTES with its document, so it shows at
+ * once, and a canvas's pages together at most CANVAS_LOAD_BYTES, so it opens in a few seconds.
+ */
+export const PAGE_LOAD_FILES = 20;
+export const PAGE_LOAD_BYTES = 1024 * 1024;
+export const CANVAS_LOAD_BYTES = 12 * 1024 * 1024;
+
+/** What a document of a prototype loads each time a frame opens it: the files, and their bytes with its own. */
+export interface DocumentLoad {
+  files: number;
+  bytes: number;
+}
 
 const UNSAFE_CHARS = /[\\:*?"<>|#\u0000-\u001f\u007f]/;
 
@@ -255,24 +271,35 @@ const RESOURCE_ATTRS = new Set(["src", "poster", "data"]);
  * use browser storage or cookies, which the sandbox does not have. Each names its file.
  */
 export function prototypeWarnings(files: { path: string; media_type: string; data: Uint8Array }[]): string[] {
+  return readPrototype(files).warnings;
+}
+
+/**
+ * A prototype read once: its warnings (prototypeWarnings), and what each of its HTML documents
+ * loads each time a frame opens it (counting what its stylesheets load), which publish holds the
+ * pages that enter it to.
+ */
+export function readPrototype(files: { path: string; media_type: string; data: Uint8Array }[]): { warnings: string[]; loads: Map<string, DocumentLoad> } {
   const held = new Set(files.map((f) => f.path));
+  const byPath = new Map(files.map((f) => [f.path, f]));
   const out = new Set<string>();
   const add = (w: string) => out.add(w);
   const dirOf = (path: string) => (path.includes("/") ? path.slice(0, path.lastIndexOf("/") + 1) : "");
 
-  const checkAddress = (file: string, raw: string, kind: "load" | "link") => {
+  /** Checks an address, and gives the file it loads when the prototype holds it. */
+  const checkAddress = (file: string, raw: string, kind: "load" | "link"): string | null => {
     const u = raw.trim();
-    if (!u || /^(#|data:|blob:|javascript:|mailto:|tel:|about:)/i.test(u)) return;
+    if (!u || /^(#|data:|blob:|javascript:|mailto:|tel:|about:)/i.test(u)) return null;
     if (u.startsWith("//") || /^[a-z][a-z0-9+.-]*:/i.test(u)) {
       if (kind === "load") add(`${file} loads ${u.slice(0, 120)}, from elsewhere: a prototype has no network, so it will not load.`);
-      return;
+      return null;
     }
     if (u.startsWith("/")) {
       add(`${file} names ${u.slice(0, 120)}, a root-relative address, which points outside the prototype and will not ${kind === "load" ? "load" : "open"}: build with a relative base (./).`);
-      return;
+      return null;
     }
     const pathPart = u.split(/[?#]/)[0]!;
-    if (!pathPart) return;
+    if (!pathPart) return null;
     const segments = (dirOf(file) + pathPart).split("/");
     const resolved: string[] = [];
     for (const seg of segments) {
@@ -283,13 +310,44 @@ export function prototypeWarnings(files: { path: string; media_type: string; dat
     try {
       target = resolved.map((s) => decodeURIComponent(s)).join("/").normalize("NFC");
     } catch {
-      return;
+      return null;
     }
     if (target.endsWith("/") || target === "") target += "index.html";
-    if (!held.has(target)) add(`${file} names ${u.slice(0, 120)}, which the prototype does not hold.`);
+    if (!held.has(target)) {
+      add(`${file} names ${u.slice(0, 120)}, which the prototype does not hold.`);
+      return null;
+    }
+    return kind === "load" ? target : null;
   };
-  const checkCss = (file: string, css: string) => {
-    for (const m of css.matchAll(CSS_URL)) checkAddress(file, m[2] ?? m[3] ?? m[5] ?? "", "load");
+  /** Checks a stylesheet's addresses, and gives the files it loads. */
+  const checkCss = (file: string, css: string): string[] => {
+    const loads: string[] = [];
+    for (const m of css.matchAll(CSS_URL)) {
+      const target = checkAddress(file, m[2] ?? m[3] ?? m[5] ?? "", "load");
+      if (target) loads.push(target);
+    }
+    return loads;
+  };
+  // What each stylesheet loads, read once however many documents link it.
+  const cssLoads = new Map<string, string[]>();
+  const loadsOfCss = (path: string): string[] => {
+    let loads = cssLoads.get(path);
+    if (!loads) {
+      const f = byPath.get(path)!;
+      loads = f.media_type.startsWith("text/css") ? checkCss(path, LENIENT_UTF8.decode(f.data)) : [];
+      cssLoads.set(path, loads);
+    }
+    return loads;
+  };
+  const weights = new Map<string, DocumentLoad>();
+  /** What a document loads: the files it names, those its stylesheets name, and their bytes with its own. */
+  const weigh = (doc: { path: string; data: Uint8Array }, direct: Set<string>) => {
+    const loads = new Set(direct);
+    for (const path of direct) for (const more of loadsOfCss(path)) loads.add(more);
+    loads.delete(doc.path);
+    let bytes = doc.data.length;
+    for (const path of loads) bytes += byPath.get(path)!.data.length;
+    weights.set(doc.path, { files: loads.size, bytes });
   };
   const checkScript = (text: string, found: Set<string>) => {
     for (const [name, re] of STATE_APIS) if (re.test(text)) found.add(name);
@@ -312,18 +370,22 @@ export function prototypeWarnings(files: { path: string; media_type: string; dat
         continue;
       }
       const found = new Set<string>();
+      const loads = new Set<string>();
+      const loading = (target: string | null) => {
+        if (target) loads.add(target);
+      };
       const walk = (n: Node) => {
         const tag = n.tagName?.toLowerCase();
         if (tag) {
           for (const a of n.attrs ?? []) {
             const name = a.name.toLowerCase();
-            if (RESOURCE_ATTRS.has(name) || (name === "href" && (tag === "link" || tag === "image" || tag === "use")) || name === "xlink:href") checkAddress(f.path, a.value, "load");
-            else if (name === "srcset") for (const part of a.value.split(",")) checkAddress(f.path, part.trim().split(/\s+/)[0] ?? "", "load");
+            if (RESOURCE_ATTRS.has(name) || (name === "href" && (tag === "link" || tag === "image" || tag === "use")) || name === "xlink:href") loading(checkAddress(f.path, a.value, "load"));
+            else if (name === "srcset") for (const part of a.value.split(",")) loading(checkAddress(f.path, part.trim().split(/\s+/)[0] ?? "", "load"));
             else if (name === "href" && tag === "a") checkAddress(f.path, a.value, "link");
-            else if (name === "style") checkCss(f.path, a.value);
+            else if (name === "style") checkCss(f.path, a.value).forEach(loading);
             if (name.startsWith("on") || /^\s*javascript:/i.test(a.value)) checkScript(a.value, found);
           }
-          if (tag === "style") checkCss(f.path, (n.childNodes ?? []).map((c) => c.value ?? "").join(""));
+          if (tag === "style") checkCss(f.path, (n.childNodes ?? []).map((c) => c.value ?? "").join("")).forEach(loading);
           if (tag === "script") checkScript((n.childNodes ?? []).map((c) => c.value ?? "").join(""), found);
         }
         for (const c of n.childNodes ?? []) walk(c);
@@ -331,8 +393,9 @@ export function prototypeWarnings(files: { path: string; media_type: string; dat
       };
       walk(doc);
       reportState(f.path, found);
+      weigh(f, loads);
     } else if (type.startsWith("text/css")) {
-      checkCss(f.path, LENIENT_UTF8.decode(f.data));
+      loadsOfCss(f.path);
     } else if (type.startsWith("text/javascript")) {
       const found = new Set<string>();
       checkScript(LENIENT_UTF8.decode(f.data), found);
@@ -340,5 +403,5 @@ export function prototypeWarnings(files: { path: string; media_type: string; dat
     }
   }
   const all = [...out];
-  return all.length > MAX_WARNINGS ? [...all.slice(0, MAX_WARNINGS), `…and ${all.length - MAX_WARNINGS} more.`] : all;
+  return { warnings: all.length > MAX_WARNINGS ? [...all.slice(0, MAX_WARNINGS), `…and ${all.length - MAX_WARNINGS} more.`] : all, loads: weights };
 }

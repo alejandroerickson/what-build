@@ -3,7 +3,7 @@ type: Decision
 title: A canvas whose pages link can be viewed as a clickable prototype, and there is no separate kind of mockup
 description: Pages link with ordinary relative links; the board flies to a linked page, the clickable view shows one page at a time, and a canvas downloads whole as a ZIP or one page at a time.
 tags: [decision, mockups, prototype, sandbox, web, agents, export]
-generated: {by: agent:claude, at: 2026-11-02}
+generated: {by: agent:claude, at: 2026-11-26}
 status: stable
 ---
 
@@ -31,7 +31,9 @@ single-file HTML export (a multi-file prototype cannot be flattened into one doc
   `publish` names links to Story pages a reader can't open (`links_to_no_page`), so an agent that
   links as it is told hears of every link that would lead a reader nowhere.
 - **The clickable view** (`?view=clickable`) shows one page at a time, inside WhatBuild with its
-  rails, starting at the first page. A link changes the page in place and opens it afresh.
+  rails, starting at the first page. A link changes the page in place, at once: every page loads
+  behind the one on show, in turns, and a page a person used opens afresh behind the others once it
+  is left ([decision](a-canvas-loads-light-pages-in-turns-and-shows-a-page-at-once.md)).
 - **It is on offer where links exist:** a page links to another, or enters a prototype. Elsewhere it
   is disabled, with a request to copy for an agent. A canvas of one page has no View control.
 - **One way to each thing.** View and the whole canvas's download are in the inspector; moving between

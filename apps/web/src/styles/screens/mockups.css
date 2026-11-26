@@ -195,6 +195,30 @@
 .xc-frame:not([data-greeted]) iframe {
   pointer-events: none;
 }
+/* Nor is it drawn: until then the page's sheet says it is loading, so a page never shows white or
+   half drawn. The mark and its word are at the page's own scale. */
+.xc-frame:not([data-greeted]) iframe {
+  opacity: 0;
+}
+.xc-loading {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  margin: 0;
+  background: var(--panel);
+  color: var(--muted);
+  pointer-events: none;
+}
+.xc-loading .status {
+  gap: 0.4em;
+  font-weight: var(--fw-regular);
+}
+.xc-loading .status-mark {
+  width: 0.7em;
+  height: 0.7em;
+  border-width: 0.1em;
+}
 /* The selected page: the one place the accent appears on the board. Its outline sits over the page
    at screen size, so it keeps its width at any zoom. */
 .xc-ring {
