@@ -102,8 +102,10 @@ Four things keep a tab from hearing what it may not know, each holding if anothe
 - Nothing tells someone signed out, or outside an organization, whether an address has an
   account. The sign-in form answers every address alike, at the same speed and under the same
   hourly limits, and mails a link only to one that may sign in. The hour's mail counts only what is
-  mailed, and once it is used refuses every address alike; an invite-only refusal is shown only
-  after a sign-in proves the address is the person's. Giving a role invites anyone the giver does
+  mailed, and once it is used refuses every address alike; a link that is not mailed locks its
+  count as one that is, so under a burst both wait alike (`abuse-limits.test.ts` holds the count
+  and times both). An invite-only refusal is shown only after a sign-in proves the address is the
+  person's. Giving a role invites anyone the giver does
   not already see in the organization, account or not, with the same answer either way
   ([decision](../decisions/a-role-is-given-at-once-only-to-someone-already-seen-in-the-organization.md)).
   `apps/server/test/guests.test.ts` and `members.test.ts` compare the answers.

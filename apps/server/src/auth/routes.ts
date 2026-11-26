@@ -196,7 +196,8 @@ export function authRoutes(deps: { db: Db; config: ServerConfig; mailer: Mailer 
     // nor the client's limit says whether an address may sign in; one that may not is never sent,
     // and opening it would be refused all the same. The hour's mail counts only a link that is
     // mailed, so a script naming addresses nobody mails cannot use it up; once it is used, every
-    // address is refused alike.
+    // address is refused alike. Both lock the hour's row until the link is stored (`hasRoom` takes
+    // nothing from it), so under a burst they wait alike and their speed says nothing either.
     const token = randomToken();
     const keys = clientKeys(address, config.grantKey);
     await db.transaction().execute(async (trx) => {

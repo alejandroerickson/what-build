@@ -3,7 +3,7 @@ import type { AddressInfo } from "node:net";
 import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { abuseLimitsFrom, DEFAULT_ABUSE_LIMITS, listenToAbuseLog, pruneAbuseCounters, type AbuseLimits } from "@whatbuild/core";
+import { abuseLimitsFrom, DEFAULT_ABUSE_LIMITS, listenToAbuseLog, pruneAbuseCounters, windowOf, type AbuseLimits } from "@whatbuild/core";
 import { sql } from "kysely";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { CLIENT_ADDRESS_HEADER, CLIENT_SEAL_HEADER, clientKeys, clientOf, ipv6BlockOf, namedBy } from "../src/client-address.ts";
@@ -344,6 +344,42 @@ describe("a sign-in link for an address that may not sign in", () => {
     expect(await askLink(h, "203.0.113.133", "unlisted-7@example.com")).toMatchObject({ status: 429, limit: "mail_per_hour" });
     await expect.poll(() => h.mailer.sent.length).toBe(3);
     expect(h.mailer.sent.map((m) => m.to).sort()).toEqual(["team-a@example.com", "team-b@example.com", "team-c@example.com"]);
+  });
+});
+
+describe("a sign-in link while another is taking from the hour's mail", () => {
+  let h: Harness;
+  beforeAll(roomInTheHour, AT_MOST_A_MINUTE);
+  beforeAll(async () => {
+    h = await startHarness({ edgeKey: KEY, signupAllowlist: ["team-e@example.com"], abuseLimits: limits({ mail_per_hour: 10 }) });
+  });
+  afterAll(async () => h?.close());
+
+  it("waits alike for an address that may sign in and one that may not, so how long it takes never says which", async () => {
+    // The hour's mail held, as a link that is mailed holds it in its transaction until it is stored.
+    const { starts_at } = windowOf("hour");
+    await sql`insert into abuse_counters (name, subject, starts_at, n) values ('mail_per_hour', '', ${starts_at}, 0) on conflict do nothing`.execute(h.db);
+    let released = 0;
+    let holding = () => {};
+    const held = new Promise<void>((r) => (holding = r));
+    const hold = h.db.transaction().execute(async (trx) => {
+      await sql`select n from abuse_counters where name = 'mail_per_hour' and subject = '' and starts_at = ${starts_at} for update`.execute(trx);
+      holding();
+      await new Promise((r) => setTimeout(r, 600));
+      released = Date.now();
+    });
+    await held;
+    const answered = async (from: string, email: string) => ({ status: (await askLink(h, from, email)).status, at: Date.now() });
+    const [member, stranger] = await Promise.all([answered("203.0.113.140", "team-e@example.com"), answered("203.0.113.141", "unlisted-8@example.com")]);
+    await hold;
+    expect([member.status, stranger.status]).toEqual([200, 200]);
+    // Neither answered while the row was held: the one that is mailed and the one that is not queue alike.
+    expect(member.at).toBeGreaterThanOrEqual(released);
+    expect(stranger.at).toBeGreaterThanOrEqual(released);
+    await expect.poll(() => h.mailer.sent.map((m) => m.to)).toEqual(["team-e@example.com"]);
+    // Only the link that was mailed took from the hour.
+    const row = await h.db.selectFrom("abuse_counters").select("n").where("name", "=", "mail_per_hour").where("starts_at", "=", starts_at).executeTakeFirst();
+    expect(Number(row?.n)).toBe(1);
   });
 });
 

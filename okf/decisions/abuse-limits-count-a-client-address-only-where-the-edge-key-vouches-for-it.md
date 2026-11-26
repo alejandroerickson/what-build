@@ -56,6 +56,8 @@ limited new accounts once sign-up opens.
   hour's mail counts what is mailed, and once it is used refuses every address alike: counting a
   link that is never sent let a script that sends nothing fill it, and stop everyone's sign-in links
   and invitations for the hour, where before the limits a link for a stranger did nothing at all.
+  A link that is not mailed still locks the hour's count as one that is, adding nothing, so both
+  wait alike behind other requests and their speed does not tell them apart.
   New accounts for people someone let in (the allowlist, an instance owner, an allowance, an
   invitation) are never counted, so a flood cannot keep out the people a team invited, and a new
   account refused gives its sign-in link back, to be pressed again from another network.

@@ -104,17 +104,21 @@ export type Spent = { ok: true; n: number; filled: boolean } | { ok: false; limi
  * for the deployment), or refuse when that would pass the limit, adding nothing. Run in a
  * transaction, a later refusal in the same transaction gives it back; the row stays locked until
  * that transaction ends, so a deployment's ceiling is taken from in a short transaction of its own,
- * never one that waits for anything else (a mail server). A limit turned off always allows.
+ * never one that waits for anything else (a mail server). A limit turned off always allows. Taking
+ * 0 asks for room for one, as `hasRoom` does.
  */
 export async function spend(db: Db, name: WindowedLimitName, subject: string, limits: AbuseLimits, by = 1, now = new Date()): Promise<Spent> {
   const limit = limits[name];
   const { starts_at, resets_at } = windowOf(ABUSE_LIMITS[name].window, now);
   if (limit === null) return { ok: true, n: 0, filled: false };
-  if (by > limit) return { ok: false, limit, resets_at };
+  const room = Math.max(by, 1);
+  if (room > limit) return { ok: false, limit, resets_at };
+  // Refused or not, an upsert that meets the row locks it until the transaction ends (Postgres locks
+  // a conflicting row even when the update's condition leaves it as it was).
   const row = await db
     .insertInto("abuse_counters")
     .values({ name, subject, starts_at, n: by })
-    .onConflict((oc) => oc.columns(["name", "subject", "starts_at"]).doUpdateSet({ n: sql<number>`abuse_counters.n + excluded.n` }).where(sql<boolean>`abuse_counters.n + excluded.n <= ${limit}`))
+    .onConflict((oc) => oc.columns(["name", "subject", "starts_at"]).doUpdateSet({ n: sql<number>`abuse_counters.n + excluded.n` }).where(sql<boolean>`abuse_counters.n + ${room} <= ${limit}`))
     .returning("n")
     .executeTakeFirst();
   if (!row) return { ok: false, limit, resets_at };
@@ -127,15 +131,13 @@ export async function spend(db: Db, name: WindowedLimitName, subject: string, li
 /**
  * Whether a limit's window has room for one more, adding nothing: for a request a limit counts only
  * when it does what the limit counts (a sign-in link is counted against the hour's mail only when it
- * is mailed), so that once the window is used it is refused alike with the ones counted.
+ * is mailed), so that once the window is used it is refused alike with the ones counted. It is
+ * `spend` taking 0, so it locks the row as `spend` does, until the transaction ends: a request that
+ * is counted and one that is not wait alike behind the others, and how long either takes never says
+ * which it was.
  */
 export async function hasRoom(db: Db, name: WindowedLimitName, subject: string, limits: AbuseLimits, now = new Date()): Promise<Spent> {
-  const limit = limits[name];
-  const { starts_at, resets_at } = windowOf(ABUSE_LIMITS[name].window, now);
-  if (limit === null) return { ok: true, n: 0, filled: false };
-  const row = await db.selectFrom("abuse_counters").select("n").where("name", "=", name).where("subject", "=", subject).where("starts_at", "=", starts_at).executeTakeFirst();
-  const n = Number(row?.n ?? 0);
-  return n < limit ? { ok: true, n, filled: false } : { ok: false, limit, resets_at };
+  return spend(db, name, subject, limits, 0, now);
 }
 
 /** A client, as the limits per client count it: its address's keyed hash, and, for an IPv6 address, its /48's. */
