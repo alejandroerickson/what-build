@@ -18,26 +18,31 @@ other plans will too.
    organization, each with the same live products, and the synthetic organization, where Sam reads
    one product's Story; no archived product is among them.
 2. **Web, as Sam, in the standard organization.** Open a product that has sources and visit each
-   section from the panel: Idea, Evidence, Exploration (mockups), Story, Activity,
-   and Settings, with each section it lists; open Connect an agent from the empty seat (or Settings
-   → Agents once an agent is connected); and search from the panel's Search field. Open one
-   item in each list that has any: a source, a mockup, a Story page. *Expect:* each
-   screen loads with content or a designed empty state, and no command prints a `!` problem.
-   Settings opens over the screen it was opened on and closes back onto it (Esc, the close button,
-   or the scrim), leaving the address as it was. With no agent connected, Idea opens on **Connect
-   your agent**, above the product concept: "Not connected yet" at its right, a choice of Claude,
-   Claude Code or Another agent, and four numbered steps for the one chosen, the first with
-   `/mcp` (for Claude Code, the `claude mcp add` command for it) and Copy; the choice is still
-   made after a reload. The panel's seat says only "No agent connected", with Connect an agent.
-   Connect an agent in Settings gives the same choice and steps, opening on the agent chosen on
-   Idea: `/mcp` first for Claude or Another agent, and the `claude mcp add` command (with `/mcp`
-   in it) for Claude Code. **Limit this agent to one organization or product** is closed; opening
-   it and choosing **One product** gives this product's address in the first step, and closing it
-   gives the unscoped `/mcp` address again.
+   section from the panel: Idea, Evidence, Exploration (mockups), Story, Activity, and Settings,
+   with each section it lists; open Connect an agent from the empty seat (or Settings → Agents once
+   an agent is connected); and search from the panel's Search field. Open one item in each list
+   that has any: a source, a mockup, a Story page. If a page's own tutorial starts as you arrive
+   (the welcome was closed without turning tutorials off; see the
+   [README](README.md#what-a-plan-runs-on)), press **Turn off tutorials** in it: Idea's covers
+   Connect your agent while it runs. *Expect:* each screen loads with content or a designed empty
+   state, and no command prints a `!` problem. Settings opens over the screen it was opened on and
+   closes back onto it (Esc, the close button, or the scrim), leaving the address as it was. With
+   no agent connected, Idea opens on **Connect your agent**, above the product concept: "Not
+   connected yet" at its right, a choice of Claude, Claude Code or Another agent, and four numbered
+   steps for the one chosen, the first with `/mcp` (for Claude Code, the `claude mcp add` command
+   for it) and Copy; the choice is still made after a reload. The panel's seat says only "No agent
+   connected", with Connect an agent. Connect an agent in Settings gives the same choice and steps,
+   opening on the agent chosen on Idea: `/mcp` first for Claude or Another agent, and the
+   `claude mcp add` command (with `/mcp` in it) for Claude Code. **Limit this agent to one
+   organization or product** is closed; opening it and choosing **One product** gives this
+   product's address in the first step, and closing it gives the unscoped `/mcp` address again.
 3. **Web, as Sam, in the example organization.** Open the same product and repeat a short tour:
-   Idea, Evidence, a source, Story. *Expect:* the same content as in step 2, and one line above
-   each screen saying it is the example organization and that everyone who signs in sees what its
-   authors change.
+   Idea, Evidence, a source opened from this Evidence's own list, Story. The example holds the
+   standard organization's content under other ids, so a source's own page from step 2
+   (`…/evidence/<id>`) put under the example's path rightly says "Source not found", and a
+   preview's address (`…/evidence?source=<id>`) opens the list with no preview. *Expect:* the same
+   content as in step 2, and one line above each screen saying it is the example organization and
+   that everyone who signs in sees what its authors change.
 4. **Web, as Sam.** On a source, open each of its sections, Text, Notes, Comments and Attachments,
    then search for a word you can see in its text and seldom elsewhere in the product, from the
    panel's Search field. *Expect:* the search finds the source as you type, saying the word is in

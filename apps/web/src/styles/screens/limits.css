@@ -171,6 +171,13 @@
   font-size: var(--fs-sm);
   line-height: var(--lh-body);
 }
+/* The line under a sheet's head saying what its table is read through: its rule spans the sheet, as
+   the table's do, while its words keep the foot's measure. */
+.limits-lead {
+  max-width: none;
+  padding-right: max(var(--sheet-px), calc(100% - var(--measure) - var(--sheet-px)));
+  border-bottom: 1px solid var(--line);
+}
 @media (max-width: 760px) {
   /* A table's row becomes a block: its name, then its cells two to a line, each named. */
   .limits-table,

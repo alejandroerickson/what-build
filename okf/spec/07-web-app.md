@@ -1846,10 +1846,15 @@ never described as deleting. A list row showing an archived object says *Archive
   (mockups, Story pages, the Playbook's files and size), next to what the deployment's
   configuration sets, saved under the plan's etag (`products.set_plan_limits`) for every
   organization on it, with **Back to the configured limits**. Then **Limits of the** plan of one of
-  the owner's own organizations (one row each: what it counts and over what, what it allows, what
-  is used, the refusal a call over it gets; on Unlimited, **None** but for what a product holds, at
-  its defaults) and **Limits of this deployment**, with what sets each, which are the same for
-  every organization; an owner in no organization of their own has the plans side by side only.
+  the owner's own organizations, under a line naming that organization and its plan and saying that
+  what is used is counted in it (one row each: what it counts and over what, what it allows, what
+  is used, the refusal a call over it gets; on Unlimited, or a plan the deployment no longer defines,
+  headed by the Unlimited plan, whose line says, in the words the organization's Plan page uses and
+  with the numbers its rows allow, that nothing people and their agents do and no number of mockups
+  or Story pages is limited, so those rows read **None**, and what the Playbook and the versions of a
+  mockup or Story page keep to) and **Limits of this deployment**, with what sets each, which are the
+  same for every organization; an owner in no organization of their own has the plans side by side
+  only.
   - **Guests** (`/admin/guests`, where the deployment has an example organization): what a guest is, a badge for whether anyone can sign up as one,
   how many are in (of the places), waiting, new today (of the day's) and ever, refreshed every half
   minute, then each setting in a field next to its default, saved together under their etag
