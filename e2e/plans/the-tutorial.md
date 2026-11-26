@@ -96,9 +96,11 @@ as a person arrives, never by opening a product's address.
     bubble, the welcome, the pill and the badges reads in dark. Repeat a few stops at 1024 wide.
     *Expect:* the bubble stays inside the window and never covers what it names.
 11. **Web, as the same guest, starting an organization of their own, in light at 1280 wide.**
-    First, as Riley, in Instance admin → Guests, set **New organizations a day** to 1 or more if it
-    is 0. As the guest, open Exploration and Story in the example and close each one's tutorial; then
-    open Idea, close its tutorial with Esc, and while its toast "The tutorial is in your account
+    First, as Riley, in Instance admin → Guests, set **New organizations a day** to 2 if it is less:
+    one place for this guest and one for the new address in step 12. With only 1, step 12 joins the
+    waitlist. As the guest, open Exploration in the example and close its tutorial. Then open Story,
+    whose tutorial has not been shown yet: Idea's and Evidence's were shown in step 10, so they start
+    nothing. Close Story's tutorial with Esc, and while its toast "The tutorial is in your account
     menu." is up, press **Start using WhatBuild** in the demo's banner. *Expect:* the Welcome form
     with no toast, since it has no account menu. Name an organization and a product and press Start
     organization. *Expect:* the new product's Idea, Connect your agent first, and a moment later the
@@ -108,10 +110,11 @@ as a person arrives, never by opening a product's address.
     welcome and no tutorial: each page's was shown in the example. `GET /api/v1/me` lists
     `welcome-own` in `tutorial.seen`.
 12. **Web, as a new address that never opens the example, at 1280 wide.** Press Start using
-    WhatBuild on `/site/`, sign in, and start an organization. *Expect:* the welcome on its Idea.
-    Press Not now and reload. *Expect:* no welcome; Idea's own tutorial starts, since the welcome
-    closed on Idea leaves it for the next visit. Close it, and open a product of the example.
-    *Expect:* no welcome there either.
+    WhatBuild on `/site/` and sign in. *Expect:* the Welcome form, not the waitlist: the second of
+    the day's places. Start an organization. *Expect:* the welcome on its Idea. Press Not now and
+    reload. *Expect:* no welcome; Idea's own tutorial starts, since the welcome closed on Idea leaves
+    it for the next visit. Close it, and open a product of the example. *Expect:* no welcome there
+    either.
 
 ## Look out for
 
