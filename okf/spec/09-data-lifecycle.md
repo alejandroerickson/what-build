@@ -145,8 +145,8 @@ running without a compliance program.
 | Story previews | 20 per product, each kept as long as its grant (30 minutes by default) | Yes — a new one drops the oldest, whose grant then answers `404` |
 | REST or MCP request body | 5 MB | Yes — `413 too_large` (MCP: `413` with a JSON-RPC error) |
 | Sign-in and OAuth request body | 64 KB | Yes — `413` |
-| Sign-in links | 5 per address per hour | Yes — `429 rate_limited` |
-| OAuth client registrations | 50 an hour waiting for their first connection; one that never connects is removed after 7 days | Yes — `429 rate_limited` |
+| Sign-in links | 5 per email address per hour, beside the abuse limits below | Yes — `429 rate_limited` |
+| OAuth client registrations | The abuse limits below: per client in an hour, and the number waiting for their first connection, past which the oldest is forgotten; one that never connects is removed after 7 days | Yes — `429 rate_limited` past a client's limit |
 | Exports in progress | one per product at a time | Yes — `409 export_in_progress` |
 | People, products and sources (archived ones included), and storage, per organization | The plan's (§9.7) | Yes, on a plan the deployment defines — `409 quota_exceeded` |
 | Mockups and Story pages (archived ones included), and the Playbook's files and size, per product | The plan's (§9.7), and their defaults where no plan's limits apply | Yes, on every plan — `409 quota_exceeded`, `422 playbook_full` |
@@ -184,25 +184,39 @@ deployment sets its own numbers in `WHATBUILD_ABUSE_LIMITS` (`name=number` or `n
 by commas; a name or number it does not take stops the server at start), and every other keeps its
 default. Windows are fixed: an hour from the top of the hour, or a UTC day. A refused request adds
 nothing, and a refused call that would have taken several (`members.grant_many`) takes none.
+Each limit per client address has one per IPv6 /48 beside it, three times larger by default.
 
 | Limit | Default | Counted per | What a person sees past it |
 |---|---|---|---|
 | `sign_in_links_per_address` | 20 an hour | client address | `429 rate_limited`: too many sign-in links asked for from their network; try later, or sign in another way |
+| `sign_in_links_per_ipv6_48` | 60 an hour | IPv6 /48 | The same |
 | `mail_per_hour` | 500 an hour | deployment | Sign-in links and invitations emailed. A sign-in link: `429`, WhatBuild has sent all the email it sends in an hour. An invitation is made, its answer says `emailed: false`, and its link works ("Not emailed" in the web app) |
 | `new_accounts_per_address` | 10 an hour | client address | Accounts made by people nobody let in. Signing in ends on the sign-in page: WhatBuild is making too many new accounts just now; try in an hour, or ask to be invited |
+| `new_accounts_per_ipv6_48` | 30 an hour | IPv6 /48 | The same |
 | `new_accounts_per_hour` | 100 an hour | deployment | The same |
 | `waitlist_per_address` | 5 an hour | client address | `429`: too many requests from their network |
+| `waitlist_per_ipv6_48` | 15 an hour | IPv6 /48 | The same |
 | `waitlist_per_hour` | 200 an hour | deployment | `429`: too many requests right now; try in an hour |
 | `agent_registrations_per_address` | 20 an hour | client address | `429 rate_limited` with `Retry-After`; the agent says it could not register |
-| `agent_registrations_per_hour` | 200 waiting for their first connection in the last hour | deployment | The same |
-| `invitations_per_organization` | 100 a day | organization | `429 rate_limited`, saying when the day starts again; a role given at once to someone already in the organization is not one |
+| `agent_registrations_per_ipv6_48` | 60 an hour | IPv6 /48 | The same |
+| `agent_registrations_waiting` | 1,000 kept at once | deployment | Nothing: past it the oldest registration that never connected is forgotten to make room, and an agent whose registration was forgotten registers again |
+| `invitations_per_organization` | 100 a day | organization | `429 rate_limited`, saying when the day starts again (and, to `members.grant_many`, how many it can still make today, `room_for`); a role given at once to someone already in the organization is not one |
 
 - **Who counts as one client.** The address the request came from, an IPv4 address whole and an
   IPv6 address by its first 64 bits, and only where the service can trust it: behind the Cloudflare
-  Worker with the edge key, which names it in `X-WhatBuild-Client-Address`
+  Worker with the edge key, which names it in `X-WhatBuild-Client-Address` and seals it with the key
+  in `X-WhatBuild-Client-Seal`
   ([decision](../decisions/abuse-limits-count-a-client-address-only-where-the-edge-key-vouches-for-it.md)).
   Elsewhere only the deployment's ceilings and the organization's day apply. An address is kept as
   a keyed hash, never as itself, and its counts go two days after their window began.
+- **An IPv6 /48 is counted too.** A provider commonly gives one home or office a /56 or a /48, and a
+  tunnel broker gives anyone a /48, so by its /64s alone one person would be hundreds or thousands
+  of clients. The limits per /48, three times those per address, let a few people's networks in one
+  /48 share it while one person's /48 acts as three clients. An IPv4 address is counted whole.
+- **Agent registrations waiting are kept, not refused.** Registration takes no bot check, since no
+  agent can solve one, so the deployment's number bounds only what is stored: past it the oldest
+  registration that never connected (and holds no code it is exchanging) is forgotten, and a flood
+  pushes out only its own while a real agent, which connects within minutes, keeps its place.
 - **Who is never counted as a new account.** An address with an account, and one someone let in:
   on the allowlist, an instance owner, one an instance owner gave an allowance, or one with an
   invitation waiting. A flood of strangers cannot keep out the people a team invited.
@@ -210,12 +224,16 @@ nothing, and a refused call that would have taken several (`members.grant_many`)
   mail, whether or not the address may sign in and is mailed, so the answer never tells them apart
   ([§3.2](03-accounts-and-identity.md#32-accounts-and-sign-in)).
 - **The deployment's ceilings are shared.** Once one fills, everyone meets it until its window
-  ends. The server logs `abuse_ceiling_reached` with the limit's name when one fills, which an alert
-  watches ([cloud-run.md](../operations/cloud-run.md#abuse-limits)).
+  ends. The server logs `abuse_ceiling_reached` with the limit's name when one fills (for agent
+  registrations, when ones under an hour old are forgotten), which an alert watches
+  ([cloud-run.md](../operations/cloud-run.md#abuse-limits)). A ceiling is taken from in a short
+  transaction of its own: an invitation's email goes out after its call commits, so nobody's
+  sign-in link waits while a mail server answers.
 - **The bot check.** A deployment with Cloudflare Turnstile's keys (`WHATBUILD_TURNSTILE_SITE_KEY`,
   `WHATBUILD_TURNSTILE_SECRET_KEY`) asks for its token, before any limit is counted, on asking for a
   sign-in link, starting Google or Microsoft sign-in, and joining the waitlist: the forms anyone can
-  send without being signed in that mail someone or make an account. Without the keys nothing asks
+  send without being signed in that mail someone or make an account. Each token is taken once.
+  Without the keys nothing asks
   ([decision](../decisions/the-bot-check-is-cloudflare-turnstile-and-a-deployment-may-leave-it-off.md)).
   Invitations and feedback come from people signed in, and from their agents, which no bot check
   can ask, so they have limits only.

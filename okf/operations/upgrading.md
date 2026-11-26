@@ -103,27 +103,40 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
   New organizations a day now counts organizations started, so an owner who set it to allow for
   people who look and leave may lower it.
 
-- **Abuse limits, per client address and for the deployment.** Sign-in links and agent
-  registrations are limited per client address in an hour; the sign-in links and invitations the
-  deployment emails in an hour, the accounts it makes in an hour for people nobody let in, and the
-  waitlist have ceilings; an organization makes at most 100 invitations a day, on any plan. The
-  defaults are in [§9.2](../spec/09-data-lifecycle.md#92-limits-and-quotas); a deployment changes them in
+- **Abuse limits, per client and for the deployment.** Sign-in links, new accounts, the waitlist
+  and agent registrations are limited per client address in an hour, and per IPv6 /48 under limits
+  three times larger; the sign-in links and invitations the deployment emails in an hour, the
+  accounts it makes in an hour for people nobody let in, and the waitlist have ceilings; an
+  organization makes at most 100 invitations a day, on any plan. The defaults are in
+  [§9.2](../spec/09-data-lifecycle.md#92-limits-and-quotas); a deployment changes them in
   `WHATBUILD_ABUSE_LIMITS`, and a name or number it does not take stops the server at start. The
-  deployment-wide limits on the waitlist (200 an hour) and on agent registrations waiting to
-  connect (now 200, was 50) become two of them. Behind Cloudflare, client addresses count only
-  once the Worker is deployed with the release (it passes `X-WhatBuild-Client-Address`) and the
-  service holds the edge key; until then, and on any deployment without them, only the ceilings and
-  the organization's day apply. An invitation the hour's mail cannot cover is made with its link and
-  not emailed (`emailed: false`). Re-run `PROJECT_ID=$P node deploy/cloud-run/alerts.mjs` for the
-  new alert, `whatbuild: an abuse ceiling filled`. Migration `0055_abuse_counters` adds a table the
-  previous release never reads, so it keeps working against the migrated schema.
-  `tools_version` 0.72.0: `members.grant` and `members.grant_many` describe the daily cap.
+  deployment-wide limit on the waitlist (200 an hour) becomes one of them. Agent registrations
+  waiting for their first connection are no longer refused past a number (it was 50 an hour):
+  the deployment keeps 1,000 (`agent_registrations_waiting`) and forgets the oldest to make room.
+  Behind Cloudflare, client addresses count once the Worker of this release is deployed (it names
+  the address and seals it with the edge key) and the service holds the edge key; until then, and on
+  any deployment without them, only the ceilings and the organization's day apply. The service
+  trusts no address the Worker did not seal, so the Worker and the service may be deployed in either
+  order, as usual; a service whose Worker is older logs `client_address_missing` as an error, once an
+  instance, which the log's alert mails, and [cloud-run.md](cloud-run.md#abuse-limits) says how to
+  check that addresses arrive. An invitation's email now goes out after its call commits; one the
+  hour's mail cannot cover, or that could not be sent, is made with its link and says
+  `emailed: false` (before, a mail server's failure refused `members.grant`). Re-run
+  `PROJECT_ID=$P node deploy/cloud-run/alerts.mjs` for the new alert, `whatbuild: an abuse ceiling
+  filled`, and the new words of `whatbuild: errors in the log`. Migration `0055_abuse_counters` adds
+  a table the previous release never reads, so it keeps working against the migrated schema.
+  `tools_version` 0.72.0: `members.grant` and `members.grant_many` describe the daily cap, and the
+  refusal of `members.grant_many` says in `room_for` how many more the organization can invite today.
 - **An optional bot check, Cloudflare Turnstile.** With `WHATBUILD_TURNSTILE_SITE_KEY` and
   `WHATBUILD_TURNSTILE_SECRET_KEY` (both, or neither), asking for a sign-in link, starting Google or
   Microsoft sign-in and joining the waitlist ask for its token. Without them nothing changes. To
   turn it on behind the Worker, deploy the Worker with the release first, then give the service the
   keys ([cloud-run.md](cloud-run.md#the-bot-check)), and name Cloudflare in `WHATBUILD_PROVIDERS`.
-  Production refuses Cloudflare's test keys.
+  Production refuses Cloudflare's test keys. On Cloud Run, `setup.sh` gives the secret key to the
+  service only, never the migration job, and once the secret exists it stops unless
+  `TURNSTILE_SITE_KEY` is passed too. Each refused check is logged with its reason; one that refuses
+  everyone (Cloudflare out of reach, a host or secret that does not match the widget) is logged as
+  an error once an hour, which the log's alert mails.
 
 ## v0.44.2
 

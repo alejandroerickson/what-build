@@ -128,28 +128,39 @@ describe("client registration", () => {
     expect(name).toHaveLength(100);
   });
 
-  it("takes at most the deployment's ceiling of registrations an hour that have not led to a connection", async () => {
-    const pending = async () =>
+  it("keeps the deployment's number of registrations waiting for a first connection, forgetting the oldest, and refuses nobody for it", async () => {
+    const waitingNow = async () =>
       Number(
-        (await sql<{ n: string }>`select count(*) as n from oauth_clients c where c.created_at > now() - interval '1 hour' and not exists (select 1 from oauth_tokens t where t.client_id = c.client_id)`.execute(h.db))
-          .rows[0]!.n,
+        (
+          await sql<{ n: string }>`select count(*) as n from oauth_clients c where not exists (select 1 from oauth_tokens t where t.client_id = c.client_id) and not exists (select 1 from oauth_codes o where o.client_id = c.client_id)`.execute(h.db)
+        ).rows[0]!.n,
       );
-    const flood = Array.from({ length: h.config.abuseLimits.agent_registrations_per_hour! - (await pending()) }, (_, i) => `wbc_flood_${i}`);
-    await h.db.insertInto("oauth_clients").values(flood.map((client_id) => ({ client_id, client_name: "Flood", redirect_uris: JSON.stringify(["https://flood.example/cb"]) }))).execute();
+    const most = h.config.abuseLimits.agent_registrations_waiting!;
+    // Older than any other registration, in order: two of them stop waiting below.
+    const flood = Array.from({ length: most - (await waitingNow()) + 2 }, (_, i) => `wbc_flood_${String(i).padStart(5, "0")}`);
+    const at = (i: number) => new Date(Date.now() - 2 * 3600_000 + i).toISOString();
+    await h.db.insertInto("oauth_clients").values(flood.map((client_id, i) => ({ client_id, client_name: "Flood", redirect_uris: JSON.stringify(["https://flood.example/cb"]), created_at: at(i) }))).execute();
+    const account = (await h.db.selectFrom("accounts").select("account_id").where("email", "=", "alice@example.com").executeTakeFirstOrThrow()).account_id;
+    // The oldest connected, and the next holds a code it is exchanging: neither waits, and neither is forgotten.
+    await h.db
+      .insertInto("oauth_tokens")
+      .values({ token_hash: "flood-token", kind: "access", client_id: flood[0]!, account_id: account, resource: `${h.baseUrl}/mcp`, scope: "whatbuild", family_id: "flood", expires_at: new Date(Date.now() + 3600_000).toISOString() })
+      .execute();
+    await h.db
+      .insertInto("oauth_codes")
+      .values({ code_hash: "flood-code", client_id: flood[1]!, account_id: account, redirect_uri: "https://flood.example/cb", code_challenge: "x", resource: `${h.baseUrl}/mcp`, scope: "whatbuild", expires_at: new Date(Date.now() + 600_000).toISOString() })
+      .execute();
+    expect(await waitingNow()).toBe(most);
     try {
-      const refused = await postJson("/oauth/register", { client_name: "One too many", redirect_uris: ["https://agent.example/cb"] });
-      expect(refused.status).toBe(429);
-      expect(Number(refused.headers.get("retry-after"))).toBeGreaterThan(0);
-      expect(((await refused.json()) as { error: string }).error).toBe("rate_limited");
-      // A registration that led to a connection no longer counts.
-      const account = (await h.db.selectFrom("accounts").select("account_id").where("email", "=", "alice@example.com").executeTakeFirstOrThrow()).account_id;
-      await h.db
-        .insertInto("oauth_tokens")
-        .values({ token_hash: "flood-token", kind: "access", client_id: flood[0]!, account_id: account, resource: `${h.baseUrl}/mcp`, scope: "whatbuild", family_id: "flood", expires_at: new Date(Date.now() + 3600_000).toISOString() })
-        .execute();
-      expect((await postJson("/oauth/register", { client_name: "Room again", redirect_uris: ["https://agent.example/cb"] })).status).toBe(201);
+      const r = await postJson("/oauth/register", { client_name: "One more", redirect_uris: ["https://agent.example/cb"] });
+      expect(r.status).toBe(201);
+      const made = ((await r.json()) as { client_id: string }).client_id;
+      const left = new Set((await h.db.selectFrom("oauth_clients").select("client_id").where("client_id", "in", [...flood.slice(0, 4), made]).execute()).map((x) => x.client_id));
+      expect([...left].sort()).toEqual([flood[0], flood[1], flood[3], made].sort());
+      expect(await waitingNow()).toBe(most);
     } finally {
       await h.db.deleteFrom("oauth_tokens").where("token_hash", "=", "flood-token").execute();
+      await h.db.deleteFrom("oauth_codes").where("code_hash", "=", "flood-code").execute();
       await h.db.deleteFrom("oauth_clients").where("client_id", "in", flood).execute();
     }
   });

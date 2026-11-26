@@ -758,12 +758,13 @@ endpoint) answers `400` on WhatBuild's own page, naming the OAuth error, signed 
 
 Registration is bounded, since anyone may register: at most 10 redirect URIs of at most 500
 characters (`400 invalid_redirect_uri`), and a name of at most 100 characters, with control and
-format characters removed. Registrations are limited per client address in an hour, where the
-service knows the address, and across the deployment to those waiting for their first connection
-in the last hour (200 by default, `WHATBUILD_ABUSE_LIMITS`, [§9.2](09-data-lifecycle.md#92-limits-and-quotas));
-past either, registration answers `429 rate_limited` with `Retry-After`, and a registration that
-led to a connection stops counting. A registration that never led to a
-connection is removed after seven days; one that ever did is kept. Request bodies to `/oauth/*`
+format characters removed. Registrations are limited per client address and per IPv6 /48 in an
+hour, where the service knows the address; past either, registration answers `429 rate_limited`
+with `Retry-After`. Across the deployment, the registrations waiting for their first connection
+are kept to a number (1,000 by default, `WHATBUILD_ABUSE_LIMITS`,
+[§9.2](09-data-lifecycle.md#92-limits-and-quotas)): past it the oldest that never led to a
+connection, and holds no code being exchanged, is forgotten to make room, and nobody is refused.
+A registration that never led to a connection is removed after seven days; one that ever did is kept. Request bodies to `/oauth/*`
 are limited to 64 KB (`413`, `invalid_request`).
 
 A

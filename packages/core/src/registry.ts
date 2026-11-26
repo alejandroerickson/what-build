@@ -1,5 +1,5 @@
 import type { z } from "zod";
-import type { ActorSnapshot, Tx } from "./db.ts";
+import type { ActorSnapshot, Db, Tx } from "./db.ts";
 import type { Ports } from "./ports.ts";
 import type { LimitContext, Plan } from "./limits.ts";
 
@@ -88,6 +88,13 @@ export interface OpContext {
   now: string;
   /** Queue background work in this transaction; the worker wakes after commit. */
   enqueue(kind: string, payload: Record<string, unknown>): Promise<void>;
+  /**
+   * Run `fn` once the transaction has committed, before the call answers, on a connection of its
+   * own: for what waits on someone else (a mail server) and so must hold nothing of the
+   * transaction's. What it changes in the handler's answer is in the answer. A failure in it is
+   * logged and never fails the call, which has already happened.
+   */
+  afterCommit(fn: (db: Db) => Promise<void>): void;
 }
 
 /** What an operation's `prepare` step has: the authorized call, and no database connection of its own. */

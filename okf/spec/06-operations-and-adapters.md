@@ -223,8 +223,10 @@ tenant.
 - REST request bodies are limited to 5 MB (`413 too_large`), and so are MCP's (`413`, read only
   once the token is checked); file bytes and mockup canvases go through upload grants
   (§6.7). Sign-in (`/auth/*`) and OAuth (`/oauth/*`) bodies are limited to 64 KB (`413`).
-- OAuth client registration: at most 50 an hour waiting for their first connection
-  (`429 rate_limited`), 10 redirect URIs of 500 characters each ([§3.8](03-accounts-and-identity.md)).
+- OAuth client registration: limited per client address and per IPv6 /48 in an hour
+  (`429 rate_limited`), with the deployment's registrations waiting for their first connection
+  kept to a number by forgetting the oldest ([§9.2](09-data-lifecycle.md#92-limits-and-quotas)),
+  and 10 redirect URIs of 500 characters each ([§3.8](03-accounts-and-identity.md)).
 
 ## 6.4 REST
 

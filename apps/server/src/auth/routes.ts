@@ -1,11 +1,11 @@
 import { createHash, randomBytes } from "node:crypto";
-import { abuseRefusal, AppError, askForOrganization, retryAfter, spend, type AbuseLimitName, conflict, enterAsGuest, planName, escapeHtml, gone, invalid, isGuestAccount, isInstanceOwner, placeOpen, readGuests, tenantAllowanceOf, newId, notFound, oneLine, plainName, randomToken, safeNext, sha256Hex, SIGN_IN_LINK_MINUTES, SIGN_IN_LINK_SUBJECT, SIGN_IN_LINKS_PER_HOUR, unauthenticated, type Db, type InvitationsTable, type Mailer } from "@whatbuild/core";
+import { abuseRefusal, AppError, askForOrganization, retryAfter, spend, spendPerClient, type WindowedLimitName, conflict, enterAsGuest, planName, escapeHtml, gone, invalid, isGuestAccount, isInstanceOwner, placeOpen, readGuests, tenantAllowanceOf, newId, notFound, oneLine, plainName, randomToken, safeNext, sha256Hex, SIGN_IN_LINK_MINUTES, SIGN_IN_LINK_SUBJECT, SIGN_IN_LINKS_PER_HOUR, unauthenticated, type Db, type InvitationsTable, type Mailer } from "@whatbuild/core";
 import { Hono, type Context } from "hono";
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 import { sql, type Selectable } from "kysely";
 import { z } from "zod";
 import { botCheckFailed, botCheckFor, BOT_CHECK_FIELD, passesBotCheck } from "../bot-check.ts";
-import { clientAddress, clientKey } from "../client-address.ts";
+import { clientAddress, clientKeys } from "../client-address.ts";
 import { microsoftSignIn, type ServerConfig } from "../config.ts";
 import { connectorReach } from "./connector-reach.ts";
 import { acceptInvitation, accountByEmail, clearSessionCookies, createSession, declineInvitation, endEverything, findOrCreateAccount, invitationPlace, isOwnOrigin, restPrincipal, sessionTokens, setSessionCookie } from "./identity.ts";
@@ -132,11 +132,11 @@ export function authRoutes(deps: { db: Db; config: ServerConfig; mailer: Mailer 
    */
   const roomForAccount = async (c: Context, email: string): Promise<boolean> => {
     if ((await accountByEmail(db, email)) || (await vouchedFor(email))) return true;
-    const key = clientKey(clientAddress(c, config), config.grantKey);
+    const keys = clientKeys(clientAddress(c, config), config.grantKey);
     const refused = new Error("refused");
     try {
       await db.transaction().execute(async (trx) => {
-        if (key && !(await spend(trx, "new_accounts_per_address", key, config.abuseLimits)).ok) throw refused;
+        if (!(await spendPerClient(trx, "new_accounts", keys, config.abuseLimits)).ok) throw refused;
         if (!(await spend(trx, "new_accounts_per_hour", "", config.abuseLimits)).ok) throw refused;
       });
       return true;
@@ -147,7 +147,7 @@ export function authRoutes(deps: { db: Db; config: ServerConfig; mailer: Mailer 
   };
 
   /** A refusal under an abuse limit, saying when its window starts again. */
-  const tooMany = (c: Context, message: string, name: AbuseLimitName, refused: { limit: number; resets_at: string }) => {
+  const tooMany = (c: Context, message: string, name: WindowedLimitName, refused: { limit: number; resets_at: string }) => {
     c.header("Retry-After", String(retryAfter(refused.resets_at)));
     return abuseRefusal(message, name, refused.limit, refused.resets_at);
   };
@@ -177,7 +177,7 @@ export function authRoutes(deps: { db: Db; config: ServerConfig; mailer: Mailer 
       .safeParse(await c.req.json().catch(() => ({})));
     if (!body.success) throw invalid("invalid_input", "Enter a valid email.");
     const address = clientAddress(c, config);
-    if (!(await passesBotCheck(config, body.data[BOT_CHECK_FIELD], "sign_in", address))) throw botCheckFailed();
+    if (!(await passesBotCheck(config, db, body.data[BOT_CHECK_FIELD], "sign_in", address))) throw botCheckFailed();
     const email = body.data.email;
     const recent = await db
       .selectFrom("email_tokens")
@@ -191,11 +191,10 @@ export function authRoutes(deps: { db: Db; config: ServerConfig; mailer: Mailer 
     // deployment's mail included; one that may not sign in is never sent, and opening it would be
     // refused all the same.
     const token = randomToken();
-    const key = clientKey(address, config.grantKey);
+    const keys = clientKeys(address, config.grantKey);
     await db.transaction().execute(async (trx) => {
-      const mine = key ? await spend(trx, "sign_in_links_per_address", key, config.abuseLimits) : null;
-      if (mine && !mine.ok)
-        throw tooMany(c, "Too many sign-in links were asked for from your network in the last hour. Try again later, or sign in another way.", "sign_in_links_per_address", mine);
+      const mine = await spendPerClient(trx, "sign_in_links", keys, config.abuseLimits);
+      if (!mine.ok) throw tooMany(c, "Too many sign-in links were asked for from your network in the last hour. Try again later, or sign in another way.", mine.name, mine);
       const mail = await spend(trx, "mail_per_hour", "", config.abuseLimits);
       if (!mail.ok) throw tooMany(c, "WhatBuild has sent all the email it sends in an hour. Try again later, or sign in another way.", "mail_per_hour", mail);
       await trx
@@ -387,7 +386,7 @@ export function authRoutes(deps: { db: Db; config: ServerConfig; mailer: Mailer 
 
   app.get("/auth/google", async (c) => {
     if (!config.googleClientId) throw notFound("Google sign-in isn’t set up on this server.");
-    if (!(await passesBotCheck(config, c.req.query(BOT_CHECK_FIELD), "sign_in", clientAddress(c, config)))) return c.redirect(`/signin?error=bot_check&next=${encodeURIComponent(safeNext(c.req.query("next")))}`);
+    if (!(await passesBotCheck(config, db, c.req.query(BOT_CHECK_FIELD), "sign_in", clientAddress(c, config)))) return c.redirect(`/signin?error=bot_check&next=${encodeURIComponent(safeNext(c.req.query("next")))}`);
     return beginOidc(c, "/auth/google", "https://accounts.google.com/o/oauth2/v2/auth", { client_id: config.googleClientId });
   });
 
@@ -418,7 +417,7 @@ export function authRoutes(deps: { db: Db; config: ServerConfig; mailer: Mailer 
 
   app.get("/auth/microsoft", async (c) => {
     if (!microsoftSignIn(config)) throw notFound("Microsoft sign-in isn’t set up on this server.");
-    if (!(await passesBotCheck(config, c.req.query(BOT_CHECK_FIELD), "sign_in", clientAddress(c, config)))) return c.redirect(`/signin?error=bot_check&next=${encodeURIComponent(safeNext(c.req.query("next")))}`);
+    if (!(await passesBotCheck(config, db, c.req.query(BOT_CHECK_FIELD), "sign_in", clientAddress(c, config)))) return c.redirect(`/signin?error=bot_check&next=${encodeURIComponent(safeNext(c.req.query("next")))}`);
     return beginOidc(c, "/auth/microsoft", `https://login.microsoftonline.com/${config.microsoftTenant}/oauth2/v2.0/authorize`, { client_id: config.microsoftClientId! });
   });
 

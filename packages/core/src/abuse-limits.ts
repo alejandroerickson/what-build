@@ -8,58 +8,83 @@ import { AppError } from "./errors.ts";
  * organization (`limits.ts`); these bound what a script could do with sign-in links, new accounts,
  * the waitlist, agent registrations, invitations, and the mail they send.
  *
- * - A limit is counted per client address, per organization, or for the whole deployment, in
- *   fixed windows of an hour or a UTC day (`abuse_counters`). A refused request adds nothing.
- * - A client address is counted only where the service can trust it: behind a proxy that names it
- *   with the edge key (`client-address.ts` in the server). Elsewhere only the deployment's ceilings apply.
+ * - A limit is counted per client, per organization, or for the whole deployment, in fixed windows
+ *   of an hour or a UTC day (`abuse_counters`). A refused request adds nothing.
+ * - A client is counted only where the service can trust its address: behind a proxy that names it
+ *   with the edge key (`client-address.ts` in the server). Elsewhere only the deployment's ceilings
+ *   apply. An IPv4 address is one client. An IPv6 address is counted by its /64 and again, under
+ *   limits three times larger, by its /48, since whoever holds one /64 often holds a whole /48.
+ * - Agent registrations waiting for their first connection are kept to a number, not counted in a
+ *   window: past it the oldest is forgotten (`agent_registrations_waiting`), so a flood of them only
+ *   pushes out its own, and nobody is refused for it.
  * - Each deployment sets its own numbers (`WHATBUILD_ABUSE_LIMITS`); `off` turns one off.
  * - A deployment's ceiling logs `abuse_ceiling_reached` once in each window, when it fills, for an alert.
  */
 
 export interface AbuseLimit {
-  /** What one window allows; null when the deployment turned it off. */
+  /** What one window allows, or what is kept at once; null when the deployment turned it off. */
   limit: number | null;
-  window: "hour" | "day";
+  /** The window it is counted in; null for a number kept at once. */
+  window: "hour" | "day" | null;
   /** What it is counted per, as the settings' table says it. */
-  per: "client address" | "organization" | "deployment";
+  per: "client address" | "IPv6 /48" | "organization" | "deployment";
   /** What it counts, in a few words. */
   counts: string;
 }
 
-/** Every abuse limit, with what it counts and its default. */
+/**
+ * Every abuse limit, with what it counts and its default. Each limit per client address has one per
+ * IPv6 /48 beside it, three times larger: a few people's /64s in one /48 (a household, an office)
+ * share it without meeting it, and one person's /48 acts as three clients, not 65,536.
+ */
 export const ABUSE_LIMITS = {
   sign_in_links_per_address: { limit: 20, window: "hour", per: "client address", counts: "sign-in links asked for" },
+  sign_in_links_per_ipv6_48: { limit: 60, window: "hour", per: "IPv6 /48", counts: "sign-in links asked for" },
   mail_per_hour: { limit: 500, window: "hour", per: "deployment", counts: "sign-in links and invitations emailed" },
   new_accounts_per_address: { limit: 10, window: "hour", per: "client address", counts: "accounts made by people nobody let in" },
+  new_accounts_per_ipv6_48: { limit: 30, window: "hour", per: "IPv6 /48", counts: "accounts made by people nobody let in" },
   new_accounts_per_hour: { limit: 100, window: "hour", per: "deployment", counts: "accounts made by people nobody let in" },
   waitlist_per_address: { limit: 5, window: "hour", per: "client address", counts: "requests to join the waitlist" },
+  waitlist_per_ipv6_48: { limit: 15, window: "hour", per: "IPv6 /48", counts: "requests to join the waitlist" },
   waitlist_per_hour: { limit: 200, window: "hour", per: "deployment", counts: "requests to join the waitlist" },
   agent_registrations_per_address: { limit: 20, window: "hour", per: "client address", counts: "agents (OAuth clients) registered" },
-  agent_registrations_per_hour: { limit: 200, window: "hour", per: "deployment", counts: "agents registered that have not yet connected" },
+  agent_registrations_per_ipv6_48: { limit: 60, window: "hour", per: "IPv6 /48", counts: "agents (OAuth clients) registered" },
+  agent_registrations_waiting: { limit: 1000, window: null, per: "deployment", counts: "agents registered that have not yet connected, kept at once; past it the oldest is forgotten" },
   invitations_per_organization: { limit: 100, window: "day", per: "organization", counts: "invitations made" },
 } as const satisfies Record<string, AbuseLimit>;
 
 export type AbuseLimitName = keyof typeof ABUSE_LIMITS;
+
+/** The limits counted in a window, which `spend` takes from. */
+export type WindowedLimitName = { [K in AbuseLimitName]: (typeof ABUSE_LIMITS)[K]["window"] extends null ? never : K }[AbuseLimitName];
+
+/** What a client does that is limited per address and per IPv6 /48. */
+export type ClientLimited = "sign_in_links" | "new_accounts" | "waitlist" | "agent_registrations";
 
 /** The numbers a deployment set: each limit's, or null where it turned one off. */
 export type AbuseLimits = Record<AbuseLimitName, number | null>;
 
 export const DEFAULT_ABUSE_LIMITS: AbuseLimits = Object.fromEntries(Object.entries(ABUSE_LIMITS).map(([k, v]) => [k, v.limit])) as AbuseLimits;
 
+/** The largest number a limit takes: what the count's integer column holds. */
+const LIMIT_MAX = 2_147_483_647;
+
 /**
  * `WHATBUILD_ABUSE_LIMITS`: `name=number` or `name=off`, separated by commas, for the limits a
  * deployment changes; the rest keep their defaults. A name it does not know, or a number that is not
- * a whole number of at least 1, stops the server, so a typing mistake never leaves a limit unset.
+ * a whole number from 1 to 2,147,483,647, stops the server, so a typing mistake never leaves a limit unset.
  */
 export function abuseLimitsFrom(v: string | undefined): AbuseLimits {
   const limits = { ...DEFAULT_ABUSE_LIMITS };
   for (const part of (v ?? "").split(/[,;\n]/).map((s) => s.trim()).filter(Boolean)) {
-    const [name, value] = part.split("=").map((s) => s?.trim() ?? "");
+    const at = part.indexOf("=");
+    const name = (at < 0 ? part : part.slice(0, at)).trim();
+    const value = at < 0 ? "" : part.slice(at + 1).trim();
     if (!name || !Object.hasOwn(ABUSE_LIMITS, name))
       throw new Error(`WHATBUILD_ABUSE_LIMITS names "${name}", which is not an abuse limit. The limits are ${Object.keys(ABUSE_LIMITS).join(", ")}.`);
     if (value === "off") limits[name as AbuseLimitName] = null;
-    else if (value && /^\d+$/.test(value) && Number(value) >= 1) limits[name as AbuseLimitName] = Number(value);
-    else throw new Error(`WHATBUILD_ABUSE_LIMITS sets ${name} to "${value ?? ""}": give a whole number of at least 1, or off.`);
+    else if (/^\d+$/.test(value) && Number(value) >= 1 && Number(value) <= LIMIT_MAX) limits[name as AbuseLimitName] = Number(value);
+    else throw new Error(`WHATBUILD_ABUSE_LIMITS sets ${name} to "${value}": give a whole number from 1 to ${LIMIT_MAX}, or off.`);
   }
   return limits;
 }
@@ -74,11 +99,13 @@ export function windowOf(window: "hour" | "day", now = new Date()): { starts_at:
 export type Spent = { ok: true; n: number; filled: boolean } | { ok: false; limit: number; resets_at: string };
 
 /**
- * Take `by` from a limit's window for `subject` (a client address's key, an organization's ID, or
- * "" for the deployment), or refuse when that would pass the limit, adding nothing. Run in a
- * transaction, a later refusal in the same transaction gives it back. A limit turned off always allows.
+ * Take `by` from a limit's window for `subject` (a client's keyed hash, an organization's ID, or ""
+ * for the deployment), or refuse when that would pass the limit, adding nothing. Run in a
+ * transaction, a later refusal in the same transaction gives it back; the row stays locked until
+ * that transaction ends, so a deployment's ceiling is taken from in a short transaction of its own,
+ * never one that waits for anything else (a mail server). A limit turned off always allows.
  */
-export async function spend(db: Db, name: AbuseLimitName, subject: string, limits: AbuseLimits, by = 1, now = new Date()): Promise<Spent> {
+export async function spend(db: Db, name: WindowedLimitName, subject: string, limits: AbuseLimits, by = 1, now = new Date()): Promise<Spent> {
   const limit = limits[name];
   const { starts_at, resets_at } = windowOf(ABUSE_LIMITS[name].window, now);
   if (limit === null) return { ok: true, n: 0, filled: false };
@@ -96,6 +123,34 @@ export async function spend(db: Db, name: AbuseLimitName, subject: string, limit
   return { ok: true, n, filled };
 }
 
+/** A client, as the limits per client count it: its address's keyed hash, and, for an IPv6 address, its /48's. */
+export interface ClientKeys {
+  address: string;
+  ipv6_48: string | null;
+}
+
+export type ClientSpent = { ok: true } | { ok: false; name: WindowedLimitName; limit: number; resets_at: string };
+
+/**
+ * Take one from what a client may do in the hour: under the limit per address and, for an IPv6
+ * address, the one per /48. Run it in the transaction that also takes from the deployment's
+ * ceiling, so that a refusal by any of them gives back what the others took. Null keys (an address
+ * the service cannot trust) count nothing.
+ */
+export async function spendPerClient(db: Db, what: ClientLimited, keys: ClientKeys | null, limits: AbuseLimits, now = new Date()): Promise<ClientSpent> {
+  if (!keys) return { ok: true };
+  const tiers: [WindowedLimitName, string | null][] = [
+    [`${what}_per_address`, keys.address],
+    [`${what}_per_ipv6_48`, keys.ipv6_48],
+  ];
+  for (const [name, subject] of tiers) {
+    if (subject === null) continue;
+    const spent = await spend(db, name, subject, limits, 1, now);
+    if (!spent.ok) return { ok: false, name, limit: spent.limit, resets_at: spent.resets_at };
+  }
+  return { ok: true };
+}
+
 /** A structured line in the server's log, as the rest of the server writes them; never an address or an email. */
 export function abuseLog(fields: Record<string, unknown>): void {
   if (process.env["NODE_ENV"] === "test") return;
@@ -111,21 +166,23 @@ export function retryAfter(resetsAt: string, now = Date.now()): number {
  * A refusal under an abuse limit: `429 rate_limited`, whose details name the limit (`abuse_limit`),
  * give its number (`limit`, as a plan's refusals do) and say when its window starts again.
  */
-export function abuseRefusal(message: string, name: AbuseLimitName, limit: number, resetsAt: string, now = Date.now()) {
-  return new AppError(429, "rate_limited", message, { abuse_limit: name, limit, per: ABUSE_LIMITS[name].window, resets_at: resetsAt, retry_after_seconds: retryAfter(resetsAt, now) });
+export function abuseRefusal(message: string, name: WindowedLimitName, limit: number, resetsAt: string, now = Date.now(), details: Record<string, unknown> = {}) {
+  return new AppError(429, "rate_limited", message, { abuse_limit: name, limit, per: ABUSE_LIMITS[name].window, resets_at: resetsAt, retry_after_seconds: retryAfter(resetsAt, now), ...details });
 }
 
-/** The refusal for an organization's invitations a day. */
-export function invitationsUsedUp(limit: number, resetsAt: string) {
-  return abuseRefusal(
-    `This organization has made ${limit} invitations today, the most this WhatBuild takes from one organization in a UTC day. Invite more from ${resetsAt}, midnight UTC. Someone already in the organization can be given a role at once.`,
-    "invitations_per_organization",
-    limit,
-    resetsAt,
-  );
+/**
+ * The refusal for an organization's invitations a day. `room` is how many more it could have made
+ * when a call asking for several (members.grant_many) passed the day's limit: that many can still be
+ * sent today. A single invitation is refused only when there is no room left.
+ */
+export function invitationsUsedUp(limit: number, resetsAt: string, room = 0) {
+  const now = room
+    ? `This organization can make ${room} more invitation${room === 1 ? "" : "s"} today, of the ${limit} this WhatBuild takes from one organization in a UTC day: send at most ${room}, or invite more from ${resetsAt}, midnight UTC.`
+    : `This organization has made ${limit} invitations today, the most this WhatBuild takes from one organization in a UTC day. Invite more from ${resetsAt}, midnight UTC.`;
+  return abuseRefusal(`${now} Someone already in the organization can be given a role at once.`, "invitations_per_organization", limit, resetsAt, Date.now(), { room_for: room });
 }
 
-/** Housekeeping, from the worker: windows over a day ago are done with. */
+/** Housekeeping, from the worker: windows that began over two days ago are done with. */
 export async function pruneAbuseCounters(db: Db): Promise<void> {
   await sql`delete from abuse_counters where starts_at < now() - interval '2 days'`.execute(db);
 }

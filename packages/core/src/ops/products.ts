@@ -803,13 +803,28 @@ export const listMembers = defineOperation({
 type Mail = { to: string; subject: string; text: string };
 const GRANT_ROLES = ["owner", "admin", "creator", "member", "editor", "viewer", "story_reader"] as const;
 /**
- * Take one from the deployment's mail for the hour (`mail_per_hour`), before an invitation is
- * emailed; false when it is used up, and the invitation is kept with its link but not emailed. A
- * deployment that sends no mail counts none.
+ * Email invitations once the call has committed, one after another: each takes one from the
+ * deployment's mail for the hour (`mail_per_hour`) in a statement of its own just before it is
+ * sent, so the deployment's count is never held while a mail server answers, and nobody's sign-in
+ * link waits behind an organization's invitations. One the hour's mail cannot cover, or that could
+ * not be sent, is kept with its link and its answer says `emailed: false`. A deployment that sends
+ * no mail counts none.
  */
-async function roomForMail(ctx: OpContext): Promise<boolean> {
-  if (ctx.ports.config.sendsMail === false || !ctx.ports.mailer) return true;
-  return (await spend(ctx.db, "mail_per_hour", "", ctx.ports.config.abuseLimits ?? DEFAULT_ABUSE_LIMITS)).ok;
+function emailAfterCommit(ctx: OpContext, sends: { mail: Mail; answer: object }[]): void {
+  const mailer = ctx.ports.mailer;
+  if (!sends.length || !mailer) return;
+  const limits = ctx.ports.config.abuseLimits ?? DEFAULT_ABUSE_LIMITS;
+  ctx.afterCommit(async (db) => {
+    for (const { mail, answer } of sends) {
+      try {
+        if (ctx.ports.config.sendsMail !== false && !(await spend(db, "mail_per_hour", "", limits)).ok) throw new Error("the deployment's mail for the hour is used up");
+        await mailer.send(mail);
+      } catch (e) {
+        Object.assign(answer, { emailed: false });
+        console.warn(JSON.stringify({ at: new Date().toISOString(), severity: "WARNING", event: "invitation_not_emailed", error: e instanceof Error ? e.message.slice(0, 300) : String(e) }));
+      }
+    }
+  });
 }
 
 /** The most people one members.grant_many call names. */
@@ -950,7 +965,7 @@ export const grantMember = defineOperation({
   connection: "admin",
   summary: "Give someone a role on the tenant, on all its products, or on a product; invites by email anyone not already in the organization.",
   description:
-    "Name the place: the tenant itself (leave product and all_products out), all_products: true for every product in it, products made later included, or one product. Tenant owners and admins give the tenant's roles (owners give owner) and roles on all products; product admins give roles on their product. Roles: tenant owner|admin|creator|member, where creator is a product creator, who creates products and is admin of each one they create; on all products or a product admin|editor|viewer|story_reader. A viewer reads everything in the product (Idea, Evidence, Exploration, Story, activity) and changes nothing. A story_reader (a Story reader) reads only the Story's live pages, their versions and their export, without the evidence and mockups behind them. Someone you already see in the organization (everyone, for its owners and admins; otherwise the people on the products you read) gets the role at once: granting again replaces the role at that scope, and granting the role they already hold there changes nothing and says unchanged. Anyone else gets an invitation by email, valid 7 days, whether or not they have an account, and joins only if they accept it in the web app, which no agent can do for them: the answer never says whether an address has an account. A new invitation to the same address at the same place replaces one still open. An organization makes only so many invitations in a UTC day, a number the deployment sets (products(action=\"limits\") gives it as invitations_per_day); past it the call is refused with 429 rate_limited and says when the day starts again. When the deployment has sent all the email it sends in an hour, the invitation is still made, the answer says emailed: false, and its invite_link works. To give many people roles at once, use grant_many.",
+    "Name the place: the tenant itself (leave product and all_products out), all_products: true for every product in it, products made later included, or one product. Tenant owners and admins give the tenant's roles (owners give owner) and roles on all products; product admins give roles on their product. Roles: tenant owner|admin|creator|member, where creator is a product creator, who creates products and is admin of each one they create; on all products or a product admin|editor|viewer|story_reader. A viewer reads everything in the product (Idea, Evidence, Exploration, Story, activity) and changes nothing. A story_reader (a Story reader) reads only the Story's live pages, their versions and their export, without the evidence and mockups behind them. Someone you already see in the organization (everyone, for its owners and admins; otherwise the people on the products you read) gets the role at once: granting again replaces the role at that scope, and granting the role they already hold there changes nothing and says unchanged. Anyone else gets an invitation by email, valid 7 days, whether or not they have an account, and joins only if they accept it in the web app, which no agent can do for them: the answer never says whether an address has an account. A new invitation to the same address at the same place replaces one still open. An organization makes only so many invitations in a UTC day, a number the deployment sets (products_read(action=\"limits\") gives it as invitations_per_day); past it the call is refused with 429 rate_limited and says when the day starts again. The email goes out once the invitation is made; when the deployment has sent all the email it sends in an hour, or the email could not be sent, the invitation is still made, the answer says emailed: false, and its invite_link works. To give many people roles at once, use grant_many.",
   input: grantScope.extend({
     email: z.string().email().max(320),
     role: z.enum(GRANT_ROLES),
@@ -963,10 +978,9 @@ export const grantMember = defineOperation({
     const allowed = rolesAt(target);
     if (!allowed.includes(input.role)) throw invalid("invalid_role", `Role ${input.role} doesn’t apply to ${placeKind(target)}; use ${allowed.join(", ")}.`);
     const { mail, result } = await grantOne(ctx, target, input.email, input.role, seenByCaller(ctx));
-    if (!mail) return result;
-    if (!(await roomForMail(ctx))) return { ...result, emailed: false as const };
-    await ctx.ports.mailer?.send(mail);
-    return result;
+    const answer: typeof result & { emailed?: false } = result;
+    if (mail) emailAfterCommit(ctx, [{ mail, answer }]);
+    return answer;
   },
 });
 
@@ -979,7 +993,7 @@ export const grantMembers = defineOperation({
   connection: "admin",
   summary: "Give many people roles on the tenant, on all its products, or on one product at once; invites by email anyone not already in the organization.",
   description:
-    `Grants as members.grant does, for up to ${GRANTS_PER_CALL} people at one place (the tenant, all its products, or one product), each with their own role: people you already see in the organization get the role at once (replacing the one they hold there), and anyone else gets an invitation by email, valid 7 days, whether or not they have an account. It is all or nothing, and counts as one write: a refusal (a role that does not apply to the scope, an address sent twice, a role the caller may not give, the last owner demoted, a plan's total of people reached, the organization's invitations for the day used up) changes nothing and names the address it is about. Each result says invited (with invite_link), or the role given, with previous_role when it replaced one, or unchanged when they already held it. Invitations are emailed once every role is given; one that could not be emailed says emailed: false, and its invite_link still works.`,
+    `Grants as members.grant does, for up to ${GRANTS_PER_CALL} people at one place (the tenant, all its products, or one product), each with their own role: people you already see in the organization get the role at once (replacing the one they hold there), and anyone else gets an invitation by email, valid 7 days, whether or not they have an account. It is all or nothing, and counts as one write: a refusal (a role that does not apply to the scope, an address sent twice, a role the caller may not give, the last owner demoted, a plan's total of people reached, the organization's invitations for the day used up, whose details say in room_for how many it can still make today) changes nothing and names the address it is about. Each result says invited (with invite_link), or the role given, with previous_role when it replaced one, or unchanged when they already held it. Invitations are emailed once every role is given; one that could not be emailed says emailed: false, and its invite_link still works.`,
   input: grantScope.extend({
     people: z
       .array(z.strictObject({ email: z.string().email().max(320), role: z.enum(GRANT_ROLES) }))
@@ -1014,20 +1028,22 @@ export const grantMembers = defineOperation({
         // A refusal is about one address: it says which, and that the others were not given either.
         if (e instanceof AppError && e.code === "quota_exceeded")
           throw new AppError(e.status, e.code, `${e.message.replace(/\.?$/, ".")} ${i ? `Of the ${input.people.length} addresses sent, the plan has room for the first ${i}, and ${p.email} is past it.` : `The plan has no room for ${p.email}.`} Nothing was changed.`, { ...e.details, email: p.email, room_for: i });
+        // The day's invitations: the ones this call made before it are how many more the organization can make today.
+        if (e instanceof AppError && e.details?.["abuse_limit"] === "invitations_per_organization") {
+          const room = results.filter((r) => r.invited).length;
+          const d = e.details as { limit: number; resets_at: string };
+          const refusal = invitationsUsedUp(d.limit, d.resets_at, room);
+          throw new AppError(refusal.status, refusal.code, `${p.email}: ${refusal.message} Nothing was changed.`, { ...refusal.details, email: p.email });
+        }
         if (e instanceof AppError) throw new AppError(e.status, e.code, `${p.email}: ${e.message} Nothing was changed.`, { ...e.details, email: p.email });
         throw e;
       }
     }
-    // The roles are given before any invitation goes out, and an invitation that can't be emailed keeps its link.
-    for (const mail of mails) {
-      const r = results.find((x) => x.invited && x.email === mail.to)!;
-      try {
-        if (!(await roomForMail(ctx))) throw new Error("the deployment's mail for the hour is used up");
-        await ctx.ports.mailer?.send(mail);
-      } catch {
-        Object.assign(r, { emailed: false });
-      }
-    }
+    // The roles are given, and the call committed, before any invitation goes out; one that can't be emailed keeps its link.
+    emailAfterCommit(
+      ctx,
+      mails.map((mail) => ({ mail, answer: results.find((x) => x.invited && x.email === mail.to)! })),
+    );
     const count = (f: (r: (typeof results)[number]) => boolean) => results.filter(f).length;
     return {
       scope_type: target.scope_type,

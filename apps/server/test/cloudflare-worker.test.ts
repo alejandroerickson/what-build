@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { sealOf } from "../src/client-address.ts";
 
 // deploy/cloudflare/worker.js, the Worker in front of the Cloud Run service.
 const worker = (await import(new URL("../../../deploy/cloudflare/worker.js", import.meta.url).href)).default as {
@@ -151,17 +152,29 @@ describe("the Cloudflare Worker", () => {
     expect(keys).toEqual(["the deployment's edge key", "the deployment's edge key", "the deployment's edge key", null]);
   });
 
-  it("names the client's address as Cloudflare saw it, never one a caller sent, and nobody on a request of its own", async () => {
-    const seen: (string | null)[] = [];
-    vi.stubGlobal("fetch", vi.fn(async (r: Request) => (seen.push(r.headers.get("x-whatbuild-client-address")), new Response('{"plans":[]}'))));
-    const forged = { "X-WhatBuild-Client-Address": "192.0.2.1" };
-    await worker.fetch(new Request("https://app.example.com/auth/email", { method: "POST", body: "{}", headers: { ...forged, "cf-connecting-ip": "203.0.113.7" } }), { ...env, EDGE_KEY: "the deployment's edge key" });
-    await worker.fetch(new Request("https://example.com/api/v1/interest", { method: "POST", body: "{}", headers: { "cf-connecting-ip": "2001:db8::5" } }), { ...env, EDGE_KEY: "the deployment's edge key" });
+  it("names the client's address as Cloudflare saw it, sealed with the edge key as the service checks it, never one a caller sent, and nobody on a request of its own", async () => {
+    const key = "the deployment's edge key, of at least 32 characters";
+    const seen: [string | null, string | null][] = [];
+    vi.stubGlobal("fetch", vi.fn(async (r: Request) => (seen.push([r.headers.get("x-whatbuild-client-address"), r.headers.get("x-whatbuild-client-seal")]), new Response('{"plans":[]}'))));
+    const forged = { "X-WhatBuild-Client-Address": "192.0.2.1", "X-WhatBuild-Client-Seal": sealOf("192.0.2.1", "a key guessed by a caller") };
+    await worker.fetch(new Request("https://app.example.com/auth/email", { method: "POST", body: "{}", headers: { ...forged, "cf-connecting-ip": "203.0.113.7" } }), { ...env, EDGE_KEY: key });
+    await worker.fetch(new Request("https://example.com/api/v1/interest", { method: "POST", body: "{}", headers: { "cf-connecting-ip": "2001:db8::5" } }), { ...env, EDGE_KEY: key });
+    // A zone that gives IPv6 visitors a made-up IPv4 address still passes on their own.
+    await worker.fetch(new Request("https://app.example.com/oauth/register", { method: "POST", body: "{}", headers: { "cf-connecting-ip": "240.1.2.3", "cf-connecting-ipv6": "2001:db8:7::9" } }), { ...env, EDGE_KEY: key });
     // A forged header with no address from Cloudflare is dropped, and so is the Worker's own request for the plans.
-    await worker.fetch(new Request("https://app.example.com/oauth/register", { method: "POST", body: "{}", headers: forged }), { ...env, EDGE_KEY: "the deployment's edge key" });
+    await worker.fetch(new Request("https://app.example.com/oauth/register", { method: "POST", body: "{}", headers: forged }), { ...env, EDGE_KEY: key });
     const ASSETS = { fetch: async () => new Response("<html><head></head><body>front</body></html>", { headers: { "Content-Type": "text/html" } }) };
-    await worker.fetch(new Request("https://example.com/", { headers: forged }), { ...env, ASSETS, EDGE_KEY: "the deployment's edge key" });
-    expect(seen).toEqual(["203.0.113.7", "2001:db8::5", null, null]);
+    await worker.fetch(new Request("https://example.com/", { headers: forged }), { ...env, ASSETS, EDGE_KEY: key });
+    // Without the key, the service trusts no address, and none is sent.
+    await worker.fetch(new Request("https://app.example.com/auth/email", { method: "POST", body: "{}", headers: { ...forged, "cf-connecting-ip": "203.0.113.7" } }), env);
+    expect(seen).toEqual([
+      ["203.0.113.7", sealOf("203.0.113.7", key)],
+      ["2001:db8::5", sealOf("2001:db8::5", key)],
+      ["2001:db8:7::9", sealOf("2001:db8:7::9", key)],
+      [null, null],
+      [null, null],
+      [null, null],
+    ]);
   });
 
   it("lets the site's pages load the bot check's widget only when the service asks for it", async () => {

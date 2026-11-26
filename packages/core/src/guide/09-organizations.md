@@ -38,10 +38,11 @@ invitation in the web app.
 Inviting has limits of its own, on every plan, since each invitation emails someone: an
 organization makes only so many in a UTC day, the number the deployment sets (`invitations_per_day`
 among `deployment_limits` in `products_read(action="limits")`); past it, a grant that would invite
-answers `429 rate_limited`, whose details give `abuse_limit` and `resets_at`, and a role given at
+answers `429 rate_limited`, whose details give `abuse_limit` and `resets_at` (and, to `grant_many`,
+`room_for`: how many more it can invite today, so a smaller batch goes now), and a role given at
 once to someone already in the organization is not counted. When the deployment has sent all the
-email it sends in an hour, an invitation is still made, its answer says `emailed: false`, and its
-`invite_link` works: give it to the person to pass on.
+email it sends in an hour, or the email could not be sent, an invitation is still made, its answer
+says `emailed: false`, and its `invite_link` works: give it to the person to pass on.
 
 ## Plans and limits
 

@@ -21,9 +21,10 @@
 // put): EDGE_KEY, the service's WHATBUILD_EDGE_KEY, sent with every request passed on, so the
 // service refuses whoever goes around this Worker to its run.app address
 // (apps/server/src/edge-key.ts). With it, each request passed on names the address Cloudflare saw
-// it come from in X-WhatBuild-Client-Address, replacing whatever the client sent there, which the
-// service trusts only beside the key, to count its abuse limits per client
-// (apps/server/src/client-address.ts).
+// it come from in X-WhatBuild-Client-Address, sealed with the key in X-WhatBuild-Client-Seal,
+// replacing whatever the client sent in either, for the service to count its abuse limits per
+// client (apps/server/src/client-address.ts). The service trusts only an address the seal proves
+// this Worker named, so no client makes one up, whichever of the two is deployed first.
 
 /** The site's own paths. Every other path on its domain belongs to the app. */
 const SITE_FILES = /^\/(assets\/.+|favicon\.svg|theme-boot\.js|social-card\.png)$/;
@@ -56,15 +57,34 @@ const PAGE_HEADERS = {
     "default-src 'self'; script-src 'self'; style-src 'self'; font-src 'self' data:; img-src 'self' data:; frame-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'",
 };
 
-function forward(request, url, env, init = {}) {
+/** The edge key as an HMAC key, made once for each key this Worker is given. */
+let sealing = null;
+
+/** base64url of an HMAC-SHA256 of the client's address keyed with the edge key, as the service checks it (sealOf in apps/server/src/client-address.ts). */
+async function sealOf(address, edgeKey) {
+  if (sealing?.edgeKey !== edgeKey) {
+    const key = crypto.subtle.importKey("raw", new TextEncoder().encode(edgeKey), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+    sealing = { edgeKey, key };
+  }
+  const mac = new Uint8Array(await crypto.subtle.sign("HMAC", await sealing.key, new TextEncoder().encode(`whatbuild client address ${address}`)));
+  return btoa(String.fromCharCode(...mac)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+async function forward(request, url, env, init = {}) {
   const forwarded = new Request(new URL(url.pathname + url.search, env.ORIGIN), request);
   forwarded.headers.set("X-Forwarded-Host", url.host);
+  forwarded.headers.delete("X-WhatBuild-Client-Address");
+  forwarded.headers.delete("X-WhatBuild-Client-Seal");
   if (env.EDGE_KEY) forwarded.headers.set("X-WhatBuild-Edge-Key", env.EDGE_KEY);
   else forwarded.headers.delete("X-WhatBuild-Edge-Key");
-  // Only Cloudflare sets CF-Connecting-IP; a request this Worker makes itself has none, and names nobody.
-  const client = request.headers.get("cf-connecting-ip");
-  if (client) forwarded.headers.set("X-WhatBuild-Client-Address", client);
-  else forwarded.headers.delete("X-WhatBuild-Client-Address");
+  // Only Cloudflare sets these; a request this Worker makes itself has none, and names nobody. The
+  // IPv6 address when there is one, so a zone that gives IPv6 visitors a made-up IPv4 address
+  // (Pseudo IPv4) still counts them by their own network.
+  const client = request.headers.get("cf-connecting-ipv6") || request.headers.get("cf-connecting-ip");
+  if (client && env.EDGE_KEY) {
+    forwarded.headers.set("X-WhatBuild-Client-Address", client);
+    forwarded.headers.set("X-WhatBuild-Client-Seal", await sealOf(client, env.EDGE_KEY));
+  }
   return fetch(forwarded, { redirect: "manual", ...init });
 }
 

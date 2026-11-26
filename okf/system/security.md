@@ -78,16 +78,23 @@ Four things keep a tab from hearing what it may not know, each holding if anothe
   off its origin.
 - What anyone can make WhatBuild do before they are let in is bounded by the abuse limits
   ([§9.2](../spec/09-data-lifecycle.md#92-limits-and-quotas), `packages/core/src/abuse-limits.ts`):
-  sign-in links and agent registrations per client address, the sign-in links and invitations it
-  emails in an hour, the accounts it makes in an hour for people nobody let in (per client and
-  for the deployment), the waitlist, and an organization's invitations a day. A client address
-  counts only where the edge key vouches for the header that names it (`X-WhatBuild-Client-Address`,
-  which the Worker sets from `CF-Connecting-IP` and a client cannot set past it); it is kept only as
-  an HMAC keyed from the grant key, an IPv6 address by its /64, for two days. A deployment with
-  Cloudflare Turnstile's keys asks for its token on asking for a sign-in link, starting Google or
-  Microsoft sign-in, and joining the waitlist (`apps/server/src/bot-check.ts`): the server checks
-  each token with Cloudflare, for its form's action and the deployment's own hosts, once, and
-  refuses while Cloudflare cannot be asked
+  sign-in links and agent registrations per client, the sign-in links and invitations it emails in
+  an hour, the accounts it makes in an hour for people nobody let in (per client and for the
+  deployment), the waitlist, the agent registrations it keeps waiting for a first connection, and
+  an organization's invitations a day. A client address counts only where the edge key vouches for
+  it: the Worker names it in `X-WhatBuild-Client-Address` from what Cloudflare saw, and seals it in
+  `X-WhatBuild-Client-Seal` with an HMAC keyed with the edge key, which no client can make, so an
+  address a client made up is never trusted, behind an old Worker either. A client is an IPv4
+  address, or an IPv6 /64 and, under limits three times larger, its /48, so one person's IPv6 range
+  is a few clients, not thousands. It is kept only as an HMAC keyed from the grant key, for two
+  days. A request with the edge key and no sealed address is logged as an error, once an instance:
+  the limits per client are off until the Worker is deployed. A deployment with Cloudflare
+  Turnstile's keys asks for its token on asking for a sign-in link, starting Google or Microsoft
+  sign-in, and joining the waitlist (`apps/server/src/bot-check.ts`): the server checks each token
+  with Cloudflare, for its form's action and the deployment's own hosts, takes each once (keeping
+  its hash while it is good, since Cloudflare's own refusal of a repeat is not immediate), refuses
+  while Cloudflare cannot be asked, logs every refusal's reason and never the token, and logs as an
+  error, once an hour, whatever means it refuses everyone
   ([decision](../decisions/the-bot-check-is-cloudflare-turnstile-and-a-deployment-may-leave-it-off.md)).
 - Nothing tells someone signed out, or outside an organization, whether an address has an
   account. The sign-in form answers every address alike, at the same speed and under the same
@@ -163,9 +170,11 @@ Four things keep a tab from hearing what it may not know, each holding if anothe
 
 - Dynamic registration, open to anyone and bounded: at most 10 redirect URIs of 500 characters
   each, and a name of 100 printable characters (control and format characters removed); a limit
-  on registrations per client address in an hour, and a ceiling on those across the deployment
-  that have not yet led to a connection, counted one at a time, then `429 rate_limited` with
-  `Retry-After`; and the worker forgets a registration that never led to one after seven days.
+  on registrations per client address and per IPv6 /48 in an hour, then `429 rate_limited` with
+  `Retry-After`; a number kept across the deployment of those that have not yet led to a
+  connection, made one at a time, past which the oldest is forgotten rather than anyone refused,
+  so a flood cannot stop real agents from registering; and the worker forgets a registration that
+  never led to one after seven days.
 - Authorization code with PKCE S256 required; codes for ten minutes and once, bound to client,
   redirect URI and challenge; one-hour access tokens; 30-day refresh tokens that rotate, reuse
   revoking the connection; every token stored as a hash. A code is spent, and a refresh token
@@ -564,9 +573,13 @@ example organization's staff on what they wrote and in its activity log. These t
   deployment's ceilings, so one script can fill a ceiling for everyone there until its window ends
   ([decision](../decisions/abuse-limits-count-a-client-address-only-where-the-edge-key-vouches-for-it.md)).
 - The deployment's ceilings are shared: a flood that fills one (the hour's mail, new accounts, the
-  waitlist, agent registrations) refuses everyone under it until the window ends, which is the
-  price of a bound on what a flood from many addresses can cost; the alert says when one fills.
-  Clients behind one address (an office, a carrier's NAT) share its limits.
+  waitlist) refuses everyone under it until the window ends, which is the price of a bound on what
+  a flood from many addresses can cost; the alert says when one fills. Clients behind one address
+  (an office, a carrier's NAT) share its limits, and clients in one IPv6 /48 (a campus, a large
+  office) share its limits too.
+- Agent registrations are never refused for the deployment's number, but a flood faster than that
+  number in the minutes between an agent registering and its person choosing Allow pushes that
+  agent's registration out, and it registers again.
 - With the bot check, a person whose browser cannot reach Cloudflare, or while siteverify is down,
   cannot ask for a sign-in link or start Google or Microsoft sign-in: the forms fail closed.
 - The limit on concurrent URL fetches is counted per instance; a deployment runs one.

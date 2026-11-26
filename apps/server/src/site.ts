@@ -1,11 +1,11 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
-import { abuseRefusal, invalid, newId, retryAfter, spend, type AbuseLimitName, type Db } from "@whatbuild/core";
+import { abuseRefusal, invalid, newId, retryAfter, spend, spendPerClient, type WindowedLimitName, type Db } from "@whatbuild/core";
 import { Hono } from "hono";
 import { sql } from "kysely";
 import { z } from "zod";
 import { botCheckFailed, BOT_CHECK_FIELD, passesBotCheck } from "./bot-check.ts";
-import { clientAddress, clientKey } from "./client-address.ts";
+import { clientAddress, clientKeys } from "./client-address.ts";
 import type { ServerConfig } from "./config.ts";
 import { pageHeaders, siteCatalogue } from "./public-routes.ts";
 
@@ -151,16 +151,16 @@ export function siteRoutes(deps: { db: Db; config: ServerConfig }) {
     const page = body.data.page && /^\/[a-z0-9/-]*$/.test(body.data.page) ? body.data.page : null;
     if (website) return c.json({ received: true });
     const address = clientAddress(c, config);
-    if (!(await passesBotCheck(config, body.data[BOT_CHECK_FIELD], "waitlist", address))) throw botCheckFailed();
-    const key = clientKey(address, config.grantKey);
-    const refuse = (refused: { limit: number; resets_at: string }, name: AbuseLimitName, message: string) => {
+    if (!(await passesBotCheck(config, db, body.data[BOT_CHECK_FIELD], "waitlist", address))) throw botCheckFailed();
+    const keys = clientKeys(address, config.grantKey);
+    const refuse = (refused: { limit: number; resets_at: string }, name: WindowedLimitName, message: string) => {
       c.header("Retry-After", String(retryAfter(refused.resets_at)));
       return abuseRefusal(message, name, refused.limit, refused.resets_at);
     };
     const fields = { name: name || null, organization: organization || null, note: note || null };
     await db.transaction().execute(async (trx) => {
-      const mine = key ? await spend(trx, "waitlist_per_address", key, config.abuseLimits) : null;
-      if (mine && !mine.ok) throw refuse(mine, "waitlist_per_address", "Too many requests from your network in the last hour. Try again later.");
+      const mine = await spendPerClient(trx, "waitlist", keys, config.abuseLimits);
+      if (!mine.ok) throw refuse(mine, mine.name, "Too many requests from your network in the last hour. Try again later.");
       const all = await spend(trx, "waitlist_per_hour", "", config.abuseLimits);
       if (!all.ok) throw refuse(all, "waitlist_per_hour", "Too many requests right now. Try again in an hour.");
     });

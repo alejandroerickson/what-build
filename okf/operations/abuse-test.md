@@ -45,8 +45,9 @@ the bot check would. With real keys a script needs a solved challenge for every 
 never get that far.
 
 Every request goes to the server as the Cloudflare Worker would pass it on: with the edge key, and
-the client's address in `X-WhatBuild-Client-Address`, taken from the ranges kept for tests
-(198.18.0.0/15). So the limits per client address count here as behind the Worker.
+the client's address in `X-WhatBuild-Client-Address`, sealed with the key in
+`X-WhatBuild-Client-Seal`, taken from the ranges kept for tests (198.18.0.0/15, and 2001:db8::/32
+for IPv6). So the limits per client count here as behind the Worker.
 
 `WHATBUILD_ABUSE_LIMITS=… corepack pnpm abuse-test` runs it with other numbers, as a deployment
 would set them; the report says which it used. A run takes a few minutes, most of it the
@@ -68,9 +69,11 @@ by everything before them.
    (what the hour has left after phase 3).
 5. **The waitlist**: from one client (`waitlist_per_address`), a bot filling in the hidden field
    (thanked, never stored), then from many (`waitlist_per_hour`).
-6. **Agent registrations**: from one client (`agent_registrations_per_address`), then from many
-   (`agent_registrations_per_hour`, of those waiting to connect, which never passes the ceiling
-   however many arrive together).
+6. **Agent registrations**: from one client (`agent_registrations_per_address`), from a hundred
+   /64s of one IPv6 /48 (`agent_registrations_per_ipv6_48`), then from more clients than the
+   deployment keeps waiting (`agent_registrations_waiting`): every one is answered, the number kept
+   never passes it however many arrive together, and an agent registering after the flood still
+   goes on to sign its person in.
 7. **Invitations.** From a new organization on the Free plan: a hundred addresses in one call,
    refused whole by the plan's people total; then inviting and cancelling, again and again, for 65
    seconds, which the plan's calls and writes a minute pace. From an organization no plan limits
@@ -100,15 +103,21 @@ by git):
   stays out of other organizations. Its times rise during the floods only as much as one machine
   running the floods, the server and the Cloudflare checks together slows everything.
 
-A step that lets through more than its limit, a mail total past `mail_per_hour`, or a refusal for
-the second organization is a failure: say which, with the report.
+A mail total past `mail_per_hour`, more registrations kept waiting than
+`agent_registrations_waiting`, an agent that could not sign in after the flood, or a refusal for
+the second organization makes the run fail: it says which, and exits with an error after writing
+the report. A step that lets through more than its limit is a failure too: compare each line with
+the limits the report names, and say which, with the report.
 
 ## What it does not cover
 
 - **Uploads and writes inside an organization**, which a plan's limits pace and the server's tests
   flood (`apps/server/test/hostile-uploads.test.ts`, `limits.test.ts`, `tenant-isolation.test.ts`).
 - **Cloudflare in front**: the zone's rate limit and the Worker are not there, so the test meets the
-  service's own limits alone. The Worker's part (naming the client, dropping a forged name) is in
-  `apps/server/test/cloudflare-worker.test.ts`.
+  service's own limits alone. The Worker's part (naming and sealing the client, dropping a forged
+  name) is in `apps/server/test/cloudflare-worker.test.ts`.
+- **A slow mail server**: the catcher answers at once. That an organization's invitations never
+  hold up anyone's sign-in link while a mail server is slow is in
+  `apps/server/test/abuse-limits.test.ts`.
 - **A deployment's numbers**: it runs with the defaults, or with what `WHATBUILD_ABUSE_LIMITS` says.
   To try a deployment's own, pass them the same way.

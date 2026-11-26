@@ -66,7 +66,9 @@ const POLICIES = [
   },
   {
     displayName: `${service}: errors in the log`,
-    documentation: doc(`The service logged a line with severity ERROR: an unexpected error behind a 500 (in an operation, an upload or sign-in), a failure at start-up, or the instance stopped for lack of memory. One mail an hour at most, however many lines follow.`),
+    documentation: doc(
+      `The service logged a line with severity ERROR: an unexpected error behind a 500 (in an operation, an upload or sign-in), a failure at start-up, or the instance stopped for lack of memory. Or a setting gone wrong, each said once an hour or once an instance, whose event names it: bot_check_unavailable, bot_check_refused (a reason of wrong_host, wrong_action or wrong_secret) and bot_check_refused_all mean the bot check refuses everyone, so nobody new can sign in or join the waitlist (the guide's "The bot check"); client_address_missing means the Cloudflare Worker in front is older than the service, so the abuse limits per client are off (the guide's "Abuse limits"). One mail an hour at most, however many lines follow.`,
+    ),
     conditions: [
       {
         displayName: "an error line",
@@ -80,7 +82,7 @@ const POLICIES = [
   {
     displayName: `${service}: an abuse ceiling filled`,
     documentation: doc(
-      `One of the deployment's abuse ceilings filled for its window (the log line abuse_ceiling_reached names which): the sign-in links and invitations it emails in an hour, the accounts it makes in an hour for people nobody let in, requests to join the waitlist, or agents registered without connecting. Until the window ends, everyone meets that ceiling, not only whoever filled it. A flood looks like one ceiling filling hour after hour; a launch or an invitation round looks like one hour.`,
+      `One of the deployment's abuse ceilings filled for its window (the log line abuse_ceiling_reached names which): the sign-in links and invitations it emails in an hour, the accounts it makes in an hour for people nobody let in, or requests to join the waitlist. Until the window ends, everyone meets that ceiling, not only whoever filled it. Or agent_registrations_waiting: so many agents registered without connecting that ones under an hour old are being forgotten to make room, which refuses nobody but means a flood is on. A flood looks like one ceiling filling hour after hour; a launch or an invitation round looks like one hour.`,
       "Abuse limits",
     ),
     conditions: [

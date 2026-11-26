@@ -277,9 +277,10 @@ async function run(
     throw conflict("product_archived", `Product ${scope.product.name} is archived and read-only. Restore it first.`);
   let enqueued = false;
   const now = new Date().toISOString();
-  const inTransaction = <T>(fn: (ctx: OpContext) => Promise<T>, mode: "read" | "call") => {
+  const inTransaction = async <T>(fn: (ctx: OpContext) => Promise<T>, mode: "read" | "call") => {
     const tx = env.db.transaction();
-    return (mode === "read" ? tx.setAccessMode("read only") : tx).execute(async (trx) => {
+    const after: ((db: Db) => Promise<void>)[] = [];
+    const done = await (mode === "read" ? tx.setAccessMode("read only") : tx).execute(async (trx) => {
       if (scope.tenant) await sql`select set_config('app.tenant_id', ${scope.tenant.tenant_id}, true)`.execute(trx);
       if (tally && mode === "call") await countWrite(trx, tally, limits, principal, op, input);
       if (limits && mode === "call") await checkTotals(trx, limits, op, input);
@@ -295,8 +296,20 @@ async function run(
           await trx.insertInto("jobs").values({ tenant_id: scope.tenant?.tenant_id ?? "", kind, payload: json(payload) }).execute();
           enqueued = true;
         },
+        afterCommit(f) {
+          after.push(f);
+        },
       });
     });
+    // Committed: what waits on others runs now, holding nothing of the transaction, before the call answers.
+    for (const f of after) {
+      try {
+        await f(env.db);
+      } catch (e) {
+        console.error(JSON.stringify({ at: new Date().toISOString(), severity: "ERROR", event: "after_commit_failed", operation: op.name, error: e instanceof Error ? e.message : String(e) }));
+      }
+    }
+    return done;
   };
   // Slow work, such as a download, runs before the transaction, so it never holds a database connection.
   const prepared = op.prepare

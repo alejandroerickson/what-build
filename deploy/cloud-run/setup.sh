@@ -104,6 +104,19 @@ if [ -z "${CLOUD_SQL:-}" ] && [ -z "${DATABASE_URL:-}" ]; then
   echo "Choose a database: CLOUD_SQL=1 to create one, or DATABASE_URL=postgres://… for an existing Postgres." >&2
   exit 1
 fi
+# The bot check's keys go together, or the new revision would not start: a secret key given or
+# already in Secret Manager needs the site key, and a site key needs its secret key. Every run sets
+# all the service's settings again, so a re-run passes the site key again too.
+TURNSTILE_SECRET_HELD=""
+if [ -n "${TURNSTILE_SECRET_KEY:-}" ] || $G secrets describe whatbuild-turnstile-secret-key >/dev/null 2>&1; then TURNSTILE_SECRET_HELD=1; fi
+if [ -n "$TURNSTILE_SECRET_HELD" ] && [ -z "${TURNSTILE_SITE_KEY:-}" ]; then
+  echo "The bot check's secret key is set (TURNSTILE_SECRET_KEY, or whatbuild-turnstile-secret-key in Secret Manager): pass its widget's TURNSTILE_SITE_KEY too, or delete that secret to leave the bot check off (okf/operations/cloud-run.md, The bot check)." >&2
+  exit 1
+fi
+if [ -n "${TURNSTILE_SITE_KEY:-}" ] && [ -z "$TURNSTILE_SECRET_HELD" ]; then
+  echo "TURNSTILE_SITE_KEY needs its secret key: pass TURNSTILE_SECRET_KEY, or create whatbuild-turnstile-secret-key in Secret Manager (okf/operations/cloud-run.md, The bot check)." >&2
+  exit 1
+fi
 
 step "Services"
 $G services enable run.googleapis.com artifactregistry.googleapis.com cloudbuild.googleapis.com \
@@ -203,6 +216,9 @@ for pair in WHATBUILD_SMTP_URL=whatbuild-smtp-url WHATBUILD_GOOGLE_CLIENT_SECRET
     SECRETS="$SECRETS,$pair:latest"
   fi
 done
+# The migration job gets every secret but the bot check's: its site key is a setting only the service
+# has, and the server refuses to start with half of the pair, so the job would stop every release.
+JOB_SECRETS="$(printf '%s' "$SECRETS" | tr ',' '\n' | grep -v '^WHATBUILD_TURNSTILE_SECRET_KEY=' | paste -sd, -)"
 
 step "First image (Cloud Build)"
 $G builds submit --region "$REGION" --tag "$IMAGE" .
@@ -243,10 +259,10 @@ ENV_ARG="${ENV_ARG//;/,}"
 
 step "Migration job $JOB"
 if $G run jobs describe "$JOB" --region "$REGION" >/dev/null 2>&1; then
-  $G run jobs update "$JOB" --region "$REGION" --image "$IMAGE" --set-secrets "$SECRETS" ${CLOUDSQL_FLAGS[@]+"${CLOUDSQL_FLAGS[@]}"}
+  $G run jobs update "$JOB" --region "$REGION" --image "$IMAGE" --set-secrets "$JOB_SECRETS" ${CLOUDSQL_FLAGS[@]+"${CLOUDSQL_FLAGS[@]}"}
 else
   $G run jobs create "$JOB" --region "$REGION" --image "$IMAGE" --service-account "$RUNTIME_SA" \
-    --command node --args main.js,migrate --set-secrets "$SECRETS" ${CLOUDSQL_FLAGS[@]+"${CLOUDSQL_FLAGS[@]}"} \
+    --command node --args main.js,migrate --set-secrets "$JOB_SECRETS" ${CLOUDSQL_FLAGS[@]+"${CLOUDSQL_FLAGS[@]}"} \
     --max-retries 0 --task-timeout 600
 fi
 $G run jobs execute "$JOB" --region "$REGION" --wait

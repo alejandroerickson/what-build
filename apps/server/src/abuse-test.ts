@@ -5,6 +5,7 @@ import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { DEFAULT_ABUSE_LIMITS, abuseLimitsFrom } from "@whatbuild/core";
 import pg from "pg";
+import { namedBy } from "./client-address.ts";
 import { startLocalPg } from "./testing/pg.ts";
 
 /**
@@ -128,7 +129,7 @@ interface Answer {
 /** A request as the Cloudflare Worker passes it on: with the edge key, from `from` (a client address), with a session where one is given. */
 async function call(method: string, path: string, opts: { from?: string; body?: unknown; form?: URLSearchParams; cookie?: string } = {}): Promise<Answer> {
   const headers: Record<string, string> = { "X-WhatBuild-Edge-Key": EDGE_KEY, origin };
-  if (opts.from) headers["X-WhatBuild-Client-Address"] = opts.from;
+  if (opts.from) Object.assign(headers, namedBy(EDGE_KEY, opts.from));
   if (opts.cookie) headers["cookie"] = opts.cookie;
   if (opts.body !== undefined) headers["content-type"] = "application/json";
   if (opts.form) headers["content-type"] = "application/x-www-form-urlencoded";
@@ -185,6 +186,12 @@ interface Row {
   note?: string;
 }
 const rows: Row[] = [];
+
+/** What went past a limit, which makes the run fail. */
+const failures: string[] = [];
+function check(ok: boolean, what: string): void {
+  if (!ok) failures.push(what);
+}
 
 /** What the answers were, by what stopped each: a status and the limit or code that says why. */
 function tally(phase: string, answers: Answer[], mails: number, ok: (a: Answer) => boolean, note?: string): Row {
@@ -364,11 +371,21 @@ async function main() {
       void trap;
     });
 
-    // 5. Agent registrations.
+    // 5. Agent registrations: from one client, from many /64s of one IPv6 /48, and from many
+    // clients past the number kept waiting, after which an agent registering still connects.
     await phase("agent registrations", async () => {
-      const register = (from: string) => call("POST", "/oauth/register", { from, body: { client_name: "flood", redirect_uris: ["http://127.0.0.1:9/cb"] } });
+      const register = (from: string, name = "flood") => call("POST", "/oauth/register", { from, body: { client_name: name, redirect_uris: ["http://127.0.0.1:9/cb"] } });
+      const waiting = () => count("select count(*) as n from oauth_clients c where not exists (select 1 from oauth_tokens t where t.client_id = c.client_id) and not exists (select 1 from oauth_codes o where o.client_id = c.client_id)");
       tally("Agent registrations, 40 from one client", await flood(40, () => register("198.18.13.1")), 0, (a) => a.status === 201);
-      tally("Agent registrations, 250 each from its own client", await flood(250, (i) => register(manyClients(70)(i))), 0, (a) => a.status === 201);
+      tally("Agent registrations, 100 from 100 /64s of one IPv6 /48", await flood(100, (i) => register(`2001:db8:a5:${(i + 1).toString(16)}::1`)), 0, (a) => a.status === 201);
+      const most = limits.agent_registrations_waiting;
+      const n = (most ?? 1000) + 250;
+      const answers = await flood(n, (i) => register(manyClients(70)(i)));
+      const real = await register("198.18.13.200", "an agent registering during the flood");
+      const authorize = real.status === 201 ? await call("GET", `/oauth/authorize?client_id=${real.body.client_id}&redirect_uri=${encodeURIComponent("http://127.0.0.1:9/cb")}&response_type=code&code_challenge=x&code_challenge_method=S256`) : null;
+      tally(`Agent registrations, ${n} each from its own client`, answers, 0, (a) => a.status === 201, `${await waiting()} kept waiting (the number is ${most ?? "off"}); an agent registering after them: ${real.status}, and its sign-in ${authorize?.status === 302 ? "opens" : "fails"}`);
+      check(most === null || (await waiting()) <= most, `more agent registrations kept waiting than ${most}`);
+      check(authorize?.status === 302, "an agent registering during the flood could not go on to sign its person in");
     });
 
     // 6. Invitations: from an organization on the plan new organizations start on, and from one on
@@ -440,6 +457,9 @@ async function main() {
     const file = resolve(dir, `${report.at.replace(/[:.]/g, "-")}.json`);
     writeFileSync(file, `${JSON.stringify(report, null, 2)}\n`);
     console.log(`\nThe report: ${file}`);
+    check(limits.mail_per_hour === null || totalMail <= limits.mail_per_hour, `${totalMail} mails left the instance, past mail_per_hour (${limits.mail_per_hour})`);
+    check(during.every((b) => !b.failures.length), "the second organization had requests refused");
+    if (failures.length) throw new Error(`The abuse test found limits passed:\n${failures.map((f) => `- ${f}`).join("\n")}`);
   } finally {
     await stop();
   }

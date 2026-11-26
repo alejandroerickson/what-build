@@ -1163,8 +1163,9 @@ activity.jsonl
   tokens, OAuth clients, tenants and their former slugs, products and the addresses some had under a team (`team_addresses`), memberships, invitations) and the job queue,
   feedback and its daily counts, the public site's interest form, the usage counts, the landing
   pages' presses, the limits' counters, the abuse limits' counters (`abuse_counters`: a limit's
-  window, its subject, a client address's keyed hash, an organization's ID or the deployment, and how
-  many it took; deleted two days after the window began) and `schema_migrations` have no
+  window, its subject, a client's keyed hash (an address, or an IPv6 /48), an organization's ID or
+  the deployment, and how many it took; and, named `bot_check_token`, a hash of each bot check
+  token the server took, so it takes none twice; deleted two days after the window began) and `schema_migrations` have no
   row-level security and
   are reached only through the authorization layer. Policies are forced, because the app's role owns
   the tables. [`apps/server/test/row-level-security.test.ts`](../../apps/server/test/row-level-security.test.ts)
