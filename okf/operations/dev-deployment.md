@@ -3,7 +3,7 @@ type: System Concept
 title: The dev deployment is a second Cloud Run deployment, laid out like production and holding a copy of its example organization or other organizations its instance owners own, where a release is rehearsed before production moves.
 description: For the maintainer and the agent working for them; what the dev deployment is and how it differs from production, where its values are, rehearsing a release on it, putting it back, refreshing its copy of the instance owners' organizations, setting one up from nothing, and keeping its data private.
 tags: [operations, deployment, dev, rehearsal, migrations, cloud-run, neon, production]
-generated: {by: agent:claude, at: 2026-11-14}
+generated: {by: agent:claude, at: 2026-11-25}
 status: stable
 ---
 
@@ -20,6 +20,8 @@ The skill `rehearse-on-the-dev-deployment` conducts the work in this guide.
 [A copy of production](a-copy-of-production.md) on your own machine tries the code. The dev
 deployment also tries the deploy: the same image build, restore point, migration job and Cloud Run
 service that production's build runs, on the instance owners' organizations as production holds them.
+It is also where a deployment's capacity is measured: a [load test](load-testing.md) runs here,
+never on production.
 
 ## What it is
 

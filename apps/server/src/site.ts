@@ -8,7 +8,7 @@ import type { ServerConfig } from "./config.ts";
 import { pageHeaders, siteCatalogue } from "./public-routes.ts";
 
 /** What the site's own origin serves; any other path there belongs to the app and is sent to it. */
-const SITE_PATHS = new Set(["/", "/plans", "/plans/", "/privacy", "/privacy/", "/what-to-build", "/what-to-build/", "/api/v1/interest", "/api/v1/plans", "/favicon.svg", "/theme-boot.js", "/health"]);
+const SITE_PATHS = new Set(["/", "/plans", "/plans/", "/privacy", "/privacy/", "/what-to-build", "/what-to-build/", "/api/v1/interest", "/api/v1/pressed", "/api/v1/plans", "/favicon.svg", "/theme-boot.js", "/health"]);
 
 /** The site's pages, by their path on its own domain, and where each is in the build. */
 const SITE_PAGES: Record<string, string> = {
@@ -20,6 +20,11 @@ const SITE_PAGES: Record<string, string> = {
   "/what-to-build": "what-to-build/index.html",
   "/what-to-build/": "what-to-build/index.html",
 };
+
+/** The landing pages, by their path on the site (`LandingPath` in apps/web/src/site/landing/Landing.tsx). */
+export const LANDING_PAGES = ["/", "/what-to-build/"] as const;
+/** A landing page's buttons: Explore the demo, and Start using WhatBuild. */
+export const LANDING_BUTTONS = ["explore", "start"] as const;
 
 /** An attribute's value, written into HTML. */
 const attr = (v: string) => v.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -41,6 +46,9 @@ function sitePage(path: string, analyticsId: string | null, site: unknown): stri
 
 /** New requests to hear from us accepted per hour across the whole site, a crude guard against floods. */
 const INTEREST_PER_HOUR = 200;
+/** Presses of the landing pages' buttons counted per hour by one process, a crude guard against floods; past it they are dropped. */
+const PRESSES_PER_HOUR = 2000;
+const Pressed = z.strictObject({ page: z.enum(LANDING_PAGES), button: z.enum(LANDING_BUTTONS) });
 
 const Interest = z.object({
   email: z.string().trim().email().max(320),
@@ -55,8 +63,8 @@ const Interest = z.object({
 
 /**
  * The public site: two landing pages that say what WhatBuild is and take requests to hear when it
- * opens (the front page, and the dark stage at /what-to-build/), a page of the plans it offers, and
- * the privacy page.
+ * opens (the front page, and the dark stage at /what-to-build/), and count the presses of their
+ * buttons; a page of the plans it offers; and the privacy page.
  * The same image serves it, chosen by the Host (or X-Forwarded-Host) header: requests for WHATBUILD_SITE_URL's host get
  * the site, `www.` redirects to it, and every other path on it goes to the app at
  * WHATBUILD_PUBLIC_URL. On the app's origin the pages are at /site/, /site/plans/, /site/privacy/
@@ -97,6 +105,26 @@ export function siteRoutes(deps: { db: Db; config: ServerConfig }) {
   app.get("/site/*", async (c, next) => {
     const html = await page(c.req.path.slice("/site".length));
     return html ? pageResponse(html) : next();
+  });
+
+  /**
+   * A landing page's button was pressed: one more for its UTC day, page and button, to compare the
+   * landing pages by how many visitors each moves to act (okf/operations/analytics.md). It names
+   * nobody, and nothing reads it back over HTTP.
+   */
+  const flood = { hour: "", presses: 0 };
+  app.post("/api/v1/pressed", async (c) => {
+    const body = Pressed.safeParse(await c.req.json().catch(() => ({})));
+    if (!body.success) throw invalid("invalid_input", `Send page, a landing page (${LANDING_PAGES.join(" or ")}), and button, the one pressed (${LANDING_BUTTONS.join(" or ")}).`);
+    const now = new Date().toISOString();
+    if (flood.hour !== now.slice(0, 13)) Object.assign(flood, { hour: now.slice(0, 13), presses: 0 });
+    if (++flood.presses > PRESSES_PER_HOUR) return c.json({ received: true });
+    await db
+      .insertInto("landing_presses")
+      .values({ day: now.slice(0, 10), page: body.data.page, button: body.data.button })
+      .onConflict((oc) => oc.columns(["day", "page", "button"]).doUpdateSet({ presses: sql<number>`landing_presses.presses + 1` }))
+      .execute();
+    return c.json({ received: true });
   });
 
   /** Ask to hear when WhatBuild opens. The same answer for a new address, a repeat and a bot. */

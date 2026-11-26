@@ -142,10 +142,11 @@ async function cloudflare(days: number): Promise<Section<Record<string, unknown>
     const res = await fetch(`https://api.cloudflare.com/client/v4${path}`, { ...init, headers: { authorization: `Bearer ${token}`, "content-type": "application/json", ...(init.headers ?? {}) } });
     return (await res.json()) as Record<string, unknown>;
   };
-  // Cloudflare answers for up to 31 days at a time.
+  // Cloudflare answers for up to 31 days at a time. The days are whole UTC days, today's so far
+  // included, as the server's counts are, so the two speak of the same days.
   const span = Math.min(days, 31);
   const until = new Date();
-  const since = new Date(until.getTime() - span * 86400_000);
+  const since = new Date(Date.parse(until.toISOString().slice(0, 10)) - (span - 1) * 86400_000);
   const graphql = async (query: string, variables: Record<string, unknown>) =>
     (await api("/graphql", { method: "POST", body: JSON.stringify({ query, variables }) })) as { data?: { viewer: { accounts: Record<string, unknown>[] } }; errors?: { message: string }[] };
   let siteTag = setting("CF_ANALYTICS_SITE_TAG");

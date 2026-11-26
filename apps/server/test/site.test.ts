@@ -95,6 +95,13 @@ describe("the public site", () => {
     ]);
   });
 
+  it("counts a landing page's button pressed on its own host, as the Worker passes it on", async () => {
+    expect((await hostRequest(h.baseUrl, site, "POST", "/api/v1/pressed", { page: "/what-to-build/", button: "start" })).status).toBe(200);
+    expect((await hostRequest(h.baseUrl, site, "POST", "/api/v1/pressed", { page: "/what-to-build/", button: "start" }, { origin: `https://${site}`, cookie: "wb_cookies=granted" })).status).toBe(200);
+    const rows = await h.db.selectFrom("landing_presses").select(["page", "button", "presses"]).execute();
+    expect(rows).toEqual([{ page: "/what-to-build/", button: "start", presses: 2 }]);
+  });
+
   it("refuses a missing address, and thanks a bot without storing anything", async () => {
     const bad = await fetch(`${h.baseUrl}/api/v1/interest`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ email: "not an address" }) });
     expect(bad.status).toBe(422);

@@ -209,9 +209,10 @@ export function useSignOut() {
 }
 
 /**
- * A link from one of the public site's landing pages carries `?landing=<its path>` through sign-in.
- * Once signed in, it is told to the server (which keeps it on an account in its first day, to compare
- * the landing pages) and taken off the address.
+ * A link from one of the public site's landing pages carries `?landing=<its path>` through sign-in,
+ * and `&button=` for the button pressed (`explore` or `start`). Once signed in, they are told to the
+ * server (which keeps them on an account in its first day, to compare the landing pages) and taken
+ * off the address.
  */
 function useCameFrom(signedIn: boolean) {
   const loc = useLocation();
@@ -221,8 +222,10 @@ function useCameFrom(signedIn: boolean) {
     const params = new URLSearchParams(loc.search);
     const page = params.get("landing");
     if (!page) return;
+    const button = params.get("button");
     params.delete("landing");
-    void api("POST", "/api/v1/me/came-from", { page }).catch(() => undefined);
+    params.delete("button");
+    void api("POST", "/api/v1/me/came-from", { page, ...(button === "explore" || button === "start" ? { button } : {}) }).catch(() => undefined);
     const rest = params.toString();
     navigate(`${loc.pathname}${rest ? `?${rest}` : ""}${loc.hash}`, { replace: true });
   }, [signedIn, loc.pathname, loc.search, loc.hash, navigate]);

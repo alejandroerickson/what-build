@@ -17,6 +17,7 @@ import { formatIssues, nullCharacterPaths, nullCharacterSentence, wordList } fro
 import { feedbackOff } from "./feedback.ts";
 import { isInstanceOwner } from "./tenant-allowance.ts";
 import { clientFamily, countCall } from "./usage.ts";
+import { noteReturn } from "./first-return.ts";
 import { READ_ONLY_ALLOWS } from "./read-only.ts";
 import { utcDay } from "./util.ts";
 
@@ -213,6 +214,8 @@ export async function execute(
   const reached: { scope?: Scope } = {};
   const example = () => Boolean(reached.scope?.tenant?.example);
   const count = (outcome: string) => countCall(env, principal, { operation: op.name, feature: op.mcp.tool, outcome, example: example() });
+  // An account's first call on a later day than the one it was made is when it came back (`first-return.ts`).
+  noteReturn(env.db, principal);
   return tracer.startActiveSpan(op.name, { attributes: { "whatbuild.operation": op.name, ...(principal.surface ? { "whatbuild.door": principal.surface } : {}), ...(principal.surface === "mcp" ? { "whatbuild.client": clientFamily(principal) } : {}) } }, async (span) => {
     try {
       const ran = await run(env, principal, op, rawInput, ref, connector, reached, signal);

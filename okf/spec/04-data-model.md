@@ -1074,9 +1074,15 @@ Otherwise reports stay in the database for whoever runs the deployment
 (◆ [decision](../decisions/feedback-names-nobody-and-reaches-the-maintainers-in-a-daily-digest.md)).
 
 **Where an account came from.** `accounts.came_from` is the path of the public site's landing page
-(`/`, `/what-to-build/`) a new account's sign-in started from (`?landing=` on its link, sent by the
-web app as `POST /api/v1/me/came-from`), kept once and only in the account's first day, to compare
-the landing pages ([decision](../decisions/the-landing-pages-are-compared-by-a-split-at-the-edge.md)).
+(`/`, `/what-to-build/`) a new account's sign-in started from, and `accounts.came_via` the button
+it came by (`explore`, Explore the demo; `start`, Start using WhatBuild): `?landing=` and
+`&button=` on its link, sent by the web app as `POST /api/v1/me/came-from`, kept once and only in
+the account's first day. `accounts.returned_at` is when the account first came back: its first
+call to an operation, from either door, on a later UTC day than the one it was made, kept once
+(`packages/core/src/first-return.ts`). The three compare the landing pages
+([decision](../decisions/the-landing-pages-are-compared-by-a-split-at-the-edge.md),
+[the funnel](../operations/analytics.md#the-landing-page-funnel)), and deleting the account
+clears them.
 
 **Interest: the waitlist.** The public site's form (`POST /api/v1/interest { email, name?,
 organization?, note?, page? }`, no sign-in) records someone asking for an organization of their own, and so
@@ -1151,8 +1157,8 @@ activity.jsonl
   lives in its own tables and is never updated. Every content table has a row-level security
   policy keyed on the transaction-local `app.tenant_id`. Directory tables (accounts, sessions,
   tokens, OAuth clients, tenants and their former slugs, products and the addresses some had under a team (`team_addresses`), memberships, invitations) and the job queue,
-  feedback and its daily counts, the public site's interest form, the usage counts, the limits'
-  counters and `schema_migrations` have no
+  feedback and its daily counts, the public site's interest form, the usage counts, the landing
+  pages' presses, the limits' counters and `schema_migrations` have no
   row-level security and
   are reached only through the authorization layer. Policies are forced, because the app's role owns
   the tables. [`apps/server/test/row-level-security.test.ts`](../../apps/server/test/row-level-security.test.ts)
@@ -1233,6 +1239,12 @@ activity.jsonl
   `usage_people` keeps a row for each day a person used a part of WhatBuild (an MCP
   tool's name) through a door and client, the person named by `personOf`, an HMAC of the account id
   under a key derived from the grant key. The worker deletes its rows after 14 months.
+- **The landing pages' funnel**
+  ([`0054_the_landing_funnel.sql`](../../apps/server/src/migrations/0054_the_landing_funnel.sql)):
+  `landing_presses`, a table without row-level security that names nobody, counts the presses of
+  the public site's landing pages' buttons per UTC day, page (`/`, `/what-to-build/`) and button
+  (`explore`, `start`), from `POST /api/v1/pressed` (`apps/server/src/site.ts`); and
+  `accounts.came_via` and `returned_at`, above.
 - **A source's text and the search index**
   ([`0030_one_derived_text_per_source.sql`](../../apps/server/src/migrations/0030_one_derived_text_per_source.sql)):
   `source_texts`, one row for each source that has a derived text (`record_id`, `content`,
