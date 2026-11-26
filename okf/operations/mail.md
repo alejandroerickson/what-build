@@ -1,9 +1,9 @@
 ---
 type: System Concept
 title: Mail - what WhatBuild sends, how each deployment sends it, and sending it through Cloudflare Email Sending
-description: The messages the server sends (four while a request waits, and the daily feedback digest), the settings that choose a mailer, which deployments send mail and which never do, setting up Cloudflare Email Sending over SMTP, checking it, rotating its token, changing provider, and what breaks it.
+description: The messages the server sends (six while a request waits, and the daily feedback digest), the settings that choose a mailer, which deployments send mail and which never do, setting up Cloudflare Email Sending over SMTP, checking it, rotating its token, changing provider, and what breaks it.
 tags: [operations, mail, smtp, cloudflare, invitations, sign-in, cloud-run, azure, runbook]
-generated: {by: agent:claude, at: 2026-11-15}
+generated: {by: agent:claude, at: 2026-11-25}
 status: stable
 ---
 
@@ -18,8 +18,8 @@ Plain text, one message at a time. Six are sent while the request that causes it
 
 | Message | Sent when | Code |
 |---|---|---|
-| A sign-in link | someone asks for one on the sign-in page (`POST /auth/email`) for an address that may sign in, at most five per address an hour | `apps/server/src/auth/routes.ts` |
-| An invitation | someone gives a role to an address they don't already see in the organization, whether or not it has an account: it names who invited them, with their account's address, the organization, or the product in it, and the role, says in a sentence what WhatBuild is (with where to read more, `WHATBUILD_SITE_URL`, where there is a public site), and links to where they accept or decline, signing in as the invited address, for 7 days. Declining sends nothing to the inviter. | `packages/core/src/ops/products.ts` |
+| A sign-in link | someone asks for one on the sign-in page (`POST /auth/email`) for an address that may sign in, at most five per address an hour, within the deployment's mail for the hour ([abuse limits](cloud-run.md#abuse-limits)) | `apps/server/src/auth/routes.ts` |
+| An invitation | someone gives a role to an address they don't already see in the organization, whether or not it has an account: it names who invited them, with their account's address, the organization, or the product in it, and the role, says in a sentence what WhatBuild is (with where to read more, `WHATBUILD_SITE_URL`, where there is a public site), and links to where they accept or decline, signing in as the invited address, for 7 days. Declining sends nothing to the inviter. Sent once the call that made the invitation has committed, within the deployment's mail for the hour | `packages/core/src/ops/products.ts` |
 | An allowance notice | an instance owner lets an address start organizations, and asks to tell them: to someone let in from the waitlist, that their place is ready since the day they asked; to anyone else, which instance owner invited them, with their address, and what WhatBuild is, as an invitation says it. Either links to `/welcome`, signing in as that address | `packages/core/src/ops/tenant-allowances.ts`, `packages/core/src/mail-words.ts` |
 | An account's deletion confirmation | a person deletes their account, or an instance owner removes it: to the address it had, saying who ended it, what was deleted and what is kept, and whom to tell if it was not them (`WHATBUILD_PRIVACY_CONTACT`) | `packages/core/src/ops/accounts.ts` |
 | An organization's read-only notice | an instance owner moves an organization to the starting plan while whoever started it already has one there, which makes it read-only: to each of its owners, saying what they can still do, the day it is kept until, and whom to ask to move it | `packages/core/src/organization-notices.ts`, `packages/core/src/ops/limits.ts` |
@@ -37,15 +37,24 @@ says so ([decision](../decisions/times-are-utc-in-data-and-local-where-shown.md)
 specified in [§3](../spec/03-accounts-and-identity.md), feedback in
 [§4.13](../spec/04-data-model.md#413-feedback).
 
-**A message that cannot be sent fails its request.** An invitation or an allowance runs in one
-transaction with its message, so a failed send leaves nothing behind and the person sees an
-internal error. A sign-in link is the exception: it is sent after the sign-in form answers, which
-answers every address alike, so a failed send is logged (`sign_in_link_not_sent`) and the person
-sees only that no email came. A deployment whose mail is broken therefore
-cannot invite anyone new, while one with no mail at all can: the person inviting is shown the link
-to pass on, and the sign-in page offers no email link. The one exception is a deletion's record: a
-failed send is logged (`account deletion: the confirmation was not mailed`) and the account ends anyway,
-since the person asked for it; the answer's `notice_sent` says whether it went.
+**Whether a message that cannot be sent fails its request depends on the message.** An
+allowance runs in one transaction with its notice, so a failed send leaves nothing behind and the
+person sees an internal error. An invitation is made whether or not it is emailed: it is emailed
+after its call commits, and one whose send fails, or that the deployment's mail for the hour
+cannot cover (`mail_per_hour`, [abuse limits](cloud-run.md#abuse-limits)), is still made. Its
+answer, from `members.grant` and `members.grant_many` alike, says `emailed: false` with its
+`invite_link`; the web app marks it Not emailed with its link to copy and pass on; and the service
+logs `invitation_not_emailed` with the reason: the provider's error, or that the hour's mail is
+used up.
+A sign-in link is sent after the sign-in form answers, which answers every address alike, so a
+failed send is logged (`sign_in_link_not_sent`) and the person sees only that no email came; once
+the hour's mail is used up, the form refuses every address with "WhatBuild has sent all the email
+it sends in an hour" until the top of the next hour. A deployment whose mail is broken can
+therefore still invite people, whose links the inviter passes on, but sends no sign-in links and
+cannot give an allowance with its notice; one with no mail at all shows every invitation as a link
+to pass on, and its sign-in page offers no email link. A deletion's record is not held back either:
+a failed send is logged (`account deletion: the confirmation was not mailed`) and the account ends
+anyway, since the person asked for it; the answer's `notice_sent` says whether it went.
 
 **A connection's notice that cannot be sent is tried again**, as any job is, a few times with
 growing waits; the agent's connection is made either way. With no mailer none is queued, and the
@@ -101,8 +110,9 @@ The adapter (`apps/server/src/adapters/mail-acs.ts`) loads the Azure SDK only wh
 `ManagedIdentityCredential`, selecting the user-assigned identity by `WHATBUILD_AZURE_CLIENT_ID`
 when set. It sends the same plain-text message as SMTP and waits for the send operation to reach
 `Succeeded`, with a 60-second bound across submission and polling. An accepted initial request
-is not success; failed operations and timeouts reject the send so its caller retains unsent
-feedback or fails the sign-in/invitation request. As with SMTP, provider success does not prove
+is not success; failed operations and timeouts reject the send, so its caller keeps unsent
+feedback, logs a sign-in link as not sent, makes an invitation that answers `emailed: false`, or
+fails an allowance's request (above). As with SMTP, provider success does not prove
 inbox delivery. Check the recipient's inbox and spam folder.
 
 `WHATBUILD_MAIL_FROM` accepts a bare address or a display name followed by one address in angle
@@ -234,7 +244,8 @@ deployment sends no mail, so it sends no digest.
 
 | Sign | Cause | Fix |
 |---|---|---|
-| Inviting a new address fails with an internal error; sign-in links don't arrive and the log says `sign_in_link_not_sent` | the send failed; the service logs the mail-provider error | read it (below), then the rows that follow |
+| Invitations are made and shown as Not emailed, and the log says `invitation_not_emailed` with the provider's error; sign-in links don't arrive and the log says `sign_in_link_not_sent`; giving an allowance with its notice fails with an internal error | the send failed; the service logs the mail-provider error | read it (below), then the rows that follow; meanwhile the inviter copies each invitation's link and passes it on |
+| A sign-in link is refused with "WhatBuild has sent all the email it sends in an hour"; invitations are shown as Not emailed, and `invitation_not_emailed` says the deployment's mail for the hour is used up; the alert `whatbuild: an abuse ceiling filled` came, for `mail_per_hour` | the deployment's mail for the hour (`mail_per_hour`) is used up, by people (a launch, an invitation round) or by a flood; nothing is wrong with the mail provider | nothing is mailed until the top of the next hour: pass on invitation links meanwhile, and sign in with Google or Microsoft where the deployment offers them. Raise `mail_per_hour` if people keep meeting it, or find what filled it ([abuse limits](cloud-run.md#abuse-limits)) |
 | `535 5.7.8` | the token is wrong, revoked or lacks Email Sending: Edit, or the user name is not `api_token` | rotate the token |
 | `550 5.7.1 … not enabled for domain` | the sender's domain is not onboarded under the token's account, or was onboarded a minute ago | onboard it, or wait a minute |
 | The sender is `no-reply@localhost` | `WHATBUILD_MAIL_FROM` is unset, most often after re-running `setup.sh` without `MAIL_FROM` | set it again (step 4) |
@@ -245,6 +256,8 @@ deployment sends no mail, so it sends no digest.
 
 ```bash
 gcloud run services logs read whatbuild --project $P --region $R --limit 300 | grep -iE 'EAUTH|EENVELOPE|ECONNECTION|ETIMEDOUT|smtp'
+gcloud logging read 'jsonPayload.event=("invitation_not_emailed" OR "sign_in_link_not_sent" OR "abuse_ceiling_reached")' --project $P --freshness 1d --limit 50 \
+  --format 'value(timestamp, jsonPayload.event, jsonPayload.error, jsonPayload.limit)'
 ```
 
 **Re-running `setup.sh` on a deployment that sends mail** replaces every setting on the service

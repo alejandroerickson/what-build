@@ -690,8 +690,10 @@ Notes on recent actions:
   does the same for up to 100 people at one scope, each with their own role, in one transaction
   that counts as one write: a refusal of any of them (a role that does not apply there, an
   address sent twice, the last owner demoted, the plan's total of people reached) changes nothing
-  and names the address in `details.email`. Its invitations are emailed once every role is given;
-  one that could not be emailed answers `emailed: false` and keeps its `invite_link`.
+  and names the address in `details.email`. Its invitations are emailed once every role is given.
+  Either one's invitation is emailed after its call commits; one that could not be emailed (its
+  send failed, or the deployment's mail for the hour, [§9.2](09-data-lifecycle.md#92-limits-and-quotas),
+  is used up) is still made, answers `emailed: false` and keeps its `invite_link`.
 - `members.revoke` removes the grant at exactly the scope named; with `whole_tenant: true` (and no
   product or `all_products`) it removes every grant the person holds in the tenant, which takes them out of
   it. That needs tenant admin, or owner when they are an owner.
