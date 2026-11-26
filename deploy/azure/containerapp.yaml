@@ -80,6 +80,11 @@ properties:
           # The default, 288, suits 1 GiB; this container has 2 GiB.
           - name: WHATBUILD_PARSE_MEMORY_MB
             value: "768"
+          # The most connections the replica holds to the database, 10 when unset (5 to 100). The
+          # replicas times it, with the migration job and anyone else, must fit the server's
+          # connections, 35 on Standard_B1ms (azure.md, The database's connections).
+          # - name: WHATBUILD_DATABASE_POOL_SIZE
+          #   value: "20"
           - name: WHATBUILD_SIGNUP_ALLOWLIST
             value: "${WB_ALLOWLIST}"
           - name: WHATBUILD_INSTANCE_OWNERS

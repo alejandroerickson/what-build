@@ -3,7 +3,7 @@ type: System Concept
 title: WhatBuild self-hosts on Azure Container Apps with Azure Database for PostgreSQL and a mounted file share, set up by an agent with the Azure CLI.
 description: What a self-hosted deployment on Azure is made of, how each resource is configured, the commands that create it, sign-in with a Microsoft work account, the variations between organizations, deploying a new version, cost and removal.
 tags: [operations, deployment, azure, self-hosting, container-apps, entra]
-generated: {by: agent:claude, at: 2026-11-20}
+generated: {by: agent:claude, at: 2026-11-25}
 status: draft
 ---
 
@@ -889,7 +889,27 @@ be scheduled, a few seconds to pull the image, under one for the server to liste
 `minReplicas: 1` removes that wait and bills a replica all month; a deploy keeps whichever is
 set. With more than one replica, a tab hearing of changes hears only of those made on its own
 ([decision](../decisions/open-tabs-hear-of-changes-through-a-stream-the-server-itself-serves.md)),
-and people refresh to see the rest.
+and people refresh to see the rest. Each replica holds its own database connections, below.
+
+### The database's connections
+
+Each replica holds at most `WHATBUILD_DATABASE_POOL_SIZE` connections to Postgres, 10 unless set
+(a whole number from 5 to 100; the server does not start on anything else). The pool bounds the
+requests a replica works on at once, and a larger one serves more while the connections, not the
+CPU, are what runs out; [Cloud Run's guide](cloud-run.md#the-databases-connections) says why, how
+to size it and what a load test shows. `Standard_B1ms` allows 50 connections, of which Azure keeps
+15, so the replicas times the pool, the migration job's one, a `pg_dump` and anyone with `psql`
+share 35: with one replica, and room for the replica a deploy replaces while it finishes, a pool
+past about 15 needs a larger tier (`Standard_B2s` allows 429).
+Azure advises against raising `max_connections` past a tier's default, keeps it when the tier
+changes (set it to the new tier's then), and has no built-in PgBouncer on Burstable servers
+([Azure's limits](https://learn.microsoft.com/en-us/azure/postgresql/flexible-server/concepts-limits)).
+Container Apps has no per-replica limit on requests like Cloud Run's `--concurrency`; its HTTP
+rule only adds replicas past 10 requests at once each, up to `maxReplicas`. Set it with no release:
+
+```bash
+az containerapp update --subscription "$AZ_SUBSCRIPTION" -g "$AZ_RG" -n "$AZ_APP" --set-env-vars WHATBUILD_DATABASE_POOL_SIZE=<n> -o none
+```
 
 ## What it costs
 

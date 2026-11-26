@@ -1,7 +1,7 @@
 ---
 type: System Concept
 title: WhatBuild runs as one stateless Cloud Run service with Postgres and a Cloud Storage bucket.
-description: What a deployment on Cloud Run is made of, how deploy/cloud-run/setup.sh creates it, sign-in, deploying and restore points before migrating, its alerts and traces, cost, names, and useful commands; backups and the dev deployment have guides of their own.
+description: What a deployment on Cloud Run is made of, how deploy/cloud-run/setup.sh creates it, sign-in, deploying and restore points before migrating, the database's connections and how to size the pool, its alerts and traces, cost, names, and useful commands; backups and the dev deployment have guides of their own.
 tags: [operations, deployment, cloud-run, gcp]
 generated: {by: agent:claude, at: 2026-11-25}
 status: stable
@@ -499,6 +499,116 @@ waitlist: someone who presses Start using WhatBuild and leaves the Welcome form 
 Starting organizations lists only those who started one or were let in, and `products.guests`
 gives the day's places used (`now.organizations_today`).
 
+## The database's connections
+
+Each instance keeps a pool of at most `WHATBUILD_DATABASE_POOL_SIZE` connections to Postgres: 10
+when it is not set, otherwise a whole number from 5 to 100, and on anything else the server does
+not start. The instance's requests, its worker and its searches share them. A connection is opened
+when a statement first needs one and closed after 30 seconds idle, and a request that waits 15
+seconds for one is answered `503 database_busy`. The migration job needs no setting: it runs one
+statement at a time, so it opens one connection.
+
+**Why it is a setting.** A request holds a connection for each transaction it runs, the round trips
+between its statements included. With the database in another region, a connection spends most of
+that time waiting on the network, so an instance serves at most about the pool ÷ (statements per
+request × one round trip) requests a second while its CPU idles
+([Load testing](load-testing.md#reading-it)). A larger pool raises that ceiling until the
+instance's CPU, its `--concurrency` or the database is the limit instead. A connection costs the
+instance little and the database some memory, which is what a compute's connection limit is made
+from.
+
+**What the database allows.** Every connection counts against Postgres's `max_connections`, less
+what the provider keeps for itself. One past it is refused (`sorry, too many clients already`),
+and so is the request that asked. Add up every client at its most:
+
+| Client | Connections at most |
+|---|---|
+| The service | the most instances × the pool, and room for more instances than the maximum for a while: those of the revision a deploy replaces serve until their requests and streams end, and Google may start one more in a sudden spike ([What it costs](#what-it-costs)) |
+| A worker run on its own (`node main.js worker`), if any | its own pool, of the same setting |
+| The migration job (`whatbuild-migrate`) | 1 |
+| The nightly backup ([Backups](backups.md#the-nightly-dump)) | 1: `pg_dump` reads through one connection |
+| People and their tools: `psql`, the provider's console, a pull of a copy ([Copying an organization](copying-an-organization.md)), a load test watching the database | a handful |
+
+Read the limit from the database itself, `psql "$DB" -Atc 'show max_connections'`, and keep the sum
+well under it:
+
+- **Neon** sets it from the compute's size: `max(100, min(4000, floor(size × 450.61)))`, so 112 at
+  0.25 CU, 225 at 0.5, 450 at 1 and 901 at 2. A compute that autoscales counts as the size
+  `min(maximum, 8 × minimum)`: from 0.25 to 2 CU it allows 901, and from 0.25 to 4 CU no more. Seven
+  are kept for Neon's own superuser
+  ([Neon](https://neon.com/docs/reference/compatibility#parameter-settings-that-differ-by-compute-size)).
+- **Cloud SQL** sets it from the instance's memory: 25 on the `db-f1-micro` that `CLOUD_SQL=1`
+  creates, 50 on `db-g1-small`, 100 from 3.75 GB
+  ([Cloud SQL](https://docs.cloud.google.com/sql/docs/postgres/flags)). With one instance and room
+  for a deploy's overlap, `db-f1-micro` holds the default pool and little more; a larger pool needs
+  a larger tier.
+- **Any Postgres** also keeps `superuser_reserved_connections` (3 by default) for superusers.
+
+The pool is then at most (the limit − what the provider keeps − the other clients) ÷ (the most
+instances, with room for the overlap).
+
+**Choosing the size.** An instance meant to serve *R* requests a second, each holding a connection
+for *t* seconds (its statements times one round trip, read from [traces](#traces)), needs about
+*R* × *t* connections. More than the requests Cloud Run sends an instance at once, besides its live
+streams, are never used (below). Try a new size with a [load test](load-testing.md#a-larger-pool)
+on the [dev deployment](dev-deployment.md) before production takes it, then set it with a new
+revision and no release:
+
+```bash
+gcloud run services update whatbuild --project $P --region $R --update-env-vars WHATBUILD_DATABASE_POOL_SIZE=<n>
+```
+
+Builds keep it. `setup.sh` replaces every setting on the service, so a re-run passes it as
+`DATABASE_POOL_SIZE`, or the pool goes back to 10. With every connection held, the
+`database_pool_saturated` line ([Alerts](#alerts)) gives the pool's size as `connections`.
+
+**Cloud Run's concurrency beside it.** `--concurrency` is how many requests Cloud Run sends one
+instance at once. It starts another instance when the requests in flight average 60% of that over
+a minute, or the CPU 60%; with no instance free and none left to start, it holds a request for 10
+seconds, or 3.5 times an instance's start-up time, then answers `429`
+([Cloud Run](https://docs.cloud.google.com/run/docs/about-instance-autoscaling)). A request waiting
+for a connection counts as in flight and uses no CPU, so an instance whose concurrency is far above
+its pool queues requests at the pool, slower for everyone, long before Cloud Run starts another.
+Keep the pool near the requests an instance takes besides its live streams: `--concurrency` less
+`WHATBUILD_LIVE_MAX_STREAMS` (`setup.sh` sets 140 and 100, which leaves 40), since a quiet stream
+holds a request and no connection. Or lower `--concurrency` towards what the pool works on, so that
+with `MAX_INSTANCES` above 1 Cloud Run spreads requests sooner. Of the pool, a search takes one
+(three at most run at once) and the worker one while it runs a job.
+
+**Neon's pooler.** Neon also runs PgBouncer in transaction mode at each compute's `-pooler` host
+(`ep-…-pooler.<region>.aws.neon.tech`; Connect → Connection pooling in its console). It takes up to
+10,000 connections and gives them at most 0.9 × `max_connections` connections to Postgres for each
+role and database, each to one transaction at a time
+([Neon](https://neon.com/docs/connect/connection-pooling)). WhatBuild's server works behind it,
+since it keeps nothing on a connection from one transaction to the next: an organization's scope
+is set for the transaction alone (`set_config(…, true)`), and so is a search's `statement_timeout`;
+its advisory locks are transaction-level (`pg_advisory_xact_lock`); it has no `LISTEN` or `NOTIFY`
+(open tabs hear of changes from a hub in the instance), no temporary table, no session `SET` and
+no SQL `PREPARE` (`pg` sends unnamed statements). A stopped search is cancelled by its backend's
+process and the start of its transaction, so behind the pooler too nothing else is cancelled. A
+change that kept state on a connection would break a deployment behind the pooler.
+
+It buys WhatBuild little. A request holds its connection to Postgres for its whole transaction,
+round trips and all, through the pooler as without it, so an instance serves no more requests a
+second. What it saves is the connections an instance keeps open and idle for 30 seconds after a
+busy moment. It suits a deployment whose most instances × the pool would pass the limit while most
+of those connections sit idle. Requests past its 0.9 × `max_connections` then wait in the pooler,
+up to two minutes, rather than in the instance, where `database_busy` would have answered them
+after 15 seconds. Give the pooled URL to the service alone: Neon advises a direct connection for
+schema changes, and always for `pg_dump`, so the migration job keeps `whatbuild-database-url` and
+the backup its own secret. The service then needs a secret of its own, made from the direct URL
+with `-pooler` after the endpoint's ID, which a re-run of `setup.sh` replaces with the direct one
+again:
+
+```bash
+gcloud secrets versions access latest --secret whatbuild-database-url --project $P \
+  | sed -E 's/@(ep-[^.]+)\./@\1-pooler./' | tr -d '\n' \
+  | gcloud secrets create whatbuild-database-url-pooled --project $P --replication-policy=automatic --data-file=-
+gcloud secrets add-iam-policy-binding whatbuild-database-url-pooled --project $P \
+  --member serviceAccount:whatbuild-runtime@$P.iam.gserviceaccount.com --role roles/secretmanager.secretAccessor
+gcloud run services update whatbuild --project $P --region $R --update-secrets DATABASE_URL=whatbuild-database-url-pooled:latest
+```
+
 ## Alerts
 
 [`deploy/cloud-run/alerts.mjs`](../../deploy/cloud-run/alerts.mjs) creates seven alert policies, and three more with the kill switch ([A hard limit on the bill](#a-hard-limit-on-the-bill)), in
@@ -530,7 +640,9 @@ it cannot see every connection being held. The server says so itself: `database_
 an ERROR line, so `whatbuild: errors in the log` mails it, and `503 database_busy` follows after 15
 seconds. Searches cannot be the cause on their own, since they have few slots and a time limit
 ([§8.8](../spec/08-search.md)); their lines (`search_busy`, `search_stopped`, `search_slow`) say how
-they are doing. To see what holds the connections, as the service's database role:
+they are doing. When it comes with load rather than a statement that runs long, the pool is too
+small for the traffic ([The database's connections](#the-databases-connections)). To see what holds
+the connections, as the service's database role:
 
 ```sql
 select state, wait_event_type, now() - query_start as running, left(query, 80) as query
@@ -753,7 +865,7 @@ closed are still billed on Workers Paid, and the zone's rate limit is what bound
 | Build identity | the project's default compute identity, or `BUILD_SA` | deploy to Cloud Run, push images, write logs, read `<project>_cloudbuild`; `setup.sh` takes away the Editor role Google gives it |
 | Database | Cloud SQL instance `whatbuild-db`, database and user `whatbuild` (with `CLOUD_SQL=1`) | or the Postgres named by `DATABASE_URL` |
 | Bucket | `<project>-whatbuild-files` | private, uniform access, public access prevented; versioned, noncurrent versions deleted after 30 days |
-| Secrets | `whatbuild-database-url`, `whatbuild-grant-key`, optional `whatbuild-smtp-url` ([Mail](mail.md)), `whatbuild-google-client-secret`, `whatbuild-edge-key` (behind Cloudflare; also the Worker's `EDGE_KEY`) | read by the runtime identity only |
+| Secrets | `whatbuild-database-url`, `whatbuild-grant-key`, optional `whatbuild-smtp-url` ([Mail](mail.md)), `whatbuild-google-client-secret`, `whatbuild-edge-key` (behind Cloudflare; also the Worker's `EDGE_KEY`), `whatbuild-database-url-pooled` (the service's, behind [Neon's pooler](#the-databases-connections)) | read by the runtime identity only |
 | Images | Artifact Registry `whatbuild` | the ten most recent always kept; others deleted after 30 days |
 | Log exclusions | `whatbuild-request-addresses` and `whatbuild-refused-requests` on the `_Default` sink | Cloud Run logs every request itself, with its whole address, the client's IP and its browser, for 30 days. The first drops its line for an address with a query (a search's words, a sign-in link's token) or an invitation link; the service's own line for it, masked, stays. The second drops its line for a `403` or a `429`: a request without the edge key, refused before the service logs anything, or one Cloud Run refused for want of an instance, so a flood of them writes no logs to pay for. The request metrics count them all, and the service's own line stays for each `403` it gives |
 | Restore points (Neon, optional) | branches `pre-migrate-<time>-<commit>`, secret `whatbuild-neon-api-key` | one per deploy before migrating, the newest three kept; the key reaches only the Neon project and is read by the build identity, and by `pnpm attention` through the maintainer's `gcloud` for the month's compute hours ([What it costs](#what-it-costs)) |

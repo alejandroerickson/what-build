@@ -12,7 +12,7 @@ import { AppError } from "./errors.ts";
 
 /** How long one search may run, every statement in it together. */
 export const SEARCH_BUDGET_MS = 5_000;
-/** How many searches one server runs at once, of the 10 connections its pool holds. */
+/** How many searches one server runs at once, of the connections its pool holds (`WHATBUILD_DATABASE_POOL_SIZE`, 10 by default, never fewer than this and two). */
 export const SEARCH_SLOTS = 3;
 /** How many more may wait for a slot, and how long. They hold no connection while they wait. */
 export const SEARCH_QUEUE = 12;

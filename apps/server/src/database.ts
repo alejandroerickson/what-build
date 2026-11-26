@@ -3,6 +3,7 @@ import { fileURLToPath } from "node:url";
 import type { DB } from "@whatbuild/core";
 import { Kysely, PostgresDialect, sql } from "kysely";
 import pg from "pg";
+import type { ServerConfig } from "./config.ts";
 import { querySpan } from "./telemetry.ts";
 
 const TIMESTAMPTZ = 1184;
@@ -25,7 +26,17 @@ function typeParser(oid: number, format?: string): (v: string) => unknown {
  */
 const CONNECTION_WAIT_MS = 15_000;
 
-export function createDb(databaseUrl: string, max = 10, connectionWaitMs = CONNECTION_WAIT_MS): { db: Kysely<DB>; pool: pg.Pool } {
+/**
+ * The database as the server's own commands use it, `serve`, `worker`, `migrate` and `seed` alike: a
+ * pool of at most `WHATBUILD_DATABASE_POOL_SIZE` connections, each opened when a statement first
+ * needs it and closed after 30 seconds idle. `migrate` runs one statement at a time, so it opens one.
+ */
+export function openDatabase(config: Pick<ServerConfig, "databaseUrl" | "databasePoolSize">): { db: Kysely<DB>; pool: pg.Pool } {
+  return createDb(config.databaseUrl, config.databasePoolSize);
+}
+
+/** A pool of at most `max` connections; tools and tests say how many they need. */
+export function createDb(databaseUrl: string, max: number, connectionWaitMs = CONNECTION_WAIT_MS): { db: Kysely<DB>; pool: pg.Pool } {
   const pool = new pg.Pool({
     connectionString: databaseUrl,
     max,

@@ -3,7 +3,7 @@ type: Specification
 title: Search reads what a source says, its title, tags, summary, derived text, notes and comments, and never its attachments; it is lexical, bounded, and says exactly what it examined.
 description: The search operation as built (substring, ranked and plain modes, scopes, filters, hits with their field and offsets, every place in substring mode, coverage), the search index of a source's texts, earlier readings, and the planned semantic retrieval.
 tags: [spec, search, retrieval, coverage, index]
-generated: {by: agent:claude, at: 2026-11-13}
+generated: {by: agent:claude, at: 2026-11-25}
 status: stable
 ---
 
@@ -361,7 +361,8 @@ A search, in any mode and through either door, cannot take every connection from
 [decision](../decisions/a-pages-words-are-kept-beside-its-html-and-a-search-runs-within-limits.md)).
 The operation is `bounded`, and `execute` runs it so:
 
-- **Few at a time.** A server runs at most 3 searches at once, of the 10 connections in its pool. At
+- **Few at a time.** A server runs at most 3 searches at once, of the connections in its pool
+  (`WHATBUILD_DATABASE_POOL_SIZE`, 10 by default and never fewer than 5, [§2.3](02-architecture.md)). At
   most 12 more wait, up to 2 seconds, holding no connection. Any other is refused with
   `503 search_busy` and `Retry-After: 1`.
 - **A time limit.** The whole search has 5 seconds, then `503 search_timed_out`, which says nothing

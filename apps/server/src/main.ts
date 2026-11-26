@@ -1,7 +1,7 @@
 import { serve, type ServerType } from "@hono/node-server";
 import { createApp, createBlobStore, createMailer, createPorts, SERVER_VERSION } from "./app.ts";
 import { loadConfig } from "./config.ts";
-import { checkRowSecurity, createDb, migrate, watchPool } from "./database.ts";
+import { checkRowSecurity, migrate, openDatabase, watchPool } from "./database.ts";
 import { syncExampleTenant } from "./example-organization.ts";
 import { checkParsing } from "./parse-process.ts";
 import { checkPictures } from "./picture-process.ts";
@@ -33,7 +33,7 @@ async function main() {
   }
   const config = loadConfig();
   if (!config.databaseUrl) throw new Error("DATABASE_URL is not set. For local development run `pnpm dev`, which starts a database for you.");
-  const { db, pool } = createDb(config.databaseUrl);
+  const { db, pool } = openDatabase(config);
 
   if (command === "migrate") {
     const ran = await migrate(db);
