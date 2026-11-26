@@ -22,6 +22,9 @@
   --ld-tie: rgb(30 30 30 / 0.22);
   --ld-field: var(--panel);
   --ld-field-line: var(--line-2);
+  /* The bar's height, and the room the footer keeps, so the last screen and the footer fill the window together. */
+  --ld-bar-h: 64px;
+  --ld-foot-h: 96px;
   min-height: 100vh;
   background: var(--ld-bg);
   color: var(--ld-text);
@@ -80,7 +83,11 @@ html.ld-root::-webkit-scrollbar-thumb {
   top: 12px;
 }
 
-/* The bar at the top: the mark, and one way in for people who already have one. */
+/*
+ * The bar at the top: the mark, and one way in for people who already have one. It is solid, so no
+ * words ever run across the mark. On the front page, whose words scroll up under it, they fade into
+ * it first; the dark stage's words stay below it, where a fade would dim them.
+ */
 .ld-bar {
   position: fixed;
   inset: 0 0 auto;
@@ -88,9 +95,19 @@ html.ld-root::-webkit-scrollbar-thumb {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  height: 64px;
+  height: var(--ld-bar-h);
   padding: 0 32px;
-  background: color-mix(in srgb, var(--ld-bg) 92%, transparent);
+  background: var(--ld-bg);
+}
+.ld-one .ld-bar::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  right: 0;
+  left: 0;
+  height: 16px;
+  background: linear-gradient(var(--ld-bg), transparent);
+  pointer-events: none;
 }
 .ld-brand {
   display: flex;
@@ -787,17 +804,24 @@ html.ld-root::-webkit-scrollbar-thumb {
   stroke: var(--ld-bg);
 }
 
-/* ---------- The last screen: one thing to do. ---------- */
+/*
+ * ---------- The last screen: one thing to do. ----------
+ * With the footer it fills the window, so the last scene's picture is gone from it, at the foot of
+ * the page and wherever Start using WhatBuild or Skip to the end leads.
+ */
 
 .ld-close {
   position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
   gap: 20px;
-  padding: 150px 24px 56px;
+  min-height: calc(100vh - var(--ld-foot-h));
+  min-height: calc(100svh - var(--ld-foot-h));
+  padding: calc(var(--ld-bar-h) + 40px) 24px 56px;
   text-align: center;
-  scroll-margin-top: 24px;
+  scroll-margin-top: 0;
 }
 .ld-close-title {
   margin: 0;
@@ -881,7 +905,9 @@ html.ld-root::-webkit-scrollbar-thumb {
   color: var(--ld-text);
 }
 .ld-foot.site-foot {
+  align-content: flex-start;
   max-width: 1240px;
+  min-height: var(--ld-foot-h);
   margin: 0 auto;
   padding: 28px 32px 40px;
 }
@@ -889,8 +915,10 @@ html.ld-root::-webkit-scrollbar-thumb {
 /* ---------- A narrow or upright window: the picture takes the top, the words the foot. ---------- */
 
 @media (max-width: 720px), (max-aspect-ratio: 6/5) {
+  .ld {
+    --ld-bar-h: 56px;
+  }
   .ld-bar {
-    height: 56px;
     padding: 0 16px;
   }
   .ld-h1 {
@@ -961,10 +989,14 @@ html.ld-root::-webkit-scrollbar-thumb {
     left: 690px;
   }
   .ld-close {
-    padding: 104px 16px 40px;
+    padding: calc(var(--ld-bar-h) + 32px) 16px 40px;
   }
   .ld-join-row {
     flex-direction: column;
+  }
+  /* In a column, flex: 1 would size the field by its text, not its height. */
+  .ld-input {
+    flex: none;
   }
   .ld-close .ld-btn {
     width: 100%;

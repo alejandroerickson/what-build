@@ -3,7 +3,7 @@ type: Specification
 title: The web app is a person's way to run the same operations an agent runs, one screen at a time.
 description: Principles, the shell and product switching, the overview, routes, first run, and the behavior of every screen (Idea, Evidence, Exploration, Story, Activity, archive and delete, Settings, Instance admin).
 tags: [spec, web, ui, routes, shell]
-generated: {by: agent:claude, at: 2026-11-23}
+generated: {by: agent:claude, at: 2026-11-25}
 status: stable
 ---
 
@@ -455,11 +455,15 @@ story of what you are building; your coding agent builds straight from the conce
 words scroll up beside a picture that stays put; `/what-to-build` is always dark and pins its stage,
 the window, while the scroll runs each scene, under "What to build?". On a narrow or upright window
 the picture takes the top and the words the foot. A Scroll prompt bobs gently at the foot of the
-first screen and goes once the page moves; with reduced motion each scene shows settled. Where
+first screen and goes once the page moves; with reduced motion each scene shows settled. The bar
+at the top, the mark and Sign in, is solid, so nothing scrolls across the mark; on `/` the words
+fade into it as they pass under. The last screen and the footer fill the window together, so no
+scene's picture shows above it, wherever the page is scrolled to or a link leads. Where
 anyone may make an account (`sign_up` in what the page is told), **Start using WhatBuild** signs them in and
 goes to `/start`, which starts their organization or puts them on the waitlist
 ([§3.2](03-accounts-and-identity.md#32-accounts-and-sign-in)), and the last screen repeats it as a
-large button; where nobody may yet, it leads to the form at the foot, which asks for an email only
+large button; where nobody may yet, it leads to the form at the foot, and puts the cursor in its
+email field, which keeps its full height at every width. The form asks for an email only
 and records it (`POST /api/v1/interest`, with the page it was sent from). The price of each plan
 with one and Compare plans sit under it. Links to sign in carry `?landing=<the page's path>` and
 `&button=` (`explore` or `start`) through sign-in, which the app sends once (`POST
@@ -473,8 +477,12 @@ anyone ([decision](../decisions/the-landing-pages-are-compared-by-a-split-at-the
 may sign up, looking comes first: **Explore the demo** (sign-in, then the example organization as a
 guest) is the filled button, with Start using WhatBuild beside it as the quiet one, and the last
 screen says what a team builds in the demo, from the deployment (`example_about`: the first sentence
-of its first product's concept), over a large Explore the demo and "Or start using WhatBuild"; the
-plans page says the same. The newcomer's words promise neither "free" nor "now". On the app's origin, which is where a deployment without a site
+of its first product's concept), over a large Explore the demo and "Or start using WhatBuild".
+The plans page ends as the last screen does, under "Find out what’s worth building": while guests
+may sign up, the same line over Explore the demo and Start using WhatBuild beside it; where anyone
+else may make an account, "Sign in and start your own organization." over Start using WhatBuild
+alone. Its links carry `?landing=/plans/` and the button, and no press is counted there. Where
+nobody may sign up yet, it says that people are let in a few at a time, with a link to the form. The newcomer's words promise neither "free" nor "now". On the app's origin, which is where a deployment without a site
 host has them, they are at `/site/`, `/site/plans/`, `/site/privacy/` and `/site/what-to-build/` (in development,
 `http://localhost:5273/site/`, where the pages ask the local server)
 ([decision](../decisions/the-public-site-is-pages-built-with-the-app.md)). When the deployment

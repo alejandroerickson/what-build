@@ -3,7 +3,7 @@ type: Specification
 title: Every object in a product, with its fields, limits and invariants, as the REST and MCP wire sees it.
 description: The common envelope (ids, etags, attribution, revisions), outcomes, sources and their tags, attachments, comments, summaries and notes, evidence links, the retired insights, decisions and assumptions, views, activity, Story, mockups, feedback, the product bundle, and the storage layout.
 tags: [spec, data-model, schema, revisions, story, mockups, export]
-generated: {by: agent:claude, at: 2026-11-23}
+generated: {by: agent:claude, at: 2026-11-25}
 status: stable
 ---
 
@@ -1073,8 +1073,9 @@ transaction, so a send that fails leaves them for the next try ([mail](../operat
 Otherwise reports stay in the database for whoever runs the deployment
 (◆ [decision](../decisions/feedback-names-nobody-and-reaches-the-maintainers-in-a-daily-digest.md)).
 
-**Where an account came from.** `accounts.came_from` is the path of the public site's landing page
-(`/`, `/what-to-build/`) a new account's sign-in started from, and `accounts.came_via` the button
+**Where an account came from.** `accounts.came_from` is the path of the public site's page a new
+account's sign-in started from (a landing page, `/` or `/what-to-build/`, or the plans page,
+`/plans/`), and `accounts.came_via` the button
 it came by (`explore`, Explore the demo; `start`, Start using WhatBuild): `?landing=` and
 `&button=` on its link, sent by the web app as `POST /api/v1/me/came-from`, kept once and only in
 the account's first day. `accounts.returned_at` is when the account first came back: its first

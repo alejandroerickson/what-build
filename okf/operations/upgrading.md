@@ -3,7 +3,7 @@ type: Process
 title: What a deployment must do when it takes a release
 description: The changes a release asks of the people who run a deployment (settings, app registrations, behaviour they will notice), kept per release, with the unreleased ones on top until the next release carries them into its notes.
 tags: [operations, releases, upgrading, self-hosting, configuration]
-generated: {by: agent:claude, at: 2026-11-23}
+generated: {by: agent:claude, at: 2026-11-25}
 status: stable
 ---
 
@@ -32,6 +32,16 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
   upgrading.
 
 ## Unreleased
+
+- **The site's plans page offers Start using WhatBuild wherever anyone may sign up**, as the
+  landing pages do, with Explore the demo first while guests may come in; it no longer says people
+  are let in a few at a time unless nobody may sign up. Accounts made from it come into the
+  landing-page funnel as `/plans/`, a row of their own
+  ([the funnel](analytics.md#the-landing-page-funnel)). On the landing pages, the bar at the top is
+  solid, the last screen fills the window with nothing of the last picture above it, and, where
+  nobody may sign up, Start using WhatBuild puts the cursor in the form's email field, which keeps
+  its height on a phone. No migration or setting. Behind Cloudflare, it reaches visitors when the
+  Worker is deployed with the release, as always. Nothing else needs doing.
 
 - **Mockups and Story pages keep their newest 10 versions, and older ones are deleted.** Publishing
   a version of a mockup or a Story page past what its organization's plan keeps
