@@ -178,8 +178,9 @@ Rules:
 **Abuse limits**, which are not quotas but belong beside them. Built: the sign-in link limit,
 the limits on OAuth client registration and on sign-in and OAuth request bodies
 ([§3.8](03-accounts-and-identity.md)), invite-only mode (`WHATBUILD_SIGNUP_ALLOWLIST`, [§3.2](03-accounts-and-identity.md)), in
-which an instance owner lets people in one at a time with an allowance, and a guest's limit on calls
-a minute in the example organization (§9.7).
+which an instance owner lets people in one at a time with an allowance, New organizations a day,
+which bounds how many organizations people start themselves each UTC day (§9.7), and a guest's
+limit on calls a minute in the example organization (§9.7).
 The operator's view of usage by organization is built: `products.organizations` and Instance
 admin's Organizations give each organization's plan, what it holds and today's use. Planned: per-IP sign-up limits.
 
@@ -532,6 +533,18 @@ through `readPlans`; reset goes back to the configured limits. A price set or cl
 replaces the configured one. A plan the deployment does not define is refused (`422
 unknown_plan`). A guest of the example meets the guests' calls a minute and bytes downloaded a day
 instead, set on the same page ([§3.10](03-accounts-and-identity.md#310-the-example-organization)).
+
+**New organizations a day** (`organizations_per_day`, Instance admin → Guests) bounds how many
+organizations people start themselves each UTC day, on the plan new organizations start on
+([§3.2](03-accounts-and-identity.md#32-accounts-and-sign-in),
+◆ [decision](../decisions/people-start-a-number-of-organizations-a-day-themselves.md)). A place
+counts only when an organization starts on it, or when it is held for someone let in from the
+waitlist, who gets the next places first; opening the Welcome form uses none. The place is taken in
+the transaction that creates the organization, under one lock across the deployment, so the day's
+number holds however many start at once, and whoever presses Start organization after the last
+place went is refused with `409 places_taken`, starts nothing and joins the waitlist. Instance
+owners read the day's places used in `products.guests` (`now.organizations_today`); nothing tells a
+visitor the number.
 
 | Limit | Setting | Counted over | Refusal |
 |---|---|---|---|

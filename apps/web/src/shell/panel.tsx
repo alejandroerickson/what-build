@@ -3,7 +3,7 @@ import { Link, NavLink, useLocation, useNavigate, useSearchParams } from "react-
 import { useHasNoAgent } from "../lib/agents.ts";
 import { usePlans } from "../lib/limits.ts";
 import {
-  currentProductPath, lastProduct, mayCreateProducts, ownFirst, productHome, useMe, useProducts, useSignOut,
+  currentProductPath, lastProduct, mayCreateProducts, mayStartOrganization, ownFirst, productHome, useMe, useProducts, useSignOut,
   type Product, type ProductsResponse, type ProductSummary,
 } from "../lib/session.tsx";
 import { Avatar, Button, Glyph, IconButton, Menu, MenuGroup, MenuItem, MenuLabel, MenuRadio, MenuSeparator, OneLine, type GlyphName } from "../ui/index.tsx";
@@ -84,7 +84,7 @@ function OrganizationMenu({ tenant, current, onCreate }: { tenant: Pick<Tenant, 
   const inOrg = (products.data?.items ?? []).filter((p) => p.tenant.tenant_id === tenant.tenant_id);
   const others = ownFirst(products.data?.tenants ?? []).filter((t) => t.tenant_id !== tenant.tenant_id && !(t.example && t.your_role === "guest" && me.data?.hide_example));
   const mayCreate = here ? mayCreateProducts(here) : false;
-  const mayStart = Boolean(me.data) && me.data?.tenant_allowance.remaining !== 0;
+  const mayStart = me.data ? mayStartOrganization(me.data) : false;
   return (
     <>
       {inOrg.length ? (

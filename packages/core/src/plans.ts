@@ -173,8 +173,10 @@ export interface GuestSettings {
   self_serve: boolean;
   /**
    * Organizations people may start themselves each UTC day, without an instance owner letting them
-   * in (`places.ts`); past it they join the waitlist, which gets the next places first. 0: only the
-   * people an instance owner lets in. Above 0, anyone may also make an account to start one.
+   * in (`places.ts`); a place counts when an organization starts on it, or when it is held for
+   * someone let in from the waitlist. Past it they join the waitlist, which gets the next places
+   * first. 0: only the people an instance owner lets in. Above 0, anyone may also make an account to
+   * start one.
    */
   organizations_per_day: number;
   /** Guests in at once; 0 lets no guest in. */
@@ -210,7 +212,7 @@ export const GUEST_FIELDS: { key: GuestKey; label: string; unit: "switch" | "org
     key: "organizations_per_day",
     label: "New organizations a day",
     unit: "organizations",
-    help: "People who sign up start their own organization without waiting for you, up to this many each UTC day. Past it they join the waitlist, which gets the next places first, by email. 0: only the people you let in.",
+    help: "People who sign up start their own organization without waiting for you, up to this many each UTC day. Past it they join the waitlist, which gets the next places first, by email. Someone who looks and leaves uses no place. 0: only the people you let in.",
   },
   { key: "at_once", label: "Guests in at once", unit: "guests", help: "Past it, a guest waits in line and comes in when a place frees. 0 lets no guest in." },
   { key: "new_per_day", label: "New guests a day", unit: "guests", help: "Guests coming in for the first time, each UTC day. Past it, they come back the next day." },

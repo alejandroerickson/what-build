@@ -25,8 +25,18 @@ export interface Me {
   hide_example: boolean;
   /** When they asked for an organization of their own: they are on the waitlist. */
   asked_for_organization_at?: string | null;
+  /**
+   * With no allowance of their own: one of the day's places is open, so they may start an
+   * organization now. Nothing holds it for them; starting the organization takes it.
+   */
+  place_open?: boolean;
   /** The web app's tutorials: which the person has been shown, and whether they turned them off. */
   tutorial?: TutorialState;
+}
+
+/** Whether the person may start an organization now: an instance owner, room in their allowance, or one of the day's places open to them. */
+export function mayStartOrganization(me: Pick<Me, "tenant_allowance" | "place_open">): boolean {
+  return me.tenant_allowance.remaining !== 0 || Boolean(me.place_open);
 }
 
 /** The web app's tutorials: the welcome, then one for each of a product's four pages. */
@@ -188,13 +198,19 @@ export function useSaveTutorial() {
   });
 }
 
-/** Ask for an organization of one's own: join the waitlist the instance's owners read. */
+/**
+ * Ask for an organization of one's own: join the waitlist the instance's owners read, with the
+ * organization's name where they typed one, unless one of the day's places is open to them.
+ */
 export function useAskForOrganization() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: () => api<Me>("POST", "/api/v1/me/ask-for-organization", {}),
-    // Asking may give one of the day's places at once, so the allowance changes too.
-    onSuccess: (me) => qc.setQueryData(["me"], (old: Me | undefined) => (old ? { ...old, tenant_allowance: me.tenant_allowance, guest: me.guest, asked_for_organization_at: me.asked_for_organization_at } : old)),
+    mutationFn: (sent: { organization?: string } | void) => api<Me>("POST", "/api/v1/me/ask-for-organization", sent ?? {}),
+    // Asking may give them the place held for them from the waitlist, or find one of the day's places open, so those change too.
+    onSuccess: (me) =>
+      qc.setQueryData(["me"], (old: Me | undefined) =>
+        old ? { ...old, tenant_allowance: me.tenant_allowance, guest: me.guest, asked_for_organization_at: me.asked_for_organization_at, place_open: me.place_open } : old,
+      ),
   });
 }
 

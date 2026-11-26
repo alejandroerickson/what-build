@@ -1,18 +1,24 @@
 import { sql } from "kysely";
 import type { ActorSnapshot, Db } from "./db.ts";
 import { json } from "./db.ts";
-import type { Mailer } from "./ports.ts";
+import type { CoreConfig, Mailer } from "./ports.ts";
 import { readGuests } from "./settings.ts";
-import { isInstanceOwner } from "./tenant-allowance.ts";
 import { newEtag, newId, utcDay } from "./util.ts";
 
 /**
  * New organizations a day: someone who signs up starts an organization of their own without
  * waiting for an instance owner, up to `organizations_per_day` (the guests' settings) each UTC day.
  * A place is an allowance of 1 that WhatBuild gives, marked as such in `created_by`, and counted on
- * the day it was given. Past the day's places, people join the waitlist (`interest`), and the
- * places still free go to the waitlist first, earliest first, each told by email: when someone asks
- * and, while the service is awake, every few minutes (the worker). Nothing here wakes the service.
+ * the day it was given.
+ *
+ * Nobody holds a place by asking for one. Start using WhatBuild only says whether one is open
+ * (`placeOpen`), and the place is given in the transaction that creates the organization
+ * (`takePlace`), under one lock across the deployment: the day's number holds however many start at
+ * once, and someone who opens the Welcome form and leaves uses none. Past the day's places, people
+ * join the waitlist (`interest`), and the places still free go to the waitlist first, earliest
+ * first: each is held for its person, who is told by email, and counts on the day it was given.
+ * They are given when someone asks and, while the service is awake, every few minutes (the
+ * worker). Nothing here wakes the service.
  *
  * The number is the deployment's: nothing tells a visitor how many places there are.
  */
@@ -27,7 +33,18 @@ export interface PlacePorts {
   mailer?: Mailer;
 }
 
+/** Someone who may take a place: their account, and the address its allowance would be given to. */
+export interface PlaceTaker {
+  account_id: string;
+  email: string;
+}
+
 const dayStart = (now: Date) => `${now.toISOString().slice(0, 10)}T00:00:00.000Z`;
+const ownersOf = (config: Pick<CoreConfig, "instanceOwners">) => new Set((config.instanceOwners ?? []).map((e) => e.toLowerCase()));
+const taker = (who: PlaceTaker): PlaceTaker => ({ account_id: who.account_id, email: who.email.trim().toLowerCase() });
+
+/** One at a time across the deployment, so no place is given twice and the day's number holds. */
+const lockPlaces = (db: Db) => sql`SELECT pg_advisory_xact_lock(hashtext('whatbuild organizations a day'))`.execute(db);
 
 /** The mail to someone on the waitlist whose place is ready, since the day they asked. */
 export function placeReadyMail(publicBaseUrl: string, to: string, askedAt: string | null) {
@@ -39,7 +56,10 @@ export function placeReadyMail(publicBaseUrl: string, to: string, askedAt: strin
   };
 }
 
-/** Places given today, and how many are left of the day's. */
+/**
+ * Places given today, and how many are left of the day's: those organizations were started on, and
+ * those held for people let in from the waitlist.
+ */
 export async function placesToday(db: Db, perDay: number, now = new Date()): Promise<{ given: number; left: number }> {
   const row = await db
     .selectFrom("tenant_allowances")
@@ -63,7 +83,11 @@ async function give(db: Db, email: string, now: Date): Promise<boolean> {
   return Boolean(made);
 }
 
-/** The people waiting: asked for an organization, have no allowance, are not an owner; earliest first. */
+/**
+ * The people waiting: asked for an organization, have no allowance, are not an owner, and are in no
+ * organization; earliest first. Someone who joined an organization while they waited is passed over,
+ * as Start organization passes them over (`mayTakePlace`), and stays on the waitlist an owner reads.
+ */
 async function waiting(db: Db, owners: Set<string>, n: number) {
   if (n <= 0) return [];
   const rows = await db
@@ -71,6 +95,9 @@ async function waiting(db: Db, owners: Set<string>, n: number) {
     .leftJoin("tenant_allowances as a", (j) => j.on(sql`a.email`, "=", sql`lower(i.email)`))
     .select([sql<string>`lower(i.email)`.as("email"), "i.created_at"])
     .where("a.email", "is", null)
+    .where(
+      sql<boolean>`NOT EXISTS (SELECT 1 FROM accounts ac JOIN memberships m ON m.account_id = ac.account_id WHERE lower(ac.email) = lower(i.email) AND ac.deleted_at IS NULL)`,
+    )
     .orderBy("i.created_at")
     .limit(n + owners.size)
     .execute();
@@ -78,26 +105,77 @@ async function waiting(db: Db, owners: Set<string>, n: number) {
 }
 
 /**
- * Give the day's places that are left to the people waiting, earliest first, and the next to
- * `claimant` if one is still left. One at a time across the deployment, so no place is given twice.
- * Mail goes out once the places are kept. Returns whether `claimant` got one.
+ * Whether an account may take a place at all: it is no instance owner, its address has no allowance
+ * of its own (an owner's 0 keeps it out), and it is in no organization yet.
+ */
+async function mayTakePlace(db: Db, owners: Set<string>, who: PlaceTaker): Promise<boolean> {
+  if (owners.has(who.email)) return false;
+  const row = await db
+    .selectNoFrom([
+      sql<boolean>`EXISTS (SELECT 1 FROM tenant_allowances WHERE email = ${who.email})`.as("allowance"),
+      sql<boolean>`EXISTS (SELECT 1 FROM memberships WHERE account_id = ${who.account_id})`.as("member"),
+    ])
+    .executeTakeFirstOrThrow();
+  return !row.allowance && !row.member;
+}
+
+/** Whether one of the day's places is left for an address once the people waiting before it have theirs. */
+async function placeLeftFor(db: Db, perDay: number, owners: Set<string>, email: string, now: Date): Promise<boolean> {
+  const { left } = await placesToday(db, perDay, now);
+  if (left <= 0) return false;
+  const ahead = await waiting(db, owners, left);
+  return ahead.length < left || ahead.some((w) => w.email === email);
+}
+
+/**
+ * Whether an account may start an organization now on one of the day's places: the deployment gives
+ * them, the account may take one, and one is left after the people waiting. Nothing is held for it,
+ * so someone else may take the place first.
+ */
+export async function placeOpen(db: Db, config: Pick<CoreConfig, "instanceOwners">, who: PlaceTaker, now = new Date()): Promise<boolean> {
+  const { organizations_per_day: perDay } = await readGuests(db);
+  if (perDay <= 0) return false;
+  const owners = ownersOf(config);
+  const me = taker(who);
+  return (await mayTakePlace(db, owners, me)) && (await placeLeftFor(db, perDay, owners, me.email, now));
+}
+
+/**
+ * Take one of the day's places, in the transaction that creates the account's organization, under
+ * the lock: two people starting at once cannot both take the last place. `taken`: the place is the
+ * account's allowance now. `gone`: none is left for it. `none`: the account takes no place, because
+ * the deployment gives none or the account may not take one.
+ */
+export async function takePlace(trx: Db, config: Pick<CoreConfig, "instanceOwners">, who: PlaceTaker, now = new Date()): Promise<"taken" | "gone" | "none"> {
+  const { organizations_per_day: perDay } = await readGuests(trx);
+  if (perDay <= 0) return "none";
+  const owners = ownersOf(config);
+  const me = taker(who);
+  await lockPlaces(trx);
+  if (!(await mayTakePlace(trx, owners, me))) return "none";
+  if (!(await placeLeftFor(trx, perDay, owners, me.email, now))) return "gone";
+  return (await give(trx, me.email, now)) ? "taken" : "none";
+}
+
+/**
+ * Give the day's places that are left to the people waiting, earliest first, each held for its
+ * person. `claimant`, someone asking now, is answered at once rather than by email when theirs is
+ * among them. Mail goes out once the places are kept. Returns whether `claimant` got one.
  */
 export async function givePlaces(db: Db, ports: PlacePorts, claimant?: string, now = new Date()): Promise<{ claimed: boolean; released: string[] }> {
   const { organizations_per_day: perDay } = await readGuests(db);
   if (perDay <= 0) return { claimed: false, released: [] };
-  const owners = new Set((ports.config.instanceOwners ?? []).map((e) => e.toLowerCase()));
+  const owners = ownersOf(ports.config);
   const out = await db.transaction().execute(async (trx) => {
-    await sql`SELECT pg_advisory_xact_lock(hashtext('whatbuild organizations a day'))`.execute(trx);
-    let { left } = await placesToday(trx, perDay, now);
+    await lockPlaces(trx);
+    const { left } = await placesToday(trx, perDay, now);
     const released: { email: string; created_at: string }[] = [];
+    let claimed = false;
     for (const w of await waiting(trx, owners, left)) {
-      if (w.email === claimant) continue;
-      if (await give(trx, w.email, now)) {
-        released.push(w);
-        left--;
-      }
+      if (!(await give(trx, w.email, now))) continue;
+      if (w.email === claimant) claimed = true;
+      else released.push(w);
     }
-    const claimed = Boolean(claimant) && left > 0 && !owners.has(claimant!) && (await give(trx, claimant!, now));
     return { claimed, released };
   });
   if (ports.mailer) for (const r of out.released) await ports.mailer.send(placeReadyMail(ports.config.publicBaseUrl, r.email, r.created_at)).catch(() => undefined);
@@ -105,18 +183,23 @@ export async function givePlaces(db: Db, ports: PlacePorts, claimant?: string, n
 }
 
 /**
- * Someone signed in asks for an organization of their own: a place of the day if one is left,
- * else the waitlist, keeping their place in it and adding what they sent.
+ * Someone signed in asks for an organization of their own. `place`: they may start one now, on the
+ * place held for them from the waitlist or on one of the day's places that is open, which they take
+ * only by starting it. `waitlist`: none is open, so they join the waitlist, keeping their place in
+ * it and adding what they sent.
  */
 export async function askForOrganization(
   db: Db,
   ports: PlacePorts,
-  person: { email: string; display_name: string | null },
+  person: PlaceTaker & { display_name: string | null },
   sent: { organization?: string; note?: string } = {},
   now = new Date(),
 ): Promise<"place" | "waitlist"> {
-  const email = person.email.toLowerCase();
-  if (!isInstanceOwner({ instanceOwners: ports.config.instanceOwners ?? [] }, email) && (await givePlaces(db, ports, email, now)).claimed) return "place";
+  const email = person.email.trim().toLowerCase();
+  if (!ownersOf(ports.config).has(email)) {
+    if ((await givePlaces(db, ports, email, now)).claimed) return "place";
+    if (await placeOpen(db, ports.config, { account_id: person.account_id, email }, now)) return "place";
+  }
   await db
     .insertInto("interest")
     .values({ interest_id: newId(), email, name: person.display_name, organization: sent.organization || null, note: sent.note || null })

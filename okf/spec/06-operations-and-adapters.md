@@ -112,7 +112,7 @@ tenant.
 | 401 | No or invalid identity or grant | `unauthenticated`, `invalid_grant` |
 | 403 | A role too low for the action; an agent connection's level too low for it; feedback turned off for an agent connection; something only a person does in the web app; a call outside a scoped MCP connector; a write by a guest of the example organization; a cross-origin cookie write; deleting an account from a browser that has not signed in recently; something an organization's plan switches off | `forbidden`, `connection_level`, `feedback_off`, `web_only`, `outside_connector_scope`, `example_read_only`, `forbidden_origin`, `invitation_wrong_address`, `plan_restricted`, `tenant_allowance`, `sign_in_again` |
 | 404 | Absent — including everything the caller has no role on | `not_found` |
-| 409 | Conflict with current state | `stale_etag`, `product_archived`, `record_archived`, `mockup_archived`, `slug_taken`, `too_many_attachments`, `no_text`, `no_file`, `mockup_on_story`, `nothing_archived`, `folder_name_taken`, `already_uploaded`, `upload_used`, `example_organization`, `export_in_progress`, `last_owner`, `instance_owner`, `quota_exceeded`, `organization_read_only` |
+| 409 | Conflict with current state | `stale_etag`, `product_archived`, `record_archived`, `mockup_archived`, `slug_taken`, `too_many_attachments`, `no_text`, `no_file`, `mockup_on_story`, `nothing_archived`, `folder_name_taken`, `already_uploaded`, `upload_used`, `example_organization`, `export_in_progress`, `last_owner`, `instance_owner`, `quota_exceeded`, `organization_read_only`, `places_taken` |
 | 410 | Deliberately deleted, with a tombstone; an invitation no longer usable | `record_deleted`, `outcome_deleted`, `story_page_deleted`, `mockup_deleted`, `annotation_deleted`, `invitation_used`, `invitation_expired` |
 | 413 | Body or file beyond a limit | `too_large` |
 | 415 | A file WhatBuild does not take or show this way: a video, wherever a file comes in; any attachment but an HTML page at its view route | `video_not_accepted`, `not_html` |
@@ -267,7 +267,7 @@ being changed inside the handler.
 | Tool | Action | REST | Needs |
 |---|---|---|---|
 | `products` | `list` | `GET /api/v1/me/products` | signed in |
-| `products` | `create_tenant` | `POST /api/v1/tenants` | an instance owner, or an allowance with room ([§3.3](03-accounts-and-identity.md)) |
+| `products` | `create_tenant` | `POST /api/v1/tenants` | an instance owner, an allowance with room, or, in the web app, one of the day's places ([§3.3](03-accounts-and-identity.md#33-tenants)) |
 | `products` | `tenant_allowances` | `GET /api/v1/tenant-allowances` | instance owner, in the web app only |
 | `products` | `set_tenant_allowance` | `PUT /api/v1/tenant-allowances` | instance owner, in the web app only |
 | `products` | `remove_tenant_allowance` | `POST /api/v1/tenant-allowances/remove` | instance owner, in the web app only |
@@ -736,8 +736,8 @@ GET  /documents/:grant/<name>?theme=&frame=          on a content site: a docume
 GET  /api/v1/meta                                    release, MCP server name and tools version, sign-in methods, where the privacy page and the public site are (public)
 GET  /api/v1/plans                                   the plans the deployment offers (none, if it defines none), every limit of each and its price, starting_plan, example, whether guests may sign up, and what the privacy page names (public)
 GET  /api/v1/me/guest-pass                           a guest account's place: let in when there is room, or why not and when to ask again
-POST /api/v1/me/ask-for-organization                 one of the day's places, or the waitlist, for an organization of one's own (§3.2)
-POST /api/v1/me/start                                Start using WhatBuild after sign-in: where to go, taking a place or joining the waitlist (§3.2)
+POST /api/v1/me/ask-for-organization                 whether one of the day's places is open, or else the waitlist, for an organization of one's own; holds no place (§3.2)
+POST /api/v1/me/start                                Start using WhatBuild after sign-in: where to go, to Welcome where a place is open, using none, or joining the waitlist (§3.2)
 POST /api/v1/me/came-from { page, button? }          which page of the site a new account came from, a landing page or the plans page, and by which button, kept once (§7.3)
 POST /api/v1/pressed { page, button }                a landing page's button pressed, counted per day, page and button (public, §7.3)
 GET  /api/v1/connect                                 what Connect an agent shows

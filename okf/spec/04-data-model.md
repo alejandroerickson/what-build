@@ -1087,7 +1087,8 @@ clears them.
 
 **Interest: the waitlist.** The public site's form (`POST /api/v1/interest { email, name?,
 organization?, note?, page? }`, no sign-in) records someone asking for an organization of their own, and so
-does a signed-in person who may not start one (`POST /api/v1/me/ask-for-organization`,
+does a signed-in person who may not start one and for whom none of the day's places is open
+(`POST /api/v1/me/ask-for-organization`,
 [§3.2](03-accounts-and-identity.md#32-accounts-and-sign-in)), under their account's address
 and name: `email` ≤ 320 chars,
 `name` and `organization` ≤ 200, `note` ≤ 2,000; `page` is the site's page it was sent from, its

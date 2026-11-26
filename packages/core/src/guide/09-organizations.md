@@ -19,8 +19,10 @@ sent a day, and always sent.
 `products_write(action="create_tenant")` starts an organization. It needs an allowance from whoever
 runs this WhatBuild; belonging to an organization never gives one, and the action is offered only when
 the person has room in one. Without it the call is refused with `403 tenant_allowance`, whose
-message says whom to ask; in the web app, **Start your own organization** gives a person one of the
-day's places where the deployment gives them, or puts them on the waitlist the instance's owners read. Where new organizations start on a plan the deployment
+message says whom to ask. In the web app, a person with no allowance starts their first
+organization on one of the day's places, where the deployment gives them and one is open, or joins
+the waitlist the instance's owners read with **Start your own organization**; an agent takes none of
+those places. Where new organizations start on a plan the deployment
 defines, each person has one organization on it, and moving that one to another plan frees its
 place. The answer's `plan` says which plan the new organization is on.
 
