@@ -549,8 +549,8 @@ instances, with room for the overlap).
 
 **Choosing the size.** An instance meant to serve *R* requests a second, each holding a connection
 for *t* seconds (its statements times one round trip, read from [traces](#traces)), needs about
-*R* × *t* connections. More than the requests Cloud Run sends an instance at once, besides its live
-streams, are never used (below). Try a new size with a [load test](load-testing.md#a-larger-pool)
+*R* × *t* connections. More than `--concurrency`, the requests Cloud Run sends an instance at once,
+are never used (below). Try a new size with a [load test](load-testing.md#a-larger-pool)
 on the [dev deployment](dev-deployment.md) before production takes it, then set it with a new
 revision and no release:
 
@@ -569,10 +569,13 @@ seconds, or 3.5 times an instance's start-up time, then answers `429`
 ([Cloud Run](https://docs.cloud.google.com/run/docs/about-instance-autoscaling)). A request waiting
 for a connection counts as in flight and uses no CPU, so an instance whose concurrency is far above
 its pool queues requests at the pool, slower for everyone, long before Cloud Run starts another.
-Keep the pool near the requests an instance takes besides its live streams: `--concurrency` less
-`WHATBUILD_LIVE_MAX_STREAMS` (`setup.sh` sets 140 and 100, which leaves 40), since a quiet stream
-holds a request and no connection. Or lower `--concurrency` towards what the pool works on, so that
-with `MAX_INSTANCES` above 1 Cloud Run spreads requests sooner. Of the pool, a search takes one
+The useful pool is at most `--concurrency`, and only the live streams open at the moment take part
+of it: a quiet stream holds a request and no connection. `--concurrency` less
+`WHATBUILD_LIVE_MAX_STREAMS` is the worst case, with every stream open (`setup.sh` sets 140 and 100,
+which leaves 40), and is the least the pool should be. Size the pool towards `--concurrency`, as far
+as the instance's CPU and the database's connection limit allow, as a load test shows; sized to the
+worst case, it queues requests at the pool while the CPU idles. Or lower `--concurrency` towards what
+the pool works on, so that with `MAX_INSTANCES` above 1 Cloud Run spreads requests sooner. Of the pool, a search takes one
 (three at most run at once) and the worker one while it runs a job.
 
 **Neon's pooler.** Neon also runs PgBouncer in transaction mode at each compute's `-pooler` host
