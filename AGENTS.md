@@ -158,6 +158,7 @@ conducts each one that changes something:
 | serve the golden master on a Docker host (a NAS) with each release, and test there | `end-to-end-on-a-docker-host.md` | `run-end-to-end-tests` |
 | check for known vulnerabilities and private material | `security-checks.md` | `triage-security-findings`, `audit-for-leaks` |
 | rehearse a release on the dev deployment; refresh or reset its copy of production; set it up | `dev-deployment.md` | `rehearse-on-the-dev-deployment` |
+| measure what a deployment can take with a load test on the dev deployment | `load-testing.md` | |
 | know what is backed up, check that backups run, restore a dump, perform the restore drill | `backups.md` | `perform-the-restore-drill` (the drill) |
 | go back after a release broke a deployment | `recovering-from-a-bad-release.md` | `recover-a-deployment` |
 | test on a copy of production on this machine | `a-copy-of-production.md` | `test-on-a-copy-of-production` |
