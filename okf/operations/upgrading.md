@@ -33,6 +33,8 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
 
 ## Unreleased
 
+## v0.45.0
+
 - **The database connections each instance holds are a setting**, `WHATBUILD_DATABASE_POOL_SIZE`:
   10 when unset, as before; otherwise a whole number from 5 to 100, and on anything else the server
   does not start. Nothing needs doing, and a deployment that sets nothing keeps 10. One that raises
