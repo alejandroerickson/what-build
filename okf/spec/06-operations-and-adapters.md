@@ -3,7 +3,7 @@ type: Specification
 title: Every capability is one registered operation, reached identically over REST and MCP.
 description: The operation registry, the error model and bounds, the full catalogue of 142 operations with their REST routes and MCP tools, authorization and agent connection levels, upload flows, the guide and the Connect page.
 tags: [spec, operations, rest, mcp, registry, uploads, guide]
-generated: {by: agent:claude, at: 2026-11-23}
+generated: {by: agent:claude, at: 2026-11-25}
 status: stable
 ---
 
@@ -738,7 +738,7 @@ GET  /api/v1/plans                                   the plans the deployment of
 GET  /api/v1/me/guest-pass                           a guest account's place: let in when there is room, or why not and when to ask again
 POST /api/v1/me/ask-for-organization                 one of the day's places, or the waitlist, for an organization of one's own (§3.2)
 POST /api/v1/me/start                                Start using WhatBuild after sign-in: where to go, taking a place or joining the waitlist (§3.2)
-POST /api/v1/me/came-from { page, button? }          which landing page of the site a new account came from, and by which button, kept once (§7.3)
+POST /api/v1/me/came-from { page, button? }          which page of the site a new account came from, a landing page or the plans page, and by which button, kept once (§7.3)
 POST /api/v1/pressed { page, button }                a landing page's button pressed, counted per day, page and button (public, §7.3)
 GET  /api/v1/connect                                 what Connect an agent shows
 GET|PATCH /api/v1/me; GET /api/v1/me/agents; PATCH|DELETE /api/v1/me/agents/:family; POST /api/v1/me/sign-out-everywhere

@@ -53,8 +53,13 @@ new person whose mail still reaches you; delete each such account afterwards in 
    (`deploy/plans.example.json`) have none, so there is no such line. Nothing promises "free" or
    "now". No number of places anywhere. While
    scrolling, the page asks the service nothing (the browser's requests); pressing a button sends
-   one `POST /api/v1/pressed` with the page and the button. The same on `/site/what-to-build/`, on a
-   dark stage.
+   one `POST /api/v1/pressed` with the page and the button. No words run across WhatBuild or Sign
+   in at the top while scrolling, and at the end nothing of the last scene's picture shows above
+   "Find out what’s worth building.", at 390 and 1280 wide. The same on `/site/what-to-build/`, on a
+   dark stage. Then open `/site/plans/`: *Expect:* under the plans, "Find out what’s worth
+   building", the same line about the demo, Explore the demo as the filled button and Start using
+   WhatBuild beside it; nothing says people are let in a few at a time. Each link to sign in carries
+   `landing=/plans/` and its button; pressing one sends no `POST /api/v1/pressed`.
 3. **Web, from `/site/what-to-build/`, as `new1@example.com`.** Press Start using WhatBuild.
    *Expect:* the sign-in page, titled **Start using WhatBuild**, says signing in creates their
    account and its foot has only
@@ -88,14 +93,16 @@ new person whose mail still reaches you; delete each such account afterwards in 
    1280, the tutorial's welcome over it (turn it off, as above); at 390, none. The Idea opens with
    "Like what you see?" and "Start using WhatBuild and engineer your next product.", with **Start
    using WhatBuild**; pressing it says the organization is on its way (no places left today), and
-   the banner says the same from then on. On `/site/plans/`, **Explore the demo** in Try it first
-   leads to the same sign-in page.
+   the banner says the same from then on. On `/site/plans/`, **Explore the demo** under "Find out
+   what’s worth building" leads to the same sign-in page.
 9. **Web, as Riley, then signed out.** Riley sets New organizations a day to 0 and turns guests'
    sign-up off; open `/site/` again in a fresh browser (see Reading the site again, above). This
    holds only on an instance served with a sign-up allowlist, as above: with none, sign-up stays
-   open. *Expect:* Start using WhatBuild now leads to the form at the end,
-   which asks for an email only and thanks the visitor; Explore the demo is gone; the sign-in page
-   no longer says signing in makes an account.
+   open. *Expect:* Start using WhatBuild now leads to the form at the end, with the cursor in its
+   email field, which is as tall as Request access at 320 and 390 wide; the form
+   asks for an email only and thanks the visitor; Explore the demo is gone; the sign-in page
+   no longer says signing in makes an account. `/site/plans/` says people are let in a few at a
+   time, with Hear when you can start, and offers no Start using WhatBuild.
 
 ## Look out for
 

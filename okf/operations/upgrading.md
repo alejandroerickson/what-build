@@ -70,6 +70,15 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
   whole, and until it is deployed again, link previews get the pages without a card. Behind any
   other front, the image does it. A link shared before may keep its old preview on LinkedIn for
   about a week; its Post Inspector reads the site again ([Cloud Run guide](cloud-run.md)).
+- **The site's plans page offers Start using WhatBuild wherever anyone may sign up**, as the
+  landing pages do, with Explore the demo first while guests may come in; it no longer says people
+  are let in a few at a time unless nobody may sign up. Accounts made from it come into the
+  landing-page funnel as `/plans/`, a row of their own
+  ([the funnel](analytics.md#the-landing-page-funnel)). On the landing pages, the bar at the top is
+  solid, the last screen fills the window with nothing of the last picture above it, and, where
+  nobody may sign up, Start using WhatBuild puts the cursor in the form's email field, which keeps
+  its height on a phone. No migration or setting. Behind Cloudflare, it reaches visitors when the
+  Worker is deployed with the release, as always. Nothing else needs doing.
 
 ## v0.44.2
 

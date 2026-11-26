@@ -3,7 +3,7 @@ type: Specification
 title: Nothing is ever trapped - say what we promise, keep export open, and never let a limit block a read.
 description: What we tell people, limits and quotas (enforced and planned), backups and in-product versioning, export, archive and permanent delete of everything archivable and of an organization, the operator runbooks, plans and their limits, how retired insights and decisions became sources, and how assumptions were removed.
 tags: [spec, lifecycle, quotas, backups, export, archive, delete, limits, plans]
-generated: {by: agent:claude, at: 2026-11-23}
+generated: {by: agent:claude, at: 2026-11-25}
 status: stable
 ---
 
@@ -101,8 +101,9 @@ compute, for 14 months, or until their account is deleted. Nothing kept names an
 content. Only the instance's owners read the totals (`products.usage`), which leave the owners out
 unless asked. `/cookies` says so under Counting without cookies. While the landing pages are
 compared, the server also counts each press of their buttons by day, page and button, naming
-nobody; an account keeps the landing page and button it came from, if it came from one, and when
-it first came back, which go when the account is deleted
+nobody. An account keeps the page of the site it came from, a landing page or the plans page, and
+the button it came by, if it came from one. It also keeps when it first came back. These go when
+the account is deleted
 ([decision](../decisions/the-landing-pages-are-compared-by-a-split-at-the-edge.md)).
 
 **In the example organization** nobody but its own members writes, and every account reads what
