@@ -114,6 +114,8 @@ describe("a guest account", () => {
       const refused = await dee.api("GET", file);
       expect(refused.status).toBe(409);
       expect(refused.body.error).toMatchObject({ code: "quota_exceeded", details: { quota: "sent_bytes_per_day", limit: 500, used: 300 } });
+      // 200 bytes left and 300 asked would both read as 1 KB.
+      expect(refused.body.error.message).toContain("; what is left today is 200 bytes, and this is 300 bytes.");
       // Its staff are not guests there.
       expect((await olive.api("GET", file)).status).toBe(200);
       await idle(dee);

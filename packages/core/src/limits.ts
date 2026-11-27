@@ -28,6 +28,7 @@ export {
 } from "./plans.ts";
 import { guestLimits, UNLIMITED, unlimitedProductTotal, type LimitKey, type Limits, type Plan, type ProductTotal } from "./plans.ts";
 import { readGuests, readPlans } from "./settings.ts";
+import { sizesApart, type SizeFormat } from "./size-words.ts";
 
 const MiB = 1024 * 1024;
 
@@ -372,12 +373,14 @@ export async function countSent(db: Db, at: Tally, lc: LimitContext | null, acco
   const limit = refuse && lc ? lc.limits.sent_bytes_per_day : null;
   if (limit !== null && lc) {
     const used = (await usageToday(db, at, accountId)).sent;
-    if (used + bytes > limit)
+    if (used + bytes > limit) {
+      const [asked, left] = sizesApart(sizeWords, bytes, Math.max(0, limit - used));
       throw conflict(
         "quota_exceeded",
-        `${HERE(lc)} sends each person ${sizeWords(limit)} a day of attachments, exports and downloads; ${sizeWords(Math.max(0, limit - used))} is left today, and this is ${sizeWords(bytes)}. It starts again at midnight UTC. Reading in the app, searching and the rest are unaffected.`,
+        `${HERE(lc)} sends each person ${sizeWords(limit)} a day of attachments, exports and downloads; what is left today is ${left}, and this is ${asked}. It starts again at midnight UTC. Reading in the app, searching and the rest are unaffected.`,
         { quota: "sent_bytes_per_day", limit, used, unit: "bytes", resets_at: lc.day_end },
       );
+    }
   }
   await bump(db, at.tenant_id, "day", at.day_start, [{ account_id: accountId, counter: "sent", by: bytes }]);
 }
@@ -497,7 +500,7 @@ function storageFull(lc: LimitContext) {
   return overTotal(lc, "storage_max_bytes", max, "bytes", `This organization's plan keeps ${sizeWords(max)}, and it is full.`);
 }
 
-const sizeWords = (n: number) => (n >= 1024 * MiB ? `${+(n / (1024 * MiB)).toFixed(1)} GB` : n >= MiB / 10 || n === 0 ? `${+(n / MiB).toFixed(1)} MB` : `${Math.ceil(n / 1024)} KB`);
+const sizeWords: SizeFormat = (n, places = 1) => (n >= 1024 * MiB ? `${+(n / (1024 * MiB)).toFixed(places)} GB` : n >= MiB / 10 || n === 0 ? `${+(n / MiB).toFixed(places)} MB` : `${Math.ceil(n / 1024)} KB`);
 
 /**
  * The totals of the organization's plan: refused when the call would take the organization past
@@ -528,8 +531,10 @@ async function totalRefusal(trx: Db, lc: LimitContext, op: Pick<OperationDef, "n
     if (h.sources + n > s.sources_max!)
       return overTotal(lc, "sources_max", h.sources, "sources", `This organization's plan allows ${s.sources_max === 1 ? "1 source" : `${s.sources_max} sources`}, archived ones included; it has ${h.sources}${n > 1 ? `, and this call would add ${n}` : ""}.`);
   }
-  if (storage && h.storage.total + incoming > s.storage_max_bytes!)
-    return overTotal(lc, "storage_max_bytes", h.storage.total, "bytes", `This organization's plan keeps ${sizeWords(s.storage_max_bytes!)}, and it holds ${sizeWords(h.storage.total)}, so this ${sizeWords(incoming)} doesn't fit.`);
+  if (storage && h.storage.total + incoming > s.storage_max_bytes!) {
+    const [holds, keeps] = sizesApart(sizeWords, h.storage.total, s.storage_max_bytes!);
+    return overTotal(lc, "storage_max_bytes", h.storage.total, "bytes", `This organization's plan keeps ${keeps}, and it holds ${holds}, so this ${sizeWords(incoming)} doesn't fit.`);
+  }
   return null;
 }
 
