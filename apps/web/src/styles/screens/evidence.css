@@ -433,8 +433,11 @@
 .sources-preview .empty {
   margin: auto;
 }
+/* A strip under the header, as the filters in use are, so it is in sight before the rows. */
 .sources-gone {
-  margin: var(--s-2) 0 0;
+  margin: 0;
+  padding: var(--s-2) var(--s-3) var(--s-2) var(--sheet-px);
+  border-bottom: 1px solid var(--line);
   color: var(--muted);
   font-size: var(--fs-sm);
 }

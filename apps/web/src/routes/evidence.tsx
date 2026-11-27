@@ -571,6 +571,12 @@ export function EvidencePage() {
         end={canWrite && !showing ? <AddSourceButton /> : undefined}
       />
       <FiltersInUse chips={chips} clearTo={without([...FILTER_KEYS])} />
+      {/* Above the rows, where it is seen on arrival however long the list. An empty list says so itself. */}
+      {previewed && q.isSuccess && !q.hasNextPage && index < 0 && records.length > 0 ? (
+        <p className="sources-gone" role="status">
+          The source this address names isn’t in this list. It may have been archived or filtered out.
+        </p>
+      ) : null}
       {q.isPending ? (
         <Loading label="Loading sources…" lines={6} />
       ) : q.isError ? (
@@ -645,11 +651,6 @@ export function EvidencePage() {
       ) : (
         <>
           {list}
-          {previewed && q.isSuccess && !q.hasNextPage && index < 0 ? (
-            <p className="sources-gone" role="status">
-              The source this address names isn’t in this list. It may have been archived or filtered out.
-            </p>
-          ) : null}
           {held && selected && !phone ? (
             <button type="button" className="show-ins sources-show-preview" aria-label="Show the preview" title="Show the preview (Space)" onClick={() => showPreview(selected.record_id)}>
               <Glyph name="panel-right-open" />
