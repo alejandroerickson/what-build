@@ -553,12 +553,19 @@ export function Canvas({ version, pageSrc, drawPage, onUse, rememberMode = true,
     const done = window.setTimeout(() => setFolding(false), 220);
     return () => window.clearTimeout(done);
   }, [folding]);
+  // The place a link named in a page still loading, for its greeting. The pages greeted, which a
+  // place is posted to at once.
   const hashes = useRef(new Map<string, string>());
+  const greetedPages = useRef(new Set<string>());
   const takeHash = useCallback((pageId: string) => {
     const hash = hashes.current.get(pageId) ?? null;
     hashes.current.delete(pageId);
     return hash;
   }, []);
+  // A place is for the page a link just opened: once the person is elsewhere, it is dropped unused.
+  useEffect(() => {
+    for (const id of [...hashes.current.keys()]) if (id !== selected) hashes.current.delete(id);
+  }, [selected]);
   const entries = useMemo(() => {
     const out: Record<string, string> = {};
     for (const p of version.pages) {
@@ -912,14 +919,18 @@ export function Canvas({ version, pageSrc, drawPage, onUse, rememberMode = true,
       return;
     }
     if (!mayMove()) return;
-    // For a page still to load; one already open is told now.
-    if (s.hash) hashes.current.set(s.page, s.hash);
+    // A page already open, as pages stay once loaded, is told now; one still to load, when it is
+    // greeted. Kept for no other, so a place named once never scrolls a page that reopens later.
+    if (s.hash) {
+      const open = greetedPages.current.has(s.page) ? inFrame() : null;
+      if (open) open.postMessage({ whatbuild: "canvas-hash", hash: s.hash }, "*");
+      else hashes.current.set(s.page, s.hash);
+    }
     asked.current = s.page;
     if (clickable) {
       (onFollow ?? onSelect)(s.page);
       return;
     }
-    if (s.hash) inFrame()?.postMessage({ whatbuild: "canvas-hash", hash: s.hash }, "*");
     touched.current = true;
     following.current = { id: s.page, how: pageView };
     (onFollow ?? onSelect)(s.page);
@@ -931,8 +942,11 @@ export function Canvas({ version, pageSrc, drawPage, onUse, rememberMode = true,
     if (s.kind === "height") {
       const c = shownCanvas;
       setMeasured((m) => ({ canvas: c, heights: { ...(m.canvas === c ? m.heights : {}), [pageId]: s.height } }));
-    } else if (s.kind === "ready") turns.heard(pageId, true);
-    else if (s.kind === "loading") {
+    } else if (s.kind === "ready") {
+      greetedPages.current.add(pageId);
+      turns.heard(pageId, true);
+    } else if (s.kind === "loading") {
+      greetedPages.current.delete(pageId);
       usedPages.current.delete(pageId);
       turns.heard(pageId, false);
     } else if (s.kind === "used") usedPages.current.add(pageId);

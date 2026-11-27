@@ -423,6 +423,77 @@ describe("links between a canvas's pages", () => {
     expect(document.querySelector('.xc-frame[data-page="wide"] iframe')).toBe(wide);
   });
 
+  /** A page's frame loads and its document says so, and the canvas greets it. */
+  function greeted(id: string) {
+    const iframe = document.querySelector(`.xc-frame[data-page="${id}"] iframe`) as HTMLIFrameElement;
+    act(() => iframe.dispatchEvent(new Event("load")));
+    act(() => window.dispatchEvent(new MessageEvent("message", { source: iframe.contentWindow, data: { whatbuild: "frame-ready" } })));
+    return iframe;
+  }
+  /** The places within it the canvas has told a page's frame to go to. */
+  function placesTold(iframe: HTMLIFrameElement) {
+    const told: string[] = [];
+    vi.spyOn(iframe.contentWindow!, "postMessage").mockImplementation((data: unknown) => {
+      const m = data as { whatbuild?: string; hash?: string };
+      if (m.whatbuild === "canvas-hash") told.push(m.hash!);
+    });
+    return told;
+  }
+
+  it("as a clickable prototype, opens a page already loaded at the place a link names, and keeps the place for nothing later", () => {
+    const { state, redraw } = showClickable({ clickable: true });
+    greeted("phone");
+    const wide = greeted("wide");
+    const told = placesTold(wide);
+    linkClicked("phone", "wide", { hash: "place" });
+    expect(state.id).toBe("wide");
+    expect(told).toEqual(["place"]);
+    // Used, left by the arrows and opened afresh behind: its new frame is greeted with no place.
+    act(() => window.dispatchEvent(new MessageEvent("message", { source: wide.contentWindow, data: { whatbuild: "frame-active" } })));
+    state.id = "phone";
+    redraw();
+    const again = document.querySelector('.xc-frame[data-page="wide"] iframe') as HTMLIFrameElement;
+    expect(again).not.toBe(wide);
+    const toldAgain = placesTold(again);
+    greeted("wide");
+    expect(toldAgain).toEqual([]);
+  });
+
+  it("as a clickable prototype, opens a page still loading at the place a link names once it has loaded, and drops the place once the person is elsewhere", () => {
+    // Moves a page asks for are a moment apart at least, so the clock is the test's.
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      const { state, redraw } = showClickable({ clickable: true });
+      greeted("phone");
+      const wide = document.querySelector('.xc-frame[data-page="wide"] iframe') as HTMLIFrameElement;
+      const told = placesTold(wide);
+      linkClicked("phone", "wide", { hash: "place" });
+      expect(told).toEqual([]);
+      greeted("wide");
+      expect(told).toEqual(["place"]);
+      // A place named for a page that has not loaded by the time the person leaves it is never used.
+      vi.setSystemTime(Date.now() + 10_000);
+      state.id = "phone";
+      redraw();
+      const phone = document.querySelector('.xc-frame[data-page="phone"] iframe') as HTMLIFrameElement;
+      act(() => window.dispatchEvent(new MessageEvent("message", { source: phone.contentWindow, data: { whatbuild: "frame-active" } })));
+      state.id = "wide";
+      redraw();
+      // phone, used, opens afresh behind; a link names a place in it, then the person moves on before it loads.
+      const fresh = document.querySelector('.xc-frame[data-page="phone"] iframe') as HTMLIFrameElement;
+      expect(fresh).not.toBe(phone);
+      const toldFresh = placesTold(fresh);
+      linkClicked("wide", "phone", { hash: "top" });
+      expect(state.id).toBe("phone");
+      state.id = "wide";
+      redraw();
+      greeted("phone");
+      expect(toldFresh).toEqual([]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("offers a page's download on its label on the canvas alone, and for a page with its own HTML alone", () => {
     version.pages[1] = { ...version.pages[1]!, html_path: "/x" };
     try {

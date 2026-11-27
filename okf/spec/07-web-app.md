@@ -1183,7 +1183,8 @@ Version in the inspector, whose dialog offers **Archive instead** (§7.10).
   plain click does, since a new tab has no address for another page of a canvas. A link to a document of the version's prototype that another canvas page enters
   moves to that page; any other link within the prototype stays in its frame. A link to a place
   within a page (`checkout.html#total`) moves to the page and scrolls to the place inside the page
-  alone. The board clips its pages and nothing can scroll it, so no page scrolling something of its
+  alone, in either view, at once for a page already loaded and as soon as one still loading has; the
+  place is kept for nothing later, so a page that reopens afterwards opens at its top. The board clips its pages and nothing can scroll it, so no page scrolling something of its
   own into view moves the board, and a page the view flies to is where the view shows it.
 - **Viewed as a clickable prototype** (`?view=clickable`, chosen under **View** in the inspector). One
   page at a time on the plain board, at its own size or smaller, in interact mode, with no labels or
