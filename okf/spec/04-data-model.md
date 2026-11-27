@@ -3,7 +3,7 @@ type: Specification
 title: Every object in a product, with its fields, limits and invariants, as the REST and MCP wire sees it.
 description: The common envelope (ids, etags, attribution, revisions), outcomes, sources and their tags, attachments, comments, summaries and notes, evidence links, the retired insights, decisions and assumptions, views, activity, Story, mockups, feedback, the product bundle, and the storage layout.
 tags: [spec, data-model, schema, revisions, story, mockups, export]
-generated: {by: agent:claude, at: 2026-11-26}
+generated: {by: agent:claude, at: 2026-11-27}
 status: stable
 ---
 
@@ -955,7 +955,8 @@ names one of its HTML documents (`index.html`, `app/checkout.html?plan=pro#step-
   to what its pages load: each page's document, with the files it and its stylesheets load, at most
   20 files and 1 MB; the pages together at most 12 MB, each counted as it loads (its own HTML, or
   its document's load again for every page that enters it). Past either, `422 invalid_input` names
-  each document once, with the pages that enter it, and points to the guide's mockups topic, whose
+  each document once, with the pages that enter it (each of them up to six) and the files and bytes
+  it loads, gives the pages' total, and points to the guide's mockups topic, whose
   What a page loads describes what is counted, what people see, and the ways a heavy prototype comes
   within the limits, with what each changes for the people who view it. A version that carries its
   base's prototype without an upload is not checked again.

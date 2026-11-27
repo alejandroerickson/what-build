@@ -21,6 +21,7 @@ import { PAGE_HEIGHT_MAX, PAGE_HEIGHT_MIN, shownHeight } from "../page-sandbox.t
 import { linkTemplates } from "../story-guidance.ts";
 import { isVideoFile } from "../video.ts";
 import { newEtag, newId, sha256Hex } from "../util.ts";
+import { sizesApart, type SizeFormat } from "../size-words.ts";
 import { inArrangedOrder, loadMockupFolder, mockupFolderOps, mockupFolders, topOfFolder } from "./mockup-folders.ts";
 import { storyPagesShowing } from "./story.ts";
 import { citedByPlaybook } from "../playbook.ts";
@@ -649,7 +650,14 @@ async function prepareCanvas(
 }
 
 /** A size in bytes as people read it. */
-const sizeOf = (bytes: number) => (bytes >= MIB ? `${(bytes / MIB).toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`);
+const sizeOf: SizeFormat = (bytes, places = 1) => (bytes >= MIB ? `${(bytes / MIB).toFixed(places)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`);
+
+/** The pages that enter a document: every one while they are few, otherwise the first and how many more. */
+function pagesEntering(ids: string[]): string {
+  if (ids.length === 1) return `page ${ids[0]} enters`;
+  const named = ids.length <= 6 ? ids : [...ids.slice(0, 5), `and ${ids.length - 5} more`];
+  return `${ids.length} pages enter (${named.join(", ")})`;
+}
 
 /**
  * What a canvas's pages load, held to PAGE_LOAD_FILES and PAGE_LOAD_BYTES a page and CANVAS_LOAD_BYTES
@@ -658,7 +666,7 @@ const sizeOf = (bytes: number) => (bytes >= MIB ? `${(bytes / MIB).toFixed(1)} M
  * heavy is named once, with the pages that enter it. A page entering a document this upload does
  * not carry is not counted.
  */
-function canvasLoadProblems(pages: { page_id: string; html?: string | null; entry?: string | null }[], loads: Map<string, DocumentLoad>): string[] {
+export function canvasLoadProblems(pages: { page_id: string; html?: string | null; entry?: string | null }[], loads: Map<string, DocumentLoad>): string[] {
   const heavy = new Map<string, { load: DocumentLoad; pages: string[] }>();
   let total = 0;
   for (const pg of pages) {
@@ -676,13 +684,14 @@ function canvasLoadProblems(pages: { page_id: string; html?: string | null; entr
     heavy.set(split.path, named);
   }
   const out = [...heavy].map(([path, { load, pages: ids }]) => {
-    const who = ids.length === 1 ? `page ${ids[0]} enters` : `${ids.length} pages enter (${ids.slice(0, 3).join(", ")}${ids.length > 3 ? ", …" : ""})`;
-    return `${path}, which ${who}, loads ${load.files} ${load.files === 1 ? "file" : "files"}, ${sizeOf(load.bytes)} with itself, each time a page's frame opens it; a page loads at most ${PAGE_LOAD_FILES} files and ${sizeOf(PAGE_LOAD_BYTES)}, so that it shows at once.`;
+    const [bytes, most] = load.bytes > PAGE_LOAD_BYTES ? sizesApart(sizeOf, load.bytes, PAGE_LOAD_BYTES) : [sizeOf(load.bytes), sizeOf(PAGE_LOAD_BYTES)];
+    return `${path}, which ${pagesEntering(ids)}, loads ${load.files} ${load.files === 1 ? "file" : "files"}, ${bytes} with itself, each time a page's frame opens it; a page loads at most ${PAGE_LOAD_FILES} files and ${most}, so that it shows at once.`;
   });
-  if (total > CANVAS_LOAD_BYTES) out.push(`The pages load ${sizeOf(total)} together, each page's frame fetching its document and all it loads; a canvas's pages load at most ${sizeOf(CANVAS_LOAD_BYTES)}, so that it opens in a few seconds.`);
+  const [together, canvasMost] = sizesApart(sizeOf, total, CANVAS_LOAD_BYTES);
+  if (total > CANVAS_LOAD_BYTES) out.push(`The pages load ${together} together, each page's frame fetching its document and all it loads; a canvas's pages load at most ${canvasMost}, so that it opens in a few seconds.`);
   if (out.length)
     out.push(
-      'Each page loads its document and all it loads afresh, so a prototype entered by many pages costs its whole weight for each. guide(topic="mockups"), under What a page loads, describes the ways a heavy prototype comes within these limits (bundling and trimming it, a document for each screen, a page of its own for each screen, fewer pages) and what each changes for the people who view the canvas.',
+      `${total > CANVAS_LOAD_BYTES ? "" : `The pages load ${together} together, within the ${canvasMost} a canvas's pages load at most. `}Each page loads its document and all it loads afresh, so a prototype entered by many pages costs its whole weight for each. guide(topic="mockups"), under What a page loads, describes the ways a heavy prototype comes within these limits (bundling and trimming it, a document for each screen, a page of its own for each screen, fewer pages) and what each changes for the people who view the canvas.`,
     );
   return out;
 }

@@ -1168,6 +1168,19 @@ describe("the totals of a plan", () => {
     const full = await ned.api("POST", `${P}/sources/${seeded}/uploads`, { path: "full.md" });
     expect(full.status).toBe(409);
     expect(full.body.error.details).toMatchObject({ quota: "storage_max_bytes" });
+    // Holding some text, with a byte of room: what it holds and what it keeps would read alike in
+    // the short form, so the refusal tells them apart.
+    reset();
+    const room = await ned.api("POST", `${P}/outcomes`, { title: "An outcome that takes some room", description: "y".repeat(3000) });
+    expect(room.status).toBe(201);
+    const now = (await limitsOf(ned)).holds.storage.total as number;
+    tweak({ storage_max_bytes: now + 1 });
+    const near = await ned.api("POST", `${P}/outcomes`, { title: "An outcome written at length", description: "x".repeat(6000) });
+    expect(near.status).toBe(409);
+    const [, keeps, holds] = /keeps (.+?), and it holds (.+?), so/.exec(near.body.error.message as string) ?? [];
+    expect(holds).toBeTruthy();
+    expect(holds).not.toBe("0 MB");
+    expect(keeps).not.toBe(holds);
     reset();
   });
 
