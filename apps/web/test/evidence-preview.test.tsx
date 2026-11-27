@@ -226,16 +226,13 @@ describe("an address naming a source the list doesn't hold", () => {
     let release = () => {};
     later.held = new Promise<void>((r) => (release = r));
     await open("?source=ELSEWHERE");
-    await act(async () => {
-      await new Promise((r) => setTimeout(r, 0));
-    });
-    expect(calls.some((c) => c.includes("cursor=c2"))).toBe(true);
+    // The second page is asked for, and held: the list is still loading on.
+    await vi.waitFor(() => expect(calls.some((c) => c.includes("cursor=c2"))).toBe(true));
     expect(gone()).toBeNull();
     await act(async () => {
       release();
-      await new Promise((r) => setTimeout(r, 0));
     });
-    expect(gone()?.textContent).toContain("isn’t in this list");
+    await vi.waitFor(() => expect(gone()?.textContent).toContain("isn’t in this list"));
   });
 
   it("says nothing when the source is found further down", async () => {
