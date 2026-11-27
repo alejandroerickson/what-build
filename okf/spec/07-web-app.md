@@ -1194,9 +1194,13 @@ Version in the inspector, whose dialog offers **Archive instead** (§7.10).
   outline. The others fade as the view glides to the page, and back again on the way out. A link,
   the arrows and the page menu change the page in place at once: every page loads behind the one
   on show, in turns, so the next is ready, and one still loading shows its sheet. Once the view has
-  settled the others wait beneath the page on show, unseen but inside the view, since a browser stops
-  drawing a frame that is hidden or out of view and shows it white for a moment when it returns; they
-  take no pointer, focus or screen reader's attention. A page a person
+  settled the pages one move is likely to reach wait beneath the page on show, unseen but inside the
+  view, since a browser stops drawing a frame that is hidden or out of view and shows it white for a
+  moment when it returns: the previous and next page, the first page, and the three pages shown
+  last. The others wait hidden, since a page kept drawn keeps running and a canvas of animated pages
+  all drawn would cost as much as all of them on show; a move to one of those, by the page menu or a
+  link to a far page, may show it white for a frame or two. No page waiting takes the pointer, the
+  focus or a screen reader's attention. A page a person
   used (the frame says so at the first press, key, scroll or wheel) opens afresh behind the others
   once it is left, as a link to a file in a folder opens it; one nobody used stays as it is, and a
   page used on the board opens afresh as the view folds. A page's request moves nothing unless a person did something moments ago, and then at

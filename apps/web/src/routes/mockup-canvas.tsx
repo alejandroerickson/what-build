@@ -383,22 +383,44 @@ function PageLoading({ width }: { width: number }) {
   );
 }
 
-/** Where a page not on show waits as a clickable prototype: its offset from its own place on the board. */
-type Under = { x: number; y: number };
+/**
+ * Where a page not on show waits as a clickable prototype: drawn beneath the one that is, at this
+ * offset from its own place on the board, or hidden at its own place.
+ */
+type Under = { drawn: boolean; x: number; y: number };
+
+/** How many of the pages shown last, besides the one on show, wait drawn beneath it. */
+const RECENT_DRAWN = 3;
 
 /**
- * As a clickable prototype, the pages not on show wait beneath the one that is, in the view, drawn
- * but unseen: a frame out of the view, or hidden, is one the browser stops drawing, and draws white
- * for a moment when it shows again. While the view folds they fade where they are (no `shown`).
+ * The pages one move is likely to reach from the selected page as a clickable prototype: the
+ * previous and next in the order the arrows follow (with none selected, the first and the last), the
+ * first page, where a link back to the start goes, and the pages shown last (`recent`, the one on
+ * show first), so a flow that goes back and forth finds its pages drawn.
  */
-function pageUnder(id: string, clickable: boolean, selected: string | null, shown: Box | undefined, boxes: Record<string, Box>): Under | null {
+function pagesNear(pageIds: readonly string[], selected: string | null, recent: readonly string[]): Set<string> {
+  const at = selected === null ? -1 : pageIds.indexOf(selected);
+  const around = at < 0 ? [pageIds[pageIds.length - 1]] : [pageIds[at - 1], pageIds[at + 1]];
+  return new Set([pageIds[0], ...around, ...recent.slice(0, RECENT_DRAWN + 1)].filter((id): id is string => id !== undefined));
+}
+
+/**
+ * As a clickable prototype, the pages one move is likely to reach (pagesNear) wait beneath the one
+ * on show, in the view, drawn but unseen: a frame out of the view, or hidden, is one the browser
+ * stops drawing, and draws white for a moment when it shows again. They are not all kept so, nor all
+ * hidden: a page drawn keeps running, and a canvas of animated pages all drawn would cost as much as
+ * all of them on show, so the others wait hidden, which a move by the page menu or a link to a far
+ * page pays for with a white frame or two. While the view folds they fade where they are (no `shown`).
+ */
+function pageUnder(id: string, clickable: boolean, selected: string | null, near: Set<string>, shown: Box | undefined, boxes: Record<string, Box>): Under | null {
   if (!clickable || id === selected) return null;
+  if (!near.has(id)) return { drawn: false, x: 0, y: 0 };
   const b = boxes[id];
-  return shown && b ? { x: shown.left - b.left, y: shown.top - b.top } : { x: 0, y: 0 };
+  return shown && b ? { drawn: true, x: shown.left - b.left, y: shown.top - b.top } : { drawn: true, x: 0, y: 0 };
 }
 
 /** A page not on show takes nothing: no pointer, no focus, nothing a screen reader reaches. */
-const underProps = (under: Under | null) => (under ? { "data-under": "", inert: true } : {});
+const underProps = (under: Under | null) => (under ? { "data-under": under.drawn ? "drawn" : "hidden", inert: true } : {});
 
 const frameStyle = (page: { width: number; height: number }, under: Under | null): CSSProperties => ({
   width: page.width,
@@ -555,6 +577,10 @@ export function Canvas({ version, pageSrc, drawPage, onUse, rememberMode = true,
   asPrototype.current = clickable;
   const [visits, setVisits] = useState<Record<string, number>>({});
   const pageIds = useMemo(() => version.pages.map((p) => p.page_id), [version.pages]);
+  // The pages shown last, the selected one first, which a clickable prototype keeps drawn (pagesNear).
+  // Set in the render that changes the page, so the page left is drawn beneath from the first frame.
+  const [recent, setRecent] = useState<readonly string[]>(() => (selected ? [selected] : []));
+  if (selected && recent[0] !== selected) setRecent([selected, ...recent.filter((id) => id !== selected)].slice(0, RECENT_DRAWN + 1));
   // The pages that enter the prototype, each loading every file its document loads: they take turns
   // to load, in either view (frame-turns.ts), and keep their frames. A drawn page loads nothing.
   const entering = useMemo(
@@ -1160,9 +1186,10 @@ export function Canvas({ version, pageSrc, drawPage, onUse, rememberMode = true,
   // The pages do not change as the view moves, so a drag or a pinch re-renders only the transform
   // and the labels, never the frames.
   const shownBox = !folding && selected ? boxes[selected] : undefined;
+  const near = useMemo(() => pagesNear(pageIds, selected, recent), [pageIds, selected, recent]);
   const pageFrames = useMemo(
     () => {
-      const under = (id: string) => pageUnder(id, clickable, selected, shownBox, boxes);
+      const under = (id: string) => pageUnder(id, clickable, selected, near, shownBox, boxes);
       return laid.map((p) => {
         const id = p.page_id;
         const frameRef = (el: HTMLDivElement | null) => {
@@ -1198,7 +1225,7 @@ export function Canvas({ version, pageSrc, drawPage, onUse, rememberMode = true,
         );
       });
     },
-    [laid, version.prototype, pageSrc, drawPage, selected, onSignal, entries, visits, takeHash, entering, hasTurn, clickable, shownBox, boxes],
+    [laid, version.prototype, pageSrc, drawPage, selected, onSignal, entries, visits, takeHash, entering, hasTurn, clickable, near, shownBox, boxes],
   );
 
   const worldStyle: CSSProperties = {

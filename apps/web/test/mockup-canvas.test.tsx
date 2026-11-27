@@ -409,6 +409,42 @@ describe("links between a canvas's pages", () => {
     ]);
   });
 
+  it("as a clickable prototype, keeps drawn beneath only the pages next to the one on show, the first page and the pages shown last, and hides the rest where they are", () => {
+    const was = version.pages;
+    version.pages = Array.from({ length: 9 }, (_, i) => ({ page_id: `p${i + 1}`, title: `Page ${i + 1}`, width: 390, height: 760 }));
+    try {
+      const { state, redraw } = showClickable({ clickable: true });
+      const frame = (id: string) => document.querySelector(`.xc-frame[data-page="${id}"]`) as HTMLElement;
+      // Each page not on show takes nothing. Those drawn wait beneath it; the others, hidden
+      // (mockups.css), at their own place.
+      const waiting = () =>
+        Object.fromEntries(
+          version.pages.map(({ page_id: id }) => {
+            const f = frame(id);
+            const under = f.getAttribute("data-under");
+            if (under === null) return [id, f.hasAttribute("inert") ? "inert on show" : "on show"];
+            if (!f.hasAttribute("inert")) return [id, "waits, not inert"];
+            return [id, under === "drawn" && f.style.transform ? "drawn" : under === "hidden" && !f.style.transform ? "hidden" : "misplaced"];
+          }),
+        );
+      const go = (id: string) => {
+        state.id = id;
+        redraw();
+      };
+      go("p1");
+      expect(waiting()).toMatchObject({ p1: "on show", p2: "drawn", p3: "hidden", p9: "hidden" });
+      // By the arrows to p6: its neighbours are drawn, the three pages shown before it, and the first,
+      // where a link back to the start goes.
+      for (const id of ["p2", "p3", "p4", "p5", "p6"]) go(id);
+      expect(waiting()).toEqual({ p1: "drawn", p2: "hidden", p3: "drawn", p4: "drawn", p5: "drawn", p6: "on show", p7: "drawn", p8: "hidden", p9: "hidden" });
+      // A jump to a far page: the page left stays drawn, so a link back to it is instant, and so do the two before it.
+      go("p9");
+      expect(waiting()).toEqual({ p1: "drawn", p2: "hidden", p3: "hidden", p4: "drawn", p5: "drawn", p6: "drawn", p7: "hidden", p8: "drawn", p9: "on show" });
+    } finally {
+      version.pages = was;
+    }
+  });
+
   it("takes the keyboard back from a page that takes it by itself, and leaves it with a page a person pressed in", () => {
     vi.useFakeTimers();
     try {

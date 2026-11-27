@@ -156,13 +156,25 @@
 }
 /* As a clickable prototype only the selected page shows, on the plain board: the others fade as the
    view glides to it, and within the view a new page takes its place at once. Once the view has
-   settled the others wait beneath it, unseen but in the view (data-under, inert): a frame hidden or
-   out of the view is one the browser stops drawing, and it would show white for a moment when moved to. */
+   settled the pages one move is likely to reach wait beneath it, unseen but in the view
+   (data-under="drawn", inert): a frame hidden or out of the view is one the browser stops drawing,
+   and it would show white for a moment when moved to. The rest are hidden where they are
+   (data-under="hidden"), never drawn beneath too: a page kept drawn keeps running, and a canvas of
+   animated pages all drawn costs as much as all of them on show (pagesNear in mockup-canvas.tsx). */
 .xc-viewport[data-view="clickable"] {
   background-image: none;
 }
 .xc-viewport[data-view="clickable"] .xc-frame:not([data-selected]) {
   opacity: 0;
+}
+/* Not quite 0: the browser does not draw a layer at no opacity, and a frame it hid before comes back
+   white for a moment though it waited at no opacity. At this one it is drawn, beneath the page on
+   show, and changes no pixel by even a level. */
+.xc-viewport[data-view="clickable"] .xc-frame[data-under="drawn"] {
+  opacity: 0.001;
+}
+.xc-frame[data-under="hidden"] {
+  visibility: hidden;
 }
 .xc-viewport[data-view="clickable"] .xc-frame[data-selected] {
   z-index: 1;
@@ -171,7 +183,9 @@
   pointer-events: none;
 }
 .xc-viewport[data-folding] .xc-frame {
-  transition: opacity var(--dur-3) var(--ease);
+  transition:
+    opacity var(--dur-3) var(--ease),
+    visibility var(--dur-3) var(--ease);
 }
 .xc-viewport[data-gliding] .xc-ring,
 .xc-viewport[data-gliding] .xc-focus {
