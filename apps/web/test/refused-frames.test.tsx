@@ -3,7 +3,7 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { MemoryRouter } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { forgetMinute, FRAME_RELOADS, FRAME_SPACING_MS, minuteRefused, PAGE_PUT_BACKS_A_MINUTE, PUT_BACK_WAITS, SCREEN_PUT_BACKS_A_MINUTE, SETTLES_AFTER_MS, useMinuteWait, type MinuteWait } from "../src/lib/minute.ts";
+import { forgetMinute, FRAME_RELOADS, FRAME_SPACING_MS, minuteRefused, PAGE_PUT_BACKS_A_MINUTE, PUT_BACK_WAITS, SCREEN_PUT_BACKS_A_MINUTE, SETTLES_AFTER_MS, STILL_RELOADING_FOR_MS, useMinuteWait, type MinuteWait } from "../src/lib/minute.ts";
 import { Canvas, type CanvasPage, type CanvasVersion } from "../src/routes/mockup-canvas.tsx";
 import { FrameStopped, Loading, MinuteAnnouncer } from "../src/ui/index.tsx";
 
@@ -478,6 +478,9 @@ describe("a page that keeps being replaced in its frame", () => {
     await advance(2_000);
     expect(frames()).toHaveLength(1);
     expect(noteOf(0)).toBe("");
+    // The note above the board still counts it until it has stayed long enough not to have been replaced again.
+    expect(host.querySelector(".xc-note")?.textContent).toContain("1 page keeps reloading");
+    await advance(STILL_RELOADING_FOR_MS);
     expect(host.querySelector(".xc-note")).toBeNull();
   });
 
@@ -533,6 +536,30 @@ describe("a page that keeps being replaced in its frame", () => {
       expect(frames()[0]).toBeDefined();
       expect(frames()[0]).not.toBe(f);
     }
+  });
+
+  it("is counted as reloading while it waits and in the moment it is back before being replaced again, so the count above the board holds still until it stops", async () => {
+    showCanvas(2);
+    const status = watchMinute();
+    const born = new Map<HTMLIFrameElement, number>();
+    const counts: number[] = [];
+    for (let at = 0; at < 6 * 60_000 && status.now().reloadingStopped < 2; at += 200) {
+      for (let i = 0; i < 2; i++) {
+        const f = frameOf(i);
+        if (!f) continue;
+        if (!born.has(f)) born.set(f, Date.now());
+        // Each frame shows its page a moment before something takes its place again.
+        else if (Date.now() - born.get(f)! >= 1_000) reloadsItself(f);
+      }
+      counts.push(status.now().reloading);
+      await advance(200);
+    }
+    expect(status.now().reloadingStopped).toBe(2);
+    const both = counts.findIndex((n) => n === 2);
+    expect(both).toBeGreaterThanOrEqual(0);
+    // Once both keep reloading, the count says two until they stop, one after the other.
+    expect(counts.slice(both)).toEqual(counts.slice(both).sort((a, b) => b - a));
+    status.stop();
   });
 
   it("is one of at most ten a screen puts back in a minute: the others wait, then come back at the pace of frames", async () => {
@@ -890,6 +917,8 @@ describe("what a screen reader is told", () => {
     expect(region.textContent).toContain("keeps reloading");
     expect(region.textContent).toContain("comes back with the next minute");
     await advance(61_000);
+    // Back, and counted no more once it has stayed long enough not to have been replaced again.
+    await advance(STILL_RELOADING_FOR_MS);
     expect(region.textContent).toBe("");
     stop();
   });
