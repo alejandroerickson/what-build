@@ -1,7 +1,7 @@
 ---
 title: A canvas's pages link to each other, fly on the board, view as a clickable prototype and download, inside the sandbox
 organizations: [synthetic, standard, example]
-people: [casey, avery, sam, jordan, guest]
+people: [casey, avery, sam, jordan, riley, guest]
 surfaces: [web, mcp]
 ---
 
@@ -17,18 +17,22 @@ links in version 1, and links its pages in version 2. Pages this plan publishes 
 and files go in the run's folder. `pnpm e2e browser frame-click <page's title> <text>` clicks inside a
 page with the real mouse, and `frame-eval` reads it. The driver has no hover, Forward, new tabs or captured
 downloads: use a short script with `playwright-core` in the run's folder for those. **In Chrome, `eval`,
-`frame-eval`, `frame-click`'s lookup and Playwright's `evaluate`, `waitFor`, `boundingBox`, `getAttribute` and
-`exposeBinding` all count as a person's gesture**, so none may touch the page during step 15: find coordinates in a
-throwaway browser, sample `page.url()` from outside, and read `history.length` once the flood is over. Back in these
-numbers is `page.goBack`, which walks every entry; the browser's own button may skip some.
+`frame-eval`, `frame-click`'s lookup, the driver's `screenshot`, and Playwright's `evaluate`, `waitFor`,
+`boundingBox`, `getAttribute`, `exposeBinding`, `screenshot` (with any options) and `addInitScript` all count as a
+person's gesture**, and a page flooding with requests moves for a few seconds after any of them, so none may touch
+the page during step 15: find coordinates in a throwaway browser, sample `page.url()` from outside, see the page
+through Chrome's own screencast or `Page.captureScreenshot` over a CDP session, and read the history through
+`Page.getNavigationHistory`, or `history.length` once the flood is over. Back in these numbers is `page.goBack`,
+which walks every entry; the browser's own button may skip some.
 
 ## Steps
 
 ### The screen
 
-1. **Web, as Casey, in the synthetic organization.** Open that mockup in Exploration, with the panels
-   showing. *Expect:* the inspector's **View** offers Canvas and Clickable prototype, Canvas chosen, and
-   **Download as ZIP**. It has no page picker, Fit or Fill. The toolbar has no view or download control,
+1. **Web, as Casey, in the synthetic organization.** Open that mockup in Exploration. Signing in starts
+   the browser afresh, so the first canvas it opens is in focus mode, both panels hidden with a hint
+   that F brings them back: press **Show panels** (or F). *Expect:* the inspector's **View** offers Canvas
+   and Clickable prototype, Canvas chosen, and **Download as ZIP**. It has no page picker, Fit or Fill. The toolbar has no view or download control,
    and has a menu of the pages. Nothing draws a line between pages or counts links, and the mockup's row
    in the panel carries no extra icon.
 2. **Web, as Casey.** Select a page, then hover another's label. *Expect:* each label has a fit button and
@@ -82,7 +86,10 @@ numbers is `page.goBack`, which walks every entry; the browser's own button may 
     a button that a script handles. *Expect:* `clickable` is `viewable`, counts the links between pages, names
     `gone.html` under `broken` and gives a `url`. `mockups_read` says the same; a version before stays as it was.
 13. **Web, as Sam.** Open that `url`. Click the link to `gone.html`. *Expect:* a message says the page isn't on
-    this canvas, and the page stays. Click the link to `three.htm#end`. *Expect:* that page, scrolled to the place. Click `#local`,
+    this canvas, and the page stays. Click the link to `three.htm#end`. *Expect:* that page, scrolled to the place.
+    Do the same in the clickable view, where every page has loaded behind the first. *Expect:* that page, scrolled
+    to the place. Click in it, leave it by the arrows and come back by them. *Expect:* it opens at its top: a place
+    a link named is not kept for later. Back on the canvas, click `#local`,
     the link to another site with and without Cmd held, and the link its own script handles. *Expect:* the
     first moves within the page, the next two open a tab, leaving this one where it was, and the last goes nowhere.
     Hold Cmd on a link between pages, and on the one to `gone.html`. *Expect:* each does what a plain click does,
@@ -100,15 +107,26 @@ numbers is `page.goBack`, which walks every entry; the browser's own button may 
     a long sentence of its own in `href`. Promote one page of each to the Story, and publish two Story pages that do
     the same with `{ whatbuild: "story-page", page: "other" }`. Try each on the board, in the clickable view, on the
     Story's canvas and on the Story page, each in a fresh browser: by address with no click, then with one real click.
-    *Expect:* with no click nothing moves at all; after a click it can only move among this version's pages for a few
-    seconds, no faster than four times a second, the other name goes nowhere, the page's own words never appear in WhatBuild's messages, and about five presses of Back at most
-    leave it. A real click on a link adds one step.
+    *Expect:* with no click nothing moves at all. After a click it moves for a few seconds only, no faster than four
+    times a second: on the board, in the clickable view and on the Story's canvas only among this version's pages; on
+    a Story page among the Story's pages, as its arrows move a reader there, so a page's `story-key` may leave the
+    reader on the next Story page, which may show another mockup. The other name goes nowhere, the page's own words
+    never appear in WhatBuild's messages, and about five presses of Back at most leave it: a move is a step for Back
+    at most once a second, so a flood of a few seconds adds about five. During a flood a click on a link adds no
+    step of its own to see (it is the first of those); steps 3, 7 and 13 show that a link adds one.
 16. **Web, as Sam.** On a page whose script sets `location.href = "second.html"` after a click, and one that
-    sets it to another site; then on pages that do each from a script in their `<head>`, while they still load,
-    and one with a `<meta http-equiv="refresh">` to another site. *Expect:* WhatBuild puts each page back within
-    a couple of seconds and says so, and a page that keeps doing it waits, then stops with Try again. The browser
-    refuses another site in the frame before that (a console line naming `frame-src`). Nothing is left blank or
-    showing a raw error, and the app's own address never changes to theirs.
+    sets it to another site; then on two pages that do each from a script in their `<head>`, while they still
+    load; and on a page that enters a prototype document holding a `<meta http-equiv="refresh">` to another site
+    (publish refuses one in a page's own HTML, so it can only be in a prototype, uploaded as a ZIP as in step 18;
+    if the plan refuses a canvas as a ZIP, this one is not checked: say so).
+    *Expect:* WhatBuild puts each page back within a couple of seconds and says so. A page of its own HTML that
+    keeps doing it is put back three times in a minute, then waits for the next minute with a note in its place,
+    and after three such waits in a row stops with Try again, about three and a half minutes from the first: watch
+    that long. Meanwhile the note above the board counts the pages that keep reloading, and the count holds still
+    while they take turns. A prototype's documents cost no calls, so the page with the meta refresh is put back at
+    once each time for as long as it is open, and is never held or stopped. The browser refuses another site in
+    the frame before that (a console line naming `frame-src`). Nothing is left blank or showing a raw error, and
+    the app's own address never changes to theirs.
 
 ### Prototypes, uploads and round trips
 
@@ -134,19 +152,29 @@ numbers is `page.goBack`, which walks every entry; the browser's own button may 
 
 20. **Web, as Avery, in the synthetic organization.** Open the Story page that shows Jobs board alone, and click
     **Plan by day**. *Expect:* the Story page showing Day planner opens, or the whole canvas at Day planner, with
-    Back returning; where no Story page shows it, a message says the page isn't in the Story. No tab opens.
+    Back returning. No tab opens. (Every page of this canvas has a Story page, so the message for a page that
+    isn't in the Story is checked in step 21.)
     Open the Story's whole-canvas page. *Expect:* a link flies
     there too, and Back returns. There is no View control and no page download, and nothing of the mockup but its
     pages. **Show panels** is on the screen. Try the mockup's own address and that page's `?download=1` at the
     mockup's address. *Expect:* both are refused.
-21. **Web, as Jordan, in the standard organization, and MCP.** With Sam first promoting the canvas from step 12
-    to the Story: the same as Avery, and `mockups_read` is refused. Sam also promotes that canvas's first page
-    alone, then publishes a Story page linking to it and to a Story page that doesn't exist. *Expect:* the
-    promote answer names in `links_off_story` the pages the first page links to that no Story page shows, and
-    publish names the missing page in `links_to_no_page`; as Jordan, each link does what step 20 says.
-22. **Web, as a guest of the example organization.** Open a mockup. *Expect:* Copy a request for your agent is
-    not offered, and whatever Download as ZIP does for a guest, a page's download does too. Then go past a guest's
-    calls a minute and their 10 MB of downloads a day, with a throwaway guest. *Expect:* both buttons say the same
+21. **MCP, as Sam, and web, as Jordan, in the standard organization.** Sam first promotes the first page of
+    the canvas from step 12 alone, before anything else of that canvas is on the Story. *Expect:* the promote
+    answer names in `links_off_story` the pages it links to that no Story page shows (those `two.html` and
+    `three.htm` name). Sam
+    publishes a Story page linking to that Story page and to a Story page that doesn't exist. *Expect:* publish
+    names the missing page in `links_to_no_page`. As Jordan, on the first page's Story page, click the link to
+    `two.html`. *Expect:* a message says the page isn't in the Story, and the page stays. Sam then promotes the
+    whole canvas. *Expect:* as Jordan, the same link opens the whole canvas at that page, with Back returning; on Sam's
+    Story page the link to the first page's Story page opens it, and the missing one goes nowhere and says so.
+    Then the same as Avery in step 20, and `mockups_read` is refused.
+22. **MCP, as Riley, then web, as a guest of the example organization.** Every version there links its
+    pages, so Riley first publishes in the example organization a canvas of two pages that don't link (each
+    run starts from the golden master, so it goes with this run). As Riley, open it. *Expect:* Clickable
+    prototype is disabled, with its line and **Copy a request for your agent**. As the guest, open it.
+    *Expect:* Clickable prototype is disabled with the same line, and Copy a request for your agent is not
+    offered. Open another mockup. *Expect:* whatever Download as ZIP does for a guest, a page's download does
+    too. Then go past a guest's calls a minute and their 10 MB of downloads a day, with a throwaway guest. *Expect:* both buttons say the same
     thing, and it names the limit.
 23. **Web, as Sam.** Compare the example and standard organizations on the same mockup. *Expect:* they behave
     alike, but for what the example's being read-only explains.
