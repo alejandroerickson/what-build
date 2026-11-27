@@ -32,6 +32,8 @@ const sources = [
 
 const calls: string[] = [];
 const who = { canGivePicture: false };
+// Set, the list comes in two pages: the three sources, then these, once `held` (if set) resolves.
+const later: { records: typeof sources | null; held: Promise<void> | null } = { records: null, held: null };
 const sent: unknown[] = [];
 vi.mock("../src/lib/api.ts", async (original) => ({
   ...(await original<typeof import("../src/lib/api.ts")>()),
@@ -43,6 +45,11 @@ vi.mock("../src/lib/api.ts", async (original) => ({
     }
     if (path.startsWith(`${BASE}/sources/facets`)) return { sources: 3, tags: [], tags_truncated: false, added_by: [] };
     if (path.includes("/derived/text")) return { text: "# Notes\n\nThe whole of what was read.", truncated: false, total_chars: 30 };
+    if (later.records && path.includes("cursor=c2")) {
+      if (later.held) await later.held;
+      return { records: later.records, next_cursor: null };
+    }
+    if (later.records) return { records: sources, next_cursor: "c2" };
     return { records: sources, next_cursor: null };
   }),
 }));
@@ -64,6 +71,8 @@ afterEach(() => {
   calls.length = 0;
   sent.length = 0;
   who.canGivePicture = false;
+  later.records = null;
+  later.held = null;
 });
 
 const panel = document.createElement("div");
@@ -190,6 +199,67 @@ describe("the preview", () => {
     });
     expect(preview()!.textContent).toMatch(/can’t be played here/);
     expect(preview()!.querySelector("a[href*='download=1']")).not.toBeNull();
+  });
+});
+
+describe("an address naming a source the list doesn't hold", () => {
+  const gone = () => document.querySelector(".sources-gone");
+  const more = () => Array.from({ length: 4 }, (_, i) => ({ ...sources[1]!, record_id: `L${i}`, title: `Later call ${i}` }));
+
+  it("loads on to the end, then says so above the rows, where it is seen on arrival", async () => {
+    later.records = more();
+    await open("?source=ELSEWHERE");
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 0));
+    });
+    expect(calls.some((c) => c.includes("cursor=c2"))).toBe(true);
+    expect(gone()?.textContent).toContain("isn’t in this list");
+    expect(gone()!.getAttribute("role")).toBe("status");
+    expect(preview()).toBeNull();
+    // Before every row in the document, so a long list never pushes it out of sight.
+    const firstRow = document.querySelector('[data-source="S1"]')!;
+    expect(gone()!.compareDocumentPosition(firstRow) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("says nothing while it is still loading on towards the source", async () => {
+    later.records = more();
+    let release = () => {};
+    later.held = new Promise<void>((r) => (release = r));
+    await open("?source=ELSEWHERE");
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 0));
+    });
+    expect(calls.some((c) => c.includes("cursor=c2"))).toBe(true);
+    expect(gone()).toBeNull();
+    await act(async () => {
+      release();
+      await new Promise((r) => setTimeout(r, 0));
+    });
+    expect(gone()?.textContent).toContain("isn’t in this list");
+  });
+
+  it("says nothing when the source is found further down", async () => {
+    later.records = more();
+    await open("?source=L2");
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 0));
+    });
+    expect(gone()).toBeNull();
+    expect(preview()).not.toBeNull();
+  });
+
+  it("stops saying so once a row is chosen, or on Esc", async () => {
+    await open("?source=ELSEWHERE");
+    expect(gone()).not.toBeNull();
+    await click(rowLink("S2"));
+    expect(gone()).toBeNull();
+    expect(here).toContain("source=S2");
+    unmount?.();
+    document.body.innerHTML = "";
+    await open("?source=ELSEWHERE");
+    await press("Escape");
+    expect(here).not.toContain("source=");
+    expect(gone()).toBeNull();
   });
 });
 

@@ -949,11 +949,11 @@ The sources, and everything for reading them.
 - **The preview beside the list.** The list opens alone. A click on a row opens the preview beside
   it, and a click that opens a new tab, **Open source** and Enter go to the source's page. The
   address holds what it shows (`?source=<id>&page=<n>`); a source further down than what has loaded
-  is loaded on to, and one not in this list is said to be. Beside a preview a row keeps only its
-  face, title and date, the sort is a menu and each column scrolls its own. On a phone the preview
-  takes the screen, with a button back to the list. Up and down arrows (and J and K) move through
-  sources, with the preview open or not; left and right through its pages; Space opens and closes
-  it; Esc closes it. Keys leave a field, a menu, a dialog and a player alone.
+  is loaded on to, and one not in this list is said to be, above the rows. Beside a preview a row
+  keeps only its face, title and date, the sort is a menu and each column scrolls its own. On a
+  phone the preview takes the screen, with a button back to the list. Up and down arrows (and J and
+  K) move through sources, with the preview open or not; left and right through its pages; Space
+  opens and closes it; Esc closes it. Keys leave a field, a menu, a dialog and a player alone.
   The header gives the title, then on one line the date, who added it and the source's tags.
   Its pages are the card, as large as the preview allows on its board, with the summary under it,
   whole (one page, its thumbnail the card); the source's own text when it is no attachment's; and each
