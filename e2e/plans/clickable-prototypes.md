@@ -30,13 +30,13 @@ which walks every entry; the browser's own button may skip some.
 ### The screen
 
 1. **Web, as Casey, in the synthetic organization.** Open Exploration. Signing in starts the browser
-   afresh, and mockups and Story pages share one remembered choice of focus mode, so only whichever of
-   them opens first is in focus mode: here the canvas Exploration opens first (the tree's first, which
+   afresh, so the first of the mockups and Story pages to open is in focus mode, and pressing **Show
+   panels** is remembered for both: here the canvas Exploration opens first (the tree's first, which
    may not be that mockup), both panels hidden with a hint that F brings them back. Press **Show
-   panels** (or F), then open that mockup. *Expect:* the inspector's **View** offers Canvas
-   and Clickable prototype, Canvas chosen, and **Download as ZIP**. It has no page picker, Fit or Fill. The toolbar has no view or download control,
-   and has a menu of the pages. Nothing draws a line between pages or counts links, and the mockup's row
-   in the panel carries no extra icon.
+   panels** (or F), then open that mockup. *Expect:* the inspector's **View** offers Canvas and
+   Clickable prototype, Canvas chosen, and **Download as ZIP**. It has no page picker, Fit or Fill.
+   The toolbar has no view or download control, and has a menu of the pages. Nothing draws a line
+   between pages or counts links, and the mockup's row in the panel carries no extra icon.
 2. **Web, as Casey.** Select a page, then hover another's label. *Expect:* each label has a fit button and
    a download button; the inspector shows the selected page's title, notes and way to the Story, with no
    controls for moving between pages. Choose a page from the toolbar's menu. *Expect:* the view goes to it.
