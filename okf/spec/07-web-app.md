@@ -1168,7 +1168,9 @@ Version in the inspector, whose dialog offers **Archive instead** (§7.10).
   progress mark and "Loading" at the page's own scale, its frame not drawn, so no page shows white
   or half drawn. A page that takes the keyboard by itself, as one that focuses a field or opens a
   dialog as it loads, gives it back unless a person pressed in it or pressed Tab in the moment
-  before, so the arrows keep moving between pages.
+  before, so the arrows keep moving between pages. A frame that holds the focus from the keyboard
+  takes the focus ring around it at screen size, in either view, since a page draws its own focus
+  at its own scale.
 - **Labels.** Above each page, drawn at screen size so it reads at any zoom: its number, its title,
   its size (`390 × auto` for a page whose height is its content's), a button that fits that page to the window, and one that downloads that page's HTML (a
   page that enters a prototype has none to give). A narrow label drops the size, then

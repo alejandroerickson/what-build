@@ -95,6 +95,8 @@ const NO_PAGE_SAID_EVERY_MS = 4000;
 /** How close to a press in a page, or a Tab, its frame's focus must come to be the person's doing, and how long after the focus that is judged. */
 const FOCUS_TAKEN_MS = 1000;
 const FOCUS_JUDGED_AFTER_MS = 80;
+/** How often the app looks at which page's frame holds the keyboard's focus, while one does. */
+const KEY_FOCUS_LOOK_MS = 100;
 
 type Mode = "pan" | "interact";
 
@@ -954,6 +956,7 @@ export function Canvas({ version, pageSrc, drawPage, onUse, rememberMode = true,
     else if (s.kind === "follow") follow(pageId, s);
     else if (s.kind === "select") {
       pressedIn.current = { page: pageId, at: Date.now() };
+      setKeyFocus(null);
       if (pageId !== selected) onSelect(pageId);
     } else if (s.kind === "zoom") wheelZoom(s.dy, s.line, s.pinch, s.clientX, s.clientY);
     else if (document.querySelector("dialog[open], .menu")) return;
@@ -966,12 +969,27 @@ export function Canvas({ version, pageSrc, drawPage, onUse, rememberMode = true,
   // loads, gives it back: the keys move between pages until a person presses in a page or tabs into
   // one. Its press is heard a moment after the focus, so the focus is judged a moment later.
   const pressedIn = useRef<{ page: string; at: number } | null>(null);
+  // The page whose frame holds the focus that came into the pages from the keyboard, which the board
+  // marks: a page draws its own focus at its own scale, too small to see on the board.
+  const [keyFocus, setKeyFocus] = useState<string | null>(null);
+  // Moving from one frame to the next tells the app nothing, and the app's styles cannot see a frame
+  // whose page has the focus, so while it is in the pages the app looks at which frame holds it.
+  useEffect(() => {
+    if (!keyFocus) return;
+    const look = window.setInterval(() => {
+      const el = document.activeElement;
+      const page = el instanceof HTMLIFrameElement && viewport.current?.contains(el) ? (el.closest<HTMLElement>(".xc-frame")?.dataset["page"] ?? null) : null;
+      setKeyFocus(page);
+    }, KEY_FOCUS_LOOK_MS);
+    return () => window.clearInterval(look);
+  }, [keyFocus]);
   useEffect(() => {
     const board = viewport.current;
     if (!board) return;
     let before: HTMLElement | null = null;
     let tabbed = 0;
     const timers = new Set<number>();
+    const inApp = () => setKeyFocus(null);
     const key = (e: KeyboardEvent) => {
       if (e.key === "Tab") tabbed = Date.now();
     };
@@ -989,7 +1007,8 @@ export function Canvas({ version, pageSrc, drawPage, onUse, rememberMode = true,
         if (!(el instanceof HTMLIFrameElement) || !board.contains(el)) return;
         const page = el.closest<HTMLElement>(".xc-frame")?.dataset["page"];
         const pressed = pressedIn.current;
-        if (at - tabbed < FOCUS_TAKEN_MS || (pressed && pressed.page === page && Math.abs(pressed.at - at) < FOCUS_TAKEN_MS)) return;
+        if (at - tabbed < FOCUS_TAKEN_MS) return setKeyFocus(page ?? null);
+        if (pressed && pressed.page === page && Math.abs(pressed.at - at) < FOCUS_TAKEN_MS) return;
         if (back?.isConnected && back !== document.body) back.focus({ preventScroll: true });
         if (document.activeElement === el) el.blur();
       }, FOCUS_JUDGED_AFTER_MS);
@@ -998,10 +1017,12 @@ export function Canvas({ version, pageSrc, drawPage, onUse, rememberMode = true,
     window.addEventListener("keydown", key, true);
     document.addEventListener("focusin", focused);
     window.addEventListener("blur", left);
+    window.addEventListener("focus", inApp);
     return () => {
       window.removeEventListener("keydown", key, true);
       document.removeEventListener("focusin", focused);
       window.removeEventListener("blur", left);
+      window.removeEventListener("focus", inApp);
       timers.forEach((t) => window.clearTimeout(t));
     };
   }, []);
@@ -1191,6 +1212,18 @@ export function Canvas({ version, pageSrc, drawPage, onUse, rememberMode = true,
               transform: `translate(${view.x + boxes[selected].left * view.z}px, ${view.y + boxes[selected].top * view.z}px)`,
               width: boxes[selected].width * view.z,
               height: boxes[selected].height * view.z,
+            }}
+          />
+        ) : null}
+        {/* The focus ring around the page whose frame holds the keyboard's focus, at screen size too. */}
+        {keyFocus && boxes[keyFocus] ? (
+          <div
+            className="xc-focus"
+            aria-hidden="true"
+            style={{
+              transform: `translate(${view.x + boxes[keyFocus].left * view.z}px, ${view.y + boxes[keyFocus].top * view.z}px)`,
+              width: boxes[keyFocus].width * view.z,
+              height: boxes[keyFocus].height * view.z,
             }}
           />
         ) : null}

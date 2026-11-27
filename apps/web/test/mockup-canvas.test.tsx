@@ -411,6 +411,50 @@ describe("links between a canvas's pages", () => {
     }
   });
 
+  it("rings the page whose frame holds the focus when it came from the keyboard, follows it to the next frame, and rings none after a press in a page", () => {
+    vi.useFakeTimers();
+    try {
+      for (const clickable of [false, true]) {
+        const { state, redraw } = showClickable({ clickable });
+        const iframe = (id: string) => document.querySelector(`.xc-frame[data-page="${id}"] iframe`) as HTMLIFrameElement;
+        const ring = () => document.querySelector(".xc-focus") as HTMLElement | null;
+        // At screen size around the page, whatever the zoom.
+        const rings = (width: number) => expect(parseFloat(ring()?.style.width ?? ""), `clickable ${clickable}`).toBeCloseTo(width * view().z, 2);
+        const into = (el: HTMLIFrameElement, tab: boolean) => {
+          if (tab) act(() => window.dispatchEvent(new KeyboardEvent("keydown", { key: "Tab" })));
+          el.tabIndex = 0;
+          el.focus();
+          act(() => window.dispatchEvent(new Event("blur")));
+          act(() => vi.advanceTimersByTime(200));
+        };
+        into(iframe("phone"), true);
+        rings(390);
+        if (clickable) {
+          state.id = "wide";
+          redraw();
+        }
+        // The next frame takes the focus, which the app hears nothing of.
+        iframe("wide").tabIndex = 0;
+        act(() => iframe("wide").focus());
+        act(() => vi.advanceTimersByTime(200));
+        rings(1280);
+        // Back in the app, or a press inside the page, and nothing is ringed.
+        act(() => window.dispatchEvent(new Event("focus")));
+        expect(ring()).toBeNull();
+        act(() => vi.advanceTimersByTime(2_000));
+        into(iframe("wide"), true);
+        rings(1280);
+        act(() => window.dispatchEvent(new MessageEvent("message", { source: iframe("wide").contentWindow, data: { whatbuild: "canvas-select" } })));
+        expect(ring()).toBeNull();
+        unmount?.();
+        unmount = null;
+        document.body.innerHTML = "";
+      }
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("as a clickable prototype, opens a page someone used afresh once it is left, and leaves one nobody used as it is", () => {
     const { state, redraw } = showClickable({ clickable: true });
     const phone = document.querySelector('.xc-frame[data-page="phone"] iframe') as HTMLIFrameElement;

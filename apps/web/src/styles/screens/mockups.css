@@ -168,7 +168,8 @@
     opacity var(--dur-3) var(--ease),
     visibility var(--dur-3) var(--ease);
 }
-.xc-viewport[data-gliding] .xc-ring {
+.xc-viewport[data-gliding] .xc-ring,
+.xc-viewport[data-gliding] .xc-focus {
   transition:
     transform var(--dur-3) var(--ease),
     width var(--dur-3) var(--ease),
@@ -228,6 +229,16 @@
   outline: 2px solid var(--accent);
   pointer-events: none;
   will-change: transform;
+}
+/* The page whose frame holds the focus from the keyboard: the focus ring around it at screen size,
+   where the page's own ring is drawn at the page's scale, clear of the selected page's outline. */
+.xc-focus {
+  position: absolute;
+  top: 0;
+  left: 0;
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+  pointer-events: none;
 }
 .xc-replaced {
   position: absolute;
@@ -615,7 +626,8 @@
   .xc-viewport[data-gliding] .xc-labels,
   .xc-viewport[data-gliding] .xc-label,
   .xc-viewport[data-folding] .xc-frame,
-  .xc-viewport[data-gliding] .xc-ring {
+  .xc-viewport[data-gliding] .xc-ring,
+  .xc-viewport[data-gliding] .xc-focus {
     transition: none;
   }
 }
