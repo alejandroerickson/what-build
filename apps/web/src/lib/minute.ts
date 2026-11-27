@@ -57,6 +57,11 @@ export const SETTLES_AFTER_MS = 60_000;
  * own load event fires, which is when the frame's comes, so this is ample.
  */
 export const SAYS_LOADED_WITHIN_MS = 1_500;
+/**
+ * How long a page that keeps reloading still counts as such once it is back on show: long enough
+ * for a document that sends its frame elsewhere as it loads to have loaded and been put back again.
+ */
+export const STILL_RELOADING_FOR_MS = 5_000;
 const MINUTE_MS = 60_000;
 
 /** Whether a refusal's wait is one for the next minute. */
@@ -120,12 +125,21 @@ const onScreen = new Set<WaitingFrame>();
 let screenPutBacks: number[] = [];
 const listeners = new Set<() => void>();
 
+/**
+ * Whether a page counts as one that keeps reloading: while it waits, and for a moment after it comes
+ * back, until what takes its place again would have been heard. Pages that keep reloading come back
+ * one turn apart and are replaced a moment later, so without that moment the count above the board
+ * would change at every turn.
+ */
+const keepsReloading = (f: WaitingFrame, now: number) =>
+  f.why === "replaced" && f.waits > 0 && (f.state === "queued" || (f.state === "shown" && now - f.cameBack < STILL_RELOADING_FOR_MS));
+
 function publish(now: number) {
   const next: MinuteWait = {
     waiting: resumesAt > now,
     frames: queue.filter((f) => f.why === "refused").length,
     stopped: [...stopped].filter((f) => f.why === "refused").length,
-    reloading: queue.filter((f) => f.why === "replaced" && f.waits > 0).length,
+    reloading: [...onScreen].filter((f) => keepsReloading(f, now)).length,
     reloadingStopped: [...stopped].filter((f) => f.why === "replaced").length,
   };
   if ((Object.keys(next) as (keyof MinuteWait)[]).every((k) => next[k] === current[k])) return;
@@ -176,7 +190,9 @@ function takeTurns() {
   }
   publish(now);
   const nextTurn = queue.length && !hidden() ? Math.max(framesFrom, lastTurn + FRAME_SPACING_MS, Math.min(...queue.map((f) => mayComeFrom(f, now)))) : Infinity;
-  const nextChange = Math.min(nextTurn, resumesAt > now ? resumesAt : Infinity);
+  // A page back on show leaves the count once it has stayed that moment.
+  const settles = Math.min(...[...onScreen].filter((f) => f.state === "shown" && keepsReloading(f, now)).map((f) => f.cameBack + STILL_RELOADING_FOR_MS));
+  const nextChange = Math.min(nextTurn, resumesAt > now ? resumesAt : Infinity, settles);
   if (nextChange !== Infinity) timer = setTimeout(takeTurns, Math.max(0, nextChange - now));
 }
 

@@ -387,6 +387,64 @@ describe("links between a canvas's pages", () => {
     expect(document.querySelector('.xc-frame[data-page="wide"] iframe')).toBe(was);
   });
 
+  it("as a clickable prototype, keeps the pages not on show beneath the one that is, in the view, taking nothing", () => {
+    const { state, redraw, setClickable } = showClickable({ clickable: true });
+    const frame = (id: string) => document.querySelector(`.xc-frame[data-page="${id}"]`) as HTMLElement;
+    // Drawn in the view, where the browser keeps drawing it, so it never shows white when moved to.
+    expect(frame("wide").style.transform).toBe("translate(-510px)");
+    expect(frame("wide").hasAttribute("inert")).toBe(true);
+    expect(frame("phone").hasAttribute("inert")).toBe(false);
+    expect(frame("phone").style.transform).toBe("");
+    state.id = "wide";
+    redraw();
+    expect(frame("phone").style.transform).toBe("translate(510px)");
+    expect(frame("phone").hasAttribute("inert")).toBe(true);
+    expect(frame("wide").hasAttribute("inert")).toBe(false);
+    expect(frame("wide").style.transform).toBe("");
+    // Back on the board each page is where it belongs, and takes the pointer and the keyboard.
+    setClickable(false);
+    expect([frame("phone"), frame("wide")].map((f) => [f.hasAttribute("inert"), f.style.transform])).toEqual([
+      [false, ""],
+      [false, ""],
+    ]);
+  });
+
+  it("as a clickable prototype, keeps drawn beneath only the pages next to the one on show, the first page and the pages shown last, and hides the rest where they are", () => {
+    const was = version.pages;
+    version.pages = Array.from({ length: 9 }, (_, i) => ({ page_id: `p${i + 1}`, title: `Page ${i + 1}`, width: 390, height: 760 }));
+    try {
+      const { state, redraw } = showClickable({ clickable: true });
+      const frame = (id: string) => document.querySelector(`.xc-frame[data-page="${id}"]`) as HTMLElement;
+      // Each page not on show takes nothing. Those drawn wait beneath it; the others, hidden
+      // (mockups.css), at their own place.
+      const waiting = () =>
+        Object.fromEntries(
+          version.pages.map(({ page_id: id }) => {
+            const f = frame(id);
+            const under = f.getAttribute("data-under");
+            if (under === null) return [id, f.hasAttribute("inert") ? "inert on show" : "on show"];
+            if (!f.hasAttribute("inert")) return [id, "waits, not inert"];
+            return [id, under === "drawn" && f.style.transform ? "drawn" : under === "hidden" && !f.style.transform ? "hidden" : "misplaced"];
+          }),
+        );
+      const go = (id: string) => {
+        state.id = id;
+        redraw();
+      };
+      go("p1");
+      expect(waiting()).toMatchObject({ p1: "on show", p2: "drawn", p3: "hidden", p9: "hidden" });
+      // By the arrows to p6: its neighbours are drawn, the three pages shown before it, and the first,
+      // where a link back to the start goes.
+      for (const id of ["p2", "p3", "p4", "p5", "p6"]) go(id);
+      expect(waiting()).toEqual({ p1: "drawn", p2: "hidden", p3: "drawn", p4: "drawn", p5: "drawn", p6: "on show", p7: "drawn", p8: "hidden", p9: "hidden" });
+      // A jump to a far page: the page left stays drawn, so a link back to it is instant, and so do the two before it.
+      go("p9");
+      expect(waiting()).toEqual({ p1: "drawn", p2: "hidden", p3: "hidden", p4: "drawn", p5: "drawn", p6: "drawn", p7: "hidden", p8: "drawn", p9: "on show" });
+    } finally {
+      version.pages = was;
+    }
+  });
+
   it("takes the keyboard back from a page that takes it by itself, and leaves it with a page a person pressed in", () => {
     vi.useFakeTimers();
     try {
@@ -411,6 +469,95 @@ describe("links between a canvas's pages", () => {
     }
   });
 
+  it("rings the page whose frame holds the focus when it came from the keyboard, follows it to the next frame, and rings none after a press in a page", () => {
+    vi.useFakeTimers();
+    try {
+      for (const clickable of [false, true]) {
+        const { state, redraw } = showClickable({ clickable });
+        const iframe = (id: string) => document.querySelector(`.xc-frame[data-page="${id}"] iframe`) as HTMLIFrameElement;
+        const ring = () => document.querySelector(".xc-focus") as HTMLElement | null;
+        // At screen size around the page, whatever the zoom.
+        const rings = (width: number) => expect(parseFloat(ring()?.style.width ?? ""), `clickable ${clickable}`).toBeCloseTo(width * view().z, 2);
+        const into = (el: HTMLIFrameElement, tab: boolean) => {
+          if (tab) act(() => window.dispatchEvent(new KeyboardEvent("keydown", { key: "Tab" })));
+          el.tabIndex = 0;
+          el.focus();
+          act(() => window.dispatchEvent(new Event("blur")));
+          act(() => vi.advanceTimersByTime(200));
+        };
+        into(iframe("phone"), true);
+        rings(390);
+        if (clickable) {
+          state.id = "wide";
+          redraw();
+        }
+        // The next frame takes the focus, which the app hears nothing of.
+        iframe("wide").tabIndex = 0;
+        act(() => iframe("wide").focus());
+        act(() => vi.advanceTimersByTime(200));
+        rings(1280);
+        // Back in the app, or a press inside the page, and nothing is ringed.
+        act(() => window.dispatchEvent(new Event("focus")));
+        expect(ring()).toBeNull();
+        act(() => vi.advanceTimersByTime(2_000));
+        into(iframe("wide"), true);
+        rings(1280);
+        act(() => window.dispatchEvent(new MessageEvent("message", { source: iframe("wide").contentWindow, data: { whatbuild: "canvas-select" } })));
+        expect(ring()).toBeNull();
+        unmount?.();
+        unmount = null;
+        document.body.innerHTML = "";
+      }
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("stops looking for the frame that holds the keyboard's focus while the tab is hidden or the window has lost the focus, and looks again once either is back", () => {
+    vi.useFakeTimers();
+    const hidden = vi.spyOn(document, "hidden", "get").mockReturnValue(false);
+    const hasFocus = vi.spyOn(document, "hasFocus").mockReturnValue(true);
+    try {
+      showClickable();
+      const iframe = (id: string) => document.querySelector(`.xc-frame[data-page="${id}"] iframe`) as HTMLIFrameElement;
+      const ringed = () => {
+        const w = parseFloat((document.querySelector(".xc-focus") as HTMLElement | null)?.style.width ?? "");
+        return Math.abs(w - 390 * view().z) < 0.01 ? "phone" : Math.abs(w - 1280 * view().z) < 0.01 ? "wide" : null;
+      };
+      const into = (id: string) => {
+        iframe(id).tabIndex = 0;
+        act(() => iframe(id).focus());
+      };
+      act(() => window.dispatchEvent(new KeyboardEvent("keydown", { key: "Tab" })));
+      into("phone");
+      act(() => window.dispatchEvent(new Event("blur")));
+      act(() => vi.advanceTimersByTime(200));
+      expect(ringed()).toBe("phone");
+      // Hidden, nothing is looked at; shown again, the ring finds the frame at once.
+      hidden.mockReturnValue(true);
+      act(() => vi.advanceTimersByTime(200));
+      into("wide");
+      act(() => vi.advanceTimersByTime(5_000));
+      expect(ringed()).toBe("phone");
+      hidden.mockReturnValue(false);
+      act(() => document.dispatchEvent(new Event("visibilitychange")));
+      expect(ringed()).toBe("wide");
+      // The window without the focus: the ring is left as it is until the focus is back.
+      hasFocus.mockReturnValue(false);
+      act(() => vi.advanceTimersByTime(200));
+      into("phone");
+      act(() => vi.advanceTimersByTime(500));
+      expect(ringed()).toBe("wide");
+      hasFocus.mockReturnValue(true);
+      act(() => vi.advanceTimersByTime(1_100));
+      expect(ringed()).toBe("phone");
+    } finally {
+      hidden.mockRestore();
+      hasFocus.mockRestore();
+      vi.useRealTimers();
+    }
+  });
+
   it("as a clickable prototype, opens a page someone used afresh once it is left, and leaves one nobody used as it is", () => {
     const { state, redraw } = showClickable({ clickable: true });
     const phone = document.querySelector('.xc-frame[data-page="phone"] iframe') as HTMLIFrameElement;
@@ -421,6 +568,77 @@ describe("links between a canvas's pages", () => {
     state.id = "phone";
     redraw();
     expect(document.querySelector('.xc-frame[data-page="wide"] iframe')).toBe(wide);
+  });
+
+  /** A page's frame loads and its document says so, and the canvas greets it. */
+  function greeted(id: string) {
+    const iframe = document.querySelector(`.xc-frame[data-page="${id}"] iframe`) as HTMLIFrameElement;
+    act(() => iframe.dispatchEvent(new Event("load")));
+    act(() => window.dispatchEvent(new MessageEvent("message", { source: iframe.contentWindow, data: { whatbuild: "frame-ready" } })));
+    return iframe;
+  }
+  /** The places within it the canvas has told a page's frame to go to. */
+  function placesTold(iframe: HTMLIFrameElement) {
+    const told: string[] = [];
+    vi.spyOn(iframe.contentWindow!, "postMessage").mockImplementation((data: unknown) => {
+      const m = data as { whatbuild?: string; hash?: string };
+      if (m.whatbuild === "canvas-hash") told.push(m.hash!);
+    });
+    return told;
+  }
+
+  it("as a clickable prototype, opens a page already loaded at the place a link names, and keeps the place for nothing later", () => {
+    const { state, redraw } = showClickable({ clickable: true });
+    greeted("phone");
+    const wide = greeted("wide");
+    const told = placesTold(wide);
+    linkClicked("phone", "wide", { hash: "place" });
+    expect(state.id).toBe("wide");
+    expect(told).toEqual(["place"]);
+    // Used, left by the arrows and opened afresh behind: its new frame is greeted with no place.
+    act(() => window.dispatchEvent(new MessageEvent("message", { source: wide.contentWindow, data: { whatbuild: "frame-active" } })));
+    state.id = "phone";
+    redraw();
+    const again = document.querySelector('.xc-frame[data-page="wide"] iframe') as HTMLIFrameElement;
+    expect(again).not.toBe(wide);
+    const toldAgain = placesTold(again);
+    greeted("wide");
+    expect(toldAgain).toEqual([]);
+  });
+
+  it("as a clickable prototype, opens a page still loading at the place a link names once it has loaded, and drops the place once the person is elsewhere", () => {
+    // Moves a page asks for are a moment apart at least, so the clock is the test's.
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      const { state, redraw } = showClickable({ clickable: true });
+      greeted("phone");
+      const wide = document.querySelector('.xc-frame[data-page="wide"] iframe') as HTMLIFrameElement;
+      const told = placesTold(wide);
+      linkClicked("phone", "wide", { hash: "place" });
+      expect(told).toEqual([]);
+      greeted("wide");
+      expect(told).toEqual(["place"]);
+      // A place named for a page that has not loaded by the time the person leaves it is never used.
+      vi.setSystemTime(Date.now() + 10_000);
+      state.id = "phone";
+      redraw();
+      const phone = document.querySelector('.xc-frame[data-page="phone"] iframe') as HTMLIFrameElement;
+      act(() => window.dispatchEvent(new MessageEvent("message", { source: phone.contentWindow, data: { whatbuild: "frame-active" } })));
+      state.id = "wide";
+      redraw();
+      // phone, used, opens afresh behind; a link names a place in it, then the person moves on before it loads.
+      const fresh = document.querySelector('.xc-frame[data-page="phone"] iframe') as HTMLIFrameElement;
+      expect(fresh).not.toBe(phone);
+      const toldFresh = placesTold(fresh);
+      linkClicked("wide", "phone", { hash: "top" });
+      expect(state.id).toBe("phone");
+      state.id = "wide";
+      redraw();
+      greeted("phone");
+      expect(toldFresh).toEqual([]);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("offers a page's download on its label on the canvas alone, and for a page with its own HTML alone", () => {

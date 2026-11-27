@@ -95,6 +95,10 @@ const NO_PAGE_SAID_EVERY_MS = 4000;
 /** How close to a press in a page, or a Tab, its frame's focus must come to be the person's doing, and how long after the focus that is judged. */
 const FOCUS_TAKEN_MS = 1000;
 const FOCUS_JUDGED_AFTER_MS = 80;
+/** How often the app looks at which page's frame holds the keyboard's focus, while one does. */
+const KEY_FOCUS_LOOK_MS = 100;
+/** How often, while the window has lost the focus, the app looks for it to come back. */
+const KEY_FOCUS_BACK_LOOK_MS = 1000;
 
 type Mode = "pan" | "interact";
 
@@ -197,13 +201,15 @@ const HELD_WORDS = {
  * Until its document has loaded and been greeted, the frame is drawn transparent over the page's
  * sheet, which says the page is loading: a page never shows white, or half drawn, while it loads.
  */
-function PageFrame({ page, src, drawn, title, selected, eager, onSignal, frameRef, prototype, entries, visit, takeHash }: {
+function PageFrame({ page, src, drawn, title, selected, under, eager, onSignal, frameRef, prototype, entries, visit, takeHash }: {
   page: LaidPage;
   src: string;
   /** The page drawn by the app itself, in place of its frame (the tutorial's fixed example). */
   drawn?: ReactNode;
   title: string;
   selected: boolean;
+  /** As a clickable prototype, where a page not on show waits: beneath the one that is (pageUnder). */
+  under: Under | null;
   /** Load now, wherever the page sits on the board, rather than once it is near the view. */
   eager: boolean;
   onSignal: (pageId: string, s: FrameSignal) => void;
@@ -300,7 +306,7 @@ function PageFrame({ page, src, drawn, title, selected, eager, onSignal, frameRe
   }, [onSignal, page.page_id, page.width, prototype, hello, heard]);
   if (drawn !== undefined)
     return (
-      <div ref={frameRef} className="xc-frame" data-page={page.page_id} data-selected={selected ? "" : undefined} style={{ width: page.width, height: page.height }}>
+      <div ref={frameRef} className="xc-frame" data-page={page.page_id} data-selected={selected ? "" : undefined} {...underProps(under)} style={frameStyle(page, under)}>
         {/* In interact mode the page takes the pointer as a frame's page does: a press selects it, and a link to another page is followed. */}
         <div
           className="xc-drawn"
@@ -320,7 +326,7 @@ function PageFrame({ page, src, drawn, title, selected, eager, onSignal, frameRe
       </div>
     );
   return (
-    <div ref={frameRef} className="xc-frame" data-page={page.page_id} data-selected={selected ? "" : undefined} data-greeted={greeted ? "" : undefined} style={{ width: page.width, height: page.height }}>
+    <div ref={frameRef} className="xc-frame" data-page={page.page_id} data-selected={selected ? "" : undefined} data-greeted={greeted ? "" : undefined} {...underProps(under)} style={frameStyle(page, under)}>
       {held || greeted ? null : <PageLoading width={page.width} />}
       {held ? (
         // At the page's own scale, so it still reads with the canvas zoomed out. Try again is above the board at screen size.
@@ -378,6 +384,51 @@ function PageLoading({ width }: { width: number }) {
     </p>
   );
 }
+
+/**
+ * Where a page not on show waits as a clickable prototype: drawn beneath the one that is, at this
+ * offset from its own place on the board, or hidden at its own place.
+ */
+type Under = { drawn: boolean; x: number; y: number };
+
+/** How many of the pages shown last, besides the one on show, wait drawn beneath it. */
+const RECENT_DRAWN = 3;
+
+/**
+ * The pages one move is likely to reach from the selected page as a clickable prototype: the
+ * previous and next in the order the arrows follow (with none selected, the first and the last), the
+ * first page, where a link back to the start goes, and the pages shown last (`recent`, the one on
+ * show first), so a flow that goes back and forth finds its pages drawn.
+ */
+function pagesNear(pageIds: readonly string[], selected: string | null, recent: readonly string[]): Set<string> {
+  const at = selected === null ? -1 : pageIds.indexOf(selected);
+  const around = at < 0 ? [pageIds[pageIds.length - 1]] : [pageIds[at - 1], pageIds[at + 1]];
+  return new Set([pageIds[0], ...around, ...recent.slice(0, RECENT_DRAWN + 1)].filter((id): id is string => id !== undefined));
+}
+
+/**
+ * As a clickable prototype, the pages one move is likely to reach (pagesNear) wait beneath the one
+ * on show, in the view, drawn but unseen: a frame out of the view, or hidden, is one the browser
+ * stops drawing, and draws white for a moment when it shows again. They are not all kept so, nor all
+ * hidden: a page drawn keeps running, and a canvas of animated pages all drawn would cost as much as
+ * all of them on show, so the others wait hidden, which a move by the page menu or a link to a far
+ * page pays for with a white frame or two. While the view folds they fade where they are (no `shown`).
+ */
+function pageUnder(id: string, clickable: boolean, selected: string | null, near: Set<string>, shown: Box | undefined, boxes: Record<string, Box>): Under | null {
+  if (!clickable || id === selected) return null;
+  if (!near.has(id)) return { drawn: false, x: 0, y: 0 };
+  const b = boxes[id];
+  return shown && b ? { drawn: true, x: shown.left - b.left, y: shown.top - b.top } : { drawn: true, x: 0, y: 0 };
+}
+
+/** A page not on show takes nothing: no pointer, no focus, nothing a screen reader reaches. */
+const underProps = (under: Under | null) => (under ? { "data-under": under.drawn ? "drawn" : "hidden", inert: true } : {});
+
+const frameStyle = (page: { width: number; height: number }, under: Under | null): CSSProperties => ({
+  width: page.width,
+  height: page.height,
+  ...(under && (under.x || under.y) ? { transform: `translate(${under.x}px, ${under.y}px)` } : {}),
+});
 
 /**
  * What the board says of pages waiting or stopped, at screen size above them, however far the canvas
@@ -528,6 +579,10 @@ export function Canvas({ version, pageSrc, drawPage, onUse, rememberMode = true,
   asPrototype.current = clickable;
   const [visits, setVisits] = useState<Record<string, number>>({});
   const pageIds = useMemo(() => version.pages.map((p) => p.page_id), [version.pages]);
+  // The pages shown last, the selected one first, which a clickable prototype keeps drawn (pagesNear).
+  // Set in the render that changes the page, so the page left is drawn beneath from the first frame.
+  const [recent, setRecent] = useState<readonly string[]>(() => (selected ? [selected] : []));
+  if (selected && recent[0] !== selected) setRecent([selected, ...recent.filter((id) => id !== selected)].slice(0, RECENT_DRAWN + 1));
   // The pages that enter the prototype, each loading every file its document loads: they take turns
   // to load, in either view (frame-turns.ts), and keep their frames. A drawn page loads nothing.
   const entering = useMemo(
@@ -553,12 +608,19 @@ export function Canvas({ version, pageSrc, drawPage, onUse, rememberMode = true,
     const done = window.setTimeout(() => setFolding(false), 220);
     return () => window.clearTimeout(done);
   }, [folding]);
+  // The place a link named in a page still loading, for its greeting. The pages greeted, which a
+  // place is posted to at once.
   const hashes = useRef(new Map<string, string>());
+  const greetedPages = useRef(new Set<string>());
   const takeHash = useCallback((pageId: string) => {
     const hash = hashes.current.get(pageId) ?? null;
     hashes.current.delete(pageId);
     return hash;
   }, []);
+  // A place is for the page a link just opened: once the person is elsewhere, it is dropped unused.
+  useEffect(() => {
+    for (const id of [...hashes.current.keys()]) if (id !== selected) hashes.current.delete(id);
+  }, [selected]);
   const entries = useMemo(() => {
     const out: Record<string, string> = {};
     for (const p of version.pages) {
@@ -912,14 +974,18 @@ export function Canvas({ version, pageSrc, drawPage, onUse, rememberMode = true,
       return;
     }
     if (!mayMove()) return;
-    // For a page still to load; one already open is told now.
-    if (s.hash) hashes.current.set(s.page, s.hash);
+    // A page already open, as pages stay once loaded, is told now; one still to load, when it is
+    // greeted. Kept for no other, so a place named once never scrolls a page that reopens later.
+    if (s.hash) {
+      const open = greetedPages.current.has(s.page) ? inFrame() : null;
+      if (open) open.postMessage({ whatbuild: "canvas-hash", hash: s.hash }, "*");
+      else hashes.current.set(s.page, s.hash);
+    }
     asked.current = s.page;
     if (clickable) {
       (onFollow ?? onSelect)(s.page);
       return;
     }
-    if (s.hash) inFrame()?.postMessage({ whatbuild: "canvas-hash", hash: s.hash }, "*");
     touched.current = true;
     following.current = { id: s.page, how: pageView };
     (onFollow ?? onSelect)(s.page);
@@ -931,8 +997,11 @@ export function Canvas({ version, pageSrc, drawPage, onUse, rememberMode = true,
     if (s.kind === "height") {
       const c = shownCanvas;
       setMeasured((m) => ({ canvas: c, heights: { ...(m.canvas === c ? m.heights : {}), [pageId]: s.height } }));
-    } else if (s.kind === "ready") turns.heard(pageId, true);
-    else if (s.kind === "loading") {
+    } else if (s.kind === "ready") {
+      greetedPages.current.add(pageId);
+      turns.heard(pageId, true);
+    } else if (s.kind === "loading") {
+      greetedPages.current.delete(pageId);
       usedPages.current.delete(pageId);
       turns.heard(pageId, false);
     } else if (s.kind === "used") usedPages.current.add(pageId);
@@ -940,6 +1009,7 @@ export function Canvas({ version, pageSrc, drawPage, onUse, rememberMode = true,
     else if (s.kind === "follow") follow(pageId, s);
     else if (s.kind === "select") {
       pressedIn.current = { page: pageId, at: Date.now() };
+      setKeyFocus(null);
       if (pageId !== selected) onSelect(pageId);
     } else if (s.kind === "zoom") wheelZoom(s.dy, s.line, s.pinch, s.clientX, s.clientY);
     else if (document.querySelector("dialog[open], .menu")) return;
@@ -952,12 +1022,45 @@ export function Canvas({ version, pageSrc, drawPage, onUse, rememberMode = true,
   // loads, gives it back: the keys move between pages until a person presses in a page or tabs into
   // one. Its press is heard a moment after the focus, so the focus is judged a moment later.
   const pressedIn = useRef<{ page: string; at: number } | null>(null);
+  // The page whose frame holds the focus that came into the pages from the keyboard, which the board
+  // marks: a page draws its own focus at its own scale, too small to see on the board.
+  const [keyFocus, setKeyFocus] = useState<string | null>(null);
+  // Moving from one frame to the next tells the app nothing, and the app's styles cannot see a frame
+  // whose page has the focus, so while it is in the pages the app looks at which frame holds it.
+  // It does not look while the tab is hidden, and looks only for the focus to come back while the
+  // window has lost it: nothing can move it from frame to frame then.
+  useEffect(() => {
+    if (!keyFocus) return;
+    let timer: number | undefined;
+    const look = () => {
+      if (document.hidden) return;
+      if (!document.hasFocus()) {
+        timer = window.setTimeout(look, KEY_FOCUS_BACK_LOOK_MS);
+        return;
+      }
+      const el = document.activeElement;
+      const page = el instanceof HTMLIFrameElement && viewport.current?.contains(el) ? (el.closest<HTMLElement>(".xc-frame")?.dataset["page"] ?? null) : null;
+      setKeyFocus(page);
+      timer = window.setTimeout(look, KEY_FOCUS_LOOK_MS);
+    };
+    const shown = () => {
+      window.clearTimeout(timer);
+      look();
+    };
+    timer = window.setTimeout(look, KEY_FOCUS_LOOK_MS);
+    document.addEventListener("visibilitychange", shown);
+    return () => {
+      window.clearTimeout(timer);
+      document.removeEventListener("visibilitychange", shown);
+    };
+  }, [keyFocus]);
   useEffect(() => {
     const board = viewport.current;
     if (!board) return;
     let before: HTMLElement | null = null;
     let tabbed = 0;
     const timers = new Set<number>();
+    const inApp = () => setKeyFocus(null);
     const key = (e: KeyboardEvent) => {
       if (e.key === "Tab") tabbed = Date.now();
     };
@@ -975,7 +1078,8 @@ export function Canvas({ version, pageSrc, drawPage, onUse, rememberMode = true,
         if (!(el instanceof HTMLIFrameElement) || !board.contains(el)) return;
         const page = el.closest<HTMLElement>(".xc-frame")?.dataset["page"];
         const pressed = pressedIn.current;
-        if (at - tabbed < FOCUS_TAKEN_MS || (pressed && pressed.page === page && Math.abs(pressed.at - at) < FOCUS_TAKEN_MS)) return;
+        if (at - tabbed < FOCUS_TAKEN_MS) return setKeyFocus(page ?? null);
+        if (pressed && pressed.page === page && Math.abs(pressed.at - at) < FOCUS_TAKEN_MS) return;
         if (back?.isConnected && back !== document.body) back.focus({ preventScroll: true });
         if (document.activeElement === el) el.blur();
       }, FOCUS_JUDGED_AFTER_MS);
@@ -984,10 +1088,12 @@ export function Canvas({ version, pageSrc, drawPage, onUse, rememberMode = true,
     window.addEventListener("keydown", key, true);
     document.addEventListener("focusin", focused);
     window.addEventListener("blur", left);
+    window.addEventListener("focus", inApp);
     return () => {
       window.removeEventListener("keydown", key, true);
       document.removeEventListener("focusin", focused);
       window.removeEventListener("blur", left);
+      window.removeEventListener("focus", inApp);
       timers.forEach((t) => window.clearTimeout(t));
     };
   }, []);
@@ -1099,9 +1205,12 @@ export function Canvas({ version, pageSrc, drawPage, onUse, rememberMode = true,
 
   // The pages do not change as the view moves, so a drag or a pinch re-renders only the transform
   // and the labels, never the frames.
+  const shownBox = !folding && selected ? boxes[selected] : undefined;
+  const near = useMemo(() => pagesNear(pageIds, selected, recent), [pageIds, selected, recent]);
   const pageFrames = useMemo(
-    () =>
-      laid.map((p) => {
+    () => {
+      const under = (id: string) => pageUnder(id, clickable, selected, near, shownBox, boxes);
+      return laid.map((p) => {
         const id = p.page_id;
         const frameRef = (el: HTMLDivElement | null) => {
           if (el) frames.current.set(id, el);
@@ -1110,7 +1219,7 @@ export function Canvas({ version, pageSrc, drawPage, onUse, rememberMode = true,
         // A page that enters the prototype is a sheet that says it is loading until its turn comes.
         if (entering.has(id) && !hasTurn(id))
           return (
-            <div key={id} ref={frameRef} className="xc-frame" data-page={id} data-selected={id === selected ? "" : undefined} style={{ width: p.width, height: p.height }}>
+            <div key={id} ref={frameRef} className="xc-frame" data-page={id} data-selected={id === selected ? "" : undefined} {...underProps(under(id))} style={frameStyle(p, under(id))}>
               <PageLoading width={p.width} />
             </div>
           );
@@ -1123,6 +1232,7 @@ export function Canvas({ version, pageSrc, drawPage, onUse, rememberMode = true,
             prototype={p.prototype_url && version.prototype ? { sandbox: version.prototype.sandbox } : null}
             title={p.title}
             selected={id === selected}
+            under={under(id)}
             // One that has had its turn loads wherever it sits; as a clickable prototype every page
             // loads at once, so the arrows find it ready. Otherwise a page loads once it is near the view.
             eager={entering.has(id) || clickable}
@@ -1133,8 +1243,9 @@ export function Canvas({ version, pageSrc, drawPage, onUse, rememberMode = true,
             frameRef={frameRef}
           />
         );
-      }),
-    [laid, version.prototype, pageSrc, drawPage, selected, onSignal, entries, visits, takeHash, entering, hasTurn, clickable],
+      });
+    },
+    [laid, version.prototype, pageSrc, drawPage, selected, onSignal, entries, visits, takeHash, entering, hasTurn, clickable, near, shownBox, boxes],
   );
 
   const worldStyle: CSSProperties = {
@@ -1177,6 +1288,18 @@ export function Canvas({ version, pageSrc, drawPage, onUse, rememberMode = true,
               transform: `translate(${view.x + boxes[selected].left * view.z}px, ${view.y + boxes[selected].top * view.z}px)`,
               width: boxes[selected].width * view.z,
               height: boxes[selected].height * view.z,
+            }}
+          />
+        ) : null}
+        {/* The focus ring around the page whose frame holds the keyboard's focus, at screen size too. */}
+        {keyFocus && boxes[keyFocus] ? (
+          <div
+            className="xc-focus"
+            aria-hidden="true"
+            style={{
+              transform: `translate(${view.x + boxes[keyFocus].left * view.z}px, ${view.y + boxes[keyFocus].top * view.z}px)`,
+              width: boxes[keyFocus].width * view.z,
+              height: boxes[keyFocus].height * view.z,
             }}
           />
         ) : null}

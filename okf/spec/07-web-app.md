@@ -111,7 +111,8 @@ design system: tokens, type, components and the rules for using them — is docu
   does spend a call. A screen puts back at most 10 frames a minute in all, and any one page at most 3. Past either, the page waits with
   a short note and no frame, what took its place gone at once, and then comes back. After 3 such waits in a row without settling (staying in its frame for a minute)
   it stops, saying *This page keeps reloading*, which blames no one, since a person's own button can do it, and offers **Try again**, which starts it
-  afresh; so does leaving the screen. Nothing is put back while the tab is hidden: it takes turns when visible, at the pace of frames, not all at once.
+  afresh; so does leaving the screen. The board's count of pages that keep reloading takes in a page back on show for
+  5 seconds, the moment before what takes its place again is heard, so the count holds still while such pages take turns. Nothing is put back while the tab is hidden: it takes turns when visible, at the pace of frames, not all at once.
   A prototype's route meets no limit, so a prototype's frames cost no calls: they take none of this budget, take no word of a refusal from
   what is in them, and are put back at once, always, as a link to a missing file inside one needs.
   ◆ Decision: the short page never reloads itself, and only the app asks again. A document can still spend the person's calls by reloading itself,
@@ -1167,7 +1168,9 @@ Version in the inspector, whose dialog offers **Archive instead** (§7.10).
   progress mark and "Loading" at the page's own scale, its frame not drawn, so no page shows white
   or half drawn. A page that takes the keyboard by itself, as one that focuses a field or opens a
   dialog as it loads, gives it back unless a person pressed in it or pressed Tab in the moment
-  before, so the arrows keep moving between pages.
+  before, so the arrows keep moving between pages. A frame that holds the focus from the keyboard
+  takes the focus ring around it at screen size, in either view, since a page draws its own focus
+  at its own scale.
 - **Labels.** Above each page, drawn at screen size so it reads at any zoom: its number, its title,
   its size (`390 × auto` for a page whose height is its content's), a button that fits that page to the window, and one that downloads that page's HTML (a
   page that enters a prototype has none to give). A narrow label drops the size, then
@@ -1183,13 +1186,21 @@ Version in the inspector, whose dialog offers **Archive instead** (§7.10).
   plain click does, since a new tab has no address for another page of a canvas. A link to a document of the version's prototype that another canvas page enters
   moves to that page; any other link within the prototype stays in its frame. A link to a place
   within a page (`checkout.html#total`) moves to the page and scrolls to the place inside the page
-  alone. The board clips its pages and nothing can scroll it, so no page scrolling something of its
+  alone, in either view, at once for a page already loaded and as soon as one still loading has; the
+  place is kept for nothing later, so a page that reopens afterwards opens at its top. The board clips its pages and nothing can scroll it, so no page scrolling something of its
   own into view moves the board, and a page the view flies to is where the view shows it.
 - **Viewed as a clickable prototype** (`?view=clickable`, chosen under **View** in the inspector). One
   page at a time on the plain board, at its own size or smaller, in interact mode, with no labels or
   outline. The others fade as the view glides to the page, and back again on the way out. A link,
   the arrows and the page menu change the page in place at once: every page loads behind the one
-  on show, in turns, so the next is ready, and one still loading shows its sheet. A page a person
+  on show, in turns, so the next is ready, and one still loading shows its sheet. Once the view has
+  settled the pages one move is likely to reach wait beneath the page on show, unseen but inside the
+  view, since a browser stops drawing a frame that is hidden or out of view and shows it white for a
+  moment when it returns: the previous and next page, the first page, and the three pages shown
+  last. The others wait hidden, since a page kept drawn keeps running and a canvas of animated pages
+  all drawn would cost as much as all of them on show; a move to one of those, by the page menu or a
+  link to a far page, may show it white for a frame or two. No page waiting takes the pointer, the
+  focus or a screen reader's attention. A page a person
   used (the frame says so at the first press, key, scroll or wheel) opens afresh behind the others
   once it is left, as a link to a file in a folder opens it; one nobody used stays as it is, and a
   page used on the board opens afresh as the view folds. A page's request moves nothing unless a person did something moments ago, and then at
