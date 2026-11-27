@@ -155,18 +155,23 @@
   transition: transform var(--dur-3) var(--ease);
 }
 /* As a clickable prototype only the selected page shows, on the plain board: the others fade as the
-   view glides to it, and within the view a new page takes its place at once. */
+   view glides to it, and within the view a new page takes its place at once. Once the view has
+   settled the others wait beneath it, unseen but in the view (data-under, inert): a frame hidden or
+   out of the view is one the browser stops drawing, and it would show white for a moment when moved to. */
 .xc-viewport[data-view="clickable"] {
   background-image: none;
 }
 .xc-viewport[data-view="clickable"] .xc-frame:not([data-selected]) {
-  visibility: hidden;
   opacity: 0;
 }
+.xc-viewport[data-view="clickable"] .xc-frame[data-selected] {
+  z-index: 1;
+}
+.xc-frame[data-under] {
+  pointer-events: none;
+}
 .xc-viewport[data-folding] .xc-frame {
-  transition:
-    opacity var(--dur-3) var(--ease),
-    visibility var(--dur-3) var(--ease);
+  transition: opacity var(--dur-3) var(--ease);
 }
 .xc-viewport[data-gliding] .xc-ring,
 .xc-viewport[data-gliding] .xc-focus {

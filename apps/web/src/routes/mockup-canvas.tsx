@@ -199,13 +199,15 @@ const HELD_WORDS = {
  * Until its document has loaded and been greeted, the frame is drawn transparent over the page's
  * sheet, which says the page is loading: a page never shows white, or half drawn, while it loads.
  */
-function PageFrame({ page, src, drawn, title, selected, eager, onSignal, frameRef, prototype, entries, visit, takeHash }: {
+function PageFrame({ page, src, drawn, title, selected, under, eager, onSignal, frameRef, prototype, entries, visit, takeHash }: {
   page: LaidPage;
   src: string;
   /** The page drawn by the app itself, in place of its frame (the tutorial's fixed example). */
   drawn?: ReactNode;
   title: string;
   selected: boolean;
+  /** As a clickable prototype, where a page not on show waits: beneath the one that is (pageUnder). */
+  under: Under | null;
   /** Load now, wherever the page sits on the board, rather than once it is near the view. */
   eager: boolean;
   onSignal: (pageId: string, s: FrameSignal) => void;
@@ -302,7 +304,7 @@ function PageFrame({ page, src, drawn, title, selected, eager, onSignal, frameRe
   }, [onSignal, page.page_id, page.width, prototype, hello, heard]);
   if (drawn !== undefined)
     return (
-      <div ref={frameRef} className="xc-frame" data-page={page.page_id} data-selected={selected ? "" : undefined} style={{ width: page.width, height: page.height }}>
+      <div ref={frameRef} className="xc-frame" data-page={page.page_id} data-selected={selected ? "" : undefined} {...underProps(under)} style={frameStyle(page, under)}>
         {/* In interact mode the page takes the pointer as a frame's page does: a press selects it, and a link to another page is followed. */}
         <div
           className="xc-drawn"
@@ -322,7 +324,7 @@ function PageFrame({ page, src, drawn, title, selected, eager, onSignal, frameRe
       </div>
     );
   return (
-    <div ref={frameRef} className="xc-frame" data-page={page.page_id} data-selected={selected ? "" : undefined} data-greeted={greeted ? "" : undefined} style={{ width: page.width, height: page.height }}>
+    <div ref={frameRef} className="xc-frame" data-page={page.page_id} data-selected={selected ? "" : undefined} data-greeted={greeted ? "" : undefined} {...underProps(under)} style={frameStyle(page, under)}>
       {held || greeted ? null : <PageLoading width={page.width} />}
       {held ? (
         // At the page's own scale, so it still reads with the canvas zoomed out. Try again is above the board at screen size.
@@ -380,6 +382,29 @@ function PageLoading({ width }: { width: number }) {
     </p>
   );
 }
+
+/** Where a page not on show waits as a clickable prototype: its offset from its own place on the board. */
+type Under = { x: number; y: number };
+
+/**
+ * As a clickable prototype, the pages not on show wait beneath the one that is, in the view, drawn
+ * but unseen: a frame out of the view, or hidden, is one the browser stops drawing, and draws white
+ * for a moment when it shows again. While the view folds they fade where they are (no `shown`).
+ */
+function pageUnder(id: string, clickable: boolean, selected: string | null, shown: Box | undefined, boxes: Record<string, Box>): Under | null {
+  if (!clickable || id === selected) return null;
+  const b = boxes[id];
+  return shown && b ? { x: shown.left - b.left, y: shown.top - b.top } : { x: 0, y: 0 };
+}
+
+/** A page not on show takes nothing: no pointer, no focus, nothing a screen reader reaches. */
+const underProps = (under: Under | null) => (under ? { "data-under": "", inert: true } : {});
+
+const frameStyle = (page: { width: number; height: number }, under: Under | null): CSSProperties => ({
+  width: page.width,
+  height: page.height,
+  ...(under && (under.x || under.y) ? { transform: `translate(${under.x}px, ${under.y}px)` } : {}),
+});
 
 /**
  * What the board says of pages waiting or stopped, at screen size above them, however far the canvas
@@ -1134,9 +1159,11 @@ export function Canvas({ version, pageSrc, drawPage, onUse, rememberMode = true,
 
   // The pages do not change as the view moves, so a drag or a pinch re-renders only the transform
   // and the labels, never the frames.
+  const shownBox = !folding && selected ? boxes[selected] : undefined;
   const pageFrames = useMemo(
-    () =>
-      laid.map((p) => {
+    () => {
+      const under = (id: string) => pageUnder(id, clickable, selected, shownBox, boxes);
+      return laid.map((p) => {
         const id = p.page_id;
         const frameRef = (el: HTMLDivElement | null) => {
           if (el) frames.current.set(id, el);
@@ -1145,7 +1172,7 @@ export function Canvas({ version, pageSrc, drawPage, onUse, rememberMode = true,
         // A page that enters the prototype is a sheet that says it is loading until its turn comes.
         if (entering.has(id) && !hasTurn(id))
           return (
-            <div key={id} ref={frameRef} className="xc-frame" data-page={id} data-selected={id === selected ? "" : undefined} style={{ width: p.width, height: p.height }}>
+            <div key={id} ref={frameRef} className="xc-frame" data-page={id} data-selected={id === selected ? "" : undefined} {...underProps(under(id))} style={frameStyle(p, under(id))}>
               <PageLoading width={p.width} />
             </div>
           );
@@ -1158,6 +1185,7 @@ export function Canvas({ version, pageSrc, drawPage, onUse, rememberMode = true,
             prototype={p.prototype_url && version.prototype ? { sandbox: version.prototype.sandbox } : null}
             title={p.title}
             selected={id === selected}
+            under={under(id)}
             // One that has had its turn loads wherever it sits; as a clickable prototype every page
             // loads at once, so the arrows find it ready. Otherwise a page loads once it is near the view.
             eager={entering.has(id) || clickable}
@@ -1168,8 +1196,9 @@ export function Canvas({ version, pageSrc, drawPage, onUse, rememberMode = true,
             frameRef={frameRef}
           />
         );
-      }),
-    [laid, version.prototype, pageSrc, drawPage, selected, onSignal, entries, visits, takeHash, entering, hasTurn, clickable],
+      });
+    },
+    [laid, version.prototype, pageSrc, drawPage, selected, onSignal, entries, visits, takeHash, entering, hasTurn, clickable, shownBox, boxes],
   );
 
   const worldStyle: CSSProperties = {

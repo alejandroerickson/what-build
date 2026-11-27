@@ -387,6 +387,28 @@ describe("links between a canvas's pages", () => {
     expect(document.querySelector('.xc-frame[data-page="wide"] iframe')).toBe(was);
   });
 
+  it("as a clickable prototype, keeps the pages not on show beneath the one that is, in the view, taking nothing", () => {
+    const { state, redraw, setClickable } = showClickable({ clickable: true });
+    const frame = (id: string) => document.querySelector(`.xc-frame[data-page="${id}"]`) as HTMLElement;
+    // Drawn in the view, where the browser keeps drawing it, so it never shows white when moved to.
+    expect(frame("wide").style.transform).toBe("translate(-510px)");
+    expect(frame("wide").hasAttribute("inert")).toBe(true);
+    expect(frame("phone").hasAttribute("inert")).toBe(false);
+    expect(frame("phone").style.transform).toBe("");
+    state.id = "wide";
+    redraw();
+    expect(frame("phone").style.transform).toBe("translate(510px)");
+    expect(frame("phone").hasAttribute("inert")).toBe(true);
+    expect(frame("wide").hasAttribute("inert")).toBe(false);
+    expect(frame("wide").style.transform).toBe("");
+    // Back on the board each page is where it belongs, and takes the pointer and the keyboard.
+    setClickable(false);
+    expect([frame("phone"), frame("wide")].map((f) => [f.hasAttribute("inert"), f.style.transform])).toEqual([
+      [false, ""],
+      [false, ""],
+    ]);
+  });
+
   it("takes the keyboard back from a page that takes it by itself, and leaves it with a page a person pressed in", () => {
     vi.useFakeTimers();
     try {

@@ -1193,7 +1193,10 @@ Version in the inspector, whose dialog offers **Archive instead** (§7.10).
   page at a time on the plain board, at its own size or smaller, in interact mode, with no labels or
   outline. The others fade as the view glides to the page, and back again on the way out. A link,
   the arrows and the page menu change the page in place at once: every page loads behind the one
-  on show, in turns, so the next is ready, and one still loading shows its sheet. A page a person
+  on show, in turns, so the next is ready, and one still loading shows its sheet. Once the view has
+  settled the others wait beneath the page on show, unseen but inside the view, since a browser stops
+  drawing a frame that is hidden or out of view and shows it white for a moment when it returns; they
+  take no pointer, focus or screen reader's attention. A page a person
   used (the frame says so at the first press, key, scroll or wheel) opens afresh behind the others
   once it is left, as a link to a file in a folder opens it; one nobody used stays as it is, and a
   page used on the board opens afresh as the view folds. A page's request moves nothing unless a person did something moments ago, and then at
