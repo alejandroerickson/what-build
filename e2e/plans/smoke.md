@@ -24,9 +24,9 @@ other plans will too.
    that has any: a source, a mockup, a Story page. If a page's own tutorial starts as you arrive
    (the welcome was closed without turning tutorials off; see the
    [README](README.md#what-a-plan-runs-on)), press **Turn off tutorials** in it: Idea's covers
-   Connect your agent while it runs. Signing in starts the browser afresh, so the first mockup or
-   Story page it opens is in focus mode, both panels hidden with a hint: press **Show panels** (or F)
-   to go on from the panel. *Expect:* each screen loads with content or a designed empty
+   Connect your agent while it runs. Signing in starts the browser afresh, and mockups and Story
+   pages share one remembered choice of focus mode, so only whichever of them it opens first is in
+   focus mode, both panels hidden with a hint: press **Show panels** (or F) to go on from the panel. *Expect:* each screen loads with content or a designed empty
    state, and no command prints a `!` problem. Settings opens over the screen it was opened on and
    closes back onto it (Esc, the close button, or the scrim), leaving the address as it was. With
    no agent connected, Idea opens on **Connect your agent**, above the product concept: "Not

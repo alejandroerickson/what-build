@@ -29,9 +29,11 @@ which walks every entry; the browser's own button may skip some.
 
 ### The screen
 
-1. **Web, as Casey, in the synthetic organization.** Open that mockup in Exploration. Signing in starts
-   the browser afresh, so the first canvas it opens is in focus mode, both panels hidden with a hint
-   that F brings them back: press **Show panels** (or F). *Expect:* the inspector's **View** offers Canvas
+1. **Web, as Casey, in the synthetic organization.** Open Exploration. Signing in starts the browser
+   afresh, and mockups and Story pages share one remembered choice of focus mode, so only whichever of
+   them opens first is in focus mode: here the canvas Exploration opens first (the tree's first, which
+   may not be that mockup), both panels hidden with a hint that F brings them back. Press **Show
+   panels** (or F), then open that mockup. *Expect:* the inspector's **View** offers Canvas
    and Clickable prototype, Canvas chosen, and **Download as ZIP**. It has no page picker, Fit or Fill. The toolbar has no view or download control,
    and has a menu of the pages. Nothing draws a line between pages or counts links, and the mockup's row
    in the panel carries no extra icon.
@@ -85,7 +87,7 @@ which walks every entry; the browser's own button may skip some.
     `<a href="#local">`, a link to `https://example.com/`, a link whose `onclick` calls `preventDefault()`, and
     a button that a script handles. *Expect:* `clickable` is `viewable`, counts the links between pages, names
     `gone.html` under `broken` and gives a `url`. `mockups_read` says the same; a version before stays as it was.
-13. **Web, as Sam.** Open that `url`. Click the link to `gone.html`. *Expect:* a message says the page isn't on
+13. **Web, as Sam.** Open the canvas at step 12's `url` (the board, not `clickable.url`). Click the link to `gone.html`. *Expect:* a message says the page isn't on
     this canvas, and the page stays. Click the link to `three.htm#end`. *Expect:* that page, scrolled to the place.
     Do the same in the clickable view, where every page has loaded behind the first. *Expect:* that page, scrolled
     to the place. Click in it, leave it by the arrows and come back by them. *Expect:* it opens at its top: a place
@@ -103,8 +105,9 @@ which walks every entry; the browser's own button may skip some.
     where it is. The page has no session, no storage and no way into the app.
 15. **MCP and web, as Sam.** Publish canvases whose two pages hold real links and whose scripts, every 50 ms, send
     the reader to the other page: one with `{ whatbuild: "canvas-page", page: "other", hash: "" }`, one with
-    `{ whatbuild: "story-key", key: "ArrowRight" }` and `ArrowLeft`, and one naming a page that does not exist, with
-    a long sentence of its own in `href`. Promote one page of each to the Story, and publish two Story pages that do
+    `{ whatbuild: "story-key", key: "ArrowRight" }` and `ArrowLeft`, and one naming as its page a long sentence of its own,
+    which no page is called, with the same sentence in an `href` field of the message. Promote each canvas
+    whole to the Story, for the Story's canvas, and one page of each alone, and publish two Story pages that do
     the same with `{ whatbuild: "story-page", page: "other" }`. Try each on the board, in the clickable view, on the
     Story's canvas and on the Story page, each in a fresh browser: by address with no click, then with one real click.
     *Expect:* with no click nothing moves at all. After a click it moves for a few seconds only, no faster than four
@@ -112,13 +115,14 @@ which walks every entry; the browser's own button may skip some.
     a Story page among the Story's pages, as its arrows move a reader there, so a page's `story-key` may leave the
     reader on the next Story page, which may show another mockup. The other name goes nowhere, the page's own words
     never appear in WhatBuild's messages, and about five presses of Back at most leave it: a move is a step for Back
-    at most once a second, so a flood of a few seconds adds about five. During a flood a click on a link adds no
+    at most once a second, so a flood of a few seconds adds about five. Those steps can hold the address
+    already on show, so the first presses may change nothing to see before one leaves the canvas. During a flood a click on a link adds no
     step of its own to see (it is the first of those); steps 3, 7 and 13 show that a link adds one.
 16. **Web, as Sam.** On a page whose script sets `location.href = "second.html"` after a click, and one that
     sets it to another site; then on two pages that do each from a script in their `<head>`, while they still
     load; and on a page that enters a prototype document holding a `<meta http-equiv="refresh">` to another site
     (publish refuses one in a page's own HTML, so it can only be in a prototype, uploaded as a ZIP as in step 18;
-    if the plan refuses a canvas as a ZIP, this one is not checked: say so).
+    if the organization's plan refuses a canvas as a ZIP, this one is not checked: say so).
     *Expect:* WhatBuild puts each page back within a couple of seconds and says so. A page of its own HTML that
     keeps doing it is put back three times in a minute, then waits for the next minute with a note in its place,
     and after three such waits in a row stops with Try again, about three and a half minutes from the first: watch
@@ -143,8 +147,9 @@ which walks every entry; the browser's own button may skip some.
     describes them under What a page loads. Then 40 pages that each enter a document of 10
     files and 200 KB. *Expect:* it publishes. **Web:** the selected page draws first and the others fill in,
     each a sheet saying Loading until it has, never white, until every page has drawn; press **2**, then the
-    arrows, and each page shows drawn at once. In the clickable view the arrows and the page menu show the
-    next page at once (sample frame by frame).
+    arrows, and each page shows drawn at once. In the clickable view the arrows show the next page at once,
+    never white, and so does the page menu choosing the first page or one shown just before (sample frame by
+    frame). The page menu choosing a page far from those may show it white for a frame or two, no more.
 19. **Web, as Sam.** Download that ZIP and open its `index.html` from disk. *Expect:* it links into `prototype/`,
     and a plain document opens.
 
@@ -154,8 +159,8 @@ which walks every entry; the browser's own button may skip some.
     **Plan by day**. *Expect:* the Story page showing Day planner opens, or the whole canvas at Day planner, with
     Back returning. No tab opens. (Every page of this canvas has a Story page, so the message for a page that
     isn't in the Story is checked in step 21.)
-    Open the Story's whole-canvas page. *Expect:* a link flies
-    there too, and Back returns. There is no View control and no page download, and nothing of the mockup but its
+    Open the Story's whole-canvas page, choose **Interact** (it opens in Pan, where a click selects, as in
+    step 4) and click **Plan by day**. *Expect:* the view flies there too, and Back returns. There is no View control and no page download, and nothing of the mockup but its
     pages. **Show panels** is on the screen. Try the mockup's own address and that page's `?download=1` at the
     mockup's address. *Expect:* both are refused.
 21. **MCP, as Sam, and web, as Jordan, in the standard organization.** Sam first promotes the first page of
@@ -166,16 +171,18 @@ which walks every entry; the browser's own button may skip some.
     names the missing page in `links_to_no_page`. As Jordan, on the first page's Story page, click the link to
     `two.html`. *Expect:* a message says the page isn't in the Story, and the page stays. Sam then promotes the
     whole canvas. *Expect:* as Jordan, the same link opens the whole canvas at that page, with Back returning; on Sam's
-    Story page the link to the first page's Story page opens it, and the missing one goes nowhere and says so.
+    Story page the link to the first page's Story page opens it, and the missing one opens its address and
+    shows the screen saying the page isn't in the Story.
     Then the same as Avery in step 20, and `mockups_read` is refused.
-22. **MCP, as Riley, then web, as a guest of the example organization.** Every version there links its
-    pages, so Riley first publishes in the example organization a canvas of two pages that don't link (each
-    run starts from the golden master, so it goes with this run). As Riley, open it. *Expect:* Clickable
+22. **MCP, as Riley, then web, as a guest of the example organization.** Riley first publishes in the
+    example organization a canvas of two pages that don't link (each run starts from the golden master, so
+    it goes with this run). As Riley, open it. *Expect:* Clickable
     prototype is disabled, with its line and **Copy a request for your agent**. As the guest, open it.
     *Expect:* Clickable prototype is disabled with the same line, and Copy a request for your agent is not
     offered. Open another mockup. *Expect:* whatever Download as ZIP does for a guest, a page's download does
-    too. Then go past a guest's calls a minute and their 10 MB of downloads a day, with a throwaway guest. *Expect:* both buttons say the same
-    thing, and it names the limit.
+    too. Then go past a guest's calls a minute and their 10 MB of downloads a day, with a throwaway guest. A
+    guest's calls are counted by the calendar minute, so press both downloads within the minute their calls
+    ran out. *Expect:* both buttons say the same thing, and it names the limit.
 23. **Web, as Sam.** Compare the example and standard organizations on the same mockup. *Expect:* they behave
     alike, but for what the example's being read-only explains.
 
