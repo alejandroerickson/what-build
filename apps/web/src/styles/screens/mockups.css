@@ -250,11 +250,13 @@
   will-change: transform;
 }
 /* The page whose frame holds the focus from the keyboard: the focus ring around it at screen size,
-   where the page's own ring is drawn at the page's scale, clear of the selected page's outline. */
+   where the page's own ring is drawn at the page's scale, clear of the selected page's outline, and
+   over the page's label, whose row would otherwise cover its top edge. */
 .xc-focus {
   position: absolute;
   top: 0;
   left: 0;
+  z-index: 1;
   outline: 2px solid var(--accent);
   outline-offset: 3px;
   pointer-events: none;

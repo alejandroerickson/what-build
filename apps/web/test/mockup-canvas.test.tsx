@@ -513,6 +513,51 @@ describe("links between a canvas's pages", () => {
     }
   });
 
+  it("stops looking for the frame that holds the keyboard's focus while the tab is hidden or the window has lost the focus, and looks again once either is back", () => {
+    vi.useFakeTimers();
+    const hidden = vi.spyOn(document, "hidden", "get").mockReturnValue(false);
+    const hasFocus = vi.spyOn(document, "hasFocus").mockReturnValue(true);
+    try {
+      showClickable();
+      const iframe = (id: string) => document.querySelector(`.xc-frame[data-page="${id}"] iframe`) as HTMLIFrameElement;
+      const ringed = () => {
+        const w = parseFloat((document.querySelector(".xc-focus") as HTMLElement | null)?.style.width ?? "");
+        return Math.abs(w - 390 * view().z) < 0.01 ? "phone" : Math.abs(w - 1280 * view().z) < 0.01 ? "wide" : null;
+      };
+      const into = (id: string) => {
+        iframe(id).tabIndex = 0;
+        act(() => iframe(id).focus());
+      };
+      act(() => window.dispatchEvent(new KeyboardEvent("keydown", { key: "Tab" })));
+      into("phone");
+      act(() => window.dispatchEvent(new Event("blur")));
+      act(() => vi.advanceTimersByTime(200));
+      expect(ringed()).toBe("phone");
+      // Hidden, nothing is looked at; shown again, the ring finds the frame at once.
+      hidden.mockReturnValue(true);
+      act(() => vi.advanceTimersByTime(200));
+      into("wide");
+      act(() => vi.advanceTimersByTime(5_000));
+      expect(ringed()).toBe("phone");
+      hidden.mockReturnValue(false);
+      act(() => document.dispatchEvent(new Event("visibilitychange")));
+      expect(ringed()).toBe("wide");
+      // The window without the focus: the ring is left as it is until the focus is back.
+      hasFocus.mockReturnValue(false);
+      act(() => vi.advanceTimersByTime(200));
+      into("phone");
+      act(() => vi.advanceTimersByTime(500));
+      expect(ringed()).toBe("wide");
+      hasFocus.mockReturnValue(true);
+      act(() => vi.advanceTimersByTime(1_100));
+      expect(ringed()).toBe("phone");
+    } finally {
+      hidden.mockRestore();
+      hasFocus.mockRestore();
+      vi.useRealTimers();
+    }
+  });
+
   it("as a clickable prototype, opens a page someone used afresh once it is left, and leaves one nobody used as it is", () => {
     const { state, redraw } = showClickable({ clickable: true });
     const phone = document.querySelector('.xc-frame[data-page="phone"] iframe') as HTMLIFrameElement;

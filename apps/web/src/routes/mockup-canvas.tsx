@@ -97,6 +97,8 @@ const FOCUS_TAKEN_MS = 1000;
 const FOCUS_JUDGED_AFTER_MS = 80;
 /** How often the app looks at which page's frame holds the keyboard's focus, while one does. */
 const KEY_FOCUS_LOOK_MS = 100;
+/** How often, while the window has lost the focus, the app looks for it to come back. */
+const KEY_FOCUS_BACK_LOOK_MS = 1000;
 
 type Mode = "pan" | "interact";
 
@@ -1025,14 +1027,32 @@ export function Canvas({ version, pageSrc, drawPage, onUse, rememberMode = true,
   const [keyFocus, setKeyFocus] = useState<string | null>(null);
   // Moving from one frame to the next tells the app nothing, and the app's styles cannot see a frame
   // whose page has the focus, so while it is in the pages the app looks at which frame holds it.
+  // It does not look while the tab is hidden, and looks only for the focus to come back while the
+  // window has lost it: nothing can move it from frame to frame then.
   useEffect(() => {
     if (!keyFocus) return;
-    const look = window.setInterval(() => {
+    let timer: number | undefined;
+    const look = () => {
+      if (document.hidden) return;
+      if (!document.hasFocus()) {
+        timer = window.setTimeout(look, KEY_FOCUS_BACK_LOOK_MS);
+        return;
+      }
       const el = document.activeElement;
       const page = el instanceof HTMLIFrameElement && viewport.current?.contains(el) ? (el.closest<HTMLElement>(".xc-frame")?.dataset["page"] ?? null) : null;
       setKeyFocus(page);
-    }, KEY_FOCUS_LOOK_MS);
-    return () => window.clearInterval(look);
+      timer = window.setTimeout(look, KEY_FOCUS_LOOK_MS);
+    };
+    const shown = () => {
+      window.clearTimeout(timer);
+      look();
+    };
+    timer = window.setTimeout(look, KEY_FOCUS_LOOK_MS);
+    document.addEventListener("visibilitychange", shown);
+    return () => {
+      window.clearTimeout(timer);
+      document.removeEventListener("visibilitychange", shown);
+    };
   }, [keyFocus]);
   useEffect(() => {
     const board = viewport.current;
