@@ -438,7 +438,7 @@ const frameStyle = (page: { width: number; height: number }, under: Under | null
 function reloadingStoppedWords(stopped: number, coming: number): string {
   const cost = "Each time costs one of your calls a minute, so WhatBuild stopped bringing";
   if (!coming) return `${cost} ${stopped === 1 ? "it" : "them"} back.`;
-  return `${cost} ${stopped === 1 ? "one" : stopped} of them back. ${coming === 1 ? "The other comes" : "The others come"} back with the next minute.`;
+  return `${cost} ${stopped} of them back. ${coming === 1 ? "The other comes" : "The others come"} back with the next minute.`;
 }
 
 /**

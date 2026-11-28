@@ -137,7 +137,7 @@ another browser (Turn off tutorials on the welcome) or through Settings → Tuto
     and after three such waits in a row stops with Try again, about three and a half minutes from the first: watch
     that long. Meanwhile the note above the board counts the pages that keep reloading, and the count holds still
     while they take turns and as they stop one after the other: while one has stopped and the other is still put
-    back it still says two, and says WhatBuild stopped bringing one of them back. A prototype's documents cost no calls, so the page with the meta refresh is put back at
+    back it still says two, and says WhatBuild stopped bringing 1 of them back. A prototype's documents cost no calls, so the page with the meta refresh is put back at
     once each time for as long as it is open, and is never held or stopped. The browser refuses another site in
     the frame before that (a console line naming `frame-src`). Nothing is left blank or showing a raw error, and
     the app's own address never changes to theirs.
@@ -197,8 +197,8 @@ another browser (Turn off tutorials on the welcome) or through Settings → Tuto
     too. Then go past a guest's calls a minute with a throwaway guest. A guest's calls are counted by the
     calendar minute, so press both downloads within the minute their calls ran out. *Expect:* both buttons say
     the same thing, and it names the limit. Then, with another throwaway guest, go past their 10 MB of downloads
-    a day: that takes dozens of downloads of the largest canvas, so pace them to stay under the calls a minute,
-    and carry on until a page's download is refused too. *Expect:* near the limit the ZIP may be refused while
+    a day by downloading the largest canvas again and again, paced to stay under the calls a minute, and carry
+    on until a page's download is refused too. *Expect:* near the limit the ZIP may be refused while
     the smaller page download still goes; once both are refused they say the same thing, and it names the limit.
 23. **Web, as Sam.** Compare the example and standard organizations on the same mockup. *Expect:* they behave
     alike, but for what the example's being read-only explains.

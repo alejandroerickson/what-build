@@ -182,9 +182,17 @@ function minuteAnnouncement(wait: MinuteWait): string {
   if (wait.waiting) said.push("Waiting for the next minute. You’ve used this minute’s calls. WhatBuild carries on by itself.");
   else if (wait.frames) said.push("Bringing back what was refused, a little at a time.");
   if (wait.stopped) said.push("Part of this screen didn’t come back. Your calls a minute keep running out, so WhatBuild stopped asking. Try again asks once more.");
-  if (wait.reloadingStopped && wait.reloading) said.push("Some pages keep reloading. Each time costs one of your calls a minute, so WhatBuild stopped bringing some of them back, and the others come back with the next minute. Try again starts them afresh.");
-  else if (wait.reloadingStopped) said.push("A page keeps reloading. Each time costs one of your calls a minute, so WhatBuild stopped bringing it back. Try again starts it afresh.");
-  else if (wait.reloading) said.push("A page keeps reloading. It comes back with the next minute.");
+  // Singular or plural as the board's note counts, but with no number in it, so pages taking turns
+  // aren't announced again on each turn.
+  const cost = "Each time costs one of your calls a minute, so WhatBuild stopped bringing";
+  if (wait.reloadingStopped && wait.reloading) {
+    const stopped = wait.reloadingStopped === 1 ? "one" : "some";
+    const coming = wait.reloading === 1 ? "the other comes" : "the others come";
+    said.push(`Pages keep reloading. ${cost} ${stopped} of them back, and ${coming} back with the next minute. Try again starts them afresh.`);
+  } else if (wait.reloadingStopped === 1) said.push(`A page keeps reloading. ${cost} it back. Try again starts it afresh.`);
+  else if (wait.reloadingStopped) said.push(`Pages keep reloading. ${cost} them back. Try again starts them afresh.`);
+  else if (wait.reloading === 1) said.push("A page keeps reloading. It comes back with the next minute.");
+  else if (wait.reloading) said.push("Pages keep reloading. They come back with the next minute.");
   return said.join(" ");
 }
 

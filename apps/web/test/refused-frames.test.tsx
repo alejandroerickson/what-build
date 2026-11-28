@@ -588,7 +588,7 @@ describe("a page that keeps being replaced in its frame", () => {
     expect(notes.slice(both).filter((n) => !n.includes("2 pages keep reloading"))).toEqual([]);
     // In the moment one has stopped and the other is still being put back, it says so of each.
     expect(mixed).toContain("2 pages keep reloading");
-    expect(mixed).toContain("stopped bringing one of them back. The other comes back with the next minute.");
+    expect(mixed).toContain("stopped bringing 1 of them back. The other comes back with the next minute.");
     expect(host.querySelector(".xc-note")?.textContent).toContain("stopped bringing them back.");
     status.stop();
   });
@@ -890,6 +890,36 @@ describe("what a screen reader is told", () => {
     expect(region.textContent).toContain("Waiting for the next minute");
     await advance(21_000);
     expect(region.textContent).toBe("");
+    stop();
+  });
+
+  it("hears pages that keep reloading counted as the note counts them, as they stop one after the other", async () => {
+    const { region, stop } = announcer();
+    showCanvas(2);
+    const status = watchMinute();
+    const born = new Map<HTMLIFrameElement, number>();
+    const heard: string[] = [];
+    let mixed = "";
+    for (let at = 0; at < 6 * 60_000 && status.now().reloadingStopped < 2; at += 200) {
+      for (let i = 0; i < 2; i++) {
+        const f = frameOf(i);
+        if (!f) continue;
+        if (!born.has(f)) born.set(f, Date.now());
+        else if (Date.now() - born.get(f)! >= 1_000) reloadsItself(f);
+      }
+      await advance(200);
+      heard.push(region.textContent ?? "");
+      if (status.now().reloading && status.now().reloadingStopped) mixed = region.textContent ?? "";
+    }
+    await advance(200);
+    expect(status.now().reloadingStopped).toBe(2);
+    expect(heard.some((h) => h.includes("Pages keep reloading. They come back with the next minute."))).toBe(true);
+    expect(mixed).toContain("stopped bringing one of them back, and the other comes back with the next minute.");
+    expect(region.textContent).toContain("Pages keep reloading. Each time costs one of your calls a minute, so WhatBuild stopped bringing them back.");
+    // Once both keep reloading, it never speaks of a single page.
+    const both = heard.findIndex((h) => h.startsWith("Pages keep reloading"));
+    expect(heard.slice(both).filter((h) => h.includes("A page keeps reloading"))).toEqual([]);
+    status.stop();
     stop();
   });
 
