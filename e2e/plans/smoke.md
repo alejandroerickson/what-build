@@ -26,11 +26,11 @@ other plans will too.
    [README](README.md#what-a-plan-runs-on)), press **Turn off tutorials** in it: Idea's covers
    Connect your agent while it runs. Signing in starts the browser afresh, so the first of the
    mockups and Story pages to open is in focus mode, both panels hidden with a hint that goes after
-   a few seconds, so look for it straight after arriving; pressing
-   **Show panels** is remembered for both: press it (or F) to go on from the panel. *Expect:* each
-   screen loads with content or a designed empty state, and no command prints a `!` problem.
-   Settings opens over the screen it was opened on and
-   closes back onto it (Esc, the close button, or the scrim), leaving the address as it was. With
+   a few seconds, so look for it straight after arriving; pressing **Show panels** is remembered for
+   both: press it (or F) to go on from the panel. *Expect:* each screen loads with content or a
+   designed empty state, and no command prints a `!` problem. Settings opens over the screen it was
+   opened on and closes back onto it (Esc, the close button, or the scrim), leaving the address as
+   it was. With
    no agent connected, Idea opens on **Connect your agent**, above the product concept: "Not
    connected yet" at its right, a choice of Claude, Claude Code or Another agent, and four numbered
    steps for the one chosen, the first with `/mcp` (for Claude Code, the `claude mcp add` command
@@ -42,13 +42,13 @@ other plans will too.
    product's address in the first step, and closing it gives the unscoped `/mcp` address again.
 3. **Web, as Sam, in the example organization.** Open the same product and repeat a short tour:
    Idea, Evidence, a source opened from this Evidence's own list, Story. The example holds the
-   standard organization's content under other ids, so a source's own page from step 2
-   (`…/evidence/<id>`) put under the example's path rightly says "Source not found", and a
-   preview's address (`…/evidence?source=<id>`) opens the list with no preview, and a line above
-   the rows saying the source this address names isn't in this list and may have been archived.
-   *Expect:* the same
-   content as in step 2, and one line above each screen saying it is the example organization and
-   that everyone who signs in sees what its authors change.
+   standard organization's content under other ids, so step 2's addresses don't reach it there:
+   put a source's own page from step 2 (`…/evidence/<id>`) and a preview's address
+   (`…/evidence?source=<id>`) under the example's path. *Expect:* the same content as in step 2,
+   and one line above each screen saying it is the example organization and that everyone who signs
+   in sees what its authors change. The source's own page says "Source not found". The preview's
+   address opens the list with no preview, and a line above the rows says the source this address
+   names isn't in this list and may have been archived.
 4. **Web, as Sam.** On a source, open each of its sections, Text, Notes, Comments and Attachments,
    then search for a word you can see in its text and seldom elsewhere in the product, from the
    panel's Search field. *Expect:* the search finds the source as you type, saying the word is in

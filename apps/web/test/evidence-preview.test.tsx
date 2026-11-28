@@ -50,7 +50,8 @@ vi.mock("../src/lib/api.ts", async (original) => ({
       return { records: later.records, next_cursor: null };
     }
     if (later.records) return { records: sources, next_cursor: "c2" };
-    // Filtered by a tag, the list leaves out the third source.
+    // Filtered by a tag no source has, the list is empty; by any other tag, it leaves out the third source.
+    if (path.includes("tags=none")) return { records: [], next_cursor: null };
     if (path.includes("tags=")) return { records: sources.slice(0, 2), next_cursor: null };
     return { records: sources, next_cursor: null };
   }),
@@ -293,6 +294,16 @@ describe("clearing the filter that hid the source in the address", () => {
     expect(here).not.toContain("tags=");
     expect(gone()).toBeNull();
     expect(document.querySelector('[data-source="S3"]')!.getAttribute("aria-current")).toBe("true");
+  });
+
+  it("with the empty list's Clear filters brings back its preview, keeping the order", async () => {
+    await open("?tags=none&order=asc&source=S3");
+    await vi.waitFor(() => expect(document.querySelector(".empty-title")?.textContent).toBe("No sources match these filters"));
+    await click(document.querySelector(".empty")!.querySelector("a")!);
+    await vi.waitFor(() => expect(preview()).not.toBeNull());
+    expect(here).toContain("source=S3");
+    expect(here).toContain("order=asc");
+    expect(here).not.toContain("tags=");
   });
 
   it("keeps it when Include archived is chosen too", async () => {
