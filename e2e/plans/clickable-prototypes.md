@@ -25,7 +25,7 @@ through Chrome's own screencast or `Page.captureScreenshot` over a CDP session, 
 `Page.getNavigationHistory`, or `history.length` once the flood is over. Back in these numbers is `page.goBack`,
 which walks every entry; the browser's own button may skip some. A new person's welcome tutorial needs a click to
 close, and that click is a gesture too: before a trial with no click, turn that person's tutorials off first, in
-another browser (Turn off tutorials on the welcome) or through Settings → Tutorials.
+another browser (Turn off tutorials on the welcome) or through Settings → Account → Tutorials.
 
 ## Steps
 
@@ -91,9 +91,12 @@ another browser (Turn off tutorials on the welcome) or through Settings → Tuto
     `<a href="#local">`, a link to `https://example.com/`, a link whose `onclick` calls `preventDefault()`, and
     a button that a script handles. *Expect:* `clickable` is `viewable`, counts the links between pages, names
     `gone.html` under `broken` and gives a `url`. `mockups_read` says the same; a version before stays as it was.
-13. **Web, as Sam.** Open the canvas at step 12's `url` (the board, not `clickable.url`). Click the link to `gone.html`. *Expect:* a message says the page isn't on
+13. **Web, as Sam.** Open the canvas at step 12's `url` (the board, not `clickable.url`). Fit the first page
+    (press 2) and wait for the view to settle before clicking in it: a click while it settles can land elsewhere.
+    Click the link to `gone.html`. *Expect:* a message says the page isn't on
     this canvas, and the page stays. Click the link to `three.htm#end`. *Expect:* that page, scrolled to the place.
-    Do the same in the clickable view once every page has loaded. *Expect:* that page, scrolled
+    Then open the clickable view afresh by its address (so that page three doesn't keep the board's scroll), wait
+    until every page has loaded, and do the same. *Expect:* that page, scrolled
     to the place. Then open the clickable view afresh at the first page with that third page's HTML held back (in a
     `playwright-core` script, a route that answers its request a few seconds late), and click the link before
     the page has loaded. *Expect:* the page shows its sheet saying it is loading, then opens scrolled to the place. Click in it, leave it by the arrows and come back by them. *Expect:* it opens at its top: a place
@@ -137,7 +140,9 @@ another browser (Turn off tutorials on the welcome) or through Settings → Tuto
     and after three such waits in a row stops with Try again, about three and a half minutes from the first: watch
     that long. Meanwhile the note above the board counts the pages that keep reloading, and the count holds still
     while they take turns and as they stop one after the other: while one has stopped and the other is still put
-    back it still says two, and says WhatBuild stopped bringing 1 of them back. A prototype's documents cost no calls, so the page with the meta refresh is put back at
+    back it still says two, and says WhatBuild stopped bringing 1 of them back. That mix lasts only a few
+    seconds, so from about three minutes in, read the note at least once a second until both have stopped. A
+    prototype's documents cost no calls, so the page with the meta refresh is put back at
     once each time for as long as it is open, and is never held or stopped. The browser refuses another site in
     the frame before that (a console line naming `frame-src`). Nothing is left blank or showing a raw error, and
     the app's own address never changes to theirs.
@@ -199,7 +204,7 @@ another browser (Turn off tutorials on the welcome) or through Settings → Tuto
     the same thing, and it names the limit. Then, with another throwaway guest, go past their 10 MB of downloads
     a day by downloading the largest canvas again and again, paced to stay under the calls a minute, and carry
     on until a page's download is refused too. *Expect:* near the limit the ZIP may be refused while
-    the smaller page download still goes; once both are refused they say the same thing, and it names the limit.
+    the smaller page download still goes; once both are refused they give the same message naming the limit, each with its own size.
 23. **Web, as Sam.** Compare the example and standard organizations on the same mockup. *Expect:* they behave
     alike, but for what the example's being read-only explains.
 
