@@ -112,7 +112,7 @@ design system: tokens, type, components and the rules for using them — is docu
   a short note and no frame, what took its place gone at once, and then comes back. After 3 such waits in a row without settling (staying in its frame for a minute)
   it stops, saying *This page keeps reloading*, which blames no one, since a person's own button can do it, and offers **Try again**, which starts it
   afresh; so does leaving the screen. The board's count of pages that keep reloading takes in a page back on show for
-  5 seconds, the moment before what takes its place again is heard, so the count holds still while such pages take turns. Nothing is put back while the tab is hidden: it takes turns when visible, at the pace of frames, not all at once.
+  5 seconds, the moment before what takes its place again is heard, so the count holds still while such pages take turns; and it counts the pages still put back with those that have stopped, so it holds still as they stop one after the other, and says how many of them WhatBuild stopped bringing back. Nothing is put back while the tab is hidden: it takes turns when visible, at the pace of frames, not all at once.
   A prototype's route meets no limit, so a prototype's frames cost no calls: they take none of this budget, take no word of a refusal from
   what is in them, and are put back at once, always, as a link to a missing file inside one needs.
   ◆ Decision: the short page never reloads itself, and only the app asks again. A document can still spend the person's calls by reloading itself,

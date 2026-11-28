@@ -28,9 +28,9 @@ other plans will too.
    mockups and Story pages to open is in focus mode, both panels hidden with a hint that goes after
    a few seconds, so look for it straight after arriving; pressing **Show panels** is remembered for
    both: press it (or F) to go on from the panel. *Expect:* each screen loads with content or a
-   designed empty state, and no command prints a `!` problem. Settings opens over the screen it was
-   opened on and closes back onto it (Esc, the close button, or the scrim), leaving the address as
-   it was. With
+   designed empty state, the next mockup or Story page opens with its panels shown, and no command
+   prints a `!` problem. Settings opens over the screen it was opened on and closes back onto it
+   (Esc, the close button, or the scrim), leaving the address as it was. With
    no agent connected, Idea opens on **Connect your agent**, above the product concept: "Not
    connected yet" at its right, a choice of Claude, Claude Code or Another agent, and four numbered
    steps for the one chosen, the first with `/mcp` (for Claude Code, the `claude mcp add` command

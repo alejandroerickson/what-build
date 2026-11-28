@@ -431,6 +431,17 @@ const frameStyle = (page: { width: number; height: number }, under: Under | null
 });
 
 /**
+ * What the note says of pages that keep reloading once WhatBuild has stopped bringing `stopped` of
+ * them back while `coming` are still put back with the next minute. Pages stop one after the other,
+ * so for a while some have and some haven't, and the note counts both.
+ */
+function reloadingStoppedWords(stopped: number, coming: number): string {
+  const cost = "Each time costs one of your calls a minute, so WhatBuild stopped bringing";
+  if (!coming) return `${cost} ${stopped === 1 ? "it" : "them"} back.`;
+  return `${cost} ${stopped} of them back. ${coming === 1 ? "The other comes" : "The others come"} back with the next minute.`;
+}
+
+/**
  * What the board says of pages waiting or stopped, at screen size above them, however far the canvas
  * is zoomed out: refused for the minute's calls, or reloading too often to bring back at once. Try
  * again goes with the note when it is pressed, so focus stays with the board the pages come back to.
@@ -457,8 +468,8 @@ function PagesNote({ board }: { board: RefObject<HTMLElement | null> }) {
         <Callout title="Bringing these pages back">A few at a time, so this minute’s calls last.</Callout>
       ) : null}
       {wait.reloadingStopped ? (
-        <Callout tone="attention" title={keep(wait.reloadingStopped)} action={wait.stopped ? undefined : action}>
-          Each time costs one of your calls a minute, so WhatBuild stopped bringing {wait.reloadingStopped === 1 ? "it" : "them"} back.
+        <Callout tone="attention" title={keep(wait.reloadingStopped + wait.reloading)} action={wait.stopped ? undefined : action}>
+          {reloadingStoppedWords(wait.reloadingStopped, wait.reloading)}
         </Callout>
       ) : wait.reloading ? (
         <Callout title={keep(wait.reloading)}>{wait.reloading === 1 ? "It comes" : "They come"} back with the next minute.</Callout>
