@@ -25,7 +25,8 @@ other plans will too.
    (the welcome was closed without turning tutorials off; see the
    [README](README.md#what-a-plan-runs-on)), press **Turn off tutorials** in it: Idea's covers
    Connect your agent while it runs. Signing in starts the browser afresh, so the first of the
-   mockups and Story pages to open is in focus mode, both panels hidden with a hint, and pressing
+   mockups and Story pages to open is in focus mode, both panels hidden with a hint that goes after
+   a few seconds, so look for it straight after arriving; pressing
    **Show panels** is remembered for both: press it (or F) to go on from the panel. *Expect:* each
    screen loads with content or a designed empty state, and no command prints a `!` problem.
    Settings opens over the screen it was opened on and
@@ -43,7 +44,9 @@ other plans will too.
    Idea, Evidence, a source opened from this Evidence's own list, Story. The example holds the
    standard organization's content under other ids, so a source's own page from step 2
    (`…/evidence/<id>`) put under the example's path rightly says "Source not found", and a
-   preview's address (`…/evidence?source=<id>`) opens the list with no preview. *Expect:* the same
+   preview's address (`…/evidence?source=<id>`) opens the list with no preview, and a line above
+   the rows saying the source this address names isn't in this list and may have been archived.
+   *Expect:* the same
    content as in step 2, and one line above each screen saying it is the example organization and
    that everyone who signs in sees what its authors change.
 4. **Web, as Sam.** On a source, open each of its sections, Text, Notes, Comments and Attachments,

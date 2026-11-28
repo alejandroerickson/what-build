@@ -98,9 +98,8 @@ export function EvidenceFilters() {
       const v = k in patch ? patch[k] : f[k];
       if (v) next.set(k, v);
     }
-    // A filter keeps the list's order.
-    if (onList && params.get("sort")) next.set("sort", params.get("sort")!);
-    if (onList && params.get("order")) next.set("order", params.get("order")!);
+    // A filter keeps the list's order, and the source in the preview: one a filter hid opens again once the list holds it.
+    for (const k of ["sort", "order", "source", "page"]) if (onList && params.get(k)) next.set(k, params.get(k)!);
     const s = next.toString();
     return `${app}/evidence${s ? `?${s}` : ""}`;
   };
@@ -253,6 +252,20 @@ export function sourcesCount({ loaded, more, filters, facets, of = "" }: { loade
     : filters.added_by ? facets?.added_by.find((p) => p.account_id === filters.added_by)?.count
     : undefined;
   return known !== undefined ? `${known}${of}` : `${loaded}+${of}`;
+}
+
+/**
+ * Above the rows when the source the address names isn't among them: only what can be the case.
+ * Archived sources are left out unless they are listed, and filters leave out what they don't
+ * match; with archived ones listed and no filter, the list is the whole product.
+ */
+export function missingSource(filters: Partial<Filters>): string {
+  const archivedHidden = filters.include_archived !== "1";
+  const filtered = FILTER_KEYS.some((k) => k !== "include_archived" && filters[k]);
+  if (archivedHidden && filtered) return "The source this address names isn’t in this list. It may have been archived or filtered out.";
+  if (archivedHidden) return "The source this address names isn’t in this list. It may have been archived.";
+  if (filtered) return "The source this address names isn’t in this list. It may have been filtered out.";
+  return "The source this address names isn’t in this product. It may have been deleted.";
 }
 
 /**
@@ -543,10 +556,9 @@ export function EvidencePage() {
     return `${app}/evidence${s ? `?${s}` : ""}`;
   };
   const active = FILTER_KEYS.filter((k) => f[k]);
+  // Like the panel's filters, a chip or Clear filters keeps the source in the preview, so one a filter hid comes back.
   const without = (keys: (keyof Filters)[]) => {
     const next = new URLSearchParams(params);
-    next.delete("source");
-    next.delete("page");
     for (const k of keys) next.delete(k);
     const s = next.toString();
     return `${app}/evidence${s ? `?${s}` : ""}`;
@@ -574,7 +586,7 @@ export function EvidencePage() {
       {/* Above the rows, where it is seen on arrival however long the list. An empty list says so itself. */}
       {previewed && q.isSuccess && !q.hasNextPage && index < 0 && records.length > 0 ? (
         <p className="sources-gone" role="status">
-          The source this address names isn’t in this list. It may have been archived or filtered out.
+          {missingSource(f)}
         </p>
       ) : null}
       {q.isPending ? (
@@ -590,7 +602,7 @@ export function EvidencePage() {
               Use Search to find what sources say.
             </EmptyState>
           ) : (
-            <EmptyState size="inline" title="No sources match these filters" action={<ButtonLink to={`${app}/evidence`}>Clear filters</ButtonLink>} />
+            <EmptyState size="inline" title="No sources match these filters" action={<ButtonLink to={without([...FILTER_KEYS])}>Clear filters</ButtonLink>} />
           )
         ) : (
           <NoSourcesYet />

@@ -50,6 +50,8 @@ vi.mock("../src/lib/api.ts", async (original) => ({
       return { records: later.records, next_cursor: null };
     }
     if (later.records) return { records: sources, next_cursor: "c2" };
+    // Filtered by a tag, the list leaves out the third source.
+    if (path.includes("tags=")) return { records: sources.slice(0, 2), next_cursor: null };
     return { records: sources, next_cursor: null };
   }),
 }));
@@ -257,6 +259,48 @@ describe("an address naming a source the list doesn't hold", () => {
     await press("Escape");
     expect(here).not.toContain("source=");
     expect(gone()).toBeNull();
+  });
+});
+
+describe("what the line above the rows says of a source not in the list", () => {
+  const gone = () => document.querySelector(".sources-gone");
+  it.each([
+    ["archived sources hidden and no filter", "?source=ELSEWHERE", "The source this address names isn’t in this list. It may have been archived."],
+    ["archived sources hidden and a filter in use", "?source=ELSEWHERE&tags=vans", "The source this address names isn’t in this list. It may have been archived or filtered out."],
+    ["archived sources listed and a filter in use", "?source=ELSEWHERE&tags=vans&include_archived=1", "The source this address names isn’t in this list. It may have been filtered out."],
+    ["archived sources listed and no filter", "?source=ELSEWHERE&include_archived=1", "The source this address names isn’t in this product. It may have been deleted."],
+  ])("with %s, says only what can be the case", async (_, search, said) => {
+    await open(search);
+    await vi.waitFor(() => expect(gone()?.textContent).toBe(said));
+  });
+});
+
+describe("clearing the filter that hid the source in the address", () => {
+  const gone = () => document.querySelector(".sources-gone");
+  const controls: [string, () => Element | undefined][] = [
+    ["its chip", () => document.querySelector('[aria-label="Remove filter: Tagged vans"]') ?? undefined],
+    ["Clear filters above the rows", () => Array.from(document.querySelectorAll(".filters-in-use a")).find((a) => a.textContent === "Clear filters")],
+    ["All tags in the panel", () => Array.from(panel.querySelectorAll("a")).find((a) => a.textContent?.includes("All tags"))],
+    ["Clear filters in the panel", () => Array.from(panel.querySelectorAll("a")).find((a) => a.textContent === "Clear filters")],
+  ];
+  it.each(controls)("with %s brings back its preview, and the line goes", async (_, control) => {
+    await open("?tags=vans&source=S3");
+    await vi.waitFor(() => expect(gone()?.textContent).toContain("filtered out"));
+    expect(preview()).toBeNull();
+    await click(control()!);
+    await vi.waitFor(() => expect(preview()).not.toBeNull());
+    expect(here).toContain("source=S3");
+    expect(here).not.toContain("tags=");
+    expect(gone()).toBeNull();
+    expect(document.querySelector('[data-source="S3"]')!.getAttribute("aria-current")).toBe("true");
+  });
+
+  it("keeps it when Include archived is chosen too", async () => {
+    await open("?source=ELSEWHERE");
+    await click(Array.from(panel.querySelectorAll("a")).find((a) => a.textContent?.includes("Include archived"))!);
+    expect(here).toContain("source=ELSEWHERE");
+    expect(here).toContain("include_archived=1");
+    await vi.waitFor(() => expect(gone()?.textContent).toContain("isn’t in this product"));
   });
 });
 

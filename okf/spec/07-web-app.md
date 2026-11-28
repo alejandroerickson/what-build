@@ -909,7 +909,9 @@ The sources, and everything for reading them.
   (Anyone and each person who added sources, with counts, shown when more than one person has or
   while the filter is on; `?added_by`) and **Archived** (Hide archived, Include archived; `?include_archived`). The
   tags and people come from `sources.facets`. While any filter is on, a "Clear filters" link sits
-  above Tags. On a source page the same links lead back to the list.
+  above Tags. On a source page the same links lead back to the list. On the list every filter
+  control (the panel's links, the chips, Clear filters) keeps the order and the source in the
+  preview, so a source a filter hid opens in the preview again once the list holds it.
   Paged. The sheet is titled **Sources** (the section stays Evidence). The filters in use,
   among them the words a link searched for (`?query`, matched in titles, tags and attachment
   names: "“…” in titles, tags or attachment names"), show as removable chips above the rows.
@@ -950,7 +952,10 @@ The sources, and everything for reading them.
 - **The preview beside the list.** The list opens alone. A click on a row opens the preview beside
   it, and a click that opens a new tab, **Open source** and Enter go to the source's page. The
   address holds what it shows (`?source=<id>&page=<n>`); a source further down than what has loaded
-  is loaded on to, and one not in this list is said to be, above the rows. Beside a preview a row
+  is loaded on to, and one not in this list is said to be, above the rows, with only what can be
+  the case: that it may have been archived while archived sources are hidden, that it may have
+  been filtered out while a filter narrows the list, and otherwise, with archived sources listed and
+  no filter, that it isn't in this product and may have been deleted. Beside a preview a row
   keeps only its face, title and date, the sort is a menu and each column scrolls its own. On a
   phone the preview takes the screen, with a button back to the list. Up and down arrows (and J and
   K) move through sources, with the preview open or not; left and right through its pages; Space
