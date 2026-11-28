@@ -32,8 +32,9 @@ which walks every entry; the browser's own button may skip some.
 1. **Web, as Casey, in the synthetic organization.** Open Exploration. Signing in starts the browser
    afresh, so the first of the mockups and Story pages to open is in focus mode, and pressing **Show
    panels** is remembered for both: here the canvas Exploration opens first (the tree's first, which
-   may not be that mockup), both panels hidden with a hint that F brings them back. Press **Show
-   panels** (or F), then open that mockup. *Expect:* the inspector's **View** offers Canvas and
+   may not be that mockup), both panels hidden with a hint that F brings them back, which goes after
+   a few seconds, so look for it straight after arriving. Press **Show panels** (or F), then open
+   that mockup. *Expect:* the inspector's **View** offers Canvas and
    Clickable prototype, Canvas chosen, and **Download as ZIP**. It has no page picker, Fit or Fill.
    The toolbar has no view or download control, and has a menu of the pages. Nothing draws a line
    between pages or counts links, and the mockup's row in the panel carries no extra icon.
