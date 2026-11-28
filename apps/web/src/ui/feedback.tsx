@@ -182,7 +182,8 @@ function minuteAnnouncement(wait: MinuteWait): string {
   if (wait.waiting) said.push("Waiting for the next minute. You’ve used this minute’s calls. WhatBuild carries on by itself.");
   else if (wait.frames) said.push("Bringing back what was refused, a little at a time.");
   if (wait.stopped) said.push("Part of this screen didn’t come back. Your calls a minute keep running out, so WhatBuild stopped asking. Try again asks once more.");
-  if (wait.reloadingStopped) said.push("A page keeps reloading. Each time costs one of your calls a minute, so WhatBuild stopped bringing it back. Try again starts it afresh.");
+  if (wait.reloadingStopped && wait.reloading) said.push("Some pages keep reloading. Each time costs one of your calls a minute, so WhatBuild stopped bringing some of them back, and the others come back with the next minute. Try again starts them afresh.");
+  else if (wait.reloadingStopped) said.push("A page keeps reloading. Each time costs one of your calls a minute, so WhatBuild stopped bringing it back. Try again starts it afresh.");
   else if (wait.reloading) said.push("A page keeps reloading. It comes back with the next minute.");
   return said.join(" ");
 }

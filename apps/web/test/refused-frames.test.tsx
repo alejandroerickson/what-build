@@ -562,6 +562,37 @@ describe("a page that keeps being replaced in its frame", () => {
     status.stop();
   });
 
+  it("is counted above the board whether it is still put back or stopped, so the note never counts fewer as pages stop one after the other", async () => {
+    showCanvas(2);
+    const status = watchMinute();
+    const born = new Map<HTMLIFrameElement, number>();
+    const notes: string[] = [];
+    let mixed = "";
+    for (let at = 0; at < 6 * 60_000 && status.now().reloadingStopped < 2; at += 200) {
+      for (let i = 0; i < 2; i++) {
+        const f = frameOf(i);
+        if (!f) continue;
+        if (!born.has(f)) born.set(f, Date.now());
+        else if (Date.now() - born.get(f)! >= 1_000) reloadsItself(f);
+      }
+      const note = host.querySelector(".xc-note")?.textContent ?? "";
+      notes.push(note);
+      if (status.now().reloading && status.now().reloadingStopped) mixed = note;
+      await advance(200);
+    }
+    notes.push(host.querySelector(".xc-note")?.textContent ?? "");
+    expect(status.now().reloadingStopped).toBe(2);
+    const both = notes.findIndex((n) => n.includes("2 pages keep reloading"));
+    expect(both).toBeGreaterThanOrEqual(0);
+    // Once both keep reloading, the note says two through the turns, the stops, and after.
+    expect(notes.slice(both).filter((n) => !n.includes("2 pages keep reloading"))).toEqual([]);
+    // In the moment one has stopped and the other is still being put back, it says so of each.
+    expect(mixed).toContain("2 pages keep reloading");
+    expect(mixed).toContain("stopped bringing one of them back. The other comes back with the next minute.");
+    expect(host.querySelector(".xc-note")?.textContent).toContain("stopped bringing them back.");
+    status.stop();
+  });
+
   it("is one of at most ten a screen puts back in a minute: the others wait, then come back at the pace of frames", async () => {
     const pages = SCREEN_PUT_BACKS_A_MINUTE + 2;
     showCanvas(pages);
